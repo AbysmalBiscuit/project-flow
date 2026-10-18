@@ -460,6 +460,26 @@ describe("PR links", () => {
 		});
 	});
 
+	test("a PR that closes a closed ticket is not unlinked", async () => {
+		const body = await overview({
+			issues: [issue(6, "closed")],
+			pulls: [pull(56, { body: "Closes #6" })],
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					name: repo,
+					tracker: "github",
+					done: 1,
+					dropped: 0,
+					backlog: 0,
+					inProgress: 0,
+					unlinkedPrs: [],
+				},
+			],
+		});
+	});
+
 	test("a closing reference links a recorded PR to its ticket", async () => {
 		const body = await overview({
 			issues: [issue(12)],

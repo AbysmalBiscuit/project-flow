@@ -115,7 +115,7 @@ function linked(
 	pulls: PullRequest[],
 	repo: string,
 ): PullRequest[] {
-	if (ticket.key === null || ticket.state !== "open") {
+	if (ticket.key === null) {
 		return [];
 	}
 	const key = ticket.key;
@@ -136,7 +136,7 @@ export function projectCounts(
 	const counts = { done: 0, dropped: 0, backlog: 0, inProgress: 0 };
 	for (const ticket of tickets) {
 		const state = ticketState(ticket);
-		const links = linked(ticket, pulls, name);
+		const links = ticket.state === "open" ? linked(ticket, pulls, name) : [];
 		const key = ticket.key;
 		const started =
 			key !== null &&
