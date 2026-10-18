@@ -1,11 +1,7 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
-import {
-	projectCounts,
-	projectSnapshots,
-	startedTodoKeys,
-} from "./domain.ts";
+import { projectCounts, projectSnapshots, startedTodoKeys } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubProjectByNumber, githubTracker } from "./github.ts";
 import page from "./index.html";
@@ -65,16 +61,18 @@ function matchesRef(
 
 function overview(store: Store): Overview {
 	return {
-		projects: store.readTickets().map((row) =>
-			projectCounts(
-				row.name,
-				row.tracker,
-				row.tickets,
-				row.pulls,
-				row.branches,
-				row.startedKeys,
+		projects: store
+			.readTickets()
+			.map((row) =>
+				projectCounts(
+					row.name,
+					row.tracker,
+					row.tickets,
+					row.pulls,
+					row.branches,
+					row.startedKeys,
+				),
 			),
-		),
 	};
 }
 
