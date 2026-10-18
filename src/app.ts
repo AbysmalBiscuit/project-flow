@@ -1,6 +1,11 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
-import type { Overview, ProjectPoll, Snapshot } from "./domain.ts";
+import type {
+	Overview,
+	ProjectPoll,
+	ProjectReport,
+	Snapshot,
+} from "./domain.ts";
 import {
 	checkoutBasenames,
 	checkoutNamesProject,
@@ -8,6 +13,7 @@ import {
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	projectCounts,
+	projectReport,
 	projectSnapshots,
 	reconcilePoll,
 	staleView,
@@ -78,28 +84,35 @@ function matchesRef(
 	return project.owner === ref.owner && project.number === ref.project;
 }
 
-function overview(store: Store): Overview {
+function counted(store: Store) {
 	const rows = store.readTickets();
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
 		tickets: row.tickets,
 	}));
-	const projects = rows.map((row) => {
+	return rows.map((row) => {
 		const goodPoll = store.lastGoodPollAt(row.key);
-		return projectCounts(
-			row.name,
-			row.tracker,
-			row.tickets,
-			row.pulls,
-			row.branches,
-			row.startedKeys,
-			all,
-			{
-				fetchedAt: goodPoll?.toISOString() ?? null,
-				error: store.projectError(row.key),
-			},
-		);
+		return {
+			row,
+			counts: projectCounts(
+				row.name,
+				row.tracker,
+				row.tickets,
+				row.pulls,
+				row.branches,
+				row.startedKeys,
+				all,
+				{
+					fetchedAt: goodPoll?.toISOString() ?? null,
+					error: store.projectError(row.key),
+				},
+			),
+		};
 	});
+}
+
+function overview(store: Store): Overview {
+	const projects = counted(store).map((item) => item.counts);
 	const goodPolls = projects.flatMap((project) => {
 		const at = store.lastGoodPollAt(project.name);
 		return at === null ? [] : [at.toISOString()];
@@ -111,6 +124,20 @@ function overview(store: Store): Overview {
 			goodPolls.length === 0 ? null : (goodPolls.sort()[0] ?? null),
 		),
 	};
+}
+
+function reportFor(
+	store: Store,
+	name: string,
+	ticket: string | null,
+): ProjectReport | null {
+	const match = counted(store).find(
+		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
+	);
+	if (match === undefined) {
+		return null;
+	}
+	return projectReport(match.counts, match.row.tickets, ticket);
 }
 
 function mergeFound(
@@ -516,11 +543,26 @@ export async function start(options: StartOptions): Promise<Running> {
 	const server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
+		development: { hmr: false, console: false },
 		routes: {
 			"/": page,
 			"/projects/*": page,
 			"/api/overview": {
 				GET: () => Response.json(overview(opened.store)),
+			},
+			"/api/projects/:name": {
+				GET: (request) => {
+					const name = decodeURIComponent(request.params.name);
+					const ticket = new URL(request.url).searchParams.get("ticket");
+					const report = reportFor(opened.store, name, ticket);
+					if (report === null) {
+						return Response.json(
+							{ error: "project not found" },
+							{ status: 404 },
+						);
+					}
+					return Response.json(report);
+				},
 			},
 			"/api/events": {
 				GET: (request: Request) => {
