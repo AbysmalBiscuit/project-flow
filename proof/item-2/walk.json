@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/item-1/serve.mjs"],
+	"steps": [
+		{ "goto": "/" },
+		{ "click": "#tab-table" },
+		{ "click": "#sort-blockers" },
+		{ "assert_text": "First acme/launch" },
+		{ "shot": "sorted-by-blockers" },
+		{ "click": "#sort-progress" },
+		{ "assert_text": "First acme/launch" },
+		{ "shot": "sorted-by-progress" },
+		{ "click": "#sort-needs-you" },
+		{ "assert_text": "First acme/launch" },
+		{ "shot": "sorted-by-needs-you" },
+		{ "goto": "/" },
+		{ "assert_text": "Needs you" },
+		{ "shot": "tab-remembered" }
+	]
+}

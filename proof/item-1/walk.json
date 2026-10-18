@@ -3,8 +3,21 @@
 	"serve": ["bun", "proof/item-1/serve.mjs"],
 	"steps": [
 		{ "goto": "/" },
-		{ "assert_text": "Widget board" },
-		{ "assert_text": "Backlog 1" },
-		{ "shot": "found-project" }
+		{ "click": "#tab-graph" },
+		{ "assert_text": "acme/board" },
+		{ "assert_text": "acme/launch blocked by acme/board#9" },
+		{ "click": "#node-acme-board a" },
+		{ "assert_text": "Opened acme/board" },
+		{ "shot": "graph-open-project" },
+		{ "click": ".back" },
+		{ "click": "#edge-acme-board-9" },
+		{ "assert_text": "Opened acme/board acme/board#9" },
+		{ "shot": "graph-open-blocker" },
+		{ "click": ".back" },
+		{ "click": "#tab-table" },
+		{ "assert_text": "acme/launch" },
+		{ "click": "#row-acme-launch a" },
+		{ "assert_text": "Opened acme/launch" },
+		{ "shot": "table-open-project" }
 	]
 }
