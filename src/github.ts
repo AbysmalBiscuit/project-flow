@@ -14,7 +14,7 @@ const githubIssue = z.object({
 	title: z.string(),
 	state: z.string(),
 	state_reason: z.string().nullable(),
-	updated_at: z.string().optional(),
+	updated_at: z.string(),
 	body: z.string().nullable().optional(),
 	issue_dependencies_summary: z
 		.object({
@@ -371,7 +371,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 				nodes {
 					content {
 						__typename
-						... on Issue { number title state stateReason repository { nameWithOwner } }
+						... on Issue { number title state stateReason updatedAt repository { nameWithOwner } }
 					}
 				}
 				pageInfo { hasNextPage endCursor }
@@ -394,6 +394,7 @@ const projectItems = z.object({
 									title: z.string().optional(),
 									state: z.string().optional(),
 									stateReason: z.string().nullable().optional(),
+									updatedAt: z.string().optional(),
 									repository: z
 										.object({ nameWithOwner: z.string() })
 										.optional(),
@@ -493,11 +494,13 @@ async function listProjectTickets(
 				continue;
 			}
 			tickets.push({
+				id: String(content.number),
 				tracker: "github",
 				key: `${content.repository.nameWithOwner}#${content.number}`,
 				title: content.title ?? "",
 				state,
 				stateReason: githubReason(content.stateReason ?? null),
+				updatedAt: content.updatedAt ?? "",
 				ref: `${content.repository.nameWithOwner}#${content.number}`,
 				body: "",
 				blockedBy: [],
@@ -515,14 +518,18 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},
-		async listTickets(repo) {
+		async listTickets(repo, since) {
 			if (!repo.includes("/")) {
 				const tickets = await listProjectTickets(token, fetchImpl, repo);
 				return { name: repo, tickets };
 			}
 			const tickets: Ticket[] = [];
+			const sinceQuery =
+				since === null
+					? ""
+					: `&since=${encodeURIComponent(since.toISOString())}`;
 			const listed = await pages(
-				`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`,
+				`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1${sinceQuery}`,
 				token,
 				fetchImpl,
 				repo,
@@ -543,14 +550,13 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 							? await listBlockedBy(token, fetchImpl, repo, issue.number)
 							: [];
 					tickets.push({
+						id: String(issue.number),
 						tracker: "github",
 						key: `${repo}#${issue.number}`,
 						title: issue.title,
 						state: issue.state,
 						stateReason: issue.state_reason,
-						...(issue.updated_at === undefined
-							? {}
-							: { updatedAt: issue.updated_at }),
+						updatedAt: issue.updated_at,
 						ref: `${repo}#${issue.number}`,
 						body: issue.body ?? "",
 						blockedBy,

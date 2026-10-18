@@ -1,15 +1,22 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
-import { projectCounts, projectSnapshots, startedTodoKeys } from "./domain.ts";
+import {
+	projectCounts,
+	projectSnapshots,
+	staleView,
+	startedTodoKeys,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubProjectByNumber, githubTracker } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
+import { memoryNotifier } from "./notifier.ts";
 import type {
 	Clock,
 	ConfigurationPort,
 	FoundProject,
+	Notifier,
 	Store,
 	TodoSource,
 	Tracker,
@@ -24,8 +31,8 @@ export type StartOptions = {
 	databasePath: string;
 	hostname: string;
 	port: number;
-	now?: () => Date;
 	listTodos?: TodoSource;
+	now?: () => Date;
 };
 
 export type Running = {
@@ -65,20 +72,27 @@ function overview(store: Store): Overview {
 		project: row.key.includes("/") ? row.key : row.name,
 		tickets: row.tickets,
 	}));
+	const projects = rows.map((row) =>
+		projectCounts(
+			row.name,
+			row.tracker,
+			row.tickets,
+			row.pulls,
+			row.branches,
+			row.startedKeys,
+			all,
+		),
+	);
+	const goodPolls = projects.flatMap((project) => {
+		const at = store.lastGoodPollAt(project.name);
+		return at === null ? [] : [at.toISOString()];
+	});
 	return {
-		projects: store
-			.readTickets()
-			.map((row) =>
-				projectCounts(
-					row.name,
-					row.tracker,
-					row.tickets,
-					row.pulls,
-					row.branches,
-					row.startedKeys,
-					all,
-				),
-			),
+		projects,
+		...staleView(
+			store.fetchStatus(),
+			goodPolls.length === 0 ? null : (goodPolls.sort()[0] ?? null),
+		),
 	};
 }
 
@@ -100,17 +114,59 @@ function mergeFound(
 	return found;
 }
 
-async function poll(options: {
+function eventStream(notifier: Notifier): Response {
+	let unsubscribe = () => {};
+	const body = new ReadableStream<Uint8Array>({
+		start(controller) {
+			const encoder = new TextEncoder();
+			unsubscribe = notifier.subscribe((change) => {
+				controller.enqueue(
+					encoder.encode(
+						`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
+					),
+				);
+			});
+		},
+		cancel() {
+			unsubscribe();
+		},
+	});
+	return new Response(body, {
+		headers: {
+			"content-type": "text/event-stream",
+			"cache-control": "no-cache",
+		},
+	});
+}
+
+type PollOptions = {
 	configuration: ConfigurationPort;
 	github: Tracker | null;
 	linear: Tracker | null;
 	store: Store;
 	clock: Clock;
+	notifier: Notifier;
 	token: string | null;
 	fetch: Fetch;
 	listTodos?: TodoSource | undefined;
-}): Promise<Configuration> {
-	const configuration = await options.configuration.read();
+	fallback: Configuration | null;
+};
+
+async function poll(options: PollOptions): Promise<Configuration | null> {
+	const polledAt = options.clock.now();
+	let configuration: Configuration;
+	try {
+		configuration = await options.configuration.read();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "poll failed";
+		options.store.recordFetchError(message);
+		if (options.fallback !== null) {
+			options.notifier.publish({
+				overview: overview(options.store),
+			});
+		}
+		return options.fallback;
+	}
 	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
 	const linear = options.linear;
 	if (
@@ -174,45 +230,85 @@ async function poll(options: {
 			)
 			.map((project) => project.key),
 	);
+	let failed: string | null = null;
 	const listed = [];
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
 			throw new Error(missingLinearKey);
 		}
-		const pin = project.key;
-		const listedTickets = await tracker.listTickets(pin);
-		const pulls = await tracker.listPulls(pin);
-		const branches =
-			project.tracker === "github" && github !== null
-				? await github.listBranches(project.key)
-				: [];
-		listed.push({
-			...project,
-			name: project.name ?? listedTickets.name,
-			tickets: listedTickets.tickets,
-			pulls,
-			branches,
-			startedKeys,
-			pinned: pinnedKeys.has(project.key),
-			hidden: hiddenKeys.has(project.key),
-			...(project.closed === undefined ? {} : { closed: project.closed }),
-		});
+		const since = options.store.lastGoodPollAt(project.key);
+		try {
+			const listedTickets = await tracker.listTickets(project.key, since);
+			const pulls = await tracker.listPulls(project.key);
+			const branches =
+				project.tracker === "github" && github !== null
+					? await github.listBranches(project.key)
+					: [];
+			listed.push({
+				...project,
+				name: project.name ?? listedTickets.name,
+				tickets: listedTickets.tickets,
+				pulls,
+				branches,
+				startedKeys,
+				pinned: pinnedKeys.has(project.key),
+				hidden: hiddenKeys.has(project.key),
+				...(project.closed === undefined ? {} : { closed: project.closed }),
+			});
+			options.store.recordGoodPoll(project.key, polledAt);
+		} catch (error) {
+			failed = error instanceof Error ? error.message : "poll failed";
+			const stored = options.store
+				.readTickets()
+				.find((row) => row.key === project.key);
+			if (stored !== undefined) {
+				listed.push({
+					...project,
+					tickets: stored.tickets,
+					pulls: stored.pulls,
+					branches: stored.branches,
+					startedKeys,
+					pinned: pinnedKeys.has(project.key),
+					hidden: hiddenKeys.has(project.key),
+					...(project.closed === undefined
+						? {}
+						: { closed: project.closed }),
+				});
+			}
+		}
 	}
-	options.store.replaceTickets(
-		projectSnapshots(
-			listed,
-			options.clock.now(),
-			configuration.activityWindowDays,
-		),
+	const shown = projectSnapshots(
+		listed,
+		options.clock.now(),
+		configuration.activityWindowDays,
 	);
+	if (options.store.readTickets().length === 0) {
+		options.store.replaceTickets(shown);
+	} else {
+		const kept = options.store.readTickets().filter((row) => {
+			return shown.some((next) => next.key === row.key);
+		});
+		options.store.replaceTickets(kept);
+		options.store.mergeTickets(shown);
+	}
+	if (failed !== null) {
+		options.store.recordFetchError(failed);
+	}
+	options.notifier.publish({
+		overview: overview(options.store),
+	});
 	return configuration;
 }
 
 export async function start(options: StartOptions): Promise<Running> {
 	const opened = sqliteStore(options.databasePath);
-	await poll({
-		configuration: { read: () => loadConfiguration(options.configPath) },
+	const notifier = memoryNotifier();
+	const clock = { now: options.now ?? (() => new Date()) };
+	const configurationPort = {
+		read: () => loadConfiguration(options.configPath),
+	};
+	const trackers = {
 		github:
 			options.token === null
 				? null
@@ -221,12 +317,45 @@ export async function start(options: StartOptions): Promise<Running> {
 			options.linearKey === null
 				? null
 				: linearTracker(options.linearKey, options.fetch, options.token),
+	};
+	const pollOptions: PollOptions = {
+		configuration: configurationPort,
+		...trackers,
 		store: opened.store,
-		clock: { now: options.now ?? (() => new Date()) },
+		clock,
+		notifier,
 		token: options.token,
 		fetch: options.fetch,
 		listTodos: options.listTodos,
-	});
+		fallback: null,
+	};
+	const polled = await poll(pollOptions);
+	if (polled === null || opened.store.readTickets().length === 0) {
+		const message = opened.store.fetchStatus().error ?? "poll failed";
+		opened.close();
+		throw new Error(message);
+	}
+	let configuration = polled;
+	pollOptions.fallback = configuration;
+	let polling = false;
+	const pollAgain = async (): Promise<void> => {
+		if (polling) {
+			return;
+		}
+		polling = true;
+		try {
+			const next = await poll(pollOptions);
+			if (next !== null) {
+				configuration = next;
+				pollOptions.fallback = configuration;
+			}
+		} finally {
+			polling = false;
+		}
+	};
+	const timer = setInterval(() => {
+		void pollAgain();
+	}, configuration.pollIntervalSeconds * 1_000);
 	const server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
@@ -236,11 +365,21 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/overview": {
 				GET: () => Response.json(overview(opened.store)),
 			},
+			"/api/events": {
+				GET: () => eventStream(notifier),
+			},
+			"/api/refresh": {
+				POST: async () => {
+					await pollAgain();
+					return new Response(null, { status: 204 });
+				},
+			},
 		},
 	});
 	return {
 		url: server.url,
 		stop: async () => {
+			clearInterval(timer);
 			await server.stop(true);
 			opened.close();
 		},

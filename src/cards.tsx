@@ -51,6 +51,9 @@ function Cards({ overview }: { overview: Overview }) {
 	return (
 		<main>
 			<h1>Projects</h1>
+			{overview.error !== null ? (
+				<p className="stale">{overview.error}</p>
+			) : null}
 			{opened === null ? null : (
 				<p className="opened">
 					{opened}{" "}
@@ -106,10 +109,27 @@ async function readOverview(): Promise<Overview> {
 	return (await response.json()) as Overview;
 }
 
+function Page() {
+	const [overview, setOverview] = useState<Overview | null>(null);
+	useEffect(() => {
+		const events = new EventSource("/api/events");
+		events.addEventListener("overview", (event) => {
+			setOverview(JSON.parse(event.data) as Overview);
+		});
+		void readOverview().then(setOverview);
+		return () => {
+			events.close();
+		};
+	}, []);
+	if (overview === null) {
+		return null;
+	}
+	return <Cards overview={overview} />;
+}
+
 if (typeof document !== "undefined") {
 	const root = document.getElementById("root");
 	if (root !== null) {
-		const overview = await readOverview();
-		createRoot(root).render(<Cards overview={overview} />);
+		createRoot(root).render(<Page />);
 	}
 }
