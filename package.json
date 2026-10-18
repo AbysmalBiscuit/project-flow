@@ -6,9 +6,8 @@
 	"scripts": {
 		"typecheck": "tsc --noEmit",
 		"test": "bun test --pass-with-no-tests",
-		"lint": "biome lint .",
-		"format": "biome format --write .",
-		"format:check": "biome format ."
+		"check": "biome ci --error-on-warnings .",
+		"format": "biome check --write ."
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.15",
