@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
+import { knownBots } from "./domain.ts";
 
 const githubRepoPin = z.strictObject({
 	tracker: z.literal("github"),
@@ -21,12 +22,15 @@ const linearPin = z.strictObject({
 
 const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
 
+const knownBot = z.enum(knownBots);
+
 const configurationSchema = z.strictObject({
 	pinned: z.array(projectRef).default([]),
 	hidden: z.array(projectRef).default([]),
 	activityWindowDays: z.number().int().positive().default(30),
 	pollIntervalSeconds: z.number().int().positive().default(60),
 	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
+	expectedBots: z.partialRecord(z.string(), z.array(knownBot)).optional(),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;

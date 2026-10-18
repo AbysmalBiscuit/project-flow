@@ -9,6 +9,7 @@ import type {
 import {
 	checkoutBasenames,
 	checkoutNamesProject,
+	expectedBotsFromHistory,
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
@@ -84,7 +85,7 @@ function matchesRef(
 	return project.owner === ref.owner && project.number === ref.project;
 }
 
-function counted(store: Store) {
+function counted(store: Store, configuration: Configuration) {
 	const rows = store.readTickets();
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
@@ -92,6 +93,7 @@ function counted(store: Store) {
 	}));
 	return rows.map((row) => {
 		const goodPoll = store.lastGoodPollAt(row.key);
+		const override = configuration.expectedBots?.[row.key];
 		return {
 			row,
 			counts: projectCounts(
@@ -102,6 +104,7 @@ function counted(store: Store) {
 				row.branches,
 				row.startedKeys,
 				all,
+				override ?? expectedBotsFromHistory(row.pulls),
 				{
 					fetchedAt: goodPoll?.toISOString() ?? null,
 					error: store.projectError(row.key),
@@ -111,11 +114,11 @@ function counted(store: Store) {
 	});
 }
 
-function overview(store: Store): Overview {
-	const projects = counted(store).map((item) => item.counts);
+function overview(store: Store, configuration: Configuration): Overview {
+	const projects = counted(store, configuration).map((item) => item.counts);
 	const goodPolls = projects.flatMap((project) => {
-		const at = store.lastGoodPollAt(project.name);
-		return at === null ? [] : [at.toISOString()];
+		const at = project.fetchedAt;
+		return at === null ? [] : [at];
 	});
 	return {
 		projects,
@@ -126,8 +129,12 @@ function overview(store: Store): Overview {
 	};
 }
 
-function reportFor(store: Store, name: string): ProjectReport | null {
-	const match = counted(store).find(
+function reportFor(
+	store: Store,
+	configuration: Configuration,
+	name: string,
+): ProjectReport | null {
+	const match = counted(store, configuration).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
@@ -204,9 +211,9 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "poll failed";
 		options.store.recordFetchError(message);
-		if (options.store.readTickets().length > 0) {
+		if (options.store.readTickets().length > 0 && options.fallback !== null) {
 			options.notifier.publish({
-				overview: overview(options.store),
+				overview: overview(options.store, options.fallback),
 			});
 		}
 		return options.fallback;
@@ -434,7 +441,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		options.store.recordFetchError(failed);
 	}
 	options.notifier.publish({
-		overview: overview(options.store),
+		overview: overview(options.store, configuration),
 	});
 	return configuration;
 }
@@ -520,7 +527,9 @@ export async function start(options: StartOptions): Promise<Running> {
 				if (opened.store.readTickets().length === 0) {
 					throw error;
 				}
-				notifier.publish({ overview: overview(opened.store) });
+				notifier.publish({
+					overview: overview(opened.store, configuration),
+				});
 			}
 		})().finally(() => {
 			polling = null;
@@ -564,7 +573,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/projects/*": page,
 			"/api/overview": {
 				GET: () => {
-					const body = Response.json(overview(opened.store));
+					const body = Response.json(overview(opened.store, configuration));
 					releaseLists();
 					return body;
 				},
@@ -572,7 +581,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/projects/:name": {
 				GET: (request) => {
 					const name = request.params.name;
-					const report = reportFor(opened.store, name);
+					const report = reportFor(opened.store, configuration, name);
 					if (report === null) {
 						return Response.json(
 							{ error: "project not found" },

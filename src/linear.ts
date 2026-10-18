@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import { githubHeaders, githubPull, pullReview } from "./github.ts";
 import type { FoundProject, Tracker } from "./ports.ts";
 
 export const missingLinearKey =
@@ -341,16 +342,6 @@ async function findLinearProject(
 	return match;
 }
 
-const githubPull = z.object({
-	number: z.number(),
-	title: z.string(),
-	html_url: z.string(),
-	draft: z.boolean().optional(),
-	body: z.string().nullable(),
-	head: z.object({ ref: z.string() }),
-	state: z.string(),
-});
-
 function pullFromUrl(url: string): { repo: string; number: number } | null {
 	const match = url.match(
 		/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)$/,
@@ -510,22 +501,23 @@ export function linearTracker(
 					}
 					const pullResponse = await fetchImpl(
 						`https://api.github.com/repos/${target.repo}/pulls/${target.number}`,
-						{
-							headers: {
-								accept: "application/vnd.github+json",
-								authorization: `Bearer ${githubToken}`,
-								"x-github-api-version": "2022-11-28",
-							},
-						},
+						{ headers: githubHeaders(githubToken) },
 					);
 					if (!pullResponse.ok) {
 						continue;
 					}
 					const pull = githubPull.parse(await pullResponse.json());
-					if (pull.state !== "open") {
+					const merged = (pull.merged_at ?? null) !== null;
+					if (pull.state !== "open" && !merged) {
 						continue;
 					}
-					const keys = [identifier];
+					const review = await pullReview(
+						target.repo,
+						pull.number,
+						pull.head.sha,
+						githubToken,
+						fetchImpl,
+					);
 					pulls.push({
 						number: pull.number,
 						url: pull.html_url,
@@ -533,7 +525,10 @@ export function linearTracker(
 						draft: pull.draft === true,
 						branch: pull.head.ref,
 						body: pull.body ?? "",
-						closingKeys: keys,
+						closingKeys: [identifier],
+						headSha: pull.head.sha,
+						merged,
+						...review,
 					});
 				}
 			}

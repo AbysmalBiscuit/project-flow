@@ -18,7 +18,9 @@ export type TicketState =
 	| "dropped"
 	| "blocked"
 	| "backlog"
-	| "inProgress";
+	| "inProgress"
+	| "inReview"
+	| "awaitingMerge";
 
 export type TicketRef = {
 	tracker: "github" | "linear";
@@ -70,6 +72,33 @@ export type PullRequest = {
 	branch: string;
 	body: string;
 	closingKeys: string[];
+	headSha: string;
+	merged: boolean;
+	checks: BotCheck[];
+	comments: BotComment[];
+	reviews: BotReview[];
+	reactions: BotReaction[];
+};
+
+export type BotCheck = {
+	name: string;
+	status: string;
+	conclusion: string | null;
+};
+
+export type BotComment = {
+	login: string;
+	body: string;
+};
+
+export type BotReview = {
+	login: string;
+	commitId: string;
+};
+
+export type BotReaction = {
+	login: string;
+	content: string;
 };
 
 export type UnlinkedPr = {
@@ -86,6 +115,8 @@ export type ProjectCounts = {
 	blocked: number;
 	backlog: number;
 	inProgress: number;
+	inReview: number;
+	awaitingMerge: number;
 	unlinkedPrs: UnlinkedPr[];
 	tickets: TicketView[];
 	crossProjectBlockers: CrossProjectBlocker[];
@@ -93,6 +124,7 @@ export type ProjectCounts = {
 	progress: number;
 	fetchedAt: string | null;
 	error: string | null;
+	tags: string[];
 };
 
 export type DiagramNode = {
@@ -851,6 +883,148 @@ function blockerProject(
 	return "";
 }
 
+export const knownBots = ["grok", "codex", "greptile"] as const;
+export type KnownBot = (typeof knownBots)[number];
+
+const botLogin: Record<KnownBot, string> = {
+	grok: "grok-code-review[bot]",
+	codex: "chatgpt-codex-connector[bot]",
+	greptile: "greptile-apps[bot]",
+};
+
+const botCheck: Record<KnownBot, RegExp> = {
+	grok: /grok/i,
+	codex: /codex/i,
+	greptile: /greptile/i,
+};
+
+const usageLimit = /usage limit/i;
+const codexMarker = "<!-- codex-pull-request-review-summary -->";
+const greptileMarker = "<!-- greptile_summary -->";
+const codexRow = /^\|[^|\n]*\*\*([^*|\n]+)[^|\n]*\|([^|\n]*)\|/gm;
+
+export function expectedBotsFromHistory(pulls: PullRequest[]): KnownBot[] {
+	const found = new Set<KnownBot>();
+	for (const pull of pulls) {
+		if (!pull.merged) {
+			continue;
+		}
+		for (const bot of knownBots) {
+			if (pullShowsBot(pull, bot)) {
+				found.add(bot);
+			}
+		}
+	}
+	return knownBots.filter((bot) => found.has(bot));
+}
+
+function pullShowsBot(pull: PullRequest, bot: KnownBot): boolean {
+	const login = botLogin[bot];
+	if (pull.checks.some((check) => botCheck[bot].test(check.name))) {
+		return true;
+	}
+	if (pull.comments.some((comment) => comment.login === login)) {
+		return true;
+	}
+	if (pull.reviews.some((review) => review.login === login)) {
+		return true;
+	}
+	return pull.reactions.some((reaction) => reaction.login === login);
+}
+
+type BotPass = { done: boolean; warning: string | null };
+
+function botPass(pull: PullRequest, bot: KnownBot): BotPass {
+	const warning = botWarning(pull, bot);
+	if (warning !== null) {
+		return { done: true, warning };
+	}
+	if (bot === "grok") {
+		const check = pull.checks.find((item) => botCheck.grok.test(item.name));
+		const review = pull.reviews.find(
+			(item) =>
+				item.login === botLogin.grok && item.commitId.startsWith(pull.headSha),
+		);
+		const done = check?.status === "completed" && review !== undefined;
+		return { done, warning: null };
+	}
+	if (bot === "codex") {
+		const summary = pull.comments.find(
+			(comment) =>
+				comment.login === botLogin.codex && comment.body.includes(codexMarker),
+		);
+		const inProgress = pull.reactions.some(
+			(reaction) =>
+				reaction.login === botLogin.codex && reaction.content === "eyes",
+		);
+		const rows = [...(summary?.body.matchAll(codexRow) ?? [])];
+		const completed =
+			summary !== undefined &&
+			rows.length > 0 &&
+			rows.every((row) => (row[2] ?? "").includes("Completed"));
+		const reactionOnly =
+			summary === undefined &&
+			pull.reactions.some(
+				(reaction) =>
+					reaction.login === botLogin.codex && reaction.content !== "eyes",
+			);
+		return { done: (completed || reactionOnly) && !inProgress, warning: null };
+	}
+	const summary = pull.comments.find(
+		(comment) =>
+			comment.login === botLogin.greptile &&
+			comment.body.includes(greptileMarker),
+	);
+	const running = pull.checks.some(
+		(check) =>
+			botCheck.greptile.test(check.name) && check.status !== "completed",
+	);
+	return { done: summary !== undefined && !running, warning: null };
+}
+
+function botWarning(pull: PullRequest, bot: KnownBot): string | null {
+	const check = pull.checks.find((item) => botCheck[bot].test(item.name));
+	if (check?.status === "completed") {
+		if (
+			check.conclusion === "failure" ||
+			check.conclusion === "cancelled" ||
+			check.conclusion === "skipped" ||
+			check.conclusion === "timed_out"
+		) {
+			return `${bot} ${check.conclusion}`;
+		}
+	}
+	const login = botLogin[bot];
+	const limited = pull.comments.some(
+		(comment) => comment.login === login && usageLimit.test(comment.body),
+	);
+	return limited ? `${bot} usage limit` : null;
+}
+
+function reviewState(
+	pulls: PullRequest[],
+	expected: KnownBot[],
+): { state: "inReview" | "awaitingMerge" | null; tags: string[] } {
+	const open = pulls.filter((pull) => !pull.merged);
+	if (open.length === 0 || open.some((pull) => pull.draft)) {
+		return { state: null, tags: [] };
+	}
+	const tags: string[] = [];
+	let waiting = false;
+	for (const pull of open) {
+		for (const bot of expected) {
+			const pass = botPass(pull, bot);
+			if (pass.warning !== null) {
+				tags.push(pass.warning);
+			}
+			if (!pass.done) {
+				waiting = true;
+			}
+		}
+	}
+	return { state: waiting ? "inReview" : "awaitingMerge", tags };
+}
+
 export function projectCounts(
 	name: string,
 	tracker: ProjectCounts["tracker"],
@@ -859,13 +1033,24 @@ export function projectCounts(
 	branches: string[] = [],
 	startedKeys: string[] = [],
 	all: { project: string; tickets: Ticket[] }[] = [{ project: name, tickets }],
-	status: FetchStatus = { fetchedAt: null, error: null },
+	expectedBots: KnownBot[],
+	status: FetchStatus,
 ): ProjectCounts {
 	const index = indexTickets(all.flatMap((group) => group.tickets));
 	const parsed = parseBodies(all);
-	const counts = { done: 0, dropped: 0, blocked: 0, backlog: 0, inProgress: 0 };
+	const counts = {
+		done: 0,
+		dropped: 0,
+		blocked: 0,
+		backlog: 0,
+		inProgress: 0,
+		inReview: 0,
+		awaitingMerge: 0,
+	};
+	const tags = new Set<string>();
 	const views: TicketView[] = [];
 	const cross = new Map<string, CrossProjectBlocker>();
+	const active = pulls.filter((pull) => !pull.merged);
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed);
 		const state = ticketState(
@@ -875,16 +1060,27 @@ export function projectCounts(
 				return ref === null ? [] : [ref];
 			}),
 		);
-		const links = ticket.state === "open" ? linked(ticket, pulls, name) : [];
+		const links = ticket.state === "open" ? linked(ticket, active, name) : [];
 		const key = ticket.key;
 		const started =
 			key !== null &&
 			startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
 		const pushed =
 			key !== null && branches.some((branch) => branchLinksTicket(branch, key));
-		const moving = links.some((pull) => pull.draft) || pushed || started;
-		const shown: TicketState =
-			state === "backlog" && moving ? "inProgress" : state;
+		const review = reviewState(links, expectedBots);
+		for (const tag of review.tags) {
+			tags.add(tag);
+		}
+		const draft = links.some((pull) => pull.draft);
+		const moving = draft || pushed || started;
+		let shown: TicketState = state;
+		if (state === "backlog" && draft) {
+			shown = "inProgress";
+		} else if (state === "backlog" && review.state !== null) {
+			shown = review.state;
+		} else if (state === "backlog" && moving) {
+			shown = "inProgress";
+		}
 		counts[shown] += 1;
 		views.push({
 			key: ticket.key,
@@ -923,10 +1119,10 @@ export function projectCounts(
 	}
 	const linkedNumbers = new Set(
 		tickets.flatMap((ticket) =>
-			linked(ticket, pulls, name).map((pull) => pull.number),
+			linked(ticket, active, name).map((pull) => pull.number),
 		),
 	);
-	const unlinkedPrs = pulls
+	const unlinkedPrs = active
 		.filter((pull) => !linkedNumbers.has(pull.number))
 		.map((pull) => ({
 			number: pull.number,
@@ -936,6 +1132,13 @@ export function projectCounts(
 	const needsYou = tickets.filter((ticket) =>
 		needsYouTicket(ticket, tracker),
 	).length;
+	const unlinkedReview = reviewState(
+		active.filter((pull) => !linkedNumbers.has(pull.number)),
+		expectedBots,
+	);
+	for (const tag of unlinkedReview.tags) {
+		tags.add(tag);
+	}
 	return {
 		name,
 		tracker,
@@ -946,6 +1149,7 @@ export function projectCounts(
 		needsYou,
 		progress: progressRatio(counts),
 		...staleView(status, status.fetchedAt),
+		tags: [...tags],
 	};
 }
 
@@ -1258,6 +1462,8 @@ const stateFill: Record<TicketState, string> = {
 	blocked: "#e6a0a0",
 	backlog: "#d0d7de",
 	inProgress: "#f0c674",
+	inReview: "#9ecbff",
+	awaitingMerge: "#b7e1cd",
 };
 
 function defineDiagram(diagram: Omit<Diagram, "definition">): Diagram {
