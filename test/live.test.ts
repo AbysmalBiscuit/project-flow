@@ -247,15 +247,24 @@ function linearPage(nodes: Record<string, unknown>[]): string {
 	});
 }
 
-function linearListSince(body: string): string | null {
+type IssueFilter = {
+	project?: { id?: { eq?: string } };
+	updatedAt?: { gte?: string };
+};
+
+function linearIssueFilter(body: string): IssueFilter | null {
 	const parsed = JSON.parse(body) as {
 		query?: string;
-		variables?: { since?: string | null };
+		variables?: { filter?: IssueFilter; since?: string | null };
 	};
-	if (parsed.query?.includes("viewer")) {
+	if (!parsed.query?.includes("ProjectIssues")) {
 		return null;
 	}
-	return parsed.variables?.since ?? null;
+	return parsed.variables?.filter ?? null;
+}
+
+function linearListSince(body: string): string | null {
+	return linearIssueFilter(body)?.updatedAt?.gte ?? null;
 }
 
 function linearPinFetch(requests: string[]): Fetch {
@@ -545,6 +554,42 @@ describe("live updates", () => {
 				{ tracker: "github", repo },
 				{ tracker: "github", repo: otherRepo },
 			],
+		);
+	});
+
+	test("a full Linear poll omits updatedAt and a later poll filters on it", async () => {
+		const requests: string[] = [];
+		await withServer(
+			linearPinFetch(requests),
+			3600,
+			async (base) => {
+				const first = await fetch(new URL("/api/overview", base));
+				const firstBody = (await first.json()) as OverviewBody;
+				expect(firstBody.projects).toEqual([
+					counts(linearProject, 1, 0, "linear"),
+				]);
+				expect(firstBody.error).toBeNull();
+				const again = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(again.status).toBe(204);
+				const filters = requests
+					.map(linearIssueFilter)
+					.filter((filter) => filter !== null);
+				expect(filters[0]).toEqual({
+					project: { id: { eq: "project-1" } },
+				});
+				expect(filters[0]?.updatedAt).toBeUndefined();
+				expect(filters[1]).toEqual({
+					project: { id: { eq: "project-1" } },
+					updatedAt: { gte: goodPoll },
+				});
+			},
+			[{ tracker: "linear", project: linearProject }],
+			{
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
 		);
 	});
 

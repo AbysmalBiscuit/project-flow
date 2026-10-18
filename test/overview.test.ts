@@ -846,8 +846,14 @@ describe("GET /api/overview", () => {
 			);
 			expect(sent.every((call) => call.query.includes("state"))).toBe(true);
 			expect(sent.map((call) => call.variables)).toEqual([
-				{ project: "project-1", after: null, since: null },
-				{ project: "project-1", after: "page-2", since: null },
+				{
+					filter: { project: { id: { eq: "project-1" } } },
+					after: null,
+				},
+				{
+					filter: { project: { id: { eq: "project-1" } } },
+					after: "page-2",
+				},
 			]);
 		} finally {
 			await cleanup();

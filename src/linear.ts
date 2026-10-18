@@ -57,22 +57,18 @@ const projectQuery = `query ProjectByPin($pin: String!) {
 	}
 }`;
 
-const query = `query ProjectIssues($project: String!, $after: String, $since: DateTime) {
+const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 	issues(
 		first: 50
 		after: $after
 		includeArchived: true
-		filter: {
-			project: { id: { eq: $project } }
-			updatedAt: { gte: $since }
-		}
+		filter: $filter
 	) {
 		nodes {
 			identifier
 			title
 			description
 			state { type }
-			updatedAt
 			attachments {
 				nodes { url title sourceType }
 			}
@@ -335,6 +331,17 @@ function pullFromUrl(url: string): { repo: string; number: number } | null {
 
 type ListedIssue = z.infer<typeof issueNode>;
 
+function issueFilter(
+	project: string,
+	since: Date | null,
+): { project: { id: { eq: string } }; updatedAt?: { gte: string } } {
+	const filter = { project: { id: { eq: project } } };
+	if (since === null) {
+		return filter;
+	}
+	return { ...filter, updatedAt: { gte: since.toISOString() } };
+}
+
 async function issuePages(
 	key: string,
 	fetchImpl: Fetch,
@@ -350,9 +357,8 @@ async function issuePages(
 			body: JSON.stringify({
 				query,
 				variables: {
-					project,
+					filter: issueFilter(project, since),
 					after,
-					since: since?.toISOString() ?? null,
 				},
 			}),
 		});
