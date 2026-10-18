@@ -840,6 +840,66 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a merged history page skips the closing-refs query", async () => {
+		const requests: string[] = [];
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: async (input, init) => {
+						const url = urlOf(input);
+						const body = typeof init?.body === "string" ? init.body : "";
+						requests.push(
+							url === "https://api.github.com/graphql" ? body : url,
+						);
+						return githubFetch({
+							issues: [issue(8)],
+							pulls: [pull(95)],
+							checksBySha: {},
+							commentsByPull: {},
+							reviewsByPull: {},
+							reactionsByPull: {},
+							mergedPulls: [mergedPull()],
+						})(input, init);
+					},
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			await checks;
+			const graphql = requests.filter((item) =>
+				item.includes("LinkedDevelopment"),
+			);
+			expect(graphql).toHaveLength(1);
+			expect(graphql[0]).toContain('"number":95');
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a merged PR does not move an open ticket", async () => {
 		const body = await overview({
 			issues: [issue(8)],
@@ -959,6 +1019,29 @@ describe("review cycle", () => {
 						merged_at: "2026-10-01T00:00:00Z",
 					});
 				}
+				if (
+					url ===
+					`https://api.github.com/repos/${other}/pulls?state=closed&per_page=10&page=1`
+				) {
+					return page([
+						{
+							number: 2,
+							title: "merged elsewhere",
+							state: "closed",
+							draft: false,
+							html_url: `https://github.com/${other}/pull/2`,
+							head: { ref: "2-merged", sha: older },
+							body: "",
+							merged_at: "2026-10-01T00:00:00Z",
+						},
+					]);
+				}
+				if (
+					url ===
+					`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`
+				) {
+					return page([]);
+				}
 				if (url.includes(`/repos/${other}/`) && url.includes("/comments?")) {
 					return page([
 						{ user: { login: greptile }, body: "<!-- greptile_summary -->" },
@@ -1057,6 +1140,12 @@ describe("review cycle", () => {
 				if (url === "https://api.github.com/user") {
 					return page({ login: "lev" });
 				}
+				if (
+					url ===
+					`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`
+				) {
+					return page([mergedPull()]);
+				}
 				if (url === "https://api.github.com/repos/acme/widget/pulls/96") {
 					return page({
 						...pull(96, 8),
@@ -1065,6 +1154,11 @@ describe("review cycle", () => {
 				}
 				if (url.includes("/commits/") && url.endsWith("/check-runs")) {
 					return page({ check_runs: [] });
+				}
+				if (url.includes("/issues/1/comments?")) {
+					return page([
+						{ user: { login: greptile }, body: "<!-- greptile_summary -->" },
+					]);
 				}
 				if (
 					url.includes("/comments?") ||

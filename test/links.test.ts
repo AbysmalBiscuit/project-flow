@@ -236,6 +236,9 @@ function linearFetch(): Fetch {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
+			if (url.includes("/pulls?state=closed")) {
+				return page([]);
+			}
 			if (url === "https://api.github.com/repos/acme/widget/pulls/77") {
 				return new Response(
 					JSON.stringify(

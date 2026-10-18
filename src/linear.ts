@@ -1,7 +1,12 @@
 import { z } from "zod";
 import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { githubHeaders, githubPull, pullReview } from "./github.ts";
+import {
+	githubHeaders,
+	githubPull,
+	mergedPullHistory,
+	pullReview,
+} from "./github.ts";
 import type { FoundProject, Tracker } from "./ports.ts";
 
 export const missingLinearKey =
@@ -507,8 +512,7 @@ export function linearTracker(
 						continue;
 					}
 					const pull = githubPull.parse(await pullResponse.json());
-					const merged = (pull.merged_at ?? null) !== null;
-					if (pull.state !== "open" && !merged) {
+					if (pull.state !== "open") {
 						continue;
 					}
 					const review = await pullReview(
@@ -528,10 +532,14 @@ export function linearTracker(
 						body: pull.body ?? "",
 						closingKeys: [identifier],
 						headSha: pull.head.sha,
-						merged,
+						merged: false,
 						...review,
 					});
 				}
+			}
+			const repos = [...new Set(pulls.map((pull) => pull.repo))];
+			for (const repo of repos) {
+				pulls.push(...(await mergedPullHistory(repo, githubToken, fetchImpl)));
 			}
 			return pulls;
 		},

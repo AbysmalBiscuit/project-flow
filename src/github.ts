@@ -730,6 +730,45 @@ function fetchReactions(
 	);
 }
 
+export async function mergedPullHistory(
+	repo: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<PullRequest[]> {
+	const response = await fetchImpl(
+		`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
+		{ headers: githubHeaders(token) },
+	);
+	if (!response.ok) {
+		throw new Error(
+			`GitHub list merged pulls failed (HTTP ${response.status}): ${repo}`,
+		);
+	}
+	const page = z.array(githubPull).parse(await response.json());
+	const pulls: PullRequest[] = [];
+	for (const pull of page) {
+		if ((pull.merged_at ?? null) === null) {
+			continue;
+		}
+		const head = pull.head.sha;
+		const review = await pullReview(repo, pull.number, head, token, fetchImpl);
+		pulls.push({
+			repo,
+			number: pull.number,
+			url: pull.html_url,
+			title: pull.title,
+			draft: pull.draft === true,
+			branch: pull.head.ref,
+			body: pull.body ?? "",
+			closingKeys: [],
+			headSha: head,
+			merged: true,
+			...review,
+		});
+	}
+	return pulls;
+}
+
 export async function pullReview(
 	repo: string,
 	number: number,
@@ -820,21 +859,11 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				repo,
 				"list pulls",
 			);
-			const closedResponse = await fetchImpl(
-				`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
-				{ headers: githubHeaders(token) },
-			);
-			if (!closedResponse.ok) {
-				throw new Error(
-					`GitHub list merged pulls failed (HTTP ${closedResponse.status}): ${repo}`,
-				);
-			}
-			const listed = [...openListed, await closedResponse.json()];
+			const listed = openListed;
 			for (const item of listed) {
 				const page = z.array(githubPull).parse(item);
 				for (const pull of page) {
-					const merged = (pull.merged_at ?? null) !== null;
-					if (pull.state !== "open" && !merged) {
+					if (pull.state !== "open") {
 						continue;
 					}
 					const body = pull.body ?? "";
@@ -878,11 +907,12 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						body,
 						closingKeys: keys,
 						headSha: head,
-						merged,
+						merged: false,
 						...review,
 					});
 				}
 			}
+			pulls.push(...(await mergedPullHistory(repo, token, fetchImpl)));
 			return pulls;
 		},
 		async listBranches(repo) {
