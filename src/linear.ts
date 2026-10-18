@@ -57,19 +57,18 @@ const projectQuery = `query ProjectByPin($pin: String!) {
 	}
 }`;
 
-const query = `query ProjectIssues($project: String!, $after: String) {
+const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 	issues(
 		first: 50
 		after: $after
 		includeArchived: true
-		filter: { project: { id: { eq: $project } } }
+		filter: $filter
 	) {
 		nodes {
 			identifier
 			title
 			description
 			state { type }
-			updatedAt
 			attachments {
 				nodes { url title sourceType }
 			}
@@ -122,8 +121,8 @@ const issueNode = z.object({
 	identifier: z.string().optional(),
 	title: z.string().optional(),
 	description: z.string().nullable().optional(),
+	updatedAt: z.string(),
 	state: z.object({ type: z.string() }).nullable(),
-	updatedAt: z.string().optional(),
 	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	inverseRelations: z
 		.object({
@@ -205,7 +204,7 @@ function blockedBy(node: z.infer<typeof issueNode>): TicketRef[] {
 }
 
 function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
-	if (node.state === null) {
+	if (node.state === null || node.identifier === undefined) {
 		return null;
 	}
 	const mapped = toState(node.state.type);
@@ -213,12 +212,13 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		return null;
 	}
 	return {
+		id: node.identifier,
 		tracker: "linear",
-		key: node.identifier ?? null,
+		key: node.identifier,
 		title: node.title ?? "",
 		state: mapped.state,
 		stateReason: mapped.stateReason,
-		...(node.updatedAt === undefined ? {} : { updatedAt: node.updatedAt }),
+		updatedAt: node.updatedAt,
 		body: node.description ?? "",
 		blockedBy: blockedBy(node),
 	};
@@ -332,10 +332,22 @@ function pullFromUrl(url: string): { repo: string; number: number } | null {
 
 type ListedIssue = z.infer<typeof issueNode>;
 
+function issueFilter(
+	project: string,
+	since: Date | null,
+): { project: { id: { eq: string } }; updatedAt?: { gte: string } } {
+	const filter = { project: { id: { eq: project } } };
+	if (since === null) {
+		return filter;
+	}
+	return { ...filter, updatedAt: { gte: since.toISOString() } };
+}
+
 async function issuePages(
 	key: string,
 	fetchImpl: Fetch,
 	project: string,
+	since: Date | null,
 ): Promise<ListedIssue[]> {
 	const nodes: ListedIssue[] = [];
 	let after: string | null = null;
@@ -345,7 +357,10 @@ async function issuePages(
 			headers: linearHeaders(key),
 			body: JSON.stringify({
 				query,
-				variables: { project, after },
+				variables: {
+					filter: issueFilter(project, since),
+					after,
+				},
 			}),
 		});
 		if (!response.ok) {
@@ -372,23 +387,29 @@ export function linearTracker(
 	githubToken: string | null = null,
 ): Tracker {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
-	const issues = (project: string) => {
-		const cached = issuesByProject.get(project);
+	const issues = (project: string, since: Date | null) => {
+		const cacheKey = `${project}\0${since?.toISOString() ?? ""}`;
+		const cached = issuesByProject.get(cacheKey);
 		if (cached !== undefined) {
 			return cached;
 		}
-		const listed = issuePages(key, fetchImpl, project);
-		issuesByProject.set(project, listed);
+		const listed = issuePages(key, fetchImpl, project, since);
+		issuesByProject.set(cacheKey, listed);
+		void listed.catch(() => {
+			if (issuesByProject.get(cacheKey) === listed) {
+				issuesByProject.delete(cacheKey);
+			}
+		});
 		return listed;
 	};
 	return {
 		findProjects() {
 			return findLinearProjects(key, fetchImpl);
 		},
-		async listTickets(pin) {
+		async listTickets(pin, since) {
 			const project = await findLinearProject(key, pin, fetchImpl);
 			const tickets: Ticket[] = [];
-			for (const node of await issues(project.id)) {
+			for (const node of await issues(project.id, since)) {
 				const ticket = toTicket(node);
 				if (ticket !== null) {
 					tickets.push(ticket);
@@ -398,7 +419,7 @@ export function linearTracker(
 		},
 		async listPulls(pin) {
 			const project = await findLinearProject(key, pin, fetchImpl);
-			const nodes = await issues(project.id);
+			const nodes = await issues(project.id, null);
 			const pulls: PullRequest[] = [];
 			if (githubToken === null) {
 				return pulls;

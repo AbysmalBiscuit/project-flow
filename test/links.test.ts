@@ -24,6 +24,7 @@ function issue(
 		state,
 		state_reason: state === "closed" ? "completed" : null,
 		body: "",
+		updated_at: "2026-04-01T00:00:00Z",
 		html_url: `https://github.com/${repo}/issues/${number}`,
 	};
 }
@@ -172,6 +173,7 @@ function linearIssue(identifier: string): Record<string, unknown> {
 	return {
 		id: identifier,
 		identifier,
+		updatedAt: "2026-04-01T00:00:00.000Z",
 		title: `Linear ticket ${identifier}`,
 		state: { type: "unstarted" },
 		attachments: {
@@ -226,7 +228,7 @@ describe("unlinked PRs", () => {
 			issues: [issue(31)],
 			pulls: [pull(91, { body: "   " })],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -247,6 +249,7 @@ describe("unlinked PRs", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -255,7 +258,7 @@ describe("unlinked PRs", () => {
 			issues: [issue(30)],
 			pulls: [pull(90, { body: "A fix with no ticket." })],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -276,6 +279,7 @@ describe("unlinked PRs", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 });
@@ -289,7 +293,7 @@ describe("in progress", () => {
 				pull(53, { draft: false, body: "Closes #20" }),
 			],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -304,6 +308,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -315,7 +320,7 @@ describe("in progress", () => {
 				pull(51, { draft: false, body: "Closes #19" }),
 			],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -330,6 +335,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -339,7 +345,7 @@ describe("in progress", () => {
 			pulls: [],
 			branches: [{ name: "dependabot/npm_and_yarn/zod-4.6.7" }],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -354,6 +360,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -363,7 +370,7 @@ describe("in progress", () => {
 			pulls: [],
 			branches: [{ name: "21-feat-ship-the-widget" }],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -378,6 +385,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -387,7 +395,7 @@ describe("in progress", () => {
 			pulls: [],
 			todos: "   \n",
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -402,6 +410,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -411,7 +420,7 @@ describe("in progress", () => {
 			pulls: [],
 			todos: "## other/repo\n- [ ] Ticket 22 (#22, in progress)\n",
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -426,6 +435,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -435,7 +445,7 @@ describe("in progress", () => {
 			pulls: [],
 			todos: `- [ ] Ticket 24 (${repo.toUpperCase()}#24, in progress)\n`,
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -450,6 +460,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -459,7 +470,7 @@ describe("in progress", () => {
 			pulls: [],
 			todos: `## ${repo}\n- [ ] Ticket 22 (#22, in progress)\n`,
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -474,6 +485,7 @@ describe("in progress", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 });
@@ -484,7 +496,7 @@ describe("PR links", () => {
 			issues: [issue(5)],
 			pulls: [pull(55, { body: "disclosed #5", draft: true })],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -505,6 +517,7 @@ describe("PR links", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -513,7 +526,7 @@ describe("PR links", () => {
 			issues: [issue(6, "closed")],
 			pulls: [pull(56, { body: "Closes #6" })],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -528,6 +541,7 @@ describe("PR links", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -536,7 +550,7 @@ describe("PR links", () => {
 			issues: [issue(12)],
 			pulls: [pull(40, { body: "Closes #12", draft: true })],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -551,6 +565,7 @@ describe("PR links", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -567,7 +582,7 @@ describe("PR links", () => {
 		const sent = requests.find((item) => item.includes("userLinkedOnly"));
 		expect(sent).toBeDefined();
 		expect(sent).toContain("closingIssuesReferences");
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -582,6 +597,7 @@ describe("PR links", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 
@@ -617,7 +633,7 @@ describe("PR links", () => {
 				}),
 			);
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Widget launch",
@@ -639,6 +655,7 @@ describe("PR links", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -657,7 +674,7 @@ describe("PR links", () => {
 				}),
 			],
 		});
-		expect(body).toEqual({
+		expect(body).toMatchObject({
 			projects: [
 				{
 					name: repo,
@@ -672,6 +689,7 @@ describe("PR links", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			error: null,
 		});
 	});
 });

@@ -23,6 +23,7 @@ const configurationSchema = z.strictObject({
 	pinned: z.array(projectRef).default([]),
 	hidden: z.array(projectRef).default([]),
 	activityWindowDays: z.number().int().positive().default(30),
+	pollIntervalSeconds: z.number().int().positive().default(60),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;
