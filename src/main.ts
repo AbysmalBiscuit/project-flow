@@ -7,14 +7,13 @@ import { start } from "./app.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken } from "./github.ts";
-import { checkLinearKey } from "./linear.ts";
+import { checkLinearKey, missingLinearKey } from "./linear.ts";
 
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
 export const rejectedToken =
 	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
-export const missingLinearKey =
-	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
+export { missingLinearKey };
 export const rejectedLinearKey =
 	"LINEAR_API_KEY was rejected by Linear (HTTP 401): set a valid key.";
 

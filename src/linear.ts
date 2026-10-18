@@ -3,6 +3,9 @@ import type { Ticket } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { Tracker } from "./ports.ts";
 
+export const missingLinearKey =
+	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
+
 const endpoint = "https://api.linear.app/graphql";
 
 const query = `query ProjectIssues($project: String!, $after: String) {

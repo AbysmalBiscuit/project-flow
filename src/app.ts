@@ -5,7 +5,7 @@ import { projectCounts } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubTracker } from "./github.ts";
 import page from "./index.html";
-import { linearTracker } from "./linear.ts";
+import { linearTracker, missingLinearKey } from "./linear.ts";
 import type { Clock, ConfigurationPort, Store, Tracker } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
 
@@ -57,9 +57,7 @@ async function poll(options: {
 			continue;
 		}
 		if (options.linear === null) {
-			throw new Error(
-				"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.",
-			);
+			throw new Error(missingLinearKey);
 		}
 		const tickets = await options.linear.listTickets(pin.project);
 		rows.push({ repo: pin.project, tickets });
