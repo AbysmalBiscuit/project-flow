@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectCounts } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
@@ -711,12 +712,12 @@ describe("GET /api/overview", () => {
 					.then(async (response) => {
 						expect(response.status).toBe(200);
 						const body = (await response.json()) as {
-							projects: Record<string, unknown>[];
+							projects: ProjectCounts[];
 							error: string | null;
 						};
 						expect(body.projects).toHaveLength(2);
 						expect(
-							body.projects.find((project) => project["tracker"] === "github"),
+							body.projects.find((project) => project.tracker === "github"),
 						).toEqual({
 							name: repo,
 							tracker: "github",
@@ -767,7 +768,7 @@ describe("GET /api/overview", () => {
 							crossProjectBlockers: [],
 						});
 						expect(
-							body.projects.find((project) => project["tracker"] === "linear"),
+							body.projects.find((project) => project.tracker === "linear"),
 						).toEqual({
 							name: linearName,
 							tracker: "linear",

@@ -204,7 +204,7 @@ function blockedBy(node: z.infer<typeof issueNode>): TicketRef[] {
 }
 
 function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
-	if (node.state === null) {
+	if (node.state === null || node.identifier === undefined) {
 		return null;
 	}
 	const mapped = toState(node.state.type);
@@ -212,8 +212,9 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		return null;
 	}
 	return {
+		id: node.identifier,
 		tracker: "linear",
-		key: node.identifier ?? null,
+		key: node.identifier,
 		title: node.title ?? "",
 		state: mapped.state,
 		stateReason: mapped.stateReason,
