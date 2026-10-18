@@ -13,12 +13,13 @@ export type TicketRef = {
 };
 
 export type Ticket = {
+	id: string;
 	tracker: "github" | "linear";
 	key: string | null;
 	title: string;
 	state: "open" | "closed";
 	stateReason: string | null;
-	updatedAt?: string;
+	updatedAt: string;
 	ref?: string;
 	body: string;
 	blockedBy: TicketRef[];
@@ -69,7 +70,30 @@ export type ProjectCounts = {
 
 export type Overview = {
 	projects: ProjectCounts[];
+	fetchedAt: string | null;
+	error: string | null;
 };
+
+export type FetchStatus = {
+	fetchedAt: string | null;
+	error: string | null;
+};
+
+export function staleView(
+	status: FetchStatus,
+	goodPollAt: string | null,
+): FetchStatus {
+	if (status.error === null) {
+		return { fetchedAt: status.fetchedAt, error: null };
+	}
+	if (goodPollAt === null) {
+		return { fetchedAt: status.fetchedAt, error: status.error };
+	}
+	return {
+		fetchedAt: goodPollAt,
+		error: `${status.error} (stale since ${goodPollAt})`,
+	};
+}
 
 const closing =
 	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#(\d+)/gi;
@@ -87,6 +111,14 @@ function closingKeys(body: string, repo: string): string[] {
 		}
 	}
 	return keys;
+}
+
+export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
+	const byId = new Map(stored.map((ticket) => [ticket.id, ticket]));
+	for (const ticket of incoming) {
+		byId.set(ticket.id, ticket);
+	}
+	return [...byId.values()];
 }
 
 const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);

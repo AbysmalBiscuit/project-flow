@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectCounts } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
@@ -98,49 +99,54 @@ function githubFetch(requests: string[] = []): Fetch {
 async function assertCard(base: string): Promise<void> {
 	const response = await fetch(new URL("/api/overview", base));
 	expect(response.status).toBe(200);
-	expect(await response.json()).toEqual({
-		projects: [
-			{
-				name: repo,
-				tracker: "github",
-				done: 2,
-				dropped: 2,
-				blocked: 0,
-				backlog: 2,
-				inProgress: 0,
-				unlinkedPrs: [],
-				tickets: [
-					{ key: `${repo}#1`, title: "Ticket 1", state: "done", blockers: [] },
-					{
-						key: `${repo}#2`,
-						title: "Ticket 2",
-						state: "dropped",
-						blockers: [],
-					},
-					{
-						key: `${repo}#3`,
-						title: "Ticket 3",
-						state: "dropped",
-						blockers: [],
-					},
-					{ key: `${repo}#4`, title: "Ticket 4", state: "done", blockers: [] },
-					{
-						key: `${repo}#5`,
-						title: "Ticket 5",
-						state: "backlog",
-						blockers: [],
-					},
-					{
-						key: `${repo}#6`,
-						title: "Ticket 6",
-						state: "backlog",
-						blockers: [],
-					},
-				],
-				crossProjectBlockers: [],
-			},
-		],
-	});
+	const body = (await response.json()) as {
+		projects: unknown;
+		fetchedAt: string | null;
+		error: string | null;
+	};
+	expect(body.projects).toEqual([
+		{
+			name: repo,
+			tracker: "github",
+			done: 2,
+			dropped: 2,
+			blocked: 0,
+			backlog: 2,
+			inProgress: 0,
+			unlinkedPrs: [],
+			tickets: [
+				{ key: `${repo}#1`, title: "Ticket 1", state: "done", blockers: [] },
+				{
+					key: `${repo}#2`,
+					title: "Ticket 2",
+					state: "dropped",
+					blockers: [],
+				},
+				{
+					key: `${repo}#3`,
+					title: "Ticket 3",
+					state: "dropped",
+					blockers: [],
+				},
+				{ key: `${repo}#4`, title: "Ticket 4", state: "done", blockers: [] },
+				{
+					key: `${repo}#5`,
+					title: "Ticket 5",
+					state: "backlog",
+					blockers: [],
+				},
+				{
+					key: `${repo}#6`,
+					title: "Ticket 6",
+					state: "backlog",
+					blockers: [],
+				},
+			],
+			crossProjectBlockers: [],
+		},
+	]);
+	expect(body.error).toBeNull();
+	expect(body.fetchedAt).not.toBeNull();
 	const pageResponse = await fetch(new URL("/", base));
 	expect(pageResponse.status).toBe(200);
 	expect(pageResponse.headers.get("content-type")).toContain("text/html");
@@ -249,6 +255,7 @@ describe("GET /api/overview", () => {
 		const repoB = "acme/beta";
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
+		const requests: string[] = [];
 		const recordedFetch =
 			(pinned: string): Fetch =>
 			async (input, init) => {
@@ -268,8 +275,12 @@ describe("GET /api/overview", () => {
 						{ status: 200 },
 					);
 				}
-				const list = `https://api.github.com/repos/${pinned}/issues?state=all&per_page=100&page=1`;
-				if (url === list) {
+				const list = new URL(url);
+				if (
+					list.origin === "https://api.github.com" &&
+					list.pathname === `/repos/${pinned}/issues`
+				) {
+					requests.push(url);
 					return page([ticket(1, "open", null)], null);
 				}
 				if (url.includes("/pulls?") || url.includes("/branches?")) {
@@ -318,7 +329,7 @@ describe("GET /api/overview", () => {
 		};
 		try {
 			const first = await serve(repoA);
-			expect(first).toEqual({
+			expect(first).toMatchObject({
 				projects: [
 					{
 						name: repoA,
@@ -340,9 +351,10 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				error: null,
 			});
 			const second = await serve(repoB);
-			expect(second).toEqual({
+			expect(second).toMatchObject({
 				projects: [
 					{
 						name: repoB,
@@ -364,7 +376,11 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				error: null,
 			});
+			const beta = requests.filter((url) => url.includes(`/repos/${repoB}/`));
+			expect(beta).toHaveLength(1);
+			expect(new URL(beta[0] ?? "").searchParams.get("since")).toBeNull();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -463,8 +479,18 @@ describe("GET /api/overview", () => {
 			},
 			issues: [
 				linearIssue("1", "completed"),
-				{ id: "9", state: { type: "archived-mystery" } },
-				{ id: "10", state: null },
+				{
+					id: "9",
+					identifier: "WID-9",
+					updatedAt: "2026-04-01T00:00:00.000Z",
+					state: { type: "archived-mystery" },
+				},
+				{
+					id: "10",
+					identifier: "WID-10",
+					updatedAt: "2026-04-01T00:00:00.000Z",
+					state: null,
+				},
 			],
 		});
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -493,7 +519,7 @@ describe("GET /api/overview", () => {
 				}),
 			);
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: linearName,
@@ -515,6 +541,7 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -685,11 +712,12 @@ describe("GET /api/overview", () => {
 					.then(async (response) => {
 						expect(response.status).toBe(200);
 						const body = (await response.json()) as {
-							projects: Record<string, unknown>[];
+							projects: ProjectCounts[];
+							error: string | null;
 						};
 						expect(body.projects).toHaveLength(2);
 						expect(
-							body.projects.find((project) => project["tracker"] === "github"),
+							body.projects.find((project) => project.tracker === "github"),
 						).toEqual({
 							name: repo,
 							tracker: "github",
@@ -740,7 +768,7 @@ describe("GET /api/overview", () => {
 							crossProjectBlockers: [],
 						});
 						expect(
-							body.projects.find((project) => project["tracker"] === "linear"),
+							body.projects.find((project) => project.tracker === "linear"),
 						).toEqual({
 							name: linearName,
 							tracker: "linear",
@@ -790,6 +818,7 @@ describe("GET /api/overview", () => {
 							],
 							crossProjectBlockers: [],
 						});
+						expect(body.error).toBeNull();
 						resolve();
 					})
 					.catch(reject);
@@ -818,8 +847,14 @@ describe("GET /api/overview", () => {
 			);
 			expect(sent.every((call) => call.query.includes("state"))).toBe(true);
 			expect(sent.map((call) => call.variables)).toEqual([
-				{ project: "project-1", after: null },
-				{ project: "project-1", after: "page-2" },
+				{
+					filter: { project: { id: { eq: "project-1" } } },
+					after: null,
+				},
+				{
+					filter: { project: { id: { eq: "project-1" } } },
+					after: "page-2",
+				},
 			]);
 		} finally {
 			await cleanup();
@@ -924,7 +959,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: pullRepo,
@@ -1101,7 +1136,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -1321,7 +1356,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Org board",
@@ -1468,7 +1503,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Member launch",
@@ -1822,7 +1857,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Widget board",
@@ -2013,7 +2048,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Pinned board",
@@ -2177,7 +2212,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -2345,7 +2380,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -2509,7 +2544,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -2718,7 +2753,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({ projects: [] });
+			expect(await checks).toMatchObject({ projects: [], error: null });
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -2890,7 +2925,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Quiet linear",
@@ -3023,7 +3058,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({ projects: [] });
+			expect(await checks).toMatchObject({ projects: [], error: null });
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

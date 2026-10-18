@@ -1,5 +1,5 @@
 import type { Configuration } from "./configuration.ts";
-import type { PullRequest, Ticket } from "./domain.ts";
+import type { Overview, PullRequest, Ticket } from "./domain.ts";
 
 export type Clock = {
 	now: () => Date;
@@ -33,7 +33,7 @@ export type TicketList = {
 };
 
 export type Tracker = {
-	listTickets: (project: string) => Promise<TicketList>;
+	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
 	listPulls: (project: string) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
 	findProjects: () => Promise<FoundProject[]>;
@@ -42,6 +42,20 @@ export type Tracker = {
 export type Store = {
 	replaceTickets: (rows: Snapshot[]) => void;
 	readTickets: () => Snapshot[];
+	mergeTickets: (rows: Snapshot[]) => void;
+	lastGoodPollAt: (project: string) => Date | null;
+	recordGoodPoll: (project: string, at: Date) => void;
+	recordFetchError: (message: string) => void;
+	fetchStatus: () => { fetchedAt: string | null; error: string | null };
+};
+
+export type Change = {
+	overview: Overview;
+};
+
+export type Notifier = {
+	publish: (change: Change) => void;
+	subscribe: (send: (change: Change) => void) => () => void;
 };
 
 export type ConfigurationPort = {

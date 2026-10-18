@@ -18,6 +18,7 @@ function issue(
 		title: `Ticket ${number}`,
 		state,
 		state_reason: state === "closed" ? "completed" : null,
+		updated_at: "2026-04-01T00:00:00Z",
 		html_url: `https://github.com/${repo}/issues/${number}`,
 		body,
 		comments_url: `https://api.github.com/repos/${repo}/issues/${number}/comments`,
@@ -121,6 +122,7 @@ function linearIssue(
 		identifier,
 		title: `Linear ${identifier}`,
 		description,
+		updatedAt: "2026-04-01T00:00:00.000Z",
 		state: { type: stateType },
 		inverseRelations: { nodes: [] },
 	};
