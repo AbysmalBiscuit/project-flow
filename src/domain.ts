@@ -91,11 +91,13 @@ export function startedTodoKeys(listing: string): string[] {
 
 function branchLinksTicket(branch: string, key: string): boolean {
 	const number = ticketNumber(key);
-	if (number === null) {
-		return false;
+	if (number !== null) {
+		const leading = new RegExp(`^(?:[^/]+/)?${number}-`);
+		if (leading.test(branch)) {
+			return true;
+		}
 	}
-	const pattern = new RegExp(`(?:^|[^A-Za-z0-9])${number}(?:[^0-9]|$)`);
-	return pattern.test(branch) || branch.includes(key);
+	return key.includes("#") && branch.toLowerCase().includes(key.toLowerCase());
 }
 
 function linked(

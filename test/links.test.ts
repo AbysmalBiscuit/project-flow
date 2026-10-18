@@ -306,6 +306,27 @@ describe("in progress", () => {
 		});
 	});
 
+	test("a dependabot branch links no ticket", async () => {
+		const body = await overview({
+			issues: [issue(4)],
+			pulls: [],
+			branches: [{ name: "dependabot/npm_and_yarn/zod-4.6.7" }],
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					name: repo,
+					tracker: "github",
+					done: 0,
+					dropped: 0,
+					backlog: 1,
+					inProgress: 0,
+					unlinkedPrs: [],
+				},
+			],
+		});
+	});
+
 	test("a pushed branch makes its ticket in progress", async () => {
 		const body = await overview({
 			issues: [issue(21)],
