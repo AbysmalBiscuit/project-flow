@@ -1,21 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import { localProjects, run } from "../src/main.ts";
-import type { CheckoutSource } from "../src/ports.ts";
+import { run } from "../src/main.ts";
 import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
-const named = "other/local-only";
+const named = "lev/local-only";
+const linearName = "Docs cleanup";
+const linearPin = "docs-cleanup-0d42ae5d46d0";
 
-function issue(number: number): Record<string, unknown> {
+function issue(number: number, repo = named): Record<string, unknown> {
 	return {
 		number,
 		title: `Ticket ${number}`,
 		state: "open",
 		state_reason: null,
-		html_url: `https://github.com/${named}/issues/${number}`,
+		html_url: `https://github.com/${repo}/issues/${number}`,
 		updated_at: "2026-10-18T12:00:00.000Z",
 	};
 }
@@ -31,6 +32,10 @@ function localFetch(requests: string[]): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (body.includes("ViewerProjects")) {
+				requests.push(`${urlOf(input)} ${body}`);
+			}
 			return discovered;
 		}
 		const url = urlOf(input);
@@ -39,8 +44,12 @@ function localFetch(requests: string[]): Fetch {
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
-		if (url.includes(`/repos/${named}/issues?`)) {
-			return page([issue(9)]);
+		if (url.includes("/repos/") && url.includes("/issues?")) {
+			const repo = url.split("/repos/")[1]?.split("/issues?")[0];
+			if (repo === named) {
+				return page([issue(9)]);
+			}
+			return page([]);
 		}
 		if (url.includes("/pulls?") || url.includes("/branches?")) {
 			return page([]);
@@ -57,17 +66,97 @@ function localFetch(requests: string[]): Fetch {
 				{ status: 200, headers: { "content-type": "application/json" } },
 			);
 		}
+		if (url === "https://api.linear.app/graphql") {
+			if (body.includes("MemberProjects") || body.includes("viewer")) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: { id: "lev" },
+							projects: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (body.includes("ProjectIssues")) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							issues: {
+								nodes: [
+									{
+										identifier: "WID-4",
+										title: "Write the docs",
+										state: { type: "backlog" },
+										updatedAt: "2026-10-18T12:00:00.000Z",
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (body.includes("TicketProject")) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							issue: {
+								identifier: "WID-4",
+								project: {
+									id: "project-docs",
+									name: linearName,
+									slugId: linearPin,
+									state: "started",
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (body.includes("ProjectByPin")) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							projects: {
+								nodes: [
+									{
+										id: "project-docs",
+										name: linearName,
+										slugId: linearPin,
+									},
+								],
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response(
+				JSON.stringify({ data: { projects: { nodes: [] } } }),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		}
 		return new Response("not recorded", { status: 404 });
 	};
 }
 
 async function overview(input: {
-	checkouts: CheckoutSource;
+	files?: Record<string, string>;
 	todos?: string;
 	requests?: string[];
-}): Promise<unknown> {
+	linear?: boolean;
+	roots?: string;
+	fetch?: Fetch;
+}): Promise<{ body: unknown; requests: string[] }> {
 	const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+	const scan = await mkdtemp(join(tmpdir(), "project-flow-scan-"));
 	const requests = input.requests ?? [];
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<unknown>((resolve, reject) => {
@@ -81,17 +170,27 @@ async function overview(input: {
 		};
 	});
 	try {
+		for (const [relative, body] of Object.entries(input.files ?? {})) {
+			const file = join(scan, relative);
+			await mkdir(join(file, ".."), { recursive: true });
+			await writeFile(file, body);
+		}
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
 			testIo({
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: localFetch(requests),
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					...(input.linear === true
+						? { LINEAR_API_KEY: "recorded-linear-key" }
+						: {}),
+					PROJECT_FLOW_CHECKOUT_ROOTS: input.roots ?? scan,
+				},
+				fetch: input.fetch ?? localFetch(requests),
 				readGhToken: async () => null,
 				databasePath: join(root, "project-flow.sqlite"),
 				now: () => new Date("2026-10-18T12:00:00.000Z"),
 				stdout: (line) => startChecks(line),
 				waitForStop: checks.then(() => undefined),
-				listCheckouts: input.checkouts,
 				...(input.todos === undefined
 					? {}
 					: { listTodos: async () => input.todos ?? "" }),
@@ -99,10 +198,11 @@ async function overview(input: {
 		);
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
-		return await checks;
+		return { body: await checks, requests };
 	} finally {
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
+		await rm(scan, { recursive: true, force: true });
 	}
 }
 
@@ -111,49 +211,124 @@ const card = {
 	tracker: "github",
 	done: 0,
 	dropped: 0,
+	blocked: 0,
 	backlog: 1,
 	inProgress: 0,
 	unlinkedPrs: [],
+	tickets: [
+		{
+			key: `${named}#9`,
+			title: "Ticket 9",
+			state: "backlog",
+			blockers: [],
+		},
+	],
+	crossProjectBlockers: [],
 };
+
+const githubConfig = JSON.stringify({
+	tracker: { kind: "github" },
+	github: { issues_repo: named },
+});
+
+const originConfig = [
+	'[remote "origin"]',
+	`url = https://github.com/${named}.git`,
+	"fetch = +refs/heads/*:refs/remotes/origin/*",
+	"",
+].join("\n");
 
 describe("local projects", () => {
 	test("a project named only by a local checkout appears", async () => {
-		const body = await overview({
-			checkouts: async () => [{ repo: named, tracker: "github" }],
+		const { body, requests } = await overview({
+			files: {
+				"lev/local-only/.git/config": originConfig,
+				"lev/local-only/devkit.toml": "",
+			},
 		});
 		expect(body).toEqual({ projects: [card] });
+		expect(
+			requests.some((request) => request.includes(`/repos/${named}/`)),
+		).toBe(true);
+		expect(
+			requests.filter((request) => request.includes("ViewerProjects")),
+		).toHaveLength(1);
 	});
 
 	test("a project named only by a devkit todo appears", async () => {
-		const checkouts = await localProjects(
-			async () => [
-				{ repo: "   ", tracker: "github", path: "/tmp/blank" },
-				{ repo: named, tracker: "github", path: "/tmp/local-only" },
-			],
-			async () =>
-				JSON.stringify([
-					{ project: "   ", status: "pending" },
-					{ project: "local  only.9-feat", status: "pending" },
-					{
-						project: `local-only.9-feat-ship.${"a".repeat(8)}`,
-						status: "pending",
-						started: false,
-					},
-				]),
-		);
-		const body = await overview({
-			checkouts: async () =>
-				checkouts.filter((checkout) => checkout.repo === named),
+		const { body, requests } = await overview({
+			files: {
+				"lev/named-else/.git/config": originConfig,
+				"lev/named-else/devkit.toml": githubConfig,
+			},
+			todos: JSON.stringify([
+				{ project: "   ", status: "pending" },
+				{ project: "local  only.9-feat", status: "pending" },
+				{
+					project: `local-only.9-feat-ship.${"a".repeat(8)}`,
+					status: "pending",
+					started: false,
+				},
+				null,
+			]),
 		});
 		expect(body).toEqual({ projects: [card] });
+		expect(
+			requests.some((request) => request.includes("/repos/lev/named-else/")),
+		).toBe(false);
+		expect(JSON.stringify(body)).not.toContain("named-else");
+	});
+
+	test("a Linear todo names its open Linear project", async () => {
+		const { body } = await overview({
+			linear: true,
+			files: {
+				"other/docs/.git/config":
+					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
+				"other/docs/devkit.toml": JSON.stringify({
+					tracker: { kind: "linear" },
+				}),
+			},
+			todos: JSON.stringify([
+				{ project: "docs.WID-4-write-the-docs", status: "pending" },
+				null,
+			]),
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					name: linearName,
+					tracker: "linear",
+					done: 0,
+					dropped: 0,
+					blocked: 0,
+					backlog: 1,
+					inProgress: 0,
+					unlinkedPrs: [],
+					tickets: [
+						{
+							key: "WID-4",
+							title: "Write the docs",
+							state: "backlog",
+							blockers: [],
+						},
+					],
+					crossProjectBlockers: [],
+				},
+			],
+		});
 	});
 
 	test("a blank checkout and a repeated-space todo name no project", async () => {
-		const body = await overview({
-			checkouts: async () => [
-				{ repo: "", tracker: "github" },
-				{ repo: "   ", tracker: "github" },
-			],
+		const { body } = await overview({
+			files: {
+				"lev/blank/devkit.toml": JSON.stringify({
+					tracker: { kind: "github" },
+					github: { issues_repo: "   " },
+				}),
+				"lev/blank/.git/config":
+					'[remote "origin"]\nurl = https://github.com/not a repo\n',
+			},
 			todos: JSON.stringify([
 				{ project: "   ", status: "pending" },
 				{ project: "local  only.9-feat", status: "pending" },
@@ -162,30 +337,129 @@ describe("local projects", () => {
 		expect(body).toEqual({ projects: [] });
 	});
 
-	test("a failing checkout read shows no project", async () => {
-		const checkouts = await localProjects(
-			async () => {
-				throw new Error("devkit config show failed");
+	test("a failing checkout read keeps the other projects", async () => {
+		const { body } = await overview({
+			files: {
+				"lev/broken/.git/config": "not a git config [[[",
+				"lev/local-only/.git/config": originConfig,
+				"lev/local-only/devkit.toml": "",
 			},
-			async () => "not json",
-		);
-		const body = await overview({ checkouts: async () => checkouts });
-		expect(body).toEqual({ projects: [] });
+			todos: "not json",
+		});
+		expect(body).toEqual({ projects: [card] });
 	});
 
 	test("an untracked file in a checkout does not name a project", async () => {
-		const checkout = await mkdtemp(join(tmpdir(), "project-flow-checkout-"));
-		const stray = join(checkout, "notes.txt");
-		await writeFile(stray, `${named}\n`);
+		const { body } = await overview({
+			files: {
+				"other/stray/notes.txt": `${named}\n`,
+				"other/stray/.git/config":
+					'[remote "origin"]\nurl = https://github.com/stranger/upstream.git\n',
+			},
+		});
+		expect(body).toEqual({ projects: [] });
+	});
+
+	test("a Linear worktree branch names its open Linear project", async () => {
+		const scan = await mkdtemp(join(tmpdir(), "project-flow-worktree-"));
+		const checkout = join(scan, "other", "docs");
 		try {
-			const body = await overview({
-				checkouts: async () => [
-					{ repo: "", tracker: "github", path: checkout },
+			await mkdir(checkout, { recursive: true });
+			await writeFile(
+				join(checkout, "devkit.toml"),
+				JSON.stringify({ tracker: { kind: "linear" } }),
+			);
+			await Bun.spawn([
+				"git",
+				"-C",
+				checkout,
+				"init",
+				"-q",
+				"-b",
+				"wid-7-write",
+			]).exited;
+			await writeFile(
+				join(checkout, ".git", "config"),
+				`${await Bun.file(join(checkout, ".git", "config")).text()}[remote "origin"]\nurl = git@github.com:other/docs.git\n`,
+			);
+			const { body } = await overview({
+				linear: true,
+				files: {},
+				todos: "[]",
+				roots: scan,
+			});
+			expect(body).toEqual({
+				projects: [
+					{
+						name: linearName,
+						tracker: "linear",
+						done: 0,
+						dropped: 0,
+						blocked: 0,
+						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
+						tickets: [
+							{
+								key: "WID-4",
+								title: "Write the docs",
+								state: "backlog",
+								blockers: [],
+							},
+						],
+						crossProjectBlockers: [],
+					},
 				],
 			});
-			expect(body).toEqual({ projects: [] });
 		} finally {
-			await rm(checkout, { recursive: true, force: true });
+			await rm(scan, { recursive: true, force: true });
 		}
+	});
+
+	test("a missing viewer list keeps a configured checkout", async () => {
+		const requests: string[] = [];
+		const base = localFetch(requests);
+		const { body } = await overview({
+			requests,
+			fetch: async (input, init) => {
+				const bodyText = typeof init?.body === "string" ? init.body : "";
+				if (
+					urlOf(input) === "https://api.github.com/graphql" &&
+					bodyText.includes("ViewerProjects")
+				) {
+					requests.push(bodyText);
+					return new Response(JSON.stringify({ data: {} }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				return base(input, init);
+			},
+			files: {
+				"stranger/configured/.git/config":
+					'[remote "origin"]\nurl = https://github.com/stranger/configured.git\n',
+				"stranger/configured/devkit.toml": JSON.stringify({
+					tracker: { kind: "github" },
+					github: { issues_repo: named },
+				}),
+				"stranger/upstream/.git/config":
+					'[remote "origin"]\nurl = https://github.com/stranger/upstream.git\n',
+			},
+		});
+		expect(body).toEqual({ projects: [card] });
+	});
+
+	test("a third-party clone stays hidden", async () => {
+		const { body, requests } = await overview({
+			files: {
+				"stranger/upstream/.git/config":
+					'[remote "origin"]\nurl = https://github.com/stranger/upstream.git\n',
+				"stranger/upstream/README.md": "third-party\n",
+			},
+		});
+		expect(body).toEqual({ projects: [] });
+		expect(
+			requests.some((request) => request.includes("stranger/upstream")),
+		).toBe(false);
 	});
 });

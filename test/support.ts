@@ -72,9 +72,12 @@ export async function tempConfig(
 }
 
 export function testIo(io: RunIo): RunIo {
+	const scans =
+		io.env.PROJECT_FLOW_CHECKOUT_ROOTS !== undefined ||
+		io.listCheckouts !== undefined;
 	return {
 		listTodos: async () => "",
-		listCheckouts: async () => [],
+		...(scans ? {} : { listCheckouts: async () => [] }),
 		...io,
 	};
 }

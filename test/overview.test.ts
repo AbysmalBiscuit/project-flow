@@ -558,16 +558,19 @@ describe("GET /api/overview", () => {
 		);
 		const unmatched = linearFake({ project: null });
 		try {
-			const result = await run(["--config", path], {
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "recorded-linear-key",
-				},
-				fetch: unmatched,
-				readGhToken: async () => null,
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: unmatched,
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain(pin);
 			expect(result.listened).toBe(false);
@@ -585,16 +588,19 @@ describe("GET /api/overview", () => {
 		);
 		const failing = linearFake({ fail: "lookup", status: 502 });
 		try {
-			const result = await run(["--config", path], {
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "recorded-linear-key",
-				},
-				fetch: failing,
-				readGhToken: async () => null,
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: failing,
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain(pin);
 			expect(result.stderr).toContain("HTTP 502");
@@ -669,7 +675,7 @@ describe("GET /api/overview", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
+				testIo({
 					env: {
 						GITHUB_TOKEN: "recorded-token",
 						LINEAR_API_KEY: "recorded-linear-key",
@@ -679,7 +685,7 @@ describe("GET /api/overview", () => {
 					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
-				},
+				}),
 			);
 			expect(result.exitCode).toBe(0);
 			const overview = (await checks) as {
