@@ -33,8 +33,17 @@ function page(items: Record<string, unknown>[]): Response {
 }
 
 function recordedOrEmpty(url: string): Response | null {
-	if (url.includes("/pulls?") || url.includes("/branches?")) {
+	if (
+		url.includes("/pulls?") ||
+		url.includes("/branches?") ||
+		url.includes("/comments") ||
+		url.includes("/reviews") ||
+		url.includes("/reactions")
+	) {
 		return page([]);
+	}
+	if (url.includes("/check-runs")) {
+		return new Response(JSON.stringify({ check_runs: [] }), { status: 200 });
 	}
 	return null;
 }
@@ -205,6 +214,9 @@ type OverviewBody = {
 		blocked: number;
 		backlog: number;
 		inProgress: number;
+		inReview: number;
+		awaitingMerge: number;
+		tags: string[];
 		unlinkedPrs: unknown[];
 		tickets: {
 			key: string | null;
@@ -239,6 +251,9 @@ function counts(
 		blocked: 0,
 		backlog,
 		inProgress: 0,
+		inReview: 0,
+		awaitingMerge: 0,
+		tags: [],
 		unlinkedPrs: [],
 		tickets,
 		crossProjectBlockers: [],

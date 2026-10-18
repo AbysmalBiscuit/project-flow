@@ -49,6 +49,8 @@ function card(
 		}[];
 		crossProjectBlockers: [];
 	}[];
+	fetchedAt: string;
+	error: null;
 } {
 	return {
 		projects: [
@@ -72,6 +74,8 @@ function card(
 				crossProjectBlockers: [],
 			},
 		],
+		fetchedAt: "2026-10-18T12:00:00.000Z",
+		error: null,
 	};
 }
 
@@ -82,6 +86,7 @@ function issue(number: number): Record<string, unknown> {
 		state: "open",
 		state_reason: null,
 		html_url: `https://github.com/${repo}/issues/${number}`,
+		updated_at: "2026-10-01T00:00:00Z",
 	};
 }
 
@@ -257,6 +262,7 @@ async function overview(recorded: {
 				}),
 				readGhToken: async () => null,
 				databasePath,
+				now: () => new Date("2026-10-18T12:00:00.000Z"),
 				stdout: (line) => startChecks(line),
 				waitForStop: checks.then(() => undefined),
 			}),
@@ -881,6 +887,7 @@ describe("review cycle", () => {
 					},
 					readGhToken: async () => null,
 					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
 					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
 				}),
@@ -975,17 +982,13 @@ describe("review cycle", () => {
 				{
 					identifier: "WID-8",
 					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
 					state: { type: "unstarted" },
 					attachments: {
 						nodes: [
 							{
 								url: "https://github.com/acme/widget/pull/96",
 								title: "ready",
-								sourceType: "github",
-							},
-							{
-								url: `https://github.com/${other}/pull/2`,
-								title: "other history",
 								sourceType: "github",
 							},
 						],
@@ -1005,18 +1008,6 @@ describe("review cycle", () => {
 					return page({
 						...pull(96, 8),
 						html_url: "https://github.com/acme/widget/pull/96",
-					});
-				}
-				if (url === `https://api.github.com/repos/${other}/pulls/2`) {
-					return page({
-						number: 2,
-						title: "merged elsewhere",
-						state: "closed",
-						draft: false,
-						html_url: `https://github.com/${other}/pull/2`,
-						head: { ref: "2-merged", sha: older },
-						body: "",
-						merged_at: "2026-10-01T00:00:00Z",
 					});
 				}
 				if (
@@ -1071,6 +1062,7 @@ describe("review cycle", () => {
 					fetch: fetchImpl,
 					readGhToken: async () => null,
 					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
 					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
 				}),
@@ -1119,6 +1111,7 @@ describe("review cycle", () => {
 				{
 					identifier: "WID-8",
 					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
 					state: { type: "unstarted" },
 					attachments: {
 						nodes: [
@@ -1181,6 +1174,7 @@ describe("review cycle", () => {
 					fetch: fetchImpl,
 					readGhToken: async () => null,
 					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
 					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
 				}),
@@ -1213,6 +1207,8 @@ describe("review cycle", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				fetchedAt: "2026-10-18T12:00:00.000Z",
+				error: null,
 			});
 		} finally {
 			await cleanup();
