@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { tempConfig, urlOf } from "./support.ts";
+import { recordedDiscovery, tempConfig, urlOf } from "./support.ts";
 
 const repo = "AbysmalBiscuit/devkit";
 
@@ -64,13 +64,17 @@ function page(items: Record<string, unknown>[]): Response {
 }
 
 function recordedFetch(): Fetch {
-	return async (input) => {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
-		const list = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`;
-		if (url === list) {
+		const list = `https://api.github.com/repos/${repo}/issues?`;
+		if (url.startsWith(list) && url.includes("state=all")) {
 			return page(recorded);
 		}
 		if (url.includes("/pulls?") || url.includes("/branches?")) {
@@ -188,14 +192,11 @@ describe("GET /api/overview blockers", () => {
 							state: "backlog",
 							blockers: [],
 						});
-						expect(blockersOf(tickets, key(426))).toEqual({
-							state: "backlog",
-							blockers: [],
-						});
 						expect(blockersOf(tickets, key(408))).toEqual({
 							state: "blocked",
 							blockers: [key(426)],
 						});
+						expect(blockersOf(tickets, key(426)).blockers).toEqual([]);
 						expect(blockersOf(tickets, key(427))).toEqual({
 							state: "backlog",
 							blockers: [],
@@ -289,13 +290,17 @@ describe("GET /api/overview blockers", () => {
 			linearIssue("SWE-1", "Blocked by: none.", "unstarted"),
 		];
 		const recordedFetch: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
 			if (url === "https://api.linear.app/graphql") {
 				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
+				if (body.includes("viewer") && !body.includes("ProjectIssues")) {
 					return new Response(
 						JSON.stringify({ data: { viewer: { id: "lev" } } }),
 						{ status: 200 },
@@ -303,12 +308,12 @@ describe("GET /api/overview blockers", () => {
 				}
 				return linearPage(linearIssues);
 			}
-			const list = `https://api.github.com/repos/${githubRepo}/issues?state=all&per_page=100&page=1`;
-			const outsideList = `https://api.github.com/repos/${outside}/issues?state=all&per_page=100&page=1`;
-			if (url === list) {
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			const outsideList = `https://api.github.com/repos/${outside}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
 				return page(githubIssues);
 			}
-			if (url === outsideList) {
+			if (url.startsWith(outsideList) && url.includes("state=all")) {
 				return page(outsideIssues);
 			}
 			if (url.includes("/pulls?") || url.includes("/branches?")) {
@@ -422,13 +427,17 @@ describe("GET /api/overview blockers", () => {
 	test("a native GitHub dependency and a native Linear relation are blockers", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
 		const recordedFetch: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
 			if (url === "https://api.linear.app/graphql") {
 				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
+				if (body.includes("viewer") && !body.includes("ProjectIssues")) {
 					return new Response(
 						JSON.stringify({ data: { viewer: { id: "lev" } } }),
 						{ status: 200 },
@@ -473,8 +482,8 @@ describe("GET /api/overview blockers", () => {
 					linearIssue("SWE-9", "", "started"),
 				]);
 			}
-			const list = `https://api.github.com/repos/${githubRepo}/issues?state=all&per_page=100&page=1`;
-			if (url === list) {
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
 				return page([
 					{
 						...issue(373, "Body names nobody."),
@@ -628,14 +637,18 @@ describe("GET /api/overview blockers", () => {
 	test("a blank body, a prose mention and a closed native blocker yield none", async () => {
 		const requests: string[] = [];
 		const githubRepo = "acme/widget";
-		const recordedFetch: Fetch = async (input) => {
+		const recordedFetch: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
 			const url = urlOf(input);
 			requests.push(url);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			const list = `https://api.github.com/repos/${githubRepo}/issues?state=all&per_page=100&page=1`;
-			if (url === list) {
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
 				return page([
 					{ ...issue(1, ""), body: null },
 					issue(2, "This ticket is blocked by the release, with no ref."),
@@ -713,6 +726,9 @@ describe("GET /api/overview blockers", () => {
 							state: "backlog",
 							blockers: [],
 						});
+						expect(requests.some((sent) => sent.includes("/issues/6"))).toBe(
+							false,
+						);
 						expect(blockersOf(tickets, key(10))).toEqual({
 							state: "blocked",
 							blockers: [key(9)],

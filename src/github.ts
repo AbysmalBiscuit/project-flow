@@ -11,6 +11,7 @@ const dependency = z.object({
 
 const githubIssue = z.object({
 	number: z.number(),
+	title: z.string(),
 	state: z.string(),
 	state_reason: z.string().nullable(),
 	updated_at: z.string().optional(),

@@ -62,7 +62,7 @@ function matchesRef(
 function overview(store: Store): Overview {
 	const rows = store.readTickets();
 	const all = rows.map((row) => ({
-		project: row.key,
+		project: row.key.includes("/") ? row.key : row.name,
 		tickets: row.tickets,
 	}));
 	return {

@@ -250,9 +250,13 @@ function asRef(ticket: Ticket): TicketRef | null {
 }
 
 type ParsedBodies = Map<
-	Ticket,
+	string,
 	{ blockedBy: TicketRef[]; blocks: TicketRef[] }
 >;
+
+function parseKey(ticket: Ticket): string {
+	return indexKey(ticket.tracker, ticket.key ?? "");
+}
 
 function parseBodies(
 	groups: { project: string; tickets: Ticket[] }[],
@@ -260,7 +264,7 @@ function parseBodies(
 	const parsed: ParsedBodies = new Map();
 	for (const group of groups) {
 		for (const ticket of group.tickets) {
-			parsed.set(ticket, {
+			parsed.set(parseKey(ticket), {
 				blockedBy: bodyBlockers(ticket, group.project, "blockedBy"),
 				blocks: bodyBlockers(ticket, group.project, "blocks"),
 			});
@@ -276,12 +280,13 @@ export function openBlockers(
 ): Ticket[] {
 	const self = asRef(ticket);
 	const incoming = ticket.blockedBy.filter((ref) => stillOpen(ref, index));
-	const fromBody = (parsed.get(ticket)?.blockedBy ?? []).filter((ref) =>
-		stillOpen(ref, index),
+	const fromBody = (parsed.get(parseKey(ticket))?.blockedBy ?? []).filter(
+		(ref) => stillOpen(ref, index),
 	);
 	const fromBlocks: TicketRef[] = [];
-	for (const [other, lines] of parsed) {
-		if (other.state !== "open" || self === null) {
+	for (const [otherKey, lines] of parsed) {
+		const other = index.get(otherKey);
+		if (other === undefined || other.state !== "open" || self === null) {
 			continue;
 		}
 		if (!lines.blocks.some((ref) => sameRef(ref, self))) {
@@ -554,7 +559,7 @@ export function projectCounts(
 			}
 			const source = [
 				...ticket.blockedBy,
-				...(parsed.get(ticket)?.blockedBy ?? []),
+				...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
 			].find(
 				(ref) =>
 					ref.tracker === blocker.tracker &&
