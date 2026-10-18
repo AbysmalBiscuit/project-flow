@@ -366,7 +366,10 @@ export async function start(options: StartOptions): Promise<Running> {
 				GET: () => Response.json(overview(opened.store)),
 			},
 			"/api/events": {
-				GET: () => eventStream(notifier),
+				GET: (request: Request) => {
+					server.timeout(request, 0);
+					return eventStream(notifier);
+				},
 			},
 			"/api/refresh": {
 				POST: async () => {
