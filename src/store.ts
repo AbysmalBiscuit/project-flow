@@ -19,7 +19,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 						"insert into snapshots (repo, payload) values (?, ?)",
 					);
 					for (const row of rows) {
-						insert.run(row.repo, JSON.stringify(row.tickets));
+						insert.run(row.project, JSON.stringify(row.tickets));
 					}
 				})();
 			},
@@ -31,7 +31,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					payload: string;
 				}[];
 				return rows.map((row) => ({
-					repo: row.repo,
+					project: row.repo,
 					tickets: JSON.parse(row.payload) as Ticket[],
 				}));
 			},

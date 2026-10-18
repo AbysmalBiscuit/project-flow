@@ -31,7 +31,7 @@ function pinKey(pin: Configuration["pinned"][number]): string {
 
 function overview(store: Store, configuration: Configuration): Overview {
 	const rows = new Map(
-		store.readTickets().map((row) => [row.repo, row.tickets]),
+		store.readTickets().map((row) => [row.project, row.tickets]),
 	);
 	return {
 		projects: configuration.pinned.flatMap((pin) => {
@@ -58,14 +58,14 @@ async function poll(options: {
 		const key = pinKey(pin);
 		if (pin.tracker === "github") {
 			const tickets = await options.github.listTickets(key);
-			rows.push({ repo: key, tickets });
+			rows.push({ project: key, tickets });
 			continue;
 		}
 		if (options.linear === null) {
 			throw new Error(missingLinearKey);
 		}
 		const tickets = await options.linear.listTickets(key);
-		rows.push({ repo: key, tickets });
+		rows.push({ project: key, tickets });
 	}
 	options.store.replaceTickets(rows);
 	return configuration;
