@@ -8,6 +8,7 @@ import { loadConfiguration } from "./configuration.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken } from "./github.ts";
 import { checkLinearKey, missingLinearKey } from "./linear.ts";
+import type { TodoSource } from "./ports.ts";
 
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
@@ -29,6 +30,7 @@ export type RunIo = {
 	hostname?: string;
 	port?: number;
 	waitForStop?: Promise<void>;
+	listTodos?: TodoSource;
 };
 
 export type RunResult = {
@@ -43,6 +45,27 @@ export function defaultStorePath(
 ): string {
 	const root = env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
 	return join(root, "project-flow", "project-flow.sqlite");
+}
+
+export async function listDevkitTodos(): Promise<string> {
+	const devkit = Bun.which("devkit");
+	if (devkit === null) {
+		return "";
+	}
+	const proc = Bun.spawn([devkit, "todo", "list", "--all"], {
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	const stdout = proc.stdout;
+	if (typeof stdout === "number" || stdout === undefined) {
+		proc.kill();
+		return "";
+	}
+	const [out, code] = await Promise.all([
+		new Response(stdout).text(),
+		proc.exited,
+	]);
+	return code === 0 ? out : "";
 }
 
 export async function readGhAuthToken(
@@ -196,6 +219,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			databasePath,
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
 			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
+			listTodos: io.listTodos ?? listDevkitTodos,
 		});
 		writeOut(running.url.href);
 		await (io.waitForStop ?? Promise.resolve());
