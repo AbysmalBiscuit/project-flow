@@ -314,15 +314,80 @@ describe("local projects", () => {
 		).toBe(false);
 	});
 
+	test("a TOML devkit.toml names the project and a JSON file does not", async () => {
+		const toml = await overview({
+			linear: true,
+			files: {
+				"other/docs/.git/config":
+					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
+				"other/docs/devkit.toml": '[tracker]\nkind = "linear"\n',
+			},
+			todos: JSON.stringify([
+				{ project: "docs.WID-4-write-the-docs", status: "pending" },
+			]),
+		});
+		expect(toml.body).toEqual({
+			projects: [
+				{
+					name: linearName,
+					tracker: "linear",
+					done: 0,
+					dropped: 0,
+					blocked: 0,
+					backlog: 1,
+					inProgress: 0,
+					unlinkedPrs: [],
+					tickets: [
+						{
+							key: "WID-4",
+							title: "Write the docs",
+							state: "backlog",
+							blockers: [],
+						},
+					],
+					crossProjectBlockers: [],
+				},
+			],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
+		const githubToml = await overview({
+			files: {
+				"stranger/configured/.git/config":
+					'[remote "origin"]\nurl = https://github.com/stranger/configured.git\n',
+				"stranger/configured/devkit.toml": `[tracker]\nkind = "github"\n\n[github]\nissues_repo = "${named}"\n`,
+			},
+		});
+		expect(githubToml.body).toEqual({
+			projects: [card],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
+		const json = await overview({
+			linear: true,
+			files: {
+				"other/docs/.git/config":
+					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
+				"other/docs/devkit.toml": '{"tracker":{"kind":"linear"}}\n',
+			},
+			todos: JSON.stringify([
+				{ project: "docs.WID-4-write-the-docs", status: "pending" },
+			]),
+		});
+		expect(json.body).toEqual({
+			projects: [],
+			fetchedAt: null,
+			error: null,
+		});
+	});
+
 	test("a Linear todo names its open Linear project", async () => {
 		const { body } = await overview({
 			linear: true,
 			files: {
 				"other/docs/.git/config":
 					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
-				"other/docs/devkit.toml": JSON.stringify({
-					tracker: { kind: "linear" },
-				}),
+				"other/docs/devkit.toml": '[tracker]\nkind = "linear"\n',
 			},
 			todos: JSON.stringify([
 				{ project: "docs.WID-4-write-the-docs", status: "pending" },
@@ -359,10 +424,8 @@ describe("local projects", () => {
 	test("a blank checkout and a repeated-space todo name no project", async () => {
 		const { body } = await overview({
 			files: {
-				"lev/blank/devkit.toml": JSON.stringify({
-					tracker: { kind: "github" },
-					github: { issues_repo: "   " },
-				}),
+				"lev/blank/devkit.toml":
+					'[tracker]\nkind = "github"\n\n[github]\nissues_repo = "   "\n',
 				"lev/blank/.git/config":
 					'[remote "origin"]\nurl = https://github.com/not a repo\n',
 			},
@@ -416,7 +479,7 @@ describe("local projects", () => {
 			await mkdir(checkout, { recursive: true });
 			await writeFile(
 				join(checkout, "devkit.toml"),
-				JSON.stringify({ tracker: { kind: "linear" } }),
+				'[tracker]\nkind = "linear"\n',
 			);
 			const init = Bun.spawn(
 				[
@@ -502,10 +565,7 @@ describe("local projects", () => {
 			files: {
 				"stranger/configured/.git/config":
 					'[remote "origin"]\nurl = https://github.com/stranger/configured.git\n',
-				"stranger/configured/devkit.toml": JSON.stringify({
-					tracker: { kind: "github" },
-					github: { issues_repo: named },
-				}),
+				"stranger/configured/devkit.toml": `[tracker]\nkind = "github"\n\n[github]\nissues_repo = "${named}"\n`,
 				"stranger/upstream/.git/config":
 					'[remote "origin"]\nurl = https://github.com/stranger/upstream.git\n',
 			},

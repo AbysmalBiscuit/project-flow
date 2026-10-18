@@ -91,7 +91,7 @@ function originFromConfig(
 
 function parseDevkitConfig(text: string): z.infer<typeof devkitConfig> | null {
 	try {
-		return devkitConfig.parse(JSON.parse(text));
+		return devkitConfig.parse(Bun.TOML.parse(text));
 	} catch {
 		return null;
 	}
