@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { Overview } from "./domain.ts";
 
 function Cards({ overview }: { overview: Overview }) {
@@ -20,19 +21,22 @@ function Cards({ overview }: { overview: Overview }) {
 	);
 }
 
-async function readOverview(): Promise<Overview> {
-	for (;;) {
-		const response = await fetch("/api/overview");
-		const overview = (await response.json()) as Overview;
-		if (overview.projects.length > 0) {
-			return overview;
-		}
-		await new Promise((resolve) => setTimeout(resolve, 200));
-	}
+export function renderCards(overview: Overview): string {
+	return renderToStaticMarkup(<Cards overview={overview} />);
 }
 
-const root = document.getElementById("root");
-if (root !== null) {
-	const overview = await readOverview();
-	createRoot(root).render(<Cards overview={overview} />);
+async function readOverview(): Promise<Overview> {
+	const response = await fetch("/api/overview");
+	if (!response.ok) {
+		throw new Error(`overview failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as Overview;
+}
+
+if (typeof document !== "undefined") {
+	const root = document.getElementById("root");
+	if (root !== null && root.childElementCount === 0) {
+		const overview = await readOverview();
+		createRoot(root).render(<Cards overview={overview} />);
+	}
 }
