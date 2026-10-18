@@ -40,6 +40,13 @@ function page(items: Record<string, unknown>[], next: string | null): Response {
 	return new Response(JSON.stringify(items), { status: 200, headers });
 }
 
+function emptyList(url: string): Response | null {
+	if (url.includes("/pulls?") || url.includes("/branches?")) {
+		return page([], null);
+	}
+	return null;
+}
+
 const recorded = [
 	ticket(1, "closed", "completed"),
 	ticket(2, "closed", "not_planned"),
@@ -78,7 +85,7 @@ function githubFetch(requests: string[] = []): Fetch {
 				headers: { "content-type": "application/json" },
 			});
 		}
-		return new Response("not recorded", { status: 404 });
+		return emptyList(url) ?? new Response("not recorded", { status: 404 });
 	};
 }
 
@@ -196,7 +203,7 @@ function linearFetch(requests: string[]): Fetch {
 				});
 			}
 		}
-		return new Response("not recorded", { status: 404 });
+		return emptyList(url) ?? new Response("not recorded", { status: 404 });
 	};
 }
 
@@ -269,7 +276,7 @@ describe("GET /api/overview", () => {
 				if (url.includes("/pulls?") || url.includes("/branches?")) {
 					return page([], null);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyList(url) ?? new Response("not recorded", { status: 404 });
 			};
 		const serve = async (pinned: string): Promise<unknown> => {
 			const { path, cleanup } = await tempConfig(
@@ -413,7 +420,7 @@ describe("GET /api/overview", () => {
 			if (url === "https://api.linear.app/graphql") {
 				return new Response("unauthorized", { status: 401 });
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		try {
 			const result = await run(
@@ -472,7 +479,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
@@ -544,7 +551,7 @@ describe("GET /api/overview", () => {
 				}
 				return new Response("recorded failure", { status: 500 });
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		try {
 			const result = await run(
@@ -714,7 +721,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -750,6 +757,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -852,7 +861,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1043,7 +1052,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1079,6 +1088,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -1156,7 +1167,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1192,6 +1203,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -1324,7 +1337,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1498,7 +1511,7 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1666,7 +1679,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1699,6 +1712,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -1815,7 +1830,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1851,6 +1866,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -1971,7 +1988,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2007,6 +2024,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -2123,7 +2142,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2159,6 +2178,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -2278,7 +2299,7 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2461,7 +2482,7 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2497,6 +2518,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 0,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -2589,7 +2612,7 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyList(url) ?? new Response("not recorded", { status: 404 });
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {

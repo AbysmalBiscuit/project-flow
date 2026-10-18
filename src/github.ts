@@ -518,6 +518,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			return tickets;
 		},
 		async listPulls(repo) {
+			if (!repo.includes("/")) {
+				return [];
+			}
 			const pulls: PullRequest[] = [];
 			const listed = await pages(
 				`https://api.github.com/repos/${repo}/pulls?state=open&per_page=100&page=1`,
@@ -569,6 +572,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			return pulls;
 		},
 		async listBranches(repo) {
+			if (!repo.includes("/")) {
+				return [];
+			}
 			const names: string[] = [];
 			const listed = await pages(
 				`https://api.github.com/repos/${repo}/branches?per_page=100&page=1`,

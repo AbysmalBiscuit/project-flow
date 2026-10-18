@@ -20,7 +20,10 @@ export function recordedDiscovery(
 			headers: { "content-type": "application/json" },
 		});
 	}
-	if (url === "https://api.github.com/graphql") {
+	if (
+		url === "https://api.github.com/graphql" &&
+		(body.includes("ViewerProjects") || body.includes("OrgProjects"))
+	) {
 		return new Response(
 			JSON.stringify({
 				data: {

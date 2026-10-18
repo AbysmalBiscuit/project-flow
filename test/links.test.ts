@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { tempConfig, testIo, urlOf } from "./support.ts";
+import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 
@@ -55,6 +55,10 @@ function githubFetch(
 	requests: string[] = [],
 ): Fetch {
 	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		requests.push(url);
 		if (url === "https://api.github.com/user") {
@@ -165,6 +169,10 @@ function linearIssue(identifier: string): Record<string, unknown> {
 
 function linearFetch(): Fetch {
 	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
