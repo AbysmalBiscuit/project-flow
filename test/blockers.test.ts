@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, urlOf } from "./support.ts";
+import { linearFake, recordedDiscovery, tempConfig, urlOf } from "./support.ts";
 
 const repo = "AbysmalBiscuit/devkit";
 
@@ -124,20 +124,6 @@ function linearIssue(
 		state: { type: stateType },
 		inverseRelations: { nodes: [] },
 	};
-}
-
-function linearPage(nodes: Record<string, unknown>[]): Response {
-	return new Response(
-		JSON.stringify({
-			data: {
-				issues: {
-					nodes,
-					pageInfo: { hasNextPage: false, endCursor: null },
-				},
-			},
-		}),
-		{ status: 200, headers: { "content-type": "application/json" } },
-	);
 }
 
 describe("GET /api/overview blockers", () => {
@@ -289,41 +275,37 @@ describe("GET /api/overview blockers", () => {
 			linearIssue(linearKey, `Blocks: ${githubRepo}#153`, "started"),
 			linearIssue("SWE-1", "Blocked by: none.", "unstarted"),
 		];
-		const recordedFetch: Fetch = async (input, init) => {
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer") && !body.includes("ProjectIssues")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
+		const recordedFetch = linearFake({
+			project: {
+				id: "project-widget",
+				name: linearProject,
+				slugId: linearProject,
+			},
+			issues: linearIssues,
+			github: async (input) => {
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return new Response(JSON.stringify({ login: "lev" }), {
+						status: 200,
+					});
 				}
-				return linearPage(linearIssues);
-			}
-			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
-			const outsideList = `https://api.github.com/repos/${outside}/issues?`;
-			if (url.startsWith(list) && url.includes("state=all")) {
-				return page(githubIssues);
-			}
-			if (url.startsWith(outsideList) && url.includes("state=all")) {
-				return page(outsideIssues);
-			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
-				return page([]);
-			}
-			if (url.endsWith("/comments")) {
-				return page([]);
-			}
-			return new Response("not recorded", { status: 404 });
-		};
+				const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+				const outsideList = `https://api.github.com/repos/${outside}/issues?`;
+				if (url.startsWith(list) && url.includes("state=all")) {
+					return page(githubIssues);
+				}
+				if (url.startsWith(outsideList) && url.includes("state=all")) {
+					return page(outsideIssues);
+				}
+				if (url.includes("/pulls?") || url.includes("/branches?")) {
+					return page([]);
+				}
+				if (url.endsWith("/comments")) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [
@@ -426,113 +408,109 @@ describe("GET /api/overview blockers", () => {
 
 	test("a native GitHub dependency and a native Linear relation are blockers", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
-		const recordedFetch: Fetch = async (input, init) => {
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer") && !body.includes("ProjectIssues")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
+		const recordedFetch = linearFake({
+			project: {
+				id: "project-widget",
+				name: linearProject,
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					...linearIssue("SWE-13252", "", "unstarted"),
+					inverseRelations: {
+						nodes: [
+							{
+								type: "blocks",
+								issue: {
+									identifier: "SWE-13234",
+									title: "Open Linear blocker",
+									state: { type: "started" },
+									project: { slugId: linearProject },
+								},
+							},
+							{
+								type: "related",
+								issue: {
+									identifier: "SWE-9",
+									title: "Related, not a blocker",
+									state: { type: "started" },
+									project: { slugId: linearProject },
+								},
+							},
+							{
+								type: "blocks",
+								issue: {
+									identifier: "SWE-8",
+									title: "Completed blocker in another project",
+									state: { type: "completed" },
+									project: { slugId: "other-project" },
+								},
+							},
+						],
+					},
+				},
+				linearIssue("SWE-13234", "", "started"),
+				linearIssue("SWE-9", "", "started"),
+			],
+			github: async (input) => {
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return new Response(JSON.stringify({ login: "lev" }), {
+						status: 200,
+					});
 				}
-				return linearPage([
-					{
-						...linearIssue("SWE-13252", "", "unstarted"),
-						inverseRelations: {
-							nodes: [
-								{
-									type: "blocks",
-									issue: {
-										identifier: "SWE-13234",
-										title: "Open Linear blocker",
-										state: { type: "started" },
-										project: { slugId: linearProject },
-									},
-								},
-								{
-									type: "related",
-									issue: {
-										identifier: "SWE-9",
-										title: "Related, not a blocker",
-										state: { type: "started" },
-										project: { slugId: linearProject },
-									},
-								},
-								{
-									type: "blocks",
-									issue: {
-										identifier: "SWE-8",
-										title: "Completed blocker in another project",
-										state: { type: "completed" },
-										project: { slugId: "other-project" },
-									},
-								},
-							],
+				const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+				if (url.startsWith(list) && url.includes("state=all")) {
+					return page([
+						{
+							...issue(373, "Body names nobody."),
+							issue_dependencies_summary: {
+								blocked_by: 1,
+								blocking: 0,
+								total_blocked_by: 1,
+								total_blocking: 0,
+							},
 						},
-					},
-					linearIssue("SWE-13234", "", "started"),
-					linearIssue("SWE-9", "", "started"),
-				]);
-			}
-			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
-			if (url.startsWith(list) && url.includes("state=all")) {
-				return page([
-					{
-						...issue(373, "Body names nobody."),
-						issue_dependencies_summary: {
-							blocked_by: 1,
-							blocking: 0,
-							total_blocked_by: 1,
-							total_blocking: 0,
+						issue(372, "The native blocker."),
+						{
+							...issue(374, "Closed native blocker is not open."),
+							issue_dependencies_summary: {
+								blocked_by: 1,
+								blocking: 0,
+								total_blocked_by: 1,
+								total_blocking: 0,
+							},
 						},
-					},
-					issue(372, "The native blocker."),
-					{
-						...issue(374, "Closed native blocker is not open."),
-						issue_dependencies_summary: {
-							blocked_by: 1,
-							blocking: 0,
-							total_blocked_by: 1,
-							total_blocking: 0,
+					]);
+				}
+				const dependencies = `https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by`;
+				const closedNative = `https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by`;
+				if (url === closedNative) {
+					return page([
+						{
+							number: 9,
+							state: "closed",
+							repository_url: "https://api.github.com/repos/acme/other",
 						},
-					},
-				]);
-			}
-			const dependencies = `https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by`;
-			const closedNative = `https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by`;
-			if (url === closedNative) {
-				return page([
-					{
-						number: 9,
-						state: "closed",
-						repository_url: "https://api.github.com/repos/acme/other",
-					},
-				]);
-			}
-			if (url === dependencies) {
-				return page([
-					{
-						number: 372,
-						state: "open",
-						html_url: `https://github.com/${githubRepo}/issues/372`,
-						repository_url: `https://api.github.com/repos/${githubRepo}`,
-						title: "The native blocker.",
-					},
-				]);
-			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
-				return page([]);
-			}
-			return new Response("not recorded", { status: 404 });
-		};
+					]);
+				}
+				if (url === dependencies) {
+					return page([
+						{
+							number: 372,
+							state: "open",
+							html_url: `https://github.com/${githubRepo}/issues/372`,
+							repository_url: `https://api.github.com/repos/${githubRepo}`,
+							title: "The native blocker.",
+						},
+					]);
+				}
+				if (url.includes("/pulls?") || url.includes("/branches?")) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [
