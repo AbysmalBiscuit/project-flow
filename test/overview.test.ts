@@ -24,6 +24,7 @@ function ticket(
 		title: `Ticket ${number}`,
 		state,
 		state_reason: stateReason,
+		updated_at: "2026-04-01T00:00:00Z",
 		html_url: `https://github.com/${repo}/issues/${number}`,
 		updated_at: "2026-10-18T12:00:00.000Z",
 	};
@@ -98,49 +99,54 @@ function githubFetch(requests: string[] = []): Fetch {
 async function assertCard(base: string): Promise<void> {
 	const response = await fetch(new URL("/api/overview", base));
 	expect(response.status).toBe(200);
-	expect(await response.json()).toEqual({
-		projects: [
-			{
-				name: repo,
-				tracker: "github",
-				done: 2,
-				dropped: 2,
-				blocked: 0,
-				backlog: 2,
-				inProgress: 0,
-				unlinkedPrs: [],
-				tickets: [
-					{ key: `${repo}#1`, title: "Ticket 1", state: "done", blockers: [] },
-					{
-						key: `${repo}#2`,
-						title: "Ticket 2",
-						state: "dropped",
-						blockers: [],
-					},
-					{
-						key: `${repo}#3`,
-						title: "Ticket 3",
-						state: "dropped",
-						blockers: [],
-					},
-					{ key: `${repo}#4`, title: "Ticket 4", state: "done", blockers: [] },
-					{
-						key: `${repo}#5`,
-						title: "Ticket 5",
-						state: "backlog",
-						blockers: [],
-					},
-					{
-						key: `${repo}#6`,
-						title: "Ticket 6",
-						state: "backlog",
-						blockers: [],
-					},
-				],
-				crossProjectBlockers: [],
-			},
-		],
-	});
+	const body = (await response.json()) as {
+		projects: unknown;
+		fetchedAt: string | null;
+		error: string | null;
+	};
+	expect(body.projects).toEqual([
+		{
+			name: repo,
+			tracker: "github",
+			done: 2,
+			dropped: 2,
+			blocked: 0,
+			backlog: 2,
+			inProgress: 0,
+			unlinkedPrs: [],
+			tickets: [
+				{ key: `${repo}#1`, title: "Ticket 1", state: "done", blockers: [] },
+				{
+					key: `${repo}#2`,
+					title: "Ticket 2",
+					state: "dropped",
+					blockers: [],
+				},
+				{
+					key: `${repo}#3`,
+					title: "Ticket 3",
+					state: "dropped",
+					blockers: [],
+				},
+				{ key: `${repo}#4`, title: "Ticket 4", state: "done", blockers: [] },
+				{
+					key: `${repo}#5`,
+					title: "Ticket 5",
+					state: "backlog",
+					blockers: [],
+				},
+				{
+					key: `${repo}#6`,
+					title: "Ticket 6",
+					state: "backlog",
+					blockers: [],
+				},
+			],
+			crossProjectBlockers: [],
+		},
+	]);
+	expect(body.error).toBeNull();
+	expect(body.fetchedAt).not.toBeNull();
 	const pageResponse = await fetch(new URL("/", base));
 	expect(pageResponse.status).toBe(200);
 	expect(pageResponse.headers.get("content-type")).toContain("text/html");
@@ -163,6 +169,7 @@ function linearIssue(
 		id,
 		identifier: `WID-${id}`,
 		title: `Linear ticket ${id}`,
+		updatedAt: "2026-04-01T00:00:00.000Z",
 		state: { type: stateType },
 		updatedAt: "2026-08-18T12:00:00.000Z",
 	};
@@ -268,8 +275,11 @@ describe("GET /api/overview", () => {
 						{ status: 200 },
 					);
 				}
-				const list = `https://api.github.com/repos/${pinned}/issues?state=all&per_page=100&page=1`;
-				if (url === list) {
+				const list = new URL(url);
+				if (
+					list.origin === "https://api.github.com" &&
+					list.pathname === `/repos/${pinned}/issues`
+				) {
 					return page([ticket(1, "open", null)], null);
 				}
 				if (url.includes("/pulls?") || url.includes("/branches?")) {
@@ -318,7 +328,7 @@ describe("GET /api/overview", () => {
 		};
 		try {
 			const first = await serve(repoA);
-			expect(first).toEqual({
+			expect(first).toMatchObject({
 				projects: [
 					{
 						name: repoA,
@@ -340,9 +350,10 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				error: null,
 			});
 			const second = await serve(repoB);
-			expect(second).toEqual({
+			expect(second).toMatchObject({
 				projects: [
 					{
 						name: repoB,
@@ -364,6 +375,7 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				error: null,
 			});
 		} finally {
 			await rm(root, { recursive: true, force: true });
@@ -463,8 +475,18 @@ describe("GET /api/overview", () => {
 			},
 			issues: [
 				linearIssue("1", "completed"),
-				{ id: "9", state: { type: "archived-mystery" } },
-				{ id: "10", state: null },
+				{
+					id: "9",
+					identifier: "WID-9",
+					updatedAt: "2026-04-01T00:00:00.000Z",
+					state: { type: "archived-mystery" },
+				},
+				{
+					id: "10",
+					identifier: "WID-10",
+					updatedAt: "2026-04-01T00:00:00.000Z",
+					state: null,
+				},
 			],
 		});
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -493,7 +515,7 @@ describe("GET /api/overview", () => {
 				}),
 			);
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: linearName,
@@ -515,6 +537,7 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -686,6 +709,7 @@ describe("GET /api/overview", () => {
 						expect(response.status).toBe(200);
 						const body = (await response.json()) as {
 							projects: Record<string, unknown>[];
+							error: string | null;
 						};
 						expect(body.projects).toHaveLength(2);
 						expect(
@@ -790,6 +814,7 @@ describe("GET /api/overview", () => {
 							],
 							crossProjectBlockers: [],
 						});
+						expect(body.error).toBeNull();
 						resolve();
 					})
 					.catch(reject);
@@ -818,8 +843,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(sent.every((call) => call.query.includes("state"))).toBe(true);
 			expect(sent.map((call) => call.variables)).toEqual([
-				{ project: "project-1", after: null },
-				{ project: "project-1", after: "page-2" },
+				{ project: "project-1", after: null, since: null },
+				{ project: "project-1", after: "page-2", since: null },
 			]);
 		} finally {
 			await cleanup();

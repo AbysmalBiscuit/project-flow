@@ -1,0 +1,16 @@
+{
+	"base_url": "http://127.0.0.1:4174",
+	"serve": [
+		"bash",
+		"-c",
+		"cfg=$(mktemp) && printf '%s\\n' '{\"pinned\":[{\"tracker\":\"github\",\"repo\":\"acme/widget\"}]}' > \"$cfg\" && exec bun proof/serve-stale.ts \"$cfg\""
+	],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "acme/widget" },
+		{ "assert_text": "Done 0 Dropped 0 Backlog 1" },
+		{ "assert_text": "stale since 2026-04-01T12:00:00.000Z" },
+		{ "assert_text": "HTTP 500" },
+		{ "shot": "stale-badge" }
+	]
+}
