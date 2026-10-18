@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { tempConfig, urlOf } from "./support.ts";
+import { tempConfig, testIo, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 
@@ -123,15 +123,17 @@ async function overview(
 	try {
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			{
+			testIo({
 				env: { GITHUB_TOKEN: "recorded-token" },
 				fetch: githubFetch(recorded, requests),
 				readGhToken: async () => null,
 				databasePath,
 				stdout: (line) => startChecks(line),
 				waitForStop: checks.then(() => undefined),
-				listTodos: async () => recorded.todos ?? "",
-			},
+				...(recorded.todos === undefined
+					? {}
+					: { listTodos: async () => recorded.todos ?? "" }),
+			}),
 		);
 		expect(result.exitCode).toBe(0);
 		return await checks;
@@ -413,7 +415,7 @@ describe("PR links", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
+				testIo({
 					env: {
 						GITHUB_TOKEN: "recorded-token",
 						LINEAR_API_KEY: "recorded-linear-key",
@@ -423,8 +425,7 @@ describe("PR links", () => {
 					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
-					listTodos: async () => "",
-				},
+				}),
 			);
 			expect(result.exitCode).toBe(0);
 			expect(await checks).toEqual({

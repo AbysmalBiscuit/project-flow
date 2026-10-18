@@ -9,7 +9,7 @@ import {
 	rejectedToken,
 	run,
 } from "../src/main.ts";
-import { tempConfig, urlOf } from "./support.ts";
+import { tempConfig, testIo, urlOf } from "./support.ts";
 
 const valid = JSON.stringify({
 	pinned: [{ tracker: "github", repo: "acme/widget" }],
@@ -41,11 +41,14 @@ describe("startup", () => {
 	test("a missing token exits 1 and names GITHUB_TOKEN", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		try {
-			const result = await run(["--config", path], {
-				env: {},
-				fetch: recordedFetch(401),
-				readGhToken: async () => null,
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {},
+					fetch: recordedFetch(401),
+					readGhToken: async () => null,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toBe(missingToken);
 			expect(result.listened).toBe(false);
@@ -58,11 +61,14 @@ describe("startup", () => {
 		const { path, cleanup } = await tempConfig(valid);
 		const bin = await mkdtemp(join(tmpdir(), "project-flow-no-gh-"));
 		try {
-			const result = await run(["--config", path], {
-				env: { PATH: bin },
-				fetch: recordedFetch(200),
-				readGhToken: readGhAuthToken,
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { PATH: bin },
+					fetch: recordedFetch(200),
+					readGhToken: readGhAuthToken,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toBe(missingToken);
 			expect(result.listened).toBe(false);
@@ -75,13 +81,16 @@ describe("startup", () => {
 	test("a rejected token exits 1 and names GITHUB_TOKEN", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "rejected-token" },
-				fetch: recordedFetch(401),
-				readGhToken: async () => {
-					throw new Error("gh must not run when GITHUB_TOKEN is set");
-				},
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "rejected-token" },
+					fetch: recordedFetch(401),
+					readGhToken: async () => {
+						throw new Error("gh must not run when GITHUB_TOKEN is set");
+					},
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toBe(rejectedToken);
 			expect(result.listened).toBe(false);
@@ -93,11 +102,14 @@ describe("startup", () => {
 	test("a non-ok token check exits 1 and names the status", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: recordedFetch(500),
-				readGhToken: async () => null,
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(500),
+					readGhToken: async () => null,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
 			expect(result.listened).toBe(false);
@@ -107,44 +119,56 @@ describe("startup", () => {
 	});
 
 	test("a blank --config exits 1 and does not listen", async () => {
-		const result = await run(["--config", "   "], {
-			env: { GITHUB_TOKEN: "recorded-token" },
-			fetch: recordedFetch(200),
-			readGhToken: async () => null,
-		});
+		const result = await run(
+			["--config", "   "],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch(200),
+				readGhToken: async () => null,
+			}),
+		);
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("--config");
 		expect(result.listened).toBe(false);
 	});
 
 	test("an empty --config exits 1 and does not listen", async () => {
-		const result = await run(["--config"], {
-			env: { GITHUB_TOKEN: "recorded-token" },
-			fetch: recordedFetch(200),
-			readGhToken: async () => null,
-		});
+		const result = await run(
+			["--config"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch(200),
+				readGhToken: async () => null,
+			}),
+		);
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("--config");
 		expect(result.listened).toBe(false);
 	});
 
 	test("repeated spaces in --config still name the missing file", async () => {
-		const result = await run(["--config", "  /tmp/no such file  "], {
-			env: { GITHUB_TOKEN: "recorded-token" },
-			fetch: recordedFetch(200),
-			readGhToken: async () => null,
-		});
+		const result = await run(
+			["--config", "  /tmp/no such file  "],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch(200),
+				readGhToken: async () => null,
+			}),
+		);
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toContain("configuration file is missing");
 		expect(result.listened).toBe(false);
 	});
 
 	test("a blank GITHUB_TOKEN exits 1 and names the token", async () => {
-		const result = await run(["--config", "/tmp/unused-config.json"], {
-			env: { GITHUB_TOKEN: "   " },
-			fetch: recordedFetch(200),
-			readGhToken: async () => null,
-		});
+		const result = await run(
+			["--config", "/tmp/unused-config.json"],
+			testIo({
+				env: { GITHUB_TOKEN: "   " },
+				fetch: recordedFetch(200),
+				readGhToken: async () => null,
+			}),
+		);
 		expect(result.exitCode).toBe(1);
 		expect(result.stderr).toBe(missingToken);
 		expect(result.listened).toBe(false);
@@ -153,11 +177,14 @@ describe("startup", () => {
 	test("an empty --port exits 1 and does not listen", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		try {
-			const result = await run(["--config", path, "--port"], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: recordedFetch(200),
-				readGhToken: async () => null,
-			});
+			const result = await run(
+				["--config", path, "--port"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("--port");
 			expect(result.listened).toBe(false);
@@ -169,11 +196,14 @@ describe("startup", () => {
 	test("a non-numeric --port exits 1 and does not listen", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		try {
-			const result = await run(["--config", path, "--port", "nope"], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: recordedFetch(200),
-				readGhToken: async () => null,
-			});
+			const result = await run(
+				["--config", path, "--port", "nope"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("--port");
 			expect(result.listened).toBe(false);
@@ -189,11 +219,14 @@ describe("startup", () => {
 			}),
 		);
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: recordedFetch(200),
-				readGhToken: async () => null,
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("pinned.0.extra");
 			expect(result.listened).toBe(false);
@@ -207,13 +240,16 @@ describe("startup", () => {
 		const root = await mkdtemp(join(tmpdir(), "project-flow-data-"));
 		const databasePath = join(root, "missing", "project-flow.sqlite");
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: recordedFetch(200),
-				readGhToken: async () => null,
-				databasePath,
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+					databasePath,
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
 			expect(await Bun.file(databasePath).exists()).toBe(true);

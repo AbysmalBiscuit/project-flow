@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { tempConfig, urlOf } from "./support.ts";
+import { tempConfig, testIo, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 
@@ -197,13 +197,16 @@ describe("GET /api/overview", () => {
 			return new Response("recorded failure", { status: 500 });
 		};
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: failing,
-				readGhToken: async () => null,
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: failing,
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
 			expect(result.listened).toBe(false);
@@ -255,15 +258,14 @@ describe("GET /api/overview", () => {
 			try {
 				const result = await run(
 					["--config", path, "--host", "127.0.0.1", "--port", "0"],
-					{
+					testIo({
 						env: { GITHUB_TOKEN: "recorded-token" },
 						fetch: recordedFetch(pinned),
 						readGhToken: async () => null,
 						databasePath,
 						stdout: (line) => startChecks(line),
 						waitForStop: checks.then(() => undefined),
-						listTodos: async () => "",
-					},
+					}),
 				);
 				expect(result.exitCode).toBe(0);
 				expect(result.listened).toBe(true);
@@ -313,13 +315,16 @@ describe("GET /api/overview", () => {
 			}),
 		);
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "   " },
-				fetch: linearFetch([]),
-				readGhToken: async () => null,
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "   " },
+					fetch: linearFetch([]),
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("LINEAR_API_KEY");
 			expect(result.listened).toBe(false);
@@ -335,14 +340,17 @@ describe("GET /api/overview", () => {
 			}),
 		);
 		try {
-			const result = await run(["--config", path], {
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "recorded-linear-key",
-				},
-				fetch: linearFetch([]),
-				readGhToken: async () => null,
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: linearFetch([]),
+					readGhToken: async () => null,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("pinned.0.project");
 			expect(result.listened).toBe(false);
@@ -368,14 +376,17 @@ describe("GET /api/overview", () => {
 			return new Response("not recorded", { status: 404 });
 		};
 		try {
-			const result = await run(["--config", path], {
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "rejected-key",
-				},
-				fetch: rejected,
-				readGhToken: async () => null,
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "rejected-key",
+					},
+					fetch: rejected,
+					readGhToken: async () => null,
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("LINEAR_API_KEY");
 			expect(result.stderr).toContain("401");
@@ -432,7 +443,7 @@ describe("GET /api/overview", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
+				testIo({
 					env: {
 						GITHUB_TOKEN: "recorded-token",
 						LINEAR_API_KEY: "recorded-linear-key",
@@ -442,7 +453,7 @@ describe("GET /api/overview", () => {
 					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
-				},
+				}),
 			);
 			expect(result.exitCode).toBe(0);
 			expect(await checks).toEqual({
@@ -488,16 +499,19 @@ describe("GET /api/overview", () => {
 			return new Response("not recorded", { status: 404 });
 		};
 		try {
-			const result = await run(["--config", path], {
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "recorded-linear-key",
-				},
-				fetch: failing,
-				readGhToken: async () => null,
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: failing,
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
 			expect(result.listened).toBe(false);
@@ -554,7 +568,7 @@ describe("GET /api/overview", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
+				testIo({
 					env: {
 						GITHUB_TOKEN: "recorded-token",
 						LINEAR_API_KEY: "recorded-linear-key",
@@ -564,8 +578,7 @@ describe("GET /api/overview", () => {
 					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
-					listTodos: async () => "",
-				},
+				}),
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
@@ -600,15 +613,14 @@ describe("GET /api/overview", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
+				testIo({
 					env: { GITHUB_TOKEN: "recorded-token" },
 					fetch: githubFetch(requests),
 					readGhToken: async () => null,
 					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
-					listTodos: async () => "",
-				},
+				}),
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
