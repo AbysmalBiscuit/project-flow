@@ -14,7 +14,7 @@ const linearPin = z.strictObject({
 const projectRef = z.discriminatedUnion("tracker", [githubPin, linearPin]);
 
 const configurationSchema = z.strictObject({
-	pinned: z.array(projectRef),
+	pinned: z.array(projectRef).default([]),
 	hidden: z.array(projectRef).default([]),
 	activityWindowDays: z.number().int().positive().default(30),
 });

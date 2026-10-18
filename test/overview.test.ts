@@ -1134,6 +1134,183 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("an empty configuration with no membership shows no projects", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({}));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: githubFetch([]),
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({ projects: [] });
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank configuration file shows no projects", async () => {
+		const { path, cleanup } = await tempConfig("   \n");
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		try {
+			const result = await run(["--config", `  ${path}  `], {
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				fetch: githubFetch([]),
+				readGhToken: async () => null,
+				databasePath: join(root, "project-flow.sqlite"),
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("not JSON");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a project with no open tickets stays off the overview", async () => {
+		const closedRepo = "acme/closed";
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const closedOnly: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: closedRepo,
+							owner: { login: "lev" },
+							permissions: { push: true },
+							pushed_at: "2026-10-18T12:00:00.000Z",
+						},
+					]),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url.includes("/issues?")) {
+				return page(
+					[
+						{
+							number: 1,
+							title: "Done",
+							state: "closed",
+							state_reason: "completed",
+							updated_at: "2026-10-18T12:00:00.000Z",
+						},
+					],
+					null,
+				);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (
+				url === "https://api.linear.app/graphql" &&
+				body.includes("projects(")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: { id: "lev" },
+							projects: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{
+						status: 200,
+					},
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: closedOnly,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({ projects: [] });
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("counts done, dropped and backlog from recorded GitHub tickets", async () => {
 		const requests: string[] = [];
 		const { path, cleanup } = await tempConfig(
