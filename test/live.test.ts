@@ -8,6 +8,7 @@ import { tempConfig, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 const otherRepo = "acme/other";
+const linearProject = "widget-launch";
 
 function ticket(
 	number: number,
@@ -197,10 +198,11 @@ function counts(
 	name: string,
 	backlog: number,
 	done = 0,
+	tracker: "github" | "linear" = "github",
 ): OverviewBody["projects"][number] {
 	return {
 		name,
-		tracker: "github",
+		tracker,
 		done,
 		dropped: 0,
 		backlog,
@@ -209,11 +211,82 @@ function counts(
 	};
 }
 
+function linearIssue(id: string): Record<string, unknown> {
+	return {
+		identifier: `WID-${id}`,
+		updatedAt: "2026-04-01T00:00:00.000Z",
+		state: { type: "backlog" },
+		attachments: { nodes: [] },
+	};
+}
+
+function linearPage(nodes: Record<string, unknown>[]): string {
+	return JSON.stringify({
+		data: {
+			issues: {
+				nodes,
+				pageInfo: { hasNextPage: false, endCursor: null },
+			},
+		},
+	});
+}
+
+function linearListSince(body: string): string | null {
+	const parsed = JSON.parse(body) as {
+		query?: string;
+		variables?: { since?: string | null };
+	};
+	if (parsed.query?.includes("viewer")) {
+		return null;
+	}
+	return parsed.variables?.since ?? null;
+}
+
+function linearPinFetch(requests: string[]): Fetch {
+	let polls = 0;
+	return async (input, init) => {
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+		}
+		if (url === "https://api.linear.app/graphql") {
+			const body =
+				typeof init?.body === "string" ? init.body : JSON.stringify(init?.body);
+			const parsed = JSON.parse(body) as { query?: string };
+			if (parsed.query?.includes("viewer")) {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			requests.push(body);
+			polls += 1;
+			if (polls === 2) {
+				return new Response("recorded failure", { status: 500 });
+			}
+			return new Response(linearPage([linearIssue("1")]), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}
+		return new Response("not recorded", { status: 404 });
+	};
+}
+
 async function withServer(
 	fetchImpl: Fetch,
 	intervalSeconds: number,
 	checks: (base: string) => Promise<void>,
-	pinned: { tracker: "github"; repo: string }[] = [{ tracker: "github", repo }],
+	pinned: (
+		| { tracker: "github"; repo: string }
+		| { tracker: "linear"; project: string }
+	)[] = [{ tracker: "github", repo }],
+	env: Record<string, string | undefined> = {
+		GITHUB_TOKEN: "recorded-token",
+	},
 ): Promise<void> {
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({ pinned, pollIntervalSeconds: intervalSeconds }),
@@ -235,7 +308,7 @@ async function withServer(
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
 			{
-				env: { GITHUB_TOKEN: "recorded-token" },
+				env,
 				fetch: fetchImpl,
 				readGhToken: async () => null,
 				databasePath,
@@ -423,6 +496,45 @@ describe("live updates", () => {
 				{ tracker: "github", repo },
 				{ tracker: "github", repo: otherRepo },
 			],
+		);
+	});
+
+	test("a failed Linear incremental poll is requested again with the same since", async () => {
+		const requests: string[] = [];
+		await withServer(
+			linearPinFetch(requests),
+			3600,
+			async (base) => {
+				const failed = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(failed.status).toBe(204);
+				const failedBody = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(failedBody.projects).toEqual([
+					counts(linearProject, 1, 0, "linear"),
+				]);
+				expect(failedBody.error).toContain("HTTP 500");
+				expect(failedBody.fetchedAt).toBe(goodPoll);
+				const again = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(again.status).toBe(204);
+				const lists = requests.map(linearListSince);
+				expect(lists).toEqual([null, goodPoll, goodPoll]);
+				const body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(body.projects).toEqual([counts(linearProject, 1, 0, "linear")]);
+				expect(body.error).toBeNull();
+				expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
+			},
+			[{ tracker: "linear", project: linearProject }],
+			{
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
 		);
 	});
 
