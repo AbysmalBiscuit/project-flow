@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, urlOf } from "./support.ts";
+import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 const otherRepo = "acme/other";
@@ -392,7 +392,7 @@ async function withServer(
 	try {
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			{
+			testIo({
 				env,
 				fetch: fetchImpl,
 				readGhToken: async () => null,
@@ -400,7 +400,7 @@ async function withServer(
 				now: () => new Date(Date.parse(goodPoll) + ticks++ * 1_000),
 				stdout: (line) => startChecks(line),
 				waitForStop: done,
-			},
+			}),
 		);
 		if (checksError !== undefined) {
 			throw checksError;
@@ -422,13 +422,16 @@ describe("live updates", () => {
 			}),
 		);
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: unchangedFetch([]),
-				readGhToken: async () => null,
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: unchangedFetch([]),
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("pollIntervalSeconds");
 			expect(result.listened).toBe(false);
@@ -445,13 +448,16 @@ describe("live updates", () => {
 			}),
 		);
 		try {
-			const result = await run(["--config", path], {
-				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: unchangedFetch([]),
-				readGhToken: async () => null,
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: unchangedFetch([]),
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("pollIntervalSeconds");
 			expect(result.listened).toBe(false);
@@ -829,7 +835,7 @@ describe("live updates", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
+				testIo({
 					env: { GITHUB_TOKEN: "recorded-token" },
 					fetch: unchangedFetch(requests),
 					readGhToken: async () => null,
@@ -837,7 +843,7 @@ describe("live updates", () => {
 					now: () => new Date(Date.parse(goodPoll) + ticks++ * 1_000),
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
-				},
+				}),
 			);
 			expect(result.exitCode).toBe(0);
 			expect(result.stderr).toBe("");

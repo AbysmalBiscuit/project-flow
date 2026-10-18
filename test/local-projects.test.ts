@@ -246,7 +246,11 @@ describe("local projects", () => {
 				"lev/local-only/devkit.toml": "",
 			},
 		});
-		expect(body).toEqual({ projects: [card] });
+		expect(body).toEqual({
+			projects: [card],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
 		expect(
 			requests.some((request) => request.includes(`/repos/${named}/`)),
 		).toBe(true);
@@ -272,7 +276,11 @@ describe("local projects", () => {
 				null,
 			]),
 		});
-		expect(body).toEqual({ projects: [card] });
+		expect(body).toEqual({
+			projects: [card],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
 		expect(
 			requests.some((request) => request.includes("/repos/lev/named-else/")),
 		).toBe(false);
@@ -316,6 +324,8 @@ describe("local projects", () => {
 					crossProjectBlockers: [],
 				},
 			],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
 		});
 	});
 
@@ -334,7 +344,11 @@ describe("local projects", () => {
 				{ project: "local  only.9-feat", status: "pending" },
 			]),
 		});
-		expect(body).toEqual({ projects: [] });
+		expect(body).toEqual({
+			projects: [],
+			fetchedAt: null,
+			error: null,
+		});
 	});
 
 	test("a failing checkout read keeps the other projects", async () => {
@@ -346,7 +360,11 @@ describe("local projects", () => {
 			},
 			todos: "not json",
 		});
-		expect(body).toEqual({ projects: [card] });
+		expect(body).toEqual({
+			projects: [card],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
 	});
 
 	test("an untracked file in a checkout does not name a project", async () => {
@@ -357,7 +375,11 @@ describe("local projects", () => {
 					'[remote "origin"]\nurl = https://github.com/stranger/upstream.git\n',
 			},
 		});
-		expect(body).toEqual({ projects: [] });
+		expect(body).toEqual({
+			projects: [],
+			fetchedAt: null,
+			error: null,
+		});
 	});
 
 	test("a Linear worktree branch names its open Linear project", async () => {
@@ -423,6 +445,8 @@ describe("local projects", () => {
 						crossProjectBlockers: [],
 					},
 				],
+				fetchedAt: "2026-10-18T12:00:00.000Z",
+				error: null,
 			});
 		} finally {
 			await rm(scan, { recursive: true, force: true });
@@ -459,7 +483,11 @@ describe("local projects", () => {
 					'[remote "origin"]\nurl = https://github.com/stranger/upstream.git\n',
 			},
 		});
-		expect(body).toEqual({ projects: [card] });
+		expect(body).toEqual({
+			projects: [card],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
 	});
 
 	test("a third-party clone stays hidden", async () => {
@@ -470,7 +498,11 @@ describe("local projects", () => {
 				"stranger/upstream/README.md": "third-party\n",
 			},
 		});
-		expect(body).toEqual({ projects: [] });
+		expect(body).toEqual({
+			projects: [],
+			fetchedAt: null,
+			error: null,
+		});
 		expect(
 			requests.some((request) => request.includes("stranger/upstream")),
 		).toBe(false);
