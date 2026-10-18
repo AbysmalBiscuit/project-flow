@@ -473,6 +473,68 @@ function ticketNumber(key: string): string | null {
 	return number;
 }
 
+const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
+const githubNode = /^(\d+)-/;
+const linearKey = /([a-z][a-z0-9]*)-(\d+)/gi;
+
+export function checkoutNamesProject(
+	hasTrackerConfig: boolean,
+	originOwner: string | null,
+	viewer: { login: string; orgs: string[] } | null,
+): boolean {
+	if (hasTrackerConfig) {
+		return true;
+	}
+	if (viewer === null || originOwner === null || originOwner.trim() === "") {
+		return false;
+	}
+	const owner = originOwner.trim().toLowerCase();
+	return [viewer.login, ...viewer.orgs].some(
+		(name) => name.trim().toLowerCase() === owner,
+	);
+}
+
+export function githubRepoForTodo(
+	project: string,
+	checkouts: { name: string; repo: string }[],
+): string | null {
+	const dot = project.indexOf(".");
+	if (dot <= 0) {
+		return null;
+	}
+	const name = project.slice(0, dot).trim();
+	const node = project.slice(dot + 1);
+	if (name === "" || node === "main" || node.startsWith("pr-")) {
+		return null;
+	}
+	if (githubNode.test(node) !== true) {
+		return null;
+	}
+	const checkout = checkouts.find((item) => item.name === name);
+	if (checkout === undefined || ownerRepo.test(checkout.repo) !== true) {
+		return null;
+	}
+	return checkout.repo;
+}
+
+export function linearKeysForNames(names: string[]): string[] {
+	const keys: string[] = [];
+	for (const name of names) {
+		for (const match of name.toLowerCase().matchAll(linearKey)) {
+			const team = match[1];
+			const number = match[2];
+			if (team === undefined || number === undefined) {
+				continue;
+			}
+			const key = `${team.toUpperCase()}-${number}`;
+			if (!keys.includes(key)) {
+				keys.push(key);
+			}
+		}
+	}
+	return keys;
+}
+
 const startedTodo = /^- \[ \] .+ \(([^,]+), in progress(?:: [^)]+)?\)/;
 
 export function startedTodoKeys(listing: string): string[] {

@@ -1,7 +1,11 @@
+import { basename } from "node:path";
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
 import {
+	checkoutNamesProject,
+	githubRepoForTodo,
+	linearKeysForNames,
 	mergeTickets,
 	projectCounts,
 	projectSnapshots,
@@ -12,12 +16,14 @@ import type { Fetch } from "./fetch.ts";
 import { githubProjectByNumber, githubTracker } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
+import { todoRows } from "./main.ts";
 import { memoryNotifier } from "./notifier.ts";
 import type {
 	CheckoutSource,
 	Clock,
 	ConfigurationPort,
 	FoundProject,
+	LocalCheckout,
 	Notifier,
 	Store,
 	TodoSource,
@@ -67,6 +73,65 @@ function matchesRef(
 		return project.key === ref.repo;
 	}
 	return project.owner === ref.owner && project.number === ref.project;
+}
+
+function checkoutNames(
+	checkouts: LocalCheckout[],
+): { name: string; repo: string }[] {
+	return checkouts.flatMap((checkout) => {
+		if (checkout.path === undefined || checkout.repo.trim() === "") {
+			return [];
+		}
+		return [{ name: basename(checkout.path), repo: checkout.repo.trim() }];
+	});
+}
+
+async function worktreeNames(path: string): Promise<string[]> {
+	const proc = Bun.spawn(
+		["git", "-C", path, "worktree", "list", "--porcelain"],
+		{ stdout: "pipe", stderr: "pipe" },
+	);
+	const stdout = proc.stdout;
+	if (typeof stdout === "number" || stdout === undefined) {
+		proc.kill();
+		return [];
+	}
+	const [out, code] = await Promise.all([
+		new Response(stdout).text(),
+		proc.exited,
+	]);
+	if (code !== 0) {
+		return [];
+	}
+	const names: string[] = [];
+	for (const line of out.split("\n")) {
+		if (line.startsWith("worktree ")) {
+			names.push(basename(line.slice("worktree ".length).trim()));
+		} else if (line.startsWith("branch ")) {
+			names.push(line.slice("branch refs/heads/".length).trim());
+		}
+	}
+	return names;
+}
+
+async function linearKeysFromCheckouts(
+	checkouts: LocalCheckout[],
+	rows: { project: string }[],
+): Promise<string[]> {
+	const names: string[] = [];
+	for (const checkout of checkouts) {
+		if (checkout.tracker !== "linear" || checkout.path === undefined) {
+			continue;
+		}
+		const checkoutName = basename(checkout.path);
+		names.push(...(await worktreeNames(checkout.path)));
+		for (const row of rows) {
+			if (row.project.startsWith(`${checkoutName}.`)) {
+				names.push(row.project.slice(checkoutName.length + 1));
+			}
+		}
+	}
+	return linearKeysForNames(names);
 }
 
 function overview(store: Store): Overview {
@@ -171,7 +236,8 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		}
 		return options.fallback;
 	}
-	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
+	const todoListing = (await options.listTodos?.()) ?? "";
+	const startedKeys = startedTodoKeys(todoListing);
 	const checkouts = (await options.listCheckouts?.().catch(() => [])) ?? [];
 	const linear = options.linear;
 	if (
@@ -193,14 +259,38 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 	if (linear !== null) {
 		mergeFound(discovered, await linear.findProjects());
 	}
-	const localRepos = checkouts
-		.filter(
-			(checkout) =>
-				checkout.tracker === "github" && checkout.repo.trim() !== "",
-		)
-		.map((checkout) => checkout.repo.trim());
-	for (const repo of localRepos) {
+	const viewer = (await github?.viewer?.()) ?? null;
+	const named = new Set<string>();
+	for (const checkout of checkouts) {
+		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {
+			continue;
+		}
+		if (
+			!checkoutNamesProject(
+				checkout.hasTrackerConfig === true,
+				checkout.originOwner ?? null,
+				viewer,
+			)
+		) {
+			continue;
+		}
+		named.add(checkout.repo.trim().toLowerCase());
+		mergeFound(discovered, [
+			{ key: checkout.repo.trim(), tracker: "github", updatedAt: null },
+		]);
+	}
+	const rows = todoRows(todoListing);
+	for (const row of rows) {
+		const repo = githubRepoForTodo(row.project, checkoutNames(checkouts));
+		if (repo === null || named.has(repo.toLowerCase())) {
+			continue;
+		}
+		named.add(repo.toLowerCase());
 		mergeFound(discovered, [{ key: repo, tracker: "github", updatedAt: null }]);
+	}
+	if (linear !== null) {
+		const keys = await linearKeysFromCheckouts(checkouts, rows);
+		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
 	}
 	const found = [...discovered];
 	for (const pin of configuration.pinned) {

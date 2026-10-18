@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import type { FoundProject, Tracker } from "./ports.ts";
+import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
 const dependency = z.object({
 	number: z.number(),
@@ -219,7 +219,35 @@ async function graphqlPage(
 	if (!response.ok) {
 		throw new Error(`GitHub find projects failed (HTTP ${response.status})`);
 	}
-	const page = graphqlProjects.parse(await response.json());
+	const parsed = graphqlProjects.safeParse(await response.json());
+	const firstViewerPage =
+		query === projectsQuery &&
+		variables.after === null &&
+		variables.orgAfter === null;
+	if (
+		firstViewerPage &&
+		(!parsed.success || parsed.data.data.viewer === undefined)
+	) {
+		return {
+			data: {
+				viewer: {
+					login: "",
+					projectsV2: {
+						nodes: [],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+					organizations: {
+						nodes: [],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			},
+		};
+	}
+	if (!parsed.success) {
+		throw new Error("GitHub find projects failed");
+	}
+	const page = parsed.data;
 	const error = page.errors?.[0];
 	if (error !== undefined) {
 		throw new Error(`GitHub find projects failed: ${error.message}`);
@@ -251,13 +279,14 @@ async function addOrgProjects(
 	}
 }
 
-async function findGithubProjects(
+export async function findGithubProjects(
 	token: string,
 	fetchImpl: Fetch,
-): Promise<FoundProject[]> {
+): Promise<{ projects: FoundProject[]; viewer: Viewer | null }> {
 	const found: FoundProject[] = [];
 	const seen = new Set<string>();
 	const orgs: string[] = [];
+	let login = "";
 	let after: string | null = null;
 	let orgAfter: string | null = null;
 	let projectsDone = false;
@@ -270,6 +299,9 @@ async function findGithubProjects(
 		const viewer = page.data.viewer;
 		if (viewer === undefined) {
 			throw new Error("GitHub find projects failed");
+		}
+		if (login === "") {
+			login = viewer.login;
 		}
 		if (!projectsDone) {
 			addOpenProjects(viewer.projectsV2.nodes, found, seen);
@@ -305,7 +337,7 @@ async function findGithubProjects(
 		}
 		url = nextPage(response.headers.get("link"));
 	}
-	return found;
+	return { projects: found, viewer: login === "" ? null : { login, orgs } };
 }
 
 const projectByNumberQuery = `query ProjectByNumber($owner: String!, $number: Int!) {
@@ -513,32 +545,23 @@ async function listProjectTickets(
 	return tickets;
 }
 
-export async function viewerAffiliations(
-	token: string,
-	fetchImpl: Fetch,
-): Promise<{ login: string; orgs: string[] } | null> {
-	try {
-		const page = await graphqlPage(token, fetchImpl, projectsQuery, {
-			after: null,
-			orgAfter: null,
-		});
-		const viewer = page.data.viewer;
-		if (viewer === undefined) {
-			return null;
-		}
-		return {
-			login: viewer.login,
-			orgs: viewer.organizations.nodes.map((org) => org.login),
-		};
-	} catch {
-		return null;
-	}
-}
-
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
+	let found: Promise<{
+		projects: FoundProject[];
+		viewer: Viewer | null;
+	}> | null = null;
+	const discovery = () => {
+		found ??= findGithubProjects(token, fetchImpl);
+		return found;
+	};
 	return {
 		findProjects() {
-			return findGithubProjects(token, fetchImpl);
+			return discovery().then((page) => page.projects);
+		},
+		viewer() {
+			return discovery()
+				.then((page) => page.viewer)
+				.catch(() => null);
 		},
 		async listTickets(repo, since) {
 			if (!repo.includes("/")) {

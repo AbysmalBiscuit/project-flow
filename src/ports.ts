@@ -11,6 +11,8 @@ export type LocalCheckout = {
 	repo: string;
 	tracker: "github" | "linear";
 	path?: string;
+	originOwner?: string;
+	hasTrackerConfig?: boolean;
 };
 
 export type CheckoutSource = () => Promise<LocalCheckout[]>;
@@ -23,6 +25,11 @@ export type FoundProject = {
 	owner?: string;
 	number?: number;
 	closed?: boolean;
+};
+
+export type Viewer = {
+	login: string;
+	orgs: string[];
 };
 
 export type Snapshot = {
@@ -45,6 +52,8 @@ export type Tracker = {
 	listPulls: (project: string) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
 	findProjects: () => Promise<FoundProject[]>;
+	viewer?: () => Promise<Viewer | null>;
+	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
 };
 
 export type Store = {
