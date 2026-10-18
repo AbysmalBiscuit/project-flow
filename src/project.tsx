@@ -89,7 +89,9 @@ function DiagramView({
 	return (
 		<figure className="diagram" data-diagram={diagram.id}>
 			<figcaption>{diagram.title}</figcaption>
-			<pre className="mermaid">{diagram.definition}</pre>
+			<pre key={diagram.definition} className="mermaid">
+				{diagram.definition}
+			</pre>
 			<ul className="nodes">
 				{diagram.nodes.map((node) => (
 					<NodeLine key={node.id} node={node} ticket={ticket} />
@@ -160,31 +162,40 @@ function Page() {
 		return () => window.removeEventListener("popstate", onPop);
 	}, []);
 	useEffect(() => {
-		const path = openPath(name, ticket);
+		const path = `/api/projects/${encodeURIComponent(name)}`;
 		let stopped = false;
+		const load = () => {
+			fetch(path)
+				.then(async (response) => {
+					if (stopped) {
+						return;
+					}
+					if (!response.ok) {
+						setReport(null);
+						setMissing(true);
+						return;
+					}
+					setMissing(false);
+					setReport((await response.json()) as ProjectReport);
+				})
+				.catch(() => {
+					if (!stopped) {
+						setReport(null);
+						setMissing(true);
+					}
+				});
+		};
 		setMissing(false);
-		fetch(`/api${path}`)
-			.then(async (response) => {
-				if (stopped) {
-					return;
-				}
-				if (!response.ok) {
-					setReport(null);
-					setMissing(true);
-					return;
-				}
-				setReport((await response.json()) as ProjectReport);
-			})
-			.catch(() => {
-				if (!stopped) {
-					setReport(null);
-					setMissing(true);
-				}
-			});
+		load();
+		const events = new EventSource("/api/events");
+		events.addEventListener("overview", () => {
+			load();
+		});
 		return () => {
 			stopped = true;
+			events.close();
 		};
-	}, [name, ticket]);
+	}, [name]);
 	useEffect(() => {
 		if (report === null) {
 			return;
