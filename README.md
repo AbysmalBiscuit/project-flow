@@ -57,6 +57,16 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. When that variable is missing or blank, the app runs `gh auth token`.
 
+A configuration with only Linear pins starts without a GitHub token. An empty `pinned` list also starts without a GitHub token. The app asks for the token when a pin uses the GitHub tracker.
+
+`src/main.ts` decides that:
+
+```ts
+		const needsGithub = configuration.pinned.some(
+			(pin) => pin.tracker === "github",
+		);
+```
+
 `src/main.ts` resolves the token:
 
 ```ts
@@ -80,6 +90,19 @@ async function resolveToken(io: RunIo): Promise<string | null> {
 ```
 
 The app reads `LINEAR_API_KEY` from the environment. It needs that key when a pinned project uses the Linear tracker. With the key set, the app also finds Linear projects. A GitHub-only configuration starts with no Linear key.
+
+## Store
+
+The store is a Bun SQLite file. The path is `$XDG_DATA_HOME/project-flow/project-flow.sqlite`. When `XDG_DATA_HOME` is unset, the path is `~/.local/share/project-flow/project-flow.sqlite`.
+
+The store is a cache. The next poll fills it again. Delete the file when you want a fresh cache.
+
+`src/main.ts` builds that path:
+
+```ts
+	const root = env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
+	return join(root, "project-flow", "project-flow.sqlite");
+```
 
 ## Develop
 
