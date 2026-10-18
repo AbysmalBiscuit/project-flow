@@ -1,14 +1,10 @@
 {
 	"base_url": "http://127.0.0.1:4173",
-	"serve": [
-		"bash",
-		"-c",
-		"cfg=$(mktemp) && printf '%s\\n' '{\"pinned\":[{\"tracker\":\"github\",\"repo\":\"AbysmalBiscuit/project-flow\"}]}' > \"$cfg\" && counts=$(gh issue list -R AbysmalBiscuit/project-flow --state all --limit 200 --json stateReason,state | bun -e 'const rows=await Bun.stdin.json(); let done=0, dropped=0, backlog=0; for (const row of rows) { if (row.state===\"OPEN\") backlog+=1; else if (row.stateReason===\"NOT_PLANNED\" || row.stateReason===\"DUPLICATE\") dropped+=1; else done+=1; } console.log(`Done ${done} Dropped ${dropped} Backlog ${backlog}`) ') && test \"$counts\" = \"Done 1 Dropped 0 Backlog 16\" && GITHUB_TOKEN=\"$(gh auth token)\" exec bun src/main.ts --config \"$cfg\" --host 127.0.0.1 --port 4173"
-	],
+	"serve": ["bun", "proof/item-1/serve.mjs"],
 	"steps": [
 		{ "goto": "/" },
-		{ "assert_text": "AbysmalBiscuit/project-flow" },
-		{ "assert_text": "Done 1 Dropped 0 Backlog 16" },
-		{ "shot": "project-card" }
+		{ "assert_text": "Widget board" },
+		{ "assert_text": "Backlog 1" },
+		{ "shot": "found-project" }
 	]
 }

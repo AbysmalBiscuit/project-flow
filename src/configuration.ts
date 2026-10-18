@@ -1,9 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { z } from "zod";
 
-const githubPin = z.strictObject({
+const githubRepoPin = z.strictObject({
 	tracker: z.literal("github"),
 	repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
+});
+
+const githubProjectPin = z.strictObject({
+	tracker: z.literal("github"),
+	owner: z.string().regex(/^[^/\s]+$/),
+	project: z.number().int().positive(),
 });
 
 const linearPin = z.strictObject({
@@ -11,8 +17,12 @@ const linearPin = z.strictObject({
 	project: z.string().regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/),
 });
 
+const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
+
 const configurationSchema = z.strictObject({
-	pinned: z.array(z.discriminatedUnion("tracker", [githubPin, linearPin])),
+	pinned: z.array(projectRef).default([]),
+	hidden: z.array(projectRef).default([]),
+	activityWindowDays: z.number().int().positive().default(30),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;

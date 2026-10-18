@@ -1,12 +1,13 @@
 import { z } from "zod";
 import type { PullRequest, Ticket } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import type { Tracker } from "./ports.ts";
+import type { FoundProject, Tracker } from "./ports.ts";
 
 const githubIssue = z.object({
 	number: z.number(),
 	state: z.string(),
 	state_reason: z.string().nullable(),
+	updated_at: z.string().optional(),
 	pull_request: z.unknown().optional(),
 });
 
@@ -100,9 +101,391 @@ async function pages(
 	return bodies;
 }
 
+const githubRepo = z.object({
+	full_name: z.string(),
+	pushed_at: z.string().nullable().optional(),
+});
+
+const pageInfo = z.object({
+	hasNextPage: z.boolean(),
+	endCursor: z.string().nullable(),
+});
+
+const projectNode = z.object({
+	id: z.string(),
+	number: z.number().int().positive(),
+	title: z.string(),
+	closed: z.boolean(),
+	updatedAt: z.string(),
+	owner: z.object({ login: z.string() }).optional(),
+});
+
+const projectConnection = z.object({
+	nodes: z.array(projectNode),
+	pageInfo,
+});
+
+const graphqlProjects = z.object({
+	data: z.object({
+		viewer: z
+			.object({
+				login: z.string(),
+				projectsV2: projectConnection,
+				organizations: z.object({
+					nodes: z.array(z.object({ login: z.string() })),
+					pageInfo,
+				}),
+			})
+			.optional(),
+		organization: z
+			.object({
+				projectsV2: projectConnection,
+			})
+			.optional(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+const projectsQuery = `query ViewerProjects($after: String, $orgAfter: String) {
+	viewer {
+		login
+		projectsV2(first: 20, after: $after) {
+			nodes { id number title closed updatedAt owner { login } }
+			pageInfo { hasNextPage endCursor }
+		}
+		organizations(first: 20, after: $orgAfter) {
+			nodes { login }
+			pageInfo { hasNextPage endCursor }
+		}
+	}
+}`;
+
+const orgProjectsQuery = `query OrgProjects($login: String!, $orgProjectAfter: String) {
+	organization(login: $login) {
+		projectsV2(first: 20, after: $orgProjectAfter) {
+			nodes { id number title closed updatedAt owner { login } }
+			pageInfo { hasNextPage endCursor }
+		}
+	}
+}`;
+
+function addOpenProjects(
+	nodes: z.infer<typeof projectNode>[],
+	found: FoundProject[],
+	seen: Set<string>,
+): void {
+	for (const node of nodes) {
+		if (seen.has(node.id) || node.owner === undefined) {
+			continue;
+		}
+		seen.add(node.id);
+		found.push({
+			key: node.id,
+			name: node.title,
+			tracker: "github",
+			updatedAt: node.updatedAt,
+			owner: node.owner.login,
+			number: node.number,
+			closed: node.closed,
+		});
+	}
+}
+
+async function graphqlPage(
+	token: string,
+	fetchImpl: Fetch,
+	query: string,
+	variables: Record<string, string | null>,
+): Promise<z.infer<typeof graphqlProjects>> {
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({ query, variables }),
+	});
+	if (!response.ok) {
+		throw new Error(`GitHub find projects failed (HTTP ${response.status})`);
+	}
+	const page = graphqlProjects.parse(await response.json());
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		throw new Error(`GitHub find projects failed: ${error.message}`);
+	}
+	return page;
+}
+
+async function addOrgProjects(
+	token: string,
+	fetchImpl: Fetch,
+	login: string,
+	found: FoundProject[],
+	seen: Set<string>,
+): Promise<void> {
+	let after: string | null = null;
+	let done = false;
+	while (!done) {
+		const page = await graphqlPage(token, fetchImpl, orgProjectsQuery, {
+			login,
+			orgProjectAfter: after,
+		});
+		const projects = page.data.organization?.projectsV2;
+		if (projects === undefined) {
+			throw new Error(`GitHub find projects failed: ${login}`);
+		}
+		addOpenProjects(projects.nodes, found, seen);
+		done = !projects.pageInfo.hasNextPage;
+		after = projects.pageInfo.endCursor;
+	}
+}
+
+async function findGithubProjects(
+	token: string,
+	fetchImpl: Fetch,
+): Promise<FoundProject[]> {
+	const found: FoundProject[] = [];
+	const seen = new Set<string>();
+	const orgs: string[] = [];
+	let after: string | null = null;
+	let orgAfter: string | null = null;
+	let projectsDone = false;
+	let orgsDone = false;
+	do {
+		const page = await graphqlPage(token, fetchImpl, projectsQuery, {
+			after,
+			orgAfter,
+		});
+		const viewer = page.data.viewer;
+		if (viewer === undefined) {
+			throw new Error("GitHub find projects failed");
+		}
+		if (!projectsDone) {
+			addOpenProjects(viewer.projectsV2.nodes, found, seen);
+			projectsDone = !viewer.projectsV2.pageInfo.hasNextPage;
+			after = viewer.projectsV2.pageInfo.endCursor;
+		}
+		if (!orgsDone) {
+			for (const org of viewer.organizations.nodes) {
+				orgs.push(org.login);
+			}
+			orgsDone = !viewer.organizations.pageInfo.hasNextPage;
+			orgAfter = viewer.organizations.pageInfo.endCursor;
+		}
+	} while (!projectsDone || !orgsDone);
+	for (const login of orgs) {
+		await addOrgProjects(token, fetchImpl, login, found, seen);
+	}
+
+	let url: string | null =
+		"https://api.github.com/user/repos?affiliation=owner,collaborator&per_page=100&page=1";
+	while (url !== null) {
+		const response = await fetchImpl(url, { headers: githubHeaders(token) });
+		if (!response.ok) {
+			throw new Error(`GitHub find repos failed (HTTP ${response.status})`);
+		}
+		const repos = z.array(githubRepo).parse(await response.json());
+		for (const repo of repos) {
+			found.push({
+				key: repo.full_name,
+				tracker: "github",
+				updatedAt: repo.pushed_at ?? null,
+			});
+		}
+		url = nextPage(response.headers.get("link"));
+	}
+	return found;
+}
+
+const projectByNumberQuery = `query ProjectByNumber($owner: String!, $number: Int!) {
+	repositoryOwner(login: $owner) {
+		projectV2(number: $number) { id number title closed updatedAt }
+	}
+}`;
+
+const projectByNumber = z.object({
+	data: z.object({
+		repositoryOwner: z
+			.object({
+				projectV2: projectNode.nullable(),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+export async function githubProjectByNumber(
+	token: string,
+	fetchImpl: Fetch,
+	owner: string,
+	number: number,
+): Promise<FoundProject | null> {
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({
+			query: projectByNumberQuery,
+			variables: { owner, number },
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(
+			`GitHub find project failed (HTTP ${response.status}): ${owner}/${number}`,
+		);
+	}
+	const page = projectByNumber.parse(await response.json());
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		throw new Error(`GitHub find project failed: ${error.message}`);
+	}
+	const node = page.data.repositoryOwner?.projectV2;
+	if (node === undefined || node === null) {
+		return null;
+	}
+	return {
+		key: node.id,
+		name: node.title,
+		tracker: "github",
+		updatedAt: node.updatedAt,
+		owner,
+		number,
+		closed: node.closed,
+	};
+}
+
+const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
+	node(id: $id) {
+		... on ProjectV2 {
+			items(first: 50, after: $after) {
+				nodes {
+					content {
+						__typename
+						... on Issue { number state stateReason repository { nameWithOwner } }
+					}
+				}
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+}`;
+
+const projectItems = z.object({
+	data: z.object({
+		node: z
+			.object({
+				items: z.object({
+					nodes: z.array(
+						z.object({
+							content: z
+								.object({
+									__typename: z.string(),
+									number: z.number().optional(),
+									state: z.string().optional(),
+									stateReason: z.string().nullable().optional(),
+									repository: z
+										.object({ nameWithOwner: z.string() })
+										.optional(),
+								})
+								.nullable(),
+						}),
+					),
+					pageInfo,
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+function githubState(state: string): "open" | "closed" | null {
+	if (state === "OPEN" || state === "open") {
+		return "open";
+	}
+	if (state === "CLOSED" || state === "closed") {
+		return "closed";
+	}
+	return null;
+}
+
+function githubReason(reason: string | null): string | null {
+	if (reason === null) {
+		return null;
+	}
+	const lowered = reason.toLowerCase();
+	if (lowered === "completed") {
+		return null;
+	}
+	if (lowered === "not_planned" || lowered === "duplicate") {
+		return lowered;
+	}
+	return reason;
+}
+
+async function listProjectTickets(
+	token: string,
+	fetchImpl: Fetch,
+	projectId: string,
+): Promise<Ticket[]> {
+	const tickets: Ticket[] = [];
+	let after: string | null = null;
+	do {
+		const response = await fetchImpl("https://api.github.com/graphql", {
+			method: "POST",
+			headers: githubHeaders(token),
+			body: JSON.stringify({
+				query: projectItemsQuery,
+				variables: { id: projectId, after },
+			}),
+		});
+		if (!response.ok) {
+			throw new Error(
+				`GitHub list project tickets failed (HTTP ${response.status}): ${projectId}`,
+			);
+		}
+		const page = projectItems.parse(await response.json());
+		const error = page.errors?.[0];
+		if (error !== undefined) {
+			throw new Error(`GitHub list project tickets failed: ${error.message}`);
+		}
+		if (page.data.node === null) {
+			throw new Error(`GitHub list project tickets failed: ${projectId}`);
+		}
+		for (const item of page.data.node.items.nodes) {
+			const content = item.content;
+			if (
+				content === null ||
+				content.__typename !== "Issue" ||
+				content.number === undefined ||
+				content.state === undefined ||
+				content.repository === undefined
+			) {
+				continue;
+			}
+			const state = githubState(content.state);
+			if (state === null) {
+				continue;
+			}
+			tickets.push({
+				tracker: "github",
+				key: `${content.repository.nameWithOwner}#${content.number}`,
+				state,
+				stateReason: githubReason(content.stateReason ?? null),
+				ref: `${content.repository.nameWithOwner}#${content.number}`,
+			});
+		}
+		after = page.data.node.items.pageInfo.hasNextPage
+			? page.data.node.items.pageInfo.endCursor
+			: null;
+	} while (after !== null);
+	return tickets;
+}
+
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 	return {
+		findProjects() {
+			return findGithubProjects(token, fetchImpl);
+		},
 		async listTickets(repo) {
+			if (!repo.includes("/")) {
+				return listProjectTickets(token, fetchImpl, repo);
+			}
 			const tickets: Ticket[] = [];
 			const listed = await pages(
 				`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`,
@@ -125,12 +508,19 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						key: `${repo}#${issue.number}`,
 						state: issue.state,
 						stateReason: issue.state_reason,
+						...(issue.updated_at === undefined
+							? {}
+							: { updatedAt: issue.updated_at }),
+						ref: `${repo}#${issue.number}`,
 					});
 				}
 			}
 			return tickets;
 		},
 		async listPulls(repo) {
+			if (!repo.includes("/")) {
+				return [];
+			}
 			const pulls: PullRequest[] = [];
 			const listed = await pages(
 				`https://api.github.com/repos/${repo}/pulls?state=open&per_page=100&page=1`,
@@ -182,6 +572,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			return pulls;
 		},
 		async listBranches(repo) {
+			if (!repo.includes("/")) {
+				return [];
+			}
 			const names: string[] = [];
 			const listed = await pages(
 				`https://api.github.com/repos/${repo}/branches?per_page=100&page=1`,

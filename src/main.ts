@@ -29,6 +29,7 @@ export type RunIo = {
 	databasePath?: string;
 	hostname?: string;
 	port?: number;
+	now?: () => Date;
 	waitForStop?: Promise<void>;
 	listTodos?: TodoSource;
 };
@@ -220,6 +221,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
 			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
 			listTodos: io.listTodos ?? listDevkitTodos,
+			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		writeOut(running.url.href);
 		await (io.waitForStop ?? Promise.resolve());

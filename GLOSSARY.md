@@ -10,6 +10,22 @@ Project Flow shows how Lev's projects and tickets progress, across GitHub and Li
 A body of work that Project Flow tracks: a Linear project, a GitHub project, or a GitHub repo whose tickets are in no GitHub project.
 _Avoid_: Board, repo (when a project is meant)
 
+**Found project**:
+A project that Project Flow finds from tracker membership, with no configuration entry. On Linear, Lev is a member or the lead. On GitHub, Lev owns the project, or he owns or collaborates on the repo.
+_Avoid_: Discovered project, membership project
+
+**Pinned project**:
+A project that the configuration names so that it always shows.
+_Avoid_: Favorite, starred
+
+**Hidden project**:
+A project that the configuration names so that it never shows.
+_Avoid_: Ignored, muted, archived
+
+**Activity window**:
+The number of days in the configuration. A found project shows when it has an open ticket and activity inside this window.
+_Avoid_: Stale window, quiet period
+
 **Ticket**:
 One unit of tracked work: a GitHub issue or a Linear issue.
 _Avoid_: Issue, task, item
