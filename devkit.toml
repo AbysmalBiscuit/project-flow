@@ -62,7 +62,7 @@ assignee = "me"
 "" = "pending"
 
 [tasks.typecheck]
-description = "Type check with tsc"
+description = "Type check with bun check"
 run = ["bun", "run", "typecheck"]
 
 [tasks.test]
@@ -71,7 +71,7 @@ run = ["bun", "run", "test"]
 
 [tasks.lint]
 description = "Lint and format check with biome"
-run = ["bun", "run", "check"]
+run = ["bun", "run", "lint"]
 
 [tasks.check]
 description = "Type check, test, and lint with format check"

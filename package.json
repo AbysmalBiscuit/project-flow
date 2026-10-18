@@ -4,9 +4,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"typecheck": "tsc --noEmit",
+		"typecheck": "bun check",
 		"test": "bun test",
-		"check": "biome ci --error-on-warnings .",
+		"lint": "biome ci --error-on-warnings .",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
