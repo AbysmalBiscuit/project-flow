@@ -14,6 +14,7 @@ export type FoundProject = {
 	updatedAt: string | null;
 	owner?: string;
 	number?: number;
+	closed?: boolean;
 };
 
 export type Snapshot = {

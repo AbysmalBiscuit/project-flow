@@ -175,6 +175,7 @@ async function poll(options: {
 			startedKeys,
 			pinned: pinnedKeys.has(project.key),
 			hidden: hiddenKeys.has(project.key),
+			...(project.closed === undefined ? {} : { closed: project.closed }),
 		});
 	}
 	options.store.replaceTickets(

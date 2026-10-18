@@ -170,7 +170,7 @@ function addOpenProjects(
 	seen: Set<string>,
 ): void {
 	for (const node of nodes) {
-		if (node.closed || seen.has(node.id) || node.owner === undefined) {
+		if (seen.has(node.id) || node.owner === undefined) {
 			continue;
 		}
 		seen.add(node.id);
@@ -181,6 +181,7 @@ function addOpenProjects(
 			updatedAt: node.updatedAt,
 			owner: node.owner.login,
 			number: node.number,
+			closed: node.closed,
 		});
 	}
 }
@@ -298,6 +299,7 @@ export async function githubProjectByNumber(
 		updatedAt: node.updatedAt,
 		owner,
 		number,
+		closed: node.closed,
 	};
 }
 

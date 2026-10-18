@@ -103,6 +103,7 @@ export type ListedProject = {
 	startedKeys: string[];
 	pinned: boolean;
 	hidden: boolean;
+	closed?: boolean;
 };
 
 export function projectSnapshots(
@@ -118,7 +119,6 @@ export function projectSnapshots(
 	branches: string[];
 	startedKeys: string[];
 }[] {
-	const claimed = new Set<string>();
 	const projects = [
 		...found.filter(
 			(project) => project.tracker === "github" && !project.key.includes("/"),
@@ -127,34 +127,30 @@ export function projectSnapshots(
 			(project) => project.tracker === "linear" || project.key.includes("/"),
 		),
 	];
-	const rows = [];
-	for (const project of projects) {
-		const tickets = project.tickets.filter((ticket) => {
-			if (ticket.ref === undefined || claimed.has(ticket.ref)) {
-				return ticket.ref === undefined;
-			}
-			claimed.add(ticket.ref);
-			return true;
-		});
-		const openTickets = tickets.filter(
+	const shown = projects.filter((project) => {
+		const openTickets = project.tickets.filter(
 			(ticket) => ticket.state === "open",
 		).length;
-		const ticketUpdated = tickets.reduce<string | null>((latest, ticket) => {
-			if (ticket.updatedAt === undefined) {
-				return latest;
-			}
-			return latest === null || ticket.updatedAt > latest
-				? ticket.updatedAt
-				: latest;
-		}, null);
+		const ticketUpdated = project.tickets.reduce<string | null>(
+			(latest, ticket) => {
+				if (ticket.updatedAt === undefined) {
+					return latest;
+				}
+				return latest === null || ticket.updatedAt > latest
+					? ticket.updatedAt
+					: latest;
+			},
+			null,
+		);
 		const updatedAt =
 			project.updatedAt === null
 				? ticketUpdated
 				: ticketUpdated === null || project.updatedAt > ticketUpdated
 					? project.updatedAt
 					: ticketUpdated;
-		if (
-			!showsProject({
+		return (
+			project.closed !== true &&
+			showsProject({
 				pinned: project.pinned,
 				hidden: project.hidden,
 				openTickets,
@@ -162,9 +158,18 @@ export function projectSnapshots(
 				now,
 				activityWindowDays,
 			})
-		) {
-			continue;
-		}
+		);
+	});
+	const claimed = new Set<string>();
+	const rows = [];
+	for (const project of shown) {
+		const tickets = project.tickets.filter((ticket) => {
+			if (ticket.ref === undefined || claimed.has(ticket.ref)) {
+				return ticket.ref === undefined;
+			}
+			claimed.add(ticket.ref);
+			return true;
+		});
 		rows.push({
 			key: project.key,
 			name: project.name ?? project.key,
