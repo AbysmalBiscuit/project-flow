@@ -834,8 +834,6 @@ describe("GET /api/overview", () => {
 											name: "Widget launch",
 											slugId: linearProject,
 											updatedAt: "2026-08-18T12:00:00.000Z",
-											lead: { id: "lev" },
-											members: { nodes: [] },
 										},
 									],
 									pageInfo: { hasNextPage: false, endCursor: null },
@@ -912,6 +910,295 @@ describe("GET /api/overview", () => {
 			);
 			expect(requests.some((sent) => sent.includes("projects("))).toBe(true);
 			expect(requests.some((sent) => sent.includes("/user/repos?"))).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a GitHub project on the second organization page appears", async () => {
+		const orgProjectId = "PVT_org_page_2";
+		const requests: { variables?: Record<string, unknown> }[] = [];
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const orgPage: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response("[]", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("node(id:")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							node: {
+								items: {
+									nodes: [
+										{
+											content: {
+												__typename: "Issue",
+												number: 1,
+												state: "OPEN",
+												stateReason: null,
+												repository: { nameWithOwner: "acme/org-board" },
+											},
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("OrgProjects")
+			) {
+				const parsed = JSON.parse(body) as {
+					variables?: Record<string, unknown>;
+				};
+				requests.push(parsed);
+				const cursor = parsed.variables?.orgProjectAfter;
+				const nodes =
+					cursor === "org-projects-2"
+						? [
+								{
+									id: orgProjectId,
+									number: 9,
+									owner: { login: "acme" },
+									title: "Org board",
+									closed: false,
+									updatedAt: "2026-08-18T12:00:00Z",
+								},
+							]
+						: [];
+				return new Response(
+					JSON.stringify({
+						data: {
+							organization: {
+								projectsV2: {
+									nodes,
+									pageInfo: {
+										hasNextPage: cursor === null,
+										endCursor: cursor === null ? "org-projects-2" : null,
+									},
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [{ login: "acme" }],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (
+				url === "https://api.linear.app/graphql" &&
+				body.includes("projects(")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: { id: "lev" },
+							projects: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{ status: 200 },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: orgPage,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({
+				projects: [
+					{
+						name: "Org board",
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+			});
+			expect(
+				requests.some(
+					(sent) => sent.variables?.orgProjectAfter === "org-projects-2",
+				),
+			).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a Linear project where the viewer is a member appears", async () => {
+		const requests: string[] = [];
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const member: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			requests.push(body === "" ? url : body);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null && url !== "https://api.linear.app/graphql") {
+				return discovered;
+			}
+			if (
+				url === "https://api.linear.app/graphql" &&
+				body.includes("projects(")
+			) {
+				const parsed = JSON.parse(body) as {
+					variables?: { viewer?: string };
+				};
+				if (parsed.variables?.viewer !== "lev") {
+					return new Response("missing viewer", { status: 400 });
+				}
+				return new Response(
+					JSON.stringify({
+						data: {
+							projects: {
+								nodes: [
+									{
+										id: "linear-member",
+										name: "Member launch",
+										slugId: "member-launch",
+										updatedAt: "2026-08-18T12:00:00.000Z",
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (url === "https://api.linear.app/graphql" && body.includes("viewer")) {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{ status: 200 },
+				);
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							issues: {
+								nodes: [linearIssue("1", "backlog")],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: member,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({
+				projects: [
+					{
+						name: "member-launch",
+						tracker: "linear",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+			});
+			const listed = requests.find((sent) => sent.includes("projects("));
+			expect(listed).toContain("lead: { id: { eq: $viewer } }");
+			expect(listed).toContain("members: { some: { id: { eq: $viewer } } }");
+			expect(listed).not.toContain("members { nodes");
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

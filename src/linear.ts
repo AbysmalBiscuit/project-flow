@@ -13,17 +13,24 @@ const pageInfo = z.object({
 	endCursor: z.string().nullable(),
 });
 
-const projectsQuery = `query MemberProjects($after: String) {
-	viewer { id }
-	projects(first: 50, after: $after) {
-		nodes { id name slugId updatedAt lead { id } members { nodes { id } } }
+const projectsQuery = `query MemberProjects($viewer: ID!, $after: String) {
+	projects(
+		first: 50
+		after: $after
+		filter: {
+			or: [
+				{ lead: { id: { eq: $viewer } } }
+				{ members: { some: { id: { eq: $viewer } } } }
+			]
+		}
+	) {
+		nodes { id name slugId updatedAt }
 		pageInfo { hasNextPage endCursor }
 	}
 }`;
 
 const memberProjects = z.object({
 	data: z.object({
-		viewer: z.object({ id: z.string() }),
 		projects: z.object({
 			nodes: z.array(
 				z.object({
@@ -31,8 +38,6 @@ const memberProjects = z.object({
 					name: z.string(),
 					slugId: z.string(),
 					updatedAt: z.string(),
-					lead: z.object({ id: z.string() }).nullable(),
-					members: z.object({ nodes: z.array(z.object({ id: z.string() })) }),
 				}),
 			),
 			pageInfo,
@@ -131,13 +136,26 @@ async function findLinearProjects(
 	key: string,
 	fetchImpl: Fetch,
 ): Promise<FoundProject[]> {
+	const viewer = await checkLinearKey(key, fetchImpl);
+	if (!viewer.ok) {
+		throw new Error(`Linear find projects failed (HTTP ${viewer.status})`);
+	}
+	const viewerPage = z
+		.object({
+			data: z.object({ viewer: z.object({ id: z.string() }) }),
+		})
+		.parse(await viewer.json());
+	const viewerId = viewerPage.data.viewer.id;
 	const found: FoundProject[] = [];
 	let after: string | null = null;
 	do {
 		const response = await fetchImpl(endpoint, {
 			method: "POST",
 			headers: linearHeaders(key),
-			body: JSON.stringify({ query: projectsQuery, variables: { after } }),
+			body: JSON.stringify({
+				query: projectsQuery,
+				variables: { viewer: viewerId, after },
+			}),
 		});
 		if (!response.ok) {
 			throw new Error(`Linear find projects failed (HTTP ${response.status})`);
@@ -147,15 +165,7 @@ async function findLinearProjects(
 		if (error !== undefined) {
 			throw new Error(`Linear find projects failed: ${error.message}`);
 		}
-		const viewerId = page.data.viewer.id;
 		for (const node of page.data.projects.nodes) {
-			const leads = node.lead?.id === viewerId;
-			const member = node.members.nodes.some(
-				(person) => person.id === viewerId,
-			);
-			if (!leads && !member) {
-				continue;
-			}
 			found.push({
 				key: node.slugId,
 				tracker: "linear",

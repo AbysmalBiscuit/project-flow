@@ -127,19 +127,21 @@ const projectConnection = z.object({
 
 const graphqlProjects = z.object({
 	data: z.object({
-		viewer: z.object({
-			login: z.string(),
-			projectsV2: projectConnection,
-			organizations: z.object({
-				nodes: z.array(
-					z.object({
-						login: z.string(),
-						projectsV2: projectConnection,
-					}),
-				),
-				pageInfo,
-			}),
-		}),
+		viewer: z
+			.object({
+				login: z.string(),
+				projectsV2: projectConnection,
+				organizations: z.object({
+					nodes: z.array(z.object({ login: z.string() })),
+					pageInfo,
+				}),
+			})
+			.optional(),
+		organization: z
+			.object({
+				projectsV2: projectConnection,
+			})
+			.optional(),
 	}),
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
@@ -152,13 +154,16 @@ const projectsQuery = `query ViewerProjects($after: String, $orgAfter: String) {
 			pageInfo { hasNextPage endCursor }
 		}
 		organizations(first: 20, after: $orgAfter) {
-			nodes {
-				login
-				projectsV2(first: 20) {
-					nodes { id number title closed updatedAt owner { login } }
-					pageInfo { hasNextPage endCursor }
-				}
-			}
+			nodes { login }
+			pageInfo { hasNextPage endCursor }
+		}
+	}
+}`;
+
+const orgProjectsQuery = `query OrgProjects($login: String!, $orgProjectAfter: String) {
+	organization(login: $login) {
+		projectsV2(first: 20, after: $orgProjectAfter) {
+			nodes { id number title closed updatedAt owner { login } }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
@@ -186,46 +191,88 @@ function addOpenProjects(
 	}
 }
 
+async function graphqlPage(
+	token: string,
+	fetchImpl: Fetch,
+	query: string,
+	variables: Record<string, string | null>,
+): Promise<z.infer<typeof graphqlProjects>> {
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({ query, variables }),
+	});
+	if (!response.ok) {
+		throw new Error(`GitHub find projects failed (HTTP ${response.status})`);
+	}
+	const page = graphqlProjects.parse(await response.json());
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		throw new Error(`GitHub find projects failed: ${error.message}`);
+	}
+	return page;
+}
+
+async function addOrgProjects(
+	token: string,
+	fetchImpl: Fetch,
+	login: string,
+	found: FoundProject[],
+	seen: Set<string>,
+): Promise<void> {
+	let after: string | null = null;
+	let done = false;
+	while (!done) {
+		const page = await graphqlPage(token, fetchImpl, orgProjectsQuery, {
+			login,
+			orgProjectAfter: after,
+		});
+		const projects = page.data.organization?.projectsV2;
+		if (projects === undefined) {
+			throw new Error(`GitHub find projects failed: ${login}`);
+		}
+		addOpenProjects(projects.nodes, found, seen);
+		done = !projects.pageInfo.hasNextPage;
+		after = projects.pageInfo.endCursor;
+	}
+}
+
 async function findGithubProjects(
 	token: string,
 	fetchImpl: Fetch,
 ): Promise<FoundProject[]> {
 	const found: FoundProject[] = [];
 	const seen = new Set<string>();
+	const orgs: string[] = [];
 	let after: string | null = null;
 	let orgAfter: string | null = null;
 	let projectsDone = false;
 	let orgsDone = false;
 	do {
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: projectsQuery,
-				variables: { after, orgAfter },
-			}),
+		const page = await graphqlPage(token, fetchImpl, projectsQuery, {
+			after,
+			orgAfter,
 		});
-		if (!response.ok) {
-			throw new Error(`GitHub find projects failed (HTTP ${response.status})`);
-		}
-		const page = graphqlProjects.parse(await response.json());
-		const error = page.errors?.[0];
-		if (error !== undefined) {
-			throw new Error(`GitHub find projects failed: ${error.message}`);
+		const viewer = page.data.viewer;
+		if (viewer === undefined) {
+			throw new Error("GitHub find projects failed");
 		}
 		if (!projectsDone) {
-			addOpenProjects(page.data.viewer.projectsV2.nodes, found, seen);
-			projectsDone = !page.data.viewer.projectsV2.pageInfo.hasNextPage;
-			after = page.data.viewer.projectsV2.pageInfo.endCursor;
+			addOpenProjects(viewer.projectsV2.nodes, found, seen);
+			projectsDone = !viewer.projectsV2.pageInfo.hasNextPage;
+			after = viewer.projectsV2.pageInfo.endCursor;
 		}
 		if (!orgsDone) {
-			for (const org of page.data.viewer.organizations.nodes) {
-				addOpenProjects(org.projectsV2.nodes, found, seen);
+			for (const org of viewer.organizations.nodes) {
+				orgs.push(org.login);
 			}
-			orgsDone = !page.data.viewer.organizations.pageInfo.hasNextPage;
-			orgAfter = page.data.viewer.organizations.pageInfo.endCursor;
+			orgsDone = !viewer.organizations.pageInfo.hasNextPage;
+			orgAfter = viewer.organizations.pageInfo.endCursor;
 		}
 	} while (!projectsDone || !orgsDone);
+	for (const login of orgs) {
+		await addOrgProjects(token, fetchImpl, login, found, seen);
+	}
 
 	let url: string | null =
 		"https://api.github.com/user/repos?affiliation=owner,collaborator&per_page=100&page=1";
