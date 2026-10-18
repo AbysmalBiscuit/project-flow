@@ -7,6 +7,7 @@ import { run } from "../src/main.ts";
 import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
 const named = "lev/local-only";
+const strangerOrigin = "stranger/local-only";
 const linearName = "Docs cleanup";
 const linearPin = "docs-cleanup-0d42ae5d46d0";
 
@@ -48,6 +49,9 @@ function localFetch(requests: string[]): Fetch {
 			const repo = url.split("/repos/")[1]?.split("/issues?")[0];
 			if (repo === named) {
 				return page([issue(9)]);
+			}
+			if (repo === strangerOrigin) {
+				return page([issue(9, strangerOrigin)]);
 			}
 			return page([]);
 		}
@@ -226,11 +230,6 @@ const card = {
 	crossProjectBlockers: [],
 };
 
-const githubConfig = JSON.stringify({
-	tracker: { kind: "github" },
-	github: { issues_repo: named },
-});
-
 const originConfig = [
 	'[remote "origin"]',
 	`url = https://github.com/${named}.git`,
@@ -260,31 +259,59 @@ describe("local projects", () => {
 	});
 
 	test("a project named only by a devkit todo appears", async () => {
-		const { body, requests } = await overview({
-			files: {
-				"lev/named-else/.git/config": originConfig,
-				"lev/named-else/devkit.toml": githubConfig,
+		const files = {
+			"stranger/local-only/.git/config": [
+				'[remote "origin"]',
+				`url = https://github.com/${strangerOrigin}.git`,
+				"fetch = +refs/heads/*:refs/remotes/origin/*",
+				"",
+			].join("\n"),
+		};
+		const todo = JSON.stringify([
+			{ project: "   ", status: "pending" },
+			{ project: "local  only.9-feat", status: "pending" },
+			{
+				project: `local-only.9-feat-ship.${"a".repeat(8)}`,
+				status: "pending",
+				started: false,
 			},
-			todos: JSON.stringify([
-				{ project: "   ", status: "pending" },
-				{ project: "local  only.9-feat", status: "pending" },
+			null,
+		]);
+		const strangerCard = {
+			...card,
+			name: strangerOrigin,
+			tickets: [
 				{
-					project: `local-only.9-feat-ship.${"a".repeat(8)}`,
-					status: "pending",
-					started: false,
+					key: `${strangerOrigin}#9`,
+					title: "Ticket 9",
+					state: "backlog",
+					blockers: [],
 				},
-				null,
-			]),
-		});
-		expect(body).toEqual({
-			projects: [card],
+			],
+		};
+		const withTodo = await overview({ files, todos: todo });
+		expect(withTodo.body).toEqual({
+			projects: [strangerCard],
 			fetchedAt: "2026-10-18T12:00:00.000Z",
 			error: null,
 		});
 		expect(
-			requests.some((request) => request.includes("/repos/lev/named-else/")),
+			withTodo.requests.some((request) =>
+				request.includes(`/repos/${strangerOrigin}/`),
+			),
+		).toBe(true);
+		expect(JSON.stringify(withTodo.body)).not.toContain(named);
+		const withoutTodo = await overview({ files, todos: "[]" });
+		expect(withoutTodo.body).toEqual({
+			projects: [],
+			fetchedAt: null,
+			error: null,
+		});
+		expect(
+			withoutTodo.requests.some((request) =>
+				request.includes(`/repos/${strangerOrigin}/`),
+			),
 		).toBe(false);
-		expect(JSON.stringify(body)).not.toContain("named-else");
 	});
 
 	test("a Linear todo names its open Linear project", async () => {
