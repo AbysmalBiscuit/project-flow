@@ -189,13 +189,16 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		}
 
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
-		await loadConfiguration(configPath);
+		const configuration = await loadConfiguration(configPath);
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
-		if (linearKey === "") {
+		const needsLinear = configuration.pinned.some(
+			(pin) => pin.tracker === "linear",
+		);
+		if (needsLinear && linearKey === "") {
 			writeErr(missingLinearKey);
 			return result(1, false);
 		}
-		{
+		if (needsLinear) {
 			const viewer = await checkLinearKey(linearKey, io.fetch);
 			if (viewer.status === 401) {
 				writeErr(rejectedLinearKey);

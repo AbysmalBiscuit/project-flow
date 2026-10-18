@@ -245,6 +245,30 @@ describe("startup", () => {
 		}
 	});
 
+	test("a GitHub-only configuration starts without a Linear key", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-data-"));
+		const databasePath = join(root, "github-only.sqlite");
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+					databasePath,
+					waitForStop: Promise.resolve(),
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(result.listened).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a missing store directory is created for the run", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-data-"));
@@ -253,10 +277,7 @@ describe("startup", () => {
 			const result = await run(
 				["--config", path],
 				testIo({
-					env: {
-						GITHUB_TOKEN: "recorded-token",
-						LINEAR_API_KEY: "recorded-linear-key",
-					},
+					env: { GITHUB_TOKEN: "recorded-token" },
 					fetch: recordedFetch(200),
 					readGhToken: async () => null,
 					databasePath,
