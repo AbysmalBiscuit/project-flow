@@ -1,10 +1,12 @@
 #!/usr/bin/env bun
+import { mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { version } from "../package.json";
 import { start } from "./app.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Fetch } from "./fetch.ts";
+import { checkToken } from "./github.ts";
 
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
@@ -14,12 +16,15 @@ export const rejectedToken =
 export type RunIo = {
 	env: Record<string, string | undefined>;
 	fetch: Fetch;
-	readGhToken: () => Promise<string | null>;
+	readGhToken: (
+		env?: Record<string, string | undefined>,
+	) => Promise<string | null>;
 	stdout?: (line: string) => void;
 	stderr?: (line: string) => void;
 	databasePath?: string;
 	hostname?: string;
 	port?: number;
+	waitForStop?: Promise<void>;
 };
 
 export type RunResult = {
@@ -29,13 +34,42 @@ export type RunResult = {
 	listened: boolean;
 };
 
-export async function readGhAuthToken(): Promise<string | null> {
-	const proc = Bun.spawn(["gh", "auth", "token"], {
-		stdout: "pipe",
-		stderr: "pipe",
-	});
+export function defaultStorePath(
+	env: Record<string, string | undefined>,
+): string {
+	const root = env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
+	return join(root, "project-flow", "project-flow.sqlite");
+}
+
+export async function readGhAuthToken(
+	env: Record<string, string | undefined> = process.env,
+): Promise<string | null> {
+	const gh = Bun.which("gh", { PATH: env.PATH ?? "" });
+	if (gh === null) {
+		return null;
+	}
+	let proc: ReturnType<typeof Bun.spawn>;
+	try {
+		proc = Bun.spawn([gh, "auth", "token"], {
+			stdout: "pipe",
+			stderr: "pipe",
+			env,
+		});
+	} catch (error) {
+		const code =
+			error instanceof Error && "code" in error ? String(error.code) : "";
+		if (code === "ENOENT") {
+			return null;
+		}
+		throw error;
+	}
+	const stdout = proc.stdout;
+	if (typeof stdout === "number" || stdout === undefined) {
+		proc.kill();
+		return null;
+	}
 	const [out, code] = await Promise.all([
-		new Response(proc.stdout).text(),
+		new Response(stdout).text(),
 		proc.exited,
 	]);
 	if (code !== 0) {
@@ -45,8 +79,8 @@ export async function readGhAuthToken(): Promise<string | null> {
 	return token === "" ? null : token;
 }
 
-function defaultConfigPath(): string {
-	const root = process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
+function defaultConfigPath(env: Record<string, string | undefined>): string {
+	const root = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
 	return join(root, "project-flow", "config.json");
 }
 
@@ -63,18 +97,14 @@ async function resolveToken(io: RunIo): Promise<string | null> {
 	if (fromEnv !== undefined && fromEnv.trim() !== "") {
 		return fromEnv;
 	}
-	return io.readGhToken();
+	return io.readGhToken(io.env);
 }
 
-async function checkToken(token: string, fetchImpl: Fetch): Promise<boolean> {
-	const response = await fetchImpl("https://api.github.com/user", {
-		headers: {
-			accept: "application/vnd.github+json",
-			authorization: `Bearer ${token}`,
-			"x-github-api-version": "2022-11-28",
-		},
-	});
-	return response.status !== 401;
+async function openStore(path: string): Promise<void> {
+	if (path === ":memory:") {
+		return;
+	}
+	await mkdir(dirname(path), { recursive: true });
 }
 
 export async function run(args: string[], io: RunIo): Promise<RunResult> {
@@ -113,44 +143,44 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		return result(1, false);
 	}
 
-	const token = await resolveToken(io);
-	if (token === null) {
-		writeErr(missingToken);
-		return result(1, false);
-	}
-
-	const accepted = await checkToken(token, io.fetch);
-	if (!accepted) {
-		writeErr(rejectedToken);
-		return result(1, false);
-	}
-
-	const configPath = configFlag ?? defaultConfigPath();
 	try {
+		const token = await resolveToken(io);
+		if (token === null) {
+			writeErr(missingToken);
+			return result(1, false);
+		}
+
+		const user = await checkToken(token, io.fetch);
+		if (user.status === 401) {
+			writeErr(rejectedToken);
+			return result(1, false);
+		}
+		if (!user.ok) {
+			writeErr(`GitHub token check failed (HTTP ${user.status}).`);
+			return result(1, false);
+		}
+
+		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
 		await loadConfiguration(configPath);
+
+		const databasePath = io.databasePath ?? defaultStorePath(io.env);
+		await openStore(databasePath);
+		const running = await start({
+			configPath,
+			token,
+			fetch: io.fetch,
+			databasePath,
+			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
+			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
+		});
+		writeOut(running.url.href);
+		await (io.waitForStop ?? Promise.resolve());
+		await running.stop();
+		return result(0, true);
 	} catch (error) {
-		writeErr(error instanceof Error ? error.message : "invalid configuration");
+		writeErr(error instanceof Error ? error.message : "startup failed");
 		return result(1, false);
 	}
-
-	const running = await start({
-		configPath,
-		token,
-		fetch: io.fetch,
-		databasePath: io.databasePath ?? ":memory:",
-		hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
-		port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
-	});
-	writeOut(running.url.href);
-	if (import.meta.main) {
-		await new Promise<void>((resolve) => {
-			const stop = () => resolve();
-			process.once("SIGINT", stop);
-			process.once("SIGTERM", stop);
-		});
-	}
-	await running.stop();
-	return result(0, true);
 }
 
 if (import.meta.main) {
@@ -160,6 +190,11 @@ if (import.meta.main) {
 		readGhToken: readGhAuthToken,
 		stdout: (line) => console.log(line),
 		stderr: (line) => console.error(line),
+		waitForStop: new Promise<void>((resolve) => {
+			const stop = () => resolve();
+			process.once("SIGINT", stop);
+			process.once("SIGTERM", stop);
+		}),
 	});
 	process.exit(result.exitCode);
 }

@@ -1,23 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import { run } from "../src/main.ts";
-
-const missing =
-	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
-const rejected =
-	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
-
-async function tempConfig(
-	body: string,
-): Promise<{ path: string; cleanup: () => Promise<void> }> {
-	const dir = await mkdtemp(join(tmpdir(), "project-flow-"));
-	const path = join(dir, "config.json");
-	await writeFile(path, body);
-	return { path, cleanup: () => rm(dir, { recursive: true, force: true }) };
-}
+import {
+	missingToken,
+	readGhAuthToken,
+	rejectedToken,
+	run,
+} from "../src/main.ts";
+import { tempConfig, urlOf } from "./support.ts";
 
 const valid = JSON.stringify({
 	pinned: [{ tracker: "github", repo: "acme/widget" }],
@@ -25,15 +17,16 @@ const valid = JSON.stringify({
 
 function recordedFetch(userStatus: number): Fetch {
 	return async (input) => {
-		const url =
-			typeof input === "string"
-				? input
-				: input instanceof URL
-					? input.href
-					: input.url;
+		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ message: "recorded" }), {
 				status: userStatus,
+			});
+		}
+		if (url.includes("/issues?")) {
+			return new Response("[]", {
+				status: 200,
+				headers: { "content-type": "application/json" },
 			});
 		}
 		return new Response("not recorded", { status: 404 });
@@ -50,10 +43,28 @@ describe("startup", () => {
 				readGhToken: async () => null,
 			});
 			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toBe(missing);
+			expect(result.stderr).toBe(missingToken);
 			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
+		}
+	});
+
+	test("a missing gh executable exits 1 and names GITHUB_TOKEN", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		const bin = await mkdtemp(join(tmpdir(), "project-flow-no-gh-"));
+		try {
+			const result = await run(["--config", path], {
+				env: { PATH: bin },
+				fetch: recordedFetch(200),
+				readGhToken: readGhAuthToken,
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toBe(missingToken);
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+			await rm(bin, { recursive: true, force: true });
 		}
 	});
 
@@ -68,7 +79,23 @@ describe("startup", () => {
 				},
 			});
 			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toBe(rejected);
+			expect(result.stderr).toBe(rejectedToken);
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a non-ok token check exits 1 and names the status", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		try {
+			const result = await run(["--config", path], {
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch(500),
+				readGhToken: async () => null,
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("HTTP 500");
 			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
@@ -115,7 +142,7 @@ describe("startup", () => {
 			readGhToken: async () => null,
 		});
 		expect(result.exitCode).toBe(1);
-		expect(result.stderr).toBe(missing);
+		expect(result.stderr).toBe(missingToken);
 		expect(result.listened).toBe(false);
 	});
 
@@ -168,6 +195,27 @@ describe("startup", () => {
 			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
+		}
+	});
+
+	test("a missing store directory is created for the run", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-data-"));
+		const databasePath = join(root, "missing", "project-flow.sqlite");
+		try {
+			const result = await run(["--config", path], {
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch(200),
+				readGhToken: async () => null,
+				databasePath,
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			expect(await Bun.file(databasePath).exists()).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 });
