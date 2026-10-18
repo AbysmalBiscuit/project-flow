@@ -158,14 +158,14 @@ export function linearTracker(
 	fetchImpl: Fetch,
 	githubToken: string | null = null,
 ): Tracker {
-	const pages = new Map<string, Promise<ListedIssue[]>>();
+	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const issues = (project: string) => {
-		const cached = pages.get(project);
+		const cached = issuesByProject.get(project);
 		if (cached !== undefined) {
 			return cached;
 		}
 		const listed = issuePages(key, fetchImpl, project);
-		pages.set(project, listed);
+		issuesByProject.set(project, listed);
 		return listed;
 	};
 	return {

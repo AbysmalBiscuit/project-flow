@@ -6,13 +6,7 @@ import type { Fetch } from "./fetch.ts";
 import { githubTracker } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
-import type {
-	Clock,
-	ConfigurationPort,
-	Store,
-	TodoSource,
-	Tracker,
-} from "./ports.ts";
+import type { ConfigurationPort, Store, TodoSource, Tracker } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
 
 export type StartOptions = {
@@ -23,7 +17,6 @@ export type StartOptions = {
 	databasePath: string;
 	hostname: string;
 	port: number;
-	now?: () => Date;
 	listTodos?: TodoSource;
 };
 
@@ -64,10 +57,8 @@ async function poll(options: {
 	github: Tracker;
 	linear: Tracker | null;
 	store: Store;
-	clock: Clock;
 	listTodos?: TodoSource | undefined;
 }): Promise<Configuration> {
-	void options.clock;
 	const configuration = await options.configuration.read();
 	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
 	const rows = [];
@@ -107,7 +98,6 @@ export async function start(options: StartOptions): Promise<Running> {
 				? null
 				: linearTracker(options.linearKey, options.fetch, options.token),
 		store: opened.store,
-		clock: { now: options.now ?? (() => new Date()) },
 		listTodos: options.listTodos,
 	});
 	const server = Bun.serve({

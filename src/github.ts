@@ -82,8 +82,8 @@ async function pages(
 	fetchImpl: Fetch,
 	repo: string,
 	label: string,
-): Promise<{ page: unknown; link: string | null }[]> {
-	const pages: { page: unknown; link: string | null }[] = [];
+): Promise<unknown[]> {
+	const bodies: unknown[] = [];
 	let url: string | null = start;
 	while (url !== null) {
 		const response = await fetchImpl(url, {
@@ -94,13 +94,10 @@ async function pages(
 				`GitHub ${label} failed (HTTP ${response.status}): ${repo}`,
 			);
 		}
-		pages.push({
-			page: await response.json(),
-			link: response.headers.get("link"),
-		});
+		bodies.push(await response.json());
 		url = nextPage(response.headers.get("link"));
 	}
-	return pages;
+	return bodies;
 }
 
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
@@ -115,7 +112,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				"list tickets",
 			);
 			for (const item of listed) {
-				const page = githubIssuePage.parse(item.page);
+				const page = githubIssuePage.parse(item);
 				for (const issue of page) {
 					if (issue.pull_request !== undefined) {
 						continue;
@@ -143,7 +140,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				"list pulls",
 			);
 			for (const item of listed) {
-				const page = z.array(githubPull).parse(item.page);
+				const page = z.array(githubPull).parse(item);
 				for (const pull of page) {
 					if (pull.state !== "open") {
 						continue;
@@ -195,7 +192,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			);
 			const branch = z.object({ name: z.string() });
 			for (const item of listed) {
-				for (const row of z.array(branch).parse(item.page)) {
+				for (const row of z.array(branch).parse(item)) {
 					names.push(row.name);
 				}
 			}
