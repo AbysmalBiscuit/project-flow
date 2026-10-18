@@ -5,6 +5,8 @@ export type Ticket = {
 	key: string | null;
 	state: "open" | "closed";
 	stateReason: string | null;
+	updatedAt?: string;
+	ref?: string;
 };
 
 export type PullRequest = {
@@ -66,6 +68,119 @@ export function ticketState(ticket: Ticket): TicketState {
 		return "dropped";
 	}
 	return "done";
+}
+
+export function showsProject(input: {
+	pinned: boolean;
+	hidden: boolean;
+	openTickets: number;
+	updatedAt: string | null;
+	now: Date;
+	activityWindowDays: number;
+}): boolean {
+	if (input.hidden) {
+		return false;
+	}
+	if (input.pinned) {
+		return true;
+	}
+	if (input.openTickets === 0 || input.updatedAt === null) {
+		return false;
+	}
+	const updated = Date.parse(input.updatedAt);
+	const windowMs = input.activityWindowDays * 24 * 60 * 60 * 1000;
+	return updated >= input.now.getTime() - windowMs;
+}
+
+export type ListedProject = {
+	key: string;
+	name?: string;
+	tracker: "github" | "linear";
+	updatedAt: string | null;
+	tickets: Ticket[];
+	pulls: PullRequest[];
+	branches: string[];
+	startedKeys: string[];
+	pinned: boolean;
+	hidden: boolean;
+	closed?: boolean;
+};
+
+export function projectSnapshots(
+	found: ListedProject[],
+	now: Date,
+	activityWindowDays: number,
+): {
+	key: string;
+	name: string;
+	tracker: ListedProject["tracker"];
+	tickets: Ticket[];
+	pulls: PullRequest[];
+	branches: string[];
+	startedKeys: string[];
+}[] {
+	const projects = [
+		...found.filter(
+			(project) => project.tracker === "github" && !project.key.includes("/"),
+		),
+		...found.filter(
+			(project) => project.tracker === "linear" || project.key.includes("/"),
+		),
+	];
+	const shown = projects.filter((project) => {
+		const openTickets = project.tickets.filter(
+			(ticket) => ticket.state === "open",
+		).length;
+		const ticketUpdated = project.tickets.reduce<string | null>(
+			(latest, ticket) => {
+				if (ticket.updatedAt === undefined) {
+					return latest;
+				}
+				return latest === null || ticket.updatedAt > latest
+					? ticket.updatedAt
+					: latest;
+			},
+			null,
+		);
+		const updatedAt =
+			project.updatedAt === null
+				? ticketUpdated
+				: ticketUpdated === null || project.updatedAt > ticketUpdated
+					? project.updatedAt
+					: ticketUpdated;
+		return (
+			project.closed !== true &&
+			showsProject({
+				pinned: project.pinned,
+				hidden: project.hidden,
+				openTickets,
+				updatedAt,
+				now,
+				activityWindowDays,
+			})
+		);
+	});
+	const claimed = new Set<string>();
+	const rows = [];
+	for (const project of shown) {
+		const tickets = project.tickets.filter((ticket) => {
+			if (ticket.ref === undefined || claimed.has(ticket.ref)) {
+				return ticket.ref === undefined;
+			}
+			claimed.add(ticket.ref);
+			return true;
+		});
+		rows.push({
+			key: project.key,
+			name: project.name ?? project.key,
+			tracker: project.tracker,
+			tickets,
+			pulls: project.pulls,
+			branches: project.branches,
+			startedKeys: project.startedKeys,
+		});
+	}
+	return rows;
 }
 
 function ticketNumber(key: string): string | null {

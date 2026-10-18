@@ -9,14 +9,18 @@ import {
 	rejectedToken,
 	run,
 } from "../src/main.ts";
-import { tempConfig, testIo, urlOf } from "./support.ts";
+import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
 const valid = JSON.stringify({
 	pinned: [{ tracker: "github", repo: "acme/widget" }],
 });
 
 function recordedFetch(userStatus: number): Fetch {
-	return async (input) => {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ message: "recorded" }), {
@@ -29,6 +33,12 @@ function recordedFetch(userStatus: number): Fetch {
 			url.includes("/branches?")
 		) {
 			return new Response("[]", {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}
+		if (url === "https://api.linear.app/graphql") {
+			return new Response(JSON.stringify({ data: { viewer: { id: "lev" } } }), {
 				status: 200,
 				headers: { "content-type": "application/json" },
 			});
@@ -232,6 +242,30 @@ describe("startup", () => {
 			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
+		}
+	});
+
+	test("a GitHub-only configuration starts without a Linear key", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-data-"));
+		const databasePath = join(root, "github-only.sqlite");
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+					databasePath,
+					waitForStop: Promise.resolve(),
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(result.listened).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 

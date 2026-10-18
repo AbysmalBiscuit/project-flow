@@ -7,8 +7,20 @@ export type Clock = {
 
 export type TodoSource = () => Promise<string>;
 
+export type FoundProject = {
+	key: string;
+	name?: string;
+	tracker: "github" | "linear";
+	updatedAt: string | null;
+	owner?: string;
+	number?: number;
+	closed?: boolean;
+};
+
 export type Snapshot = {
-	project: string;
+	key: string;
+	name: string;
+	tracker: "github" | "linear";
 	tickets: Ticket[];
 	pulls: PullRequest[];
 	branches: string[];
@@ -19,6 +31,7 @@ export type Tracker = {
 	listTickets: (project: string) => Promise<Ticket[]>;
 	listPulls: (project: string) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
+	findProjects: () => Promise<FoundProject[]>;
 };
 
 export type Store = {
