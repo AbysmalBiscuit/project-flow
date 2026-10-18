@@ -1,7 +1,7 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
-import { projectCounts } from "./domain.ts";
+import { projectCounts, startedTodoKeys } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubTracker } from "./github.ts";
 import page from "./index.html";
@@ -18,6 +18,7 @@ export type StartOptions = {
 	hostname: string;
 	port: number;
 	now?: () => Date;
+	listTodos?: () => Promise<string>;
 };
 
 export type Running = {
@@ -30,17 +31,24 @@ function pinKey(pin: Configuration["pinned"][number]): string {
 }
 
 function overview(store: Store, configuration: Configuration): Overview {
-	const rows = new Map(
-		store.readTickets().map((row) => [row.project, row.tickets]),
-	);
+	const rows = new Map(store.readTickets().map((row) => [row.project, row]));
 	return {
 		projects: configuration.pinned.flatMap((pin) => {
 			const key = pinKey(pin);
-			const tickets = rows.get(key);
-			if (tickets === undefined) {
+			const row = rows.get(key);
+			if (row === undefined) {
 				return [];
 			}
-			return [projectCounts(key, pin.tracker, tickets)];
+			return [
+				projectCounts(
+					key,
+					pin.tracker,
+					row.tickets,
+					row.pulls,
+					row.branches,
+					row.startedKeys,
+				),
+			];
 		}),
 	};
 }
@@ -51,21 +59,33 @@ async function poll(options: {
 	linear: Tracker | null;
 	store: Store;
 	clock: Clock;
+	listTodos?: (() => Promise<string>) | undefined;
 }): Promise<Configuration> {
+	void options.clock;
 	const configuration = await options.configuration.read();
+	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
 	const rows = [];
 	for (const pin of configuration.pinned) {
 		const key = pinKey(pin);
 		if (pin.tracker === "github") {
 			const tickets = await options.github.listTickets(key);
-			rows.push({ project: key, tickets });
+			const pulls = await options.github.listPulls(key);
+			const branches = await options.github.listBranches(key);
+			rows.push({ project: key, tickets, pulls, branches, startedKeys });
 			continue;
 		}
 		if (options.linear === null) {
 			throw new Error(missingLinearKey);
 		}
 		const tickets = await options.linear.listTickets(key);
-		rows.push({ project: key, tickets });
+		const pulls = await options.linear.listPulls(key);
+		rows.push({
+			project: key,
+			tickets,
+			pulls,
+			branches: [],
+			startedKeys,
+		});
 	}
 	options.store.replaceTickets(rows);
 	return configuration;
@@ -79,9 +99,10 @@ export async function start(options: StartOptions): Promise<Running> {
 		linear:
 			options.linearKey === null
 				? null
-				: linearTracker(options.linearKey, options.fetch),
+				: linearTracker(options.linearKey, options.fetch, options.token),
 		store: opened.store,
 		clock: { now: options.now ?? (() => new Date()) },
+		listTodos: options.listTodos,
 	});
 	const server = Bun.serve({
 		hostname: options.hostname,

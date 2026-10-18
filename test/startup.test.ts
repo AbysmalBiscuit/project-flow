@@ -23,7 +23,11 @@ function recordedFetch(userStatus: number): Fetch {
 				status: userStatus,
 			});
 		}
-		if (url.includes("/issues?")) {
+		if (
+			url.includes("/issues?") ||
+			url.includes("/pulls?") ||
+			url.includes("/branches?")
+		) {
 			return new Response("[]", {
 				status: 200,
 				headers: { "content-type": "application/json" },

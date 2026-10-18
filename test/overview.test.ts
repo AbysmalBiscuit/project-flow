@@ -64,6 +64,9 @@ function githubFetch(requests: string[] = []): Fetch {
 		if (url === second) {
 			return page(recorded.slice(4), null);
 		}
+		if (url.includes("/pulls?") || url.includes("/branches?")) {
+			return page([], null);
+		}
 		return new Response("not recorded", { status: 404 });
 	};
 }
@@ -79,6 +82,8 @@ async function assertCard(base: string): Promise<void> {
 				done: 2,
 				dropped: 2,
 				backlog: 2,
+				inProgress: 0,
+				unlinkedPrs: [],
 			},
 		],
 	});
@@ -140,6 +145,9 @@ function linearFetch(requests: string[]): Fetch {
 		const list = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`;
 		if (url === list) {
 			return page(recorded, null);
+		}
+		if (url.includes("/pulls?") || url.includes("/branches?")) {
+			return page([], null);
 		}
 		if (url === "https://api.linear.app/graphql") {
 			const body =
@@ -222,6 +230,9 @@ describe("GET /api/overview", () => {
 				if (url === list) {
 					return page([ticket(1, "open", null)], null);
 				}
+				if (url.includes("/pulls?") || url.includes("/branches?")) {
+					return page([], null);
+				}
 				return new Response("not recorded", { status: 404 });
 			};
 		const serve = async (pinned: string): Promise<unknown> => {
@@ -251,6 +262,7 @@ describe("GET /api/overview", () => {
 						databasePath,
 						stdout: (line) => startChecks(line),
 						waitForStop: checks.then(() => undefined),
+						listTodos: async () => "",
 					},
 				);
 				expect(result.exitCode).toBe(0);
@@ -270,6 +282,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -282,6 +296,8 @@ describe("GET /api/overview", () => {
 						done: 0,
 						dropped: 0,
 						backlog: 1,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -437,6 +453,8 @@ describe("GET /api/overview", () => {
 						done: 1,
 						dropped: 0,
 						backlog: 0,
+						inProgress: 0,
+						unlinkedPrs: [],
 					},
 				],
 			});
@@ -514,6 +532,8 @@ describe("GET /api/overview", () => {
 									done: 2,
 									dropped: 2,
 									backlog: 2,
+									inProgress: 0,
+									unlinkedPrs: [],
 								},
 								{
 									name: linearProject,
@@ -521,6 +541,8 @@ describe("GET /api/overview", () => {
 									done: 2,
 									dropped: 2,
 									backlog: 2,
+									inProgress: 0,
+									unlinkedPrs: [],
 								},
 							],
 						});
@@ -542,6 +564,7 @@ describe("GET /api/overview", () => {
 					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
+					listTodos: async () => "",
 				},
 			);
 			expect(result.stderr).toBe("");
@@ -584,6 +607,7 @@ describe("GET /api/overview", () => {
 					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
+					listTodos: async () => "",
 				},
 			);
 			expect(result.stderr).toBe("");
