@@ -11,7 +11,7 @@ function Cards({ overview }: { overview: Overview }) {
 						<h2>{project.name}</h2>
 						<p className="counts">
 							Done {project.done} Dropped {project.dropped} Backlog{" "}
-							{project.backlog}
+							{project.backlog} In progress {project.inProgress}
 						</p>
 					</li>
 				))}
