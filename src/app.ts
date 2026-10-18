@@ -126,18 +126,14 @@ function overview(store: Store): Overview {
 	};
 }
 
-function reportFor(
-	store: Store,
-	name: string,
-	ticket: string | null,
-): ProjectReport | null {
+function reportFor(store: Store, name: string): ProjectReport | null {
 	const match = counted(store).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
 		return null;
 	}
-	return projectReport(match.counts, match.row.tickets, ticket);
+	return projectReport(match.counts, match.row.tickets);
 }
 
 function mergeFound(
@@ -543,7 +539,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
-		development: { hmr: false, console: false },
+		development: false,
 		routes: {
 			"/": page,
 			"/projects/*": page,
@@ -552,9 +548,8 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/api/projects/:name": {
 				GET: (request) => {
-					const name = decodeURIComponent(request.params.name);
-					const ticket = new URL(request.url).searchParams.get("ticket");
-					const report = reportFor(opened.store, name, ticket);
+					const name = request.params.name;
+					const report = reportFor(opened.store, name);
 					if (report === null) {
 						return Response.json(
 							{ error: "project not found" },
