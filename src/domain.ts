@@ -38,7 +38,7 @@ export type Overview = {
 };
 
 const closing =
-	/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#(\d+)/gi;
+	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#(\d+)/gi;
 
 function closingKeys(body: string, repo: string): string[] {
 	const keys: string[] = [];

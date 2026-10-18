@@ -434,6 +434,32 @@ describe("in progress", () => {
 });
 
 describe("PR links", () => {
+	test("disclosed #5 links nothing", async () => {
+		const body = await overview({
+			issues: [issue(5)],
+			pulls: [pull(55, { body: "disclosed #5", draft: true })],
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					name: repo,
+					tracker: "github",
+					done: 0,
+					dropped: 0,
+					backlog: 1,
+					inProgress: 0,
+					unlinkedPrs: [
+						{
+							number: 55,
+							title: "PR 55",
+							url: `https://github.com/${repo}/pull/55`,
+						},
+					],
+				},
+			],
+		});
+	});
+
 	test("a closing reference links a recorded PR to its ticket", async () => {
 		const body = await overview({
 			issues: [issue(12)],
