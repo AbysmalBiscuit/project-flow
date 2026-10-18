@@ -9,7 +9,13 @@ import {
 	rejectedToken,
 	run,
 } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const valid = JSON.stringify({
 	pinned: [{ tracker: "github", repo: "acme/widget" }],
@@ -51,55 +57,23 @@ describe("startup", () => {
 	test("a Linear-only configuration starts without GITHUB_TOKEN", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
-				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				pinned: [
+					{
+						tracker: "linear",
+						project: "widget-launch-0d42ae5d46d0",
+					},
+				],
 			}),
 		);
-		const fetchImpl: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			if (url.startsWith("https://api.github.com/")) {
+		const fetchImpl = linearFake({
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
 				throw new Error("GitHub must not be called without GITHUB_TOKEN");
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
-				}
-				if (body.includes("ProjectByPin")) {
-					return new Response(
-						JSON.stringify({
-							data: {
-								bySlug: {
-									nodes: [
-										{
-											id: "project-1",
-											name: "Widget launch",
-											slugId: "widget-launch-0d42ae5d46d0",
-										},
-									],
-								},
-								byName: { nodes: [] },
-							},
-						}),
-						{ status: 200 },
-					);
-				}
-				return new Response(
-					JSON.stringify({
-						data: {
-							issues: {
-								nodes: [],
-								pageInfo: { hasNextPage: false, endCursor: null },
-							},
-						},
-					}),
-					{ status: 200 },
-				);
-			}
-			return new Response("not recorded", { status: 404 });
-		};
+			},
+		});
 		try {
 			const result = await run(["--config", path], {
 				env: { LINEAR_API_KEY: "recorded-linear-key" },
@@ -263,17 +237,22 @@ describe("startup", () => {
 	});
 
 	test("a blank GITHUB_TOKEN exits 1 and names the token", async () => {
-		const result = await run(
-			["--config", "/tmp/unused-config.json"],
-			testIo({
-				env: { GITHUB_TOKEN: "   " },
-				fetch: recordedFetch(200),
-				readGhToken: async () => null,
-			}),
-		);
-		expect(result.exitCode).toBe(1);
-		expect(result.stderr).toBe(missingToken);
-		expect(result.listened).toBe(false);
+		const { path, cleanup } = await tempConfig(valid);
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "   " },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toBe(missingToken);
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
 	});
 
 	test("an empty --port exits 1 and does not listen", async () => {

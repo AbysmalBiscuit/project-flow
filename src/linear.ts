@@ -194,6 +194,7 @@ async function findLinearProjects(
 		for (const node of page.data.projects.nodes) {
 			found.push({
 				key: node.slugId,
+				name: node.name,
 				tracker: "linear",
 				updatedAt: node.updatedAt,
 			});

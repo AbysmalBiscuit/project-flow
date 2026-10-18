@@ -101,6 +101,7 @@ async function poll(options: {
 	store: Store;
 	clock: Clock;
 	token: string | null;
+	fetch: Fetch;
 	listTodos?: TodoSource | undefined;
 }): Promise<Configuration> {
 	const configuration = await options.configuration.read();
@@ -173,8 +174,9 @@ async function poll(options: {
 		if (tracker === null) {
 			throw new Error(missingLinearKey);
 		}
-		const listedTickets = await tracker.listTickets(project.key);
-		const pulls = await tracker.listPulls(project.key);
+		const pin = project.key;
+		const listedTickets = await tracker.listTickets(pin);
+		const pulls = await tracker.listPulls(pin);
 		const branches =
 			project.tracker === "github" && github !== null
 				? await github.listBranches(project.key)
@@ -216,6 +218,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		store: opened.store,
 		clock: { now: options.now ?? (() => new Date()) },
 		token: options.token,
+		fetch: options.fetch,
 		listTodos: options.listTodos,
 	});
 	const server = Bun.serve({

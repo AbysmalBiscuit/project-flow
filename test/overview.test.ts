@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const repo = "acme/widget";
 
@@ -116,7 +122,8 @@ async function assertCard(base: string): Promise<void> {
 	expect(html).not.toContain("Backlog ");
 }
 
-const linearProject = "widget-launch";
+const linearProject = "widget-launch-0d42ae5d46d0";
+const linearName = "Widget launch";
 
 function linearIssue(
 	id: string,
@@ -140,87 +147,33 @@ const linearRecorded = [
 	linearIssue("6", "started"),
 ];
 
-function linearProjectBody(name: string, slugId: string): string {
-	const node = { id: "project-1", name, slugId };
-	return JSON.stringify({
-		data: {
-			bySlug: { nodes: [node] },
-			byName: { nodes: [] },
-		},
-	});
-}
-
-function linearBody(
-	nodes: Record<string, unknown>[],
-	hasNextPage: boolean,
-	endCursor: string | null,
-): string {
-	return JSON.stringify({
-		data: {
-			issues: {
-				nodes,
-				pageInfo: { hasNextPage, endCursor },
-			},
-		},
-	});
-}
-
 function linearFetch(requests: string[]): Fetch {
-	return async (input, init) => {
-		const discovered = recordedDiscovery(input, init);
-		if (discovered !== null) {
-			return discovered;
-		}
-		const url = urlOf(input);
-		if (url === "https://api.github.com/user") {
-			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-		}
-		const list = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`;
-		if (url === list) {
-			return page(recorded, null);
-		}
-		if (url.includes("/pulls?") || url.includes("/branches?")) {
-			return page([], null);
-		}
-		if (url === "https://api.linear.app/graphql") {
-			const body =
-				typeof init?.body === "string" ? init.body : JSON.stringify(init?.body);
-			const query = JSON.parse(body) as {
-				query?: string;
-				variables?: { after?: string | null };
-			};
-			if (query.query?.includes("viewer")) {
-				return new Response(
-					JSON.stringify({ data: { viewer: { id: "lev" } } }),
-					{
-						status: 200,
-						headers: { "content-type": "application/json" },
-					},
-				);
+	return linearFake({
+		project: {
+			id: "project-1",
+			name: linearName,
+			slugId: linearProject,
+		},
+		pages: [
+			{ nodes: linearRecorded.slice(0, 4), endCursor: "page-2" },
+			{ nodes: linearRecorded.slice(4), endCursor: null },
+		],
+		requests,
+		github: async (input) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (query.query?.includes("ProjectByPin")) {
-				return new Response(
-					linearProjectBody(linearProject, `${linearProject}-0d42ae5d46d0`),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
+			const list = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`;
+			if (url === list) {
+				return page(recorded, null);
 			}
-			requests.push(body);
-			const after = query.variables?.after;
-			if (after === undefined || after === null) {
-				return new Response(
-					linearBody(linearRecorded.slice(0, 4), true, "page-2"),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([], null);
 			}
-			if (after === "page-2") {
-				return new Response(linearBody(linearRecorded.slice(4), false, null), {
-					status: 200,
-					headers: { "content-type": "application/json" },
-				});
-			}
-		}
-		return emptyList(url) ?? new Response("not recorded", { status: 404 });
-	};
+			return new Response("not recorded", { status: 404 });
+		},
+	});
 }
 
 describe("GET /api/overview", () => {
@@ -424,20 +377,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
-		const rejected: Fetch = async (input, init) => {
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				return new Response("unauthorized", { status: 401 });
-			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
-		};
+		const rejected = linearFake({ fail: "key" });
 		try {
 			const result = await run(
 				["--config", path],
@@ -465,44 +405,18 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
-		const unknown: Fetch = async (input, init) => {
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
-				}
-				if (body.includes("ProjectByPin")) {
-					return new Response(
-						linearProjectBody(linearProject, `${linearProject}-0d42ae5d46d0`),
-						{ status: 200, headers: { "content-type": "application/json" } },
-					);
-				}
-				return new Response(
-					linearBody(
-						[
-							linearIssue("1", "completed"),
-							{ id: "9", state: { type: "archived-mystery" } },
-							{ id: "10", state: null },
-						],
-						false,
-						null,
-					),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
-		};
+		const unknown = linearFake({
+			project: {
+				id: "project-1",
+				name: linearName,
+				slugId: linearProject,
+			},
+			issues: [
+				linearIssue("1", "completed"),
+				{ id: "9", state: { type: "archived-mystery" } },
+				{ id: "10", state: null },
+			],
+		});
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
@@ -532,7 +446,7 @@ describe("GET /api/overview", () => {
 			expect(await checks).toEqual({
 				projects: [
 					{
-						name: linearProject,
+						name: linearName,
 						tracker: "linear",
 						done: 1,
 						dropped: 0,
@@ -555,28 +469,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: pin }],
 			}),
 		);
-		const unmatched: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
-				}
-				return new Response(
-					JSON.stringify({
-						data: { bySlug: { nodes: [] }, byName: { nodes: [] } },
-					}),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			return new Response("not recorded", { status: 404 });
-		};
+		const unmatched = linearFake({ project: null });
 		try {
 			const result = await run(["--config", path], {
 				env: {
@@ -603,23 +496,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: pin }],
 			}),
 		);
-		const failing: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
-				}
-				return new Response("recorded failure", { status: 502 });
-			}
-			return new Response("not recorded", { status: 404 });
-		};
+		const failing = linearFake({ fail: "lookup", status: 502 });
 		try {
 			const result = await run(["--config", path], {
 				env: {
@@ -646,33 +523,14 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
-		const failing: Fetch = async (input, init) => {
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
-				}
-				if (body.includes("ProjectByPin")) {
-					return new Response(
-						linearProjectBody(linearProject, `${linearProject}-0d42ae5d46d0`),
-						{ status: 200, headers: { "content-type": "application/json" } },
-					);
-				}
-				return new Response("recorded failure", { status: 500 });
-			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
-		};
+		const failing = linearFake({
+			project: {
+				id: "project-1",
+				name: linearName,
+				slugId: linearProject,
+			},
+			fail: "issues",
+		});
 		try {
 			const result = await run(
 				["--config", path],
@@ -696,42 +554,21 @@ describe("GET /api/overview", () => {
 	});
 
 	test("a Linear card heading shows the Linear project name", async () => {
-		const pin = "agent-docs-cleanup";
+		const pin = "agent-docs-cleanup-0d42ae5d46d0";
 		const projectName = "Agent docs cleanup";
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: pin }],
 			}),
 		);
-		const named: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url === "https://api.linear.app/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("viewer")) {
-					return new Response(
-						JSON.stringify({ data: { viewer: { id: "lev" } } }),
-						{ status: 200 },
-					);
-				}
-				if (body.includes("ProjectByPin")) {
-					return new Response(
-						linearProjectBody(projectName, `${pin}-0d42ae5d46d0`),
-						{ status: 200, headers: { "content-type": "application/json" } },
-					);
-				}
-				return new Response(
-					linearBody([linearIssue("1", "completed")], false, null),
-					{
-						status: 200,
-						headers: { "content-type": "application/json" },
-					},
-				);
-			}
-			return new Response("not recorded", { status: 404 });
-		};
+		const named = linearFake({
+			project: {
+				id: "project-1",
+				name: projectName,
+				slugId: pin,
+			},
+			issues: [linearIssue("1", "completed")],
+		});
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
@@ -787,27 +624,31 @@ describe("GET /api/overview", () => {
 				fetch(new URL("/api/overview", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						expect(await response.json()).toEqual({
-							projects: [
-								{
-									name: repo,
-									tracker: "github",
-									done: 2,
-									dropped: 2,
-									backlog: 2,
-									inProgress: 0,
-									unlinkedPrs: [],
-								},
-								{
-									name: linearProject,
-									tracker: "linear",
-									done: 2,
-									dropped: 2,
-									backlog: 2,
-									inProgress: 0,
-									unlinkedPrs: [],
-								},
-							],
+						const body = (await response.json()) as {
+							projects: { tracker: string }[];
+						};
+						expect(body.projects).toHaveLength(2);
+						expect(
+							body.projects.find((project) => project.tracker === "github"),
+						).toEqual({
+							name: repo,
+							tracker: "github",
+							done: 2,
+							dropped: 2,
+							backlog: 2,
+							inProgress: 0,
+							unlinkedPrs: [],
+						});
+						expect(
+							body.projects.find((project) => project.tracker === "linear"),
+						).toEqual({
+							name: linearName,
+							tracker: "linear",
+							done: 2,
+							dropped: 2,
+							backlog: 2,
+							inProgress: 0,
+							unlinkedPrs: [],
 						});
 						resolve();
 					})
@@ -1025,6 +866,24 @@ describe("GET /api/overview", () => {
 						},
 					);
 				}
+				if (body.includes("ProjectByPin")) {
+					return new Response(
+						JSON.stringify({
+							data: {
+								projects: {
+									nodes: [
+										{
+											id: "linear-project-1",
+											name: "Widget launch",
+											slugId: linearProject,
+										},
+									],
+								},
+							},
+						}),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
 				if (body.includes("projects(")) {
 					return new Response(
 						JSON.stringify({
@@ -1047,11 +906,17 @@ describe("GET /api/overview", () => {
 					);
 				}
 				return new Response(
-					linearBody(
-						[linearIssue("1", "backlog"), linearIssue("2", "completed")],
-						false,
-						null,
-					),
+					JSON.stringify({
+						data: {
+							issues: {
+								nodes: [
+									linearIssue("1", "backlog"),
+									linearIssue("2", "completed"),
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
@@ -1098,7 +963,7 @@ describe("GET /api/overview", () => {
 						unlinkedPrs: [],
 					},
 					{
-						name: linearProject,
+						name: "Widget launch",
 						tracker: "linear",
 						done: 1,
 						dropped: 0,
@@ -1315,7 +1180,8 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.linear.app/graphql" &&
-				body.includes("projects(")
+				body.includes("projects(") &&
+				!body.includes("ProjectByPin")
 			) {
 				const parsed = JSON.parse(body) as {
 					variables?: { viewer?: string };
@@ -1345,6 +1211,27 @@ describe("GET /api/overview", () => {
 			if (url === "https://api.linear.app/graphql" && body.includes("viewer")) {
 				return new Response(
 					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{ status: 200 },
+				);
+			}
+			if (
+				url === "https://api.linear.app/graphql" &&
+				body.includes("ProjectByPin")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							projects: {
+								nodes: [
+									{
+										id: "linear-member",
+										name: "Member launch",
+										slugId: "member-launch",
+									},
+								],
+							},
+						},
+					}),
 					{ status: 200 },
 				);
 			}
@@ -1392,7 +1279,7 @@ describe("GET /api/overview", () => {
 			expect(await checks).toEqual({
 				projects: [
 					{
-						name: "member-launch",
+						name: "Member launch",
 						tracker: "linear",
 						done: 0,
 						dropped: 0,
@@ -2660,7 +2547,38 @@ describe("GET /api/overview", () => {
 				url === "https://api.linear.app/graphql" &&
 				body.includes("ProjectIssues")
 			) {
-				return new Response(linearBody([], false, null), { status: 200 });
+				return new Response(
+					JSON.stringify({
+						data: {
+							issues: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (
+				url === "https://api.linear.app/graphql" &&
+				body.includes("ProjectByPin")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							projects: {
+								nodes: [
+									{
+										id: "quiet-linear-id",
+										name: "Quiet linear",
+										slugId: pinnedLinear,
+									},
+								],
+							},
+						},
+					}),
+					{ status: 200 },
+				);
 			}
 			if (url === "https://api.linear.app/graphql") {
 				return new Response(
@@ -2707,7 +2625,7 @@ describe("GET /api/overview", () => {
 			expect(await checks).toEqual({
 				projects: [
 					{
-						name: pinnedLinear,
+						name: "Quiet linear",
 						tracker: "linear",
 						done: 0,
 						dropped: 0,
