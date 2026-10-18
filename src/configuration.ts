@@ -6,8 +6,13 @@ const githubPin = z.strictObject({
 	repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
 });
 
+const linearPin = z.strictObject({
+	tracker: z.literal("linear"),
+	project: z.string().regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/),
+});
+
 const configurationSchema = z.strictObject({
-	pinned: z.array(z.discriminatedUnion("tracker", [githubPin])),
+	pinned: z.array(z.discriminatedUnion("tracker", [githubPin, linearPin])),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;

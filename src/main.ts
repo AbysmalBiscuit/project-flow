@@ -7,11 +7,15 @@ import { start } from "./app.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken } from "./github.ts";
+import { checkLinearKey, missingLinearKey } from "./linear.ts";
 
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
 export const rejectedToken =
 	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
+export { missingLinearKey };
+export const rejectedLinearKey =
+	"LINEAR_API_KEY was rejected by Linear (HTTP 401): set a valid key.";
 
 export type RunIo = {
 	env: Record<string, string | undefined>;
@@ -161,13 +165,33 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		}
 
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
-		await loadConfiguration(configPath);
+		const configuration = await loadConfiguration(configPath);
+		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
+		const needsLinear = configuration.pinned.some(
+			(pin) => pin.tracker === "linear",
+		);
+		if (needsLinear && linearKey === "") {
+			writeErr(missingLinearKey);
+			return result(1, false);
+		}
+		if (needsLinear) {
+			const viewer = await checkLinearKey(linearKey, io.fetch);
+			if (viewer.status === 401) {
+				writeErr(rejectedLinearKey);
+				return result(1, false);
+			}
+			if (!viewer.ok) {
+				writeErr(`Linear key check failed (HTTP ${viewer.status}).`);
+				return result(1, false);
+			}
+		}
 
 		const databasePath = io.databasePath ?? defaultStorePath(io.env);
 		await openStore(databasePath);
 		const running = await start({
 			configPath,
 			token,
+			linearKey: linearKey === "" ? null : linearKey,
 			fetch: io.fetch,
 			databasePath,
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",

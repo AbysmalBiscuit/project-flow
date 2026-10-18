@@ -1,14 +1,14 @@
 export type TicketState = "done" | "dropped" | "backlog";
 
 export type Ticket = {
-	tracker: "github";
+	tracker: "github" | "linear";
 	state: "open" | "closed";
 	stateReason: string | null;
 };
 
 export type ProjectCounts = {
 	name: string;
-	tracker: "github";
+	tracker: "github" | "linear";
 	done: number;
 	dropped: number;
 	backlog: number;
@@ -33,7 +33,7 @@ export function ticketState(ticket: Ticket): TicketState {
 
 export function projectCounts(
 	name: string,
-	tracker: "github",
+	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
 ): ProjectCounts {
 	const counts = { done: 0, dropped: 0, backlog: 0 };
