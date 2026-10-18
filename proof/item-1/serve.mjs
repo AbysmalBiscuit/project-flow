@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "../../src/main.ts";
 
-const repo = "acme/found-widget";
+const projectId = "PVT_kwDOFound";
+const projectTitle = "Widget board";
 
 function recorded(input, init) {
 	const url = typeof input === "string" ? input : input.url;
@@ -12,33 +13,64 @@ function recorded(input, init) {
 		return Response.json({ login: "lev" });
 	}
 	if (url.startsWith("https://api.github.com/user/repos")) {
-		return Response.json([
-			{
-				full_name: repo,
-				owner: { login: "lev" },
-				permissions: { admin: true, push: true },
-				pushed_at: "2026-10-18T12:00:00.000Z",
-			},
-		]);
+		return Response.json([]);
 	}
-	if (url.includes("/issues?")) {
-		return Response.json([
-			{
-				number: 4,
-				title: "Show found projects",
-				state: "open",
-				state_reason: null,
-				updated_at: "2026-10-18T12:00:00.000Z",
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("OrgProjects")
+	) {
+		return Response.json({
+			data: {
+				organization: {
+					projectsV2: {
+						nodes: [],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
 			},
-		]);
+		});
 	}
-	if (url === "https://api.github.com/graphql") {
+	if (url === "https://api.github.com/graphql" && body.includes("node(id:")) {
+		return Response.json({
+			data: {
+				node: {
+					items: {
+						nodes: [
+							{
+								content: {
+									__typename: "Issue",
+									number: 9,
+									state: "OPEN",
+									stateReason: null,
+									repository: { nameWithOwner: "AbysmalBiscuit/project-flow" },
+								},
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			},
+		});
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ViewerProjects")
+	) {
 		return Response.json({
 			data: {
 				viewer: {
 					login: "lev",
 					projectsV2: {
-						nodes: [],
+						nodes: [
+							{
+								id: projectId,
+								number: 3,
+								owner: { login: "AbysmalBiscuit" },
+								title: projectTitle,
+								closed: false,
+								updatedAt: "2026-10-18T12:00:00Z",
+							},
+						],
 						pageInfo: { hasNextPage: false, endCursor: null },
 					},
 					organizations: {
@@ -52,7 +84,6 @@ function recorded(input, init) {
 	if (url === "https://api.linear.app/graphql" && body.includes("projects(")) {
 		return Response.json({
 			data: {
-				viewer: { id: "lev" },
 				projects: {
 					nodes: [],
 					pageInfo: { hasNextPage: false, endCursor: null },
@@ -68,7 +99,7 @@ function recorded(input, init) {
 
 const dir = await mkdtemp(join(tmpdir(), "project-flow-proof-"));
 const configPath = join(dir, "config.json");
-await writeFile(configPath, '{"pinned":[]}\n');
+await writeFile(configPath, "{}\n");
 const databasePath = join(dir, "project-flow.sqlite");
 
 const result = await run(

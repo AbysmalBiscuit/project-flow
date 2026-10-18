@@ -3,7 +3,7 @@
 	"serve": ["bun", "proof/item-1/serve.mjs"],
 	"steps": [
 		{ "goto": "/" },
-		{ "assert_text": "acme/found-widget" },
+		{ "assert_text": "Widget board" },
 		{ "assert_text": "Backlog 1" },
 		{ "shot": "found-project" }
 	]
