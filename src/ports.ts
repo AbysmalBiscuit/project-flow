@@ -58,8 +58,12 @@ export type TicketList = {
 };
 
 export type Tracker = {
-	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
-	listPulls: (project: string) => Promise<PullRequest[]>;
+	listTickets: (
+		project: string,
+		since: Date | null,
+		full?: boolean,
+	) => Promise<TicketList>;
+	listPulls: (project: string, since?: Date | null) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
@@ -75,6 +79,9 @@ export type Store = {
 	lastGoodPollAt: (project: string) => Date | null;
 	recordGoodPoll: (project: string, at: Date) => void;
 	recordFetchError: (message: string) => void;
+	recordProjectError: (project: string, message: string) => void;
+	clearProjectError: (project: string) => void;
+	projectError: (project: string) => string | null;
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
 };
 

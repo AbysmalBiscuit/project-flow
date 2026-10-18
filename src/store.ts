@@ -51,9 +51,8 @@ function writeRow(db: Database, row: Snapshot): void {
 
 export function sqliteStore(path: string): { store: Store; close: () => void } {
 	const db = new Database(path);
-	db.run("drop table if exists snapshots");
 	db.run(`
-		create table snapshots (
+		create table if not exists snapshots (
 			snapshot_key text primary key,
 			name text not null,
 			tracker text not null,
@@ -71,7 +70,20 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 	db.run(`
 		create table if not exists project_polls (
 			project text primary key,
-			fetched_at text not null
+			fetched_at text not null,
+			error text
+		)
+	`);
+	const pollColumns = db.query("pragma table_info(project_polls)").all() as {
+		name: string;
+	}[];
+	if (!pollColumns.some((column) => column.name === "error")) {
+		db.run("alter table project_polls add column error text");
+	}
+	db.run(`
+		create table if not exists project_errors (
+			project text primary key,
+			error text not null
 		)
 	`);
 	return {
@@ -111,7 +123,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			recordGoodPoll(project, at) {
 				const fetchedAt = at.toISOString();
 				db.query(
-					"insert into project_polls (project, fetched_at) values (?, ?) on conflict(project) do update set fetched_at = excluded.fetched_at",
+					"insert into project_polls (project, fetched_at, error) values (?, ?, null) on conflict(project) do update set fetched_at = excluded.fetched_at, error = null",
 				).run(project, fetchedAt);
 				db.query(
 					"update fetch_status set fetched_at = ?, error = null where id = 1",
@@ -119,6 +131,39 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			},
 			recordFetchError(message) {
 				db.query("update fetch_status set error = ? where id = 1").run(message);
+			},
+			recordProjectError(project, message) {
+				const existing = db
+					.query("select fetched_at from project_polls where project = ?")
+					.get(project) as { fetched_at: string } | null;
+				if (existing === null) {
+					db.query(
+						"insert into project_errors (project, error) values (?, ?) on conflict(project) do update set error = excluded.error",
+					).run(project, message);
+					return;
+				}
+				db.query("update project_polls set error = ? where project = ?").run(
+					message,
+					project,
+				);
+			},
+			clearProjectError(project) {
+				db.query("update project_polls set error = null where project = ?").run(
+					project,
+				);
+				db.query("delete from project_errors where project = ?").run(project);
+			},
+			projectError(project) {
+				const row = db
+					.query("select error from project_polls where project = ?")
+					.get(project) as { error: string | null } | null;
+				if (row?.error !== undefined && row.error !== null) {
+					return row.error;
+				}
+				const pending = db
+					.query("select error from project_errors where project = ?")
+					.get(project) as { error: string } | null;
+				return pending?.error ?? null;
 			},
 			fetchStatus() {
 				const row = db

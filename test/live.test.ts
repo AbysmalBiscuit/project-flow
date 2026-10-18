@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -215,6 +216,8 @@ type OverviewBody = {
 		crossProjectBlockers: unknown[];
 		needsYou: number;
 		progress: number;
+		fetchedAt: string | null;
+		error: string | null;
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
@@ -226,6 +229,8 @@ function counts(
 	done = 0,
 	tracker: "github" | "linear" = "github",
 	tickets: OverviewBody["projects"][number]["tickets"] = [],
+	fetchedAt: string | null = goodPoll,
+	error: string | null = null,
 ): OverviewBody["projects"][number] {
 	return {
 		name,
@@ -239,7 +244,9 @@ function counts(
 		tickets,
 		crossProjectBlockers: [],
 		needsYou: 0,
-		progress: 0,
+		progress: backlog + done === 0 ? 0 : Math.round((done / (backlog + done)) * 100),
+		fetchedAt,
+		error,
 	};
 }
 
@@ -307,7 +314,6 @@ function linearListSince(body: string): string | null {
 }
 
 function linearPinFetch(requests: string[]): Fetch {
-	let polls = 0;
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
@@ -351,9 +357,11 @@ function linearPinFetch(requests: string[]): Fetch {
 					},
 				);
 			}
-			requests.push(body);
-			polls += 1;
-			if (polls === 2) {
+			const filter = linearIssueFilter(body);
+			if (filter !== null) {
+				requests.push(body);
+			}
+			if (filter !== null && requests.length === 2) {
 				return new Response("recorded failure", { status: 500 });
 			}
 			return new Response(linearPage([linearIssue("1")]), {
@@ -368,7 +376,7 @@ function linearPinFetch(requests: string[]): Fetch {
 async function withServer(
 	fetchImpl: Fetch,
 	intervalSeconds: number,
-	checks: (base: string) => Promise<void>,
+	checks: (base: string, advance: (ms: number) => void) => Promise<void>,
 	pinned: (
 		| { tracker: "github"; repo: string }
 		| { tracker: "linear"; project: string }
@@ -382,17 +390,19 @@ async function withServer(
 	);
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
-	let startChecks: (base: string) => void = () => {};
+	let startChecks: (base: string, advance: (ms: number) => void) => void =
+		() => {};
 	let checksError: unknown;
 	const done = new Promise<void>((resolve, reject) => {
-		startChecks = (base: string) => {
-			checks(base).then(resolve, (error: unknown) => {
+		startChecks = (base: string, advance: (ms: number) => void) => {
+			checks(base, advance).then(resolve, (error: unknown) => {
 				checksError = error;
 				reject(error instanceof Error ? error : new Error("checks failed"));
 			});
 		};
 	});
 	let ticks = 0;
+	let advanced = 0;
 	try {
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
@@ -401,8 +411,11 @@ async function withServer(
 				fetch: fetchImpl,
 				readGhToken: async () => null,
 				databasePath,
-				now: () => new Date(Date.parse(goodPoll) + ticks++ * 1_000),
-				stdout: (line) => startChecks(line),
+				now: () => new Date(Date.parse(goodPoll) + advanced + ticks++ * 1_000),
+				stdout: (line) =>
+					startChecks(line, (ms) => {
+						advanced += ms;
+					}),
 				waitForStop: done,
 			}),
 		);
@@ -417,7 +430,157 @@ async function withServer(
 	}
 }
 
+function seedSnapshot(databasePath: string): void {
+	const db = new Database(databasePath);
+	db.run(`
+		create table snapshots (
+			snapshot_key text primary key,
+			name text not null,
+			tracker text not null,
+			payload text not null
+		)
+	`);
+	db.run(`
+		create table fetch_status (
+			id integer primary key check (id = 1),
+			fetched_at text,
+			error text
+		)
+	`);
+	db.run("insert into fetch_status (id, fetched_at) values (1, ?)", [goodPoll]);
+	db.run(`
+		create table project_polls (
+			project text primary key,
+			fetched_at text not null
+		)
+	`);
+	db.run("insert into project_polls (project, fetched_at) values (?, ?)", [
+		repo,
+		goodPoll,
+	]);
+	db.run(
+		"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
+		[
+			`github:${repo}`,
+			repo,
+			"github",
+			JSON.stringify({
+				tickets: [
+					{
+						id: "1",
+						tracker: "github",
+						key: `${repo}#1`,
+						title: "Ticket 1",
+						state: "open",
+						stateReason: null,
+						updatedAt: "2026-04-01T00:00:00Z",
+						body: "",
+						blockedBy: [],
+					},
+				],
+				pulls: [],
+				branches: [],
+				startedKeys: [],
+			}),
+		],
+	);
+	db.close();
+}
+
 describe("live updates", () => {
+	test("stored rows are served before the first poll ends", async () => {
+		const requests: string[] = [];
+		let releasePoll: () => void = () => {};
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				requests.push(url);
+				await pollHeld;
+				return page([ticket(9, "2026-04-03T00:00:00Z")]);
+			}
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		seedSnapshot(databasePath);
+		let startChecks: (base: string) => void = () => {};
+		let listened = false;
+		const checks = new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				if (!listened) {
+					reject(
+						new Error("server did not listen before the first poll ended"),
+					);
+				}
+			}, 1_000);
+			startChecks = (base: string) => {
+				listened = true;
+				clearTimeout(timer);
+				void (async () => {
+					const body = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as OverviewBody;
+					expect(requests.filter((url) => listUrl(url) !== null)).toEqual([]);
+					expect(body.projects).toEqual([
+						counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
+					]);
+					expect(body.fetchedAt).toBe(goodPoll);
+					expect(body.error).toBeNull();
+					releasePoll();
+					const deadline = Date.now() + 3_000;
+					while (
+						requests.filter((url) => listUrl(url) !== null).length < 1 &&
+						Date.now() < deadline
+					) {
+						await Bun.sleep(20);
+					}
+					expect(requests.filter((url) => listUrl(url) !== null)).toHaveLength(
+						1,
+					);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date(goodPoll),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				},
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+		} finally {
+			releasePoll();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a zero poll interval names the field and does not listen", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -500,7 +663,14 @@ describe("live updates", () => {
 				await fetch(new URL("/api/overview", base))
 			).json()) as OverviewBody;
 			expect(body.projects).toEqual([
-				counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
+				counts(
+					repo,
+					1,
+					0,
+					"github",
+					[githubTicket(1, "backlog")],
+					"2026-04-01T12:00:01.000Z",
+				),
 			]);
 			expect(body.error).toBeNull();
 			const second = new URL(requests[1] ?? "");
@@ -520,14 +690,89 @@ describe("live updates", () => {
 				await fetch(new URL("/api/overview", base))
 			).json()) as OverviewBody;
 			expect(body.projects).toEqual([
-				counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
+				counts(
+					repo,
+					1,
+					0,
+					"github",
+					[githubTicket(1, "backlog")],
+					goodPoll,
+					body.projects[0]?.error ?? null,
+				),
 			]);
+			expect(body.projects[0]?.error).toContain("HTTP 500");
+			expect(body.projects[0]?.error).toContain(`stale since ${goodPoll}`);
 			expect(body.fetchedAt).toBe(goodPoll);
-			expect(body.error).toContain("HTTP 500");
-			expect(body.error).toContain(`stale since ${goodPoll}`);
+			expect(body.error).toBeNull();
 			const received = await eventPromise;
 			expect(JSON.parse(received.data)).toEqual(body);
 		});
+	});
+
+	test("a failed fetch marks only its own project stale", async () => {
+		const requests: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const first = listUrl(url, repo);
+			const second = listUrl(url, otherRepo);
+			if (first !== null || second !== null) {
+				requests.push(url);
+				if (url.includes(otherRepo)) {
+					return new Response("   ", { status: 500 });
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
+		};
+		await withServer(
+			fetchImpl,
+			3600,
+			async (base) => {
+				const body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const fresh = body.projects.find((project) => project.name === repo);
+				const stale = body.projects.find(
+					(project) => project.name === otherRepo,
+				);
+				expect(fresh?.tickets).toEqual([githubTicket(1, "backlog")]);
+				expect(fresh?.error).toBeNull();
+				expect(stale?.error).toContain("HTTP 500");
+				expect(stale?.error).toContain(otherRepo);
+				expect(stale?.error).not.toContain("stale since");
+				expect(body.error).toBeNull();
+				const again = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(again.status).toBe(204);
+				const repeated = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const stillFresh = repeated.projects.find(
+					(project) => project.name === repo,
+				);
+				const stillStale = repeated.projects.find(
+					(project) => project.name === otherRepo,
+				);
+				expect(stillFresh?.error).toBeNull();
+				expect(stillStale?.error).toContain("HTTP 500");
+				expect(stillStale?.error).not.toContain(repo);
+				expect(repeated.error).toBeNull();
+			},
+			[
+				{ tracker: "github", repo },
+				{ tracker: "github", repo: otherRepo },
+			],
+		);
 	});
 
 	test("a later pin failure keeps the earlier pin's tickets and since", async () => {
@@ -564,9 +809,19 @@ describe("live updates", () => {
 				const failedEvent = (await failed.json()) as OverviewBody;
 				expect(failedEvent.projects).toEqual([
 					counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
+					counts(
+						otherRepo,
+						0,
+						0,
+						"github",
+						[],
+						null,
+						failedEvent.projects[1]?.error ?? null,
+					),
 				]);
-				expect(failedEvent.error).toContain("HTTP 500");
-				expect(failedEvent.error).toContain(otherRepo);
+				expect(failedEvent.projects[1]?.error).toContain("HTTP 500");
+				expect(failedEvent.projects[1]?.error).toContain(otherRepo);
+				expect(failedEvent.error).toBeNull();
 				const again = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
 				});
@@ -595,15 +850,29 @@ describe("live updates", () => {
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
 				expect(body.projects).toEqual([
-					...failedEvent.projects,
-					counts(otherRepo, 1, 0, "github", [
-						{
-							key: `${otherRepo}#1`,
-							title: "Ticket 1",
-							state: "backlog",
-							blockers: [],
-						},
-					]),
+					counts(
+						repo,
+						1,
+						0,
+						"github",
+						[githubTicket(1, "backlog")],
+						"2026-04-01T12:00:01.000Z",
+					),
+					counts(
+						otherRepo,
+						1,
+						0,
+						"github",
+						[
+							{
+								key: `${otherRepo}#1`,
+								title: "Ticket 1",
+								state: "backlog",
+								blockers: [],
+							},
+						],
+						"2026-04-01T12:00:01.000Z",
+					),
 				]);
 				expect(body.error).toBeNull();
 				expect(body.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
@@ -612,6 +881,104 @@ describe("live updates", () => {
 				{ tracker: "github", repo },
 				{ tracker: "github", repo: otherRepo },
 			],
+		);
+	});
+
+	test("a ticket that left a Linear project leaves its card after the next full poll", async () => {
+		const requests: string[] = [];
+		let polls = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body =
+					typeof init?.body === "string"
+						? init.body
+						: JSON.stringify(init?.body);
+				const parsed = JSON.parse(body) as { query?: string };
+				if (parsed.query?.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (parsed.query?.includes("ProjectByPin")) {
+					return new Response(
+						JSON.stringify({
+							data: {
+								projects: {
+									nodes: [
+										{
+											id: "project-1",
+											name: linearProject,
+											slugId: linearProject,
+										},
+									],
+								},
+							},
+						}),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				requests.push(body);
+				polls += 1;
+				const nodes =
+					polls === 1
+						? [linearIssue("1"), linearIssue("2")]
+						: [linearIssue("2")];
+				return new Response(linearPage(nodes), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		await withServer(
+			fetchImpl,
+			1,
+			async (base) => {
+				const first = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(first.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
+					"WID-1",
+					"WID-2",
+				]);
+				const deadline = Date.now() + 3_000;
+				while (requests.length < 3 && Date.now() < deadline) {
+					await Bun.sleep(50);
+				}
+				expect(requests).toHaveLength(3);
+				expect(requests.map(linearListSince)).toEqual([null, goodPoll, null]);
+				const filters = requests
+					.map(linearIssueFilter)
+					.filter((filter) => filter !== null);
+				expect(filters[2]?.updatedAt).toBeUndefined();
+				const body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
+					"WID-2",
+				]);
+				expect(body.error).toBeNull();
+			},
+			[{ tracker: "linear", project: linearProject }],
+			{
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
 		);
 	});
 
@@ -665,9 +1032,18 @@ describe("live updates", () => {
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
 				expect(failedBody.projects).toEqual([
-					counts(linearProject, 1, 0, "linear", [linearTicket(1)]),
+					counts(
+						linearProject,
+						1,
+						0,
+						"linear",
+						[linearTicket(1)],
+						goodPoll,
+						failedBody.projects[0]?.error ?? null,
+					),
 				]);
-				expect(failedBody.error).toContain("HTTP 500");
+				expect(failedBody.projects[0]?.error).toContain("HTTP 500");
+				expect(failedBody.error).toBeNull();
 				expect(failedBody.fetchedAt).toBe(goodPoll);
 				const again = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
@@ -679,7 +1055,14 @@ describe("live updates", () => {
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
 				expect(body.projects).toEqual([
-					counts(linearProject, 1, 0, "linear", [linearTicket(1)]),
+					counts(
+						linearProject,
+						1,
+						0,
+						"linear",
+						[linearTicket(1)],
+						"2026-04-01T12:00:02.000Z",
+					),
 				]);
 				expect(body.error).toBeNull();
 				expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
@@ -764,13 +1147,14 @@ describe("live updates", () => {
 			expect(received.event).toBe("overview");
 			const eventBody = JSON.parse(received.data) as OverviewBody;
 			expect(eventBody.projects).toEqual([
-				{
-					...counts(repo, 1, 1, "github", [
-						githubTicket(1, "done"),
-						githubTicket(2, "backlog"),
-					]),
-					progress: 50,
-				},
+				counts(
+					repo,
+					1,
+					1,
+					"github",
+					[githubTicket(1, "done"), githubTicket(2, "backlog")],
+					"2026-04-01T12:00:01.000Z",
+				),
 			]);
 			expect(eventBody.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
 			expect(eventBody.error).toBeNull();
@@ -832,8 +1216,10 @@ describe("live updates", () => {
 					const body = (await (
 						await fetch(new URL("/api/overview", base))
 					).json()) as OverviewBody;
-					expect(body.projects).toEqual([counts(repo, 0)]);
 					expect(body.error).toContain("not JSON");
+					expect(body.projects).toEqual([
+						counts(repo, 0, 0, "github", [], goodPoll),
+					]);
 					resolve();
 				})().catch(reject);
 			};
@@ -852,8 +1238,8 @@ describe("live updates", () => {
 					waitForStop: checks,
 				}),
 			);
-			expect(result.exitCode).toBe(0);
 			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

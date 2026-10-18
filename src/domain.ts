@@ -88,6 +88,8 @@ export type ProjectCounts = {
 	crossProjectBlockers: CrossProjectBlocker[];
 	needsYou: number;
 	progress: number;
+	fetchedAt: string | null;
+	error: string | null;
 };
 
 export type Overview = {
@@ -141,6 +143,57 @@ export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 		byId.set(ticket.id, ticket);
 	}
 	return [...byId.values()];
+}
+
+type StoredSnapshot = {
+	key: string;
+	name: string;
+	tracker: "github" | "linear";
+	tickets: Ticket[];
+	pulls: PullRequest[];
+	branches: string[];
+	startedKeys: string[];
+};
+
+export function reconcileSnapshots(
+	previous: StoredSnapshot[],
+	shown: StoredSnapshot[],
+	foundKeys: string[],
+	fullKeys: string[],
+	failed: boolean,
+): StoredSnapshot[] {
+	const shownKeys = new Set(shown.map((row) => row.key));
+	const found = new Set(foundKeys);
+	const full = new Set(fullKeys);
+	const carried = previous.filter((row) => {
+		if (shownKeys.has(row.key)) {
+			return false;
+		}
+		return failed && found.has(row.key);
+	});
+	return [...shown, ...carried].map((row) => {
+		const prior = previous.find((item) => item.key === row.key);
+		if (prior === undefined) {
+			return row;
+		}
+		const tickets = full.has(row.key)
+			? replaceMembership(prior.tickets, row.tickets)
+			: mergeTickets(prior.tickets, row.tickets);
+		return { ...row, tickets };
+	});
+}
+
+export function replaceMembership(
+	stored: Ticket[],
+	incoming: Ticket[],
+): Ticket[] {
+	const seen = new Set(incoming.map((ticket) => ticket.id));
+	return [
+		...incoming,
+		...stored.filter(
+			(ticket) => ticket.tracker !== "linear" && !seen.has(ticket.id),
+		),
+	];
 }
 
 const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
@@ -769,6 +822,8 @@ export function projectCounts(
 		crossProjectBlockers: [...cross.values()],
 		needsYou,
 		progress: progressRatio(counts),
+		fetchedAt: null,
+		error: null,
 	};
 }
 
