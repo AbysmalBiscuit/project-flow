@@ -90,9 +90,9 @@ function githubFetch(requests: string[] = []): Fetch {
 			return new Response(JSON.stringify({ check_runs: [] }), { status: 200 });
 		}
 		if (
-			url.endsWith("/comments") ||
-			url.endsWith("/reviews") ||
-			url.endsWith("/reactions") ||
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/reactions") ||
 			/\/pulls\/\d+$/.test(url)
 		) {
 			return page([], null);
@@ -243,9 +243,9 @@ function linearFetch(requests: string[]): Fetch {
 				});
 			}
 			if (
-				url.endsWith("/comments") ||
-				url.endsWith("/reviews") ||
-				url.endsWith("/reactions") ||
+				url.includes("/comments") ||
+				url.includes("/reviews") ||
+				url.includes("/reactions") ||
 				/\/pulls\/\d+$/.test(url)
 			) {
 				return page([], null);

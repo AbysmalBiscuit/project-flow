@@ -109,7 +109,7 @@ function githubFetch(
 				headers: { "content-type": "application/json" },
 			});
 		}
-		if (url.endsWith("/reactions")) {
+		if (url.includes("/reactions")) {
 			return page([]);
 		}
 		if (url.includes("/comments") || url.includes("/reviews")) {
@@ -254,9 +254,9 @@ function linearFetch(): Fetch {
 				});
 			}
 			if (
-				url.endsWith("/comments") ||
-				url.endsWith("/reviews") ||
-				url.endsWith("/reactions")
+				url.includes("/comments") ||
+				url.includes("/reviews") ||
+				url.includes("/reactions")
 			) {
 				return page([]);
 			}

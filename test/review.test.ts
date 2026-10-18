@@ -176,17 +176,25 @@ function githubFetch(recorded: {
 			return page({ check_runs: recorded.checksBySha[checkMatch[1]] ?? [] });
 		}
 		const thread = url.match(
-			/\/(?:issues|pulls)\/(\d+)\/(comments|reviews|reactions)/,
+			/\/(?:issues|pulls)\/(\d+)\/(comments|reviews|reactions)\?per_page=100&page=(\d+)/,
 		);
 		if (thread?.[1] !== undefined && thread[2] !== undefined) {
 			const number = Number(thread[1]);
 			const rows =
-				thread[2] === "comments"
+				(thread[2] === "comments"
 					? recorded.commentsByPull[number]
 					: thread[2] === "reviews"
 						? recorded.reviewsByPull[number]
-						: recorded.reactionsByPull[number];
-			return page(rows ?? []);
+						: recorded.reactionsByPull[number]) ?? [];
+			const pageNumber = Number(thread[3]);
+			const start = (pageNumber - 1) * 100;
+			const slice = rows.slice(start, start + 100);
+			const headers = new Headers({ "content-type": "application/json" });
+			if (start + 100 < rows.length) {
+				const next = url.replace(`page=${thread[3]}`, `page=${pageNumber + 1}`);
+				headers.set("link", `<${next}>; rel="next"`);
+			}
+			return new Response(JSON.stringify(slice), { status: 200, headers });
 		}
 		if (url === "https://api.github.com/graphql") {
 			return page({
@@ -336,6 +344,52 @@ describe("review cycle", () => {
 				inProgress: 0,
 				inReview: 1,
 				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a Grok review on the head past the first page is awaiting merge", async () => {
+		const filler = Array.from({ length: 100 }, () => ({
+			user: { login: "someone" },
+			commit_id: older,
+			state: "COMMENTED",
+		}));
+		const body = await overview({
+			issues: [issue(8)],
+			pulls: [pull(97)],
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+						app: { slug: "grok-code-review" },
+					},
+				],
+				[older]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+						app: { slug: "grok-code-review" },
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+				97: [
+					...filler,
+					{ user: { login: grok }, commit_id: head, state: "COMMENTED" },
+				],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
 			}),
 		);
 	});
@@ -826,9 +880,9 @@ describe("review cycle", () => {
 					return page({ check_runs: [] });
 				}
 				if (
-					url.endsWith("/comments") ||
-					url.endsWith("/reviews") ||
-					url.endsWith("/reactions")
+					url.includes("/comments?") ||
+					url.includes("/reviews?") ||
+					url.includes("/reactions?")
 				) {
 					return page([]);
 				}

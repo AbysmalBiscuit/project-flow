@@ -38,9 +38,9 @@ function recordedFetch(userStatus: number): Fetch {
 			url.includes("/pulls?") ||
 			url.includes("/branches?") ||
 			url.includes("/check-runs") ||
-			url.endsWith("/comments") ||
-			url.endsWith("/reviews") ||
-			url.endsWith("/reactions") ||
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/reactions") ||
 			/\/pulls\/\d+$/.test(url)
 		) {
 			return new Response(

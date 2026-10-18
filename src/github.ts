@@ -610,23 +610,32 @@ async function fetchJson(
 }
 
 async function fetchRows<Row, Mapped>(
-	url: string,
+	start: string,
 	token: string,
 	fetchImpl: Fetch,
+	label: string,
 	row: z.ZodType<Row>,
 	map: (item: Row) => Mapped | null,
 ): Promise<Mapped[]> {
-	const body = await fetchJson(url, token, fetchImpl);
-	if (body === null) {
-		return [];
+	const mapped: Mapped[] = [];
+	let url: string | null = start;
+	while (url !== null) {
+		const response = await fetchImpl(url, { headers: githubHeaders(token) });
+		if (!response.ok) {
+			throw new Error(
+				`GitHub ${label} failed (HTTP ${response.status}): ${url}`,
+			);
+		}
+		const page = z.array(row).parse(await response.json());
+		for (const item of page) {
+			const value = map(item);
+			if (value !== null) {
+				mapped.push(value);
+			}
+		}
+		url = nextPage(response.headers.get("link"));
 	}
-	return z
-		.array(row)
-		.parse(body)
-		.flatMap((item) => {
-			const mapped = map(item);
-			return mapped === null ? [] : [mapped];
-		});
+	return mapped;
 }
 
 const loginRow = z.object({
@@ -672,9 +681,10 @@ function fetchComments(
 	fetchImpl: Fetch,
 ): Promise<BotComment[]> {
 	return fetchRows(
-		`https://api.github.com/repos/${repo}/issues/${number}/comments`,
+		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
 		token,
 		fetchImpl,
+		"list comments",
 		loginRow.extend({ body: z.string().nullable() }),
 		(comment) =>
 			comment.user === null
@@ -690,9 +700,10 @@ function fetchReviews(
 	fetchImpl: Fetch,
 ): Promise<BotReview[]> {
 	return fetchRows(
-		`https://api.github.com/repos/${repo}/pulls/${number}/reviews`,
+		`https://api.github.com/repos/${repo}/pulls/${number}/reviews?per_page=100&page=1`,
 		token,
 		fetchImpl,
+		"list reviews",
 		loginRow.extend({ commit_id: z.string() }),
 		(review) =>
 			review.user === null
@@ -708,9 +719,10 @@ function fetchReactions(
 	fetchImpl: Fetch,
 ): Promise<BotReaction[]> {
 	return fetchRows(
-		`https://api.github.com/repos/${repo}/issues/${number}/reactions`,
+		`https://api.github.com/repos/${repo}/issues/${number}/reactions?per_page=100&page=1`,
 		token,
 		fetchImpl,
+		"list reactions",
 		loginRow.extend({ content: z.string() }),
 		(reaction) =>
 			reaction.user === null
