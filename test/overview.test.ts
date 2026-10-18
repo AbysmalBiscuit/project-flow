@@ -120,6 +120,92 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("a later poll drops a repo that is no longer pinned", async () => {
+		const repoA = "acme/alpha";
+		const repoB = "acme/beta";
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const recordedFetch =
+			(pinned: string): Fetch =>
+			async (input) => {
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return new Response(JSON.stringify({ login: "lev" }), {
+						status: 200,
+					});
+				}
+				const list = `https://api.github.com/repos/${pinned}/issues?state=all&per_page=100&page=1`;
+				if (url === list) {
+					return page([ticket(1, "open", null)], null);
+				}
+				return new Response("not recorded", { status: 404 });
+			};
+		const serve = async (pinned: string): Promise<unknown> => {
+			const { path, cleanup } = await tempConfig(
+				JSON.stringify({
+					pinned: [{ tracker: "github", repo: pinned }],
+				}),
+			);
+			let startChecks: (base: string) => void = () => {};
+			const checks = new Promise<unknown>((resolve, reject) => {
+				startChecks = (base: string) => {
+					fetch(new URL("/api/overview", base))
+						.then(async (response) => {
+							expect(response.status).toBe(200);
+							resolve(await response.json());
+						})
+						.catch(reject);
+				};
+			});
+			try {
+				const result = await run(
+					["--config", path, "--host", "127.0.0.1", "--port", "0"],
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: recordedFetch(pinned),
+						readGhToken: async () => null,
+						databasePath,
+						stdout: (line) => startChecks(line),
+						waitForStop: checks.then(() => undefined),
+					},
+				);
+				expect(result.exitCode).toBe(0);
+				expect(result.listened).toBe(true);
+				return await checks;
+			} finally {
+				await cleanup();
+			}
+		};
+		try {
+			const first = await serve(repoA);
+			expect(first).toEqual({
+				projects: [
+					{
+						name: repoA,
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+			});
+			const second = await serve(repoB);
+			expect(second).toEqual({
+				projects: [
+					{
+						name: repoB,
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+			});
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("counts done, dropped and backlog from recorded GitHub tickets", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),

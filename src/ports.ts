@@ -10,7 +10,7 @@ export type Tracker = {
 };
 
 export type Store = {
-	writeTickets: (repo: string, tickets: Ticket[]) => void;
+	replaceTickets: (rows: { repo: string; tickets: Ticket[] }[]) => void;
 	readTickets: () => { repo: string; tickets: Ticket[] }[];
 };
 

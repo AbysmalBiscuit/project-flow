@@ -37,10 +37,12 @@ async function poll(options: {
 	clock: Clock;
 }): Promise<void> {
 	const configuration = await options.configuration.read();
+	const rows = [];
 	for (const pin of configuration.pinned) {
 		const tickets = await options.tracker.listTickets(pin.repo);
-		options.store.writeTickets(pin.repo, tickets);
+		rows.push({ repo: pin.repo, tickets });
 	}
+	options.store.replaceTickets(rows);
 }
 
 export async function start(options: StartOptions): Promise<Running> {

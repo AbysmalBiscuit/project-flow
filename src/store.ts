@@ -12,11 +12,16 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 	`);
 	return {
 		store: {
-			writeTickets(repo, tickets) {
-				db.run(
-					"insert or replace into snapshots (repo, payload) values (?, ?)",
-					[repo, JSON.stringify(tickets)],
-				);
+			replaceTickets(rows) {
+				db.transaction(() => {
+					db.run("delete from snapshots");
+					const insert = db.query(
+						"insert into snapshots (repo, payload) values (?, ?)",
+					);
+					for (const row of rows) {
+						insert.run(row.repo, JSON.stringify(row.tickets));
+					}
+				})();
 			},
 			readTickets() {
 				const rows = db
