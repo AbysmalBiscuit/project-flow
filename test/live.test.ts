@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { tempConfig, urlOf } from "./support.ts";
+import { recordedDiscovery, tempConfig, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 const otherRepo = "acme/other";
@@ -48,7 +48,11 @@ function listUrl(url: string, name = repo): URL | null {
 
 function changingFetch(requests: string[]): Fetch {
 	let polls = 0;
-	return async (input) => {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -122,7 +126,11 @@ function openEvents(base: string): Promise<ChangeEvent> {
 
 function failingAfterGoodPoll(requests: string[]): Fetch {
 	let polls = 0;
-	return async (input) => {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -142,7 +150,11 @@ function failingAfterGoodPoll(requests: string[]): Fetch {
 }
 
 function unchangedFetch(requests: string[]): Fetch {
-	return async (input) => {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -159,7 +171,11 @@ function unchangedFetch(requests: string[]): Fetch {
 
 function failingThenRecorded(requests: string[]): Fetch {
 	let polls = 0;
-	return async (input) => {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -245,6 +261,10 @@ function linearListSince(body: string): string | null {
 function linearPinFetch(requests: string[]): Fetch {
 	let polls = 0;
 	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -378,7 +398,11 @@ describe("live updates", () => {
 	test("an empty incremental page keeps the stored tickets", async () => {
 		const requests: string[] = [];
 		let polls = 0;
-		const fetchImpl: Fetch = async (input) => {
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -430,7 +454,11 @@ describe("live updates", () => {
 	test("a later pin failure keeps the earlier pin's tickets and since", async () => {
 		const requests: string[] = [];
 		const failedPins = new Set<string>();
-		const fetchImpl: Fetch = async (input) => {
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });

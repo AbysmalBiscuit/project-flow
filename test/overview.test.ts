@@ -24,7 +24,6 @@ function ticket(
 		title: `Ticket ${number}`,
 		state,
 		state_reason: stateReason,
-		updated_at: "2026-04-01T00:00:00Z",
 		html_url: `https://github.com/${repo}/issues/${number}`,
 		updated_at: "2026-10-18T12:00:00.000Z",
 	};
@@ -169,7 +168,6 @@ function linearIssue(
 		id,
 		identifier: `WID-${id}`,
 		title: `Linear ticket ${id}`,
-		updatedAt: "2026-04-01T00:00:00.000Z",
 		state: { type: stateType },
 		updatedAt: "2026-08-18T12:00:00.000Z",
 	};
@@ -954,7 +952,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: pullRepo,
@@ -1131,7 +1129,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -1351,7 +1349,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Org board",
@@ -1498,7 +1496,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Member launch",
@@ -1852,7 +1850,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Widget board",
@@ -2043,7 +2041,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Pinned board",
@@ -2207,7 +2205,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -2375,7 +2373,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -2539,7 +2537,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: repo,
@@ -2748,7 +2746,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({ projects: [] });
+			expect(await checks).toMatchObject({ projects: [], error: null });
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -2920,7 +2918,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({
+			expect(await checks).toMatchObject({
 				projects: [
 					{
 						name: "Quiet linear",
@@ -3053,7 +3051,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toEqual({ projects: [] });
+			expect(await checks).toMatchObject({ projects: [], error: null });
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

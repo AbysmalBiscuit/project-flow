@@ -2,6 +2,7 @@ import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
 import {
+	mergeTickets,
 	projectCounts,
 	projectSnapshots,
 	staleView,
@@ -271,27 +272,32 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 					startedKeys,
 					pinned: pinnedKeys.has(project.key),
 					hidden: hiddenKeys.has(project.key),
-					...(project.closed === undefined
-						? {}
-						: { closed: project.closed }),
+					...(project.closed === undefined ? {} : { closed: project.closed }),
 				});
 			}
 		}
 	}
 	const shown = projectSnapshots(
 		listed,
-		options.clock.now(),
+		polledAt,
 		configuration.activityWindowDays,
 	);
-	if (options.store.readTickets().length === 0) {
-		options.store.replaceTickets(shown);
-	} else {
-		const kept = options.store.readTickets().filter((row) => {
-			return shown.some((next) => next.key === row.key);
-		});
-		options.store.replaceTickets(kept);
-		options.store.mergeTickets(shown);
-	}
+	const previous = options.store.readTickets();
+	const shownKeys = new Set(shown.map((row) => row.key));
+	const carried = previous.filter((row) => {
+		if (shownKeys.has(row.key)) {
+			return false;
+		}
+		return failed !== null && found.some((project) => project.key === row.key);
+	});
+	const stored = [...shown, ...carried].map((row) => {
+		const prior = previous.find((item) => item.key === row.key);
+		if (prior === undefined) {
+			return row;
+		}
+		return { ...row, tickets: mergeTickets(prior.tickets, row.tickets) };
+	});
+	options.store.replaceTickets(stored);
 	if (failed !== null) {
 		options.store.recordFetchError(failed);
 	}
@@ -330,8 +336,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		fallback: null,
 	};
 	const polled = await poll(pollOptions);
-	if (polled === null || opened.store.readTickets().length === 0) {
-		const message = opened.store.fetchStatus().error ?? "poll failed";
+	const firstStatus = opened.store.fetchStatus();
+	if (
+		polled === null ||
+		(firstStatus.error !== null && opened.store.readTickets().length === 0)
+	) {
+		const message = firstStatus.error ?? "poll failed";
 		opened.close();
 		throw new Error(message);
 	}
