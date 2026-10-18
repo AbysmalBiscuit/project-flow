@@ -7,6 +7,7 @@ import { run } from "../src/main.ts";
 import { tempConfig, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
+const otherRepo = "acme/other";
 
 function ticket(
 	number: number,
@@ -30,8 +31,8 @@ function page(items: Record<string, unknown>[]): Response {
 	});
 }
 
-function listUrl(url: string): URL | null {
-	if (!url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
+function listUrl(url: string, name = repo): URL | null {
+	if (!url.startsWith(`https://api.github.com/repos/${name}/issues?`)) {
 		return null;
 	}
 	return new URL(url);
@@ -208,8 +209,8 @@ async function withServer(
 		if (checksError !== undefined) {
 			throw checksError;
 		}
-		expect(result.exitCode).toBe(0);
 		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
 	} finally {
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
@@ -327,6 +328,90 @@ describe("live updates", () => {
 			const received = await eventPromise;
 			expect(JSON.parse(received.data)).toEqual(body);
 		});
+	});
+
+	test("a later pin failure keeps the earlier pin's tickets and since", async () => {
+		const requests: string[] = [];
+		const failedPins = new Set<string>();
+		const fetchImpl: Fetch = async (input) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const first = listUrl(url, repo);
+			const second = listUrl(url, otherRepo);
+			if (first !== null || second !== null) {
+				requests.push(url);
+				if (url.includes(otherRepo) && !failedPins.has(url)) {
+					failedPins.add(url);
+					return new Response("recorded failure", { status: 500 });
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		await withServer(
+			fetchImpl,
+			3600,
+			async (base) => {
+				const failed = await fetch(new URL("/api/overview", base));
+				const failedEvent = (await failed.json()) as OverviewBody;
+				expect(failedEvent.projects).toEqual([
+					{
+						name: repo,
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				]);
+				expect(failedEvent.error).toContain("HTTP 500");
+				expect(failedEvent.error).toContain(otherRepo);
+				const again = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(again.status).toBe(204);
+				const firstLists = requests.filter(
+					(url) => listUrl(url, repo) !== null,
+				);
+				const secondLists = requests.filter(
+					(url) => listUrl(url, otherRepo) !== null,
+				);
+				expect(firstLists).toHaveLength(2);
+				expect(secondLists).toHaveLength(2);
+				expect(
+					new URL(firstLists[0] ?? "").searchParams.get("since"),
+				).toBeNull();
+				expect(new URL(firstLists[1] ?? "").searchParams.get("since")).toBe(
+					goodPoll,
+				);
+				expect(
+					new URL(secondLists[0] ?? "").searchParams.get("since"),
+				).toBeNull();
+				expect(
+					new URL(secondLists[1] ?? "").searchParams.get("since"),
+				).toBeNull();
+				const body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(body.projects).toEqual([
+					...failedEvent.projects,
+					{
+						name: otherRepo,
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				]);
+				expect(body.error).toBeNull();
+				expect(body.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
+			},
+			[
+				{ tracker: "github", repo },
+				{ tracker: "github", repo: otherRepo },
+			],
+		);
 	});
 
 	test("a poll after a failed fetch keeps the last good since", async () => {
