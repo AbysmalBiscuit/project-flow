@@ -51,7 +51,18 @@ function Cards({ overview }: { overview: Overview }) {
 	return (
 		<main>
 			<h1>Projects</h1>
-			{opened === null ? null : <p className="opened">{opened}</p>}
+			{opened === null ? null : (
+				<p className="opened">
+					{opened}{" "}
+					<button
+						type="button"
+						className="back"
+						onClick={() => window.history.back()}
+					>
+						Back
+					</button>
+				</p>
+			)}
 			<ul>
 				{overview.projects.map((project) => (
 					<li

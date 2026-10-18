@@ -232,6 +232,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		port: options.port,
 		routes: {
 			"/": page,
+			"/projects/*": page,
 			"/api/overview": {
 				GET: () => Response.json(overview(opened.store)),
 			},
