@@ -31,6 +31,13 @@ function page(items: Record<string, unknown>[]): Response {
 	});
 }
 
+function recordedOrEmpty(url: string): Response | null {
+	if (url.includes("/pulls?") || url.includes("/branches?")) {
+		return page([]);
+	}
+	return null;
+}
+
 function listUrl(url: string, name = repo): URL | null {
 	if (!url.startsWith(`https://api.github.com/repos/${name}/issues?`)) {
 		return null;
@@ -57,7 +64,9 @@ function changingFetch(requests: string[]): Fetch {
 				ticket(2, "2026-04-02T00:00:00Z"),
 			]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -68,24 +77,29 @@ type ChangeEvent = {
 
 function openEvents(base: string): Promise<ChangeEvent> {
 	return new Promise((resolve, reject) => {
+		let buffer = "";
 		const socket = Bun.connect({
 			hostname: "127.0.0.1",
 			port: Number(new URL(base).port),
 			socket: {
 				data(_socket, data) {
-					const text = data.toString();
-					const event = text
-						.split("\n")
-						.find((line) => line.startsWith("event:"))
-						?.slice("event:".length)
-						.trim();
-					const payload = text
-						.split("\n")
-						.filter((line) => line.startsWith("data:"))
-						.map((line) => line.slice("data:".length).trim())
-						.join("\n");
-					if (event !== undefined && payload !== "") {
-						resolve({ event, data: payload });
+					buffer += data.toString();
+					const blocks = buffer.split("\n\n");
+					buffer = blocks.pop() ?? "";
+					for (const text of blocks) {
+						const event = text
+							.split("\n")
+							.find((line) => line.startsWith("event:"))
+							?.slice("event:".length)
+							.trim();
+						const payload = text
+							.split("\n")
+							.filter((line) => line.startsWith("data:"))
+							.map((line) => line.slice("data:".length).trim())
+							.join("\n");
+						if (event !== undefined && payload !== "") {
+							resolve({ event, data: payload });
+						}
 					}
 				},
 				error(_socket, error) {
@@ -120,7 +134,9 @@ function failingAfterGoodPoll(requests: string[]): Fetch {
 			}
 			return new Response("recorded failure", { status: 500 });
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -134,7 +150,9 @@ function unchangedFetch(requests: string[]): Fetch {
 			requests.push(url);
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -153,7 +171,9 @@ function failingThenRecorded(requests: string[]): Fetch {
 			}
 			return page([ticket(1, "2026-04-01T00:00:00Z")]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -166,10 +186,28 @@ type OverviewBody = {
 		done: number;
 		dropped: number;
 		backlog: number;
+		inProgress: number;
+		unlinkedPrs: unknown[];
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
 };
+
+function counts(
+	name: string,
+	backlog: number,
+	done = 0,
+): OverviewBody["projects"][number] {
+	return {
+		name,
+		tracker: "github",
+		done,
+		dropped: 0,
+		backlog,
+		inProgress: 0,
+		unlinkedPrs: [],
+	};
+}
 
 async function withServer(
 	fetchImpl: Fetch,
@@ -277,7 +315,9 @@ describe("live updates", () => {
 				polls += 1;
 				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
 		};
 		await withServer(fetchImpl, 3600, async (base) => {
 			const refresh = await fetch(new URL("/api/refresh", base), {
@@ -287,15 +327,7 @@ describe("live updates", () => {
 			const body = (await (
 				await fetch(new URL("/api/overview", base))
 			).json()) as OverviewBody;
-			expect(body.projects).toEqual([
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 1,
-				},
-			]);
+			expect(body.projects).toEqual([counts(repo, 1)]);
 			expect(body.error).toBeNull();
 			const second = new URL(requests[1] ?? "");
 			expect(second.searchParams.get("since")).toBe(goodPoll);
@@ -313,15 +345,7 @@ describe("live updates", () => {
 			const body = (await (
 				await fetch(new URL("/api/overview", base))
 			).json()) as OverviewBody;
-			expect(body.projects).toEqual([
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 1,
-				},
-			]);
+			expect(body.projects).toEqual([counts(repo, 1)]);
 			expect(body.fetchedAt).toBe(goodPoll);
 			expect(body.error).toContain("HTTP 500");
 			expect(body.error).toContain(`stale since ${goodPoll}`);
@@ -348,7 +372,9 @@ describe("live updates", () => {
 				}
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
 		};
 		await withServer(
 			fetchImpl,
@@ -356,15 +382,7 @@ describe("live updates", () => {
 			async (base) => {
 				const failed = await fetch(new URL("/api/overview", base));
 				const failedEvent = (await failed.json()) as OverviewBody;
-				expect(failedEvent.projects).toEqual([
-					{
-						name: repo,
-						tracker: "github",
-						done: 0,
-						dropped: 0,
-						backlog: 1,
-					},
-				]);
+				expect(failedEvent.projects).toEqual([counts(repo, 1)]);
 				expect(failedEvent.error).toContain("HTTP 500");
 				expect(failedEvent.error).toContain(otherRepo);
 				const again = await fetch(new URL("/api/refresh", base), {
@@ -396,13 +414,7 @@ describe("live updates", () => {
 				).json()) as OverviewBody;
 				expect(body.projects).toEqual([
 					...failedEvent.projects,
-					{
-						name: otherRepo,
-						tracker: "github",
-						done: 0,
-						dropped: 0,
-						backlog: 1,
-					},
+					counts(otherRepo, 1),
 				]);
 				expect(body.error).toBeNull();
 				expect(body.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
@@ -473,15 +485,7 @@ describe("live updates", () => {
 			const eventPromise = openEvents(base);
 			const before = await fetch(new URL("/api/overview", base));
 			expect(await before.json()).toEqual({
-				projects: [
-					{
-						name: repo,
-						tracker: "github",
-						done: 0,
-						dropped: 0,
-						backlog: 1,
-					},
-				],
+				projects: [counts(repo, 1)],
 				fetchedAt: goodPoll,
 				error: null,
 			});
@@ -492,15 +496,7 @@ describe("live updates", () => {
 			const received = await eventPromise;
 			expect(received.event).toBe("overview");
 			expect(JSON.parse(received.data)).toEqual({
-				projects: [
-					{
-						name: repo,
-						tracker: "github",
-						done: 1,
-						dropped: 0,
-						backlog: 1,
-					},
-				],
+				projects: [counts(repo, 1, 1)],
 				fetchedAt: "2026-04-01T12:00:01.000Z",
 				error: null,
 			});
@@ -562,15 +558,7 @@ describe("live updates", () => {
 					const body = (await (
 						await fetch(new URL("/api/overview", base))
 					).json()) as OverviewBody;
-					expect(body.projects).toEqual([
-						{
-							name: repo,
-							tracker: "github",
-							done: 0,
-							dropped: 0,
-							backlog: 0,
-						},
-					]);
+					expect(body.projects).toEqual([counts(repo, 0)]);
 					expect(body.error).toContain("not JSON");
 					resolve();
 				})().catch(reject);
