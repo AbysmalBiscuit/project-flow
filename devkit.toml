@@ -60,3 +60,19 @@ assignee = "me"
 
 [ticket.sync.statuses]
 "" = "pending"
+
+[tasks.typecheck]
+description = "Type check with tsc"
+run = ["bun", "run", "typecheck"]
+
+[tasks.test]
+description = "Run the HTTP-seam tests"
+run = ["bun", "run", "test"]
+
+[tasks.lint]
+description = "Lint and format check with biome"
+run = ["bun", "run", "check"]
+
+[tasks.check]
+description = "Type check, test, and lint with format check"
+steps = [{ task = "typecheck" }, { task = "test" }, { task = "lint" }]
