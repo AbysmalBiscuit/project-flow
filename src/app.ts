@@ -1,4 +1,3 @@
-import { renderCards } from "./cards.tsx";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
 import { projectCounts } from "./domain.ts";
@@ -37,7 +36,6 @@ async function poll(options: {
 	store: Store;
 	clock: Clock;
 }): Promise<void> {
-	options.clock.now();
 	const configuration = await options.configuration.read();
 	for (const pin of configuration.pinned) {
 		const tickets = await options.tracker.listTickets(pin.repo);
@@ -53,12 +51,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		store: opened.store,
 		clock: { now: options.now ?? (() => new Date()) },
 	});
-	const body = overview(opened.store);
-	const shellPath = new URL("./index.html", import.meta.url);
-	const shell = await Bun.file(shellPath).text();
-	const emptyRoot = '<div id="root"></div>';
-	const filledRoot = `<div id="root">${renderCards(body)}</div>`;
-	await Bun.write(shellPath, shell.replace(emptyRoot, filledRoot));
 	const server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
@@ -74,10 +66,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		stop: async () => {
 			await server.stop(true);
 			opened.close();
-			const current = await Bun.file(shellPath).text();
-			if (current.includes(filledRoot)) {
-				await Bun.write(shellPath, current.replace(filledRoot, emptyRoot));
-			}
 		},
 	};
 }

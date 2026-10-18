@@ -1,5 +1,4 @@
 import { createRoot } from "react-dom/client";
-import { renderToStaticMarkup } from "react-dom/server";
 import type { Overview } from "./domain.ts";
 
 function Cards({ overview }: { overview: Overview }) {
@@ -21,10 +20,6 @@ function Cards({ overview }: { overview: Overview }) {
 	);
 }
 
-export function renderCards(overview: Overview): string {
-	return renderToStaticMarkup(<Cards overview={overview} />);
-}
-
 async function readOverview(): Promise<Overview> {
 	const response = await fetch("/api/overview");
 	if (!response.ok) {
@@ -35,7 +30,7 @@ async function readOverview(): Promise<Overview> {
 
 if (typeof document !== "undefined") {
 	const root = document.getElementById("root");
-	if (root !== null && root.childElementCount === 0) {
+	if (root !== null) {
 		const overview = await readOverview();
 		createRoot(root).render(<Cards overview={overview} />);
 	}

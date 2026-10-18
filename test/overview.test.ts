@@ -85,13 +85,11 @@ async function assertCard(base: string): Promise<void> {
 	expect(pageResponse.status).toBe(200);
 	expect(pageResponse.headers.get("content-type")).toContain("text/html");
 	const html = await pageResponse.text();
-	expect(html).toContain(repo);
-	expect(html).toContain("Done 2");
-	expect(html).toContain("Dropped 2");
-	expect(html).toContain("Backlog 2");
-	expect(html).not.toContain("/cards.js");
-	const script = await fetch(new URL("/cards.js", base));
-	expect(script.status).toBe(404);
+	expect(html).toContain('<div id="root"></div>');
+	expect(html).not.toContain(repo);
+	expect(html).not.toContain("Done ");
+	expect(html).not.toContain("Dropped ");
+	expect(html).not.toContain("Backlog ");
 }
 
 describe("GET /api/overview", () => {
