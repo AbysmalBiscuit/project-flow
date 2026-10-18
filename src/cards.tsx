@@ -7,7 +7,7 @@ function Cards({ overview }: { overview: Overview }) {
 			<h1>Projects</h1>
 			<ul>
 				{overview.projects.map((project) => (
-					<li key={project.name} className="card">
+					<li key={`${project.tracker}:${project.name}`} className="card">
 						<h2>{project.name}</h2>
 						<p className="counts">
 							Done {project.done} Dropped {project.dropped} Backlog{" "}

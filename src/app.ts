@@ -41,7 +41,7 @@ function overview(store: Store): Overview {
 	return {
 		projects: store.readTickets().map((row) =>
 			projectCounts(
-				row.project,
+				row.name,
 				row.tracker,
 				row.tickets,
 				row.pulls,
@@ -155,7 +155,8 @@ async function poll(options: {
 				? await options.github.listBranches(project.key)
 				: [];
 		rows.push({
-			project: project.name ?? project.key,
+			key: project.key,
+			name: project.name ?? project.key,
 			tracker: project.tracker,
 			tickets,
 			pulls,

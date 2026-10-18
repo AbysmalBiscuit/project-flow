@@ -4,32 +4,27 @@ import type { Snapshot, Store } from "./ports.ts";
 
 export function sqliteStore(path: string): { store: Store; close: () => void } {
 	const db = new Database(path);
+	db.run("drop table if exists snapshots");
 	db.run(`
-		create table if not exists snapshots (
-			repo text primary key,
-			tracker text not null default 'github',
+		create table snapshots (
+			snapshot_key text primary key,
+			name text not null,
+			tracker text not null,
 			payload text not null
 		)
 	`);
-	const columns = db
-		.query("select name from pragma_table_info('snapshots')")
-		.all() as { name: string }[];
-	if (!columns.some((column) => column.name === "tracker")) {
-		db.run(
-			"alter table snapshots add column tracker text not null default 'github'",
-		);
-	}
 	return {
 		store: {
 			replaceTickets(rows) {
 				db.transaction(() => {
 					db.run("delete from snapshots");
 					const insert = db.query(
-						"insert into snapshots (repo, tracker, payload) values (?, ?, ?)",
+						"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
 					);
 					for (const row of rows) {
 						insert.run(
-							row.project,
+							`${row.tracker}:${row.key}`,
+							row.name,
 							row.tracker,
 							JSON.stringify({
 								tickets: row.tickets,
@@ -43,9 +38,10 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			},
 			readTickets() {
 				const rows = db
-					.query("select repo, tracker, payload from snapshots")
+					.query("select snapshot_key, name, tracker, payload from snapshots")
 					.all() as {
-					repo: string;
+					snapshot_key: string;
+					name: string;
 					tracker: Snapshot["tracker"];
 					payload: string;
 				}[];
@@ -57,7 +53,8 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 						startedKeys: string[];
 					};
 					return {
-						project: row.repo,
+						key: row.snapshot_key.slice(row.tracker.length + 1),
+						name: row.name,
 						tracker: row.tracker,
 						tickets: payload.tickets,
 						pulls: payload.pulls,

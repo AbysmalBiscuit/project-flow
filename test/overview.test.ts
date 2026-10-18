@@ -804,6 +804,162 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("two GitHub projects with the same title both appear", async () => {
+		const sameTitle = "acme/widget";
+		const firstId = "PVT_same_1";
+		const secondId = "PVT_same_2";
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const sameName: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: sameTitle,
+							owner: { login: "lev" },
+							permissions: { push: true },
+							pushed_at: "2026-08-18T12:00:00.000Z",
+						},
+					]),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url.includes(`/repos/${sameTitle}/issues?`)) {
+				return page([ticket(1, "open", null)], null);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("node(id:")
+			) {
+				const variables = JSON.parse(body) as { variables?: { id?: string } };
+				const number = variables.variables?.id === firstId ? 11 : 12;
+				return new Response(
+					JSON.stringify({
+						data: {
+							node: {
+								items: {
+									nodes: [
+										{
+											content: {
+												__typename: "Issue",
+												number,
+												state: "OPEN",
+												stateReason: null,
+												repository: { nameWithOwner: "acme/other" },
+											},
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [
+										{
+											id: firstId,
+											title: sameTitle,
+											closed: false,
+											updatedAt: "2026-08-18T12:00:00Z",
+										},
+										{
+											id: secondId,
+											title: sameTitle,
+											closed: false,
+											updatedAt: "2026-08-18T12:00:00Z",
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url === "https://api.linear.app/graphql") {
+				if (body.includes("projects(")) {
+					return new Response(
+						JSON.stringify({
+							data: {
+								viewer: { id: "lev" },
+								projects: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						}),
+						{ status: 200 },
+					);
+				}
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{ status: 200 },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: sameName,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const overview = (await checks) as {
+				projects: { name: string; tracker: string; backlog: number }[];
+			};
+			const titled = overview.projects.filter(
+				(project) => project.name === sameTitle,
+			);
+			expect(titled).toHaveLength(3);
+			expect(titled.filter((project) => project.tracker === "github")).toEqual(
+				titled,
+			);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a ticket on a repo and its GitHub project counts once under the project", async () => {
 		const projectId = "PVT_widget";
 		const requests: string[] = [];
