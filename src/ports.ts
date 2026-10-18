@@ -7,6 +7,14 @@ export type Clock = {
 
 export type TodoSource = () => Promise<string>;
 
+export type LocalCheckout = {
+	repo: string;
+	tracker: "github" | "linear";
+	path?: string;
+};
+
+export type CheckoutSource = () => Promise<LocalCheckout[]>;
+
 export type FoundProject = {
 	key: string;
 	name?: string;

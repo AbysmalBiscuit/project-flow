@@ -1,14 +1,14 @@
 #!/usr/bin/env bun
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { version } from "../package.json";
 import { start } from "./app.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken } from "./github.ts";
 import { checkLinearKey, missingLinearKey } from "./linear.ts";
-import type { TodoSource } from "./ports.ts";
+import type { CheckoutSource, TodoSource } from "./ports.ts";
 
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
@@ -32,6 +32,7 @@ export type RunIo = {
 	now?: () => Date;
 	waitForStop?: Promise<void>;
 	listTodos?: TodoSource;
+	listCheckouts?: CheckoutSource;
 };
 
 export type RunResult = {
@@ -46,6 +47,175 @@ export function defaultStorePath(
 ): string {
 	const root = env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
 	return join(root, "project-flow", "project-flow.sqlite");
+}
+
+const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
+
+function originRepo(url: string): string | null {
+	const match = url
+		.trim()
+		.match(
+			/^(?:https?:\/\/[^/]+\/|git@[^:]+:)([^/\s]+)\/([^/\s]+?)(?:\.git)?$/,
+		);
+	const repo = match === null ? null : `${match[1]}/${match[2]}`;
+	return repo !== null && ownerRepo.test(repo) ? repo : null;
+}
+
+async function command(args: string[]): Promise<string | null> {
+	const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
+	const stdout = proc.stdout;
+	if (typeof stdout === "number" || stdout === undefined) {
+		proc.kill();
+		return null;
+	}
+	const [out, code] = await Promise.all([
+		new Response(stdout).text(),
+		proc.exited,
+	]);
+	return code === 0 ? out.trim() : null;
+}
+
+async function checkoutRepo(path: string): Promise<string | null> {
+	const devkit = Bun.which("devkit");
+	if (devkit !== null) {
+		const shown = await command([
+			devkit,
+			"config",
+			"show",
+			"--json",
+			"-C",
+			path,
+		]);
+		if (shown !== null) {
+			try {
+				const parsed = JSON.parse(shown) as {
+					github?: { issues_repo?: string | null };
+				};
+				const configured = parsed.github?.issues_repo;
+				if (typeof configured === "string" && ownerRepo.test(configured)) {
+					return configured;
+				}
+			} catch {
+				// The origin remote names the repo when the config is not JSON.
+			}
+		}
+	}
+	const url = await command(["git", "-C", path, "remote", "get-url", "origin"]);
+	return url === null ? null : originRepo(url);
+}
+
+export async function listDevkitCheckouts(
+	roots: string[] = [join(homedir(), "Git")],
+): Promise<{ repo: string; tracker: "github" | "linear"; path?: string }[]> {
+	const found: { repo: string; tracker: "github" | "linear"; path: string }[] =
+		[];
+	for (const root of roots) {
+		let owners: string[];
+		try {
+			owners = await readdir(root);
+		} catch {
+			continue;
+		}
+		for (const owner of owners) {
+			let names: string[];
+			try {
+				names = await readdir(join(root, owner));
+			} catch {
+				continue;
+			}
+			for (const name of names) {
+				if (name.endsWith("_worktrees") || name.endsWith("_workspaces")) {
+					continue;
+				}
+				const path = join(root, owner, name);
+				const common = await command([
+					"git",
+					"-C",
+					path,
+					"rev-parse",
+					"--path-format=absolute",
+					"--git-common-dir",
+				]);
+				if (common === null || dirname(common) !== path) {
+					continue;
+				}
+				const repo = await checkoutRepo(path);
+				if (repo === null || found.some((item) => item.repo === repo)) {
+					continue;
+				}
+				found.push({ repo, tracker: "github", path });
+			}
+		}
+	}
+	return found;
+}
+
+export function reposNamedByTodos(
+	listing: string,
+	checkouts: { repo: string; path?: string }[],
+): string[] {
+	let rows: { project?: unknown }[];
+	try {
+		const parsed: unknown = JSON.parse(listing);
+		rows = Array.isArray(parsed) ? parsed : [];
+	} catch {
+		return [];
+	}
+	const byName = new Map(
+		checkouts
+			.filter(
+				(checkout) =>
+					checkout.path !== undefined && ownerRepo.test(checkout.repo),
+			)
+			.map((checkout) => [basename(checkout.path ?? ""), checkout.repo]),
+	);
+	const repos: string[] = [];
+	for (const row of rows) {
+		if (typeof row.project !== "string") {
+			continue;
+		}
+		const [name, node] = row.project.split(".");
+		if (
+			name === undefined ||
+			node === undefined ||
+			node === "main" ||
+			node.startsWith("pr-") ||
+			!/^\d+-|[a-z][a-z0-9]*-\d+/i.test(node)
+		) {
+			continue;
+		}
+		const repo = byName.get(name);
+		if (repo === undefined || !ownerRepo.test(repo) || repos.includes(repo)) {
+			continue;
+		}
+		repos.push(repo);
+	}
+	return repos;
+}
+
+export async function localProjects(
+	list: () => Promise<
+		{ repo: string; tracker: "github" | "linear"; path?: string }[]
+	> = listDevkitCheckouts,
+	todos: () => Promise<string> = listDevkitTodos,
+): Promise<{ repo: string; tracker: "github" | "linear"; path?: string }[]> {
+	let checkouts: {
+		repo: string;
+		tracker: "github" | "linear";
+		path?: string;
+	}[] = [];
+	try {
+		checkouts = await list();
+	} catch {
+		checkouts = [];
+	}
+	const named = reposNamedByTodos(await todos().catch(() => ""), checkouts);
+	return [
+		...checkouts,
+		...named
+			.filter((repo) => !checkouts.some((checkout) => checkout.repo === repo))
+			.map((repo) => ({ repo, tracker: "github" as const })),
+	];
 }
 
 export async function listDevkitTodos(): Promise<string> {
@@ -231,6 +401,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
 			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
 			listTodos: io.listTodos ?? listDevkitTodos,
+			listCheckouts: io.listCheckouts ?? localProjects,
 			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		writeOut(running.url.href);

@@ -72,7 +72,11 @@ export async function tempConfig(
 }
 
 export function testIo(io: RunIo): RunIo {
-	return { listTodos: async () => "", ...io };
+	return {
+		listTodos: async () => "",
+		listCheckouts: async () => [],
+		...io,
+	};
 }
 
 export type LinearFake = {

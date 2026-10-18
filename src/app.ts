@@ -14,6 +14,7 @@ import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
 import type {
+	CheckoutSource,
 	Clock,
 	ConfigurationPort,
 	FoundProject,
@@ -33,6 +34,7 @@ export type StartOptions = {
 	hostname: string;
 	port: number;
 	listTodos?: TodoSource;
+	listCheckouts?: CheckoutSource;
 	now?: () => Date;
 };
 
@@ -150,6 +152,7 @@ type PollOptions = {
 	token: string | null;
 	fetch: Fetch;
 	listTodos?: TodoSource | undefined;
+	listCheckouts?: CheckoutSource | undefined;
 	fallback: Configuration | null;
 };
 
@@ -169,6 +172,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		return options.fallback;
 	}
 	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
+	const checkouts = (await options.listCheckouts?.().catch(() => [])) ?? [];
 	const linear = options.linear;
 	if (
 		linear === null &&
@@ -188,6 +192,15 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 	const discovered = github === null ? [] : await github.findProjects();
 	if (linear !== null) {
 		mergeFound(discovered, await linear.findProjects());
+	}
+	const localRepos = checkouts
+		.filter(
+			(checkout) =>
+				checkout.tracker === "github" && checkout.repo.trim() !== "",
+		)
+		.map((checkout) => checkout.repo.trim());
+	for (const repo of localRepos) {
+		mergeFound(discovered, [{ key: repo, tracker: "github", updatedAt: null }]);
 	}
 	const found = [...discovered];
 	for (const pin of configuration.pinned) {
@@ -333,6 +346,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		token: options.token,
 		fetch: options.fetch,
 		listTodos: options.listTodos,
+		listCheckouts: options.listCheckouts,
 		fallback: null,
 	};
 	const polled = await poll(pollOptions);
