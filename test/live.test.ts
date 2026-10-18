@@ -282,6 +282,27 @@ function linearPinFetch(requests: string[]): Fetch {
 					},
 				);
 			}
+			if (parsed.query?.includes("ProjectByPin")) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							projects: {
+								nodes: [
+									{
+										id: "project-1",
+										name: linearProject,
+										slugId: linearProject,
+									},
+								],
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
 			requests.push(body);
 			polls += 1;
 			if (polls === 2) {
