@@ -260,6 +260,29 @@ describe("unlinked PRs", () => {
 });
 
 describe("in progress", () => {
+	test("a draft PR and a ready PR leave the ticket in progress", async () => {
+		const body = await overview({
+			issues: [issue(20)],
+			pulls: [
+				pull(52, { draft: true, body: "Closes #20" }),
+				pull(53, { draft: false, body: "Closes #20" }),
+			],
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					name: repo,
+					tracker: "github",
+					done: 0,
+					dropped: 0,
+					backlog: 0,
+					inProgress: 1,
+					unlinkedPrs: [],
+				},
+			],
+		});
+	});
+
 	test("a draft PR makes its ticket in progress", async () => {
 		const body = await overview({
 			issues: [issue(18), issue(19)],

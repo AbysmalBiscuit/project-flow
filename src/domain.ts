@@ -132,9 +132,7 @@ export function projectCounts(
 				startedKeys.includes(`#${ticketNumber(key) ?? ""}`));
 		const pushed =
 			key !== null && branches.some((branch) => branchLinksTicket(branch, key));
-		const ready = links.some((pull) => !pull.draft);
-		const inProgress =
-			!ready && (links.some((pull) => pull.draft) || pushed || started);
+		const inProgress = links.some((pull) => pull.draft) || pushed || started;
 		if (state === "backlog" && inProgress) {
 			counts.inProgress += 1;
 			continue;
