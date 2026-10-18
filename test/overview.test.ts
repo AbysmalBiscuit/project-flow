@@ -312,6 +312,140 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("a blank Linear project slug names the field and does not listen", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "   " }],
+			}),
+		);
+		try {
+			const result = await run(["--config", path], {
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				fetch: linearFetch([]),
+				readGhToken: async () => null,
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("pinned.0.project");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a rejected Linear key does not serve an overview", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const rejected: Fetch = async (input) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response("unauthorized", { status: 401 });
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		try {
+			const result = await run(["--config", path], {
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "rejected-key",
+				},
+				fetch: rejected,
+				readGhToken: async () => null,
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("LINEAR_API_KEY");
+			expect(result.stderr).toContain("401");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("an unknown Linear state type does not count as a ticket", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const unknown: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{ status: 200 },
+					);
+				}
+				return new Response(
+					linearBody(
+						[
+							linearIssue("1", "completed"),
+							{ id: "9", state: { type: "archived-mystery" } },
+							{ id: "10", state: null },
+						],
+						false,
+						null,
+					),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: unknown,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({
+				projects: [
+					{
+						name: linearProject,
+						tracker: "linear",
+						done: 1,
+						dropped: 0,
+						backlog: 0,
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a Linear list failure does not serve an overview", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
