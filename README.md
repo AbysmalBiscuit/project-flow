@@ -2,7 +2,7 @@
 
 Project Flow is a local web app. It shows how projects and tickets progress across GitHub and Linear.
 
-The page shows project cards. Each card shows done, dropped, backlog and in progress counts. The terms are in `GLOSSARY.md`.
+The page shows each project's progress by state. The terms are in `GLOSSARY.md`.
 
 ## Start
 
@@ -35,7 +35,7 @@ function defaultConfigPath(env: Record<string, string | undefined>): string {
 }
 ```
 
-The file can be empty `{}`. These fields are optional:
+The file can be empty `{}`. Create the file before the first start. These fields are optional:
 
 - `pinned` names projects that always show.
 - `hidden` names projects that never show.
@@ -55,7 +55,7 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 ## Tokens
 
-The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. When that variable is missing, the app runs `gh auth token`.
+The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. When that variable is missing or blank, the app runs `gh auth token`.
 
 `src/main.ts` resolves the token:
 
@@ -79,7 +79,7 @@ async function resolveToken(io: RunIo): Promise<string | null> {
 		});
 ```
 
-The app reads `LINEAR_API_KEY` from the environment. It needs that key when a pinned project uses the Linear tracker. A GitHub-only configuration starts with no Linear key.
+The app reads `LINEAR_API_KEY` from the environment. It needs that key when a pinned project uses the Linear tracker. With the key set, the app also finds Linear projects. A GitHub-only configuration starts with no Linear key.
 
 ## Develop
 
