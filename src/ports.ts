@@ -6,7 +6,7 @@ export type Clock = {
 };
 
 export type Tracker = {
-	listTickets: (repo: string) => Promise<Ticket[]>;
+	listTickets: (project: string) => Promise<Ticket[]>;
 };
 
 export type Store = {

@@ -49,9 +49,10 @@ const recorded = [
 	pullRequest(7),
 ];
 
-function githubFetch(): Fetch {
+function githubFetch(requests: string[] = []): Fetch {
 	return async (input) => {
 		const url = urlOf(input);
+		requests.push(url);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
@@ -90,6 +91,89 @@ async function assertCard(base: string): Promise<void> {
 	expect(html).not.toContain("Done ");
 	expect(html).not.toContain("Dropped ");
 	expect(html).not.toContain("Backlog ");
+}
+
+const linearProject = "widget-launch";
+
+function linearIssue(
+	id: string,
+	stateType: "completed" | "canceled" | "duplicate" | "backlog" | "started",
+): Record<string, unknown> {
+	return {
+		id,
+		identifier: `WID-${id}`,
+		title: `Linear ticket ${id}`,
+		state: { type: stateType },
+	};
+}
+
+const linearRecorded = [
+	linearIssue("1", "completed"),
+	linearIssue("2", "canceled"),
+	linearIssue("3", "duplicate"),
+	linearIssue("4", "completed"),
+	linearIssue("5", "backlog"),
+	linearIssue("6", "started"),
+];
+
+function linearBody(
+	nodes: Record<string, unknown>[],
+	hasNextPage: boolean,
+	endCursor: string | null,
+): string {
+	return JSON.stringify({
+		data: {
+			issues: {
+				nodes,
+				pageInfo: { hasNextPage, endCursor },
+			},
+		},
+	});
+}
+
+function linearFetch(requests: string[]): Fetch {
+	return async (input, init) => {
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+		}
+		const list = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`;
+		if (url === list) {
+			return page(recorded, null);
+		}
+		if (url === "https://api.linear.app/graphql") {
+			const body =
+				typeof init?.body === "string" ? init.body : JSON.stringify(init?.body);
+			const query = JSON.parse(body) as {
+				query?: string;
+				variables?: { after?: string | null };
+			};
+			if (query.query?.includes("viewer")) {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			requests.push(body);
+			const after = query.variables?.after;
+			if (after === undefined || after === null) {
+				return new Response(
+					linearBody(linearRecorded.slice(0, 4), true, "page-2"),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (after === "page-2") {
+				return new Response(linearBody(linearRecorded.slice(4), false, null), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+		}
+		return new Response("not recorded", { status: 404 });
+	};
 }
 
 describe("GET /api/overview", () => {
@@ -206,7 +290,145 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("a missing Linear key does not serve an overview", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		try {
+			const result = await run(["--config", path], {
+				env: { GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "   " },
+				fetch: linearFetch([]),
+				readGhToken: async () => null,
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("LINEAR_API_KEY");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a Linear list failure does not serve an overview", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const failing: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{ status: 200 },
+					);
+				}
+				return new Response("recorded failure", { status: 500 });
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		try {
+			const result = await run(["--config", path], {
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				fetch: failing,
+				readGhToken: async () => null,
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("HTTP 500");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("counts done, dropped and backlog from recorded Linear tickets", async () => {
+		const requests: string[] = [];
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo },
+					{ tracker: "linear", project: linearProject },
+				],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						expect(await response.json()).toEqual({
+							projects: [
+								{
+									name: repo,
+									tracker: "github",
+									done: 2,
+									dropped: 2,
+									backlog: 2,
+								},
+								{
+									name: linearProject,
+									tracker: "linear",
+									done: 2,
+									dropped: 2,
+									backlog: 2,
+								},
+							],
+						});
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: linearFetch(requests),
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(requests.length).toBeGreaterThan(0);
+			const sent = requests.map(
+				(body) => JSON.parse(body) as { query: string; variables: unknown },
+			);
+			expect(sent.every((call) => call.query.includes("state"))).toBe(true);
+			expect(sent.map((call) => call.variables)).toEqual([
+				{ project: linearProject, after: null },
+				{ project: linearProject, after: "page-2" },
+			]);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("counts done, dropped and backlog from recorded GitHub tickets", async () => {
+		const requests: string[] = [];
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
@@ -223,7 +445,7 @@ describe("GET /api/overview", () => {
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				{
 					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: githubFetch(),
+					fetch: githubFetch(requests),
 					readGhToken: async () => null,
 					databasePath,
 					stdout: (line) => startChecks(line),
@@ -234,6 +456,7 @@ describe("GET /api/overview", () => {
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
 			expect(await Bun.file(databasePath).exists()).toBe(true);
+			expect(requests.some((url) => url.includes("linear.app"))).toBe(false);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
