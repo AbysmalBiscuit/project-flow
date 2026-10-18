@@ -1193,6 +1193,134 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("a pinned quiet Linear project shows and a hidden active project does not", async () => {
+		const pinnedLinear = "quiet-linear";
+		const hiddenRepo = "acme/hidden-live";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: pinnedLinear }],
+				hidden: [{ tracker: "github", repo: hiddenRepo }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const edge: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: hiddenRepo,
+							owner: { login: "lev" },
+							permissions: { push: true },
+							pushed_at: "2026-10-18T12:00:00.000Z",
+						},
+					]),
+					{ status: 200 },
+				);
+			}
+			if (url.includes("/issues?")) {
+				return page(
+					[
+						{
+							number: 1,
+							title: "Open",
+							state: "open",
+							state_reason: null,
+							updated_at: "2026-10-18T12:00:00.000Z",
+						},
+					],
+					null,
+				);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (
+				url === "https://api.linear.app/graphql" &&
+				body.includes("ProjectIssues")
+			) {
+				return new Response(linearBody([], false, null), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: { id: "lev" },
+							projects: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: edge,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({
+				projects: [
+					{
+						name: pinnedLinear,
+						tracker: "linear",
+						done: 0,
+						dropped: 0,
+						backlog: 0,
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a project with no open tickets stays off the overview", async () => {
 		const closedRepo = "acme/closed";
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));

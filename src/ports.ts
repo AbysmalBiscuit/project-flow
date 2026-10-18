@@ -16,6 +16,7 @@ export type FoundProject = {
 
 export type Snapshot = {
 	project: string;
+	tracker: "github" | "linear";
 	tickets: Ticket[];
 	pulls: PullRequest[];
 	branches: string[];

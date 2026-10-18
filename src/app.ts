@@ -42,7 +42,7 @@ function overview(store: Store): Overview {
 		projects: store.readTickets().map((row) =>
 			projectCounts(
 				row.project,
-				row.tickets[0]?.tracker ?? "github",
+				row.tracker,
 				row.tickets,
 				row.pulls,
 				row.branches,
@@ -156,6 +156,7 @@ async function poll(options: {
 				: [];
 		rows.push({
 			project: project.name ?? project.key,
+			tracker: project.tracker,
 			tickets,
 			pulls,
 			branches,
