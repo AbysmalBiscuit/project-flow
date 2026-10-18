@@ -8,6 +8,11 @@ export const missingLinearKey =
 
 const endpoint = "https://api.linear.app/graphql";
 
+const pageInfo = z.object({
+	hasNextPage: z.boolean(),
+	endCursor: z.string().nullable(),
+});
+
 const projectsQuery = `query MemberProjects($after: String) {
 	viewer { id }
 	projects(first: 50, after: $after) {
@@ -30,10 +35,7 @@ const memberProjects = z.object({
 					members: z.object({ nodes: z.array(z.object({ id: z.string() })) }),
 				}),
 			),
-			pageInfo: z.object({
-				hasNextPage: z.boolean(),
-				endCursor: z.string().nullable(),
-			}),
+			pageInfo,
 		}),
 	}),
 	errors: z.array(z.object({ message: z.string() })).optional(),
@@ -78,10 +80,7 @@ const issuePage = z.object({
 	data: z.object({
 		issues: z.object({
 			nodes: z.array(issueNode),
-			pageInfo: z.object({
-				hasNextPage: z.boolean(),
-				endCursor: z.string().nullable(),
-			}),
+			pageInfo,
 		}),
 	}),
 	errors: z.array(z.object({ message: z.string() })).optional(),

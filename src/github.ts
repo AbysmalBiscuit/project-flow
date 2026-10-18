@@ -106,6 +106,11 @@ const githubRepo = z.object({
 	pushed_at: z.string().nullable().optional(),
 });
 
+const pageInfo = z.object({
+	hasNextPage: z.boolean(),
+	endCursor: z.string().nullable(),
+});
+
 const projectNode = z.object({
 	id: z.string(),
 	title: z.string(),
@@ -115,10 +120,7 @@ const projectNode = z.object({
 
 const projectConnection = z.object({
 	nodes: z.array(projectNode),
-	pageInfo: z.object({
-		hasNextPage: z.boolean(),
-		endCursor: z.string().nullable(),
-	}),
+	pageInfo,
 });
 
 const graphqlProjects = z.object({
@@ -133,10 +135,7 @@ const graphqlProjects = z.object({
 						projectsV2: projectConnection,
 					}),
 				),
-				pageInfo: z.object({
-					hasNextPage: z.boolean(),
-					endCursor: z.string().nullable(),
-				}),
+				pageInfo,
 			}),
 		}),
 	}),
@@ -279,10 +278,7 @@ const projectItems = z.object({
 								.nullable(),
 						}),
 					),
-					pageInfo: z.object({
-						hasNextPage: z.boolean(),
-						endCursor: z.string().nullable(),
-					}),
+					pageInfo,
 				}),
 			})
 			.nullable(),
