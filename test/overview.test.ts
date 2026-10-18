@@ -850,6 +850,7 @@ describe("GET /api/overview", () => {
 									nodes: [
 										{
 											content: {
+												__typename: "Issue",
 												number: 9,
 												state: "OPEN",
 												stateReason: null,
@@ -858,9 +859,18 @@ describe("GET /api/overview", () => {
 										},
 										{
 											content: {
+												__typename: "Issue",
 												number: 8,
 												state: "CLOSED",
 												stateReason: "COMPLETED",
+												repository: { nameWithOwner: repo },
+											},
+										},
+										{
+											content: {
+												__typename: "PullRequest",
+												number: 3,
+												state: "OPEN",
 												repository: { nameWithOwner: repo },
 											},
 										},

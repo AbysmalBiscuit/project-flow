@@ -263,6 +263,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 			items(first: 50, after: $after) {
 				nodes {
 					content {
+						__typename
 						... on Issue { number state stateReason repository { nameWithOwner } }
 					}
 				}
@@ -281,10 +282,13 @@ const projectItems = z.object({
 						z.object({
 							content: z
 								.object({
-									number: z.number(),
-									state: z.string(),
-									stateReason: z.string().nullable(),
-									repository: z.object({ nameWithOwner: z.string() }),
+									__typename: z.string(),
+									number: z.number().optional(),
+									state: z.string().optional(),
+									stateReason: z.string().nullable().optional(),
+									repository: z
+										.object({ nameWithOwner: z.string() })
+										.optional(),
 								})
 								.nullable(),
 						}),
@@ -355,7 +359,13 @@ async function listProjectTickets(
 		}
 		for (const item of page.data.node.items.nodes) {
 			const content = item.content;
-			if (content === null) {
+			if (
+				content === null ||
+				content.__typename !== "Issue" ||
+				content.number === undefined ||
+				content.state === undefined ||
+				content.repository === undefined
+			) {
 				continue;
 			}
 			const state = githubState(content.state);
@@ -366,7 +376,7 @@ async function listProjectTickets(
 				tracker: "github",
 				key: `${content.repository.nameWithOwner}#${content.number}`,
 				state,
-				stateReason: githubReason(content.stateReason),
+				stateReason: githubReason(content.stateReason ?? null),
 				ref: `${content.repository.nameWithOwner}#${content.number}`,
 			});
 		}
