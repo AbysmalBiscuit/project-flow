@@ -25,13 +25,17 @@ export type Running = {
 	stop: () => Promise<void>;
 };
 
+function pinKey(pin: Configuration["pinned"][number]): string {
+	return pin.tracker === "github" ? pin.repo : pin.project;
+}
+
 function overview(store: Store, configuration: Configuration): Overview {
 	const rows = new Map(
 		store.readTickets().map((row) => [row.repo, row.tickets]),
 	);
 	return {
 		projects: configuration.pinned.flatMap((pin) => {
-			const key = pin.tracker === "github" ? pin.repo : pin.project;
+			const key = pinKey(pin);
 			const tickets = rows.get(key);
 			if (tickets === undefined) {
 				return [];
@@ -51,16 +55,17 @@ async function poll(options: {
 	const configuration = await options.configuration.read();
 	const rows = [];
 	for (const pin of configuration.pinned) {
+		const key = pinKey(pin);
 		if (pin.tracker === "github") {
-			const tickets = await options.github.listTickets(pin.repo);
-			rows.push({ repo: pin.repo, tickets });
+			const tickets = await options.github.listTickets(key);
+			rows.push({ repo: key, tickets });
 			continue;
 		}
 		if (options.linear === null) {
 			throw new Error(missingLinearKey);
 		}
-		const tickets = await options.linear.listTickets(pin.project);
-		rows.push({ repo: pin.project, tickets });
+		const tickets = await options.linear.listTickets(key);
+		rows.push({ repo: key, tickets });
 	}
 	options.store.replaceTickets(rows);
 	return configuration;
