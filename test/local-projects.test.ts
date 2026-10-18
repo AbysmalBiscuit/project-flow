@@ -380,7 +380,10 @@ describe("local projects", () => {
 					join(scan, "docs.git"),
 				],
 				{
-					env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
+					env: {
+						PATH: process.env.PATH ?? "",
+						HOME: process.env.HOME ?? "",
+					},
 				},
 			);
 			expect(await init.exited).toBe(0);

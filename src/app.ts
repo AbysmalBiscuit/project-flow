@@ -89,7 +89,11 @@ function checkoutNames(
 async function worktreeNames(path: string): Promise<string[]> {
 	const proc = Bun.spawn(
 		["git", "-C", path, "worktree", "list", "--porcelain"],
-		{ stdout: "pipe", stderr: "pipe" },
+		{
+			stdout: "pipe",
+			stderr: "pipe",
+			env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
+		},
 	);
 	const stdout = proc.stdout;
 	if (typeof stdout === "number" || stdout === undefined) {
