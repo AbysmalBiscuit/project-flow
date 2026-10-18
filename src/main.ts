@@ -8,6 +8,7 @@ import { loadConfiguration } from "./configuration.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken } from "./github.ts";
 import { checkLinearKey, missingLinearKey } from "./linear.ts";
+import type { TodoSource } from "./ports.ts";
 
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
@@ -29,7 +30,7 @@ export type RunIo = {
 	hostname?: string;
 	port?: number;
 	waitForStop?: Promise<void>;
-	listTodos?: () => Promise<string>;
+	listTodos?: TodoSource;
 };
 
 export type RunResult = {

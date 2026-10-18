@@ -6,7 +6,13 @@ import type { Fetch } from "./fetch.ts";
 import { githubTracker } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
-import type { Clock, ConfigurationPort, Store, Tracker } from "./ports.ts";
+import type {
+	Clock,
+	ConfigurationPort,
+	Store,
+	TodoSource,
+	Tracker,
+} from "./ports.ts";
 import { sqliteStore } from "./store.ts";
 
 export type StartOptions = {
@@ -18,7 +24,7 @@ export type StartOptions = {
 	hostname: string;
 	port: number;
 	now?: () => Date;
-	listTodos?: () => Promise<string>;
+	listTodos?: TodoSource;
 };
 
 export type Running = {
@@ -59,7 +65,7 @@ async function poll(options: {
 	linear: Tracker | null;
 	store: Store;
 	clock: Clock;
-	listTodos?: (() => Promise<string>) | undefined;
+	listTodos?: TodoSource | undefined;
 }): Promise<Configuration> {
 	void options.clock;
 	const configuration = await options.configuration.read();

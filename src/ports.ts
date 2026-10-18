@@ -5,6 +5,8 @@ export type Clock = {
 	now: () => Date;
 };
 
+export type TodoSource = () => Promise<string>;
+
 export type Snapshot = {
 	project: string;
 	tickets: Ticket[];
