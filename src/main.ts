@@ -172,24 +172,34 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	}
 
 	try {
-		const token = await resolveToken(io);
-		if (token === null) {
-			writeErr(missingToken);
-			return result(1, false);
-		}
-
-		const user = await checkToken(token, io.fetch);
-		if (user.status === 401) {
-			writeErr(rejectedToken);
-			return result(1, false);
-		}
-		if (!user.ok) {
-			writeErr(`GitHub token check failed (HTTP ${user.status}).`);
-			return result(1, false);
-		}
-
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
 		const configuration = await loadConfiguration(configPath);
+		const needsGithub = configuration.pinned.some(
+			(pin) => pin.tracker === "github",
+		);
+		let token: string | null = null;
+		if (needsGithub) {
+			token = await resolveToken(io);
+			if (token === null) {
+				writeErr(missingToken);
+				return result(1, false);
+			}
+
+			const user = await checkToken(token, io.fetch);
+			if (user.status === 401) {
+				writeErr(rejectedToken);
+				return result(1, false);
+			}
+			if (!user.ok) {
+				writeErr(`GitHub token check failed (HTTP ${user.status}).`);
+				return result(1, false);
+			}
+		} else {
+			const fromEnv = io.env.GITHUB_TOKEN?.trim() ?? "";
+			if (fromEnv !== "") {
+				token = fromEnv;
+			}
+		}
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
 		const needsLinear = configuration.pinned.some(
 			(pin) => pin.tracker === "linear",

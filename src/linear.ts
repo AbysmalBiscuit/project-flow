@@ -46,12 +46,26 @@ const memberProjects = z.object({
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
+const projectQuery = `query ProjectByPin($pin: String!) {
+	bySlug: projects(first: 2, filter: {
+		or: [
+			{ slugId: { eq: $pin } }
+			{ slugId: { endsWith: $pin } }
+		]
+	}) {
+		nodes { id name slugId }
+	}
+	byName: projects(first: 2, filter: { name: { eqIgnoreCase: $pin } }) {
+		nodes { id name slugId }
+	}
+}`;
+
 const query = `query ProjectIssues($project: String!, $after: String) {
 	issues(
 		first: 50
 		after: $after
 		includeArchived: true
-		filter: { project: { slugId: { eq: $project } } }
+		filter: { project: { id: { eq: $project } } }
 	) {
 		nodes {
 			identifier
@@ -73,6 +87,26 @@ const attachmentNode = z.object({
 	title: z.string(),
 	sourceType: z.string().nullable(),
 });
+
+const linearProjectNode = z.object({
+	id: z.string(),
+	name: z.string(),
+	slugId: z.string(),
+});
+
+const projectPage = z.object({
+	data: z.object({
+		bySlug: z.object({ nodes: z.array(linearProjectNode) }),
+		byName: z.object({ nodes: z.array(linearProjectNode) }),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+export type LinearProject = {
+	id: string;
+	name: string;
+	slugId: string;
+};
 
 const issueNode = z.object({
 	identifier: z.string().optional(),
@@ -179,6 +213,48 @@ async function findLinearProjects(
 	return found;
 }
 
+function matchesPin(slugId: string, name: string, pin: string): boolean {
+	if (slugId === pin || slugId.endsWith(`-${pin}`)) {
+		return true;
+	}
+	const split = slugId.lastIndexOf("-");
+	const slugName = split === -1 ? slugId : slugId.slice(0, split);
+	return slugName === pin || name.toLowerCase() === pin.toLowerCase();
+}
+
+async function findLinearProject(
+	key: string,
+	pin: string,
+	fetchImpl: Fetch,
+): Promise<LinearProject> {
+	const response = await fetchImpl(endpoint, {
+		method: "POST",
+		headers: linearHeaders(key),
+		body: JSON.stringify({
+			query: projectQuery,
+			variables: { pin },
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(
+			`Linear project lookup failed (HTTP ${response.status}): ${pin}`,
+		);
+	}
+	const page = projectPage.parse(await response.json());
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		throw new Error(`Linear project lookup failed: ${error.message}`);
+	}
+	const nodes = [...page.data.bySlug.nodes, ...page.data.byName.nodes];
+	const match = nodes.find((project) =>
+		matchesPin(project.slugId, project.name, pin),
+	);
+	if (match === undefined) {
+		throw new Error(`Linear project not found: ${pin}`);
+	}
+	return match;
+}
+
 const githubPull = z.object({
 	number: z.number(),
 	title: z.string(),
@@ -256,9 +332,10 @@ export function linearTracker(
 		findProjects() {
 			return findLinearProjects(key, fetchImpl);
 		},
-		async listTickets(project) {
+		async listTickets(pin) {
+			const project = await findLinearProject(key, pin, fetchImpl);
 			const tickets: Ticket[] = [];
-			for (const node of await issues(project)) {
+			for (const node of await issues(project.id)) {
 				if (node.state === null) {
 					continue;
 				}
@@ -271,14 +348,15 @@ export function linearTracker(
 					tickets.push(ticket);
 				}
 			}
-			return tickets;
+			return { name: project.name, tickets };
 		},
-		async listPulls(project) {
+		async listPulls(pin) {
+			const project = await findLinearProject(key, pin, fetchImpl);
 			const pulls: PullRequest[] = [];
 			if (githubToken === null) {
 				return pulls;
 			}
-			for (const node of await issues(project)) {
+			for (const node of await issues(project.id)) {
 				const identifier = node.identifier;
 				if (identifier === undefined) {
 					continue;

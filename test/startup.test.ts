@@ -48,6 +48,98 @@ function recordedFetch(userStatus: number): Fetch {
 }
 
 describe("startup", () => {
+	test("a Linear-only configuration starts without GITHUB_TOKEN", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url.startsWith("https://api.github.com/")) {
+				throw new Error("GitHub must not be called without GITHUB_TOKEN");
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{ status: 200 },
+					);
+				}
+				if (body.includes("ProjectByPin")) {
+					return new Response(
+						JSON.stringify({
+							data: {
+								bySlug: {
+									nodes: [
+										{
+											id: "project-1",
+											name: "Widget launch",
+											slugId: "widget-launch-0d42ae5d46d0",
+										},
+									],
+								},
+								byName: { nodes: [] },
+							},
+						}),
+						{ status: 200 },
+					);
+				}
+				return new Response(
+					JSON.stringify({
+						data: {
+							issues: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		try {
+			const result = await run(["--config", path], {
+				env: { LINEAR_API_KEY: "recorded-linear-key" },
+				fetch: fetchImpl,
+				readGhToken: async () => {
+					throw new Error("gh must not run for a Linear-only configuration");
+				},
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("an empty pinned list starts without GITHUB_TOKEN", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		try {
+			const result = await run(["--config", path], {
+				env: {},
+				fetch: async () => {
+					throw new Error("no tracker call for an empty pin list");
+				},
+				readGhToken: async () => {
+					throw new Error("gh must not run for an empty pin list");
+				},
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			expect(result.stderr).toBe("");
+		} finally {
+			await cleanup();
+		}
+	});
+
 	test("a missing token exits 1 and names GITHUB_TOKEN", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		try {

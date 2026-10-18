@@ -140,6 +140,16 @@ const linearRecorded = [
 	linearIssue("6", "started"),
 ];
 
+function linearProjectBody(name: string, slugId: string): string {
+	const node = { id: "project-1", name, slugId };
+	return JSON.stringify({
+		data: {
+			bySlug: { nodes: [node] },
+			byName: { nodes: [] },
+		},
+	});
+}
+
 function linearBody(
 	nodes: Record<string, unknown>[],
 	hasNextPage: boolean,
@@ -186,6 +196,12 @@ function linearFetch(requests: string[]): Fetch {
 						status: 200,
 						headers: { "content-type": "application/json" },
 					},
+				);
+			}
+			if (query.query?.includes("ProjectByPin")) {
+				return new Response(
+					linearProjectBody(linearProject, `${linearProject}-0d42ae5d46d0`),
+					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
 			requests.push(body);
@@ -466,6 +482,12 @@ describe("GET /api/overview", () => {
 						{ status: 200 },
 					);
 				}
+				if (body.includes("ProjectByPin")) {
+					return new Response(
+						linearProjectBody(linearProject, `${linearProject}-0d42ae5d46d0`),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
 				return new Response(
 					linearBody(
 						[
@@ -526,6 +548,98 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("a Linear pin that matches no project stops startup and names the pin", async () => {
+		const pin = "agent-docs-cleanup";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: pin }],
+			}),
+		);
+		const unmatched: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{ status: 200 },
+					);
+				}
+				return new Response(
+					JSON.stringify({
+						data: { bySlug: { nodes: [] }, byName: { nodes: [] } },
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		try {
+			const result = await run(["--config", path], {
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				fetch: unmatched,
+				readGhToken: async () => null,
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(pin);
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a Linear project lookup failure stops startup and names the pin", async () => {
+		const pin = "widget-launch";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: pin }],
+			}),
+		);
+		const failing: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{ status: 200 },
+					);
+				}
+				return new Response("recorded failure", { status: 502 });
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		try {
+			const result = await run(["--config", path], {
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				fetch: failing,
+				readGhToken: async () => null,
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain(pin);
+			expect(result.stderr).toContain("HTTP 502");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
 	test("a Linear list failure does not serve an overview", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -547,6 +661,12 @@ describe("GET /api/overview", () => {
 					return new Response(
 						JSON.stringify({ data: { viewer: { id: "lev" } } }),
 						{ status: 200 },
+					);
+				}
+				if (body.includes("ProjectByPin")) {
+					return new Response(
+						linearProjectBody(linearProject, `${linearProject}-0d42ae5d46d0`),
+						{ status: 200, headers: { "content-type": "application/json" } },
 					);
 				}
 				return new Response("recorded failure", { status: 500 });
@@ -572,6 +692,80 @@ describe("GET /api/overview", () => {
 			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
+		}
+	});
+
+	test("a Linear card heading shows the Linear project name", async () => {
+		const pin = "agent-docs-cleanup";
+		const projectName = "Agent docs cleanup";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: pin }],
+			}),
+		);
+		const named: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{ status: 200 },
+					);
+				}
+				if (body.includes("ProjectByPin")) {
+					return new Response(
+						linearProjectBody(projectName, `${pin}-0d42ae5d46d0`),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
+				return new Response(
+					linearBody([linearIssue("1", "completed")], false, null),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: named,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.exitCode).toBe(0);
+			const overview = (await checks) as {
+				projects: { name: string; tracker: string }[];
+			};
+			expect(overview.projects[0]?.name).toBe(projectName);
+			expect(JSON.stringify(overview)).not.toContain(pin);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 
@@ -643,8 +837,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(sent.every((call) => call.query.includes("state"))).toBe(true);
 			expect(sent.map((call) => call.variables)).toEqual([
-				{ project: linearProject, after: null },
-				{ project: linearProject, after: "page-2" },
+				{ project: "project-1", after: null },
+				{ project: "project-1", after: "page-2" },
 			]);
 		} finally {
 			await cleanup();

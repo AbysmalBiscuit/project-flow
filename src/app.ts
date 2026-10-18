@@ -18,7 +18,7 @@ import { sqliteStore } from "./store.ts";
 
 export type StartOptions = {
 	configPath: string;
-	token: string;
+	token: string | null;
 	linearKey: string | null;
 	fetch: Fetch;
 	databasePath: string;
@@ -96,12 +96,11 @@ function mergeFound(
 
 async function poll(options: {
 	configuration: ConfigurationPort;
-	github: Tracker;
+	github: Tracker | null;
 	linear: Tracker | null;
 	store: Store;
 	clock: Clock;
-	token: string;
-	fetch: Fetch;
+	token: string | null;
 	listTodos?: TodoSource | undefined;
 }): Promise<Configuration> {
 	const configuration = await options.configuration.read();
@@ -113,7 +112,16 @@ async function poll(options: {
 	) {
 		throw new Error(missingLinearKey);
 	}
-	const discovered = await options.github.findProjects();
+	const github = options.github;
+	if (
+		github === null &&
+		configuration.pinned.some((pin) => pin.tracker === "github")
+	) {
+		throw new Error(
+			'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".',
+		);
+	}
+	const discovered = github === null ? [] : await github.findProjects();
 	if (linear !== null) {
 		mergeFound(discovered, await linear.findProjects());
 	}
@@ -123,6 +131,11 @@ async function poll(options: {
 			continue;
 		}
 		if (pin.tracker === "github" && "project" in pin) {
+			if (options.token === null) {
+				throw new Error(
+					'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".',
+				);
+			}
 			const located = await githubProjectByNumber(
 				options.token,
 				options.fetch,
@@ -156,18 +169,20 @@ async function poll(options: {
 	);
 	const listed = [];
 	for (const project of found) {
-		const tracker = project.tracker === "github" ? options.github : linear;
+		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
 			throw new Error(missingLinearKey);
 		}
+		const listedTickets = await tracker.listTickets(project.key);
 		const pulls = await tracker.listPulls(project.key);
 		const branches =
-			project.tracker === "github"
-				? await options.github.listBranches(project.key)
+			project.tracker === "github" && github !== null
+				? await github.listBranches(project.key)
 				: [];
 		listed.push({
 			...project,
-			tickets: await tracker.listTickets(project.key),
+			name: project.name ?? listedTickets.name,
+			tickets: listedTickets.tickets,
 			pulls,
 			branches,
 			startedKeys,
@@ -190,7 +205,10 @@ export async function start(options: StartOptions): Promise<Running> {
 	const opened = sqliteStore(options.databasePath);
 	await poll({
 		configuration: { read: () => loadConfiguration(options.configPath) },
-		github: githubTracker(options.token, options.fetch),
+		github:
+			options.token === null
+				? null
+				: githubTracker(options.token, options.fetch),
 		linear:
 			options.linearKey === null
 				? null
@@ -198,7 +216,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		store: opened.store,
 		clock: { now: options.now ?? (() => new Date()) },
 		token: options.token,
-		fetch: options.fetch,
 		listTodos: options.listTodos,
 	});
 	const server = Bun.serve({

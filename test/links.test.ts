@@ -185,6 +185,25 @@ function linearFetch(): Fetch {
 					{ status: 200 },
 				);
 			}
+			if (body.includes("ProjectByPin")) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							bySlug: {
+								nodes: [
+									{
+										id: "project-1",
+										name: linearProject,
+										slugId: `${linearProject}-0d42ae5d46d0`,
+									},
+								],
+							},
+							byName: { nodes: [] },
+						},
+					}),
+					{ status: 200 },
+				);
+			}
 			return new Response(
 				JSON.stringify({
 					data: {
