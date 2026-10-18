@@ -12,7 +12,6 @@ export type Tracker = {
 export type Store = {
 	writeTickets: (repo: string, tickets: Ticket[]) => void;
 	readTickets: () => { repo: string; tickets: Ticket[] }[];
-	writePollTime: (at: Date) => void;
 };
 
 export type ConfigurationPort = {

@@ -7,20 +7,15 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 	db.run(`
 		create table if not exists snapshots (
 			repo text primary key,
-			payload text not null,
-			polled_at text not null
+			payload text not null
 		)
 	`);
-	let polledAt = new Date(0).toISOString();
 	return {
 		store: {
-			writePollTime(at) {
-				polledAt = at.toISOString();
-			},
 			writeTickets(repo, tickets) {
 				db.run(
-					"insert or replace into snapshots (repo, payload, polled_at) values (?, ?, ?)",
-					[repo, JSON.stringify(tickets), polledAt],
+					"insert or replace into snapshots (repo, payload) values (?, ?)",
+					[repo, JSON.stringify(tickets)],
 				);
 			},
 			readTickets() {
