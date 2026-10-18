@@ -369,18 +369,22 @@ describe("local projects", () => {
 				join(checkout, "devkit.toml"),
 				JSON.stringify({ tracker: { kind: "linear" } }),
 			);
-			await Bun.spawn([
-				"git",
-				"-C",
-				checkout,
-				"init",
-				"-q",
-				"-b",
-				"wid-7-write",
-			]).exited;
+			const init = Bun.spawn(["git", "-C", checkout, "init", "-q"]);
+			expect(await init.exited).toBe(0);
+			const gitDir = (
+				await new Response(
+					Bun.spawn(["git", "-C", checkout, "rev-parse", "--git-dir"], {
+						stdout: "pipe",
+					}).stdout,
+				).text()
+			).trim();
+			const head = join(checkout, gitDir, "HEAD");
+			await writeFile(head, "ref: refs/heads/wid-7-write\n");
+			await mkdir(join(checkout, gitDir, "refs", "heads"), { recursive: true });
+			const configPath = join(checkout, gitDir, "config");
 			await writeFile(
-				join(checkout, ".git", "config"),
-				`${await Bun.file(join(checkout, ".git", "config")).text()}[remote "origin"]\nurl = git@github.com:other/docs.git\n`,
+				configPath,
+				`${await Bun.file(configPath).text()}[remote "origin"]\nurl = git@github.com:other/docs.git\n`,
 			);
 			const { body } = await overview({
 				linear: true,
