@@ -652,6 +652,41 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a failed review read does not show the PR as awaiting merge", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: async (input, init) => {
+						const url = urlOf(input);
+						if (url.includes("/reviews?")) {
+							return new Response("unavailable", { status: 500 });
+						}
+						return githubFetch({
+							issues: [issue(8)],
+							pulls: [pull(98)],
+							checksBySha: {},
+							commentsByPull: {},
+							reviewsByPull: {},
+							reactionsByPull: {},
+							mergedPulls: [],
+						})(input, init);
+					},
+					readGhToken: async () => null,
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("HTTP 500");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
 	test("expected bots come from recorded merged PRs", async () => {
 		const body = await overview({
 			issues: [issue(8)],

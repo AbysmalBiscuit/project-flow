@@ -601,10 +601,11 @@ async function fetchJson(
 	url: string,
 	token: string,
 	fetchImpl: Fetch,
-): Promise<unknown | null> {
+	label: string,
+): Promise<unknown> {
 	const response = await fetchImpl(url, { headers: githubHeaders(token) });
 	if (!response.ok) {
-		return null;
+		throw new Error(`GitHub ${label} failed (HTTP ${response.status}): ${url}`);
 	}
 	return response.json();
 }
@@ -652,10 +653,8 @@ async function fetchChecks(
 		`https://api.github.com/repos/${repo}/commits/${sha}/check-runs`,
 		token,
 		fetchImpl,
+		"list checks",
 	);
-	if (body === null) {
-		return [];
-	}
 	const parsed = z
 		.object({
 			check_runs: z.array(
