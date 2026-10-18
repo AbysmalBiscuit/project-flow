@@ -685,11 +685,11 @@ describe("GET /api/overview", () => {
 					.then(async (response) => {
 						expect(response.status).toBe(200);
 						const body = (await response.json()) as {
-							projects: { tracker: string; name: string }[];
+							projects: Record<string, unknown>[];
 						};
 						expect(body.projects).toHaveLength(2);
 						expect(
-							body.projects.find((project) => project.tracker === "github"),
+							body.projects.find((project) => project["tracker"] === "github"),
 						).toEqual({
 							name: repo,
 							tracker: "github",
@@ -740,7 +740,7 @@ describe("GET /api/overview", () => {
 							crossProjectBlockers: [],
 						});
 						expect(
-							body.projects.find((project) => project.tracker === "linear"),
+							body.projects.find((project) => project["tracker"] === "linear"),
 						).toEqual({
 							name: linearName,
 							tracker: "linear",
