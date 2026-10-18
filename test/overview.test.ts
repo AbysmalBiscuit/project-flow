@@ -625,7 +625,15 @@ describe("GET /api/overview", () => {
 					.then(async (response) => {
 						expect(response.status).toBe(200);
 						const body = (await response.json()) as {
-							projects: { tracker: string }[];
+							projects: {
+								name: string;
+								tracker: string;
+								done: number;
+								dropped: number;
+								backlog: number;
+								inProgress: number;
+								unlinkedPrs: unknown[];
+							}[];
 						};
 						expect(body.projects).toHaveLength(2);
 						expect(
