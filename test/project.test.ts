@@ -63,7 +63,7 @@ const otherIssues = [
 	issue(9, "Platform gate", { labels: [{ name: "epic" }] }, otherRepo),
 ];
 
-function githubFetch(): Fetch {
+function githubFetch(issues = githubIssues): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
@@ -74,7 +74,7 @@ function githubFetch(): Fetch {
 			return Response.json({ login: "lev" });
 		}
 		if (url.startsWith(`https://api.github.com/repos/${githubRepo}/issues?`)) {
-			return page(githubIssues);
+			return page(issues);
 		}
 		if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
 			return page(otherIssues);
@@ -158,8 +158,6 @@ const linearIssues = [
 type Report = {
 	name: string;
 	tracker: string;
-	summary: string;
-	highlight: string | null;
 	sections: {
 		id: string;
 		title: string;
@@ -168,10 +166,9 @@ type Report = {
 		diagrams?: {
 			id: string;
 			definition: string;
-			nodes: { id: string; dashed: boolean; label: string }[];
+			nodes: { id: string; dashed: boolean; label: string; state: string }[];
 		}[];
 	}[];
-	diagrams: { id: string; definition: string }[];
 };
 
 async function withApp(
@@ -238,8 +235,14 @@ describe("GET /api/projects/:name", () => {
 					"blockingChains",
 					"backlog",
 				]);
-				expect(first.summary).toBe(
-					"acme/widget: 0 done, 0 dropped, 1 blocked, 1 in progress, 0 in review, 0 awaiting merge, 2 backlog.",
+				expect(first).not.toHaveProperty("summary");
+				expect(first).not.toHaveProperty("diagrams");
+				expect(first).not.toHaveProperty("highlight");
+				const summary = first.sections.find(
+					(section) => section.id === "summary",
+				);
+				expect(summary?.text).toBe(
+					"acme/widget: 0 done, 0 dropped, 1 blocked, 1 in progress, 2 backlog.",
 				);
 				const map = first.sections.find(
 					(section) => section.id === "featureMap",
@@ -254,6 +257,13 @@ describe("GET /api/projects/:name", () => {
 				);
 				expect(epicMap?.definition).toContain(
 					'acme_widget_2["feat(ux): draw the nodes"]:::blocked',
+				);
+				expect(epicMap?.definition).toContain("classDef blocked fill:#e6a0a0");
+				expect(epicMap?.definition).toContain(
+					"classDef inProgress fill:#f0c674",
+				);
+				expect(epicMap?.definition).toContain(
+					'Ship_the_map_Ship_the_map["Ship the map"]:::theme',
 				);
 				expect(epicMap?.definition).toContain(
 					"github_acme_platform_acme_platform_9",
@@ -303,9 +313,12 @@ describe("GET /api/projects/:name", () => {
 				const again = (await (
 					await fetch(new URL("/api/projects/Widget%20launch", base))
 				).json()) as Report;
-				expect(again.diagrams.map((diagram) => diagram.definition)).toEqual(
-					linearReport.diagrams.map((diagram) => diagram.definition),
-				);
+				const definitions = (report: Report) =>
+					report.sections.flatMap(
+						(section) =>
+							section.diagrams?.map((diagram) => diagram.definition) ?? [],
+					);
+				expect(definitions(again)).toEqual(definitions(linearReport));
 				expect(linearReport.sections.map((section) => section.title)).toEqual([
 					"Summary",
 					"Feature map",
@@ -313,8 +326,11 @@ describe("GET /api/projects/:name", () => {
 					"Blocking chains",
 					"Backlog",
 				]);
-				expect(linearReport.summary).toContain("1 blocked");
-				expect(linearReport.summary).toContain("3 backlog");
+				const linearSummary = linearReport.sections.find(
+					(section) => section.id === "summary",
+				);
+				expect(linearSummary?.text).toContain("1 blocked");
+				expect(linearSummary?.text).toContain("3 backlog");
 				const linearMap = linearReport.sections.find(
 					(section) => section.id === "featureMap",
 				);
@@ -324,6 +340,7 @@ describe("GET /api/projects/:name", () => {
 				const beta = linearMap?.diagrams?.[0]?.definition ?? "";
 				expect(beta).toContain("WID_2");
 				expect(beta).toContain("Launch epic");
+				expect(beta).toContain('Beta_Launch_epic["Launch epic"]:::theme');
 				expect(beta).toContain(":::dashed");
 				expect(
 					linearMap?.diagrams?.some((diagram) => diagram.id === "map_Later"),
@@ -332,6 +349,202 @@ describe("GET /api/projects/:name", () => {
 					(section) => section.id === "blockingChains",
 				);
 				expect(chains?.diagrams?.[0]?.definition).toContain("WID_2");
+			},
+		);
+	});
+
+	test("the same tickets in another order give the same diagram definitions", async () => {
+		const reversed = [...githubIssues].reverse();
+		const readMap = async (fetchImpl: Fetch): Promise<string[]> => {
+			let definitions: string[] = [];
+			await withApp(
+				JSON.stringify({
+					pinned: [
+						{ tracker: "github", repo: githubRepo },
+						{ tracker: "github", repo: otherRepo },
+					],
+				}),
+				fetchImpl,
+				{ GITHUB_TOKEN: "recorded-token" },
+				async (base) => {
+					const report = (await (
+						await fetch(
+							new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+						)
+					).json()) as Report;
+					definitions =
+						report.sections
+							.find((section) => section.id === "featureMap")
+							?.diagrams?.map((diagram) => diagram.definition) ?? [];
+				},
+			);
+			return definitions;
+		};
+		expect(await readMap(githubFetch(reversed))).toEqual(
+			await readMap(githubFetch()),
+		);
+	});
+
+	test("a ticket that is the root of another ticket takes its own title as its theme", async () => {
+		const parent = issue(7, "Write the notes", {
+			milestone: { title: "October" },
+		});
+		const child = issue(8, "feat(notes): add the heading", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([parent, child]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as Report;
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				const october = map?.diagrams?.find(
+					(diagram) => diagram.id === "map_October",
+				);
+				expect(october?.definition).toContain(
+					'October_Write_the_notes["Write the notes"]:::theme',
+				);
+				expect(october?.definition).toContain(
+					"October_Write_the_notes --> acme_widget_7",
+				);
+				expect(october?.definition).toContain(
+					"October_Write_the_notes --> acme_widget_8",
+				);
+				expect(
+					october?.nodes
+						.filter((node) => node.state === "theme")
+						.map((node) => node.id),
+				).toEqual(["October_Write_the_notes"]);
+			},
+		);
+	});
+
+	test("a Projects v2 pin groups by milestone, epic label and parent", async () => {
+		const projectId = "PVT_widget";
+		const board: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				return Response.json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: projectId,
+								number: 3,
+								title: "Widget board",
+								closed: false,
+								updatedAt: "2026-08-18T12:00:00Z",
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("node(id:")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											number: 11,
+											title: "Ship the board",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											repository: { nameWithOwner: githubRepo },
+											milestone: { title: "October" },
+											labels: { nodes: [{ name: "epic" }] },
+											parent: null,
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											number: 12,
+											title: "Draw the legend",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											repository: { nameWithOwner: githubRepo },
+											milestone: { title: "October" },
+											labels: { nodes: [] },
+											parent: {
+												number: 11,
+												repository: { nameWithOwner: githubRepo },
+											},
+										},
+									},
+									{
+										content: {
+											__typename: "DraftIssue",
+											title: "Not a ticket",
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
+			}),
+			board,
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(new URL("/api/projects/Widget%20board", base))
+				).json()) as Report;
+				expect(report.name).toBe("Widget board");
+				expect(report.tracker).toBe("github");
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
+					"map_Ship_the_board",
+				]);
+				const definition = map?.diagrams?.[0]?.definition ?? "";
+				expect(definition).toContain(
+					'Ship_the_board_Ship_the_board["Ship the board"]:::theme',
+				);
+				expect(definition).toContain("Ship_the_board_Ship_the_board -->");
+				expect(definition).toContain("acme_widget_11");
+				expect(definition).toContain("acme_widget_12");
+				expect(definition).not.toContain("map_October");
+				const backlog = report.sections.find(
+					(section) => section.id === "backlog",
+				);
+				expect(backlog?.items?.map((item) => item.key)).toEqual([
+					"acme/widget#11",
+					"acme/widget#12",
+				]);
 			},
 		);
 	});
@@ -350,6 +563,10 @@ describe("GET /api/projects/:name", () => {
 					new URL(`/api/projects/${encodeURIComponent("acme/widget  ")}`, base),
 				);
 				expect(spaced.status).toBe(404);
+				const percent = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("100%")}`, base),
+				);
+				expect(percent.status).toBe(404);
 				const pageResponse = await fetch(
 					new URL(`/projects/${encodeURIComponent(githubRepo)}`, base),
 				);
