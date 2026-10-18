@@ -48,3 +48,6 @@ level = "info"
 type = "issue"
 where = "parent"
 level = "info"
+
+[hooks]
+after_worktree_create = [["bun", "install", "--frozen-lockfile"]]

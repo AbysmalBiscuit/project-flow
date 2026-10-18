@@ -1,0 +1,33 @@
+# The CI checks, run locally so a commit or push fails before CI does.
+# `prek install` covers every worktree of the clone.
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
+
+repos:
+  - repo: local
+    hooks:
+      - id: biome
+        name: biome check
+        entry: bun run --bun biome check --write --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true
+        language: system
+        types_or: [ts, tsx, javascript, jsx, json, css]
+        stages: [pre-commit]
+      - id: typecheck
+        name: typecheck
+        entry: bun run typecheck
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: test
+        name: bun test
+        entry: bun run test
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]

@@ -1,0 +1,21 @@
+{
+	"name": "project-flow",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "bun test --pass-with-no-tests",
+		"check": "biome ci --error-on-warnings .",
+		"format": "biome check --write ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.15",
+		"@types/bun": "^1.4.3",
+		"typescript": "^7.0.2"
+	},
+	"bin": {
+		"project-flow": "src/main.ts"
+	},
+	"packageManager": "bun@1.4.3"
+}
