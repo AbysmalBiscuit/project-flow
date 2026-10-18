@@ -273,7 +273,7 @@ async function overview(recorded: {
 }
 
 describe("review cycle", () => {
-	test("a PR merged over a changes-requested bot review is awaiting merge with no warning", async () => {
+	test("an open PR with a changes-requested review is awaiting merge with no warning", async () => {
 		const body = await overview({
 			issues: [issue(8)],
 			pulls: [pull(83)],
