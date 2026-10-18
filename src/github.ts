@@ -104,13 +104,6 @@ async function pages(
 const githubRepo = z.object({
 	full_name: z.string(),
 	pushed_at: z.string().nullable().optional(),
-	owner: z.object({ login: z.string() }).optional(),
-	permissions: z
-		.object({
-			admin: z.boolean().optional(),
-			push: z.boolean().optional(),
-		})
-		.optional(),
 });
 
 const projectNode = z.object({
@@ -239,13 +232,6 @@ async function findGithubProjects(
 		}
 		const repos = z.array(githubRepo).parse(await response.json());
 		for (const repo of repos) {
-			const owner = repo.owner?.login;
-			const owns = owner === undefined;
-			const collaborates =
-				repo.permissions?.admin === true || repo.permissions?.push === true;
-			if (!owns && !collaborates) {
-				continue;
-			}
 			found.push({
 				key: repo.full_name,
 				tracker: "github",

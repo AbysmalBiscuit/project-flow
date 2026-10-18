@@ -645,6 +645,120 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("a pull-only collaborator repo appears", async () => {
+		const pullRepo = "acme/pull-only";
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const pullOnly: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: pullRepo,
+							owner: { login: "other" },
+							permissions: { admin: false, push: false, pull: true },
+							pushed_at: "2026-08-18T12:00:00.000Z",
+						},
+					]),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url.includes(`/repos/${pullRepo}/issues?`)) {
+				return page([ticket(1, "open", null)], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (
+				url === "https://api.linear.app/graphql" &&
+				body.includes("projects(")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: { id: "lev" },
+							projects: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{ status: 200 },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: pullOnly,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({
+				projects: [
+					{
+						name: pullRepo,
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("finds a Linear project and a GitHub repo with no configuration entry", async () => {
 		const requests: string[] = [];
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
