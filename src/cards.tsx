@@ -294,10 +294,17 @@ function GraphView({
 		if (node === null) {
 			return;
 		}
-		node.innerHTML = svg;
-		if (svg !== "") {
-			bindGraph(node, overview, edges, onOpen);
+		node.replaceChildren();
+		if (svg === "") {
+			return;
 		}
+		const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+		const drawn = parsed.documentElement;
+		if (drawn.namespaceURI !== "http://www.w3.org/2000/svg") {
+			return;
+		}
+		node.appendChild(document.importNode(drawn, true));
+		bindGraph(node, overview, edges, onOpen);
 	}, [edges, onOpen, overview, svg]);
 	return (
 		<div className="graph">
