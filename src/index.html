@@ -14,8 +14,13 @@
 			.tabs button[aria-pressed="true"] { font-weight: bold; }
 			table { border-collapse: collapse; }
 			th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
-			.graph-node, .graph-edge { display: block; margin: 0.4rem 0; }
+			.mermaid-host svg { max-width: 48rem; }
+			.mermaid-host .node, .mermaid-host .edgeLabel { cursor: pointer; }
 		</style>
+		<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+		<script>
+			mermaid.initialize({ startOnLoad: false, securityLevel: "loose" });
+		</script>
 	</head>
 	<body>
 		<div id="root"></div>

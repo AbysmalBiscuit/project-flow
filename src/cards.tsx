@@ -1,9 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
 
-function projectPath(name: string, ticket: string): string {
-	return `/projects/${encodeURIComponent(name)}?ticket=${encodeURIComponent(ticket)}`;
+function projectPath(name: string, ticket?: string): string {
+	const path = `/projects/${encodeURIComponent(name)}`;
+	if (ticket === undefined) {
+		return path;
+	}
+	return `${path}?ticket=${encodeURIComponent(ticket)}`;
+}
+
+function openProject(
+	name: string,
+	onOpen: (label: string) => void,
+	ticket?: string,
+): void {
+	const path = projectPath(name, ticket);
+	const label =
+		ticket === undefined ? `Opened ${name}` : `Opened ${name} ${ticket}`;
+	window.history.pushState({}, "", path);
+	onOpen(label);
 }
 
 function openedLabel(): string | null {
@@ -24,16 +40,13 @@ function Chip({
 	blocker: CrossProjectBlocker;
 	onOpen: (label: string) => void;
 }) {
-	const path = projectPath(blocker.project, blocker.key);
-	const label = `Opened ${blocker.project} ${blocker.key}`;
 	return (
 		<a
 			className="blocker-chip"
-			href={path}
+			href={projectPath(blocker.project, blocker.key)}
 			onClick={(event) => {
 				event.preventDefault();
-				window.history.pushState({}, "", path);
-				onOpen(label);
+				openProject(blocker.project, onOpen, blocker.key);
 			}}
 		>
 			{blocker.project} {blocker.key}
@@ -47,40 +60,47 @@ type Tab = (typeof tabs)[number];
 type SortKey = "progress" | "needsYou" | "blockers";
 
 function readTab(): Tab {
-	const stored = localStorage.getItem(tabKey);
-	return tabs.find((tab) => tab === stored) ?? "cards";
+	try {
+		const stored = localStorage.getItem(tabKey);
+		return tabs.find((tab) => tab === stored) ?? "cards";
+	} catch {
+		return "cards";
+	}
 }
 
-function progressOf(project: ProjectCounts): number {
-	const total =
-		project.done +
-		project.dropped +
-		project.blocked +
-		project.backlog +
-		project.inProgress;
-	if (total === 0) {
-		return 0;
+function writeTab(next: Tab): void {
+	try {
+		localStorage.setItem(tabKey, next);
+	} catch {
+		// A private window can throw. The chosen tab still shows this visit.
 	}
-	return Math.round((project.done / total) * 100);
+}
+
+const sortKeys = [
+	{ key: "progress", id: "sort-progress", label: "Progress" },
+	{ key: "needsYou", id: "sort-needs-you", label: "Needs you" },
+	{ key: "blockers", id: "sort-blockers", label: "Cross-project blockers" },
+] as const;
+
+function sortValue(project: ProjectCounts, key: SortKey): number {
+	if (key === "progress") {
+		return project.progress;
+	}
+	if (key === "needsYou") {
+		return project.needsYou;
+	}
+	return project.crossProjectBlockers.length;
 }
 
 function sortProjects(
 	projects: ProjectCounts[],
 	key: SortKey,
 ): ProjectCounts[] {
-	const value = (project: ProjectCounts): number => {
-		if (key === "progress") {
-			return progressOf(project);
-		}
-		if (key === "needsYou") {
-			return project.blocked;
-		}
-		return project.crossProjectBlockers.length;
-	};
+	const leastFirst = key === "progress";
 	return [...projects].sort((left, right) => {
-		const delta = value(right) - value(left);
+		const delta = sortValue(left, key) - sortValue(right, key);
 		if (delta !== 0) {
-			return delta;
+			return leastFirst ? delta : -delta;
 		}
 		return left.name.localeCompare(right.name);
 	});
@@ -94,21 +114,6 @@ function slug(value: string): string {
 	return cleaned === "" ? "item" : cleaned;
 }
 
-function openProject(
-	name: string,
-	onOpen: (label: string) => void,
-	ticket?: string,
-): void {
-	const path =
-		ticket === undefined
-			? `/projects/${encodeURIComponent(name)}`
-			: projectPath(name, ticket);
-	const label =
-		ticket === undefined ? `Opened ${name}` : `Opened ${name} ${ticket}`;
-	window.history.pushState({}, "", path);
-	onOpen(label);
-}
-
 function ProjectLink({
 	name,
 	className,
@@ -120,11 +125,10 @@ function ProjectLink({
 	onOpen: (label: string) => void;
 	children: string;
 }) {
-	const path = `/projects/${encodeURIComponent(name)}`;
 	return (
 		<a
 			className={className}
-			href={path}
+			href={projectPath(name)}
 			onClick={(event) => {
 				event.preventDefault();
 				openProject(name, onOpen);
@@ -187,49 +191,117 @@ function CardsList({
 	);
 }
 
-function GraphView({
-	overview,
-	onOpen,
-}: {
-	overview: Overview;
-	onOpen: (label: string) => void;
-}) {
-	const edges = overview.projects.flatMap((project) =>
+type GraphEdge = {
+	from: string;
+	blocker: CrossProjectBlocker;
+};
+
+function nodeId(name: string): string {
+	return `node-${slug(name)}`;
+}
+
+function edgeId(from: string, blocker: CrossProjectBlocker): string {
+	return `edge-${slug(from)}-${slug(blocker.key)}`;
+}
+
+function graphEdges(overview: Overview): GraphEdge[] {
+	return overview.projects.flatMap((project) =>
 		project.crossProjectBlockers.map((blocker) => ({
 			from: project.name,
 			blocker,
 		})),
 	);
+}
+
+function mermaidSource(projects: ProjectCounts[], edges: GraphEdge[]): string {
+	const lines = ["flowchart LR"];
+	for (const project of projects) {
+		lines.push(`  ${nodeId(project.name)}["${project.name}"]`);
+	}
+	for (const edge of edges) {
+		const label = edge.blocker.key.replaceAll('"', "");
+		lines.push(
+			`  ${nodeId(edge.from)} -->|${label}| ${nodeId(edge.blocker.project)}`,
+		);
+	}
+	return lines.join("\n");
+}
+
+type MermaidApi = {
+	render: (id: string, source: string) => Promise<{ svg: string }>;
+};
+
+declare global {
+	interface Window {
+		mermaid?: MermaidApi;
+	}
+}
+
+async function renderGraph(overview: Overview): Promise<string> {
+	const draw = window.mermaid;
+	if (draw === undefined) {
+		return "";
+	}
+	const edges = graphEdges(overview);
+	const drawn = await draw.render(
+		"project-flow-graph",
+		mermaidSource(overview.projects, edges),
+	);
+	return drawn.svg;
+}
+
+function bindGraph(
+	host: HTMLElement,
+	overview: Overview,
+	edges: GraphEdge[],
+	onOpen: (label: string) => void,
+): void {
+	for (const project of overview.projects) {
+		const shape = [...host.querySelectorAll(".node")].find(
+			(item) => item.textContent?.includes(project.name) === true,
+		);
+		if (shape !== undefined) {
+			shape.id = nodeId(project.name);
+			shape.addEventListener("click", () => openProject(project.name, onOpen));
+		}
+	}
+	for (const edge of edges) {
+		const label = [...host.querySelectorAll(".edgeLabel")].find(
+			(item) => item.textContent?.includes(edge.blocker.key) === true,
+		);
+		if (label !== undefined) {
+			label.id = edgeId(edge.from, edge.blocker);
+			label.addEventListener("click", () =>
+				openProject(edge.blocker.project, onOpen, edge.blocker.key),
+			);
+		}
+	}
+}
+
+function GraphView({
+	overview,
+	onOpen,
+	svg,
+}: {
+	overview: Overview;
+	onOpen: (label: string) => void;
+	svg: string;
+}) {
+	const host = useRef<HTMLDivElement>(null);
+	const edges = graphEdges(overview);
+	useLayoutEffect(() => {
+		const node = host.current;
+		if (node === null) {
+			return;
+		}
+		node.innerHTML = svg;
+		if (svg !== "") {
+			bindGraph(node, overview, edges, onOpen);
+		}
+	}, [edges, onOpen, overview, svg]);
 	return (
 		<div className="graph">
-			{overview.projects.map((project) => (
-				<span
-					key={`${project.tracker}:${project.name}`}
-					id={`node-${slug(project.name)}`}
-				>
-					<ProjectLink
-						name={project.name}
-						className="graph-node"
-						onOpen={onOpen}
-					>
-						{project.name}
-					</ProjectLink>
-				</span>
-			))}
-			{edges.map(({ from, blocker }) => (
-				<a
-					key={`${from} ${blocker.tracker} ${blocker.key}`}
-					id={`edge-${slug(blocker.key)}`}
-					className="graph-edge"
-					href={projectPath(blocker.project, blocker.key)}
-					onClick={(event) => {
-						event.preventDefault();
-						openProject(blocker.project, onOpen, blocker.key);
-					}}
-				>
-					{`${from} blocked by ${blocker.key}`}
-				</a>
-			))}
+			<div ref={host} className="mermaid-host" />
 		</div>
 	);
 }
@@ -243,72 +315,53 @@ function TableView({
 }) {
 	const [sortKey, setSortKey] = useState<SortKey>("progress");
 	const rows = sortProjects(overview.projects, sortKey);
-	const first = rows[0];
 	return (
-		<div>
-			{first === undefined ? null : (
-				<p className="sort-order">First {first.name}</p>
-			)}
-			<table>
-				<thead>
-					<tr>
-						<th>Project</th>
-						<th>
+		<table>
+			<thead>
+				<tr>
+					<th>Project</th>
+					{sortKeys.map((item) => (
+						<th key={item.key}>
 							<button
 								type="button"
-								id="sort-progress"
-								onClick={() => setSortKey("progress")}
+								id={item.id}
+								onClick={() => setSortKey(item.key)}
 							>
-								Progress
+								{item.label}
 							</button>
 						</th>
-						<th>
-							<button
-								type="button"
-								id="sort-needs-you"
-								onClick={() => setSortKey("needsYou")}
-							>
-								Needs you
-							</button>
-						</th>
-						<th>
-							<button
-								type="button"
-								id="sort-blockers"
-								onClick={() => setSortKey("blockers")}
-							>
-								Cross-project blockers
-							</button>
-						</th>
-					</tr>
-				</thead>
-				<tbody>
-					{rows.map((project) => (
-						<tr
-							key={`${project.tracker}:${project.name}`}
-							id={`row-${slug(project.name)}`}
-						>
-							<td>
-								<ProjectLink
-									name={project.name}
-									className="project-link"
-									onOpen={onOpen}
-								>
-									{project.name}
-								</ProjectLink>
-							</td>
-							<td>{progressOf(project)}%</td>
-							<td>{project.blocked}</td>
-							<td>{project.crossProjectBlockers.length}</td>
-						</tr>
 					))}
-				</tbody>
-			</table>
-		</div>
+				</tr>
+			</thead>
+			<tbody>
+				{rows.map((project) => (
+					<tr key={`${project.tracker}:${project.name}`}>
+						<td>
+							<ProjectLink
+								name={project.name}
+								className="project-link"
+								onOpen={onOpen}
+							>
+								{project.name}
+							</ProjectLink>
+						</td>
+						<td>{project.progress}%</td>
+						<td>{project.needsYou}</td>
+						<td>{project.crossProjectBlockers.length}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
 	);
 }
 
-function OverviewPage({ overview }: { overview: Overview }) {
+function OverviewPage({
+	overview,
+	graphSvg,
+}: {
+	overview: Overview;
+	graphSvg: string;
+}) {
 	const [opened, setOpened] = useState(openedLabel);
 	const [tab, setTab] = useState(readTab);
 	useEffect(() => {
@@ -317,8 +370,13 @@ function OverviewPage({ overview }: { overview: Overview }) {
 		return () => window.removeEventListener("popstate", onPop);
 	}, []);
 	const choose = (next: Tab) => {
-		localStorage.setItem(tabKey, next);
+		writeTab(next);
 		setTab(next);
+	};
+	const panes = {
+		cards: <CardsList overview={overview} opened={opened} onOpen={setOpened} />,
+		graph: <GraphView overview={overview} onOpen={setOpened} svg={graphSvg} />,
+		table: <TableView overview={overview} onOpen={setOpened} />,
 	};
 	return (
 		<main>
@@ -335,30 +393,18 @@ function OverviewPage({ overview }: { overview: Overview }) {
 				<p className="stale">{overview.error}</p>
 			) : null}
 			<nav className="tabs">
-				<button
-					type="button"
-					id="tab-cards"
-					aria-pressed={tab === "cards"}
-					onClick={() => choose("cards")}
-				>
-					Cards
-				</button>
-				<button
-					type="button"
-					id="tab-graph"
-					aria-pressed={tab === "graph"}
-					onClick={() => choose("graph")}
-				>
-					Graph
-				</button>
-				<button
-					type="button"
-					id="tab-table"
-					aria-pressed={tab === "table"}
-					onClick={() => choose("table")}
-				>
-					Table
-				</button>
+				{tabs.map((name) => (
+					<button
+						key={name}
+						type="button"
+						id={`tab-${name}`}
+						aria-pressed={tab === name}
+						onClick={() => choose(name)}
+					>
+						{name[0]?.toUpperCase()}
+						{name.slice(1)}
+					</button>
+				))}
 			</nav>
 			{opened === null ? null : (
 				<p className="opened">
@@ -372,15 +418,7 @@ function OverviewPage({ overview }: { overview: Overview }) {
 					</button>
 				</p>
 			)}
-			{tab === "cards" ? (
-				<CardsList overview={overview} opened={opened} onOpen={setOpened} />
-			) : null}
-			{tab === "graph" ? (
-				<GraphView overview={overview} onOpen={setOpened} />
-			) : null}
-			{tab === "table" ? (
-				<TableView overview={overview} onOpen={setOpened} />
-			) : null}
+			{panes[tab]}
 		</main>
 	);
 }
@@ -395,15 +433,20 @@ async function readOverview(): Promise<Overview> {
 
 function Page() {
 	const [overview, setOverview] = useState<Overview | null>(null);
+	const [graphSvg, setGraphSvg] = useState("");
 	useEffect(() => {
 		const events = new EventSource("/api/events");
+		const show = (next: Overview) => {
+			setOverview(next);
+			void renderGraph(next).then(setGraphSvg);
+		};
 		events.addEventListener("overview", (event) => {
-			setOverview(JSON.parse(event.data) as Overview);
+			show(JSON.parse(event.data) as Overview);
 		});
 		events.onopen = () => {
-			void readOverview().then(setOverview);
+			void readOverview().then(show);
 		};
-		void readOverview().then(setOverview);
+		void readOverview().then(show);
 		return () => {
 			events.close();
 		};
@@ -411,7 +454,7 @@ function Page() {
 	if (overview === null) {
 		return null;
 	}
-	return <OverviewPage overview={overview} />;
+	return <OverviewPage overview={overview} graphSvg={graphSvg} />;
 }
 
 if (typeof document !== "undefined") {
