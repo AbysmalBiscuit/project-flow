@@ -369,11 +369,53 @@ describe("in progress", () => {
 		});
 	});
 
+	test("a bare ticket under another project heading stays in backlog", async () => {
+		const body = await overview({
+			issues: [issue(22)],
+			pulls: [],
+			todos: "## other/repo\n- [ ] Ticket 22 (#22, in progress)\n",
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					name: repo,
+					tracker: "github",
+					done: 0,
+					dropped: 0,
+					backlog: 1,
+					inProgress: 0,
+					unlinkedPrs: [],
+				},
+			],
+		});
+	});
+
+	test("a full key matches its ticket ignoring case", async () => {
+		const body = await overview({
+			issues: [issue(24)],
+			pulls: [],
+			todos: `- [ ] Ticket 24 (${repo.toUpperCase()}#24, in progress)\n`,
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					name: repo,
+					tracker: "github",
+					done: 0,
+					dropped: 0,
+					backlog: 0,
+					inProgress: 1,
+					unlinkedPrs: [],
+				},
+			],
+		});
+	});
+
 	test("a started devkit todo makes its ticket in progress", async () => {
 		const body = await overview({
 			issues: [issue(22)],
 			pulls: [],
-			todos: "- [ ] Ticket 22 (#22, in progress)\n",
+			todos: `## ${repo}\n- [ ] Ticket 22 (#22, in progress)\n`,
 		});
 		expect(body).toEqual({
 			projects: [

@@ -76,14 +76,24 @@ function ticketNumber(key: string): string | null {
 	return number;
 }
 
-const startedTodo = /^- \[ \] .+ \(([^,]+), in progress(?:: [^)]+)?\)/gm;
+const startedTodo = /^- \[ \] .+ \(([^,]+), in progress(?:: [^)]+)?\)/;
 
 export function startedTodoKeys(listing: string): string[] {
 	const keys: string[] = [];
-	for (const match of listing.matchAll(startedTodo)) {
-		const key = match[1];
-		if (key !== undefined && !keys.includes(key)) {
-			keys.push(key);
+	let project = "";
+	for (const line of listing.split("\n")) {
+		const heading = line.match(/^## (.+)$/);
+		if (heading?.[1] !== undefined) {
+			project = heading[1];
+			continue;
+		}
+		const key = line.match(startedTodo)?.[1];
+		if (key === undefined) {
+			continue;
+		}
+		const scoped = key.startsWith("#") ? `${project}${key}` : key;
+		if (!keys.some((item) => item.toLowerCase() === scoped.toLowerCase())) {
+			keys.push(scoped);
 		}
 	}
 	return keys;
@@ -130,8 +140,7 @@ export function projectCounts(
 		const key = ticket.key;
 		const started =
 			key !== null &&
-			(startedKeys.includes(key) ||
-				startedKeys.includes(`#${ticketNumber(key) ?? ""}`));
+			startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
 		const pushed =
 			key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 		const inProgress = links.some((pull) => pull.draft) || pushed || started;
