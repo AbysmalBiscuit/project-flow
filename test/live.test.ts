@@ -236,6 +236,8 @@ function counts(
 		unlinkedPrs: [],
 		tickets,
 		crossProjectBlockers: [],
+		needsYou: 0,
+		progress: 0,
 	};
 }
 

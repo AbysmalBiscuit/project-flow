@@ -143,6 +143,8 @@ async function assertCard(base: string): Promise<void> {
 				},
 			],
 			crossProjectBlockers: [],
+			needsYou: 0,
+			progress: 33,
 		},
 	]);
 	expect(body.error).toBeNull();
@@ -349,6 +351,8 @@ describe("GET /api/overview", () => {
 							},
 						],
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 					},
 				],
 				error: null,
@@ -374,6 +378,8 @@ describe("GET /api/overview", () => {
 							},
 						],
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 					},
 				],
 				error: null,
@@ -539,6 +545,8 @@ describe("GET /api/overview", () => {
 							},
 						],
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 100,
 					},
 				],
 				error: null,
@@ -772,6 +780,8 @@ describe("GET /api/overview", () => {
 								},
 							],
 							crossProjectBlockers: [],
+							needsYou: 0,
+							progress: 33,
 						});
 						expect(
 							body.projects.find((project) => project.tracker === "linear"),
@@ -823,6 +833,8 @@ describe("GET /api/overview", () => {
 								},
 							],
 							crossProjectBlockers: [],
+							needsYou: 0,
+							progress: 33,
 						});
 						expect(body.error).toBeNull();
 						resolve();
@@ -976,6 +988,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: `${pullRepo}#1`,
@@ -1153,6 +1167,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 50,
 						tickets: [
 							{
 								key: `${repo}#1`,
@@ -1178,6 +1194,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 50,
 						tickets: [
 							{
 								key: "WID-1",
@@ -1373,6 +1391,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: "acme/org-board#1",
@@ -1520,6 +1540,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: "WID-1",
@@ -1874,6 +1896,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 50,
 						tickets: [
 							{
 								key: "acme/widget#9",
@@ -1899,6 +1923,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: `${repo}#4`,
@@ -2065,6 +2091,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: "acme/other#1",
@@ -2229,6 +2257,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: `${repo}#9`,
@@ -2397,6 +2427,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: `${repo}#9`,
@@ -2561,6 +2593,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [
 							{
 								key: `${repo}#9`,
@@ -2945,6 +2979,8 @@ describe("GET /api/overview", () => {
 						inProgress: 0,
 						blocked: 0,
 						crossProjectBlockers: [],
+						needsYou: 0,
+						progress: 0,
 						tickets: [],
 						unlinkedPrs: [],
 					},
@@ -3068,6 +3104,137 @@ describe("GET /api/overview", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 			expect(await checks).toMatchObject({ projects: [], error: null });
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("an open ask counts as needs you, and a quoted ask does not", async () => {
+		const ask = "<!-- workcell:ask 11-1 -->";
+		const quiet = "acme/quiet";
+		const asked = "acme/asked";
+		function issue(
+			number: number,
+			state: "open" | "closed",
+		): Record<string, unknown> {
+			return {
+				number,
+				title: `Ticket ${number}`,
+				state,
+				state_reason: state === "closed" ? "completed" : null,
+				body: "",
+			};
+		}
+		const recorded: Fetch = async (input) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return page([], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{
+						status: 200,
+					},
+				);
+			}
+			const quietList = `https://api.github.com/repos/${quiet}/issues?`;
+			const askedList = `https://api.github.com/repos/${asked}/issues?`;
+			if (url.startsWith(quietList)) {
+				return page(
+					[issue(1, "closed"), issue(2, "closed"), issue(3, "open")],
+					null,
+				);
+			}
+			if (url.startsWith(askedList)) {
+				return page(
+					[
+						{
+							...issue(1, "open"),
+							comments: [{ body: `This waits on Lev.\n\n${ask}` }],
+						},
+						{
+							...issue(2, "open"),
+							comments: [
+								{ body: `This waits on Lev.\n\n${ask}` },
+								{ body: "Use the short name.\n\n11-1" },
+							],
+						},
+						issue(3, "open"),
+					],
+					null,
+				);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([], null);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: quiet },
+					{ tracker: "github", repo: asked },
+				],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const body = (await checks) as {
+				projects: { name: string; needsYou: number; progress: number }[];
+			};
+			expect(
+				body.projects.find((project) => project.name === quiet),
+			).toMatchObject({ needsYou: 0, progress: 67 });
+			expect(
+				body.projects.find((project) => project.name === asked),
+			).toMatchObject({ needsYou: 1, progress: 0 });
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

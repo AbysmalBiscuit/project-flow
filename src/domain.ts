@@ -27,6 +27,10 @@ export type TicketRef = {
 	state?: "open" | "closed";
 };
 
+export type Comment = {
+	body: string;
+};
+
 export type Ticket = {
 	id: string;
 	tracker: "github" | "linear";
@@ -38,6 +42,7 @@ export type Ticket = {
 	ref?: string;
 	body: string;
 	blockedBy: TicketRef[];
+	comments?: Comment[];
 };
 
 export type TicketView = {
@@ -81,6 +86,8 @@ export type ProjectCounts = {
 	unlinkedPrs: UnlinkedPr[];
 	tickets: TicketView[];
 	crossProjectBlockers: CrossProjectBlocker[];
+	needsYou: number;
+	progress: number;
 };
 
 export type Overview = {
@@ -750,6 +757,9 @@ export function projectCounts(
 			title: pull.title,
 			url: pull.url,
 		}));
+	const needsYou = tickets.filter((ticket) =>
+		needsYouTicket(ticket, tracker),
+	).length;
 	return {
 		name,
 		tracker,
@@ -757,5 +767,92 @@ export function projectCounts(
 		unlinkedPrs,
 		tickets: views,
 		crossProjectBlockers: [...cross.values()],
+		needsYou,
+		progress: progressRatio(counts),
 	};
+}
+
+const stateTotal = [
+	"done",
+	"dropped",
+	"blocked",
+	"backlog",
+	"inProgress",
+] as const;
+
+export function progressRatio(counts: {
+	done: number;
+	dropped: number;
+	blocked: number;
+	backlog: number;
+	inProgress: number;
+}): number {
+	const total = stateTotal.reduce((sum, state) => sum + counts[state], 0);
+	if (total === 0) {
+		return 0;
+	}
+	return Math.round((counts.done / total) * 100);
+}
+
+const askMarker = /<!--\s*workcell:ask\s+([A-Za-z0-9_.-]+)\s*-->/i;
+const answerPrefix = /^(?:senior|answer)\b/i;
+const nameCue =
+	/\b(?:waits on|held for|left for|decision|verify|restore|passphrase|signing key)\b/i;
+
+function askId(body: string): string | null {
+	return body.match(askMarker)?.[1] ?? null;
+}
+
+function quotesAsk(body: string, id: string): boolean {
+	return body.toLowerCase().includes(id.toLowerCase());
+}
+
+function needsYouTicket(
+	ticket: Ticket,
+	tracker: ProjectCounts["tracker"],
+): boolean {
+	if (ticket.state !== "open") {
+		return false;
+	}
+	const comments = ticket.comments ?? [];
+	const latest = new Map<string, number>();
+	comments.forEach((comment, index) => {
+		const id = askId(comment.body);
+		if (id !== null) {
+			latest.set(id, index);
+		}
+	});
+	for (const [id, index] of latest) {
+		const comment = comments[index];
+		if (comment === undefined || !addressedToLev(comment.body, tracker)) {
+			continue;
+		}
+		const later = comments.slice(index + 1);
+		const answered = later.some(
+			(item) => quotesAsk(item.body, id) || answerPrefix.test(item.body.trim()),
+		);
+		if (!answered) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function addressedToLev(
+	body: string,
+	tracker: ProjectCounts["tracker"],
+): boolean {
+	const namesLev = /\blev\b/i.test(body);
+	if (opensForSenior(body) && !namesLev) {
+		return false;
+	}
+	if (tracker === "linear") {
+		return true;
+	}
+	return namesLev && nameCue.test(body);
+}
+
+function opensForSenior(body: string): boolean {
+	const opening = body.trim().slice(0, 240).toLowerCase();
+	return /\b(?:senior|for the senior)\b/.test(opening);
 }

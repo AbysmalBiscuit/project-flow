@@ -23,6 +23,9 @@ const githubIssue = z.object({
 		})
 		.optional(),
 	pull_request: z.unknown().optional(),
+	comments: z
+		.array(z.object({ body: z.string().nullable().optional() }))
+		.optional(),
 });
 
 const githubPull = z.object({
@@ -575,6 +578,10 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						summary !== undefined && summary.blocked_by > 0
 							? await listBlockedBy(token, fetchImpl, repo, issue.number)
 							: [];
+					const comments = (issue.comments ?? []).flatMap((comment) => {
+						const body = comment.body ?? "";
+						return body === "" ? [] : [{ body }];
+					});
 					tickets.push({
 						id: String(issue.number),
 						tracker: "github",
@@ -586,6 +593,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						ref: `${repo}#${issue.number}`,
 						body: issue.body ?? "",
 						blockedBy,
+						...(comments.length === 0 ? {} : { comments }),
 					});
 				}
 			}
