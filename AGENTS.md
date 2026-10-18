@@ -6,7 +6,7 @@ Project Flow is a local web app. It shows how projects and tickets progress acro
 
 Run `bun install`, then `prek install`. The hooks run the CI checks before a commit and a push. A devkit worktree runs `bun install` when it is created.
 
-The checks are `bun run typecheck`, `bun run test` and `bun run check`. `bun run format` fixes format and import order.
+The checks are `bun run typecheck`, `bun run test` and `bun run lint`. `bun run typecheck` runs `bun check`, the Bun type checker. `bun run format` fixes format and import order.
 
 ## Coding standards
 
