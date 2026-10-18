@@ -80,6 +80,13 @@ async function poll(options: {
 }): Promise<Configuration> {
 	const configuration = await options.configuration.read();
 	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
+	const linear = options.linear;
+	if (
+		linear === null &&
+		configuration.pinned.some((pin) => pin.tracker === "linear")
+	) {
+		throw new Error(missingLinearKey);
+	}
 	const found = mergeFound(
 		configuration.pinned.map((pin) => ({
 			key: pinKey(pin),
@@ -88,10 +95,8 @@ async function poll(options: {
 		})),
 		await options.github.findProjects(),
 	);
-	if (options.linear !== null) {
-		mergeFound(found, await options.linear.findProjects());
-	} else if (configuration.pinned.some((pin) => pin.tracker === "linear")) {
-		throw new Error(missingLinearKey);
+	if (linear !== null) {
+		mergeFound(found, await linear.findProjects());
 	}
 	const rows = [];
 	const claimed = new Set<string>();
@@ -107,8 +112,7 @@ async function poll(options: {
 	const pinned = new Set(configuration.pinned.map(pinKey));
 	const now = options.clock.now();
 	for (const project of projects) {
-		const tracker =
-			project.tracker === "github" ? options.github : options.linear;
+		const tracker = project.tracker === "github" ? options.github : linear;
 		if (tracker === null) {
 			throw new Error(missingLinearKey);
 		}
