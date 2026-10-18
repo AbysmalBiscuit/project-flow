@@ -9,9 +9,10 @@ function Cards({ overview }: { overview: Overview }) {
 				{overview.projects.map((project) => (
 					<li key={project.name} className="card">
 						<h2>{project.name}</h2>
-						<p>Done {project.done}</p>
-						<p>Dropped {project.dropped}</p>
-						<p>Backlog {project.backlog}</p>
+						<p className="counts">
+							Done {project.done} Dropped {project.dropped} Backlog{" "}
+							{project.backlog}
+						</p>
 					</li>
 				))}
 			</ul>
@@ -19,9 +20,19 @@ function Cards({ overview }: { overview: Overview }) {
 	);
 }
 
+async function readOverview(): Promise<Overview> {
+	for (;;) {
+		const response = await fetch("/api/overview");
+		const overview = (await response.json()) as Overview;
+		if (overview.projects.length > 0) {
+			return overview;
+		}
+		await new Promise((resolve) => setTimeout(resolve, 200));
+	}
+}
+
 const root = document.getElementById("root");
 if (root !== null) {
-	const response = await fetch("/api/overview");
-	const overview = (await response.json()) as Overview;
+	const overview = await readOverview();
 	createRoot(root).render(<Cards overview={overview} />);
 }

@@ -143,7 +143,11 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	});
 	writeOut(running.url.href);
 	if (import.meta.main) {
-		await new Promise<void>(() => {});
+		await new Promise<void>((resolve) => {
+			const stop = () => resolve();
+			process.once("SIGINT", stop);
+			process.once("SIGTERM", stop);
+		});
 	}
 	await running.stop();
 	return result(0, true);
