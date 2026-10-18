@@ -513,6 +513,28 @@ async function listProjectTickets(
 	return tickets;
 }
 
+export async function viewerAffiliations(
+	token: string,
+	fetchImpl: Fetch,
+): Promise<{ login: string; orgs: string[] } | null> {
+	try {
+		const page = await graphqlPage(token, fetchImpl, projectsQuery, {
+			after: null,
+			orgAfter: null,
+		});
+		const viewer = page.data.viewer;
+		if (viewer === undefined) {
+			return null;
+		}
+		return {
+			login: viewer.login,
+			orgs: viewer.organizations.nodes.map((org) => org.login),
+		};
+	} catch {
+		return null;
+	}
+}
+
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 	return {
 		findProjects() {
