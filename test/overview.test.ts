@@ -967,7 +967,6 @@ describe("GET /api/overview", () => {
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const shared = ticket(9, "open", null);
-		const projectOnly = ticket(8, "closed", "completed");
 		const repoOnly = ticket(4, "open", null);
 		const both: Fetch = async (input, init) => {
 			const url = urlOf(input);
@@ -1142,7 +1141,6 @@ describe("GET /api/overview", () => {
 			expect(requests.some((sent) => sent.includes(`node(id: $id)`))).toBe(
 				true,
 			);
-			expect(projectOnly.number).toBe(8);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
