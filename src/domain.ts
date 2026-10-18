@@ -957,8 +957,7 @@ function botPass(pull: PullRequest, bot: KnownBot): BotPass {
 	if (bot === "grok") {
 		const check = pull.checks.find((item) => botCheck.grok.test(item.name));
 		const review = pull.reviews.find(
-			(item) =>
-				item.login === botLogin.grok && item.commitId.startsWith(pull.headSha),
+			(item) => item.login === botLogin.grok && item.commitId === pull.headSha,
 		);
 		const done = check?.status === "completed" && review !== undefined;
 		return { done, warning: null };
