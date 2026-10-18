@@ -621,6 +621,36 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a Codex summary with one finished review is awaiting merge", async () => {
+		const body = await overview({
+			issues: [issue(8)],
+			pulls: [pull(99)],
+			commentsByPull: {
+				1: [
+					{
+						user: { login: codex },
+						body: "<!-- codex-pull-request-review-summary -->",
+					},
+				],
+				99: [
+					{
+						user: { login: codex },
+						body: "<!-- codex-pull-request-review-summary -->\n| 📝 **Code Review** | ✅ **Completed** | `bbbbbbb` | PR opened |\n| 📝 **Follow-up** | ⏳ **In progress** | `bbbbbbb` | later |",
+					},
+				],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
+	});
+
 	test("a Codex in-progress reaction keeps the PR in review", async () => {
 		const body = await overview({
 			issues: [issue(8)],

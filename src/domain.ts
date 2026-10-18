@@ -961,7 +961,7 @@ function botPass(pull: PullRequest, bot: KnownBot): BotPass {
 		const completed =
 			summary !== undefined &&
 			rows.length > 0 &&
-			rows.every((row) => (row[2] ?? "").includes("Completed"));
+			rows.some((row) => (row[2] ?? "").includes("Completed"));
 		const reactionOnly =
 			summary === undefined &&
 			pull.reactions.some(
