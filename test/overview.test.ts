@@ -256,6 +256,7 @@ describe("GET /api/overview", () => {
 		const repoB = "acme/beta";
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
+		const requests: string[] = [];
 		const recordedFetch =
 			(pinned: string): Fetch =>
 			async (input, init) => {
@@ -280,6 +281,7 @@ describe("GET /api/overview", () => {
 					list.origin === "https://api.github.com" &&
 					list.pathname === `/repos/${pinned}/issues`
 				) {
+					requests.push(url);
 					return page([ticket(1, "open", null)], null);
 				}
 				if (url.includes("/pulls?") || url.includes("/branches?")) {
@@ -377,6 +379,9 @@ describe("GET /api/overview", () => {
 				],
 				error: null,
 			});
+			const beta = requests.filter((url) => url.includes(`/repos/${repoB}/`));
+			expect(beta).toHaveLength(1);
+			expect(new URL(beta[0] ?? "").searchParams.get("since")).toBeNull();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

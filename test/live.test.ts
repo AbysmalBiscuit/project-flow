@@ -137,6 +137,85 @@ function unchangedFetch(requests: string[]): Fetch {
 	};
 }
 
+function failingThenRecorded(requests: string[]): Fetch {
+	let polls = 0;
+	return async (input) => {
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+		}
+		if (listUrl(url) !== null) {
+			requests.push(url);
+			polls += 1;
+			if (polls === 2) {
+				return new Response("recorded failure", { status: 500 });
+			}
+			return page([ticket(1, "2026-04-01T00:00:00Z")]);
+		}
+		return new Response("not recorded", { status: 404 });
+	};
+}
+
+const goodPoll = "2026-04-01T12:00:00.000Z";
+
+type OverviewBody = {
+	projects: {
+		name: string;
+		tracker: string;
+		done: number;
+		dropped: number;
+		backlog: number;
+	}[];
+	fetchedAt: string | null;
+	error: string | null;
+};
+
+async function withServer(
+	fetchImpl: Fetch,
+	intervalSeconds: number,
+	checks: (base: string) => Promise<void>,
+	pinned: { tracker: "github"; repo: string }[] = [{ tracker: "github", repo }],
+): Promise<void> {
+	const { path, cleanup } = await tempConfig(
+		JSON.stringify({ pinned, pollIntervalSeconds: intervalSeconds }),
+	);
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+	const databasePath = join(root, "project-flow.sqlite");
+	let startChecks: (base: string) => void = () => {};
+	let checksError: unknown;
+	const done = new Promise<void>((resolve, reject) => {
+		startChecks = (base: string) => {
+			checks(base).then(resolve, (error: unknown) => {
+				checksError = error;
+				reject(error instanceof Error ? error : new Error("checks failed"));
+			});
+		};
+	});
+	let ticks = 0;
+	try {
+		const result = await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			{
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: fetchImpl,
+				readGhToken: async () => null,
+				databasePath,
+				now: () => new Date(Date.parse(goodPoll) + ticks++ * 1_000),
+				stdout: (line) => startChecks(line),
+				waitForStop: done,
+			},
+		);
+		if (checksError !== undefined) {
+			throw checksError;
+		}
+		expect(result.exitCode).toBe(0);
+		expect(result.stderr).toBe("");
+	} finally {
+		await cleanup();
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
 describe("live updates", () => {
 	test("a zero poll interval names the field and does not listen", async () => {
 		const { path, cleanup } = await tempConfig(
@@ -186,54 +265,7 @@ describe("live updates", () => {
 
 	test("an empty incremental page keeps the stored tickets", async () => {
 		const requests: string[] = [];
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo }],
-				pollIntervalSeconds: 3600,
-			}),
-		);
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		const databasePath = join(root, "project-flow.sqlite");
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<void>((resolve, reject) => {
-			startChecks = (base: string) => {
-				void (async () => {
-					const refresh = await fetch(new URL("/api/refresh", base), {
-						method: "POST",
-					});
-					expect(refresh.status).toBe(204);
-					const body = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as {
-						projects: {
-							name: string;
-							tracker: string;
-							done: number;
-							dropped: number;
-							backlog: number;
-						}[];
-						error: string | null;
-					};
-					expect(body.projects).toEqual([
-						{
-							name: repo,
-							tracker: "github",
-							done: 0,
-							dropped: 0,
-							backlog: 1,
-						},
-					]);
-					expect(body.error).toBeNull();
-					const second = new URL(requests[1] ?? "");
-					expect(second.searchParams.get("since")).toBe(
-						"2026-04-01T12:00:00.000Z",
-					);
-					resolve();
-				})().catch(reject);
-			};
-		});
 		let polls = 0;
-		let ticks = 0;
 		const fetchImpl: Fetch = async (input) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
@@ -246,28 +278,183 @@ describe("live updates", () => {
 			}
 			return new Response("not recorded", { status: 404 });
 		};
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+		await withServer(fetchImpl, 3600, async (base) => {
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const body = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(body.projects).toEqual([
 				{
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: fetchImpl,
-					readGhToken: async () => null,
-					databasePath,
-					now: () =>
-						new Date(Date.parse("2026-04-01T12:00:00.000Z") + ticks++ * 1_000),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks,
+					name: repo,
+					tracker: "github",
+					done: 0,
+					dropped: 0,
+					backlog: 1,
 				},
-			);
-			expect(result.exitCode).toBe(0);
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
+			]);
+			expect(body.error).toBeNull();
+			const second = new URL(requests[1] ?? "");
+			expect(second.searchParams.get("since")).toBe(goodPoll);
+		});
 	});
 
 	test("a failed fetch keeps the stored overview and names the error", async () => {
+		const requests: string[] = [];
+		await withServer(failingAfterGoodPoll(requests), 3600, async (base) => {
+			const eventPromise = openEvents(base);
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const body = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(body.projects).toEqual([
+				{
+					name: repo,
+					tracker: "github",
+					done: 0,
+					dropped: 0,
+					backlog: 1,
+				},
+			]);
+			expect(body.fetchedAt).toBe(goodPoll);
+			expect(body.error).toContain("HTTP 500");
+			expect(body.error).toContain(`stale since ${goodPoll}`);
+			const received = await eventPromise;
+			expect(JSON.parse(received.data)).toEqual(body);
+		});
+	});
+
+	test("a poll after a failed fetch keeps the last good since", async () => {
+		const requests: string[] = [];
+		await withServer(failingThenRecorded(requests), 3600, async (base) => {
+			const failed = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(failed.status).toBe(204);
+			const again = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(again.status).toBe(204);
+			const lists = requests.filter((url) => listUrl(url) !== null);
+			expect(lists).toHaveLength(3);
+			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
+			expect(new URL(lists[2] ?? "").searchParams.get("since")).toBe(goodPoll);
+			const body = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
+			expect(body.error).toBeNull();
+		});
+	});
+
+	test("a poll at the interval requests items updated since the last good poll", async () => {
+		const requests: string[] = [];
+		await withServer(unchangedFetch(requests), 1, async () => {
+			const deadline = Date.now() + 3_000;
+			while (
+				requests.filter((url) => listUrl(url) !== null).length < 2 &&
+				Date.now() < deadline
+			) {
+				await Bun.sleep(50);
+			}
+			const lists = requests.filter((url) => listUrl(url) !== null);
+			expect(lists).toHaveLength(2);
+			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
+		});
+	});
+
+	test("an incremental poll requests only items updated since the last good poll", async () => {
+		const requests: string[] = [];
+		await withServer(changingFetch(requests), 3600, async (base) => {
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const lists = requests.filter((url) => listUrl(url) !== null);
+			expect(lists).toHaveLength(2);
+			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBeNull();
+			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
+		});
+	});
+
+	test("a recorded tracker change reaches a subscriber after one poll", async () => {
+		const requests: string[] = [];
+		await withServer(changingFetch(requests), 3600, async (base) => {
+			const eventPromise = openEvents(base);
+			const before = await fetch(new URL("/api/overview", base));
+			expect(await before.json()).toEqual({
+				projects: [
+					{
+						name: repo,
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+				fetchedAt: goodPoll,
+				error: null,
+			});
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const received = await eventPromise;
+			expect(received.event).toBe("overview");
+			expect(JSON.parse(received.data)).toEqual({
+				projects: [
+					{
+						name: repo,
+						tracker: "github",
+						done: 1,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+				fetchedAt: "2026-04-01T12:00:01.000Z",
+				error: null,
+			});
+			const after = await fetch(new URL("/api/overview", base));
+			expect(await after.json()).toEqual(JSON.parse(received.data));
+		});
+	});
+
+	test("the event stream stays open past the idle timeout", async () => {
+		const requests: string[] = [];
+		await withServer(unchangedFetch(requests), 3600, async (base) => {
+			const port = Number(new URL(base).port);
+			const started = Date.now();
+			let closed = false;
+			const socket = await Bun.connect({
+				hostname: "127.0.0.1",
+				port,
+				socket: {
+					data() {},
+					close() {
+						closed = true;
+					},
+					open(open) {
+						open.write(
+							"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
+						);
+					},
+				},
+			});
+			await Bun.sleep(11_000);
+			expect(closed).toBe(false);
+			expect(Date.now() - started).toBeGreaterThan(10_000);
+			const probe = await fetch(new URL("/api/overview", base));
+			expect(probe.status).toBe(200);
+			socket.end();
+		});
+	}, 15_000);
+
+	test("a broken configuration on refresh keeps the last overview", async () => {
 		const requests: string[] = [];
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -281,91 +468,25 @@ describe("live updates", () => {
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
 				void (async () => {
-					const eventPromise = openEvents(base);
+					const { writeFile } = await import("node:fs/promises");
+					await writeFile(path, "{");
 					const refresh = await fetch(new URL("/api/refresh", base), {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
 					const body = (await (
 						await fetch(new URL("/api/overview", base))
-					).json()) as {
-						projects: {
-							name: string;
-							tracker: string;
-							done: number;
-							dropped: number;
-							backlog: number;
-						}[];
-						fetchedAt: string;
-						error: string;
-					};
+					).json()) as OverviewBody;
 					expect(body.projects).toEqual([
 						{
 							name: repo,
 							tracker: "github",
 							done: 0,
 							dropped: 0,
-							backlog: 1,
+							backlog: 0,
 						},
 					]);
-					expect(body.fetchedAt).toBe("2026-04-01T12:00:00.000Z");
-					expect(body.error).toContain("HTTP 500");
-					expect(body.error).toContain("stale since 2026-04-01T12:00:00.000Z");
-					const received = await eventPromise;
-					expect(JSON.parse(received.data)).toEqual(body);
-					resolve();
-				})().catch(reject);
-			};
-		});
-		let ticks = 0;
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: failingAfterGoodPoll(requests),
-					readGhToken: async () => null,
-					databasePath,
-					now: () =>
-						new Date(Date.parse("2026-04-01T12:00:00.000Z") + ticks++ * 1_000),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks,
-				},
-			);
-			expect(result.exitCode).toBe(0);
-			expect(result.stderr).toBe("");
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("a poll at the interval requests items updated since the last good poll", async () => {
-		const requests: string[] = [];
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo }],
-				pollIntervalSeconds: 1,
-			}),
-		);
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		const databasePath = join(root, "project-flow.sqlite");
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<void>((resolve, reject) => {
-			startChecks = () => {
-				void (async () => {
-					const deadline = Date.now() + 3_000;
-					while (
-						requests.filter((url) => listUrl(url) !== null).length < 2 &&
-						Date.now() < deadline
-					) {
-						await Bun.sleep(50);
-					}
-					const lists = requests.filter((url) => listUrl(url) !== null);
-					expect(lists).toHaveLength(2);
-					expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(
-						"2026-04-01T12:00:00.000Z",
-					);
+					expect(body.error).toContain("not JSON");
 					resolve();
 				})().catch(reject);
 			};
@@ -379,135 +500,7 @@ describe("live updates", () => {
 					fetch: unchangedFetch(requests),
 					readGhToken: async () => null,
 					databasePath,
-					now: () =>
-						new Date(Date.parse("2026-04-01T12:00:00.000Z") + ticks++ * 1_000),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks,
-				},
-			);
-			expect(result.exitCode).toBe(0);
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("an incremental poll requests only items updated since the last good poll", async () => {
-		const requests: string[] = [];
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo }],
-				pollIntervalSeconds: 3600,
-			}),
-		);
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		const databasePath = join(root, "project-flow.sqlite");
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<void>((resolve, reject) => {
-			startChecks = (base: string) => {
-				void (async () => {
-					const refresh = await fetch(new URL("/api/refresh", base), {
-						method: "POST",
-					});
-					expect(refresh.status).toBe(204);
-					const lists = requests.filter((url) => listUrl(url) !== null);
-					expect(lists).toHaveLength(2);
-					expect(new URL(lists[0] ?? "").searchParams.get("since")).toBeNull();
-					expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(
-						"2026-04-01T12:00:00.000Z",
-					);
-					resolve();
-				})().catch(reject);
-			};
-		});
-		let ticks = 0;
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: changingFetch(requests),
-					readGhToken: async () => null,
-					databasePath,
-					now: () =>
-						new Date(Date.parse("2026-04-01T12:00:00.000Z") + ticks++ * 1_000),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks,
-				},
-			);
-			expect(result.exitCode).toBe(0);
-			expect(result.stderr).toBe("");
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("a recorded tracker change reaches a subscriber after one poll", async () => {
-		const requests: string[] = [];
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo }],
-				pollIntervalSeconds: 3600,
-			}),
-		);
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		const databasePath = join(root, "project-flow.sqlite");
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<void>((resolve, reject) => {
-			startChecks = (base: string) => {
-				void (async () => {
-					const eventPromise = openEvents(base);
-					const before = await fetch(new URL("/api/overview", base));
-					expect(await before.json()).toEqual({
-						projects: [
-							{
-								name: repo,
-								tracker: "github",
-								done: 0,
-								dropped: 0,
-								backlog: 1,
-							},
-						],
-						fetchedAt: "2026-04-01T12:00:00.000Z",
-						error: null,
-					});
-					const refresh = await fetch(new URL("/api/refresh", base), {
-						method: "POST",
-					});
-					expect(refresh.status).toBe(204);
-					const received = await eventPromise;
-					expect(received.event).toBe("overview");
-					expect(JSON.parse(received.data)).toEqual({
-						projects: [
-							{
-								name: repo,
-								tracker: "github",
-								done: 1,
-								dropped: 0,
-								backlog: 1,
-							},
-						],
-						fetchedAt: "2026-04-01T12:00:01.000Z",
-						error: null,
-					});
-					const after = await fetch(new URL("/api/overview", base));
-					expect(await after.json()).toEqual(JSON.parse(received.data));
-					resolve();
-				})().catch(reject);
-			};
-		});
-		let ticks = 0;
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				{
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: changingFetch(requests),
-					readGhToken: async () => null,
-					databasePath,
-					now: () =>
-						new Date(Date.parse("2026-04-01T12:00:00.000Z") + ticks++ * 1_000),
+					now: () => new Date(Date.parse(goodPoll) + ticks++ * 1_000),
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
 				},
