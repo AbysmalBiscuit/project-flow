@@ -113,9 +113,11 @@ const pageInfo = z.object({
 
 const projectNode = z.object({
 	id: z.string(),
+	number: z.number().int().positive(),
 	title: z.string(),
 	closed: z.boolean(),
 	updatedAt: z.string(),
+	owner: z.object({ login: z.string() }).optional(),
 });
 
 const projectConnection = z.object({
@@ -146,14 +148,14 @@ const projectsQuery = `query ViewerProjects($after: String, $orgAfter: String) {
 	viewer {
 		login
 		projectsV2(first: 20, after: $after) {
-			nodes { id title closed updatedAt }
+			nodes { id number title closed updatedAt owner { login } }
 			pageInfo { hasNextPage endCursor }
 		}
 		organizations(first: 20, after: $orgAfter) {
 			nodes {
 				login
 				projectsV2(first: 20) {
-					nodes { id title closed updatedAt }
+					nodes { id number title closed updatedAt owner { login } }
 					pageInfo { hasNextPage endCursor }
 				}
 			}
@@ -168,7 +170,7 @@ function addOpenProjects(
 	seen: Set<string>,
 ): void {
 	for (const node of nodes) {
-		if (node.closed || seen.has(node.id)) {
+		if (node.closed || seen.has(node.id) || node.owner === undefined) {
 			continue;
 		}
 		seen.add(node.id);
@@ -177,6 +179,8 @@ function addOpenProjects(
 			name: node.title,
 			tracker: "github",
 			updatedAt: node.updatedAt,
+			owner: node.owner.login,
+			number: node.number,
 		});
 	}
 }
@@ -240,6 +244,61 @@ async function findGithubProjects(
 		url = nextPage(response.headers.get("link"));
 	}
 	return found;
+}
+
+const projectByNumberQuery = `query ProjectByNumber($owner: String!, $number: Int!) {
+	repositoryOwner(login: $owner) {
+		projectV2(number: $number) { id number title closed updatedAt }
+	}
+}`;
+
+const projectByNumber = z.object({
+	data: z.object({
+		repositoryOwner: z
+			.object({
+				projectV2: projectNode.nullable(),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+export async function githubProjectByNumber(
+	token: string,
+	fetchImpl: Fetch,
+	owner: string,
+	number: number,
+): Promise<FoundProject | null> {
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({
+			query: projectByNumberQuery,
+			variables: { owner, number },
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(
+			`GitHub find project failed (HTTP ${response.status}): ${owner}/${number}`,
+		);
+	}
+	const page = projectByNumber.parse(await response.json());
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		throw new Error(`GitHub find project failed: ${error.message}`);
+	}
+	const node = page.data.repositoryOwner?.projectV2;
+	if (node === undefined || node === null) {
+		return null;
+	}
+	return {
+		key: node.id,
+		name: node.title,
+		tracker: "github",
+		updatedAt: node.updatedAt,
+		owner,
+		number,
+	};
 }
 
 const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {

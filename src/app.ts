@@ -7,7 +7,7 @@ import {
 	startedTodoKeys,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { githubTracker } from "./github.ts";
+import { githubProjectByNumber, githubTracker } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import type {
@@ -37,8 +37,30 @@ export type Running = {
 	stop: () => Promise<void>;
 };
 
-function pinKey(pin: Configuration["pinned"][number]): string {
-	return pin.tracker === "github" ? pin.repo : pin.project;
+function refKey(ref: Configuration["pinned"][number]): string {
+	if (ref.tracker === "linear") {
+		return ref.project;
+	}
+	if ("repo" in ref) {
+		return ref.repo;
+	}
+	return `${ref.owner}/${ref.project}`;
+}
+
+function matchesRef(
+	project: FoundProject,
+	ref: Configuration["pinned"][number],
+): boolean {
+	if (project.tracker !== ref.tracker) {
+		return false;
+	}
+	if (ref.tracker === "linear") {
+		return project.key === ref.project;
+	}
+	if ("repo" in ref) {
+		return project.key === ref.repo;
+	}
+	return project.owner === ref.owner && project.number === ref.project;
 }
 
 function overview(store: Store): Overview {
@@ -80,6 +102,8 @@ async function poll(options: {
 	linear: Tracker | null;
 	store: Store;
 	clock: Clock;
+	token: string;
+	fetch: Fetch;
 	listTodos?: TodoSource | undefined;
 }): Promise<Configuration> {
 	const configuration = await options.configuration.read();
@@ -91,19 +115,47 @@ async function poll(options: {
 	) {
 		throw new Error(missingLinearKey);
 	}
-	const found = mergeFound(
-		configuration.pinned.map((pin) => ({
-			key: pinKey(pin),
+	const discovered = await options.github.findProjects();
+	if (linear !== null) {
+		mergeFound(discovered, await linear.findProjects());
+	}
+	const found = [...discovered];
+	for (const pin of configuration.pinned) {
+		if (found.some((project) => matchesRef(project, pin))) {
+			continue;
+		}
+		if (pin.tracker === "github" && "project" in pin) {
+			const located = await githubProjectByNumber(
+				options.token,
+				options.fetch,
+				pin.owner,
+				pin.project,
+			);
+			if (located !== null) {
+				found.push(located);
+			}
+			continue;
+		}
+		found.push({
+			key: refKey(pin),
 			tracker: pin.tracker,
 			updatedAt: null,
-		})),
-		await options.github.findProjects(),
-	);
-	if (linear !== null) {
-		mergeFound(found, await linear.findProjects());
+		});
 	}
-	const hidden = new Set(configuration.hidden.map(pinKey));
-	const pinned = new Set(configuration.pinned.map(pinKey));
+	const pinnedKeys = new Set(
+		found
+			.filter((project) =>
+				configuration.pinned.some((pin) => matchesRef(project, pin)),
+			)
+			.map((project) => project.key),
+	);
+	const hiddenKeys = new Set(
+		found
+			.filter((project) =>
+				configuration.hidden.some((pin) => matchesRef(project, pin)),
+			)
+			.map((project) => project.key),
+	);
 	const listed = [];
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? options.github : linear;
@@ -121,8 +173,8 @@ async function poll(options: {
 			pulls,
 			branches,
 			startedKeys,
-			pinned: pinned.has(project.key),
-			hidden: hidden.has(project.key),
+			pinned: pinnedKeys.has(project.key),
+			hidden: hiddenKeys.has(project.key),
 		});
 	}
 	options.store.replaceTickets(
@@ -146,6 +198,8 @@ export async function start(options: StartOptions): Promise<Running> {
 				: linearTracker(options.linearKey, options.fetch, options.token),
 		store: opened.store,
 		clock: { now: options.now ?? (() => new Date()) },
+		token: options.token,
+		fetch: options.fetch,
 		listTodos: options.listTodos,
 	});
 	const server = Bun.serve({

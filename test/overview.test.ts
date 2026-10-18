@@ -949,6 +949,46 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ViewerProjects")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [
+										{
+											id: firstId,
+											number: 1,
+											owner: { login: "lev" },
+											title: sameTitle,
+											closed: false,
+											updatedAt: "2026-08-18T12:00:00Z",
+										},
+										{
+											id: secondId,
+											number: 2,
+											owner: { login: "lev" },
+											title: sameTitle,
+											closed: false,
+											updatedAt: "2026-08-18T12:00:00Z",
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				const variables = JSON.parse(body) as { variables?: { id?: string } };
@@ -969,39 +1009,6 @@ describe("GET /api/overview", () => {
 											},
 										},
 									],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-							},
-						},
-					}),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			if (url === "https://api.github.com/graphql") {
-				return new Response(
-					JSON.stringify({
-						data: {
-							viewer: {
-								login: "lev",
-								projectsV2: {
-									nodes: [
-										{
-											id: firstId,
-											title: sameTitle,
-											closed: false,
-											updatedAt: "2026-08-18T12:00:00Z",
-										},
-										{
-											id: secondId,
-											title: sameTitle,
-											closed: false,
-											updatedAt: "2026-08-18T12:00:00Z",
-										},
-									],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-								organizations: {
-									nodes: [],
 									pageInfo: { hasNextPage: false, endCursor: null },
 								},
 							},
@@ -1163,6 +1170,8 @@ describe("GET /api/overview", () => {
 									nodes: [
 										{
 											id: projectId,
+											number: 3,
+											owner: { login: "acme" },
 											title: "Widget board",
 											closed: false,
 											updatedAt: "2026-08-18T12:00:00Z",
@@ -1255,6 +1264,157 @@ describe("GET /api/overview", () => {
 			expect(requests.some((sent) => sent.includes(`node(id: $id)`))).toBe(
 				true,
 			);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a pinned GitHub project shows and a hidden GitHub project never shows", async () => {
+		const pinnedId = "PVT_pinned";
+		const hiddenId = "PVT_hidden";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				hidden: [{ tracker: "github", owner: "acme", project: 8 }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const board: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response("[]", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ViewerProjects")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [
+										{
+											id: hiddenId,
+											number: 8,
+											owner: { login: "acme" },
+											title: "Hidden board",
+											closed: false,
+											updatedAt: "2026-08-18T12:00:00Z",
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("node(id:")
+			) {
+				const variables = JSON.parse(body) as { variables?: { id?: string } };
+				const id = variables.variables?.id;
+				const number = id === pinnedId ? 1 : 2;
+				return new Response(
+					JSON.stringify({
+						data: {
+							node: {
+								items: {
+									nodes: [
+										{
+											content: {
+												__typename: "Issue",
+												number,
+												state: "OPEN",
+												stateReason: null,
+												repository: { nameWithOwner: "acme/other" },
+											},
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url === "https://api.github.com/graphql" && body.includes("$owner")) {
+				const variables = JSON.parse(body) as {
+					variables?: { owner?: string; number?: number };
+				};
+				const number = variables.variables?.number;
+				const id = number === 7 ? pinnedId : hiddenId;
+				const title = number === 7 ? "Pinned board" : "Hidden board";
+				return new Response(
+					JSON.stringify({
+						data: {
+							repositoryOwner: {
+								projectV2: {
+									id,
+									number,
+									title,
+									closed: false,
+									updatedAt: "2026-01-01T12:00:00Z",
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: board,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual({
+				projects: [
+					{
+						name: "Pinned board",
+						tracker: "github",
+						done: 0,
+						dropped: 0,
+						backlog: 1,
+					},
+				],
+			});
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

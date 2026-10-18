@@ -12,6 +12,8 @@ export type FoundProject = {
 	name?: string;
 	tracker: "github" | "linear";
 	updatedAt: string | null;
+	owner?: string;
+	number?: number;
 };
 
 export type Snapshot = {
