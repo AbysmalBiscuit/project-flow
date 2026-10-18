@@ -1,5 +1,4 @@
 import { Database } from "bun:sqlite";
-import type { PullRequest, Ticket } from "./domain.ts";
 import type { Snapshot, Store } from "./ports.ts";
 
 export function sqliteStore(path: string): { store: Store; close: () => void } {
@@ -31,24 +30,13 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					payload: string;
 				}[];
 				return rows.map((row) => {
-					const payload = JSON.parse(row.payload) as
-						| Ticket[]
-						| (Snapshot & { pulls?: PullRequest[] });
-					if (Array.isArray(payload)) {
-						return {
-							project: row.repo,
-							tickets: payload,
-							pulls: [],
-							branches: [],
-							startedKeys: [],
-						};
-					}
+					const payload: Snapshot = JSON.parse(row.payload);
 					return {
 						project: row.repo,
 						tickets: payload.tickets,
-						pulls: payload.pulls ?? [],
-						branches: payload.branches ?? [],
-						startedKeys: payload.startedKeys ?? [],
+						pulls: payload.pulls,
+						branches: payload.branches,
+						startedKeys: payload.startedKeys,
 					};
 				});
 			},
