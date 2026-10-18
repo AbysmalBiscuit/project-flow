@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const repo = "acme/widget";
 
@@ -147,7 +153,7 @@ async function overview(
 	}
 }
 
-const linearProject = "widget-launch";
+const linearProject = "widget-launch-0d42ae5d46d0";
 
 function linearIssue(identifier: string): Record<string, unknown> {
 	return {
@@ -168,49 +174,37 @@ function linearIssue(identifier: string): Record<string, unknown> {
 }
 
 function linearFetch(): Fetch {
-	return async (input, init) => {
-		const discovered = recordedDiscovery(input, init);
-		if (discovered !== null) {
-			return discovered;
-		}
-		const url = urlOf(input);
-		if (url === "https://api.github.com/user") {
-			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-		}
-		if (url === "https://api.linear.app/graphql") {
-			const body = typeof init?.body === "string" ? init.body : "";
-			if (body.includes("viewer")) {
+	return linearFake({
+		project: {
+			id: "project-1",
+			name: "Widget launch",
+			slugId: linearProject,
+		},
+		issues: [linearIssue("WID-14")],
+		github: async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.github.com/repos/acme/widget/pulls/77") {
 				return new Response(
-					JSON.stringify({ data: { viewer: { id: "lev" } } }),
-					{ status: 200 },
+					JSON.stringify(
+						pull(77, {
+							body: "No keyword here.",
+							draft: true,
+							html_url: "https://github.com/acme/widget/pull/77",
+						}),
+					),
+					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response(
-				JSON.stringify({
-					data: {
-						issues: {
-							nodes: [linearIssue("WID-14")],
-							pageInfo: { hasNextPage: false, endCursor: null },
-						},
-					},
-				}),
-				{ status: 200, headers: { "content-type": "application/json" } },
-			);
-		}
-		if (url === "https://api.github.com/repos/acme/widget/pulls/77") {
-			return new Response(
-				JSON.stringify(
-					pull(77, {
-						body: "No keyword here.",
-						draft: true,
-						html_url: "https://github.com/acme/widget/pull/77",
-					}),
-				),
-				{ status: 200, headers: { "content-type": "application/json" } },
-			);
-		}
-		return new Response("not recorded", { status: 404 });
-	};
+			return new Response("not recorded", { status: 404 });
+		},
+	});
 }
 
 describe("unlinked PRs", () => {
@@ -571,7 +565,7 @@ describe("PR links", () => {
 			expect(await checks).toEqual({
 				projects: [
 					{
-						name: linearProject,
+						name: "Widget launch",
 						tracker: "linear",
 						done: 0,
 						dropped: 0,

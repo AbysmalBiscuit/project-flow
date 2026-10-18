@@ -9,7 +9,13 @@ import {
 	rejectedToken,
 	run,
 } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const valid = JSON.stringify({
 	pinned: [{ tracker: "github", repo: "acme/widget" }],
@@ -48,6 +54,66 @@ function recordedFetch(userStatus: number): Fetch {
 }
 
 describe("startup", () => {
+	test("a Linear-only configuration starts without GITHUB_TOKEN", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{
+						tracker: "linear",
+						project: "widget-launch-0d42ae5d46d0",
+					},
+				],
+			}),
+		);
+		const fetchImpl = linearFake({
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				throw new Error("GitHub must not be called without GITHUB_TOKEN");
+			},
+		});
+		try {
+			const result = await run(["--config", path], {
+				env: { LINEAR_API_KEY: "recorded-linear-key" },
+				fetch: fetchImpl,
+				readGhToken: async () => {
+					throw new Error("gh must not run for a Linear-only configuration");
+				},
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("an empty pinned list starts without GITHUB_TOKEN", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		try {
+			const result = await run(["--config", path], {
+				env: {},
+				fetch: async () => {
+					throw new Error("no tracker call for an empty pin list");
+				},
+				readGhToken: async () => {
+					throw new Error("gh must not run for an empty pin list");
+				},
+				databasePath: ":memory:",
+				waitForStop: Promise.resolve(),
+			});
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			expect(result.stderr).toBe("");
+		} finally {
+			await cleanup();
+		}
+	});
+
 	test("a missing token exits 1 and names GITHUB_TOKEN", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		try {
@@ -171,17 +237,22 @@ describe("startup", () => {
 	});
 
 	test("a blank GITHUB_TOKEN exits 1 and names the token", async () => {
-		const result = await run(
-			["--config", "/tmp/unused-config.json"],
-			testIo({
-				env: { GITHUB_TOKEN: "   " },
-				fetch: recordedFetch(200),
-				readGhToken: async () => null,
-			}),
-		);
-		expect(result.exitCode).toBe(1);
-		expect(result.stderr).toBe(missingToken);
-		expect(result.listened).toBe(false);
+		const { path, cleanup } = await tempConfig(valid);
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "   " },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toBe(missingToken);
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
 	});
 
 	test("an empty --port exits 1 and does not listen", async () => {

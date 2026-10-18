@@ -484,7 +484,8 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		},
 		async listTickets(repo) {
 			if (!repo.includes("/")) {
-				return listProjectTickets(token, fetchImpl, repo);
+				const tickets = await listProjectTickets(token, fetchImpl, repo);
+				return { name: repo, tickets };
 			}
 			const tickets: Ticket[] = [];
 			const listed = await pages(
@@ -515,7 +516,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					});
 				}
 			}
-			return tickets;
+			return { name: repo, tickets };
 		},
 		async listPulls(repo) {
 			if (!repo.includes("/")) {
