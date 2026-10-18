@@ -1,13 +1,27 @@
 import { z } from "zod";
-import type { PullRequest, Ticket } from "./domain.ts";
+import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker } from "./ports.ts";
 
+const dependency = z.object({
+	number: z.number(),
+	state: z.string(),
+	repository_url: z.string().optional(),
+});
+
 const githubIssue = z.object({
 	number: z.number(),
+	title: z.string(),
 	state: z.string(),
 	state_reason: z.string().nullable(),
 	updated_at: z.string().optional(),
+	body: z.string().nullable().optional(),
+	issue_dependencies_summary: z
+		.object({
+			blocked_by: z.number(),
+			total_blocked_by: z.number(),
+		})
+		.optional(),
 	pull_request: z.unknown().optional(),
 });
 
@@ -357,7 +371,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 				nodes {
 					content {
 						__typename
-						... on Issue { number state stateReason repository { nameWithOwner } }
+						... on Issue { number title state stateReason repository { nameWithOwner } }
 					}
 				}
 				pageInfo { hasNextPage endCursor }
@@ -377,6 +391,7 @@ const projectItems = z.object({
 								.object({
 									__typename: z.string(),
 									number: z.number().optional(),
+									title: z.string().optional(),
 									state: z.string().optional(),
 									stateReason: z.string().nullable().optional(),
 									repository: z
@@ -393,6 +408,21 @@ const projectItems = z.object({
 	}),
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
+
+function repoFromUrl(url: string | undefined, fallback: string): string {
+	if (url === undefined) {
+		return fallback;
+	}
+	const match = url.match(/\/repos\/([^/]+\/[^/]+)/);
+	return match?.[1] ?? fallback;
+}
+
+function nativeState(state: string): TicketRef["state"] | null {
+	if (state === "open" || state === "closed") {
+		return state;
+	}
+	return null;
+}
 
 function githubState(state: string): "open" | "closed" | null {
 	if (state === "OPEN" || state === "open") {
@@ -465,9 +495,12 @@ async function listProjectTickets(
 			tickets.push({
 				tracker: "github",
 				key: `${content.repository.nameWithOwner}#${content.number}`,
+				title: content.title ?? "",
 				state,
 				stateReason: githubReason(content.stateReason ?? null),
 				ref: `${content.repository.nameWithOwner}#${content.number}`,
+				body: "",
+				blockedBy: [],
 			});
 		}
 		after = page.data.node.items.pageInfo.hasNextPage
@@ -504,15 +537,23 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					if (issue.state !== "open" && issue.state !== "closed") {
 						continue;
 					}
+					const summary = issue.issue_dependencies_summary;
+					const blockedBy =
+						summary !== undefined && summary.blocked_by > 0
+							? await listBlockedBy(token, fetchImpl, repo, issue.number)
+							: [];
 					tickets.push({
 						tracker: "github",
 						key: `${repo}#${issue.number}`,
+						title: issue.title,
 						state: issue.state,
 						stateReason: issue.state_reason,
 						...(issue.updated_at === undefined
 							? {}
 							: { updatedAt: issue.updated_at }),
 						ref: `${repo}#${issue.number}`,
+						body: issue.body ?? "",
+						blockedBy,
 					});
 				}
 			}
@@ -593,4 +634,39 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			return names;
 		},
 	};
+}
+
+async function listBlockedBy(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	number: number,
+): Promise<TicketRef[]> {
+	const url = `https://api.github.com/repos/${repo}/issues/${number}/dependencies/blocked_by`;
+	const response = await fetchImpl(url, { headers: githubHeaders(token) });
+	if (response.status === 404) {
+		return [];
+	}
+	if (!response.ok) {
+		throw new Error(
+			`GitHub list blockers failed (HTTP ${response.status}): ${repo}#${number}`,
+		);
+	}
+	const page = z.array(dependency).parse(await response.json());
+	return page.flatMap((item) => {
+		const state = nativeState(item.state);
+		if (state === null) {
+			return [];
+		}
+		const project = repoFromUrl(item.repository_url, repo);
+		const ref: TicketRef = {
+			tracker: "github",
+			project,
+			key: `${project}#${item.number}`,
+		};
+		if (state !== undefined) {
+			ref.state = state;
+		}
+		return [ref];
+	});
 }

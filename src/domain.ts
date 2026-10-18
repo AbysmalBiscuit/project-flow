@@ -1,12 +1,41 @@
-export type TicketState = "done" | "dropped" | "backlog" | "inProgress";
+export type TicketState =
+	| "done"
+	| "dropped"
+	| "blocked"
+	| "backlog"
+	| "inProgress";
+
+export type TicketRef = {
+	tracker: "github" | "linear";
+	project: string;
+	key: string;
+	state?: "open" | "closed";
+};
 
 export type Ticket = {
 	tracker: "github" | "linear";
 	key: string | null;
+	title: string;
 	state: "open" | "closed";
 	stateReason: string | null;
 	updatedAt?: string;
 	ref?: string;
+	body: string;
+	blockedBy: TicketRef[];
+};
+
+export type TicketView = {
+	key: string | null;
+	title: string;
+	state: TicketState;
+	blockers: string[];
+};
+
+export type CrossProjectBlocker = {
+	project: string;
+	tracker: "github" | "linear";
+	key: string;
+	title: string;
 };
 
 export type PullRequest = {
@@ -30,9 +59,12 @@ export type ProjectCounts = {
 	tracker: "github" | "linear";
 	done: number;
 	dropped: number;
+	blocked: number;
 	backlog: number;
 	inProgress: number;
 	unlinkedPrs: UnlinkedPr[];
+	tickets: TicketView[];
+	crossProjectBlockers: CrossProjectBlocker[];
 };
 
 export type Overview = {
@@ -57,17 +89,235 @@ function closingKeys(body: string, repo: string): string[] {
 	return keys;
 }
 
-export function ticketState(ticket: Ticket): TicketState {
-	if (ticket.state === "open") {
-		return "backlog";
+const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
+
+export function ticketState(
+	ticket: Ticket,
+	blockers: TicketRef[],
+): TicketState {
+	if (ticket.state === "closed") {
+		return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
 	}
+	if (blockers.length > 0) {
+		return "blocked";
+	}
+	return "backlog";
+}
+
+const label =
+	/^(?:[-*+]|\d+[.)])?\s*(?:\*\*|__)?\s*(blocked by|blocks|blocking)\b\s*:?\s*(?:\*\*|__)?\s*(.*)$/i;
+
+const anchoredRef =
+	/^(?:https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/(?:issues|pull)\/(\d+)|https?:\/\/linear\.app\/[^/\s]+\/issue\/([A-Za-z][A-Za-z0-9]+-\d+)(?:\/[^\s)]*)?|([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]+-\d+))$/i;
+
+function trimPunctuation(token: string): string {
+	return token.replace(/^[([{"']+/, "").replace(/[)\]}"'.,;:!?]+$/, "");
+}
+
+function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
+	const githubUrlOwner = match[1];
+	const githubUrlRepo = match[2];
+	const githubUrlNumber = match[3];
 	if (
-		ticket.stateReason === "not_planned" ||
-		ticket.stateReason === "duplicate"
+		githubUrlOwner !== undefined &&
+		githubUrlRepo !== undefined &&
+		githubUrlNumber !== undefined
 	) {
-		return "dropped";
+		const repo = `${githubUrlOwner}/${githubUrlRepo}`;
+		return {
+			tracker: "github",
+			project: repo,
+			key: `${repo}#${githubUrlNumber}`,
+		};
 	}
-	return "done";
+	const linearUrlKey = match[4];
+	if (linearUrlKey !== undefined) {
+		return { tracker: "linear", project: "", key: linearUrlKey.toUpperCase() };
+	}
+	const ownerRepo = match[5];
+	const ownerNumber = match[6];
+	if (ownerRepo !== undefined && ownerNumber !== undefined) {
+		return {
+			tracker: "github",
+			project: ownerRepo,
+			key: `${ownerRepo}#${ownerNumber}`,
+		};
+	}
+	const sameNumber = match[7];
+	if (sameNumber !== undefined) {
+		if (!project.includes("/")) {
+			return null;
+		}
+		return { tracker: "github", project, key: `${project}#${sameNumber}` };
+	}
+	const linearKey = match[8];
+	if (linearKey !== undefined) {
+		return { tracker: "linear", project: "", key: linearKey.toUpperCase() };
+	}
+	return null;
+}
+
+function sameRef(left: TicketRef, right: TicketRef): boolean {
+	return (
+		left.tracker === right.tracker &&
+		left.key.toLowerCase() === right.key.toLowerCase()
+	);
+}
+
+function parseLine(
+	line: string,
+	project: string,
+	direction: "blockedBy" | "blocks",
+): TicketRef[] {
+	const matched = line.trim().match(label);
+	if (matched?.[1] === undefined || matched[2] === undefined) {
+		return [];
+	}
+	const verb = matched[1].toLowerCase();
+	if (
+		(direction === "blockedBy" && verb !== "blocked by") ||
+		(direction === "blocks" && verb === "blocked by")
+	) {
+		return [];
+	}
+	const refs: TicketRef[] = [];
+	for (const raw of matched[2].split(",")) {
+		const token = trimPunctuation(raw.trim());
+		if (token === "" || token.toLowerCase() === "none") {
+			continue;
+		}
+		const found = anchoredRef.exec(token);
+		if (found === null) {
+			continue;
+		}
+		const ref = refFrom(found, project);
+		if (ref !== null && !refs.some((item) => sameRef(item, ref))) {
+			refs.push(ref);
+		}
+	}
+	return refs;
+}
+
+export function bodyBlockers(
+	ticket: Ticket,
+	project: string,
+	direction: "blockedBy" | "blocks",
+): TicketRef[] {
+	const refs: TicketRef[] = [];
+	for (const line of ticket.body.split("\n")) {
+		for (const ref of parseLine(line, project, direction)) {
+			if (!refs.some((item) => sameRef(item, ref))) {
+				refs.push(ref);
+			}
+		}
+	}
+	return refs;
+}
+
+type TicketIndex = Map<string, Ticket>;
+
+function indexKey(tracker: string, key: string): string {
+	return `${tracker}\0${key.toLowerCase()}`;
+}
+
+function indexTickets(tickets: Ticket[]): TicketIndex {
+	const index = new Map<string, Ticket>();
+	for (const ticket of tickets) {
+		if (ticket.key !== null) {
+			index.set(indexKey(ticket.tracker, ticket.key), ticket);
+		}
+	}
+	return index;
+}
+
+function known(index: TicketIndex, ref: TicketRef): Ticket | undefined {
+	return index.get(indexKey(ref.tracker, ref.key));
+}
+
+function stillOpen(ref: TicketRef, index: TicketIndex): boolean {
+	const ticket = known(index, ref);
+	if (ticket !== undefined) {
+		return ticket.state === "open";
+	}
+	return ref.state === "open";
+}
+
+function asRef(ticket: Ticket): TicketRef | null {
+	if (ticket.key === null) {
+		return null;
+	}
+	return { tracker: ticket.tracker, project: "", key: ticket.key };
+}
+
+type ParsedBodies = Map<
+	string,
+	{ blockedBy: TicketRef[]; blocks: TicketRef[] }
+>;
+
+function parseKey(ticket: Ticket): string {
+	return indexKey(ticket.tracker, ticket.key ?? "");
+}
+
+function parseBodies(
+	groups: { project: string; tickets: Ticket[] }[],
+): ParsedBodies {
+	const parsed: ParsedBodies = new Map();
+	for (const group of groups) {
+		for (const ticket of group.tickets) {
+			parsed.set(parseKey(ticket), {
+				blockedBy: bodyBlockers(ticket, group.project, "blockedBy"),
+				blocks: bodyBlockers(ticket, group.project, "blocks"),
+			});
+		}
+	}
+	return parsed;
+}
+
+export function openBlockers(
+	ticket: Ticket,
+	index: TicketIndex,
+	parsed: ParsedBodies,
+): Ticket[] {
+	const self = asRef(ticket);
+	const incoming = ticket.blockedBy.filter((ref) => stillOpen(ref, index));
+	const fromBody = (parsed.get(parseKey(ticket))?.blockedBy ?? []).filter(
+		(ref) => stillOpen(ref, index),
+	);
+	const fromBlocks: TicketRef[] = [];
+	for (const [otherKey, lines] of parsed) {
+		const other = index.get(otherKey);
+		if (other === undefined || other.state !== "open" || self === null) {
+			continue;
+		}
+		if (!lines.blocks.some((ref) => sameRef(ref, self))) {
+			continue;
+		}
+		const ref = asRef(other);
+		if (ref !== null) {
+			fromBlocks.push(ref);
+		}
+	}
+	const refs = [...incoming, ...fromBody, ...fromBlocks];
+	const resolved = refs.flatMap((ref) => {
+		const blocker = known(index, ref);
+		return blocker === undefined ? [] : [blocker];
+	});
+	return resolved.filter((blocker, position) => {
+		if (
+			self !== null &&
+			blocker.key !== null &&
+			sameRef(self, { tracker: blocker.tracker, project: "", key: blocker.key })
+		) {
+			return false;
+		}
+		return (
+			resolved.findIndex(
+				(item) =>
+					item.tracker === blocker.tracker &&
+					item.key?.toLowerCase() === blocker.key?.toLowerCase(),
+			) === position
+		);
+	});
 }
 
 export function showsProject(input: {
@@ -240,6 +490,24 @@ function linked(
 	});
 }
 
+function blockerProject(
+	blocker: Ticket,
+	ref: TicketRef | undefined,
+	groups: { project: string; tickets: Ticket[] }[],
+): string {
+	const home = groups.find((group) => group.tickets.includes(blocker))?.project;
+	if (home !== undefined) {
+		return home;
+	}
+	if (ref?.project !== undefined && ref.project !== "") {
+		return ref.project;
+	}
+	if (blocker.tracker === "github" && blocker.key?.includes("#") === true) {
+		return blocker.key.split("#")[0] ?? "";
+	}
+	return "";
+}
+
 export function projectCounts(
 	name: string,
 	tracker: ProjectCounts["tracker"],
@@ -247,10 +515,22 @@ export function projectCounts(
 	pulls: PullRequest[] = [],
 	branches: string[] = [],
 	startedKeys: string[] = [],
+	all: { project: string; tickets: Ticket[] }[] = [{ project: name, tickets }],
 ): ProjectCounts {
-	const counts = { done: 0, dropped: 0, backlog: 0, inProgress: 0 };
+	const index = indexTickets(all.flatMap((group) => group.tickets));
+	const parsed = parseBodies(all);
+	const counts = { done: 0, dropped: 0, blocked: 0, backlog: 0, inProgress: 0 };
+	const views: TicketView[] = [];
+	const cross = new Map<string, CrossProjectBlocker>();
 	for (const ticket of tickets) {
-		const state = ticketState(ticket);
+		const blockers = openBlockers(ticket, index, parsed);
+		const state = ticketState(
+			ticket,
+			blockers.flatMap((blocker) => {
+				const ref = asRef(blocker);
+				return ref === null ? [] : [ref];
+			}),
+		);
 		const links = ticket.state === "open" ? linked(ticket, pulls, name) : [];
 		const key = ticket.key;
 		const started =
@@ -258,24 +538,63 @@ export function projectCounts(
 			startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
 		const pushed =
 			key !== null && branches.some((branch) => branchLinksTicket(branch, key));
-		const inProgress = links.some((pull) => pull.draft) || pushed || started;
-		if (state === "backlog" && inProgress) {
-			counts.inProgress += 1;
+		const moving = links.some((pull) => pull.draft) || pushed || started;
+		const shown: TicketState =
+			state === "backlog" && moving ? "inProgress" : state;
+		counts[shown] += 1;
+		views.push({
+			key: ticket.key,
+			title: ticket.title,
+			state: shown,
+			blockers: blockers.flatMap((blocker) =>
+				blocker.key === null ? [] : [blocker.key],
+			),
+		});
+		if (shown !== "blocked") {
 			continue;
 		}
-		counts[state] += 1;
+		for (const blocker of blockers) {
+			if (blocker.key === null) {
+				continue;
+			}
+			const source = [
+				...ticket.blockedBy,
+				...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
+			].find(
+				(ref) =>
+					ref.tracker === blocker.tracker &&
+					ref.key.toLowerCase() === blocker.key?.toLowerCase(),
+			);
+			const project = blockerProject(blocker, source, all);
+			if (project === "" || project.toLowerCase() === name.toLowerCase()) {
+				continue;
+			}
+			cross.set(`${blocker.tracker} ${project} ${blocker.key}`, {
+				project,
+				tracker: blocker.tracker,
+				key: blocker.key,
+				title: blocker.title,
+			});
+		}
 	}
-	const linkedKeys = new Set(
+	const linkedNumbers = new Set(
 		tickets.flatMap((ticket) =>
 			linked(ticket, pulls, name).map((pull) => pull.number),
 		),
 	);
 	const unlinkedPrs = pulls
-		.filter((pull) => !linkedKeys.has(pull.number))
+		.filter((pull) => !linkedNumbers.has(pull.number))
 		.map((pull) => ({
 			number: pull.number,
 			title: pull.title,
 			url: pull.url,
 		}));
-	return { name, tracker, ...counts, unlinkedPrs };
+	return {
+		name,
+		tracker,
+		...counts,
+		unlinkedPrs,
+		tickets: views,
+		crossProjectBlockers: [...cross.values()],
+	};
 }

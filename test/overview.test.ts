@@ -105,9 +105,39 @@ async function assertCard(base: string): Promise<void> {
 				tracker: "github",
 				done: 2,
 				dropped: 2,
+				blocked: 0,
 				backlog: 2,
 				inProgress: 0,
 				unlinkedPrs: [],
+				tickets: [
+					{ key: `${repo}#1`, title: "Ticket 1", state: "done", blockers: [] },
+					{
+						key: `${repo}#2`,
+						title: "Ticket 2",
+						state: "dropped",
+						blockers: [],
+					},
+					{
+						key: `${repo}#3`,
+						title: "Ticket 3",
+						state: "dropped",
+						blockers: [],
+					},
+					{ key: `${repo}#4`, title: "Ticket 4", state: "done", blockers: [] },
+					{
+						key: `${repo}#5`,
+						title: "Ticket 5",
+						state: "backlog",
+						blockers: [],
+					},
+					{
+						key: `${repo}#6`,
+						title: "Ticket 6",
+						state: "backlog",
+						blockers: [],
+					},
+				],
+				crossProjectBlockers: [],
 			},
 		],
 	});
@@ -295,9 +325,19 @@ describe("GET /api/overview", () => {
 						tracker: "github",
 						done: 0,
 						dropped: 0,
+						blocked: 0,
 						backlog: 1,
 						inProgress: 0,
 						unlinkedPrs: [],
+						tickets: [
+							{
+								key: `${repoA}#1`,
+								title: "Ticket 1",
+								state: "backlog",
+								blockers: [],
+							},
+						],
+						crossProjectBlockers: [],
 					},
 				],
 			});
@@ -309,9 +349,19 @@ describe("GET /api/overview", () => {
 						tracker: "github",
 						done: 0,
 						dropped: 0,
+						blocked: 0,
 						backlog: 1,
 						inProgress: 0,
 						unlinkedPrs: [],
+						tickets: [
+							{
+								key: `${repoB}#1`,
+								title: "Ticket 1",
+								state: "backlog",
+								blockers: [],
+							},
+						],
+						crossProjectBlockers: [],
 					},
 				],
 			});
@@ -450,9 +500,19 @@ describe("GET /api/overview", () => {
 						tracker: "linear",
 						done: 1,
 						dropped: 0,
+						blocked: 0,
 						backlog: 0,
 						inProgress: 0,
 						unlinkedPrs: [],
+						tickets: [
+							{
+								key: "WID-1",
+								title: "Linear ticket 1",
+								state: "done",
+								blockers: [],
+							},
+						],
+						crossProjectBlockers: [],
 					},
 				],
 			});
@@ -625,38 +685,110 @@ describe("GET /api/overview", () => {
 					.then(async (response) => {
 						expect(response.status).toBe(200);
 						const body = (await response.json()) as {
-							projects: {
-								name: string;
-								tracker: string;
-								done: number;
-								dropped: number;
-								backlog: number;
-								inProgress: number;
-								unlinkedPrs: unknown[];
-							}[];
+							projects: Record<string, unknown>[];
 						};
 						expect(body.projects).toHaveLength(2);
 						expect(
-							body.projects.find((project) => project.tracker === "github"),
+							body.projects.find((project) => project["tracker"] === "github"),
 						).toEqual({
 							name: repo,
 							tracker: "github",
 							done: 2,
 							dropped: 2,
+							blocked: 0,
 							backlog: 2,
 							inProgress: 0,
 							unlinkedPrs: [],
+							tickets: [
+								{
+									key: `${repo}#1`,
+									title: "Ticket 1",
+									state: "done",
+									blockers: [],
+								},
+								{
+									key: `${repo}#2`,
+									title: "Ticket 2",
+									state: "dropped",
+									blockers: [],
+								},
+								{
+									key: `${repo}#3`,
+									title: "Ticket 3",
+									state: "dropped",
+									blockers: [],
+								},
+								{
+									key: `${repo}#4`,
+									title: "Ticket 4",
+									state: "done",
+									blockers: [],
+								},
+								{
+									key: `${repo}#5`,
+									title: "Ticket 5",
+									state: "backlog",
+									blockers: [],
+								},
+								{
+									key: `${repo}#6`,
+									title: "Ticket 6",
+									state: "backlog",
+									blockers: [],
+								},
+							],
+							crossProjectBlockers: [],
 						});
 						expect(
-							body.projects.find((project) => project.tracker === "linear"),
+							body.projects.find((project) => project["tracker"] === "linear"),
 						).toEqual({
 							name: linearName,
 							tracker: "linear",
 							done: 2,
 							dropped: 2,
+							blocked: 0,
 							backlog: 2,
 							inProgress: 0,
 							unlinkedPrs: [],
+							tickets: [
+								{
+									key: "WID-1",
+									title: "Linear ticket 1",
+									state: "done",
+									blockers: [],
+								},
+								{
+									key: "WID-2",
+									title: "Linear ticket 2",
+									state: "dropped",
+									blockers: [],
+								},
+								{
+									key: "WID-3",
+									title: "Linear ticket 3",
+									state: "dropped",
+									blockers: [],
+								},
+								{
+									key: "WID-4",
+									title: "Linear ticket 4",
+									state: "done",
+									blockers: [],
+								},
+								{
+									key: "WID-5",
+									title: "Linear ticket 5",
+									state: "backlog",
+									blockers: [],
+								},
+								{
+									key: "WID-6",
+									title: "Linear ticket 6",
+									state: "backlog",
+									blockers: [],
+								},
+							],
+							crossProjectBlockers: [],
 						});
 						resolve();
 					})
@@ -801,6 +933,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: `${pullRepo}#1`,
+								title: "Ticket 1",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -968,6 +1110,22 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: `${repo}#1`,
+								title: "Ticket 1",
+								state: "backlog",
+								blockers: [],
+							},
+							{
+								key: `${repo}#2`,
+								title: "Ticket 2",
+								state: "done",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 					{
@@ -977,6 +1135,22 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: "WID-1",
+								title: "Linear ticket 1",
+								state: "backlog",
+								blockers: [],
+							},
+							{
+								key: "WID-2",
+								title: "Linear ticket 2",
+								state: "done",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -1156,6 +1330,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: "acme/org-board#1",
+								title: "",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -1293,6 +1477,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: "WID-1",
+								title: "Linear ticket 1",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -1637,6 +1831,22 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: "acme/widget#9",
+								title: "",
+								state: "backlog",
+								blockers: [],
+							},
+							{
+								key: "acme/widget#8",
+								title: "",
+								state: "done",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 					{
@@ -1646,6 +1856,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: `${repo}#4`,
+								title: "Ticket 4",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -1802,6 +2022,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: "acme/other#1",
+								title: "",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -1956,6 +2186,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: `${repo}#9`,
+								title: "Ticket 9",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -2114,6 +2354,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: `${repo}#9`,
+								title: "Ticket 9",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -2268,6 +2518,16 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [
+							{
+								key: `${repo}#9`,
+								title: "Ticket 9",
+								state: "backlog",
+								blockers: [],
+							},
+						],
 						unlinkedPrs: [],
 					},
 				],
@@ -2639,6 +2899,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 0,
 						inProgress: 0,
+						blocked: 0,
+						crossProjectBlockers: [],
+						tickets: [],
 						unlinkedPrs: [],
 					},
 				],
