@@ -30,7 +30,7 @@ const configurationSchema = z.strictObject({
 	activityWindowDays: z.number().int().positive().default(30),
 	pollIntervalSeconds: z.number().int().positive().default(60),
 	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
-	expectedBots: z.partialRecord(z.string(), z.array(knownBot)).optional(),
+	expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;
