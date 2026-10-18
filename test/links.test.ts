@@ -31,7 +31,13 @@ function issue(
 
 function view(
 	number: number,
-	state: "backlog" | "inProgress" | "done" | "dropped",
+	state:
+		| "backlog"
+		| "inProgress"
+		| "inReview"
+		| "awaitingMerge"
+		| "done"
+		| "dropped",
 ): { key: string; title: string; state: string; blockers: string[] } {
 	return {
 		key: `${repo}#${number}`,
@@ -242,6 +248,18 @@ function linearFetch(): Fetch {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
+			if (url.includes("/check-runs")) {
+				return new Response(JSON.stringify({ check_runs: [] }), {
+					status: 200,
+				});
+			}
+			if (
+				url.endsWith("/comments") ||
+				url.endsWith("/reviews") ||
+				url.endsWith("/reactions")
+			) {
+				return page([]);
+			}
 			return new Response("not recorded", { status: 404 });
 		},
 	});
@@ -337,9 +355,9 @@ describe("in progress", () => {
 					dropped: 0,
 					blocked: 0,
 					backlog: 0,
-					inProgress: 0,
+					inProgress: 1,
 					inReview: 0,
-					awaitingMerge: 1,
+					awaitingMerge: 0,
 					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(20, "inProgress")],
@@ -368,13 +386,13 @@ describe("in progress", () => {
 					done: 0,
 					dropped: 0,
 					blocked: 0,
-					backlog: 1,
+					backlog: 0,
 					inProgress: 1,
 					inReview: 0,
-					awaitingMerge: 0,
+					awaitingMerge: 1,
 					tags: [],
 					unlinkedPrs: [],
-					tickets: [view(18, "inProgress"), view(19, "backlog")],
+					tickets: [view(18, "inProgress"), view(19, "awaitingMerge")],
 					crossProjectBlockers: [],
 					needsYou: 0,
 					progress: 0,

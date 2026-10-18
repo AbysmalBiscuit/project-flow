@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const repo = "acme/widget";
 const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -12,6 +18,62 @@ const older = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const codex = "chatgpt-codex-connector[bot]";
 const grok = "grok-code-review[bot]";
 const greptile = "greptile-apps[bot]";
+
+function card(
+	state: "backlog" | "inProgress" | "inReview" | "awaitingMerge",
+	counts: {
+		backlog: number;
+		inProgress: number;
+		inReview: number;
+		awaitingMerge: number;
+	},
+	tags: string[] = [],
+): {
+	projects: {
+		name: string;
+		tracker: "github";
+		done: number;
+		dropped: number;
+		blocked: number;
+		backlog: number;
+		inProgress: number;
+		inReview: number;
+		awaitingMerge: number;
+		tags: string[];
+		unlinkedPrs: [];
+		tickets: {
+			key: string;
+			title: string;
+			state: string;
+			blockers: [];
+		}[];
+		crossProjectBlockers: [];
+	}[];
+} {
+	return {
+		projects: [
+			{
+				name: repo,
+				tracker: "github",
+				done: 0,
+				dropped: 0,
+				blocked: 0,
+				...counts,
+				tags,
+				unlinkedPrs: [],
+				tickets: [
+					{
+						key: `${repo}#8`,
+						title: "Ticket 8",
+						state,
+						blockers: [],
+					},
+				],
+				crossProjectBlockers: [],
+			},
+		],
+	};
+}
 
 function issue(number: number): Record<string, unknown> {
 	return {
@@ -36,7 +98,7 @@ function pull(number: number, ticket = 8, sha = head): Record<string, unknown> {
 	};
 }
 
-function mergedPull(bots: Record<string, unknown>[]): Record<string, unknown> {
+function mergedPull(): Record<string, unknown> {
 	return {
 		number: 1,
 		title: "merged",
@@ -46,7 +108,6 @@ function mergedPull(bots: Record<string, unknown>[]): Record<string, unknown> {
 		head: { ref: "1-merged", sha: older },
 		body: "",
 		merged_at: "2026-10-01T00:00:00Z",
-		history: bots,
 	};
 }
 
@@ -64,10 +125,14 @@ function githubFetch(recorded: {
 	commentsByPull: Record<number, Record<string, unknown>[]>;
 	reviewsByPull: Record<number, Record<string, unknown>[]>;
 	reactionsByPull: Record<number, Record<string, unknown>[]>;
-	reviewDecision: string | null;
 	mergedPulls?: Record<string, unknown>[];
+	closedNext?: string | null;
 }): Fetch {
 	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return page({ login: "lev" });
@@ -88,7 +153,17 @@ function githubFetch(recorded: {
 			url ===
 			`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`
 		) {
-			return page(recorded.mergedPulls ?? []);
+			const headers = new Headers({ "content-type": "application/json" });
+			if (recorded.closedNext !== undefined && recorded.closedNext !== null) {
+				headers.set("link", `<${recorded.closedNext}>; rel="next"`);
+			}
+			return new Response(JSON.stringify(recorded.mergedPulls ?? []), {
+				status: 200,
+				headers,
+			});
+		}
+		if (url.includes("/pulls?state=closed&per_page=10&page=2")) {
+			return new Response("followed closed page", { status: 500 });
 		}
 		if (
 			url ===
@@ -105,50 +180,15 @@ function githubFetch(recorded: {
 		);
 		if (thread?.[1] !== undefined && thread[2] !== undefined) {
 			const number = Number(thread[1]);
-			const history = (recorded.mergedPulls ?? []).find(
-				(item) => item.number === number,
-			)?.history;
-			const recordedRows =
+			const rows =
 				thread[2] === "comments"
 					? recorded.commentsByPull[number]
 					: thread[2] === "reviews"
 						? recorded.reviewsByPull[number]
 						: recorded.reactionsByPull[number];
-			const fromHistory = Array.isArray(history)
-				? history.filter((item) => {
-						if (thread[2] === "reviews") {
-							return "commit_id" in item;
-						}
-						if (thread[2] === "reactions") {
-							return "content" in item;
-						}
-						return "body" in item && !("commit_id" in item);
-					})
-				: undefined;
-			const rows = recordedRows ?? fromHistory;
 			return page(rows ?? []);
 		}
-		const pullMatch = url.match(/\/pulls\/(\d+)$/);
-		if (pullMatch?.[1] !== undefined) {
-			const number = Number(pullMatch[1]);
-			const found = [...recorded.pulls, ...(recorded.mergedPulls ?? [])].find(
-				(item) => item.number === number,
-			);
-			return found === undefined
-				? new Response("not recorded", { status: 404 })
-				: page(found);
-		}
 		if (url === "https://api.github.com/graphql") {
-			const body = typeof init?.body === "string" ? init.body : "";
-			if (body.includes("reviewDecision")) {
-				return page({
-					data: {
-						repository: {
-							pullRequest: { reviewDecision: recorded.reviewDecision },
-						},
-					},
-				});
-			}
 			return page({
 				data: {
 					repository: {
@@ -168,8 +208,8 @@ async function overview(recorded: {
 	commentsByPull?: Record<number, Record<string, unknown>[]>;
 	reviewsByPull?: Record<number, Record<string, unknown>[]>;
 	reactionsByPull?: Record<number, Record<string, unknown>[]>;
-	reviewDecision?: string | null;
 	mergedPulls?: Record<string, unknown>[];
+	closedNext?: string | null;
 	config?: string;
 }): Promise<unknown> {
 	const { path, cleanup } = await tempConfig(
@@ -201,8 +241,10 @@ async function overview(recorded: {
 					commentsByPull: recorded.commentsByPull ?? {},
 					reviewsByPull: recorded.reviewsByPull ?? {},
 					reactionsByPull: recorded.reactionsByPull ?? {},
-					reviewDecision: recorded.reviewDecision ?? null,
 					mergedPulls: recorded.mergedPulls ?? [],
+					...(recorded.closedNext === undefined
+						? {}
+						: { closedNext: recorded.closedNext }),
 				}),
 				readGhToken: async () => null,
 				databasePath,
@@ -226,7 +268,6 @@ describe("review cycle", () => {
 		const body = await overview({
 			issues: [issue(8)],
 			pulls: [pull(83)],
-			reviewDecision: "CHANGES_REQUESTED",
 			reviewsByPull: {
 				83: [
 					{
@@ -237,6 +278,12 @@ describe("review cycle", () => {
 				],
 			},
 			commentsByPull: {
+				1: [
+					{
+						user: { login: codex },
+						body: "<!-- codex-pull-request-review-summary -->",
+					},
+				],
 				83: [
 					{
 						user: { login: codex },
@@ -244,31 +291,16 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: codex },
-						body: "<!-- codex-pull-request-review-summary -->",
-					},
-				]),
-			],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 1,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
 	});
 
 	test("a running Grok check on the head commit stays in review", async () => {
@@ -293,33 +325,19 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: grok },
-						commit_id: older,
-						state: "COMMENTED",
-						body: "",
-					},
-				]),
-			],
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 1,
-					awaitingMerge: 0,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
 	});
 
 	test("a finished Grok review on the head commit is awaiting merge", async () => {
@@ -345,35 +363,19 @@ describe("review cycle", () => {
 				],
 			},
 			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
 				85: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: grok },
-						commit_id: older,
-						state: "COMMENTED",
-						body: "",
-					},
-				]),
-			],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 1,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
 	});
 
 	test("a Grok review on an older commit stays in review after a new push", async () => {
@@ -399,35 +401,19 @@ describe("review cycle", () => {
 				],
 			},
 			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
 				86: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: grok },
-						commit_id: older,
-						state: "COMMENTED",
-						body: "",
-					},
-				]),
-			],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 1,
-					awaitingMerge: 0,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
 	});
 
 	test("a Greptile summary with no running check is awaiting merge", async () => {
@@ -435,6 +421,7 @@ describe("review cycle", () => {
 			issues: [issue(8)],
 			pulls: [pull(87)],
 			commentsByPull: {
+				1: [{ user: { login: greptile }, body: "<!-- greptile_summary -->" }],
 				87: [
 					{
 						user: { login: greptile },
@@ -442,31 +429,16 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: greptile },
-						body: "<!-- greptile_summary -->",
-					},
-				]),
-			],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 1,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
 	});
 
 	test("a running Greptile check keeps the PR in review", async () => {
@@ -484,6 +456,7 @@ describe("review cycle", () => {
 				],
 			},
 			commentsByPull: {
+				1: [{ user: { login: greptile }, body: "<!-- greptile_summary -->" }],
 				88: [
 					{
 						user: { login: greptile },
@@ -491,31 +464,16 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: greptile },
-						body: "<!-- greptile_summary -->",
-					},
-				]),
-			],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 1,
-					awaitingMerge: 0,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
 	});
 
 	test("a skipped Greptile check is awaiting merge with a warning tag", async () => {
@@ -532,31 +490,23 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: greptile },
-						body: "<!-- greptile_summary -->",
-					},
-				]),
-			],
+			commentsByPull: {
+				1: [{ user: { login: greptile }, body: "<!-- greptile_summary -->" }],
+			},
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
+		expect(body).toEqual(
+			card(
+				"awaitingMerge",
 				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
 					backlog: 0,
 					inProgress: 0,
 					inReview: 0,
 					awaitingMerge: 1,
-					tags: ["greptile skipped"],
-					unlinkedPrs: [],
 				},
-			],
-		});
+				["greptile skipped"],
+			),
+		);
 	});
 
 	test("a cancelled Grok check on the head commit is awaiting merge with a warning tag", async () => {
@@ -581,56 +531,40 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [mergedPull([])],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
+		expect(body).toEqual(
+			card(
+				"awaitingMerge",
 				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
 					backlog: 0,
 					inProgress: 0,
 					inReview: 0,
 					awaitingMerge: 1,
-					tags: ["grok cancelled"],
-					unlinkedPrs: [],
 				},
-			],
-		});
+				["grok cancelled"],
+			),
+		);
 	});
 
 	test("a Codex review that left only a reaction is awaiting merge with no warning", async () => {
 		const body = await overview({
 			issues: [issue(8)],
 			pulls: [pull(82)],
-			reactionsByPull: { 82: [{ user: { login: codex }, content: "+1" }] },
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: codex },
-						body: "<!-- codex-pull-request-review-summary -->",
-					},
-				]),
-			],
+			reactionsByPull: {
+				1: [{ user: { login: codex }, content: "+1" }],
+				82: [{ user: { login: codex }, content: "+1" }],
+			},
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 1,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
 	});
 
 	test("a Codex in-progress reaction keeps the PR in review", async () => {
@@ -639,6 +573,12 @@ describe("review cycle", () => {
 			pulls: [pull(90)],
 			reactionsByPull: { 90: [{ user: { login: codex }, content: "eyes" }] },
 			commentsByPull: {
+				1: [
+					{
+						user: { login: codex },
+						body: "<!-- codex-pull-request-review-summary -->",
+					},
+				],
 				90: [
 					{
 						user: { login: codex },
@@ -646,62 +586,35 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: codex },
-						body: "<!-- codex-pull-request-review-summary -->",
-					},
-				]),
-			],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 1,
-					awaitingMerge: 0,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
 	});
 
 	test("expected bots come from recorded merged PRs", async () => {
 		const body = await overview({
 			issues: [issue(8)],
 			pulls: [pull(91)],
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: greptile },
-						body: "<!-- greptile_summary -->",
-					},
-				]),
-			],
+			commentsByPull: {
+				1: [{ user: { login: greptile }, body: "<!-- greptile_summary -->" }],
+			},
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 1,
-					awaitingMerge: 0,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
 	});
 
 	test("a blank expected-bot override is rejected and names the field", async () => {
@@ -723,7 +636,6 @@ describe("review cycle", () => {
 						commentsByPull: {},
 						reviewsByPull: {},
 						reactionsByPull: {},
-						reviewDecision: null,
 					}),
 					readGhToken: async () => null,
 				}),
@@ -742,22 +654,14 @@ describe("review cycle", () => {
 			pulls: [pull(93)],
 			mergedPulls: [],
 		});
-		expect(body).toEqual({
-			projects: [
-				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 1,
-					tags: [],
-					unlinkedPrs: [],
-				},
-			],
-		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
 	});
 
 	test("a failed Grok check is awaiting merge with a warning tag", async () => {
@@ -774,68 +678,211 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: grok },
-						commit_id: older,
-						state: "COMMENTED",
-						body: "",
-					},
-				]),
-			],
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
+		expect(body).toEqual(
+			card(
+				"awaitingMerge",
 				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
 					backlog: 0,
 					inProgress: 0,
 					inReview: 0,
 					awaitingMerge: 1,
-					tags: ["grok failure"],
-					unlinkedPrs: [],
 				},
-			],
-		});
+				["grok failure"],
+			),
+		);
 	});
 
 	test("a configuration override wins over detected expected bots", async () => {
 		const body = await overview({
 			issues: [issue(8)],
 			pulls: [pull(92)],
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: greptile },
-						body: "<!-- greptile_summary -->",
-					},
-				]),
-			],
+			commentsByPull: {
+				1: [{ user: { login: greptile }, body: "<!-- greptile_summary -->" }],
+			},
+			mergedPulls: [mergedPull()],
 			config: JSON.stringify({
 				pinned: [{ tracker: "github", repo }],
 				expectedBots: { [repo]: [] },
 			}),
 		});
-		expect(body).toEqual({
-			projects: [
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
+	});
+
+	test("a merged PR does not move an open ticket", async () => {
+		const body = await overview({
+			issues: [issue(8)],
+			pulls: [],
+			commentsByPull: {
+				1: [{ user: { login: greptile }, body: "<!-- greptile_summary -->" }],
+			},
+			mergedPulls: [
 				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
-					backlog: 0,
-					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 1,
-					tags: [],
-					unlinkedPrs: [],
+					...mergedPull(),
+					body: "Closes #8",
 				},
 			],
 		});
+		expect(body).toEqual(
+			card("backlog", {
+				backlog: 1,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a closed PR list with a next link fetches only page 1", async () => {
+		const body = await overview({
+			issues: [issue(8)],
+			pulls: [pull(95)],
+			closedNext: `https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=2`,
+			commentsByPull: {
+				1: [{ user: { login: greptile }, body: "<!-- greptile_summary -->" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a Linear expected-bot override wins", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+				expectedBots: { [linearProject]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		const fetchImpl: Fetch = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					state: { type: "unstarted" },
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/96",
+								title: "ready",
+								sourceType: "github",
+							},
+						],
+					},
+				},
+			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/96") {
+					return page({
+						...pull(96, 8),
+						html_url: "https://github.com/acme/widget/pull/96",
+					});
+				}
+				if (url.includes("/commits/") && url.endsWith("/check-runs")) {
+					return page({ check_runs: [] });
+				}
+				if (
+					url.endsWith("/comments") ||
+					url.endsWith("/reviews") ||
+					url.endsWith("/reactions")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toEqual({
+				projects: [
+					{
+						name: "Widget launch",
+						tracker: "linear",
+						done: 0,
+						dropped: 0,
+						blocked: 0,
+						backlog: 0,
+						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 1,
+						tags: [],
+						unlinkedPrs: [],
+						tickets: [
+							{
+								key: "WID-8",
+								title: "Linear ticket 8",
+								state: "awaitingMerge",
+								blockers: [],
+							},
+						],
+						crossProjectBlockers: [],
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test("a Codex usage-limit comment is awaiting merge with a warning tag", async () => {
@@ -843,6 +890,12 @@ describe("review cycle", () => {
 			issues: [issue(8)],
 			pulls: [pull(81)],
 			commentsByPull: {
+				1: [
+					{
+						user: { login: codex },
+						body: "<!-- codex-pull-request-review-summary -->",
+					},
+				],
 				81: [
 					{
 						user: { login: codex },
@@ -850,30 +903,19 @@ describe("review cycle", () => {
 					},
 				],
 			},
-			mergedPulls: [
-				mergedPull([
-					{
-						user: { login: codex },
-						body: "<!-- codex-pull-request-review-summary -->",
-					},
-				]),
-			],
+			mergedPulls: [mergedPull()],
 		});
-		expect(body).toEqual({
-			projects: [
+		expect(body).toEqual(
+			card(
+				"awaitingMerge",
 				{
-					name: repo,
-					tracker: "github",
-					done: 0,
-					dropped: 0,
 					backlog: 0,
 					inProgress: 0,
 					inReview: 0,
 					awaitingMerge: 1,
-					tags: ["codex usage limit"],
-					unlinkedPrs: [],
 				},
-			],
-		});
+				["codex usage limit"],
+			),
+		);
 	});
 });
