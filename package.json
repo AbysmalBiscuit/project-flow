@@ -12,10 +12,17 @@
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.15",
 		"@types/bun": "^1.4.3",
+		"@types/react": "^19.3.0",
+		"@types/react-dom": "^19.3.0",
 		"typescript": "^7.0.2"
 	},
 	"bin": {
 		"project-flow": "src/main.ts"
 	},
-	"packageManager": "bun@1.4.3"
+	"packageManager": "bun@1.4.3",
+	"dependencies": {
+		"react": "^19.3.1",
+		"react-dom": "^19.3.1",
+		"zod": "^4.6.7"
+	}
 }

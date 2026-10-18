@@ -1,0 +1,20 @@
+import type { Configuration } from "./configuration.ts";
+import type { Ticket } from "./domain.ts";
+
+export type Clock = {
+	now: () => Date;
+};
+
+export type Tracker = {
+	listTickets: (repo: string) => Promise<Ticket[]>;
+};
+
+export type Store = {
+	writeTickets: (repo: string, tickets: Ticket[]) => void;
+	readTickets: () => { repo: string; tickets: Ticket[] }[];
+	writePollTime: (at: Date) => void;
+};
+
+export type ConfigurationPort = {
+	read: () => Promise<Configuration>;
+};
