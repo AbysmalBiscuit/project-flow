@@ -2,6 +2,7 @@
 
 [defaults]
 baseline_ref = "origin/main"
+worktree_root = "../project-flow_workspaces"
 pr_create_state = "ready"
 
 [tracker]
@@ -51,3 +52,11 @@ level = "info"
 
 [hooks]
 after_worktree_create = [["bun", "install", "--frozen-lockfile"]]
+
+[ticket.sync]
+
+[[ticket.sync.rules]]
+assignee = "me"
+
+[ticket.sync.statuses]
+"" = "pending"
