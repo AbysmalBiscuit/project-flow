@@ -60,6 +60,11 @@ function matchesRef(
 }
 
 function overview(store: Store): Overview {
+	const rows = store.readTickets();
+	const all = rows.map((row) => ({
+		project: row.key,
+		tickets: row.tickets,
+	}));
 	return {
 		projects: store
 			.readTickets()
@@ -71,6 +76,7 @@ function overview(store: Store): Overview {
 					row.pulls,
 					row.branches,
 					row.startedKeys,
+					all,
 				),
 			),
 	};

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PullRequest, Ticket } from "./domain.ts";
+import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker } from "./ports.ts";
 
@@ -66,10 +66,22 @@ const query = `query ProjectIssues($project: String!, $after: String) {
 	) {
 		nodes {
 			identifier
+			title
+			description
 			state { type }
 			updatedAt
 			attachments {
 				nodes { url title sourceType }
+			}
+			inverseRelations(first: 30) {
+				nodes {
+					type
+					issue {
+						identifier
+						state { type }
+						project { slugId }
+					}
+				}
 			}
 		}
 		pageInfo {
@@ -100,11 +112,29 @@ const projectPage = z.object({
 
 type LinearProject = z.infer<typeof linearProjectNode>;
 
+const relatedIssue = z.object({
+	identifier: z.string(),
+	state: z.object({ type: z.string() }).nullable(),
+	project: z.object({ slugId: z.string() }).nullable(),
+});
+
 const issueNode = z.object({
 	identifier: z.string().optional(),
+	title: z.string().optional(),
+	description: z.string().nullable().optional(),
 	state: z.object({ type: z.string() }).nullable(),
 	updatedAt: z.string().optional(),
 	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
+	inverseRelations: z
+		.object({
+			nodes: z.array(
+				z.object({
+					type: z.string(),
+					issue: relatedIssue,
+				}),
+			),
+		})
+		.optional(),
 });
 
 const issuePage = z.object({
@@ -135,17 +165,14 @@ export async function checkLinearKey(
 	});
 }
 
-function toTicket(stateType: string, key: string | null): Ticket | null {
+function toState(
+	stateType: string,
+): { state: Ticket["state"]; stateReason: string | null } | null {
 	if (stateType === "completed") {
-		return { tracker: "linear", key, state: "closed", stateReason: null };
+		return { state: "closed", stateReason: null };
 	}
 	if (stateType === "canceled" || stateType === "duplicate") {
-		return {
-			tracker: "linear",
-			key,
-			state: "closed",
-			stateReason: "not_planned",
-		};
+		return { state: "closed", stateReason: "not_planned" };
 	}
 	if (
 		stateType === "backlog" ||
@@ -153,9 +180,48 @@ function toTicket(stateType: string, key: string | null): Ticket | null {
 		stateType === "started" ||
 		stateType === "triage"
 	) {
-		return { tracker: "linear", key, state: "open", stateReason: null };
+		return { state: "open", stateReason: null };
 	}
 	return null;
+}
+
+function blockedBy(node: z.infer<typeof issueNode>): TicketRef[] {
+	return (node.inverseRelations?.nodes ?? []).flatMap((relation) => {
+		if (relation.type !== "blocks" || relation.issue.state === null) {
+			return [];
+		}
+		const mapped = toState(relation.issue.state.type);
+		if (mapped === null) {
+			return [];
+		}
+		const ref: TicketRef = {
+			tracker: "linear",
+			project: relation.issue.project?.slugId ?? "",
+			key: relation.issue.identifier,
+			state: mapped.state,
+		};
+		return [ref];
+	});
+}
+
+function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
+	if (node.state === null) {
+		return null;
+	}
+	const mapped = toState(node.state.type);
+	if (mapped === null) {
+		return null;
+	}
+	return {
+		tracker: "linear",
+		key: node.identifier ?? null,
+		title: node.title ?? "",
+		state: mapped.state,
+		stateReason: mapped.stateReason,
+		...(node.updatedAt === undefined ? {} : { updatedAt: node.updatedAt }),
+		body: node.description ?? "",
+		blockedBy: blockedBy(node),
+	};
 }
 
 async function findLinearProjects(
@@ -323,14 +389,7 @@ export function linearTracker(
 			const project = await findLinearProject(key, pin, fetchImpl);
 			const tickets: Ticket[] = [];
 			for (const node of await issues(project.id)) {
-				if (node.state === null) {
-					continue;
-				}
-				const ticket = toTicket(node.state.type, node.identifier ?? null);
-				if (ticket !== null && node.updatedAt !== undefined) {
-					tickets.push({ ...ticket, updatedAt: node.updatedAt });
-					continue;
-				}
+				const ticket = toTicket(node);
 				if (ticket !== null) {
 					tickets.push(ticket);
 				}
