@@ -54,6 +54,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		clock: { now: options.now ?? (() => new Date()) },
 	});
 	const body = overview(opened.store);
+	const shellPath = new URL("./index.html", import.meta.url);
+	const shell = await Bun.file(shellPath).text();
+	const emptyRoot = '<div id="root"></div>';
+	const filledRoot = `<div id="root">${renderCards(body)}</div>`;
+	await Bun.write(shellPath, shell.replace(emptyRoot, filledRoot));
 	const server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
@@ -64,29 +69,15 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 		},
 	});
-	const bundled = await (await fetch(new URL("/", server.url))).text();
-	if (!bundled.includes('<div id="root">')) {
-		throw new Error("cards page has no root");
-	}
-	server.reload({
-		routes: {
-			"/": new Response(
-				bundled.replace(
-					'<div id="root"></div>',
-					`<div id="root">${renderCards(body)}</div>`,
-				),
-				{ headers: { "content-type": "text/html; charset=utf-8" } },
-			),
-			"/api/overview": {
-				GET: () => Response.json(overview(opened.store)),
-			},
-		},
-	});
 	return {
 		url: server.url,
 		stop: async () => {
 			await server.stop(true);
 			opened.close();
+			const current = await Bun.file(shellPath).text();
+			if (current.includes(filledRoot)) {
+				await Bun.write(shellPath, current.replace(filledRoot, emptyRoot));
+			}
 		},
 	};
 }
