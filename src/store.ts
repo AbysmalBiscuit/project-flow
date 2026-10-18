@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
-import { mergeTickets } from "./domain.ts";
 import type { Ticket } from "./domain.ts";
+import { mergeTickets } from "./domain.ts";
 import type { Snapshot, Store } from "./ports.ts";
 
 type StoredPayload = {
