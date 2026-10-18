@@ -519,6 +519,7 @@ export function linearTracker(
 						fetchImpl,
 					);
 					pulls.push({
+						repo: target.repo,
 						number: pull.number,
 						url: pull.html_url,
 						title: pull.title,

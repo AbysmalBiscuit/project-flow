@@ -65,6 +65,7 @@ export type CrossProjectBlocker = {
 };
 
 export type PullRequest = {
+	repo: string;
 	number: number;
 	url: string;
 	title: string;
@@ -918,6 +919,20 @@ export function expectedBotsFromHistory(pulls: PullRequest[]): KnownBot[] {
 	return knownBots.filter((bot) => found.has(bot));
 }
 
+export function expectedBotsByRepo(
+	pulls: PullRequest[],
+): Map<string, KnownBot[]> {
+	const repos = new Set(pulls.map((pull) => pull.repo));
+	const bots = new Map<string, KnownBot[]>();
+	for (const repo of repos) {
+		bots.set(
+			repo,
+			expectedBotsFromHistory(pulls.filter((pull) => pull.repo === repo)),
+		);
+	}
+	return bots;
+}
+
 function pullShowsBot(pull: PullRequest, bot: KnownBot): boolean {
 	const login = botLogin[bot];
 	if (pull.checks.some((check) => botCheck[bot].test(check.name))) {
@@ -1003,7 +1018,7 @@ function botWarning(pull: PullRequest, bot: KnownBot): string | null {
 
 function reviewState(
 	pulls: PullRequest[],
-	expected: KnownBot[],
+	expectedByRepo: Map<string, KnownBot[]>,
 ): { state: "inReview" | "awaitingMerge" | null; tags: string[] } {
 	const open = pulls.filter((pull) => !pull.merged);
 	if (open.length === 0 || open.some((pull) => pull.draft)) {
@@ -1012,7 +1027,7 @@ function reviewState(
 	const tags: string[] = [];
 	let waiting = false;
 	for (const pull of open) {
-		for (const bot of expected) {
+		for (const bot of expectedByRepo.get(pull.repo) ?? []) {
 			const pass = botPass(pull, bot);
 			if (pass.warning !== null) {
 				tags.push(pass.warning);
@@ -1033,7 +1048,7 @@ export function projectCounts(
 	branches: string[] = [],
 	startedKeys: string[] = [],
 	all: { project: string; tickets: Ticket[] }[] = [{ project: name, tickets }],
-	expectedBots: KnownBot[],
+	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
 ): ProjectCounts {
 	const index = indexTickets(all.flatMap((group) => group.tickets));

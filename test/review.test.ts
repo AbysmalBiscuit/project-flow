@@ -190,9 +190,10 @@ function githubFetch(recorded: {
 			const start = (pageNumber - 1) * 100;
 			const slice = rows.slice(start, start + 100);
 			const headers = new Headers({ "content-type": "application/json" });
-			if (start + 100 < rows.length) {
-				const next = url.replace(`page=${thread[3]}`, `page=${pageNumber + 1}`);
-				headers.set("link", `<${next}>; rel="next"`);
+			if (rows.length > 100 && pageNumber === 1) {
+				const next = new URL(url);
+				next.searchParams.set("page", "2");
+				headers.set("link", `<${next.href}>; rel="next"`);
 			}
 			return new Response(JSON.stringify(slice), { status: 200, headers });
 		}
@@ -883,12 +884,133 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a Linear project does not wait on another repo's bot", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const other = "acme/other";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		const fetchImpl: Fetch = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					state: { type: "unstarted" },
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/96",
+								title: "ready",
+								sourceType: "github",
+							},
+							{
+								url: `https://github.com/${other}/pull/2`,
+								title: "other history",
+								sourceType: "github",
+							},
+						],
+					},
+				},
+			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/96") {
+					return page({
+						...pull(96, 8),
+						html_url: "https://github.com/acme/widget/pull/96",
+					});
+				}
+				if (url === `https://api.github.com/repos/${other}/pulls/2`) {
+					return page({
+						number: 2,
+						title: "merged elsewhere",
+						state: "closed",
+						draft: false,
+						html_url: `https://github.com/${other}/pull/2`,
+						head: { ref: "2-merged", sha: older },
+						body: "",
+						merged_at: "2026-10-01T00:00:00Z",
+					});
+				}
+				if (url.includes(`/repos/${other}/`) && url.includes("/comments?")) {
+					return page([
+						{ user: { login: greptile }, body: "<!-- greptile_summary -->" },
+					]);
+				}
+				if (url.includes("/commits/") && url.endsWith("/check-runs")) {
+					return page({ check_runs: [] });
+				}
+				if (
+					url.includes("/comments?") ||
+					url.includes("/reviews?") ||
+					url.includes("/reactions?")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			const body = (await checks) as {
+				projects: { tickets: { state: string }[] }[];
+			};
+			expect(body.projects[0]?.tickets[0]?.state).toBe("awaitingMerge");
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a Linear expected-bot override wins", async () => {
 		const linearProject = "widget-launch-0d42ae5d46d0";
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: linearProject }],
-				expectedBots: { [linearProject]: [] },
+				expectedBots: { [repo]: [] },
 			}),
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));

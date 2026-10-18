@@ -869,6 +869,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						fetchImpl,
 					);
 					pulls.push({
+						repo,
 						number: pull.number,
 						url: pull.html_url,
 						title: pull.title,

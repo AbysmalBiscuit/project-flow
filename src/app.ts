@@ -9,7 +9,7 @@ import type {
 import {
 	checkoutBasenames,
 	checkoutNamesProject,
-	expectedBotsFromHistory,
+	expectedBotsByRepo,
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
@@ -93,7 +93,15 @@ function counted(store: Store, configuration: Configuration) {
 	}));
 	return rows.map((row) => {
 		const goodPoll = store.lastGoodPollAt(row.key);
-		const override = configuration.expectedBots?.[row.key];
+		const expected = expectedBotsByRepo(row.pulls);
+		for (const [repo, bots] of Object.entries(
+			configuration.expectedBots ?? {},
+		)) {
+			if (bots === undefined || !expected.has(repo)) {
+				continue;
+			}
+			expected.set(repo, bots);
+		}
 		return {
 			row,
 			counts: projectCounts(
@@ -104,7 +112,7 @@ function counted(store: Store, configuration: Configuration) {
 				row.branches,
 				row.startedKeys,
 				all,
-				override ?? expectedBotsFromHistory(row.pulls),
+				expected,
 				{
 					fetchedAt: goodPoll?.toISOString() ?? null,
 					error: store.projectError(row.key),
