@@ -47,15 +47,12 @@ const memberProjects = z.object({
 });
 
 const projectQuery = `query ProjectByPin($pin: String!) {
-	bySlug: projects(first: 2, filter: {
+	projects(first: 2, filter: {
 		or: [
 			{ slugId: { eq: $pin } }
 			{ slugId: { endsWith: $pin } }
 		]
 	}) {
-		nodes { id name slugId }
-	}
-	byName: projects(first: 2, filter: { name: { eqIgnoreCase: $pin } }) {
 		nodes { id name slugId }
 	}
 }`;
@@ -96,17 +93,12 @@ const linearProjectNode = z.object({
 
 const projectPage = z.object({
 	data: z.object({
-		bySlug: z.object({ nodes: z.array(linearProjectNode) }),
-		byName: z.object({ nodes: z.array(linearProjectNode) }),
+		projects: z.object({ nodes: z.array(linearProjectNode) }),
 	}),
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
-export type LinearProject = {
-	id: string;
-	name: string;
-	slugId: string;
-};
+type LinearProject = z.infer<typeof linearProjectNode>;
 
 const issueNode = z.object({
 	identifier: z.string().optional(),
@@ -213,13 +205,8 @@ async function findLinearProjects(
 	return found;
 }
 
-function matchesPin(slugId: string, name: string, pin: string): boolean {
-	if (slugId === pin || slugId.endsWith(`-${pin}`)) {
-		return true;
-	}
-	const split = slugId.lastIndexOf("-");
-	const slugName = split === -1 ? slugId : slugId.slice(0, split);
-	return slugName === pin || name.toLowerCase() === pin.toLowerCase();
+function matchesPin(slugId: string, pin: string): boolean {
+	return slugId === pin || slugId.endsWith(`-${pin}`);
 }
 
 async function findLinearProject(
@@ -245,9 +232,8 @@ async function findLinearProject(
 	if (error !== undefined) {
 		throw new Error(`Linear project lookup failed: ${error.message}`);
 	}
-	const nodes = [...page.data.bySlug.nodes, ...page.data.byName.nodes];
-	const match = nodes.find((project) =>
-		matchesPin(project.slugId, project.name, pin),
+	const match = page.data.projects.nodes.find((project) =>
+		matchesPin(project.slugId, pin),
 	);
 	if (match === undefined) {
 		throw new Error(`Linear project not found: ${pin}`);
@@ -352,11 +338,12 @@ export function linearTracker(
 		},
 		async listPulls(pin) {
 			const project = await findLinearProject(key, pin, fetchImpl);
+			const nodes = await issues(project.id);
 			const pulls: PullRequest[] = [];
 			if (githubToken === null) {
 				return pulls;
 			}
-			for (const node of await issues(project.id)) {
+			for (const node of nodes) {
 				const identifier = node.identifier;
 				if (identifier === undefined) {
 					continue;
