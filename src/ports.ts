@@ -27,8 +27,13 @@ export type Snapshot = {
 	startedKeys: string[];
 };
 
+export type TicketList = {
+	name: string;
+	tickets: Ticket[];
+};
+
 export type Tracker = {
-	listTickets: (project: string) => Promise<Ticket[]>;
+	listTickets: (project: string) => Promise<TicketList>;
 	listPulls: (project: string) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
 	findProjects: () => Promise<FoundProject[]>;
