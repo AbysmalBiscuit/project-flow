@@ -51,6 +51,14 @@ function Cards({ overview }: { overview: Overview }) {
 	return (
 		<main>
 			<h1>Projects</h1>
+			<button
+				type="button"
+				onClick={() => {
+					void fetch("/api/refresh", { method: "POST" });
+				}}
+			>
+				Refresh
+			</button>
 			{overview.error !== null ? (
 				<p className="stale">{overview.error}</p>
 			) : null}
@@ -116,6 +124,9 @@ function Page() {
 		events.addEventListener("overview", (event) => {
 			setOverview(JSON.parse(event.data) as Overview);
 		});
+		events.onopen = () => {
+			void readOverview().then(setOverview);
+		};
 		void readOverview().then(setOverview);
 		return () => {
 			events.close();
