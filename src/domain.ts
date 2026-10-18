@@ -92,6 +92,92 @@ export function showsProject(input: {
 	return updated >= input.now.getTime() - windowMs;
 }
 
+export type ListedProject = {
+	key: string;
+	name?: string;
+	tracker: "github" | "linear";
+	updatedAt: string | null;
+	tickets: Ticket[];
+	pulls: PullRequest[];
+	branches: string[];
+	startedKeys: string[];
+	pinned: boolean;
+	hidden: boolean;
+};
+
+export function projectSnapshots(
+	found: ListedProject[],
+	now: Date,
+	activityWindowDays: number,
+): {
+	key: string;
+	name: string;
+	tracker: ListedProject["tracker"];
+	tickets: Ticket[];
+	pulls: PullRequest[];
+	branches: string[];
+	startedKeys: string[];
+}[] {
+	const claimed = new Set<string>();
+	const projects = [
+		...found.filter(
+			(project) => project.tracker === "github" && !project.key.includes("/"),
+		),
+		...found.filter(
+			(project) => project.tracker === "linear" || project.key.includes("/"),
+		),
+	];
+	const rows = [];
+	for (const project of projects) {
+		const tickets = project.tickets.filter((ticket) => {
+			if (ticket.ref === undefined || claimed.has(ticket.ref)) {
+				return ticket.ref === undefined;
+			}
+			claimed.add(ticket.ref);
+			return true;
+		});
+		const openTickets = tickets.filter(
+			(ticket) => ticket.state === "open",
+		).length;
+		const ticketUpdated = tickets.reduce<string | null>((latest, ticket) => {
+			if (ticket.updatedAt === undefined) {
+				return latest;
+			}
+			return latest === null || ticket.updatedAt > latest
+				? ticket.updatedAt
+				: latest;
+		}, null);
+		const updatedAt =
+			project.updatedAt === null
+				? ticketUpdated
+				: ticketUpdated === null || project.updatedAt > ticketUpdated
+					? project.updatedAt
+					: ticketUpdated;
+		if (
+			!showsProject({
+				pinned: project.pinned,
+				hidden: project.hidden,
+				openTickets,
+				updatedAt,
+				now,
+				activityWindowDays,
+			})
+		) {
+			continue;
+		}
+		rows.push({
+			key: project.key,
+			name: project.name ?? project.key,
+			tracker: project.tracker,
+			tickets,
+			pulls: project.pulls,
+			branches: project.branches,
+			startedKeys: project.startedKeys,
+		});
+	}
+	return rows;
+}
+
 function ticketNumber(key: string): string | null {
 	const number = key.split("#").at(-1);
 	if (number === undefined || !/^\d+$/.test(number)) {

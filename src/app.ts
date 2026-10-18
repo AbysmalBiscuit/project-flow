@@ -1,7 +1,11 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
-import { projectCounts, showsProject, startedTodoKeys } from "./domain.ts";
+import {
+	projectCounts,
+	projectSnapshots,
+	startedTodoKeys,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubTracker } from "./github.ts";
 import page from "./index.html";
@@ -98,77 +102,36 @@ async function poll(options: {
 	if (linear !== null) {
 		mergeFound(found, await linear.findProjects());
 	}
-	const rows = [];
-	const claimed = new Set<string>();
-	const projects = [
-		...found.filter(
-			(project) => project.tracker === "github" && !project.key.includes("/"),
-		),
-		...found.filter(
-			(project) => project.tracker === "linear" || project.key.includes("/"),
-		),
-	];
 	const hidden = new Set(configuration.hidden.map(pinKey));
 	const pinned = new Set(configuration.pinned.map(pinKey));
-	const now = options.clock.now();
-	for (const project of projects) {
+	const listed = [];
+	for (const project of found) {
 		const tracker = project.tracker === "github" ? options.github : linear;
 		if (tracker === null) {
 			throw new Error(missingLinearKey);
-		}
-		const listed = await tracker.listTickets(project.key);
-		const tickets = listed.filter((ticket) => {
-			if (ticket.ref === undefined || claimed.has(ticket.ref)) {
-				return ticket.ref === undefined;
-			}
-			claimed.add(ticket.ref);
-			return true;
-		});
-		const openTickets = tickets.filter(
-			(ticket) => ticket.state === "open",
-		).length;
-		const ticketUpdated = tickets.reduce<string | null>((latest, ticket) => {
-			if (ticket.updatedAt === undefined) {
-				return latest;
-			}
-			return latest === null || ticket.updatedAt > latest
-				? ticket.updatedAt
-				: latest;
-		}, null);
-		const updatedAt =
-			project.updatedAt === null
-				? ticketUpdated
-				: ticketUpdated === null || project.updatedAt > ticketUpdated
-					? project.updatedAt
-					: ticketUpdated;
-		if (
-			!showsProject({
-				pinned: pinned.has(project.key),
-				hidden: hidden.has(project.key),
-				openTickets,
-				updatedAt,
-				now,
-				activityWindowDays: configuration.activityWindowDays,
-			})
-		) {
-			continue;
 		}
 		const pulls = await tracker.listPulls(project.key);
 		const branches =
 			project.tracker === "github"
 				? await options.github.listBranches(project.key)
 				: [];
-		rows.push({
-			key: project.key,
-			name: project.name ?? project.key,
-			tracker: project.tracker,
-			tickets,
+		listed.push({
+			...project,
+			tickets: await tracker.listTickets(project.key),
 			pulls,
 			branches,
 			startedKeys,
+			pinned: pinned.has(project.key),
+			hidden: hidden.has(project.key),
 		});
 	}
-	options.store.replaceTickets(rows);
+	options.store.replaceTickets(
+		projectSnapshots(
+			listed,
+			options.clock.now(),
+			configuration.activityWindowDays,
+		),
+	);
 	return configuration;
 }
 
