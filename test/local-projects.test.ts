@@ -369,22 +369,28 @@ describe("local projects", () => {
 				join(checkout, "devkit.toml"),
 				JSON.stringify({ tracker: { kind: "linear" } }),
 			);
-			const init = Bun.spawn(["git", "-C", checkout, "init", "-q"]);
+			const init = Bun.spawn(
+				[
+					"git",
+					"-C",
+					checkout,
+					"init",
+					"-q",
+					"--separate-git-dir",
+					join(scan, "docs.git"),
+				],
+				{
+					env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
+				},
+			);
 			expect(await init.exited).toBe(0);
-			const gitDir = (
-				await new Response(
-					Bun.spawn(["git", "-C", checkout, "rev-parse", "--git-dir"], {
-						stdout: "pipe",
-					}).stdout,
-				).text()
-			).trim();
-			const head = join(checkout, gitDir, "HEAD");
-			await writeFile(head, "ref: refs/heads/wid-7-write\n");
-			await mkdir(join(checkout, gitDir, "refs", "heads"), { recursive: true });
-			const configPath = join(checkout, gitDir, "config");
 			await writeFile(
-				configPath,
-				`${await Bun.file(configPath).text()}[remote "origin"]\nurl = git@github.com:other/docs.git\n`,
+				join(scan, "docs.git", "HEAD"),
+				"ref: refs/heads/wid-7-write\n",
+			);
+			await writeFile(
+				join(scan, "docs.git", "config"),
+				`${await Bun.file(join(scan, "docs.git", "config")).text()}[remote "origin"]\nurl = git@github.com:other/docs.git\n`,
 			);
 			const { body } = await overview({
 				linear: true,
