@@ -23,7 +23,20 @@ function issue(
 		title: `Ticket ${number}`,
 		state,
 		state_reason: state === "closed" ? "completed" : null,
+		body: "",
 		html_url: `https://github.com/${repo}/issues/${number}`,
+	};
+}
+
+function view(
+	number: number,
+	state: "backlog" | "inProgress" | "done" | "dropped",
+): { key: string; title: string; state: string; blockers: string[] } {
+	return {
+		key: `${repo}#${number}`,
+		title: `Ticket ${number}`,
+		state,
+		blockers: [],
 	};
 }
 
@@ -220,6 +233,7 @@ describe("unlinked PRs", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
 					unlinkedPrs: [
@@ -229,6 +243,8 @@ describe("unlinked PRs", () => {
 							url: "https://github.com/acme/widget/pull/91",
 						},
 					],
+					tickets: [view(31, "backlog")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -246,6 +262,7 @@ describe("unlinked PRs", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
 					unlinkedPrs: [
@@ -255,6 +272,8 @@ describe("unlinked PRs", () => {
 							url: "https://github.com/acme/widget/pull/90",
 						},
 					],
+					tickets: [view(30, "backlog")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -277,9 +296,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(20, "inProgress")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -300,9 +322,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 1,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(18, "inProgress"), view(19, "backlog")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -321,9 +346,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
 					unlinkedPrs: [],
+					tickets: [view(4, "backlog")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -342,9 +370,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(21, "inProgress")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -363,9 +394,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
 					unlinkedPrs: [],
+					tickets: [view(23, "backlog")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -384,9 +418,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
 					unlinkedPrs: [],
+					tickets: [view(22, "backlog")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -405,9 +442,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(24, "inProgress")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -426,9 +466,12 @@ describe("in progress", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(22, "inProgress")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -448,6 +491,7 @@ describe("PR links", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
 					unlinkedPrs: [
@@ -457,6 +501,8 @@ describe("PR links", () => {
 							url: `https://github.com/${repo}/pull/55`,
 						},
 					],
+					tickets: [view(5, "backlog")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -474,9 +520,12 @@ describe("PR links", () => {
 					tracker: "github",
 					done: 1,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 0,
 					unlinkedPrs: [],
+					tickets: [view(6, "done")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -494,9 +543,12 @@ describe("PR links", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(12, "inProgress")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -522,9 +574,12 @@ describe("PR links", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(14, "inProgress")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
@@ -569,9 +624,19 @@ describe("PR links", () => {
 						tracker: "linear",
 						done: 0,
 						dropped: 0,
+						blocked: 0,
 						backlog: 0,
 						inProgress: 1,
 						unlinkedPrs: [],
+						tickets: [
+							{
+								key: "WID-14",
+								title: "Linear ticket WID-14",
+								state: "inProgress",
+								blockers: [],
+							},
+						],
+						crossProjectBlockers: [],
 					},
 				],
 			});
@@ -599,9 +664,12 @@ describe("PR links", () => {
 					tracker: "github",
 					done: 0,
 					dropped: 0,
+					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
 					unlinkedPrs: [],
+					tickets: [view(7, "inProgress")],
+					crossProjectBlockers: [],
 				},
 			],
 		});
