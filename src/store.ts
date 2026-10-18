@@ -23,9 +23,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 				})();
 			},
 			readTickets() {
-				const rows = db
-					.query("select repo, payload from snapshots order by repo")
-					.all() as {
+				const rows = db.query("select repo, payload from snapshots").all() as {
 					repo: string;
 					payload: string;
 				}[];

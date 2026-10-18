@@ -1,12 +1,19 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
-import { projectCounts, startedTodoKeys } from "./domain.ts";
+import { projectCounts, showsProject, startedTodoKeys } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubTracker } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
-import type { ConfigurationPort, Store, TodoSource, Tracker } from "./ports.ts";
+import type {
+	Clock,
+	ConfigurationPort,
+	FoundProject,
+	Store,
+	TodoSource,
+	Tracker,
+} from "./ports.ts";
 import { sqliteStore } from "./store.ts";
 
 export type StartOptions = {
@@ -17,6 +24,7 @@ export type StartOptions = {
 	databasePath: string;
 	hostname: string;
 	port: number;
+	now?: () => Date;
 	listTodos?: TodoSource;
 };
 
@@ -29,27 +37,37 @@ function pinKey(pin: Configuration["pinned"][number]): string {
 	return pin.tracker === "github" ? pin.repo : pin.project;
 }
 
-function overview(store: Store, configuration: Configuration): Overview {
-	const rows = new Map(store.readTickets().map((row) => [row.project, row]));
+function overview(store: Store): Overview {
 	return {
-		projects: configuration.pinned.flatMap((pin) => {
-			const key = pinKey(pin);
-			const row = rows.get(key);
-			if (row === undefined) {
-				return [];
-			}
-			return [
-				projectCounts(
-					key,
-					pin.tracker,
-					row.tickets,
-					row.pulls,
-					row.branches,
-					row.startedKeys,
-				),
-			];
-		}),
+		projects: store.readTickets().map((row) =>
+			projectCounts(
+				row.project,
+				row.tickets[0]?.tracker ?? "github",
+				row.tickets,
+				row.pulls,
+				row.branches,
+				row.startedKeys,
+			),
+		),
 	};
+}
+
+function mergeFound(
+	found: FoundProject[],
+	next: FoundProject[],
+): FoundProject[] {
+	const seen = new Set(
+		found.map((project) => `${project.tracker}:${project.key}`),
+	);
+	for (const project of next) {
+		const id = `${project.tracker}:${project.key}`;
+		if (seen.has(id)) {
+			continue;
+		}
+		seen.add(id);
+		found.push(project);
+	}
+	return found;
 }
 
 async function poll(options: {
@@ -57,30 +75,90 @@ async function poll(options: {
 	github: Tracker;
 	linear: Tracker | null;
 	store: Store;
+	clock: Clock;
 	listTodos?: TodoSource | undefined;
 }): Promise<Configuration> {
 	const configuration = await options.configuration.read();
 	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
+	const found = mergeFound(
+		configuration.pinned.map((pin) => ({
+			key: pinKey(pin),
+			tracker: pin.tracker,
+			updatedAt: null,
+		})),
+		await options.github.findProjects(),
+	);
+	if (options.linear !== null) {
+		mergeFound(found, await options.linear.findProjects());
+	} else if (configuration.pinned.some((pin) => pin.tracker === "linear")) {
+		throw new Error(missingLinearKey);
+	}
 	const rows = [];
-	for (const pin of configuration.pinned) {
-		const key = pinKey(pin);
-		if (pin.tracker === "github") {
-			const tickets = await options.github.listTickets(key);
-			const pulls = await options.github.listPulls(key);
-			const branches = await options.github.listBranches(key);
-			rows.push({ project: key, tickets, pulls, branches, startedKeys });
-			continue;
-		}
-		if (options.linear === null) {
+	const claimed = new Set<string>();
+	const projects = [
+		...found.filter(
+			(project) => project.tracker === "github" && !project.key.includes("/"),
+		),
+		...found.filter(
+			(project) => project.tracker === "linear" || project.key.includes("/"),
+		),
+	];
+	const hidden = new Set(configuration.hidden.map(pinKey));
+	const pinned = new Set(configuration.pinned.map(pinKey));
+	const now = options.clock.now();
+	for (const project of projects) {
+		const tracker =
+			project.tracker === "github" ? options.github : options.linear;
+		if (tracker === null) {
 			throw new Error(missingLinearKey);
 		}
-		const tickets = await options.linear.listTickets(key);
-		const pulls = await options.linear.listPulls(key);
+		const listed = await tracker.listTickets(project.key);
+		const tickets = listed.filter((ticket) => {
+			if (ticket.ref === undefined || claimed.has(ticket.ref)) {
+				return ticket.ref === undefined;
+			}
+			claimed.add(ticket.ref);
+			return true;
+		});
+		const openTickets = tickets.filter(
+			(ticket) => ticket.state === "open",
+		).length;
+		const ticketUpdated = tickets.reduce<string | null>((latest, ticket) => {
+			if (ticket.updatedAt === undefined) {
+				return latest;
+			}
+			return latest === null || ticket.updatedAt > latest
+				? ticket.updatedAt
+				: latest;
+		}, null);
+		const updatedAt =
+			project.updatedAt === null
+				? ticketUpdated
+				: ticketUpdated === null || project.updatedAt > ticketUpdated
+					? project.updatedAt
+					: ticketUpdated;
+		if (
+			!showsProject({
+				pinned: pinned.has(project.key),
+				hidden: hidden.has(project.key),
+				openTickets,
+				updatedAt,
+				now,
+				activityWindowDays: configuration.activityWindowDays,
+			})
+		) {
+			continue;
+		}
+		const pulls = await tracker.listPulls(project.key);
+		const branches =
+			project.tracker === "github"
+				? await options.github.listBranches(project.key)
+				: [];
 		rows.push({
-			project: key,
+			project: project.name ?? project.key,
 			tickets,
 			pulls,
-			branches: [],
+			branches,
 			startedKeys,
 		});
 	}
@@ -90,7 +168,7 @@ async function poll(options: {
 
 export async function start(options: StartOptions): Promise<Running> {
 	const opened = sqliteStore(options.databasePath);
-	const configuration = await poll({
+	await poll({
 		configuration: { read: () => loadConfiguration(options.configPath) },
 		github: githubTracker(options.token, options.fetch),
 		linear:
@@ -98,6 +176,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				? null
 				: linearTracker(options.linearKey, options.fetch, options.token),
 		store: opened.store,
+		clock: { now: options.now ?? (() => new Date()) },
 		listTodos: options.listTodos,
 	});
 	const server = Bun.serve({
@@ -106,7 +185,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		routes: {
 			"/": page,
 			"/api/overview": {
-				GET: () => Response.json(overview(opened.store, configuration)),
+				GET: () => Response.json(overview(opened.store)),
 			},
 		},
 	});

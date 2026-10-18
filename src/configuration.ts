@@ -11,8 +11,12 @@ const linearPin = z.strictObject({
 	project: z.string().regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/),
 });
 
+const projectRef = z.discriminatedUnion("tracker", [githubPin, linearPin]);
+
 const configurationSchema = z.strictObject({
-	pinned: z.array(z.discriminatedUnion("tracker", [githubPin, linearPin])),
+	pinned: z.array(projectRef),
+	hidden: z.array(projectRef).default([]),
+	activityWindowDays: z.number().int().positive().default(30),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;

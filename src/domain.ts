@@ -5,6 +5,8 @@ export type Ticket = {
 	key: string | null;
 	state: "open" | "closed";
 	stateReason: string | null;
+	updatedAt?: string;
+	ref?: string;
 };
 
 export type PullRequest = {
@@ -66,6 +68,28 @@ export function ticketState(ticket: Ticket): TicketState {
 		return "dropped";
 	}
 	return "done";
+}
+
+export function showsProject(input: {
+	pinned: boolean;
+	hidden: boolean;
+	openTickets: number;
+	updatedAt: string | null;
+	now: Date;
+	activityWindowDays: number;
+}): boolean {
+	if (input.hidden) {
+		return false;
+	}
+	if (input.pinned) {
+		return true;
+	}
+	if (input.openTickets === 0 || input.updatedAt === null) {
+		return false;
+	}
+	const updated = Date.parse(input.updatedAt);
+	const windowMs = input.activityWindowDays * 24 * 60 * 60 * 1000;
+	return updated >= input.now.getTime() - windowMs;
 }
 
 function ticketNumber(key: string): string | null {

@@ -29,6 +29,7 @@ export type RunIo = {
 	databasePath?: string;
 	hostname?: string;
 	port?: number;
+	now?: () => Date;
 	waitForStop?: Promise<void>;
 	listTodos?: TodoSource;
 };
@@ -188,16 +189,13 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		}
 
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
-		const configuration = await loadConfiguration(configPath);
+		await loadConfiguration(configPath);
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
-		const needsLinear = configuration.pinned.some(
-			(pin) => pin.tracker === "linear",
-		);
-		if (needsLinear && linearKey === "") {
+		if (linearKey === "") {
 			writeErr(missingLinearKey);
 			return result(1, false);
 		}
-		if (needsLinear) {
+		{
 			const viewer = await checkLinearKey(linearKey, io.fetch);
 			if (viewer.status === 401) {
 				writeErr(rejectedLinearKey);
@@ -220,6 +218,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
 			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
 			listTodos: io.listTodos ?? listDevkitTodos,
+			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		writeOut(running.url.href);
 		await (io.waitForStop ?? Promise.resolve());

@@ -1,12 +1,43 @@
 import { z } from "zod";
 import type { PullRequest, Ticket } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import type { Tracker } from "./ports.ts";
+import type { FoundProject, Tracker } from "./ports.ts";
 
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
 
 const endpoint = "https://api.linear.app/graphql";
+
+const projectsQuery = `query MemberProjects($after: String) {
+	viewer { id }
+	projects(first: 50, after: $after) {
+		nodes { id name slugId updatedAt lead { id } members { nodes { id } } }
+		pageInfo { hasNextPage endCursor }
+	}
+}`;
+
+const memberProjects = z.object({
+	data: z.object({
+		viewer: z.object({ id: z.string() }),
+		projects: z.object({
+			nodes: z.array(
+				z.object({
+					id: z.string(),
+					name: z.string(),
+					slugId: z.string(),
+					updatedAt: z.string(),
+					lead: z.object({ id: z.string() }).nullable(),
+					members: z.object({ nodes: z.array(z.object({ id: z.string() })) }),
+				}),
+			),
+			pageInfo: z.object({
+				hasNextPage: z.boolean(),
+				endCursor: z.string().nullable(),
+			}),
+		}),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
 
 const query = `query ProjectIssues($project: String!, $after: String) {
 	issues(
@@ -18,6 +49,7 @@ const query = `query ProjectIssues($project: String!, $after: String) {
 		nodes {
 			identifier
 			state { type }
+			updatedAt
 			attachments {
 				nodes { url title sourceType }
 			}
@@ -38,6 +70,7 @@ const attachmentNode = z.object({
 const issueNode = z.object({
 	identifier: z.string().optional(),
 	state: z.object({ type: z.string() }).nullable(),
+	updatedAt: z.string().optional(),
 	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 });
 
@@ -93,6 +126,48 @@ function toTicket(stateType: string, key: string | null): Ticket | null {
 		return { tracker: "linear", key, state: "open", stateReason: null };
 	}
 	return null;
+}
+
+async function findLinearProjects(
+	key: string,
+	fetchImpl: Fetch,
+): Promise<FoundProject[]> {
+	const found: FoundProject[] = [];
+	let after: string | null = null;
+	do {
+		const response = await fetchImpl(endpoint, {
+			method: "POST",
+			headers: linearHeaders(key),
+			body: JSON.stringify({ query: projectsQuery, variables: { after } }),
+		});
+		if (!response.ok) {
+			throw new Error(`Linear find projects failed (HTTP ${response.status})`);
+		}
+		const page = memberProjects.parse(await response.json());
+		const error = page.errors?.[0];
+		if (error !== undefined) {
+			throw new Error(`Linear find projects failed: ${error.message}`);
+		}
+		const viewerId = page.data.viewer.id;
+		for (const node of page.data.projects.nodes) {
+			const leads = node.lead?.id === viewerId;
+			const member = node.members.nodes.some(
+				(person) => person.id === viewerId,
+			);
+			if (!leads && !member) {
+				continue;
+			}
+			found.push({
+				key: node.slugId,
+				tracker: "linear",
+				updatedAt: node.updatedAt,
+			});
+		}
+		after = page.data.projects.pageInfo.hasNextPage
+			? page.data.projects.pageInfo.endCursor
+			: null;
+	} while (after !== null);
+	return found;
 }
 
 const githubPull = z.object({
@@ -169,6 +244,9 @@ export function linearTracker(
 		return listed;
 	};
 	return {
+		findProjects() {
+			return findLinearProjects(key, fetchImpl);
+		},
 		async listTickets(project) {
 			const tickets: Ticket[] = [];
 			for (const node of await issues(project)) {
@@ -176,6 +254,10 @@ export function linearTracker(
 					continue;
 				}
 				const ticket = toTicket(node.state.type, node.identifier ?? null);
+				if (ticket !== null && node.updatedAt !== undefined) {
+					tickets.push({ ...ticket, updatedAt: node.updatedAt });
+					continue;
+				}
 				if (ticket !== null) {
 					tickets.push(ticket);
 				}
