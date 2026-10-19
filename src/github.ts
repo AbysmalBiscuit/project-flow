@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
+import type { Comment, PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -23,6 +23,7 @@ const githubIssue = z.object({
 		})
 		.optional(),
 	pull_request: z.unknown().optional(),
+	comments: z.number().optional(),
 });
 
 const githubPull = z.object({
@@ -575,6 +576,12 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						summary !== undefined && summary.blocked_by > 0
 							? await listBlockedBy(token, fetchImpl, repo, issue.number)
 							: [];
+					const comments =
+						issue.state !== "open" ||
+						issue.comments === undefined ||
+						issue.comments === 0
+							? []
+							: await listCommentBodies(token, fetchImpl, repo, issue.number);
 					tickets.push({
 						id: String(issue.number),
 						tracker: "github",
@@ -586,6 +593,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						ref: `${repo}#${issue.number}`,
 						body: issue.body ?? "",
 						blockedBy,
+						...(comments.length === 0 ? {} : { comments }),
 					});
 				}
 			}
@@ -666,6 +674,35 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			return names;
 		},
 	};
+}
+
+const githubComment = z.object({
+	body: z.string().nullable().optional(),
+});
+
+async function listCommentBodies(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	number: number,
+): Promise<Comment[]> {
+	const listed = await pages(
+		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+		token,
+		fetchImpl,
+		repo,
+		"list comments",
+	);
+	const bodies: { body: string }[] = [];
+	for (const item of listed) {
+		for (const comment of z.array(githubComment).parse(item)) {
+			const body = comment.body ?? "";
+			if (body !== "") {
+				bodies.push({ body });
+			}
+		}
+	}
+	return bodies;
 }
 
 async function listBlockedBy(

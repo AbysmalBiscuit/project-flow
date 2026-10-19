@@ -10,7 +10,17 @@
 			.blocker-chip { display: inline-block; margin-right: 0.5rem; border: 1px solid #888; border-radius: 1rem; padding: 0.15rem 0.6rem; }
 			.highlighted { outline: 2px solid #1a5fb4; }
 			.stale { background: #f6e3a1; padding: 0.25rem 0.5rem; }
+			.tabs button { margin-right: 0.5rem; }
+			.tabs button[aria-pressed="true"] { font-weight: bold; }
+			table { border-collapse: collapse; }
+			th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+			.mermaid-host svg { max-width: 48rem; }
+			.mermaid-host .node, .mermaid-host .edgeLabel { cursor: pointer; }
 		</style>
+		<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+		<script>
+			mermaid.initialize({ startOnLoad: false });
+		</script>
 	</head>
 	<body>
 		<div id="root"></div>

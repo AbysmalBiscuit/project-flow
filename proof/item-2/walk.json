@@ -1,0 +1,25 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/item-1/serve.mjs"],
+	"steps": [
+		{ "goto": "/" },
+		{ "click": "#tab-table" },
+		{ "click": "#sort-blockers" },
+		{ "click": "tbody tr:first-child a" },
+		{ "assert_text": "Opened acme/launch" },
+		{ "shot": "sorted-by-blockers" },
+		{ "click": ".back" },
+		{ "click": "#sort-progress" },
+		{ "click": "tbody tr:first-child a" },
+		{ "assert_text": "Opened acme/quiet" },
+		{ "shot": "sorted-by-progress" },
+		{ "click": ".back" },
+		{ "click": "#sort-needs-you" },
+		{ "click": "tbody tr:first-child a" },
+		{ "assert_text": "Opened acme/asked" },
+		{ "shot": "sorted-by-needs-you" },
+		{ "goto": "/" },
+		{ "assert_text": "Needs you" },
+		{ "shot": "tab-remembered" }
+	]
+}
