@@ -22,6 +22,7 @@ import {
 	linearNamesFromCheckouts,
 	panelReplyBody,
 	projectCounts,
+	projectHasNoSenior,
 	projectSnapshots,
 	reconcilePoll,
 	staleView,
@@ -291,7 +292,15 @@ async function replyResponse(
 		tracker: parsed.data.tracker,
 		project: parsed.data.project,
 		key: parsed.data.key,
-		body: panelReplyBody(ticketForReply(store, parsed.data), parsed.data.body),
+		body: panelReplyBody(
+			ticketForReply(store, parsed.data),
+			parsed.data.body,
+			projectHasNoSenior(
+				configuration.noSenior,
+				rowForReply(store, parsed.data)?.key ?? parsed.data.project,
+				parsed.data.tracker,
+			),
+		),
 		...(parsed.data.parentId === undefined
 			? {}
 			: { parentId: parsed.data.parentId }),
@@ -307,6 +316,19 @@ async function replyResponse(
 	} catch (error) {
 		return trackerError(error);
 	}
+}
+
+function rowForReply(
+	store: Store,
+	reply: { tracker: string; project: string; key: string },
+): Snapshot | undefined {
+	return store
+		.readTickets()
+		.find(
+			(item) =>
+				item.tracker === reply.tracker &&
+				(item.key === reply.project || item.name === reply.project),
+		);
 }
 
 function ticketForReply(

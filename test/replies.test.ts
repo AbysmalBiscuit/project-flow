@@ -1208,6 +1208,54 @@ describe("replies", () => {
 		}
 	});
 
+	test("a GitHub project with a senior posts an unnamed ask unchanged", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, {
+			issues: [
+				{
+					...issue(7),
+					comments: 1,
+				},
+			],
+			comments: {
+				7: [
+					{
+						id: 71,
+						body: `Which name?\n\n${ask("gh-7")}`,
+						user: { login: "ada" },
+						created_at: "2026-08-18T12:00:00.000Z",
+					},
+				],
+			},
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const posted = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "github",
+					project: "acme/widget",
+					key: "acme/widget#7",
+					body: "Use the short name.",
+				}),
+			});
+			expect(posted.status).toBe(201);
+			const created = sent.find(
+				(item) =>
+					item.method === "POST" && item.url.includes("/issues/7/comments"),
+			);
+			expect(JSON.parse(created?.body ?? "{}")).toEqual({
+				body: "Use the short name.",
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a marker-only ask posts the panel text unchanged", async () => {
 		const sent: string[] = [];
 		const recorded = linearFake({

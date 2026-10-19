@@ -1519,7 +1519,7 @@ export type NeedsYouRules = {
 	viewerLogins: string[];
 };
 
-function projectHasNoSenior(
+export function projectHasNoSenior(
 	noSenior: Record<string, boolean>,
 	key: string,
 	tracker: "github" | "linear",
@@ -1636,10 +1636,11 @@ function askClosed(later: Comment[], id: string): boolean {
 export function panelReplyBody(
 	ticket: Ticket | undefined,
 	body: string,
+	noSenior: boolean,
 ): string {
 	const text = body.trim();
 	const comments = ticket?.comments ?? [];
-	const ask = openAsk(comments, true);
+	const ask = openAsk(comments, noSenior);
 	if (ask === null) {
 		return text;
 	}
