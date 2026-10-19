@@ -63,11 +63,11 @@ A flag on a ticket in any state. The ticket has at least one open blocker. The t
 _Avoid_: Blocked state
 
 **Stale status**:
-A chip that names the tracker status when that status lags the state.
+The tracker status when that status lags the state.
 _Avoid_: Stale, out of date, wrong status
 
 **Run failed**:
-A chip on a ticket whose workcell run failed or stalled. The ticket returns to the lane of its tracker status.
+A workcell run that failed or stalled. The ticket returns to the lane of its tracker status.
 _Avoid_: Failed, error, stalled
 
 **Done**:
@@ -78,11 +78,11 @@ A closed ticket that was cancelled or closed as not planned.
 _Avoid_: Cancelled, won't do
 
 **In progress**:
-An open ticket whose tracker status or evidence puts it in progress. Evidence is a live workcell run, a pushed branch, a started devkit todo, or a draft PR.
+An open ticket in started work. The tracker status can set it. A live run, a pushed branch, a started todo, or a draft PR can set it. The least advanced open PR decides.
 _Avoid_: Started, active
 
 **In review**:
-An open ticket whose tracker status or evidence puts it in review. Evidence is an open PR out of draft whose review cycle has begun but not finished.
+An open ticket in a review that has begun and has not finished. The tracker status or an open PR out of draft sets it. The least advanced open PR decides.
 _Avoid_: Under review, PR open
 
 **Awaiting merge**:
