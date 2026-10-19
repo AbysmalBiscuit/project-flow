@@ -262,7 +262,9 @@ function bindGraph(
 		);
 		if (shape !== undefined) {
 			shape.id = nodeId(project.name);
-			shape.addEventListener("click", () => openProject(project.name, onOpen));
+			const open = () => openProject(project.name, onOpen);
+			shape.addEventListener("click", open);
+			shape.querySelector("span.nodeLabel")?.addEventListener("click", open);
 		}
 	}
 	for (const edge of edges) {
@@ -271,9 +273,10 @@ function bindGraph(
 		);
 		if (label !== undefined) {
 			label.id = edgeId(edge.from, edge.blocker);
-			label.addEventListener("click", () =>
-				openProject(edge.blocker.project, onOpen, edge.blocker.key),
-			);
+			const open = () =>
+				openProject(edge.blocker.project, onOpen, edge.blocker.key);
+			label.addEventListener("click", open);
+			label.querySelector("span")?.addEventListener("click", open);
 		}
 	}
 }
