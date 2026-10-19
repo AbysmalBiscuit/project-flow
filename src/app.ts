@@ -259,11 +259,15 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 			'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".',
 		);
 	}
-	const discovered = github === null ? [] : await github.findProjects();
+	const githubPage =
+		github === null
+			? { projects: [], viewer: null }
+			: await github.findProjects();
+	const discovered = [...githubPage.projects];
 	if (linear !== null) {
-		mergeFound(discovered, await linear.findProjects());
+		mergeFound(discovered, (await linear.findProjects()).projects);
 	}
-	const viewer = (await github?.viewer?.()) ?? null;
+	const viewer = githubPage.viewer;
 	const named = new Set<string>();
 	for (const checkout of checkouts) {
 		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {

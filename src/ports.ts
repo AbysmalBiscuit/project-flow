@@ -51,8 +51,10 @@ export type Tracker = {
 	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
 	listPulls: (project: string) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
-	findProjects: () => Promise<FoundProject[]>;
-	viewer?: () => Promise<Viewer | null>;
+	findProjects: () => Promise<{
+		projects: FoundProject[];
+		viewer: Viewer | null;
+	}>;
 	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
 };
 

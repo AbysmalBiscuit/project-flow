@@ -425,7 +425,10 @@ export function linearTracker(
 	};
 	return {
 		findProjects() {
-			return findLinearProjects(key, fetchImpl);
+			return findLinearProjects(key, fetchImpl).then((projects) => ({
+				projects,
+				viewer: null,
+			}));
 		},
 		async projectsForKeys(keys) {
 			const found: FoundProject[] = [];

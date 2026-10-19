@@ -577,6 +577,162 @@ describe("local projects", () => {
 		});
 	});
 
+	test("a later poll rediscovers a GitHub project the first poll missed", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let polls = 0;
+		const requests: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ViewerProjects")
+			) {
+				polls += 1;
+				requests.push(body);
+				const nodes =
+					polls === 1
+						? []
+						: [
+								{
+									id: "PVT_local",
+									number: 4,
+									title: "Local board",
+									closed: false,
+									updatedAt: "2026-10-18T12:00:00.000Z",
+									owner: { login: "lev" },
+								},
+							];
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes,
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response("[]", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.github.com/graphql" && body.includes("node(")) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							node: {
+								items: {
+									nodes: [
+										{
+											content: {
+												__typename: "Issue",
+												number: 3,
+												title: "Ship the board",
+												state: "OPEN",
+												stateReason: null,
+												updatedAt: "2026-10-18T12:00:00.000Z",
+												repository: { nameWithOwner: "lev/local-board" },
+											},
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		let base = "";
+		let onListen: (line: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			onListen = (line: string) => {
+				base = line;
+				void (async () => {
+					const first = await fetch(new URL("/api/overview", base));
+					expect(first.status).toBe(200);
+					expect(await first.json()).toEqual({
+						projects: [],
+						fetchedAt: null,
+						error: null,
+					});
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(refresh.status).toBe(204);
+					const second = await fetch(new URL("/api/overview", base));
+					expect(second.status).toBe(200);
+					expect(await second.json()).toEqual({
+						projects: [
+							{
+								name: "Local board",
+								tracker: "github",
+								done: 0,
+								dropped: 0,
+								blocked: 0,
+								backlog: 1,
+								inProgress: 0,
+								unlinkedPrs: [],
+								tickets: [
+									{
+										key: "lev/local-board#3",
+										title: "Ship the board",
+										state: "backlog",
+										blockers: [],
+									},
+								],
+								crossProjectBlockers: [],
+							},
+						],
+						fetchedAt: "2026-10-18T12:00:00.000Z",
+						error: null,
+					});
+					expect(
+						requests.filter((body) => body.includes("ViewerProjects")),
+					).toHaveLength(2);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => onListen(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a third-party clone stays hidden", async () => {
 		const { body, requests } = await overview({
 			files: {

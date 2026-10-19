@@ -546,22 +546,9 @@ async function listProjectTickets(
 }
 
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
-	let found: Promise<{
-		projects: FoundProject[];
-		viewer: Viewer | null;
-	}> | null = null;
-	const discovery = () => {
-		found ??= findGithubProjects(token, fetchImpl);
-		return found;
-	};
 	return {
 		findProjects() {
-			return discovery().then((page) => page.projects);
-		},
-		viewer() {
-			return discovery()
-				.then((page) => page.viewer)
-				.catch(() => null);
+			return findGithubProjects(token, fetchImpl);
 		},
 		async listTickets(repo, since) {
 			if (!repo.includes("/")) {
