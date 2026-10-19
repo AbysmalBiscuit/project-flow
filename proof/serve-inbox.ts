@@ -22,48 +22,46 @@ function recordedIssues(): Response {
 	});
 }
 
-export function linearProofFetch(): Fetch {
-	return async (input, init) => {
-		const url = String(input instanceof Request ? input.url : input);
-		const body = typeof init?.body === "string" ? init.body : "";
+const linearProofFetch: Fetch = async (input, init) => {
+	const url = String(input instanceof Request ? input.url : input);
+	const body = typeof init?.body === "string" ? init.body : "";
 
-		if (url === "https://api.linear.app/graphql") {
-			if (body.includes("MemberProjects") || body.includes("viewer { id }")) {
-				return Response.json({
-					data: {
-						viewer: { id: "lev" },
-						projects: {
-							nodes: [],
-							pageInfo: { hasNextPage: false, endCursor: null },
-						},
+	if (url === "https://api.linear.app/graphql") {
+		if (body.includes("MemberProjects") || body.includes("viewer { id }")) {
+			return Response.json({
+				data: {
+					viewer: { id: "lev" },
+					projects: {
+						nodes: [],
+						pageInfo: { hasNextPage: false, endCursor: null },
 					},
-				});
-			}
-			if (body.includes("ProjectByPin")) {
-				return Response.json({
-					data: {
-						projects: {
-							nodes: [
-								{
-									id: "project-flow",
-									name: "Project Flow",
-									slugId: "project-flow",
-								},
-							],
-						},
-					},
-				});
-			}
-			if (body.includes("ProjectIssues")) {
-				if (releaseAsk && issues.length === 0) {
-					releaseLinearAsk();
-				}
-				return recordedIssues();
-			}
+				},
+			});
 		}
-		return new Response("not recorded", { status: 404 });
-	};
-}
+		if (body.includes("ProjectByPin")) {
+			return Response.json({
+				data: {
+					projects: {
+						nodes: [
+							{
+								id: "project-flow",
+								name: "Project Flow",
+								slugId: "project-flow",
+							},
+						],
+					},
+				},
+			});
+		}
+		if (body.includes("ProjectIssues")) {
+			if (releaseAsk && issues.length === 0) {
+				releaseLinearAsk();
+			}
+			return recordedIssues();
+		}
+	}
+	return new Response("not recorded", { status: 404 });
+};
 
 export function releaseLinearAsk(): void {
 	releaseAsk = true;
@@ -97,7 +95,7 @@ export function releaseLinearAsk(): void {
 	];
 }
 
-const recorded = linearProofFetch();
+const recorded = linearProofFetch;
 
 export async function runLinearProof(
 	proofPort: string,
