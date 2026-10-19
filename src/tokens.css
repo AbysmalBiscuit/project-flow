@@ -17,6 +17,7 @@
 	--colour-stale: #f6e3a1;
 	--colour-stale-ink: #5c4308;
 	--colour-danger: #9b1c1c;
+	--colour-saved: #1a5f3a;
 	--colour-focus: #1a5fb4;
 	--colour-shadow: #1c191526;
 	--colour-done: #8fbc8f;
@@ -50,6 +51,9 @@
 	--page-width: 64rem;
 	--panel-width: 24rem;
 	--card-width: 24rem;
+	--form-width: 32rem;
+	--field-width: 28rem;
+	--field-min-height: 4rem;
 	--diagram-width: 48rem;
 	--swatch-size: 0.9rem;
 	--line-hairline: 1px;
@@ -74,6 +78,7 @@
 		--colour-stale: #4a3b16;
 		--colour-stale-ink: #f6e3a1;
 		--colour-danger: #ffb4b4;
+		--colour-saved: #8fbc8f;
 		--colour-focus: #7eb6ff;
 		--colour-shadow: #00000080;
 		--colour-done: #3d6b45;
@@ -105,6 +110,7 @@
 	--colour-stale: #4a3b16;
 	--colour-stale-ink: #f6e3a1;
 	--colour-danger: #ffb4b4;
+	--colour-saved: #8fbc8f;
 	--colour-focus: #7eb6ff;
 	--colour-shadow: #00000080;
 	--colour-done: #3d6b45;

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Configuration } from "./configuration.ts";
-import { loadConfiguration } from "./configuration.ts";
+import { loadConfiguration, saveConfiguration } from "./configuration.ts";
 import type {
 	Comment,
 	Overview,
@@ -470,7 +470,10 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		return options.fallback;
 	}
 	const todoListing = (await options.listTodos?.()) ?? "";
-	const checkouts = (await options.listCheckouts?.().catch(() => [])) ?? [];
+	const checkouts =
+		(await options
+			.listCheckouts?.(configuration.checkoutRoots)
+			.catch(() => [])) ?? [];
 	const startedKeys = startedTodoKeys(
 		todoListing,
 		checkoutBasenames(checkouts),
@@ -801,6 +804,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const clock = { now: options.now ?? (() => new Date()) };
 	const configurationPort = {
 		read: () => loadConfiguration(options.configPath),
+		write: (text: string) => saveConfiguration(options.configPath, text),
 	};
 	const trackers = {
 		github:
@@ -911,14 +915,20 @@ export async function start(options: StartOptions): Promise<Running> {
 		firstPollDone = true;
 	});
 	let timer: ReturnType<typeof setInterval> | null = null;
-	const armTimer = () => {
-		if (timer !== null || stopped) {
+	const schedule = (seconds: number) => {
+		if (stopped) {
 			return;
+		}
+		if (timer !== null) {
+			clearInterval(timer);
 		}
 		timer = setInterval(() => {
 			void pollAgain();
-		}, configuration.pollIntervalSeconds * 1_000);
+		}, seconds * 1_000);
 		timer.unref?.();
+	};
+	const armTimer = () => {
+		schedule(configuration.pollIntervalSeconds);
 	};
 	if (hadRows) {
 		armTimer();
@@ -985,6 +995,30 @@ export async function start(options: StartOptions): Promise<Running> {
 					releaseLists();
 					await pollAgain();
 					return new Response(null, { status: 204 });
+				},
+			},
+			"/settings": page,
+			"/api/settings": {
+				GET: () => Response.json(configuration),
+				PUT: async (request: Request) => {
+					const text = await request.text();
+					try {
+						await (polling ?? Promise.resolve());
+						configuration = await configurationPort.write(text);
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: "invalid configuration: configuration";
+						return Response.json({ error: message }, { status: 400 });
+					}
+					await (polling ?? Promise.resolve());
+					configuration = await configurationPort.read();
+					pollOptions.fallback = configuration;
+					schedule(configuration.pollIntervalSeconds);
+					releaseLists();
+					await pollAgain();
+					return Response.json(configuration);
 				},
 			},
 			"/api/threads/:tracker/:key": {
