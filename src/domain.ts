@@ -1283,6 +1283,10 @@ function shownState(
 	return state;
 }
 
+function pullKey(pull: PullRequest): string {
+	return `${pull.repo}#${pull.number}`;
+}
+
 export function projectCounts(
 	name: string,
 	key: string,
@@ -1318,6 +1322,8 @@ export function projectCounts(
 	const shownByKey = new Map<string, TicketState>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
+	const linkedByTicket = new Map<string, PullRequest[]>();
+	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed);
 		const state = ticketState(
@@ -1327,7 +1333,13 @@ export function projectCounts(
 				return ref === null ? [] : [ref];
 			}),
 		);
-		const links = ticket.state === "open" ? linked(ticket, active, name) : [];
+		const links = linked(ticket, active, name);
+		for (const pull of links) {
+			linkedKeys.add(pullKey(pull));
+		}
+		if (ticket.state === "open" && ticket.key !== null) {
+			linkedByTicket.set(ticket.key, links);
+		}
 		const review = reviewState(links, expectedBots, ticket.comments ?? []);
 		for (const tag of review.tags) {
 			tags.add(tag);
@@ -1379,12 +1391,7 @@ export function projectCounts(
 			});
 		}
 	}
-	const linkedNumbers = new Set(
-		tickets.flatMap((ticket) =>
-			linked(ticket, active, name).map((pull) => pull.number),
-		),
-	);
-	const unlinked = active.filter((pull) => !linkedNumbers.has(pull.number));
+	const unlinked = active.filter((pull) => !linkedKeys.has(pullKey(pull)));
 	const unlinkedPrs = unlinked.map((pull) => ({
 		number: pull.number,
 		title: pull.title,
@@ -1396,6 +1403,7 @@ export function projectCounts(
 		tickets,
 		active,
 		unlinked,
+		linkedByTicket,
 		expectedBots,
 		shownByKey,
 		{
@@ -1677,16 +1685,13 @@ function pullComments(pull: PullRequest): Comment[] {
 	}));
 }
 
-function pullKey(pull: PullRequest): string {
-	return `${pull.repo}#${pull.number}`;
-}
-
 export function needsYouItems(
 	project: string,
 	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
 	pulls: PullRequest[],
 	unlinkedPulls: PullRequest[],
+	linkedByTicket: Map<string, PullRequest[]>,
 	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
 	rules: NeedsYouRules,
@@ -1696,13 +1701,6 @@ export function needsYouItems(
 		rules.viewerLogins.map((login) => login.toLowerCase()),
 	);
 	const items: NeedsYouItem[] = [];
-	const linkedByTicket = new Map<string, PullRequest[]>();
-	for (const ticket of tickets) {
-		if (ticket.state !== "open" || ticket.key === null) {
-			continue;
-		}
-		linkedByTicket.set(ticket.key, linked(ticket, pulls, project));
-	}
 	for (const ticket of tickets) {
 		if (ticket.state !== "open" || ticket.key === null) {
 			continue;
