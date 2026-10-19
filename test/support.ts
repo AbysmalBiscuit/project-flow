@@ -174,8 +174,57 @@ export function linearFake(options: LinearFake = {}): Fetch {
 				},
 			});
 		}
-		if (query.query?.includes("ProjectIssues")) {
+		if (
+			query.query?.includes("ProjectIssues") ||
+			query.query?.includes("commentCreate") ||
+			query.query?.includes("IssueThread")
+		) {
 			options.requests?.push(body);
+		}
+		if (query.query?.includes("IssueThread")) {
+			const id = (query as { variables?: { id?: string } }).variables?.id;
+			const issue = (options.issues ?? []).find(
+				(item) => item.identifier === id || item.id === id,
+			);
+			if (issue === undefined) {
+				return linearJson({ data: { issue: null } });
+			}
+			const comments = issue.comments as
+				| { nodes?: Record<string, unknown>[] }
+				| undefined;
+			return linearJson({
+				data: {
+					issue: {
+						identifier: issue.identifier,
+						title: issue.title,
+						url: `https://linear.app/issue/${String(issue.identifier)}`,
+						comments: {
+							nodes: (comments?.nodes ?? []).map((comment) => ({
+								url: `https://linear.app/issue/${String(issue.identifier)}#${String(comment.id)}`,
+								parent: null,
+								...comment,
+							})),
+						},
+					},
+				},
+			});
+		}
+		if (query.query?.includes("commentCreate")) {
+			const input = (query as { variables?: { input?: { body?: string } } })
+				.variables?.input;
+			return linearJson({
+				data: {
+					commentCreate: {
+						success: true,
+						comment: {
+							id: "comment-created",
+							body: input?.body ?? "",
+							createdAt: "2026-08-18T13:00:00.000Z",
+							url: "https://linear.app/issue/PF-1#comment-created",
+						},
+					},
+				},
+			});
 		}
 		if (options.fail === "issues") {
 			return new Response("recorded failure", { status });
