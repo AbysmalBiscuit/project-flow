@@ -213,15 +213,18 @@ function graphEdges(overview: Overview): GraphEdge[] {
 	);
 }
 
+function mermaidText(value: string): string {
+	return value.replaceAll('"', "#quot;");
+}
+
 function mermaidSource(projects: ProjectCounts[], edges: GraphEdge[]): string {
 	const lines = ["flowchart LR"];
 	for (const project of projects) {
-		lines.push(`  ${nodeId(project.name)}["${project.name}"]`);
+		lines.push(`  ${nodeId(project.name)}["${mermaidText(project.name)}"]`);
 	}
 	for (const edge of edges) {
-		const label = edge.blocker.key.replaceAll('"', "");
 		lines.push(
-			`  ${nodeId(edge.from)} -->|${label}| ${nodeId(edge.blocker.project)}`,
+			`  ${nodeId(edge.from)} ${edgeId(edge.from, edge.blocker)}@-->|"${mermaidText(edge.blocker.key)}"| ${nodeId(edge.blocker.project)}`,
 		);
 	}
 	return lines.join("\n");
@@ -242,12 +245,29 @@ async function renderGraph(overview: Overview): Promise<string> {
 	if (draw === undefined) {
 		return "";
 	}
-	const edges = graphEdges(overview);
-	const drawn = await draw.render(
-		"project-flow-graph",
-		mermaidSource(overview.projects, edges),
+	try {
+		const drawn = await draw.render(
+			"project-flow-graph",
+			mermaidSource(overview.projects, graphEdges(overview)),
+		);
+		return drawn.svg;
+	} catch {
+		return "";
+	}
+}
+
+function htmlSpan(root: ParentNode, selector: string): HTMLElement | null {
+	const span = root.querySelector(selector);
+	return span instanceof HTMLElement ? span : null;
+}
+
+function nodeLabel(host: ParentNode, id: string): HTMLElement | null {
+	const pattern = new RegExp(`-${id}-\\d+$`);
+	const shape = [...host.querySelectorAll(".node")].find((item) =>
+		pattern.test(item.id),
 	);
-	return drawn.svg;
+	const span = shape?.querySelector("span.nodeLabel");
+	return span instanceof HTMLElement ? span : null;
 }
 
 function bindGraph(
@@ -257,27 +277,24 @@ function bindGraph(
 	onOpen: (label: string) => void,
 ): void {
 	for (const project of overview.projects) {
-		const shape = [...host.querySelectorAll(".node")].find(
-			(item) => item.textContent?.includes(project.name) === true,
-		);
-		if (shape !== undefined) {
-			shape.id = nodeId(project.name);
-			const open = () => openProject(project.name, onOpen);
-			shape.addEventListener("click", open);
-			shape.querySelector("span.nodeLabel")?.addEventListener("click", open);
+		const id = nodeId(project.name);
+		const label = nodeLabel(host, id);
+		if (label === null) {
+			continue;
 		}
+		label.id = id;
+		label.addEventListener("click", () => openProject(project.name, onOpen));
 	}
 	for (const edge of edges) {
-		const label = [...host.querySelectorAll(".edgeLabel")].find(
-			(item) => item.textContent?.includes(edge.blocker.key) === true,
-		);
-		if (label !== undefined) {
-			label.id = edgeId(edge.from, edge.blocker);
-			const open = () =>
-				openProject(edge.blocker.project, onOpen, edge.blocker.key);
-			label.addEventListener("click", open);
-			label.querySelector("span")?.addEventListener("click", open);
+		const id = edgeId(edge.from, edge.blocker);
+		const label = htmlSpan(host, `[data-id="${id}"] span.edgeLabel`);
+		if (label === null) {
+			continue;
 		}
+		label.id = id;
+		label.addEventListener("click", () =>
+			openProject(edge.blocker.project, onOpen, edge.blocker.key),
+		);
 	}
 }
 
@@ -291,7 +308,6 @@ function GraphView({
 	svg: string;
 }) {
 	const host = useRef<HTMLDivElement>(null);
-	const edges = graphEdges(overview);
 	useLayoutEffect(() => {
 		const node = host.current;
 		if (node === null) {
@@ -307,8 +323,8 @@ function GraphView({
 			return;
 		}
 		node.appendChild(document.importNode(drawn, true));
-		bindGraph(node, overview, edges, onOpen);
-	}, [edges, onOpen, overview, svg]);
+		bindGraph(node, overview, graphEdges(overview), onOpen);
+	}, [onOpen, overview, svg]);
 	return (
 		<div className="graph">
 			<div ref={host} className="mermaid-host" />
