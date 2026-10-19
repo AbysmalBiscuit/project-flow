@@ -477,6 +477,27 @@ describe("settings", () => {
 		);
 	});
 
+	test("an unknown bot names the field and leaves the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
+			const before = await readFile(configPath, "utf8");
+			const current = await (
+				await fetch(new URL("/api/settings", base))
+			).json();
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...current,
+					expectedBots: { "acme/shown": ["not-a-bot"] },
+				}),
+			});
+			expect(saved.status).toBe(400);
+			const named = (await saved.json()) as { error: string };
+			expect(named.error).toContain("expectedBots");
+			expect(await readFile(configPath, "utf8")).toBe(before);
+		});
+	});
+
 	test("a blank settings body names the configuration and leaves the file", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
 			const before = await readFile(configPath, "utf8");
