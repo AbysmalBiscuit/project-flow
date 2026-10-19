@@ -706,6 +706,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 	}
 	const fullKeys = [...options.fullPoll];
+	const reconciled = reconcilePoll(
+		options.store.readTickets(),
+		[...outcomes.values()],
+		fullKeys,
+	);
 	for (const key of fullKeys) {
 		if (outcomes.get(key)?.ok === true) {
 			options.fullPoll.delete(key);
@@ -903,44 +908,22 @@ export async function start(options: StartOptions): Promise<Running> {
 		});
 		return polling;
 	};
-	if (!hadRows) {
-		try {
-			await pollAgain();
-		} catch (error) {
-			stopped = true;
-			await (polling ?? Promise.resolve());
-			opened.close();
-			throw error;
+	const firstPoll = pollAgain();
+	let timer: ReturnType<typeof setInterval> | null = null;
+	const armTimer = () => {
+		if (timer !== null || stopped) {
+			return;
 		}
-		const firstStatus = opened.store.fetchStatus();
-		const rows = opened.store.readTickets();
-		const fetched = rows.filter(
-			(row) => opened.store.projectError(row.key) === null,
-		);
-		const projectErrors = rows.map((row) => opened.store.projectError(row.key));
-		const everyFailureIsMissingCredential =
-			projectErrors.length > 0 &&
-			projectErrors.every(
-				(error) => error === missingToken || error === missingLinearKey,
-			);
-		const otherFailure = projectErrors.find(
-			(error) =>
-				error !== null && error !== missingToken && error !== missingLinearKey,
-		);
-		const coldError = everyFailureIsMissingCredential
-			? null
-			: (firstStatus.error ?? otherFailure ?? null);
-		if (fetched.length === 0 && coldError !== null) {
-			stopped = true;
-			await (polling ?? Promise.resolve());
-			opened.close();
-			throw new Error(coldError);
-		}
+		timer = setInterval(() => {
+			void pollAgain();
+		}, configuration.pollIntervalSeconds * 1_000);
+		timer.unref?.();
+	};
+	if (hadRows) {
+		armTimer();
+	} else {
+		void firstPoll.finally(armTimer);
 	}
-	const timer = setInterval(() => {
-		void pollAgain();
-	}, configuration.pollIntervalSeconds * 1_000);
-	timer.unref?.();
 	const server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
@@ -999,7 +982,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/refresh": {
 				POST: async () => {
 					releaseLists();
-					await pollAgain();
+					await firstPoll;
+					if (polling === null) {
+						await pollAgain();
+					}
 					return new Response(null, { status: 204 });
 				},
 			},
@@ -1025,12 +1011,12 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 		},
 	});
-	const firstPoll = pollAgain();
+	const cold = !hadRows;
 	let settle: (error: Error | null) => void = () => {};
 	const settled = new Promise<Error | null>((resolve) => {
 		settle = resolve;
 	});
-	if (!hadRows) {
+	if (cold) {
 		void firstPoll.then(
 			() => {
 				const firstStatus = opened.store.fetchStatus();
@@ -1079,7 +1065,9 @@ export async function start(options: StartOptions): Promise<Running> {
 		stop: async () => {
 			stopped = true;
 			releaseLists();
-			clearInterval(timer);
+			if (timer !== null) {
+				clearInterval(timer);
+			}
 			await (polling ?? Promise.resolve());
 			await server.stop(true);
 			opened.close();
