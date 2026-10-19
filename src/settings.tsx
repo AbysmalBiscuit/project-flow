@@ -19,27 +19,23 @@ function refLine(ref: ProjectRef): string {
 }
 
 function parseRefs(text: string): ProjectRef[] {
-	return text
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line !== "")
-		.map((line) => {
-			const [kind, first, second] = line.split(/\s+/);
-			if (kind === "linear" && first !== undefined) {
-				return { tracker: "linear", project: first };
-			}
-			if (kind === "github" && first !== undefined) {
-				return { tracker: "github", repo: first };
-			}
-			if (
-				kind === "github-project" &&
-				first !== undefined &&
-				second !== undefined
-			) {
-				return { tracker: "github", owner: first, project: Number(second) };
-			}
-			throw new Error(`project line: ${line}`);
-		});
+	return lines(text).map((line) => {
+		const [kind, first, second] = line.split(/\s+/);
+		if (kind === "linear" && first !== undefined) {
+			return { tracker: "linear", project: first };
+		}
+		if (kind === "github" && first !== undefined) {
+			return { tracker: "github", repo: first };
+		}
+		if (
+			kind === "github-project" &&
+			first !== undefined &&
+			second !== undefined
+		) {
+			return { tracker: "github", owner: first, project: Number(second) };
+		}
+		throw new Error(`project line: ${line}`);
+	});
 }
 
 function lines(text: string): string[] {
