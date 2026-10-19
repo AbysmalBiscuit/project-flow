@@ -15,12 +15,14 @@ bun install
 Start the app:
 
 ```sh
-bun src/main.ts
+bun start
 ```
+
+`bun run dev` starts the app with hot reload.
 
 The process prints a URL on localhost. Open that URL in a browser.
 
-`--config` sets the configuration file. `--host` sets the host. `--port` sets the port. The default host is `127.0.0.1`.
+`--config` sets the configuration file. `--host` sets the host. `--port` sets the port. The default host is `127.0.0.1`. Pass flags after `--`, for example `bun start -- --port 4000`.
 
 ## Configuration
 
