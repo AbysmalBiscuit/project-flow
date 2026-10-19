@@ -36,6 +36,13 @@ const configurationSchema = z.strictObject({
 		.array(z.string())
 		.default(["needs-human", "needs-engineer"]),
 	viewerLogins: z.array(z.string()).default([]),
+	notificationTriggers: z
+		.strictObject({
+			needsYou: z.boolean().default(true),
+			comment: z.boolean().default(true),
+			blockerCleared: z.boolean().default(true),
+		})
+		.default({ needsYou: true, comment: true, blockerCleared: true }),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;

@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import type { Ticket } from "./domain.ts";
+import type { Notification, Ticket } from "./domain.ts";
 import { mergeTickets } from "./domain.ts";
 import type { Snapshot, Store } from "./ports.ts";
 
@@ -79,6 +79,21 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			error text not null
 		)
 	`);
+	db.run(`
+		create table if not exists notifications (
+			id text primary key,
+			trigger text not null,
+			project text not null,
+			item_key text not null,
+			text text not null,
+			at text not null
+		)
+	`);
+	db.run(`
+		create table if not exists seeded_ids (
+			id text primary key
+		)
+	`);
 	return {
 		store: {
 			replaceTickets(rows) {
@@ -144,6 +159,61 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					.query("select fetched_at, error from fetch_status where id = 1")
 					.get() as { fetched_at: string | null; error: string | null };
 				return { fetchedAt: row.fetched_at, error: row.error };
+			},
+			readNotifications() {
+				const rows = db
+					.query(
+						"select id, trigger, project, item_key, text, at from notifications order by at desc, id desc",
+					)
+					.all() as {
+					id: string;
+					trigger: Notification["trigger"];
+					project: string;
+					item_key: string;
+					text: string;
+					at: string;
+				}[];
+				return rows.map((row) => ({
+					id: row.id,
+					trigger: row.trigger,
+					project: row.project,
+					key: row.item_key,
+					text: row.text,
+					at: row.at,
+				}));
+			},
+			appendNotifications(entries) {
+				const insert = db.query(
+					"insert or ignore into notifications (id, trigger, project, item_key, text, at) values (?, ?, ?, ?, ?, ?)",
+				);
+				db.transaction(() => {
+					for (const entry of entries) {
+						insert.run(
+							entry.id,
+							entry.trigger,
+							entry.project,
+							entry.key,
+							entry.text,
+							entry.at,
+						);
+					}
+				})();
+			},
+			readSeededIds() {
+				const rows = db.query("select id from seeded_ids").all() as {
+					id: string;
+				}[];
+				return rows.map((row) => row.id);
+			},
+			recordSeededIds(ids) {
+				const insert = db.query(
+					"insert or ignore into seeded_ids (id) values (?)",
+				);
+				db.transaction(() => {
+					for (const id of ids) {
+						insert.run(id);
+					}
+				})();
 			},
 		},
 		close: () => db.close(),

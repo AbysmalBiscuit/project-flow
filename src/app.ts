@@ -12,6 +12,9 @@ import type {
 	Thread,
 } from "./domain.ts";
 import {
+	type Attention,
+	attentionIds,
+	attentionOf,
 	checkoutBasenames,
 	checkoutNamesProject,
 	commentTree,
@@ -19,6 +22,7 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	notificationsFor,
 	panelReplyBody,
 	projectCounts,
 	projectHasNoSenior,
@@ -97,6 +101,21 @@ function matchesRef(
 	return project.owner === ref.owner && project.number === ref.project;
 }
 
+function seededForProjects(
+	attention: Attention,
+	projects: ReadonlySet<string>,
+): string[] {
+	const needsYou = attention.needsYou.flatMap((item) =>
+		projects.has(item.project)
+			? [`needsYou\n${item.project}\n${item.key}`]
+			: [],
+	);
+	const comments = [...attention.comments].flatMap(([id, comment]) =>
+		projects.has(comment.project) ? [`comment\n${id}\n${comment.stamp}`] : [],
+	);
+	return [...needsYou, ...comments];
+}
+
 function viewerLogins(
 	configuration: Configuration,
 	viewers: Viewer[],
@@ -156,6 +175,17 @@ function projectViews(
 			report: counted.report,
 		};
 	});
+}
+
+function attentionFor(
+	store: Store,
+	configuration: Configuration,
+	viewers: Viewer[],
+): Attention {
+	return attentionOf(
+		projectViews(store, configuration, viewers),
+		configuration.noSenior,
+	);
 }
 
 function overview(
@@ -316,6 +346,7 @@ async function replyResponse(
 		recordPostedReply(store, reply, created);
 		notifier.publish({
 			overview: overview(store, configuration, viewers),
+			notifications: [],
 		});
 		return Response.json(created, { status: 201 });
 	} catch (error) {
@@ -376,6 +407,13 @@ function eventStream(notifier: Notifier): Response {
 						`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
 					),
 				);
+				for (const notification of change.notifications) {
+					controller.enqueue(
+						encoder.encode(
+							`event: notification\ndata: ${JSON.stringify(notification)}\n\n`,
+						),
+					);
+				}
 			});
 		},
 		cancel() {
@@ -406,10 +444,14 @@ type PollOptions = {
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
 	viewers: Viewer[];
+	attention: Attention;
+	seenNotifications: Set<string>;
+	primed: boolean;
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
 	const polledAt = options.clock.now();
+	const before = options.attention;
 	let configuration: Configuration;
 	try {
 		configuration = await options.configuration.read();
@@ -419,6 +461,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		if (options.store.readTickets().length > 0) {
 			options.notifier.publish({
 				overview: overview(options.store, options.fallback, options.viewers),
+				notifications: [],
 			});
 		}
 		return options.fallback;
@@ -537,6 +580,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	);
 	const listed = [];
 	const outcomes = new Map<string, ProjectPoll>();
+	const awaitingFirstPoll = new Set(
+		found.flatMap((project) =>
+			options.store.lastGoodPollAt(project.key) === null ? [project.key] : [],
+		),
+	);
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
@@ -663,8 +711,45 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	} else if (failed !== null) {
 		options.store.recordFetchError(failed);
 	}
+	const nextOverview = overview(options.store, configuration, options.viewers);
+	const after = attentionFor(options.store, configuration, options.viewers);
+	const firstGood = new Set(
+		listed.flatMap((project) =>
+			awaitingFirstPoll.has(project.key) ? [project.name] : [],
+		),
+	);
+	const seeded = seededForProjects(after, firstGood);
+	for (const id of seeded) {
+		options.seenNotifications.add(id);
+	}
+	const notifications = options.primed
+		? notificationsFor(
+				before,
+				after,
+				configuration.notificationTriggers,
+				polledAt.toISOString(),
+				options.seenNotifications,
+				viewerLogins(configuration, options.viewers),
+			)
+		: [];
+
+	if (!options.primed) {
+		const opened = attentionIds(after);
+		for (const id of opened) {
+			options.seenNotifications.add(id);
+		}
+		options.store.recordSeededIds(opened);
+		options.primed = true;
+	}
+	options.store.recordSeededIds(seeded);
+	for (const entry of notifications) {
+		options.seenNotifications.add(entry.id);
+	}
+	options.attention = after;
+	options.store.appendNotifications(notifications);
 	options.notifier.publish({
-		overview: overview(options.store, configuration, options.viewers),
+		overview: nextOverview,
+		notifications,
 	});
 	return configuration;
 }
@@ -708,7 +793,25 @@ export async function start(options: StartOptions): Promise<Running> {
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
 		viewers: [],
+		attention: {
+			needsYou: [],
+			comments: new Map(),
+			blockers: new Map(),
+			closed: new Set(),
+		},
+		seenNotifications: new Set([
+			...opened.store.readNotifications().map((entry) => entry.id),
+			...opened.store.readSeededIds(),
+		]),
+		primed: opened.store.readTickets().length > 0,
 	};
+	if (pollOptions.primed) {
+		pollOptions.attention = attentionFor(
+			opened.store,
+			configuration,
+			pollOptions.viewers,
+		);
+	}
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
 	if (hadRows) {
@@ -722,9 +825,8 @@ export async function start(options: StartOptions): Promise<Running> {
 				resolve();
 			};
 		});
-		// A listen callback reads stored rows before this poll lists tickets.
-		const fallback = setTimeout(releaseLists, 1_000);
-		fallback.unref?.();
+		// The first overview read must finish before this poll lists tickets.
+		setTimeout(releaseLists, 1_000).unref?.();
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;
@@ -750,6 +852,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				}
 				notifier.publish({
 					overview: overview(opened.store, configuration, pollOptions.viewers),
+					notifications: [],
 				});
 			}
 		})().finally(() => {
@@ -802,15 +905,13 @@ export async function start(options: StartOptions): Promise<Running> {
 		routes: {
 			"/": page,
 			"/needs-you": page,
+			"/inbox": page,
 			"/projects/*": page,
 			"/api/overview": {
-				GET: () => {
-					const body = Response.json(
+				GET: () =>
+					Response.json(
 						overview(opened.store, configuration, pollOptions.viewers),
-					);
-					releaseLists();
-					return body;
-				},
+					),
 			},
 			"/api/needs-you": {
 				GET: () =>
@@ -821,6 +922,9 @@ export async function start(options: StartOptions): Promise<Running> {
 							pollOptions.viewers,
 						).flatMap((item) => item.items),
 					),
+			},
+			"/api/inbox": {
+				GET: () => Response.json(opened.store.readNotifications()),
 			},
 			"/api/projects/:name": {
 				GET: (request) => {
@@ -876,9 +980,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		},
 	});
 	if (hadRows) {
-		setTimeout(() => {
-			void pollAgain();
-		}, 0);
+		setTimeout(() => void pollAgain(), 0);
 	}
 	return {
 		url: server.url,

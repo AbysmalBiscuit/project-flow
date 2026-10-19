@@ -2,6 +2,7 @@ import mermaid from "mermaid";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
+import { onAppEvent, onEventStreamOpen } from "./events.ts";
 
 mermaid.initialize({ startOnLoad: false });
 
@@ -397,7 +398,7 @@ function OverviewPage({
 		<main>
 			<h1>Projects</h1>
 			<p>
-				<a href="/needs-you">Needs you</a>
+				<a href="/needs-you">Needs you</a> <a href="/inbox">Inbox</a>
 			</p>
 			<button
 				type="button"
@@ -453,20 +454,20 @@ function Page() {
 	const [overview, setOverview] = useState<Overview | null>(null);
 	const [graphSvg, setGraphSvg] = useState("");
 	useEffect(() => {
-		const events = new EventSource("/api/events");
 		const show = (next: Overview) => {
 			setOverview(next);
 			void renderGraph(next).then(setGraphSvg);
 		};
-		events.addEventListener("overview", (event) => {
+		const stopOverview = onAppEvent("overview", (event) => {
 			show(JSON.parse(event.data) as Overview);
 		});
-		events.onopen = () => {
+		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
-		};
+		});
 		void readOverview().then(show);
 		return () => {
-			events.close();
+			stopOverview();
+			stopOpen();
 		};
 	}, []);
 	if (overview === null) {
