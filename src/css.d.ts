@@ -1,6 +1,6 @@
 type CssModule<Keys extends string> = { readonly [Key in Keys]: string };
 
-declare module "./cards.module.css" {
+declare module "*/cards.module.css" {
 	const classes: CssModule<
 		| "list"
 		| "card"
@@ -27,7 +27,7 @@ declare module "./cards.module.css" {
 	export default classes;
 }
 
-declare module "./shell.module.css" {
+declare module "*/shell.module.css" {
 	const classes: CssModule<
 		| "page"
 		| "title"
@@ -42,7 +42,7 @@ declare module "./shell.module.css" {
 	export default classes;
 }
 
-declare module "./project.module.css" {
+declare module "*/project.module.css" {
 	const classes: CssModule<
 		| "section"
 		| "summary"
@@ -70,14 +70,14 @@ declare module "./project.module.css" {
 	export default classes;
 }
 
-declare module "./needs.module.css" {
+declare module "*/needs.module.css" {
 	const classes: CssModule<
 		"list" | "item" | "answered" | "headline" | "open" | "tag" | "project"
 	>;
 	export default classes;
 }
 
-declare module "./panel.module.css" {
+declare module "*/panel.module.css" {
 	const classes: CssModule<
 		| "panel"
 		| "close"
