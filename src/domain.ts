@@ -154,7 +154,7 @@ export type ProjectCounts = {
 	fetchedAt: string | null;
 	error: string | null;
 	tags: string[];
-	statusTypes?: Record<StatusType, number>;
+	statusTypes: Record<StatusType, number>;
 };
 
 export type DiagramNode = {
@@ -580,7 +580,6 @@ export type FetchStatus = {
 
 export type Board = {
 	kind: "linear" | "github-project" | "github-repo";
-	teamKey?: string;
 	laneKey?: string;
 	statuses: TicketStatus[];
 	factoryLabels: boolean;
@@ -828,15 +827,6 @@ const awaitingNames = new Set([
 	"ready for merge",
 ]);
 
-const backlogNames = new Set([
-	"backlog",
-	"todo",
-	"to do",
-	"ready",
-	"triage",
-	"unstarted",
-]);
-
 const doneNames = new Set(["done", "completed", "shipped", "merged"]);
 
 const droppedNames = new Set([
@@ -881,9 +871,6 @@ export function statusTypeOfName(name: string): StatusType {
 	}
 	if (droppedNames.has(lowered)) {
 		return "dropped";
-	}
-	if (backlogNames.has(lowered)) {
-		return "backlog";
 	}
 	return "backlog";
 }
@@ -945,14 +932,8 @@ function insertAwaitingMerge(lanes: Lane[]): Lane[] {
 		statusType: "awaitingMerge",
 		added: true,
 	};
-	if (review === -1) {
-		const progress = lanes.findLastIndex(
-			(lane) => lane.statusType === "inProgress",
-		);
-		const at = progress === -1 ? lanes.length : progress + 1;
-		return [...lanes.slice(0, at), added, ...lanes.slice(at)];
-	}
-	return [...lanes.slice(0, review + 1), added, ...lanes.slice(review + 1)];
+	const at = review === -1 ? laneInsertAt(lanes, "awaitingMerge") : review + 1;
+	return [...lanes.slice(0, at), added, ...lanes.slice(at)];
 }
 
 type LaneMapping = Configuration["laneMappings"][string];
@@ -990,18 +971,12 @@ export function lanesFor(
 	return insertAwaitingMerge(lanes);
 }
 
-export function laneForTicket(
-	ticket: Ticket,
-	lanes: Lane[],
-	mapping: LaneMapping,
-): Lane {
+export function laneForTicket(ticket: Ticket, lanes: Lane[]): Lane {
 	if (ticket.emptyStatus === true) {
 		return laneOfType(lanes, closedLaneType(ticket) ?? "backlog");
 	}
 	const matched =
-		ticket.status === undefined
-			? undefined
-			: laneOfStatus(ticket, lanes, mapping);
+		ticket.status === undefined ? undefined : laneOfStatus(ticket, lanes);
 	const closedType = closedLaneType(ticket);
 	if (closedType !== undefined) {
 		if (matched?.statusType === closedType) {
@@ -1024,14 +999,10 @@ function laneOfType(lanes: Lane[], statusType: StatusType): Lane {
 	);
 }
 
-function placeOnBoard(
-	lanes: Lane[],
-	tickets: Ticket[],
-	mapping: LaneMapping,
-): Lane[] {
+function placeOnBoard(lanes: Lane[], tickets: Ticket[]): Lane[] {
 	const placed = [...lanes];
 	for (const ticket of tickets) {
-		const statusType = laneForTicket(ticket, placed, mapping).statusType;
+		const statusType = laneForTicket(ticket, placed).statusType;
 		if (placed.some((lane) => lane.statusType === statusType)) {
 			continue;
 		}
@@ -1058,21 +1029,10 @@ function closedLaneType(ticket: Ticket): StatusType | undefined {
 	return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
 }
 
-function laneOfStatus(
-	ticket: Ticket,
-	lanes: Lane[],
-	mapping: LaneMapping,
-): Lane | undefined {
+function laneOfStatus(ticket: Ticket, lanes: Lane[]): Lane | undefined {
 	const status = ticket.status;
 	if (status === undefined) {
 		return undefined;
-	}
-	const mapped = mappedEvidence(mapping, status.name);
-	if (mapped !== undefined) {
-		const named = lanes.find((lane) => namesMatch(lane.name, status.name));
-		if (named !== undefined) {
-			return named;
-		}
 	}
 	return (
 		lanes.find((lane) => lane.id === status.id) ??
@@ -2211,8 +2171,8 @@ export function projectCounts(
 	rules: Omit<NeedsYouRules, "pmBot"> & {
 		pmBot: Record<string, boolean>;
 	},
+	laneMappings: Configuration["laneMappings"],
 	board?: Board,
-	laneMappings: Configuration["laneMappings"] = {},
 ): {
 	counts: ProjectCounts;
 	needsYou: NeedsYouItem[];
@@ -2230,11 +2190,10 @@ export function projectCounts(
 		awaitingMerge: 0,
 	};
 	const statusTypes = emptyStatusTypes();
-	const mappingKey = board?.laneKey ?? board?.teamKey;
+	const mappingKey = board?.laneKey;
 	const mapping =
 		mappingKey === undefined ? {} : (laneMappings[mappingKey] ?? {});
-	const lanes = placeOnBoard(lanesFor(board, mapping), tickets, mapping);
-	const counted = board !== undefined;
+	const lanes = placeOnBoard(lanesFor(board, mapping), tickets);
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
 	const shownByKey = new Map<string, TicketState>();
@@ -2255,7 +2214,7 @@ export function projectCounts(
 		for (const tag of review.tags) {
 			tags.add(tag);
 		}
-		const lane = laneForTicket(ticket, lanes, mapping);
+		const lane = laneForTicket(ticket, lanes);
 		const shown = shownState(
 			ticket,
 			lane.statusType,
@@ -2272,9 +2231,7 @@ export function projectCounts(
 		} else {
 			counts[shown] += 1;
 		}
-		if (counted && lane.name !== "") {
-			statusTypes[lane.statusType] += 1;
-		}
+		statusTypes[lane.statusType] += 1;
 		views.push({
 			key: ticket.key,
 			title: ticket.title,
@@ -2282,9 +2239,8 @@ export function projectCounts(
 			blockers: blockers.flatMap((blocker) =>
 				blocker.key === null ? [] : [blocker.key],
 			),
-			...(lane.name === ""
-				? {}
-				: { lane: lane.name, statusType: lane.statusType }),
+			lane: lane.name,
+			statusType: lane.statusType,
 			...(blockers.length > 0 && ticket.state === "open"
 				? { blocked: true }
 				: {}),
@@ -2355,7 +2311,7 @@ export function projectCounts(
 		progress: progressRatio(counts),
 		...staleView(status, status.fetchedAt),
 		tags: [...tags],
-		...(counted ? { statusTypes } : {}),
+		statusTypes,
 	};
 	const report = projectReport(
 		project,
@@ -3135,7 +3091,7 @@ function summaryLine(counts: ProjectCounts): string {
 export function projectReport(
 	counts: ProjectCounts,
 	tickets: Ticket[],
-	lanes: Lane[] = [],
+	lanes: Lane[],
 	needs: NeedsYouItem[] = [],
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);

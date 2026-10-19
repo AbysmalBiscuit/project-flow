@@ -529,7 +529,7 @@ function linearBoard(
 ): Board {
 	return {
 		kind: "linear",
-		...(team === undefined ? {} : { teamKey: team.key }),
+		...(team === undefined ? {} : { laneKey: team.key }),
 		statuses,
 		factoryLabels: false,
 	};
