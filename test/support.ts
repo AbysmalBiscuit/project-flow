@@ -187,7 +187,10 @@ export function linearFake(options: LinearFake = {}): Fetch {
 				(item) => item.identifier === id || item.id === id,
 			);
 			if (issue === undefined) {
-				return linearJson({ data: { issue: null } });
+				return linearJson({
+					data: { issue: null },
+					errors: [{ message: "Issue not found" }],
+				});
 			}
 			const comments = issue.comments as
 				| { nodes?: Record<string, unknown>[] }

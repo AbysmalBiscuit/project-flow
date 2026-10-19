@@ -680,6 +680,29 @@ describe("replies", () => {
 		}
 	});
 
+	test("a missing Linear issue shows thread not found", async () => {
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [],
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		try {
+			const response = await fetch(
+				new URL("/api/threads/linear/PF-404?project=widget-launch", app.base),
+			);
+			expect(response.status).toBe(404);
+			const failed = (await response.json()) as { error: string };
+			expect(failed.error).toBe("thread not found");
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a GitHub issue thread returns the tracker URL", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {

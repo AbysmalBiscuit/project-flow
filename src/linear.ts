@@ -947,9 +947,8 @@ export async function fetchLinearThread(
 		{ id: ticketKey },
 		"fetch thread",
 	);
-	const failed = linearError(body, "fetch thread");
-	if (failed !== null) {
-		throw new TrackerError(failed, 502);
+	if (linearError(body, "fetch thread") !== null) {
+		return null;
 	}
 	const page = threadPage.parse(body);
 	const issue = page.data.issue;
