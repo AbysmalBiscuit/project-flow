@@ -773,12 +773,13 @@ export async function start(options: StartOptions): Promise<Running> {
 			projectErrors.every(
 				(error) => error === missingToken || error === missingLinearKey,
 			);
+		const otherFailure = projectErrors.find(
+			(error) =>
+				error !== null && error !== missingToken && error !== missingLinearKey,
+		);
 		const coldError = everyFailureIsMissingCredential
 			? null
-			: (firstStatus.error ??
-				(rows[0] === undefined
-					? null
-					: opened.store.projectError(rows[0].key)));
+			: (firstStatus.error ?? otherFailure ?? null);
 		if (fetched.length === 0 && coldError !== null) {
 			stopped = true;
 			await (polling ?? Promise.resolve());
