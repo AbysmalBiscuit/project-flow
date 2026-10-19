@@ -45,7 +45,6 @@ export type Ticket = {
 	comments?: Comment[];
 	milestone: string | null;
 	parent: string | null;
-	epic: boolean;
 	labels: string[];
 };
 
@@ -1081,7 +1080,7 @@ type Placed = {
 	theme: string;
 };
 
-function ancestor(
+function parentOf(
 	ticket: Ticket,
 	byKey: Map<string, Ticket>,
 ): Ticket | undefined {
@@ -1092,40 +1091,49 @@ function ancestor(
 	return byKey.get(parentKey.toLowerCase());
 }
 
-function rootOf(ticket: Ticket, byKey: Map<string, Ticket>): Ticket {
+function* ancestors(
+	ticket: Ticket,
+	byKey: Map<string, Ticket>,
+): Generator<Ticket> {
 	const seen = new Set<string>();
 	let current = ticket;
 	for (;;) {
-		const parent = ancestor(current, byKey);
+		const parent = parentOf(current, byKey);
 		if (parent === undefined || parent.key === null) {
-			return current;
+			return;
 		}
-		if (seen.has(parent.key.toLowerCase())) {
-			return current;
+		const key = parent.key.toLowerCase();
+		if (seen.has(key)) {
+			return;
 		}
-		seen.add(parent.key.toLowerCase());
+		seen.add(key);
+		yield parent;
 		current = parent;
 	}
+}
+
+function rootOf(ticket: Ticket, byKey: Map<string, Ticket>): Ticket {
+	let root = ticket;
+	for (const parent of ancestors(ticket, byKey)) {
+		root = parent;
+	}
+	return root;
 }
 
 function isEpic(ticket: Ticket): boolean {
 	return ticket.labels.some((label) => label.toLowerCase() === "epic");
 }
 
-function withEpic(ticket: Ticket): Ticket {
-	return { ...ticket, epic: isEpic(ticket) };
-}
-
 function themeOf(
 	ticket: Ticket,
 	root: Ticket,
 	byKey: Map<string, Ticket>,
-	roots: Set<string>,
+	parents: Set<string>,
 ): string {
 	if (isEpic(ticket)) {
 		return ticket.title;
 	}
-	const parent = ancestor(ticket, byKey);
+	const parent = parentOf(ticket, byKey);
 	if (parent !== undefined && isEpic(parent)) {
 		return parent.title;
 	}
@@ -1135,7 +1143,7 @@ function themeOf(
 	if (root !== ticket && root.key !== null) {
 		return root.title;
 	}
-	if (ticket.key !== null && roots.has(ticket.key.toLowerCase())) {
+	if (ticket.key !== null && parents.has(ticket.key.toLowerCase())) {
 		return ticket.title;
 	}
 	return scopeOf(ticket.title);
@@ -1145,17 +1153,13 @@ function linearMilestone(
 	ticket: Ticket,
 	byKey: Map<string, Ticket>,
 ): string | null {
-	const seen = new Set<string>();
-	let current: Ticket | undefined = ticket;
-	while (current !== undefined) {
-		if (current.milestone !== null) {
-			return current.milestone;
+	if (ticket.milestone !== null) {
+		return ticket.milestone;
+	}
+	for (const parent of ancestors(ticket, byKey)) {
+		if (parent.milestone !== null) {
+			return parent.milestone;
 		}
-		if (current.key === null || seen.has(current.key.toLowerCase())) {
-			return null;
-		}
-		seen.add(current.key.toLowerCase());
-		current = ancestor(current, byKey);
 	}
 	return null;
 }
@@ -1180,21 +1184,20 @@ function placeTickets(
 	views: TicketView[],
 	tracker: ProjectCounts["tracker"],
 ): Placed[] {
-	const decided = tickets.map(withEpic);
 	const byKey = new Map<string, Ticket>();
-	for (const ticket of decided) {
+	for (const ticket of tickets) {
 		if (ticket.key !== null) {
 			byKey.set(ticket.key.toLowerCase(), ticket);
 		}
 	}
-	const roots = new Set<string>();
-	for (const ticket of decided) {
-		const parent = ancestor(ticket, byKey);
+	const parents = new Set<string>();
+	for (const ticket of tickets) {
+		const parent = parentOf(ticket, byKey);
 		if (parent?.key !== null && parent?.key !== undefined) {
-			roots.add(parent.key.toLowerCase());
+			parents.add(parent.key.toLowerCase());
 		}
 	}
-	return decided.flatMap((ticket, index) => {
+	return tickets.flatMap((ticket, index) => {
 		const view = views[index];
 		if (view === undefined) {
 			return [];
@@ -1205,7 +1208,7 @@ function placeTickets(
 				ticket,
 				view,
 				workstream: workstreamOf(ticket, root, tracker, byKey),
-				theme: themeOf(ticket, root, byKey, roots),
+				theme: themeOf(ticket, root, byKey, parents),
 			},
 		];
 	});
@@ -1262,8 +1265,7 @@ function defineDiagram(diagram: Omit<Diagram, "definition">): Diagram {
 		lines.push(`  classDef ${state} fill:${stateFill[state]}`);
 	}
 	lines.push("  classDef theme fill:#e8eef7,stroke:#1a5fb4");
-	lines.push("  classDef external fill:#fff,stroke:#888");
-	lines.push("  classDef dashed stroke-dasharray: 5 5");
+	lines.push("  classDef dashed fill:#fff,stroke:#888,stroke-dasharray: 5 5");
 	return { ...diagram, definition: `${lines.join("\n")}\n` };
 }
 
