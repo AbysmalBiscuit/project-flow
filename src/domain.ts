@@ -1082,6 +1082,7 @@ function countsForHead(
 function reviewState(
 	pulls: PullRequest[],
 	expectedByRepo: Map<string, KnownBot[]>,
+	comments: Comment[] = [],
 ): { state: "inReview" | "awaitingMerge" | null; tags: string[] } {
 	const open = pulls.filter((pull) => !pull.merged);
 	if (open.length === 0 || open.some((pull) => pull.draft)) {
@@ -1090,17 +1091,144 @@ function reviewState(
 	const tags: string[] = [];
 	let waiting = false;
 	for (const pull of open) {
-		for (const bot of expectedByRepo.get(pull.repo) ?? []) {
-			const pass = botPass(pull, bot);
-			if (pass.warning !== null) {
-				tags.push(pass.warning);
-			}
-			if (!pass.done) {
-				waiting = true;
-			}
+		const run = workcellRun(comments, pull);
+		const cycle = run ?? botCycle(pull, expectedByRepo);
+		for (const tag of cycle.tags) {
+			tags.push(tag);
+		}
+		if (cycle.state === "inReview") {
+			waiting = true;
 		}
 	}
 	return { state: waiting ? "inReview" : "awaitingMerge", tags };
+}
+
+function botCycle(
+	pull: PullRequest,
+	expectedByRepo: Map<string, KnownBot[]>,
+): { state: "inReview" | "awaitingMerge"; tags: string[] } {
+	const tags: string[] = [];
+	let waiting = false;
+	for (const bot of expectedByRepo.get(pull.repo) ?? []) {
+		const pass = botPass(pull, bot);
+		if (pass.warning !== null) {
+			tags.push(pass.warning);
+		}
+		if (!pass.done) {
+			waiting = true;
+		}
+	}
+	return { state: waiting ? "inReview" : "awaitingMerge", tags };
+}
+
+const progressHeading = "**Workcell progress**";
+const stageLine = /^stage\s+(\d+)\b/i;
+const mergeAskLine = /^Merge PR #(\d+)\b/i;
+const reportMarker = "<!-- workcell:report -->";
+function pullNumbers(text: string): number[] {
+	const numbers: number[] = [];
+	for (const match of text.matchAll(/\/pull\/(\d+)\b/gi)) {
+		const number = Number(match[1]);
+		if (!numbers.includes(number)) {
+			numbers.push(number);
+		}
+	}
+	const asked = text.match(mergeAskLine)?.[1];
+	if (asked !== undefined) {
+		const number = Number(asked);
+		if (!numbers.includes(number)) {
+			numbers.push(number);
+		}
+	}
+	return numbers;
+}
+
+function workcellRun(
+	comments: Comment[],
+	pull: PullRequest,
+): { state: "inReview" | "awaitingMerge"; tags: string[] } | null {
+	const progress = comments.find(
+		(comment) => comment.body.split("\n")[0]?.trim() === progressHeading,
+	);
+	if (progress === undefined) {
+		return null;
+	}
+	const lines = progress.body
+		.split("\n")
+		.map((line) => line.trim().replace(/^-\s*/, ""))
+		.filter((line) => line !== "" && line !== progressHeading);
+	let stage: number | null = null;
+	for (const line of lines) {
+		const stageMatch = line.match(stageLine);
+		if (stageMatch?.[1] !== undefined && lineDecidesPull(line, pull, lines)) {
+			stage = Number(stageMatch[1]);
+		}
+	}
+	const progressAt = comments.indexOf(progress);
+	const later = comments.slice(progressAt + 1);
+	const mergeAsk = openMergeAsk(later, pull.number);
+	if (
+		mergeAsk !== null &&
+		!askAnswered(later.slice(mergeAsk.index + 1), mergeAsk.id)
+	) {
+		return { state: "awaitingMerge", tags: [] };
+	}
+	if (
+		later.some(
+			(comment) =>
+				comment.body.includes(reportMarker) &&
+				commentDecidesPull(comment.body, pull),
+		)
+	) {
+		return { state: "awaitingMerge", tags: [] };
+	}
+	if (stage !== null && stage <= 5) {
+		return { state: "inReview", tags: [] };
+	}
+	return null;
+}
+
+function lineDecidesPull(
+	line: string,
+	pull: PullRequest,
+	lines: string[],
+): boolean {
+	const numbers = pullNumbers(line);
+	if (numbers.length > 0) {
+		return numbers.includes(pull.number);
+	}
+	return !lines.some((item) => pullNumbers(item).length > 0);
+}
+
+function commentDecidesPull(body: string, pull: PullRequest): boolean {
+	const numbers = pullNumbers(body);
+	return numbers.length === 0 || numbers.includes(pull.number);
+}
+
+function openMergeAsk(
+	later: Comment[],
+	number: number,
+): { id: string; index: number } | null {
+	let found: { id: string; index: number } | null = null;
+	for (const [index, comment] of later.entries()) {
+		const first = comment.body.split("\n")[0]?.trim() ?? "";
+		const asked = first.match(mergeAskLine)?.[1];
+		if (asked === undefined || Number(asked) !== number) {
+			continue;
+		}
+		const marker = askId(comment.body);
+		if (marker !== null) {
+			found = { id: marker, index };
+		}
+	}
+	return found;
+}
+
+function askAnswered(later: Comment[], id: string): boolean {
+	return later.some(
+		(comment) =>
+			quotesAsk(comment.body, id) || answerPrefix.test(comment.body.trim()),
+	);
 }
 
 export function projectCounts(
@@ -1145,7 +1273,7 @@ export function projectCounts(
 			startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
 		const pushed =
 			key !== null && branches.some((branch) => branchLinksTicket(branch, key));
-		const review = reviewState(links, expectedBots);
+		const review = reviewState(links, expectedBots, ticket.comments ?? []);
 		for (const tag of review.tags) {
 			tags.add(tag);
 		}
