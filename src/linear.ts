@@ -16,6 +16,7 @@ import {
 	mergedPullHistory,
 	pullReview,
 	type ReviewEvidence,
+	TrackerError,
 } from "./github.ts";
 import type { FoundProject, Tracker } from "./ports.ts";
 
@@ -190,7 +191,6 @@ const issueNode = z.object({
 					id: z.string().optional(),
 					body: z.string().nullable().optional(),
 					createdAt: z.string().optional(),
-					parent: z.object({ id: z.string() }).nullable().optional(),
 					user: z
 						.object({
 							name: z.string().nullable().optional(),
@@ -281,6 +281,18 @@ function blockedBy(node: z.infer<typeof issueNode>): TicketRef[] {
 		};
 		return [ref];
 	});
+}
+
+function linearAuthor(
+	user:
+		| {
+				name?: string | null | undefined;
+				displayName?: string | null | undefined;
+		  }
+		| null
+		| undefined,
+): string {
+	return user?.displayName ?? user?.name ?? "";
 }
 
 function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
@@ -877,19 +889,21 @@ const commentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
 }`;
 
 const createdComment = z.object({
-	data: z.object({
-		commentCreate: z.object({
-			success: z.boolean(),
-			comment: z
-				.object({
-					id: z.string(),
-					body: z.string().nullable().optional(),
-					createdAt: z.string(),
-					url: z.string(),
-				})
-				.nullable(),
-		}),
-	}),
+	data: z
+		.object({
+			commentCreate: z.object({
+				success: z.boolean(),
+				comment: z
+					.object({
+						id: z.string(),
+						body: z.string().nullable().optional(),
+						createdAt: z.string(),
+						url: z.string(),
+					})
+					.nullable(),
+			}),
+		})
+		.nullable(),
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
@@ -906,21 +920,31 @@ async function linearPost(
 		body: JSON.stringify({ query: queryText, variables }),
 	});
 	if (!response.ok) {
-		throw new Error(`Linear ${label} failed (HTTP ${response.status})`);
+		throw new TrackerError(
+			`Linear ${label} failed (HTTP ${response.status})`,
+			response.status,
+		);
 	}
 	return response.json();
 }
 
-function linearAuthor(
-	user:
-		| {
-				name?: string | null | undefined;
-				displayName?: string | null | undefined;
-		  }
-		| null
-		| undefined,
-): string {
-	return user?.displayName ?? user?.name ?? "";
+function linearError(body: unknown, label: string): string | null {
+	if (typeof body !== "object" || body === null || !("errors" in body)) {
+		return null;
+	}
+	const errors = body.errors;
+	if (!Array.isArray(errors) || errors.length === 0) {
+		return null;
+	}
+	const first = errors[0];
+	const message =
+		typeof first === "object" &&
+		first !== null &&
+		"message" in first &&
+		typeof first.message === "string"
+			? first.message
+			: "request failed";
+	return `Linear ${label} failed: ${message}`;
 }
 
 export async function fetchLinearThread(
@@ -936,11 +960,11 @@ export async function fetchLinearThread(
 		{ id: ticketKey },
 		"fetch thread",
 	);
-	const page = threadPage.parse(body);
-	const error = page.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`Linear fetch thread failed: ${error.message}`);
+	const failed = linearError(body, "fetch thread");
+	if (failed !== null) {
+		throw new TrackerError(failed, 502);
 	}
+	const page = threadPage.parse(body);
 	const issue = page.data.issue;
 	if (issue === null) {
 		return null;
@@ -953,6 +977,7 @@ export async function fetchLinearThread(
 		url: comment.url ?? "",
 		parentId: comment.parent?.id ?? null,
 		kind: "comment",
+		children: [],
 	}));
 	return {
 		tracker: "linear",
@@ -981,14 +1006,18 @@ export async function postLinearReply(
 		{ input },
 		"reply",
 	);
-	const page = createdComment.parse(body);
-	const error = page.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`Linear reply failed: ${error.message}`);
+	const failed = linearError(body, "reply");
+	if (failed !== null) {
+		throw new TrackerError(failed, 502);
 	}
-	const created = page.data.commentCreate.comment;
-	if (!page.data.commentCreate.success || created === null) {
-		throw new Error("Linear reply failed");
+	const page = createdComment.parse(body);
+	const created = page.data?.commentCreate.comment ?? null;
+	if (
+		page.data === null ||
+		!page.data.commentCreate.success ||
+		created === null
+	) {
+		throw new TrackerError("Linear reply failed", 502);
 	}
 	return {
 		id: created.id,

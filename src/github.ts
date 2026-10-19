@@ -16,6 +16,16 @@ import type {
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
+export class TrackerError extends Error {
+	readonly status: number;
+
+	constructor(message: string, status: number) {
+		super(message);
+		this.name = "TrackerError";
+		this.status = status;
+	}
+}
+
 const dependency = z.object({
 	number: z.number(),
 	state: z.string(),
@@ -1332,13 +1342,16 @@ async function listCommentBodies(
 	return bodies;
 }
 
-function ticketNumber(project: string, key: string): number | null {
-	const marker = `${project}#`;
-	const raw = key.startsWith(marker) ? key.slice(marker.length) : key;
-	if (!/^\d+$/.test(raw)) {
+export function githubTicketKey(
+	key: string,
+): { repo: string; number: number } | null {
+	const match = key.match(/^([^/\s]+\/[^/\s]+)#(\d+)$/);
+	const repo = match?.[1];
+	const raw = match?.[2];
+	if (repo === undefined || raw === undefined) {
 		return null;
 	}
-	return Number(raw);
+	return { repo, number: Number(raw) };
 }
 
 const githubThreadComment = z.object({
@@ -1369,7 +1382,10 @@ async function githubJson(
 		headers: { ...githubHeaders(token), ...init.headers },
 	});
 	if (!response.ok) {
-		throw new Error(`GitHub ${label} failed (HTTP ${response.status})`);
+		throw new TrackerError(
+			`GitHub ${label} failed (HTTP ${response.status})`,
+			response.status,
+		);
 	}
 	return response.json();
 }
@@ -1389,6 +1405,7 @@ function toThreadComment(
 				? null
 				: String(comment.in_reply_to_id),
 		kind,
+		children: [],
 	};
 }
 
@@ -1398,14 +1415,12 @@ export async function fetchGithubThread(
 	project: string,
 	key: string,
 ): Promise<Thread | null> {
-	if (!project.includes("/")) {
+	const parsed = githubTicketKey(key);
+	if (parsed === null) {
 		return null;
 	}
-	const number = ticketNumber(project, key);
-	if (number === null) {
-		return null;
-	}
-	const issueUrl = `https://api.github.com/repos/${project}/issues/${number}`;
+	const { repo, number } = parsed;
+	const issueUrl = `https://api.github.com/repos/${repo}/issues/${number}`;
 	const issueResponse = await fetchImpl(issueUrl, {
 		headers: githubHeaders(token),
 	});
@@ -1413,8 +1428,9 @@ export async function fetchGithubThread(
 		return null;
 	}
 	if (!issueResponse.ok) {
-		throw new Error(
+		throw new TrackerError(
 			`GitHub fetch thread failed (HTTP ${issueResponse.status})`,
+			issueResponse.status,
 		);
 	}
 	const issue = z
@@ -1428,7 +1444,7 @@ export async function fetchGithubThread(
 		.array(githubThreadComment)
 		.parse(
 			await githubJson(
-				`https://api.github.com/repos/${project}/issues/${number}/comments?per_page=100&page=1`,
+				`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
 				token,
 				fetchImpl,
 				{},
@@ -1443,7 +1459,7 @@ export async function fetchGithubThread(
 					.array(githubThreadComment)
 					.parse(
 						await githubJson(
-							`https://api.github.com/repos/${project}/pulls/${number}/comments?per_page=100&page=1`,
+							`https://api.github.com/repos/${repo}/pulls/${number}/comments?per_page=100&page=1`,
 							token,
 							fetchImpl,
 							{},
@@ -1466,25 +1482,25 @@ export async function postGithubReply(
 	fetchImpl: Fetch,
 	reply: ReplyRequest,
 ): Promise<PostedReply> {
-	const number = ticketNumber(reply.project, reply.key);
-	if (number === null) {
-		throw new Error("GitHub reply failed: ticket key has no number");
+	const parsed = githubTicketKey(reply.key);
+	if (parsed === null) {
+		throw new TrackerError(
+			"GitHub reply failed: ticket key has no number",
+			400,
+		);
 	}
+	const { repo, number } = parsed;
 	const review = reply.kind === "review";
 	const parent = reply.parentId === undefined ? null : Number(reply.parentId);
 	if (review && (parent === null || !Number.isInteger(parent))) {
-		throw new Error("GitHub reply failed: review thread has no parent");
-	}
-	const issue = await fetchImpl(
-		`https://api.github.com/repos/${reply.project}/issues/${number}`,
-		{ headers: githubHeaders(token) },
-	);
-	if (issue.status === 404) {
-		throw new Error("GitHub reply failed (HTTP 404): ticket not found");
+		throw new TrackerError(
+			"GitHub reply failed: review thread has no parent",
+			400,
+		);
 	}
 	const url = review
-		? `https://api.github.com/repos/${reply.project}/pulls/${number}/comments`
-		: `https://api.github.com/repos/${reply.project}/issues/${number}/comments`;
+		? `https://api.github.com/repos/${repo}/pulls/${number}/comments`
+		: `https://api.github.com/repos/${repo}/issues/${number}/comments`;
 	const payload =
 		review && parent !== null
 			? { body: reply.body, in_reply_to: parent }
@@ -1497,8 +1513,17 @@ export async function postGithubReply(
 		},
 		body: JSON.stringify(payload),
 	});
+	if (response.status === 404) {
+		throw new TrackerError(
+			"GitHub reply failed (HTTP 404): ticket not found",
+			404,
+		);
+	}
 	if (!response.ok) {
-		throw new Error(`GitHub reply failed (HTTP ${response.status})`);
+		throw new TrackerError(
+			`GitHub reply failed (HTTP ${response.status})`,
+			response.status,
+		);
 	}
 	const created = postedComment.parse(await response.json());
 	return {
