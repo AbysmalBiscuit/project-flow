@@ -10,6 +10,7 @@ import type {
 	ReplyRequest,
 	Snapshot,
 	Thread,
+	Ticket,
 } from "./domain.ts";
 import {
 	checkoutBasenames,
@@ -19,6 +20,7 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	panelReplyBody,
 	projectCounts,
 	projectSnapshots,
 	reconcilePoll,
@@ -289,7 +291,7 @@ async function replyResponse(
 		tracker: parsed.data.tracker,
 		project: parsed.data.project,
 		key: parsed.data.key,
-		body: parsed.data.body,
+		body: panelReplyBody(ticketForReply(store, parsed.data), parsed.data.body),
 		...(parsed.data.parentId === undefined
 			? {}
 			: { parentId: parsed.data.parentId }),
@@ -305,6 +307,20 @@ async function replyResponse(
 	} catch (error) {
 		return trackerError(error);
 	}
+}
+
+function ticketForReply(
+	store: Store,
+	reply: { tracker: string; project: string; key: string },
+): Ticket | undefined {
+	const row = store
+		.readTickets()
+		.find(
+			(item) =>
+				item.tracker === reply.tracker &&
+				(item.key === reply.project || item.name === reply.project),
+		);
+	return row?.tickets.find((ticket) => ticket.key === reply.key);
 }
 
 function recordPostedReply(

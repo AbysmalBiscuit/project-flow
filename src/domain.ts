@@ -1616,6 +1616,31 @@ function askClosed(later: Comment[], id: string): boolean {
 	);
 }
 
+export function panelReplyBody(
+	ticket: Ticket | undefined,
+	body: string,
+): string {
+	const text = body.trim();
+	const comments = ticket?.comments ?? [];
+	const ask = openAsk(comments, true);
+	if (ask === null) {
+		return text;
+	}
+	const source = orderedComments(comments)[ask.index];
+	if (source === undefined || levReply(comments, ask.index) !== null) {
+		return text;
+	}
+	const headline = source.body
+		.replace(askMarker, "")
+		.split("\n")
+		.map((line) => line.trim())
+		.find((line) => line !== "" && !line.startsWith("<!--"));
+	if (headline === undefined) {
+		return text;
+	}
+	return `> ${headline}\n\n${text}`;
+}
+
 function askHeadline(body: string): string {
 	const text = body.replace(askMarker, "").trim();
 	const named = text
