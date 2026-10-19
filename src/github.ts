@@ -406,6 +406,31 @@ export async function githubProjectByNumber(
 	};
 }
 
+const closingPullsQuery = `query ClosingPulls($id: ID!, $after: String) {
+	node(id: $id) {
+		... on Issue {
+			closedByPullRequestsReferences(first: 20, after: $after) {
+				nodes { number }
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+}`;
+
+const closingPulls = z.object({
+	data: z.object({
+		node: z
+			.object({
+				closedByPullRequestsReferences: z.object({
+					nodes: z.array(z.object({ number: z.number() })),
+					pageInfo,
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
 const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 	node(id: $id) {
 		... on ProjectV2 {
@@ -414,13 +439,14 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 					content {
 						__typename
 						... on Issue {
-							number title state stateReason updatedAt
+							id number title state stateReason updatedAt comments { totalCount }
 							repository { nameWithOwner }
 							milestone { title }
 							labels(first: 20) { nodes { name } }
 							parent { number repository { nameWithOwner } }
 							closedByPullRequestsReferences(first: 20) {
 								nodes { number }
+								pageInfo { hasNextPage endCursor }
 							}
 						}
 					}
@@ -435,11 +461,13 @@ const projectItem = z.object({
 	content: z
 		.object({
 			__typename: z.string(),
+			id: z.string().optional(),
 			number: z.number().optional(),
 			title: z.string().optional(),
 			state: z.string().optional(),
 			stateReason: z.string().nullable().optional(),
 			updatedAt: z.string().optional(),
+			comments: z.object({ totalCount: z.number() }).optional(),
 			repository: z.object({ nameWithOwner: z.string() }).optional(),
 			milestone: z.object({ title: z.string() }).nullable().optional(),
 			labels: z
@@ -458,6 +486,7 @@ const projectItem = z.object({
 			closedByPullRequestsReferences: z
 				.object({
 					nodes: z.array(z.object({ number: z.number() })),
+					pageInfo,
 				})
 				.optional(),
 		})
@@ -597,12 +626,10 @@ async function listProjectTickets(
 			content.parent === null || content.parent === undefined
 				? null
 				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
-		const comments = await listCommentBodies(
-			token,
-			fetchImpl,
-			repoName,
-			content.number,
-		);
+		const comments =
+			state === "open" && (content.comments?.totalCount ?? 0) > 0
+				? await listCommentBodies(token, fetchImpl, repoName, content.number)
+				: [];
 		tickets.push({
 			id: String(content.number),
 			tracker: "github",
@@ -621,6 +648,45 @@ async function listProjectTickets(
 		});
 	}
 	return tickets;
+}
+
+async function closingPullPages(
+	token: string,
+	fetchImpl: Fetch,
+	issueId: string,
+	start: string,
+): Promise<{ number: number }[]> {
+	const nodes: { number: number }[] = [];
+	let after: string | null = start;
+	do {
+		const response = await fetchImpl("https://api.github.com/graphql", {
+			method: "POST",
+			headers: githubHeaders(token),
+			body: JSON.stringify({
+				query: closingPullsQuery,
+				variables: { id: issueId, after },
+			}),
+		});
+		if (!response.ok) {
+			throw new Error(
+				`GitHub list closing pulls failed (HTTP ${response.status}): ${issueId}`,
+			);
+		}
+		const page = closingPulls.parse(await response.json());
+		const error = page.errors?.[0];
+		if (error !== undefined) {
+			throw new Error(`GitHub list closing pulls failed: ${error.message}`);
+		}
+		const connection = page.data.node?.closedByPullRequestsReferences;
+		if (connection === undefined) {
+			throw new Error(`GitHub list closing pulls failed: ${issueId}`);
+		}
+		nodes.push(...connection.nodes);
+		after = connection.pageInfo.hasNextPage
+			? connection.pageInfo.endCursor
+			: null;
+	} while (after !== null);
+	return nodes;
 }
 
 async function listProjectPulls(
@@ -643,7 +709,19 @@ async function listProjectPulls(
 			continue;
 		}
 		const repoName = content.repository.nameWithOwner;
-		for (const linked of content.closedByPullRequestsReferences?.nodes ?? []) {
+		const linkedPulls = [
+			...(content.closedByPullRequestsReferences?.nodes ?? []),
+		];
+		const closingAfter = content.closedByPullRequestsReferences?.pageInfo
+			.hasNextPage
+			? content.closedByPullRequestsReferences.pageInfo.endCursor
+			: null;
+		if (closingAfter !== null && content.id !== undefined) {
+			linkedPulls.push(
+				...(await closingPullPages(token, fetchImpl, content.id, closingAfter)),
+			);
+		}
+		for (const linked of linkedPulls) {
 			const key = `${repoName}#${linked.number}`;
 			if (seenPulls.has(key)) {
 				continue;
@@ -679,7 +757,9 @@ async function loadOpenPull(
 		{ headers: githubHeaders(token) },
 	);
 	if (!response.ok) {
-		return null;
+		throw new Error(
+			`GitHub list pulls failed (HTTP ${response.status}): ${repo}`,
+		);
 	}
 	const pull = githubPull.parse(await response.json());
 	if (pull.state !== "open") {
@@ -963,7 +1043,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		}
 		const listed = listProjectItems(token, fetchImpl, projectId).catch(
 			(error: unknown) => {
-				projectItemsById.delete(projectId);
+				if (projectItemsById.get(projectId) === listed) {
+					projectItemsById.delete(projectId);
+				}
 				throw error;
 			},
 		);

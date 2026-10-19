@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -135,8 +136,9 @@ function mergedPull(): Record<string, unknown> {
 }
 
 function projectBoard(
-	comments: { body: string }[],
 	pulls: { number: number }[] = [{ number: 83 }],
+	closingPages?: { nodes: { number: number }[]; endCursor: string | null }[],
+	restComments?: { body: string; user?: { login: string } | null }[],
 ): Fetch {
 	const projectId = "PVT_widget";
 	return async (input, init) => {
@@ -164,7 +166,69 @@ function projectBoard(
 				},
 			});
 		}
+		if (
+			url === "https://api.github.com/graphql" &&
+			sent.includes("closedByPullRequestsReferences") &&
+			!sent.includes("ProjectV2")
+		) {
+			const variables = JSON.parse(sent) as {
+				variables?: { after?: string | null };
+			};
+			const after = variables.variables?.after ?? null;
+			const index =
+				closingPages === undefined
+					? -1
+					: closingPages.findIndex(
+							(_item, itemIndex) =>
+								closingPages[itemIndex - 1]?.endCursor === after,
+						);
+			const listed = closingPages?.[index];
+			if (listed === undefined) {
+				return new Response("closing page not recorded", { status: 404 });
+			}
+			return page({
+				data: {
+					node: {
+						closedByPullRequestsReferences: {
+							nodes: listed.nodes,
+							pageInfo: {
+								hasNextPage: listed.endCursor !== null,
+								endCursor: listed.endCursor,
+							},
+						},
+					},
+				},
+			});
+		}
 		if (url === "https://api.github.com/graphql" && sent.includes("node(id:")) {
+			const variables = JSON.parse(sent) as {
+				variables?: { after?: string | null };
+			};
+			const after = variables.variables?.after ?? null;
+			const closing =
+				closingPages === undefined
+					? { nodes: pulls, hasNextPage: false, endCursor: null }
+					: (() => {
+							const index =
+								after === null
+									? 0
+									: closingPages.findIndex(
+											(_item, itemIndex) =>
+												closingPages[itemIndex - 1]?.endCursor === after,
+										);
+							const listed = closingPages[index];
+							if (listed === undefined) {
+								return null;
+							}
+							return {
+								nodes: listed.nodes,
+								hasNextPage: listed.endCursor !== null,
+								endCursor: listed.endCursor,
+							};
+						})();
+			if (closing === null) {
+				return new Response("closing page not recorded", { status: 404 });
+			}
 			return page({
 				data: {
 					node: {
@@ -173,6 +237,7 @@ function projectBoard(
 								{
 									content: {
 										__typename: "Issue",
+										id: "I_widget_8",
 										number: 8,
 										title: "Ticket 8",
 										state: "OPEN",
@@ -180,10 +245,15 @@ function projectBoard(
 										updatedAt: "2026-10-01T00:00:00Z",
 										repository: { nameWithOwner: repo },
 										comments: {
-											nodes: comments,
-											pageInfo: { hasNextPage: false, endCursor: null },
+											totalCount: (restComments ?? []).length,
 										},
-										closedByPullRequestsReferences: { nodes: pulls },
+										closedByPullRequestsReferences: {
+											nodes: closing.nodes,
+											pageInfo: {
+												hasNextPage: closing.hasNextPage,
+												endCursor: closing.endCursor,
+											},
+										},
 									},
 								},
 							],
@@ -207,6 +277,12 @@ function projectBoard(
 		}
 		if (url.includes("/pulls?state=closed")) {
 			return page([]);
+		}
+		if (
+			url ===
+			`https://api.github.com/repos/${repo}/issues/8/comments?per_page=100&page=1`
+		) {
+			return page(restComments ?? []);
 		}
 		if (
 			url.includes("/comments") ||
@@ -2512,7 +2588,13 @@ describe("review cycle", () => {
 					updatedAt: "2026-10-01T00:00:00.000Z",
 					state: { type: "unstarted" },
 					comments: {
-						nodes: [{ body: "noted" }],
+						nodes: [
+							{
+								body: progress(
+									"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+								),
+							},
+						],
 						pageInfo: { hasNextPage: true, endCursor: "page-2" },
 					},
 					attachments: {
@@ -2633,6 +2715,188 @@ describe("review cycle", () => {
 		}
 	});
 
+	test("a final report after a Linear progress comment sets its PR to awaiting merge", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+				expectedBots: { [repo]: ["grok"] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const recorded = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
+					state: { type: "unstarted" },
+					comments: {
+						nodes: [
+							{
+								body: progress(
+									"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+								),
+							},
+						],
+						pageInfo: { hasNextPage: true, endCursor: "page-2" },
+					},
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/83",
+								title: "PR 83",
+								sourceType: "github",
+							},
+						],
+					},
+				},
+			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/83") {
+					return page(pull(83));
+				}
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
+					return page({
+						check_runs: [
+							{
+								name: "Grok code review",
+								status: "completed",
+								conclusion: "success",
+							},
+						],
+					});
+				}
+				if (url.includes("/commits/")) {
+					return page({
+						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+					});
+				}
+				if (url.includes("/pulls?state=closed")) {
+					return page([]);
+				}
+				if (url.includes("/pulls/83/reviews")) {
+					return page([
+						{ user: { login: grok }, commit_id: head, state: "COMMENTED" },
+					]);
+				}
+				if (
+					url.includes("/comments") ||
+					url.includes("/reviews") ||
+					url.includes("/reactions") ||
+					url.includes("/branches")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
+		const commentCursors: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (sent.includes("IssueComments")) {
+				const after =
+					(JSON.parse(sent) as { variables?: { after?: string | null } })
+						.variables?.after ?? null;
+				commentCursors.push(`comments:${after ?? "start"}`);
+				const nodes =
+					after === "page-2"
+						? [
+								{
+									body: "Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->",
+								},
+							]
+						: [{ body: "noted" }];
+				return page({
+					data: {
+						issue: {
+							comments: {
+								nodes,
+								pageInfo: {
+									hasNextPage: after !== "page-2",
+									endCursor: after === "page-2" ? null : "page-2",
+								},
+							},
+						},
+					},
+				});
+			}
+			return recorded(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			const body = await checks;
+			expect(commentCursors).toEqual(["comments:page-2"]);
+			expect(body).toMatchObject({
+				projects: [
+					{
+						name: "Widget launch",
+						tracker: "linear",
+						inReview: 0,
+						awaitingMerge: 1,
+						tickets: [{ key: "WID-8", state: "awaitingMerge" }],
+					},
+				],
+			});
+			expect(body).toMatchObject({
+				projects: [
+					{
+						name: "Widget launch",
+						tracker: "linear",
+						inReview: 0,
+						awaitingMerge: 1,
+						tickets: [{ key: "WID-8", state: "awaitingMerge" }],
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a workcell progress comment on a GitHub project ticket keeps its PR in review", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2642,11 +2906,12 @@ describe("review cycle", () => {
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
-		const board = projectBoard([
+		const board = projectBoard([{ number: 83 }], undefined, [
 			{
 				body: progress(
 					"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
 				),
+				user: null,
 			},
 		]);
 		let startChecks: (base: string) => void = () => {};
@@ -2880,14 +3145,16 @@ describe("review cycle", () => {
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
-		const board = projectBoard([
+		const board = projectBoard([{ number: 83 }], undefined, [
 			{
 				body: progress(
 					"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
 				),
+				user: null,
 			},
 			{
 				body: "Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->",
+				user: null,
 			},
 		]);
 		let startChecks: (base: string) => void = () => {};
@@ -2928,6 +3195,325 @@ describe("review cycle", () => {
 					},
 				],
 			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a final report listed after the progress comment sets awaiting merge", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const progressBody = progress(
+			"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+		);
+		const reportBody =
+			"Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->";
+		const board = projectBoard([{ number: 83 }], undefined, [
+			{ body: progressBody, user: null },
+			{ body: reportBody, user: null },
+		]);
+		const commentReads: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (
+				url ===
+				`https://api.github.com/repos/${repo}/issues/8/comments?per_page=100&page=1`
+			) {
+				commentReads.push(url);
+			}
+			return board(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						inReview: 0,
+						awaitingMerge: 1,
+						tickets: [{ key: `${repo}#8`, state: "awaitingMerge" }],
+					},
+				],
+			});
+			expect(commentReads.length).toBeGreaterThan(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a failed closing PR read does not drop the workcell review state", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const board = projectBoard([{ number: 83 }], undefined, [
+			{
+				body: progress(
+					"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+				),
+				user: null,
+			},
+		]);
+		const fetchImpl: Fetch = async (input, init) => {
+			if (
+				urlOf(input) === "https://api.github.com/repos/acme/widget/pulls/83"
+			) {
+				return new Response("recorded failure", { status: 500 });
+			}
+			return board(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<string>((resolve) => {
+			startChecks = (base: string) => resolve(base);
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr).toContain("GitHub list pulls failed");
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a closing PR past the first page takes the workcell review state", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const earlier = Array.from({ length: 20 }, (_item, index) => ({
+			number: index + 1,
+		}));
+		const board = projectBoard(
+			[],
+			[
+				{ nodes: earlier, endCursor: "closing-2" },
+				{ nodes: [{ number: 83 }], endCursor: null },
+			],
+			[
+				{
+					body: progress(
+						"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+					),
+					user: null,
+				},
+			],
+		);
+		const pullReads: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const pullMatch = url.match(/\/pulls\/(\d+)$/);
+			if (pullMatch?.[1] !== undefined) {
+				pullReads.push(pullMatch[1]);
+			}
+			return board(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget board",
+						inReview: 1,
+						awaitingMerge: 0,
+						tickets: [{ key: `${repo}#8`, state: "inReview" }],
+					},
+				],
+			});
+			expect(pullReads).toContain("83");
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a rejected GitHub project list is sent again on the next poll", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const seeded = new Database(databasePath);
+		seeded.run(`
+			create table snapshots (
+				snapshot_key text primary key,
+				name text not null,
+				tracker text not null,
+				payload text not null
+			)
+		`);
+		seeded
+			.query(
+				"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
+			)
+			.run(
+				"github:PVT_widget",
+				"Widget board",
+				"github",
+				JSON.stringify({
+					tickets: [],
+					pulls: [],
+					branches: [],
+					startedKeys: [],
+				}),
+			);
+		seeded.close();
+		const board = projectBoard([{ number: 83 }], undefined, [
+			{
+				body: progress(
+					"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+				),
+				user: null,
+			},
+		]);
+		let projectReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (
+				urlOf(input) === "https://api.github.com/graphql" &&
+				sent.includes("node(id:")
+			) {
+				projectReads += 1;
+				if (projectReads === 1) {
+					return new Response("recorded failure", { status: 500 });
+				}
+			}
+			return board(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<string>((resolve) => {
+			startChecks = (base: string) => resolve(base);
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: (async () => {
+						const base = await checks;
+						const failed = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(failed.status).toBe(204);
+						const first = await fetch(new URL("/api/overview", base));
+						expect(first.status).toBe(200);
+						expect(await first.json()).toMatchObject({
+							projects: [
+								{
+									error:
+										"GitHub list project tickets failed (HTTP 500): PVT_widget",
+								},
+							],
+						});
+						const refresh = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(refresh.status).toBe(204);
+						const second = await fetch(new URL("/api/overview", base));
+						expect(second.status).toBe(200);
+						expect(await second.json()).toMatchObject({
+							projects: [
+								{
+									name: "Widget board",
+									tracker: "github",
+									inReview: 1,
+									awaitingMerge: 0,
+									tickets: [{ key: `${repo}#8`, state: "inReview" }],
+								},
+							],
+						});
+					})(),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(projectReads).toBe(2);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
