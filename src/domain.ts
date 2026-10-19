@@ -1088,21 +1088,34 @@ function reviewState(
 	if (open.length === 0 || open.some((pull) => pull.draft)) {
 		return { state: null, tags: [] };
 	}
-	const run = workcellRun(comments);
-	if (run !== null) {
-		return { state: run, tags: [] };
-	}
 	const tags: string[] = [];
 	let waiting = false;
 	for (const pull of open) {
-		for (const bot of expectedByRepo.get(pull.repo) ?? []) {
-			const pass = botPass(pull, bot);
-			if (pass.warning !== null) {
-				tags.push(pass.warning);
-			}
-			if (!pass.done) {
-				waiting = true;
-			}
+		const run = workcellRun(comments, pull);
+		const cycle = run ?? botCycle(pull, expectedByRepo);
+		for (const tag of cycle.tags) {
+			tags.push(tag);
+		}
+		if (cycle.state === "inReview") {
+			waiting = true;
+		}
+	}
+	return { state: waiting ? "inReview" : "awaitingMerge", tags };
+}
+
+function botCycle(
+	pull: PullRequest,
+	expectedByRepo: Map<string, KnownBot[]>,
+): { state: "inReview" | "awaitingMerge"; tags: string[] } {
+	const tags: string[] = [];
+	let waiting = false;
+	for (const bot of expectedByRepo.get(pull.repo) ?? []) {
+		const pass = botPass(pull, bot);
+		if (pass.warning !== null) {
+			tags.push(pass.warning);
+		}
+		if (!pass.done) {
+			waiting = true;
 		}
 	}
 	return { state: waiting ? "inReview" : "awaitingMerge", tags };
@@ -1111,10 +1124,30 @@ function reviewState(
 const progressHeading = "**Workcell progress**";
 const stageLine = /^stage\s+(\d+)\b/i;
 const finalReportLine = /^final report\b/i;
-const mergeAskLine = /^Merge PR #\d+\b/i;
+const mergeAskLine = /^Merge PR #(\d+)\b/i;
 const reportMarker = "<!-- workcell:report -->";
+function pullNumbers(text: string): number[] {
+	const numbers: number[] = [];
+	for (const match of text.matchAll(/\/pull\/(\d+)\b/gi)) {
+		const number = Number(match[1]);
+		if (!numbers.includes(number)) {
+			numbers.push(number);
+		}
+	}
+	const asked = text.match(mergeAskLine)?.[1];
+	if (asked !== undefined) {
+		const number = Number(asked);
+		if (!numbers.includes(number)) {
+			numbers.push(number);
+		}
+	}
+	return numbers;
+}
 
-function workcellRun(comments: Comment[]): "inReview" | "awaitingMerge" | null {
+function workcellRun(
+	comments: Comment[],
+	pull: PullRequest,
+): { state: "inReview" | "awaitingMerge"; tags: string[] } | null {
 	const progress = comments.find(
 		(comment) => comment.body.split("\n")[0]?.trim() === progressHeading,
 	);
@@ -1129,41 +1162,66 @@ function workcellRun(comments: Comment[]): "inReview" | "awaitingMerge" | null {
 	let reported = false;
 	for (const line of lines) {
 		const stageMatch = line.match(stageLine);
-		if (stageMatch?.[1] !== undefined) {
+		if (stageMatch?.[1] !== undefined && lineDecidesPull(line, pull, lines)) {
 			stage = Number(stageMatch[1]);
 			reported = false;
 			continue;
 		}
-		if (finalReportLine.test(line)) {
+		if (finalReportLine.test(line) && lineDecidesPull(line, pull, lines)) {
 			reported = true;
 		}
 	}
 	const progressAt = comments.indexOf(progress);
 	const later = comments.slice(progressAt + 1);
-	const mergeAsk = openMergeAsk(later);
+	const mergeAsk = openMergeAsk(later, pull.number);
 	if (
 		mergeAsk !== null &&
 		!askAnswered(later.slice(mergeAsk.index + 1), mergeAsk.id)
 	) {
-		return "awaitingMerge";
+		return { state: "awaitingMerge", tags: [] };
 	}
 	if (
 		reported &&
-		later.some((comment) => comment.body.includes(reportMarker))
+		later.some(
+			(comment) =>
+				comment.body.includes(reportMarker) &&
+				commentDecidesPull(comment.body, pull),
+		)
 	) {
-		return "awaitingMerge";
+		return { state: "awaitingMerge", tags: [] };
 	}
 	if (stage !== null && stage <= 5) {
-		return "inReview";
+		return { state: "inReview", tags: [] };
 	}
 	return null;
 }
 
-function openMergeAsk(later: Comment[]): { id: string; index: number } | null {
+function lineDecidesPull(
+	line: string,
+	pull: PullRequest,
+	lines: string[],
+): boolean {
+	const numbers = pullNumbers(line);
+	if (numbers.length > 0) {
+		return numbers.includes(pull.number);
+	}
+	return !lines.some((item) => pullNumbers(item).length > 0);
+}
+
+function commentDecidesPull(body: string, pull: PullRequest): boolean {
+	const numbers = pullNumbers(body);
+	return numbers.length === 0 || numbers.includes(pull.number);
+}
+
+function openMergeAsk(
+	later: Comment[],
+	number: number,
+): { id: string; index: number } | null {
 	let found: { id: string; index: number } | null = null;
 	for (const [index, comment] of later.entries()) {
 		const first = comment.body.split("\n")[0]?.trim() ?? "";
-		if (!mergeAskLine.test(first)) {
+		const asked = first.match(mergeAskLine)?.[1];
+		if (asked === undefined || Number(asked) !== number) {
 			continue;
 		}
 		const marker = askId(comment.body);

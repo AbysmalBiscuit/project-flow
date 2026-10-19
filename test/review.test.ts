@@ -1834,7 +1834,7 @@ describe("review cycle", () => {
 				8: [
 					{
 						body: progress(
-							"- stage 5: round 1 of 3\n- final report sent https://github.com/acme/widget/pull/83\n- stage 1: implementing issue 8 again",
+							"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83\n- final report sent https://github.com/acme/widget/pull/83\n- stage 1: implementing issue 8 again https://github.com/acme/widget/pull/83",
 						),
 					},
 				],
@@ -1953,6 +1953,104 @@ describe("review cycle", () => {
 			},
 			reviewsByPull: {
 				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a final report on one open PR leaves the other open PR in review", async () => {
+		const second = "cccccccccccccccccccccccccccccccccccccccc";
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83), pull(84, 8, second)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/84\n- final report sent https://github.com/acme/widget/pull/83",
+						),
+					},
+					{
+						body: "Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->",
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+				[second]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+				84: [{ user: { login: grok }, commit_id: second, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("an open merge ask on one PR leaves the other open PR at its own stage", async () => {
+		const second = "cccccccccccccccccccccccccccccccccccccccc";
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83), pull(84, 8, second)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/84",
+						),
+					},
+					{
+						body: "Merge PR #83 by squash?\n\n<!-- workcell:ask 8-1 -->",
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+				[second]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+				84: [{ user: { login: grok }, commit_id: second, state: "COMMENTED" }],
 			},
 			mergedPulls: [mergedPull()],
 		});
