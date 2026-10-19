@@ -2,12 +2,7 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Notification } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
-
-const triggerLabel: Record<Notification["trigger"], string> = {
-	needsYou: "Needs you",
-	comment: "New comment",
-	blockerCleared: "Blocker cleared",
-};
+import { triggerLabel } from "./notify.tsx";
 
 function InboxList({ entries }: { entries: Notification[] }) {
 	return (
