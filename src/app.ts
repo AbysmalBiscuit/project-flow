@@ -41,6 +41,8 @@ import {
 	githubTicketKey,
 	githubTracker,
 	missingToken,
+	type RestCache,
+	retainIssueWindow,
 } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
@@ -441,6 +443,7 @@ type PollOptions = {
 	token: string | null;
 	fetch: Fetch;
 	fetchGithub: Fetch;
+	restCache: RestCache;
 	listTodos?: TodoSource | undefined;
 	listCheckouts?: CheckoutSource | undefined;
 	fallback: Configuration;
@@ -664,6 +667,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			});
 			options.store.recordGoodPoll(project.key, polledAt);
 			options.store.clearProjectError(project.key);
+			if (project.tracker === "github" && project.key.includes("/")) {
+				retainIssueWindow(options.restCache, project.key);
+			}
 			const shown = projectSnapshots(
 				listed,
 				polledAt,
@@ -823,7 +829,8 @@ export async function start(options: StartOptions): Promise<Running> {
 		read: () => loadConfiguration(options.configPath),
 		write: (text: string) => saveConfiguration(options.configPath, text),
 	};
-	const fetchGithub = conditionalFetch(options.fetch, new Map());
+	const restCache = new Map();
+	const fetchGithub = conditionalFetch(options.fetch, restCache);
 	const trackers = {
 		github:
 			options.token === null ? null : githubTracker(options.token, fetchGithub),
@@ -848,6 +855,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		token: options.token,
 		fetch: options.fetch,
 		fetchGithub,
+		restCache,
 		listTodos: options.listTodos,
 		listCheckouts: options.listCheckouts,
 		fallback: configuration,

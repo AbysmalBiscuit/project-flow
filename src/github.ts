@@ -109,7 +109,44 @@ type RestEntry = {
 	headers: [string, string][];
 };
 
-type RestCache = Map<string, RestEntry>;
+export type RestCache = Map<string, RestEntry>;
+
+const issueList =
+	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?(.*)$/;
+
+function issueWindow(url: string): { repo: string; since: string } | null {
+	const match = issueList.exec(url);
+	if (match?.[1] === undefined || match[2] === undefined) {
+		return null;
+	}
+	const since = new URLSearchParams(match[2]).get("since");
+	if (since === null) {
+		return null;
+	}
+	return { repo: match[1], since };
+}
+
+export function retainIssueWindow(cache: RestCache, repo: string): void {
+	let current: string | undefined;
+	for (const key of cache.keys()) {
+		const window = issueWindow(key);
+		if (window?.repo !== repo) {
+			continue;
+		}
+		if (current === undefined || window.since > current) {
+			current = window.since;
+		}
+	}
+	if (current === undefined) {
+		return;
+	}
+	for (const key of cache.keys()) {
+		const window = issueWindow(key);
+		if (window?.repo === repo && window.since < current) {
+			cache.delete(key);
+		}
+	}
+}
 
 function restUrl(input: string | URL | Request): string {
 	if (typeof input === "string") {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -4479,6 +4480,327 @@ describe("GET /api/overview", () => {
 							Date.parse("2026-10-18T12:00:00.000Z") + clock.polls,
 						);
 					},
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a later issue window does not send a superseded window's ETag", async () => {
+		const repoName = "acme/window-evict";
+		const otherRepo = "acme/other-window";
+		const firstEtag = '"recorded-window-one"';
+		const secondEtag = '"recorded-window-two"';
+		const otherEtag = '"recorded-other-window"';
+		const stableEtag = '"recorded-stable-pulls"';
+		const sent: { url: string; headers: Headers }[] = [];
+		const recorded: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			sent.push({ url, headers: new Headers(init?.headers) });
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: repoName,
+							pushed_at: "2026-10-18T12:00:00.000Z",
+						},
+						{
+							full_name: otherRepo,
+							pushed_at: "2026-10-18T12:00:00.000Z",
+						},
+					]),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (
+				url.includes(`/repos/${repoName}/issues?`) ||
+				url.includes(`/repos/${otherRepo}/issues?`)
+			) {
+				const since = new URL(url).searchParams.get("since");
+				if (since === null) {
+					const number = url.includes(repoName) ? 4 : 1;
+					return page([ticket(number, "open", null)], null);
+				}
+				if (url.includes(otherRepo)) {
+					return page([ticket(2, "open", null)], null, { etag: otherEtag });
+				}
+				const etag = since.includes("T12:00:") ? firstEtag : secondEtag;
+				return page([ticket(8, "open", null)], null, { etag });
+			}
+			if (url.includes("/pulls?")) {
+				return page([], null, { etag: stableEtag });
+			}
+			if (url.includes("/branches?")) {
+				return page([], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: repoName },
+					{ tracker: "github", repo: otherRepo },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-evict-"));
+		const clockPath = join(root, "clock");
+		await writeFile(clockPath, "2026-10-18T12:00:00.000Z");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const first = await fetch(new URL("/api/overview", base));
+					expect(first.status).toBe(200);
+					const before = (await first.json()) as Overview;
+					expect(
+						before.projects
+							.find((project) => project.name === repoName)
+							?.tickets.map((item) => item.key),
+					).toEqual([`${repoName}#4`]);
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(refresh.status).toBe(204);
+					const second = await fetch(new URL("/api/overview", base));
+					expect(second.status).toBe(200);
+					await writeFile(clockPath, "2026-10-18T12:01:00.000Z");
+					const sameWindow = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(sameWindow.status).toBe(204);
+					const moved = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(moved.status).toBe(204);
+					const third = await fetch(new URL("/api/overview", base));
+					expect(third.status).toBe(200);
+					const issueReads = sent.filter((item) =>
+						item.url.includes(`/repos/${repoName}/issues?`),
+					);
+					const windows = issueReads.filter(
+						(item) => new URL(item.url).searchParams.get("since") !== null,
+					);
+					expect(windows).toHaveLength(3);
+					expect(windows[0]?.url).toBe(windows[1]?.url);
+					expect(windows[1]?.url).not.toBe(windows[2]?.url);
+					expect(windows[0]?.headers.get("if-none-match")).toBeNull();
+					expect(windows[1]?.headers.get("if-none-match")).toBe(firstEtag);
+					expect(windows[2]?.headers.get("if-none-match")).toBeNull();
+					const otherWindows = sent.filter(
+						(item) =>
+							item.url.includes(`/repos/${otherRepo}/issues?`) &&
+							new URL(item.url).searchParams.get("since") !== null,
+					);
+					expect(otherWindows).toHaveLength(3);
+					expect(otherWindows[0]?.url).toBe(otherWindows[1]?.url);
+					expect(otherWindows[1]?.url).not.toBe(otherWindows[2]?.url);
+					expect(otherWindows[1]?.headers.get("if-none-match")).toBe(otherEtag);
+					expect(otherWindows[2]?.headers.get("if-none-match")).toBeNull();
+					const pullReads = sent.filter((item) =>
+						item.url.includes(`/repos/${repoName}/pulls?`),
+					);
+					expect(pullReads.length).toBeGreaterThan(1);
+					expect(pullReads[1]?.headers.get("if-none-match")).toBe(stableEtag);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date(readFileSync(clockPath, "utf8")),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a failed poll still sends the current issue window's ETag", async () => {
+		const repoName = "acme/window-retry";
+		const windowEtag = '"recorded-retry-window"';
+		const sent: { url: string; headers: Headers; status: number }[] = [];
+		let failWindow = false;
+		const recorded: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const note = (status: number, response: Response): Response => {
+				sent.push({ url, headers: new Headers(init?.headers), status });
+				return response;
+			};
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return note(
+					200,
+					new Response(JSON.stringify({ login: "lev" }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					}),
+				);
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return note(
+					200,
+					new Response(
+						JSON.stringify([
+							{
+								full_name: repoName,
+								pushed_at: "2026-10-18T12:00:00.000Z",
+							},
+						]),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					),
+				);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				const since = new URL(url).searchParams.get("since");
+				if (since === null) {
+					return note(200, page([ticket(4, "open", null)], null));
+				}
+				if (failWindow && since.includes(".000Z")) {
+					failWindow = false;
+					return note(503, new Response("unavailable", { status: 503 }));
+				}
+				return note(
+					200,
+					page([ticket(8, "open", null)], null, { etag: windowEtag }),
+				);
+			}
+			if (url.includes("/pulls?")) {
+				return note(200, page([], null));
+			}
+			if (url.includes("/branches?")) {
+				return note(200, page([], null));
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-retry-"));
+		const clockPath = join(root, "clock");
+		await writeFile(clockPath, "2026-10-18T12:00:00.000Z");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const first = await fetch(new URL("/api/overview", base));
+					expect(first.status).toBe(200);
+					const warmed = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(warmed.status).toBe(204);
+					failWindow = true;
+					const failed = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(failed.status).toBe(204);
+					const during = await fetch(new URL("/api/overview", base));
+					const failedBody = (await during.json()) as Overview;
+					expect(failedBody.projects[0]?.error).toContain("HTTP 503");
+					const retry = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(retry.status).toBe(204);
+					const after = await fetch(new URL("/api/overview", base));
+					const recovered = (await after.json()) as Overview;
+					expect(recovered.projects[0]?.error).toBeNull();
+					const windows = sent.filter(
+						(item) =>
+							item.url.includes(`/repos/${repoName}/issues?`) &&
+							new URL(item.url).searchParams.get("since") !== null,
+					);
+					expect(windows).toHaveLength(3);
+					expect(windows[0]?.url).toBe(windows[2]?.url);
+					expect(windows[1]?.status).toBe(503);
+					expect(windows[1]?.headers.get("if-none-match")).toBe(windowEtag);
+					expect(windows[2]?.headers.get("if-none-match")).toBe(windowEtag);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date(readFileSync(clockPath, "utf8")),
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
 				}),
