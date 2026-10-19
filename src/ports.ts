@@ -7,6 +7,26 @@ export type Clock = {
 
 export type TodoSource = () => Promise<string>;
 
+type CheckoutNames = {
+	path: string;
+	names: string[];
+};
+
+export type LocalCheckout = CheckoutNames &
+	(
+		| {
+				tracker: "github";
+				repo: string;
+				originOwner: string;
+				hasTrackerConfig: boolean;
+		  }
+		| {
+				tracker: "linear";
+		  }
+	);
+
+export type CheckoutSource = () => Promise<LocalCheckout[]>;
+
 export type FoundProject = {
 	key: string;
 	name?: string;
@@ -15,6 +35,11 @@ export type FoundProject = {
 	owner?: string;
 	number?: number;
 	closed?: boolean;
+};
+
+export type Viewer = {
+	login: string;
+	orgs: string[];
 };
 
 export type Snapshot = {
@@ -36,7 +61,11 @@ export type Tracker = {
 	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
 	listPulls: (project: string) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
-	findProjects: () => Promise<FoundProject[]>;
+	findProjects: () => Promise<{
+		projects: FoundProject[];
+		viewer: Viewer | null;
+	}>;
+	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
 };
 
 export type Store = {

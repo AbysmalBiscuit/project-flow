@@ -67,12 +67,24 @@ export async function tempConfig(
 ): Promise<{ path: string; cleanup: () => Promise<void> }> {
 	const dir = await mkdtemp(join(tmpdir(), "project-flow-"));
 	const path = join(dir, "config.json");
-	await writeFile(path, body);
+	let written = body;
+	try {
+		const parsed = JSON.parse(body) as { checkoutRoots?: unknown };
+		if (parsed.checkoutRoots === undefined) {
+			written = JSON.stringify({ ...parsed, checkoutRoots: [] });
+		}
+	} catch {
+		written = body;
+	}
+	await writeFile(path, written);
 	return { path, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
 export function testIo(io: RunIo): RunIo {
-	return { listTodos: async () => "", ...io };
+	return {
+		listTodos: async () => "",
+		...io,
+	};
 }
 
 export type LinearFake = {

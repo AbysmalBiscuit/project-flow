@@ -2,11 +2,17 @@ import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
 import {
+	checkoutBasenames,
+	checkoutNamesProject,
+	githubRepoForTodo,
+	linearKeysForNames,
+	linearNamesFromCheckouts,
 	mergeTickets,
 	projectCounts,
 	projectSnapshots,
 	staleView,
 	startedTodoKeys,
+	todoRows,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubProjectByNumber, githubTracker } from "./github.ts";
@@ -14,6 +20,7 @@ import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
 import type {
+	CheckoutSource,
 	Clock,
 	ConfigurationPort,
 	FoundProject,
@@ -21,6 +28,7 @@ import type {
 	Store,
 	TodoSource,
 	Tracker,
+	Viewer,
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
 
@@ -33,6 +41,7 @@ export type StartOptions = {
 	hostname: string;
 	port: number;
 	listTodos?: TodoSource;
+	listCheckouts?: CheckoutSource;
 	now?: () => Date;
 };
 
@@ -150,6 +159,7 @@ type PollOptions = {
 	token: string | null;
 	fetch: Fetch;
 	listTodos?: TodoSource | undefined;
+	listCheckouts?: CheckoutSource | undefined;
 	fallback: Configuration | null;
 };
 
@@ -168,7 +178,12 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		}
 		return options.fallback;
 	}
-	const startedKeys = startedTodoKeys((await options.listTodos?.()) ?? "");
+	const todoListing = (await options.listTodos?.()) ?? "";
+	const checkouts = (await options.listCheckouts?.().catch(() => [])) ?? [];
+	const startedKeys = startedTodoKeys(
+		todoListing,
+		checkoutBasenames(checkouts),
+	);
 	const linear = options.linear;
 	if (
 		linear === null &&
@@ -185,9 +200,54 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 			'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".',
 		);
 	}
-	const discovered = github === null ? [] : await github.findProjects();
+	let githubPage: { projects: FoundProject[]; viewer: Viewer | null } = {
+		projects: [],
+		viewer: null,
+	};
+	let failed: string | null = null;
+	if (github !== null) {
+		try {
+			githubPage = await github.findProjects();
+		} catch (error) {
+			failed = error instanceof Error ? error.message : "poll failed";
+		}
+	}
+	const discovered = [...githubPage.projects];
 	if (linear !== null) {
-		mergeFound(discovered, await linear.findProjects());
+		mergeFound(discovered, (await linear.findProjects()).projects);
+	}
+	const viewer = githubPage.viewer;
+	const named = new Set<string>();
+	for (const checkout of checkouts) {
+		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {
+			continue;
+		}
+		if (
+			!checkoutNamesProject(
+				checkout.hasTrackerConfig,
+				checkout.originOwner,
+				viewer,
+			)
+		) {
+			continue;
+		}
+		named.add(checkout.repo.trim().toLowerCase());
+		mergeFound(discovered, [
+			{ key: checkout.repo.trim(), tracker: "github", updatedAt: null },
+		]);
+	}
+	const rows = todoRows(todoListing);
+	for (const row of rows) {
+		const repo = githubRepoForTodo(row.project, checkoutBasenames(checkouts));
+		if (repo === null || named.has(repo.toLowerCase())) {
+			continue;
+		}
+		named.add(repo.toLowerCase());
+		mergeFound(discovered, [{ key: repo, tracker: "github", updatedAt: null }]);
+	}
+	if (linear !== null) {
+		const keys = linearKeysForNames(linearNamesFromCheckouts(checkouts, rows));
+		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
 	}
 	const found = [...discovered];
 	for (const pin of configuration.pinned) {
@@ -231,7 +291,6 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 			)
 			.map((project) => project.key),
 	);
-	let failed: string | null = null;
 	const listed = [];
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
@@ -333,6 +392,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		token: options.token,
 		fetch: options.fetch,
 		listTodos: options.listTodos,
+		listCheckouts: options.listCheckouts,
 		fallback: null,
 	};
 	const polled = await poll(pollOptions);
