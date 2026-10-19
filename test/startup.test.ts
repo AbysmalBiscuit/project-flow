@@ -379,6 +379,31 @@ describe("startup", () => {
 		}
 	});
 
+	test("a blank notification trigger names the field and does not listen", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: "acme/widget" }],
+				notificationTriggers: { needsYou: "" },
+			}),
+		);
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+					waitForStop: Promise.resolve(),
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.listened).toBe(false);
+			expect(result.stderr).toContain("notificationTriggers.needsYou");
+		} finally {
+			await cleanup();
+		}
+	});
+
 	test("an invalid configuration exits 1 and names the field", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({

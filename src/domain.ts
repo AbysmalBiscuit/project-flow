@@ -1,3 +1,5 @@
+import type { Configuration } from "./configuration.ts";
+
 export function todoRows(listing: string): { project: string }[] {
 	const projects: { project: string }[] = [];
 	const seen = new Set<string>();
@@ -224,6 +226,239 @@ export type NeedsYouItem = {
 	answered: boolean;
 	acknowledged: boolean;
 };
+
+export type NotificationTrigger = "needsYou" | "comment" | "blockerCleared";
+
+export type Notification = {
+	id: string;
+	trigger: NotificationTrigger;
+	project: string;
+	key: string;
+	text: string;
+	at: string;
+};
+
+export type Attention = {
+	needsYou: NeedsYouItem[];
+	comments: Map<
+		string,
+		{
+			stamp: string;
+			replyStamp: string;
+			authors: string[];
+			project: string;
+		}
+	>;
+	blockers: Map<string, string>;
+	closed: Set<string>;
+};
+
+function newestComment(comments: Comment[] | undefined): {
+	stamp: string;
+	authors: string[];
+} {
+	let newest = "";
+	let authors: string[] = [];
+	for (const comment of comments ?? []) {
+		if (comment.body.trim() === "") {
+			continue;
+		}
+		const createdAt = comment.createdAt ?? "";
+		if (createdAt > newest) {
+			newest = createdAt;
+			authors = [comment.author].flatMap((author) =>
+				author === undefined || author.trim() === "" ? [] : [author],
+			);
+		}
+	}
+	return { stamp: newest, authors };
+}
+
+function ticketKey(tracker: string, key: string): string {
+	return `${tracker}\n${key.toLowerCase()}`;
+}
+
+export function attentionOf(
+	views: {
+		items: NeedsYouItem[];
+		counts: ProjectCounts;
+		row: Snapshot;
+	}[],
+	noSenior: Record<string, boolean> = {},
+): Attention {
+	const comments = new Map<
+		string,
+		{
+			stamp: string;
+			replyStamp: string;
+			authors: string[];
+			project: string;
+		}
+	>();
+	const blockers = new Map<string, string>();
+	const closed = new Set<string>();
+	const tickets = new Map<string, Ticket>();
+	for (const view of views) {
+		for (const ticket of view.row.tickets) {
+			if (ticket.key === null) {
+				continue;
+			}
+			const id = ticketKey(ticket.tracker, ticket.key);
+			tickets.set(id, ticket);
+			if (ticket.state === "closed") {
+				closed.add(id);
+			}
+		}
+	}
+	for (const view of views) {
+		for (const item of view.items) {
+			const ticket = tickets.get(ticketKey(item.tracker, item.key));
+			const commentsOnTicket = ticket?.comments ?? [];
+			const ask = openAsk(
+				commentsOnTicket,
+				projectHasNoSenior(noSenior, view.row.key, view.row.tracker),
+			);
+			const reply =
+				item.reason === "ask" && ask !== null
+					? levReply(commentsOnTicket, ask.index)
+					: null;
+			const newest = newestComment(commentsOnTicket);
+			comments.set(`${item.project}\n${item.key}`, {
+				stamp: newest.stamp,
+				replyStamp: reply?.createdAt ?? "",
+				authors: newest.authors,
+				project: item.project,
+			});
+		}
+		for (const blocker of view.counts.crossProjectBlockers) {
+			blockers.set(
+				`${view.counts.name}\n${blocker.tracker}\n${blocker.project}\n${blocker.key}`,
+				blocker.title.trim() === "" ? blocker.key : blocker.title,
+			);
+		}
+	}
+	return {
+		needsYou: views.flatMap((view) => view.items),
+		comments,
+		blockers,
+		closed,
+	};
+}
+
+export function attentionIds(attention: Attention): string[] {
+	return [
+		...attention.needsYou.map(
+			(item) => `needsYou\n${item.project}\n${item.key}`,
+		),
+		...[...attention.comments].map(
+			([id, comment]) => `comment\n${id}\n${comment.stamp}`,
+		),
+	];
+}
+
+export function notificationsFor(
+	before: Attention,
+	after: Attention,
+	triggers: Configuration["notificationTriggers"],
+	at: string,
+	seen: ReadonlySet<string>,
+	viewers: readonly string[] = [],
+): Notification[] {
+	const viewerAuthors = new Set(
+		viewers.map((viewer) => viewer.trim().toLowerCase()).filter(Boolean),
+	);
+	const found: Notification[] = [];
+	const push = (
+		trigger: NotificationTrigger,
+		key: string,
+		project: string,
+		itemKey: string,
+		text: string,
+	) => {
+		if (seen.has(key)) {
+			return;
+		}
+		found.push({
+			id: key,
+			trigger,
+			project,
+			key: itemKey,
+			text,
+			at,
+		});
+	};
+	if (triggers.needsYou) {
+		const previous = new Set(
+			before.needsYou.map((item) => `${item.project}\n${item.key}`),
+		);
+		for (const item of after.needsYou) {
+			const id = `${item.project}\n${item.key}`;
+			if (previous.has(id)) {
+				continue;
+			}
+			push(
+				"needsYou",
+				`needsYou\n${id}`,
+				item.project,
+				item.key,
+				item.headline,
+			);
+		}
+	}
+	if (triggers.comment) {
+		for (const [id, comment] of after.comments) {
+			const earlier = before.comments.get(id)?.stamp;
+			if (
+				earlier === undefined ||
+				comment.stamp === "" ||
+				comment.stamp <= earlier
+			) {
+				continue;
+			}
+			if (comment.replyStamp !== "" && comment.stamp === comment.replyStamp) {
+				continue;
+			}
+			if (
+				comment.authors.some((author) =>
+					viewerAuthors.has(author.toLowerCase()),
+				)
+			) {
+				continue;
+			}
+			const item = after.needsYou.find(
+				(candidate) => `${candidate.project}\n${candidate.key}` === id,
+			);
+			const [project = "", itemKey = ""] = id.split("\n");
+			push(
+				"comment",
+				`comment\n${id}\n${comment.stamp}`,
+				project,
+				itemKey,
+				item?.headline ?? itemKey,
+			);
+		}
+	}
+	if (triggers.blockerCleared) {
+		for (const [id, title] of before.blockers) {
+			if (after.blockers.has(id)) {
+				continue;
+			}
+			const [, tracker = "", , itemKey = ""] = id.split("\n");
+			if (!after.closed.has(`${tracker}\n${itemKey.toLowerCase()}`)) {
+				continue;
+			}
+			const [project = ""] = id.split("\n");
+			push(
+				"blockerCleared",
+				`blockerCleared\n${id}\n${at}`,
+				project,
+				itemKey,
+				title,
+			);
+		}
+	}
+	return found;
+}
 
 export type ReportSection = {
 	id:

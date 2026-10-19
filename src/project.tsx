@@ -7,6 +7,7 @@ import type {
 	TicketState,
 	TicketView,
 } from "./domain.ts";
+import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
 
@@ -273,13 +274,12 @@ function Page() {
 		};
 		setMissing(false);
 		load();
-		const events = new EventSource("/api/events");
-		events.addEventListener("overview", () => {
+		const stop = onAppEvent("overview", () => {
 			load();
 		});
 		return () => {
 			stopped = true;
-			events.close();
+			stop();
 		};
 	}, [name]);
 	useEffect(() => {
