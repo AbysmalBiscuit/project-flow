@@ -763,9 +763,9 @@ describe("tracker lanes", () => {
 				expect(open?.statusType).toBe("backlog");
 				expect(blank?.lane).toBe("Todo");
 				expect(blank?.statusType).toBe("backlog");
-				expect(report.lanes.find((lane) => lane.name === "Dropped")?.added).toBe(
-					true,
-				);
+				expect(
+					report.lanes.find((lane) => lane.name === "Dropped")?.added,
+				).toBe(true);
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
