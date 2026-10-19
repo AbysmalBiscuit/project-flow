@@ -6,6 +6,7 @@ import { z } from "zod";
 import { version } from "../package.json";
 import { start } from "./app.ts";
 import { loadConfiguration } from "./configuration.ts";
+import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken } from "./github.ts";
 import { checkLinearKey, missingLinearKey } from "./linear.ts";
@@ -49,8 +50,6 @@ export function defaultStorePath(
 	const root = env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
 	return join(root, "project-flow", "project-flow.sqlite");
 }
-
-const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
 
 const devkitConfig = z.object({
 	tracker: z

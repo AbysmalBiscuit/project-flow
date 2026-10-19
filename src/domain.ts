@@ -503,7 +503,7 @@ function ticketNumber(key: string): string | null {
 	return number;
 }
 
-const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
+export const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
 const githubNode = /^(\d+)-/;
 const sessionSuffix = /\.[a-z][a-z0-9]*-\d+$/i;
 const linearKey = /^([a-z][a-z0-9]*)-(\d+)(?![a-z0-9])/i;
