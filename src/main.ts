@@ -286,16 +286,14 @@ function flagValue(args: string[], name: string): string | undefined {
 	return args[index + 1];
 }
 
-async function resolveToken(io: RunIo): Promise<string | null> {
-	const fromEnv = io.env.GITHUB_TOKEN;
-	if (fromEnv !== undefined && fromEnv.trim() !== "") {
-		return fromEnv;
+async function resolveToken(
+	io: RunIo,
+	envToken: string | null,
+): Promise<string | null> {
+	if (envToken !== null) {
+		return envToken;
 	}
-	const fromGh = await io.readGhToken(io.env);
-	if (fromGh === null || fromGh.trim() === "") {
-		return null;
-	}
-	return fromGh;
+	return io.readGhToken(io.env);
 }
 
 async function openStore(path: string): Promise<void> {
@@ -353,7 +351,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const fromEnv = io.env.GITHUB_TOKEN;
 		const envToken =
 			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
-		const token = linearOnly ? envToken : await resolveToken(io);
+		const token = linearOnly ? envToken : await resolveToken(io, envToken);
 		if (needsGithub && token === null) {
 			writeErr(missingToken);
 			return result(1, false);
