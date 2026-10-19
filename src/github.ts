@@ -123,7 +123,6 @@ function restUrl(input: string | URL | Request): string {
 
 function restKey(url: string): string {
 	const parsed = new URL(url);
-	parsed.searchParams.delete("since");
 	parsed.searchParams.sort();
 	return parsed.href;
 }
