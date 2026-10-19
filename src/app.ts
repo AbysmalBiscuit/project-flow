@@ -27,7 +27,7 @@ import {
 	notificationsFor,
 	panelReplyBody,
 	projectCounts,
-	projectHasNoSenior,
+	projectHasPmBot,
 	projectSnapshots,
 	reconcilePoll,
 	staleView,
@@ -135,7 +135,7 @@ function viewerLogins(
 
 function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
 	return {
-		noSenior: configuration.noSenior,
+		pmBot: configuration.pmBot,
 		labels: configuration.needsYouLabels,
 		viewerLogins: viewerLogins(configuration, viewers),
 	};
@@ -185,7 +185,7 @@ function attentionFor(
 ): Attention {
 	return attentionOf(
 		projectViews(store, configuration, viewers),
-		configuration.noSenior,
+		configuration.pmBot,
 	);
 }
 
@@ -330,8 +330,8 @@ async function replyResponse(
 		body: panelReplyBody(
 			row?.tickets.find((ticket) => ticket.key === parsed.data.key),
 			parsed.data.body,
-			projectHasNoSenior(
-				configuration.noSenior,
+			projectHasPmBot(
+				configuration.pmBot,
 				row?.key ?? parsed.data.project,
 				parsed.data.tracker,
 			),
@@ -716,7 +716,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	options.polling = false;
 	publishPoll(options, configuration, outcomes, fullKeys, failed, false);
 	const views = projectViews(options.store, configuration, options.viewers);
-	const after = attentionOf(views, configuration.noSenior);
+	const after = attentionOf(views, configuration.pmBot);
 	const firstGood = new Set(
 		listed.flatMap((project) =>
 			awaitingFirstPoll.has(project.key) ? [project.name] : [],
