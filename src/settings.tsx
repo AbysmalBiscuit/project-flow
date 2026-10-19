@@ -297,6 +297,11 @@ function Menu({
 							const error = await onSave(next);
 							setFailed(error !== null);
 							setMessage(error ?? "Saved");
+							requestAnimationFrame(() => {
+								document
+									.getElementById("settings-message")
+									?.scrollIntoView({ block: "end" });
+							});
 						})();
 					}}
 				>
