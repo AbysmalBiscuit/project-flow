@@ -21,7 +21,7 @@ function recordedIssues(): Response {
 	});
 }
 
-const linearProofFetch: Fetch = async (input, init) => {
+const recorded: Fetch = async (input, init) => {
 	const url = String(input instanceof Request ? input.url : input);
 	const body = typeof init?.body === "string" ? init.body : "";
 
@@ -89,8 +89,6 @@ export function releaseLinearAsk(): void {
 		},
 	];
 }
-
-const recorded = linearProofFetch;
 
 export async function runLinearProof(
 	proofPort: string,
