@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
@@ -147,8 +147,6 @@ describe("a missing credential marks its projects", () => {
 		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-cred-"));
 		const linearRequests: string[] = [];
-		const stray = await mkdtemp(join("/var/tmp", "project-flow-cred-stray-"));
-		await writeFile(join(stray, "note.txt"), "untracked");
 		try {
 			const { result, body } = await listen(
 				path,
@@ -181,7 +179,6 @@ describe("a missing credential marks its projects", () => {
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
-			await rm(stray, { recursive: true, force: true });
 		}
 	});
 
