@@ -1752,6 +1752,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
 				url.includes("/reactions?") ||
@@ -1929,6 +1930,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
 				url.includes("/reactions?") ||
