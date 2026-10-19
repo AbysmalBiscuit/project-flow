@@ -39,7 +39,7 @@ function defaultConfigPath(env: Record<string, string | undefined>): string {
 }
 ```
 
-The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema is the full list of fields. Each field is optional. An omitted field takes the default below.
+The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema is the full list of fields. The schema holds the current defaults. Each field is optional. An omitted field takes the default below.
 
 - `pinned` names projects that always show. The default is `[]`.
 - `hidden` names projects that never show. The default is `[]`.
@@ -47,9 +47,9 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `pollIntervalSeconds` is the gap between polls. The default is `60`.
 - `checkoutRoots` names folders the app scans for local checkouts. Each entry is an absolute path. The app does not expand `~`. The default is the `Git` folder in the home directory.
 - `expectedBots` names the review bots for a repo. The key is `owner/name`. The value is a list of `grok`, `codex` and `greptile`. An empty list means the repo has no expected bots. When the field is absent, the app reads the bots from the repo's recent merged PRs.
-- `noSenior` sets the senior for one project. The key is the project key. `true` sends every ask to Lev. `false` sends an unnamed ask to the senior. When the key is absent, a Linear project has no senior and a GitHub project has one. The default is `{}`.
+- `noSenior` marks whether a project has no senior. The key is the project key. `true` sends every ask to Lev. `false` sends an unnamed ask to the senior. When the key is absent, a Linear project has no senior and a GitHub project has one. The default is `{}`.
 - `needsYouLabels` names labels that mark a needs-you item when Lev is the assignee. The default is `["needs-human", "needs-engineer"]`.
-- `viewerLogins` adds logins that count as Lev. A blank entry does not count. When every entry is blank, the app uses the tracker logins. The default is `[]`.
+- `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
 - `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. Each one defaults to `true`.
 
 A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`. `pinned` and `hidden` use the same pin shape.
