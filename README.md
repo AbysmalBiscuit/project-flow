@@ -103,7 +103,7 @@ async function resolveToken(
 		});
 ```
 
-The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker still poll, and the app keeps serving. A rejected token or key still exits and names that credential.
+The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker poll. A rejected token or key exits and names that credential.
 
 ## Store
 
