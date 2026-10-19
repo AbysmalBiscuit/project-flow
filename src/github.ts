@@ -650,7 +650,7 @@ async function fetchChecks(
 	fetchImpl: Fetch,
 ): Promise<BotCheck[]> {
 	const body = await fetchJson(
-		`https://api.github.com/repos/${repo}/commits/${sha}/check-runs`,
+		`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`,
 		token,
 		fetchImpl,
 		"list checks",

@@ -1038,7 +1038,7 @@ describe("review cycle", () => {
 						{ user: { login: greptile }, body: "<!-- greptile_summary -->" },
 					]);
 				}
-				if (url.includes("/commits/") && url.endsWith("/check-runs")) {
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
 					return page({ check_runs: [] });
 				}
 				if (
@@ -1145,7 +1145,7 @@ describe("review cycle", () => {
 						html_url: "https://github.com/acme/widget/pull/96",
 					});
 				}
-				if (url.includes("/commits/") && url.endsWith("/check-runs")) {
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
 					return page({ check_runs: [] });
 				}
 				if (url.includes("/issues/1/comments?")) {
