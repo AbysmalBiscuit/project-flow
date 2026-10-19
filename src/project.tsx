@@ -20,6 +20,11 @@ function openPath(project: string, ticket: string | null): string {
 		: `${path}?ticket=${encodeURIComponent(ticket)}`;
 }
 
+function openProject(project: string, ticket: string | null): void {
+	window.history.pushState({}, "", openPath(project, ticket));
+	window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
 function TicketLine({
 	ticket,
 	highlight,
@@ -55,12 +60,7 @@ function NodeLine({
 					href={openPath(node.project, node.ticket)}
 					onClick={(event) => {
 						event.preventDefault();
-						window.history.pushState(
-							{},
-							"",
-							openPath(node.project, node.ticket),
-						);
-						window.dispatchEvent(new PopStateEvent("popstate"));
+						openProject(node.project, node.ticket);
 					}}
 				>
 					{node.label}
@@ -232,8 +232,7 @@ function Page() {
 						const ticket = node.ticket;
 						const project = node.project;
 						const open = () => {
-							window.history.pushState({}, "", openPath(project, ticket));
-							window.dispatchEvent(new PopStateEvent("popstate"));
+							openProject(project, ticket);
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
