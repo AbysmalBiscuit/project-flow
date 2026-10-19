@@ -81,7 +81,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			parent { identifier }
 			projectMilestone { name }
 			labels { nodes { name } }
-			assignee { name displayName }
+			assignee { id name displayName }
 			comments(first: 50) {
 				nodes { body createdAt user { name displayName } }
 			}
@@ -167,6 +167,7 @@ const issueNode = z.object({
 		.optional(),
 	assignee: z
 		.object({
+			id: z.string().optional(),
 			name: z.string().nullable().optional(),
 			displayName: z.string().nullable().optional(),
 		})
@@ -297,7 +298,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 			},
 		];
 	});
-	const assignee = node.assignee?.displayName ?? node.assignee?.name ?? null;
+	const assignee = node.assignee?.id ?? null;
 	return {
 		id: node.identifier,
 		tracker: "linear",
@@ -319,7 +320,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 async function findLinearProjects(
 	key: string,
 	fetchImpl: Fetch,
-): Promise<FoundProject[]> {
+): Promise<{ projects: FoundProject[]; viewerId: string }> {
 	const viewer = await checkLinearKey(key, fetchImpl);
 	if (!viewer.ok) {
 		throw new Error(`Linear find projects failed (HTTP ${viewer.status})`);
@@ -361,7 +362,7 @@ async function findLinearProjects(
 			? page.data.projects.pageInfo.endCursor
 			: null;
 	} while (after !== null);
-	return found;
+	return { projects: found, viewerId };
 }
 
 function matchesPin(slugId: string, pin: string): boolean {
@@ -487,9 +488,12 @@ export function linearTracker(
 	};
 	return {
 		findProjects() {
-			return findLinearProjects(key, fetchImpl).then((projects) => ({
-				projects,
-				viewer: null,
+			return findLinearProjects(key, fetchImpl).then((found) => ({
+				projects: found.projects,
+				viewer:
+					found.viewerId === ""
+						? null
+						: { login: "", orgs: [], id: found.viewerId },
 			}));
 		},
 		async projectsForKeys(keys) {

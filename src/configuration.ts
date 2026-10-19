@@ -35,7 +35,7 @@ const configurationSchema = z.strictObject({
 	needsYouLabels: z
 		.array(z.string())
 		.default(["needs-human", "needs-engineer"]),
-	viewerLogins: z.array(z.string()).default(["lev", "AbysmalBiscuit"]),
+	viewerLogins: z.array(z.string()).default([]),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;

@@ -84,15 +84,32 @@ function matchesRef(
 	return project.owner === ref.owner && project.number === ref.project;
 }
 
-function needsYouRules(configuration: Configuration) {
+function viewerLogins(
+	configuration: Configuration,
+	viewers: Viewer[],
+): string[] {
+	const found = viewers.flatMap((viewer) => {
+		const names = viewer.login === "" ? [] : [viewer.login];
+		return viewer.id === undefined ? names : [...names, viewer.id];
+	});
+	return configuration.viewerLogins.length === 0
+		? found
+		: [...configuration.viewerLogins, ...found];
+}
+
+function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
 	return {
 		noSenior: configuration.noSenior,
 		labels: configuration.needsYouLabels,
-		viewerLogins: configuration.viewerLogins,
+		viewerLogins: viewerLogins(configuration, viewers),
 	};
 }
 
-function projectViews(store: Store, configuration: Configuration) {
+function projectViews(
+	store: Store,
+	configuration: Configuration,
+	viewers: Viewer[],
+) {
 	const rows = store.readTickets();
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
@@ -114,7 +131,7 @@ function projectViews(store: Store, configuration: Configuration) {
 				fetchedAt: goodPoll?.toISOString() ?? null,
 				error: store.projectError(row.key),
 			},
-			needsYouRules(configuration),
+			needsYouRules(configuration, viewers),
 		);
 		return {
 			row,
@@ -125,8 +142,12 @@ function projectViews(store: Store, configuration: Configuration) {
 	});
 }
 
-function overview(store: Store, configuration: Configuration): Overview {
-	const projects = projectViews(store, configuration).map(
+function overview(
+	store: Store,
+	configuration: Configuration,
+	viewers: Viewer[],
+): Overview {
+	const projects = projectViews(store, configuration, viewers).map(
 		(item) => item.counts,
 	);
 	const goodPolls = projects.flatMap((project) => {
@@ -145,9 +166,10 @@ function overview(store: Store, configuration: Configuration): Overview {
 function reportFor(
 	store: Store,
 	configuration: Configuration,
+	viewers: Viewer[],
 	name: string,
 ): ProjectReport | null {
-	const match = projectViews(store, configuration).find(
+	const match = projectViews(store, configuration, viewers).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
@@ -214,6 +236,7 @@ type PollOptions = {
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
+	viewers: Viewer[];
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
@@ -226,7 +249,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		options.store.recordFetchError(message);
 		if (options.store.readTickets().length > 0) {
 			options.notifier.publish({
-				overview: overview(options.store, options.fallback),
+				overview: overview(options.store, options.fallback, options.viewers),
 			});
 		}
 		return options.fallback;
@@ -257,6 +280,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		projects: [],
 		viewer: null,
 	};
+	let linearViewer: Viewer | null = null;
 	let failed: string | null = null;
 	if (github !== null) {
 		try {
@@ -267,8 +291,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	const discovered = [...githubPage.projects];
 	if (linear !== null) {
-		mergeFound(discovered, (await linear.findProjects()).projects);
+		const linearPage = await linear.findProjects();
+		linearViewer = linearPage.viewer;
+		mergeFound(discovered, linearPage.projects);
 	}
+	options.viewers = [githubPage.viewer, linearViewer].flatMap((viewer) =>
+		viewer === null ? [] : [viewer],
+	);
 	const viewer = githubPage.viewer;
 	const named = new Set<string>();
 	for (const checkout of checkouts) {
@@ -454,7 +483,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		options.store.recordFetchError(failed);
 	}
 	options.notifier.publish({
-		overview: overview(options.store, configuration),
+		overview: overview(options.store, configuration, options.viewers),
 	});
 	return configuration;
 }
@@ -497,6 +526,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
+		viewers: [],
 	};
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
@@ -538,7 +568,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					throw error;
 				}
 				notifier.publish({
-					overview: overview(opened.store, configuration),
+					overview: overview(opened.store, configuration, pollOptions.viewers),
 				});
 			}
 		})().finally(() => {
@@ -584,7 +614,9 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/projects/*": page,
 			"/api/overview": {
 				GET: () => {
-					const body = Response.json(overview(opened.store, configuration));
+					const body = Response.json(
+						overview(opened.store, configuration, pollOptions.viewers),
+					);
 					releaseLists();
 					return body;
 				},
@@ -592,15 +624,22 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/needs-you": {
 				GET: () =>
 					Response.json(
-						projectViews(opened.store, configuration).flatMap(
-							(item) => item.items,
-						),
+						projectViews(
+							opened.store,
+							configuration,
+							pollOptions.viewers,
+						).flatMap((item) => item.items),
 					),
 			},
 			"/api/projects/:name": {
 				GET: (request) => {
 					const name = request.params.name;
-					const report = reportFor(opened.store, configuration, name);
+					const report = reportFor(
+						opened.store,
+						configuration,
+						pollOptions.viewers,
+						name,
+					);
 					if (report === null) {
 						return Response.json(
 							{ error: "project not found" },

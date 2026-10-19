@@ -162,7 +162,6 @@ await writeFile(
 		],
 		checkoutRoots: [],
 		needsYouLabels: ["needs-human", "needs-engineer"],
-		viewerLogins: ["lev", "AbysmalBiscuit"],
 	}),
 );
 

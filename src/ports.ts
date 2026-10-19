@@ -42,6 +42,7 @@ export type FoundProject = {
 export type Viewer = {
 	login: string;
 	orgs: string[];
+	id?: string;
 };
 
 export type TicketList = {
