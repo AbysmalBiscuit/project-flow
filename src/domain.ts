@@ -359,10 +359,13 @@ export function attentionOf(
 				continue;
 			}
 			for (const ref of ticket.blockedBy) {
-				if (ref.state !== "closed") {
+				const id = ticketKey(ref.tracker, ref.key);
+				// A loaded ticket's own state is the closure evidence. A relation
+				// state counts only when that ticket was not loaded.
+				if (tickets.has(id) || ref.state !== "closed") {
 					continue;
 				}
-				closedBlockers.add(ticketKey(ref.tracker, ref.key));
+				closedBlockers.add(id);
 			}
 		}
 	}

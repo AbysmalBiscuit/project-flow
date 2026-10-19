@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import outsideRelations from "./fixtures/outside-relations.json";
 import {
 	linearFake,
 	recordedDiscovery,
@@ -69,6 +70,30 @@ function recordedIssues(issues: Record<string, unknown>[]): Response {
 
 function bodyOf(init?: RequestInit): string {
 	return typeof init?.body === "string" ? init.body : "";
+}
+
+type TrackerRequest = {
+	url: string;
+	query: string;
+	variables: Record<string, unknown>;
+};
+
+function trackerRequest(
+	input: string | URL | Request,
+	init?: RequestInit,
+): TrackerRequest {
+	const body = bodyOf(init);
+	let query = "";
+	let variables: Record<string, unknown> = {};
+	if (body !== "") {
+		const parsed = JSON.parse(body) as {
+			query?: string;
+			variables?: Record<string, unknown>;
+		};
+		query = parsed.query ?? "";
+		variables = parsed.variables ?? {};
+	}
+	return { url: urlOf(input), query, variables };
 }
 
 function isPinQuery(
@@ -160,13 +185,20 @@ async function withInbox(
 		base: string,
 		setIssues: (next: Record<string, unknown>[]) => void,
 		failComments: (failed: boolean) => void,
+		requests: TrackerRequest[],
 	) => Promise<void>,
 	projects: { id: string; name: string; slugId: string }[] = [linearProject],
 ): Promise<void> {
 	let current = issues;
 	let commentsFail = false;
-	const recorded = linearFake({ project: projects[0] ?? linearProject });
+	const requests: TrackerRequest[] = [];
+	const recorded = linearFake({
+		project: projects[0] ?? linearProject,
+		requests: [],
+	});
 	const fetchImpl: Fetch = async (input, init) => {
+		const sent = trackerRequest(input, init);
+		requests.push(sent);
 		if (
 			commentsFail &&
 			urlOf(input) === "https://api.linear.app/graphql" &&
@@ -210,6 +242,7 @@ async function withInbox(
 				(failed) => {
 					commentsFail = failed;
 				},
+				requests,
 			).then(resolve, reject);
 		};
 	});
@@ -501,6 +534,148 @@ describe("inbox", () => {
 					.find((item) => item.key === "PF-4")?.state,
 			).toBe("backlog");
 		});
+	});
+
+	test("a stale closed relation to a loaded open blocker raises no Blocker cleared", async () => {
+		const alpha = {
+			id: "project-alpha",
+			name: "Alpha",
+			slugId: "alpha",
+		};
+		const beta = {
+			id: "project-beta",
+			name: "Beta",
+			slugId: "beta",
+		};
+		const recorded = outsideRelations.linearAut1040;
+		const blockerRelation = recorded.inverseRelations.nodes.find(
+			(relation) => relation.type === "blocks",
+		);
+		const blockerProject = blockerRelation?.issue.project;
+		if (
+			blockerRelation === undefined ||
+			blockerProject === null ||
+			blockerProject === undefined
+		) {
+			throw new Error("recorded AUT-1040 has no outside blocks relation");
+		}
+		const gate = {
+			id: "project-gate-recorded",
+			name: blockerProject.name,
+			slugId: blockerProject.slugId,
+		};
+		const openBlocker = {
+			...linearIssue(
+				blockerRelation.issue.identifier,
+				blockerRelation.issue.title,
+				"",
+				[],
+				{ state: blockerRelation.issue.state },
+				"2026-10-07T11:41:04.569Z",
+			),
+			projectId: gate.id,
+		};
+		const alphaTicket = {
+			...linearIssue(
+				recorded.identifier,
+				recorded.title,
+				recorded.description,
+				[],
+				{ state: recorded.state, inverseRelations: recorded.inverseRelations },
+				recorded.updatedAt,
+			),
+			projectId: alpha.id,
+		};
+		const betaTicket = {
+			...linearIssue(
+				"BET-1",
+				"Wait on the same gate",
+				"",
+				[],
+				{
+					inverseRelations: {
+						nodes: [
+							{
+								type: "blocks",
+								issue: {
+									...blockerRelation.issue,
+									state: { type: "completed" },
+								},
+							},
+						],
+					},
+				},
+				"2026-10-07T11:41:04.569Z",
+			),
+			projectId: beta.id,
+		};
+		const dropped = {
+			...alphaTicket,
+			updatedAt: "2026-10-19T15:00:00.000Z",
+			inverseRelations: { nodes: [] },
+		};
+		await withInbox(
+			{
+				pinned: [
+					{ tracker: "linear", project: alpha.slugId },
+					{ tracker: "linear", project: beta.slugId },
+					{ tracker: "linear", project: gate.slugId },
+				],
+				pollIntervalSeconds: 3600,
+			},
+			[alphaTicket, openBlocker, betaTicket],
+			async (base, setIssues, _failComments, requests) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as {
+					projects: {
+						name: string;
+						tickets: { key: string; state: string }[];
+						crossProjectBlockers: {
+							project: string;
+							key: string;
+							title: string;
+						}[];
+					}[];
+				};
+				const alphaView = overview.projects.find(
+					(item) => item.name === alpha.name,
+				);
+				expect(alphaView?.crossProjectBlockers).toEqual([
+					{
+						project: gate.name,
+						tracker: "linear",
+						key: blockerRelation.issue.identifier,
+						title: blockerRelation.issue.title,
+					},
+				]);
+				expect(
+					overview.projects.find((item) => item.name === beta.name)?.tickets[0]
+						?.state,
+				).toBe("blocked");
+				setIssues([dropped, openBlocker, betaTicket]);
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+				const after = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as typeof overview;
+				expect(
+					after.projects.find((item) => item.name === alpha.name)?.tickets[0]
+						?.state,
+				).not.toBe("blocked");
+				expect(
+					after.projects.find((item) => item.name === beta.name)?.tickets[0]
+						?.state,
+				).toBe("blocked");
+				const issueReads = requests.filter((request) =>
+					request.query.includes("ProjectIssues"),
+				);
+				expect(issueReads.length).toBeGreaterThan(0);
+				expect(issueReads[0]?.query).toContain("inverseRelations");
+				expect(issueReads[0]?.query).toContain("project { name slugId }");
+			},
+			[alpha, beta, gate],
+		);
 	});
 
 	test("a blank outside title and a still-open outside relation raise no Blocker cleared", async () => {
