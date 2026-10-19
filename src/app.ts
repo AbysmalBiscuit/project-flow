@@ -172,8 +172,8 @@ function projectViews(
 				error: store.projectError(row.key),
 			},
 			needsYouRules(configuration, viewers),
-			row.board,
 			configuration.laneMappings,
+			row.board,
 		);
 		return {
 			row,
