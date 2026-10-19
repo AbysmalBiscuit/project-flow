@@ -119,7 +119,10 @@ function eventsOf(text: string): StreamEvent[] {
 	return events;
 }
 
-async function drivenPoll(base: string): Promise<InboxEntry | null> {
+async function openEvents(base: string): Promise<{
+	reader: ReadableStreamDefaultReader<Uint8Array>;
+	read: () => Promise<string>;
+}> {
 	const response = await fetch(new URL("/api/events", base), {
 		headers: { accept: "text/event-stream" },
 	});
@@ -130,8 +133,23 @@ async function drivenPoll(base: string): Promise<InboxEntry | null> {
 	const decoder = new TextDecoder();
 	const opened = await reader.read();
 	if (!decoder.decode(opened.value).includes(": open")) {
+		await reader.cancel();
 		throw new Error("event stream did not open");
 	}
+	return {
+		reader,
+		read: async () => {
+			const chunk = await reader.read();
+			if (chunk.done) {
+				return "";
+			}
+			return decoder.decode(chunk.value, { stream: true });
+		},
+	};
+}
+
+async function drivenPoll(base: string): Promise<InboxEntry | null> {
+	const stream = await openEvents(base);
 	const before = await inboxOf(base);
 	await refresh(base);
 	const after = await inboxOf(base);
@@ -139,23 +157,58 @@ async function drivenPoll(base: string): Promise<InboxEntry | null> {
 		(entry) => !before.some((earlier) => earlier.id === entry.id),
 	);
 	if (raised === undefined) {
-		await reader.cancel();
+		await stream.reader.cancel();
 		return null;
 	}
 	let buffered = "";
 	while (streamedNotification(buffered, raised.id) === undefined) {
-		const chunk = await reader.read();
-		if (chunk.done) {
+		const chunk = await stream.read();
+		if (chunk === "") {
 			break;
 		}
-		buffered += decoder.decode(chunk.value, { stream: true });
+		buffered += chunk;
 	}
-	await reader.cancel();
+	await stream.reader.cancel();
 	const streamed = streamedNotification(buffered, raised.id);
 	if (streamed === undefined) {
 		throw new Error("notification event missing for the raised inbox entry");
 	}
 	return streamed;
+}
+
+async function quietPoll(base: string): Promise<void> {
+	const stream = await openEvents(base);
+	try {
+		await refresh(base);
+		let buffered = "";
+		let sawOverview = false;
+		while (!sawOverview) {
+			const chunk = await stream.read();
+			if (chunk === "") {
+				break;
+			}
+			buffered += chunk;
+			const boundary = buffered.lastIndexOf("\n\n");
+			if (boundary === -1) {
+				continue;
+			}
+			const complete = eventsOf(buffered.slice(0, boundary + 2));
+			buffered = buffered.slice(boundary + 2);
+			for (const event of complete) {
+				if (event.event === "notification") {
+					throw new Error("notification event arrived on a quiet poll");
+				}
+				if (event.event === "overview") {
+					sawOverview = true;
+				}
+			}
+		}
+		if (!sawOverview) {
+			throw new Error("quiet poll ended before its overview event");
+		}
+	} finally {
+		await stream.reader.cancel();
+	}
 }
 
 function streamedNotification(
@@ -313,10 +366,7 @@ async function notificationAfterRefresh(base: string): Promise<InboxEntry> {
 }
 
 async function expectQuietRefresh(base: string): Promise<void> {
-	const polled = await drivenPoll(base);
-	if (polled !== null) {
-		throw new Error("notification event arrived on a quiet poll");
-	}
+	await quietPoll(base);
 }
 
 async function quietUntil(
