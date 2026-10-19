@@ -1023,13 +1023,13 @@ describe("replies", () => {
 				acknowledged: false,
 			});
 
-			comments.push({
-				id: "comment-quoted",
-				body: quoted,
-				createdAt: "2026-08-18T13:00:00.000Z",
-				user: { name: "Ada" },
-				reactions: [{ id: "reaction-ack" }],
-			});
+			const createdNode = comments.find(
+				(comment) => comment.id === "comment-created",
+			);
+			if (createdNode === undefined) {
+				throw new Error("posted reply missing from recorded comments");
+			}
+			createdNode.reactions = [{ id: "reaction-ack" }];
 			const refreshed = await fetch(new URL("/api/refresh", app.base), {
 				method: "POST",
 			});
