@@ -77,6 +77,11 @@ declare module "*/needs.module.css" {
 	export default classes;
 }
 
+declare module "*/inbox.module.css" {
+	const classes: CssModule<"list" | "entry" | "trigger" | "text">;
+	export default classes;
+}
+
 declare module "*/panel.module.css" {
 	const classes: CssModule<
 		| "panel"
