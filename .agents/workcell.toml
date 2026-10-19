@@ -1,0 +1,5 @@
+[roles.conceptual-reviewer]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+
+[roles.senior]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "xhigh" }]
