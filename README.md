@@ -76,16 +76,14 @@ An empty configuration starts without a token when neither source gives one. A p
 `src/main.ts` resolves the token:
 
 ```ts
-async function resolveToken(io: RunIo): Promise<string | null> {
-	const fromEnv = io.env.GITHUB_TOKEN;
-	if (fromEnv !== undefined && fromEnv.trim() !== "") {
-		return fromEnv;
+async function resolveToken(
+	io: RunIo,
+	envToken: string | null,
+): Promise<string | null> {
+	if (envToken !== null) {
+		return envToken;
 	}
-	const fromGh = await io.readGhToken(io.env);
-	if (fromGh === null || fromGh.trim() === "") {
-		return null;
-	}
-	return fromGh;
+	return io.readGhToken(io.env);
 }
 ```
 
