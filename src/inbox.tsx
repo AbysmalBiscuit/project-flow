@@ -48,15 +48,11 @@ function Page() {
 				});
 		};
 		load();
-		const stopNotification = onAppEvent("notification", () => {
-			load();
-		});
 		const stopOverview = onAppEvent("overview", () => {
 			load();
 		});
 		return () => {
 			stopped = true;
-			stopNotification();
 			stopOverview();
 		};
 	}, []);
