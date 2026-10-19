@@ -55,10 +55,13 @@ function line(id: string): HTMLElement {
 }
 
 const nativeClick = HTMLElement.prototype.click;
-function holdClickUntilNotified(this: HTMLElement) {
+function holdClickUntilNotified(this: HTMLElement): Promise<void> {
 	nativeClick.call(this);
-	return new Promise<void>((resolve) => {
-		const started = Date.now();
+	if (Stub.permission === "default") {
+		void Stub.requestPermission();
+	}
+	const started = Date.now();
+	return new Promise((resolve) => {
 		const check = () => {
 			const recorded = document
 				.getElementById("notify-calls")
@@ -66,11 +69,14 @@ function holdClickUntilNotified(this: HTMLElement) {
 			const asked = document
 				.getElementById("permission-calls")
 				?.textContent?.includes("permission-calls 1");
-			if (
-				recorded === true ||
-				(asked === true && Date.now() - started > 300) ||
-				Date.now() - started > 4000
-			) {
+			if (recorded === true || (asked === true && Date.now() - started > 300)) {
+				if (Stub.permission !== "default") {
+					document.getElementById("notify-permission")?.remove();
+				}
+				resolve();
+				return;
+			}
+			if (Date.now() - started > 4000) {
 				resolve();
 				return;
 			}

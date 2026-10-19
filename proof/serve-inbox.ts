@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
@@ -103,15 +103,27 @@ export async function runLinearProof(
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	await run(["--config", config, "--host", "127.0.0.1", "--port", proofPort], {
-		env: { LINEAR_API_KEY: "recorded-linear-key" },
-		fetch: recorded,
-		readGhToken: async () => null,
-		databasePath: join(root, "store.sqlite"),
-		now: () => new Date("2026-10-18T12:00:00.000Z"),
-		stdout: onListen,
-		waitForStop: new Promise(() => {}),
+	const stop = new Promise<void>((resolve) => {
+		const done = () => resolve();
+		process.once("SIGINT", done);
+		process.once("SIGTERM", done);
 	});
+	try {
+		await run(
+			["--config", config, "--host", "127.0.0.1", "--port", proofPort],
+			{
+				env: { LINEAR_API_KEY: "recorded-linear-key" },
+				fetch: recorded,
+				readGhToken: async () => null,
+				databasePath: join(root, "store.sqlite"),
+				now: () => new Date("2026-10-18T12:00:00.000Z"),
+				stdout: onListen,
+				waitForStop: stop,
+			},
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
 }
 
 if (import.meta.main) {
