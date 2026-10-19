@@ -39,14 +39,20 @@ function defaultConfigPath(env: Record<string, string | undefined>): string {
 }
 ```
 
-The file can be empty `{}`. These fields are optional:
+The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema is the full list of fields. The schema holds the current defaults. Each field is optional. An omitted field takes the default below.
 
-- `pinned` names projects that always show.
-- `hidden` names projects that never show.
-- `activityWindowDays` is the activity window for a found project.
+- `pinned` names projects that always show. The default is `[]`.
+- `hidden` names projects that never show. The default is `[]`.
+- `activityWindowDays` is the activity window for a found project. The default is `30`.
+- `pollIntervalSeconds` is the gap between polls. The default is `60`.
+- `checkoutRoots` names folders the app scans for local checkouts. Each entry is an absolute path. The app does not expand `~`. The default is the `Git` folder in the home directory.
 - `expectedBots` names the review bots for a repo. The key is `owner/name`. The value is a list of `grok`, `codex` and `greptile`. An empty list means the repo has no expected bots. When the field is absent, the app reads the bots from the repo's recent merged PRs.
+- `noSenior` marks whether a project has no senior. The key is `owner/name` for a repo pin. The key is `owner/number` for a GitHub project pin. The key is the Linear project slug for a Linear pin. `true` sends every ask to Lev. `false` sends an unnamed ask to the senior. When the key is absent, a Linear project has no senior and a GitHub project has one. The default is `{}`.
+- `needsYouLabels` names labels that mark a needs-you item when Lev is the assignee. The default is `["needs-human", "needs-engineer"]`.
+- `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
+- `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. The default for each one is `true`.
 
-A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`.
+A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`. `pinned` and `hidden` use the same pin shape.
 
 ```json
 {
@@ -55,8 +61,18 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
   ],
   "hidden": [],
   "activityWindowDays": 30,
+  "pollIntervalSeconds": 60,
+  "checkoutRoots": ["/home/you/Git"],
   "expectedBots": {
     "owner/name": ["grok", "codex"]
+  },
+  "noSenior": { "owner/name": true },
+  "needsYouLabels": ["needs-human", "needs-engineer"],
+  "viewerLogins": [],
+  "notificationTriggers": {
+    "needsYou": true,
+    "comment": true,
+    "blockerCleared": true
   }
 }
 ```
