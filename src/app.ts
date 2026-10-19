@@ -23,6 +23,7 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	mergeTickets,
 	needsYouSeenId,
 	notificationsFor,
 	panelReplyBody,
@@ -485,7 +486,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	);
 	const linear = options.linear;
 	const github = options.github;
-	let githubPage: { projects: FoundProject[]; viewer: Viewer | null } = {
+	let githubPage: {
+		projects: FoundProject[];
+		viewer: Viewer | null;
+		error?: string;
+	} = {
 		projects: [],
 		viewer: null,
 	};
@@ -494,6 +499,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	if (github !== null) {
 		try {
 			githubPage = await github.findProjects();
+			if (githubPage.error !== undefined) {
+				failed = githubPage.error;
+			}
 		} catch (error) {
 			failed = error instanceof Error ? error.message : "poll failed";
 		}
@@ -645,6 +653,12 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				project.tracker === "github" && github !== null
 					? await github.listBranches(project.key)
 					: [];
+			const stored = options.store
+				.readTickets()
+				.find((row) => row.key === project.key);
+			const windowTickets = full
+				? listedTickets.tickets
+				: mergeTickets(stored?.tickets ?? [], listedTickets.tickets);
 			listed.push({
 				...project,
 				name: project.name ?? listedTickets.name,
@@ -655,6 +669,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				pinned,
 				hidden,
 				...(project.closed === undefined ? {} : { closed: project.closed }),
+				windowTickets,
 			});
 			outcomes.set(project.key, {
 				key: project.key,
