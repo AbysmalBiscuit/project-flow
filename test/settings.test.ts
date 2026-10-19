@@ -288,6 +288,39 @@ describe("settings", () => {
 		);
 	});
 
+	test("repeated spaces and a blank number name the field and leave the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
+			const before = await readFile(configPath, "utf8");
+			const current = await (
+				await fetch(new URL("/api/settings", base))
+			).json();
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...current,
+					pinned: [{ tracker: "github", repo: "  acme/spaced  " }],
+				}),
+			});
+			expect(saved.status).toBe(400);
+			const spaced = (await saved.json()) as { error: string };
+			expect(spaced.error).toContain("pinned");
+			expect(await readFile(configPath, "utf8")).toBe(before);
+			const blank = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...current,
+					activityWindowDays: "   ",
+				}),
+			});
+			expect(blank.status).toBe(400);
+			const named = (await blank.json()) as { error: string };
+			expect(named.error).toContain("activityWindowDays");
+			expect(await readFile(configPath, "utf8")).toBe(before);
+		});
+	});
+
 	test("a blank settings body names the configuration and leaves the file", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
 			const before = await readFile(configPath, "utf8");
