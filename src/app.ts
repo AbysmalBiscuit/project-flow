@@ -23,6 +23,7 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	needsYouSeenId,
 	notificationsFor,
 	panelReplyBody,
 	projectCounts,
@@ -108,9 +109,7 @@ function seededForProjects(
 	projects: ReadonlySet<string>,
 ): string[] {
 	const needsYou = attention.needsYou.flatMap((item) =>
-		projects.has(item.project)
-			? [`needsYou\n${item.project}\n${item.key}`]
-			: [],
+		projects.has(item.project) ? [needsYouSeenId(item)] : [],
 	);
 	const comments = [...attention.comments].flatMap(([id, comment]) =>
 		projects.has(comment.project) ? [`comment\n${id}\n${comment.stamp}`] : [],
@@ -716,7 +715,8 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.polling = false;
 	publishPoll(options, configuration, outcomes, fullKeys, failed, false);
-	const after = attentionFor(options.store, configuration, options.viewers);
+	const views = projectViews(options.store, configuration, options.viewers);
+	const after = attentionOf(views, configuration.noSenior);
 	const firstGood = new Set(
 		listed.flatMap((project) =>
 			awaitingFirstPoll.has(project.key) ? [project.name] : [],
@@ -745,7 +745,15 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		options.primed = true;
 	}
 	options.store.recordSeededIds(seeded);
-	const departed = departedNeedsYouIds(before, after);
+	const departed = departedNeedsYouIds(
+		before,
+		after,
+		new Set(
+			views.map((view) =>
+				view.row.key.includes("/") ? view.row.key : view.row.name,
+			),
+		),
+	);
 	for (const id of departed) {
 		options.seenNotifications.delete(id);
 	}
@@ -753,7 +761,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	for (const entry of notifications) {
 		options.seenNotifications.add(entry.id);
 		if (entry.trigger === "needsYou") {
-			const seenId = `needsYou\n${entry.project}\n${entry.key}`;
+			const seenId = needsYouSeenId(entry);
 			options.seenNotifications.add(seenId);
 			options.store.recordSeededIds([seenId]);
 		}
@@ -856,7 +864,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			closed: new Set(),
 		},
 		seenNotifications: new Set([
-			...opened.store.readNotifications().map((entry) => entry.id),
+			...opened.store
+				.readNotifications()
+				.filter((entry) => entry.trigger !== "needsYou")
+				.map((entry) => entry.id),
 			...opened.store.readSeededIds(),
 		]),
 		primed: opened.store.readTickets().length > 0,

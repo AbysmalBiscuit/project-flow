@@ -359,7 +359,7 @@ export function attentionOf(
 	};
 }
 
-function needsYouSeenId(item: NeedsYouItem): string {
+export function needsYouSeenId(item: { project: string; key: string }): string {
 	return `needsYou\n${item.project}\n${item.key}`;
 }
 
@@ -379,12 +379,16 @@ export function attentionIds(attention: Attention): string[] {
 export function departedNeedsYouIds(
 	before: Attention,
 	after: Attention,
+	loadedProjects: ReadonlySet<string>,
 ): string[] {
 	const current = new Set(
 		after.needsYou.map((item) => `${item.project}\n${item.key}`),
 	);
 	return before.needsYou.flatMap((item) =>
-		current.has(`${item.project}\n${item.key}`) ? [] : [needsYouSeenId(item)],
+		!loadedProjects.has(item.project) ||
+		current.has(`${item.project}\n${item.key}`)
+			? []
+			: [needsYouSeenId(item)],
 	);
 }
 
