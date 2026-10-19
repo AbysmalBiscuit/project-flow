@@ -1,92 +1,12 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { linearProofFetch, releaseLinearAsk } from "./serve-inbox.ts";
 
 const port = process.argv[2] ?? "4176";
 const rootDir = process.argv[3] ?? "/var/tmp";
 const holdAsk = process.argv[4] === "hold";
-const ask = "<!-- workcell:ask pf-1 -->";
-const headline = "Which bot should review this?";
-
-let releaseAsk = false;
-
-function recordedIssues(): Response {
-	return Response.json({
-		data: {
-			issues: {
-				nodes: releaseAsk
-					? [
-							{
-								id: "PF-1",
-								identifier: "PF-1",
-								title: "Open ask",
-								description: "",
-								state: { type: "unstarted" },
-								updatedAt: "2026-08-18T13:00:00.000Z",
-								parent: null,
-								projectMilestone: null,
-								labels: { nodes: [] },
-								assignee: null,
-								attachments: { nodes: [] },
-								comments: {
-									nodes: [
-										{
-											id: "comment-1",
-											body: `${headline}\n\n${ask}`,
-											createdAt: "2026-08-18T13:00:00.000Z",
-											user: { name: "Ada", displayName: "Ada" },
-											reactions: [],
-										},
-									],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-								inverseRelations: { nodes: [] },
-							},
-						]
-					: [],
-				pageInfo: { hasNextPage: false, endCursor: null },
-			},
-		},
-	});
-}
-
-const recorded: Fetch = async (input, init) => {
-	const url = String(input instanceof Request ? input.url : input);
-	const body = typeof init?.body === "string" ? init.body : "";
-	if (url === "https://api.linear.app/graphql") {
-		if (body.includes("MemberProjects") || body.includes("viewer { id }")) {
-			return Response.json({
-				data: {
-					viewer: { id: "lev" },
-					projects: {
-						nodes: [],
-						pageInfo: { hasNextPage: false, endCursor: null },
-					},
-				},
-			});
-		}
-		if (body.includes("ProjectByPin")) {
-			return Response.json({
-				data: {
-					projects: {
-						nodes: [
-							{
-								id: "project-flow",
-								name: "Project Flow",
-								slugId: "project-flow",
-							},
-						],
-					},
-				},
-			});
-		}
-		if (body.includes("ProjectIssues")) {
-			return recordedIssues();
-		}
-	}
-	return new Response("not recorded", { status: 404 });
-};
+const recorded = linearProofFetch();
 
 const root = await mkdtemp(join(rootDir, "project-flow-proof-"));
 const config = join(root, "config.json");
@@ -139,7 +59,10 @@ await run(["--config", config, "--host", "127.0.0.1", "--port", "0"], {
 				}, 200);
 				return;
 			}
-			releaseAsk = true;
+			releaseLinearAsk(
+				"Which bot should review this?",
+				"<!-- workcell:ask pf-1 -->",
+			);
 			await originalFetch(new URL("/api/refresh", origin), { method: "POST" });
 		};
 		setTimeout(() => {
