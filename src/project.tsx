@@ -8,6 +8,7 @@ import type {
 	TicketView,
 } from "./domain.ts";
 import { NeedsItem } from "./needs-item.tsx";
+import { TicketPanel } from "./panel.tsx";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -34,17 +35,32 @@ function openProject(project: string, ticket: string | null): void {
 function TicketLine({
 	ticket,
 	highlight,
+	onOpen,
 }: {
 	ticket: TicketView;
 	highlight: string | null;
+	onOpen: (key: string) => void;
 }) {
 	const marked = highlight !== null && highlight === ticket.key;
+	const key = ticket.key;
 	return (
 		<li
 			className={marked ? "ticket highlighted" : "ticket"}
-			data-ticket={ticket.key ?? ""}
+			data-ticket={key ?? ""}
 		>
-			{ticket.key} {ticket.title} {ticket.state}
+			{key === null ? (
+				<>
+					{ticket.title} {ticket.state}
+				</>
+			) : (
+				<button
+					type="button"
+					className="ticket-open"
+					onClick={() => onOpen(key)}
+				>
+					{key} {ticket.title} {ticket.state}
+				</button>
+			)}
 		</li>
 	);
 }
@@ -138,9 +154,11 @@ function DiagramView({
 function Report({
 	report,
 	ticket,
+	onOpen,
 }: {
 	report: ProjectReport;
 	ticket: string | null;
+	onOpen: (key: string) => void;
 }) {
 	return (
 		<main className="project-page" data-project={report.name}>
@@ -179,6 +197,7 @@ function Report({
 									key={`${item.key ?? ""} ${item.title}`}
 									ticket={item}
 									highlight={ticket}
+									onOpen={onOpen}
 								/>
 							))}
 						</ul>
@@ -186,7 +205,7 @@ function Report({
 					{section.needsYou === undefined ? null : (
 						<ul className="needs-you-list">
 							{section.needsYou.map((item) => (
-								<NeedsItem key={item.key} item={item} />
+								<NeedsItem key={item.key} item={item} onOpen={onOpen} />
 							))}
 						</ul>
 					)}
@@ -311,7 +330,23 @@ function Page() {
 	if (report === null) {
 		return <main>Loading {name}</main>;
 	}
-	return <Report report={report} ticket={ticket} />;
+	return (
+		<>
+			<Report
+				report={report}
+				ticket={ticket}
+				onOpen={(key) => setTicket(key)}
+			/>
+			{ticket === null ? null : (
+				<TicketPanel
+					tracker={report.tracker}
+					project={report.name}
+					ticketKey={ticket}
+					onClose={() => setTicket(null)}
+				/>
+			)}
+		</>
+	);
 }
 
 function mount(): void {

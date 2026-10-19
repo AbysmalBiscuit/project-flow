@@ -14,7 +14,16 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 			<h1>Needs you</h1>
 			<ul className="needs-you-list">
 				{items.map((item) => (
-					<NeedsItem key={`${item.project} ${item.key}`} item={item} project />
+					<NeedsItem
+						key={`${item.project} ${item.key}`}
+						item={item}
+						project
+						onOpen={() => {
+							window.location.assign(
+								`/projects/${encodeURIComponent(item.project)}?ticket=${encodeURIComponent(item.key)}`,
+							);
+						}}
+					/>
 				))}
 			</ul>
 		</main>

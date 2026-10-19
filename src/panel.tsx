@@ -1,0 +1,204 @@
+import { useEffect, useState } from "react";
+import type { Thread, ThreadComment } from "./domain.ts";
+
+type ReplyTarget = {
+	parentId?: string;
+	kind: ThreadComment["kind"];
+};
+
+function nest(comments: ThreadComment[]): {
+	comment: ThreadComment;
+	children: ThreadComment[];
+}[] {
+	const byParent = new Map<string | null, ThreadComment[]>();
+	for (const comment of comments) {
+		const parent = comment.parentId;
+		const list = byParent.get(parent) ?? [];
+		list.push(comment);
+		byParent.set(parent, list);
+	}
+	return (byParent.get(null) ?? []).map((comment) => ({
+		comment,
+		children: byParent.get(comment.id) ?? [],
+	}));
+}
+
+export function TicketPanel({
+	tracker,
+	project,
+	ticketKey,
+	onClose,
+}: {
+	tracker: "github" | "linear";
+	project: string;
+	ticketKey: string;
+	onClose: () => void;
+}) {
+	const [thread, setThread] = useState<Thread | null>(null);
+	const [missing, setMissing] = useState(false);
+	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+	const [draft, setDraft] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	const [pending, setPending] = useState(false);
+	useEffect(() => {
+		let stopped = false;
+		const path = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}`;
+		fetch(path)
+			.then(async (response) => {
+				if (stopped) {
+					return;
+				}
+				if (!response.ok) {
+					setThread(null);
+					setMissing(true);
+					return;
+				}
+				setMissing(false);
+				setThread((await response.json()) as Thread);
+			})
+			.catch(() => {
+				if (!stopped) {
+					setMissing(true);
+				}
+			});
+		return () => {
+			stopped = true;
+		};
+	}, [tracker, project, ticketKey]);
+	async function send(target: ReplyTarget): Promise<void> {
+		if (draft.trim() === "" || pending) {
+			return;
+		}
+		setPending(true);
+		setError(null);
+		try {
+			const response = await fetch("/api/replies", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker,
+					project,
+					key: ticketKey,
+					body: draft,
+					...(target.parentId === undefined
+						? {}
+						: { parentId: target.parentId }),
+					kind: target.kind,
+				}),
+			});
+			if (!response.ok) {
+				const failed = (await response.json()) as { error?: string };
+				setError(failed.error ?? "Reply failed");
+				return;
+			}
+			const created = (await response.json()) as {
+				id: string;
+				url: string;
+				createdAt: string;
+			};
+			setDraft("");
+			setReplyTo(null);
+			setThread((current) =>
+				current === null
+					? current
+					: {
+							...current,
+							comments: [
+								...current.comments,
+								{
+									id: created.id,
+									body: draft,
+									author: "",
+									createdAt: created.createdAt ?? "",
+									url: created.url ?? "",
+									parentId: target.parentId ?? null,
+									kind: target.kind,
+								},
+							],
+						},
+			);
+		} catch {
+			setError("Reply failed");
+		} finally {
+			setPending(false);
+		}
+	}
+	return (
+		<aside className="ticket-panel" aria-label="Ticket thread">
+			<button type="button" className="panel-close" onClick={onClose}>
+				Close
+			</button>
+			{missing ? <p>Thread not found</p> : null}
+			{thread === null && !missing ? <p>Loading thread</p> : null}
+			{thread === null ? null : (
+				<>
+					<h2>{thread.title}</h2>
+					<p>
+						<a className="tracker-link" href={thread.url}>
+							Open in tracker
+						</a>
+					</p>
+					<ul className="thread">
+						{nest(thread.comments).map(({ comment, children }) => (
+							<li key={comment.id} data-comment={comment.id}>
+								<p className="comment-body">{comment.body}</p>
+								{comment.kind === "comment" && tracker === "github" ? null : (
+									<button
+										type="button"
+										className="reply-open"
+										onClick={() =>
+											setReplyTo({
+												parentId: comment.id,
+												kind: comment.kind,
+											})
+										}
+									>
+										Reply
+									</button>
+								)}
+								{children.length === 0 ? null : (
+									<ul>
+										{children.map((child) => (
+											<li key={child.id}>
+												<p className="comment-body">{child.body}</p>
+											</li>
+										))}
+									</ul>
+								)}
+							</li>
+						))}
+					</ul>
+					{tracker === "github" ? (
+						<button
+							type="button"
+							className="reply-open"
+							onClick={() => setReplyTo({ kind: "comment" })}
+						>
+							Reply
+						</button>
+					) : null}
+					{replyTo === null ? null : (
+						<form
+							className="reply"
+							onSubmit={(event) => {
+								event.preventDefault();
+								void send(replyTo);
+							}}
+						>
+							<textarea
+								className="reply-text"
+								aria-label="Reply"
+								value={draft}
+								onChange={(event) => setDraft(event.target.value)}
+							/>
+							<button type="submit" className="reply-send" disabled={pending}>
+								Send
+							</button>
+							{error === null ? null : <p className="reply-error">{error}</p>}
+						</form>
+					)}
+				</>
+			)}
+		</aside>
+	);
+}
