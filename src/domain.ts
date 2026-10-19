@@ -907,7 +907,11 @@ export function linearStatusType(type: string, name: string): StatusType {
 		return "dropped";
 	}
 	if (type === "started") {
-		return statusTypeOfName(name) === "inReview" ? "inReview" : "inProgress";
+		const named = statusTypeOfName(name);
+		if (named === "inReview" || named === "awaitingMerge") {
+			return named;
+		}
+		return "inProgress";
 	}
 	return "backlog";
 }

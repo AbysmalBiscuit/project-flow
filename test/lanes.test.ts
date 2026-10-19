@@ -485,6 +485,68 @@ describe("tracker lanes", () => {
 		);
 	});
 
+	test("a Linear started Ready to merge status is awaiting merge", async () => {
+		const states = [
+			...linearStates.slice(0, 5),
+			{
+				id: "st-merge",
+				name: "Ready to merge",
+				type: "started",
+				position: 5,
+				color: "#4CB782",
+			},
+			...linearStates.slice(5).map((state) => ({
+				...state,
+				position: state.position + 1,
+			})),
+		];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({
+				project: {
+					id: "project-widget",
+					name: "Widget launch",
+					slugId: linearSlug,
+					teams: { nodes: [linearTeam] },
+				},
+				issues: [
+					linearIssue("WID-3", "Land the branch", {
+						id: "st-merge",
+						name: "Ready to merge",
+						type: "started",
+						color: "#4CB782",
+					}),
+				],
+				states,
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(
+					report.lanes.find((lane) => lane.name === "Ready to merge"),
+				).toEqual({
+					id: "st-merge",
+					name: "Ready to merge",
+					colour: "#4CB782",
+					statusType: "awaitingMerge",
+				});
+				expect(report.lanes.map((lane) => lane.name)).toEqual([
+					"Triage",
+					"Backlog",
+					"Todo",
+					"In Progress",
+					"In Review",
+					"Ready to merge",
+					"Done",
+					"Canceled",
+				]);
+				expect(flight(report)).toEqual([
+					placed("WID-3", "Land the branch", "Ready to merge", "awaitingMerge"),
+				]);
+			},
+		);
+	});
+
 	test("a GitHub project returns its Status options as lanes", async () => {
 		await withApp(
 			JSON.stringify({
