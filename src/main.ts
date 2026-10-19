@@ -10,13 +10,12 @@ import { loadConfiguration } from "./configuration.ts";
 import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
-import { checkLinearKey, missingLinearKey } from "./linear.ts";
+import { checkLinearKey } from "./linear.ts";
 import type { CheckoutSource, LocalCheckout, TodoSource } from "./ports.ts";
 
 export { missingToken };
 export const rejectedToken =
 	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
-export { missingLinearKey };
 export const rejectedLinearKey =
 	"LINEAR_API_KEY was rejected by Linear (HTTP 401): set a valid key.";
 
@@ -351,9 +350,6 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			writeErr(`created configuration file: ${configPath}`);
 		}
 		const configuration = await loadConfiguration(configPath);
-		const needsGithub = configuration.pinned.some(
-			(pin) => pin.tracker === "github",
-		);
 		const linearOnly =
 			configuration.pinned.length > 0 &&
 			configuration.pinned.every((pin) => pin.tracker === "linear");
@@ -361,10 +357,6 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const envToken =
 			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
 		const token = linearOnly ? envToken : await resolveToken(io, envToken);
-		if (needsGithub && token === null) {
-			writeErr(missingToken);
-			return result(1, false);
-		}
 		if (!linearOnly && token !== null) {
 			const user = await checkToken(token, io.fetch);
 			if (user.status === 401) {
@@ -380,11 +372,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const needsLinear = configuration.pinned.some(
 			(pin) => pin.tracker === "linear",
 		);
-		if (needsLinear && linearKey === "") {
-			writeErr(missingLinearKey);
-			return result(1, false);
-		}
-		if (needsLinear) {
+		if (needsLinear && linearKey !== "") {
 			const viewer = await checkLinearKey(linearKey, io.fetch);
 			if (viewer.status === 401) {
 				writeErr(rejectedLinearKey);
