@@ -31,6 +31,7 @@ export const missingToken =
 
 const dependency = z.object({
 	number: z.number(),
+	title: z.string().optional(),
 	state: z.string(),
 	repository_url: z.string().optional(),
 });
@@ -495,7 +496,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 								pageInfo { hasNextPage endCursor }
 							}
 							blockedBy(first: 20) {
-								nodes { number state repository { nameWithOwner } }
+								nodes { number title state repository { nameWithOwner } }
 								pageInfo { hasNextPage endCursor }
 							}
 						}
@@ -511,7 +512,7 @@ const blockedByQuery = `query BlockedBy($id: ID!, $after: String) {
 	node(id: $id) {
 		... on Issue {
 			blockedBy(first: 20, after: $after) {
-				nodes { number state repository { nameWithOwner } }
+				nodes { number title state repository { nameWithOwner } }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -520,6 +521,7 @@ const blockedByQuery = `query BlockedBy($id: ID!, $after: String) {
 
 const projectBlockedByNode = z.object({
 	number: z.number(),
+	title: z.string().nullable().optional(),
 	state: z.string(),
 	repository: z.object({ nameWithOwner: z.string() }).nullable().optional(),
 });
@@ -719,11 +721,13 @@ function projectBlockedByRefs(
 			continue;
 		}
 		const project = node.repository?.nameWithOwner ?? fallback;
+		const title = node.title?.trim() ?? "";
 		const ref: TicketRef = {
 			tracker: "github",
 			project,
 			key: `${project}#${node.number}`,
 			state,
+			...(title === "" ? {} : { title }),
 		};
 		if (!refs.some((item) => item.key === ref.key)) {
 			refs.push(ref);
@@ -1758,10 +1762,12 @@ async function listBlockedBy(
 				continue;
 			}
 			const project = repoFromUrl(item.repository_url, repo);
+			const title = item.title?.trim() ?? "";
 			const ref: TicketRef = {
 				tracker: "github",
 				project,
 				key: `${project}#${item.number}`,
+				...(title === "" ? {} : { title }),
 			};
 			if (state !== undefined) {
 				ref.state = state;

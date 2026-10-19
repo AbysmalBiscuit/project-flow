@@ -104,8 +104,9 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 					type
 					issue {
 						identifier
+						title
 						state { type }
-						project { slugId }
+						project { name slugId }
 					}
 				}
 			}
@@ -161,8 +162,14 @@ const ticketProject = z.object({
 
 const relatedIssue = z.object({
 	identifier: z.string(),
+	title: z.string().nullable().optional(),
 	state: z.object({ type: z.string() }).nullable(),
-	project: z.object({ slugId: z.string() }).nullable(),
+	project: z
+		.object({
+			name: z.string().optional(),
+			slugId: z.string(),
+		})
+		.nullable(),
 });
 
 const issueNode = z.object({
@@ -274,11 +281,15 @@ function blockedBy(node: z.infer<typeof issueNode>): TicketRef[] {
 		if (mapped === null) {
 			return [];
 		}
+		const title = relation.issue.title?.trim() ?? "";
+		const projectName = relation.issue.project?.name?.trim() ?? "";
 		const ref: TicketRef = {
 			tracker: "linear",
 			project: relation.issue.project?.slugId ?? "",
 			key: relation.issue.identifier,
 			state: mapped.state,
+			...(title === "" ? {} : { title }),
+			...(projectName === "" ? {} : { projectName }),
 		};
 		return [ref];
 	});
