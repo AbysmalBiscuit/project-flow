@@ -1708,29 +1708,12 @@ export function needsYouItems(
 			continue;
 		}
 		const shown = shownByKey.get(ticket.key);
-		const ticketComments = ticket.comments ?? [];
-		const ticketAsk = openAsk(ticketComments, rules.noSenior);
 		const linkedPulls = linkedByTicket.get(ticket.key) ?? [];
-		let ask = ticketAsk;
-		let comments = ticketComments;
-		const ticketComment =
-			orderedComments(ticketComments)[ticketAsk?.index ?? -1];
-		let askedAt =
-			ticketComment === undefined ? null : commentTime(ticketComment);
-		for (const pull of linkedPulls) {
-			const pullThread = pullComments(pull);
-			const pullAsk = openAsk(pullThread, rules.noSenior);
-			const pullComment = orderedComments(pullThread)[pullAsk?.index ?? -1];
-			if (pullAsk === null || pullComment === undefined) {
-				continue;
-			}
-			const at = commentTime(pullComment);
-			if (ask === null || at >= (askedAt ?? 0)) {
-				ask = pullAsk;
-				comments = pullThread;
-				askedAt = at;
-			}
-		}
+		const comments = [
+			...(ticket.comments ?? []),
+			...linkedPulls.flatMap(pullComments),
+		];
+		const ask = openAsk(comments, rules.noSenior);
 		const labelled =
 			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
