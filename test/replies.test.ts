@@ -1208,6 +1208,70 @@ describe("replies", () => {
 		}
 	});
 
+	test("a named sentence that spans a line quotes that one line", async () => {
+		const sent: string[] = [];
+		const line = "Which name should Lev pick?";
+		const askBody = `Senior,\n${line}\nThe panel needs a label.\n\n${ask("pf-24")}`;
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-24",
+					identifier: "PF-24",
+					title: "Needs a label",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: [
+							{
+								id: "comment-ask-24",
+								body: askBody,
+								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Ada" },
+								reactions: [],
+							},
+						],
+					},
+				},
+			],
+			requests: sent,
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		try {
+			const before = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(before.find((item) => item.key === "PF-24")?.headline).toBe(line);
+			const posted = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-24",
+					body: "Use the short name.",
+				}),
+			});
+			expect(posted.status).toBe(201);
+			expect(
+				JSON.parse(sent.find((body) => body.includes("commentCreate")) ?? "{}"),
+			).toMatchObject({
+				variables: {
+					input: { body: `> ${line}\n\nUse the short name.` },
+				},
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a GitHub project with a senior posts an unnamed ask unchanged", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {

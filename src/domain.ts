@@ -1545,7 +1545,7 @@ function quotesAsk(body: string, id: string): boolean {
 function askHeadline(body: string): string {
 	const text = body.replace(askMarker, "").trim();
 	const named = text
-		.split(/(?<=[.!?])\s+/)
+		.split(/(?<=[.!?])\s+|\n+/)
 		.map((part) => part.trim())
 		.find((part) => namesLev(part));
 	if (named !== undefined) {
