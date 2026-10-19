@@ -1,7 +1,12 @@
 import mermaid from "mermaid";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Diagram, ProjectReport, TicketView } from "./domain.ts";
+import type {
+	Diagram,
+	ProjectReport,
+	TicketState,
+	TicketView,
+} from "./domain.ts";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -79,25 +84,23 @@ function NodeLine({
 	);
 }
 
-const legend = [
-	{ state: "done", label: "Done" },
-	{ state: "dropped", label: "Dropped" },
-	{ state: "blocked", label: "Blocked" },
-	{ state: "inProgress", label: "In progress" },
-	{ state: "backlog", label: "Backlog" },
-	{ state: "theme", label: "Theme" },
-	{ state: "dashed", label: "Cross-project blocker" },
-] as const;
+const legend: Record<TicketState | "theme" | "dashed", string> = {
+	done: "Done",
+	dropped: "Dropped",
+	blocked: "Blocked",
+	inProgress: "In progress",
+	backlog: "Backlog",
+	theme: "Theme",
+	dashed: "Cross-project blocker",
+};
 
 function StateLegend() {
 	return (
 		<ul className="state-legend" aria-label="Ticket states">
-			{legend.map((item) => (
-				<li key={item.state}>
-					<span
-						className={`swatch ${item.state === "inProgress" ? "in-progress" : item.state}`}
-					/>
-					{item.label}
+			{Object.entries(legend).map(([kind, label]) => (
+				<li key={kind}>
+					<span className={`swatch ${kind}`} />
+					{label}
 				</li>
 			))}
 		</ul>
