@@ -202,9 +202,48 @@ function Page() {
 		}
 		mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
 		const nodes = document.querySelectorAll<HTMLElement>(".mermaid");
-		if (nodes.length > 0) {
-			void mermaid.run({ nodes });
+		if (nodes.length === 0) {
+			return;
 		}
+		let stopped = false;
+		void mermaid.run({ nodes }).then(() => {
+			if (stopped) {
+				return;
+			}
+			for (const section of report.sections) {
+				for (const diagram of section.diagrams ?? []) {
+					const figure = document.querySelector(
+						`figure[data-diagram="${diagram.id}"]`,
+					);
+					if (figure === null) {
+						continue;
+					}
+					for (const node of diagram.nodes) {
+						if (!node.dashed || node.ticket === null) {
+							continue;
+						}
+						const drawn = figure.querySelector(`g.node.${node.id}`);
+						if (drawn === null) {
+							continue;
+						}
+						if (drawn instanceof HTMLElement || drawn instanceof SVGElement) {
+							drawn.style.cursor = "pointer";
+						}
+						drawn.addEventListener("click", () => {
+							window.history.pushState(
+								{},
+								"",
+								openPath(node.project, node.ticket),
+							);
+							window.dispatchEvent(new PopStateEvent("popstate"));
+						});
+					}
+				}
+			}
+		});
+		return () => {
+			stopped = true;
+		};
 	}, [report]);
 	if (missing) {
 		return <main>Project not found</main>;
@@ -215,7 +254,7 @@ function Page() {
 	return <Report report={report} ticket={ticket} />;
 }
 
-async function mount(): Promise<void> {
+function mount(): void {
 	const root = document.getElementById("root");
 	if (root === null) {
 		return;
@@ -223,6 +262,4 @@ async function mount(): Promise<void> {
 	createRoot(root).render(<Page />);
 }
 
-if (typeof document !== "undefined") {
-	await mount();
-}
+mount();
