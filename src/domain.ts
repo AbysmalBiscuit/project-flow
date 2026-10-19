@@ -921,6 +921,7 @@ export function expectedBotsFromHistory(pulls: PullRequest[]): KnownBot[] {
 
 export function expectedBotsByRepo(
 	pulls: PullRequest[],
+	overrides: Record<string, KnownBot[]> = {},
 ): Map<string, KnownBot[]> {
 	const repos = new Set(pulls.map((pull) => pull.repo));
 	const bots = new Map<string, KnownBot[]>();
@@ -929,6 +930,11 @@ export function expectedBotsByRepo(
 			repo,
 			expectedBotsFromHistory(pulls.filter((pull) => pull.repo === repo)),
 		);
+	}
+	for (const [repo, override] of Object.entries(overrides)) {
+		if (bots.has(repo)) {
+			bots.set(repo, override);
+		}
 	}
 	return bots;
 }

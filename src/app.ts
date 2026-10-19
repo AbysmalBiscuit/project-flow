@@ -93,15 +93,6 @@ function counted(store: Store, configuration: Configuration) {
 	}));
 	return rows.map((row) => {
 		const goodPoll = store.lastGoodPollAt(row.key);
-		const expected = expectedBotsByRepo(row.pulls);
-		for (const [repo, bots] of Object.entries(
-			configuration.expectedBots ?? {},
-		)) {
-			if (bots === undefined || !expected.has(repo)) {
-				continue;
-			}
-			expected.set(repo, bots);
-		}
 		return {
 			row,
 			counts: projectCounts(
@@ -112,7 +103,7 @@ function counted(store: Store, configuration: Configuration) {
 				row.branches,
 				row.startedKeys,
 				all,
-				expected,
+				expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 				{
 					fetchedAt: goodPoll?.toISOString() ?? null,
 					error: store.projectError(row.key),
