@@ -28,6 +28,7 @@ function card(
 		awaitingMerge: number;
 	},
 	tags: string[] = [],
+	needsYou = counts.awaitingMerge,
 ): {
 	projects: {
 		name: string;
@@ -65,7 +66,7 @@ function card(
 				dropped: 0,
 				blocked: 0,
 				...counts,
-				needsYou: 0,
+				needsYou,
 				progress: 0,
 				fetchedAt: "2026-10-18T12:00:00.000Z",
 				error: null,
@@ -1497,7 +1498,7 @@ describe("review cycle", () => {
 						inProgress: 0,
 						inReview: 0,
 						awaitingMerge: 1,
-						needsYou: 0,
+						needsYou: 1,
 						progress: 0,
 						fetchedAt: "2026-10-18T12:00:00.000Z",
 						error: null,

@@ -397,7 +397,7 @@ describe("in progress", () => {
 					unlinkedPrs: [],
 					tickets: [view(18, "inProgress"), view(19, "awaitingMerge")],
 					crossProjectBlockers: [],
-					needsYou: 0,
+					needsYou: 1,
 					progress: 0,
 				},
 			],
