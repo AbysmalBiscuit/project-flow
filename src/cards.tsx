@@ -169,8 +169,12 @@ function CardsList({
 					<p className="counts">
 						Done {project.done} Dropped {project.dropped} Blocked{" "}
 						{project.blocked} Backlog {project.backlog} In progress{" "}
-						{project.inProgress}
+						{project.inProgress} In review {project.inReview} Awaiting merge{" "}
+						{project.awaitingMerge}
 					</p>
+					{project.tags.length === 0 ? null : (
+						<p className="tags">{project.tags.join(" ")}</p>
+					)}
 					{project.crossProjectBlockers.length === 0 ? null : (
 						<p className="blockers">
 							{project.crossProjectBlockers.map((blocker) => (

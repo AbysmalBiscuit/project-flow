@@ -790,6 +790,27 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a warning tag is in the overview", async () => {
+		const body = (await overview({
+			issues: [issue(8)],
+			pulls: [pull(94)],
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "failure",
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		})) as { projects: { tags: string[] }[] };
+		expect(body.projects[0]?.tags).toContain("grok failure");
+	});
+
 	test("a failed Grok check is awaiting merge with a warning tag", async () => {
 		const body = await overview({
 			issues: [issue(8)],
