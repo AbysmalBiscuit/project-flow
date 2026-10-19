@@ -1,4 +1,3 @@
-import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -136,9 +135,19 @@ function mergedPull(): Record<string, unknown> {
 }
 
 function projectBoard(
-	pulls: { number: number }[] = [{ number: 83 }],
-	closingPages?: { nodes: { number: number }[]; endCursor: string | null }[],
+	pulls: { number: number; repo?: string }[] = [{ number: 83 }],
+	closingPages?: {
+		nodes: { number: number; repository?: { nameWithOwner: string } }[];
+		endCursor: string | null;
+	}[],
 	restComments?: { body: string; user?: { login: string } | null }[],
+	extraIssues: {
+		id: string;
+		number: number;
+		title: string;
+		pulls: { number: number; repo?: string }[];
+		comments: { body: string; user?: { login: string } | null }[];
+	}[] = [],
 ): Fetch {
 	const projectId = "PVT_widget";
 	return async (input, init) => {
@@ -207,7 +216,11 @@ function projectBoard(
 			const after = variables.variables?.after ?? null;
 			const closing =
 				closingPages === undefined
-					? { nodes: pulls, hasNextPage: false, endCursor: null }
+					? {
+							nodes: pulls.map((item) => ({ number: item.number })),
+							hasNextPage: false,
+							endCursor: null,
+						}
 					: (() => {
 							const index =
 								after === null
@@ -229,43 +242,74 @@ function projectBoard(
 			if (closing === null) {
 				return new Response("closing page not recorded", { status: 404 });
 			}
+			const issueNodes = [
+				{
+					content: {
+						__typename: "Issue",
+						id: "I_widget_8",
+						number: 8,
+						title: "Ticket 8",
+						state: "OPEN",
+						stateReason: null,
+						updatedAt: "2026-10-01T00:00:00Z",
+						repository: { nameWithOwner: repo },
+						comments: {
+							totalCount: (restComments ?? []).length,
+						},
+						closedByPullRequestsReferences: {
+							nodes: closing.nodes.map((node) => ({
+								number: node.number,
+								...("repository" in node && node.repository !== undefined
+									? { repository: node.repository }
+									: {}),
+							})),
+							pageInfo: {
+								hasNextPage: closing.hasNextPage,
+								endCursor: closing.endCursor,
+							},
+						},
+					},
+				},
+				...extraIssues.map((issue) => ({
+					content: {
+						__typename: "Issue",
+						id: issue.id,
+						number: issue.number,
+						title: issue.title,
+						state: "OPEN",
+						stateReason: null,
+						updatedAt: "2026-10-01T00:00:00Z",
+						repository: { nameWithOwner: repo },
+						comments: { totalCount: issue.comments.length },
+						closedByPullRequestsReferences: {
+							nodes: issue.pulls.map((node) => ({
+								number: node.number,
+								repository: { nameWithOwner: node.repo ?? repo },
+							})),
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				})),
+			];
 			return page({
 				data: {
 					node: {
 						items: {
-							nodes: [
-								{
-									content: {
-										__typename: "Issue",
-										id: "I_widget_8",
-										number: 8,
-										title: "Ticket 8",
-										state: "OPEN",
-										stateReason: null,
-										updatedAt: "2026-10-01T00:00:00Z",
-										repository: { nameWithOwner: repo },
-										comments: {
-											totalCount: (restComments ?? []).length,
-										},
-										closedByPullRequestsReferences: {
-											nodes: closing.nodes,
-											pageInfo: {
-												hasNextPage: closing.hasNextPage,
-												endCursor: closing.endCursor,
-											},
-										},
-									},
-								},
-							],
+							nodes: issueNodes,
 							pageInfo: { hasNextPage: false, endCursor: null },
 						},
 					},
 				},
 			});
 		}
-		const pullMatch = url.match(/\/repos\/[^/]+\/[^/]+\/pulls\/(\d+)$/);
-		if (pullMatch?.[1] !== undefined) {
-			return page(pull(Number(pullMatch[1])));
+		const pullMatch = url.match(/\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)$/);
+		if (pullMatch?.[1] !== undefined && pullMatch[2] !== undefined) {
+			const number = Number(pullMatch[2]);
+			const recorded = pull(number);
+			if (pullMatch[1] !== repo) {
+				recorded.html_url = `https://github.com/${pullMatch[1]}/pull/${number}`;
+			}
+			return page(recorded);
 		}
 		if (url.includes("/commits/") && url.includes("/check-runs")) {
 			return page({ check_runs: [] });
@@ -278,11 +322,19 @@ function projectBoard(
 		if (url.includes("/pulls?state=closed")) {
 			return page([]);
 		}
-		if (
-			url ===
-			`https://api.github.com/repos/${repo}/issues/8/comments?per_page=100&page=1`
-		) {
+		const issueComments = url.match(
+			new RegExp(
+				`^https://api\\.github\\.com/repos/${repo}/issues/(\\d+)/comments\\?per_page=100&page=1$`,
+			),
+		);
+		if (issueComments?.[1] === "8") {
 			return page(restComments ?? []);
+		}
+		const extra = extraIssues.find(
+			(issue) => String(issue.number) === issueComments?.[1],
+		);
+		if (extra !== undefined) {
+			return page(extra.comments);
 		}
 		if (
 			url.includes("/comments") ||
@@ -3276,8 +3328,50 @@ describe("review cycle", () => {
 						nodes: [{ body: "noted" }],
 						pageInfo: { hasNextPage: true, endCursor: "page-2" },
 					},
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/83",
+								title: "PR 83",
+								sourceType: "github",
+							},
+						],
+					},
 				},
 			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/83") {
+					return page(pull(83));
+				}
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
+					return page({ check_runs: [] });
+				}
+				if (url.includes("/commits/")) {
+					return page({
+						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+					});
+				}
+				if (url.includes("/pulls?state=closed")) {
+					return page([]);
+				}
+				if (
+					url.includes("/comments") ||
+					url.includes("/reviews") ||
+					url.includes("/reactions") ||
+					url.includes("/branches")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
 		});
 		const fetchImpl: Fetch = async (input, init) => {
 			const sent = typeof init?.body === "string" ? init.body : "";
@@ -3294,7 +3388,10 @@ describe("review cycle", () => {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				testIo({
-					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
 					fetch: fetchImpl,
 					readGhToken: async () => null,
 					databasePath,
@@ -3513,12 +3610,16 @@ describe("review cycle", () => {
 		const databasePath = join(root, "project-flow.sqlite");
 		const earlier = Array.from({ length: 20 }, (_item, index) => ({
 			number: index + 1,
+			repository: { nameWithOwner: repo },
 		}));
 		const board = projectBoard(
 			[],
 			[
 				{ nodes: earlier, endCursor: "closing-2" },
-				{ nodes: [{ number: 83 }], endCursor: null },
+				{
+					nodes: [{ number: 83, repository: { nameWithOwner: repo } }],
+					endCursor: null,
+				},
 			],
 			[
 				{
@@ -3592,31 +3693,6 @@ describe("review cycle", () => {
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
-		const seeded = new Database(databasePath);
-		seeded.run(`
-			create table snapshots (
-				snapshot_key text primary key,
-				name text not null,
-				tracker text not null,
-				payload text not null
-			)
-		`);
-		seeded
-			.query(
-				"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
-			)
-			.run(
-				"github:PVT_widget",
-				"Widget board",
-				"github",
-				JSON.stringify({
-					tickets: [],
-					pulls: [],
-					branches: [],
-					startedKeys: [],
-				}),
-			);
-		seeded.close();
 		const board = projectBoard([{ number: 83 }], undefined, [
 			{
 				body: progress(
@@ -3626,6 +3702,7 @@ describe("review cycle", () => {
 			},
 		]);
 		let projectReads = 0;
+		let rejectNext = false;
 		const fetchImpl: Fetch = async (input, init) => {
 			const sent = typeof init?.body === "string" ? init.body : "";
 			if (
@@ -3633,7 +3710,8 @@ describe("review cycle", () => {
 				sent.includes("node(id:")
 			) {
 				projectReads += 1;
-				if (projectReads === 1) {
+				if (rejectNext) {
+					rejectNext = false;
 					return new Response("recorded failure", { status: 500 });
 				}
 			}
@@ -3655,6 +3733,12 @@ describe("review cycle", () => {
 					stdout: (line) => startChecks(line),
 					waitForStop: (async () => {
 						const base = await checks;
+						const seeded = await fetch(new URL("/api/overview", base));
+						expect(seeded.status).toBe(200);
+						expect(await seeded.json()).toMatchObject({
+							projects: [{ name: "Widget board", error: null }],
+						});
+						rejectNext = true;
 						const failed = await fetch(new URL("/api/refresh", base), {
 							method: "POST",
 						});
@@ -3664,8 +3748,10 @@ describe("review cycle", () => {
 						expect(await first.json()).toMatchObject({
 							projects: [
 								{
+									name: "Widget board",
 									error:
-										"GitHub list project tickets failed (HTTP 500): PVT_widget",
+										"GitHub list project tickets failed (HTTP 500): PVT_widget (stale since 2026-10-18T12:00:00.000Z)",
+									tickets: [{ key: `${repo}#8`, state: "inReview" }],
 								},
 							],
 						});
@@ -3692,7 +3778,506 @@ describe("review cycle", () => {
 			if (result.exitCode !== 0) {
 				throw new Error(result.stderr);
 			}
+			expect(projectReads).toBe(3);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a second poll reads a progress comment added to the board", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const quiet = projectBoard([{ number: 83 }]);
+		const progressed = projectBoard([{ number: 83 }], undefined, [
+			{
+				body: progress(
+					"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+				),
+				user: null,
+			},
+		]);
+		let projectReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (
+				urlOf(input) === "https://api.github.com/graphql" &&
+				sent.includes("ProjectItems")
+			) {
+				projectReads += 1;
+			}
+			return projectReads <= 1 ? quiet(input, init) : progressed(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<string>((resolve) => {
+			startChecks = (base: string) => resolve(base);
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: (async () => {
+						const base = await checks;
+						const firstResponse = await fetch(new URL("/api/overview", base));
+						expect(firstResponse.status).toBe(200);
+						expect(await firstResponse.json()).toMatchObject({
+							projects: [
+								{
+									name: "Widget board",
+									inReview: 0,
+									awaitingMerge: 1,
+									tickets: [{ key: `${repo}#8`, state: "awaitingMerge" }],
+								},
+							],
+						});
+						const refresh = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(refresh.status).toBe(204);
+						const secondResponse = await fetch(new URL("/api/overview", base));
+						expect(secondResponse.status).toBe(200);
+						expect(await secondResponse.json()).toMatchObject({
+							projects: [
+								{
+									name: "Widget board",
+									inReview: 1,
+									awaitingMerge: 0,
+									tickets: [{ key: `${repo}#8`, state: "inReview" }],
+								},
+							],
+						});
+					})(),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
 			expect(projectReads).toBe(2);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a closing pull in another repository still takes the workcell review state", async () => {
+		const other = "acme/other";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [], [other]: [] },
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const board = projectBoard(
+			[{ number: 83, repo: other }],
+			[
+				{
+					nodes: [{ number: 83, repository: { nameWithOwner: other } }],
+					endCursor: null,
+				},
+			],
+			[
+				{
+					body: progress(
+						"- stage 5: round 1 of 3 https://github.com/acme/other/pull/83",
+					),
+					user: null,
+				},
+			],
+		);
+		const pullReads: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url.includes(`/repos/${other}/pulls/`)) {
+				pullReads.push(url);
+			}
+			return board(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget board",
+						inReview: 1,
+						awaitingMerge: 0,
+						tickets: [{ key: `${repo}#8`, state: "inReview" }],
+					},
+				],
+			});
+			expect(pullReads).toContain(
+				`https://api.github.com/repos/${other}/pulls/83`,
+			);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("two tickets closed by one pull both take the workcell review state", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const progressBody = progress(
+			"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+		);
+		const board = projectBoard(
+			[{ number: 83 }],
+			undefined,
+			[{ body: progressBody, user: null }],
+			[
+				{
+					id: "I_widget_9",
+					number: 9,
+					title: "Ticket 9",
+					pulls: [{ number: 83 }],
+					comments: [{ body: progressBody, user: null }],
+				},
+			],
+		);
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: board,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget board",
+						inReview: 2,
+						awaitingMerge: 0,
+						tickets: [
+							{ key: `${repo}#8`, state: "inReview" },
+							{ key: `${repo}#9`, state: "inReview" },
+						],
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a newest-first Linear comment page still sets awaiting merge", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+				expectedBots: { [repo]: ["grok"] },
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const recorded = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
+					state: { type: "unstarted" },
+					comments: {
+						nodes: [
+							{
+								body: "Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->",
+								createdAt: "2026-10-03T00:00:00.000Z",
+								user: { name: "Ada", displayName: "Ada Lovelace" },
+							},
+							{
+								body: progress(
+									"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+								),
+								createdAt: "2026-10-02T00:00:00.000Z",
+								user: { name: "Ada", displayName: "Ada Lovelace" },
+							},
+						],
+						pageInfo: { hasNextPage: true, endCursor: "page-2" },
+					},
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/83",
+								title: "PR 83",
+								sourceType: "github",
+							},
+						],
+					},
+				},
+			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/83") {
+					return page(pull(83));
+				}
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
+					return page({
+						check_runs: [
+							{
+								name: "Grok code review",
+								status: "completed",
+								conclusion: "success",
+							},
+						],
+					});
+				}
+				if (url.includes("/commits/")) {
+					return page({
+						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+					});
+				}
+				if (url.includes("/pulls?state=closed")) {
+					return page([]);
+				}
+				if (url.includes("/pulls/83/reviews")) {
+					return page([
+						{ user: { login: grok }, commit_id: head, state: "COMMENTED" },
+					]);
+				}
+				if (
+					url.includes("/comments") ||
+					url.includes("/reviews") ||
+					url.includes("/reactions") ||
+					url.includes("/branches")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
+		const commentQueries: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (sent.includes("IssueComments")) {
+				commentQueries.push(sent);
+				return page({
+					data: {
+						issue: {
+							comments: {
+								nodes: [
+									{
+										body: "noted later",
+										createdAt: "2026-10-04T00:00:00.000Z",
+										user: { name: "Ada", displayName: "Ada Lovelace" },
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			return recorded(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(commentQueries.every((body) => body.includes("displayName"))).toBe(
+				true,
+			);
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget launch",
+						tracker: "linear",
+						inReview: 0,
+						awaitingMerge: 1,
+						tickets: [{ key: "WID-8", state: "awaitingMerge" }],
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a board ticket with no open pull skips its comment read", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const board = projectBoard(
+			[{ number: 83 }],
+			undefined,
+			[
+				{
+					body: progress(
+						"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+					),
+					user: null,
+				},
+			],
+			[
+				{
+					id: "I_widget_9",
+					number: 9,
+					title: "Ticket 9",
+					pulls: [],
+					comments: [{ body: "no pull here", user: null }],
+				},
+			],
+		);
+		const commentReads: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url.includes("/issues/") && url.includes("/comments")) {
+				commentReads.push(url);
+			}
+			return board(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						inReview: 1,
+						tickets: [
+							{ key: `${repo}#8`, state: "inReview" },
+							{ key: `${repo}#9`, state: "backlog" },
+						],
+					},
+				],
+			});
+			expect(
+				commentReads.some((url) => url.includes("/issues/8/comments")),
+			).toBe(true);
+			expect(
+				commentReads.some((url) => url.includes("/issues/9/comments")),
+			).toBe(false);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

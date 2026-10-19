@@ -406,11 +406,16 @@ export async function githubProjectByNumber(
 	};
 }
 
+const closingPullNode = z.object({
+	number: z.number(),
+	repository: z.object({ nameWithOwner: z.string() }).optional(),
+});
+
 const closingPullsQuery = `query ClosingPulls($id: ID!, $after: String) {
 	node(id: $id) {
 		... on Issue {
 			closedByPullRequestsReferences(first: 20, after: $after) {
-				nodes { number }
+				nodes { number repository { nameWithOwner } }
 				pageInfo { hasNextPage endCursor }
 			}
 		}
@@ -422,7 +427,7 @@ const closingPulls = z.object({
 		node: z
 			.object({
 				closedByPullRequestsReferences: z.object({
-					nodes: z.array(z.object({ number: z.number() })),
+					nodes: z.array(closingPullNode),
 					pageInfo,
 				}),
 			})
@@ -445,7 +450,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 							labels(first: 20) { nodes { name } }
 							parent { number repository { nameWithOwner } }
 							closedByPullRequestsReferences(first: 20) {
-								nodes { number }
+								nodes { number repository { nameWithOwner } }
 								pageInfo { hasNextPage endCursor }
 							}
 						}
@@ -485,7 +490,7 @@ const projectItem = z.object({
 				.optional(),
 			closedByPullRequestsReferences: z
 				.object({
-					nodes: z.array(z.object({ number: z.number() })),
+					nodes: z.array(closingPullNode),
 					pageInfo,
 				})
 				.optional(),
@@ -561,6 +566,26 @@ function githubReason(reason: string | null): string | null {
 
 type ProjectItem = z.infer<typeof projectItem>;
 
+function openLinkedKeys(items: ProjectItem[]): Set<string> {
+	const keys = new Set<string>();
+	for (const item of items) {
+		const content = item.content;
+		if (
+			content === null ||
+			content.__typename !== "Issue" ||
+			content.number === undefined ||
+			content.repository === undefined ||
+			githubState(content.state ?? "") !== "open"
+		) {
+			continue;
+		}
+		if ((content.closedByPullRequestsReferences?.nodes.length ?? 0) > 0) {
+			keys.add(`${content.repository.nameWithOwner}#${content.number}`);
+		}
+	}
+	return keys;
+}
+
 async function listProjectItems(
 	token: string,
 	fetchImpl: Fetch,
@@ -604,6 +629,7 @@ async function listProjectTickets(
 	token: string,
 	fetchImpl: Fetch,
 	items: ProjectItem[],
+	openKeys: Set<string>,
 ): Promise<Ticket[]> {
 	const tickets: Ticket[] = [];
 	for (const item of items) {
@@ -626,8 +652,11 @@ async function listProjectTickets(
 			content.parent === null || content.parent === undefined
 				? null
 				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
+		const ticketKey = `${repoName}#${content.number}`;
 		const comments =
-			state === "open" && (content.comments?.totalCount ?? 0) > 0
+			state === "open" &&
+			openKeys.has(ticketKey) &&
+			(content.comments?.totalCount ?? 0) > 0
 				? await listCommentBodies(token, fetchImpl, repoName, content.number)
 				: [];
 		tickets.push({
@@ -655,8 +684,8 @@ async function closingPullPages(
 	fetchImpl: Fetch,
 	issueId: string,
 	start: string,
-): Promise<{ number: number }[]> {
-	const nodes: { number: number }[] = [];
+): Promise<z.infer<typeof closingPullNode>[]> {
+	const nodes: z.infer<typeof closingPullNode>[] = [];
 	let after: string | null = start;
 	do {
 		const response = await fetchImpl("https://api.github.com/graphql", {
@@ -708,7 +737,7 @@ async function listProjectPulls(
 		) {
 			continue;
 		}
-		const repoName = content.repository.nameWithOwner;
+		const ticketKey = `${content.repository.nameWithOwner}#${content.number}`;
 		const linkedPulls = [
 			...(content.closedByPullRequestsReferences?.nodes ?? []),
 		];
@@ -722,20 +751,31 @@ async function listProjectPulls(
 			);
 		}
 		for (const linked of linkedPulls) {
-			const key = `${repoName}#${linked.number}`;
+			const pullRepo =
+				linked.repository?.nameWithOwner ?? content.repository.nameWithOwner;
+			const key = `${pullRepo}#${linked.number}`;
+			const loaded = pulls.find(
+				(pull) => pull.repo === pullRepo && pull.number === linked.number,
+			);
+			if (loaded !== undefined) {
+				if (!loaded.closingKeys.includes(ticketKey)) {
+					loaded.closingKeys.push(ticketKey);
+				}
+				continue;
+			}
 			if (seenPulls.has(key)) {
 				continue;
 			}
 			seenPulls.add(key);
-			const loaded = await loadOpenPull(
+			const opened = await loadOpenPull(
 				token,
 				fetchImpl,
-				repoName,
+				pullRepo,
 				linked.number,
-				[`${repoName}#${content.number}`],
+				[ticketKey],
 			);
-			if (loaded !== null) {
-				pulls.push(loaded);
+			if (opened !== null) {
+				pulls.push(opened);
 			}
 		}
 	}
@@ -1058,10 +1098,14 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		},
 		async listTickets(repo, since) {
 			if (!repo.includes("/")) {
+				projectItemsById.clear();
+				const items = await projectItems(repo);
+				const openKeys = openLinkedKeys(items);
 				const tickets = await listProjectTickets(
 					token,
 					fetchImpl,
-					await projectItems(repo),
+					items,
+					openKeys,
 				);
 				return { name: repo, tickets };
 			}
