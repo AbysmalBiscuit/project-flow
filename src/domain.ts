@@ -1476,6 +1476,14 @@ function pullNumbers(text: string): number[] {
 	return numbers;
 }
 
+function isReportComment(body: string): boolean {
+	if (body.includes(reportMarker)) {
+		return true;
+	}
+	const first = body.split("\n")[0]?.trim() ?? "";
+	return askId(body) !== null && finalReportLine.test(first);
+}
+
 function commentsAfter(comments: Comment[], progress: Comment): Comment[] {
 	const progressAt = comments.indexOf(progress);
 	return comments.slice(progressAt + 1);
@@ -1498,7 +1506,7 @@ function workcellRun(
 	const later = commentsAfter(comments, progress);
 	const reportAt = lines.findLastIndex((line) => finalReportLine.test(line));
 	const report = later.find(
-		(comment) => comment !== progress && comment.body.includes(reportMarker),
+		(comment) => comment !== progress && isReportComment(comment.body),
 	);
 	const reportAsk = report === undefined ? null : askId(report.body);
 	if (reportAt >= 0 || report !== undefined) {

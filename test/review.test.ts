@@ -2118,20 +2118,23 @@ describe("review cycle", () => {
 		) {
 			throw new Error("issue 51 comments were not recorded");
 		}
-		const ask = progressComment.body
-			.split("\n")
-			.findIndex((line) =>
-				line.trim().replace(/^-\s*/, "").startsWith("ask-1:"),
-			);
-		if (ask < 0) {
+		const lines = progressComment.body.split("\n");
+		const ask = lines.findIndex((line) =>
+			line.trim().replace(/^-\s*/, "").startsWith("ask-1:"),
+		);
+		const answeredAt = lines.findIndex((line) =>
+			line.trim().replace(/^-\s*/, "").startsWith("ask-1 answered:"),
+		);
+		if (ask < 0 || answeredAt < 0) {
 			throw new Error("issue 51 progress has no ask-1 entry");
 		}
 		const openProgress = {
 			...progressComment,
-			body: progressComment.body
-				.split("\n")
-				.slice(0, ask + 1)
-				.join("\n"),
+			body: lines.slice(0, ask + 1).join("\n"),
+		};
+		const answeredProgress = {
+			...progressComment,
+			body: lines.slice(0, answeredAt + 1).join("\n"),
 		};
 		const open = await overview({
 			issues: [{ ...issue(51), comments: issue51Comments.length }],
@@ -2169,7 +2172,7 @@ describe("review cycle", () => {
 		const answered = await overview({
 			issues: [{ ...issue(51), comments: issue51Comments.length }],
 			pulls: [pull(52, 51)],
-			commentsByIssue: { 51: issue51Comments },
+			commentsByIssue: { 51: [answeredProgress, report] },
 			checksBySha: {
 				[head]: [
 					{
