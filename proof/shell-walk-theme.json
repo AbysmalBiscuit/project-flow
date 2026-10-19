@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/item-1/states.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "All projects" },
+		{ "assert_text": "Cards" },
+		{ "shot": "overview-light" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "shot": "overview-dark" },
+		{ "click": "button[aria-label='Theme']" },
+		{ "fill": "#overview-search", "text": "board" },
+		{ "assert_text": "board" },
+		{ "shot": "overview-focus" },
+		{ "click": "a[href='/needs-you']" },
+		{ "assert_text": "Needs you" },
+		{ "shot": "needs-you-hover" }
+	]
+}

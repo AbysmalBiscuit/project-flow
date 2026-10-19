@@ -1,0 +1,27 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/item-1/states.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "Inbox" },
+		{ "assert_text": "acme/board" },
+		{ "shot": "overview" },
+		{ "click": "a[href='/needs-you']" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "Wait for the merge" },
+		{ "shot": "needs-you" },
+		{ "click": "a[href='/inbox']" },
+		{ "assert_text": "Inbox" },
+		{ "shot": "inbox" },
+		{ "click": "a[href='/settings']" },
+		{ "assert_text": "Settings" },
+		{ "assert_text": "Pinned projects" },
+		{ "shot": "settings" },
+		{ "goto": "/projects/acme%2Fboard" },
+		{ "assert_text": "acme/board" },
+		{ "assert_text": "Feature map" },
+		{ "shot": "project" }
+	]
+}

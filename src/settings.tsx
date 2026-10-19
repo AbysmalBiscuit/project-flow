@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Configuration } from "./configuration.ts";
 import { type KnownBot, knownBots } from "./domain.ts";
+import { PageFrame } from "./shell.tsx";
 import { navLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
@@ -130,25 +131,7 @@ function Menu({
 	const [failed, setFailed] = useState(false);
 
 	return (
-		<main className={clsx(shell.page)}>
-			<p className={clsx(shell.nav)}>
-				<a className={clsx(shell.link, shell.linkFocus)} href="/">
-					{navLabel.projects}
-				</a>
-				<button
-					type="button"
-					className={clsx(
-						shell.button,
-						shell.buttonHover,
-						shell.buttonFocus,
-						shell.theme,
-					)}
-					data-theme-toggle=""
-				>
-					Dark mode
-				</button>
-			</p>
-			<h1 className={clsx(shell.title)}>{navLabel.settings}</h1>
+		<PageFrame title={navLabel.settings}>
 			<label className={clsx(fields.field)}>
 				Pinned projects
 				<textarea
@@ -283,7 +266,7 @@ function Menu({
 					{message}
 				</p>
 			)}
-		</main>
+		</PageFrame>
 	);
 
 	async function onSaveClick(): Promise<void> {
@@ -347,10 +330,10 @@ function Page() {
 		};
 	}, []);
 	if (error !== null) {
-		return <main className={clsx(shell.page)}>{error}</main>;
+		return <PageFrame title={navLabel.settings}>{error}</PageFrame>;
 	}
 	if (settings === null) {
-		return <main className={clsx(shell.page)}>Loading settings</main>;
+		return <PageFrame title={navLabel.settings}>Loading settings</PageFrame>;
 	}
 	return (
 		<Menu

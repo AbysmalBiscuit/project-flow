@@ -12,10 +12,15 @@ export const stateLabel: Record<TicketState, string> = {
 export const blockedLabel = "Blocked";
 
 export const navLabel = {
+	logo: "Project Flow",
+	overview: "Overview",
 	projects: "Projects",
 	needsYou: "Needs you",
 	inbox: "Inbox",
 	settings: "Settings",
+	theme: "Theme",
+	light: "Light",
+	dark: "Dark",
 } as const;
 
 export const triggerLabel: Record<NotificationTrigger, string> = {

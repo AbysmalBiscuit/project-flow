@@ -1,0 +1,21 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/item-1/states.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "All projects" },
+		{ "assert_text": "Name" },
+		{ "assert_text": "Cards" },
+		{ "click": "#view-table" },
+		{ "assert_text": "Project" },
+		{ "shot": "overview-header" },
+		{ "goto": "/projects/acme%2Fboard" },
+		{ "assert_text": "acme/board" },
+		{ "assert_text": "All lanes" },
+		{ "assert_text": "Board" },
+		{ "assert_text": "Graph" },
+		{ "assert_text": "Table" },
+		{ "shot": "project-header" }
+	]
+}

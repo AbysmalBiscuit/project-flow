@@ -10,10 +10,11 @@ import type {
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
-import { navLabel, stateLabel } from "./terms.ts";
+import { PageFrame } from "./shell.tsx";
+import { stateLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { project as page, shell } from "./ui-styles.ts";
+import { frame, project as page, shell } from "./ui-styles.ts";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -181,25 +182,42 @@ function Report({
 	onOpen: (key: string) => void;
 }) {
 	return (
-		<main className={clsx(shell.page)} data-project={report.name}>
-			<p className={clsx(shell.nav)}>
-				<a className={clsx(shell.link, shell.linkFocus)} href="/">
-					{navLabel.projects}
-				</a>
-				<button
-					type="button"
-					className={clsx(
-						shell.button,
-						shell.buttonHover,
-						shell.buttonFocus,
-						shell.theme,
-					)}
-					data-theme-toggle=""
+		<PageFrame
+			title={report.name}
+			filter={
+				<select
+					className={clsx(frame.select)}
+					aria-label="Filter"
+					defaultValue="all"
 				>
-					Dark mode
-				</button>
-			</p>
-			<h1 className={clsx(shell.title)}>{report.name}</h1>
+					<option value="all">All lanes</option>
+				</select>
+			}
+			sort={
+				<select
+					className={clsx(frame.select)}
+					aria-label="Sort"
+					defaultValue="updated"
+				>
+					<option value="updated">Updated</option>
+				</select>
+			}
+			search={
+				<input
+					className={clsx(frame.search)}
+					type="search"
+					aria-label="Search"
+					placeholder="Search"
+				/>
+			}
+			views={[
+				{ id: "board", label: "Board" },
+				{ id: "graph", label: "Graph" },
+				{ id: "table", label: "Table" },
+			]}
+			view="board"
+		>
+			<div data-project={report.name} />
 			<nav className={clsx(page.reportNav)} aria-label="Report sections">
 				{report.sections.map((section) => (
 					<a
@@ -260,7 +278,7 @@ function Report({
 							))}
 				</section>
 			))}
-		</main>
+		</PageFrame>
 	);
 }
 
@@ -373,10 +391,10 @@ function Page() {
 	}, [diagramTheme, report]);
 	useEffect(() => watchPageTheme(() => setDiagramTheme(mermaidTheme())), []);
 	if (missing) {
-		return <main>Project not found</main>;
+		return <PageFrame title={name}>Project not found</PageFrame>;
 	}
 	if (report === null) {
-		return <main>Loading {name}</main>;
+		return <PageFrame title={name}>Loading {name}</PageFrame>;
 	}
 	return (
 		<>

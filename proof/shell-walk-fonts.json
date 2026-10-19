@@ -1,0 +1,10 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/item-1/states.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "Needs you" },
+		{ "shot": "fonts-local" }
+	]
+}

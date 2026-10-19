@@ -3,24 +3,24 @@ import * as stylex from "@stylexjs/stylex";
 const dark = "@media (prefers-color-scheme: dark)";
 
 export const lightValues = {
-	canvas: "#f4f1ea",
-	surface: "#fffdf8",
-	surfaceMuted: "#efeae0",
-	ink: "#1c1915",
-	inkMuted: "#5c564c",
-	line: "#d9d1c3",
-	lineStrong: "#8a8174",
-	accent: "#1a5fb4",
-	accentInk: "#f7fbff",
-	link: "#1a4f96",
-	chip: "#f3e2c4",
-	chipInk: "#8a4b08",
-	stale: "#f6e3a1",
-	staleInk: "#5c4308",
-	danger: "#9b1c1c",
-	saved: "#1a5f3a",
-	focus: "#1a5fb4",
-	shadow: "#1c191526",
+	canvas: "#ffffff",
+	surface: "#fafafa",
+	surfaceMuted: "#f2f2f2",
+	ink: "#171717",
+	inkMuted: "#4d4d4d",
+	line: "#ebebeb",
+	lineStrong: "#a1a1a1",
+	accent: "#0070f3",
+	accentInk: "#ffffff",
+	link: "#0070f3",
+	chip: "#e6f4ff",
+	chipInk: "#0052b3",
+	stale: "#fff4d6",
+	staleInk: "#8a5a00",
+	danger: "#e5484d",
+	saved: "#007a4d",
+	focus: "#0070f3",
+	shadow: "#00000014",
 	done: "#8fbc8f",
 	dropped: "#9ca3af",
 	blocked: "#e6a0a0",
@@ -28,28 +28,30 @@ export const lightValues = {
 	inProgress: "#f0c674",
 	inReview: "#9ecbff",
 	awaitingMerge: "#b7e1cd",
-	theme: "#e8eef7",
-	dashed: "#fffdf8",
+	theme: "#e6f4ff",
+	dashed: "#ffffff",
+	scrollbar: "#a1a1a1",
+	scrollbarTrack: "#f2f2f2",
 };
 
 export const darkValues = {
-	canvas: "#161411",
-	surface: "#221e19",
-	surfaceMuted: "#2c271f",
-	ink: "#f3eee6",
-	inkMuted: "#b7aea0",
-	line: "#3d362c",
-	lineStrong: "#8d8274",
-	accent: "#7eb6ff",
-	accentInk: "#101820",
-	link: "#9cc7ff",
-	chip: "#3d2a14",
-	chipInk: "#f0c674",
-	stale: "#4a3b16",
-	staleInk: "#f6e3a1",
-	danger: "#ffb4b4",
-	saved: "#8fbc8f",
-	focus: "#7eb6ff",
+	canvas: "#000000",
+	surface: "#111111",
+	surfaceMuted: "#1a1a1a",
+	ink: "#ededed",
+	inkMuted: "#a1a1a1",
+	line: "#2e2e2e",
+	lineStrong: "#4d4d4d",
+	accent: "#3291ff",
+	accentInk: "#000000",
+	link: "#3291ff",
+	chip: "#0d2137",
+	chipInk: "#9cc7ff",
+	stale: "#3d2e0a",
+	staleInk: "#ffd16a",
+	danger: "#ff6369",
+	saved: "#3dd68c",
+	focus: "#3291ff",
 	shadow: "#00000080",
 	done: "#3d6b45",
 	dropped: "#5c636a",
@@ -58,8 +60,10 @@ export const darkValues = {
 	inProgress: "#8a6420",
 	inReview: "#2f5578",
 	awaitingMerge: "#2f5c48",
-	theme: "#243044",
-	dashed: "#221e19",
+	theme: "#0d2137",
+	dashed: "#111111",
+	scrollbar: "#4d4d4d",
+	scrollbarTrack: "#1a1a1a",
 };
 
 export const colours = stylex.defineVars({
@@ -102,6 +106,11 @@ export const colours = stylex.defineVars({
 	},
 	theme: { default: lightValues.theme, [dark]: darkValues.theme },
 	dashed: { default: lightValues.dashed, [dark]: darkValues.dashed },
+	scrollbar: { default: lightValues.scrollbar, [dark]: darkValues.scrollbar },
+	scrollbarTrack: {
+		default: lightValues.scrollbarTrack,
+		[dark]: darkValues.scrollbarTrack,
+	},
 });
 
 export const space = stylex.defineVars({
@@ -122,8 +131,8 @@ export const radius = stylex.defineVars({
 });
 
 export const font = stylex.defineVars({
-	sans: '"Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif',
-	mono: '"IBM Plex Mono", "Source Code Pro", ui-monospace, monospace',
+	sans: '"Geist Sans", "Geist", ui-sans-serif, system-ui, sans-serif',
+	mono: '"Geist Mono", ui-monospace, monospace',
 });
 
 export const type = stylex.defineVars({
@@ -141,7 +150,7 @@ export const scheme = stylex.defineVars({
 });
 
 export const measure = stylex.defineVars({
-	page: "64rem",
+	page: "72rem",
 	panel: "24rem",
 	card: "24rem",
 	form: "32rem",
@@ -151,4 +160,8 @@ export const measure = stylex.defineVars({
 	swatch: "0.9rem",
 	hairline: "1px",
 	focus: "2px",
+	shell: "3rem",
+	icon: "1.25rem",
+	badge: "1.15rem",
+	search: "12rem",
 });

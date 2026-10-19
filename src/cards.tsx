@@ -7,10 +7,11 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
+import { PageFrame, type PageView } from "./shell.tsx";
 import { blockedLabel, navLabel, stateLabel, viewLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
 import { classToken, clsx } from "./ui.ts";
-import { cards, shell } from "./ui-styles.ts";
+import { cards, frame, shell } from "./ui-styles.ts";
 
 function startMermaid(): void {
 	mermaid.initialize({ startOnLoad: false, theme: mermaidTheme() });
@@ -384,81 +385,81 @@ function OverviewPage({
 		graph: <GraphView overview={overview} svg={graphSvg} />,
 		table: <TableView overview={overview} />,
 	};
+	const views: PageView[] = tabs.map((name) => ({
+		id: name,
+		label: viewLabel[name],
+	}));
 	return (
-		<main className={clsx(shell.page)}>
-			<h1 className={clsx(shell.title)}>{navLabel.projects}</h1>
-			<nav className={clsx(shell.nav)}>
-				<a className={clsx(shell.link, shell.linkFocus)} href="/needs-you">
-					{navLabel.needsYou}
-				</a>
-				<a className={clsx(shell.link, shell.linkFocus)} href="/inbox">
-					{navLabel.inbox}
-				</a>
-				{notifyPermission === "default" ? (
-					<button
-						type="button"
-						id="notify-permission"
-						className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
-						onClick={() => {
-							void askNotificationPermission().finally(() => {
-								setNotifyPermission(notificationPermission());
-							});
-						}}
-					>
-						Allow notifications
-					</button>
-				) : null}
-				<a className={clsx(shell.link, shell.linkFocus)} href="/settings">
-					{navLabel.settings}
-				</a>
+		<PageFrame
+			title={navLabel.overview}
+			filter={
+				<select
+					id="overview-filter"
+					className={clsx(frame.select)}
+					aria-label="Filter"
+					defaultValue="all"
+				>
+					<option value="all">All projects</option>
+				</select>
+			}
+			sort={
+				<select
+					id="overview-sort"
+					className={clsx(frame.select)}
+					aria-label="Sort"
+					defaultValue="name"
+				>
+					<option value="name">Name</option>
+				</select>
+			}
+			search={
+				<input
+					id="overview-search"
+					className={clsx(frame.search)}
+					type="search"
+					aria-label="Search"
+					placeholder="Search"
+				/>
+			}
+			views={views}
+			view={tab}
+			onView={(id) => {
+				const next = tabs.find((name) => name === id);
+				if (next !== undefined) {
+					choose(next);
+				}
+			}}
+		>
+			{notifyPermission === "default" ? (
 				<button
 					type="button"
+					id="notify-permission"
 					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
 					onClick={() => {
-						void fetch("/api/refresh", { method: "POST" });
+						void askNotificationPermission().finally(() => {
+							setNotifyPermission(notificationPermission());
+						});
 					}}
 				>
-					Refresh
+					Allow notifications
 				</button>
-				<button
-					type="button"
-					className={clsx(
-						shell.button,
-						shell.buttonHover,
-						shell.buttonFocus,
-						shell.theme,
-					)}
-					data-theme-toggle=""
-				>
-					Dark mode
-				</button>
-			</nav>
+			) : null}
+			<button
+				type="button"
+				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+				onClick={() => {
+					void fetch("/api/refresh", { method: "POST" });
+				}}
+			>
+				Refresh
+			</button>
 			{overview.polling === true ? (
 				<p className={clsx(cards.loading)}>Loading projects</p>
 			) : overview.error !== null ? (
 				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
-			<nav className={clsx(shell.nav)} aria-label="Overview tabs">
-				{tabs.map((name) => (
-					<button
-						key={name}
-						type="button"
-						className={clsx(
-							shell.button,
-							shell.buttonHover,
-							shell.buttonFocus,
-							tab === name && shell.pressed,
-						)}
-						id={`tab-${name}`}
-						aria-pressed={tab === name}
-						onClick={() => choose(name)}
-					>
-						{viewLabel[name]}
-					</button>
-				))}
-			</nav>
 			{panes[tab]}
-		</main>
+		</PageFrame>
 	);
 }
 
@@ -501,7 +502,7 @@ function Page() {
 		};
 	}, []);
 	if (overview === null) {
-		return null;
+		return <PageFrame title={navLabel.overview}>Loading projects</PageFrame>;
 	}
 	return <OverviewPage overview={overview} graphSvg={graphSvg} />;
 }
