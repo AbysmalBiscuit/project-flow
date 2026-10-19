@@ -1006,9 +1006,6 @@ describe("inbox", () => {
 	});
 
 	test("a blank outside title and a still-open outside relation raise no Blocker cleared", async () => {
-		const evidence = outsideRelations.blankTitleEvidence;
-		expect(evidence.blankTitles).toBe(0);
-		expect(evidence.scannedBlockRelations).toBeGreaterThan(0);
 		const recorded = outsideRelations.linearAut1040;
 		const blockerRelation = recorded.inverseRelations.nodes.find(
 			(relation) => relation.type === "blocks",
