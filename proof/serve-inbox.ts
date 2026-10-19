@@ -9,7 +9,6 @@ const ask = "<!-- workcell:ask pf-1 -->";
 const question = "Which bot should review this?";
 
 let issues: Record<string, unknown>[] = [];
-let releaseAsk = false;
 
 function recordedIssues(): Response {
 	return Response.json({
@@ -54,9 +53,6 @@ const linearProofFetch: Fetch = async (input, init) => {
 			});
 		}
 		if (body.includes("ProjectIssues")) {
-			if (releaseAsk && issues.length === 0) {
-				releaseLinearAsk();
-			}
 			return recordedIssues();
 		}
 	}
@@ -64,7 +60,6 @@ const linearProofFetch: Fetch = async (input, init) => {
 };
 
 export function releaseLinearAsk(): void {
-	releaseAsk = true;
 	issues = [
 		{
 			id: "PF-1",
@@ -128,15 +123,13 @@ if (import.meta.main) {
 		console.log(line);
 		const arm = async () => {
 			const inbox = await fetch(new URL("/inbox", line));
-			if (inbox.ok) {
-				releaseAsk = true;
-			}
-			if (!releaseAsk) {
+			if (!inbox.ok) {
 				setTimeout(() => {
 					void arm();
 				}, 200);
 				return;
 			}
+			releaseLinearAsk();
 			await fetch(new URL("/api/refresh", line), { method: "POST" });
 		};
 		setTimeout(() => {
