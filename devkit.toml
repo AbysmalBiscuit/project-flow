@@ -67,7 +67,7 @@ run = ["bun", "run", "typecheck"]
 
 [tasks.test]
 description = "Run the HTTP-seam tests"
-run = ["bun", "run", "test"]
+run = ["sh", "scripts/test-slot.sh"]
 
 [tasks.lint]
 description = "Lint and format check with biome"
