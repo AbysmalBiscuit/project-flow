@@ -755,7 +755,8 @@ export async function mergedPullHistory(
 		const key = mergedReviewKey(repo, pull.number);
 		const cached = seen.get(key);
 		const review =
-			cached ?? (await pullReview(repo, pull.number, head, token, fetchImpl));
+			cached ??
+			(await pullReview(repo, pull.number, head, false, token, fetchImpl));
 		seen.set(key, review);
 		pulls.push({
 			repo,
@@ -778,9 +779,13 @@ export async function pullReview(
 	repo: string,
 	number: number,
 	sha: string,
+	draft: boolean,
 	token: string,
 	fetchImpl: Fetch,
 ): Promise<ReviewEvidence> {
+	if (draft) {
+		return { checks: [], comments: [], reviews: [], reactions: [] };
+	}
 	const [checks, comments, reviews, reactions] = await Promise.all([
 		fetchChecks(repo, sha, token, fetchImpl),
 		fetchComments(repo, number, token, fetchImpl),
@@ -895,10 +900,14 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						}
 					}
 					const head = pull.head.sha;
-					const review =
-						pull.draft === true
-							? { checks: [], comments: [], reviews: [], reactions: [] }
-							: await pullReview(repo, pull.number, head, token, fetchImpl);
+					const review = await pullReview(
+						repo,
+						pull.number,
+						head,
+						pull.draft === true,
+						token,
+						fetchImpl,
+					);
 					pulls.push({
 						repo,
 						number: pull.number,
