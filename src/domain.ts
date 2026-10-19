@@ -240,7 +240,7 @@ export type Notification = {
 
 export type Attention = {
 	needsYou: NeedsYouItem[];
-	comments: Map<string, string>;
+	comments: Map<string, { stamp: string; replyStamp: string }>;
 	blockers: Map<string, string>;
 	closed: Set<string>;
 };
@@ -265,8 +265,9 @@ export function attentionOf(
 		counts: ProjectCounts;
 		row: Snapshot;
 	}[],
+	noSenior: Record<string, boolean> = {},
 ): Attention {
-	const comments = new Map<string, string>();
+	const comments = new Map<string, { stamp: string; replyStamp: string }>();
 	const blockers = new Map<string, string>();
 	const closed = new Set<string>();
 	const tickets = new Map<string, Ticket>();
@@ -284,10 +285,19 @@ export function attentionOf(
 	for (const view of views) {
 		for (const item of view.items) {
 			const ticket = tickets.get(`${item.tracker}\n${item.key.toLowerCase()}`);
-			comments.set(
-				`${item.project}\n${item.key}`,
-				commentStamp(ticket?.comments),
+			const commentsOnTicket = ticket?.comments ?? [];
+			const ask = openAsk(
+				commentsOnTicket,
+				projectHasNoSenior(noSenior, view.row.key, view.row.tracker),
 			);
+			const reply =
+				item.reason === "ask" && ask !== null
+					? replyAfter(commentsOnTicket, ask.index)
+					: null;
+			comments.set(`${item.project}\n${item.key}`, {
+				stamp: commentStamp(commentsOnTicket),
+				replyStamp: reply?.createdAt ?? "",
+			});
 		}
 		for (const blocker of view.counts.crossProjectBlockers) {
 			blockers.set(
@@ -309,7 +319,9 @@ export function primeAttention(attention: Attention): string[] {
 		...attention.needsYou.map(
 			(item) => `needsYou\n${item.project}\n${item.key}`,
 		),
-		...[...attention.comments].map(([id, stamp]) => `comment\n${id}\n${stamp}`),
+		...[...attention.comments].map(
+			([id, seen]) => `comment\n${id}\n${seen.stamp}`,
+		),
 	];
 }
 
@@ -359,21 +371,21 @@ export function notificationsFor(
 		}
 	}
 	if (triggers.comment) {
-		for (const [id, stamp] of after.comments) {
-			const earlier = before.comments.get(id);
-			if (earlier === undefined || stamp === "" || stamp <= earlier) {
+		for (const [id, seen] of after.comments) {
+			const earlier = before.comments.get(id)?.stamp;
+			if (earlier === undefined || seen.stamp === "" || seen.stamp <= earlier) {
+				continue;
+			}
+			if (seen.replyStamp !== "" && seen.stamp === seen.replyStamp) {
 				continue;
 			}
 			const item = after.needsYou.find(
 				(candidate) => `${candidate.project}\n${candidate.key}` === id,
 			);
-			if (item?.answered === true) {
-				continue;
-			}
 			const [project = "", itemKey = ""] = id.split("\n");
 			push(
 				"comment",
-				`comment\n${id}\n${stamp}`,
+				`comment\n${id}\n${seen.stamp}`,
 				project,
 				itemKey,
 				item?.headline ?? itemKey,

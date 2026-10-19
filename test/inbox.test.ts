@@ -134,12 +134,21 @@ async function withInbox(
 	checks: (
 		base: string,
 		setIssues: (next: Record<string, unknown>[]) => void,
+		failComments: (failed: boolean) => void,
 	) => Promise<void>,
 	projects: { id: string; name: string; slugId: string }[] = [linearProject],
 ): Promise<void> {
 	let current = issues;
+	let commentsFail = false;
 	const recorded = linearFake({ project: projects[0] ?? linearProject });
 	const fetchImpl: Fetch = async (input, init) => {
+		if (
+			commentsFail &&
+			urlOf(input) === "https://api.linear.app/graphql" &&
+			bodyOf(init).includes("IssueComments")
+		) {
+			return new Response("recorded failure", { status: 500 });
+		}
 		if (isIssueQuery(input, init)) {
 			const body = bodyOf(init);
 			const projectId = body.match(/"project":\{"id":\{"eq":"([^"]+)"/)?.[1];
@@ -168,9 +177,15 @@ async function withInbox(
 	let startChecks: (base: string) => void = () => {};
 	const done = new Promise<void>((resolve, reject) => {
 		startChecks = (base) => {
-			checks(base, (next) => {
-				current = next;
-			}).then(resolve, reject);
+			checks(
+				base,
+				(next) => {
+					current = next;
+				},
+				(failed) => {
+					commentsFail = failed;
+				},
+			).then(resolve, reject);
 		};
 	});
 	try {
@@ -198,6 +213,46 @@ const pinned = {
 	pollIntervalSeconds: 3600,
 };
 
+const gate = {
+	id: "project-gate",
+	name: "Gate",
+	slugId: "gate",
+};
+
+const blockerHeadline = "Open the gate";
+
+const blocked = {
+	...linearIssue(
+		"PF-2",
+		"Hold the launch",
+		"Blocked by: GATE-9",
+		[],
+		{},
+		"2026-08-18T12:00:00.000Z",
+	),
+	projectId: linearProject.id,
+};
+
+const blocker = {
+	...linearIssue(
+		"GATE-9",
+		blockerHeadline,
+		"",
+		[],
+		{ state: { type: "started" } },
+		"2026-08-18T12:00:00.000Z",
+	),
+	projectId: gate.id,
+};
+
+const twoProjects = {
+	pinned: [
+		{ tracker: "linear", project: "project-flow" },
+		{ tracker: "linear", project: "gate" },
+	],
+	pollIntervalSeconds: 3600,
+};
+
 async function refresh(base: string): Promise<void> {
 	const response = await fetch(new URL("/api/refresh", base), {
 		method: "POST",
@@ -214,85 +269,30 @@ async function inboxOf(base: string): Promise<InboxEntry[]> {
 describe("inbox", () => {
 	test("a new needs-you item produces an event and an inbox entry", async () => {
 		const headline = "Which bot should review this?";
-		let issues: Record<string, unknown>[] = [];
-		const recorded = linearFake({ project: linearProject });
-		const fetchImpl: Fetch = async (input, init) => {
-			if (isIssueQuery(input, init)) {
-				return recordedIssues(issues);
-			}
-			return recorded(input, init);
-		};
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "linear", project: "project-flow" }],
-				pollIntervalSeconds: 3600,
-			}),
-		);
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<void>((resolve, reject) => {
-			startChecks = (base) => {
-				void (async () => {
-					const empty = await fetch(new URL("/api/inbox", base));
-					expect(empty.status).toBe(200);
-					expect(await empty.json()).toEqual([]);
-
-					issues = [
-						linearIssue(
-							"PF-1",
-							"Open ask",
-							headline,
-							[{ body: `${headline}\n\n${ask("pf-1")}` }],
-							{},
-							"2026-08-18T13:00:00.000Z",
-						),
-					];
-					const events = notificationEvent(base);
-					await Bun.sleep(50);
-					const refreshed = await fetch(new URL("/api/refresh", base), {
-						method: "POST",
-					});
-					expect(refreshed.status).toBe(204);
-					const event = await events;
-					expect(event.trigger).toBe("needsYou");
-					expect(event.key).toBe("PF-1");
-					expect(event.text).toBe(headline);
-
-					const inbox = (await (
-						await fetch(new URL("/api/inbox", base))
-					).json()) as InboxEntry[];
-					expect(inbox).toEqual([
-						{
-							id: event.id,
-							trigger: "needsYou",
-							project: "Project Flow",
-							key: "PF-1",
-							text: headline,
-							at: event.at,
-						},
-					]);
-					resolve();
-				})().catch(reject);
-			};
+		await withInbox(pinned, [], async (base, setIssues) => {
+			expect(await inboxOf(base)).toEqual([]);
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[{ body: `${headline}\n\n${ask("pf-1")}` }],
+					{},
+					"2026-08-18T13:00:00.000Z",
+				),
+			]);
+			const events = notificationEvent(base);
+			await Bun.sleep(50);
+			await refresh(base);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(await inboxOf(base)).toEqual([event]);
 		});
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { LINEAR_API_KEY: "recorded-linear-key" },
-					fetch: fetchImpl,
-					readGhToken: async () => null,
-					databasePath: join(root, "store.sqlite"),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks,
-				}),
-			);
-			expect(result.stderr).toBe("");
-			expect(result.exitCode).toBe(0);
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
 	});
 
 	test("a new comment on a needs-you ticket produces an event and an inbox entry", async () => {
@@ -346,41 +346,8 @@ describe("inbox", () => {
 	});
 
 	test("closing the blocker ticket produces an event and an inbox entry", async () => {
-		const gate = {
-			id: "project-gate",
-			name: "Gate",
-			slugId: "gate",
-		};
-		const blocked = {
-			...linearIssue(
-				"PF-2",
-				"Hold the launch",
-				"Blocked by: GATE-9",
-				[],
-				{},
-				"2026-08-18T12:00:00.000Z",
-			),
-			projectId: linearProject.id,
-		};
-		const blocker = {
-			...linearIssue(
-				"GATE-9",
-				"Open the gate",
-				"",
-				[],
-				{ state: { type: "started" } },
-				"2026-08-18T12:00:00.000Z",
-			),
-			projectId: gate.id,
-		};
 		await withInbox(
-			{
-				pinned: [
-					{ tracker: "linear", project: "project-flow" },
-					{ tracker: "linear", project: "gate" },
-				],
-				pollIntervalSeconds: 3600,
-			},
+			twoProjects,
 			[blocked, blocker],
 			async (base, setIssues) => {
 				expect(await inboxOf(base)).toEqual([]);
@@ -400,7 +367,7 @@ describe("inbox", () => {
 					trigger: "blockerCleared",
 					project: "Project Flow",
 					key: "GATE-9",
-					text: "Open the gate",
+					text: blockerHeadline,
 				});
 				expect(await inboxOf(base)).toEqual([event]);
 			},
@@ -592,42 +559,86 @@ describe("inbox", () => {
 		});
 	});
 
+	test("an agent comment after Lev's reply produces an inbox entry", async () => {
+		const headline = "Which bot should review this?";
+		const issue = linearIssue(
+			"PF-1",
+			"Open ask",
+			headline,
+			[
+				{
+					body: `${headline}\n\n${ask("pf-1")}`,
+					createdAt: "2026-08-18T12:00:00.000Z",
+				},
+			],
+			{},
+			"2026-08-18T12:00:00.000Z",
+		);
+		await withInbox(pinned, [issue], async (base, setIssues) => {
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[
+						{
+							body: `${headline}\n\n${ask("pf-1")}`,
+							createdAt: "2026-08-18T12:00:00.000Z",
+						},
+						{
+							body: "Reply: use the review bot.",
+							createdAt: "2026-08-18T14:00:00.000Z",
+							user: { name: "AbysmalBiscuit" },
+						},
+					],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[
+						{
+							body: `${headline}\n\n${ask("pf-1")}`,
+							createdAt: "2026-08-18T12:00:00.000Z",
+						},
+						{
+							body: "Reply: use the review bot.",
+							createdAt: "2026-08-18T14:00:00.000Z",
+							user: { name: "AbysmalBiscuit" },
+						},
+						{
+							body: "The review bot is running.",
+							createdAt: "2026-08-18T15:00:00.000Z",
+							user: { name: "workcell" },
+						},
+					],
+					{},
+					"2026-08-18T15:00:00.000Z",
+				),
+			]);
+			const events = notificationEvent(base);
+			await Bun.sleep(50);
+			await refresh(base);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "comment",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(await inboxOf(base)).toEqual([event]);
+		});
+	});
+
 	test("dropping the blocker line without closing the ticket adds no inbox entry", async () => {
-		const gate = {
-			id: "project-gate",
-			name: "Gate",
-			slugId: "gate",
-		};
-		const blocked = {
-			...linearIssue(
-				"PF-2",
-				"Hold the launch",
-				"Blocked by: GATE-9",
-				[],
-				{},
-				"2026-08-18T12:00:00.000Z",
-			),
-			projectId: linearProject.id,
-		};
-		const blocker = {
-			...linearIssue(
-				"GATE-9",
-				"Open the gate",
-				"",
-				[],
-				{ state: { type: "started" } },
-				"2026-08-18T12:00:00.000Z",
-			),
-			projectId: gate.id,
-		};
 		await withInbox(
-			{
-				pinned: [
-					{ tracker: "linear", project: "project-flow" },
-					{ tracker: "linear", project: "gate" },
-				],
-				pollIntervalSeconds: 3600,
-			},
+			twoProjects,
 			[blocked, blocker],
 			async (base, setIssues) => {
 				setIssues([
@@ -712,13 +723,29 @@ describe("inbox", () => {
 
 	test("a disabled comment trigger leaves a new comment out of the inbox", async () => {
 		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const note = {
+			body: "A later note.",
+			createdAt: "2026-08-18T14:00:00.000Z",
+		};
 		const issue = linearIssue(
 			"PF-1",
 			"Open ask",
 			headline,
-			[{ body: `${headline}\n\n${ask("pf-1")}` }],
+			[askComment],
 			{},
 			"2026-08-18T12:00:00.000Z",
+		);
+		const commented = linearIssue(
+			"PF-1",
+			"Open ask",
+			headline,
+			[askComment, note],
+			{},
+			"2026-08-18T14:00:00.000Z",
 		);
 		await withInbox(
 			{
@@ -731,22 +758,72 @@ describe("inbox", () => {
 			},
 			[issue],
 			async (base, setIssues) => {
-				setIssues([
-					linearIssue(
-						"PF-1",
-						"Open ask",
-						headline,
-						[
-							{ body: `${headline}\n\n${ask("pf-1")}` },
-							{ body: "A later note." },
-						],
-						{},
-						"2026-08-18T14:00:00.000Z",
-					),
-				]);
+				setIssues([commented]);
 				await refresh(base);
 				expect(await inboxOf(base)).toEqual([]);
 			},
 		);
+		await withInbox(pinned, [issue], async (base, setIssues) => {
+			setIssues([commented]);
+			const events = notificationEvent(base);
+			await Bun.sleep(50);
+			await refresh(base);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "comment",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(await inboxOf(base)).toEqual([event]);
+		});
+	});
+
+	test("a blank reply, a repeated-space reply and a failing comment page add no inbox entry", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const issue = linearIssue(
+			"PF-1",
+			"Open ask",
+			headline,
+			[askComment],
+			{},
+			"2026-08-18T12:00:00.000Z",
+		);
+		await withInbox(pinned, [issue], async (base, setIssues, failComments) => {
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, { body: "", createdAt: "2026-08-18T14:00:00.000Z" }],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[
+						askComment,
+						{ body: "Reply:   ", createdAt: "2026-08-18T15:00:00.000Z" },
+					],
+					{},
+					"2026-08-18T15:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			failComments(true);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+		});
 	});
 });
