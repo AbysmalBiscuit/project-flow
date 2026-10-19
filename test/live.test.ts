@@ -300,6 +300,7 @@ type OverviewBody = {
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
+	polling?: true;
 };
 
 function counts(
@@ -557,7 +558,8 @@ describe("live updates", () => {
 						await fetch(new URL("/api/overview", base))
 					).json()) as OverviewBody;
 					expect(body.projects).toEqual([]);
-					expect(body.error).toBe("poll is running");
+					expect(body.polling).toBe(true);
+					expect(body.error).toBeNull();
 					releasePoll();
 					resolve();
 				})().catch(reject);

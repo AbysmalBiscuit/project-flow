@@ -786,17 +786,15 @@ function publishPoll(
 	});
 }
 
-const pollRunning = "poll is running";
-
 function runningOverview(
 	options: PollOptions,
 	configuration: Configuration,
 ): Overview {
 	const body = overview(options.store, configuration, options.viewers);
-	if (!options.polling || body.error !== null) {
+	if (!options.polling) {
 		return body;
 	}
-	return { ...body, error: pollRunning };
+	return { ...body, polling: true };
 }
 
 export async function start(options: StartOptions): Promise<Running> {

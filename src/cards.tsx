@@ -368,7 +368,6 @@ function OverviewPage({
 		table: <TableView overview={overview} />,
 	};
 	return (
-<<<<<<< HEAD
 		<main className={shell.page}>
 			<h1 className={shell.title}>Projects</h1>
 			<nav className={shell.nav}>
@@ -409,7 +408,7 @@ function OverviewPage({
 					Dark mode
 				</button>
 			</nav>
-			{overview.error === "poll is running" ? (
+			{overview.polling === true ? (
 				<p className="loading">Loading projects</p>
 			) : overview.error !== null ? (
 				<p className={shell.stale}>{overview.error}</p>
