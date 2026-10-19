@@ -11,14 +11,14 @@ for arg in "$@"; do
 		continue
 	fi
 	case "$arg" in
-	-t | --test-name-pattern | --test-name-pattern=* | -g | --todo | --only | --shard | --shard=* | --changed | --changed=*)
+	-t | --test-name-pattern | --test-name-pattern=* | -g | --only | --shard | --shard=* | --changed | --changed=*)
 		full=0
 		;;
 	--timeout | --rerun-each | --retry | --seed | --coverage-reporter | --coverage-dir | --bail | --reporter | --reporter-outfile | --max-concurrency | --path-ignore-patterns | --parallel | --parallel-delay | --timings)
 		expect=1
 		;;
 	-*) ;;
-	*) full=0 ;;
+	*[![:space:]]*) full=0 ;;
 	esac
 done
 
