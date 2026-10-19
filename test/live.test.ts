@@ -213,6 +213,8 @@ type OverviewBody = {
 			blockers: string[];
 		}[];
 		crossProjectBlockers: unknown[];
+		needsYou: number;
+		progress: number;
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
@@ -236,6 +238,8 @@ function counts(
 		unlinkedPrs: [],
 		tickets,
 		crossProjectBlockers: [],
+		needsYou: 0,
+		progress: 0,
 	};
 }
 
@@ -760,10 +764,13 @@ describe("live updates", () => {
 			expect(received.event).toBe("overview");
 			const eventBody = JSON.parse(received.data) as OverviewBody;
 			expect(eventBody.projects).toEqual([
-				counts(repo, 1, 1, "github", [
-					githubTicket(1, "done"),
-					githubTicket(2, "backlog"),
-				]),
+				{
+					...counts(repo, 1, 1, "github", [
+						githubTicket(1, "done"),
+						githubTicket(2, "backlog"),
+					]),
+					progress: 50,
+				},
 			]);
 			expect(eventBody.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
 			expect(eventBody.error).toBeNull();
