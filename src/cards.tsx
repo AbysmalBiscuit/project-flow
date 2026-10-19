@@ -458,14 +458,17 @@ function Page() {
 			setOverview(next);
 			void renderGraph(next).then(setGraphSvg);
 		};
-		const stop = onAppEvent("overview", (event) => {
+		const stopOverview = onAppEvent("overview", (event) => {
 			show(JSON.parse(event.data) as Overview);
 		});
-		onEventStreamOpen(() => {
+		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
 		});
 		void readOverview().then(show);
-		return stop;
+		return () => {
+			stopOverview();
+			stopOpen();
+		};
 	}, []);
 	if (overview === null) {
 		return null;
