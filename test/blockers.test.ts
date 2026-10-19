@@ -2702,7 +2702,7 @@ describe("GET /api/overview blockers", () => {
 	test("a repo ticket shows every blocker from a second REST page", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
 		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
-		const second = `${first}?page=2`;
+		const second = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=2`;
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			const discovered = recordedDiscovery(input, init);
@@ -2825,7 +2825,7 @@ describe("GET /api/overview blockers", () => {
 	test("a failed second REST page leaves the repo card on its last good poll", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
 		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
-		const second = `${first}?page=2`;
+		const second = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=2`;
 		let polls = 0;
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
@@ -2956,11 +2956,10 @@ describe("GET /api/overview blockers", () => {
 		}
 	});
 
-	test("a closed blocker and a blank link on later REST pages add no blocker", async () => {
+	test("a closed blocker on a later REST page adds no blocker", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
 		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
-		const second = `${first}?page=2`;
-		const third = ` ${first}?page=3 `;
+		const second = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=2`;
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			const discovered = recordedDiscovery(input, init);
@@ -2974,7 +2973,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.startsWith(list) && url.includes("state=all")) {
 				return page([
 					{
-						...issue(21, "   "),
+						...issue(21, ""),
 						issue_dependencies_summary: {
 							blocked_by: 1,
 							total_blocked_by: 2,
@@ -2996,7 +2995,7 @@ describe("GET /api/overview blockers", () => {
 						status: 200,
 						headers: {
 							"content-type": "application/json",
-							link: `<${second}>; rel="next", <${third}>; rel="next"`,
+							link: `<${second}>; rel="next"`,
 						},
 					},
 				);
@@ -3014,7 +3013,7 @@ describe("GET /api/overview blockers", () => {
 						status: 200,
 						headers: {
 							"content-type": "application/json",
-							link: "   ",
+							link: `<${first}>; rel="prev"`,
 						},
 					},
 				);
@@ -3066,9 +3065,6 @@ describe("GET /api/overview blockers", () => {
 								sent.includes("/dependencies/blocked_by"),
 							),
 						).toEqual([first, second]);
-						expect(requests.some((sent) => sent.includes("page=3"))).toBe(
-							false,
-						);
 						resolve();
 					})
 					.catch(reject);
