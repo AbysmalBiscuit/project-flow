@@ -54,6 +54,7 @@ function githubFetch(
 		comments?: Record<number, Record<string, unknown>[]>;
 		reviewComments?: Record<number, Record<string, unknown>[]>;
 		failReply?: boolean;
+		graphql?: (query: string) => Response | null;
 	},
 ): Fetch {
 	return async (input, init) => {
@@ -156,6 +157,13 @@ function githubFetch(
 			options.reviewComments ??= {};
 			options.reviewComments[number] = [...rows, created];
 			return json(created, 201);
+		}
+		if (url === "https://api.github.com/graphql" && method === "POST") {
+			const query = JSON.parse(body) as { query?: string };
+			const answered = options.graphql?.(query.query ?? "");
+			if (answered !== undefined && answered !== null) {
+				return answered;
+			}
 		}
 		if (url.includes("/pulls?")) {
 			return json([]);
@@ -821,6 +829,102 @@ describe("replies", () => {
 					],
 				},
 			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a ticket panel shows the review threads of its linked PR", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, {
+			issues: [issue(9, 1)],
+			comments: {
+				9: [
+					{
+						id: 90,
+						body: "Issue note.",
+						user: { login: "ada" },
+						created_at: "2026-08-18T12:00:00.000Z",
+						html_url: "https://github.com/acme/widget/issues/9#issuecomment-90",
+					},
+				],
+			},
+			reviewComments: {
+				12: [
+					{
+						id: 120,
+						body: "Rename this.",
+						user: { login: "ada" },
+						created_at: "2026-08-18T12:10:00.000Z",
+						html_url: "https://github.com/acme/widget/pull/12#discussion_r120",
+						in_reply_to_id: null,
+					},
+				],
+			},
+			graphql: (query) => {
+				if (!query.includes("closedByPullRequestsReferences")) {
+					return null;
+				}
+				return json({
+					data: {
+						repository: {
+							issue: {
+								closedByPullRequestsReferences: {
+									nodes: [
+										{
+											number: 12,
+											repository: { nameWithOwner: "acme/widget" },
+										},
+									],
+								},
+							},
+						},
+					},
+				});
+			},
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%239?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(200);
+			const thread = (await response.json()) as Thread;
+			expect(thread.comments).toEqual([
+				{
+					id: "90",
+					body: "Issue note.",
+					author: "ada",
+					createdAt: "2026-08-18T12:00:00.000Z",
+					url: "https://github.com/acme/widget/issues/9#issuecomment-90",
+					parentId: null,
+					kind: "comment",
+					children: [],
+				},
+				{
+					id: "120",
+					body: "Rename this.",
+					author: "ada",
+					createdAt: "2026-08-18T12:10:00.000Z",
+					url: "https://github.com/acme/widget/pull/12#discussion_r120",
+					parentId: null,
+					kind: "review",
+					children: [],
+				},
+			]);
+			expect(
+				sent.some(
+					(item) =>
+						item.url ===
+						"https://api.github.com/repos/acme/widget/pulls/12/comments?per_page=100&page=1",
+				),
+			).toBe(true);
 		} finally {
 			await app.stop();
 		}

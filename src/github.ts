@@ -436,6 +436,30 @@ const closingPullsQuery = `query ClosingPulls($id: ID!, $after: String) {
 	}
 }`;
 
+const linkedPullsQuery = `query LinkedPulls($owner: String!, $name: String!, $number: Int!) {
+	repository(owner: $owner, name: $name) {
+		issue(number: $number) {
+			closedByPullRequestsReferences(first: 10) {
+				nodes { number repository { nameWithOwner } }
+			}
+		}
+	}
+}`;
+
+const linkedPulls = z.object({
+	data: z.object({
+		repository: z.object({
+			issue: z
+				.object({
+					closedByPullRequestsReferences: z.object({
+						nodes: z.array(closingPullNode),
+					}),
+				})
+				.nullable(),
+		}),
+	}),
+});
+
 const closingPulls = z.object({
 	data: z.object({
 		node: z
@@ -1434,23 +1458,30 @@ export async function fetchGithubThread(
 			.parse(item)
 			.map((comment) => toThreadComment(comment, "comment")),
 	);
-	const review =
+	const reviewTargets =
 		issue.pull_request === undefined
-			? []
-			: (
-					await pages(
-						`https://api.github.com/repos/${repo}/pulls/${number}/comments?per_page=100&page=1`,
-						token,
-						fetchImpl,
-						repo,
-						"fetch review thread",
-					)
-				).flatMap((item) =>
-					z
-						.array(githubThreadComment)
-						.parse(item)
-						.map((comment) => toThreadComment(comment, "review")),
-				);
+			? await linkedReviewTargets(token, fetchImpl, repo, number)
+			: [{ repo, number }];
+	const review = (
+		await Promise.all(
+			reviewTargets.map((target) =>
+				pages(
+					`https://api.github.com/repos/${target.repo}/pulls/${target.number}/comments?per_page=100&page=1`,
+					token,
+					fetchImpl,
+					target.repo,
+					"fetch review thread",
+				),
+			),
+		)
+	).flatMap((listed) =>
+		listed.flatMap((item) =>
+			z
+				.array(githubThreadComment)
+				.parse(item)
+				.map((comment) => toThreadComment(comment, "review")),
+		),
+	);
 	return {
 		tracker: "github",
 		project,
@@ -1461,7 +1492,45 @@ export async function fetchGithubThread(
 	};
 }
 
-export async function postGithubReply(
+export async function linkedReviewTargets(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	number: number,
+): Promise<{ repo: string; number: number }[]> {
+	const [owner, name] = repo.split("/");
+	if (owner === undefined || name === undefined) {
+		return [];
+	}
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({
+			query: linkedPullsQuery,
+			variables: { owner, name, number },
+		}),
+	});
+	if (!response.ok) {
+		return [];
+	}
+	const linked = linkedPulls.parse(await response.json());
+	const targets: { repo: string; number: number }[] = [];
+	for (const node of linked.data.repository.issue
+		?.closedByPullRequestsReferences.nodes ?? []) {
+		const pullRepo = node.repository?.nameWithOwner ?? repo;
+		if (
+			targets.some(
+				(target) => target.repo === pullRepo && target.number === node.number,
+			)
+		) {
+			continue;
+		}
+		targets.push({ repo: pullRepo, number: node.number });
+	}
+	return targets;
+}
+
+async function postGithubReply(
 	token: string,
 	fetchImpl: Fetch,
 	reply: ReplyRequest,
