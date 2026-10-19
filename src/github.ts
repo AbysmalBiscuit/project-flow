@@ -806,9 +806,11 @@ export async function fetchHeadCommittedAt(
 	if (!response.ok) {
 		return null;
 	}
-	return (
-		githubCommit.parse(await response.json()).commit.committer?.date ?? null
-	);
+	const parsed = githubCommit.safeParse(await response.json());
+	if (!parsed.success) {
+		return null;
+	}
+	return parsed.data.commit.committer?.date ?? null;
 }
 
 export async function pullReview(
