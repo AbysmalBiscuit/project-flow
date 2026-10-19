@@ -15,11 +15,6 @@
 	box-shadow: var(--shadow-panel);
 }
 
-.highlighted {
-	outline: var(--line-focus) solid var(--colour-accent);
-	outline-offset: var(--space-2xs);
-}
-
 .projectLink {
 	color: inherit;
 	text-decoration: none;
@@ -140,8 +135,4 @@
 .table :global(th) {
 	background: var(--colour-surface-muted);
 	font-size: var(--type-small);
-}
-
-.opened {
-	margin: 0 0 var(--space-md);
 }

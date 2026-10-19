@@ -25,27 +25,8 @@ function projectPath(name: string, ticket?: string): string {
 	return `${path}?ticket=${encodeURIComponent(ticket)}`;
 }
 
-function openProject(
-	name: string,
-	onOpen: (label: string) => void,
-	ticket?: string,
-): void {
-	const path = projectPath(name, ticket);
-	const label =
-		ticket === undefined ? `Opened ${name}` : `Opened ${name} ${ticket}`;
-	window.history.pushState({}, "", path);
-	onOpen(label);
-}
-
-function openedLabel(): string | null {
-	if (!window.location.pathname.startsWith("/projects/")) {
-		return null;
-	}
-	const name = decodeURIComponent(
-		window.location.pathname.slice("/projects/".length),
-	);
-	const ticket = new URLSearchParams(window.location.search).get("ticket");
-	return ticket === null ? `Opened ${name}` : `Opened ${name} ${ticket}`;
+function openProject(name: string, ticket?: string): void {
+	window.location.assign(projectPath(name, ticket));
 }
 
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
@@ -126,12 +107,10 @@ function slug(value: string): string {
 function ProjectLink({
 	name,
 	className,
-	onOpen,
 	children,
 }: {
 	name: string;
 	className: string;
-	onOpen: (label: string) => void;
 	children: string;
 }) {
 	return (
@@ -140,7 +119,7 @@ function ProjectLink({
 			href={projectPath(name)}
 			onClick={(event) => {
 				event.preventDefault();
-				openProject(name, onOpen);
+				openProject(name);
 			}}
 		>
 			{children}
@@ -148,32 +127,18 @@ function ProjectLink({
 	);
 }
 
-function CardsList({
-	overview,
-	opened,
-	onOpen,
-}: {
-	overview: Overview;
-	opened: string | null;
-	onOpen: (label: string) => void;
-}) {
+function CardsList({ overview }: { overview: Overview }) {
 	return (
 		<ul className={styles.list}>
 			{overview.projects.map((project) => (
 				<li
 					key={`${project.tracker}:${project.name}`}
-					className={
-						opened === `Opened ${project.name}` ||
-						opened?.startsWith(`Opened ${project.name} `) === true
-							? `${styles.card} ${styles.highlighted}`
-							: styles.card
-					}
+					className={styles.card}
 				>
 					<h2 className={shell.heading}>
 						<ProjectLink
 							name={project.name}
 							className={styles.projectLink}
-							onOpen={onOpen}
 						>
 							{project.name}
 						</ProjectLink>
@@ -300,7 +265,6 @@ function bindGraph(
 	host: HTMLElement,
 	overview: Overview,
 	edges: GraphEdge[],
-	onOpen: (label: string) => void,
 ): void {
 	for (const project of overview.projects) {
 		const id = nodeId(project.name);
@@ -309,7 +273,7 @@ function bindGraph(
 			continue;
 		}
 		label.id = id;
-		label.addEventListener("click", () => openProject(project.name, onOpen));
+		label.addEventListener("click", () => openProject(project.name));
 	}
 	for (const edge of edges) {
 		const id = edgeId(edge.from, edge.blocker);
@@ -319,18 +283,16 @@ function bindGraph(
 		}
 		label.id = id;
 		label.addEventListener("click", () =>
-			openProject(edge.blocker.project, onOpen, edge.blocker.key),
+			openProject(edge.blocker.project, edge.blocker.key),
 		);
 	}
 }
 
 function GraphView({
 	overview,
-	onOpen,
 	svg,
 }: {
 	overview: Overview;
-	onOpen: (label: string) => void;
 	svg: string;
 }) {
 	const host = useRef<HTMLDivElement>(null);
@@ -349,8 +311,8 @@ function GraphView({
 			return;
 		}
 		node.appendChild(document.importNode(drawn, true));
-		bindGraph(node, overview, graphEdges(overview), onOpen);
-	}, [onOpen, overview, svg]);
+		bindGraph(node, overview, graphEdges(overview));
+	}, [overview, svg]);
 	return (
 		<div className={styles.graph}>
 			<div ref={host} className={styles.mermaidHost} />
@@ -358,13 +320,7 @@ function GraphView({
 	);
 }
 
-function TableView({
-	overview,
-	onOpen,
-}: {
-	overview: Overview;
-	onOpen: (label: string) => void;
-}) {
+function TableView({ overview }: { overview: Overview }) {
 	const [sortKey, setSortKey] = useState<SortKey>("progress");
 	const rows = sortProjects(overview.projects, sortKey);
 	return (
@@ -392,7 +348,6 @@ function TableView({
 							<ProjectLink
 								name={project.name}
 								className={styles.projectLink}
-								onOpen={onOpen}
 							>
 								{project.name}
 							</ProjectLink>
@@ -414,24 +369,18 @@ function OverviewPage({
 	overview: Overview;
 	graphSvg: string;
 }) {
-	const [opened, setOpened] = useState(openedLabel);
 	const [tab, setTab] = useState(readTab);
 	const [notifyPermission, setNotifyPermission] = useState(
 		notificationPermission,
 	);
-	useEffect(() => {
-		const onPop = () => setOpened(openedLabel());
-		window.addEventListener("popstate", onPop);
-		return () => window.removeEventListener("popstate", onPop);
-	}, []);
 	const choose = (next: Tab) => {
 		writeTab(next);
 		setTab(next);
 	};
 	const panes = {
-		cards: <CardsList overview={overview} opened={opened} onOpen={setOpened} />,
-		graph: <GraphView overview={overview} onOpen={setOpened} svg={graphSvg} />,
-		table: <TableView overview={overview} onOpen={setOpened} />,
+		cards: <CardsList overview={overview} />,
+		graph: <GraphView overview={overview} svg={graphSvg} />,
+		table: <TableView overview={overview} />,
 	};
 	return (
 		<main className={shell.page}>
@@ -492,18 +441,6 @@ function OverviewPage({
 					</button>
 				))}
 			</nav>
-			{opened === null ? null : (
-				<p className={styles.opened}>
-					{opened}{" "}
-					<button
-						type="button"
-						className={`${shell.button} ${shell.back}`}
-						onClick={() => window.history.back()}
-					>
-						Back
-					</button>
-				</p>
-			)}
 			{panes[tab]}
 		</main>
 	);
