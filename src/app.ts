@@ -303,6 +303,7 @@ async function replyResponse(
 				row?.key ?? parsed.data.project,
 				parsed.data.tracker,
 			),
+			parsed.data.parentId,
 		),
 		...(parsed.data.parentId === undefined
 			? {}

@@ -1767,6 +1767,114 @@ describe("replies", () => {
 		}
 	});
 
+	test("a reply under another comment posts the typed text and leaves the ask open", async () => {
+		const sent: string[] = [];
+		const headline = "Which name?";
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-26",
+					identifier: "PF-26",
+					title: "Needs a name",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: [
+							{
+								id: "comment-ask-26",
+								body: `${headline}\n\n${ask("pf-26")}`,
+								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Ada" },
+							},
+							{
+								id: "comment-other-26",
+								body: "A note beside the ask.",
+								createdAt: "2026-08-18T12:05:00.000Z",
+								user: { name: "Ada" },
+							},
+						],
+					},
+				},
+			],
+			requests: sent,
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		try {
+			const nested = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-26",
+					parentId: "comment-other-26",
+					body: "Use the short name.",
+				}),
+			});
+			expect(nested.status).toBe(201);
+			expect(
+				JSON.parse(sent.find((body) => body.includes("commentCreate")) ?? "{}"),
+			).toMatchObject({
+				variables: {
+					input: {
+						issueId: "PF-26",
+						parentId: "comment-other-26",
+						body: "Use the short name.",
+					},
+				},
+			});
+			const open = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(open.find((item) => item.key === "PF-26")).toMatchObject({
+				headline,
+				answered: false,
+			});
+
+			sent.length = 0;
+			const underAsk = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-26",
+					parentId: "comment-ask-26",
+					body: "Use the short name.",
+				}),
+			});
+			expect(underAsk.status).toBe(201);
+			const quoted = `> ${headline}\n\nUse the short name.`;
+			expect(
+				JSON.parse(sent.find((body) => body.includes("commentCreate")) ?? "{}"),
+			).toMatchObject({
+				variables: {
+					input: {
+						parentId: "comment-ask-26",
+						body: quoted,
+					},
+				},
+			});
+			const answered = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(answered.find((item) => item.key === "PF-26")).toMatchObject({
+				headline,
+				answered: true,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a marker-only ask posts the panel text unchanged", async () => {
 		const sent: string[] = [];
 		const recorded = linearFake({

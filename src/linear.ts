@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+	Comment,
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
@@ -95,7 +96,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 				nodes { url title sourceType }
 			}
 			comments(first: 50) {
-				nodes { body createdAt user { name displayName } reactions { id } }
+				nodes { id body createdAt user { name displayName } reactions { id } }
 				pageInfo { hasNextPage endCursor }
 			}
 			inverseRelations(first: 30) {
@@ -188,6 +189,7 @@ const issueNode = z.object({
 		.object({
 			nodes: z.array(
 				z.object({
+					id: z.string().optional(),
 					body: z.string().nullable().optional(),
 					createdAt: z.string().optional(),
 					user: z
@@ -416,6 +418,7 @@ const commentPage = z.object({
 				comments: z.object({
 					nodes: z.array(
 						z.object({
+							id: z.string().optional(),
 							body: z.string().nullable(),
 							createdAt: z.string().optional(),
 							user: z
@@ -439,18 +442,13 @@ const commentPage = z.object({
 const commentsQuery = `query IssueComments($id: String!, $after: String) {
 	issue(id: $id) {
 		comments(first: 50, after: $after) {
-			nodes { body createdAt user { name displayName } reactions { id } }
+			nodes { id body createdAt user { name displayName } reactions { id } }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
 }`;
 
-type ListedComment = {
-	body: string;
-	createdAt?: string;
-	author?: string;
-	reactions?: number;
-};
+type ListedComment = Comment;
 
 function commentAuthor(
 	user:
@@ -471,6 +469,7 @@ function commentAuthor(
 }
 
 function listedComment(node: {
+	id?: string | undefined;
 	body?: string | null | undefined;
 	createdAt?: string | undefined;
 	user?:
@@ -489,6 +488,7 @@ function listedComment(node: {
 	const author = commentAuthor(node.user);
 	return {
 		body,
+		...(node.id === undefined ? {} : { id: node.id }),
 		...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }),
 		...(author === undefined ? {} : { author }),
 		...(node.reactions === undefined

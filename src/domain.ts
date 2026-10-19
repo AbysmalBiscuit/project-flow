@@ -30,6 +30,7 @@ export type TicketRef = {
 };
 
 export type Comment = {
+	id?: string;
 	body: string;
 	createdAt?: string;
 	author?: string;
@@ -1646,6 +1647,7 @@ export function panelReplyBody(
 	ticket: Ticket | undefined,
 	body: string,
 	noSenior: boolean,
+	parentId?: string,
 ): string {
 	const text = body.trim();
 	const comments = ticket?.comments ?? [];
@@ -1655,6 +1657,9 @@ export function panelReplyBody(
 	}
 	const source = orderedComments(comments)[ask.index];
 	if (source === undefined || levReply(comments, ask.index) !== null) {
+		return text;
+	}
+	if (parentId !== undefined && parentId !== source.id) {
 		return text;
 	}
 	const headline = askHeadline(source.body);

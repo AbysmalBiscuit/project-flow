@@ -1324,11 +1324,34 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 }
 
 const githubComment = z.object({
+	id: z.number().optional(),
 	body: z.string().nullable().optional(),
 	created_at: z.string().optional(),
 	user: z.object({ login: z.string() }).nullable().optional(),
 	reactions: z.object({ total_count: z.number().optional() }).optional(),
 });
+
+function commentFromGithub(
+	comment: z.infer<typeof githubComment>,
+): Comment | null {
+	const body = comment.body ?? "";
+	if (body === "") {
+		return null;
+	}
+	return {
+		body,
+		...(comment.id === undefined ? {} : { id: String(comment.id) }),
+		...(comment.created_at === undefined
+			? {}
+			: { createdAt: comment.created_at }),
+		...(comment.user?.login === undefined
+			? {}
+			: { author: comment.user.login }),
+		...(comment.reactions?.total_count === undefined
+			? {}
+			: { reactions: comment.reactions.total_count }),
+	};
+}
 
 async function listCommentBodies(
 	token: string,
@@ -1343,23 +1366,12 @@ async function listCommentBodies(
 		repo,
 		"list comments",
 	);
-	const bodies: { body: string }[] = [];
+	const bodies: Comment[] = [];
 	for (const item of listed) {
 		for (const comment of z.array(githubComment).parse(item)) {
-			const body = comment.body ?? "";
-			if (body !== "") {
-				bodies.push({
-					body,
-					...(comment.created_at === undefined
-						? {}
-						: { createdAt: comment.created_at }),
-					...(comment.user?.login === undefined
-						? {}
-						: { author: comment.user.login }),
-					...(comment.reactions?.total_count === undefined
-						? {}
-						: { reactions: comment.reactions.total_count }),
-				});
+			const mapped = commentFromGithub(comment);
+			if (mapped !== null) {
+				bodies.push(mapped);
 			}
 		}
 	}
