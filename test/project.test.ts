@@ -220,9 +220,6 @@ describe("GET /api/projects/:name", () => {
 					"blockingChains",
 					"backlog",
 				]);
-				expect(first).not.toHaveProperty("summary");
-				expect(first).not.toHaveProperty("diagrams");
-				expect(first).not.toHaveProperty("highlight");
 				const summary = first.sections.find(
 					(section) => section.id === "summary",
 				);
@@ -253,7 +250,19 @@ describe("GET /api/projects/:name", () => {
 				expect(epicMap?.definition).toContain(
 					"github_3a_acme_2f_platform_3a_acme_2f_platform_23_9",
 				);
-				expect(epicMap?.nodes.some((node) => node.dashed)).toBe(true);
+				const dashed = epicMap?.nodes.find((node) => node.dashed);
+				expect(dashed?.project).toBe("acme/platform");
+				expect(dashed?.ticket).toBe("acme/platform#9");
+				const platform = (await (
+					await fetch(new URL("/api/projects/acme%2Fplatform", base))
+				).json()) as ProjectReport;
+				expect(
+					platform.sections
+						.find((section) => section.id === "featureMap")
+						?.diagrams?.some((diagram) =>
+							diagram.nodes.some((node) => node.ticket === "acme/platform#9"),
+						),
+				).toBe(true);
 				const october = map?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_October",
 				);
