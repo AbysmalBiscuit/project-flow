@@ -324,10 +324,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		return result(0);
 	}
 
-	const configFlag = flagValue(
-		args.filter((arg) => !arg.endsWith("/bunfig.toml")),
-		"--config",
-	);
+	const configFlag = flagValue(args, "--config");
 	if (
 		args.includes("--config") &&
 		(configFlag === undefined || configFlag.trim() === "")
