@@ -245,7 +245,7 @@ describe("settings", () => {
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
 				expect(current.activityWindowDays).toBe(30);
-				expect(current.pollIntervalSeconds).toBe(60);
+				expect(current.pollIntervalSeconds).toBe(300);
 				expect(current.needsYouLabels).toEqual([
 					"needs-human",
 					"needs-engineer",

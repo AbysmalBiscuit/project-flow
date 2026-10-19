@@ -44,7 +44,7 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `pinned` names projects that always show. The default is `[]`.
 - `hidden` names projects that never show. The default is `[]`.
 - `activityWindowDays` is the activity window for a found project. The default is `30`.
-- `pollIntervalSeconds` is the gap between polls. The default is `60`.
+- `pollIntervalSeconds` is the gap between polls. The default is `300`.
 - `checkoutRoots` names folders the app scans for local checkouts. Each entry is an absolute path. The app does not expand `~`. The default is the `Git` folder in the home directory.
 - `expectedBots` names the review bots for a repo. The key is `owner/name`. The value is a list of `grok`, `codex` and `greptile`. An empty list means the repo has no expected bots. When the field is absent, the app reads the bots from the repo's recent merged PRs.
 - `pmBot` marks whether a project has a PM Bot. The key is `owner/name` for a repo pin. The key is `owner/number` for a GitHub project pin. The key is the Linear project slug for a Linear pin. `true` sends an unnamed ask to the PM Bot. `false` sends every ask to Lev. When the key is absent, a GitHub project has a PM Bot and a Linear project has none. The default is `{}`.
@@ -61,7 +61,7 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
   ],
   "hidden": [],
   "activityWindowDays": 30,
-  "pollIntervalSeconds": 60,
+  "pollIntervalSeconds": 300,
   "checkoutRoots": ["/home/you/Git"],
   "expectedBots": {
     "owner/name": ["grok", "codex"]

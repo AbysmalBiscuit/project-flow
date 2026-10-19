@@ -103,6 +103,64 @@ export function githubHeaders(token: string): HeadersInit {
 	};
 }
 
+type RestCache = Map<string, { etag: string; body: unknown }>;
+
+function restUrl(input: string | URL | Request): string {
+	if (typeof input === "string") {
+		return input;
+	}
+	if (input instanceof URL) {
+		return input.href;
+	}
+	return input.url;
+}
+
+function restKey(url: string): string {
+	const parsed = new URL(url);
+	parsed.searchParams.delete("since");
+	parsed.searchParams.sort();
+	return parsed.href;
+}
+
+function isRestRead(url: string, method: string): boolean {
+	if (method !== "GET" && method !== "") {
+		return false;
+	}
+	if (!url.startsWith("https://api.github.com/")) {
+		return false;
+	}
+	return !url.startsWith("https://api.github.com/graphql");
+}
+
+export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
+	return async (input, init) => {
+		const url = restUrl(input);
+		const method = (init?.method ?? "GET").toUpperCase();
+		if (!isRestRead(url, method)) {
+			return fetchImpl(input, init);
+		}
+		const key = restKey(url);
+		const stored = cache.get(key);
+		const headers = new Headers(init?.headers);
+		if (stored !== undefined && !headers.has("if-none-match")) {
+			headers.set("if-none-match", stored.etag);
+		}
+		const response = await fetchImpl(input, { ...init, headers });
+		if (response.status === 304) {
+			const body = stored?.body ?? [];
+			return new Response(JSON.stringify(body), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}
+		const next = response.headers.get("etag");
+		if (response.ok && next !== null && next !== "") {
+			cache.set(key, { etag: next, body: await response.clone().json() });
+		}
+		return response;
+	};
+}
+
 function nextPage(link: string | null): string | null {
 	if (link === null) {
 		return null;

@@ -650,11 +650,15 @@ function keptPulls(
 	if (full) {
 		return incoming;
 	}
+	const incomingIds = new Set(
+		incoming.map((pull) => `${pull.repo}#${pull.number}`),
+	);
 	const incomingKeys = new Set(incoming.flatMap((pull) => pull.closingKeys));
 	return [
 		...incoming,
 		...stored.filter(
 			(pull) =>
+				!incomingIds.has(`${pull.repo}#${pull.number}`) &&
 				!pull.closingKeys.some(
 					(key) => returnedIds.has(key) || incomingKeys.has(key),
 				),

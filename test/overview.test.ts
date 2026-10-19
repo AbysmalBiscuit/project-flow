@@ -39,10 +39,17 @@ function pullRequest(number: number): Record<string, unknown> {
 	};
 }
 
-function page(items: Record<string, unknown>[], next: string | null): Response {
+function page(
+	items: Record<string, unknown>[],
+	next: string | null,
+	extra?: Record<string, string>,
+): Response {
 	const headers = new Headers({ "content-type": "application/json" });
 	if (next !== null) {
 		headers.set("link", `<${next}>; rel="next"`);
+	}
+	for (const [name, value] of Object.entries(extra ?? {})) {
+		headers.set(name, value);
 	}
 	return new Response(JSON.stringify(items), { status: 200, headers });
 }
@@ -3815,6 +3822,352 @@ describe("GET /api/overview", () => {
 			expect(result.listened).toBe(true);
 			expect(await Bun.file(databasePath).exists()).toBe(true);
 			expect(requests.some((url) => url.includes("/issues?"))).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("an omitted poll interval is 300 seconds", async () => {
+		const { path, cleanup } = await tempConfig("{}");
+		const root = await mkdtemp(join("/var/tmp", "project-flow-poll-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const response = await fetch(new URL("/api/settings", base));
+					expect(response.status).toBe(200);
+					const settings = (await response.json()) as {
+						pollIntervalSeconds: number;
+					};
+					expect(settings.pollIntervalSeconds).toBe(300);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {},
+					fetch: async () => new Response("not recorded", { status: 404 }),
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a second poll of an unchanged repo sends the first ETag and a 304 keeps the overview", async () => {
+		const repoName = "acme/unchanged";
+		const etag = '"recorded-issues-etag"';
+		const pullEtag = '"recorded-pulls-etag"';
+		const closedEtag = '"recorded-closed-pulls-etag"';
+		const sent: { url: string; headers: Headers }[] = [];
+		const reads = new Map<string, number>();
+		const openPull = {
+			number: 9,
+			title: "Ship the widget",
+			state: "open",
+			draft: true,
+			html_url: `https://github.com/${repoName}/pull/9`,
+			body: "",
+			head: { ref: "ship-widget", sha: "" },
+		};
+		const readOf = (url: string): number => {
+			const count = (reads.get(url) ?? 0) + 1;
+			reads.set(url, count);
+			return count;
+		};
+		const recorded: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const headers = new Headers(init?.headers);
+			sent.push({ url, headers });
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: repoName,
+							owner: { login: "lev" },
+							permissions: { push: true },
+							pushed_at: "2026-10-18T12:00:00.000Z",
+						},
+					]),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				if (readOf(url) > 1) {
+					return new Response(null, { status: 304, headers: { etag } });
+				}
+				return page([ticket(4, "open", null)], null, { etag });
+			}
+			if (url.includes(`/repos/${repoName}/pulls?state=open`)) {
+				if (readOf(url) > 1) {
+					return new Response(null, {
+						status: 304,
+						headers: { etag: pullEtag },
+					});
+				}
+				return page([openPull], null, { etag: pullEtag });
+			}
+			if (url.includes(`/repos/${repoName}/pulls?state=closed`)) {
+				if (readOf(url) > 1) {
+					return new Response(null, {
+						status: 304,
+						headers: { etag: closedEtag },
+					});
+				}
+				return page([], null, { etag: closedEtag });
+			}
+			if (url.includes("/branches?")) {
+				return page([], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+							repository: {
+								pullRequest: { closingIssuesReferences: { nodes: [] } },
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-etag-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const first = await fetch(new URL("/api/overview", base));
+					expect(first.status).toBe(200);
+					const before = (await first.json()) as Overview;
+					expect(before.projects.map((project) => project.name)).toEqual([
+						repoName,
+					]);
+					expect(before.projects[0]?.tickets).toEqual([
+						{
+							key: `${repoName}#4`,
+							title: "Ticket 4",
+							state: "backlog",
+							blockers: [],
+						},
+					]);
+					expect(before.projects[0]?.unlinkedPrs).toEqual([
+						{
+							number: 9,
+							title: "Ship the widget",
+							url: `https://github.com/${repoName}/pull/9`,
+							repo: repoName,
+						},
+					]);
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(refresh.status).toBe(204);
+					const second = await fetch(new URL("/api/overview", base));
+					expect(second.status).toBe(200);
+					const after = (await second.json()) as Overview;
+					expect(after.projects).toEqual(before.projects);
+					const issueReads = sent.filter((item) =>
+						item.url.includes(`/repos/${repoName}/issues?`),
+					);
+					const pullReads = sent.filter((item) =>
+						item.url.includes(`/repos/${repoName}/pulls?state=open`),
+					);
+					expect(issueReads).toHaveLength(2);
+					expect(pullReads).toHaveLength(2);
+					expect(issueReads[0]?.headers.get("if-none-match")).toBeNull();
+					expect(issueReads[1]?.headers.get("if-none-match")).toBe(etag);
+					expect(pullReads[0]?.headers.get("if-none-match")).toBeNull();
+					expect(pullReads[1]?.headers.get("if-none-match")).toBe(pullEtag);
+					expect(issueReads[1]?.url).toContain("since=");
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a 304 with no stored ETag keeps the prior overview", async () => {
+		const repoName = "acme/blank-interval";
+		const sent: { url: string; headers: Headers }[] = [];
+		const reads = new Map<string, number>();
+		const readOf = (url: string): number => {
+			const count = (reads.get(url) ?? 0) + 1;
+			reads.set(url, count);
+			return count;
+		};
+		const recorded: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			sent.push({ url, headers: new Headers(init?.headers) });
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: repoName,
+							pushed_at: "2026-10-18T12:00:00.000Z",
+						},
+					]),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				if (readOf(url) > 1) {
+					return new Response(null, { status: 304 });
+				}
+				return page([ticket(4, "open", null)], null);
+			}
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/comments") ||
+				url.includes("/reviews") ||
+				url.includes("/reactions")
+			) {
+				return page([], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-blank-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const first = await fetch(new URL("/api/overview", base));
+					const before = (await first.json()) as Overview;
+					expect(before.projects[0]?.tickets).toEqual([
+						{
+							key: `${repoName}#4`,
+							title: "Ticket 4",
+							state: "backlog",
+							blockers: [],
+						},
+					]);
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(refresh.status).toBe(204);
+					const second = await fetch(new URL("/api/overview", base));
+					const after = (await second.json()) as Overview;
+					expect(after.projects).toEqual(before.projects);
+					expect(after.error).toBeNull();
+					const issueReads = sent.filter((item) =>
+						item.url.includes(`/repos/${repoName}/issues?`),
+					);
+					expect(issueReads[1]?.headers.get("if-none-match")).toBeNull();
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
