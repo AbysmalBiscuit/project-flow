@@ -218,6 +218,7 @@ describe("GET /api/projects/:name", () => {
 					"featureMap",
 					"inFlight",
 					"blockingChains",
+					"needsYou",
 					"backlog",
 				]);
 				const summary = first.sections.find(
@@ -320,6 +321,7 @@ describe("GET /api/projects/:name", () => {
 					"Feature map",
 					"In flight",
 					"Blocking chains",
+					"Needs you",
 					"Backlog",
 				]);
 				const linearSummary = linearReport.sections.find(

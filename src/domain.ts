@@ -31,6 +31,9 @@ export type TicketRef = {
 
 export type Comment = {
 	body: string;
+	createdAt?: string;
+	author?: string;
+	reactions?: number;
 };
 
 export type Ticket = {
@@ -48,6 +51,8 @@ export type Ticket = {
 	milestone: string | null;
 	parent: string | null;
 	labels: string[];
+	assignee?: string | null;
+	assignees?: string[];
 };
 
 export type TicketView = {
@@ -155,11 +160,29 @@ export type Diagram = {
 	definition: string;
 };
 
+export type NeedsYouItem = {
+	project: string;
+	tracker: "github" | "linear";
+	key: string;
+	headline: string;
+	reason: "ask" | "awaitingMerge" | "label";
+	tags: string[];
+	answered: boolean;
+	acknowledged: boolean;
+};
+
 export type ReportSection = {
-	id: "summary" | "featureMap" | "inFlight" | "blockingChains" | "backlog";
+	id:
+		| "summary"
+		| "featureMap"
+		| "inFlight"
+		| "blockingChains"
+		| "needsYou"
+		| "backlog";
 	title: string;
 	text?: string;
 	items?: TicketView[];
+	needsYou?: NeedsYouItem[];
 	diagrams?: Diagram[];
 };
 
@@ -1231,8 +1254,37 @@ function askAnswered(later: Comment[], id: string): boolean {
 	);
 }
 
+function shownState(
+	ticket: Ticket,
+	state: TicketState,
+	links: PullRequest[],
+	branches: string[],
+	startedKeys: string[],
+	review: { state: "inReview" | "awaitingMerge" | null },
+): TicketState {
+	const key = ticket.key;
+	const started =
+		key !== null &&
+		startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
+	const pushed =
+		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
+	const draft = links.some((pull) => pull.draft);
+	const moving = draft || pushed || started;
+	if (state === "backlog" && draft) {
+		return "inProgress";
+	}
+	if (state === "backlog" && review.state !== null) {
+		return review.state;
+	}
+	if (state === "backlog" && moving) {
+		return "inProgress";
+	}
+	return state;
+}
+
 export function projectCounts(
 	name: string,
+	key: string,
 	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
 	pulls: PullRequest[],
@@ -1241,7 +1293,14 @@ export function projectCounts(
 	all: { project: string; tickets: Ticket[] }[],
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
-): ProjectCounts {
+	rules: Omit<NeedsYouRules, "noSenior"> & {
+		noSenior: Record<string, boolean>;
+	},
+): {
+	counts: ProjectCounts;
+	needsYou: NeedsYouItem[];
+	report: ProjectReport;
+} {
 	const index = indexTickets(all.flatMap((group) => group.tickets));
 	const parsed = parseBodies(all);
 	const counts = {
@@ -1255,6 +1314,7 @@ export function projectCounts(
 	};
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
+	const shownByKey = new Map<string, TicketState>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
 	for (const ticket of tickets) {
@@ -1267,25 +1327,20 @@ export function projectCounts(
 			}),
 		);
 		const links = ticket.state === "open" ? linked(ticket, active, name) : [];
-		const key = ticket.key;
-		const started =
-			key !== null &&
-			startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
-		const pushed =
-			key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 		const review = reviewState(links, expectedBots, ticket.comments ?? []);
 		for (const tag of review.tags) {
 			tags.add(tag);
 		}
-		const draft = links.some((pull) => pull.draft);
-		const moving = draft || pushed || started;
-		let shown: TicketState = state;
-		if (state === "backlog" && draft) {
-			shown = "inProgress";
-		} else if (state === "backlog" && review.state !== null) {
-			shown = review.state;
-		} else if (state === "backlog" && moving) {
-			shown = "inProgress";
+		const shown = shownState(
+			ticket,
+			state,
+			links,
+			branches,
+			startedKeys,
+			review,
+		);
+		if (ticket.key !== null) {
+			shownByKey.set(ticket.key, shown);
 		}
 		counts[shown] += 1;
 		views.push({
@@ -1335,27 +1390,42 @@ export function projectCounts(
 			title: pull.title,
 			url: pull.url,
 		}));
-	const needsYou = tickets.filter((ticket) =>
-		needsYouTicket(ticket, tracker),
-	).length;
+	const needsYouItemsForProject = needsYouItems(
+		name,
+		tracker,
+		tickets,
+		shownByKey,
+		{
+			labels: rules.labels,
+			viewerLogins: rules.viewerLogins,
+			noSenior: projectHasNoSenior(rules.noSenior, key, tracker),
+		},
+	);
 	const unlinkedReview = reviewState(
 		active.filter((pull) => !linkedNumbers.has(pull.number)),
 		expectedBots,
+		[],
 	);
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
 	}
-	return {
+	const project: ProjectCounts = {
 		name,
 		tracker,
 		...counts,
 		unlinkedPrs,
 		tickets: views,
 		crossProjectBlockers: [...cross.values()],
-		needsYou,
+		needsYou: needsYouItemsForProject.length,
 		progress: progressRatio(counts),
 		...staleView(status, status.fetchedAt),
 		tags: [...tags],
+	};
+	const report = projectReport(project, tickets, needsYouItemsForProject);
+	return {
+		counts: project,
+		needsYou: needsYouItemsForProject,
+		report,
 	};
 }
 
@@ -1378,9 +1448,28 @@ function progressRatio(
 }
 
 const askMarker = /<!--\s*workcell:ask\s+([A-Za-z0-9_.-]+)\s*-->/i;
-const answerPrefix = /^(?:senior|answer)\b/i;
+const workcellMarker = /<!--\s*workcell:/i;
+const answerPrefix = /^(?:senior|reply|answer)\b/i;
+const decisionRecord = /^\**\s*decision\b/i;
 const nameCue =
 	/\b(?:waits on|held for|left for|decision|verify|restore|passphrase|signing key)\b/i;
+
+export type NeedsYouRules = {
+	noSenior: boolean;
+	labels: string[];
+	viewerLogins: string[];
+};
+
+function projectHasNoSenior(
+	noSenior: Record<string, boolean>,
+	key: string,
+	tracker: "github" | "linear",
+): boolean {
+	const match = Object.entries(noSenior).find(
+		([name]) => name.toLowerCase() === key.toLowerCase(),
+	);
+	return match?.[1] ?? tracker === "linear";
+}
 
 function askId(body: string): string | null {
 	return body.match(askMarker)?.[1] ?? null;
@@ -1394,62 +1483,208 @@ function quotesAsk(body: string, id: string): boolean {
 	return pattern.test(body);
 }
 
-function needsYouTicket(
-	ticket: Ticket,
-	tracker: ProjectCounts["tracker"],
-): boolean {
-	if (ticket.state !== "open") {
+function quotesAskText(body: string, askBody: string): boolean {
+	const text = askBody.replace(askMarker, "").trim();
+	if (text === "") {
 		return false;
 	}
-	const comments = ticket.comments ?? [];
-	const latest = new Map<string, number>();
-	comments.forEach((comment, index) => {
-		const id = askId(comment.body);
-		if (id !== null) {
-			latest.set(id, index);
-		}
-	});
-	for (const [id, index] of latest) {
-		const comment = comments[index];
-		if (comment === undefined || !addressedToLev(comment.body, tracker)) {
-			continue;
-		}
-		const later = comments.slice(index + 1);
-		const answered = later.some(
-			(item) => quotesAsk(item.body, id) || answerPrefix.test(item.body.trim()),
-		);
-		if (!answered) {
-			return true;
-		}
-	}
-	return false;
+	return body
+		.split("\n")
+		.some((line) => line.trimStart().startsWith(">") && line.includes(text));
 }
 
-function addressedToLev(
-	body: string,
-	tracker: ProjectCounts["tracker"],
-): boolean {
-	const namesLev = /\blev\b/i.test(body);
-	if (opensForSenior(body) && !namesLev) {
-		return false;
+function commentTime(comment: Comment): number {
+	if (comment.createdAt === undefined) {
+		return 0;
 	}
-	if (tracker === "linear") {
-		return true;
-	}
-	if (!namesLev) {
-		return false;
-	}
-	const cueAt = body.search(nameCue);
-	const nameAt = body.search(/\blev\b/i);
-	if (cueAt < 0 || nameAt < 0) {
-		return false;
-	}
-	return Math.abs(cueAt - nameAt) <= 80;
+	const parsed = Date.parse(comment.createdAt);
+	return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function orderedComments(comments: Comment[]): Comment[] {
+	return comments.every((comment) => comment.createdAt === undefined)
+		? comments
+		: [...comments].sort(
+				(left, right) => commentTime(left) - commentTime(right),
+			);
+}
+
+function namesLev(body: string): boolean {
+	return /\blev\b/i.test(body);
 }
 
 function opensForSenior(body: string): boolean {
 	const opening = body.trim().slice(0, 240).toLowerCase();
 	return /\b(?:senior|for the senior)\b/.test(opening);
+}
+
+function matchedByName(body: string): boolean {
+	if (!namesLev(body)) {
+		return false;
+	}
+	const cueAt = body.search(nameCue);
+	const nameAt = body.search(/\blev\b/i);
+	return cueAt >= 0 && nameAt >= 0 && Math.abs(cueAt - nameAt) <= 80;
+}
+
+function addressedToLev(body: string, noSenior: boolean): boolean {
+	if (decisionRecord.test(body.trim())) {
+		return false;
+	}
+	const named = matchedByName(body);
+	if (opensForSenior(body) && !namesLev(body)) {
+		return false;
+	}
+	if (noSenior) {
+		return true;
+	}
+	return named;
+}
+
+function progressPicked(body: string, id: string): boolean {
+	if (!body.trimStart().startsWith(progressHeading)) {
+		return false;
+	}
+	const line = body
+		.split("\n")
+		.find((item) => item.replace(/^\s*-?\s*/, "").startsWith(`ask-${id}:`));
+	return line !== undefined && /human picks\b/i.test(line);
+}
+
+function askClosed(later: Comment[], id: string): boolean {
+	return later.some(
+		(item) => quotesAsk(item.body, id) || progressPicked(item.body, id),
+	);
+}
+
+function askHeadline(body: string): string {
+	const text = body.replace(askMarker, "").trim();
+	const named = text
+		.split(/(?<=[.!?])\s+/)
+		.map((part) => part.trim())
+		.find((part) => namesLev(part));
+	if (named !== undefined) {
+		return named.replace(/^senior,\s*/i, "");
+	}
+	const lines = text
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line !== "" && !line.startsWith("<!--"));
+	return lines.at(-1) ?? text;
+}
+
+type OpenAsk = {
+	headline: string;
+	tags: string[];
+	index: number;
+};
+
+function openAsk(comments: Comment[], noSenior: boolean): OpenAsk | null {
+	const ordered = orderedComments(comments);
+	const latest = new Map<string, number>();
+	ordered.forEach((comment, index) => {
+		const id = askId(comment.body);
+		if (id !== null) {
+			latest.set(id, index);
+		}
+	});
+	let found: OpenAsk | null = null;
+	for (const [id, index] of latest) {
+		const comment = ordered[index];
+		if (comment === undefined || !addressedToLev(comment.body, noSenior)) {
+			continue;
+		}
+		if (askClosed(ordered.slice(index + 1), id)) {
+			continue;
+		}
+		if (found === null || index > found.index) {
+			found = {
+				headline: askHeadline(comment.body),
+				tags: matchedByName(comment.body) ? ["matched by name"] : [],
+				index,
+			};
+		}
+	}
+	return found;
+}
+
+function replyAfter(comments: Comment[], askIndex: number): Comment | null {
+	const ordered = orderedComments(comments);
+	const ask = ordered[askIndex];
+	if (ask === undefined) {
+		return null;
+	}
+	const id = askId(ask.body);
+	for (let index = ordered.length - 1; index > askIndex; index -= 1) {
+		const comment = ordered[index];
+		if (comment === undefined || workcellMarker.test(comment.body)) {
+			continue;
+		}
+		const opening = comment.body.trim();
+		if (
+			(id !== null && quotesAsk(opening, id)) ||
+			answerPrefix.test(opening) ||
+			quotesAskText(opening, ask.body)
+		) {
+			return comment;
+		}
+	}
+	return null;
+}
+
+function assignedToViewer(ticket: Ticket, viewers: Set<string>): boolean {
+	const names = [
+		...(ticket.assignees ?? []),
+		...(ticket.assignee === undefined || ticket.assignee === null
+			? []
+			: [ticket.assignee]),
+	];
+	return names.some((name) => {
+		const trimmed = name.trim().toLowerCase();
+		return trimmed !== "" && viewers.has(trimmed);
+	});
+}
+
+export function needsYouItems(
+	project: string,
+	tracker: ProjectCounts["tracker"],
+	tickets: Ticket[],
+	shownByKey: Map<string, TicketState>,
+	rules: NeedsYouRules,
+): NeedsYouItem[] {
+	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
+	const viewers = new Set(
+		rules.viewerLogins.map((login) => login.toLowerCase()),
+	);
+	const items: NeedsYouItem[] = [];
+	for (const ticket of tickets) {
+		if (ticket.state !== "open" || ticket.key === null) {
+			continue;
+		}
+		const shown = shownByKey.get(ticket.key);
+		const ask = openAsk(ticket.comments ?? [], rules.noSenior);
+		const labelled =
+			assignedToViewer(ticket, viewers) &&
+			ticket.labels.some((label) => labels.has(label.toLowerCase()));
+		const awaiting = shown === "awaitingMerge";
+		if (ask === null && !labelled && !awaiting) {
+			continue;
+		}
+		const reply =
+			ask === null ? null : replyAfter(ticket.comments ?? [], ask.index);
+		items.push({
+			project,
+			tracker,
+			key: ticket.key,
+			headline: ask?.headline ?? ticket.title,
+			reason: ask !== null ? "ask" : awaiting ? "awaitingMerge" : "label",
+			tags: ask?.tags ?? [],
+			answered: reply !== null,
+			acknowledged: (reply?.reactions ?? 0) > 0,
+		});
+	}
+	items.sort((left, right) => Number(left.answered) - Number(right.answered));
+	return items;
 }
 
 const noScope = "no scope";
@@ -1839,6 +2074,7 @@ function summaryLine(counts: ProjectCounts): string {
 export function projectReport(
 	counts: ProjectCounts,
 	tickets: Ticket[],
+	needs: NeedsYouItem[] = [],
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
 	const maps = featureDiagrams(
@@ -1868,6 +2104,11 @@ export function projectReport(
 		{ id: "featureMap", title: "Feature map", diagrams: maps },
 		{ id: "inFlight", title: "In flight", items: inFlight },
 		{ id: "blockingChains", title: "Blocking chains", diagrams: chains },
+		{
+			id: "needsYou",
+			title: "Needs you",
+			needsYou: needs,
+		},
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
 	return {

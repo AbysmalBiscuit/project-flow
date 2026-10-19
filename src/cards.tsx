@@ -173,7 +173,7 @@ function CardsList({
 						Done {project.done} Dropped {project.dropped} Blocked{" "}
 						{project.blocked} Backlog {project.backlog} In progress{" "}
 						{project.inProgress} In review {project.inReview} Awaiting merge{" "}
-						{project.awaitingMerge}
+						{project.awaitingMerge} Needs you {project.needsYou}
 					</p>
 					{project.tags.length === 0 ? null : (
 						<p className="tags">{project.tags.join(" ")}</p>
@@ -396,6 +396,9 @@ function OverviewPage({
 	return (
 		<main>
 			<h1>Projects</h1>
+			<p>
+				<a href="/needs-you">Needs you</a>
+			</p>
 			<button
 				type="button"
 				onClick={() => {

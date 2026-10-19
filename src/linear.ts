@@ -81,6 +81,10 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			parent { identifier }
 			projectMilestone { name }
 			labels { nodes { name } }
+			assignee { id name displayName }
+			comments(first: 50) {
+				nodes { body createdAt user { name displayName } }
+			}
 			attachments {
 				nodes { url title sourceType }
 			}
@@ -160,6 +164,31 @@ const issueNode = z.object({
 	projectMilestone: z.object({ name: z.string() }).nullable().optional(),
 	labels: z
 		.object({ nodes: z.array(z.object({ name: z.string() })) })
+		.optional(),
+	assignee: z
+		.object({
+			id: z.string().optional(),
+			name: z.string().nullable().optional(),
+			displayName: z.string().nullable().optional(),
+		})
+		.nullable()
+		.optional(),
+	comments: z
+		.object({
+			nodes: z.array(
+				z.object({
+					body: z.string().nullable().optional(),
+					createdAt: z.string().optional(),
+					user: z
+						.object({
+							name: z.string().nullable().optional(),
+							displayName: z.string().nullable().optional(),
+						})
+						.nullable()
+						.optional(),
+				}),
+			),
+		})
 		.optional(),
 	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	inverseRelations: z
@@ -249,6 +278,27 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 	if (mapped === null) {
 		return null;
 	}
+	const comments = (node.comments?.nodes ?? []).flatMap((comment) => {
+		const body = comment.body ?? "";
+		if (body === "") {
+			return [];
+		}
+		return [
+			{
+				body,
+				...(comment.createdAt === undefined
+					? {}
+					: { createdAt: comment.createdAt }),
+				...(comment.user?.displayName !== undefined &&
+				comment.user.displayName !== null
+					? { author: comment.user.displayName }
+					: comment.user?.name !== undefined && comment.user.name !== null
+						? { author: comment.user.name }
+						: {}),
+			},
+		];
+	});
+	const assignee = node.assignee?.id ?? null;
 	return {
 		id: node.identifier,
 		tracker: "linear",
@@ -259,16 +309,18 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		updatedAt: node.updatedAt,
 		body: node.description ?? "",
 		blockedBy: blockedBy(node),
+		...(comments.length === 0 ? {} : { comments }),
 		milestone: node.projectMilestone?.name ?? null,
 		parent: node.parent?.identifier ?? null,
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
+		...(node.assignee === undefined ? {} : { assignee }),
 	};
 }
 
 async function findLinearProjects(
 	key: string,
 	fetchImpl: Fetch,
-): Promise<FoundProject[]> {
+): Promise<{ projects: FoundProject[]; viewerId: string }> {
 	const viewer = await checkLinearKey(key, fetchImpl);
 	if (!viewer.ok) {
 		throw new Error(`Linear find projects failed (HTTP ${viewer.status})`);
@@ -310,7 +362,7 @@ async function findLinearProjects(
 			? page.data.projects.pageInfo.endCursor
 			: null;
 	} while (after !== null);
-	return found;
+	return { projects: found, viewerId };
 }
 
 function matchesPin(slugId: string, pin: string): boolean {
@@ -436,9 +488,12 @@ export function linearTracker(
 	};
 	return {
 		findProjects() {
-			return findLinearProjects(key, fetchImpl).then((projects) => ({
-				projects,
-				viewer: null,
+			return findLinearProjects(key, fetchImpl).then((found) => ({
+				projects: found.projects,
+				viewer:
+					found.viewerId === ""
+						? null
+						: { login: "", orgs: [], id: found.viewerId },
 			}));
 		},
 		async projectsForKeys(keys) {

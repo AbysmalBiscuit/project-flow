@@ -140,6 +140,7 @@ export function linearFake(options: LinearFake = {}): Fetch {
 			}
 			return linearJson({
 				data: {
+					viewer: { id: "viewer-ada" },
 					projects: {
 						nodes:
 							project === null
@@ -161,7 +162,7 @@ export function linearFake(options: LinearFake = {}): Fetch {
 			if (options.fail === "key") {
 				return new Response("unauthorized", { status: 401 });
 			}
-			return linearJson({ data: { viewer: { id: "lev" } } });
+			return linearJson({ data: { viewer: { id: "viewer-ada" } } });
 		}
 		if (query.query?.includes("ProjectByPin")) {
 			if (options.fail === "lookup") {

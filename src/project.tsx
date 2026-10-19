@@ -7,6 +7,7 @@ import type {
 	TicketState,
 	TicketView,
 } from "./domain.ts";
+import { NeedsItem } from "./needs-item.tsx";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -179,6 +180,13 @@ function Report({
 									ticket={item}
 									highlight={ticket}
 								/>
+							))}
+						</ul>
+					)}
+					{section.needsYou === undefined ? null : (
+						<ul className="needs-you-list">
+							{section.needsYou.map((item) => (
+								<NeedsItem key={item.key} item={item} />
 							))}
 						</ul>
 					)}
