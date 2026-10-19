@@ -475,7 +475,8 @@ function ticketNumber(key: string): string | null {
 
 const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
 const githubNode = /^(\d+)-/;
-const linearKey = /([a-z][a-z0-9]*)-(\d+)/gi;
+const sessionSuffix = /\.[a-z][a-z0-9]*-\d+$/i;
+const linearKey = /^([a-z][a-z0-9]*)-(\d+)(?![a-z0-9])/i;
 
 export function checkoutNamesProject(
 	hasTrackerConfig: boolean,
@@ -520,9 +521,11 @@ export function githubRepoForTodo(
 export function linearKeysForNames(names: string[]): string[] {
 	const keys: string[] = [];
 	for (const name of names) {
-		for (const match of name.toLowerCase().matchAll(linearKey)) {
-			const team = match[1];
-			const number = match[2];
+		const bare = name.replace(sessionSuffix, "");
+		for (const segment of bare.split(/[/_.]/)) {
+			const match = segment.match(linearKey);
+			const team = match?.[1];
+			const number = match?.[2];
 			if (team === undefined || number === undefined) {
 				continue;
 			}

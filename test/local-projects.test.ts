@@ -381,6 +381,41 @@ describe("local projects", () => {
 		});
 	});
 
+	test("a devkit session suffix does not become a Linear lookup", async () => {
+		const requests: string[] = [];
+		const { body } = await overview({
+			linear: true,
+			requests,
+			files: {
+				"other/docs/.git/config":
+					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
+				"other/docs/devkit.toml": '[tracker]\nkind = "linear"\n',
+			},
+			todos: JSON.stringify([
+				{ project: "   ", status: "pending" },
+				{ project: "docs.main.D2C128F2-575", status: "pending" },
+				{ project: "docs.main.CLAUDE-69", status: "pending" },
+				{ project: "docs.feat.agent-12", status: "pending" },
+				{ project: "docs.WID-4extra", status: "pending" },
+			]),
+		});
+		expect(body).toEqual({
+			projects: [],
+			fetchedAt: null,
+			error: null,
+		});
+		expect(requests.some((request) => request.includes("TicketProject"))).toBe(
+			false,
+		);
+		expect(requests.some((request) => request.includes("D2C128F2"))).toBe(
+			false,
+		);
+		expect(requests.some((request) => request.includes("CLAUDE-69"))).toBe(
+			false,
+		);
+		expect(requests.some((request) => request.includes("WID-4"))).toBe(false);
+	});
+
 	test("a Linear todo names its open Linear project", async () => {
 		const { body } = await overview({
 			linear: true,
