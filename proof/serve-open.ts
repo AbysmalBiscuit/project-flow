@@ -208,7 +208,7 @@ const recorded: Fetch = async (input, init) => {
 	return new Response(`not recorded ${url}`, { status: 404 });
 };
 
-const dir = await mkdtemp(join(tmpdir(), "project-flow-proof-"));
+const dir = await mkdtemp(join("/var/tmp", "project-flow-proof-"));
 const configPath = join(dir, "config.json");
 await writeFile(
 	configPath,
@@ -222,8 +222,9 @@ await writeFile(
 	})}\n`,
 );
 
+const port = process.env.PORT ?? "4174";
 const result = await run(
-	["--config", configPath, "--host", "127.0.0.1", "--port", "4174"],
+	["--config", configPath, "--host", "127.0.0.1", "--port", port],
 	{
 		env: {
 			GITHUB_TOKEN: "recorded-token",

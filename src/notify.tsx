@@ -2,8 +2,6 @@ import type { Notification as InboxNotification } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { triggerLabel } from "./terms.ts";
 
-export { triggerLabel };
-
 function showNotification(event: MessageEvent): void {
 	const notification = JSON.parse(event.data) as InboxNotification;
 	const title = triggerLabel[notification.trigger];

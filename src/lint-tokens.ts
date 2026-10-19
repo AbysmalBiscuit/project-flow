@@ -31,25 +31,40 @@ const colour = new RegExp(
 	"i",
 );
 const size = /\b\d*\.?\d+(?:px|rem)\b/;
-const customProperty = /--[a-z0-9-]+/gi;
+const customProperty = /(?<![\w-])--[A-Za-z][A-Za-z0-9-]*\b/g;
+const styleSource = /(?:\.stylex\.ts|\.css)$/;
 
-function styleFiles(): AsyncIterable<string> {
-	return new Glob("src/**/*.{ts,tsx}").scan({
-		cwd: root,
-		onlyFiles: true,
-	});
+const files = new Glob("src/**/*.{ts,tsx,css}").scan({
+	cwd: root,
+	onlyFiles: true,
+});
+
+function isStyleSource(name: string): boolean {
+	return (
+		(styleSource.test(name) ||
+			name === "src/ui-styles.ts" ||
+			name === "src/theme.ts") &&
+		name !== "src/global.css"
+	);
 }
 
-for await (const name of styleFiles()) {
-	if (name !== "src/ui-styles.ts" && !name.endsWith(".tsx")) {
+for await (const name of files) {
+	if (name === "src/tokens.stylex.ts" || name === "src/lint-tokens.ts") {
+		continue;
+	}
+	if (!isStyleSource(name) && !name.endsWith(".tsx")) {
 		continue;
 	}
 	const lines = (await Bun.file(`${root}/${name}`).text()).split("\n");
 	for (const [index, line] of lines.entries()) {
-		if (colour.test(line) || size.test(line)) {
+		const styleLine = isStyleSource(name) || line.includes("style");
+		if (styleLine && (colour.test(line) || size.test(line))) {
 			failures.push(`${name}:${index + 1}: colour or size literal`);
 		}
 		colour.lastIndex = 0;
+		if (!styleLine) {
+			continue;
+		}
 		for (const match of line.matchAll(customProperty)) {
 			const property = match[0];
 			if (!declared.has(property.slice(2))) {

@@ -8,8 +8,6 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 
-const hairline = `${measure.hairline} solid ${colours.line}` as const;
-const strongLine = `${measure.hairline} solid ${colours.lineStrong}` as const;
 const focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
 export const shell = stylex.create({
@@ -186,6 +184,9 @@ export const cards = stylex.create({
 	},
 	mermaidHost: {
 		maxWidth: measure.diagram,
+	},
+	graphSvg: {
+		width: "100%",
 	},
 	pointer: {
 		cursor: "pointer",
@@ -525,12 +526,3 @@ export const settings = stylex.create({
 		color: colours.saved,
 	},
 });
-
-export const reset = stylex.create({
-	box: {
-		boxSizing: "border-box",
-	},
-});
-
-void hairline;
-void strongLine;

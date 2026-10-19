@@ -7,3 +7,7 @@ export function clsx(
 ): string {
 	return stylex.props(...styles).className ?? "";
 }
+
+export function classToken(style: Style): string {
+	return stylex.props(style).className ?? "";
+}

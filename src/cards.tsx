@@ -9,7 +9,7 @@ import {
 } from "./notify.tsx";
 import { navLabel, stateLabel, viewLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
-import { clsx } from "./ui.ts";
+import { classToken, clsx } from "./ui.ts";
 import { cards, shell } from "./ui-styles.ts";
 
 function startMermaid(): void {
@@ -276,6 +276,7 @@ function bindGraph(
 			continue;
 		}
 		label.id = id;
+		label.classList.add(classToken(cards.pointer));
 		label.addEventListener("click", () => openProject(project.name));
 	}
 	for (const edge of edges) {
@@ -285,6 +286,7 @@ function bindGraph(
 			continue;
 		}
 		label.id = id;
+		label.classList.add(classToken(cards.pointer));
 		label.addEventListener("click", () =>
 			openProject(edge.blocker.project, edge.blocker.key),
 		);
@@ -307,6 +309,7 @@ function GraphView({ overview, svg }: { overview: Overview; svg: string }) {
 		if (drawn.namespaceURI !== "http://www.w3.org/2000/svg") {
 			return;
 		}
+		drawn.classList.add(classToken(cards.graphSvg));
 		node.appendChild(document.importNode(drawn, true));
 		bindGraph(node, overview, graphEdges(overview));
 	}, [overview, svg]);

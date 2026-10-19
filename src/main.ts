@@ -324,7 +324,10 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		return result(0);
 	}
 
-	const configFlag = flagValue(args, "--config");
+	const configFlag = flagValue(
+		args.filter((arg) => !arg.endsWith("/bunfig.toml")),
+		"--config",
+	);
 	if (
 		args.includes("--config") &&
 		(configFlag === undefined || configFlag.trim() === "")
@@ -413,6 +416,20 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 }
 
 if (import.meta.main) {
+	const checkout = dirname(import.meta.dir);
+	const bunfig = join(checkout, "bunfig.toml");
+	if (existsSync(bunfig) && process.cwd() !== checkout) {
+		const child = Bun.spawn(
+			[process.execPath, ...process.execArgv, ...process.argv.slice(1)],
+			{
+				cwd: checkout,
+				stdin: "inherit",
+				stdout: "inherit",
+				stderr: "inherit",
+			},
+		);
+		process.exit(await child.exited);
+	}
 	const result = await run(process.argv.slice(2), {
 		env: process.env,
 		fetch: globalThis.fetch,

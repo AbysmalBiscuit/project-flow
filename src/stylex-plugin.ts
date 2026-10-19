@@ -1,23 +1,17 @@
-import pluginSyntaxJsx from "@babel/plugin-syntax-jsx";
-import pluginSyntaxTypescript from "@babel/plugin-syntax-typescript";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+import type { PluginItem } from "@babel/core";
+import babel from "@babel/core";
 import stylexBabelPlugin from "@stylexjs/babel-plugin";
 import type { BunPlugin } from "bun";
 
-type BabelResult = {
-	code: string | null;
-	metadata?: { stylex?: ReadonlyArray<readonly unknown[]> };
+const loadedPlugin = (name: string): PluginItem => {
+	const path = require.resolve(name);
+	const loaded = require(path) as { default?: PluginItem };
+	return loaded.default ?? (loaded as PluginItem);
 };
 
-type BabelApi = {
-	transformAsync: (
-		code: string,
-		options: Record<string, unknown>,
-	) => Promise<BabelResult | null>;
-};
-
-const babel = (await import("@babel/core" as string)) as BabelApi;
-
-const rootDir = `${import.meta.dir}/..`;
+const rootDir = realpathSync(resolve(import.meta.dir, ".."));
 const rules = new Map<string, ReadonlyArray<readonly unknown[]>>();
 
 async function compile(code: string, filename: string): Promise<string> {
@@ -26,8 +20,11 @@ async function compile(code: string, filename: string): Promise<string> {
 		configFile: false,
 		filename,
 		plugins: [
-			[pluginSyntaxTypescript, { isTSX: filename.endsWith("x") }],
-			pluginSyntaxJsx,
+			[
+				loadedPlugin("@babel/plugin-syntax-typescript"),
+				{ isTSX: filename.endsWith("x") },
+			],
+			loadedPlugin("@babel/plugin-syntax-jsx"),
 			stylexBabelPlugin.withOptions({
 				dev: false,
 				runtimeInjection: false,
@@ -80,7 +77,7 @@ async function compileTree(): Promise<Map<string, string>> {
 	});
 	const output = new Map<string, string>();
 	for await (const name of files) {
-		const path = `${rootDir}/${name}`;
+		const path = realpathSync(resolve(rootDir, name));
 		const code = await Bun.file(path).text();
 		if (!code.includes("@stylexjs/stylex")) {
 			continue;
@@ -107,7 +104,7 @@ const plugin: BunPlugin = {
 		});
 		build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
 			const output = await compiledTree();
-			const next = output.get(args.path);
+			const next = output.get(realpathSync(args.path));
 			if (next === undefined) {
 				return undefined;
 			}
