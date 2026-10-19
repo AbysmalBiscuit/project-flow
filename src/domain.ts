@@ -1132,11 +1132,11 @@ function themeOf(
 	if (isEpic(root)) {
 		return root.title;
 	}
-	if (ticket.key !== null && roots.has(ticket.key.toLowerCase())) {
-		return ticket.title;
-	}
 	if (root !== ticket && root.key !== null) {
 		return root.title;
+	}
+	if (ticket.key !== null && roots.has(ticket.key.toLowerCase())) {
+		return ticket.title;
 	}
 	return scopeOf(ticket.title);
 }

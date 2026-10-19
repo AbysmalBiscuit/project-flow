@@ -606,6 +606,56 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a mid-level parent takes the top parent's title as its theme", async () => {
+		const top = issue(10, "Ship the board", {
+			milestone: { title: "October" },
+		});
+		const mid = issue(11, "Draw the legend", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/10`,
+			milestone: { title: "October" },
+		});
+		const leaf = issue(12, "feat(legend): add the key", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/11`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([top, mid, leaf]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				const october = map?.diagrams?.find(
+					(diagram) => diagram.id === "map_3a_October",
+				);
+				expect(
+					october?.nodes.find((node) => node.ticket === "acme/widget#11")
+						?.label,
+				).toBe("Draw the legend");
+				expect(
+					october?.nodes
+						.filter((node) => node.state === "theme")
+						.map((node) => node.label),
+				).toEqual(["Ship the board"]);
+				expect(october?.definition).toContain(
+					'October_3a_Ship_20_the_20_board["Ship the board"]:::theme',
+				);
+				expect(october?.definition).toContain(
+					"October_3a_Ship_20_the_20_board --> acme_2f_widget_23_11",
+				);
+				expect(october?.definition).not.toContain(
+					'["Draw the legend"]:::theme',
+				);
+			},
+		);
+	});
+
 	test("a ticket that is the root of another ticket takes its own title as its theme", async () => {
 		const parent = issue(7, "Write the notes", {
 			milestone: { title: "October" },
