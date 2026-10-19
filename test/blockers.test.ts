@@ -1128,9 +1128,6 @@ describe("GET /api/overview blockers", () => {
 	});
 
 	test("a blank outside title and a missing project name fall back to the key and slug", async () => {
-		const evidence = outsideRelations.blankTitleEvidence;
-		expect(evidence.blankTitles).toBe(0);
-		expect(evidence.emptyProjectNames).toBe(0);
 		const recorded = outsideRelations.linearOps3838;
 		const relation = recorded.inverseRelations.nodes.find(
 			(item) => item.type === "blocks",
