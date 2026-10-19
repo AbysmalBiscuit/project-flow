@@ -76,3 +76,17 @@ run = ["bun", "run", "lint"]
 [tasks.check]
 description = "Type check, test, and lint with format check"
 steps = [{ task = "typecheck" }, { task = "test" }, { task = "lint" }]
+
+[apps.project-flow]
+base_port = 47100
+path = "."
+launch = ["bun", "src/main.ts", "--port", "{{ port }}"]
+url = "http://127.0.0.1:{{ port }}"
+
+[tasks.install]
+description = "Install the dependencies from the lockfile"
+run = ["bun", "install", "--frozen-lockfile"]
+
+[tasks.start]
+description = "Install the dependencies, then serve the app"
+steps = [{ task = "install" }, { up = "project-flow" }]

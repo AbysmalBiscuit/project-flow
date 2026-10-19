@@ -18,7 +18,7 @@ Start the app:
 bun start
 ```
 
-`bun run dev` starts the app with hot reload.
+`bun run dev` starts the app with hot reload. `devkit run task start` installs the dependencies, then serves the app on its devkit port.
 
 The process prints a URL on localhost. Open that URL in a browser.
 
