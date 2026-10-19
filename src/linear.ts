@@ -82,11 +82,12 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			projectMilestone { name }
 			labels { nodes { name } }
 			assignee { id name displayName }
-			comments(first: 50) {
-				nodes { body createdAt user { name displayName } }
-			}
 			attachments {
 				nodes { url title sourceType }
+			}
+			comments(first: 50) {
+				nodes { body createdAt user { name displayName } }
+				pageInfo { hasNextPage endCursor }
 			}
 			inverseRelations(first: 30) {
 				nodes {
@@ -173,6 +174,7 @@ const issueNode = z.object({
 		})
 		.nullable()
 		.optional(),
+	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	comments: z
 		.object({
 			nodes: z.array(
@@ -188,9 +190,9 @@ const issueNode = z.object({
 						.optional(),
 				}),
 			),
+			pageInfo: pageInfo.optional(),
 		})
 		.optional(),
-	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	inverseRelations: z
 		.object({
 			nodes: z.array(
@@ -401,6 +403,73 @@ async function findLinearProject(
 	return match;
 }
 
+const commentPage = z.object({
+	data: z.object({
+		issue: z
+			.object({
+				comments: z.object({
+					nodes: z.array(z.object({ body: z.string().nullable() })),
+					pageInfo,
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+const commentsQuery = `query IssueComments($id: String!, $after: String) {
+	issue(id: $id) {
+		comments(first: 50, after: $after) {
+			nodes { body }
+			pageInfo { hasNextPage endCursor }
+		}
+	}
+}`;
+
+async function commentPages(
+	key: string,
+	fetchImpl: Fetch,
+	id: string,
+	after: string | null,
+): Promise<{ body: string }[]> {
+	const comments: { body: string }[] = [];
+	let cursor = after;
+	do {
+		const response = await fetchImpl(endpoint, {
+			method: "POST",
+			headers: linearHeaders(key),
+			body: JSON.stringify({
+				query: commentsQuery,
+				variables: { id, after: cursor },
+			}),
+		});
+		if (!response.ok) {
+			throw new Error(
+				`Linear list comments failed (HTTP ${response.status}): ${id}`,
+			);
+		}
+		const page = commentPage.parse(await response.json());
+		const error = page.errors?.[0];
+		if (error !== undefined) {
+			throw new Error(`Linear list comments failed: ${error.message}`);
+		}
+		const connection = page.data.issue?.comments;
+		if (connection === undefined) {
+			throw new Error(`Linear list comments failed: ${id}`);
+		}
+		for (const node of connection.nodes) {
+			const body = node.body ?? "";
+			if (body !== "") {
+				comments.push({ body });
+			}
+		}
+		cursor = connection.pageInfo.hasNextPage
+			? connection.pageInfo.endCursor
+			: null;
+	} while (cursor !== null);
+	return comments;
+}
+
 function pullFromUrl(url: string): { repo: string; number: number } | null {
 	const match = url.match(
 		/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)$/,
@@ -536,9 +605,25 @@ export function linearTracker(
 			const tickets: Ticket[] = [];
 			for (const node of await issues(project.id, since)) {
 				const ticket = toTicket(node);
-				if (ticket !== null) {
-					tickets.push(ticket);
+				if (ticket === null) {
+					continue;
 				}
+				if (node.comments?.pageInfo?.hasNextPage === true) {
+					const seen = new Set(
+						(ticket.comments ?? []).map((comment) => comment.body),
+					);
+					for (const comment of await commentPages(
+						key,
+						fetchImpl,
+						node.identifier ?? ticket.key ?? "",
+						node.comments.pageInfo.endCursor,
+					)) {
+						if (!seen.has(comment.body)) {
+							ticket.comments = [...(ticket.comments ?? []), comment];
+						}
+					}
+				}
+				tickets.push(ticket);
 			}
 			return { name: project.name, tickets };
 		},

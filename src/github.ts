@@ -419,6 +419,9 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 							milestone { title }
 							labels(first: 20) { nodes { name } }
 							parent { number repository { nameWithOwner } }
+							closedByPullRequestsReferences(first: 20) {
+								nodes { number }
+							}
 						}
 					}
 				}
@@ -428,45 +431,45 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 	}
 }`;
 
+const projectItem = z.object({
+	content: z
+		.object({
+			__typename: z.string(),
+			number: z.number().optional(),
+			title: z.string().optional(),
+			state: z.string().optional(),
+			stateReason: z.string().nullable().optional(),
+			updatedAt: z.string().optional(),
+			repository: z.object({ nameWithOwner: z.string() }).optional(),
+			milestone: z.object({ title: z.string() }).nullable().optional(),
+			labels: z
+				.object({
+					nodes: z.array(z.object({ name: z.string() })),
+				})
+				.nullable()
+				.optional(),
+			parent: z
+				.object({
+					number: z.number(),
+					repository: z.object({ nameWithOwner: z.string() }),
+				})
+				.nullable()
+				.optional(),
+			closedByPullRequestsReferences: z
+				.object({
+					nodes: z.array(z.object({ number: z.number() })),
+				})
+				.optional(),
+		})
+		.nullable(),
+});
+
 const projectItems = z.object({
 	data: z.object({
 		node: z
 			.object({
 				items: z.object({
-					nodes: z.array(
-						z.object({
-							content: z
-								.object({
-									__typename: z.string(),
-									number: z.number().optional(),
-									title: z.string().optional(),
-									state: z.string().optional(),
-									stateReason: z.string().nullable().optional(),
-									updatedAt: z.string().optional(),
-									repository: z
-										.object({ nameWithOwner: z.string() })
-										.optional(),
-									milestone: z
-										.object({ title: z.string() })
-										.nullable()
-										.optional(),
-									labels: z
-										.object({
-											nodes: z.array(z.object({ name: z.string() })),
-										})
-										.nullable()
-										.optional(),
-									parent: z
-										.object({
-											number: z.number(),
-											repository: z.object({ nameWithOwner: z.string() }),
-										})
-										.nullable()
-										.optional(),
-								})
-								.nullable(),
-						}),
-					),
+					nodes: z.array(projectItem),
 					pageInfo,
 				}),
 			})
@@ -527,12 +530,14 @@ function githubReason(reason: string | null): string | null {
 	return reason;
 }
 
-async function listProjectTickets(
+type ProjectItem = z.infer<typeof projectItem>;
+
+async function listProjectItems(
 	token: string,
 	fetchImpl: Fetch,
 	projectId: string,
-): Promise<Ticket[]> {
-	const tickets: Ticket[] = [];
+): Promise<ProjectItem[]> {
+	const items: ProjectItem[] = [];
 	let after: string | null = null;
 	do {
 		const response = await fetchImpl("https://api.github.com/graphql", {
@@ -557,46 +562,159 @@ async function listProjectTickets(
 			throw new Error(`GitHub list project tickets failed: ${projectId}`);
 		}
 		for (const item of page.data.node.items.nodes) {
-			const content = item.content;
-			if (
-				content === null ||
-				content.__typename !== "Issue" ||
-				content.number === undefined ||
-				content.state === undefined ||
-				content.repository === undefined
-			) {
-				continue;
-			}
-			const state = githubState(content.state);
-			if (state === null) {
-				continue;
-			}
-			const repoName = content.repository.nameWithOwner;
-			const parent =
-				content.parent === null || content.parent === undefined
-					? null
-					: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
-			tickets.push({
-				id: String(content.number),
-				tracker: "github",
-				key: `${repoName}#${content.number}`,
-				title: content.title ?? "",
-				state,
-				stateReason: githubReason(content.stateReason ?? null),
-				updatedAt: content.updatedAt ?? "",
-				ref: `${repoName}#${content.number}`,
-				body: "",
-				blockedBy: [],
-				milestone: content.milestone?.title ?? null,
-				parent,
-				labels: content.labels?.nodes.map((label) => label.name) ?? [],
-			});
+			items.push(item);
 		}
 		after = page.data.node.items.pageInfo.hasNextPage
 			? page.data.node.items.pageInfo.endCursor
 			: null;
 	} while (after !== null);
+	return items;
+}
+
+async function listProjectTickets(
+	token: string,
+	fetchImpl: Fetch,
+	items: ProjectItem[],
+): Promise<Ticket[]> {
+	const tickets: Ticket[] = [];
+	for (const item of items) {
+		const content = item.content;
+		if (
+			content === null ||
+			content.__typename !== "Issue" ||
+			content.number === undefined ||
+			content.state === undefined ||
+			content.repository === undefined
+		) {
+			continue;
+		}
+		const state = githubState(content.state);
+		if (state === null) {
+			continue;
+		}
+		const repoName = content.repository.nameWithOwner;
+		const parent =
+			content.parent === null || content.parent === undefined
+				? null
+				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
+		const comments = await listCommentBodies(
+			token,
+			fetchImpl,
+			repoName,
+			content.number,
+		);
+		tickets.push({
+			id: String(content.number),
+			tracker: "github",
+			key: `${repoName}#${content.number}`,
+			title: content.title ?? "",
+			state,
+			stateReason: githubReason(content.stateReason ?? null),
+			updatedAt: content.updatedAt ?? "",
+			ref: `${repoName}#${content.number}`,
+			body: "",
+			blockedBy: [],
+			...(comments.length === 0 ? {} : { comments }),
+			milestone: content.milestone?.title ?? null,
+			parent,
+			labels: content.labels?.nodes.map((label) => label.name) ?? [],
+		});
+	}
 	return tickets;
+}
+
+async function listProjectPulls(
+	token: string,
+	fetchImpl: Fetch,
+	items: ProjectItem[],
+	seen: Map<string, ReviewEvidence>,
+): Promise<PullRequest[]> {
+	const pulls: PullRequest[] = [];
+	const seenPulls = new Set<string>();
+	for (const item of items) {
+		const content = item.content;
+		if (
+			content === null ||
+			content.__typename !== "Issue" ||
+			content.number === undefined ||
+			content.repository === undefined ||
+			githubState(content.state ?? "") !== "open"
+		) {
+			continue;
+		}
+		const repoName = content.repository.nameWithOwner;
+		for (const linked of content.closedByPullRequestsReferences?.nodes ?? []) {
+			const key = `${repoName}#${linked.number}`;
+			if (seenPulls.has(key)) {
+				continue;
+			}
+			seenPulls.add(key);
+			const loaded = await loadOpenPull(
+				token,
+				fetchImpl,
+				repoName,
+				linked.number,
+				[`${repoName}#${content.number}`],
+			);
+			if (loaded !== null) {
+				pulls.push(loaded);
+			}
+		}
+	}
+	for (const repo of new Set(pulls.map((pull) => pull.repo))) {
+		pulls.push(...(await mergedPullHistory(repo, token, fetchImpl, seen)));
+	}
+	return pulls;
+}
+
+async function loadOpenPull(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	number: number,
+	closingKeys: string[],
+): Promise<PullRequest | null> {
+	const response = await fetchImpl(
+		`https://api.github.com/repos/${repo}/pulls/${number}`,
+		{ headers: githubHeaders(token) },
+	);
+	if (!response.ok) {
+		return null;
+	}
+	const pull = githubPull.parse(await response.json());
+	if (pull.state !== "open") {
+		return null;
+	}
+	const head = pull.head.sha ?? "";
+	const review =
+		head === ""
+			? { checks: [], comments: [], reviews: [], reactions: [] }
+			: await pullReview(
+					repo,
+					pull.number,
+					head,
+					pull.draft === true,
+					token,
+					fetchImpl,
+				);
+	const headCommittedAt =
+		pull.draft === true || head === ""
+			? null
+			: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
+	return {
+		repo,
+		number: pull.number,
+		url: pull.html_url,
+		title: pull.title,
+		draft: pull.draft === true,
+		branch: pull.head.ref,
+		body: pull.body ?? "",
+		closingKeys,
+		headSha: head,
+		headCommittedAt,
+		merged: false,
+		...review,
+	};
 }
 
 async function fetchJson(
@@ -837,13 +955,32 @@ export async function pullReview(
 
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 	const seenReviews = new Map<string, ReviewEvidence>();
+	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
+	const projectItems = (projectId: string) => {
+		const cached = projectItemsById.get(projectId);
+		if (cached !== undefined) {
+			return cached;
+		}
+		const listed = listProjectItems(token, fetchImpl, projectId).catch(
+			(error: unknown) => {
+				projectItemsById.delete(projectId);
+				throw error;
+			},
+		);
+		projectItemsById.set(projectId, listed);
+		return listed;
+	};
 	return {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},
 		async listTickets(repo, since) {
 			if (!repo.includes("/")) {
-				const tickets = await listProjectTickets(token, fetchImpl, repo);
+				const tickets = await listProjectTickets(
+					token,
+					fetchImpl,
+					await projectItems(repo),
+				);
 				return { name: repo, tickets };
 			}
 			const tickets: Ticket[] = [];
@@ -908,7 +1045,12 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		},
 		async listPulls(repo) {
 			if (!repo.includes("/")) {
-				return [];
+				return listProjectPulls(
+					token,
+					fetchImpl,
+					await projectItems(repo),
+					seenReviews,
+				);
 			}
 			const pulls: PullRequest[] = [];
 			const listed = await pages(

@@ -134,6 +134,92 @@ function mergedPull(): Record<string, unknown> {
 	};
 }
 
+function projectBoard(
+	comments: { body: string }[],
+	pulls: { number: number }[] = [{ number: 83 }],
+): Fetch {
+	const projectId = "PVT_widget";
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
+		const url = urlOf(input);
+		const sent = typeof init?.body === "string" ? init.body : "";
+		if (url === "https://api.github.com/user") {
+			return page({ login: "lev" });
+		}
+		if (url === "https://api.github.com/graphql" && sent.includes("$owner")) {
+			return page({
+				data: {
+					repositoryOwner: {
+						projectV2: {
+							id: projectId,
+							number: 7,
+							title: "Widget board",
+							closed: false,
+							updatedAt: "2026-10-01T00:00:00Z",
+						},
+					},
+				},
+			});
+		}
+		if (url === "https://api.github.com/graphql" && sent.includes("node(id:")) {
+			return page({
+				data: {
+					node: {
+						items: {
+							nodes: [
+								{
+									content: {
+										__typename: "Issue",
+										number: 8,
+										title: "Ticket 8",
+										state: "OPEN",
+										stateReason: null,
+										updatedAt: "2026-10-01T00:00:00Z",
+										repository: { nameWithOwner: repo },
+										comments: {
+											nodes: comments,
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+										closedByPullRequestsReferences: { nodes: pulls },
+									},
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			});
+		}
+		const pullMatch = url.match(/\/repos\/[^/]+\/[^/]+\/pulls\/(\d+)$/);
+		if (pullMatch?.[1] !== undefined) {
+			return page(pull(Number(pullMatch[1])));
+		}
+		if (url.includes("/commits/") && url.includes("/check-runs")) {
+			return page({ check_runs: [] });
+		}
+		if (url.includes("/commits/")) {
+			return page({
+				commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+			});
+		}
+		if (url.includes("/pulls?state=closed")) {
+			return page([]);
+		}
+		if (
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/reactions") ||
+			url.includes("/branches")
+		) {
+			return page([]);
+		}
+		return new Response("not recorded", { status: 404 });
+	};
+}
+
 function page(items: unknown): Response {
 	return new Response(JSON.stringify(items), {
 		status: 200,
@@ -2395,6 +2481,453 @@ describe("review cycle", () => {
 			expect(requests.some((url) => url.includes("/issues/8/comments"))).toBe(
 				true,
 			);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a workcell progress comment on a Linear ticket keeps its PR in review", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const requests: string[] = [];
+		const recorded = linearFake({
+			requests,
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
+					state: { type: "unstarted" },
+					comments: {
+						nodes: [{ body: "noted" }],
+						pageInfo: { hasNextPage: true, endCursor: "page-2" },
+					},
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/83",
+								title: "PR 83",
+								sourceType: "github",
+							},
+						],
+					},
+				},
+			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/83") {
+					return page(pull(83));
+				}
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
+					return page({ check_runs: [] });
+				}
+				if (url.includes("/commits/")) {
+					return page({
+						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+					});
+				}
+				if (url.includes("/pulls?state=closed")) {
+					return page([]);
+				}
+				if (
+					url.includes("/comments") ||
+					url.includes("/reviews") ||
+					url.includes("/reactions") ||
+					url.includes("/branches")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (sent.includes("IssueComments")) {
+				requests.push(sent);
+				return page({
+					data: {
+						issue: {
+							comments: {
+								nodes: [
+									{
+										body: progress(
+											"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+										),
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			return recorded(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget launch",
+						tracker: "linear",
+						inReview: 1,
+						awaitingMerge: 0,
+						tickets: [{ key: "WID-8", state: "inReview" }],
+					},
+				],
+			});
+			expect(requests.some((body) => body.includes("IssueComments"))).toBe(
+				true,
+			);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a workcell progress comment on a GitHub project ticket keeps its PR in review", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const board = projectBoard([
+			{
+				body: progress(
+					"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+				),
+			},
+		]);
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: board,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget board",
+						tracker: "github",
+						inReview: 1,
+						awaitingMerge: 0,
+						tickets: [{ key: `${repo}#8`, state: "inReview" }],
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank Linear comment does not invent a workcell run", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const recorded = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
+					state: { type: "unstarted" },
+					comments: {
+						nodes: [{ body: "   " }, { body: null }],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/83",
+								title: "PR 83",
+								sourceType: "github",
+							},
+						],
+					},
+				},
+			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/83") {
+					return page(pull(83));
+				}
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
+					return page({ check_runs: [] });
+				}
+				if (url.includes("/commits/")) {
+					return page({
+						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+					});
+				}
+				if (url.includes("/pulls?state=closed")) {
+					return page([]);
+				}
+				if (
+					url.includes("/comments") ||
+					url.includes("/reviews") ||
+					url.includes("/reactions") ||
+					url.includes("/branches")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						tickets: [{ key: "WID-8", state: "awaitingMerge" }],
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a failed Linear comment page does not invent a workcell run", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const recorded = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
+					state: { type: "unstarted" },
+					comments: {
+						nodes: [{ body: "noted" }],
+						pageInfo: { hasNextPage: true, endCursor: "page-2" },
+					},
+				},
+			],
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (sent.includes("IssueComments")) {
+				return new Response("recorded failure", { status: 500 });
+			}
+			return recorded(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<string>((resolve) => {
+			startChecks = (base: string) => resolve(base);
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: (async () => {
+						const base = await checks;
+						const response = await fetch(new URL("/api/overview", base));
+						expect(response.status).not.toBe(200);
+					})(),
+				}),
+			);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr).toContain("Linear list comments failed");
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a final report on a GitHub project ticket sets its PR to awaiting merge", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
+				expectedBots: { [repo]: [] },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const board = projectBoard([
+			{
+				body: progress(
+					"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+				),
+			},
+			{
+				body: "Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->",
+			},
+		]);
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: board,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget board",
+						tracker: "github",
+						inReview: 0,
+						awaitingMerge: 1,
+						tickets: [{ key: `${repo}#8`, state: "awaitingMerge" }],
+					},
+				],
+			});
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
