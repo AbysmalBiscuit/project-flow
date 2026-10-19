@@ -1,2 +1,5 @@
 [serve.static]
 plugins = ["./src/stylex-plugin.ts"]
+
+[test]
+preload = ["./test/preload.ts"]

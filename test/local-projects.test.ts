@@ -594,7 +594,7 @@ describe("local projects", () => {
 		});
 	});
 
-	test("a Linear worktree branch names its open Linear project", async () => {
+	test("a Linear worktree branch names its open Linear project without the real home", async () => {
 		const scan = await mkdtemp(join(tmpdir(), "project-flow-worktree-"));
 		const checkout = join(scan, "other", "docs");
 		try {
@@ -616,7 +616,6 @@ describe("local projects", () => {
 				{
 					env: {
 						PATH: process.env.PATH ?? "",
-						HOME: process.env.HOME ?? "",
 					},
 				},
 			);
