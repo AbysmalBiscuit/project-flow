@@ -619,22 +619,15 @@ async function fetchRows<Row, Mapped>(
 	map: (item: Row) => Mapped | null,
 ): Promise<Mapped[]> {
 	const mapped: Mapped[] = [];
-	let url: string | null = start;
-	while (url !== null) {
-		const response = await fetchImpl(url, { headers: githubHeaders(token) });
-		if (!response.ok) {
-			throw new Error(
-				`GitHub ${label} failed (HTTP ${response.status}): ${url}`,
-			);
-		}
-		const page = z.array(row).parse(await response.json());
-		for (const item of page) {
+	const repo = new URL(start).pathname.split("/").slice(2, 4).join("/");
+	const bodies = await pages(start, token, fetchImpl, repo, label);
+	for (const body of bodies) {
+		for (const item of z.array(row).parse(body)) {
 			const value = map(item);
 			if (value !== null) {
 				mapped.push(value);
 			}
 		}
-		url = nextPage(response.headers.get("link"));
 	}
 	return mapped;
 }
