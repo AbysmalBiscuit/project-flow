@@ -1385,6 +1385,68 @@ describe("replies", () => {
 		}
 	});
 
+	test("a display name still finds the GitHub row and quotes its ask", async () => {
+		const sent: Sent[] = [];
+		const headline = "This waits on Lev for the signing key.";
+		const recorded = githubFetch(sent, {
+			issues: [{ ...issue(7), comments: 1 }],
+			comments: {
+				7: [
+					{
+						id: 72,
+						body: `Senior, ${headline}\n\n${ask("gh-board")}`,
+						user: { login: "ada" },
+						created_at: "2026-08-18T12:00:00.000Z",
+					},
+				],
+			},
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const listed = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(listed.find((item) => item.key === "acme/widget#7")).toMatchObject(
+				{
+					project: "acme/widget",
+					answered: false,
+				},
+			);
+			const posted = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "github",
+					project: "Widget board",
+					key: "acme/widget#7",
+					body: "Use the short name.",
+				}),
+			});
+			expect(posted.status).toBe(201);
+			expect(
+				JSON.parse(
+					sent.find(
+						(item) =>
+							item.method === "POST" && item.url.includes("/issues/7/comments"),
+					)?.body ?? "{}",
+				),
+			).toEqual({
+				body: `> ${headline}\n\nUse the short name.`,
+			});
+			const needs = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(needs.find((item) => item.key === "acme/widget#7")).toMatchObject({
+				answered: true,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a GitHub project with a senior posts an unnamed ask unchanged", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {

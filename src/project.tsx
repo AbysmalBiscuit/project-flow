@@ -345,11 +345,7 @@ function Page() {
 			{open && ticket !== null ? (
 				<TicketPanel
 					tracker={report.tracker}
-					project={
-						report.tracker === "github" && ticket.includes("/")
-							? (ticket.split("#")[0] ?? report.name)
-							: report.name
-					}
+					project={report.name}
 					ticketKey={ticket}
 					onClose={() => setOpen(false)}
 				/>

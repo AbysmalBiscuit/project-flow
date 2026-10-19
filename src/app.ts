@@ -30,7 +30,11 @@ import {
 	todoRows,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { githubProjectByNumber, githubTracker } from "./github.ts";
+import {
+	githubProjectByNumber,
+	githubTicketKey,
+	githubTracker,
+} from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
@@ -322,13 +326,16 @@ function rowForReply(
 	store: Store,
 	reply: { tracker: string; project: string; key: string },
 ): Snapshot | undefined {
-	return store
-		.readTickets()
-		.find(
-			(item) =>
-				item.tracker === reply.tracker &&
-				(item.key === reply.project || item.name === reply.project),
-		);
+	const repo = githubTicketKey(reply.key)?.repo;
+	return store.readTickets().find((item) => {
+		if (item.tracker !== reply.tracker) {
+			return false;
+		}
+		if (item.key === reply.project || item.name === reply.project) {
+			return true;
+		}
+		return repo !== undefined && item.key === repo;
+	});
 }
 
 function ticketForReply(
