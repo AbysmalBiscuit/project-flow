@@ -2,20 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { NeedsYouItem } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { linearFake, tempConfig, testIo, urlOf } from "./support.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
-
-type NeedsItem = {
-	project: string;
-	key: string;
-	headline: string;
-	reason: "ask" | "awaitingMerge" | "label";
-	tags: string[];
-	answered: boolean;
-};
 
 const linearProject = {
 	id: "project-flow",
@@ -97,12 +89,12 @@ describe("needs you", () => {
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<NeedsItem[]>((resolve, reject) => {
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {
 				fetch(new URL("/api/needs-you", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve((await response.json()) as NeedsItem[]);
+						resolve((await response.json()) as NeedsYouItem[]);
 					})
 					.catch(reject);
 			};
@@ -143,6 +135,213 @@ describe("needs you", () => {
 			});
 		} finally {
 			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("lists a named ask in a senior project and omits an unnamed ask", async () => {
+		const repo = "acme/widget";
+		const named = "This waits on Lev for the signing key.";
+		const recorded: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return page([]);
+			}
+			if (url === "https://api.github.com/graphql") {
+				if (body.includes("ViewerProjects") || body.includes("OrgProjects")) {
+					return Response.json({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					});
+				}
+				return Response.json({
+					data: {
+						repository: {
+							pullRequest: { closingIssuesReferences: { nodes: [] } },
+						},
+					},
+				});
+			}
+			if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
+				return page([
+					{
+						number: 4,
+						title: "Named escalation",
+						state: "open",
+						state_reason: null,
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						comments: 1,
+						assignee: null,
+						labels: [],
+					},
+					{
+						number: 5,
+						title: "Unnamed ask",
+						state: "open",
+						state_reason: null,
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						comments: 1,
+						assignee: null,
+						labels: [],
+					},
+				]);
+			}
+			if (
+				url ===
+				`https://api.github.com/repos/${repo}/issues/4/comments?per_page=100&page=1`
+			) {
+				return page([
+					{
+						body: `Senior, ${named}\n\n${ask("gh-4")}`,
+						created_at: "2026-10-01T00:00:00Z",
+						user: { login: "agent" },
+					},
+				]);
+			}
+			if (
+				url ===
+				`https://api.github.com/repos/${repo}/issues/5/comments?per_page=100&page=1`
+			) {
+				return page([
+					{
+						body: `Which bot should review this?\n\n${ask("gh-5")}`,
+						created_at: "2026-10-01T00:00:00Z",
+						user: { login: "agent" },
+					},
+				]);
+			}
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/comments") ||
+				url.includes("/reviews") ||
+				url.includes("/reactions")
+			) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
+			startChecks = (base) => {
+				fetch(new URL("/api/needs-you", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve((await response.json()) as NeedsYouItem[]);
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const items = await checks;
+			expect(items.map((item) => item.key)).toEqual([`${repo}#4`]);
+			expect(items[0]).toMatchObject({
+				headline: named,
+				reason: "ask",
+				tags: ["matched by name"],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a Linear project set false omits an unnamed ask and a string list still loads", async () => {
+		const unnamed = "Which bot should review this?";
+		const issues = [
+			linearIssue("PF-1", "Unnamed ask", unnamed, [
+				{ body: `${unnamed}\n\n${ask("pf-1")}` },
+			]),
+		];
+		const recorded = linearFake({ project: linearProject, issues });
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "project-flow" }],
+				noSenior: { "project-flow": false, "kept-as-list": true },
+			}),
+		);
+		const listed = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "project-flow" }],
+				noSenior: ["project-flow"],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
+			startChecks = (base) => {
+				fetch(new URL("/api/needs-you", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve((await response.json()) as NeedsYouItem[]);
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const loaded = await run(
+				["--config", listed.path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "listed.sqlite"),
+					waitForStop: Promise.resolve(),
+				}),
+			);
+			expect(loaded.exitCode).toBe(0);
+			expect(loaded.stderr).toBe("");
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(await checks).toEqual([]);
+		} finally {
+			await cleanup();
+			await listed.cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
 	});
@@ -261,12 +460,12 @@ describe("needs you", () => {
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<NeedsItem[]>((resolve, reject) => {
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {
 				fetch(new URL("/api/needs-you", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						resolve((await response.json()) as NeedsItem[]);
+						resolve((await response.json()) as NeedsYouItem[]);
 					})
 					.catch(reject);
 			};
