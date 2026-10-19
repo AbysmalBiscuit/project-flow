@@ -22,6 +22,7 @@
 		{ "assert_text": "Leave the copy" },
 		{ "assert_text": "acme/gate#9" },
 		{ "shot": "feature-map-states" },
+		{ "click": "a[href='#blockingChains']" },
 		{ "assert_text": "Blocking chains" },
 		{ "assert_text": "Hold the launch" },
 		{ "assert_text": "Hold for the draft" },
