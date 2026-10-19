@@ -82,11 +82,12 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			projectMilestone { name }
 			labels { nodes { name } }
 			assignee { id name displayName }
-			comments(first: 50) {
-				nodes { body createdAt user { name displayName } }
-			}
 			attachments {
 				nodes { url title sourceType }
+			}
+			comments(first: 50) {
+				nodes { body createdAt user { name displayName } }
+				pageInfo { hasNextPage endCursor }
 			}
 			inverseRelations(first: 30) {
 				nodes {
@@ -173,6 +174,7 @@ const issueNode = z.object({
 		})
 		.nullable()
 		.optional(),
+	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	comments: z
 		.object({
 			nodes: z.array(
@@ -188,9 +190,9 @@ const issueNode = z.object({
 						.optional(),
 				}),
 			),
+			pageInfo: pageInfo.optional(),
 		})
 		.optional(),
-	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	inverseRelations: z
 		.object({
 			nodes: z.array(
@@ -279,24 +281,8 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		return null;
 	}
 	const comments = (node.comments?.nodes ?? []).flatMap((comment) => {
-		const body = comment.body ?? "";
-		if (body === "") {
-			return [];
-		}
-		return [
-			{
-				body,
-				...(comment.createdAt === undefined
-					? {}
-					: { createdAt: comment.createdAt }),
-				...(comment.user?.displayName !== undefined &&
-				comment.user.displayName !== null
-					? { author: comment.user.displayName }
-					: comment.user?.name !== undefined && comment.user.name !== null
-						? { author: comment.user.name }
-						: {}),
-			},
-		];
+		const listed = listedComment(comment);
+		return listed === null ? [] : [listed];
 	});
 	const assignee = node.assignee?.id ?? null;
 	return {
@@ -399,6 +385,232 @@ async function findLinearProject(
 		throw new Error(`Linear project not found: ${pin}`);
 	}
 	return match;
+}
+
+const commentPage = z.object({
+	data: z.object({
+		issue: z
+			.object({
+				comments: z.object({
+					nodes: z.array(
+						z.object({
+							body: z.string().nullable(),
+							createdAt: z.string().optional(),
+							user: z
+								.object({
+									name: z.string().nullable().optional(),
+									displayName: z.string().nullable().optional(),
+								})
+								.nullable()
+								.optional(),
+						}),
+					),
+					pageInfo,
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+const commentsQuery = `query IssueComments($id: String!, $after: String) {
+	issue(id: $id) {
+		comments(first: 50, after: $after) {
+			nodes { body createdAt user { name displayName } }
+			pageInfo { hasNextPage endCursor }
+		}
+	}
+}`;
+
+type ListedComment = {
+	body: string;
+	createdAt?: string;
+	author?: string;
+};
+
+function commentAuthor(
+	user:
+		| {
+				name?: string | null | undefined;
+				displayName?: string | null | undefined;
+		  }
+		| null
+		| undefined,
+): string | undefined {
+	if (user?.displayName !== undefined && user.displayName !== null) {
+		return user.displayName;
+	}
+	if (user?.name !== undefined && user.name !== null) {
+		return user.name;
+	}
+	return undefined;
+}
+
+function listedComment(node: {
+	body?: string | null | undefined;
+	createdAt?: string | undefined;
+	user?:
+		| {
+				name?: string | null | undefined;
+				displayName?: string | null | undefined;
+		  }
+		| null
+		| undefined;
+}): ListedComment | null {
+	const body = node.body ?? "";
+	if (body === "") {
+		return null;
+	}
+	const author = commentAuthor(node.user);
+	return {
+		body,
+		...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }),
+		...(author === undefined ? {} : { author }),
+	};
+}
+
+function byCreatedAt(left: ListedComment, right: ListedComment): number {
+	const leftTime =
+		left.createdAt === undefined ? 0 : Date.parse(left.createdAt);
+	const rightTime =
+		right.createdAt === undefined ? 0 : Date.parse(right.createdAt);
+	return (
+		(Number.isNaN(leftTime) ? 0 : leftTime) -
+		(Number.isNaN(rightTime) ? 0 : rightTime)
+	);
+}
+
+async function commentPages(
+	key: string,
+	fetchImpl: Fetch,
+	id: string,
+	after: string | null,
+): Promise<ListedComment[]> {
+	const comments: ListedComment[] = [];
+	let cursor = after;
+	do {
+		const response = await fetchImpl(endpoint, {
+			method: "POST",
+			headers: linearHeaders(key),
+			body: JSON.stringify({
+				query: commentsQuery,
+				variables: { id, after: cursor },
+			}),
+		});
+		if (!response.ok) {
+			throw new Error(
+				`Linear list comments failed (HTTP ${response.status}): ${id}`,
+			);
+		}
+		const page = commentPage.parse(await response.json());
+		const error = page.errors?.[0];
+		if (error !== undefined) {
+			throw new Error(`Linear list comments failed: ${error.message}`);
+		}
+		const connection = page.data.issue?.comments;
+		if (connection === undefined) {
+			throw new Error(`Linear list comments failed: ${id}`);
+		}
+		for (const node of connection.nodes) {
+			const comment = listedComment(node);
+			if (comment !== null) {
+				comments.push(comment);
+			}
+		}
+		cursor = connection.pageInfo.hasNextPage
+			? connection.pageInfo.endCursor
+			: null;
+	} while (cursor !== null);
+	return comments;
+}
+
+async function pullsForIssues(
+	nodes: z.infer<typeof issueNode>[],
+	githubToken: string | null,
+	fetchImpl: Fetch,
+	seenReviews: Map<string, ReviewEvidence>,
+): Promise<PullRequest[]> {
+	const pulls: PullRequest[] = [];
+	if (githubToken === null) {
+		return pulls;
+	}
+	for (const node of nodes) {
+		const identifier = node.identifier;
+		if (identifier === undefined) {
+			continue;
+		}
+		for (const attachment of node.attachments?.nodes ?? []) {
+			if (attachment.sourceType !== "github") {
+				continue;
+			}
+			const target = pullFromUrl(attachment.url);
+			if (target === null) {
+				continue;
+			}
+			const loaded = pulls.find(
+				(pull) => pull.repo === target.repo && pull.number === target.number,
+			);
+			if (loaded !== undefined) {
+				if (!loaded.closingKeys.includes(identifier)) {
+					loaded.closingKeys.push(identifier);
+				}
+				continue;
+			}
+			const pullResponse = await fetchImpl(
+				`https://api.github.com/repos/${target.repo}/pulls/${target.number}`,
+				{ headers: githubHeaders(githubToken) },
+			);
+			if (!pullResponse.ok) {
+				continue;
+			}
+			const pull = githubPull.parse(await pullResponse.json());
+			if (pull.state !== "open") {
+				continue;
+			}
+			const head = pull.head.sha ?? "";
+			const review =
+				head === ""
+					? { checks: [], comments: [], reviews: [], reactions: [] }
+					: await pullReview(
+							target.repo,
+							pull.number,
+							head,
+							pull.draft === true,
+							githubToken,
+							fetchImpl,
+						);
+			const headCommittedAt =
+				pull.draft === true || head === ""
+					? null
+					: await fetchHeadCommittedAt(
+							target.repo,
+							head,
+							githubToken,
+							fetchImpl,
+						);
+			pulls.push({
+				repo: target.repo,
+				number: pull.number,
+				url: pull.html_url,
+				title: pull.title,
+				draft: pull.draft === true,
+				branch: pull.head.ref,
+				body: pull.body ?? "",
+				closingKeys: [identifier],
+				headSha: head,
+				headCommittedAt,
+				merged: false,
+				...review,
+			});
+		}
+	}
+	const repos = [...new Set(pulls.map((pull) => pull.repo))];
+	for (const repo of repos) {
+		pulls.push(
+			...(await mergedPullHistory(repo, githubToken, fetchImpl, seenReviews)),
+		);
+	}
+	return pulls;
 }
 
 function pullFromUrl(url: string): { repo: string; number: number } | null {
@@ -533,95 +745,51 @@ export function linearTracker(
 		async listTickets(pin, since) {
 			issuesByProject.clear();
 			const project = await findLinearProject(key, pin, fetchImpl);
+			const nodes = await issues(project.id, since);
+			const openKeys = new Set(
+				nodes.flatMap((node) =>
+					node.identifier !== undefined &&
+					(node.attachments?.nodes ?? []).some(
+						(attachment) =>
+							attachment.sourceType === "github" &&
+							pullFromUrl(attachment.url) !== null,
+					)
+						? [node.identifier]
+						: [],
+				),
+			);
 			const tickets: Ticket[] = [];
-			for (const node of await issues(project.id, since)) {
+			for (const node of nodes) {
 				const ticket = toTicket(node);
-				if (ticket !== null) {
-					tickets.push(ticket);
+				if (ticket === null) {
+					continue;
 				}
+				if (
+					ticket.key !== null &&
+					openKeys.has(ticket.key) &&
+					node.comments?.pageInfo?.hasNextPage === true
+				) {
+					ticket.comments = [
+						...(ticket.comments ?? []),
+						...(await commentPages(
+							key,
+							fetchImpl,
+							node.identifier ?? ticket.key,
+							node.comments.pageInfo.endCursor,
+						)),
+					];
+				}
+				if (ticket.comments !== undefined) {
+					ticket.comments = [...ticket.comments].sort(byCreatedAt);
+				}
+				tickets.push(ticket);
 			}
 			return { name: project.name, tickets };
 		},
 		async listPulls(pin, since = null) {
 			const project = await findLinearProject(key, pin, fetchImpl);
 			const nodes = await issues(project.id, since ?? null);
-			const pulls: PullRequest[] = [];
-			if (githubToken === null) {
-				return pulls;
-			}
-			for (const node of nodes) {
-				const identifier = node.identifier;
-				if (identifier === undefined) {
-					continue;
-				}
-				for (const attachment of node.attachments?.nodes ?? []) {
-					if (attachment.sourceType !== "github") {
-						continue;
-					}
-					const target = pullFromUrl(attachment.url);
-					if (target === null) {
-						continue;
-					}
-					const pullResponse = await fetchImpl(
-						`https://api.github.com/repos/${target.repo}/pulls/${target.number}`,
-						{ headers: githubHeaders(githubToken) },
-					);
-					if (!pullResponse.ok) {
-						continue;
-					}
-					const pull = githubPull.parse(await pullResponse.json());
-					if (pull.state !== "open") {
-						continue;
-					}
-					const head = pull.head.sha ?? "";
-					const review =
-						head === ""
-							? { checks: [], comments: [], reviews: [], reactions: [] }
-							: await pullReview(
-									target.repo,
-									pull.number,
-									head,
-									pull.draft === true,
-									githubToken,
-									fetchImpl,
-								);
-					const headCommittedAt =
-						pull.draft === true || head === ""
-							? null
-							: await fetchHeadCommittedAt(
-									target.repo,
-									head,
-									githubToken,
-									fetchImpl,
-								);
-					pulls.push({
-						repo: target.repo,
-						number: pull.number,
-						url: pull.html_url,
-						title: pull.title,
-						draft: pull.draft === true,
-						branch: pull.head.ref,
-						body: pull.body ?? "",
-						closingKeys: [identifier],
-						headSha: head,
-						headCommittedAt,
-						merged: false,
-						...review,
-					});
-				}
-			}
-			const repos = [...new Set(pulls.map((pull) => pull.repo))];
-			for (const repo of repos) {
-				pulls.push(
-					...(await mergedPullHistory(
-						repo,
-						githubToken,
-						fetchImpl,
-						seenReviews,
-					)),
-				);
-			}
-			return pulls;
+			return pullsForIssues(nodes, githubToken, fetchImpl, seenReviews);
 		},
 		async listBranches(_project) {
 			return [];

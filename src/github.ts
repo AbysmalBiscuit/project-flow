@@ -406,6 +406,36 @@ export async function githubProjectByNumber(
 	};
 }
 
+const closingPullNode = z.object({
+	number: z.number(),
+	repository: z.object({ nameWithOwner: z.string() }).optional(),
+});
+
+const closingPullsQuery = `query ClosingPulls($id: ID!, $after: String) {
+	node(id: $id) {
+		... on Issue {
+			closedByPullRequestsReferences(first: 20, after: $after) {
+				nodes { number repository { nameWithOwner } }
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+}`;
+
+const closingPulls = z.object({
+	data: z.object({
+		node: z
+			.object({
+				closedByPullRequestsReferences: z.object({
+					nodes: z.array(closingPullNode),
+					pageInfo,
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
 const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 	node(id: $id) {
 		... on ProjectV2 {
@@ -414,11 +444,15 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 					content {
 						__typename
 						... on Issue {
-							number title state stateReason updatedAt
+							id number title state stateReason updatedAt comments { totalCount }
 							repository { nameWithOwner }
 							milestone { title }
 							labels(first: 20) { nodes { name } }
 							parent { number repository { nameWithOwner } }
+							closedByPullRequestsReferences(first: 20) {
+								nodes { number repository { nameWithOwner } }
+								pageInfo { hasNextPage endCursor }
+							}
 						}
 					}
 				}
@@ -428,45 +462,48 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 	}
 }`;
 
+const projectItem = z.object({
+	content: z
+		.object({
+			__typename: z.string(),
+			id: z.string().optional(),
+			number: z.number().optional(),
+			title: z.string().optional(),
+			state: z.string().optional(),
+			stateReason: z.string().nullable().optional(),
+			updatedAt: z.string().optional(),
+			comments: z.object({ totalCount: z.number() }).optional(),
+			repository: z.object({ nameWithOwner: z.string() }).optional(),
+			milestone: z.object({ title: z.string() }).nullable().optional(),
+			labels: z
+				.object({
+					nodes: z.array(z.object({ name: z.string() })),
+				})
+				.nullable()
+				.optional(),
+			parent: z
+				.object({
+					number: z.number(),
+					repository: z.object({ nameWithOwner: z.string() }),
+				})
+				.nullable()
+				.optional(),
+			closedByPullRequestsReferences: z
+				.object({
+					nodes: z.array(closingPullNode),
+					pageInfo,
+				})
+				.optional(),
+		})
+		.nullable(),
+});
+
 const projectItems = z.object({
 	data: z.object({
 		node: z
 			.object({
 				items: z.object({
-					nodes: z.array(
-						z.object({
-							content: z
-								.object({
-									__typename: z.string(),
-									number: z.number().optional(),
-									title: z.string().optional(),
-									state: z.string().optional(),
-									stateReason: z.string().nullable().optional(),
-									updatedAt: z.string().optional(),
-									repository: z
-										.object({ nameWithOwner: z.string() })
-										.optional(),
-									milestone: z
-										.object({ title: z.string() })
-										.nullable()
-										.optional(),
-									labels: z
-										.object({
-											nodes: z.array(z.object({ name: z.string() })),
-										})
-										.nullable()
-										.optional(),
-									parent: z
-										.object({
-											number: z.number(),
-											repository: z.object({ nameWithOwner: z.string() }),
-										})
-										.nullable()
-										.optional(),
-								})
-								.nullable(),
-						}),
-					),
+					nodes: z.array(projectItem),
 					pageInfo,
 				}),
 			})
@@ -527,12 +564,34 @@ function githubReason(reason: string | null): string | null {
 	return reason;
 }
 
-async function listProjectTickets(
+type ProjectItem = z.infer<typeof projectItem>;
+
+function openLinkedKeys(items: ProjectItem[]): Set<string> {
+	const keys = new Set<string>();
+	for (const item of items) {
+		const content = item.content;
+		if (
+			content === null ||
+			content.__typename !== "Issue" ||
+			content.number === undefined ||
+			content.repository === undefined ||
+			githubState(content.state ?? "") !== "open"
+		) {
+			continue;
+		}
+		if ((content.closedByPullRequestsReferences?.nodes.length ?? 0) > 0) {
+			keys.add(`${content.repository.nameWithOwner}#${content.number}`);
+		}
+	}
+	return keys;
+}
+
+async function listProjectItems(
 	token: string,
 	fetchImpl: Fetch,
 	projectId: string,
-): Promise<Ticket[]> {
-	const tickets: Ticket[] = [];
+): Promise<ProjectItem[]> {
+	const items: ProjectItem[] = [];
 	let after: string | null = null;
 	do {
 		const response = await fetchImpl("https://api.github.com/graphql", {
@@ -557,46 +616,225 @@ async function listProjectTickets(
 			throw new Error(`GitHub list project tickets failed: ${projectId}`);
 		}
 		for (const item of page.data.node.items.nodes) {
-			const content = item.content;
-			if (
-				content === null ||
-				content.__typename !== "Issue" ||
-				content.number === undefined ||
-				content.state === undefined ||
-				content.repository === undefined
-			) {
-				continue;
-			}
-			const state = githubState(content.state);
-			if (state === null) {
-				continue;
-			}
-			const repoName = content.repository.nameWithOwner;
-			const parent =
-				content.parent === null || content.parent === undefined
-					? null
-					: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
-			tickets.push({
-				id: String(content.number),
-				tracker: "github",
-				key: `${repoName}#${content.number}`,
-				title: content.title ?? "",
-				state,
-				stateReason: githubReason(content.stateReason ?? null),
-				updatedAt: content.updatedAt ?? "",
-				ref: `${repoName}#${content.number}`,
-				body: "",
-				blockedBy: [],
-				milestone: content.milestone?.title ?? null,
-				parent,
-				labels: content.labels?.nodes.map((label) => label.name) ?? [],
-			});
+			items.push(item);
 		}
 		after = page.data.node.items.pageInfo.hasNextPage
 			? page.data.node.items.pageInfo.endCursor
 			: null;
 	} while (after !== null);
+	return items;
+}
+
+async function listProjectTickets(
+	token: string,
+	fetchImpl: Fetch,
+	items: ProjectItem[],
+	openKeys: Set<string>,
+): Promise<Ticket[]> {
+	const tickets: Ticket[] = [];
+	for (const item of items) {
+		const content = item.content;
+		if (
+			content === null ||
+			content.__typename !== "Issue" ||
+			content.number === undefined ||
+			content.state === undefined ||
+			content.repository === undefined
+		) {
+			continue;
+		}
+		const state = githubState(content.state);
+		if (state === null) {
+			continue;
+		}
+		const repoName = content.repository.nameWithOwner;
+		const parent =
+			content.parent === null || content.parent === undefined
+				? null
+				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
+		const ticketKey = `${repoName}#${content.number}`;
+		const comments =
+			state === "open" &&
+			openKeys.has(ticketKey) &&
+			(content.comments?.totalCount ?? 0) > 0
+				? await listCommentBodies(token, fetchImpl, repoName, content.number)
+				: [];
+		tickets.push({
+			id: String(content.number),
+			tracker: "github",
+			key: `${repoName}#${content.number}`,
+			title: content.title ?? "",
+			state,
+			stateReason: githubReason(content.stateReason ?? null),
+			updatedAt: content.updatedAt ?? "",
+			ref: `${repoName}#${content.number}`,
+			body: "",
+			blockedBy: [],
+			...(comments.length === 0 ? {} : { comments }),
+			milestone: content.milestone?.title ?? null,
+			parent,
+			labels: content.labels?.nodes.map((label) => label.name) ?? [],
+		});
+	}
 	return tickets;
+}
+
+async function closingPullPages(
+	token: string,
+	fetchImpl: Fetch,
+	issueId: string,
+	start: string,
+): Promise<z.infer<typeof closingPullNode>[]> {
+	const nodes: z.infer<typeof closingPullNode>[] = [];
+	let after: string | null = start;
+	do {
+		const response = await fetchImpl("https://api.github.com/graphql", {
+			method: "POST",
+			headers: githubHeaders(token),
+			body: JSON.stringify({
+				query: closingPullsQuery,
+				variables: { id: issueId, after },
+			}),
+		});
+		if (!response.ok) {
+			throw new Error(
+				`GitHub list closing pulls failed (HTTP ${response.status}): ${issueId}`,
+			);
+		}
+		const page = closingPulls.parse(await response.json());
+		const error = page.errors?.[0];
+		if (error !== undefined) {
+			throw new Error(`GitHub list closing pulls failed: ${error.message}`);
+		}
+		const connection = page.data.node?.closedByPullRequestsReferences;
+		if (connection === undefined) {
+			throw new Error(`GitHub list closing pulls failed: ${issueId}`);
+		}
+		nodes.push(...connection.nodes);
+		after = connection.pageInfo.hasNextPage
+			? connection.pageInfo.endCursor
+			: null;
+	} while (after !== null);
+	return nodes;
+}
+
+async function listProjectPulls(
+	token: string,
+	fetchImpl: Fetch,
+	items: ProjectItem[],
+	seen: Map<string, ReviewEvidence>,
+): Promise<PullRequest[]> {
+	const pulls: PullRequest[] = [];
+	const seenPulls = new Set<string>();
+	for (const item of items) {
+		const content = item.content;
+		if (
+			content === null ||
+			content.__typename !== "Issue" ||
+			content.number === undefined ||
+			content.repository === undefined ||
+			githubState(content.state ?? "") !== "open"
+		) {
+			continue;
+		}
+		const ticketKey = `${content.repository.nameWithOwner}#${content.number}`;
+		const linkedPulls = [
+			...(content.closedByPullRequestsReferences?.nodes ?? []),
+		];
+		const closingAfter = content.closedByPullRequestsReferences?.pageInfo
+			.hasNextPage
+			? content.closedByPullRequestsReferences.pageInfo.endCursor
+			: null;
+		if (closingAfter !== null && content.id !== undefined) {
+			linkedPulls.push(
+				...(await closingPullPages(token, fetchImpl, content.id, closingAfter)),
+			);
+		}
+		for (const linked of linkedPulls) {
+			const pullRepo =
+				linked.repository?.nameWithOwner ?? content.repository.nameWithOwner;
+			const key = `${pullRepo}#${linked.number}`;
+			const loaded = pulls.find(
+				(pull) => pull.repo === pullRepo && pull.number === linked.number,
+			);
+			if (loaded !== undefined) {
+				if (!loaded.closingKeys.includes(ticketKey)) {
+					loaded.closingKeys.push(ticketKey);
+				}
+				continue;
+			}
+			if (seenPulls.has(key)) {
+				continue;
+			}
+			seenPulls.add(key);
+			const opened = await loadOpenPull(
+				token,
+				fetchImpl,
+				pullRepo,
+				linked.number,
+				[ticketKey],
+			);
+			if (opened !== null) {
+				pulls.push(opened);
+			}
+		}
+	}
+	for (const repo of new Set(pulls.map((pull) => pull.repo))) {
+		pulls.push(...(await mergedPullHistory(repo, token, fetchImpl, seen)));
+	}
+	return pulls;
+}
+
+async function loadOpenPull(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	number: number,
+	closingKeys: string[],
+): Promise<PullRequest | null> {
+	const response = await fetchImpl(
+		`https://api.github.com/repos/${repo}/pulls/${number}`,
+		{ headers: githubHeaders(token) },
+	);
+	if (!response.ok) {
+		throw new Error(
+			`GitHub list pulls failed (HTTP ${response.status}): ${repo}`,
+		);
+	}
+	const pull = githubPull.parse(await response.json());
+	if (pull.state !== "open") {
+		return null;
+	}
+	const head = pull.head.sha ?? "";
+	const review =
+		head === ""
+			? { checks: [], comments: [], reviews: [], reactions: [] }
+			: await pullReview(
+					repo,
+					pull.number,
+					head,
+					pull.draft === true,
+					token,
+					fetchImpl,
+				);
+	const headCommittedAt =
+		pull.draft === true || head === ""
+			? null
+			: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
+	return {
+		repo,
+		number: pull.number,
+		url: pull.html_url,
+		title: pull.title,
+		draft: pull.draft === true,
+		branch: pull.head.ref,
+		body: pull.body ?? "",
+		closingKeys,
+		headSha: head,
+		headCommittedAt,
+		merged: false,
+		...review,
+	};
 }
 
 async function fetchJson(
@@ -837,13 +1075,38 @@ export async function pullReview(
 
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 	const seenReviews = new Map<string, ReviewEvidence>();
+	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
+	const projectItems = (projectId: string) => {
+		const cached = projectItemsById.get(projectId);
+		if (cached !== undefined) {
+			return cached;
+		}
+		const listed = listProjectItems(token, fetchImpl, projectId).catch(
+			(error: unknown) => {
+				if (projectItemsById.get(projectId) === listed) {
+					projectItemsById.delete(projectId);
+				}
+				throw error;
+			},
+		);
+		projectItemsById.set(projectId, listed);
+		return listed;
+	};
 	return {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},
 		async listTickets(repo, since) {
 			if (!repo.includes("/")) {
-				const tickets = await listProjectTickets(token, fetchImpl, repo);
+				projectItemsById.clear();
+				const items = await projectItems(repo);
+				const openKeys = openLinkedKeys(items);
+				const tickets = await listProjectTickets(
+					token,
+					fetchImpl,
+					items,
+					openKeys,
+				);
 				return { name: repo, tickets };
 			}
 			const tickets: Ticket[] = [];
@@ -908,7 +1171,12 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		},
 		async listPulls(repo) {
 			if (!repo.includes("/")) {
-				return [];
+				return listProjectPulls(
+					token,
+					fetchImpl,
+					await projectItems(repo),
+					seenReviews,
+				);
 			}
 			const pulls: PullRequest[] = [];
 			const listed = await pages(
