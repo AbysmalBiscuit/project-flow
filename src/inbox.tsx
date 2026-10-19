@@ -2,38 +2,43 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Notification } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
-import styles from "./inbox.module.css";
-import { triggerLabel } from "./notify.tsx";
-import shell from "./shell.module.css";
+import { navLabel, triggerLabel } from "./terms.ts";
+import { clsx } from "./ui.ts";
+import { inbox, shell } from "./ui-styles.ts";
 
 function InboxList({ entries }: { entries: Notification[] }) {
 	return (
-		<main className={shell.page}>
-			<p className={shell.nav}>
-				<a className={shell.link} href="/">
-					Projects
+		<main className={clsx(shell.page)}>
+			<p className={clsx(shell.nav)}>
+				<a className={clsx(shell.link, shell.linkFocus)} href="/">
+					{navLabel.projects}
 				</a>
 				<button
 					type="button"
-					className={`${shell.button} ${shell.theme}`}
+					className={clsx(
+						shell.button,
+						shell.buttonHover,
+						shell.buttonFocus,
+						shell.theme,
+					)}
 					data-theme-toggle=""
 				>
 					Dark mode
 				</button>
 			</p>
-			<h1 className={shell.title}>Inbox</h1>
+			<h1 className={clsx(shell.title)}>{navLabel.inbox}</h1>
 			{entries.length === 0 ? <p>No notifications</p> : null}
-			<ul className={styles.list}>
+			<ul className={clsx(inbox.list)}>
 				{entries.map((entry) => (
 					<li
 						key={entry.id}
-						className={styles.entry}
+						className={clsx(inbox.entry)}
 						data-trigger={entry.trigger}
 					>
-						<span className={styles.trigger}>
+						<span className={clsx(inbox.trigger)}>
 							{triggerLabel[entry.trigger]}
 						</span>{" "}
-						<span className={styles.text}>{entry.text}</span>
+						<span className={clsx(inbox.text)}>{entry.text}</span>
 					</li>
 				))}
 			</ul>
@@ -68,7 +73,7 @@ function Page() {
 		};
 	}, []);
 	if (entries === null) {
-		return <main className={shell.page}>Loading inbox</main>;
+		return <main className={clsx(shell.page)}>Loading inbox</main>;
 	}
 	return <InboxList entries={entries} />;
 }

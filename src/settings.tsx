@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Configuration } from "./configuration.ts";
 import { type KnownBot, knownBots } from "./domain.ts";
-import styles from "./settings.module.css";
-import shell from "./shell.module.css";
+import { navLabel } from "./terms.ts";
+import { clsx } from "./ui.ts";
+import { settings as fields, shell } from "./ui-styles.ts";
 
 type ProjectRef = Configuration["pinned"][number];
 function refLine(ref: ProjectRef): string {
@@ -129,107 +130,112 @@ function Menu({
 	const [failed, setFailed] = useState(false);
 
 	return (
-		<main className={shell.page}>
-			<p className={shell.nav}>
-				<a className={shell.link} href="/">
-					Projects
+		<main className={clsx(shell.page)}>
+			<p className={clsx(shell.nav)}>
+				<a className={clsx(shell.link, shell.linkFocus)} href="/">
+					{navLabel.projects}
 				</a>
 				<button
 					type="button"
-					className={`${shell.button} ${shell.theme}`}
+					className={clsx(
+						shell.button,
+						shell.buttonHover,
+						shell.buttonFocus,
+						shell.theme,
+					)}
 					data-theme-toggle=""
 				>
 					Dark mode
 				</button>
 			</p>
-			<h1 className={shell.title}>Settings</h1>
-			<label className={styles.field}>
+			<h1 className={clsx(shell.title)}>{navLabel.settings}</h1>
+			<label className={clsx(fields.field)}>
 				Pinned projects
 				<textarea
 					id="pinned"
-					className={styles.refs}
+					className={clsx(fields.refs)}
 					value={pinned}
 					onChange={(event) => setPinned(event.target.value)}
 				/>
 			</label>
-			<label className={styles.field}>
+			<label className={clsx(fields.field)}>
 				Hidden projects
 				<textarea
 					id="hidden"
-					className={styles.refs}
+					className={clsx(fields.refs)}
 					value={hidden}
 					onChange={(event) => setHidden(event.target.value)}
 				/>
 			</label>
-			<label className={styles.field}>
+			<label className={clsx(fields.field)}>
 				Activity window
 				<input
 					id="activity-window"
-					className={styles.control}
+					className={clsx(fields.control)}
 					inputMode="numeric"
 					value={activityWindowDays}
 					onChange={(event) => setActivityWindowDays(event.target.value)}
 				/>
 			</label>
-			<label className={styles.field}>
+			<label className={clsx(fields.field)}>
 				Poll interval
 				<input
 					id="poll-interval"
-					className={styles.control}
+					className={clsx(fields.control)}
 					inputMode="numeric"
 					value={pollIntervalSeconds}
 					onChange={(event) => setPollIntervalSeconds(event.target.value)}
 				/>
 			</label>
-			<label className={styles.field}>
+			<label className={clsx(fields.field)}>
 				Checkout roots
 				<textarea
 					id="checkout-roots"
-					className={styles.refs}
+					className={clsx(fields.refs)}
 					value={checkoutRoots}
 					onChange={(event) => setCheckoutRoots(event.target.value)}
 				/>
 			</label>
-			<label className={styles.field}>
+			<label className={clsx(fields.field)}>
 				Expected bots
 				<textarea
 					id="expected-bots"
-					className={styles.refs}
+					className={clsx(fields.refs)}
 					value={expectedBots}
 					onChange={(event) => setExpectedBots(event.target.value)}
 				/>
 			</label>
-			<p className={styles.note}>Known bots: {knownBots.join(", ")}</p>
-			<label className={styles.field}>
+			<p className={clsx(fields.note)}>Known bots: {knownBots.join(", ")}</p>
+			<label className={clsx(fields.field)}>
 				PM Bot
 				<textarea
 					id="pm-bot"
-					className={styles.refs}
+					className={clsx(fields.refs)}
 					value={pmBot}
 					onChange={(event) => setPmBot(event.target.value)}
 				/>
 			</label>
-			<label className={styles.field}>
+			<label className={clsx(fields.field)}>
 				Viewer logins
 				<textarea
 					id="viewer-logins"
-					className={styles.refs}
+					className={clsx(fields.refs)}
 					value={viewerLogins}
 					onChange={(event) => setViewerLogins(event.target.value)}
 				/>
 			</label>
-			<label className={styles.field}>
+			<label className={clsx(fields.field)}>
 				Need-human and need-engineer labels
 				<textarea
 					id="needs-you-labels"
-					className={styles.refs}
+					className={clsx(fields.refs)}
 					value={needsYouLabels}
 					onChange={(event) => setNeedsYouLabels(event.target.value)}
 				/>
 			</label>
-			<fieldset className={styles.triggers}>
+			<fieldset className={clsx(fields.field)}>
 				<legend>Notification triggers</legend>
-				<label className={styles.choice}>
+				<label className={clsx(fields.choice)}>
 					<input
 						id="trigger-needs-you"
 						type="checkbox"
@@ -238,7 +244,7 @@ function Menu({
 					/>{" "}
 					New needs-you item
 				</label>
-				<label className={styles.choice}>
+				<label className={clsx(fields.choice)}>
 					<input
 						id="trigger-comment"
 						type="checkbox"
@@ -247,7 +253,7 @@ function Menu({
 					/>{" "}
 					New comment
 				</label>
-				<label className={styles.choice}>
+				<label className={clsx(fields.choice)}>
 					<input
 						id="trigger-blocker"
 						type="checkbox"
@@ -261,7 +267,7 @@ function Menu({
 				<button
 					id="save-settings"
 					type="button"
-					className={shell.button}
+					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
 					onClick={() => {
 						void onSaveClick();
 					}}
@@ -272,7 +278,7 @@ function Menu({
 			{message === null ? null : (
 				<p
 					id="settings-message"
-					className={failed ? styles.error : styles.saved}
+					className={clsx(failed ? fields.error : fields.saved)}
 				>
 					{message}
 				</p>
@@ -341,10 +347,10 @@ function Page() {
 		};
 	}, []);
 	if (error !== null) {
-		return <main className={shell.page}>{error}</main>;
+		return <main className={clsx(shell.page)}>{error}</main>;
 	}
 	if (settings === null) {
-		return <main className={shell.page}>Loading settings</main>;
+		return <main className={clsx(shell.page)}>Loading settings</main>;
 	}
 	return (
 		<Menu

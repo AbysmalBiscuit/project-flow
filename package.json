@@ -8,11 +8,12 @@
 		"dev": "bun --hot src/main.ts",
 		"typecheck": "bun check",
 		"test": "sh scripts/test-slot.sh",
-		"lint": "biome ci --error-on-warnings . && bun src/lint-tokens.ts",
+		"lint": "biome ci --error-on-warnings . && bun src/lint-tokens.ts; token_status=$?; bun src/lint-terms.ts; term_status=$?; test \"$token_status\" = 0 && test \"$term_status\" = 0",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.15",
+		"@types/babel__core": "^7.20.5",
 		"@types/bun": "^1.4.3",
 		"@types/react": "^19.3.0",
 		"@types/react-dom": "^19.3.0",
@@ -23,6 +24,11 @@
 	},
 	"packageManager": "bun@1.4.3",
 	"dependencies": {
+		"@babel/core": "^7.29.7",
+		"@babel/plugin-syntax-jsx": "^7.29.7",
+		"@babel/plugin-syntax-typescript": "^7.29.7",
+		"@stylexjs/babel-plugin": "0.19.1",
+		"@stylexjs/stylex": "0.19.1",
 		"mermaid": "11.17.2",
 		"react": "^19.3.1",
 		"react-dom": "^19.3.1",

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Thread, ThreadComment } from "./domain.ts";
-import styles from "./panel.module.css";
-import shell from "./shell.module.css";
+import { clsx } from "./ui.ts";
+import { panel, shell } from "./ui-styles.ts";
 
 type ReplyTarget = {
 	parentId?: string;
@@ -18,18 +18,22 @@ function CommentTree({
 	onReply: (comment: ThreadComment) => void;
 }) {
 	return (
-		<ul className={styles.thread}>
+		<ul className={clsx(panel.thread)}>
 			{comments.map((comment) => (
 				<li
 					key={comment.id}
-					className={styles.comment}
+					className={clsx(panel.comment)}
 					data-comment={comment.id}
 				>
-					<p className={styles.body}>{comment.body}</p>
+					<p className={clsx(panel.body)}>{comment.body}</p>
 					{nested || comment.kind === "review" ? (
 						<button
 							type="button"
-							className={shell.button}
+							className={clsx(
+								shell.button,
+								shell.buttonHover,
+								shell.buttonFocus,
+							)}
 							onClick={() => onReply(comment)}
 						>
 							Reply
@@ -130,10 +134,15 @@ export function TicketPanel({
 		}
 	}
 	return (
-		<aside className={styles.panel} aria-label="Ticket thread">
+		<aside className={clsx(panel.panel)} aria-label="Ticket thread">
 			<button
 				type="button"
-				className={`${shell.button} ${styles.close}`}
+				className={clsx(
+					shell.button,
+					shell.buttonHover,
+					shell.buttonFocus,
+					panel.close,
+				)}
 				onClick={onClose}
 			>
 				Close
@@ -144,7 +153,7 @@ export function TicketPanel({
 				<>
 					<h2>{thread.title}</h2>
 					<p>
-						<a className={styles.tracker} href={thread.url}>
+						<a className={clsx(panel.tracker)} href={thread.url}>
 							Open in tracker
 						</a>
 					</p>
@@ -161,7 +170,11 @@ export function TicketPanel({
 					{tracker === "linear" ? (
 						<button
 							type="button"
-							className={shell.button}
+							className={clsx(
+								shell.button,
+								shell.buttonHover,
+								shell.buttonFocus,
+							)}
 							onClick={() => setReplyTo({ kind: "comment" })}
 						>
 							New comment
@@ -169,7 +182,11 @@ export function TicketPanel({
 					) : (
 						<button
 							type="button"
-							className={shell.button}
+							className={clsx(
+								shell.button,
+								shell.buttonHover,
+								shell.buttonFocus,
+							)}
 							onClick={() => setReplyTo({ kind: "comment" })}
 						>
 							Reply
@@ -177,22 +194,32 @@ export function TicketPanel({
 					)}
 					{replyTo === null ? null : (
 						<form
-							className={styles.reply}
+							className={clsx(panel.reply)}
 							onSubmit={(event) => {
 								event.preventDefault();
 								void send(replyTo);
 							}}
 						>
 							<textarea
-								className={styles.text}
+								className={clsx(panel.text)}
 								aria-label="Reply"
 								value={draft}
 								onChange={(event) => setDraft(event.target.value)}
 							/>
-							<button type="submit" className={shell.button} disabled={pending}>
+							<button
+								type="submit"
+								className={clsx(
+									shell.button,
+									shell.buttonHover,
+									shell.buttonFocus,
+								)}
+								disabled={pending}
+							>
 								Send
 							</button>
-							{error === null ? null : <p className={styles.error}>{error}</p>}
+							{error === null ? null : (
+								<p className={clsx(panel.error)}>{error}</p>
+							)}
 						</form>
 					)}
 				</>

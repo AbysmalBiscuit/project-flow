@@ -1,6 +1,6 @@
 import { watchNotifications } from "./notify.tsx";
 import { applyPageTheme, type PageTheme, pageTheme } from "./theme.ts";
-import "./tokens.css";
+import "./global.css";
 
 watchNotifications();
 
