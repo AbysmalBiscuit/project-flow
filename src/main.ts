@@ -123,6 +123,38 @@ async function readText(path: string): Promise<string | null> {
 	}
 }
 
+async function worktreeNames(path: string): Promise<string[]> {
+	const proc = Bun.spawn(
+		["git", "-C", path, "worktree", "list", "--porcelain"],
+		{
+			stdout: "pipe",
+			stderr: "pipe",
+			env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
+		},
+	);
+	const stdout = proc.stdout;
+	if (typeof stdout === "number" || stdout === undefined) {
+		proc.kill();
+		return [];
+	}
+	const [out, code] = await Promise.all([
+		new Response(stdout).text(),
+		proc.exited,
+	]);
+	if (code !== 0) {
+		return [];
+	}
+	const names: string[] = [];
+	for (const line of out.split("\n")) {
+		if (line.startsWith("worktree ")) {
+			names.push(basename(line.slice("worktree ".length).trim()));
+		} else if (line.startsWith("branch ")) {
+			names.push(line.slice("branch refs/heads/".length).trim());
+		}
+	}
+	return names;
+}
+
 async function readCheckout(path: string): Promise<LocalCheckout | null> {
 	const configText = await readText(join(path, ".git", "config"));
 	const devkitText = await readText(join(path, "devkit.toml"));
@@ -136,7 +168,12 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 	const hasTrackerConfig =
 		kind === "linear" || (kind === "github" && ownerRepo.test(configured));
 	if (kind === "linear") {
-		return { repo: "", tracker: "linear", path };
+		return {
+			repo: "",
+			tracker: "linear",
+			path,
+			names: await worktreeNames(path),
+		};
 	}
 	if (!hasTrackerConfig && origin === null) {
 		return null;

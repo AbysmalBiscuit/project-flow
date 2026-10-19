@@ -86,49 +86,17 @@ function checkoutNames(
 	});
 }
 
-async function worktreeNames(path: string): Promise<string[]> {
-	const proc = Bun.spawn(
-		["git", "-C", path, "worktree", "list", "--porcelain"],
-		{
-			stdout: "pipe",
-			stderr: "pipe",
-			env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
-		},
-	);
-	const stdout = proc.stdout;
-	if (typeof stdout === "number" || stdout === undefined) {
-		proc.kill();
-		return [];
-	}
-	const [out, code] = await Promise.all([
-		new Response(stdout).text(),
-		proc.exited,
-	]);
-	if (code !== 0) {
-		return [];
-	}
-	const names: string[] = [];
-	for (const line of out.split("\n")) {
-		if (line.startsWith("worktree ")) {
-			names.push(basename(line.slice("worktree ".length).trim()));
-		} else if (line.startsWith("branch ")) {
-			names.push(line.slice("branch refs/heads/".length).trim());
-		}
-	}
-	return names;
-}
-
-async function linearKeysFromCheckouts(
+function linearKeysFromCheckouts(
 	checkouts: LocalCheckout[],
 	rows: { project: string }[],
-): Promise<string[]> {
+): string[] {
 	const names: string[] = [];
 	for (const checkout of checkouts) {
 		if (checkout.tracker !== "linear" || checkout.path === undefined) {
 			continue;
 		}
 		const checkoutName = basename(checkout.path);
-		names.push(...(await worktreeNames(checkout.path)));
+		names.push(...(checkout.names ?? []));
 		for (const row of rows) {
 			if (row.project.startsWith(`${checkoutName}.`)) {
 				names.push(row.project.slice(checkoutName.length + 1));
@@ -297,7 +265,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		mergeFound(discovered, [{ key: repo, tracker: "github", updatedAt: null }]);
 	}
 	if (linear !== null) {
-		const keys = await linearKeysFromCheckouts(checkouts, rows);
+		const keys = linearKeysFromCheckouts(checkouts, rows);
 		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
 	}
 	const found = [...discovered];

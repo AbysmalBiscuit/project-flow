@@ -13,6 +13,7 @@ export type LocalCheckout = {
 	path?: string;
 	originOwner?: string;
 	hasTrackerConfig?: boolean;
+	names?: string[];
 };
 
 export type CheckoutSource = () => Promise<LocalCheckout[]>;
