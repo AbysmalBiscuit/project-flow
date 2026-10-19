@@ -91,7 +91,7 @@ export type LinearFake = {
 	project?: { id: string; name: string; slugId: string } | null;
 	issues?: Record<string, unknown>[];
 	pages?: { nodes: Record<string, unknown>[]; endCursor: string | null }[];
-	fail?: "lookup" | "issues" | "key";
+	fail?: "lookup" | "issues" | "key" | "reply";
 	status?: number;
 	requests?: string[];
 	github?: Fetch;
@@ -210,6 +210,12 @@ export function linearFake(options: LinearFake = {}): Fetch {
 			});
 		}
 		if (query.query?.includes("commentCreate")) {
+			if (options.fail === "reply") {
+				return linearJson({
+					data: null,
+					errors: [{ message: "Issue not found" }],
+				});
+			}
 			const input = (query as { variables?: { input?: { body?: string } } })
 				.variables?.input;
 			return linearJson({

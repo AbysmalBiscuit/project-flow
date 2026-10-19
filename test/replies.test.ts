@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { NeedsYouItem } from "../src/domain.ts";
+import type { NeedsYouItem, Thread } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
@@ -57,7 +57,7 @@ function githubFetch(
 		const method =
 			init?.method ?? (input instanceof Request ? input.method : "GET");
 		const body = typeof init?.body === "string" ? init.body : "";
-		if (method !== "GET" && method !== "HEAD") {
+		if (url.startsWith("https://api.github.com/")) {
 			sent.push({ url, method, body });
 		}
 		if (url === "https://api.github.com/user") {
@@ -70,9 +70,9 @@ function githubFetch(
 		if (url.startsWith("https://api.github.com/repos/acme/widget/issues?")) {
 			return json(options.issues);
 		}
-		const oneIssue = url.match(/\/repos\/acme\/widget\/issues\/(\d+)$/);
+		const oneIssue = url.match(/\/repos\/(acme\/widget)\/issues\/(\d+)$/);
 		if (oneIssue !== null && method === "GET") {
-			const number = Number(oneIssue[1]);
+			const number = Number(oneIssue[2]);
 			const found = options.issues.find((item) => item.number === number);
 			if (found === undefined) {
 				return new Response("not recorded", { status: 404 });
@@ -90,6 +90,10 @@ function githubFetch(
 			return json(options.comments?.[number] ?? []);
 		}
 		if (comments !== null && method === "POST") {
+			const number = Number(comments[1]);
+			if (options.issues.every((item) => item.number !== number)) {
+				return new Response("not recorded", { status: 404 });
+			}
 			if (options.failReply === true) {
 				return new Response("recorded failure", { status: 422 });
 			}
@@ -350,7 +354,7 @@ describe("replies", () => {
 		}
 	});
 
-	test("a missing ticket and a repeated-space reply send no comment", async () => {
+	test("a missing ticket sends no comment and a spaced body posts", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, { issues: [issue(7)] });
 		const app = await serve(
@@ -387,9 +391,6 @@ describe("replies", () => {
 			expect(JSON.parse(posted?.body ?? "{}")).toEqual({
 				body: "  Use the short name.  ",
 			});
-			expect(sent.some((item) => item.url.includes("/issues/404/"))).toBe(
-				false,
-			);
 		} finally {
 			await app.stop();
 		}
@@ -517,7 +518,7 @@ describe("replies", () => {
 					project: "widget-launch",
 					key: "PF-11",
 					parentId: "comment-ask-11",
-					body: "Use the short name.",
+					body: "Reply: the short name.",
 				}),
 			});
 			expect(posted.status).toBe(201);
@@ -553,11 +554,11 @@ describe("replies", () => {
 								id: "comment-ask",
 								body: `${question}\n\n${ask("pf-9")}`,
 								createdAt: "2026-08-18T12:00:00.000Z",
-								user: { name: "Ada" },
+								user: { name: "Lev" },
 							},
 							{
 								id: "comment-reply",
-								body: "Use the short name.",
+								body: "Reply: the short name.",
 								createdAt: "2026-08-18T12:30:00.000Z",
 								user: { name: "Lev" },
 								reactions: [{ id: "reaction-1" }],
@@ -579,10 +580,11 @@ describe("replies", () => {
 								id: "comment-ask-10",
 								body: `${ask("pf-10")}\n${question}`,
 								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Lev" },
 							},
 							{
 								id: "comment-reply-10",
-								body: "Use the short name.",
+								body: "Reply: the short name.",
 								createdAt: "2026-08-18T12:30:00.000Z",
 								user: { name: "Lev" },
 								reactions: [],
@@ -611,6 +613,246 @@ describe("replies", () => {
 				answered: true,
 				acknowledged: false,
 			});
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a GitHub issue thread returns the tracker URL", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, {
+			issues: [issue(7)],
+			comments: {
+				7: [
+					{
+						id: 70,
+						body: "Which name?",
+						user: { login: "ada" },
+						created_at: "2026-08-18T12:00:00.000Z",
+						html_url: "https://github.com/acme/widget/issues/7#issuecomment-70",
+					},
+				],
+			},
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%237?project=Widget%20board",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(200);
+			const thread = (await response.json()) as Thread;
+			expect(thread.url).toBe("https://github.com/acme/widget/issues/7");
+			expect(sent.some((item) => item.url.includes("widget-board"))).toBe(
+				false,
+			);
+			expect(
+				sent.some(
+					(item) =>
+						item.url === "https://api.github.com/repos/acme/widget/issues/7",
+				),
+			).toBe(true);
+			expect(thread.comments).toEqual([
+				{
+					id: "70",
+					body: "Which name?",
+					author: "ada",
+					createdAt: "2026-08-18T12:00:00.000Z",
+					url: "https://github.com/acme/widget/issues/7#issuecomment-70",
+					parentId: null,
+					kind: "comment",
+					children: [],
+				},
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a PR review thread nests the reply under its parent", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, {
+			issues: [{ ...issue(8, 0), pull_request: { url: "recorded" } }],
+			reviewComments: {
+				8: [
+					{
+						id: 44,
+						body: "Rename this.",
+						user: { login: "ada" },
+						created_at: "2026-08-18T12:00:00.000Z",
+						html_url: "https://github.com/acme/widget/pull/8#discussion_r44",
+						in_reply_to_id: null,
+					},
+					{
+						id: 45,
+						body: "Renamed.",
+						user: { login: "lev" },
+						created_at: "2026-08-18T12:30:00.000Z",
+						html_url: "https://github.com/acme/widget/pull/8#discussion_r45",
+						in_reply_to_id: 44,
+					},
+				],
+			},
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%238?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(200);
+			const thread = (await response.json()) as Thread;
+			expect(thread.url).toBe("https://github.com/acme/widget/issues/8");
+			expect(thread.comments).toEqual([
+				{
+					id: "44",
+					body: "Rename this.",
+					author: "ada",
+					createdAt: "2026-08-18T12:00:00.000Z",
+					url: "https://github.com/acme/widget/pull/8#discussion_r44",
+					parentId: null,
+					kind: "review",
+					children: [
+						{
+							id: "45",
+							body: "Renamed.",
+							author: "lev",
+							createdAt: "2026-08-18T12:30:00.000Z",
+							url: "https://github.com/acme/widget/pull/8#discussion_r45",
+							parentId: "44",
+							kind: "review",
+							children: [],
+						},
+					],
+				},
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a nested Linear thread returns the tracker URL", async () => {
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-1",
+					identifier: "PF-1",
+					title: "Open ask",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: [
+							{
+								id: "comment-parent",
+								body: "Which name?",
+								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Ada" },
+							},
+							{
+								id: "comment-child",
+								body: "The short name.",
+								createdAt: "2026-08-18T12:30:00.000Z",
+								parent: { id: "comment-parent" },
+								user: { displayName: "Lev" },
+							},
+						],
+					},
+				},
+			],
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		try {
+			const response = await fetch(
+				new URL("/api/threads/linear/PF-1?project=widget-launch", app.base),
+			);
+			expect(response.status).toBe(200);
+			const thread = (await response.json()) as Thread;
+			expect(thread.url).toBe("https://linear.app/issue/PF-1");
+			expect(thread.comments).toEqual([
+				{
+					id: "comment-parent",
+					body: "Which name?",
+					author: "Ada",
+					createdAt: "2026-08-18T12:00:00.000Z",
+					url: "https://linear.app/issue/PF-1#comment-parent",
+					parentId: null,
+					kind: "comment",
+					children: [
+						{
+							id: "comment-child",
+							body: "The short name.",
+							author: "Lev",
+							createdAt: "2026-08-18T12:30:00.000Z",
+							url: "https://linear.app/issue/PF-1#comment-child",
+							parentId: "comment-parent",
+							kind: "comment",
+							children: [],
+						},
+					],
+				},
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a Linear reply error returns 502 and the tracker message", async () => {
+		const recorded = linearFake({
+			project: linearProject,
+			fail: "reply",
+			issues: [
+				{
+					id: "issue-pf-1",
+					identifier: "PF-1",
+					title: "Open ask",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: { nodes: [] },
+				},
+			],
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		try {
+			const response = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-1",
+					body: "Keep this text.",
+				}),
+			});
+			expect(response.status).toBe(502);
+			const failed = (await response.json()) as { error: string };
+			expect(failed.error).toBe("Linear reply failed: Issue not found");
+			expect(failed.error).not.toContain("Keep this text.");
+			expect(failed.error).not.toContain("Zod");
 		} finally {
 			await app.stop();
 		}
