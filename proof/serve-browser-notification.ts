@@ -1,24 +1,9 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { run } from "../src/main.ts";
-import { linearProofFetch, releaseLinearAsk } from "./serve-inbox.ts";
+import { releaseLinearAsk, runLinearProof } from "./serve-inbox.ts";
 
 const port = process.argv[2] ?? "4176";
 const rootDir = process.argv[3] ?? "/var/tmp";
 const holdAsk = process.argv[4] === "hold";
-const recorded = linearProofFetch();
-
-const root = await mkdtemp(join(rootDir, "project-flow-proof-"));
-const config = join(root, "config.json");
-await writeFile(
-	config,
-	JSON.stringify({
-		pinned: [{ tracker: "linear", project: "project-flow" }],
-		checkoutRoots: [],
-		pollIntervalSeconds: 3600,
-	}),
-);
-
 const built = await Bun.build({
 	entrypoints: [join(import.meta.dir, "notification-stub.ts")],
 	target: "browser",
@@ -30,46 +15,35 @@ if (stubSource === undefined) {
 const originalFetch = globalThis.fetch.bind(globalThis);
 let upstreamOrigin = "";
 
-await run(["--config", config, "--host", "127.0.0.1", "--port", "0"], {
-	env: {
-		LINEAR_API_KEY: "recorded-linear-key",
-		XDG_DATA_HOME: root,
-	},
-	fetch: recorded,
-	readGhToken: async () => null,
-	databasePath: join(root, "store.sqlite"),
-	now: () => new Date("2026-10-18T12:00:00.000Z"),
-	stdout: (line) => {
-		upstreamOrigin = new URL(line).origin;
-		startProxy();
-		if (holdAsk) {
+await runLinearProof("0", rootDir, (line) => {
+	upstreamOrigin = new URL(line).origin;
+	startProxy();
+	if (holdAsk) {
+		return;
+	}
+	const origin = upstreamOrigin;
+	const arm = async () => {
+		const stream = await originalFetch(
+			new URL("/api/proof/stream-open", origin),
+		);
+		const permission = await originalFetch(
+			new URL("/api/proof/permission", origin),
+		);
+		if (!stream.ok || !permission.ok) {
+			setTimeout(() => {
+				void arm();
+			}, 200);
 			return;
 		}
-		const origin = upstreamOrigin;
-		const arm = async () => {
-			const stream = await originalFetch(
-				new URL("/api/proof/stream-open", origin),
-			);
-			const permission = await originalFetch(
-				new URL("/api/proof/permission", origin),
-			);
-			if (!stream.ok || !permission.ok) {
-				setTimeout(() => {
-					void arm();
-				}, 200);
-				return;
-			}
-			releaseLinearAsk(
-				"Which bot should review this?",
-				"<!-- workcell:ask pf-1 -->",
-			);
-			await originalFetch(new URL("/api/refresh", origin), { method: "POST" });
-		};
-		setTimeout(() => {
-			void arm();
-		}, 200);
-	},
-	waitForStop: new Promise(() => {}),
+		releaseLinearAsk(
+			"Which bot should review this?",
+			"<!-- workcell:ask pf-1 -->",
+		);
+		await originalFetch(new URL("/api/refresh", origin), { method: "POST" });
+	};
+	setTimeout(() => {
+		void arm();
+	}, 200);
 });
 
 function startProxy(): void {

@@ -99,12 +99,12 @@ export function releaseLinearAsk(headline: string, marker: string): void {
 
 const recorded = linearProofFetch();
 
-if (import.meta.main) {
-	await serveInbox();
-}
-
-async function serveInbox(): Promise<void> {
-	const root = await mkdtemp(join(rootDir, "project-flow-proof-"));
+export async function runLinearProof(
+	proofPort: string,
+	proofRoot: string,
+	onListen: (line: string) => void,
+): Promise<void> {
+	const root = await mkdtemp(join(proofRoot, "project-flow-proof-"));
 	const config = join(root, "config.json");
 	await writeFile(
 		config,
@@ -114,32 +114,35 @@ async function serveInbox(): Promise<void> {
 			pollIntervalSeconds: 3600,
 		}),
 	);
-
-	await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
+	await run(["--config", config, "--host", "127.0.0.1", "--port", proofPort], {
 		env: { LINEAR_API_KEY: "recorded-linear-key" },
 		fetch: recorded,
 		readGhToken: async () => null,
 		databasePath: join(root, "store.sqlite"),
 		now: () => new Date("2026-10-18T12:00:00.000Z"),
-		stdout: (line) => {
-			console.log(line);
-			const arm = async () => {
-				const inbox = await fetch(new URL("/inbox", line));
-				if (inbox.ok) {
-					releaseAsk = true;
-				}
-				if (!releaseAsk) {
-					setTimeout(() => {
-						void arm();
-					}, 200);
-					return;
-				}
-				await fetch(new URL("/api/refresh", line), { method: "POST" });
-			};
-			setTimeout(() => {
-				void arm();
-			}, 200);
-		},
+		stdout: onListen,
 		waitForStop: new Promise(() => {}),
+	});
+}
+
+if (import.meta.main) {
+	await runLinearProof(port, rootDir, (line) => {
+		console.log(line);
+		const arm = async () => {
+			const inbox = await fetch(new URL("/inbox", line));
+			if (inbox.ok) {
+				releaseAsk = true;
+			}
+			if (!releaseAsk) {
+				setTimeout(() => {
+					void arm();
+				}, 200);
+				return;
+			}
+			await fetch(new URL("/api/refresh", line), { method: "POST" });
+		};
+		setTimeout(() => {
+			void arm();
+		}, 200);
 	});
 }
