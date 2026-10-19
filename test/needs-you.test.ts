@@ -911,4 +911,71 @@ describe("needs you", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a blank override and a marker-only quote leave the ask open", async () => {
+		const question = "Which bot should review this?";
+		const issues = [
+			linearIssue("PF-40", "Blank assignee", "Blank", [], {
+				labels: { nodes: [{ name: "needs-human" }] },
+				assignee: { id: "   ", name: "   " },
+			}),
+			linearIssue("PF-41", "Marker only", question, [
+				{ body: ask("pf-41") },
+				{ body: "> \n\nStill open." },
+			]),
+			linearIssue("PF-42", "Spaced prefix", "Spaced", [
+				{ body: `${ask("pf-42")}\n${question}` },
+				{ body: "  Reply: the short name." },
+			]),
+		];
+		const recorded = linearFake({ project: linearProject, issues });
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "project-flow" }],
+				viewerLogins: ["   "],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		await Bun.write(join(root, "notes.txt"), "untracked harness file\n");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
+			startChecks = (base) => {
+				fetch(new URL("/api/needs-you", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve((await response.json()) as NeedsYouItem[]);
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const items = await checks;
+			expect(items.map((item) => item.key).sort()).toEqual(["PF-41", "PF-42"]);
+			expect(items.find((item) => item.key === "PF-41")).toMatchObject({
+				headline: "",
+				reason: "ask",
+				answered: false,
+			});
+			expect(items.find((item) => item.key === "PF-42")).toMatchObject({
+				reason: "ask",
+				answered: true,
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });

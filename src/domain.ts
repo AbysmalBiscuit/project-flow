@@ -1453,7 +1453,6 @@ const answerPrefix = /^(?:senior|reply|answer)\b/i;
 const decisionRecord = /^\**\s*decision\b/i;
 const nameCue =
 	/\b(?:waits on|held for|left for|decision|verify|restore|passphrase|signing key)\b/i;
-const progressHeading = "**Workcell progress**";
 
 export type NeedsYouRules = {
 	noSenior: boolean;
@@ -1640,7 +1639,10 @@ function assignedToViewer(ticket: Ticket, viewers: Set<string>): boolean {
 			? []
 			: [ticket.assignee]),
 	];
-	return names.some((name) => viewers.has(name.toLowerCase()));
+	return names.some((name) => {
+		const trimmed = name.trim().toLowerCase();
+		return trimmed !== "" && viewers.has(trimmed);
+	});
 }
 
 export function needsYouItems(

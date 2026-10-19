@@ -89,12 +89,15 @@ function viewerLogins(
 	viewers: Viewer[],
 ): string[] {
 	const found = viewers.flatMap((viewer) => {
-		const names = viewer.login === "" ? [] : [viewer.login];
-		return viewer.id === undefined ? names : [...names, viewer.id];
+		const names = viewer.login.trim() === "" ? [] : [viewer.login];
+		return viewer.id === undefined || viewer.id.trim() === ""
+			? names
+			: [...names, viewer.id];
 	});
-	return configuration.viewerLogins.length === 0
-		? found
-		: [...configuration.viewerLogins, ...found];
+	const override = configuration.viewerLogins.filter(
+		(login) => login.trim() !== "",
+	);
+	return override.length === 0 ? found : [...override, ...found];
 }
 
 function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
