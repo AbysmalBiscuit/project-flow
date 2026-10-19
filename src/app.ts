@@ -544,14 +544,14 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
 			if (project.tracker === "github") {
-				const pinned = true;
 				const hidden = hiddenKeys.has(project.key);
 				outcomes.set(project.key, {
 					key: project.key,
 					ok: false,
 					error: missingToken,
 					full: false,
-					pinned,
+					// A found project with no token shows its error as a pin does.
+					pinned: true,
 					hidden,
 					row: {
 						key: project.key,
