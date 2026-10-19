@@ -123,7 +123,19 @@ export type TrackerRequest = {
 };
 
 export type LinearFake = {
-	project?: { id: string; name: string; slugId: string } | null;
+	project?: {
+		id: string;
+		name: string;
+		slugId: string;
+		teams?: { nodes: { id: string; key: string; name: string }[] };
+	} | null;
+	states?: {
+		id: string;
+		name: string;
+		type: string;
+		position: number;
+		color: string;
+	}[];
 	issues?: Record<string, unknown>[];
 	pages?: { nodes: Record<string, unknown>[]; endCursor: string | null }[];
 	fail?: "lookup" | "issues" | "key" | "reply";
@@ -225,6 +237,15 @@ export function linearFake(options: LinearFake = {}): Fetch {
 				return new Response("unauthorized", { status: 401 });
 			}
 			return linearJson({ data: { viewer: { id: "viewer-ada" } } });
+		}
+		if (query.query?.includes("TeamStates")) {
+			return linearJson({
+				data: {
+					team: {
+						states: { nodes: options.states ?? [] },
+					},
+				},
+			});
 		}
 		if (query.query?.includes("ProjectByPin")) {
 			if (options.fail === "lookup") {

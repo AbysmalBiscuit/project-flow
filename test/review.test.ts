@@ -54,6 +54,8 @@ function card(
 			title: string;
 			state: string;
 			blockers: [];
+			lane: string;
+			statusType: string;
 		}[];
 		crossProjectBlockers: [];
 	}[];
@@ -81,6 +83,8 @@ function card(
 						title,
 						state,
 						blockers: [],
+						lane: "Backlog",
+						statusType: "backlog",
 					},
 				],
 				crossProjectBlockers: [],
@@ -1750,6 +1754,8 @@ describe("review cycle", () => {
 								title: "Linear ticket 8",
 								state: "awaitingMerge",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						crossProjectBlockers: [],
@@ -4244,7 +4250,8 @@ describe("review cycle", () => {
 			const sent = typeof init?.body === "string" ? init.body : "";
 			if (
 				urlOf(input) === "https://api.github.com/graphql" &&
-				sent.includes("node(id:")
+				sent.includes("node(id:") &&
+				!sent.includes("ProjectFields")
 			) {
 				projectReads += 1;
 				if (rejectNext) {

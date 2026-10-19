@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+	Board,
 	BotCheck,
 	BotComment,
 	BotReaction,
@@ -12,6 +13,13 @@ import type {
 	ThreadComment,
 	Ticket,
 	TicketRef,
+	TicketStatus,
+} from "./domain.ts";
+import {
+	factoryBoard,
+	githubOptionColour,
+	labelColour,
+	statusTypeOfName,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
@@ -646,6 +654,13 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 		... on ProjectV2 {
 			items(first: 50, after: $after) {
 				nodes {
+					fieldValueByName(name: "Status") {
+						... on ProjectV2ItemFieldSingleSelectValue {
+							name
+							optionId
+							color
+						}
+					}
 					content {
 						__typename
 						... on Issue {
@@ -704,6 +719,14 @@ const blockedByPage = z.object({
 });
 
 const projectItem = z.object({
+	fieldValueByName: z
+		.object({
+			name: z.string().nullable().optional(),
+			optionId: z.string().nullable().optional(),
+			color: z.string().nullable().optional(),
+		})
+		.nullable()
+		.optional(),
 	content: z
 		.object({
 			__typename: z.string(),
@@ -873,6 +896,155 @@ async function listProjectItems(
 	return items;
 }
 
+function githubItemStatus(
+	value:
+		| {
+				name?: string | null | undefined;
+				optionId?: string | null | undefined;
+				color?: string | null | undefined;
+		  }
+		| null
+		| undefined,
+): { status: TicketStatus } | { emptyStatus: true } {
+	const name = value?.name?.trim() ?? "";
+	const optionId = value?.optionId ?? "";
+	if (name === "" || optionId === "") {
+		return { emptyStatus: true };
+	}
+	return {
+		status: {
+			id: optionId,
+			name,
+			statusType: statusTypeOfName(name),
+			colour: githubOptionColour(value?.color ?? ""),
+		},
+	};
+}
+
+const projectFieldsQuery = `query ProjectFields($id: ID!) {
+	node(id: $id) {
+		... on ProjectV2 {
+			fields(first: 20) {
+				nodes {
+					... on ProjectV2SingleSelectField {
+						id
+						name
+						options { id name color }
+					}
+				}
+			}
+		}
+	}
+}`;
+
+const projectFields = z.object({
+	data: z.object({
+		node: z
+			.object({
+				fields: z.object({
+					nodes: z.array(
+						z
+							.object({
+								id: z.string(),
+								name: z.string(),
+								options: z.array(
+									z.object({
+										id: z.string(),
+										name: z.string(),
+										color: z.string(),
+									}),
+								),
+							})
+							.optional(),
+					),
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+async function listProjectStatuses(
+	token: string,
+	fetchImpl: Fetch,
+	projectId: string,
+): Promise<TicketStatus[]> {
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({
+			query: projectFieldsQuery,
+			variables: { id: projectId },
+		}),
+	});
+	if (!response.ok) {
+		return [];
+	}
+	const body = await response.json();
+	const recorded = projectFields.safeParse(body);
+	if (!recorded.success) {
+		return [];
+	}
+	const fields = recorded.data.data.node?.fields.nodes ?? [];
+	if (!fields.some((field) => field?.name === "Status")) {
+		return [];
+	}
+	const page = recorded.data;
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		return [];
+	}
+	const field = page.data.node?.fields.nodes.find(
+		(node) => node?.name === "Status" && node.options !== undefined,
+	);
+	return (field?.options ?? []).map((option) => ({
+		id: option.id,
+		name: option.name,
+		statusType: statusTypeOfName(option.name),
+		colour: githubOptionColour(option.color),
+	}));
+}
+
+const githubLabel = z.object({
+	name: z.string(),
+	color: z.string(),
+});
+
+async function listRepoLabels(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+): Promise<{ name: string; colour: string }[]> {
+	const start = `https://api.github.com/repos/${repo}/labels?per_page=100&page=1`;
+	const first = await fetchImpl(start, { headers: githubHeaders(token) });
+	if (!first.ok) {
+		return [];
+	}
+	const firstBody = await first.json();
+	if (!z.array(githubLabel).safeParse(firstBody).success) {
+		return [];
+	}
+	const listed = [firstBody];
+	let url = nextPage(first.headers.get("link"));
+	while (url !== null) {
+		const response = await fetchImpl(url, { headers: githubHeaders(token) });
+		if (!response.ok) {
+			throw new Error(
+				`GitHub list labels failed (HTTP ${response.status}): ${repo}`,
+			);
+		}
+		listed.push(await response.json());
+		url = nextPage(response.headers.get("link"));
+	}
+	const labels: { name: string; colour: string }[] = [];
+	for (const item of listed) {
+		for (const label of z.array(githubLabel).parse(item)) {
+			labels.push({ name: label.name, colour: labelColour(label.color) });
+		}
+	}
+	return labels;
+}
+
 function projectBlockedByRefs(
 	nodes: z.infer<typeof projectBlockedByNode>[],
 	fallback: string,
@@ -1025,6 +1197,7 @@ async function listProjectTickets(
 			milestone: content.milestone?.title ?? null,
 			parent,
 			labels: content.labels?.nodes.map((label) => label.name) ?? [],
+			...githubItemStatus(item.fieldValueByName),
 		});
 	}
 	return tickets;
@@ -1443,7 +1616,14 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					items,
 					openKeys,
 				);
-				return { name: repo, tickets };
+				const statuses = await listProjectStatuses(token, fetchImpl, repo);
+				const board: Board = {
+					kind: "github-project",
+					teamKey: repo,
+					statuses,
+					factoryLabels: false,
+				};
+				return { name: repo, tickets, board };
 			}
 			const tickets: Ticket[] = [];
 			const sinceQuery =
@@ -1503,7 +1683,20 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					});
 				}
 			}
-			return { name: repo, tickets };
+			const labels = await listRepoLabels(token, fetchImpl, repo);
+			const board = factoryBoard(labels);
+			if (!board.factoryLabels) {
+				return { name: repo, tickets, board };
+			}
+			for (const ticket of tickets) {
+				const status = board.statuses.find((item) =>
+					ticket.labels.includes(item.name),
+				);
+				if (status !== undefined) {
+					ticket.status = status;
+				}
+			}
+			return { name: repo, tickets, board };
 		},
 		async listPulls(repo) {
 			if (!repo.includes("/")) {

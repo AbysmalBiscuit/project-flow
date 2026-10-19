@@ -274,6 +274,7 @@ describe("GET /api/projects/:name", () => {
 					(section) => section.id === "inFlight",
 				);
 				expect(flight?.items?.map((item) => item.key)).toEqual([
+					"acme/widget#2",
 					"acme/widget#4",
 					"acme/widget#40",
 				]);

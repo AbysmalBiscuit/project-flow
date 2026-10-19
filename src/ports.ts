@@ -57,6 +57,7 @@ export type Viewer = {
 export type TicketList = {
 	name: string;
 	tickets: Ticket[];
+	board?: Snapshot["board"];
 };
 
 export type Tracker = {

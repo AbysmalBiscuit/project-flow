@@ -172,6 +172,8 @@ function projectViews(
 				error: store.projectError(row.key),
 			},
 			needsYouRules(configuration, viewers),
+			row.board,
+			configuration.laneMappings,
 		);
 		return {
 			row,
@@ -668,6 +670,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				startedKeys,
 				pinned,
 				hidden,
+				...(listedTickets.board === undefined
+					? {}
+					: { board: listedTickets.board }),
 				...(project.closed === undefined ? {} : { closed: project.closed }),
 				windowTickets,
 			});

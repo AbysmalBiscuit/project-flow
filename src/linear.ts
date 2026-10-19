@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type {
+	Board,
 	Comment,
 	PostedReply,
 	PullRequest,
@@ -8,7 +9,9 @@ import type {
 	ThreadComment,
 	Ticket,
 	TicketRef,
+	TicketStatus,
 } from "./domain.ts";
+import { linearStatusType } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
@@ -72,7 +75,10 @@ const projectQuery = `query ProjectByPin($pin: String!) {
 			{ slugId: { endsWith: $pin } }
 		]
 	}) {
-		nodes { id name slugId }
+		nodes {
+			id name slugId
+			teams { nodes { id key name } }
+		}
 	}
 }`;
 
@@ -87,7 +93,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			identifier
 			title
 			description
-			state { type }
+			state { id name type color }
 			updatedAt
 			parent { identifier }
 			projectMilestone { name }
@@ -125,10 +131,17 @@ const attachmentNode = z.object({
 	sourceType: z.string().nullable(),
 });
 
+const linearTeamNode = z.object({
+	id: z.string(),
+	key: z.string(),
+	name: z.string(),
+});
+
 const linearProjectNode = z.object({
 	id: z.string(),
 	name: z.string(),
 	slugId: z.string(),
+	teams: z.object({ nodes: z.array(linearTeamNode) }).optional(),
 });
 
 const projectPage = z.object({
@@ -178,7 +191,14 @@ const issueNode = z.object({
 	title: z.string().optional(),
 	description: z.string().nullable().optional(),
 	updatedAt: z.string(),
-	state: z.object({ type: z.string() }).nullable(),
+	state: z
+		.object({
+			id: z.string().optional(),
+			name: z.string().optional(),
+			type: z.string(),
+			color: z.string().optional(),
+		})
+		.nullable(),
 	parent: z.object({ identifier: z.string() }).nullable().optional(),
 	projectMilestone: z.object({ name: z.string() }).nullable().optional(),
 	labels: z
@@ -309,7 +329,10 @@ function linearAuthor(
 	return commentAuthor(user) ?? "";
 }
 
-function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
+function toTicket(
+	node: z.infer<typeof issueNode>,
+	teamKey?: string,
+): Ticket | null {
 	if (node.state === null || node.identifier === undefined) {
 		return null;
 	}
@@ -322,6 +345,16 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		return listed === null ? [] : [listed];
 	});
 	const assignee = node.assignee?.id ?? null;
+	const statusName = node.state.name ?? "";
+	const status =
+		node.state.id === undefined || statusName === ""
+			? undefined
+			: {
+					id: node.state.id,
+					name: statusName,
+					statusType: linearStatusType(node.state.type, statusName),
+					colour: node.state.color ?? "",
+				};
 	return {
 		id: node.identifier,
 		tracker: "linear",
@@ -337,6 +370,8 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		parent: node.parent?.identifier ?? null,
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 		...(node.assignee === undefined ? {} : { assignee }),
+		...(status === undefined ? {} : { status }),
+		...(teamKey === undefined ? {} : { teamKey }),
 	};
 }
 
@@ -422,6 +457,91 @@ async function findLinearProject(
 		throw new Error(`Linear project not found: ${pin}`);
 	}
 	return match;
+}
+
+const teamStatesQuery = `query TeamStates($id: String!) {
+	team(id: $id) {
+		states {
+			nodes { id name type position color }
+		}
+	}
+}`;
+
+const teamStates = z.object({
+	data: z.object({
+		team: z
+			.object({
+				states: z.object({
+					nodes: z.array(
+						z.object({
+							id: z.string(),
+							name: z.string(),
+							type: z.string(),
+							position: z.number(),
+							color: z.string(),
+						}),
+					),
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+async function listTeamStates(
+	key: string,
+	teamId: string,
+	fetchImpl: Fetch,
+): Promise<TicketStatus[]> {
+	const response = await fetchImpl(endpoint, {
+		method: "POST",
+		headers: linearHeaders(key),
+		body: JSON.stringify({
+			query: teamStatesQuery,
+			variables: { id: teamId },
+		}),
+	});
+	if (!response.ok) {
+		return [];
+	}
+	const body = await response.json();
+	const recorded = teamStates.safeParse(body);
+	if (!recorded.success || recorded.data.data.team === null) {
+		return [];
+	}
+	const page = recorded.data;
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		return [];
+	}
+	const nodes = page.data.team?.states.nodes ?? [];
+	return [...nodes]
+		.sort((left, right) => left.position - right.position)
+		.map((node) => ({
+			id: node.id,
+			name: node.name,
+			statusType: linearStatusType(node.type, node.name),
+			colour: node.color,
+		}));
+}
+
+function linearBoard(
+	project: LinearProject,
+	statuses: TicketStatus[],
+): Board | undefined {
+	const team = project.teams?.nodes[0];
+	if (team === undefined) {
+		return undefined;
+	}
+	if (statuses.length === 0) {
+		return undefined;
+	}
+	return {
+		kind: "linear",
+		teamKey: team.key,
+		statuses,
+		factoryLabels: false,
+	};
 }
 
 const commentPage = z.object({
@@ -787,6 +907,10 @@ export function linearTracker(
 		async listTickets(pin, since) {
 			issuesByProject.clear();
 			const project = await findLinearProject(key, pin, fetchImpl);
+			const team = project.teams?.nodes[0];
+			const statuses =
+				team === undefined ? [] : await listTeamStates(key, team.id, fetchImpl);
+			const board = linearBoard(project, statuses);
 			const nodes = await issues(project.id, since);
 			const openKeys = new Set(
 				nodes.flatMap((node) =>
@@ -802,7 +926,7 @@ export function linearTracker(
 			);
 			const tickets: Ticket[] = [];
 			for (const node of nodes) {
-				const ticket = toTicket(node);
+				const ticket = toTicket(node, team?.key);
 				if (ticket === null) {
 					continue;
 				}
@@ -826,7 +950,11 @@ export function linearTracker(
 				}
 				tickets.push(ticket);
 			}
-			return { name: project.name, tickets };
+			return {
+				name: project.name,
+				tickets,
+				...(board === undefined ? {} : { board }),
+			};
 		},
 		async listPulls(pin, since = null) {
 			const project = await findLinearProject(key, pin, fetchImpl);
