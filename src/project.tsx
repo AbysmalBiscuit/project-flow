@@ -89,6 +89,8 @@ const legend: Record<TicketState | "theme" | "dashed", string> = {
 	dropped: "Dropped",
 	blocked: "Blocked",
 	inProgress: "In progress",
+	inReview: "In review",
+	awaitingMerge: "Awaiting merge",
 	backlog: "Backlog",
 	theme: "Theme",
 	dashed: "Cross-project blocker",
