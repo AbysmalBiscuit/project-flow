@@ -28,6 +28,7 @@ import type {
 	Store,
 	TodoSource,
 	Tracker,
+	Viewer,
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
 
@@ -199,10 +200,18 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 			'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".',
 		);
 	}
-	const githubPage =
-		github === null
-			? { projects: [], viewer: null }
-			: await github.findProjects();
+	let githubPage: { projects: FoundProject[]; viewer: Viewer | null } = {
+		projects: [],
+		viewer: null,
+	};
+	let failed: string | null = null;
+	if (github !== null) {
+		try {
+			githubPage = await github.findProjects();
+		} catch (error) {
+			failed = error instanceof Error ? error.message : "poll failed";
+		}
+	}
 	const discovered = [...githubPage.projects];
 	if (linear !== null) {
 		mergeFound(discovered, (await linear.findProjects()).projects);
@@ -282,7 +291,6 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 			)
 			.map((project) => project.key),
 	);
-	let failed: string | null = null;
 	const listed = [];
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;

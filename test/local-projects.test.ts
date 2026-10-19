@@ -674,7 +674,8 @@ describe("local projects", () => {
 		expect(body).toEqual({
 			projects: [card],
 			fetchedAt: "2026-10-18T12:00:00.000Z",
-			error: null,
+			error:
+				"GitHub find projects failed (stale since 2026-10-18T12:00:00.000Z)",
 		});
 	});
 
@@ -832,6 +833,42 @@ describe("local projects", () => {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
+	});
+
+	test("a failed GitHub discovery keeps the configured checkout and records the error", async () => {
+		const requests: string[] = [];
+		const base = localFetch(requests);
+		const { body } = await overview({
+			requests,
+			fetch: async (input, init) => {
+				const bodyText = typeof init?.body === "string" ? init.body : "";
+				if (
+					urlOf(input) === "https://api.github.com/graphql" &&
+					bodyText.includes("ViewerProjects")
+				) {
+					requests.push(bodyText);
+					return new Response(
+						JSON.stringify({ errors: [{ message: "viewer unavailable" }] }),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
+				return base(input, init);
+			},
+			files: {
+				"stranger/configured/.git/config":
+					'[remote "origin"]\nurl = https://github.com/stranger/configured.git\n',
+				"stranger/configured/devkit.toml": `[tracker]\nkind = "github"\n\n[github]\nissues_repo = "${named}"\n`,
+			},
+		});
+		expect(body).toEqual({
+			projects: [card],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error:
+				"GitHub find projects failed: viewer unavailable (stale since 2026-10-18T12:00:00.000Z)",
+		});
+		expect(
+			requests.some((request) => request.includes(`/repos/${named}/`)),
+		).toBe(true);
 	});
 
 	test("a blank checkout root and the old env var name no project", async () => {

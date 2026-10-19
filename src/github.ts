@@ -219,31 +219,25 @@ async function graphqlPage(
 	if (!response.ok) {
 		throw new Error(`GitHub find projects failed (HTTP ${response.status})`);
 	}
-	const parsed = graphqlProjects.safeParse(await response.json());
-	const firstViewerPage =
-		query === projectsQuery &&
-		variables.after === null &&
-		variables.orgAfter === null;
+	const body: unknown = await response.json();
 	if (
-		firstViewerPage &&
-		(!parsed.success || parsed.data.data.viewer === undefined)
+		typeof body === "object" &&
+		body !== null &&
+		"errors" in body &&
+		Array.isArray(body.errors)
 	) {
-		return {
-			data: {
-				viewer: {
-					login: "",
-					projectsV2: {
-						nodes: [],
-						pageInfo: { hasNextPage: false, endCursor: null },
-					},
-					organizations: {
-						nodes: [],
-						pageInfo: { hasNextPage: false, endCursor: null },
-					},
-				},
-			},
-		};
+		const message = body.errors.find(
+			(item): item is { message: string } =>
+				typeof item === "object" &&
+				item !== null &&
+				"message" in item &&
+				typeof item.message === "string",
+		)?.message;
+		if (message !== undefined) {
+			throw new Error(`GitHub find projects failed: ${message}`);
+		}
 	}
+	const parsed = graphqlProjects.safeParse(body);
 	if (!parsed.success) {
 		throw new Error("GitHub find projects failed");
 	}
