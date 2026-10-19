@@ -999,7 +999,6 @@ export function laneForTicket(
 	lanes: Lane[],
 	mapping: LaneMapping,
 ): Lane {
-	const fallback = lanes[0] ?? appLane("backlog");
 	if (ticket.emptyStatus === true) {
 		return laneOfType(lanes, closedLaneType(ticket) ?? "backlog");
 	}
@@ -1020,7 +1019,7 @@ export function laneForTicket(
 	if (ticket.status === undefined) {
 		return laneOfType(lanes, "backlog");
 	}
-	return fallback;
+	return laneOfType(lanes, ticket.status.statusType);
 }
 
 function laneOfType(lanes: Lane[], statusType: StatusType): Lane {
@@ -1029,14 +1028,14 @@ function laneOfType(lanes: Lane[], statusType: StatusType): Lane {
 	);
 }
 
-function placeOnBoard(lanes: Lane[], tickets: Ticket[]): Lane[] {
+function placeOnBoard(
+	lanes: Lane[],
+	tickets: Ticket[],
+	mapping: LaneMapping,
+): Lane[] {
 	const placed = [...lanes];
 	for (const ticket of tickets) {
-		const closedType = closedLaneType(ticket);
-		if (ticket.emptyStatus !== true && closedType === undefined) {
-			continue;
-		}
-		const statusType = closedType ?? "backlog";
+		const statusType = laneForTicket(ticket, placed, mapping).statusType;
 		if (placed.some((lane) => lane.statusType === statusType)) {
 			continue;
 		}
@@ -2251,7 +2250,7 @@ export function projectCounts(
 	const mappingKey = board?.laneKey ?? board?.teamKey;
 	const mapping =
 		mappingKey === undefined ? {} : (laneMappings[mappingKey] ?? {});
-	const lanes = placeOnBoard(lanesFor(board, mapping), tickets);
+	const lanes = placeOnBoard(lanesFor(board, mapping), tickets, mapping);
 	const counted = board !== undefined;
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
