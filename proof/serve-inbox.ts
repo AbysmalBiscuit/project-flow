@@ -56,7 +56,7 @@ export function linearProofFetch(): Fetch {
 			}
 			if (body.includes("ProjectIssues")) {
 				if (releaseAsk && issues.length === 0) {
-					releaseLinearAsk(question, ask);
+					releaseLinearAsk();
 				}
 				return recordedIssues();
 			}
@@ -65,7 +65,7 @@ export function linearProofFetch(): Fetch {
 	};
 }
 
-export function releaseLinearAsk(headline: string, marker: string): void {
+export function releaseLinearAsk(): void {
 	releaseAsk = true;
 	issues = [
 		{
@@ -84,7 +84,7 @@ export function releaseLinearAsk(headline: string, marker: string): void {
 				nodes: [
 					{
 						id: "comment-1",
-						body: `${headline}\n\n${marker}`,
+						body: `${question}\n\n${ask}`,
 						createdAt: "2026-08-18T13:00:00.000Z",
 						user: { name: "Ada", displayName: "Ada" },
 						reactions: [],
