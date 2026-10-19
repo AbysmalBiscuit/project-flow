@@ -119,9 +119,7 @@ function eventsOf(text: string): StreamEvent[] {
 	return events;
 }
 
-async function drivenPoll(
-	base: string,
-): Promise<{ notification: InboxEntry | null }> {
+async function drivenPoll(base: string): Promise<InboxEntry | null> {
 	const response = await fetch(new URL("/api/events", base), {
 		headers: { accept: "text/event-stream" },
 	});
@@ -142,7 +140,7 @@ async function drivenPoll(
 	);
 	if (raised === undefined) {
 		await reader.cancel();
-		return { notification: null };
+		return null;
 	}
 	let buffered = "";
 	while (!notificationBlock(buffered, raised.id)) {
@@ -156,7 +154,7 @@ async function drivenPoll(
 	if (!notificationBlock(buffered, raised.id)) {
 		throw new Error("notification event missing for the raised inbox entry");
 	}
-	return { notification: raised };
+	return raised;
 }
 
 function notificationBlock(text: string, id: string): boolean {
@@ -300,15 +298,15 @@ const twoProjects = {
 
 async function notificationAfterRefresh(base: string): Promise<InboxEntry> {
 	const polled = await drivenPoll(base);
-	if (polled.notification === null) {
+	if (polled === null) {
 		throw new Error("no notification event on the driven poll");
 	}
-	return polled.notification;
+	return polled;
 }
 
 async function expectQuietRefresh(base: string): Promise<void> {
 	const polled = await drivenPoll(base);
-	if (polled.notification !== null) {
+	if (polled !== null) {
 		throw new Error("notification event arrived on a quiet poll");
 	}
 }
