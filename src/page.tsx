@@ -1,23 +1,12 @@
 import { watchNotifications } from "./notify.tsx";
+import { applyPageTheme, type PageTheme, pageTheme } from "./theme.ts";
 import "./tokens.css";
 
 watchNotifications();
 
 const themeKey = "project-flow-theme";
 
-function storedTheme(): "light" | "dark" {
-	try {
-		return localStorage.getItem(themeKey) === "dark" ? "dark" : "light";
-	} catch {
-		return "light";
-	}
-}
-
-function applyTheme(theme: "light" | "dark"): void {
-	document.documentElement.dataset.theme = theme;
-}
-
-applyTheme(storedTheme());
+applyPageTheme(pageTheme());
 
 document.addEventListener("click", (event) => {
 	const target = event.target;
@@ -27,9 +16,9 @@ document.addEventListener("click", (event) => {
 	if (target.dataset.themeToggle === undefined) {
 		return;
 	}
-	const next =
+	const next: PageTheme =
 		document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-	applyTheme(next);
+	applyPageTheme(next);
 	target.textContent = next === "dark" ? "Light mode" : "Dark mode";
 	try {
 		localStorage.setItem(themeKey, next);

@@ -12,6 +12,7 @@ import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
 import styles from "./project.module.css";
 import shell from "./shell.module.css";
+import { mermaidTheme, watchPageTheme } from "./theme.ts";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -263,6 +264,7 @@ function Page() {
 	const [open, setOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
+	const [diagramTheme, setDiagramTheme] = useState(mermaidTheme);
 	useEffect(() => {
 		const onPop = () => {
 			setName(projectName());
@@ -310,7 +312,11 @@ function Page() {
 		if (report === null) {
 			return;
 		}
-		mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
+		mermaid.initialize({
+			startOnLoad: false,
+			securityLevel: "strict",
+			theme: diagramTheme,
+		});
 		const nodes = document.querySelectorAll<HTMLElement>(".mermaid");
 		if (nodes.length === 0) {
 			return;
@@ -358,7 +364,8 @@ function Page() {
 				drawn.removeEventListener("click", open);
 			}
 		};
-	}, [report]);
+	}, [diagramTheme, report]);
+	useEffect(() => watchPageTheme(() => setDiagramTheme(mermaidTheme())), []);
 	if (missing) {
 		return <main>Project not found</main>;
 	}

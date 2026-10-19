@@ -5,8 +5,13 @@ import styles from "./cards.module.css";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import shell from "./shell.module.css";
+import { mermaidTheme, watchPageTheme } from "./theme.ts";
 
-mermaid.initialize({ startOnLoad: false });
+function startMermaid(): void {
+	mermaid.initialize({ startOnLoad: false, theme: mermaidTheme() });
+}
+
+startMermaid();
 
 function projectPath(name: string, ticket?: string): string {
 	const path = `/projects/${encodeURIComponent(name)}`;
@@ -497,6 +502,7 @@ function Page() {
 	useEffect(() => {
 		const show = (next: Overview) => {
 			setOverview(next);
+			startMermaid();
 			void renderGraph(next).then(setGraphSvg);
 		};
 		const stopOverview = onAppEvent("overview", (event) => {
@@ -505,10 +511,19 @@ function Page() {
 		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
 		});
+		const stopTheme = watchPageTheme(() => {
+			setOverview((current) => {
+				if (current !== null) {
+					show(current);
+				}
+				return current;
+			});
+		});
 		void readOverview().then(show);
 		return () => {
 			stopOverview();
 			stopOpen();
+			stopTheme();
 		};
 	}, []);
 	if (overview === null) {
