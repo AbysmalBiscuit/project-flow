@@ -1077,6 +1077,7 @@ export type ListedProject = {
 	pinned: boolean;
 	hidden: boolean;
 	closed?: boolean;
+	windowTickets?: Ticket[];
 };
 
 export function projectSnapshots(
@@ -1101,10 +1102,11 @@ export function projectSnapshots(
 		),
 	];
 	const shown = projects.filter((project) => {
-		const openTickets = project.tickets.filter(
+		const windowTickets = project.windowTickets ?? project.tickets;
+		const openTickets = windowTickets.filter(
 			(ticket) => ticket.state === "open",
 		).length;
-		const ticketUpdated = project.tickets.reduce<string | null>(
+		const ticketUpdated = windowTickets.reduce<string | null>(
 			(latest, ticket) => {
 				if (ticket.updatedAt === undefined) {
 					return latest;

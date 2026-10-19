@@ -336,7 +336,7 @@ const projectsQuery = `query ViewerProjects($after: String, $orgAfter: String) {
 	viewer {
 		login
 		projectsV2(first: 20, after: $after) {
-			nodes { id number title closed updatedAt owner { login } }
+			nodes { id number title closed updatedAt owner { ... on User { login } ... on Organization { login } } }
 			pageInfo { hasNextPage endCursor }
 		}
 		organizations(first: 20, after: $orgAfter) {
@@ -349,7 +349,7 @@ const projectsQuery = `query ViewerProjects($after: String, $orgAfter: String) {
 const orgProjectsQuery = `query OrgProjects($login: String!, $orgProjectAfter: String) {
 	organization(login: $login) {
 		projectsV2(first: 20, after: $orgProjectAfter) {
-			nodes { id number title closed updatedAt owner { login } }
+			nodes { id number title closed updatedAt owner { ... on User { login } ... on Organization { login } } }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
@@ -457,33 +457,51 @@ export async function findGithubProjects(
 	let orgAfter: string | null = null;
 	let projectsDone = false;
 	let orgsDone = false;
-	do {
-		const page = await graphqlPage(token, fetchImpl, projectsQuery, {
-			after,
-			orgAfter,
-		});
-		const viewer = page.data.viewer;
-		if (viewer === undefined) {
-			throw new Error("GitHub find projects failed");
-		}
-		if (login === "") {
-			login = viewer.login;
-		}
-		if (!projectsDone) {
-			addOpenProjects(viewer.projectsV2.nodes, found, seen);
-			projectsDone = !viewer.projectsV2.pageInfo.hasNextPage;
-			after = viewer.projectsV2.pageInfo.endCursor;
-		}
-		if (!orgsDone) {
-			for (const org of viewer.organizations.nodes) {
-				orgs.push(org.login);
+	let projectError: string | null = null;
+	try {
+		do {
+			const page = await graphqlPage(token, fetchImpl, projectsQuery, {
+				after,
+				orgAfter,
+			});
+			const viewer = page.data.viewer;
+			if (viewer === undefined) {
+				throw new Error("GitHub find projects failed");
 			}
-			orgsDone = !viewer.organizations.pageInfo.hasNextPage;
-			orgAfter = viewer.organizations.pageInfo.endCursor;
+			if (login === "") {
+				login = viewer.login;
+			}
+			if (!projectsDone) {
+				addOpenProjects(viewer.projectsV2.nodes, found, seen);
+				projectsDone = !viewer.projectsV2.pageInfo.hasNextPage;
+				after = viewer.projectsV2.pageInfo.endCursor;
+			}
+			if (!orgsDone) {
+				for (const org of viewer.organizations.nodes) {
+					orgs.push(org.login);
+				}
+				orgsDone = !viewer.organizations.pageInfo.hasNextPage;
+				orgAfter = viewer.organizations.pageInfo.endCursor;
+			}
+		} while (!projectsDone || !orgsDone);
+		for (const org of orgs) {
+			await addOrgProjects(token, fetchImpl, org, found, seen);
 		}
-	} while (!projectsDone || !orgsDone);
-	for (const login of orgs) {
-		await addOrgProjects(token, fetchImpl, login, found, seen);
+	} catch (error) {
+		projectError = error instanceof Error ? error.message : "poll failed";
+		if (login === "") {
+			const user = await fetchImpl("https://api.github.com/user", {
+				headers: githubHeaders(token),
+			});
+			if (user.ok) {
+				const body = z
+					.object({ login: z.string() })
+					.safeParse(await user.json());
+				if (body.success) {
+					login = body.data.login;
+				}
+			}
+		}
 	}
 
 	let url: string | null =
@@ -503,7 +521,14 @@ export async function findGithubProjects(
 		}
 		url = nextPage(response.headers.get("link"));
 	}
-	return { projects: found, viewer: login === "" ? null : { login, orgs } };
+	if (projectError !== null && found.length === 0 && login === "") {
+		throw new Error(projectError);
+	}
+	return {
+		projects: found,
+		viewer: login === "" ? null : { login, orgs },
+		...(projectError === null ? {} : { error: projectError }),
+	};
 }
 
 const projectByNumberQuery = `query ProjectByNumber($owner: String!, $number: Int!) {
@@ -1300,16 +1325,14 @@ export async function mergedPullHistory(
 	fetchImpl: Fetch,
 	seen: Map<string, ReviewEvidence>,
 ): Promise<PullRequest[]> {
-	const page = z
-		.array(githubPull)
-		.parse(
-			await fetchJson(
-				`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
-				token,
-				fetchImpl,
-				"list merged pulls",
-			),
-		);
+	const response = await fetchImpl(
+		`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
+		{ headers: githubHeaders(token) },
+	);
+	if (!response.ok) {
+		return [];
+	}
+	const page = z.array(githubPull).parse(await response.json());
 	const pulls: PullRequest[] = [];
 	for (const pull of page) {
 		if ((pull.merged_at ?? null) === null) {

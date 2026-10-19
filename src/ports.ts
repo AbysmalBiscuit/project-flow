@@ -66,6 +66,7 @@ export type Tracker = {
 	findProjects: () => Promise<{
 		projects: FoundProject[];
 		viewer: Viewer | null;
+		error?: string;
 	}>;
 	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
 	fetchThread?: (project: string, key: string) => Promise<Thread | null>;

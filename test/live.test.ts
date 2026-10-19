@@ -600,6 +600,80 @@ describe("live updates", () => {
 		}
 	});
 
+	test("the overview answers while a slow first poll holds the tracker", async () => {
+		let releasePoll: () => void = () => {};
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), {
+					status: 200,
+				});
+			}
+			await pollHeld;
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (listUrl(url) !== null) {
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					await Bun.sleep(12_000);
+					const started = Date.now();
+					const response = await fetch(new URL("/api/overview", base));
+					expect(response.status).toBe(200);
+					expect(Date.now() - started).toBeLessThan(2_000);
+					const body = (await response.json()) as OverviewBody;
+					expect(body.polling).toBe(true);
+					expect(body.error).toBeNull();
+					releasePoll();
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releasePoll();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 20_000);
+
 	test("each project reaches the event stream when its own poll ends", async () => {
 		const releases = new Map<string, () => void>();
 		const held = (name: string) =>
@@ -1645,6 +1719,127 @@ describe("live updates", () => {
 				{ tracker: "github", repo },
 				{ tracker: "github", repo: otherRepo },
 			],
+		);
+	});
+
+	test("a found Linear project stays after an incremental poll with no changes", async () => {
+		const requests: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body =
+				typeof init?.body === "string" ? init.body : JSON.stringify(init?.body);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				if (body.includes("MemberProjects")) {
+					return new Response(
+						JSON.stringify({
+							data: {
+								viewer: { id: "lev" },
+								projects: {
+									nodes: [
+										{
+											id: "project-1",
+											name: "Widget launch",
+											slugId: linearProject,
+											updatedAt: "2026-04-01T00:00:00.000Z",
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						}),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (body.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (body.includes("ProjectByPin")) {
+					return new Response(
+						JSON.stringify({
+							data: {
+								projects: {
+									nodes: [
+										{
+											id: "project-1",
+											name: "Widget launch",
+											slugId: linearProject,
+										},
+									],
+								},
+							},
+						}),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				const filter = linearIssueFilter(body);
+				if (filter !== null) {
+					requests.push(body);
+					const nodes = requests.length === 1 ? [linearIssue("1")] : [];
+					return new Response(linearPage(nodes), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+			}
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
+		};
+		await withServer(
+			fetchImpl,
+			3600,
+			async (base) => {
+				const first = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(first.projects.map((project) => project.name)).toEqual([
+					"Widget launch",
+				]);
+				expect(first.projects[0]?.tracker).toBe("linear");
+				expect(first.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
+					"WID-1",
+				]);
+				expect(first.error).toBeNull();
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				expect(requests.map(linearListSince)).toEqual([null, goodPoll]);
+				const body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(body.projects.map((project) => project.name)).toEqual([
+					"Widget launch",
+				]);
+				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
+					"WID-1",
+				]);
+				expect(body.error).toBeNull();
+			},
+			[],
+			{
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
 		);
 	});
 
