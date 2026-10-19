@@ -1,10 +1,17 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { linearFake, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 
@@ -84,9 +91,28 @@ function isIssueQuery(
 	);
 }
 
-function notificationEvent(base: string): Promise<InboxEntry> {
+function notificationEvent(
+	base: string,
+	timeoutMs = 3_000,
+): Promise<InboxEntry> {
 	return new Promise((resolve, reject) => {
 		let buffer = "";
+		let settled = false;
+		const finish = (error?: Error, entry?: InboxEntry) => {
+			if (settled) {
+				return;
+			}
+			settled = true;
+			clearTimeout(timer);
+			void socket.then((open) => open.end());
+			if (error !== undefined) {
+				reject(error);
+				return;
+			}
+			if (entry !== undefined) {
+				resolve(entry);
+			}
+		};
 		const socket = Bun.connect({
 			hostname: "127.0.0.1",
 			port: Number(new URL(base).port),
@@ -107,12 +133,12 @@ function notificationEvent(base: string): Promise<InboxEntry> {
 							.map((line) => line.slice("data:".length).trim())
 							.join("\n");
 						if (event === "notification" && payload !== "") {
-							resolve(JSON.parse(payload) as InboxEntry);
+							finish(undefined, JSON.parse(payload) as InboxEntry);
 						}
 					}
 				},
 				error(_socket, error) {
-					reject(error);
+					finish(error);
 				},
 				open(openSocket) {
 					openSocket.write(
@@ -121,10 +147,9 @@ function notificationEvent(base: string): Promise<InboxEntry> {
 				},
 			},
 		});
-		setTimeout(() => {
-			void socket.then((open) => open.end());
-			reject(new Error("no notification event within 3000ms"));
-		}, 3_000);
+		const timer = setTimeout(() => {
+			finish(new Error("no notification event within 3000ms"));
+		}, timeoutMs);
 	});
 }
 
@@ -1132,5 +1157,1115 @@ describe("inbox", () => {
 			await refresh(base);
 			expect(await inboxOf(base)).toEqual([]);
 		});
+	});
+
+	test("a ticket that leaves needs-you and joins again raises a notification", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.\n\npf-1",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		const open = linearIssue(
+			"PF-1",
+			"Open ask",
+			headline,
+			[askComment],
+			{},
+			"2026-08-18T12:00:00.000Z",
+		);
+		await withInbox(pinned, [open], async (base, setIssues) => {
+			expect(await inboxOf(base)).toEqual([]);
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([]);
+			const again = {
+				body: `${headline}\n\n${ask("pf-2")}`,
+				createdAt: "2026-08-18T16:00:00.000Z",
+			};
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply, again],
+					{},
+					"2026-08-18T16:00:00.000Z",
+				),
+			]);
+			const events = notificationEvent(base);
+			await Bun.sleep(50);
+			await refresh(base);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(await inboxOf(base)).toEqual([event]);
+			const rejoined = await fetch(new URL("/api/needs-you", base));
+			expect(rejoined.status).toBe(200);
+			expect(await rejoined.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					reason: "ask",
+					headline,
+				}),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([event]);
+		});
+	});
+
+	test("a restart after a ticket leaves needs-you still raises the rejoin", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.\n\npf-1",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		const again = {
+			body: `${headline}\n\n${ask("pf-2")}`,
+			createdAt: "2026-08-18T16:00:00.000Z",
+		};
+		let current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[askComment],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const first = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await first;
+			expect(await inboxOf(base)).toEqual([]);
+			current = [
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			];
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			stopFirst();
+			await started;
+			current = [
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply, again],
+					{},
+					"2026-08-18T16:00:00.000Z",
+				),
+			];
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const restarted = start(secondStop, againReady);
+			const next = await second;
+			const events = notificationEvent(next);
+			await Bun.sleep(50);
+			await refresh(next);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(await inboxOf(next)).toEqual([event]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a stored needsYou notification id still lets a rejoin notify after restart", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.\n\npf-1",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		const again = {
+			body: `${headline}\n\n${ask("pf-2")}`,
+			createdAt: "2026-08-18T16:00:00.000Z",
+		};
+		let current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[askComment],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const first = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await first;
+			expect(await inboxOf(base)).toEqual([]);
+			current = [
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			];
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			stopFirst();
+			await started;
+			const legacy = new Database(databasePath);
+			legacy.run(
+				"insert into notifications (id, trigger, project, item_key, text, at) values (?, ?, ?, ?, ?, ?)",
+				[
+					"needsYou\nProject Flow\nPF-1",
+					"needsYou",
+					"Project Flow",
+					"PF-1",
+					headline,
+					"2026-08-18T12:00:00.000Z",
+				],
+			);
+			legacy.close();
+			current = [
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply, again],
+					{},
+					"2026-08-18T16:00:00.000Z",
+				),
+			];
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const restarted = start(secondStop, againReady);
+			const next = await second;
+			const events = notificationEvent(next);
+			await Bun.sleep(50);
+			await refresh(next);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			const needsYou = (await inboxOf(next)).filter(
+				(entry) =>
+					entry.trigger === "needsYou" &&
+					entry.id !== "needsYou\nProject Flow\nPF-1",
+			);
+			expect(needsYou).toEqual([event]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a stored needsYou id for an item still in needs-you raises no notification after an upgrade restart", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[askComment],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const legacy = new Database(databasePath);
+		legacy.run(`
+			create table if not exists notifications (
+				id text primary key,
+				trigger text not null,
+				project text not null,
+				item_key text not null,
+				text text not null,
+				at text not null
+			)
+		`);
+		legacy.run(
+			"insert into notifications (id, trigger, project, item_key, text, at) values (?, ?, ?, ?, ?, ?)",
+			[
+				"needsYou\nProject Flow\nPF-1",
+				"needsYou",
+				"Project Flow",
+				"PF-1",
+				headline,
+				"2026-08-18T12:00:00.000Z",
+			],
+		);
+		legacy.close();
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const first = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await first;
+			await Bun.sleep(50);
+			expect(await inboxOf(base)).toEqual([
+				expect.objectContaining({
+					id: "needsYou\nProject Flow\nPF-1",
+					trigger: "needsYou",
+					key: "PF-1",
+				}),
+			]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					reason: "ask",
+					headline,
+				}),
+			]);
+			stopFirst();
+			await started;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const restarted = start(secondStop, againReady);
+			const next = await second;
+			const hiddenConfig = {
+				...pinned,
+				hidden: [{ tracker: "linear", project: "project-flow" }],
+			};
+			await Bun.write(path, JSON.stringify(hiddenConfig));
+			const hiddenEvents = notificationEvent(next, 400);
+			await Bun.sleep(50);
+			await refresh(next);
+			await expect(hiddenEvents).rejects.toThrow(
+				"no notification event within",
+			);
+			const hiddenList = await fetch(new URL("/api/needs-you", next));
+			expect(hiddenList.status).toBe(200);
+			expect(await hiddenList.json()).toEqual([]);
+			expect(await inboxOf(next)).toEqual([
+				expect.objectContaining({
+					id: "needsYou\nProject Flow\nPF-1",
+					trigger: "needsYou",
+				}),
+			]);
+			await Bun.write(path, JSON.stringify(pinned));
+			const shown = notificationEvent(next, 400);
+			await Bun.sleep(50);
+			await refresh(next);
+			await expect(shown).rejects.toThrow("no notification event within");
+			expect(await inboxOf(next)).toEqual([
+				expect.objectContaining({
+					id: "needsYou\nProject Flow\nPF-1",
+					trigger: "needsYou",
+					key: "PF-1",
+				}),
+			]);
+			const shownList = await fetch(new URL("/api/needs-you", next));
+			expect(shownList.status).toBe(200);
+			expect(await shownList.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					reason: "ask",
+					headline,
+				}),
+			]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a ticket that stays in needs-you raises no second notification", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		await withInbox(
+			pinned,
+			[
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment],
+					{},
+					"2026-08-18T12:00:00.000Z",
+				),
+			],
+			async (base, setIssues) => {
+				expect(await inboxOf(base)).toEqual([]);
+				setIssues([
+					linearIssue(
+						"PF-1",
+						"Open ask",
+						headline,
+						[
+							askComment,
+							{
+								body: "Still waiting.",
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						{},
+						"2026-08-18T13:00:00.000Z",
+					),
+				]);
+				await refresh(base);
+				const first = await inboxOf(base);
+				expect(first).toHaveLength(1);
+				expect(first[0]).toMatchObject({ trigger: "comment", key: "PF-1" });
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual(first);
+			},
+		);
+	});
+
+	test("an idle project that shows again raises no second notification, and a leave and rejoin on a loaded project does", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-06-01T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.\n\npf-1",
+			createdAt: "2026-06-01T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		const again = {
+			body: `${headline}\n\n${ask("pf-2")}`,
+			createdAt: "2026-06-01T16:00:00.000Z",
+		};
+		const idle = {
+			id: "project-idle",
+			name: "Idle",
+			slugId: "idle",
+			updatedAt: "2026-06-01T12:00:00.000Z",
+		};
+		const loaded = {
+			id: "project-loaded",
+			name: "Loaded",
+			slugId: "loaded",
+			updatedAt: "2026-10-18T12:00:00.000Z",
+		};
+		const openOn = (
+			project: typeof idle,
+			identifier: string,
+			comments: {
+				body: string;
+				createdAt?: string;
+				user?: { name: string };
+			}[],
+			updatedAt: string,
+		) => ({
+			...linearIssue(identifier, "Open ask", headline, comments, {}, updatedAt),
+			projectId: project.id,
+		});
+		let current = [
+			openOn(idle, "IDLE-1", [askComment], "2026-06-01T12:00:00.000Z"),
+			openOn(loaded, "LOAD-1", [askComment], "2026-10-18T12:00:00.000Z"),
+		];
+		const recorded = linearFake({ project: null });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (
+				urlOf(input) === "https://api.linear.app/graphql" &&
+				bodyOf(init).includes("MemberProjects")
+			) {
+				return Response.json({
+					data: {
+						viewer: { id: "viewer-ada" },
+						projects: {
+							nodes: [idle, loaded],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				});
+			}
+			if (isIssueQuery(input, init)) {
+				const projectId = bodyOf(init).match(
+					/"project":\{"id":\{"eq":"([^"]+)"/,
+				)?.[1];
+				return recordedIssues(
+					current.filter((issue) => issue.projectId === projectId),
+				);
+			}
+			if (isPinQuery(input, init)) {
+				const slug = bodyOf(init).match(/"pin":"([^"]+)"/)?.[1];
+				const project =
+					[idle, loaded].find((item) => item.slugId === slug) ?? null;
+				return Response.json({
+					data: { projects: { nodes: project === null ? [] : [project] } },
+				});
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "linear", project: "idle" },
+					{ tracker: "linear", project: "loaded" },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		try {
+			let stop: () => void = () => {};
+			const stopped = new Promise<void>((resolve) => {
+				stop = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const started = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const running = run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => ready(line),
+					waitForStop: stopped,
+				}),
+			);
+			const base = await started;
+			expect(await inboxOf(base)).toEqual([]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([
+				expect.objectContaining({ project: "Idle", key: "IDLE-1" }),
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
+			const shownConfig = {
+				pinned: [
+					{ tracker: "linear", project: "idle" },
+					{ tracker: "linear", project: "loaded" },
+				],
+				pollIntervalSeconds: 3600,
+				checkoutRoots: [],
+			};
+			const hiddenConfig = {
+				...shownConfig,
+				hidden: [{ tracker: "linear", project: "idle" }],
+			};
+			await Bun.write(path, JSON.stringify(hiddenConfig));
+			await refresh(base);
+			const hiddenList = await fetch(new URL("/api/needs-you", base));
+			expect(hiddenList.status).toBe(200);
+			expect(await hiddenList.json()).toEqual([
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
+			expect(await inboxOf(base)).toEqual([]);
+			stop();
+			await running;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const restarted = run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => againReady(line),
+					waitForStop: secondStop,
+				}),
+			);
+			const next = await second;
+			const hiddenAgain = await fetch(new URL("/api/needs-you", next));
+			expect(hiddenAgain.status).toBe(200);
+			expect(await hiddenAgain.json()).toEqual([
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
+			await Bun.write(path, JSON.stringify(shownConfig));
+			const shown = notificationEvent(next, 400);
+			await Bun.sleep(50);
+			await refresh(next);
+			await expect(shown).rejects.toThrow("no notification event");
+			expect(await inboxOf(next)).toEqual([]);
+			await refresh(next);
+			const shownList = await fetch(new URL("/api/needs-you", next));
+			expect(shownList.status).toBe(200);
+			expect(await shownList.json()).toEqual([
+				expect.objectContaining({ project: "Idle", key: "IDLE-1" }),
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
+			current = [
+				openOn(idle, "IDLE-1", [askComment], "2026-06-01T12:00:00.000Z"),
+				openOn(
+					loaded,
+					"LOAD-1",
+					[askComment, reply],
+					"2026-10-18T14:00:00.000Z",
+				),
+			];
+			await refresh(next);
+			expect(await inboxOf(next)).toEqual([]);
+			current = [
+				openOn(idle, "IDLE-1", [askComment], "2026-06-01T12:00:00.000Z"),
+				openOn(
+					loaded,
+					"LOAD-1",
+					[askComment, reply, again],
+					"2026-10-18T16:00:00.000Z",
+				),
+			];
+			const events = notificationEvent(next);
+			await Bun.sleep(50);
+			await refresh(next);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "needsYou",
+				project: "Loaded",
+				key: "LOAD-1",
+				text: headline,
+			});
+			expect(await inboxOf(next)).toEqual([event]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 30_000);
+
+	test("a ticket that joins, leaves and joins again raises two needs-you notifications", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.\n\npf-1",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		const again = {
+			body: `${headline}\n\n${ask("pf-2")}`,
+			createdAt: "2026-08-18T16:00:00.000Z",
+		};
+		await withInbox(pinned, [], async (base, setIssues) => {
+			expect(await inboxOf(base)).toEqual([]);
+			const joined = notificationEvent(base);
+			await Bun.sleep(50);
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment],
+					{},
+					"2026-08-18T12:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			const first = await joined;
+			expect(first).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([first]);
+			const rejoined = notificationEvent(base);
+			await Bun.sleep(50);
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply, again],
+					{},
+					"2026-08-18T16:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			const second = await rejoined;
+			expect(second).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(second.id).not.toBe(first.id);
+			expect(await inboxOf(base)).toEqual([second, first]);
+		});
+	});
+});
+
+const githubRepo = "acme/widget";
+
+function githubPage(items: unknown): Response {
+	return Response.json(items);
+}
+
+function githubIssue(
+	number: number,
+	comments: number,
+): Record<string, unknown> {
+	return {
+		number,
+		title: "Ship the signing key",
+		state: "open",
+		state_reason: null,
+		updated_at: "2026-10-01T00:00:00Z",
+		body: "",
+		comments,
+		assignee: null,
+		labels: [],
+	};
+}
+
+function githubPull(number: number, body: string): Record<string, unknown> {
+	return {
+		number,
+		title: "Count PR asks",
+		state: "open",
+		draft: false,
+		html_url: `https://github.com/${githubRepo}/pull/${number}`,
+		head: { ref: `${number}-feat-pr-ask`, sha: `sha-${number}` },
+		body,
+		merged_at: null,
+	};
+}
+
+function githubComment(
+	body: string,
+	createdAt: string,
+	login = "agent",
+): Record<string, unknown> {
+	return {
+		body,
+		created_at: createdAt,
+		user: { login },
+	};
+}
+
+async function withGithubInbox(
+	issueComments: Record<number, Record<string, unknown>[]>,
+	pullComments: Record<number, Record<string, unknown>[]>,
+	checks: (
+		base: string,
+		setComments: (next: {
+			issues: Record<number, Record<string, unknown>[]>;
+			pulls: Record<number, Record<string, unknown>[]>;
+		}) => void,
+	) => Promise<void>,
+	issues: Record<string, unknown>[] = [githubIssue(8, 0)],
+	pulls: Record<string, unknown>[] = [githubPull(49, "Closes #8")],
+): Promise<void> {
+	let currentIssues = issueComments;
+	let currentPulls = pullComments;
+	const fetchImpl: Fetch = async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return githubPage({ login: "lev" });
+		}
+		if (url === "https://api.github.com/graphql") {
+			return githubPage({
+				data: {
+					repository: {
+						pullRequest: { closingIssuesReferences: { nodes: [] } },
+					},
+				},
+			});
+		}
+		if (url.startsWith(`https://api.github.com/repos/${githubRepo}/issues?`)) {
+			return githubPage(issues);
+		}
+		if (
+			url ===
+			`https://api.github.com/repos/${githubRepo}/pulls?state=open&per_page=100&page=1`
+		) {
+			return githubPage(pulls);
+		}
+		const comments = url.match(
+			/\/issues\/(\d+)\/comments\?per_page=100&page=1$/,
+		);
+		if (comments?.[1] !== undefined) {
+			const number = Number(comments[1]);
+			const onIssue = currentIssues[number];
+			if (onIssue !== undefined) {
+				return githubPage(onIssue);
+			}
+			const onPull = currentPulls[number];
+			if (onPull !== undefined) {
+				return githubPage(onPull);
+			}
+		}
+		if (
+			url.includes("/pulls?state=closed") ||
+			url.includes("/branches?") ||
+			url.includes("/comments?") ||
+			url.includes("/reviews?") ||
+			url.includes("/reactions?") ||
+			url.includes("/check-runs") ||
+			url.includes("/commits/")
+		) {
+			return url.includes("/check-runs")
+				? Response.json({ check_runs: [] })
+				: url.includes("/commits/")
+					? Response.json({
+							commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+						})
+					: githubPage([]);
+		}
+		return new Response("not recorded", { status: 404 });
+	};
+	const { path, cleanup } = await tempConfig(
+		JSON.stringify({
+			pinned: [{ tracker: "github", repo: githubRepo }],
+			pollIntervalSeconds: 3600,
+		}),
+	);
+	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	let startChecks: (base: string) => void = () => {};
+	const done = new Promise<void>((resolve, reject) => {
+		startChecks = (base) => {
+			checks(base, (next) => {
+				currentIssues = next.issues;
+				currentPulls = next.pulls;
+			}).then(resolve, reject);
+		};
+	});
+	try {
+		const result = await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: fetchImpl,
+				readGhToken: async () => null,
+				databasePath: join(root, "store.sqlite"),
+				stdout: (line) => startChecks(line),
+				waitForStop: done,
+			}),
+		);
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+	} finally {
+		await cleanup();
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
+describe("inbox pull comments", () => {
+	test("a new comment on a linked PR raises New comment for its ticket", async () => {
+		const headline = "This waits on Lev for the signing key.";
+		const askComment = githubComment(
+			`${headline}\n\n${ask("pr-49")}`,
+			"2026-10-01T00:00:00Z",
+		);
+		await withGithubInbox(
+			{},
+			{ 49: [askComment] },
+			async (base, setComments) => {
+				expect(await inboxOf(base)).toEqual([]);
+				const listed = await fetch(new URL("/api/needs-you", base));
+				expect(listed.status).toBe(200);
+				expect(await listed.json()).toEqual([
+					expect.objectContaining({
+						key: `${githubRepo}#8`,
+						reason: "ask",
+						headline,
+					}),
+				]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment(
+								"A later note on the linked PR.",
+								"2026-10-01T02:00:00Z",
+							),
+						],
+					},
+				});
+				const events = notificationEvent(base);
+				await Bun.sleep(50);
+				await refresh(base);
+				const event = await events;
+				expect(event).toMatchObject({
+					trigger: "comment",
+					project: githubRepo,
+					key: `${githubRepo}#8`,
+					text: headline,
+				});
+				expect(await inboxOf(base)).toEqual([event]);
+			},
+		);
+	});
+
+	test("a new comment on a PR ask raises New comment", async () => {
+		const headline = "This waits on Lev for the signing key.";
+		const askComment = githubComment(
+			`${headline}\n\n${ask("pr-49")}`,
+			"2026-10-01T00:00:00Z",
+		);
+		await withGithubInbox(
+			{},
+			{ 49: [askComment] },
+			async (base, setComments) => {
+				expect(await inboxOf(base)).toEqual([]);
+				const listed = await fetch(new URL("/api/needs-you", base));
+				expect(listed.status).toBe(200);
+				expect(await listed.json()).toEqual([
+					expect.objectContaining({
+						key: `${githubRepo}#49`,
+						reason: "ask",
+						headline,
+					}),
+				]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment(
+								"A later note on the PR ask.",
+								"2026-10-01T02:00:00Z",
+							),
+						],
+					},
+				});
+				const events = notificationEvent(base);
+				await Bun.sleep(50);
+				await refresh(base);
+				const event = await events;
+				expect(event).toMatchObject({
+					trigger: "comment",
+					project: githubRepo,
+					key: `${githubRepo}#49`,
+					text: headline,
+				});
+				expect(await inboxOf(base)).toEqual([event]);
+			},
+			[],
+			[githubPull(49, "A fix with no ticket.")],
+		);
+	});
+
+	test("a blank linked PR comment and the viewer's own PR comment add no inbox entry", async () => {
+		const headline = "This waits on Lev for the signing key.";
+		const askComment = githubComment(
+			`${headline}\n\n${ask("pr-49")}`,
+			"2026-10-01T00:00:00Z",
+		);
+		await withGithubInbox(
+			{},
+			{ 49: [askComment] },
+			async (base, setComments) => {
+				expect(await inboxOf(base)).toEqual([]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment("   ", "2026-10-01T01:00:00Z"),
+							githubComment(
+								"A note from the viewer.",
+								"2026-10-01T02:00:00Z",
+								"lev",
+							),
+						],
+					},
+				});
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment(
+								"A later note on the linked PR.",
+								"2026-10-01T03:00:00Z",
+							),
+						],
+					},
+				});
+				const events = notificationEvent(base);
+				await Bun.sleep(50);
+				await refresh(base);
+				const event = await events;
+				expect(event).toMatchObject({
+					trigger: "comment",
+					key: `${githubRepo}#8`,
+				});
+				expect(await inboxOf(base)).toEqual([event]);
+			},
+		);
 	});
 });

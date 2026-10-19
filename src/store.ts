@@ -215,6 +215,14 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					}
 				})();
 			},
+			forgetSeededIds(ids) {
+				const remove = db.query("delete from seeded_ids where id = ?");
+				db.transaction(() => {
+					for (const id of ids) {
+						remove.run(id);
+					}
+				})();
+			},
 		},
 		close: () => db.close(),
 	};

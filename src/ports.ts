@@ -85,8 +85,12 @@ export type Store = {
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
 	readNotifications: () => Notification[];
 	appendNotifications: (entries: Notification[]) => void;
+	/** Ids that must not notify again. */
 	readSeededIds: () => string[];
+	/** Record ids that must not notify again. */
 	recordSeededIds: (ids: string[]) => void;
+	/** Drop ids that must not notify again. */
+	forgetSeededIds: (ids: string[]) => void;
 };
 
 export type Change = {
