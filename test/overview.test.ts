@@ -3173,18 +3173,21 @@ describe("GET /api/overview", () => {
 			if (url.startsWith(askedList)) {
 				return page(
 					[
-						{
-							...issue(1, "open"),
-							comments: [{ body: `This waits on Lev.\n\n${ask}` }],
-						},
-						{
-							...issue(2, "open"),
-							comments: [
-								{ body: `This waits on Lev.\n\n${ask}` },
-								{ body: "Use the short name.\n\n11-1" },
-							],
-						},
+						{ ...issue(1, "open"), comments: 1 },
+						{ ...issue(2, "open"), comments: 2 },
 						issue(3, "open"),
+					],
+					null,
+				);
+			}
+			if (url.includes(`/repos/${asked}/issues/1/comments`)) {
+				return page([{ body: `This waits on Lev.\n\n${ask}` }], null);
+			}
+			if (url.includes(`/repos/${asked}/issues/2/comments`)) {
+				return page(
+					[
+						{ body: `This waits on Lev.\n\n${ask}` },
+						{ body: "Use the short name.\n\n11-1" },
 					],
 					null,
 				);
@@ -3235,6 +3238,114 @@ describe("GET /api/overview", () => {
 			expect(
 				body.projects.find((project) => project.name === asked),
 			).toMatchObject({ needsYou: 1, progress: 0 });
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a recorded issue list with comments as a number still serves overview", async () => {
+		const ask = "<!-- workcell:ask 11-2 -->";
+		const listed = "acme/listed";
+		const commentBody = `This waits on Lev.\n\n${ask}`;
+		const recorded: Fetch = async (input) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return page([], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200 },
+				);
+			}
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({ data: { viewer: { id: "lev" } } }),
+					{ status: 200 },
+				);
+			}
+			const list = `https://api.github.com/repos/${listed}/issues?`;
+			if (url.startsWith(list)) {
+				return page(
+					[
+						{
+							number: 3,
+							title: "Counted comments",
+							state: "open",
+							state_reason: null,
+							body: "",
+							comments: 3,
+						},
+					],
+					null,
+				);
+			}
+			if (url.includes("/issues/3/comments")) {
+				return page(
+					[
+						{ body: "Earlier note." },
+						{ body: commentBody },
+						{ body: "Still waiting." },
+					],
+					null,
+				);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([], null);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: listed }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => resolve(await response.json()))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const body = (await checks) as {
+				projects: { name: string; needsYou: number }[];
+			};
+			expect(
+				body.projects.find((project) => project.name === listed),
+			).toMatchObject({ needsYou: 1 });
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

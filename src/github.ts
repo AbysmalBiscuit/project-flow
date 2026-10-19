@@ -23,9 +23,7 @@ const githubIssue = z.object({
 		})
 		.optional(),
 	pull_request: z.unknown().optional(),
-	comments: z
-		.array(z.object({ body: z.string().nullable().optional() }))
-		.optional(),
+	comments: z.number().optional(),
 });
 
 const githubPull = z.object({
@@ -578,10 +576,10 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						summary !== undefined && summary.blocked_by > 0
 							? await listBlockedBy(token, fetchImpl, repo, issue.number)
 							: [];
-					const comments = (issue.comments ?? []).flatMap((comment) => {
-						const body = comment.body ?? "";
-						return body === "" ? [] : [{ body }];
-					});
+					const comments =
+						issue.comments === undefined || issue.comments === 0
+							? []
+							: await listCommentBodies(token, fetchImpl, repo, issue.number);
 					tickets.push({
 						id: String(issue.number),
 						tracker: "github",
@@ -674,6 +672,35 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			return names;
 		},
 	};
+}
+
+const githubComment = z.object({
+	body: z.string().nullable().optional(),
+});
+
+async function listCommentBodies(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	number: number,
+): Promise<{ body: string }[]> {
+	const listed = await pages(
+		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+		token,
+		fetchImpl,
+		repo,
+		"list comments",
+	);
+	const bodies: { body: string }[] = [];
+	for (const item of listed) {
+		for (const comment of z.array(githubComment).parse(item)) {
+			const body = comment.body ?? "";
+			if (body !== "") {
+				bodies.push({ body });
+			}
+		}
+	}
+	return bodies;
 }
 
 async function listBlockedBy(

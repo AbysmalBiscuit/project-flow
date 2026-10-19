@@ -41,14 +41,8 @@ function issuesFor(repo) {
 	if (repo === asked) {
 		return [
 			issue(1, "Done ask", "closed", "completed", ""),
-			{
-				...issue(5, "Ask one", "open", null, ""),
-				comments: [{ body: `This waits on Lev.\n\n${ask}` }],
-			},
-			{
-				...issue(6, "Ask two", "open", null, ""),
-				comments: [{ body: `This waits on Lev.\n\n${ask}` }],
-			},
+			{ ...issue(5, "Ask one", "open", null, ""), comments: 1 },
+			{ ...issue(6, "Ask two", "open", null, ""), comments: 1 },
 		];
 	}
 	return [];
@@ -113,6 +107,12 @@ function recorded(input, init) {
 	}
 	if (url.startsWith(askedList) && url.includes("state=all")) {
 		return Response.json(issuesFor(asked));
+	}
+	if (
+		url.includes(`/repos/${asked}/issues/5/comments`) ||
+		url.includes(`/repos/${asked}/issues/6/comments`)
+	) {
+		return Response.json([{ body: `This waits on Lev.\n\n${ask}` }]);
 	}
 	if (url.includes("/pulls?") || url.includes("/branches?")) {
 		return Response.json([]);
