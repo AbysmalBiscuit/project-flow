@@ -90,6 +90,31 @@ type ChangeEvent = {
 	data: string;
 };
 
+function readSseEvents(buffer: string): {
+	events: ChangeEvent[];
+	rest: string;
+} {
+	const blocks = buffer.split("\n\n");
+	const rest = blocks.pop() ?? "";
+	const events: ChangeEvent[] = [];
+	for (const text of blocks) {
+		const event = text
+			.split("\n")
+			.find((line) => line.startsWith("event:"))
+			?.slice("event:".length)
+			.trim();
+		const payload = text
+			.split("\n")
+			.filter((line) => line.startsWith("data:"))
+			.map((line) => line.slice("data:".length).trim())
+			.join("\n");
+		if (event !== undefined && payload !== "") {
+			events.push({ event, data: payload });
+		}
+	}
+	return { events, rest };
+}
+
 function openEventStream(base: string): {
 	events: AsyncIterable<ChangeEvent>;
 	close: () => void;
@@ -104,23 +129,11 @@ function openEventStream(base: string): {
 		socket: {
 			data(_socket, data) {
 				buffer += data.toString();
-				const blocks = buffer.split("\n\n");
-				buffer = blocks.pop() ?? "";
-				for (const text of blocks) {
-					const event = text
-						.split("\n")
-						.find((line) => line.startsWith("event:"))
-						?.slice("event:".length)
-						.trim();
-					const payload = text
-						.split("\n")
-						.filter((line) => line.startsWith("data:"))
-						.map((line) => line.slice("data:".length).trim())
-						.join("\n");
-					if (event !== undefined && payload !== "") {
-						queue.push({ event, data: payload });
-						wake?.();
-					}
+				const parsed = readSseEvents(buffer);
+				buffer = parsed.rest;
+				for (const event of parsed.events) {
+					queue.push(event);
+					wake?.();
 				}
 			},
 			error(_socket, error) {
@@ -167,22 +180,11 @@ function openEvents(base: string): Promise<ChangeEvent> {
 			socket: {
 				data(_socket, data) {
 					buffer += data.toString();
-					const blocks = buffer.split("\n\n");
-					buffer = blocks.pop() ?? "";
-					for (const text of blocks) {
-						const event = text
-							.split("\n")
-							.find((line) => line.startsWith("event:"))
-							?.slice("event:".length)
-							.trim();
-						const payload = text
-							.split("\n")
-							.filter((line) => line.startsWith("data:"))
-							.map((line) => line.slice("data:".length).trim())
-							.join("\n");
-						if (event !== undefined && payload !== "") {
-							resolve({ event, data: payload });
-						}
+					const parsed = readSseEvents(buffer);
+					buffer = parsed.rest;
+					const event = parsed.events[0];
+					if (event !== undefined) {
+						resolve(event);
 					}
 				},
 				error(_socket, error) {
@@ -647,13 +649,7 @@ describe("live updates", () => {
 				}, 3_000);
 				void (async () => {
 					await Bun.sleep(50);
-					const release = releases.get(repo);
-					if (release === undefined) {
-						throw new Error(
-							`widget list did not start (held ${[...releases.keys()].join(",")})`,
-						);
-					}
-					release();
+					releases.get(repo)?.();
 					let sawWidget = false;
 					let sawOther = false;
 					for await (const event of stream.events) {

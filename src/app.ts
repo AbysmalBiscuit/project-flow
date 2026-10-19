@@ -675,7 +675,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					: null;
 			}
 			if (fillAsPolled && visible.has(project.key)) {
-				publishPoll(options, configuration, outcomes, []);
+				publishPoll(options, configuration, outcomes, [], null);
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "poll failed";
@@ -701,26 +701,16 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				row: stored ?? empty,
 			});
 			if (fillAsPolled) {
-				publishPoll(options, configuration, outcomes, []);
+				publishPoll(options, configuration, outcomes, [], null);
 			}
 		}
 	}
 	const fullKeys = [...options.fullPoll];
-	const reconciled = reconcilePoll(
-		options.store.readTickets(),
-		[...outcomes.values()],
-		fullKeys,
-	);
 	for (const key of fullKeys) {
 		if (outcomes.get(key)?.ok === true) {
 			options.fullPoll.delete(key);
 			options.lastFullPollAt.set(key, polledAt.getTime());
 		}
-	}
-	if (reconciled.globalError !== null) {
-		options.store.recordFetchError(reconciled.globalError);
-	} else if (failed !== null) {
-		options.store.recordFetchError(failed);
 	}
 	const after = attentionFor(options.store, configuration, options.viewers);
 	const firstGood = new Set(
@@ -756,7 +746,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
-	publishPoll(options, configuration, outcomes);
+	publishPoll(options, configuration, outcomes, fullKeys, failed);
 	options.notifier.publish({
 		overview: runningOverview(options, configuration),
 		notifications,
@@ -769,6 +759,7 @@ function publishPoll(
 	configuration: Configuration,
 	outcomes: Map<string, ProjectPoll>,
 	fullKeys: string[],
+	failed: string | null,
 ): void {
 	const reconciled = reconcilePoll(
 		options.store.readTickets(),
@@ -778,6 +769,11 @@ function publishPoll(
 	options.store.replaceTickets(reconciled.rows);
 	for (const projectError of reconciled.projectErrors) {
 		options.store.recordProjectError(projectError.key, projectError.error);
+	}
+	if (reconciled.globalError !== null) {
+		options.store.recordFetchError(reconciled.globalError);
+	} else if (failed !== null) {
+		options.store.recordFetchError(failed);
 	}
 	options.notifier.publish({
 		overview: runningOverview(options, configuration),
