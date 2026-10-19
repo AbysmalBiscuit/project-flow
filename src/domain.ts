@@ -485,6 +485,7 @@ export type Overview = {
 	projects: ProjectCounts[];
 	fetchedAt: string | null;
 	error: string | null;
+	polling?: true;
 };
 
 export type FetchStatus = {

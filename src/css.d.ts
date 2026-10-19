@@ -23,6 +23,7 @@ declare module "*/cards.module.css" {
 		| "mermaidHost"
 		| "table"
 		| "opened"
+		| "loading"
 	>;
 	export default classes;
 }

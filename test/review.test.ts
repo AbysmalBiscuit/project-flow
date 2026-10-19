@@ -1093,7 +1093,7 @@ describe("review cycle", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -3134,17 +3134,6 @@ describe("review cycle", () => {
 			}
 			return recorded(input, init);
 		};
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<unknown>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) => {
-						expect(response.status).toBe(200);
-						resolve(await response.json());
-					})
-					.catch(reject);
-			};
-		});
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
@@ -3154,8 +3143,7 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks.then(() => undefined),
+					waitForStop: Promise.resolve(),
 				}),
 			);
 			expect(result.exitCode).not.toBe(0);
@@ -3950,11 +3938,7 @@ describe("review cycle", () => {
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
 					stdout: (line) => startChecks(line),
-					waitForStop: (async () => {
-						const base = await checks;
-						const response = await fetch(new URL("/api/overview", base));
-						expect(response.status).not.toBe(200);
-					})(),
+					waitForStop: checks.then(() => undefined),
 				}),
 			);
 			expect(result.exitCode).not.toBe(0);

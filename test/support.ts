@@ -80,10 +80,39 @@ export async function tempConfig(
 	return { path, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-export function testIo(io: RunIo): RunIo {
+export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
+	const stdout = io.stdout;
+	const first = options?.first === true;
 	return {
 		listTodos: async () => "",
 		...io,
+		...(stdout === undefined
+			? {}
+			: {
+					stdout: (line: string) => {
+						if (first) {
+							stdout(line);
+							return;
+						}
+						void (async () => {
+							const deadline = Date.now() + 3_000;
+							while (Date.now() < deadline) {
+								const response = await fetch(
+									new URL("/api/overview", line),
+								).catch(() => null);
+								if (response === null || !response.ok) {
+									break;
+								}
+								const body = (await response.json()) as { polling?: true };
+								if (body.polling !== true) {
+									break;
+								}
+								await Bun.sleep(20);
+							}
+							stdout(line);
+						})();
+					},
+				}),
 	};
 }
 

@@ -8,6 +8,7 @@ import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 const otherRepo = "acme/other";
+const thirdRepo = "acme/third";
 const linearProject = "widget-launch";
 
 function ticket(
@@ -89,6 +90,94 @@ type ChangeEvent = {
 	data: string;
 };
 
+function readSseEvents(buffer: string): {
+	events: ChangeEvent[];
+	rest: string;
+} {
+	const blocks = buffer.split("\n\n");
+	const rest = blocks.pop() ?? "";
+	const events: ChangeEvent[] = [];
+	for (const text of blocks) {
+		const event = text
+			.split("\n")
+			.find((line) => line.startsWith("event:"))
+			?.slice("event:".length)
+			.trim();
+		const payload = text
+			.split("\n")
+			.filter((line) => line.startsWith("data:"))
+			.map((line) => line.slice("data:".length).trim())
+			.join("\n");
+		if (event !== undefined && payload !== "") {
+			events.push({ event, data: payload });
+		}
+	}
+	return { events, rest };
+}
+
+function openEventStream(base: string): {
+	events: AsyncIterable<ChangeEvent>;
+	close: () => void;
+	ready: Promise<void>;
+} {
+	const queue: ChangeEvent[] = [];
+	let wake: (() => void) | null = null;
+	let closed = false;
+	let buffer = "";
+	let markReady = () => {};
+	const ready = new Promise<void>((resolve) => {
+		markReady = resolve;
+	});
+	const socket = Bun.connect({
+		hostname: "127.0.0.1",
+		port: Number(new URL(base).port),
+		socket: {
+			data(_socket, data) {
+				markReady();
+				buffer += data.toString();
+				const parsed = readSseEvents(buffer);
+				buffer = parsed.rest;
+				for (const event of parsed.events) {
+					queue.push(event);
+					wake?.();
+				}
+			},
+			error(_socket, error) {
+				queue.push({ event: "error", data: error.message });
+				closed = true;
+				wake?.();
+			},
+			open(socket) {
+				socket.write(
+					"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
+				);
+			},
+		},
+	});
+	return {
+		events: {
+			async *[Symbol.asyncIterator]() {
+				while (!closed) {
+					const next = queue.shift();
+					if (next !== undefined) {
+						yield next;
+						continue;
+					}
+					await new Promise<void>((resolve) => {
+						wake = resolve;
+					});
+				}
+			},
+		},
+		close: () => {
+			closed = true;
+			wake?.();
+			void socket.then((open) => open.end());
+		},
+		ready,
+	};
+}
+
 function openEvents(base: string): Promise<ChangeEvent> {
 	return new Promise((resolve, reject) => {
 		let buffer = "";
@@ -98,22 +187,11 @@ function openEvents(base: string): Promise<ChangeEvent> {
 			socket: {
 				data(_socket, data) {
 					buffer += data.toString();
-					const blocks = buffer.split("\n\n");
-					buffer = blocks.pop() ?? "";
-					for (const text of blocks) {
-						const event = text
-							.split("\n")
-							.find((line) => line.startsWith("event:"))
-							?.slice("event:".length)
-							.trim();
-						const payload = text
-							.split("\n")
-							.filter((line) => line.startsWith("data:"))
-							.map((line) => line.slice("data:".length).trim())
-							.join("\n");
-						if (event !== undefined && payload !== "") {
-							resolve({ event, data: payload });
-						}
+					const parsed = readSseEvents(buffer);
+					buffer = parsed.rest;
+					const event = parsed.events[0];
+					if (event !== undefined) {
+						resolve(event);
 					}
 				},
 				error(_socket, error) {
@@ -232,6 +310,7 @@ type OverviewBody = {
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
+	polling?: true;
 };
 
 function counts(
@@ -447,6 +526,212 @@ async function withServer(
 }
 
 describe("live updates", () => {
+	test("an empty store answers that the poll is running before it ends", async () => {
+		let releasePoll: () => void = () => {};
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				await pollHeld;
+				return discovered;
+			}
+			if (listUrl(url) !== null) {
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				reject(new Error("server did not listen before the first poll ended"));
+			}, 1_000);
+			startChecks = (base: string) => {
+				clearTimeout(timer);
+				void (async () => {
+					const body = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as OverviewBody;
+					expect(body.projects).toEqual([]);
+					expect(body.polling).toBe(true);
+					expect(body.error).toBeNull();
+					releasePoll();
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releasePoll();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("each project reaches the event stream when its own poll ends", async () => {
+		const releases = new Map<string, () => void>();
+		const held = (name: string) =>
+			new Promise<void>((resolve) => {
+				releases.set(name, resolve);
+			});
+		const widgetHeld = held(repo);
+		const otherHeld = held(otherRepo);
+		const thirdHeld = held(thirdRepo);
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const listed =
+				listUrl(url) ?? listUrl(url, otherRepo) ?? listUrl(url, thirdRepo);
+			if (listed !== null) {
+				const heldFor = url.includes(otherRepo)
+					? otherHeld
+					: url.includes(thirdRepo)
+						? thirdHeld
+						: widgetHeld;
+				await heldFor;
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo },
+					{ tracker: "github", repo: otherRepo },
+					{ tracker: "github", repo: thirdRepo },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				const stream = openEventStream(base);
+				const timer = setTimeout(() => {
+					stream.close();
+					reject(
+						new Error(
+							`project event did not arrive within 3000ms (held ${[...releases.keys()].join(",")})`,
+						),
+					);
+				}, 3_000);
+				void (async () => {
+					await stream.ready;
+					releases.get(repo)?.();
+					let sawWidget = false;
+					let sawOther = false;
+					for await (const event of stream.events) {
+						const body = JSON.parse(event.data) as OverviewBody;
+						const names = body.projects.map((project) => project.name);
+						if (!sawWidget) {
+							if (names.includes(otherRepo) || names.includes(thirdRepo)) {
+								throw new Error(
+									"a later project arrived before its poll ended",
+								);
+							}
+							if (names.includes(repo)) {
+								sawWidget = true;
+								releases.get(otherRepo)?.();
+							}
+							continue;
+						}
+						if (!sawOther) {
+							if (names.includes(thirdRepo)) {
+								throw new Error("third project arrived before its poll ended");
+							}
+							if (names.includes(otherRepo)) {
+								sawOther = true;
+								releases.get(thirdRepo)?.();
+							}
+							continue;
+						}
+						if (!names.includes(thirdRepo) || body.polling === true) {
+							continue;
+						}
+						expect(body.polling).toBeUndefined();
+						break;
+					}
+					expect(sawWidget).toBe(true);
+					expect(sawOther).toBe(true);
+					clearTimeout(timer);
+					stream.close();
+					resolve();
+				})().catch((error: unknown) => {
+					clearTimeout(timer);
+					stream.close();
+					reject(error instanceof Error ? error : new Error("checks failed"));
+				});
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			for (const release of releases.values()) {
+				release();
+			}
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("stored rows are served before the first poll ends", async () => {
 		const requests: string[] = [];
 		let releasePoll: () => void = () => {};
@@ -566,6 +851,138 @@ describe("live updates", () => {
 			expect(result.exitCode).toBe(0);
 		} finally {
 			releasePoll();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("an empty store exits 1 when every project poll fails", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const failing: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			return new Response("recorded failure", { status: 500 });
+		};
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: failing,
+					readGhToken: async () => null,
+					databasePath,
+					waitForStop: new Promise<void>(() => {}),
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("HTTP 500");
+			expect(result.listened).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("an empty store keeps serving when some project polls fail", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo },
+					{ tracker: "github", repo: otherRepo },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url, otherRepo) !== null) {
+				return new Response("recorded failure", { status: 500 });
+			}
+			if (listUrl(url) !== null) {
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return (
+				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
+			);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const deadline = Date.now() + 3_000;
+					let body: OverviewBody = {
+						projects: [],
+						fetchedAt: null,
+						error: null,
+					};
+					while (Date.now() < deadline) {
+						body = (await (
+							await fetch(new URL("/api/overview", base))
+						).json()) as OverviewBody;
+						if (body.projects.length === 2) {
+							break;
+						}
+						await Bun.sleep(20);
+					}
+					expect(body.projects.map((project) => project.name).sort()).toEqual([
+						otherRepo,
+						repo,
+					]);
+					const failed = body.projects.find(
+						(project) => project.name === otherRepo,
+					);
+					expect(failed?.error).toContain("HTTP 500");
+					const served = body.projects.find((project) => project.name === repo);
+					expect(served?.error).toBeNull();
+					expect(served?.backlog).toBe(1);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
