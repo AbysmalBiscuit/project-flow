@@ -852,33 +852,30 @@ const threadQuery = `query IssueThread($id: String!) {
 
 const threadPage = z.object({
 	data: z.object({
-		issue: z
-			.object({
-				identifier: z.string(),
-				title: z.string(),
-				url: z.string(),
-				comments: z.object({
-					nodes: z.array(
-						z.object({
-							id: z.string(),
-							body: z.string().nullable().optional(),
-							createdAt: z.string().optional(),
-							url: z.string().optional(),
-							parent: z.object({ id: z.string() }).nullable().optional(),
-							user: z
-								.object({
-									name: z.string().nullable().optional(),
-									displayName: z.string().nullable().optional(),
-								})
-								.nullable()
-								.optional(),
-						}),
-					),
-				}),
-			})
-			.nullable(),
+		issue: z.object({
+			identifier: z.string(),
+			title: z.string(),
+			url: z.string(),
+			comments: z.object({
+				nodes: z.array(
+					z.object({
+						id: z.string(),
+						body: z.string().nullable().optional(),
+						createdAt: z.string().optional(),
+						url: z.string().optional(),
+						parent: z.object({ id: z.string() }).nullable().optional(),
+						user: z
+							.object({
+								name: z.string().nullable().optional(),
+								displayName: z.string().nullable().optional(),
+							})
+							.nullable()
+							.optional(),
+					}),
+				),
+			}),
+		}),
 	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
 const commentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
@@ -889,22 +886,19 @@ const commentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
 }`;
 
 const createdComment = z.object({
-	data: z
-		.object({
-			commentCreate: z.object({
-				success: z.boolean(),
-				comment: z
-					.object({
-						id: z.string(),
-						body: z.string().nullable().optional(),
-						createdAt: z.string(),
-						url: z.string(),
-					})
-					.nullable(),
-			}),
-		})
-		.nullable(),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	data: z.object({
+		commentCreate: z.object({
+			success: z.boolean(),
+			comment: z
+				.object({
+					id: z.string(),
+					body: z.string().nullable().optional(),
+					createdAt: z.string(),
+					url: z.string(),
+				})
+				.nullable(),
+		}),
+	}),
 });
 
 async function linearPost(
@@ -928,23 +922,16 @@ async function linearPost(
 	return response.json();
 }
 
+const linearErrors = z.object({
+	errors: z.array(z.object({ message: z.string() })).min(1),
+});
+
 function linearError(body: unknown, label: string): string | null {
-	if (typeof body !== "object" || body === null || !("errors" in body)) {
+	const parsed = linearErrors.safeParse(body);
+	if (!parsed.success) {
 		return null;
 	}
-	const errors = body.errors;
-	if (!Array.isArray(errors) || errors.length === 0) {
-		return null;
-	}
-	const first = errors[0];
-	const message =
-		typeof first === "object" &&
-		first !== null &&
-		"message" in first &&
-		typeof first.message === "string"
-			? first.message
-			: "request failed";
-	return `Linear ${label} failed: ${message}`;
+	return `Linear ${label} failed: ${parsed.data.errors[0]?.message ?? "request failed"}`;
 }
 
 export async function fetchLinearThread(
@@ -966,9 +953,6 @@ export async function fetchLinearThread(
 	}
 	const page = threadPage.parse(body);
 	const issue = page.data.issue;
-	if (issue === null) {
-		return null;
-	}
 	const comments: ThreadComment[] = issue.comments.nodes.map((comment) => ({
 		id: comment.id,
 		body: comment.body ?? "",
@@ -1011,12 +995,8 @@ export async function postLinearReply(
 		throw new TrackerError(failed, 502);
 	}
 	const page = createdComment.parse(body);
-	const created = page.data?.commentCreate.comment ?? null;
-	if (
-		page.data === null ||
-		!page.data.commentCreate.success ||
-		created === null
-	) {
+	const created = page.data.commentCreate.comment;
+	if (!page.data.commentCreate.success || created === null) {
 		throw new TrackerError("Linear reply failed", 502);
 	}
 	return {
