@@ -196,13 +196,13 @@ type PollOptions = {
 	fetch: Fetch;
 	listTodos?: TodoSource | undefined;
 	listCheckouts?: CheckoutSource | undefined;
-	fallback: Configuration | null;
+	fallback: Configuration;
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
 };
 
-async function poll(options: PollOptions): Promise<Configuration | null> {
+async function poll(options: PollOptions): Promise<Configuration> {
 	const polledAt = options.clock.now();
 	let configuration: Configuration;
 	try {
@@ -210,7 +210,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "poll failed";
 		options.store.recordFetchError(message);
-		if (options.store.readTickets().length > 0 && options.fallback !== null) {
+		if (options.store.readTickets().length > 0) {
 			options.notifier.publish({
 				overview: overview(options.store, options.fallback),
 			});
@@ -512,11 +512,8 @@ export async function start(options: StartOptions): Promise<Running> {
 		}
 		polling = (async () => {
 			try {
-				const next = await poll(pollOptions);
-				if (next !== null) {
-					configuration = next;
-					pollOptions.fallback = configuration;
-				}
+				configuration = await poll(pollOptions);
+				pollOptions.fallback = configuration;
 			} catch (error) {
 				if (stopped) {
 					return;
