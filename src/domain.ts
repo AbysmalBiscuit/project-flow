@@ -1056,7 +1056,7 @@ export function projectSnapshots(
 	});
 	const carried = new Map<string, Ticket>();
 	for (const project of shown) {
-		if (project.key.includes("/")) {
+		if (!project.key.includes("/")) {
 			continue;
 		}
 		for (const ticket of project.tickets) {
@@ -1069,12 +1069,11 @@ export function projectSnapshots(
 	const rows = [];
 	for (const project of shown) {
 		const tickets = project.tickets.flatMap((ticket) => {
-			const claimedByProject =
+			if (
 				ticket.ref !== undefined &&
 				claimed.has(ticket.ref) &&
-				project.key.includes("/") &&
-				!project.pinned;
-			if (claimedByProject) {
+				project.key.includes("/")
+			) {
 				return [];
 			}
 			const donor =
