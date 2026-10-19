@@ -150,7 +150,7 @@ describe("needs you", () => {
 		}
 	});
 
-	test("lists a named ask in a senior project and omits an unnamed ask", async () => {
+	test("lists a named ask in a PM Bot project and omits an unnamed ask", async () => {
 		const repo = "acme/widget";
 		const named = "This waits on Lev for the signing key.";
 		const recorded: Fetch = async (input, init) => {
