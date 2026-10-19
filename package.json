@@ -4,6 +4,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"start": "bun src/main.ts",
+		"dev": "bun --hot src/main.ts",
 		"typecheck": "bun check",
 		"test": "bun test",
 		"lint": "biome ci --error-on-warnings .",
