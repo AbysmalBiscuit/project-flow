@@ -117,3 +117,9 @@ A needs-you item that Lev replied to after its latest ask.
 **Acknowledged**:
 An answered item where an agent reacted to Lev's reply.
 _Avoid_: Seen, read
+
+**Notification**:
+An event the browser shows when a configured trigger fires: a new needs-you item, a new comment, or a cleared cross-project blocker.
+
+**Inbox**:
+The list of every notification Project Flow has raised.
