@@ -483,6 +483,31 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a breaking conventional title is grouped by its scope", async () => {
+		const breaking = issue(6, "feat(ux)!: redraw the nodes");
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([breaking]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as Report;
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				expect(map?.diagrams?.[0]?.definition).toContain(
+					'no_workstream_ux["ux"]:::theme',
+				);
+				expect(map?.diagrams?.[0]?.definition).not.toContain(
+					'["feat(ux)!: redraw the nodes"]:::theme',
+				);
+			},
+		);
+	});
+
 	test("a ticket that is the root of another ticket takes its own title as its theme", async () => {
 		const parent = issue(7, "Write the notes", {
 			milestone: { title: "October" },

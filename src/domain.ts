@@ -1045,7 +1045,7 @@ function opensForSenior(body: string): boolean {
 const noScope = "no scope";
 const noWorkstream = "no workstream";
 
-const scopeInTitle = /^(?:[a-z]+)\(([^)]+)\)\s*:|^\[([^\]]+)\]/i;
+const scopeInTitle = /^(?:[a-z]+)\(([^)]+)\)!?\s*:|^\[([^\]]+)\]/i;
 
 function scopeOf(title: string): string {
 	const match = title.match(scopeInTitle);
