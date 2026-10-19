@@ -391,6 +391,9 @@ function OverviewPage({
 						Allow notifications
 					</button>
 				) : null}
+				<a className={shell.link} href="/settings">
+					Settings
+				</a>
 				<button
 					type="button"
 					className={shell.button}
