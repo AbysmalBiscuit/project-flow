@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { linearFake, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 
@@ -1132,5 +1138,546 @@ describe("inbox", () => {
 			await refresh(base);
 			expect(await inboxOf(base)).toEqual([]);
 		});
+	});
+
+	test("a ticket that leaves needs-you and joins again raises a second notification", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.\n\npf-1",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		const open = linearIssue(
+			"PF-1",
+			"Open ask",
+			headline,
+			[askComment],
+			{},
+			"2026-08-18T12:00:00.000Z",
+		);
+		await withInbox(pinned, [open], async (base, setIssues) => {
+			expect(await inboxOf(base)).toEqual([]);
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([]);
+			const again = {
+				body: `${headline}\n\n${ask("pf-2")}`,
+				createdAt: "2026-08-18T16:00:00.000Z",
+			};
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply, again],
+					{},
+					"2026-08-18T16:00:00.000Z",
+				),
+			]);
+			const events = notificationEvent(base);
+			await Bun.sleep(50);
+			await refresh(base);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(await inboxOf(base)).toEqual([event]);
+			const rejoined = await fetch(new URL("/api/needs-you", base));
+			expect(rejoined.status).toBe(200);
+			expect(await rejoined.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					reason: "ask",
+					headline,
+				}),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([event]);
+		});
+	});
+
+	test("a restart after a ticket leaves needs-you still raises the rejoin", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.\n\npf-1",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		const again = {
+			body: `${headline}\n\n${ask("pf-2")}`,
+			createdAt: "2026-08-18T16:00:00.000Z",
+		};
+		let current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[askComment],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const first = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await first;
+			expect(await inboxOf(base)).toEqual([]);
+			current = [
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			];
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+			stopFirst();
+			await started;
+			current = [
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment, reply, again],
+					{},
+					"2026-08-18T16:00:00.000Z",
+				),
+			];
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const restarted = start(secondStop, againReady);
+			const next = await second;
+			const events = notificationEvent(next);
+			await Bun.sleep(50);
+			await refresh(next);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "needsYou",
+				project: "Project Flow",
+				key: "PF-1",
+				text: headline,
+			});
+			expect(await inboxOf(next)).toEqual([event]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a ticket that stays in needs-you raises no second notification", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		await withInbox(
+			pinned,
+			[
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[askComment],
+					{},
+					"2026-08-18T12:00:00.000Z",
+				),
+			],
+			async (base, setIssues) => {
+				expect(await inboxOf(base)).toEqual([]);
+				setIssues([
+					linearIssue(
+						"PF-1",
+						"Open ask",
+						headline,
+						[
+							askComment,
+							{
+								body: "Still waiting.",
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						{},
+						"2026-08-18T13:00:00.000Z",
+					),
+				]);
+				await refresh(base);
+				const first = await inboxOf(base);
+				expect(first).toHaveLength(1);
+				expect(first[0]).toMatchObject({ trigger: "comment", key: "PF-1" });
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual(first);
+			},
+		);
+	});
+});
+
+const githubRepo = "acme/widget";
+
+function githubPage(items: unknown): Response {
+	return Response.json(items);
+}
+
+function githubIssue(
+	number: number,
+	comments: number,
+): Record<string, unknown> {
+	return {
+		number,
+		title: "Ship the signing key",
+		state: "open",
+		state_reason: null,
+		updated_at: "2026-10-01T00:00:00Z",
+		body: "",
+		comments,
+		assignee: null,
+		labels: [],
+	};
+}
+
+function githubPull(number: number, body: string): Record<string, unknown> {
+	return {
+		number,
+		title: "Count PR asks",
+		state: "open",
+		draft: false,
+		html_url: `https://github.com/${githubRepo}/pull/${number}`,
+		head: { ref: `${number}-feat-pr-ask`, sha: `sha-${number}` },
+		body,
+		merged_at: null,
+	};
+}
+
+function githubComment(
+	body: string,
+	createdAt: string,
+	login = "agent",
+): Record<string, unknown> {
+	return {
+		body,
+		created_at: createdAt,
+		user: { login },
+	};
+}
+
+async function withGithubInbox(
+	issueComments: Record<number, Record<string, unknown>[]>,
+	pullComments: Record<number, Record<string, unknown>[]>,
+	checks: (
+		base: string,
+		setComments: (next: {
+			issues: Record<number, Record<string, unknown>[]>;
+			pulls: Record<number, Record<string, unknown>[]>;
+		}) => void,
+	) => Promise<void>,
+	issues: Record<string, unknown>[] = [githubIssue(8, 0)],
+	pulls: Record<string, unknown>[] = [githubPull(49, "Closes #8")],
+): Promise<void> {
+	let currentIssues = issueComments;
+	let currentPulls = pullComments;
+	const fetchImpl: Fetch = async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return githubPage({ login: "lev" });
+		}
+		if (url === "https://api.github.com/graphql") {
+			return githubPage({
+				data: {
+					repository: {
+						pullRequest: { closingIssuesReferences: { nodes: [] } },
+					},
+				},
+			});
+		}
+		if (url.startsWith(`https://api.github.com/repos/${githubRepo}/issues?`)) {
+			return githubPage(issues);
+		}
+		if (
+			url ===
+			`https://api.github.com/repos/${githubRepo}/pulls?state=open&per_page=100&page=1`
+		) {
+			return githubPage(pulls);
+		}
+		const comments = url.match(
+			/\/issues\/(\d+)\/comments\?per_page=100&page=1$/,
+		);
+		if (comments?.[1] !== undefined) {
+			const number = Number(comments[1]);
+			const onIssue = currentIssues[number];
+			if (onIssue !== undefined) {
+				return githubPage(onIssue);
+			}
+			const onPull = currentPulls[number];
+			if (onPull !== undefined) {
+				return githubPage(onPull);
+			}
+		}
+		if (
+			url.includes("/pulls?state=closed") ||
+			url.includes("/branches?") ||
+			url.includes("/comments?") ||
+			url.includes("/reviews?") ||
+			url.includes("/reactions?") ||
+			url.includes("/check-runs") ||
+			url.includes("/commits/")
+		) {
+			return url.includes("/check-runs")
+				? Response.json({ check_runs: [] })
+				: url.includes("/commits/")
+					? Response.json({
+							commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+						})
+					: githubPage([]);
+		}
+		return new Response("not recorded", { status: 404 });
+	};
+	const { path, cleanup } = await tempConfig(
+		JSON.stringify({
+			pinned: [{ tracker: "github", repo: githubRepo }],
+			pollIntervalSeconds: 3600,
+		}),
+	);
+	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	let startChecks: (base: string) => void = () => {};
+	const done = new Promise<void>((resolve, reject) => {
+		startChecks = (base) => {
+			checks(base, (next) => {
+				currentIssues = next.issues;
+				currentPulls = next.pulls;
+			}).then(resolve, reject);
+		};
+	});
+	try {
+		const result = await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: fetchImpl,
+				readGhToken: async () => null,
+				databasePath: join(root, "store.sqlite"),
+				stdout: (line) => startChecks(line),
+				waitForStop: done,
+			}),
+		);
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+	} finally {
+		await cleanup();
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
+describe("inbox pull comments", () => {
+	test("a new comment on a linked PR raises New comment for its ticket", async () => {
+		const headline = "This waits on Lev for the signing key.";
+		const askComment = githubComment(
+			`${headline}\n\n${ask("pr-49")}`,
+			"2026-10-01T00:00:00Z",
+		);
+		await withGithubInbox(
+			{},
+			{ 49: [askComment] },
+			async (base, setComments) => {
+				expect(await inboxOf(base)).toEqual([]);
+				const listed = await fetch(new URL("/api/needs-you", base));
+				expect(listed.status).toBe(200);
+				expect(await listed.json()).toEqual([
+					expect.objectContaining({
+						key: `${githubRepo}#8`,
+						reason: "ask",
+						headline,
+					}),
+				]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment(
+								"A later note on the linked PR.",
+								"2026-10-01T02:00:00Z",
+							),
+						],
+					},
+				});
+				const events = notificationEvent(base);
+				await Bun.sleep(50);
+				await refresh(base);
+				const event = await events;
+				expect(event).toMatchObject({
+					trigger: "comment",
+					project: githubRepo,
+					key: `${githubRepo}#8`,
+					text: headline,
+				});
+				expect(await inboxOf(base)).toEqual([event]);
+			},
+		);
+	});
+
+	test("a new comment on a PR ask raises New comment", async () => {
+		const headline = "This waits on Lev for the signing key.";
+		const askComment = githubComment(
+			`${headline}\n\n${ask("pr-49")}`,
+			"2026-10-01T00:00:00Z",
+		);
+		await withGithubInbox(
+			{},
+			{ 49: [askComment] },
+			async (base, setComments) => {
+				expect(await inboxOf(base)).toEqual([]);
+				const listed = await fetch(new URL("/api/needs-you", base));
+				expect(listed.status).toBe(200);
+				expect(await listed.json()).toEqual([
+					expect.objectContaining({
+						key: `${githubRepo}#49`,
+						reason: "ask",
+						headline,
+					}),
+				]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment(
+								"A later note on the PR ask.",
+								"2026-10-01T02:00:00Z",
+							),
+						],
+					},
+				});
+				const events = notificationEvent(base);
+				await Bun.sleep(50);
+				await refresh(base);
+				const event = await events;
+				expect(event).toMatchObject({
+					trigger: "comment",
+					project: githubRepo,
+					key: `${githubRepo}#49`,
+					text: headline,
+				});
+				expect(await inboxOf(base)).toEqual([event]);
+			},
+			[],
+			[githubPull(49, "A fix with no ticket.")],
+		);
+	});
+
+	test("a blank linked PR comment and the viewer's own PR comment add no inbox entry", async () => {
+		const headline = "This waits on Lev for the signing key.";
+		const askComment = githubComment(
+			`${headline}\n\n${ask("pr-49")}`,
+			"2026-10-01T00:00:00Z",
+		);
+		await withGithubInbox(
+			{},
+			{ 49: [askComment] },
+			async (base, setComments) => {
+				expect(await inboxOf(base)).toEqual([]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment("   ", "2026-10-01T01:00:00Z"),
+							githubComment(
+								"A note from the viewer.",
+								"2026-10-01T02:00:00Z",
+								"lev",
+							),
+						],
+					},
+				});
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+				setComments({
+					issues: {},
+					pulls: {
+						49: [
+							askComment,
+							githubComment(
+								"A later note on the linked PR.",
+								"2026-10-01T03:00:00Z",
+							),
+						],
+					},
+				});
+				const events = notificationEvent(base);
+				await Bun.sleep(50);
+				await refresh(base);
+				const event = await events;
+				expect(event).toMatchObject({
+					trigger: "comment",
+					key: `${githubRepo}#8`,
+				});
+				expect(await inboxOf(base)).toEqual([event]);
+			},
+		);
 	});
 });
