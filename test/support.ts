@@ -116,6 +116,12 @@ export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
 	};
 }
 
+export type TrackerRequest = {
+	url: string;
+	query: string;
+	variables: Record<string, unknown>;
+};
+
 export type LinearFake = {
 	project?: { id: string; name: string; slugId: string } | null;
 	issues?: Record<string, unknown>[];
@@ -123,8 +129,27 @@ export type LinearFake = {
 	fail?: "lookup" | "issues" | "key" | "reply";
 	status?: number;
 	requests?: string[];
+	sent?: TrackerRequest[];
 	github?: Fetch;
 };
+
+export function trackerRequest(
+	input: string | URL | Request,
+	init?: RequestInit,
+): TrackerRequest {
+	const body = typeof init?.body === "string" ? init.body : "";
+	let query = "";
+	let variables: Record<string, unknown> = {};
+	if (body !== "") {
+		const parsed = JSON.parse(body) as {
+			query?: string;
+			variables?: Record<string, unknown>;
+		};
+		query = parsed.query ?? "";
+		variables = parsed.variables ?? {};
+	}
+	return { url: urlOf(input), query, variables };
+}
 
 function linearJson(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -145,6 +170,8 @@ export function linearFake(options: LinearFake = {}): Fetch {
 	const status = options.status ?? 500;
 	return async (input, init) => {
 		const url = urlOf(input);
+		const sent = trackerRequest(input, init);
+		options.sent?.push(sent);
 		if (url.startsWith("https://api.github.com/")) {
 			const discovered = recordedDiscovery(input, init);
 			if (discovered !== null) {

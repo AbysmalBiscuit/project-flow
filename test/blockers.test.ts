@@ -1140,6 +1140,11 @@ describe("GET /api/overview blockers", () => {
 		}
 		const slugOnly = "bare-slug";
 		const requests: string[] = [];
+		const sent: {
+			url: string;
+			query: string;
+			variables: Record<string, unknown>;
+		}[] = [];
 		const recordedFetch = linearFake({
 			project: {
 				id: "project-widget",
@@ -1167,6 +1172,7 @@ describe("GET /api/overview blockers", () => {
 				},
 			],
 			requests,
+			sent,
 		});
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1203,6 +1209,18 @@ describe("GET /api/overview blockers", () => {
 								title: relation.issue.identifier,
 							},
 						]);
+						const issueReads = sent.filter((request) =>
+							request.query.includes("ProjectIssues"),
+						);
+						expect(issueReads.length).toBeGreaterThan(0);
+						expect(issueReads[0]?.query).toContain("inverseRelations");
+						expect(issueReads[0]?.query).toContain("title");
+						expect(issueReads[0]?.query).toContain("project { name slugId }");
+						expect(issueReads[0]?.variables).toEqual(
+							expect.objectContaining({
+								filter: { project: { id: { eq: "project-widget" } } },
+							}),
+						);
 						resolve();
 					})
 					.catch(reject);

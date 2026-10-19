@@ -9,8 +9,10 @@ import outsideRelations from "./fixtures/outside-relations.json";
 import {
 	linearFake,
 	recordedDiscovery,
+	type TrackerRequest,
 	tempConfig,
 	testIo,
+	trackerRequest,
 	urlOf,
 } from "./support.ts";
 
@@ -70,30 +72,6 @@ function recordedIssues(issues: Record<string, unknown>[]): Response {
 
 function bodyOf(init?: RequestInit): string {
 	return typeof init?.body === "string" ? init.body : "";
-}
-
-type TrackerRequest = {
-	url: string;
-	query: string;
-	variables: Record<string, unknown>;
-};
-
-function trackerRequest(
-	input: string | URL | Request,
-	init?: RequestInit,
-): TrackerRequest {
-	const body = bodyOf(init);
-	let query = "";
-	let variables: Record<string, unknown> = {};
-	if (body !== "") {
-		const parsed = JSON.parse(body) as {
-			query?: string;
-			variables?: Record<string, unknown>;
-		};
-		query = parsed.query ?? "";
-		variables = parsed.variables ?? {};
-	}
-	return { url: urlOf(input), query, variables };
 }
 
 function isPinQuery(
@@ -194,11 +172,9 @@ async function withInbox(
 	const requests: TrackerRequest[] = [];
 	const recorded = linearFake({
 		project: projects[0] ?? linearProject,
-		requests: [],
 	});
 	const fetchImpl: Fetch = async (input, init) => {
-		const sent = trackerRequest(input, init);
-		requests.push(sent);
+		requests.push(trackerRequest(input, init));
 		if (
 			commentsFail &&
 			urlOf(input) === "https://api.linear.app/graphql" &&
@@ -698,7 +674,8 @@ describe("inbox", () => {
 		let closed = false;
 		const requests: TrackerRequest[] = [];
 		const fetchImpl: Fetch = async (input, init) => {
-			requests.push(trackerRequest(input, init));
+			const sent = trackerRequest(input, init);
+			requests.push(sent);
 			const discovered = recordedDiscovery(input, init);
 			if (discovered !== null) {
 				return discovered;
@@ -798,6 +775,14 @@ describe("inbox", () => {
 							),
 						).length,
 					).toBe(2);
+					const dependencyReads = requests.filter((request) =>
+						request.url.endsWith("/dependencies/blocked_by"),
+					);
+					expect(dependencyReads[0]?.url).toContain(
+						`/repos/${repo}/issues/${recorded.number}/`,
+					);
+					expect(dependencyReads[0]?.query).toBe("");
+					expect(dependencyReads[0]?.variables).toEqual({});
 				})().then(resolve, reject);
 			};
 		});
