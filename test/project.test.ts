@@ -485,6 +485,37 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("an Epic label makes the ticket the GitHub workstream", async () => {
+		const parent = issue(31, "Ship the board", {
+			labels: [{ name: "Epic" }],
+		});
+		const child = issue(32, "Draw the legend", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/31`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([parent, child]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as Report;
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
+					"map_3a_Ship_20_the_20_board",
+				]);
+				expect(map?.diagrams?.[0]?.definition).toContain(
+					"acme_2f_widget_23_32",
+				);
+			},
+		);
+	});
+
 	test("workstreams that differ only by punctuation get distinct diagram ids", async () => {
 		const dashed = issue(21, "Ship the dashed quarter", {
 			milestone: { title: "Q1-2026" },

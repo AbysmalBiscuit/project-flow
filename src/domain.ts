@@ -46,6 +46,7 @@ export type Ticket = {
 	milestone?: string | null;
 	parent?: string | null;
 	epic?: boolean;
+	labels: string[];
 };
 
 export type TicketView = {
@@ -1107,20 +1108,24 @@ function rootOf(ticket: Ticket, byKey: Map<string, Ticket>): Ticket {
 	}
 }
 
+function isEpic(ticket: Ticket): boolean {
+	return ticket.labels.some((label) => label.toLowerCase() === "epic");
+}
+
 function themeOf(
 	ticket: Ticket,
 	root: Ticket,
 	byKey: Map<string, Ticket>,
 	roots: Set<string>,
 ): string {
-	if (ticket.epic === true) {
+	if (isEpic(ticket)) {
 		return ticket.title;
 	}
 	const parent = ancestor(ticket, byKey);
-	if (parent?.epic === true) {
+	if (parent !== undefined && isEpic(parent)) {
 		return parent.title;
 	}
-	if (root.epic === true) {
+	if (isEpic(root)) {
 		return root.title;
 	}
 	if (ticket.key !== null && roots.has(ticket.key.toLowerCase())) {
@@ -1160,7 +1165,7 @@ function workstreamOf(
 	if (tracker === "linear") {
 		return linearMilestone(ticket, byKey) ?? noWorkstream;
 	}
-	if (root.epic === true) {
+	if (isEpic(root)) {
 		return root.title;
 	}
 	return ticket.milestone ?? noWorkstream;

@@ -501,10 +501,6 @@ function parentKey(url: string | null | undefined): string | null {
 	return `${repo}#${number}`;
 }
 
-function epicLabel(names: string[]): boolean {
-	return names.some((name) => name.toLowerCase() === "epic");
-}
-
 function githubReason(reason: string | null): string | null {
 	if (reason === null) {
 		return null;
@@ -581,7 +577,7 @@ async function listProjectTickets(
 				blockedBy: [],
 				milestone: content.milestone?.title ?? null,
 				parent,
-				epic: epicLabel(content.labels?.nodes.map((label) => label.name) ?? []),
+				labels: content.labels?.nodes.map((label) => label.name) ?? [],
 			});
 		}
 		after = page.data.node.items.pageInfo.hasNextPage
@@ -647,7 +643,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						...(comments.length === 0 ? {} : { comments }),
 						milestone: issue.milestone?.title ?? null,
 						parent: parentKey(issue.parent_issue_url),
-						epic: epicLabel(issue.labels?.map((label) => label.name) ?? []),
+						labels: issue.labels?.map((label) => label.name) ?? [],
 					});
 				}
 			}

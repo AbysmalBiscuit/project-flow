@@ -253,9 +253,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		blockedBy: blockedBy(node),
 		milestone: node.projectMilestone?.name ?? null,
 		parent: node.parent?.identifier ?? null,
-		epic: (node.labels?.nodes ?? []).some(
-			(label) => label.name.toLowerCase() === "epic",
-		),
+		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 	};
 }
 
