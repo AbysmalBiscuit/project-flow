@@ -193,6 +193,7 @@ type PollOptions = {
 	fallback: Configuration | null;
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
+	holdLists: Promise<void>;
 };
 
 async function poll(options: PollOptions): Promise<Configuration | null> {
@@ -344,6 +345,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		const pinned = pinnedKeys.has(project.key);
 		const hidden = hiddenKeys.has(project.key);
 		try {
+			await options.holdLists;
 			const listedTickets = await tracker.listTickets(project.key, since);
 			const pulls = await tracker.listPulls(
 				project.key,
@@ -474,7 +476,25 @@ export async function start(options: StartOptions): Promise<Running> {
 		fallback: configuration,
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
+		holdLists: Promise.resolve(),
 	};
+	let releaseLists = () => {};
+	const hadRows = opened.store.readTickets().length > 0;
+	if (hadRows) {
+		let released = false;
+		pollOptions.holdLists = new Promise<void>((resolve) => {
+			releaseLists = () => {
+				if (released) {
+					return;
+				}
+				released = true;
+				resolve();
+			};
+		});
+		// A listen callback reads stored rows before this poll lists tickets.
+		const fallback = setTimeout(releaseLists, 1_000);
+		fallback.unref?.();
+	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;
 	const pollAgain = (): Promise<void> => {
@@ -507,7 +527,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		});
 		return polling;
 	};
-	const hadRows = opened.store.readTickets().length > 0;
 	if (!hadRows) {
 		try {
 			await pollAgain();
@@ -544,7 +563,11 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/": page,
 			"/projects/*": page,
 			"/api/overview": {
-				GET: () => Response.json(overview(opened.store)),
+				GET: () => {
+					const body = Response.json(overview(opened.store));
+					releaseLists();
+					return body;
+				},
 			},
 			"/api/projects/:name": {
 				GET: (request) => {
@@ -567,6 +590,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/api/refresh": {
 				POST: async () => {
+					releaseLists();
 					await pollAgain();
 					return new Response(null, { status: 204 });
 				},
@@ -582,6 +606,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		url: server.url,
 		stop: async () => {
 			stopped = true;
+			releaseLists();
 			clearInterval(timer);
 			await (polling ?? Promise.resolve());
 			await server.stop(true);
