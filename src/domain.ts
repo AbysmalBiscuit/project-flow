@@ -1313,6 +1313,7 @@ export function projectCounts(
 	};
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
+	const shownByKey = new Map<string, TicketState>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
 	for (const ticket of tickets) {
@@ -1337,6 +1338,9 @@ export function projectCounts(
 			startedKeys,
 			review,
 		);
+		if (ticket.key !== null) {
+			shownByKey.set(ticket.key, shown);
+		}
 		counts[shown] += 1;
 		views.push({
 			key: ticket.key,
@@ -1389,11 +1393,7 @@ export function projectCounts(
 		name,
 		tracker,
 		tickets,
-		pulls,
-		branches,
-		startedKeys,
-		all,
-		expectedBots,
+		shownByKey,
 		{
 			labels: rules.labels,
 			viewerLogins: rules.viewerLogins,
@@ -1624,16 +1624,9 @@ export function needsYouItems(
 	project: string,
 	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
-	pulls: PullRequest[],
-	branches: string[],
-	startedKeys: string[],
-	all: { project: string; tickets: Ticket[] }[],
-	expectedBots: Map<string, KnownBot[]>,
+	shownByKey: Map<string, TicketState>,
 	rules: NeedsYouRules,
 ): NeedsYouItem[] {
-	const index = indexTickets(all.flatMap((group) => group.tickets));
-	const parsed = parseBodies(all);
-	const active = pulls.filter((pull) => !pull.merged);
 	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
 	const viewers = new Set(
 		rules.viewerLogins.map((login) => login.toLowerCase()),
@@ -1643,24 +1636,7 @@ export function needsYouItems(
 		if (ticket.state !== "open" || ticket.key === null) {
 			continue;
 		}
-		const blockers = openBlockers(ticket, index, parsed);
-		const base = ticketState(
-			ticket,
-			blockers.flatMap((blocker) => {
-				const ref = asRef(blocker);
-				return ref === null ? [] : [ref];
-			}),
-		);
-		const links = linked(ticket, active, project);
-		const review = reviewState(links, expectedBots, ticket.comments ?? []);
-		const shown = shownState(
-			ticket,
-			base,
-			links,
-			branches,
-			startedKeys,
-			review,
-		);
+		const shown = shownByKey.get(ticket.key);
 		const ask = openAsk(ticket.comments ?? [], rules.noSenior);
 		const labelled =
 			ticket.assignee !== undefined &&
