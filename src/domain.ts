@@ -1057,7 +1057,15 @@ function scopeOf(title: string): string {
 }
 
 function mermaidId(value: string): string {
-	const id = value.replace(/[^A-Za-z0-9]/g, "_");
+	const id = [...value]
+		.map((char) => {
+			if (/[A-Za-z0-9]/.test(char)) {
+				return char;
+			}
+			const code = char.codePointAt(0) ?? 0;
+			return `_${code.toString(16)}_`;
+		})
+		.join("");
 	return /^[A-Za-z]/.test(id) ? id : `n_${id}`;
 }
 
