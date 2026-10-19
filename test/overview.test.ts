@@ -299,7 +299,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}
@@ -679,7 +679,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain(pin);
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}
@@ -710,7 +710,7 @@ describe("GET /api/overview", () => {
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain(pin);
 			expect(result.stderr).toContain("HTTP 502");
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}
@@ -746,7 +746,7 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}

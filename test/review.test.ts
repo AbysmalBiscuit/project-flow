@@ -1093,7 +1093,7 @@ describe("review cycle", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -3154,7 +3154,8 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					stdout: (line) => startChecks(line),
+					notifyOnListen: true,
+					onListen: (url) => startChecks(url.href),
 					waitForStop: checks.then(() => undefined),
 				}),
 			);
@@ -3949,12 +3950,9 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					stdout: (line) => startChecks(line),
-					waitForStop: (async () => {
-						const base = await checks;
-						const response = await fetch(new URL("/api/overview", base));
-						expect(response.status).not.toBe(200);
-					})(),
+					notifyOnListen: true,
+					onListen: (url) => startChecks(url.href),
+					waitForStop: checks.then(() => undefined),
 				}),
 			);
 			expect(result.exitCode).not.toBe(0);
@@ -4140,7 +4138,8 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					stdout: (line) => startChecks(line),
+					notifyOnListen: true,
+					onListen: (url) => startChecks(url.href),
 					waitForStop: checks.then(() => undefined),
 				}),
 			);

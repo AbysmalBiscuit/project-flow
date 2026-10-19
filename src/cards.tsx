@@ -368,6 +368,7 @@ function OverviewPage({
 		table: <TableView overview={overview} />,
 	};
 	return (
+<<<<<<< HEAD
 		<main className={shell.page}>
 			<h1 className={shell.title}>Projects</h1>
 			<nav className={shell.nav}>
@@ -408,7 +409,9 @@ function OverviewPage({
 					Dark mode
 				</button>
 			</nav>
-			{overview.error !== null ? (
+			{overview.error === "poll is running" ? (
+				<p className="loading">Loading projects</p>
+			) : overview.error !== null ? (
 				<p className={shell.stale}>{overview.error}</p>
 			) : null}
 			<nav className={shell.nav} aria-label="Overview tabs">

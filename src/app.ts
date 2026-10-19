@@ -73,6 +73,7 @@ export type StartOptions = {
 export type Running = {
 	url: URL;
 	stop: () => Promise<void>;
+	readonly settled: Promise<Error | null>;
 };
 
 function refKey(ref: Configuration["pinned"][number]): string {
@@ -448,6 +449,7 @@ type PollOptions = {
 	attention: Attention;
 	seenNotifications: Set<string>;
 	primed: boolean;
+	polling: boolean;
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
@@ -579,13 +581,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			)
 			.map((project) => project.key),
 	);
-	const listed = [];
 	const outcomes = new Map<string, ProjectPoll>();
 	const awaitingFirstPoll = new Set(
 		found.flatMap((project) =>
 			options.store.lastGoodPollAt(project.key) === null ? [project.key] : [],
 		),
 	);
+	const listed = [];
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
@@ -656,6 +658,24 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			});
 			options.store.recordGoodPoll(project.key, polledAt);
 			options.store.clearProjectError(project.key);
+			const shown = projectSnapshots(
+				listed,
+				polledAt,
+				configuration.activityWindowDays,
+			);
+			const visible = new Set(shown.map((item) => item.key));
+			for (const item of listed) {
+				const outcome = outcomes.get(item.key);
+				if (outcome?.ok !== true) {
+					continue;
+				}
+				outcome.row = visible.has(item.key)
+					? (shown.find((row) => row.key === item.key) ?? null)
+					: null;
+			}
+			if (visible.has(project.key)) {
+				publishPoll(options, configuration, outcomes);
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "poll failed";
 			const stored = options.store
@@ -679,17 +699,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				hidden,
 				row: stored ?? empty,
 			});
+			publishPoll(options, configuration, outcomes);
 		}
 	}
-	const shown = projectSnapshots(
-		listed,
-		polledAt,
-		configuration.activityWindowDays,
-	);
-	for (const row of shown) {
-		const outcome = outcomes.get(row.key);
-		if (outcome?.ok === true) {
-			outcome.row = row;
+	for (const key of [...options.fullPoll]) {
+		if (outcomes.get(key)?.ok === true) {
+			options.fullPoll.delete(key);
+			options.lastFullPollAt.set(key, polledAt.getTime());
 		}
 	}
 	const reconciled = reconcilePoll(
@@ -697,22 +713,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		[...outcomes.values()],
 		[...options.fullPoll],
 	);
-	for (const key of [...options.fullPoll]) {
-		if (outcomes.get(key)?.ok === true) {
-			options.fullPoll.delete(key);
-			options.lastFullPollAt.set(key, polledAt.getTime());
-		}
-	}
-	options.store.replaceTickets(reconciled.rows);
-	for (const projectError of reconciled.projectErrors) {
-		options.store.recordProjectError(projectError.key, projectError.error);
-	}
 	if (reconciled.globalError !== null) {
 		options.store.recordFetchError(reconciled.globalError);
 	} else if (failed !== null) {
 		options.store.recordFetchError(failed);
 	}
-	const nextOverview = overview(options.store, configuration, options.viewers);
 	const after = attentionFor(options.store, configuration, options.viewers);
 	const firstGood = new Set(
 		listed.flatMap((project) =>
@@ -733,7 +738,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				viewerLogins(configuration, options.viewers),
 			)
 		: [];
-
 	if (!options.primed) {
 		const opened = attentionIds(after);
 		for (const id of opened) {
@@ -748,11 +752,42 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
+	publishPoll(options, configuration, outcomes);
 	options.notifier.publish({
-		overview: nextOverview,
+		overview: runningOverview(options, configuration),
 		notifications,
 	});
 	return configuration;
+}
+
+function publishPoll(
+	options: PollOptions,
+	configuration: Configuration,
+	outcomes: Map<string, ProjectPoll>,
+): void {
+	const reconciled = reconcilePoll(
+		options.store.readTickets(),
+		[...outcomes.values()],
+		[...options.fullPoll],
+	);
+	options.store.replaceTickets(reconciled.rows);
+	for (const projectError of reconciled.projectErrors) {
+		options.store.recordProjectError(projectError.key, projectError.error);
+	}
+	options.notifier.publish({
+		overview: runningOverview(options, configuration),
+	});
+}
+
+function runningOverview(
+	options: PollOptions,
+	configuration: Configuration,
+): Overview {
+	const body = overview(options.store, configuration, options.viewers);
+	if (!options.polling || body.error !== null) {
+		return body;
+	}
+	return { ...body, error: "poll is running" };
 }
 
 export async function start(options: StartOptions): Promise<Running> {
@@ -805,6 +840,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			...opened.store.readSeededIds(),
 		]),
 		primed: opened.store.readTickets().length > 0,
+		polling: false,
 	};
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(
@@ -839,6 +875,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			return polling;
 		}
 		polling = (async () => {
+			const cold = !hadRows && opened.store.readTickets().length === 0;
+			if (cold) {
+				pollOptions.polling = true;
+			}
 			try {
 				configuration = await poll(pollOptions);
 				pollOptions.fallback = configuration;
@@ -857,6 +897,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				});
 			}
 		})().finally(() => {
+			pollOptions.polling = false;
 			polling = null;
 		});
 		return polling;
@@ -909,10 +950,13 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/inbox": page,
 			"/projects/*": page,
 			"/api/overview": {
-				GET: () =>
-					Response.json(
-						overview(opened.store, configuration, pollOptions.viewers),
-					),
+				GET: () => {
+					const body = Response.json(
+						runningOverview(pollOptions, configuration),
+					);
+					releaseLists();
+					return body;
+				},
 			},
 			"/api/needs-you": {
 				GET: () =>
@@ -980,11 +1024,57 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 		},
 	});
-	if (hadRows) {
+	const firstPoll = pollAgain();
+	let settle: (error: Error | null) => void = () => {};
+	const settled = new Promise<Error | null>((resolve) => {
+		settle = resolve;
+	});
+	if (!hadRows) {
+		void firstPoll.then(
+			() => {
+				const firstStatus = opened.store.fetchStatus();
+				const rows = opened.store.readTickets();
+				const fetched = rows.filter(
+					(row) => opened.store.projectError(row.key) === null,
+				);
+				const projectErrors = rows.map((row) =>
+					opened.store.projectError(row.key),
+				);
+				const everyFailureIsMissingCredential =
+					projectErrors.length > 0 &&
+					projectErrors.every(
+						(error) => error === missingToken || error === missingLinearKey,
+					);
+				const otherFailure = projectErrors.find(
+					(error) =>
+						error !== null &&
+						error !== missingToken &&
+						error !== missingLinearKey,
+				);
+				const coldError = everyFailureIsMissingCredential
+					? null
+					: (firstStatus.error ?? otherFailure ?? null);
+				if (fetched.length === 0 && coldError !== null && !stopped) {
+					settle(new Error(coldError));
+					return;
+				}
+				settle(null);
+			},
+			(error: unknown) => {
+				if (stopped) {
+					settle(null);
+					return;
+				}
+				settle(error instanceof Error ? error : new Error("poll failed"));
+			},
+		);
+	} else {
+		settle(null);
 		setTimeout(() => void pollAgain(), 0);
 	}
 	return {
 		url: server.url,
+		settled,
 		stop: async () => {
 			stopped = true;
 			releaseLists();

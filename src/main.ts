@@ -25,6 +25,8 @@ export type RunIo = {
 	readGhToken: (
 		env?: Record<string, string | undefined>,
 	) => Promise<string | null>;
+	onListen?: (url: URL) => void;
+	notifyOnListen?: boolean;
 	stdout?: (line: string) => void;
 	stderr?: (line: string) => void;
 	databasePath?: string;
@@ -309,9 +311,10 @@ async function openStore(path: string): Promise<void> {
 export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	const stdoutLines: string[] = [];
 	const stderrLines: string[] = [];
+	let listened = false;
 	const writeOut = io.stdout ?? ((line: string) => stdoutLines.push(line));
 	const writeErr = io.stderr ?? ((line: string) => stderrLines.push(line));
-	const result = (exitCode: number, listened: boolean): RunResult => ({
+	const result = (exitCode: number): RunResult => ({
 		exitCode,
 		stderr: stderrLines.join("\n"),
 		stdout: stdoutLines.join("\n"),
@@ -320,7 +323,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 
 	if (args.includes("--version")) {
 		writeOut(version);
-		return result(0, false);
+		return result(0);
 	}
 
 	const configFlag = flagValue(args, "--config");
@@ -329,7 +332,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		(configFlag === undefined || configFlag.trim() === "")
 	) {
 		writeErr("invalid configuration: --config needs a file path");
-		return result(1, false);
+		return result(1);
 	}
 
 	const portFlag = flagValue(args, "--port");
@@ -339,7 +342,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		(portFlag === undefined || !/^\d+$/.test(portFlag))
 	) {
 		writeErr("invalid port: --port needs a port number");
-		return result(1, false);
+		return result(1);
 	}
 
 	try {
@@ -358,11 +361,11 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			const user = await checkToken(token, io.fetch);
 			if (user.status === 401) {
 				writeErr(rejectedToken);
-				return result(1, false);
+				return result(1);
 			}
 			if (!user.ok) {
 				writeErr(`GitHub token check failed (HTTP ${user.status}).`);
-				return result(1, false);
+				return result(1);
 			}
 		}
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
@@ -373,11 +376,11 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			const viewer = await checkLinearKey(linearKey, io.fetch);
 			if (viewer.status === 401) {
 				writeErr(rejectedLinearKey);
-				return result(1, false);
+				return result(1);
 			}
 			if (!viewer.ok) {
 				writeErr(`Linear key check failed (HTTP ${viewer.status}).`);
-				return result(1, false);
+				return result(1);
 			}
 		}
 
@@ -397,13 +400,26 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 				(() => listDevkitCheckouts(configuration.checkoutRoots)),
 			...(io.now === undefined ? {} : { now: io.now }),
 		});
-		writeOut(running.url.href);
+		listened = true;
+		if (io.notifyOnListen === true) {
+			io.onListen?.(running.url);
+		}
+		const coldStart = await running.settled;
+		if (!(coldStart instanceof Error)) {
+			writeOut(running.url.href);
+			if (io.notifyOnListen !== true) {
+				io.onListen?.(running.url);
+			}
+		}
 		await (io.waitForStop ?? Promise.resolve());
 		await running.stop();
-		return result(0, true);
+		if (coldStart instanceof Error) {
+			throw coldStart;
+		}
+		return result(0);
 	} catch (error) {
 		writeErr(error instanceof Error ? error.message : "startup failed");
-		return result(1, false);
+		return result(1);
 	}
 }
 
