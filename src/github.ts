@@ -740,16 +740,16 @@ export async function mergedPullHistory(
 	fetchImpl: Fetch,
 	seen: Map<string, ReviewEvidence> = new Map(),
 ): Promise<PullRequest[]> {
-	const response = await fetchImpl(
-		`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
-		{ headers: githubHeaders(token) },
-	);
-	if (!response.ok) {
-		throw new Error(
-			`GitHub list merged pulls failed (HTTP ${response.status}): ${repo}`,
+	const page = z
+		.array(githubPull)
+		.parse(
+			await fetchJson(
+				`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
+				token,
+				fetchImpl,
+				"list merged pulls",
+			),
 		);
-	}
-	const page = z.array(githubPull).parse(await response.json());
 	const pulls: PullRequest[] = [];
 	for (const pull of page) {
 		if ((pull.merged_at ?? null) === null) {
