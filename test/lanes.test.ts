@@ -688,7 +688,7 @@ describe("tracker lanes", () => {
 		);
 	});
 
-	test("a GitHub project ticket with an empty Status uses the app lanes", async () => {
+	test("a GitHub project with no Status options uses the app lanes", async () => {
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
