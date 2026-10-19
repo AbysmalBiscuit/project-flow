@@ -221,10 +221,9 @@ const replyBody = z.object({
 	kind: z.enum(["comment", "review"]).optional(),
 });
 
-function trackerFor(
-	trackers: { github: Tracker | null; linear: Tracker | null },
-	name: string,
-): Tracker | null {
+type Trackers = Pick<PollOptions, "github" | "linear">;
+
+function trackerFor(trackers: Trackers, name: string): Tracker | null {
 	if (name === "github") {
 		return trackers.github;
 	}
@@ -246,7 +245,7 @@ function trackerError(error: unknown): Response {
 }
 
 async function threadResponse(
-	trackers: { github: Tracker | null; linear: Tracker | null },
+	trackers: Trackers,
 	trackerName: string,
 	key: string,
 	request: Request,
@@ -274,7 +273,7 @@ async function threadResponse(
 }
 
 async function replyResponse(
-	trackers: { github: Tracker | null; linear: Tracker | null },
+	trackers: Trackers,
 	request: Request,
 	store: Store,
 	notifier: Notifier,
