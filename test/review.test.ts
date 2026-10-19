@@ -478,6 +478,7 @@ async function overview(recorded: {
 	mergedPulls?: Record<string, unknown>[];
 	closedNext?: string | null;
 	config?: string;
+	withNeedsYou?: boolean;
 }): Promise<unknown> {
 	const { path, cleanup } = await tempConfig(
 		recorded.config ??
@@ -488,10 +489,32 @@ async function overview(recorded: {
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<unknown>((resolve, reject) => {
 		startChecks = (base: string) => {
-			fetch(new URL("/api/overview", base))
-				.then(async (response) => {
-					expect(response.status).toBe(200);
-					resolve(await response.json());
+			const listed = recorded.withNeedsYou === true;
+			const responses = listed
+				? Promise.all([
+						fetch(new URL("/api/overview", base)),
+						fetch(new URL("/api/needs-you", base)),
+					])
+				: fetch(new URL("/api/overview", base)).then((response) => [response]);
+			responses
+				.then(async (pages) => {
+					const overviewPage = pages[0];
+					if (overviewPage === undefined) {
+						throw new Error("overview response was missing");
+					}
+					expect(overviewPage.status).toBe(200);
+					const body: unknown = await overviewPage.json();
+					if (!listed) {
+						resolve(body);
+						return;
+					}
+					const needsYouPage = pages[1];
+					if (needsYouPage === undefined) {
+						throw new Error("needs-you response was missing");
+					}
+					expect(needsYouPage.status).toBe(200);
+					const needsYou: unknown = await needsYouPage.json();
+					resolve({ body, needsYou });
 				})
 				.catch(reject);
 		};
@@ -2178,7 +2201,7 @@ describe("review cycle", () => {
 		);
 	});
 
-	test("a later stage line with an open final-report ask stays awaiting merge", async () => {
+	test("a later stage line puts the PR back in review while the final-report ask stays open", async () => {
 		const progressComment = issue51Comments[0];
 		const report = issue51Comments[1];
 		if (
@@ -2195,7 +2218,7 @@ describe("review cycle", () => {
 				.filter((line) => !line.includes("ask-1 answered:"))
 				.join("\n"),
 		};
-		const open = await overview({
+		const resumed = await overview({
 			issues: [{ ...issue(51), comments: issue51Comments.length }],
 			pulls: [pull(52, 51)],
 			commentsByIssue: { 51: [openProgress, report] },
@@ -2213,21 +2236,71 @@ describe("review cycle", () => {
 			},
 			mergedPulls: [mergedPull()],
 		});
-		expect(open).toEqual(
+		expect(resumed).toEqual(
 			card(
-				"awaitingMerge",
+				"inReview",
 				{
 					backlog: 0,
 					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 1,
+					inReview: 1,
+					awaitingMerge: 0,
+				},
+				[],
+				0,
+				`${repo}#51`,
+				"Ticket 51",
+			),
+		);
+		const noSenior = await overview({
+			issues: [{ ...issue(51), comments: issue51Comments.length }],
+			pulls: [pull(52, 51)],
+			commentsByIssue: { 51: [openProgress, report] },
+			withNeedsYou: true,
+			config: JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				noSenior: { [repo]: true },
+			}),
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(noSenior).toEqual({
+			body: card(
+				"inReview",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 1,
+					awaitingMerge: 0,
 				},
 				[],
 				1,
 				`${repo}#51`,
 				"Ticket 51",
 			),
-		);
+			needsYou: [
+				{
+					project: repo,
+					tracker: "github",
+					key: `${repo}#51`,
+					headline: expect.any(String),
+					reason: "ask",
+					tags: [],
+					answered: false,
+					acknowledged: false,
+				},
+			],
+		});
 	});
 
 	test("a stage line after the final report puts the run back in review", async () => {

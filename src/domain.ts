@@ -1456,7 +1456,7 @@ function botCycle(
 const progressHeading = "**Workcell progress**";
 const stageLine = /^stage\s+(\d+)\b/i;
 const mergeAskLine = /^Merge PR #(\d+)\b/i;
-const finalReportLine = /^final report\b/i;
+const finalReportLine = /^(?:ask-\d+:\s+\S+\s+)?final report\b/i;
 const reportMarker = "<!-- workcell:report -->";
 function pullNumbers(text: string): number[] {
 	const numbers: number[] = [];
@@ -1506,7 +1506,7 @@ function workcellRun(
 			.slice(reportAt < 0 ? lines.length : reportAt + 1)
 			.some(
 				(line) =>
-					(stageLine.test(line) && lineDecidesPull(line, pull, lines)) ||
+					(stageLine.test(line) && !namesAnotherPull(line, pull)) ||
 					(reportAsk !== null && askAnsweredLine(line, reportAsk)),
 			);
 		if (resumed) {
@@ -1558,6 +1558,11 @@ function lineDecidesPull(
 		return numbers.includes(pull.number);
 	}
 	return !lines.some((item) => pullNumbers(item).length > 0);
+}
+
+function namesAnotherPull(line: string, pull: PullRequest): boolean {
+	const numbers = pullNumbers(line);
+	return numbers.length > 0 && !numbers.includes(pull.number);
 }
 
 function commentNamesPull(body: string, number: number): boolean {
