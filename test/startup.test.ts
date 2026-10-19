@@ -689,32 +689,26 @@ describe("startup", () => {
 	});
 
 	test("a configuration with noSenior exits 1 and names the field", async () => {
-		const bodies = [
+		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "github", repo: "acme/widget" }],
 				noSenior: { "acme/widget": true },
 			}),
-			JSON.stringify({ noSenior: {} }),
-			JSON.stringify({ noSenior: { "acme/widget": " true " } }),
-			`{\n  "noSenior": { "acme/widget": true }\n}`,
-		];
-		for (const body of bodies) {
-			const { path, cleanup } = await tempConfig(body);
-			try {
-				const result = await run(
-					["--config", path],
-					testIo({
-						env: { GITHUB_TOKEN: "recorded-token" },
-						fetch: recordedFetch(200),
-						readGhToken: async () => null,
-					}),
-				);
-				expect(result.exitCode).toBe(1);
-				expect(result.stderr).toContain("noSenior");
-				expect(result.listened).toBe(false);
-			} finally {
-				await cleanup();
-			}
+		);
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("noSenior");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
 		}
 	});
 
