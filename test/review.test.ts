@@ -1752,14 +1752,13 @@ describe("review cycle", () => {
 
 	test("an open merge ask on a workcell run is awaiting merge", async () => {
 		const body = await overview({
-			issues: [{ ...issue(8), comments: 1 }],
+			issues: [{ ...issue(8), comments: 2 }],
 			pulls: [pull(83)],
 			commentsByIssue: {
 				8: [
+					{ body: progress("- stage 5: round 1 of 3") },
 					{
-						body: progress(
-							"- stage 5: round 1 of 3\n- ask-1: 2026-10-18T12:00:00Z Merge PR #83 by squash?",
-						),
+						body: "Merge PR #83 by squash?\n\n<!-- workcell:ask 8-1 -->",
 					},
 				],
 			},
@@ -1866,14 +1865,13 @@ describe("review cycle", () => {
 
 	test("an answered merge ask leaves the run at its stage", async () => {
 		const body = await overview({
-			issues: [{ ...issue(8), comments: 2 }],
+			issues: [{ ...issue(8), comments: 3 }],
 			pulls: [pull(83)],
 			commentsByIssue: {
 				8: [
+					{ body: progress("- stage 5: round 1 of 3") },
 					{
-						body: progress(
-							"- stage 5: round 1 of 3\n- ask-1: 2026-10-18T12:00:00Z Merge PR #83 by squash?",
-						),
+						body: "Merge PR #83 by squash?\n\n<!-- workcell:ask 8-1 -->",
 					},
 					{ body: "answer: not yet" },
 				],

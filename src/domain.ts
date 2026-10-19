@@ -1127,31 +1127,24 @@ function workcellRun(comments: Comment[]): "inReview" | "awaitingMerge" | null {
 		.filter((line) => line !== "" && line !== progressHeading);
 	let stage: number | null = null;
 	let reported = false;
-	let mergeAsk: string | null = null;
 	for (const line of lines) {
 		const stageMatch = line.match(stageLine);
 		if (stageMatch?.[1] !== undefined) {
 			stage = Number(stageMatch[1]);
 			reported = false;
-			mergeAsk = null;
 			continue;
 		}
 		if (finalReportLine.test(line)) {
 			reported = true;
-			continue;
-		}
-		const ask = line.match(/^ask-([A-Za-z0-9_.-]+):\s+\S+\s+(.+)$/);
-		if (
-			ask?.[1] !== undefined &&
-			ask[2] !== undefined &&
-			mergeAskLine.test(ask[2])
-		) {
-			mergeAsk = ask[1];
 		}
 	}
 	const progressAt = comments.indexOf(progress);
 	const later = comments.slice(progressAt + 1);
-	if (mergeAsk !== null && !askAnswered(later, mergeAsk)) {
+	const mergeAsk = openMergeAsk(later);
+	if (
+		mergeAsk !== null &&
+		!askAnswered(later.slice(mergeAsk.index + 1), mergeAsk.id)
+	) {
 		return "awaitingMerge";
 	}
 	if (
@@ -1164,6 +1157,21 @@ function workcellRun(comments: Comment[]): "inReview" | "awaitingMerge" | null {
 		return "inReview";
 	}
 	return null;
+}
+
+function openMergeAsk(later: Comment[]): { id: string; index: number } | null {
+	let found: { id: string; index: number } | null = null;
+	for (const [index, comment] of later.entries()) {
+		const first = comment.body.split("\n")[0]?.trim() ?? "";
+		if (!mergeAskLine.test(first)) {
+			continue;
+		}
+		const marker = askId(comment.body);
+		if (marker !== null) {
+			found = { id: marker, index };
+		}
+	}
+	return found;
 }
 
 function askAnswered(later: Comment[], id: string): boolean {
