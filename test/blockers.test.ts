@@ -1389,6 +1389,23 @@ describe("GET /api/overview blockers", () => {
 									{
 										content: {
 											__typename: "Issue",
+											id: "I_spaced",
+											number: 26,
+											title: "Repeated spaces in a body line",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "Blocked by:   #20",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
 											id: "I_plain",
 											number: 25,
 											title: "No dependency field",
@@ -1508,6 +1525,12 @@ describe("GET /api/overview blockers", () => {
 						).toEqual({
 							state: "backlog",
 							blockers: [],
+						});
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#26`),
+						).toEqual({
+							state: "blocked",
+							blockers: [key],
 						});
 						expect(
 							requests.some((sent) =>
@@ -1844,10 +1867,15 @@ describe("GET /api/overview blockers", () => {
 		const projectId = "PVT_widget";
 		const board = "Widget board";
 		const requests: string[] = [];
+		let failNext = false;
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			const body = typeof init?.body === "string" ? init.body : "";
 			requests.push(`${url} ${body}`);
+			if (failNext && body.includes("ProjectItems")) {
+				failNext = false;
+				return new Response("recorded failure", { status: 500 });
+			}
 			const discovered = recordedDiscovery(input, init);
 			if (discovered !== null) {
 				return discovered;
@@ -1911,7 +1939,52 @@ describe("GET /api/overview blockers", () => {
 											},
 										},
 									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_empty",
+											number: 34,
+											title: "An empty later dependency page",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: {
+												nodes: [
+													{
+														number: 31,
+														state: "OPEN",
+														repository: { nameWithOwner: githubRepo },
+													},
+												],
+												pageInfo: {
+													hasNextPage: true,
+													endCursor: "cursor-empty",
+												},
+											},
+										},
+									},
 								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("BlockedBy") &&
+				body.includes("I_empty")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							blockedBy: {
+								nodes: [],
 								pageInfo: { hasNextPage: false, endCursor: null },
 							},
 						},
@@ -1949,6 +2022,7 @@ describe("GET /api/overview blockers", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
+				pollIntervalSeconds: 3600,
 			}),
 		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
@@ -1976,11 +2050,28 @@ describe("GET /api/overview blockers", () => {
 							blockersOf(project?.tickets ?? [], `${githubRepo}#30`).blockers,
 						).toEqual([`${githubRepo}#31`, `${githubRepo}#32`]);
 						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#34`).blockers,
+						).toEqual([`${githubRepo}#31`]);
+						expect(
 							requests.some(
 								(sent) =>
 									sent.includes("BlockedBy") && sent.includes("cursor-31"),
 							),
 						).toBe(true);
+						failNext = true;
+						const failed = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(failed.status).toBe(204);
+						const afterFailure = (await (
+							await fetch(new URL("/api/overview", base))
+						).json()) as typeof overview;
+						const kept = afterFailure.projects.find(
+							(item) => item.name === board,
+						);
+						expect(
+							blockersOf(kept?.tickets ?? [], `${githubRepo}#30`).blockers,
+						).toEqual([`${githubRepo}#31`, `${githubRepo}#32`]);
 						resolve();
 					})
 					.catch(reject);
