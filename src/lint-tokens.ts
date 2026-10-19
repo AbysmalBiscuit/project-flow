@@ -135,12 +135,12 @@ for await (const name of files) {
 			const property = match[0];
 			const key = property.slice(2);
 			if (declared.has(key)) {
-				failures.push(
-					`${name}:${index + 1}: hashed token name ${property}`,
-				);
+				failures.push(`${name}:${index + 1}: hashed token name ${property}`);
 				continue;
 			}
-			failures.push(`${name}:${index + 1}: unknown custom property ${property}`);
+			failures.push(
+				`${name}:${index + 1}: unknown custom property ${property}`,
+			);
 		}
 	}
 }
