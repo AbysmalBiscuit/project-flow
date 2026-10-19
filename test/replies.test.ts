@@ -1008,6 +1008,206 @@ describe("replies", () => {
 		}
 	});
 
+	test("a panel reply quotes a multi-line ask by its headline", async () => {
+		const sent: string[] = [];
+		const headline = "Which name should the panel use?";
+		const askBody = `The panel needs a label.\n${headline}\n\n${ask("pf-20")}`;
+		const text = "Use the short name.";
+		const comments: Record<string, unknown>[] = [
+			{
+				id: "comment-ask-20",
+				body: askBody,
+				createdAt: "2026-08-18T12:00:00.000Z",
+				user: { name: "Ada" },
+				reactions: [],
+			},
+		];
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-20",
+					identifier: "PF-20",
+					title: "Needs a label",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: { nodes: comments },
+				},
+			],
+			requests: sent,
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		try {
+			const before = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(before.find((item) => item.key === "PF-20")).toMatchObject({
+				headline,
+				answered: false,
+			});
+
+			const posted = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-20",
+					body: text,
+				}),
+			});
+			expect(posted.status).toBe(201);
+			const quoted = `> ${headline}\n\n${text}`;
+			const created = sent.find((body) => body.includes("commentCreate"));
+			expect(JSON.parse(created ?? "{}")).toMatchObject({
+				variables: { input: { issueId: "PF-20", body: quoted } },
+			});
+
+			comments.push({
+				id: "comment-quoted-20",
+				body: quoted,
+				createdAt: "2026-08-18T13:00:00.000Z",
+				user: { name: "Ada" },
+				reactions: [],
+			});
+			const refreshed = await fetch(new URL("/api/refresh", app.base), {
+				method: "POST",
+			});
+			expect(refreshed.status).toBe(204);
+			const answered = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(answered.find((item) => item.key === "PF-20")).toMatchObject({
+				headline,
+				answered: true,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a blank ask, repeated spaces and a partial quote stay unanswered", async () => {
+		const sent: string[] = [];
+		const headline = "Which name should the panel use?";
+		const comments: Record<string, unknown>[] = [
+			{
+				id: "comment-ask-21",
+				body: `   \n\n${ask("pf-21")}`,
+				createdAt: "2026-08-18T12:00:00.000Z",
+				user: { name: "Ada" },
+				reactions: [],
+			},
+		];
+		const spaced: Record<string, unknown>[] = [
+			{
+				id: "comment-ask-22",
+				body: `  ${headline}  \n\n${ask("pf-22")}`,
+				createdAt: "2026-08-18T12:00:00.000Z",
+				user: { name: "Ada" },
+				reactions: [],
+			},
+			{
+				id: "comment-partial",
+				body: "> Which name",
+				createdAt: "2026-08-18T12:10:00.000Z",
+				user: { name: "Ada" },
+				reactions: [],
+			},
+		];
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-21",
+					identifier: "PF-21",
+					title: "Blank ask",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: { nodes: comments },
+				},
+				{
+					id: "issue-pf-22",
+					identifier: "PF-22",
+					title: "Spaced ask",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: { nodes: spaced },
+				},
+			],
+			requests: sent,
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		try {
+			const open = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(open.find((item) => item.key === "PF-21")).toMatchObject({
+				headline: "",
+				answered: false,
+			});
+			expect(open.find((item) => item.key === "PF-22")).toMatchObject({
+				headline,
+				answered: false,
+			});
+
+			const blankAsk = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-21",
+					body: "No quote.",
+				}),
+			});
+			expect(blankAsk.status).toBe(201);
+			expect(
+				JSON.parse(sent.find((body) => body.includes("commentCreate")) ?? "{}"),
+			).toMatchObject({
+				variables: { input: { issueId: "PF-21", body: "No quote." } },
+			});
+
+			sent.length = 0;
+			const spacedReply = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-22",
+					body: "  Use   the short name.  ",
+				}),
+			});
+			expect(spacedReply.status).toBe(201);
+			const quoted = `> ${headline}\n\nUse   the short name.`;
+			expect(
+				JSON.parse(sent.find((body) => body.includes("commentCreate")) ?? "{}"),
+			).toMatchObject({
+				variables: { input: { issueId: "PF-22", body: quoted } },
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a marker-only ask posts the panel text unchanged", async () => {
 		const sent: string[] = [];
 		const recorded = linearFake({

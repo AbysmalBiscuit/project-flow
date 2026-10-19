@@ -1542,14 +1542,31 @@ function quotesAsk(body: string, id: string): boolean {
 	return pattern.test(body);
 }
 
+function askHeadline(body: string): string {
+	const text = body.replace(askMarker, "").trim();
+	const named = text
+		.split(/(?<=[.!?])\s+/)
+		.map((part) => part.trim())
+		.find((part) => namesLev(part));
+	if (named !== undefined) {
+		return named.replace(/^senior,\s*/i, "");
+	}
+	const lines = text
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line !== "" && !line.startsWith("<!--"));
+	return lines.at(-1) ?? text;
+}
+
 function quotesAskText(body: string, askBody: string): boolean {
-	const text = askBody.replace(askMarker, "").trim();
-	if (text === "") {
+	const headline = askHeadline(askBody);
+	if (headline === "") {
 		return false;
 	}
-	return body
-		.split("\n")
-		.some((line) => line.trimStart().startsWith(">") && line.includes(text));
+	return body.split("\n").some((line) => {
+		const quoted = line.trimStart();
+		return quoted.startsWith(">") && quoted.slice(1).trim() === headline;
+	});
 }
 
 function commentTime(comment: Comment): number {
@@ -1630,31 +1647,11 @@ export function panelReplyBody(
 	if (source === undefined || levReply(comments, ask.index) !== null) {
 		return text;
 	}
-	const headline = source.body
-		.replace(askMarker, "")
-		.split("\n")
-		.map((line) => line.trim())
-		.find((line) => line !== "" && !line.startsWith("<!--"));
-	if (headline === undefined) {
+	const headline = askHeadline(source.body);
+	if (headline === "") {
 		return text;
 	}
 	return `> ${headline}\n\n${text}`;
-}
-
-function askHeadline(body: string): string {
-	const text = body.replace(askMarker, "").trim();
-	const named = text
-		.split(/(?<=[.!?])\s+/)
-		.map((part) => part.trim())
-		.find((part) => namesLev(part));
-	if (named !== undefined) {
-		return named.replace(/^senior,\s*/i, "");
-	}
-	const lines = text
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line !== "" && !line.startsWith("<!--"));
-	return lines.at(-1) ?? text;
 }
 
 type OpenAsk = {
