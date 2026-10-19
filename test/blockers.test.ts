@@ -2871,7 +2871,7 @@ describe("GET /api/overview blockers", () => {
 			if (url === second) {
 				polls += 1;
 				if (polls > 1) {
-					return new Response("unavailable", { status: 500 });
+					return new Response("unavailable", { status: 404 });
 				}
 				return page([
 					{
@@ -2925,7 +2925,7 @@ describe("GET /api/overview blockers", () => {
 						const card = after.projects.find(
 							(project) => project.name === githubRepo,
 						);
-						expect(card?.error).toContain("HTTP 500");
+						expect(card?.error).toContain("HTTP 404");
 						expect(blockersOf(card?.tickets ?? [], key).blockers).toEqual([
 							`${githubRepo}#20`,
 							`${githubRepo}#19`,
