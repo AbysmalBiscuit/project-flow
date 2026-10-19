@@ -401,6 +401,7 @@ function eventStream(notifier: Notifier): Response {
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			const encoder = new TextEncoder();
+			controller.enqueue(encoder.encode(": open\n\n"));
 			unsubscribe = notifier.subscribe((change) => {
 				controller.enqueue(
 					encoder.encode(
