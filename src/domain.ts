@@ -1750,7 +1750,7 @@ function needsYouItem(
 	comments: Comment[],
 	reason: NeedsYouItem["reason"],
 ): NeedsYouItem {
-	const reply = ask === null ? null : replyAfter(comments, ask.index);
+	const reply = ask === null ? null : levReply(comments, ask.index);
 	return {
 		project,
 		tracker,
