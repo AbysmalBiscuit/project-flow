@@ -1456,6 +1456,7 @@ function botCycle(
 const progressHeading = "**Workcell progress**";
 const stageLine = /^stage\s+(\d+)\b/i;
 const mergeAskLine = /^Merge PR #(\d+)\b/i;
+const finalReportLine = /^(?:ask-\d+:\s+\S+\s+)?final report\b/i;
 const reportMarker = "<!-- workcell:report -->";
 function pullNumbers(text: string): number[] {
 	const numbers: number[] = [];
@@ -1475,6 +1476,19 @@ function pullNumbers(text: string): number[] {
 	return numbers;
 }
 
+function isReportComment(body: string): boolean {
+	if (body.includes(reportMarker)) {
+		return true;
+	}
+	const first = body.split("\n")[0]?.trim() ?? "";
+	return askId(body) !== null && finalReportLine.test(first);
+}
+
+function commentsAfter(comments: Comment[], progress: Comment): Comment[] {
+	const progressAt = comments.indexOf(progress);
+	return comments.slice(progressAt + 1);
+}
+
 function workcellRun(
 	comments: Comment[],
 	pull: PullRequest,
@@ -1489,30 +1503,52 @@ function workcellRun(
 		.split("\n")
 		.map((line) => line.trim().replace(/^-\s*/, ""))
 		.filter((line) => line !== "" && line !== progressHeading);
+	const later = commentsAfter(comments, progress);
+	const reportAt = lines.findLastIndex((line) => finalReportLine.test(line));
+	const report = later.findLast(
+		(comment) => comment !== progress && isReportComment(comment.body),
+	);
+	const reportAsk = report === undefined ? null : askId(report.body);
+	if (reportAt >= 0 || report !== undefined) {
+		const resumed = lines
+			.slice(reportAt < 0 ? lines.length : reportAt + 1)
+			.some(
+				(line) =>
+					(stageLine.test(line) && !namesAnotherPull(line, pull)) ||
+					(reportAsk !== null && askAnsweredLine(line, reportAsk)),
+			);
+		if (resumed) {
+			return { state: "inReview", tags: [] };
+		}
+		const marker =
+			report !== undefined && commentNamesPull(report.body, pull.number);
+		if (marker && reportAsk === null) {
+			return { state: "awaitingMerge", tags: [] };
+		}
+		if (marker && reportAsk !== null) {
+			const after = later.slice(later.indexOf(report) + 1);
+			if (!askAnswered([progress, ...after], reportAsk)) {
+				return { state: "awaitingMerge", tags: [] };
+			}
+			return { state: "inReview", tags: [] };
+		}
+		if (reportAt >= 0 && lineDecidesPull(lines[reportAt] ?? "", pull, lines)) {
+			return { state: "awaitingMerge", tags: [] };
+		}
+	}
+	const mergeAsk = openMergeAsk(later, pull.number);
+	if (
+		mergeAsk !== null &&
+		!askAnswered([progress, ...later.slice(mergeAsk.index + 1)], mergeAsk.id)
+	) {
+		return { state: "awaitingMerge", tags: [] };
+	}
 	let stage: number | null = null;
 	for (const line of lines) {
 		const stageMatch = line.match(stageLine);
 		if (stageMatch?.[1] !== undefined && lineDecidesPull(line, pull, lines)) {
 			stage = Number(stageMatch[1]);
 		}
-	}
-	const progressAt = comments.indexOf(progress);
-	const later = comments.slice(progressAt + 1);
-	const mergeAsk = openMergeAsk(later, pull.number);
-	if (
-		mergeAsk !== null &&
-		!askAnswered(later.slice(mergeAsk.index + 1), mergeAsk.id)
-	) {
-		return { state: "awaitingMerge", tags: [] };
-	}
-	if (
-		later.some(
-			(comment) =>
-				comment.body.includes(reportMarker) &&
-				commentDecidesPull(comment.body, pull),
-		)
-	) {
-		return { state: "awaitingMerge", tags: [] };
 	}
 	if (stage !== null && stage <= 5) {
 		return { state: "inReview", tags: [] };
@@ -1532,9 +1568,14 @@ function lineDecidesPull(
 	return !lines.some((item) => pullNumbers(item).length > 0);
 }
 
-function commentDecidesPull(body: string, pull: PullRequest): boolean {
+function namesAnotherPull(line: string, pull: PullRequest): boolean {
+	const numbers = pullNumbers(line);
+	return numbers.length > 0 && !numbers.includes(pull.number);
+}
+
+function commentNamesPull(body: string, number: number): boolean {
 	const numbers = pullNumbers(body);
-	return numbers.length === 0 || numbers.includes(pull.number);
+	return numbers.length === 0 || numbers.includes(number);
 }
 
 function openMergeAsk(
@@ -1543,13 +1584,16 @@ function openMergeAsk(
 ): { id: string; index: number } | null {
 	let found: { id: string; index: number } | null = null;
 	for (const [index, comment] of later.entries()) {
-		const first = comment.body.split("\n")[0]?.trim() ?? "";
-		const asked = first.match(mergeAskLine)?.[1];
-		if (asked === undefined || Number(asked) !== number) {
+		const marker = askId(comment.body);
+		if (marker === null || !commentNamesPull(comment.body, number)) {
 			continue;
 		}
-		const marker = askId(comment.body);
-		if (marker !== null) {
+		const first = comment.body.split("\n")[0]?.trim() ?? "";
+		if (
+			first.match(mergeAskLine)?.[1] === String(number) ||
+			comment.body.includes(reportMarker) ||
+			finalReportLine.test(first)
+		) {
 			found = { id: marker, index };
 		}
 	}
@@ -1559,8 +1603,27 @@ function openMergeAsk(
 function askAnswered(later: Comment[], id: string): boolean {
 	return later.some(
 		(comment) =>
-			quotesAsk(comment.body, id) || answerPrefix.test(comment.body.trim()),
+			quotesAsk(comment.body, id) ||
+			answerPrefix.test(comment.body.trim()) ||
+			progressAnswered(comment.body, id),
 	);
+}
+
+function askAnsweredLine(line: string, id: string): boolean {
+	const askNumber = id.split("-").at(-1);
+	if (askNumber === undefined) {
+		return false;
+	}
+	return new RegExp(`^ask-${askNumber}\\s+answered\\b`, "i").test(line);
+}
+
+function progressAnswered(body: string, id: string): boolean {
+	if (!body.trimStart().startsWith(progressHeading)) {
+		return false;
+	}
+	return body
+		.split("\n")
+		.some((line) => askAnsweredLine(line.trim().replace(/^-\s*/, ""), id));
 }
 
 function shownState(
