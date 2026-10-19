@@ -37,6 +37,7 @@ const githubIssue = z.object({
 	pull_request: z.unknown().optional(),
 	comments: z.number().optional(),
 	assignee: z.object({ login: z.string() }).nullable().optional(),
+	assignees: z.array(z.object({ login: z.string() })).optional(),
 });
 
 export const githubPull = z.object({
@@ -892,9 +893,14 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						milestone: issue.milestone?.title ?? null,
 						parent: parentKey(issue.parent_issue_url),
 						labels: issue.labels?.map((label) => label.name) ?? [],
-						...(issue.assignee === undefined
+						...(issue.assignee === undefined && issue.assignees === undefined
 							? {}
-							: { assignee: issue.assignee?.login ?? null }),
+							: {
+									assignee: issue.assignee?.login ?? null,
+									assignees: (issue.assignees ?? []).map(
+										(person) => person.login,
+									),
+								}),
 					});
 				}
 			}

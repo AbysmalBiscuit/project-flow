@@ -52,6 +52,7 @@ export type Ticket = {
 	parent: string | null;
 	labels: string[];
 	assignee?: string | null;
+	assignees?: string[];
 };
 
 export type TicketView = {
@@ -1620,6 +1621,16 @@ function replyAfter(
 	return null;
 }
 
+function assignedToViewer(ticket: Ticket, viewers: Set<string>): boolean {
+	const names = [
+		...(ticket.assignees ?? []),
+		...(ticket.assignee === undefined || ticket.assignee === null
+			? []
+			: [ticket.assignee]),
+	];
+	return names.some((name) => viewers.has(name.toLowerCase()));
+}
+
 export function needsYouItems(
 	project: string,
 	tracker: ProjectCounts["tracker"],
@@ -1639,9 +1650,7 @@ export function needsYouItems(
 		const shown = shownByKey.get(ticket.key);
 		const ask = openAsk(ticket.comments ?? [], rules.noSenior);
 		const labelled =
-			ticket.assignee !== undefined &&
-			ticket.assignee !== null &&
-			viewers.has(ticket.assignee.toLowerCase()) &&
+			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
 		const awaiting = shown === "awaitingMerge";
 		if (ask === null && !labelled && !awaiting) {
