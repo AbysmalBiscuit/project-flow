@@ -408,7 +408,9 @@ function OverviewPage({
 					Dark mode
 				</button>
 			</nav>
-			{overview.error !== null ? (
+			{overview.polling === true ? (
+				<p className={styles.loading}>Loading projects</p>
+			) : overview.error !== null ? (
 				<p className={shell.stale}>{overview.error}</p>
 			) : null}
 			<nav className={shell.nav} aria-label="Overview tabs">
