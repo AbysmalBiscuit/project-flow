@@ -702,7 +702,7 @@ describe("inbox", () => {
 					},
 				]);
 			}
-			if (url.endsWith(`/issues/${recorded.number}/dependencies/blocked_by`)) {
+			if (url.includes(`/issues/${recorded.number}/dependencies/blocked_by`)) {
 				return Response.json([
 					{
 						...dependency,
@@ -752,7 +752,7 @@ describe("inbox", () => {
 					]);
 					expect(
 						requests.some((request) =>
-							request.url.endsWith(
+							request.url.includes(
 								`/issues/${recorded.number}/dependencies/blocked_by`,
 							),
 						),
@@ -771,13 +771,13 @@ describe("inbox", () => {
 					expect(await inboxOf(base)).toEqual([event]);
 					expect(
 						requests.filter((request) =>
-							request.url.endsWith(
+							request.url.includes(
 								`/issues/${recorded.number}/dependencies/blocked_by`,
 							),
 						).length,
 					).toBe(2);
 					const dependencyReads = requests.filter((request) =>
-						request.url.endsWith("/dependencies/blocked_by"),
+						request.url.includes("/dependencies/blocked_by"),
 					);
 					expect(dependencyReads[0]?.url).toContain(
 						`/repos/${repo}/issues/${recorded.number}/`,
@@ -843,7 +843,7 @@ describe("inbox", () => {
 					},
 				]);
 			}
-			if (url.endsWith(`/issues/${recorded.number}/dependencies/blocked_by`)) {
+			if (url.includes(`/issues/${recorded.number}/dependencies/blocked_by`)) {
 				return Response.json([
 					{
 						...dependency,
@@ -946,7 +946,7 @@ describe("inbox", () => {
 			) {
 				return Response.json([recorded]);
 			}
-			if (url.endsWith(`/issues/${recorded.number}/dependencies/blocked_by`)) {
+			if (url.includes(`/issues/${recorded.number}/dependencies/blocked_by`)) {
 				if (failed) {
 					return new Response("not recorded", { status: 404 });
 				}
