@@ -85,6 +85,8 @@ export type Store = {
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
 	readNotifications: () => Notification[];
 	appendNotifications: (entries: Notification[]) => void;
+	readSeededIds: () => string[];
+	recordSeededIds: (ids: string[]) => void;
 };
 
 export type Change = {

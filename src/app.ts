@@ -704,9 +704,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		: [];
 
 	if (!options.primed) {
-		for (const id of attentionIds(after)) {
+		const seeded = attentionIds(after);
+		for (const id of seeded) {
 			options.seenNotifications.add(id);
 		}
+		options.store.recordSeededIds(seeded);
 		options.primed = true;
 	}
 	for (const entry of notifications) {
@@ -766,9 +768,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			blockers: new Map(),
 			closed: new Set(),
 		},
-		seenNotifications: new Set(
-			opened.store.readNotifications().map((entry) => entry.id),
-		),
+		seenNotifications: new Set([
+			...opened.store.readNotifications().map((entry) => entry.id),
+			...opened.store.readSeededIds(),
+		]),
 		primed: opened.store.readTickets().length > 0,
 	};
 	if (pollOptions.primed) {

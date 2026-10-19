@@ -656,6 +656,88 @@ describe("inbox", () => {
 		);
 	});
 
+	test("a restart does not notify a viewer-assigned label item as new", async () => {
+		const headline = "Assigned label";
+		const issue = linearIssue(
+			"PF-9",
+			headline,
+			"Waiting on the viewer.",
+			[],
+			{
+				labels: { nodes: [{ name: "needs-human" }] },
+				assignee: { id: "viewer-ada", name: "Ada Lovelace" },
+			},
+			"2026-08-18T13:00:00.000Z",
+		);
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues([issue]);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				...pinned,
+				needsYouLabels: ["needs-human"],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const first = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await first;
+			expect(await inboxOf(base)).toEqual([]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-9",
+					reason: "label",
+					headline,
+				}),
+			]);
+			stopFirst();
+			await started;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let again: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				again = resolve;
+			});
+			const restarted = start(secondStop, again);
+			const next = await second;
+			await refresh(next);
+			expect(await inboxOf(next)).toEqual([]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a restart on the same store does not notify the stored needs-you item again", async () => {
 		const headline = "Which bot should review this?";
 		const issue = linearIssue(

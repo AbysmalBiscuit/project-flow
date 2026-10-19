@@ -89,6 +89,11 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			at text not null
 		)
 	`);
+	db.run(`
+		create table if not exists seeded_ids (
+			id text primary key
+		)
+	`);
 	return {
 		store: {
 			replaceTickets(rows) {
@@ -191,6 +196,22 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 							entry.text,
 							entry.at,
 						);
+					}
+				})();
+			},
+			readSeededIds() {
+				const rows = db.query("select id from seeded_ids").all() as {
+					id: string;
+				}[];
+				return rows.map((row) => row.id);
+			},
+			recordSeededIds(ids) {
+				const insert = db.query(
+					"insert or ignore into seeded_ids (id) values (?)",
+				);
+				db.transaction(() => {
+					for (const id of ids) {
+						insert.run(id);
 					}
 				})();
 			},
