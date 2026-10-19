@@ -1010,7 +1010,7 @@ async function listProjectStatuses(
 	if (field === undefined) {
 		return [];
 	}
-	return (field.options ?? []).map((option) => ({
+	return field.options.map((option) => ({
 		id: option.id,
 		name: option.name,
 		statusType: statusTypeOfName(option.name),
