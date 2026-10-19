@@ -419,6 +419,7 @@ type PollOptions = {
 	holdLists: Promise<void>;
 	viewers: Viewer[];
 	attention: Attention;
+	attentionFor: (active: Configuration) => Attention;
 	seenNotifications: Set<string>;
 	primed: boolean;
 };
@@ -681,10 +682,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		options.store.recordFetchError(failed);
 	}
 	const nextOverview = overview(options.store, configuration, options.viewers);
-	const after = attentionOf(
-		projectViews(options.store, configuration, options.viewers),
-		configuration.noSenior,
-	);
+	const after = options.attentionFor(configuration);
 	const notifications = options.primed
 		? notificationsFor(
 				before,
@@ -737,7 +735,13 @@ export async function start(options: StartOptions): Promise<Running> {
 		opened.close();
 		throw error;
 	}
-	const pollOptions: PollOptions = {
+	let pollOptions: PollOptions;
+	const attentionFor = (active: Configuration): Attention =>
+		attentionOf(
+			projectViews(opened.store, active, pollOptions.viewers),
+			active.noSenior,
+		);
+	pollOptions = {
 		configuration: configurationPort,
 		...trackers,
 		store: opened.store,
@@ -752,6 +756,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
 		viewers: [],
+		attentionFor,
 		attention: {
 			needsYou: [],
 			comments: new Map(),
@@ -764,10 +769,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		primed: opened.store.readTickets().length > 0,
 	};
 	if (pollOptions.primed) {
-		pollOptions.attention = attentionOf(
-			projectViews(opened.store, configuration, pollOptions.viewers),
-			configuration.noSenior,
-		);
+		pollOptions.attention = attentionFor(configuration);
 	}
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
