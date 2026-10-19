@@ -11,6 +11,7 @@ import type {
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
+	conditionalFetch,
 	fetchHeadCommittedAt,
 	githubHeaders,
 	githubPull,
@@ -567,7 +568,7 @@ async function commentPages(
 async function pullsForIssues(
 	nodes: z.infer<typeof issueNode>[],
 	githubToken: string | null,
-	fetchImpl: Fetch,
+	fetchGithub: Fetch,
 	seenReviews: Map<string, ReviewEvidence>,
 ): Promise<PullRequest[]> {
 	const pulls: PullRequest[] = [];
@@ -596,7 +597,7 @@ async function pullsForIssues(
 				}
 				continue;
 			}
-			const pullResponse = await fetchImpl(
+			const pullResponse = await fetchGithub(
 				`https://api.github.com/repos/${target.repo}/pulls/${target.number}`,
 				{ headers: githubHeaders(githubToken) },
 			);
@@ -617,7 +618,7 @@ async function pullsForIssues(
 							head,
 							pull.draft === true,
 							githubToken,
-							fetchImpl,
+							fetchGithub,
 						);
 			const headCommittedAt =
 				pull.draft === true || head === ""
@@ -626,7 +627,7 @@ async function pullsForIssues(
 							target.repo,
 							head,
 							githubToken,
-							fetchImpl,
+							fetchGithub,
 						);
 			pulls.push({
 				repo: target.repo,
@@ -647,7 +648,7 @@ async function pullsForIssues(
 	const repos = [...new Set(pulls.map((pull) => pull.repo))];
 	for (const repo of repos) {
 		pulls.push(
-			...(await mergedPullHistory(repo, githubToken, fetchImpl, seenReviews)),
+			...(await mergedPullHistory(repo, githubToken, fetchGithub, seenReviews)),
 		);
 	}
 	return pulls;
@@ -721,6 +722,7 @@ export function linearTracker(
 	fetchImpl: Fetch,
 	githubToken: string | null = null,
 ): Tracker {
+	const fetchGithub = conditionalFetch(fetchImpl, new Map());
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const seenReviews = new Map<string, ReviewEvidence>();
 	const issues = (project: string, since: Date | null) => {
@@ -829,7 +831,7 @@ export function linearTracker(
 		async listPulls(pin, since = null) {
 			const project = await findLinearProject(key, pin, fetchImpl);
 			const nodes = await issues(project.id, since ?? null);
-			return pullsForIssues(nodes, githubToken, fetchImpl, seenReviews);
+			return pullsForIssues(nodes, githubToken, fetchGithub, seenReviews);
 		},
 		async listBranches(_project) {
 			return [];

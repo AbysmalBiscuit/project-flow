@@ -36,7 +36,7 @@ const configurationSchema = z.strictObject({
 	pinned: z.array(projectRef).default([]),
 	hidden: z.array(projectRef).default([]),
 	activityWindowDays: z.number().int().positive().default(30),
-	pollIntervalSeconds: z.number().int().positive().default(60),
+	pollIntervalSeconds: z.number().int().positive().default(300),
 	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
 	expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
 	pmBot: z.record(z.string(), z.boolean()).default({}),
