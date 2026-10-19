@@ -1,5 +1,6 @@
 import type { NeedsYouItem } from "./domain.ts";
-import styles from "./needs.module.css";
+import { clsx } from "./ui.ts";
+import { needs } from "./ui-styles.ts";
 
 export function NeedsItem({
 	item,
@@ -12,32 +13,30 @@ export function NeedsItem({
 }) {
 	return (
 		<li
-			className={
-				item.answered ? `${styles.item} ${styles.answered}` : styles.item
-			}
+			className={clsx(needs.item, item.answered && needs.answered)}
 			data-needs={item.key}
 		>
 			{project ? (
 				<a
-					className={styles.project}
+					className={clsx(needs.project)}
 					href={`/projects/${encodeURIComponent(item.project)}`}
 				>
 					{item.project}
 				</a>
 			) : null}
 			{onOpen === undefined ? (
-				<span className={styles.headline}>{item.headline}</span>
+				<span className={clsx(needs.headline)}>{item.headline}</span>
 			) : (
 				<button
 					type="button"
-					className={`${styles.open} ${styles.headline}`}
+					className={clsx(needs.open, needs.openHover, needs.headline)}
 					onClick={() => onOpen(item.key)}
 				>
 					{item.headline}
 				</button>
 			)}
 			{item.tags.length === 0 ? null : (
-				<span className={styles.tag}>{item.tags.join(" ")}</span>
+				<span className={clsx(needs.tag)}>{item.tags.join(" ")}</span>
 			)}
 		</li>
 	);

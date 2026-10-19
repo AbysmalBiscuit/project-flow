@@ -1,15 +1,16 @@
 import mermaid from "mermaid";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import styles from "./cards.module.css";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import shell from "./shell.module.css";
+import { navLabel, stateLabel, viewLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
+import { clsx } from "./ui.ts";
+import { cards, shell } from "./ui-styles.ts";
 
 function startMermaid(): void {
 	mermaid.initialize({ startOnLoad: false, theme: mermaidTheme() });
@@ -32,7 +33,7 @@ function openProject(name: string, ticket?: string): void {
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
-			className={styles.chip}
+			className={clsx(cards.chip, cards.chipHover)}
 			href={projectPath(blocker.project, blocker.key)}
 			onClick={(event) => {
 				event.preventDefault();
@@ -68,7 +69,7 @@ function writeTab(next: Tab): void {
 
 const sortKeys = [
 	{ key: "progress", id: "sort-progress", label: "Progress" },
-	{ key: "needsYou", id: "sort-needs-you", label: "Needs you" },
+	{ key: "needsYou", id: "sort-needs-you", label: navLabel.needsYou },
 	{ key: "blockers", id: "sort-blockers", label: "Cross-project blockers" },
 ] as const;
 
@@ -129,53 +130,61 @@ function ProjectLink({
 
 function CardsList({ overview }: { overview: Overview }) {
 	return (
-		<ul className={styles.list}>
+		<ul className={clsx(cards.list)}>
 			{overview.projects.map((project) => (
-				<li key={`${project.tracker}:${project.name}`} className={styles.card}>
-					<h2 className={shell.heading}>
-						<ProjectLink name={project.name} className={styles.projectLink}>
+				<li
+					key={`${project.tracker}:${project.name}`}
+					className={clsx(cards.card)}
+				>
+					<h2 className={clsx(shell.heading)}>
+						<ProjectLink
+							name={project.name}
+							className={clsx(cards.projectLink)}
+						>
 							{project.name}
 						</ProjectLink>
 					</h2>
 					{project.error === null ? null : (
-						<p className={shell.stale}>{project.error}</p>
+						<p className={clsx(shell.stale)}>{project.error}</p>
 					)}
-					<p className={styles.counts}>
-						<span className={styles.count}>
-							<span className={`${styles.swatch} ${styles.done}`} />
-							Done {project.done}
+					<p className={clsx(cards.counts)}>
+						<span className={clsx(cards.count)}>
+							<span className={clsx(cards.swatch, cards.done)} />
+							{stateLabel.done} {project.done}
 						</span>
-						<span className={styles.count}>
-							<span className={`${styles.swatch} ${styles.dropped}`} />
-							Dropped {project.dropped}
+						<span className={clsx(cards.count)}>
+							<span className={clsx(cards.swatch, cards.dropped)} />
+							{stateLabel.dropped} {project.dropped}
 						</span>
-						<span className={styles.count}>
-							<span className={`${styles.swatch} ${styles.blocked}`} />
-							Blocked {project.blocked}
+						<span className={clsx(cards.count)}>
+							<span className={clsx(cards.swatch, cards.blocked)} />
+							{stateLabel.blocked} {project.blocked}
 						</span>
-						<span className={styles.count}>
-							<span className={`${styles.swatch} ${styles.backlog}`} />
-							Backlog {project.backlog}
+						<span className={clsx(cards.count)}>
+							<span className={clsx(cards.swatch, cards.backlog)} />
+							{stateLabel.backlog} {project.backlog}
 						</span>
-						<span className={styles.count}>
-							<span className={`${styles.swatch} ${styles.inProgress}`} />
-							In progress {project.inProgress}
+						<span className={clsx(cards.count)}>
+							<span className={clsx(cards.swatch, cards.inProgress)} />
+							{stateLabel.inProgress} {project.inProgress}
 						</span>
-						<span className={styles.count}>
-							<span className={`${styles.swatch} ${styles.inReview}`} />
-							In review {project.inReview}
+						<span className={clsx(cards.count)}>
+							<span className={clsx(cards.swatch, cards.inReview)} />
+							{stateLabel.inReview} {project.inReview}
 						</span>
-						<span className={styles.count}>
-							<span className={`${styles.swatch} ${styles.awaitingMerge}`} />
-							Awaiting merge {project.awaitingMerge}
+						<span className={clsx(cards.count)}>
+							<span className={clsx(cards.swatch, cards.awaitingMerge)} />
+							{stateLabel.awaitingMerge} {project.awaitingMerge}
 						</span>
-						<span className={styles.count}>Needs you {project.needsYou}</span>
+						<span className={clsx(cards.count)}>
+							{navLabel.needsYou} {project.needsYou}
+						</span>
 					</p>
 					{project.tags.length === 0 ? null : (
-						<p className={styles.tags}>{project.tags.join(" ")}</p>
+						<p className={clsx(cards.tags)}>{project.tags.join(" ")}</p>
 					)}
 					{project.crossProjectBlockers.length === 0 ? null : (
-						<p className={styles.blockers}>
+						<p className={clsx(cards.blockers)}>
 							{project.crossProjectBlockers.map((blocker) => (
 								<Chip
 									key={`${blocker.project} ${blocker.key}`}
@@ -302,8 +311,8 @@ function GraphView({ overview, svg }: { overview: Overview; svg: string }) {
 		bindGraph(node, overview, graphEdges(overview));
 	}, [overview, svg]);
 	return (
-		<div className={styles.graph}>
-			<div ref={host} className={styles.mermaidHost} />
+		<div className={clsx(cards.graph)}>
+			<div ref={host} className={clsx(cards.mermaidHost)} />
 		</div>
 	);
 }
@@ -312,12 +321,12 @@ function TableView({ overview }: { overview: Overview }) {
 	const [sortKey, setSortKey] = useState<SortKey>("progress");
 	const rows = sortProjects(overview.projects, sortKey);
 	return (
-		<table className={styles.table}>
+		<table className={clsx(cards.table)}>
 			<thead>
 				<tr>
-					<th>Project</th>
+					<th className={clsx(cards.cell, cards.head)}>Project</th>
 					{sortKeys.map((item) => (
-						<th key={item.key}>
+						<th key={item.key} className={clsx(cards.cell, cards.head)}>
 							<button
 								type="button"
 								id={item.id}
@@ -332,14 +341,19 @@ function TableView({ overview }: { overview: Overview }) {
 			<tbody>
 				{rows.map((project) => (
 					<tr key={`${project.tracker}:${project.name}`}>
-						<td>
-							<ProjectLink name={project.name} className={styles.projectLink}>
+						<td className={clsx(cards.cell)}>
+							<ProjectLink
+								name={project.name}
+								className={clsx(cards.projectLink)}
+							>
 								{project.name}
 							</ProjectLink>
 						</td>
-						<td>{project.progress}%</td>
-						<td>{project.needsYou}</td>
-						<td>{project.crossProjectBlockers.length}</td>
+						<td className={clsx(cards.cell)}>{project.progress}%</td>
+						<td className={clsx(cards.cell)}>{project.needsYou}</td>
+						<td className={clsx(cards.cell)}>
+							{project.crossProjectBlockers.length}
+						</td>
 					</tr>
 				))}
 			</tbody>
@@ -368,20 +382,20 @@ function OverviewPage({
 		table: <TableView overview={overview} />,
 	};
 	return (
-		<main className={shell.page}>
-			<h1 className={shell.title}>Projects</h1>
-			<nav className={shell.nav}>
-				<a className={shell.link} href="/needs-you">
-					Needs you
+		<main className={clsx(shell.page)}>
+			<h1 className={clsx(shell.title)}>{navLabel.projects}</h1>
+			<nav className={clsx(shell.nav)}>
+				<a className={clsx(shell.link, shell.linkFocus)} href="/needs-you">
+					{navLabel.needsYou}
 				</a>
-				<a className={shell.link} href="/inbox">
-					Inbox
+				<a className={clsx(shell.link, shell.linkFocus)} href="/inbox">
+					{navLabel.inbox}
 				</a>
 				{notifyPermission === "default" ? (
 					<button
 						type="button"
 						id="notify-permission"
-						className={shell.button}
+						className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
 						onClick={() => {
 							void askNotificationPermission().finally(() => {
 								setNotifyPermission(notificationPermission());
@@ -391,12 +405,12 @@ function OverviewPage({
 						Allow notifications
 					</button>
 				) : null}
-				<a className={shell.link} href="/settings">
-					Settings
+				<a className={clsx(shell.link, shell.linkFocus)} href="/settings">
+					{navLabel.settings}
 				</a>
 				<button
 					type="button"
-					className={shell.button}
+					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
 					onClick={() => {
 						void fetch("/api/refresh", { method: "POST" });
 					}}
@@ -405,29 +419,38 @@ function OverviewPage({
 				</button>
 				<button
 					type="button"
-					className={`${shell.button} ${shell.theme}`}
+					className={clsx(
+						shell.button,
+						shell.buttonHover,
+						shell.buttonFocus,
+						shell.theme,
+					)}
 					data-theme-toggle=""
 				>
 					Dark mode
 				</button>
 			</nav>
 			{overview.polling === true ? (
-				<p className={styles.loading}>Loading projects</p>
+				<p className={clsx(cards.loading)}>Loading projects</p>
 			) : overview.error !== null ? (
-				<p className={shell.stale}>{overview.error}</p>
+				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
-			<nav className={shell.nav} aria-label="Overview tabs">
+			<nav className={clsx(shell.nav)} aria-label="Overview tabs">
 				{tabs.map((name) => (
 					<button
 						key={name}
 						type="button"
-						className={shell.button}
+						className={clsx(
+							shell.button,
+							shell.buttonHover,
+							shell.buttonFocus,
+							tab === name && shell.pressed,
+						)}
 						id={`tab-${name}`}
 						aria-pressed={tab === name}
 						onClick={() => choose(name)}
 					>
-						{name[0]?.toUpperCase()}
-						{name.slice(1)}
+						{viewLabel[name]}
 					</button>
 				))}
 			</nav>

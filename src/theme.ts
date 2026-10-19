@@ -1,3 +1,6 @@
+import * as stylex from "@stylexjs/stylex";
+import { darkTheme, lightTheme } from "./theme.stylex.ts";
+
 export type PageTheme = "light" | "dark";
 
 const themeKey = "project-flow-theme";
@@ -11,8 +14,13 @@ export function pageTheme(): PageTheme {
 	}
 }
 
+const lightClass = stylex.props(lightTheme).className ?? "";
+const darkClass = stylex.props(darkTheme).className ?? "";
+
 export function applyPageTheme(theme: PageTheme): void {
 	document.documentElement.dataset.theme = theme;
+	document.documentElement.classList.toggle(lightClass, theme === "light");
+	document.documentElement.classList.toggle(darkClass, theme === "dark");
 }
 
 /** Dark when the page has applied dark, else the mermaid light theme. */
