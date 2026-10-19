@@ -10,13 +10,12 @@ import { loadConfiguration } from "./configuration.ts";
 import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
-import { checkLinearKey, missingLinearKey } from "./linear.ts";
+import { checkLinearKey } from "./linear.ts";
 import type { CheckoutSource, LocalCheckout, TodoSource } from "./ports.ts";
 
 export { missingToken };
 export const rejectedToken =
 	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
-export { missingLinearKey };
 export const rejectedLinearKey =
 	"LINEAR_API_KEY was rejected by Linear (HTTP 401): set a valid key.";
 
