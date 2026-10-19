@@ -1736,31 +1736,39 @@ async function listBlockedBy(
 	repo: string,
 	number: number,
 ): Promise<TicketRef[]> {
-	const url = `https://api.github.com/repos/${repo}/issues/${number}/dependencies/blocked_by`;
-	const response = await fetchImpl(url, { headers: githubHeaders(token) });
-	if (response.status === 404) {
-		return [];
-	}
-	if (!response.ok) {
-		throw new Error(
-			`GitHub list blockers failed (HTTP ${response.status}): ${repo}#${number}`,
-		);
-	}
-	const page = z.array(dependency).parse(await response.json());
-	return page.flatMap((item) => {
-		const state = nativeState(item.state);
-		if (state === null) {
+	const refs: TicketRef[] = [];
+	let url: string | null =
+		`https://api.github.com/repos/${repo}/issues/${number}/dependencies/blocked_by?per_page=100&page=1`;
+	let first = true;
+	while (url !== null) {
+		const response = await fetchImpl(url, { headers: githubHeaders(token) });
+		if (first && response.status === 404) {
 			return [];
 		}
-		const project = repoFromUrl(item.repository_url, repo);
-		const ref: TicketRef = {
-			tracker: "github",
-			project,
-			key: `${project}#${item.number}`,
-		};
-		if (state !== undefined) {
-			ref.state = state;
+		first = false;
+		if (!response.ok) {
+			throw new Error(
+				`GitHub list blockers failed (HTTP ${response.status}): ${repo}#${number}`,
+			);
 		}
-		return [ref];
-	});
+		const page = z.array(dependency).parse(await response.json());
+		for (const item of page) {
+			const state = nativeState(item.state);
+			if (state === null) {
+				continue;
+			}
+			const project = repoFromUrl(item.repository_url, repo);
+			const ref: TicketRef = {
+				tracker: "github",
+				project,
+				key: `${project}#${item.number}`,
+			};
+			if (state !== undefined) {
+				ref.state = state;
+			}
+			refs.push(ref);
+		}
+		url = nextPage(response.headers.get("link"));
+	}
+	return refs;
 }
