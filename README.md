@@ -85,11 +85,7 @@ async function resolveToken(
 	if (envToken !== null) {
 		return envToken;
 	}
-	const fromGh = await io.readGhToken(io.env);
-	if (fromGh === null || fromGh.trim() === "") {
-		return null;
-	}
-	return fromGh;
+	return io.readGhToken(io.env);
 }
 ```
 
