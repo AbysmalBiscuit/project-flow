@@ -498,19 +498,21 @@ async function listTeamStates(
 		}),
 	});
 	if (!response.ok) {
-		return [];
+		throw new Error(
+			`Linear list team statuses failed (HTTP ${response.status}): ${teamId}`,
+		);
 	}
 	const body = await response.json();
 	const recorded = teamStates.safeParse(body);
 	if (!recorded.success || recorded.data.data.team === null) {
-		return [];
+		throw new Error(`Linear list team statuses failed: ${teamId}`);
 	}
 	const page = recorded.data;
 	const error = page.errors?.[0];
 	if (error !== undefined) {
-		return [];
+		throw new Error(`Linear list team statuses failed: ${error.message}`);
 	}
-	const nodes = page.data.team?.states.nodes ?? [];
+	const nodes = page.data.team.states.nodes;
 	return [...nodes]
 		.sort((left, right) => left.position - right.position)
 		.map((node) => ({

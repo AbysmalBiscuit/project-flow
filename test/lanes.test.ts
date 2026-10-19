@@ -52,6 +52,7 @@ type OverviewBody = {
 		name: string;
 		blocked?: number;
 		inProgress?: number;
+		error?: string | null;
 		statusTypes?: Record<string, number>;
 		tickets: {
 			key: string | null;
@@ -1059,7 +1060,64 @@ describe("tracker lanes", () => {
 		);
 	});
 
-	test("a blank Status and a failing status read use the app lanes", async () => {
+	test("a failing status read keeps the stored lanes and reports the error", async () => {
+		let fields = 0;
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+				pollIntervalSeconds: 3600,
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("ProjectFields")
+				) {
+					fields += 1;
+					if (fields > 1) {
+						return new Response("not recorded", { status: 404 });
+					}
+				}
+				return projectFetch([
+					projectItem(7, "Draw the nodes", {
+						name: "In Progress",
+						color: "YELLOW",
+					}),
+				])(input, init);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(report.lanes.map((lane) => lane.name)).toContain("In Progress");
+				const refreshed = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refreshed.status).toBe(204);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const project = overview.projects.find(
+					(item) => item.name === "Widget board",
+				);
+				expect(project?.error).toContain("HTTP 404");
+				const stored = await projectOf(base, "Widget board");
+				expect(stored.lanes.map((lane) => lane.name)).toEqual(
+					report.lanes.map((lane) => lane.name),
+				);
+				expect(stored.lanes.map((lane) => lane.name)).not.toEqual([
+					"Backlog",
+					"In progress",
+					"In review",
+					"Awaiting merge",
+					"Done",
+					"Dropped",
+				]);
+			},
+		);
+	});
+
+	test("a project with no Status field uses the app lanes", async () => {
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
@@ -1071,7 +1129,15 @@ describe("tracker lanes", () => {
 					url === "https://api.github.com/graphql" &&
 					body.includes("ProjectFields")
 				) {
-					return new Response("not recorded", { status: 404 });
+					return Response.json({
+						data: {
+							node: {
+								fields: {
+									nodes: [{}],
+								},
+							},
+						},
+					});
 				}
 				return projectFetch([
 					projectItem(12, "Blank status", { name: "  ", color: "" }),
@@ -1088,11 +1154,12 @@ describe("tracker lanes", () => {
 					"Done",
 					"Dropped",
 				]);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
 				expect(
-					report.sections
-						.flatMap((section) => section.items ?? [])
-						.find((item) => item.key === "acme/widget#12")?.state,
-				).toBe("backlog");
+					overview.projects.find((item) => item.name === "Widget board")?.error,
+				).toBeNull();
 			},
 		);
 	});

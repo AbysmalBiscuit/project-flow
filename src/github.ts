@@ -979,26 +979,27 @@ async function listProjectStatuses(
 		}),
 	});
 	if (!response.ok) {
-		return [];
+		throw new Error(
+			`GitHub list project statuses failed (HTTP ${response.status}): ${projectId}`,
+		);
 	}
 	const body = await response.json();
 	const recorded = projectFields.safeParse(body);
 	if (!recorded.success) {
-		return [];
-	}
-	const fields = recorded.data.data.node?.fields.nodes ?? [];
-	if (!fields.some((field) => "name" in field && field.name === "Status")) {
-		return [];
+		throw new Error(`GitHub list project statuses failed: ${projectId}`);
 	}
 	const page = recorded.data;
 	const error = page.errors?.[0];
 	if (error !== undefined) {
-		return [];
+		throw new Error(`GitHub list project statuses failed: ${error.message}`);
 	}
 	const field = page.data.node?.fields.nodes.find(
 		(node) => "name" in node && node.name === "Status",
 	);
-	return (field?.options ?? []).map((option) => ({
+	if (field === undefined) {
+		return [];
+	}
+	return (field.options ?? []).map((option) => ({
 		id: option.id,
 		name: option.name,
 		statusType: statusTypeOfName(option.name),
@@ -1019,13 +1020,16 @@ async function listRepoLabels(
 	const start = `https://api.github.com/repos/${repo}/labels?per_page=100&page=1`;
 	const first = await fetchImpl(start, { headers: githubHeaders(token) });
 	if (!first.ok) {
-		return [];
+		throw new Error(
+			`GitHub list labels failed (HTTP ${first.status}): ${repo}`,
+		);
 	}
 	const firstBody = await first.json();
-	if (!z.array(githubLabel).safeParse(firstBody).success) {
-		return [];
+	const firstPage = z.array(githubLabel).safeParse(firstBody);
+	if (!firstPage.success) {
+		throw new Error(`GitHub list labels failed: ${repo}`);
 	}
-	const listed = [firstBody];
+	const listed = [firstPage.data];
 	let url = nextPage(first.headers.get("link"));
 	while (url !== null) {
 		const response = await fetchImpl(url, { headers: githubHeaders(token) });
@@ -1034,12 +1038,16 @@ async function listRepoLabels(
 				`GitHub list labels failed (HTTP ${response.status}): ${repo}`,
 			);
 		}
-		listed.push(await response.json());
+		const page = z.array(githubLabel).safeParse(await response.json());
+		if (!page.success) {
+			throw new Error(`GitHub list labels failed: ${repo}`);
+		}
+		listed.push(page.data);
 		url = nextPage(response.headers.get("link"));
 	}
 	const labels: { name: string; colour: string }[] = [];
 	for (const item of listed) {
-		for (const label of z.array(githubLabel).parse(item)) {
+		for (const label of item) {
 			labels.push({ name: label.name, colour: labelColour(label.color) });
 		}
 	}
