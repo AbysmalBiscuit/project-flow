@@ -162,6 +162,17 @@ function projectViews(
 	});
 }
 
+function attentionFor(
+	store: Store,
+	configuration: Configuration,
+	viewers: Viewer[],
+): Attention {
+	return attentionOf(
+		projectViews(store, configuration, viewers),
+		configuration.noSenior,
+	);
+}
+
 function overview(
 	store: Store,
 	configuration: Configuration,
@@ -419,7 +430,6 @@ type PollOptions = {
 	holdLists: Promise<void>;
 	viewers: Viewer[];
 	attention: Attention;
-	attentionFor: (active: Configuration) => Attention;
 	seenNotifications: Set<string>;
 	primed: boolean;
 };
@@ -682,7 +692,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		options.store.recordFetchError(failed);
 	}
 	const nextOverview = overview(options.store, configuration, options.viewers);
-	const after = options.attentionFor(configuration);
+	const after = attentionFor(options.store, configuration, options.viewers);
 	const notifications = options.primed
 		? notificationsFor(
 				before,
@@ -735,13 +745,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		opened.close();
 		throw error;
 	}
-	let pollOptions: PollOptions;
-	const attentionFor = (active: Configuration): Attention =>
-		attentionOf(
-			projectViews(opened.store, active, pollOptions.viewers),
-			active.noSenior,
-		);
-	pollOptions = {
+	const pollOptions: PollOptions = {
 		configuration: configurationPort,
 		...trackers,
 		store: opened.store,
@@ -756,7 +760,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
 		viewers: [],
-		attentionFor,
 		attention: {
 			needsYou: [],
 			comments: new Map(),
@@ -769,7 +772,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		primed: opened.store.readTickets().length > 0,
 	};
 	if (pollOptions.primed) {
-		pollOptions.attention = attentionFor(configuration);
+		pollOptions.attention = attentionFor(
+			opened.store,
+			configuration,
+			pollOptions.viewers,
+		);
 	}
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
