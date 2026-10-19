@@ -38,6 +38,7 @@ The code is hexagonal.
 - Do not write unit tests below the seam. Test a domain rule through the HTTP API.
 - Tests never call a live tracker API.
 - React components are thin views of the API responses and have no test suite. A browser check of the running app is a proof step for each UI change.
+- Each proof, screenshot or manual run sets `XDG_DATA_HOME` to a temporary folder.
 
 ### TypeScript
 
