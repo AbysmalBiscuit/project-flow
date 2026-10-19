@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
+import type { Comment, PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -577,7 +577,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 							? await listBlockedBy(token, fetchImpl, repo, issue.number)
 							: [];
 					const comments =
-						issue.comments === undefined || issue.comments === 0
+						issue.state !== "open" ||
+						issue.comments === undefined ||
+						issue.comments === 0
 							? []
 							: await listCommentBodies(token, fetchImpl, repo, issue.number);
 					tickets.push({
@@ -683,7 +685,7 @@ async function listCommentBodies(
 	fetchImpl: Fetch,
 	repo: string,
 	number: number,
-): Promise<{ body: string }[]> {
+): Promise<Comment[]> {
 	const listed = await pages(
 		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
 		token,
