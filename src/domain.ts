@@ -1124,18 +1124,38 @@ function themeOf(
 	return scopeOf(ticket.title);
 }
 
+function linearMilestone(
+	ticket: Ticket,
+	byKey: Map<string, Ticket>,
+): string | null {
+	const seen = new Set<string>();
+	let current: Ticket | undefined = ticket;
+	while (current !== undefined) {
+		if (current.milestone !== null && current.milestone !== undefined) {
+			return current.milestone;
+		}
+		if (current.key === null || seen.has(current.key.toLowerCase())) {
+			return null;
+		}
+		seen.add(current.key.toLowerCase());
+		current = ancestor(current, byKey);
+	}
+	return null;
+}
+
 function workstreamOf(
 	ticket: Ticket,
 	root: Ticket,
 	tracker: ProjectCounts["tracker"],
+	byKey: Map<string, Ticket>,
 ): string {
 	if (tracker === "linear") {
-		return root.milestone ?? ticket.milestone ?? noWorkstream;
+		return linearMilestone(ticket, byKey) ?? noWorkstream;
 	}
 	if (root.epic === true) {
 		return root.title;
 	}
-	return root.milestone ?? ticket.milestone ?? noWorkstream;
+	return ticket.milestone ?? noWorkstream;
 }
 
 function placeTickets(
@@ -1166,7 +1186,7 @@ function placeTickets(
 			{
 				ticket,
 				view,
-				workstream: workstreamOf(ticket, root, tracker),
+				workstream: workstreamOf(ticket, root, tracker, byKey),
 				theme: themeOf(ticket, root, byKey, roots),
 			},
 		];

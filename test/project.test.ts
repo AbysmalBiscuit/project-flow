@@ -336,15 +336,17 @@ describe("GET /api/projects/:name", () => {
 				);
 				expect(linearMap?.diagrams?.map((diagram) => diagram.id)).toEqual([
 					"map_Beta",
+					"map_Later",
 				]);
 				const beta = linearMap?.diagrams?.[0]?.definition ?? "";
-				expect(beta).toContain("WID_2");
+				expect(beta).not.toContain("WID_2");
 				expect(beta).toContain("Launch epic");
 				expect(beta).toContain('Beta_Launch_epic["Launch epic"]:::theme');
-				expect(beta).toContain(":::dashed");
-				expect(
-					linearMap?.diagrams?.some((diagram) => diagram.id === "map_Later"),
-				).toBe(false);
+				const later = linearMap?.diagrams?.find(
+					(diagram) => diagram.id === "map_Later",
+				);
+				expect(later?.definition).toContain("WID_2");
+				expect(later?.definition).toContain(":::dashed");
 				const chains = linearReport.sections.find(
 					(section) => section.id === "blockingChains",
 				);
@@ -382,6 +384,102 @@ describe("GET /api/projects/:name", () => {
 		};
 		expect(await readMap(githubFetch(reversed))).toEqual(
 			await readMap(githubFetch()),
+		);
+	});
+
+	test("a Linear ticket with no milestone takes the first ancestor milestone", async () => {
+		const issues = [
+			{
+				id: "parent",
+				identifier: "WID-1",
+				title: "Launch epic",
+				description: "",
+				state: { type: "unstarted" },
+				updatedAt: "2026-08-18T12:00:00.000Z",
+				projectMilestone: { name: "Beta" },
+				labels: { nodes: [{ name: "epic" }] },
+				parent: null,
+			},
+			{
+				id: "story",
+				identifier: "WID-4",
+				title: "Ship the list",
+				description: "",
+				state: { type: "unstarted" },
+				updatedAt: "2026-08-18T12:00:00.000Z",
+				parent: { identifier: "WID-1" },
+				projectMilestone: null,
+				labels: { nodes: [] },
+			},
+			{
+				id: "child",
+				identifier: "WID-8",
+				title: "List the rows",
+				description: "",
+				state: { type: "unstarted" },
+				updatedAt: "2026-08-18T12:00:00.000Z",
+				parent: { identifier: "WID-4" },
+				projectMilestone: null,
+				labels: { nodes: [] },
+			},
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			linearFake({
+				project: {
+					id: "project-widget",
+					name: "Widget launch",
+					slugId: linearSlug,
+				},
+				issues,
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = (await (
+					await fetch(new URL("/api/projects/Widget%20launch", base))
+				).json()) as Report;
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
+					"map_Beta",
+				]);
+				expect(map?.diagrams?.[0]?.definition).toContain("WID_8");
+			},
+		);
+	});
+
+	test("a GitHub ticket under a non-epic root takes its own milestone", async () => {
+		const parent = issue(7, "Write the notes");
+		const child = issue(8, "feat(notes): add the heading", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([parent, child]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as Report;
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				expect(map?.diagrams?.map((diagram) => diagram.id).sort()).toEqual([
+					"map_October",
+					"map_no_workstream",
+				]);
+				const october = map?.diagrams?.find(
+					(diagram) => diagram.id === "map_October",
+				);
+				expect(october?.definition).toContain("acme_widget_8");
+				expect(october?.definition).not.toContain("acme_widget_7");
+			},
 		);
 	});
 
