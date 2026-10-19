@@ -806,6 +806,204 @@ describe("inbox", () => {
 		}
 	});
 
+	test("a blank GitHub blocker title and a repeated space in the ticket title raise no Blocker cleared", async () => {
+		const recorded = outsideRelations.githubFactory279;
+		const dependency = outsideRelations.githubFactory279BlockedBy[0];
+		if (recorded === undefined || dependency === undefined) {
+			throw new Error("recorded factory issue 279 has no blocked_by response");
+		}
+		const repo = "AbysmalBiscuit/factory";
+		const outsideRepo =
+			dependency.repository_url.match(/\/repos\/([^/]+\/[^/]+)/)?.[1] ?? "";
+		let phase: "open" | "blank" | "closed" = "open";
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url.startsWith(`https://api.github.com/repos/${repo}/issues?`) &&
+				url.includes("state=all")
+			) {
+				return Response.json([
+					{
+						...recorded,
+						title: phase === "blank" ? "   " : recorded.title,
+						updated_at:
+							phase === "open" ? recorded.updated_at : "2026-10-19T16:00:00Z",
+						issue_dependencies_summary:
+							phase === "closed"
+								? { ...recorded.issue_dependencies_summary, blocked_by: 0 }
+								: recorded.issue_dependencies_summary,
+					},
+				]);
+			}
+			if (url.endsWith(`/issues/${recorded.number}/dependencies/blocked_by`)) {
+				return Response.json([
+					{
+						...dependency,
+						title: "   ",
+						state: phase === "closed" ? "closed" : dependency.state,
+					},
+				]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return Response.json([]);
+			}
+			if (url.includes("/comments")) {
+				return Response.json([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const done = new Promise<void>((resolve, reject) => {
+			startChecks = (base) => {
+				void (async () => {
+					const outsideKey = `${outsideRepo}#${dependency.number}`;
+					const first = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as {
+						projects: {
+							crossProjectBlockers: { key: string; title: string }[];
+						}[];
+					};
+					expect(first.projects[0]?.crossProjectBlockers).toEqual([
+						expect.objectContaining({
+							key: outsideKey,
+							title: outsideKey,
+						}),
+					]);
+					phase = "blank";
+					await refresh(base);
+					expect(await inboxOf(base)).toEqual([]);
+					phase = "closed";
+					const events = notificationEvent(base);
+					await Bun.sleep(50);
+					await refresh(base);
+					const event = await events;
+					expect(event).toMatchObject({
+						trigger: "blockerCleared",
+						project: repo,
+						key: outsideKey,
+						text: outsideKey,
+					});
+					expect(await inboxOf(base)).toEqual([event]);
+				})().then(resolve, reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: done,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a failed outside dependency read raises no Blocker cleared", async () => {
+		const recorded = outsideRelations.githubFactory279;
+		const dependency = outsideRelations.githubFactory279BlockedBy[0];
+		if (recorded === undefined || dependency === undefined) {
+			throw new Error("recorded factory issue 279 has no blocked_by response");
+		}
+		const repo = "AbysmalBiscuit/factory";
+		let failed = false;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url.startsWith(`https://api.github.com/repos/${repo}/issues?`) &&
+				url.includes("state=all")
+			) {
+				return Response.json([recorded]);
+			}
+			if (url.endsWith(`/issues/${recorded.number}/dependencies/blocked_by`)) {
+				if (failed) {
+					return new Response("not recorded", { status: 404 });
+				}
+				return Response.json([dependency]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return Response.json([]);
+			}
+			if (url.includes("/comments")) {
+				return Response.json([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const done = new Promise<void>((resolve, reject) => {
+			startChecks = (base) => {
+				void (async () => {
+					const first = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as {
+						projects: { crossProjectBlockers: { key: string }[] }[];
+					};
+					expect(
+						first.projects[0]?.crossProjectBlockers.length,
+					).toBeGreaterThan(0);
+					failed = true;
+					await refresh(base);
+					expect(await inboxOf(base)).toEqual([]);
+				})().then(resolve, reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: done,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a blank outside title and a still-open outside relation raise no Blocker cleared", async () => {
 		const evidence = outsideRelations.blankTitleEvidence;
 		expect(evidence.blankTitles).toBe(0);

@@ -360,8 +360,6 @@ export function attentionOf(
 			}
 			for (const ref of ticket.blockedBy) {
 				const id = ticketKey(ref.tracker, ref.key);
-				// A loaded ticket's own state is the closure evidence. A relation
-				// state counts only when that ticket was not loaded.
 				if (tickets.has(id) || ref.state !== "closed") {
 					continue;
 				}
