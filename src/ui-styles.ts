@@ -185,9 +185,6 @@ export const cards = stylex.create({
 	mermaidHost: {
 		maxWidth: measure.diagram,
 	},
-	graphSvg: {
-		width: "100%",
-	},
 	pointer: {
 		cursor: "pointer",
 	},

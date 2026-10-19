@@ -276,6 +276,7 @@ function bindGraph(
 			continue;
 		}
 		label.id = id;
+		label.closest(".node")?.classList.add(classToken(cards.pointer));
 		label.classList.add(classToken(cards.pointer));
 		label.addEventListener("click", () => openProject(project.name));
 	}
@@ -309,7 +310,6 @@ function GraphView({ overview, svg }: { overview: Overview; svg: string }) {
 		if (drawn.namespaceURI !== "http://www.w3.org/2000/svg") {
 			return;
 		}
-		drawn.classList.add(classToken(cards.graphSvg));
 		node.appendChild(document.importNode(drawn, true));
 		bindGraph(node, overview, graphEdges(overview));
 	}, [overview, svg]);
