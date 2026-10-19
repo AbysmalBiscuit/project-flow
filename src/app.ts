@@ -784,7 +784,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				resolve();
 			};
 		});
-		// A listen callback reads stored rows before this poll lists tickets.
+		// The first overview read must finish before this poll lists tickets.
 		setTimeout(releaseLists, 1_000).unref?.();
 	}
 	let polling: Promise<void> | null = null;
@@ -867,13 +867,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/inbox": page,
 			"/projects/*": page,
 			"/api/overview": {
-				GET: () => {
-					const body = Response.json(
+				GET: () =>
+					Response.json(
 						overview(opened.store, configuration, pollOptions.viewers),
-					);
-					releaseLists();
-					return body;
-				},
+					),
 			},
 			"/api/needs-you": {
 				GET: () =>

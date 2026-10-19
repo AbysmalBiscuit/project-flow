@@ -505,6 +505,7 @@ describe("live updates", () => {
 				readGhToken: async () => null,
 				databasePath,
 				now: () => new Date(goodPoll),
+				listTodos: async () => "",
 				waitForStop: Promise.resolve(),
 			},
 		);
@@ -556,12 +557,13 @@ describe("live updates", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date(goodPoll),
+					listTodos: async () => "",
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
 				},
 			);
-			expect(result.exitCode).toBe(0);
 			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
 		} finally {
 			releasePoll();
 			await cleanup();
