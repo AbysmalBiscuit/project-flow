@@ -1514,6 +1514,11 @@ describe("GET /api/overview blockers", () => {
 								sent.includes("/dependencies/blocked_by"),
 							),
 						).toBe(false);
+						const projectItems = requests.find((sent) =>
+							sent.includes("ProjectItems"),
+						);
+						expect(projectItems).toContain("body");
+						expect(projectItems).toContain("blockedBy");
 						resolve();
 					})
 					.catch(reject);
