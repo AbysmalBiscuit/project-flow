@@ -28,7 +28,7 @@ const failures: string[] = [];
 const files = new Glob("src/**/*.tsx").scan({ cwd: root, onlyFiles: true });
 const attribute =
 	/\b(?:aria-label|label|title|placeholder|alt)\s*=\s*(?:"([^"]+)"|'([^']+)'|\{([^{}]+)\})/g;
-const textNode = />\s*(\{([^{}]+)\}|[^<{][^<{]{0,80}?)\s*</g;
+const textNode = /(?<=>)\s*(\{([^{}]+)\}|[^<{][^<{]{0,80}?)\s*</g;
 const stringLiteral = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'/g;
 
 function wordsOf(value: string): string[] {
@@ -45,13 +45,23 @@ function renderedLabel(raw: string): string | null {
 	if (/^[a-z][a-zA-Z0-9.]*$/.test(value)) {
 		return null;
 	}
+	if (!/^[\p{L}\p{N}][\p{L}\p{N}\s'.,:/&+-]*$/u.test(value)) {
+		return null;
+	}
 	return value;
 }
 
+function containsWord(value: string, word: string): boolean {
+	const pattern = new RegExp(
+		`(?<![\\p{L}\\p{N}_])${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_])`,
+		"iu",
+	);
+	return pattern.test(value);
+}
+
 function hits(value: string, line: string): Avoided[] {
-	const folded = value.toLowerCase();
 	return avoided.filter((item) => {
-		if (folded !== item.word.toLowerCase()) {
+		if (!containsWord(value, item.word)) {
 			return false;
 		}
 		if (item.qualifier === null) {
