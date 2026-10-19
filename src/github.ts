@@ -784,7 +784,7 @@ export async function pullReview(
 	sha: string,
 	token: string,
 	fetchImpl: Fetch,
-): Promise<Pick<PullRequest, "checks" | "comments" | "reviews" | "reactions">> {
+): Promise<ReviewEvidence> {
 	const [checks, comments, reviews, reactions] = await Promise.all([
 		fetchChecks(repo, sha, token, fetchImpl),
 		fetchComments(repo, number, token, fetchImpl),
