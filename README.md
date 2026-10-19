@@ -47,7 +47,7 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `pollIntervalSeconds` is the gap between polls. The default is `60`.
 - `checkoutRoots` names folders the app scans for local checkouts. Each entry is an absolute path. The app does not expand `~`. The default is the `Git` folder in the home directory.
 - `expectedBots` names the review bots for a repo. The key is `owner/name`. The value is a list of `grok`, `codex` and `greptile`. An empty list means the repo has no expected bots. When the field is absent, the app reads the bots from the repo's recent merged PRs.
-- `noSenior` marks whether a project has no senior. The key is the project key. `true` sends every ask to Lev. `false` sends an unnamed ask to the senior. When the key is absent, a Linear project has no senior and a GitHub project has one. The default is `{}`.
+- `noSenior` marks whether a project has no senior. The key is `owner/name` for a repo pin. The key is `owner/number` for a GitHub project pin. The key is the Linear project slug for a Linear pin. `true` sends every ask to Lev. `false` sends an unnamed ask to the senior. When the key is absent, a Linear project has no senior and a GitHub project has one. The default is `{}`.
 - `needsYouLabels` names labels that mark a needs-you item when Lev is the assignee. The default is `["needs-human", "needs-engineer"]`.
 - `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
 - `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. The default for each one is `true`.
