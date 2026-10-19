@@ -1012,6 +1012,22 @@ const githubLabel = z.object({
 	color: z.string(),
 });
 
+async function labelPage(
+	response: Response,
+	repo: string,
+): Promise<z.infer<typeof githubLabel>[]> {
+	if (!response.ok) {
+		throw new Error(
+			`GitHub list labels failed (HTTP ${response.status}): ${repo}`,
+		);
+	}
+	const page = z.array(githubLabel).safeParse(await response.json());
+	if (!page.success) {
+		throw new Error(`GitHub list labels failed: ${repo}`);
+	}
+	return page.data;
+}
+
 async function listRepoLabels(
 	token: string,
 	fetchImpl: Fetch,
@@ -1019,39 +1035,19 @@ async function listRepoLabels(
 ): Promise<{ name: string; colour: string }[]> {
 	const start = `https://api.github.com/repos/${repo}/labels?per_page=100&page=1`;
 	const first = await fetchImpl(start, { headers: githubHeaders(token) });
-	if (!first.ok) {
-		throw new Error(
-			`GitHub list labels failed (HTTP ${first.status}): ${repo}`,
-		);
-	}
-	const firstBody = await first.json();
-	const firstPage = z.array(githubLabel).safeParse(firstBody);
-	if (!firstPage.success) {
-		throw new Error(`GitHub list labels failed: ${repo}`);
-	}
-	const listed = [firstPage.data];
+	const listed = [await labelPage(first, repo)];
 	let url = nextPage(first.headers.get("link"));
 	while (url !== null) {
 		const response = await fetchImpl(url, { headers: githubHeaders(token) });
-		if (!response.ok) {
-			throw new Error(
-				`GitHub list labels failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		const page = z.array(githubLabel).safeParse(await response.json());
-		if (!page.success) {
-			throw new Error(`GitHub list labels failed: ${repo}`);
-		}
-		listed.push(page.data);
+		listed.push(await labelPage(response, repo));
 		url = nextPage(response.headers.get("link"));
 	}
-	const labels: { name: string; colour: string }[] = [];
-	for (const item of listed) {
-		for (const label of item) {
-			labels.push({ name: label.name, colour: labelColour(label.color) });
-		}
-	}
-	return labels;
+	return listed.flatMap((page) =>
+		page.map((label) => ({
+			name: label.name,
+			colour: labelColour(label.color),
+		})),
+	);
 }
 
 function projectBlockedByRefs(

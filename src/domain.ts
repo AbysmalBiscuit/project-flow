@@ -863,13 +863,17 @@ function laneName(name: string): string {
 	return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-export function appLanes(): Lane[] {
-	return statusTypeOrder.map((statusType) => ({
+function appLane(statusType: StatusType): Lane {
+	return {
 		id: statusType,
 		name: appLaneNames[statusType],
 		colour: appColours[statusType],
 		statusType,
-	}));
+	};
+}
+
+export function appLanes(): Lane[] {
+	return statusTypeOrder.map(appLane);
 }
 
 export function statusTypeOfName(name: string): StatusType {
@@ -924,6 +928,19 @@ function namesMatch(left: string, right: string): boolean {
 	return laneName(left) === laneName(right);
 }
 
+function mappedEvidence(
+	mapping: LaneMapping,
+	name: string,
+): StatusType | undefined {
+	for (const statusType of statusTypeOrder) {
+		const mapped = mapping[statusType];
+		if (mapped !== undefined && namesMatch(mapped, name)) {
+			return statusType;
+		}
+	}
+	return undefined;
+}
+
 function insertAwaitingMerge(lanes: Lane[]): Lane[] {
 	if (
 		lanes.some(
@@ -975,11 +992,7 @@ export function lanesFor(
 		return appLanes();
 	}
 	const lanes = board.statuses.map((status) => {
-		const evidence = (
-			Object.entries(mapping) as [StatusType, string | undefined][]
-		).find(
-			([, name]) => name !== undefined && namesMatch(name, status.name),
-		)?.[0];
+		const evidence = mappedEvidence(mapping, status.name);
 		const lane: Lane = {
 			id: status.id,
 			name: status.name,
@@ -1055,15 +1068,6 @@ function laneInsertAt(lanes: Lane[], statusType: StatusType): number {
 	return after + 1;
 }
 
-function appLane(statusType: StatusType): Lane {
-	return {
-		id: statusType,
-		name: appLaneNames[statusType],
-		colour: appColours[statusType],
-		statusType,
-	};
-}
-
 function closedLaneType(ticket: Ticket): StatusType | undefined {
 	if (ticket.state !== "closed") {
 		return undefined;
@@ -1080,11 +1084,7 @@ function laneOfStatus(
 	if (status === undefined) {
 		return undefined;
 	}
-	const mapped = (
-		Object.entries(mapping) as [StatusType, string | undefined][]
-	).find(
-		([, name]) => name !== undefined && namesMatch(name, status.name),
-	)?.[0];
+	const mapped = mappedEvidence(mapping, status.name);
 	if (mapped !== undefined) {
 		const named = lanes.find((lane) => namesMatch(lane.name, status.name));
 		if (named !== undefined) {
