@@ -6,21 +6,40 @@ type ReplyTarget = {
 	kind: ThreadComment["kind"];
 };
 
-function nest(comments: ThreadComment[]): {
-	comment: ThreadComment;
-	children: ThreadComment[];
-}[] {
-	const byParent = new Map<string | null, ThreadComment[]>();
-	for (const comment of comments) {
-		const parent = comment.parentId;
-		const list = byParent.get(parent) ?? [];
-		list.push(comment);
-		byParent.set(parent, list);
-	}
-	return (byParent.get(null) ?? []).map((comment) => ({
-		comment,
-		children: byParent.get(comment.id) ?? [],
-	}));
+function CommentTree({
+	comments,
+	nested,
+	onReply,
+}: {
+	comments: ThreadComment[];
+	nested: boolean;
+	onReply: (comment: ThreadComment) => void;
+}) {
+	return (
+		<ul className="thread">
+			{comments.map((comment) => (
+				<li key={comment.id} data-comment={comment.id}>
+					<p className="comment-body">{comment.body}</p>
+					{nested || comment.kind === "review" ? (
+						<button
+							type="button"
+							className="reply-open"
+							onClick={() => onReply(comment)}
+						>
+							Reply
+						</button>
+					) : null}
+					{comment.children.length === 0 ? null : (
+						<CommentTree
+							comments={comment.children}
+							nested={true}
+							onReply={onReply}
+						/>
+					)}
+				</li>
+			))}
+		</ul>
+	);
 }
 
 export function TicketPanel({
@@ -113,6 +132,7 @@ export function TicketPanel({
 									url: created.url ?? "",
 									parentId: target.parentId ?? null,
 									kind: target.kind,
+									children: [],
 								},
 							],
 						},
@@ -138,37 +158,25 @@ export function TicketPanel({
 							Open in tracker
 						</a>
 					</p>
-					<ul className="thread">
-						{nest(thread.comments).map(({ comment, children }) => (
-							<li key={comment.id} data-comment={comment.id}>
-								<p className="comment-body">{comment.body}</p>
-								{comment.kind === "comment" && tracker === "github" ? null : (
-									<button
-										type="button"
-										className="reply-open"
-										onClick={() =>
-											setReplyTo({
-												parentId: comment.id,
-												kind: comment.kind,
-											})
-										}
-									>
-										Reply
-									</button>
-								)}
-								{children.length === 0 ? null : (
-									<ul>
-										{children.map((child) => (
-											<li key={child.id}>
-												<p className="comment-body">{child.body}</p>
-											</li>
-										))}
-									</ul>
-								)}
-							</li>
-						))}
-					</ul>
-					{tracker === "github" ? (
+					<CommentTree
+						comments={thread.comments}
+						nested={tracker === "linear"}
+						onReply={(comment) =>
+							setReplyTo({
+								parentId: comment.parentId ?? comment.id,
+								kind: comment.kind,
+							})
+						}
+					/>
+					{tracker === "linear" ? (
+						<button
+							type="button"
+							className="reply-open new-comment"
+							onClick={() => setReplyTo({ kind: "comment" })}
+						>
+							New comment
+						</button>
+					) : (
 						<button
 							type="button"
 							className="reply-open"
@@ -176,7 +184,7 @@ export function TicketPanel({
 						>
 							Reply
 						</button>
-					) : null}
+					)}
 					{replyTo === null ? null : (
 						<form
 							className="reply"

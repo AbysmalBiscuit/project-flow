@@ -1,5 +1,5 @@
 import mermaid from "mermaid";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
 	Diagram,
@@ -227,12 +227,14 @@ function Report({
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
+	const [open, setOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	useEffect(() => {
 		const onPop = () => {
 			setName(projectName());
 			setTicket(highlightKey());
+			setOpen(false);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
@@ -272,6 +274,17 @@ function Page() {
 			events.close();
 		};
 	}, [name]);
+	const highlightBlocker = useCallback(
+		(project: string, key: string): void => {
+			if (project === name) {
+				setTicket(key);
+				setOpen(false);
+				return;
+			}
+			openProject(project, key);
+		},
+		[name],
+	);
 	useEffect(() => {
 		if (report === null) {
 			return;
@@ -308,7 +321,7 @@ function Page() {
 						const ticket = node.ticket;
 						const project = node.project;
 						const open = () => {
-							openProject(project, ticket);
+							highlightBlocker(project, ticket);
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
@@ -323,7 +336,7 @@ function Page() {
 				drawn.removeEventListener("click", open);
 			}
 		};
-	}, [report]);
+	}, [report, highlightBlocker]);
 	if (missing) {
 		return <main>Project not found</main>;
 	}
@@ -335,16 +348,23 @@ function Page() {
 			<Report
 				report={report}
 				ticket={ticket}
-				onOpen={(key) => setTicket(key)}
+				onOpen={(key) => {
+					setTicket(key);
+					setOpen(true);
+				}}
 			/>
-			{ticket === null ? null : (
+			{open && ticket !== null ? (
 				<TicketPanel
 					tracker={report.tracker}
-					project={report.name}
+					project={
+						report.tracker === "github" && ticket.includes("/")
+							? (ticket.split("#")[0] ?? report.name)
+							: report.name
+					}
 					ticketKey={ticket}
-					onClose={() => setTicket(null)}
+					onClose={() => setOpen(false)}
 				/>
-			)}
+			) : null}
 		</>
 	);
 }
