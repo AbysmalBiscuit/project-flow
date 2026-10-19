@@ -36,68 +36,111 @@ const colour = new RegExp(
 );
 const size = /\b\d*\.?\d+(?:px|rem)\b/;
 const customProperty = /(?<![\w-])--[A-Za-z][A-Za-z0-9-]*\b/g;
-const styleSource = /(?:\.stylex\.ts|\.css)$/;
+const tokenDefinition = /\b(?:defineVars|createTheme)\s*\(/;
+const styleCall = /\bstylex\s*\.\s*create(?:Theme)?\s*\(/;
+const styleFile = /(?:\.stylex\.ts|\.css)$/;
+const graphFile = /(?:^|\/)graph(?:\.|-)/;
 
 const files = new Glob("src/**/*.{ts,tsx,css}").scan({
 	cwd: root,
 	onlyFiles: true,
 });
 
-function isStyleSource(name: string): boolean {
+function styleSource(name: string): boolean {
 	return (
-		styleSource.test(name) ||
-		name === "src/ui-styles.ts" ||
+		styleFile.test(name) ||
+		name.endsWith(".tsx") ||
+		name.endsWith("-styles.ts") ||
+		name.endsWith("/styles.ts") ||
 		name === "src/theme.ts"
 	);
 }
 
-function tokenSource(name: string): boolean {
+function tokenValues(name: string): boolean {
 	return name === "src/theme.stylex.ts";
 }
 
-function rootFallback(name: string, lines: string[], index: number): boolean {
-	if (name !== "src/global.css") {
-		return false;
+function inGraph(name: string, lines: string[], index: number): boolean {
+	if (graphFile.test(name)) {
+		return true;
 	}
-	for (let cursor = index; cursor >= 0; cursor -= 1) {
-		const line = lines[cursor] ?? "";
-		if (!line.includes("{")) {
-			continue;
+	const line = lines[index] ?? "";
+	return /\b(?:x|y|width|height)\s*:/.test(line) && /[+\-*/]/.test(line);
+}
+
+function styleRegion(lines: string[]): boolean[] {
+	const region = lines.map(() => false);
+	let depth = 0;
+	let open = false;
+	for (const [index, line] of lines.entries()) {
+		if (styleCall.test(line)) {
+			open = true;
 		}
-		return line.trim().startsWith(":root");
+		if (open) {
+			region[index] = true;
+		}
+		for (const char of line) {
+			if (char === "{") {
+				depth += 1;
+			} else if (char === "}") {
+				depth -= 1;
+				if (open && depth <= 0) {
+					open = false;
+					depth = 0;
+				}
+			}
+		}
 	}
-	return false;
+	return region;
 }
 
 for await (const name of files) {
 	if (name === "src/tokens.stylex.ts" || name === "src/lint-tokens.ts") {
 		continue;
 	}
-	if (!isStyleSource(name) && !name.endsWith(".tsx")) {
+	const text = await Bun.file(`${root}/${name}`).text();
+	const lines = text.split("\n");
+	for (const [index, line] of lines.entries()) {
+		if (!tokenDefinition.test(line)) {
+			continue;
+		}
+		if (line.includes("defineVars") || !name.endsWith(".stylex.ts")) {
+			failures.push(`${name}:${index + 1}: token definition`);
+		}
+	}
+	if (!styleSource(name)) {
 		continue;
 	}
-	const lines = (await Bun.file(`${root}/${name}`).text()).split("\n");
+	const region = styleRegion(lines);
 	for (const [index, line] of lines.entries()) {
-		const styleLine = isStyleSource(name) || line.includes("style");
+		const styled =
+			styleFile.test(name) ||
+			name.endsWith("-styles.ts") ||
+			name.endsWith("/styles.ts") ||
+			(region[index] ?? false) ||
+			line.includes("style");
 		if (
-			styleLine &&
-			!tokenSource(name) &&
-			!rootFallback(name, lines, index) &&
+			styled &&
+			!tokenValues(name) &&
+			!inGraph(name, lines, index) &&
 			(colour.test(line) || size.test(line))
 		) {
 			failures.push(`${name}:${index + 1}: colour or size literal`);
 		}
 		colour.lastIndex = 0;
-		if (!styleLine) {
+		if (!styled) {
 			continue;
 		}
 		for (const match of line.matchAll(customProperty)) {
 			const property = match[0];
-			if (!declared.has(property.slice(2))) {
+			const key = property.slice(2);
+			if (declared.has(key)) {
 				failures.push(
-					`${name}:${index + 1}: unknown custom property ${property}`,
+					`${name}:${index + 1}: hashed token name ${property}`,
 				);
+				continue;
 			}
+			failures.push(`${name}:${index + 1}: unknown custom property ${property}`);
 		}
 	}
 }
