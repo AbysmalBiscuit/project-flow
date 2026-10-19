@@ -63,7 +63,7 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 ## Tokens
 
-The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins reads `gh` the same way, and uses that token to load linked PRs. When neither source gives a token, that configuration still starts. A linked open PR then stays off the ticket, so the ticket stays in backlog. A rejected token stops the start only when a pin uses the GitHub tracker.
+The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins reads `gh` the same way, and uses that token to load linked PRs. When neither source gives a token, that configuration still starts. A linked open PR then stays off the ticket, so the ticket stays in backlog. A rejected token stops the start.
 
 An empty configuration starts without a token when neither source gives one. A pin that uses the GitHub tracker also starts. Each GitHub project shows an error that names `GITHUB_TOKEN`. A GitHub project found from a local checkout shows that same error.
 
