@@ -481,6 +481,46 @@ describe("inbox", () => {
 		});
 	});
 
+	test("a blank stamp, an older comment and a same-time comment add no inbox entry", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const note = {
+			body: "A later note on the same ask.",
+			createdAt: "2026-08-18T14:00:00.000Z",
+		};
+		await withInbox(
+			pinned,
+			[linearIssue("PF-1", "Open ask", headline, [askComment, note])],
+			async (base, setIssues) => {
+				expect(await inboxOf(base)).toEqual([]);
+				setIssues([
+					linearIssue("PF-1", "Open ask", headline, [
+						askComment,
+						{ body: "   ", createdAt: "   " },
+						{ body: "No time.", createdAt: "" },
+						{
+							body: "An older note.",
+							createdAt: "2026-08-18T13:00:00.000Z",
+						},
+					]),
+				]);
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+				setIssues([
+					linearIssue("PF-1", "Open ask", headline, [
+						askComment,
+						{ ...note, body: "Same time, new words." },
+					]),
+				]);
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+			},
+		);
+	});
+
 	test("editing or deleting a comment adds no inbox entry", async () => {
 		const headline = "Which bot should review this?";
 		const askComment = {
