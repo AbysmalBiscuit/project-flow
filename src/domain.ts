@@ -1,3 +1,5 @@
+import type { Configuration } from "./configuration.ts";
+
 export function todoRows(listing: string): { project: string }[] {
 	const projects: { project: string }[] = [];
 	const seen = new Set<string>();
@@ -236,13 +238,7 @@ export type Notification = {
 	at: string;
 };
 
-export type NotificationTriggers = {
-	needsYou: boolean;
-	comment: boolean;
-	blockerCleared: boolean;
-};
-
-type Attention = {
+export type Attention = {
 	needsYou: NeedsYouItem[];
 	comments: Map<string, string>;
 	blockers: Map<string, string>;
@@ -320,7 +316,7 @@ export function primeAttention(attention: Attention, seen: Set<string>): void {
 export function notificationsFor(
 	before: Attention,
 	after: Attention,
-	triggers: NotificationTriggers,
+	triggers: Configuration["notificationTriggers"],
 	at: string,
 	seen: Set<string>,
 ): Notification[] {
@@ -406,8 +402,6 @@ export function notificationsFor(
 	}
 	return found;
 }
-
-export type { Attention };
 
 export type ReportSection = {
 	id:
