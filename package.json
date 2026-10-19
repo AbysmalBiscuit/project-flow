@@ -7,7 +7,7 @@
 		"start": "bun src/main.ts",
 		"dev": "bun --hot src/main.ts",
 		"typecheck": "bun check",
-		"test": "bun test",
+		"test": "sh scripts/test-slot.sh",
 		"lint": "biome ci --error-on-warnings . && bun src/lint-tokens.ts",
 		"format": "biome check --write ."
 	},

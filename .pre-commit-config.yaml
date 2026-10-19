@@ -20,7 +20,7 @@ repos:
         stages: [pre-push]
       - id: test
         name: bun test
-        entry: bun run test
+        entry: sh scripts/test-slot.sh
         language: system
         pass_filenames: false
         always_run: true
