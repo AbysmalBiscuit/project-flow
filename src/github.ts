@@ -37,7 +37,6 @@ const githubIssue = z.object({
 	pull_request: z.unknown().optional(),
 	comments: z.number().optional(),
 	assignee: z.object({ login: z.string() }).nullable().optional(),
-	user: z.object({ login: z.string() }).optional(),
 });
 
 export const githubPull = z.object({
