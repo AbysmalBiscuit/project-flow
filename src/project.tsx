@@ -79,6 +79,31 @@ function NodeLine({
 	);
 }
 
+const legend = [
+	{ state: "done", label: "Done" },
+	{ state: "dropped", label: "Dropped" },
+	{ state: "blocked", label: "Blocked" },
+	{ state: "inProgress", label: "In progress" },
+	{ state: "backlog", label: "Backlog" },
+	{ state: "theme", label: "Theme" },
+	{ state: "dashed", label: "Cross-project blocker" },
+] as const;
+
+function StateLegend() {
+	return (
+		<ul className="state-legend" aria-label="Ticket states">
+			{legend.map((item) => (
+				<li key={item.state}>
+					<span
+						className={`swatch ${item.state === "inProgress" ? "in-progress" : item.state}`}
+					/>
+					{item.label}
+				</li>
+			))}
+		</ul>
+	);
+}
+
 function DiagramView({
 	diagram,
 	ticket,
@@ -89,6 +114,7 @@ function DiagramView({
 	return (
 		<figure className="diagram" data-diagram={diagram.id}>
 			<figcaption>{diagram.title}</figcaption>
+			<StateLegend />
 			<pre key={diagram.definition} className="mermaid">
 				{diagram.definition}
 			</pre>

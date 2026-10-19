@@ -19,6 +19,23 @@
 			.mermaid-host .node, .mermaid-host .edgeLabel { cursor: pointer; }
 			.dashed-node { border: 1px dashed #888; padding: 0.15rem 0.4rem; }
 			.report-section { margin-top: 1.5rem; }
+			.diagram .node.done rect, .diagram .node.done polygon, .diagram .node.done path { fill: #8fbc8f; }
+			.diagram .node.dropped rect, .diagram .node.dropped polygon, .diagram .node.dropped path { fill: #c0c0c0; }
+			.diagram .node.blocked rect, .diagram .node.blocked polygon, .diagram .node.blocked path { fill: #e6a0a0; }
+			.diagram .node.backlog rect, .diagram .node.backlog polygon, .diagram .node.backlog path { fill: #d0d7de; }
+			.diagram .node.inProgress rect, .diagram .node.inProgress polygon, .diagram .node.inProgress path { fill: #f0c674; }
+			.diagram .node.theme rect, .diagram .node.theme polygon, .diagram .node.theme path { fill: #e8eef7; stroke: #1a5fb4; }
+			.diagram .node.dashed rect, .diagram .node.dashed polygon, .diagram .node.dashed path { fill: #fff; stroke: #888; stroke-dasharray: 5 5; }
+			.state-legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; list-style: none; padding: 0; margin: 0 0 0.75rem; }
+			.state-legend li { display: flex; align-items: center; gap: 0.35rem; }
+			.swatch { width: 0.9rem; height: 0.9rem; border: 1px solid #888; display: inline-block; }
+			.swatch.done { background: #8fbc8f; }
+			.swatch.dropped { background: #c0c0c0; }
+			.swatch.blocked { background: #e6a0a0; }
+			.swatch.backlog { background: #d0d7de; }
+			.swatch.in-progress { background: #f0c674; }
+			.swatch.theme { background: #e8eef7; border-color: #1a5fb4; }
+			.swatch.dashed { background: #fff; border-style: dashed; }
 		</style>
 	</head>
 	<body>
