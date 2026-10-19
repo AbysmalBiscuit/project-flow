@@ -1,3 +1,18 @@
+export function todoRows(listing: string): { project: string }[] {
+	const projects: { project: string }[] = [];
+	const seen = new Set<string>();
+	for (const line of listing.split("\n")) {
+		const heading = line.match(/^## (.+)$/)?.[1]?.trim() ?? "";
+		const project = heading.split(".")[0]?.trim() ?? "";
+		if (project === "" || seen.has(heading)) {
+			continue;
+		}
+		seen.add(heading);
+		projects.push({ project: heading });
+	}
+	return projects;
+}
+
 export type TicketState =
 	| "done"
 	| "dropped"
@@ -473,22 +488,136 @@ function ticketNumber(key: string): string | null {
 	return number;
 }
 
+export const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
+const githubNode = /^(\d+)-/;
+const sessionSuffix = /\.[a-z][a-z0-9]*-\d+$/i;
+const linearKey = /^([a-z][a-z0-9]*)-(\d+)(?![a-z0-9])/i;
+
+export function checkoutNamesProject(
+	hasTrackerConfig: boolean,
+	originOwner: string | null,
+	viewer: { login: string; orgs: string[] } | null,
+): boolean {
+	if (hasTrackerConfig) {
+		return true;
+	}
+	if (viewer === null || originOwner === null || originOwner.trim() === "") {
+		return false;
+	}
+	const owner = originOwner.trim().toLowerCase();
+	return [viewer.login, ...viewer.orgs].some(
+		(name) => name.trim().toLowerCase() === owner,
+	);
+}
+
+export function githubRepoForTodo(
+	project: string,
+	checkouts: { name: string; repo: string }[],
+): string | null {
+	const dot = project.indexOf(".");
+	const name = (dot <= 0 ? project : project.slice(0, dot)).trim();
+	if (name === "") {
+		return null;
+	}
+	const node = dot <= 0 ? "" : project.slice(dot + 1);
+	if (node === "main" || node.startsWith("pr-")) {
+		return null;
+	}
+	const ticket = node.split(".")[0] ?? "";
+	if (node !== "" && githubNode.test(ticket) !== true) {
+		return null;
+	}
+	const checkout = checkouts.find((item) => item.name === name);
+	if (checkout === undefined || ownerRepo.test(checkout.repo) !== true) {
+		return null;
+	}
+	return checkout.repo;
+}
+
+export function checkoutBasenames(
+	checkouts: (
+		| { path: string; tracker: "github"; repo: string }
+		| { path: string; tracker: "linear" }
+	)[],
+): { name: string; repo: string }[] {
+	return checkouts.flatMap((checkout) => {
+		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {
+			return [];
+		}
+		const name = checkout.path.split(/[/\\]/).at(-1) ?? "";
+		if (name === "") {
+			return [];
+		}
+		return [{ name, repo: checkout.repo.trim() }];
+	});
+}
+
+export function linearNamesFromCheckouts(
+	checkouts: (
+		| { path: string; tracker: "github"; names: string[] }
+		| { path: string; tracker: "linear"; names: string[] }
+	)[],
+	rows: { project: string }[],
+): string[] {
+	const names: string[] = [];
+	for (const checkout of checkouts) {
+		if (checkout.tracker !== "linear") {
+			continue;
+		}
+		const checkoutName = checkout.path.split(/[/\\]/).at(-1) ?? "";
+		names.push(...checkout.names);
+		names.push(
+			...rows.flatMap((row) => {
+				if (!row.project.startsWith(`${checkoutName}.`)) {
+					return [];
+				}
+				return row.project.replace(sessionSuffix, "").split(".").slice(1);
+			}),
+		);
+	}
+	return names;
+}
+
+export function linearKeysForNames(names: string[]): string[] {
+	const keys: string[] = [];
+	for (const name of names) {
+		const bare = name.replace(sessionSuffix, "");
+		for (const segment of bare.split(/[/_.]/)) {
+			const match = segment.match(linearKey);
+			const team = match?.[1];
+			const number = match?.[2];
+			if (team === undefined || number === undefined) {
+				continue;
+			}
+			const key = `${team.toUpperCase()}-${number}`;
+			if (!keys.includes(key)) {
+				keys.push(key);
+			}
+		}
+	}
+	return keys;
+}
+
 const startedTodo = /^- \[ \] .+ \(([^,]+), in progress(?:: [^)]+)?\)/;
 
-export function startedTodoKeys(listing: string): string[] {
+export function startedTodoKeys(
+	listing: string,
+	repos: { name: string; repo: string }[] = [],
+): string[] {
 	const keys: string[] = [];
 	let project = "";
 	for (const line of listing.split("\n")) {
 		const heading = line.match(/^## (.+)$/);
 		if (heading?.[1] !== undefined) {
-			project = heading[1];
+			project = heading[1].split(".")[0]?.trim() ?? "";
 			continue;
 		}
 		const key = line.match(startedTodo)?.[1];
 		if (key === undefined) {
 			continue;
 		}
-		const scoped = key.startsWith("#") ? `${project}${key}` : key;
+		const repo = repos.find((item) => item.name === project)?.repo;
+		const scoped = key.startsWith("#") ? `${repo ?? project}${key}` : key;
 		if (!keys.some((item) => item.toLowerCase() === scoped.toLowerCase())) {
 			keys.push(scoped);
 		}

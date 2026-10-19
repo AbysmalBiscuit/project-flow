@@ -111,6 +111,27 @@ const projectPage = z.object({
 
 type LinearProject = z.infer<typeof linearProjectNode>;
 
+const openProjectStates = new Set(["backlog", "planned", "started"]);
+
+const ticketProject = z.object({
+	data: z.object({
+		issue: z
+			.object({
+				identifier: z.string(),
+				project: z
+					.object({
+						id: z.string(),
+						name: z.string(),
+						slugId: z.string(),
+						state: z.string(),
+					})
+					.nullable(),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
 const relatedIssue = z.object({
 	identifier: z.string(),
 	state: z.object({ type: z.string() }).nullable(),
@@ -404,7 +425,44 @@ export function linearTracker(
 	};
 	return {
 		findProjects() {
-			return findLinearProjects(key, fetchImpl);
+			return findLinearProjects(key, fetchImpl).then((projects) => ({
+				projects,
+				viewer: null,
+			}));
+		},
+		async projectsForKeys(keys) {
+			const found: FoundProject[] = [];
+			for (const ticketKey of keys) {
+				const response = await fetchImpl(endpoint, {
+					method: "POST",
+					headers: linearHeaders(key),
+					body: JSON.stringify({
+						query:
+							"query TicketProject($id: String!) { issue(id: $id) { identifier project { id name slugId state } } }",
+						variables: { id: ticketKey },
+					}),
+				});
+				if (!response.ok) {
+					continue;
+				}
+				const parsed = ticketProject.safeParse(await response.json());
+				const project = parsed.success ? parsed.data.data.issue?.project : null;
+				if (
+					project === null ||
+					project === undefined ||
+					!openProjectStates.has(project.state) ||
+					found.some((item) => item.key === project.slugId)
+				) {
+					continue;
+				}
+				found.push({
+					key: project.slugId,
+					name: project.name,
+					tracker: "linear",
+					updatedAt: null,
+				});
+			}
+			return found;
 		},
 		async listTickets(pin, since) {
 			const project = await findLinearProject(key, pin, fetchImpl);

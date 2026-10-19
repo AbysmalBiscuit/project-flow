@@ -75,15 +75,18 @@ describe("startup", () => {
 			},
 		});
 		try {
-			const result = await run(["--config", path], {
-				env: { LINEAR_API_KEY: "recorded-linear-key" },
-				fetch: fetchImpl,
-				readGhToken: async () => {
-					throw new Error("gh must not run for a Linear-only configuration");
-				},
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => {
+						throw new Error("gh must not run for a Linear-only configuration");
+					},
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
@@ -95,17 +98,20 @@ describe("startup", () => {
 	test("an empty pinned list starts without GITHUB_TOKEN", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		try {
-			const result = await run(["--config", path], {
-				env: {},
-				fetch: async () => {
-					throw new Error("no tracker call for an empty pin list");
-				},
-				readGhToken: async () => {
-					throw new Error("gh must not run for an empty pin list");
-				},
-				databasePath: ":memory:",
-				waitForStop: Promise.resolve(),
-			});
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {},
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => {
+						throw new Error("gh must not run for an empty pin list");
+					},
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+				}),
+			);
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
 			expect(result.stderr).toBe("");

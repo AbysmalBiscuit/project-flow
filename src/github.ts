@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import type { FoundProject, Tracker } from "./ports.ts";
+import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
 const dependency = z.object({
 	number: z.number(),
@@ -219,7 +219,29 @@ async function graphqlPage(
 	if (!response.ok) {
 		throw new Error(`GitHub find projects failed (HTTP ${response.status})`);
 	}
-	const page = graphqlProjects.parse(await response.json());
+	const body: unknown = await response.json();
+	if (
+		typeof body === "object" &&
+		body !== null &&
+		"errors" in body &&
+		Array.isArray(body.errors)
+	) {
+		const message = body.errors.find(
+			(item): item is { message: string } =>
+				typeof item === "object" &&
+				item !== null &&
+				"message" in item &&
+				typeof item.message === "string",
+		)?.message;
+		if (message !== undefined) {
+			throw new Error(`GitHub find projects failed: ${message}`);
+		}
+	}
+	const parsed = graphqlProjects.safeParse(body);
+	if (!parsed.success) {
+		throw new Error("GitHub find projects failed");
+	}
+	const page = parsed.data;
 	const error = page.errors?.[0];
 	if (error !== undefined) {
 		throw new Error(`GitHub find projects failed: ${error.message}`);
@@ -251,13 +273,14 @@ async function addOrgProjects(
 	}
 }
 
-async function findGithubProjects(
+export async function findGithubProjects(
 	token: string,
 	fetchImpl: Fetch,
-): Promise<FoundProject[]> {
+): Promise<{ projects: FoundProject[]; viewer: Viewer | null }> {
 	const found: FoundProject[] = [];
 	const seen = new Set<string>();
 	const orgs: string[] = [];
+	let login = "";
 	let after: string | null = null;
 	let orgAfter: string | null = null;
 	let projectsDone = false;
@@ -270,6 +293,9 @@ async function findGithubProjects(
 		const viewer = page.data.viewer;
 		if (viewer === undefined) {
 			throw new Error("GitHub find projects failed");
+		}
+		if (login === "") {
+			login = viewer.login;
 		}
 		if (!projectsDone) {
 			addOpenProjects(viewer.projectsV2.nodes, found, seen);
@@ -305,7 +331,7 @@ async function findGithubProjects(
 		}
 		url = nextPage(response.headers.get("link"));
 	}
-	return found;
+	return { projects: found, viewer: login === "" ? null : { login, orgs } };
 }
 
 const projectByNumberQuery = `query ProjectByNumber($owner: String!, $number: Int!) {
