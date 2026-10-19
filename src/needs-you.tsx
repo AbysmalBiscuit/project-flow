@@ -2,8 +2,19 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
 import { NeedsItem } from "./needs-item.tsx";
+import { TicketPanel } from "./panel.tsx";
 
-function NeedsList({ items }: { items: NeedsYouItem[] }) {
+function NeedsList({
+	items,
+	opened,
+	onOpen,
+	onClose,
+}: {
+	items: NeedsYouItem[];
+	opened: NeedsYouItem | null;
+	onOpen: (item: NeedsYouItem) => void;
+	onClose: () => void;
+}) {
 	return (
 		<main className="needs-you-page">
 			<p>
@@ -14,15 +25,29 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 			<h1>Needs you</h1>
 			<ul className="needs-you-list">
 				{items.map((item) => (
-					<NeedsItem key={`${item.project} ${item.key}`} item={item} project />
+					<NeedsItem
+						key={`${item.project} ${item.key}`}
+						item={item}
+						project
+						onOpen={() => onOpen(item)}
+					/>
 				))}
 			</ul>
+			{opened === null ? null : (
+				<TicketPanel
+					tracker={opened.tracker}
+					project={opened.project}
+					ticketKey={opened.key}
+					onClose={onClose}
+				/>
+			)}
 		</main>
 	);
 }
 
 function Page() {
 	const [items, setItems] = useState<NeedsYouItem[] | null>(null);
+	const [opened, setOpened] = useState<NeedsYouItem | null>(null);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -51,7 +76,14 @@ function Page() {
 	if (items === null) {
 		return <main>Loading needs you</main>;
 	}
-	return <NeedsList items={items} />;
+	return (
+		<NeedsList
+			items={items}
+			opened={opened}
+			onOpen={setOpened}
+			onClose={() => setOpened(null)}
+		/>
+	);
 }
 
 const root = document.getElementById("root");

@@ -30,6 +30,7 @@ export type TicketRef = {
 };
 
 export type Comment = {
+	id?: string;
 	body: string;
 	createdAt?: string;
 	author?: string;
@@ -115,6 +116,7 @@ export type UnlinkedPr = {
 	number: number;
 	title: string;
 	url: string;
+	repo: string;
 };
 
 export type ProjectCounts = {
@@ -159,6 +161,57 @@ export type Diagram = {
 	nodes: DiagramNode[];
 	edges: DiagramEdge[];
 	definition: string;
+};
+
+export type ThreadComment = {
+	id: string;
+	body: string;
+	author: string;
+	createdAt: string;
+	url: string;
+	parentId: string | null;
+	kind: "comment" | "review";
+	children: ThreadComment[];
+};
+
+export type Thread = {
+	tracker: "github" | "linear";
+	project: string;
+	key: string;
+	title: string;
+	url: string;
+	comments: ThreadComment[];
+};
+
+export type ReplyRequest = {
+	tracker: "github" | "linear";
+	project: string;
+	key: string;
+	body: string;
+	parentId?: string;
+	kind?: "comment" | "review";
+};
+
+export function commentTree(comments: ThreadComment[]): ThreadComment[] {
+	const byParent = new Map<string | null, ThreadComment[]>();
+	for (const comment of comments) {
+		const parent = comment.parentId;
+		const list = byParent.get(parent) ?? [];
+		list.push({ ...comment, children: [] });
+		byParent.set(parent, list);
+	}
+	const attach = (comment: ThreadComment): ThreadComment => ({
+		...comment,
+		children: (byParent.get(comment.id) ?? []).map(attach),
+	});
+	return (byParent.get(null) ?? []).map(attach);
+}
+
+export type PostedReply = {
+	id: string;
+	body: string;
+	url: string;
+	createdAt: string;
 };
 
 export type NeedsYouItem = {
@@ -1396,6 +1449,7 @@ export function projectCounts(
 		number: pull.number,
 		title: pull.title,
 		url: pull.url,
+		repo: pull.repo,
 	}));
 	const needsYouItemsForProject = needsYouItems(
 		name,
@@ -1467,7 +1521,7 @@ export type NeedsYouRules = {
 	viewerLogins: string[];
 };
 
-function projectHasNoSenior(
+export function projectHasNoSenior(
 	noSenior: Record<string, boolean>,
 	key: string,
 	tracker: "github" | "linear",
@@ -1490,14 +1544,39 @@ function quotesAsk(body: string, id: string): boolean {
 	return pattern.test(body);
 }
 
+function askHeadline(body: string): string {
+	const text = body.replace(askMarker, "").trim();
+	const named = text
+		.split(/(?<=[.!?])\s+|\n+/)
+		.map((part) => part.trim())
+		.find((part) => namesLev(part));
+	if (named !== undefined) {
+		return named.replace(/^senior,\s*/i, "");
+	}
+	const lines = text
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line !== "" && !line.startsWith("<!--"));
+	return lines.at(-1) ?? text;
+}
+
 function quotesAskText(body: string, askBody: string): boolean {
+	const headline = askHeadline(askBody);
 	const text = askBody.replace(askMarker, "").trim();
-	if (text === "") {
+	if (headline === "" && text === "") {
 		return false;
 	}
-	return body
-		.split("\n")
-		.some((line) => line.trimStart().startsWith(">") && line.includes(text));
+	return body.split("\n").some((line) => {
+		const quoted = line.trimStart();
+		if (!quoted.startsWith(">")) {
+			return false;
+		}
+		const content = quoted.slice(1).trim();
+		return (
+			(headline !== "" && content === headline) ||
+			(text !== "" && content.includes(text))
+		);
+	});
 }
 
 function commentTime(comment: Comment): number {
@@ -1564,20 +1643,30 @@ function askClosed(later: Comment[], id: string): boolean {
 	);
 }
 
-function askHeadline(body: string): string {
-	const text = body.replace(askMarker, "").trim();
-	const named = text
-		.split(/(?<=[.!?])\s+/)
-		.map((part) => part.trim())
-		.find((part) => namesLev(part));
-	if (named !== undefined) {
-		return named.replace(/^senior,\s*/i, "");
+export function panelReplyBody(
+	ticket: Ticket | undefined,
+	body: string,
+	noSenior: boolean,
+	parentId?: string,
+): string {
+	const text = body.trim();
+	const comments = ticket?.comments ?? [];
+	const ask = openAsk(comments, noSenior);
+	if (ask === null) {
+		return text;
 	}
-	const lines = text
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line !== "" && !line.startsWith("<!--"));
-	return lines.at(-1) ?? text;
+	const source = orderedComments(comments)[ask.index];
+	if (source === undefined || levReply(comments, ask.index) !== null) {
+		return text;
+	}
+	if (parentId !== undefined && parentId !== source.id) {
+		return text;
+	}
+	const headline = askHeadline(source.body);
+	if (headline === "") {
+		return text;
+	}
+	return `> ${headline}\n\n${text}`;
 }
 
 type OpenAsk = {
@@ -1615,7 +1704,7 @@ function openAsk(comments: Comment[], noSenior: boolean): OpenAsk | null {
 	return found;
 }
 
-function replyAfter(comments: Comment[], askIndex: number): Comment | null {
+function levReply(comments: Comment[], askIndex: number): Comment | null {
 	const ordered = orderedComments(comments);
 	const ask = ordered[askIndex];
 	if (ask === undefined) {
@@ -1661,7 +1750,7 @@ function needsYouItem(
 	comments: Comment[],
 	reason: NeedsYouItem["reason"],
 ): NeedsYouItem {
-	const reply = ask === null ? null : replyAfter(comments, ask.index);
+	const reply = ask === null ? null : levReply(comments, ask.index);
 	return {
 		project,
 		tracker,
@@ -2185,7 +2274,7 @@ export function projectReport(
 	const inFlight = [
 		...counts.tickets.filter((ticket) => ticket.state === "inProgress"),
 		...counts.unlinkedPrs.map((pull) => ({
-			key: `#${pull.number}`,
+			key: `${pull.repo}#${pull.number}`,
 			title: pull.title,
 			state: "inProgress" as const,
 			blockers: [],

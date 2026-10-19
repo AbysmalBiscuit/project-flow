@@ -275,7 +275,7 @@ describe("GET /api/projects/:name", () => {
 				);
 				expect(flight?.items?.map((item) => item.key)).toEqual([
 					"acme/widget#4",
-					"#40",
+					"acme/widget#40",
 				]);
 				const backlog = first.sections.find(
 					(section) => section.id === "backlog",

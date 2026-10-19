@@ -3,9 +3,11 @@ import type { NeedsYouItem } from "./domain.ts";
 export function NeedsItem({
 	item,
 	project = false,
+	onOpen,
 }: {
 	item: NeedsYouItem;
 	project?: boolean;
+	onOpen?: (key: string) => void;
 }) {
 	return (
 		<li
@@ -19,7 +21,17 @@ export function NeedsItem({
 					</a>{" "}
 				</>
 			) : null}
-			<span className="headline">{item.headline}</span>
+			{onOpen === undefined ? (
+				<span className="headline">{item.headline}</span>
+			) : (
+				<button
+					type="button"
+					className="ticket-open headline"
+					onClick={() => onOpen(item.key)}
+				>
+					{item.headline}
+				</button>
+			)}
 			{item.tags.length === 0 ? null : (
 				<span className="tag">{item.tags.join(" ")}</span>
 			)}

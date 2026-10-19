@@ -1,19 +1,27 @@
+import { z } from "zod";
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type {
+	Comment,
 	Overview,
+	PostedReply,
 	ProjectPoll,
 	ProjectReport,
+	ReplyRequest,
 	Snapshot,
+	Thread,
 } from "./domain.ts";
 import {
 	checkoutBasenames,
 	checkoutNamesProject,
+	commentTree,
 	expectedBotsByRepo,
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	panelReplyBody,
 	projectCounts,
+	projectHasNoSenior,
 	projectSnapshots,
 	reconcilePoll,
 	staleView,
@@ -21,7 +29,11 @@ import {
 	todoRows,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { githubProjectByNumber, githubTracker } from "./github.ts";
+import {
+	githubProjectByNumber,
+	githubTicketKey,
+	githubTracker,
+} from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
@@ -197,6 +209,159 @@ function mergeFound(
 		found.push(project);
 	}
 	return found;
+}
+
+const replyBody = z.object({
+	tracker: z.enum(["github", "linear"]),
+	project: z.string().trim().min(1),
+	key: z.string().trim().min(1),
+	body: z.string(),
+	parentId: z.string().optional(),
+	kind: z.enum(["comment", "review"]).optional(),
+});
+
+type Trackers = Pick<PollOptions, "github" | "linear">;
+
+function trackerFor(trackers: Trackers, name: string): Tracker | null {
+	if (name === "github") {
+		return trackers.github;
+	}
+	if (name === "linear") {
+		return trackers.linear;
+	}
+	return null;
+}
+
+function trackerError(error: unknown): Response {
+	const message = error instanceof Error ? error.message : "reply failed";
+	const status =
+		error instanceof Error &&
+		"status" in error &&
+		typeof error.status === "number"
+			? error.status
+			: 502;
+	return Response.json({ error: message }, { status });
+}
+
+async function threadResponse(
+	trackers: Trackers,
+	trackerName: string,
+	key: string,
+	request: Request,
+): Promise<Response> {
+	const tracker = trackerFor(trackers, trackerName);
+	const project = new URL(request.url).searchParams.get("project") ?? "";
+	if (tracker?.fetchThread === undefined || project.trim() === "") {
+		return Response.json({ error: "thread not found" }, { status: 404 });
+	}
+	try {
+		const thread: Thread | null = await tracker.fetchThread(
+			project,
+			decodeURIComponent(key),
+		);
+		if (thread === null) {
+			return Response.json({ error: "thread not found" }, { status: 404 });
+		}
+		return Response.json({
+			...thread,
+			comments: commentTree(thread.comments),
+		});
+	} catch (error) {
+		return trackerError(error);
+	}
+}
+
+async function replyResponse(
+	trackers: Trackers,
+	request: Request,
+	store: Store,
+	notifier: Notifier,
+	configuration: Configuration,
+	viewers: Viewer[],
+): Promise<Response> {
+	const parsed = replyBody.safeParse(await request.json().catch(() => null));
+	if (!parsed.success) {
+		return Response.json({ error: "invalid reply" }, { status: 400 });
+	}
+	const tracker = trackerFor(trackers, parsed.data.tracker);
+	if (tracker?.postReply === undefined) {
+		return Response.json({ error: "tracker unavailable" }, { status: 404 });
+	}
+	if (parsed.data.body.trim() === "") {
+		return Response.json({ error: "reply is empty" }, { status: 400 });
+	}
+	const row = rowForReply(store, parsed.data);
+	const reply: ReplyRequest = {
+		tracker: parsed.data.tracker,
+		project: parsed.data.project,
+		key: parsed.data.key,
+		body: panelReplyBody(
+			row?.tickets.find((ticket) => ticket.key === parsed.data.key),
+			parsed.data.body,
+			projectHasNoSenior(
+				configuration.noSenior,
+				row?.key ?? parsed.data.project,
+				parsed.data.tracker,
+			),
+			parsed.data.parentId,
+		),
+		...(parsed.data.parentId === undefined
+			? {}
+			: { parentId: parsed.data.parentId }),
+		...(parsed.data.kind === undefined ? {} : { kind: parsed.data.kind }),
+	};
+	try {
+		const created: PostedReply = await tracker.postReply(reply);
+		recordPostedReply(store, reply, created);
+		notifier.publish({
+			overview: overview(store, configuration, viewers),
+		});
+		return Response.json(created, { status: 201 });
+	} catch (error) {
+		return trackerError(error);
+	}
+}
+
+function rowForReply(
+	store: Store,
+	reply: { tracker: string; project: string; key: string },
+): Snapshot | undefined {
+	const repo = githubTicketKey(reply.key)?.repo;
+	return store.readTickets().find((item) => {
+		if (item.tracker !== reply.tracker) {
+			return false;
+		}
+		if (item.key === reply.project || item.name === reply.project) {
+			return true;
+		}
+		return repo !== undefined && item.key === repo;
+	});
+}
+
+function recordPostedReply(
+	store: Store,
+	reply: ReplyRequest,
+	created: PostedReply,
+): void {
+	const row = rowForReply(store, reply);
+	if (row === undefined) {
+		return;
+	}
+	const comment: Comment = {
+		body: created.body,
+		createdAt: created.createdAt,
+		reactions: 0,
+	};
+	store.mergeTickets([
+		{
+			...row,
+			tickets: row.tickets.map((ticket) =>
+				ticket.key === reply.key
+					? { ...ticket, comments: [...(ticket.comments ?? []), comment] }
+					: ticket,
+			),
+		},
+	]);
 }
 
 function eventStream(notifier: Notifier): Response {
@@ -664,6 +829,26 @@ export async function start(options: StartOptions): Promise<Running> {
 					await pollAgain();
 					return new Response(null, { status: 204 });
 				},
+			},
+			"/api/threads/:tracker/:key": {
+				GET: (request) =>
+					threadResponse(
+						trackers,
+						request.params.tracker,
+						request.params.key,
+						request,
+					),
+			},
+			"/api/replies": {
+				POST: (request) =>
+					replyResponse(
+						trackers,
+						request,
+						opened.store,
+						notifier,
+						configuration,
+						pollOptions.viewers,
+					),
 			},
 		},
 	});
