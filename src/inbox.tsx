@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Notification } from "./domain.ts";
+import { onAppEvent } from "./events.ts";
 
 const triggerLabel: Record<Notification["trigger"], string> = {
 	needsYou: "Needs you",
@@ -52,16 +53,16 @@ function Page() {
 				});
 		};
 		load();
-		const events = new EventSource("/api/events");
-		events.addEventListener("notification", () => {
+		const stopNotification = onAppEvent("notification", () => {
 			load();
 		});
-		events.addEventListener("overview", () => {
+		const stopOverview = onAppEvent("overview", () => {
 			load();
 		});
 		return () => {
 			stopped = true;
-			events.close();
+			stopNotification();
+			stopOverview();
 		};
 	}, []);
 	if (entries === null) {

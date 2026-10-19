@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
+import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
 
@@ -65,13 +66,12 @@ function Page() {
 				});
 		};
 		load();
-		const events = new EventSource("/api/events");
-		events.addEventListener("overview", () => {
+		const stop = onAppEvent("overview", () => {
 			load();
 		});
 		return () => {
 			stopped = true;
-			events.close();
+			stop();
 		};
 	}, []);
 	if (items === null) {
