@@ -670,9 +670,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				if (outcome?.ok !== true) {
 					continue;
 				}
-				outcome.row = visible.has(item.key)
-					? (shown.find((row) => row.key === item.key) ?? null)
-					: null;
+				outcome.row = shown.find((row) => row.key === item.key) ?? null;
 			}
 			if (fillAsPolled && visible.has(project.key)) {
 				publishPoll(options, configuration, outcomes, [], null);
@@ -706,11 +704,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 	}
 	const fullKeys = [...options.fullPoll];
-	const reconciled = reconcilePoll(
-		options.store.readTickets(),
-		[...outcomes.values()],
-		fullKeys,
-	);
 	for (const key of fullKeys) {
 		if (outcomes.get(key)?.ok === true) {
 			options.fullPoll.delete(key);
@@ -773,6 +766,11 @@ function publishPoll(
 		fullKeys,
 	);
 	options.store.replaceTickets(reconciled.rows);
+	if (reconciled.globalError !== null) {
+		options.store.recordFetchError(reconciled.globalError);
+	} else if (failed !== null) {
+		options.store.recordFetchError(failed);
+	}
 	for (const projectError of reconciled.projectErrors) {
 		options.store.recordProjectError(projectError.key, projectError.error);
 	}
@@ -889,16 +887,6 @@ export async function start(options: StartOptions): Promise<Running> {
 			try {
 				configuration = await poll(pollOptions);
 				pollOptions.fallback = configuration;
-				if (pollOptions.polling) {
-					pollOptions.polling = false;
-					notifier.publish({
-						overview: overview(
-							opened.store,
-							configuration,
-							pollOptions.viewers,
-						),
-					});
-				}
 			} catch (error) {
 				if (stopped) {
 					return;
@@ -993,10 +981,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/refresh": {
 				POST: async () => {
 					releaseLists();
-					await firstPoll;
-					if (polling === null) {
-						await pollAgain();
-					}
+					await pollAgain();
 					return new Response(null, { status: 204 });
 				},
 			},
