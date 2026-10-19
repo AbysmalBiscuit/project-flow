@@ -982,10 +982,6 @@ function botPass(pull: PullRequest, bot: KnownBot): BotPass {
 			(comment) =>
 				comment.login === botLogin.codex && comment.body.includes(codexMarker),
 		);
-		const inProgress = pull.reactions.some(
-			(reaction) =>
-				reaction.login === botLogin.codex && reaction.content === "eyes",
-		);
 		const rows = [...(summary?.body.matchAll(codexRow) ?? [])];
 		const completed =
 			summary !== undefined &&
@@ -997,7 +993,7 @@ function botPass(pull: PullRequest, bot: KnownBot): BotPass {
 				(reaction) =>
 					reaction.login === botLogin.codex && reaction.content !== "eyes",
 			);
-		return { done: (completed || reactionOnly) && !inProgress, warning: null };
+		return { done: completed || reactionOnly, warning: null };
 	}
 	const summary = pull.comments.find(
 		(comment) =>
