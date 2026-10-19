@@ -3176,7 +3176,10 @@ describe("GET /api/overview", () => {
 					[
 						{ ...issue(1, "open"), comments: 1 },
 						{ ...issue(2, "open"), comments: 2 },
-						issue(3, "open"),
+						{ ...issue(3, "open"), comments: 2 },
+						{ ...issue(4, "open"), comments: 1 },
+						{ ...issue(7, "closed"), comments: 1 },
+						issue(8, "open"),
 					],
 					null,
 				);
@@ -3193,6 +3196,24 @@ describe("GET /api/overview", () => {
 					null,
 				);
 			}
+			if (url.includes(`/repos/${asked}/issues/3/comments`)) {
+				return page(
+					[
+						{ body: `This waits on Lev.\n\n${ask}` },
+						{ body: "See 11-12 for the later ask." },
+					],
+					null,
+				);
+			}
+			if (url.includes(`/repos/${asked}/issues/4/comments`)) {
+				return page(
+					[{ body: "Lev asked yesterday. The passphrase is in the vault." }],
+					null,
+				);
+			}
+			if (url.includes(`/repos/${asked}/issues/7/comments`)) {
+				return page([{ body: `This waits on Lev.\n\n${ask}` }], null);
+			}
 			if (url.includes("/pulls?") || url.includes("/branches?")) {
 				return page([], null);
 			}
@@ -3208,6 +3229,11 @@ describe("GET /api/overview", () => {
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
+		const requests: string[] = [];
+		const fetching: Fetch = async (input, init) => {
+			requests.push(urlOf(input));
+			return recorded(input, init);
+		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -3221,7 +3247,7 @@ describe("GET /api/overview", () => {
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				testIo({
 					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: recorded,
+					fetch: fetching,
 					readGhToken: async () => null,
 					databasePath,
 					stdout: (line) => startChecks(line),
@@ -3238,7 +3264,10 @@ describe("GET /api/overview", () => {
 			).toMatchObject({ needsYou: 0, progress: 67 });
 			expect(
 				body.projects.find((project) => project.name === asked),
-			).toMatchObject({ needsYou: 1, progress: 0 });
+			).toMatchObject({ needsYou: 2, progress: 17 });
+			expect(requests.some((url) => url.includes("/issues/7/comments"))).toBe(
+				false,
+			);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
