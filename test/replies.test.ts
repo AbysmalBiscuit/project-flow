@@ -1719,7 +1719,7 @@ describe("replies", () => {
 		}
 	});
 
-	test("a GitHub project with a senior posts an unnamed ask unchanged", async () => {
+	test("a GitHub project with a PM Bot posts an unnamed ask unchanged", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {
 			issues: [

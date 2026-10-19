@@ -72,22 +72,22 @@ function parseBots(text: string): Record<string, KnownBot[]> {
 	return bots;
 }
 
-function seniorLines(noSenior: Record<string, boolean>): string {
-	return Object.entries(noSenior)
+function pmBotLines(pmBot: Record<string, boolean>): string {
+	return Object.entries(pmBot)
 		.map(([name, value]) => `${name} ${value ? "true" : "false"}`)
 		.join("\n");
 }
 
-function parseSenior(text: string): Record<string, boolean> {
-	const noSenior: Record<string, boolean> = {};
+function parsePmBot(text: string): Record<string, boolean> {
+	const pmBot: Record<string, boolean> = {};
 	for (const line of lines(text)) {
 		const [name, value] = line.split(/\s+/);
 		if (name === undefined || (value !== "true" && value !== "false")) {
-			throw new Error(`no senior: ${line}`);
+			throw new Error(`pm bot: ${line}`);
 		}
-		noSenior[name] = value === "true";
+		pmBot[name] = value === "true";
 	}
-	return noSenior;
+	return pmBot;
 }
 
 function Menu({
@@ -108,7 +108,7 @@ function Menu({
 	const [expectedBots, setExpectedBots] = useState(
 		botLines(settings.expectedBots),
 	);
-	const [noSenior, setNoSenior] = useState(seniorLines(settings.noSenior));
+	const [pmBot, setPmBot] = useState(pmBotLines(settings.pmBot));
 	const [needsYouLabels, setNeedsYouLabels] = useState(
 		settings.needsYouLabels.join("\n"),
 	);
@@ -201,12 +201,12 @@ function Menu({
 			</label>
 			<p className={styles.note}>Known bots: {knownBots.join(", ")}</p>
 			<label className={styles.field}>
-				No senior
+				PM Bot
 				<textarea
-					id="no-senior"
+					id="pm-bot"
 					className={styles.refs}
-					value={noSenior}
-					onChange={(event) => setNoSenior(event.target.value)}
+					value={pmBot}
+					onChange={(event) => setPmBot(event.target.value)}
 				/>
 			</label>
 			<label className={styles.field}>
@@ -291,7 +291,7 @@ function Menu({
 				checkoutRoots: lines(checkoutRoots),
 				expectedBots: parseBots(expectedBots),
 				viewerLogins: lines(viewerLogins),
-				noSenior: parseSenior(noSenior),
+				pmBot: parsePmBot(pmBot),
 				needsYouLabels: lines(needsYouLabels),
 				notificationTriggers: {
 					needsYou,

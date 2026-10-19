@@ -124,9 +124,9 @@ _Avoid_: Waits on you, waits on Lev, needs Lev
 A question that an agent posts on a ticket or PR with an ask marker. It stays open until a later comment or the progress comment answers it.
 _Avoid_: Question, request, final report (when the ask is meant)
 
-**Senior**:
-The agent that answers asks before they reach Lev. A project with no senior sends every ask to Lev.
-_Avoid_: Reviewer, PM
+**PM Bot**:
+The agent that answers asks before they reach Lev. A project with a PM Bot sends an unnamed ask to the PM Bot. A project with no PM Bot sends every ask to Lev.
+_Avoid_: Senior, reviewer, PM
 
 **Answered**:
 A needs-you item that Lev replied to after its latest ask.
