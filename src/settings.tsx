@@ -74,9 +74,20 @@ function parseBots(text: string): Record<string, KnownBot[]> {
 
 function seniorLines(noSenior: Record<string, boolean>): string {
 	return Object.entries(noSenior)
-		.filter(([, value]) => value)
-		.map(([name]) => name)
+		.map(([name, value]) => `${name} ${value ? "true" : "false"}`)
 		.join("\n");
+}
+
+function parseSenior(text: string): Record<string, boolean> {
+	const noSenior: Record<string, boolean> = {};
+	for (const line of lines(text)) {
+		const [name, value] = line.split(/\s+/);
+		if (name === undefined || (value !== "true" && value !== "false")) {
+			throw new Error(`no senior: ${line}`);
+		}
+		noSenior[name] = value === "true";
+	}
+	return noSenior;
 }
 
 function Menu({
@@ -280,9 +291,7 @@ function Menu({
 				checkoutRoots: lines(checkoutRoots),
 				expectedBots: parseBots(expectedBots),
 				viewerLogins: lines(viewerLogins),
-				noSenior: Object.fromEntries(
-					lines(noSenior).map((name) => [name, true]),
-				),
+				noSenior: parseSenior(noSenior),
 				needsYouLabels: lines(needsYouLabels),
 				notificationTriggers: {
 					needsYou,

@@ -547,6 +547,104 @@ describe("settings", () => {
 		}
 	});
 
+	test("a blank no-senior line and a bare name leave the saved flags", async () => {
+		const linear = "linear-project";
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linear }],
+				noSenior: { [linear]: false, [quiet]: true },
+			}),
+			async (base) => {
+				const session = `settings-no-senior-blank-${process.pid}`;
+				const page = new URL("/settings", base).href;
+				const run = (args: string[]) =>
+					Bun.spawn(
+						["agent-browser", "--session", session, "--json", ...args],
+						{ stdin: "pipe", stdout: "pipe", stderr: "pipe" },
+					);
+				const finish = async (
+					child: Bun.Subprocess<"pipe", "pipe", "pipe">,
+				) => {
+					const stdout = await new Response(child.stdout).text();
+					const stderr = await new Response(child.stderr).text();
+					const code = await child.exited;
+					if (code !== 0) {
+						throw new Error(stderr || stdout || `browser exit ${code}`);
+					}
+					return stdout;
+				};
+				try {
+					await finish(run(["open", page]));
+					await finish(run(["wait", "#no-senior"]));
+					await finish(
+						run(["fill", "#no-senior", `${linear} false\n\n${quiet}`]),
+					);
+					await finish(run(["click", "#save-settings"]));
+					await finish(run(["wait", "--text", `no senior: ${quiet}`]));
+					const written = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					expect(written.noSenior).toEqual({
+						[linear]: false,
+						[quiet]: true,
+					});
+				} finally {
+					const closed = run(["close"]);
+					await closed.exited;
+				}
+			},
+		);
+	});
+
+	test("an unchanged menu keeps an explicit no-senior false", async () => {
+		const linear = "linear-project";
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linear }],
+				noSenior: { [linear]: false, [quiet]: true },
+			}),
+			async (base) => {
+				const session = `settings-no-senior-${process.pid}`;
+				const page = new URL("/settings", base).href;
+				const run = (args: string[]) =>
+					Bun.spawn(
+						["agent-browser", "--session", session, "--json", ...args],
+						{ stdin: "pipe", stdout: "pipe", stderr: "pipe" },
+					);
+				const finish = async (
+					child: Bun.Subprocess<"pipe", "pipe", "pipe">,
+				) => {
+					const stdout = await new Response(child.stdout).text();
+					const stderr = await new Response(child.stderr).text();
+					const code = await child.exited;
+					if (code !== 0) {
+						throw new Error(stderr || stdout || `browser exit ${code}`);
+					}
+					return stdout;
+				};
+				try {
+					await finish(run(["open", page]));
+					await finish(run(["wait", "#save-settings"]));
+					const shown = await finish(run(["get", "value", "#no-senior"]));
+					expect(shown).toContain(`${linear} false`);
+					expect(shown).toContain(`${quiet} true`);
+					await finish(run(["click", "#save-settings"]));
+					await finish(run(["wait", "--text", "Saved"]));
+					const written = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					expect(written.noSenior).toEqual({
+						[linear]: false,
+						[quiet]: true,
+					});
+				} finally {
+					const closed = run(["close"]);
+					await closed.exited;
+				}
+			},
+		);
+	});
+
 	test("a blank settings body names the configuration and leaves the file", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
 			const before = await readFile(configPath, "utf8");

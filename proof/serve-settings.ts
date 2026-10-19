@@ -15,7 +15,7 @@ await writeFile(
 			pollIntervalSeconds: 90,
 			checkoutRoots: [],
 			expectedBots: { "acme/widget": ["grok", "codex"] },
-			noSenior: { "acme/widget": true },
+			noSenior: { "acme/widget": true, "linear-project": false },
 			needsYouLabels: ["needs-human", "needs-engineer"],
 			notificationTriggers: {
 				needsYou: true,
