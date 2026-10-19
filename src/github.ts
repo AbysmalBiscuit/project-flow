@@ -44,7 +44,7 @@ export const githubPull = z.object({
 	html_url: z.string(),
 	draft: z.boolean().optional(),
 	body: z.string().nullable(),
-	head: z.object({ ref: z.string(), sha: z.string() }),
+	head: z.object({ ref: z.string(), sha: z.string().optional() }),
 	state: z.string(),
 	merged_at: z.string().nullable().optional(),
 });
@@ -762,7 +762,7 @@ export async function mergedPullHistory(
 		if ((pull.merged_at ?? null) === null) {
 			continue;
 		}
-		const head = pull.head.sha;
+		const head = pull.head.sha ?? "";
 		const key = mergedReviewKey(repo, pull.number);
 		const cached = seen.get(key);
 		const review =
@@ -937,17 +937,20 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 							}
 						}
 					}
-					const head = pull.head.sha;
-					const review = await pullReview(
-						repo,
-						pull.number,
-						head,
-						pull.draft === true,
-						token,
-						fetchImpl,
-					);
+					const head = pull.head.sha ?? "";
+					const review =
+						head === ""
+							? { checks: [], comments: [], reviews: [], reactions: [] }
+							: await pullReview(
+									repo,
+									pull.number,
+									head,
+									pull.draft === true,
+									token,
+									fetchImpl,
+								);
 					const headCommittedAt =
-						pull.draft === true
+						pull.draft === true || head === ""
 							? null
 							: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
 					pulls.push({

@@ -518,20 +518,24 @@ export function linearTracker(
 					if (pull.state !== "open") {
 						continue;
 					}
-					const review = await pullReview(
-						target.repo,
-						pull.number,
-						pull.head.sha,
-						pull.draft === true,
-						githubToken,
-						fetchImpl,
-					);
+					const head = pull.head.sha ?? "";
+					const review =
+						head === ""
+							? { checks: [], comments: [], reviews: [], reactions: [] }
+							: await pullReview(
+									target.repo,
+									pull.number,
+									head,
+									pull.draft === true,
+									githubToken,
+									fetchImpl,
+								);
 					const headCommittedAt =
-						pull.draft === true
+						pull.draft === true || head === ""
 							? null
 							: await fetchHeadCommittedAt(
 									target.repo,
-									pull.head.sha,
+									head,
 									githubToken,
 									fetchImpl,
 								);
@@ -544,7 +548,7 @@ export function linearTracker(
 						branch: pull.head.ref,
 						body: pull.body ?? "",
 						closingKeys: [identifier],
-						headSha: pull.head.sha,
+						headSha: head,
 						headCommittedAt,
 						merged: false,
 						...review,
