@@ -50,7 +50,7 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `noSenior` marks whether a project has no senior. The key is the project key. `true` sends every ask to Lev. `false` sends an unnamed ask to the senior. When the key is absent, a Linear project has no senior and a GitHub project has one. The default is `{}`.
 - `needsYouLabels` names labels that mark a needs-you item when Lev is the assignee. The default is `["needs-human", "needs-engineer"]`.
 - `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
-- `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. Each one defaults to `true`.
+- `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. The default for each one is `true`.
 
 A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`. `pinned` and `hidden` use the same pin shape.
 
