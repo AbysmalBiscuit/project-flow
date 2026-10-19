@@ -90,12 +90,17 @@ function issue(number: number): Record<string, unknown> {
 	};
 }
 
-function pull(number: number, ticket = 8, sha = head): Record<string, unknown> {
+function pull(
+	number: number,
+	ticket = 8,
+	sha = head,
+	draft = false,
+): Record<string, unknown> {
 	return {
 		number,
 		title: `PR ${number}`,
 		state: "open",
-		draft: false,
+		draft,
 		html_url: `https://github.com/${repo}/pull/${number}`,
 		head: { ref: `${number}-feat-review`, sha },
 		body: `Closes #${ticket}`,
@@ -788,6 +793,153 @@ describe("review cycle", () => {
 				awaitingMerge: 1,
 			}),
 		);
+	});
+
+	test("a draft PR skips review reads", async () => {
+		const requests: string[] = [];
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: async (input, init) => {
+						requests.push(urlOf(input));
+						return githubFetch({
+							issues: [issue(8)],
+							pulls: [pull(98, 8, head, true)],
+							checksBySha: {},
+							commentsByPull: {},
+							reviewsByPull: {},
+							reactionsByPull: {},
+						})(input, init);
+					},
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(
+				requests.some((url) =>
+					/\/(?:issues|pulls)\/98\/|\/commits\/[^/]+\/check-runs/.test(url),
+				),
+			).toBe(false);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a Linear draft PR skips review reads", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const requests: string[] = [];
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: linearFake({
+						project: {
+							id: "project-1",
+							name: "Widget launch",
+							slugId: linearProject,
+						},
+						issues: [
+							{
+								identifier: "WID-8",
+								title: "Linear ticket 8",
+								updatedAt: "2026-10-01T00:00:00.000Z",
+								state: { type: "unstarted" },
+								attachments: {
+									nodes: [
+										{
+											url: "https://github.com/acme/widget/pull/99",
+											title: "draft",
+											sourceType: "github",
+										},
+									],
+								},
+							},
+						],
+						github: async (input, init) => {
+							const url = urlOf(input);
+							requests.push(url);
+							const discovered = recordedDiscovery(input, init);
+							if (discovered !== null) {
+								return discovered;
+							}
+							if (url === "https://api.github.com/user") {
+								return page({ login: "lev" });
+							}
+							if (url === "https://api.github.com/repos/acme/widget/pulls/99") {
+								return page(pull(99, 8, head, true));
+							}
+							if (url.includes("/pulls?state=closed")) {
+								return page([]);
+							}
+							return new Response("not recorded", { status: 404 });
+						},
+					}),
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(
+				requests.some((url) =>
+					/\/(?:issues|pulls)\/99\/|\/commits\/[^/]+\/check-runs/.test(url),
+				),
+			).toBe(false);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test("a warning tag is in the overview", async () => {

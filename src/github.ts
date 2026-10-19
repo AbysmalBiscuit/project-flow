@@ -899,13 +899,10 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						}
 					}
 					const head = pull.head.sha;
-					const review = await pullReview(
-						repo,
-						pull.number,
-						head,
-						token,
-						fetchImpl,
-					);
+					const review =
+						pull.draft === true
+							? { checks: [], comments: [], reviews: [], reactions: [] }
+							: await pullReview(repo, pull.number, head, token, fetchImpl);
 					pulls.push({
 						repo,
 						number: pull.number,

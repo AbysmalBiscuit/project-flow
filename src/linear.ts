@@ -517,13 +517,16 @@ export function linearTracker(
 					if (pull.state !== "open") {
 						continue;
 					}
-					const review = await pullReview(
-						target.repo,
-						pull.number,
-						pull.head.sha,
-						githubToken,
-						fetchImpl,
-					);
+					const review =
+						pull.draft === true
+							? { checks: [], comments: [], reviews: [], reactions: [] }
+							: await pullReview(
+									target.repo,
+									pull.number,
+									pull.head.sha,
+									githubToken,
+									fetchImpl,
+								);
 					pulls.push({
 						repo: target.repo,
 						number: pull.number,
