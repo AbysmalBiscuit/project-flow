@@ -1448,7 +1448,8 @@ function progressRatio(
 }
 
 const askMarker = /<!--\s*workcell:ask\s+([A-Za-z0-9_.-]+)\s*-->/i;
-const answerPrefix = /^(?:senior|answer)\b/i;
+const workcellMarker = /<!--\s*workcell:/i;
+const answerPrefix = /^(?:senior|reply|answer)\b/i;
 const decisionRecord = /^\**\s*decision\b/i;
 const nameCue =
 	/\b(?:waits on|held for|left for|decision|verify|restore|passphrase|signing key)\b/i;
@@ -1481,6 +1482,16 @@ function quotesAsk(body: string, id: string): boolean {
 		"i",
 	);
 	return pattern.test(body);
+}
+
+function quotesAskText(body: string, askBody: string): boolean {
+	const text = askBody.replace(askMarker, "").trim();
+	if (text === "") {
+		return false;
+	}
+	return body
+		.split("\n")
+		.some((line) => line.trimStart().startsWith(">") && line.includes(text));
 }
 
 function commentTime(comment: Comment): number {
@@ -1543,10 +1554,7 @@ function progressPicked(body: string, id: string): boolean {
 
 function askClosed(later: Comment[], id: string): boolean {
 	return later.some(
-		(item) =>
-			quotesAsk(item.body, id) ||
-			answerPrefix.test(item.body.trim()) ||
-			progressPicked(item.body, id),
+		(item) => quotesAsk(item.body, id) || progressPicked(item.body, id),
 	);
 }
 
@@ -1601,20 +1609,24 @@ function openAsk(comments: Comment[], noSenior: boolean): OpenAsk | null {
 	return found;
 }
 
-function replyAfter(
-	comments: Comment[],
-	askIndex: number,
-	viewerLogins: string[],
-): Comment | null {
+function replyAfter(comments: Comment[], askIndex: number): Comment | null {
 	const ordered = orderedComments(comments);
-	const viewers = new Set(viewerLogins.map((login) => login.toLowerCase()));
+	const ask = ordered[askIndex];
+	if (ask === undefined) {
+		return null;
+	}
+	const id = askId(ask.body);
 	for (let index = ordered.length - 1; index > askIndex; index -= 1) {
 		const comment = ordered[index];
-		if (comment === undefined || askId(comment.body) !== null) {
+		if (comment === undefined || workcellMarker.test(comment.body)) {
 			continue;
 		}
-		const author = comment.author?.toLowerCase();
-		if (author !== undefined && viewers.has(author)) {
+		const opening = comment.body.trim();
+		if (
+			(id !== null && quotesAsk(opening, id)) ||
+			answerPrefix.test(opening) ||
+			quotesAskText(opening, ask.body)
+		) {
 			return comment;
 		}
 	}
@@ -1657,9 +1669,7 @@ export function needsYouItems(
 			continue;
 		}
 		const reply =
-			ask === null
-				? null
-				: replyAfter(ticket.comments ?? [], ask.index, rules.viewerLogins);
+			ask === null ? null : replyAfter(ticket.comments ?? [], ask.index);
 		items.push({
 			project,
 			tracker,

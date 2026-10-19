@@ -25,7 +25,7 @@ function linearIssue(
 	identifier: string,
 	title: string,
 	description: string,
-	comments: { body: string }[] = [],
+	comments: { body: string; user?: { id: string; name: string } }[] = [],
 	fields: Record<string, unknown> = {},
 ): Record<string, unknown> {
 	return {
@@ -123,6 +123,7 @@ describe("needs you", () => {
 			expect(items.map((item) => item.key).sort()).toEqual([
 				"PF-1",
 				"PF-4",
+				"PF-6",
 				"PF-8",
 			]);
 			expect(items.find((item) => item.key === "PF-1")).toMatchObject({
@@ -138,6 +139,10 @@ describe("needs you", () => {
 				headline: named,
 				reason: "ask",
 				tags: ["matched by name"],
+			});
+			expect(items.find((item) => item.key === "PF-6")).toMatchObject({
+				reason: "ask",
+				answered: true,
 			});
 		} finally {
 			await cleanup();
@@ -226,7 +231,7 @@ describe("needs you", () => {
 						user: { login: "agent" },
 					},
 					{
-						body: "Noted, no change.",
+						body: "Reply: noted, no change.",
 						created_at: "2026-10-01T01:00:00Z",
 						user: { login: "lev" },
 					},
@@ -294,6 +299,100 @@ describe("needs you", () => {
 			});
 			expect(items[1]).toMatchObject({
 				headline: named,
+				reason: "ask",
+				answered: true,
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a later workcell progress comment leaves the ask unanswered", async () => {
+		const question = "Which bot should review this?";
+		const issues = [
+			linearIssue("PF-20", "Progress after the ask", question, [
+				{
+					body: `${question}\n\n${ask("pf-20")}`,
+					user: { id: "agent", name: "AbysmalBiscuit" },
+				},
+				{
+					body: "**Workcell progress**\n- stage: review\n- ask-pf-20: still open",
+					user: { id: "agent", name: "AbysmalBiscuit" },
+				},
+			]),
+			linearIssue("PF-21", "Same author, no answer", "Still open", [
+				{
+					body: `${ask("pf-21")}\nWhich row?`,
+					user: { id: "agent", name: "AbysmalBiscuit" },
+				},
+				{
+					body: "Still waiting on the row.",
+					user: { id: "agent", name: "AbysmalBiscuit" },
+				},
+			]),
+			linearIssue("PF-22", "Quoted answer", "Quoted", [
+				{ body: `${ask("pf-22")}\nKeep the label?` },
+				{ body: "> Keep the label?\n\nYes." },
+			]),
+			linearIssue("PF-23", "Reply prefix", "Reply prefix", [
+				{ body: `${ask("pf-23")}\nWhich name?` },
+				{ body: "Reply: the short name." },
+			]),
+		];
+		const recorded = linearFake({ project: linearProject, issues });
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "project-flow" }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
+			startChecks = (base) => {
+				fetch(new URL("/api/needs-you", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve((await response.json()) as NeedsYouItem[]);
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const items = await checks;
+			expect(items.map((item) => item.key).sort()).toEqual([
+				"PF-20",
+				"PF-21",
+				"PF-22",
+				"PF-23",
+			]);
+			expect(items.find((item) => item.key === "PF-20")).toMatchObject({
+				headline: question,
+				reason: "ask",
+				answered: false,
+			});
+			expect(items.find((item) => item.key === "PF-21")).toMatchObject({
+				reason: "ask",
+				answered: false,
+			});
+			expect(items.find((item) => item.key === "PF-22")).toMatchObject({
+				reason: "ask",
+				answered: true,
+			});
+			expect(items.find((item) => item.key === "PF-23")).toMatchObject({
 				reason: "ask",
 				answered: true,
 			});
