@@ -468,28 +468,43 @@ describe("GET /api/overview", () => {
 		}
 	});
 
-	test("a missing Linear key does not serve an overview", async () => {
+	test("a missing Linear key serves and names LINEAR_API_KEY on the pinned project", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-overview-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<Overview>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) =>
+						resolve((await response.json()) as Overview),
+					)
+					.catch(reject);
+			};
+		});
 		try {
 			const result = await run(
-				["--config", path],
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				testIo({
 					env: { GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "   " },
 					fetch: linearFetch([]),
 					readGhToken: async () => null,
-					databasePath: ":memory:",
-					waitForStop: Promise.resolve(),
+					databasePath: join(root, "project-flow.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
 				}),
 			);
-			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toContain("LINEAR_API_KEY");
-			expect(result.listened).toBe(false);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(result.listened).toBe(true);
+			const body = await checks;
+			expect(body.projects[0]?.error).toContain("LINEAR_API_KEY");
 		} finally {
 			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 
