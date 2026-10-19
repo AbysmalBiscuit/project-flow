@@ -402,7 +402,6 @@ function OverviewPage({
 			</p>
 			<button
 				type="button"
-				id="refresh"
 				onClick={() => {
 					void fetch("/api/refresh", { method: "POST" });
 				}}
