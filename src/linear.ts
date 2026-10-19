@@ -292,7 +292,7 @@ function linearAuthor(
 		| null
 		| undefined,
 ): string {
-	return user?.displayName ?? user?.name ?? "";
+	return commentAuthor(user) ?? "";
 }
 
 function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
