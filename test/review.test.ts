@@ -2015,6 +2015,274 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a stage line that names a PR as PR https://github.com/owner/repo/pull/N decides that PR only", async () => {
+		const second = "cccccccccccccccccccccccccccccccccccccccc";
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83), pull(84, 8, second)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 2. PR https://github.com/acme/widget/pull/84. Session 01a150fd.\n- stage 6: merging. PR https://github.com/acme/widget/pull/83. Session 01a150fd.",
+						),
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+				[second]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+				84: [{ user: { login: grok }, commit_id: second, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a final report that is also the ask is awaiting merge while the PR is open", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 2. PR https://github.com/acme/widget/pull/83. Session 01a150fd.",
+						),
+					},
+					{
+						body: "Final report for https://github.com/acme/widget/pull/83. 1 row left.\n\n**PR:** https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->\n\n<!-- workcell:ask 8-1 -->",
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
+	});
+
+	test("a final report that names no PR is awaiting merge for every open PR", async () => {
+		const second = "cccccccccccccccccccccccccccccccccccccccc";
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83), pull(84, 8, second)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 2. PR https://github.com/acme/widget/pull/83. Session 01a150fd.\n- stage 5: round 1 of 2. PR https://github.com/acme/widget/pull/84. Session 01a150fd.",
+						),
+					},
+					{
+						body: "Final report for   \n\n<!-- workcell:report -->\n\n<!-- workcell:ask 8-1 -->",
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+				[second]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+				84: [{ user: { login: grok }, commit_id: second, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
+	});
+
+	test("a final report for one PR leaves the other open PR in review", async () => {
+		const second = "cccccccccccccccccccccccccccccccccccccccc";
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83), pull(84, 8, second)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 2. PR https://github.com/acme/widget/pull/83. Session 01a150fd.\n- stage 5: round 1 of 2. PR https://github.com/acme/widget/pull/84. Session 01a150fd.",
+						),
+					},
+					{
+						body: "Final report for https://github.com/acme/widget/pull/83. 1 row left.\n\n<!-- workcell:report -->\n\n<!-- workcell:ask 8-1 -->",
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+				[second]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+				84: [{ user: { login: grok }, commit_id: second, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a final report posted before the progress comment leaves the run at its stage", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: "Final report for https://github.com/acme/widget/pull/83. 1 row left.\n\n<!-- workcell:report -->\n\n<!-- workcell:ask 8-1 -->",
+					},
+					{
+						body: progress(
+							"- stage 5: round 1 of 2. PR https://github.com/acme/widget/pull/83. Session 01a150fd.",
+						),
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a stage line that names no PR decides every open PR", async () => {
+		const second = "cccccccccccccccccccccccccccccccccccccccc";
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83), pull(84, 8, second)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress("- stage 5: round 1 of 2. Session 01a150fd."),
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+				[second]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+				84: [{ user: { login: grok }, commit_id: second, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
 	test("an open merge ask on one PR leaves the other open PR at its own stage", async () => {
 		const second = "cccccccccccccccccccccccccccccccccccccccc";
 		const body = await overview({

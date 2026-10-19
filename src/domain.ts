@@ -1123,7 +1123,6 @@ function botCycle(
 
 const progressHeading = "**Workcell progress**";
 const stageLine = /^stage\s+(\d+)\b/i;
-const finalReportLine = /^final report\b/i;
 const mergeAskLine = /^Merge PR #(\d+)\b/i;
 const reportMarker = "<!-- workcell:report -->";
 function pullNumbers(text: string): number[] {
@@ -1159,16 +1158,10 @@ function workcellRun(
 		.map((line) => line.trim().replace(/^-\s*/, ""))
 		.filter((line) => line !== "" && line !== progressHeading);
 	let stage: number | null = null;
-	let reported = false;
 	for (const line of lines) {
 		const stageMatch = line.match(stageLine);
 		if (stageMatch?.[1] !== undefined && lineDecidesPull(line, pull, lines)) {
 			stage = Number(stageMatch[1]);
-			reported = false;
-			continue;
-		}
-		if (finalReportLine.test(line) && lineDecidesPull(line, pull, lines)) {
-			reported = true;
 		}
 	}
 	const progressAt = comments.indexOf(progress);
@@ -1181,7 +1174,6 @@ function workcellRun(
 		return { state: "awaitingMerge", tags: [] };
 	}
 	if (
-		reported &&
 		later.some(
 			(comment) =>
 				comment.body.includes(reportMarker) &&
