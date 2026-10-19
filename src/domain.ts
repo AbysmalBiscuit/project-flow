@@ -1,29 +1,14 @@
-import { z } from "zod";
-
-const todoListing = z.array(z.unknown());
-
-const todoRow = z.object({
-	project: z.string().optional(),
-});
-
 export function todoRows(listing: string): { project: string }[] {
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(listing);
-	} catch {
-		return [];
-	}
-	const rows = todoListing.safeParse(parsed);
-	if (!rows.success) {
-		return [];
-	}
 	const projects: { project: string }[] = [];
-	for (const row of rows.data) {
-		const parsedRow = todoRow.safeParse(row);
-		if (!parsedRow.success || parsedRow.data.project === undefined) {
+	const seen = new Set<string>();
+	for (const line of listing.split("\n")) {
+		const heading = line.match(/^## (.+)$/)?.[1]?.trim() ?? "";
+		const project = heading.split(".")[0]?.trim() ?? "";
+		if (project === "" || seen.has(heading)) {
 			continue;
 		}
-		projects.push({ project: parsedRow.data.project });
+		seen.add(heading);
+		projects.push({ project: heading });
 	}
 	return projects;
 }
@@ -530,15 +515,16 @@ export function githubRepoForTodo(
 	checkouts: { name: string; repo: string }[],
 ): string | null {
 	const dot = project.indexOf(".");
-	if (dot <= 0) {
+	const name = (dot <= 0 ? project : project.slice(0, dot)).trim();
+	if (name === "") {
 		return null;
 	}
-	const name = project.slice(0, dot).trim();
-	const node = project.slice(dot + 1);
-	if (name === "" || node === "main" || node.startsWith("pr-")) {
+	const node = dot <= 0 ? "" : project.slice(dot + 1);
+	if (node === "main" || node.startsWith("pr-")) {
 		return null;
 	}
-	if (githubNode.test(node) !== true) {
+	const ticket = node.split(".")[0] ?? "";
+	if (node !== "" && githubNode.test(ticket) !== true) {
 		return null;
 	}
 	const checkout = checkouts.find((item) => item.name === name);
@@ -566,16 +552,6 @@ export function checkoutBasenames(
 	});
 }
 
-export function todoNamesForCheckout(
-	checkoutName: string,
-	rows: { project: string }[],
-): string[] {
-	const prefix = `${checkoutName}.`;
-	return rows.flatMap((row) =>
-		row.project.startsWith(prefix) ? [row.project.slice(prefix.length)] : [],
-	);
-}
-
 export function linearNamesFromCheckouts(
 	checkouts: (
 		| { path: string; tracker: "github"; names: string[] }
@@ -590,7 +566,14 @@ export function linearNamesFromCheckouts(
 		}
 		const checkoutName = checkout.path.split(/[/\\]/).at(-1) ?? "";
 		names.push(...checkout.names);
-		names.push(...todoNamesForCheckout(checkoutName, rows));
+		names.push(
+			...rows.flatMap((row) => {
+				if (!row.project.startsWith(`${checkoutName}.`)) {
+					return [];
+				}
+				return row.project.replace(sessionSuffix, "").split(".").slice(1);
+			}),
+		);
 	}
 	return names;
 }
@@ -617,20 +600,24 @@ export function linearKeysForNames(names: string[]): string[] {
 
 const startedTodo = /^- \[ \] .+ \(([^,]+), in progress(?:: [^)]+)?\)/;
 
-export function startedTodoKeys(listing: string): string[] {
+export function startedTodoKeys(
+	listing: string,
+	repos: { name: string; repo: string }[] = [],
+): string[] {
 	const keys: string[] = [];
 	let project = "";
 	for (const line of listing.split("\n")) {
 		const heading = line.match(/^## (.+)$/);
 		if (heading?.[1] !== undefined) {
-			project = heading[1];
+			project = heading[1].split(".")[0]?.trim() ?? "";
 			continue;
 		}
 		const key = line.match(startedTodo)?.[1];
 		if (key === undefined) {
 			continue;
 		}
-		const scoped = key.startsWith("#") ? `${project}${key}` : key;
+		const repo = repos.find((item) => item.name === project)?.repo;
+		const scoped = key.startsWith("#") ? `${repo ?? project}${key}` : key;
 		if (!keys.some((item) => item.toLowerCase() === scoped.toLowerCase())) {
 			keys.push(scoped);
 		}

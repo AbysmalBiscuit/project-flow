@@ -232,7 +232,7 @@ export async function listDevkitTodos(): Promise<string> {
 	if (devkit === null) {
 		return "";
 	}
-	return (await command([devkit, "todo", "list", "--all", "--json"])) ?? "";
+	return (await command([devkit, "todo", "list", "--all"])) ?? "";
 }
 
 export async function readGhAuthToken(

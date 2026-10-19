@@ -178,8 +178,11 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		return options.fallback;
 	}
 	const todoListing = (await options.listTodos?.()) ?? "";
-	const startedKeys = startedTodoKeys(todoListing);
 	const checkouts = (await options.listCheckouts?.().catch(() => [])) ?? [];
+	const startedKeys = startedTodoKeys(
+		todoListing,
+		checkoutBasenames(checkouts),
+	);
 	const linear = options.linear;
 	if (
 		linear === null &&

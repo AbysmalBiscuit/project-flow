@@ -50,8 +50,8 @@ function localFetch(requests: string[]): Fetch {
 			if (repo === named) {
 				return page([issue(9)]);
 			}
-			if (repo === strangerOrigin) {
-				return page([issue(9, strangerOrigin)]);
+			if (repo === strangerOrigin || repo === "stranger/stranger-repo") {
+				return page([issue(9, repo)]);
 			}
 			return page([]);
 		}
@@ -268,16 +268,13 @@ describe("local projects", () => {
 				"",
 			].join("\n"),
 		};
-		const todo = JSON.stringify([
-			{ project: "   ", status: "pending" },
-			{ project: "local  only.9-feat", status: "pending" },
-			{
-				project: `local-only.9-feat-ship.${"a".repeat(8)}`,
-				status: "pending",
-				started: false,
-			},
-			null,
-		]);
+		const todo = [
+			"## local  only.main.claude-aaaaaaaa",
+			"- [ ] Blank ( , pending)",
+			"## local-only.9-feat-ship.claude-aaaaaaaa",
+			"- [ ] Ship the widget (9-feat-ship, pending)",
+			"",
+		].join("\n");
 		const strangerCard = {
 			...card,
 			name: strangerOrigin,
@@ -315,6 +312,64 @@ describe("local projects", () => {
 		).toBe(false);
 	});
 
+	test("a started todo under a heading makes its ticket in progress", async () => {
+		const { body } = await overview({
+			files: {
+				"lev/local-only/.git/config": originConfig,
+				"lev/local-only/devkit.toml": "",
+			},
+			todos: [
+				"## local-only.main.claude-b71a152a-3479-40ac-85b1-d96e12fc5771",
+				"- [ ] Ticket 9 (#9, in progress: human)",
+				"## local-only.9-feat-ship.claude-cccccccc",
+				"- [ ] Also nine (#9, pending)",
+				"",
+			].join("\n"),
+		});
+		expect(body).toEqual({
+			projects: [
+				{
+					...card,
+					backlog: 0,
+					inProgress: 1,
+					tickets: [{ ...card.tickets[0], state: "inProgress" }],
+				},
+			],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
+	});
+
+	test("two session headings for one project name one project", async () => {
+		const { body, requests } = await overview({
+			files: {
+				"stranger/stranger-repo/.git/config": [
+					'[remote "origin"]',
+					"url = https://github.com/stranger/stranger-repo.git",
+					"",
+				].join("\n"),
+			},
+			todos: [
+				"## stranger-repo.main.claude-b71a152a-3479-40ac-85b1-d96e12fc5771",
+				"- [ ] First (9-feat, pending)",
+				"## stranger-repo.main.claude-cccccccccccccccccccccccccccccccccccc",
+				"- [ ] Second (9-again, pending)",
+				"## stranger-repo",
+				"- [ ] Synced (9-synced, pending)",
+				"",
+			].join("\n"),
+		});
+		const projects = (body as { projects: { name: string }[] }).projects;
+		expect(
+			projects.filter((project) => project.name === "stranger/stranger-repo"),
+		).toHaveLength(1);
+		expect(
+			requests.filter((request) =>
+				request.includes("/repos/stranger/stranger-repo/issues"),
+			),
+		).toHaveLength(1);
+	});
+
 	test("a TOML devkit.toml names the project and a JSON file does not", async () => {
 		const toml = await overview({
 			linear: true,
@@ -323,9 +378,11 @@ describe("local projects", () => {
 					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
 				"other/docs/devkit.toml": '[tracker]\nkind = "linear"\n',
 			},
-			todos: JSON.stringify([
-				{ project: "docs.WID-4-write-the-docs", status: "pending" },
-			]),
+			todos: [
+				"## docs.WID-4-write-the-docs.claude-aaaaaaaa",
+				"- [ ] Write the docs (WID-4, pending)",
+				"",
+			].join("\n"),
 		});
 		expect(toml.body).toEqual({
 			projects: [
@@ -371,9 +428,9 @@ describe("local projects", () => {
 					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
 				"other/docs/devkit.toml": '{"tracker":{"kind":"linear"}}\n',
 			},
-			todos: JSON.stringify([
-				{ project: "docs.WID-4-write-the-docs", status: "pending" },
-			]),
+			todos: [
+				'[{"project":"docs.WID-4-write-the-docs","status":"pending"}]',
+			].join("\n"),
 		});
 		expect(json.body).toEqual({
 			projects: [],
@@ -392,13 +449,18 @@ describe("local projects", () => {
 					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
 				"other/docs/devkit.toml": '[tracker]\nkind = "linear"\n',
 			},
-			todos: JSON.stringify([
-				{ project: "   ", status: "pending" },
-				{ project: "docs.main.D2C128F2-575", status: "pending" },
-				{ project: "docs.main.CLAUDE-69", status: "pending" },
-				{ project: "docs.feat.agent-12", status: "pending" },
-				{ project: "docs.WID-4extra", status: "pending" },
-			]),
+			todos: [
+				"## docs.main.D2C128F2-575",
+				"- [ ] Session (D2C128F2-575, pending)",
+				"## docs.main.CLAUDE-69",
+				"- [ ] Session (CLAUDE-69, pending)",
+				"## docs.feat.agent-12",
+				"- [ ] Agent (agent-12, pending)",
+				"## docs.WID-4extra.claude-aaaaaaaa",
+				"- [ ] Extra (WID-4extra, pending)",
+				"##    ",
+				"- [ ] Blank ( , pending)",
+			].join("\n"),
 		});
 		expect(body).toEqual({
 			projects: [],
@@ -425,10 +487,11 @@ describe("local projects", () => {
 					'[remote "origin"]\nurl = git@github.com:other/docs.git\n',
 				"other/docs/devkit.toml": '[tracker]\nkind = "linear"\n',
 			},
-			todos: JSON.stringify([
-				{ project: "docs.WID-4-write-the-docs", status: "pending" },
-				null,
-			]),
+			todos: [
+				"## docs.WID-4-write-the-docs.claude-aaaaaaaa",
+				"- [ ] Write the docs (WID-4, pending)",
+				"",
+			].join("\n"),
 		});
 		expect(body).toEqual({
 			projects: [
@@ -465,10 +528,12 @@ describe("local projects", () => {
 				"lev/blank/.git/config":
 					'[remote "origin"]\nurl = https://github.com/not a repo\n',
 			},
-			todos: JSON.stringify([
-				{ project: "   ", status: "pending" },
-				{ project: "local  only.9-feat", status: "pending" },
-			]),
+			todos: [
+				"##    ",
+				"- [ ] Blank ( , pending)",
+				"## local  only.9-feat.claude-aaaaaaaa",
+				"- [ ] Spaces (9-feat, pending)",
+			].join("\n"),
 		});
 		expect(body).toEqual({
 			projects: [],
