@@ -15,7 +15,7 @@ The parent spec, issue #1, holds the full rules. Use the terms in `GLOSSARY.md`.
 ### Stack
 
 - One Bun process serves the React page and the JSON API on localhost. Bun bundles the page from an HTML import. Do not add a bundler or a framework.
-- Bun's built-in SQLite is the store. The store is a cache: the next poll fills it again. The notifications table is the one table that keeps history.
+- Bun's built-in SQLite is the store. The store is a cache: the next poll fills it again. The notifications table and seeded_ids keep history.
 - One Zod schema validates the configuration file and gives its TypeScript type. Do not write a second type for the configuration.
 - The browser renders diagrams with Mermaid.
 
