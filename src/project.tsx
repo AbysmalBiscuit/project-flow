@@ -147,7 +147,7 @@ function Report({
 				</a>
 			</p>
 			<h1>{report.name}</h1>
-			<nav aria-label="Report sections">
+			<nav className="report-nav" aria-label="Report sections">
 				{report.sections.map((section) => (
 					<a key={section.id} href={`#${section.id}`}>
 						{section.title}
