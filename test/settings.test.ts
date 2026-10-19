@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+	chmod,
+	lstat,
+	mkdtemp,
+	readFile,
+	rm,
+	symlink,
+	writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview } from "../src/domain.ts";
@@ -477,6 +485,66 @@ describe("settings", () => {
 			expect(named.error).toContain("expectedBots");
 			expect(await readFile(configPath, "utf8")).toBe(before);
 		});
+	});
+
+	test("a symlinked 0600 config stays a symlink and its target keeps mode 0600", async () => {
+		const dir = await mkdtemp(join("/var/tmp", "project-flow-settings-link-"));
+		const target = join(dir, "target.json");
+		const link = join(dir, "config.json");
+		await writeFile(target, JSON.stringify({ pinned: [] }));
+		await chmod(target, 0o600);
+		await symlink(target, link);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				(async () => {
+					const current = await (
+						await fetch(new URL("/api/settings", base))
+					).json();
+					const saved = await fetch(new URL("/api/settings", base), {
+						method: "PUT",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({
+							...current,
+							activityWindowDays: 14,
+						}),
+					});
+					expect(saved.status).toBe(200);
+					const linkStat = await lstat(link);
+					expect(linkStat.isSymbolicLink()).toBe(true);
+					const targetStat = await lstat(target);
+					expect(targetStat.isSymbolicLink()).toBe(false);
+					expect(targetStat.mode & 0o777).toBe(0o600);
+					const written = JSON.parse(
+						await readFile(target, "utf8"),
+					) as Configuration;
+					expect(written.activityWindowDays).toBe(14);
+				})().then(resolve, reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", link, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test("a blank settings body names the configuration and leaves the file", async () => {

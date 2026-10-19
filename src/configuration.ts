@@ -1,4 +1,12 @@
-import { readFile, rename, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	lstat,
+	readFile,
+	realpath,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -98,8 +106,19 @@ export async function saveConfiguration(
 	text: string,
 ): Promise<Configuration> {
 	const configuration = parseConfiguration(text);
-	const next = join(dirname(path), `.${basename(path)}.next`);
+	const target = await realpath(path);
+	const info = await lstat(target);
+	const next = join(
+		dirname(target),
+		`.${basename(target)}.${process.pid}.${crypto.randomUUID()}`,
+	);
 	await writeFile(next, `${JSON.stringify(configuration, null, "\t")}\n`);
-	await rename(next, path);
+	try {
+		await chmod(next, info.mode & 0o777);
+		await rename(next, target);
+	} catch (error) {
+		await rm(next, { force: true });
+		throw error;
+	}
 	return configuration;
 }
