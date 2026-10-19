@@ -29,7 +29,7 @@ export function NeedsItem({
 			) : (
 				<button
 					type="button"
-					className={clsx(needs.open, needs.openHover, needs.headline)}
+					className={clsx(needs.open, needs.openHover)}
 					onClick={() => onOpen(item.key)}
 				>
 					{item.headline}
