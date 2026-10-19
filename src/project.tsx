@@ -27,8 +27,16 @@ function openPath(project: string, ticket: string | null): string {
 		: `${path}?ticket=${encodeURIComponent(ticket)}`;
 }
 
-function openProject(project: string, ticket: string | null): void {
-	window.history.pushState({}, "", openPath(project, ticket));
+function openProject(
+	project: string,
+	ticket: string | null,
+	openPanel = false,
+): void {
+	window.history.pushState(
+		openPanel ? { panel: true } : {},
+		"",
+		openPath(project, ticket),
+	);
 	window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
@@ -234,7 +242,7 @@ function Page() {
 		const onPop = () => {
 			setName(projectName());
 			setTicket(highlightKey());
-			setOpen(false);
+			setOpen(window.history.state?.panel === true);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
@@ -285,7 +293,7 @@ function Page() {
 		}
 		let stopped = false;
 		const bound: { drawn: SVGGElement; open: () => void }[] = [];
-		void mermaid.run({ nodes }).then(() => {
+		const bind = () => {
 			if (stopped) {
 				return;
 			}
@@ -302,7 +310,7 @@ function Page() {
 							continue;
 						}
 						const drawn = [...figure.querySelectorAll("g.node")].find((item) =>
-							item.id.startsWith(`flowchart-${node.id}-`),
+							item.id.includes(`flowchart-${node.id}-`),
 						);
 						if (!(drawn instanceof SVGGElement)) {
 							continue;
@@ -310,7 +318,7 @@ function Page() {
 						const ticket = node.ticket;
 						const project = node.project;
 						const open = () => {
-							openProject(project, ticket);
+							openProject(project, ticket, true);
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
@@ -318,7 +326,8 @@ function Page() {
 					}
 				}
 			}
-		});
+		};
+		void mermaid.run({ nodes }).then(bind);
 		return () => {
 			stopped = true;
 			for (const { drawn, open } of bound) {
