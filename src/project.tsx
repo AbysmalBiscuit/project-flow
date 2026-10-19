@@ -1,7 +1,12 @@
 import mermaid from "mermaid";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Diagram, ProjectReport, TicketView } from "./domain.ts";
+import type {
+	Diagram,
+	ProjectReport,
+	TicketState,
+	TicketView,
+} from "./domain.ts";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -79,6 +84,34 @@ function NodeLine({
 	);
 }
 
+const stateLabels: Record<TicketState, string> = {
+	done: "Done",
+	dropped: "Dropped",
+	blocked: "Blocked",
+	inProgress: "In progress",
+	inReview: "In review",
+	awaitingMerge: "Awaiting merge",
+	backlog: "Backlog",
+};
+
+function StateLegend({ theme }: { theme: boolean }) {
+	const kinds = [
+		...Object.entries(stateLabels),
+		...(theme ? [["theme", "Theme"]] : []),
+		["dashed", "Cross-project blocker"],
+	];
+	return (
+		<ul className="state-legend" aria-label="Diagram key">
+			{kinds.map(([kind, label]) => (
+				<li key={kind}>
+					<span className={`swatch ${kind}`} />
+					{label}
+				</li>
+			))}
+		</ul>
+	);
+}
+
 function DiagramView({
 	diagram,
 	ticket,
@@ -116,9 +149,25 @@ function Report({
 				</a>
 			</p>
 			<h1>{report.name}</h1>
+			<nav className="report-nav" aria-label="Report sections">
+				{report.sections.map((section) => (
+					<a key={section.id} href={`#${section.id}`}>
+						{section.title}
+					</a>
+				))}
+			</nav>
 			{report.sections.map((section) => (
 				<section key={section.id} className="report-section" id={section.id}>
 					<h2>{section.title}</h2>
+					{section.id === "featureMap" ? (
+						<StateLegend
+							theme={
+								section.diagrams?.some((diagram) =>
+									diagram.nodes.some((node) => node.state === "theme"),
+								) ?? false
+							}
+						/>
+					) : null}
 					{section.text === undefined ? null : (
 						<p className="summary">{section.text}</p>
 					)}
