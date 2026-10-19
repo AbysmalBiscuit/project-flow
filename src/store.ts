@@ -74,6 +74,12 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 		)
 	`);
 	db.run(`
+		create table if not exists replies (
+			ticket_key text primary key,
+			replied_at text not null
+		)
+	`);
+	db.run(`
 		create table if not exists project_errors (
 			project text primary key,
 			error text not null
@@ -144,6 +150,17 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					.query("select fetched_at, error from fetch_status where id = 1")
 					.get() as { fetched_at: string | null; error: string | null };
 				return { fetchedAt: row.fetched_at, error: row.error };
+			},
+			recordReply(key, at) {
+				db.query(
+					"insert into replies (ticket_key, replied_at) values (?, ?) on conflict(ticket_key) do update set replied_at = excluded.replied_at",
+				).run(key, at);
+			},
+			replyAfter(key) {
+				const row = db
+					.query("select replied_at from replies where ticket_key = ?")
+					.get(key) as { replied_at: string } | null;
+				return row?.replied_at ?? null;
 			},
 		},
 		close: () => db.close(),

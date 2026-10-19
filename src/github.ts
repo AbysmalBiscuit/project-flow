@@ -5,7 +5,11 @@ import type {
 	BotReaction,
 	BotReview,
 	Comment,
+	PostedReply,
 	PullRequest,
+	ReplyRequest,
+	Thread,
+	ThreadComment,
 	Ticket,
 	TicketRef,
 } from "./domain.ts";
@@ -1276,6 +1280,12 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			}
 			return names;
 		},
+		fetchThread(project, key) {
+			return fetchGithubThread(token, fetchImpl, project, key);
+		},
+		postReply(reply) {
+			return postGithubReply(token, fetchImpl, reply);
+		},
 	};
 }
 
@@ -1320,6 +1330,183 @@ async function listCommentBodies(
 		}
 	}
 	return bodies;
+}
+
+function ticketNumber(project: string, key: string): number | null {
+	const marker = `${project}#`;
+	const raw = key.startsWith(marker) ? key.slice(marker.length) : key;
+	if (!/^\d+$/.test(raw)) {
+		return null;
+	}
+	return Number(raw);
+}
+
+const githubThreadComment = z.object({
+	id: z.number(),
+	body: z.string().nullable().optional(),
+	html_url: z.string().optional(),
+	created_at: z.string().optional(),
+	user: z.object({ login: z.string() }).nullable().optional(),
+	in_reply_to_id: z.number().nullable().optional(),
+});
+
+const postedComment = z.object({
+	id: z.number(),
+	body: z.string().nullable().optional(),
+	html_url: z.string(),
+	created_at: z.string(),
+});
+
+async function githubJson(
+	url: string,
+	token: string,
+	fetchImpl: Fetch,
+	init: RequestInit,
+	label: string,
+): Promise<unknown> {
+	const response = await fetchImpl(url, {
+		...init,
+		headers: { ...githubHeaders(token), ...init.headers },
+	});
+	if (!response.ok) {
+		throw new Error(`GitHub ${label} failed (HTTP ${response.status})`);
+	}
+	return response.json();
+}
+
+function toThreadComment(
+	comment: z.infer<typeof githubThreadComment>,
+	kind: ThreadComment["kind"],
+): ThreadComment {
+	return {
+		id: String(comment.id),
+		body: comment.body ?? "",
+		author: comment.user?.login ?? "",
+		createdAt: comment.created_at ?? "",
+		url: comment.html_url ?? "",
+		parentId:
+			comment.in_reply_to_id === undefined || comment.in_reply_to_id === null
+				? null
+				: String(comment.in_reply_to_id),
+		kind,
+	};
+}
+
+export async function fetchGithubThread(
+	token: string,
+	fetchImpl: Fetch,
+	project: string,
+	key: string,
+): Promise<Thread | null> {
+	if (!project.includes("/")) {
+		return null;
+	}
+	const number = ticketNumber(project, key);
+	if (number === null) {
+		return null;
+	}
+	const issueUrl = `https://api.github.com/repos/${project}/issues/${number}`;
+	const issueResponse = await fetchImpl(issueUrl, {
+		headers: githubHeaders(token),
+	});
+	if (issueResponse.status === 404) {
+		return null;
+	}
+	if (!issueResponse.ok) {
+		throw new Error(
+			`GitHub fetch thread failed (HTTP ${issueResponse.status})`,
+		);
+	}
+	const issue = z
+		.object({
+			title: z.string(),
+			html_url: z.string(),
+			pull_request: z.unknown().optional(),
+		})
+		.parse(await issueResponse.json());
+	const comments = z
+		.array(githubThreadComment)
+		.parse(
+			await githubJson(
+				`https://api.github.com/repos/${project}/issues/${number}/comments?per_page=100&page=1`,
+				token,
+				fetchImpl,
+				{},
+				"fetch thread",
+			),
+		)
+		.map((comment) => toThreadComment(comment, "comment"));
+	const review =
+		issue.pull_request === undefined
+			? []
+			: z
+					.array(githubThreadComment)
+					.parse(
+						await githubJson(
+							`https://api.github.com/repos/${project}/pulls/${number}/comments?per_page=100&page=1`,
+							token,
+							fetchImpl,
+							{},
+							"fetch review thread",
+						),
+					)
+					.map((comment) => toThreadComment(comment, "review"));
+	return {
+		tracker: "github",
+		project,
+		key,
+		title: issue.title,
+		url: issue.html_url,
+		comments: [...comments, ...review],
+	};
+}
+
+export async function postGithubReply(
+	token: string,
+	fetchImpl: Fetch,
+	reply: ReplyRequest,
+): Promise<PostedReply> {
+	const number = ticketNumber(reply.project, reply.key);
+	if (number === null) {
+		throw new Error("GitHub reply failed: ticket key has no number");
+	}
+	const review = reply.kind === "review";
+	const parent = reply.parentId === undefined ? null : Number(reply.parentId);
+	if (review && (parent === null || !Number.isInteger(parent))) {
+		throw new Error("GitHub reply failed: review thread has no parent");
+	}
+	const issue = await fetchImpl(
+		`https://api.github.com/repos/${reply.project}/issues/${number}`,
+		{ headers: githubHeaders(token) },
+	);
+	if (issue.status === 404) {
+		throw new Error("GitHub reply failed (HTTP 404): ticket not found");
+	}
+	const url = review
+		? `https://api.github.com/repos/${reply.project}/pulls/${number}/comments`
+		: `https://api.github.com/repos/${reply.project}/issues/${number}/comments`;
+	const payload =
+		review && parent !== null
+			? { body: reply.body, in_reply_to: parent }
+			: { body: reply.body };
+	const response = await fetchImpl(url, {
+		method: "POST",
+		headers: {
+			...githubHeaders(token),
+			"content-type": "application/json",
+		},
+		body: JSON.stringify(payload),
+	});
+	if (!response.ok) {
+		throw new Error(`GitHub reply failed (HTTP ${response.status})`);
+	}
+	const created = postedComment.parse(await response.json());
+	return {
+		id: String(created.id),
+		body: created.body ?? reply.body,
+		url: created.html_url,
+		createdAt: created.created_at,
+	};
 }
 
 async function listBlockedBy(

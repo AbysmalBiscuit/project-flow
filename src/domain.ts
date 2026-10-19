@@ -161,6 +161,41 @@ export type Diagram = {
 	definition: string;
 };
 
+export type ThreadComment = {
+	id: string;
+	body: string;
+	author: string;
+	createdAt: string;
+	url: string;
+	parentId: string | null;
+	kind: "comment" | "review";
+};
+
+export type Thread = {
+	tracker: "github" | "linear";
+	project: string;
+	key: string;
+	title: string;
+	url: string;
+	comments: ThreadComment[];
+};
+
+export type ReplyRequest = {
+	tracker: "github" | "linear";
+	project: string;
+	key: string;
+	body: string;
+	parentId?: string;
+	kind?: "comment" | "review";
+};
+
+export type PostedReply = {
+	id: string;
+	body: string;
+	url: string;
+	createdAt: string;
+};
+
 export type NeedsYouItem = {
 	project: string;
 	tracker: "github" | "linear";
@@ -1301,6 +1336,7 @@ export function projectCounts(
 	rules: Omit<NeedsYouRules, "noSenior"> & {
 		noSenior: Record<string, boolean>;
 	},
+	repliedAt: (ticketKey: string) => string | null = () => null,
 ): {
 	counts: ProjectCounts;
 	needsYou: NeedsYouItem[];
@@ -1411,6 +1447,7 @@ export function projectCounts(
 			viewerLogins: rules.viewerLogins,
 			noSenior: projectHasNoSenior(rules.noSenior, key, tracker),
 		},
+		repliedAt,
 	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
@@ -1624,14 +1661,26 @@ function replyAfter(comments: Comment[], askIndex: number): Comment | null {
 	const id = askId(ask.body);
 	for (let index = ordered.length - 1; index > askIndex; index -= 1) {
 		const comment = ordered[index];
-		if (comment === undefined || workcellMarker.test(comment.body)) {
+		if (
+			comment === undefined ||
+			workcellMarker.test(comment.body) ||
+			comment.body.trimStart().startsWith(progressHeading)
+		) {
 			continue;
 		}
 		const opening = comment.body.trim();
+		if (askId(opening) !== null) {
+			continue;
+		}
+		const differentAuthor =
+			comment.author !== undefined &&
+			(ask.author === undefined ||
+				ask.author.toLowerCase() !== comment.author.toLowerCase());
 		if (
 			(id !== null && quotesAsk(opening, id)) ||
 			answerPrefix.test(opening) ||
-			quotesAskText(opening, ask.body)
+			quotesAskText(opening, ask.body) ||
+			(opening !== "" && differentAuthor)
 		) {
 			return comment;
 		}
@@ -1652,6 +1701,24 @@ function assignedToViewer(ticket: Ticket, viewers: Set<string>): boolean {
 	});
 }
 
+function postedAfterAsk(
+	comments: Comment[],
+	ask: OpenAsk | null,
+	postedAt: string | null,
+): boolean {
+	if (postedAt === null || ask === null) {
+		return false;
+	}
+	return (
+		commentTime(
+			orderedComments(comments)[ask.index] ?? {
+				body: "",
+				createdAt: postedAt,
+			},
+		) <= commentTime({ body: "", createdAt: postedAt })
+	);
+}
+
 function needsYouItem(
 	project: string,
 	tracker: ProjectCounts["tracker"],
@@ -1660,6 +1727,7 @@ function needsYouItem(
 	ask: OpenAsk | null,
 	comments: Comment[],
 	reason: NeedsYouItem["reason"],
+	postedAt: string | null = null,
 ): NeedsYouItem {
 	const reply = ask === null ? null : replyAfter(comments, ask.index);
 	return {
@@ -1669,7 +1737,7 @@ function needsYouItem(
 		headline: ask?.headline ?? title,
 		reason,
 		tags: ask?.tags ?? [],
-		answered: reply !== null,
+		answered: reply !== null || postedAfterAsk(comments, ask, postedAt),
 		acknowledged: (reply?.reactions ?? 0) > 0,
 	};
 }
@@ -1695,6 +1763,7 @@ export function needsYouItems(
 	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
 	rules: NeedsYouRules,
+	repliedAt: (key: string) => string | null = () => null,
 ): NeedsYouItem[] {
 	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
 	const viewers = new Set(
@@ -1728,6 +1797,7 @@ export function needsYouItems(
 				ask,
 				comments,
 				ask !== null ? "ask" : awaiting ? "awaitingMerge" : "label",
+				repliedAt(ticket.key),
 			),
 		);
 	}
@@ -1743,15 +1813,17 @@ export function needsYouItems(
 		if (ask === null) {
 			continue;
 		}
+		const key = pullKey(pull);
 		items.push(
 			needsYouItem(
 				project,
 				"github",
-				pullKey(pull),
+				key,
 				pull.title,
 				ask,
 				comments,
 				"ask",
+				repliedAt(key),
 			),
 		);
 	}

@@ -1,5 +1,13 @@
 import type { Configuration } from "./configuration.ts";
-import type { Overview, PullRequest, Snapshot, Ticket } from "./domain.ts";
+import type {
+	Overview,
+	PostedReply,
+	PullRequest,
+	ReplyRequest,
+	Snapshot,
+	Thread,
+	Ticket,
+} from "./domain.ts";
 
 export type { Snapshot };
 
@@ -59,6 +67,8 @@ export type Tracker = {
 		viewer: Viewer | null;
 	}>;
 	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
+	fetchThread?: (project: string, key: string) => Promise<Thread | null>;
+	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
 };
 
 export type Store = {
@@ -72,6 +82,8 @@ export type Store = {
 	clearProjectError: (project: string) => void;
 	projectError: (project: string) => string | null;
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
+	recordReply: (key: string, at: string) => void;
+	replyAfter: (key: string) => string | null;
 };
 
 export type Change = {

@@ -1,5 +1,13 @@
 import { z } from "zod";
-import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
+import type {
+	PostedReply,
+	PullRequest,
+	ReplyRequest,
+	Thread,
+	ThreadComment,
+	Ticket,
+	TicketRef,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	fetchHeadCommittedAt,
@@ -86,7 +94,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 				nodes { url title sourceType }
 			}
 			comments(first: 50) {
-				nodes { body createdAt user { name displayName } }
+				nodes { body createdAt user { name displayName } reactions { id } }
 				pageInfo { hasNextPage endCursor }
 			}
 			inverseRelations(first: 30) {
@@ -179,8 +187,10 @@ const issueNode = z.object({
 		.object({
 			nodes: z.array(
 				z.object({
+					id: z.string().optional(),
 					body: z.string().nullable().optional(),
 					createdAt: z.string().optional(),
+					parent: z.object({ id: z.string() }).nullable().optional(),
 					user: z
 						.object({
 							name: z.string().nullable().optional(),
@@ -188,6 +198,7 @@ const issueNode = z.object({
 						})
 						.nullable()
 						.optional(),
+					reactions: z.array(z.object({ id: z.string() })).optional(),
 				}),
 			),
 			pageInfo: pageInfo.optional(),
@@ -403,6 +414,7 @@ const commentPage = z.object({
 								})
 								.nullable()
 								.optional(),
+							reactions: z.array(z.object({ id: z.string() })).optional(),
 						}),
 					),
 					pageInfo,
@@ -416,7 +428,7 @@ const commentPage = z.object({
 const commentsQuery = `query IssueComments($id: String!, $after: String) {
 	issue(id: $id) {
 		comments(first: 50, after: $after) {
-			nodes { body createdAt user { name displayName } }
+			nodes { body createdAt user { name displayName } reactions { id } }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
@@ -426,6 +438,7 @@ type ListedComment = {
 	body: string;
 	createdAt?: string;
 	author?: string;
+	reactions?: number;
 };
 
 function commentAuthor(
@@ -456,6 +469,7 @@ function listedComment(node: {
 		  }
 		| null
 		| undefined;
+	reactions?: { id: string }[] | undefined;
 }): ListedComment | null {
 	const body = node.body ?? "";
 	if (body === "") {
@@ -466,6 +480,9 @@ function listedComment(node: {
 		body,
 		...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }),
 		...(author === undefined ? {} : { author }),
+		...(node.reactions === undefined
+			? {}
+			: { reactions: node.reactions.length }),
 	};
 }
 
@@ -794,5 +811,189 @@ export function linearTracker(
 		async listBranches(_project) {
 			return [];
 		},
+		fetchThread(project, ticketKey) {
+			return fetchLinearThread(key, fetchImpl, project, ticketKey);
+		},
+		postReply(reply) {
+			return postLinearReply(key, fetchImpl, reply);
+		},
+	};
+}
+
+const threadQuery = `query IssueThread($id: String!) {
+	issue(id: $id) {
+		identifier
+		title
+		url
+		comments(first: 50) {
+			nodes {
+				id
+				body
+				createdAt
+				url
+				parent { id }
+				user { name displayName }
+			}
+		}
+	}
+}`;
+
+const threadPage = z.object({
+	data: z.object({
+		issue: z
+			.object({
+				identifier: z.string(),
+				title: z.string(),
+				url: z.string(),
+				comments: z.object({
+					nodes: z.array(
+						z.object({
+							id: z.string(),
+							body: z.string().nullable().optional(),
+							createdAt: z.string().optional(),
+							url: z.string().optional(),
+							parent: z.object({ id: z.string() }).nullable().optional(),
+							user: z
+								.object({
+									name: z.string().nullable().optional(),
+									displayName: z.string().nullable().optional(),
+								})
+								.nullable()
+								.optional(),
+						}),
+					),
+				}),
+			})
+			.nullable(),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+const commentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
+	commentCreate(input: $input) {
+		success
+		comment { id body createdAt url }
+	}
+}`;
+
+const createdComment = z.object({
+	data: z.object({
+		commentCreate: z.object({
+			success: z.boolean(),
+			comment: z
+				.object({
+					id: z.string(),
+					body: z.string().nullable().optional(),
+					createdAt: z.string(),
+					url: z.string(),
+				})
+				.nullable(),
+		}),
+	}),
+	errors: z.array(z.object({ message: z.string() })).optional(),
+});
+
+async function linearPost(
+	key: string,
+	fetchImpl: Fetch,
+	queryText: string,
+	variables: Record<string, unknown>,
+	label: string,
+): Promise<unknown> {
+	const response = await fetchImpl(endpoint, {
+		method: "POST",
+		headers: linearHeaders(key),
+		body: JSON.stringify({ query: queryText, variables }),
+	});
+	if (!response.ok) {
+		throw new Error(`Linear ${label} failed (HTTP ${response.status})`);
+	}
+	return response.json();
+}
+
+function linearAuthor(
+	user:
+		| {
+				name?: string | null | undefined;
+				displayName?: string | null | undefined;
+		  }
+		| null
+		| undefined,
+): string {
+	return user?.displayName ?? user?.name ?? "";
+}
+
+export async function fetchLinearThread(
+	key: string,
+	fetchImpl: Fetch,
+	project: string,
+	ticketKey: string,
+): Promise<Thread | null> {
+	const body = await linearPost(
+		key,
+		fetchImpl,
+		threadQuery,
+		{ id: ticketKey },
+		"fetch thread",
+	);
+	const page = threadPage.parse(body);
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		throw new Error(`Linear fetch thread failed: ${error.message}`);
+	}
+	const issue = page.data.issue;
+	if (issue === null) {
+		return null;
+	}
+	const comments: ThreadComment[] = issue.comments.nodes.map((comment) => ({
+		id: comment.id,
+		body: comment.body ?? "",
+		author: linearAuthor(comment.user),
+		createdAt: comment.createdAt ?? "",
+		url: comment.url ?? "",
+		parentId: comment.parent?.id ?? null,
+		kind: "comment",
+	}));
+	return {
+		tracker: "linear",
+		project,
+		key: issue.identifier,
+		title: issue.title,
+		url: issue.url,
+		comments,
+	};
+}
+
+export async function postLinearReply(
+	key: string,
+	fetchImpl: Fetch,
+	reply: ReplyRequest,
+): Promise<PostedReply> {
+	const input = {
+		issueId: reply.key,
+		body: reply.body,
+		...(reply.parentId === undefined ? {} : { parentId: reply.parentId }),
+	};
+	const body = await linearPost(
+		key,
+		fetchImpl,
+		commentCreate,
+		{ input },
+		"reply",
+	);
+	const page = createdComment.parse(body);
+	const error = page.errors?.[0];
+	if (error !== undefined) {
+		throw new Error(`Linear reply failed: ${error.message}`);
+	}
+	const created = page.data.commentCreate.comment;
+	if (!page.data.commentCreate.success || created === null) {
+		throw new Error("Linear reply failed");
+	}
+	return {
+		id: created.id,
+		body: created.body ?? reply.body,
+		url: created.url,
+		createdAt: created.createdAt,
 	};
 }

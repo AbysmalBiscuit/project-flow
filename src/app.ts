@@ -1,10 +1,14 @@
+import { z } from "zod";
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type {
 	Overview,
+	PostedReply,
 	ProjectPoll,
 	ProjectReport,
+	ReplyRequest,
 	Snapshot,
+	Thread,
 } from "./domain.ts";
 import {
 	checkoutBasenames,
@@ -135,6 +139,7 @@ function projectViews(
 				error: store.projectError(row.key),
 			},
 			needsYouRules(configuration, viewers),
+			(ticketKey) => store.replyAfter(ticketKey),
 		);
 		return {
 			row,
@@ -197,6 +202,101 @@ function mergeFound(
 		found.push(project);
 	}
 	return found;
+}
+
+const replyBody = z.object({
+	tracker: z.enum(["github", "linear"]),
+	project: z.string().trim().min(1),
+	key: z.string().trim().min(1),
+	body: z.string(),
+	parentId: z.string().optional(),
+	kind: z.enum(["comment", "review"]).optional(),
+});
+
+function trackerFor(
+	trackers: { github: Tracker | null; linear: Tracker | null },
+	name: string,
+): Tracker | null {
+	if (name === "github") {
+		return trackers.github;
+	}
+	if (name === "linear") {
+		return trackers.linear;
+	}
+	return null;
+}
+
+function trackerError(error: unknown): Response {
+	const message = error instanceof Error ? error.message : "reply failed";
+	const status = message.match(/HTTP (\d+)/)?.[1];
+	const code = status === undefined ? 502 : Number(status);
+	return Response.json({ error: message }, { status: code });
+}
+
+async function threadResponse(
+	trackers: { github: Tracker | null; linear: Tracker | null },
+	trackerName: string,
+	key: string,
+	request: Request,
+): Promise<Response> {
+	const tracker = trackerFor(trackers, trackerName);
+	const project = new URL(request.url).searchParams.get("project") ?? "";
+	if (tracker?.fetchThread === undefined || project.trim() === "") {
+		return Response.json({ error: "thread not found" }, { status: 404 });
+	}
+	try {
+		const thread: Thread | null = await tracker.fetchThread(
+			project,
+			decodeURIComponent(key),
+		);
+		if (thread === null) {
+			return Response.json({ error: "thread not found" }, { status: 404 });
+		}
+		return Response.json(thread);
+	} catch (error) {
+		return trackerError(error);
+	}
+}
+
+async function replyResponse(
+	trackers: { github: Tracker | null; linear: Tracker | null },
+	request: Request,
+	store: Store,
+	notifier: Notifier,
+	configuration: Configuration,
+	viewers: Viewer[],
+): Promise<Response> {
+	const parsed = replyBody.safeParse(await request.json().catch(() => null));
+	if (!parsed.success) {
+		return Response.json({ error: "invalid reply" }, { status: 400 });
+	}
+	const tracker = trackerFor(trackers, parsed.data.tracker);
+	if (tracker?.postReply === undefined) {
+		return Response.json({ error: "tracker unavailable" }, { status: 404 });
+	}
+	if (parsed.data.body.trim() === "") {
+		return Response.json({ error: "reply is empty" }, { status: 400 });
+	}
+	const reply: ReplyRequest = {
+		tracker: parsed.data.tracker,
+		project: parsed.data.project,
+		key: parsed.data.key,
+		body: parsed.data.body,
+		...(parsed.data.parentId === undefined
+			? {}
+			: { parentId: parsed.data.parentId }),
+		...(parsed.data.kind === undefined ? {} : { kind: parsed.data.kind }),
+	};
+	try {
+		const created: PostedReply = await tracker.postReply(reply);
+		store.recordReply(reply.key, created.createdAt);
+		notifier.publish({
+			overview: overview(store, configuration, viewers),
+		});
+		return Response.json(created, { status: 201 });
+	} catch (error) {
+		return trackerError(error);
+	}
 }
 
 function eventStream(notifier: Notifier): Response {
@@ -664,6 +764,26 @@ export async function start(options: StartOptions): Promise<Running> {
 					await pollAgain();
 					return new Response(null, { status: 204 });
 				},
+			},
+			"/api/threads/:tracker/:key": {
+				GET: (request) =>
+					threadResponse(
+						trackers,
+						request.params.tracker,
+						request.params.key,
+						request,
+					),
+			},
+			"/api/replies": {
+				POST: (request) =>
+					replyResponse(
+						trackers,
+						request,
+						opened.store,
+						notifier,
+						configuration,
+						pollOptions.viewers,
+					),
 			},
 		},
 	});
