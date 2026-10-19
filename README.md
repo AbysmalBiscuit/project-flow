@@ -63,7 +63,7 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins uses `GITHUB_TOKEN` when it is set and does not run `gh`.
 
-An empty configuration starts with no token. A pin that uses the GitHub tracker does not: startup exits and names `GITHUB_TOKEN`. With no token, a GitHub project found from a local checkout shows that same error.
+An empty configuration starts without a token when neither source gives one. A pin that uses the GitHub tracker does not: startup exits and names `GITHUB_TOKEN`. With no token, a GitHub project found from a local checkout shows that same error.
 
 `src/main.ts` decides that:
 
@@ -81,7 +81,11 @@ async function resolveToken(io: RunIo): Promise<string | null> {
 	if (fromEnv !== undefined && fromEnv.trim() !== "") {
 		return fromEnv;
 	}
-	return io.readGhToken(io.env);
+	const fromGh = await io.readGhToken(io.env);
+	if (fromGh === null || fromGh.trim() === "") {
+		return null;
+	}
+	return fromGh;
 }
 ```
 
