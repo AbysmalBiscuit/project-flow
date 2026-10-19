@@ -3,20 +3,8 @@
 # A path or a filter is not a full suite and takes no slot.
 set -eu
 
+# bunfig.toml lives at the checkout. A caller outside it still loads the preload.
 root=$(CDPATH= git -C "$(dirname "$0")" rev-parse --show-toplevel)
-config_dir=${TMPDIR:-/var/tmp}/project-flow-git-config-$$
-mkdir -p "$config_dir"
-printf '[maintenance]\n\tauto = false\n' > "$config_dir/gitconfig"
-export PROJECT_FLOW_TEST_GIT_CONFIG=$config_dir/gitconfig
-export GIT_CONFIG_GLOBAL=$PROJECT_FLOW_TEST_GIT_CONFIG
-export GIT_CONFIG_NOSYSTEM=1
-unset XDG_RUNTIME_DIR
-for name in $(env | sed -n 's/=.*//p'); do
-	case $name in
-	DBUS_*) unset "$name" ;;
-	esac
-done
-export DBUS_SESSION_BUS_ADDRESS=unix:path=/session-bus-goes-nowhere
 
 full=1
 expect=
@@ -56,7 +44,7 @@ for arg in "$@"; do
 done
 
 if [ "$full" -eq 0 ]; then
-	exec bun test --preload "$root/test/preload.ts" "$@"
+	exec bun test --cwd "$root" "$@"
 fi
 
 slots=$(($(nproc) / 4))
@@ -71,7 +59,7 @@ chmod 1777 "$dir"
 take() {
 	slot=$1
 	shift
-	flock -n --conflict-exit-code 75 "$dir/slot-$slot.lock" bun test --preload "$root/test/preload.ts" "$@"
+	flock -n --conflict-exit-code 75 "$dir/slot-$slot.lock" bun test --cwd "$root" "$@"
 }
 
 i=0

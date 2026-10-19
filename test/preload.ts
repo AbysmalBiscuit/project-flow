@@ -1,6 +1,7 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { afterAll } from "bun:test";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const nowhere = "unix:path=/session-bus-goes-nowhere";
 
@@ -13,15 +14,15 @@ function isolateBus(env: Record<string, string | undefined>): void {
 	env.DBUS_SESSION_BUS_ADDRESS = nowhere;
 }
 
-function dropCredentialKeys(env: Record<string, string | undefined>): void {
-	const count = env.GIT_CONFIG_COUNT ?? "";
-	if (!/^\d+$/.test(count)) {
-		return;
-	}
-	for (let index = 0; index < Number(count); index += 1) {
-		const key = env[`GIT_CONFIG_KEY_${index}`] ?? "";
-		if (key.includes("credential") && key.includes("helper")) {
-			env[`GIT_CONFIG_VALUE_${index}`] = "";
+function dropInjectedGitConfig(env: Record<string, string | undefined>): void {
+	for (const name of Object.keys(env)) {
+		if (
+			name === "GIT_CONFIG_COUNT" ||
+			name === "GIT_CONFIG_PARAMETERS" ||
+			name.startsWith("GIT_CONFIG_KEY_") ||
+			name.startsWith("GIT_CONFIG_VALUE_")
+		) {
+			delete env[name];
 		}
 	}
 }
@@ -40,7 +41,10 @@ function testGitConfig(): string {
 }
 
 function isolateGit(env: Record<string, string | undefined>): void {
-	dropCredentialKeys(env);
+	dropInjectedGitConfig(env);
+	delete env.GIT_ASKPASS;
+	delete env.SSH_ASKPASS;
+	env.GIT_TERMINAL_PROMPT = "0";
 	env.GIT_CONFIG_GLOBAL = testGitConfig();
 	env.GIT_CONFIG_NOSYSTEM = "1";
 }
@@ -50,7 +54,14 @@ function isolateChild(env: Record<string, string | undefined>): void {
 	isolateGit(env);
 }
 
+const ownedConfig = testGitConfig();
 isolateChild(process.env);
+
+afterAll(() => {
+	if (process.env.PROJECT_FLOW_TEST_GIT_CONFIG === ownedConfig) {
+		rmSync(dirname(ownedConfig), { recursive: true, force: true });
+	}
+});
 
 const spawn = Bun.spawn.bind(Bun);
 const spawnSync = Bun.spawnSync.bind(Bun);
@@ -83,8 +94,7 @@ function withChildEnv(
 	const env: Record<string, string | undefined> =
 		given === undefined ? { ...process.env } : { ...given };
 	isolateChild(env);
-	options.env = env;
-	return args;
+	return [args[0], { ...options, env }];
 }
 
 Bun.spawn = ((...args: Parameters<typeof Bun.spawn>) =>
