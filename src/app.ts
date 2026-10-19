@@ -695,8 +695,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		: [];
 
 	if (!options.primed) {
-		primeAttention(after, options.seenNotifications);
+		for (const id of primeAttention(after)) {
+			options.seenNotifications.add(id);
+		}
 		options.primed = true;
+	}
+	for (const entry of notifications) {
+		options.seenNotifications.add(entry.id);
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
