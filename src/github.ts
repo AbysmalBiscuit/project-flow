@@ -911,7 +911,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					});
 				}
 			}
-			if (pulls.some((pull) => pull.repo === repo)) {
+			if (pulls.length > 0) {
 				pulls.push(
 					...(await mergedPullHistory(repo, token, fetchImpl, seenReviews)),
 				);
