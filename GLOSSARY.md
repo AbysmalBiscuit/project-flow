@@ -51,11 +51,11 @@ _Avoid_: Category, scope group
 ### State
 
 **State**:
-The place of a ticket in its workflow. The tracker status sets the state. GitHub evidence and workcell evidence move the state forward. Missing evidence never moves the state back. Done and Dropped come from the tracker. A merged PR that closes the ticket also sets Done.
+The place of a ticket in its workflow. The tracker status sets the state. GitHub evidence and workcell evidence move it forward. Issue #97 holds the operating rules.
 _Avoid_: Status (when the state is meant), column
 
 **Lane**:
-The column a ticket sits in on a project board. The lane matches the ticket's state. The tracker sets the lanes, in tracker order and tracker colours. The app adds an Awaiting merge lane when the tracker has none.
+The column a ticket sits in on a project board. Tracker statuses set the lanes. A repo without statuses uses its factory labels or the app's lanes.
 _Avoid_: Column, status column
 
 **Blocked**:
@@ -71,18 +71,18 @@ A chip on a ticket whose workcell run failed or stalled. The ticket returns to t
 _Avoid_: Failed, error, stalled
 
 **Done**:
-A closed ticket that was completed.
+A ticket the tracker closed as completed, or whose merged PR closes it.
 
 **Dropped**:
 A closed ticket that was cancelled or closed as not planned.
 _Avoid_: Cancelled, won't do
 
 **In progress**:
-An open ticket whose state has moved forward on a live workcell run, a pushed branch, a started devkit todo, or a draft PR.
+An open ticket whose tracker status or evidence puts it in progress. Evidence is a live workcell run, a pushed branch, a started devkit todo, or a draft PR.
 _Avoid_: Started, active
 
 **In review**:
-An open ticket whose least advanced open PR is out of draft and has a review cycle that has begun but not finished. The review cycle is the workcell run's review rounds when a run exists, else the expected review bots.
+An open ticket whose tracker status or evidence puts it in review. Evidence is an open PR out of draft whose review cycle has begun but not finished.
 _Avoid_: Under review, PR open
 
 **Awaiting merge**:
@@ -117,7 +117,7 @@ _Avoid_: Job, session
 ### Attention
 
 **Needs you**:
-A ticket or PR that only Lev can move: it has an open ask addressed to Lev, it is awaiting merge, or it carries a need-human or need-engineer label with Lev as assignee.
+A ticket or PR that only Lev can move. Reasons include an open ask to Lev, awaiting merge, or a failed or stalled workcell run. A need-human or need-engineer label with Lev as assignee also counts.
 _Avoid_: Waits on you, waits on Lev, needs Lev
 
 **Ask**:
