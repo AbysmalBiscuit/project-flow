@@ -588,6 +588,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		),
 	);
 	const listed = [];
+	const fillAsPolled = options.store.readTickets().length === 0;
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
@@ -673,10 +674,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					? (shown.find((row) => row.key === item.key) ?? null)
 					: null;
 			}
-			if (
-				visible.has(project.key) &&
-				options.store.readTickets().length === 0
-			) {
+			if (fillAsPolled && visible.has(project.key)) {
 				publishPoll(options, configuration, outcomes, []);
 			}
 		} catch (error) {
@@ -702,7 +700,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				hidden,
 				row: stored ?? empty,
 			});
-			if (options.store.readTickets().length === 0) {
+			if (fillAsPolled) {
 				publishPoll(options, configuration, outcomes, []);
 			}
 		}

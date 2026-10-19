@@ -8,6 +8,7 @@ import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
 const repo = "acme/widget";
 const otherRepo = "acme/other";
+const thirdRepo = "acme/third";
 const linearProject = "widget-launch";
 
 function ticket(
@@ -595,6 +596,7 @@ describe("live updates", () => {
 			});
 		const widgetHeld = held(repo);
 		const otherHeld = held(otherRepo);
+		const thirdHeld = held(thirdRepo);
 		const fetchImpl: Fetch = async (input, init) => {
 			const discovered = recordedDiscovery(input, init);
 			if (discovered !== null) {
@@ -604,9 +606,15 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			const listed = listUrl(url) ?? listUrl(url, otherRepo);
+			const listed =
+				listUrl(url) ?? listUrl(url, otherRepo) ?? listUrl(url, thirdRepo);
 			if (listed !== null) {
-				await (url.includes(otherRepo) ? otherHeld : widgetHeld);
+				const heldFor = url.includes(otherRepo)
+					? otherHeld
+					: url.includes(thirdRepo)
+						? thirdHeld
+						: widgetHeld;
+				await heldFor;
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
 			return (
@@ -618,6 +626,7 @@ describe("live updates", () => {
 				pinned: [
 					{ tracker: "github", repo },
 					{ tracker: "github", repo: otherRepo },
+					{ tracker: "github", repo: thirdRepo },
 				],
 				pollIntervalSeconds: 3600,
 			}),
@@ -646,21 +655,36 @@ describe("live updates", () => {
 					}
 					release();
 					let sawWidget = false;
+					let sawOther = false;
 					for await (const event of stream.events) {
 						const body = JSON.parse(event.data) as OverviewBody;
 						const names = body.projects.map((project) => project.name);
-						if (names.includes(repo) && !names.includes(otherRepo)) {
-							sawWidget = true;
-							break;
+						if (!sawWidget) {
+							if (names.includes(otherRepo) || names.includes(thirdRepo)) {
+								throw new Error(
+									"a later project arrived before its poll ended",
+								);
+							}
+							if (names.includes(repo)) {
+								sawWidget = true;
+								expect(releases.has(otherRepo)).toBe(true);
+								expect(releases.has(thirdRepo)).toBe(true);
+								releases.get(otherRepo)?.();
+							}
+							continue;
 						}
-						if (names.includes(otherRepo)) {
-							throw new Error("other project arrived before its poll ended");
+						if (names.includes(thirdRepo)) {
+							throw new Error("third project arrived before its poll ended");
+						}
+						if (names.includes(otherRepo) && !names.includes(thirdRepo)) {
+							sawOther = true;
+							break;
 						}
 					}
 					expect(sawWidget).toBe(true);
-					expect(releases.has(otherRepo)).toBe(true);
+					expect(sawOther).toBe(true);
 					clearTimeout(timer);
-					releases.get(otherRepo)?.();
+					releases.get(thirdRepo)?.();
 					stream.close();
 					resolve();
 				})().catch((error: unknown) => {
