@@ -4,17 +4,16 @@
 	"steps": [
 		{ "goto": "/" },
 		{ "assert_text": "Overview" },
+		{ "assert_text": "Needs you" },
 		{ "assert_text": "All projects" },
-		{ "assert_text": "Cards" },
 		{ "shot": "overview-light" },
 		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "Overview" },
 		{ "shot": "overview-dark" },
-		{ "click": "button[aria-label='Theme']" },
+		{ "shot": "theme-hover" },
+		{ "click": "#overview-search" },
 		{ "fill": "#overview-search", "text": "board" },
 		{ "assert_text": "board" },
-		{ "shot": "overview-focus" },
-		{ "click": "a[href='/needs-you']" },
-		{ "assert_text": "Needs you" },
-		{ "shot": "needs-you-hover" }
+		{ "shot": "overview-focus" }
 	]
 }

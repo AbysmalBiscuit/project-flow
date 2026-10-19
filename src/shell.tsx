@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { onAppEvent } from "./events.ts";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
@@ -19,6 +20,40 @@ export type PageHeaderProps = {
 	view?: string;
 	onView?: (id: string) => void;
 };
+
+function ThemeIcon({ children }: { children: ReactNode }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			{children}
+		</svg>
+	);
+}
+
+function MoonIcon() {
+	return (
+		<ThemeIcon>
+			<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 7 7 0 0 0 20 14.5z" />
+		</ThemeIcon>
+	);
+}
+
+function SunIcon() {
+	return (
+		<ThemeIcon>
+			<circle cx="12" cy="12" r="4" />
+			<path d="M12 2.5v2.5M12 19v2.5M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2.5 12h2.5M19 12h2.5M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
+		</ThemeIcon>
+	);
+}
 
 const links = [
 	{ href: "/", label: navLabel.overview },
@@ -50,8 +85,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 				});
 		};
 		load();
+		const stop = onAppEvent("overview", () => {
+			load();
+		});
 		return () => {
 			stopped = true;
+			stop();
 		};
 	}, []);
 	const current = (href: string) =>
@@ -99,7 +138,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 						}
 					}}
 				>
-					{theme === "dark" ? "☀" : "☾"}
+					{theme === "dark" ? <SunIcon /> : <MoonIcon />}
 				</button>
 				<a
 					className={clsx(

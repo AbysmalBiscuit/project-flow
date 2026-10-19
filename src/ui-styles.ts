@@ -72,6 +72,7 @@ export const frame = stylex.create({
 		backgroundColor: {
 			default: "transparent",
 			":hover": colours.surfaceMuted,
+			":focus": colours.surfaceMuted,
 		},
 	},
 	current: {
@@ -92,6 +93,10 @@ export const frame = stylex.create({
 	spacer: {
 		flexGrow: 1,
 	},
+	glyph: {
+		width: measure.glyph,
+		height: measure.glyph,
+	},
 	icon: {
 		display: "inline-flex",
 		alignItems: "center",
@@ -106,6 +111,7 @@ export const frame = stylex.create({
 		backgroundColor: {
 			default: colours.canvas,
 			":hover": colours.surfaceMuted,
+			":focus": colours.surfaceMuted,
 		},
 		color: colours.ink,
 		font: "inherit",

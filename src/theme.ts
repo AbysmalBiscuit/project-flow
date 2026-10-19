@@ -4,7 +4,7 @@ import {
 	darkTheme,
 	lightScheme,
 	lightTheme,
-} from "./theme.stylex.ts";
+} from "./tokens.stylex.ts";
 import { root } from "./ui-styles.ts";
 
 export type PageTheme = "light" | "dark";
