@@ -1659,7 +1659,7 @@ function needsYouItem(
 		tracker,
 		key,
 		headline: ask?.headline ?? title,
-		reason: ask !== null ? "ask" : reason,
+		reason,
 		tags: ask?.tags ?? [],
 		answered: reply !== null,
 		acknowledged: (reply?.reactions ?? 0) > 0,
