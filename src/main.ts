@@ -26,7 +26,6 @@ export type RunIo = {
 		env?: Record<string, string | undefined>,
 	) => Promise<string | null>;
 	onListen?: (url: URL) => void;
-	notifyOnListen?: boolean;
 	stdout?: (line: string) => void;
 	stderr?: (line: string) => void;
 	databasePath?: string;
@@ -401,21 +400,15 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		listened = true;
-		if (io.notifyOnListen === true) {
-			io.onListen?.(running.url);
-		}
+		io.onListen?.(running.url);
 		const coldStart = await running.settled;
-		if (!(coldStart instanceof Error)) {
-			writeOut(running.url.href);
-			if (io.notifyOnListen !== true) {
-				io.onListen?.(running.url);
-			}
-		}
-		await (io.waitForStop ?? Promise.resolve());
-		await running.stop();
 		if (coldStart instanceof Error) {
+			await running.stop();
 			throw coldStart;
 		}
+		writeOut(running.url.href);
+		await (io.waitForStop ?? Promise.resolve());
+		await running.stop();
 		return result(0);
 	} catch (error) {
 		writeErr(error instanceof Error ? error.message : "startup failed");

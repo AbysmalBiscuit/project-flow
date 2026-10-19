@@ -673,8 +673,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					? (shown.find((row) => row.key === item.key) ?? null)
 					: null;
 			}
-			if (visible.has(project.key)) {
-				publishPoll(options, configuration, outcomes);
+			if (
+				visible.has(project.key) &&
+				options.store.readTickets().length === 0
+			) {
+				publishPoll(options, configuration, outcomes, []);
 			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : "poll failed";
@@ -699,20 +702,23 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				hidden,
 				row: stored ?? empty,
 			});
-			publishPoll(options, configuration, outcomes);
+			if (options.store.readTickets().length === 0) {
+				publishPoll(options, configuration, outcomes, []);
+			}
 		}
 	}
-	for (const key of [...options.fullPoll]) {
+	const fullKeys = [...options.fullPoll];
+	const reconciled = reconcilePoll(
+		options.store.readTickets(),
+		[...outcomes.values()],
+		fullKeys,
+	);
+	for (const key of fullKeys) {
 		if (outcomes.get(key)?.ok === true) {
 			options.fullPoll.delete(key);
 			options.lastFullPollAt.set(key, polledAt.getTime());
 		}
 	}
-	const reconciled = reconcilePoll(
-		options.store.readTickets(),
-		[...outcomes.values()],
-		[...options.fullPoll],
-	);
 	if (reconciled.globalError !== null) {
 		options.store.recordFetchError(reconciled.globalError);
 	} else if (failed !== null) {
@@ -764,11 +770,12 @@ function publishPoll(
 	options: PollOptions,
 	configuration: Configuration,
 	outcomes: Map<string, ProjectPoll>,
+	fullKeys: string[],
 ): void {
 	const reconciled = reconcilePoll(
 		options.store.readTickets(),
 		[...outcomes.values()],
-		[...options.fullPoll],
+		fullKeys,
 	);
 	options.store.replaceTickets(reconciled.rows);
 	for (const projectError of reconciled.projectErrors) {
@@ -779,6 +786,8 @@ function publishPoll(
 	});
 }
 
+const pollRunning = "poll is running";
+
 function runningOverview(
 	options: PollOptions,
 	configuration: Configuration,
@@ -787,7 +796,7 @@ function runningOverview(
 	if (!options.polling || body.error !== null) {
 		return body;
 	}
-	return { ...body, error: "poll is running" };
+	return { ...body, error: pollRunning };
 }
 
 export async function start(options: StartOptions): Promise<Running> {

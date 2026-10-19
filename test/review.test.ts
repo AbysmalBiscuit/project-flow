@@ -3134,17 +3134,6 @@ describe("review cycle", () => {
 			}
 			return recorded(input, init);
 		};
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<unknown>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) => {
-						expect(response.status).toBe(200);
-						resolve(await response.json());
-					})
-					.catch(reject);
-			};
-		});
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
@@ -3154,9 +3143,7 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					notifyOnListen: true,
-					onListen: (url) => startChecks(url.href),
-					waitForStop: checks.then(() => undefined),
+					waitForStop: Promise.resolve(),
 				}),
 			);
 			expect(result.exitCode).not.toBe(0);
@@ -3950,7 +3937,6 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					notifyOnListen: true,
 					onListen: (url) => startChecks(url.href),
 					waitForStop: checks.then(() => undefined),
 				}),
@@ -4138,7 +4124,6 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					notifyOnListen: true,
 					onListen: (url) => startChecks(url.href),
 					waitForStop: checks.then(() => undefined),
 				}),

@@ -572,7 +572,6 @@ describe("live updates", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date(goodPoll),
-					notifyOnListen: true,
 					onListen: (url) => startChecks(url.href),
 					waitForStop: checks,
 				}),
@@ -678,7 +677,6 @@ describe("live updates", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date(goodPoll),
-					notifyOnListen: true,
 					onListen: (url) => startChecks(url.href),
 					waitForStop: checks,
 				}),
@@ -848,7 +846,7 @@ describe("live updates", () => {
 					fetch: failing,
 					readGhToken: async () => null,
 					databasePath,
-					waitForStop: Promise.resolve(),
+					waitForStop: new Promise<void>(() => {}),
 				}),
 			);
 			expect(result.exitCode).toBe(1);
@@ -934,7 +932,6 @@ describe("live updates", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date(goodPoll),
-					notifyOnListen: true,
 					onListen: (url) => startChecks(url.href),
 					waitForStop: checks,
 				}),
