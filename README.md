@@ -65,7 +65,7 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins uses `GITHUB_TOKEN` when it is set and does not run `gh`.
 
-An empty configuration starts without a token when neither source gives one. A pin that uses the GitHub tracker does not: startup exits and names `GITHUB_TOKEN`. With no token, a GitHub project found from a local checkout shows that same error.
+An empty configuration starts without a token when neither source gives one. A pin that uses the GitHub tracker also starts. Each GitHub project shows an error that names `GITHUB_TOKEN`. A GitHub project found from a local checkout shows that same error.
 
 `src/main.ts` decides that:
 
@@ -103,7 +103,7 @@ async function resolveToken(
 		});
 ```
 
-The app reads `LINEAR_API_KEY` from the environment. It needs that key when a pinned project uses the Linear tracker. With the key set, the app also finds Linear projects. A GitHub-only configuration starts with no Linear key.
+The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker still poll, and the app keeps serving. A rejected token or key still exits and names that credential.
 
 ## Store
 

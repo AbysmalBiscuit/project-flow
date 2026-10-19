@@ -430,19 +430,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		checkoutBasenames(checkouts),
 	);
 	const linear = options.linear;
-	if (
-		linear === null &&
-		configuration.pinned.some((pin) => pin.tracker === "linear")
-	) {
-		throw new Error(missingLinearKey);
-	}
 	const github = options.github;
-	if (
-		github === null &&
-		configuration.pinned.some((pin) => pin.tracker === "github")
-	) {
-		throw new Error(missingToken);
-	}
 	let githubPage: { projects: FoundProject[]; viewer: Viewer | null } = {
 		projects: [],
 		viewer: null,
@@ -505,7 +493,12 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 		if (pin.tracker === "github" && "project" in pin) {
 			if (options.token === null) {
-				throw new Error(missingToken);
+				found.push({
+					key: refKey(pin),
+					tracker: pin.tracker,
+					updatedAt: null,
+				});
+				continue;
 			}
 			const located = await githubProjectByNumber(
 				options.token,
@@ -543,29 +536,25 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
-			if (project.tracker === "github") {
-				const hidden = hiddenKeys.has(project.key);
-				outcomes.set(project.key, {
+			const hidden = hiddenKeys.has(project.key);
+			outcomes.set(project.key, {
+				key: project.key,
+				ok: false,
+				error: project.tracker === "github" ? missingToken : missingLinearKey,
+				full: false,
+				pinned: pinnedKeys.has(project.key) || project.tracker === "github",
+				hidden,
+				row: {
 					key: project.key,
-					ok: false,
-					error: missingToken,
-					full: false,
-					// A found project with no token shows its error as a pin does.
-					pinned: true,
-					hidden,
-					row: {
-						key: project.key,
-						name: project.name ?? project.key,
-						tracker: "github",
-						tickets: [],
-						pulls: [],
-						branches: [],
-						startedKeys,
-					},
-				});
-				continue;
-			}
-			throw new Error(missingLinearKey);
+					name: project.name ?? project.key,
+					tracker: project.tracker,
+					tickets: [],
+					pulls: [],
+					branches: [],
+					startedKeys,
+				},
+			});
+			continue;
 		}
 		const lastGood = options.store.lastGoodPollAt(project.key);
 		const lastFull = options.lastFullPollAt.get(project.key) ?? null;
@@ -778,10 +767,12 @@ export async function start(options: StartOptions): Promise<Running> {
 			(row) => opened.store.projectError(row.key) === null,
 		);
 		const projectErrors = rows.map((row) => opened.store.projectError(row.key));
-		const everyFailureIsMissingToken =
+		const everyFailureIsMissingCredential =
 			projectErrors.length > 0 &&
-			projectErrors.every((error) => error === missingToken);
-		const coldError = everyFailureIsMissingToken
+			projectErrors.every(
+				(error) => error === missingToken || error === missingLinearKey,
+			);
+		const coldError = everyFailureIsMissingCredential
 			? null
 			: (firstStatus.error ??
 				(rows[0] === undefined
