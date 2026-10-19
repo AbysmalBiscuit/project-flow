@@ -259,6 +259,10 @@ function commentStamp(comments: Comment[] | undefined): string {
 	return newest;
 }
 
+function ticketKey(tracker: string, key: string): string {
+	return `${tracker}\n${key.toLowerCase()}`;
+}
+
 export function attentionOf(
 	views: {
 		items: NeedsYouItem[];
@@ -276,15 +280,16 @@ export function attentionOf(
 			if (ticket.key === null) {
 				continue;
 			}
-			tickets.set(`${ticket.tracker}\n${ticket.key.toLowerCase()}`, ticket);
+			const id = ticketKey(ticket.tracker, ticket.key);
+			tickets.set(id, ticket);
 			if (ticket.state === "closed") {
-				closed.add(`${ticket.tracker}\n${ticket.key.toLowerCase()}`);
+				closed.add(id);
 			}
 		}
 	}
 	for (const view of views) {
 		for (const item of view.items) {
-			const ticket = tickets.get(`${item.tracker}\n${item.key.toLowerCase()}`);
+			const ticket = tickets.get(ticketKey(item.tracker, item.key));
 			const commentsOnTicket = ticket?.comments ?? [];
 			const ask = openAsk(
 				commentsOnTicket,
