@@ -2,7 +2,6 @@ import { z } from "zod";
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type {
-	Attention,
 	Comment,
 	Overview,
 	PostedReply,
@@ -13,6 +12,7 @@ import type {
 	Thread,
 } from "./domain.ts";
 import {
+	type Attention,
 	attentionIds,
 	attentionOf,
 	checkoutBasenames,
@@ -99,6 +99,21 @@ function matchesRef(
 		return project.key === ref.repo;
 	}
 	return project.owner === ref.owner && project.number === ref.project;
+}
+
+function seededForProjects(
+	attention: Attention,
+	projects: ReadonlySet<string>,
+): string[] {
+	const needsYou = attention.needsYou.flatMap((item) =>
+		projects.has(item.project)
+			? [`needsYou\n${item.project}\n${item.key}`]
+			: [],
+	);
+	const comments = [...attention.comments].flatMap(([id, comment]) =>
+		projects.has(comment.project) ? [`comment\n${id}\n${comment.stamp}`] : [],
+	);
+	return [...needsYou, ...comments];
 }
 
 function viewerLogins(
@@ -565,6 +580,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	);
 	const listed = [];
 	const outcomes = new Map<string, ProjectPoll>();
+	const awaitingFirstPoll = new Set(
+		found.flatMap((project) =>
+			options.store.lastGoodPollAt(project.key) === null ? [project.key] : [],
+		),
+	);
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
@@ -693,6 +713,15 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	const nextOverview = overview(options.store, configuration, options.viewers);
 	const after = attentionFor(options.store, configuration, options.viewers);
+	const firstGood = new Set(
+		listed.flatMap((project) =>
+			awaitingFirstPoll.has(project.key) ? [project.name] : [],
+		),
+	);
+	const seeded = seededForProjects(after, firstGood);
+	for (const id of seeded) {
+		options.seenNotifications.add(id);
+	}
 	const notifications = options.primed
 		? notificationsFor(
 				before,
@@ -704,13 +733,14 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		: [];
 
 	if (!options.primed) {
-		const seeded = attentionIds(after);
-		for (const id of seeded) {
+		const opened = attentionIds(after);
+		for (const id of opened) {
 			options.seenNotifications.add(id);
 		}
-		options.store.recordSeededIds(seeded);
+		options.store.recordSeededIds(opened);
 		options.primed = true;
 	}
+	options.store.recordSeededIds(seeded);
 	for (const entry of notifications) {
 		options.seenNotifications.add(entry.id);
 	}

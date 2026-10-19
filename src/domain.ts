@@ -240,13 +240,25 @@ export type Notification = {
 
 export type Attention = {
 	needsYou: NeedsYouItem[];
-	comments: Map<string, { stamp: string; replyStamp: string }>;
+	comments: Map<
+		string,
+		{
+			stamp: string;
+			replyStamp: string;
+			authors: string[];
+			project: string;
+		}
+	>;
 	blockers: Map<string, string>;
 	closed: Set<string>;
 };
 
-function commentStamp(comments: Comment[] | undefined): string {
+function newestComment(comments: Comment[] | undefined): {
+	stamp: string;
+	authors: string[];
+} {
 	let newest = "";
+	let authors: string[] = [];
 	for (const comment of comments ?? []) {
 		if (comment.body.trim() === "") {
 			continue;
@@ -254,9 +266,12 @@ function commentStamp(comments: Comment[] | undefined): string {
 		const createdAt = comment.createdAt ?? "";
 		if (createdAt > newest) {
 			newest = createdAt;
+			authors = [comment.author].flatMap((author) =>
+				author === undefined || author.trim() === "" ? [] : [author],
+			);
 		}
 	}
-	return newest;
+	return { stamp: newest, authors };
 }
 
 function ticketKey(tracker: string, key: string): string {
@@ -271,7 +286,15 @@ export function attentionOf(
 	}[],
 	noSenior: Record<string, boolean> = {},
 ): Attention {
-	const comments = new Map<string, { stamp: string; replyStamp: string }>();
+	const comments = new Map<
+		string,
+		{
+			stamp: string;
+			replyStamp: string;
+			authors: string[];
+			project: string;
+		}
+	>();
 	const blockers = new Map<string, string>();
 	const closed = new Set<string>();
 	const tickets = new Map<string, Ticket>();
@@ -299,9 +322,12 @@ export function attentionOf(
 				item.reason === "ask" && ask !== null
 					? levReply(commentsOnTicket, ask.index)
 					: null;
+			const newest = newestComment(commentsOnTicket);
 			comments.set(`${item.project}\n${item.key}`, {
-				stamp: commentStamp(commentsOnTicket),
+				stamp: newest.stamp,
 				replyStamp: reply?.createdAt ?? "",
+				authors: newest.authors,
+				project: item.project,
 			});
 		}
 		for (const blocker of view.counts.crossProjectBlockers) {

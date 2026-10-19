@@ -861,6 +861,124 @@ describe("inbox", () => {
 		});
 	});
 
+	test("a project that misses the first poll records its needs-you items as seen", async () => {
+		const headline = "Which bot should review this?";
+		const issue = {
+			...linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[{ body: `${headline}\n\n${ask("pf-1")}` }],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+			projectId: linearProject.id,
+		};
+		const held = {
+			id: "project-held",
+			name: "Held",
+			slugId: "held",
+		};
+		let late = false;
+		let joined = false;
+		const joinedIssue = {
+			...linearIssue(
+				"PF-3",
+				"Joined later",
+				"Joined later",
+				[{ body: `Joined later\n\n${ask("pf-3")}` }],
+				{},
+				"2026-08-18T16:00:00.000Z",
+			),
+			projectId: linearProject.id,
+		};
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isPinQuery(input, init)) {
+				const slug = bodyOf(init).match(/"pin":"([^"]+)"/)?.[1];
+				const project =
+					slug === held.slugId
+						? held
+						: slug === linearProject.slugId && late
+							? linearProject
+							: null;
+				return Response.json({
+					data: { projects: { nodes: project === null ? [] : [project] } },
+				});
+			}
+			if (isIssueQuery(input, init)) {
+				const projectId = bodyOf(init).match(
+					/"project":\{"id":\{"eq":"([^"]+)"/,
+				)?.[1];
+				return recordedIssues(
+					projectId === linearProject.id && late
+						? joined
+							? [issue, joinedIssue]
+							: [issue]
+						: [],
+				);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "linear", project: "held" },
+					{ tracker: "linear", project: "project-flow" },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const done = new Promise<void>((resolve, reject) => {
+			startChecks = (base) => {
+				void (async () => {
+					expect(await inboxOf(base)).toEqual([]);
+					late = true;
+					await refresh(base);
+					expect(await inboxOf(base)).toEqual([]);
+					const listed = await fetch(new URL("/api/needs-you", base));
+					expect(listed.status).toBe(200);
+					expect(await listed.json()).toEqual([
+						expect.objectContaining({ key: "PF-1", headline }),
+					]);
+					joined = true;
+					const events = notificationEvent(base);
+					await Bun.sleep(50);
+					await refresh(base);
+					const event = await events;
+					expect(event).toMatchObject({
+						trigger: "needsYou",
+						project: "Project Flow",
+						key: "PF-3",
+						text: "Joined later",
+					});
+					expect(await inboxOf(base)).toEqual([event]);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: done,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a blank reply, a repeated-space reply and a failing comment page add no inbox entry", async () => {
 		const headline = "Which bot should review this?";
 		const askComment = {
