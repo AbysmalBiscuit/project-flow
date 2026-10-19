@@ -243,7 +243,8 @@ function counts(
 		tickets,
 		crossProjectBlockers: [],
 		needsYou: 0,
-		progress: backlog + done === 0 ? 0 : Math.round((done / (backlog + done)) * 100),
+		progress:
+			backlog + done === 0 ? 0 : Math.round((done / (backlog + done)) * 100),
 		fetchedAt,
 		error,
 	};
