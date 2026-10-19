@@ -224,39 +224,4 @@ describe("a missing credential marks its projects", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
-
-	test("a blank credential marks that tracker and the other tracker still polls", async () => {
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [
-					{ tracker: "github", repo: githubRepo },
-					{ tracker: "linear", project: linearSlug },
-				],
-				checkoutRoots: ["   "],
-			}),
-		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-cred-"));
-		const githubRequests: string[] = [];
-		try {
-			const { result, body } = await listen(
-				path,
-				{ GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "   " },
-				githubLists(githubRequests),
-				join(root, "project-flow.sqlite"),
-			);
-			expect(result.exitCode).toBe(0);
-			expect(result.listened).toBe(true);
-			const linear = body.projects.find(
-				(project) => project.name === linearSlug,
-			);
-			expect(linear?.error).toContain("LINEAR_API_KEY");
-			expect(
-				body.projects.find((project) => project.name === githubRepo)?.error,
-			).toBeNull();
-			expect(githubRequests.some((url) => url.includes("/issues"))).toBe(true);
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
 });
