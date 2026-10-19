@@ -943,8 +943,8 @@ const projectFields = z.object({
 			.object({
 				fields: z.object({
 					nodes: z.array(
-						z
-							.object({
+						z.union([
+							z.object({
 								id: z.string(),
 								name: z.string(),
 								options: z.array(
@@ -954,8 +954,9 @@ const projectFields = z.object({
 										color: z.string(),
 									}),
 								),
-							})
-							.optional(),
+							}),
+							z.object({}).strict(),
+						]),
 					),
 				}),
 			})
@@ -986,7 +987,7 @@ async function listProjectStatuses(
 		return [];
 	}
 	const fields = recorded.data.data.node?.fields.nodes ?? [];
-	if (!fields.some((field) => field?.name === "Status")) {
+	if (!fields.some((field) => "name" in field && field.name === "Status")) {
 		return [];
 	}
 	const page = recorded.data;
@@ -995,7 +996,7 @@ async function listProjectStatuses(
 		return [];
 	}
 	const field = page.data.node?.fields.nodes.find(
-		(node) => node?.name === "Status" && node.options !== undefined,
+		(node) => "name" in node && node.name === "Status",
 	);
 	return (field?.options ?? []).map((option) => ({
 		id: option.id,
