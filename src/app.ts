@@ -335,14 +335,9 @@ function ticketForReply(
 	store: Store,
 	reply: { tracker: string; project: string; key: string },
 ): Ticket | undefined {
-	const row = store
-		.readTickets()
-		.find(
-			(item) =>
-				item.tracker === reply.tracker &&
-				(item.key === reply.project || item.name === reply.project),
-		);
-	return row?.tickets.find((ticket) => ticket.key === reply.key);
+	return rowForReply(store, reply)?.tickets.find(
+		(ticket) => ticket.key === reply.key,
+	);
 }
 
 function recordPostedReply(
@@ -350,12 +345,7 @@ function recordPostedReply(
 	reply: ReplyRequest,
 	created: PostedReply,
 ): void {
-	const rows = store.readTickets();
-	const row = rows.find(
-		(item) =>
-			item.tracker === reply.tracker &&
-			(item.key === reply.project || item.name === reply.project),
-	);
+	const row = rowForReply(store, reply);
 	if (row === undefined) {
 		return;
 	}
