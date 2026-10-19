@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { colours } from "./tokens.stylex.ts";
+import { colours, scheme } from "./tokens.stylex.ts";
 
 const lightValues = {
 	canvas: "#f4f1ea",
@@ -64,3 +64,7 @@ const darkValues = {
 export const lightTheme = stylex.createTheme(colours, lightValues);
 
 export const darkTheme = stylex.createTheme(colours, darkValues);
+
+export const lightScheme = stylex.createTheme(scheme, { page: "light" });
+
+export const darkScheme = stylex.createTheme(scheme, { page: "dark" });

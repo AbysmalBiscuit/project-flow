@@ -136,6 +136,10 @@ export const type = stylex.defineVars({
 	track: "0.01em",
 });
 
+export const scheme = stylex.defineVars({
+	page: "light",
+});
+
 export const measure = stylex.defineVars({
 	page: "64rem",
 	panel: "24rem",

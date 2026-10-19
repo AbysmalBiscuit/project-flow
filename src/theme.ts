@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
-import { darkTheme, lightTheme } from "./theme.stylex.ts";
+import { darkScheme, darkTheme, lightScheme, lightTheme } from "./theme.stylex.ts";
+import { root } from "./ui-styles.ts";
 
 export type PageTheme = "light" | "dark";
 
@@ -14,22 +15,24 @@ export function pageTheme(): PageTheme {
 	}
 }
 
-const lightClass = stylex.props(lightTheme).className ?? "";
-const darkClass = stylex.props(darkTheme).className ?? "";
+const lightClass =
+	stylex.props(lightTheme, lightScheme, root.canvas).className ?? "";
+const darkClass =
+	stylex.props(darkTheme, darkScheme, root.canvas).className ?? "";
 
 function classTokens(value: string): string[] {
 	return value.split(" ").filter((token) => token !== "");
 }
 
 export function applyPageTheme(theme: PageTheme): void {
-	const root = document.documentElement;
-	root.dataset.theme = theme;
+	const element = document.documentElement;
+	element.dataset.theme = theme;
 	for (const token of classTokens(`${lightClass} ${darkClass}`)) {
-		root.classList.remove(token);
+		element.classList.remove(token);
 	}
 	const selected = theme === "dark" ? darkClass : lightClass;
 	for (const token of classTokens(selected)) {
-		root.classList.add(token);
+		element.classList.add(token);
 	}
 }
 

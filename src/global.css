@@ -1,16 +1,3 @@
-:root,
-:root[data-theme="light"] {
-	color-scheme: light;
-	background-color: #f4f1ea;
-	color: #1c1915;
-}
-
-:root[data-theme="dark"] {
-	color-scheme: dark;
-	background-color: #161411;
-	color: #f3eee6;
-}
-
 *,
 *::before,
 *::after {

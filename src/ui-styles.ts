@@ -4,11 +4,20 @@ import {
 	font,
 	measure,
 	radius,
+	scheme,
 	space,
 	type,
 } from "./tokens.stylex.ts";
 
 const focusRing = `${measure.focus} solid ${colours.focus}` as const;
+
+export const root = stylex.create({
+	canvas: {
+		backgroundColor: colours.canvas,
+		color: colours.ink,
+		colorScheme: scheme.page,
+	},
+});
 
 export const shell = stylex.create({
 	page: {
