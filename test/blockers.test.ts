@@ -85,7 +85,11 @@ function recordedFetch(): Fetch {
 		if (url.startsWith(list) && url.includes("state=all")) {
 			return page(recorded);
 		}
-		if (url.includes("/pulls?") || url.includes("/branches?")) {
+		if (
+			url.includes("/pulls?") ||
+			url.includes("/branches?") ||
+			url.includes("/labels?")
+		) {
 			return page([]);
 		}
 		const comments = url.match(/\/issues\/(\d+)\/comments$/);
@@ -306,7 +310,11 @@ describe("GET /api/overview blockers", () => {
 				if (url.startsWith(outsideList) && url.includes("state=all")) {
 					return page(outsideIssues);
 				}
-				if (url.includes("/pulls?") || url.includes("/branches?")) {
+				if (
+					url.includes("/pulls?") ||
+					url.includes("/branches?") ||
+					url.includes("/labels?")
+				) {
 					return page([]);
 				}
 				if (url.includes("/comments")) {
@@ -514,7 +522,11 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				if (url.includes("/pulls?") || url.includes("/branches?")) {
+				if (
+					url.includes("/pulls?") ||
+					url.includes("/branches?") ||
+					url.includes("/labels?")
+				) {
 					return page([]);
 				}
 				return new Response("not recorded", { status: 404 });
@@ -640,7 +652,11 @@ describe("GET /api/overview blockers", () => {
 					issue(71, "__Blocks__: #4"),
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -798,7 +814,11 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				if (url.includes("/pulls?") || url.includes("/branches?")) {
+				if (
+					url.includes("/pulls?") ||
+					url.includes("/branches?") ||
+					url.includes("/labels?")
+				) {
 					return page([]);
 				}
 				if (url.includes("/comments")) {
@@ -938,7 +958,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -1290,7 +1314,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			return new Response("not recorded", { status: 404 });
@@ -1582,7 +1610,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -1740,7 +1772,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -1910,7 +1946,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -2437,7 +2477,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -2631,7 +2675,11 @@ describe("GET /api/overview blockers", () => {
 			if (url.startsWith(list) && url.includes("state=all")) {
 				return page([issue(20, "Blocks: #21"), issue(21, "Open.")]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -2765,7 +2813,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				});
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			if (url.includes("/comments")) {
@@ -2877,7 +2929,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			return new Response("not recorded", { status: 404 });
@@ -3005,7 +3061,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			return new Response("not recorded", { status: 404 });
@@ -3142,7 +3202,11 @@ describe("GET /api/overview blockers", () => {
 					},
 				);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([]);
 			}
 			return new Response("not recorded", { status: 404 });

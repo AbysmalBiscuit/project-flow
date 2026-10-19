@@ -80,7 +80,7 @@ function githubFetch(issues = githubIssues): Fetch {
 		if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
 			return page(otherIssues);
 		}
-		if (url.includes("/pulls?")) {
+		if (url.includes("/pulls?") || url.includes("/labels?")) {
 			if (url.includes(githubRepo)) {
 				return page([
 					{

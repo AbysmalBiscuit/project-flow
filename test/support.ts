@@ -49,6 +49,12 @@ export function recordedDiscovery(
 			{ status: 200, headers: { "content-type": "application/json" } },
 		);
 	}
+	if (url.includes("/labels?")) {
+		return new Response("[]", {
+			status: 200,
+			headers: { "content-type": "application/json" },
+		});
+	}
 	return null;
 }
 

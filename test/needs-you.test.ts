@@ -252,6 +252,7 @@ describe("needs you", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
@@ -659,6 +660,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
@@ -800,6 +802,7 @@ describe("needs you", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
@@ -965,6 +968,7 @@ describe("needs you", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
@@ -1139,6 +1143,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/reviews?") ||
 				url.includes("/reactions?") ||
@@ -1266,6 +1271,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
@@ -1425,6 +1431,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
@@ -1556,6 +1563,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
@@ -2038,6 +2046,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||

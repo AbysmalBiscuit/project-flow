@@ -838,7 +838,11 @@ describe("inbox", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return Response.json([]);
 			}
 			if (url.includes("/comments")) {
@@ -977,7 +981,11 @@ describe("inbox", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return Response.json([]);
 			}
 			if (url.includes("/comments")) {
@@ -1074,7 +1082,11 @@ describe("inbox", () => {
 				}
 				return Response.json([dependency]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return Response.json([]);
 			}
 			if (url.includes("/comments")) {
@@ -2846,6 +2858,7 @@ async function withGithubInbox(
 		if (
 			url.includes("/pulls?state=closed") ||
 			url.includes("/branches?") ||
+			url.includes("/labels?") ||
 			url.includes("/comments?") ||
 			url.includes("/reviews?") ||
 			url.includes("/reactions?") ||

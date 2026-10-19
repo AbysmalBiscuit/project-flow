@@ -165,7 +165,7 @@ function githubFetch(
 				return answered;
 			}
 		}
-		if (url.includes("/pulls?")) {
+		if (url.includes("/pulls?") || url.includes("/labels?")) {
 			return json([]);
 		}
 		if (url.includes("/branches?")) {

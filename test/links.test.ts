@@ -112,7 +112,11 @@ function githubFetch(
 		if (url.includes("/reactions")) {
 			return page([]);
 		}
-		if (url.includes("/comments") || url.includes("/reviews")) {
+		if (
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/labels?")
+		) {
 			return page([]);
 		}
 		const pullMatch = url.match(/\/pulls\/(\d+)$/);
@@ -259,7 +263,8 @@ function linearFetch(): Fetch {
 			if (
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
-				url.includes("/reactions")
+				url.includes("/reactions") ||
+				url.includes("/labels?")
 			) {
 				return page([]);
 			}

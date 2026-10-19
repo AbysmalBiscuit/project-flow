@@ -356,7 +356,8 @@ function projectBoard(
 			url.includes("/comments") ||
 			url.includes("/reviews") ||
 			url.includes("/reactions") ||
-			url.includes("/branches")
+			url.includes("/branches") ||
+			url.includes("/labels?")
 		) {
 			return page([]);
 		}
@@ -474,6 +475,9 @@ function githubFetch(recorded: {
 					},
 				},
 			});
+		}
+		if (url.includes("/labels?")) {
+			return page([]);
 		}
 		return new Response("not recorded", { status: 404 });
 	};
@@ -1299,7 +1303,10 @@ describe("review cycle", () => {
 							if (url === "https://api.github.com/repos/acme/widget/pulls/99") {
 								return page(pull(99, 8, head, true));
 							}
-							if (url.includes("/pulls?state=closed")) {
+							if (
+								url.includes("/pulls?state=closed") ||
+								url.includes("/labels?")
+							) {
 								return page([]);
 							}
 							return new Response("not recorded", { status: 404 });
@@ -1601,7 +1608,8 @@ describe("review cycle", () => {
 				if (
 					url.includes("/comments?") ||
 					url.includes("/reviews?") ||
-					url.includes("/reactions?")
+					url.includes("/reactions?") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
@@ -1713,7 +1721,8 @@ describe("review cycle", () => {
 				if (
 					url.includes("/comments?") ||
 					url.includes("/reviews?") ||
-					url.includes("/reactions?")
+					url.includes("/reactions?") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
@@ -3251,7 +3260,8 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
@@ -3414,7 +3424,8 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
@@ -3597,7 +3608,8 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
@@ -3817,7 +3829,8 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
@@ -3930,7 +3943,8 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
@@ -4676,7 +4690,8 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}

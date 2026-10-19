@@ -37,6 +37,7 @@ function recordedOrEmpty(url: string): Response | null {
 	if (
 		url.includes("/pulls?") ||
 		url.includes("/branches?") ||
+		url.includes("/labels?") ||
 		url.includes("/comments") ||
 		url.includes("/reviews") ||
 		url.includes("/reactions")
@@ -1890,7 +1891,7 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (url.includes("/pulls?state=closed")) {
+			if (url.includes("/pulls?state=closed") || url.includes("/labels?")) {
 				return new Response("[]", {
 					status: 200,
 					headers: { "content-type": "application/json" },

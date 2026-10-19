@@ -56,7 +56,11 @@ function page(
 }
 
 function emptyList(url: string): Response | null {
-	if (url.includes("/pulls?") || url.includes("/branches?")) {
+	if (
+		url.includes("/pulls?") ||
+		url.includes("/branches?") ||
+		url.includes("/labels?")
+	) {
 		return page([], null);
 	}
 	return null;
@@ -91,7 +95,11 @@ function githubFetch(requests: string[] = []): Fetch {
 		if (url === second) {
 			return page(recorded.slice(4), null);
 		}
-		if (url.includes("/pulls?") || url.includes("/branches?")) {
+		if (
+			url.includes("/pulls?") ||
+			url.includes("/branches?") ||
+			url.includes("/labels?")
+		) {
 			return page([], null);
 		}
 		if (url.includes("/check-runs")) {
@@ -272,7 +280,11 @@ function linearFetch(requests: string[]): Fetch {
 			if (url === list) {
 				return page(recorded, null);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
 			if (url.includes("/check-runs")) {
@@ -374,7 +386,11 @@ describe("GET /api/overview", () => {
 					requests.push(url);
 					return page([ticket(1, "open", null)], null);
 				}
-				if (url.includes("/pulls?") || url.includes("/branches?")) {
+				if (
+					url.includes("/pulls?") ||
+					url.includes("/branches?") ||
+					url.includes("/labels?")
+				) {
 					return page([], null);
 				}
 				return emptyList(url) ?? new Response("not recorded", { status: 404 });
@@ -3656,7 +3672,11 @@ describe("GET /api/overview", () => {
 			if (url.includes(`/repos/${asked}/issues/7/comments`)) {
 				return page([{ body: `This waits on Lev.\n\n${ask}` }], null);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
 			return new Response("not recorded", { status: 404 });
@@ -3781,7 +3801,11 @@ describe("GET /api/overview", () => {
 					null,
 				);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
 			return new Response("not recorded", { status: 404 });

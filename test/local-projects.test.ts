@@ -55,7 +55,11 @@ function localFetch(requests: string[]): Fetch {
 			}
 			return page([]);
 		}
-		if (url.includes("/pulls?") || url.includes("/branches?")) {
+		if (
+			url.includes("/pulls?") ||
+			url.includes("/branches?") ||
+			url.includes("/labels?")
+		) {
 			return page([]);
 		}
 		if (url === "https://api.github.com/graphql") {

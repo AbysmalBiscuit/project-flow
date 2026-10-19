@@ -38,6 +38,7 @@ function recordedFetch(userStatus: number): Fetch {
 			url.includes("/issues?") ||
 			url.includes("/pulls?") ||
 			url.includes("/branches?") ||
+			url.includes("/labels?") ||
 			url.includes("/check-runs") ||
 			url.includes("/comments") ||
 			url.includes("/reviews") ||
@@ -172,7 +173,8 @@ describe("startup", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return new Response("[]", {
 						status: 200,
