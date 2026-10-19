@@ -417,6 +417,7 @@ type PollOptions = {
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
+	readyToList: Promise<void>;
 	viewers: Viewer[];
 	attention: Attention;
 	seenNotifications: Set<string>;
@@ -592,6 +593,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		const pinned = pinnedKeys.has(project.key);
 		const hidden = hiddenKeys.has(project.key);
 		try {
+			await options.readyToList;
 			await options.holdLists;
 			const listedTickets = await tracker.listTickets(project.key, since);
 			const pulls = await tracker.listPulls(
@@ -750,6 +752,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
+		readyToList: Promise.resolve(),
 		viewers: [],
 		attention: {
 			needsYou: [],
@@ -768,9 +771,13 @@ export async function start(options: StartOptions): Promise<Running> {
 		);
 	}
 	let releaseLists = () => {};
+	let markListening = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
 	if (hadRows) {
 		let released = false;
+		pollOptions.readyToList = new Promise<void>((resolve) => {
+			markListening = resolve;
+		});
 		pollOptions.holdLists = new Promise<void>((resolve) => {
 			releaseLists = () => {
 				if (released) {
@@ -867,8 +874,6 @@ export async function start(options: StartOptions): Promise<Running> {
 					const body = Response.json(
 						overview(opened.store, configuration, pollOptions.viewers),
 					);
-					// Releasing in the handler lets the held poll list tickets
-					// before this body is delivered.
 					setTimeout(releaseLists, 0);
 					return body;
 				},
@@ -940,6 +945,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		},
 	});
 	if (hadRows) {
+		markListening();
 		void pollAgain();
 	}
 	return {
