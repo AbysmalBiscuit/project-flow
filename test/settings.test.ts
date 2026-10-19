@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import type { Configuration } from "../src/configuration.ts";
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
@@ -208,19 +209,7 @@ describe("settings", () => {
 
 			const current = (await (
 				await fetch(new URL("/api/settings", base))
-			).json()) as {
-				hidden: unknown[];
-				activityWindowDays: number;
-				pollIntervalSeconds: number;
-				expectedBots: Record<string, string[]>;
-				noSenior: Record<string, boolean>;
-				needsYouLabels: string[];
-				notificationTriggers: {
-					needsYou: boolean;
-					comment: boolean;
-					blockerCleared: boolean;
-				};
-			};
+			).json()) as Configuration;
 			expect(current.activityWindowDays).toBe(30);
 			expect(current.pollIntervalSeconds).toBe(60);
 			expect(current.needsYouLabels).toEqual(["needs-human", "needs-engineer"]);
@@ -251,16 +240,9 @@ describe("settings", () => {
 			});
 			expect(saved.status).toBe(200);
 
-			const written = JSON.parse(await readFile(configPath, "utf8")) as {
-				hidden: { tracker: string; repo: string }[];
-				pinned: { tracker: string; repo: string }[];
-				activityWindowDays: number;
-				pollIntervalSeconds: number;
-				expectedBots: Record<string, string[]>;
-				noSenior: Record<string, boolean>;
-				needsYouLabels: string[];
-				notificationTriggers: { needsYou: boolean };
-			};
+			const written = JSON.parse(
+				await readFile(configPath, "utf8"),
+			) as Configuration;
 			expect(written.hidden).toEqual([{ tracker: "github", repo: shown }]);
 			expect(written.pinned).toEqual([{ tracker: "github", repo: quiet }]);
 			expect(written.activityWindowDays).toBe(14);
@@ -402,10 +384,9 @@ describe("settings", () => {
 						activityWindowDays: 14,
 						pollIntervalSeconds: 90,
 					});
-					const written = JSON.parse(await readFile(path, "utf8")) as {
-						activityWindowDays: number;
-						pollIntervalSeconds: number;
-					};
+					const written = JSON.parse(
+						await readFile(path, "utf8"),
+					) as Configuration;
 					expect(written.activityWindowDays).toBe(14);
 					expect(written.pollIntervalSeconds).toBe(90);
 				})().then(resolve, reject);
