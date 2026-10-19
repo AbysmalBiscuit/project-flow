@@ -206,6 +206,7 @@ function Page() {
 			return;
 		}
 		let stopped = false;
+		const bound: { drawn: SVGGElement; open: () => void }[] = [];
 		void mermaid.run({ nodes }).then(() => {
 			if (stopped) {
 				return;
@@ -223,7 +224,7 @@ function Page() {
 							continue;
 						}
 						const drawn = [...figure.querySelectorAll("g.node")].find((item) =>
-							item.id.includes(node.id),
+							item.id.startsWith(`flowchart-${node.id}-`),
 						);
 						if (!(drawn instanceof SVGGElement)) {
 							continue;
@@ -236,13 +237,16 @@ function Page() {
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
-						Object.assign(drawn, { click: open });
+						bound.push({ drawn, open });
 					}
 				}
 			}
 		});
 		return () => {
 			stopped = true;
+			for (const { drawn, open } of bound) {
+				drawn.removeEventListener("click", open);
+			}
 		};
 	}, [report]);
 	if (missing) {
