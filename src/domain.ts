@@ -950,6 +950,15 @@ function pullShowsBot(pull: PullRequest, bot: KnownBot): boolean {
 type BotPass = { done: boolean; warning: string | null };
 
 function botPass(pull: PullRequest, bot: KnownBot): BotPass {
+	if (
+		bot === "codex" &&
+		pull.reactions.some(
+			(reaction) =>
+				reaction.login === botLogin.codex && reaction.content === "eyes",
+		)
+	) {
+		return { done: false, warning: null };
+	}
 	const warning = botWarning(pull, bot);
 	if (warning !== null) {
 		return { done: true, warning };

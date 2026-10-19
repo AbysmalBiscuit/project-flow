@@ -1250,6 +1250,39 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a Codex eyes reaction stays in review despite a usage-limit comment", async () => {
+		const body = await overview({
+			issues: [issue(8)],
+			pulls: [pull(97)],
+			commentsByPull: {
+				1: [
+					{
+						user: { login: codex },
+						body: "<!-- codex-pull-request-review-summary -->",
+					},
+				],
+				97: [
+					{
+						user: { login: codex },
+						body: "You have reached your Codex usage limits for code reviews.",
+					},
+				],
+			},
+			reactionsByPull: {
+				97: [{ user: { login: codex }, content: "eyes" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
 	test("a second poll sends no review reads for a merged PR already seen", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
