@@ -612,6 +612,7 @@ async function fetchJson(
 
 async function fetchRows<Row, Mapped>(
 	start: string,
+	repo: string,
 	token: string,
 	fetchImpl: Fetch,
 	label: string,
@@ -619,7 +620,6 @@ async function fetchRows<Row, Mapped>(
 	map: (item: Row) => Mapped | null,
 ): Promise<Mapped[]> {
 	const mapped: Mapped[] = [];
-	const repo = new URL(start).pathname.split("/").slice(2, 4).join("/");
 	const bodies = await pages(start, token, fetchImpl, repo, label);
 	for (const body of bodies) {
 		for (const item of z.array(row).parse(body)) {
@@ -669,6 +669,7 @@ function fetchComments(
 ): Promise<BotComment[]> {
 	return fetchRows(
 		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+		repo,
 		token,
 		fetchImpl,
 		"list comments",
@@ -688,6 +689,7 @@ function fetchReviews(
 ): Promise<BotReview[]> {
 	return fetchRows(
 		`https://api.github.com/repos/${repo}/pulls/${number}/reviews?per_page=100&page=1`,
+		repo,
 		token,
 		fetchImpl,
 		"list reviews",
@@ -707,6 +709,7 @@ function fetchReactions(
 ): Promise<BotReaction[]> {
 	return fetchRows(
 		`https://api.github.com/repos/${repo}/issues/${number}/reactions?per_page=100&page=1`,
+		repo,
 		token,
 		fetchImpl,
 		"list reactions",
