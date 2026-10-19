@@ -49,7 +49,13 @@ type ProjectBody = {
 type OverviewBody = {
 	projects: {
 		name: string;
-		statusTypes: Record<string, number>;
+		statusTypes?: Record<string, number>;
+		tickets: {
+			key: string | null;
+			lane?: string;
+			statusType?: string;
+			state: string;
+		}[];
 	}[];
 };
 
@@ -267,12 +273,14 @@ function projectFetch(
 					node: {
 						fields: {
 							nodes: [
+								{},
 								{
 									__typename: "ProjectV2SingleSelectField",
 									id: "PVTSSF_status",
 									name: "Status",
 									options,
 								},
+								{},
 							],
 						},
 					},
@@ -583,6 +591,62 @@ describe("tracker lanes", () => {
 		);
 	});
 
+	test("an empty Status places only that ticket by the app lanes", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			projectFetch([
+				projectItem(7, "Draw the nodes", {
+					name: "In Progress",
+					color: "YELLOW",
+				}),
+				projectItem(9, "No status yet", null),
+			]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(report.lanes.map((lane) => lane.name)).toEqual([
+					"Backlog",
+					"Ready",
+					"In Progress",
+					"In Review",
+					"Awaiting merge",
+					"Done",
+				]);
+				expect(report.lanes.map((lane) => lane.statusType)).toEqual([
+					"backlog",
+					"backlog",
+					"inProgress",
+					"inReview",
+					"awaitingMerge",
+					"done",
+				]);
+				const items = report.sections.flatMap((section) => section.items ?? []);
+				const placedItem = items.find((item) => item.key === "acme/widget#7");
+				const empty = items.find((item) => item.key === "acme/widget#9");
+				expect(placedItem?.lane).toBe("In Progress");
+				expect(placedItem?.statusType).toBe("inProgress");
+				expect(empty?.lane).toBe("Backlog");
+				expect(empty?.statusType).toBe("backlog");
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(
+					overview.projects.find((item) => item.name === "Widget board")
+						?.statusTypes,
+				).toEqual({
+					backlog: 1,
+					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					done: 0,
+					dropped: 0,
+				});
+			},
+		);
+	});
+
 	test("a board without a matching status gets Awaiting merge after In Review", async () => {
 		const options = [
 			{ id: "opt-todo", name: "Todo", color: "GRAY" },
@@ -675,12 +739,12 @@ describe("tracker lanes", () => {
 		);
 	});
 
-	test("a GitHub project lane mapping uses the project id", async () => {
+	test("a GitHub project lane mapping uses the owner and number", async () => {
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
 				laneMappings: {
-					[projectId]: { awaitingMerge: "Ready" },
+					"acme/4": { awaitingMerge: "Ready" },
 				},
 			}),
 			projectFetch([
@@ -807,6 +871,234 @@ describe("tracker lanes", () => {
 				const report = await projectOf(base, "Widget board");
 				expect(flight(report)[0]?.lane).toBe("In Review");
 				expect(flight(report)[0]?.statusType).toBe("inReview");
+			},
+		);
+	});
+
+	test("a closed factory ticket sits in Done", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			repoFetch(
+				{
+					[githubRepo]: [
+						githubIssue(4, "Ship the job", githubRepo, {
+							state: "closed",
+							state_reason: "completed",
+							labels: [{ name: "ready" }],
+						}),
+					],
+				},
+				{
+					[githubRepo]: [
+						{ name: "ready", color: "5319e7" },
+						{ name: "factory: running", color: "fbca04" },
+						{ name: "factory: in-review", color: "1d76db" },
+					],
+				},
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const project = overview.projects.find(
+					(item) => item.name === githubRepo,
+				);
+				const ticket = project?.tickets.find(
+					(item) => item.key === "acme/widget#4",
+				);
+				expect(ticket?.lane).toBe("Done");
+				expect(ticket?.statusType).toBe("done");
+				expect(project?.statusTypes?.done).toBe(1);
+				expect(project?.statusTypes?.backlog).toBe(0);
+			},
+		);
+	});
+
+	test("a closed ticket with no matching status sits in Done", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			repoFetch(
+				{
+					[githubRepo]: [
+						githubIssue(5, "Closed without a done label", githubRepo, {
+							state: "closed",
+							state_reason: "completed",
+						}),
+					],
+				},
+				{
+					[githubRepo]: [
+						{ name: "ready", color: "5319e7" },
+						{ name: "factory: running", color: "fbca04" },
+						{ name: "factory: in-review", color: "1d76db" },
+					],
+				},
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const ticket = overview.projects
+					.find((item) => item.name === githubRepo)
+					?.tickets.find((item) => item.key === "acme/widget#5");
+				expect(ticket?.lane).toBe("Done");
+				expect(ticket?.statusType).toBe("done");
+			},
+		);
+	});
+
+	test("repeated spaces in an awaiting lane name skip the added lane", async () => {
+		const options = [
+			{ id: "opt-todo", name: "Todo", color: "GRAY" },
+			{ id: "opt-review", name: "Review", color: "BLUE" },
+			{ id: "opt-awaiting", name: "Awaiting  merge", color: "GREEN" },
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			projectFetch(
+				[
+					projectItem(15, "Wait for merge", {
+						name: "Awaiting  merge",
+						color: "GREEN",
+					}),
+				],
+				options,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(
+					report.lanes.filter((lane) => lane.statusType === "awaitingMerge"),
+				).toEqual([
+					{
+						id: "opt-awaiting",
+						name: "Awaiting  merge",
+						colour: "#4CB782",
+						statusType: "awaitingMerge",
+					},
+				]);
+				expect(flight(report)[0]?.lane).toBe("Awaiting  merge");
+			},
+		);
+	});
+
+	test("a GitHub project on the app lanes counts by status type", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			projectFetch(
+				[
+					projectItem(16, "Open with no board", null),
+					{
+						...projectItem(17, "Closed with no board", null),
+						content: {
+							...(projectItem(17, "Closed with no board", null)
+								.content as Record<string, unknown>),
+							state: "CLOSED",
+							stateReason: "COMPLETED",
+						},
+					},
+				],
+				[],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(
+					overview.projects.find((item) => item.name === "Widget board")
+						?.statusTypes,
+				).toEqual({
+					backlog: 1,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					done: 1,
+					dropped: 0,
+				});
+			},
+		);
+	});
+
+	test("a closed Linear ticket in Released sits in Done", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({
+				project: {
+					id: "project-widget",
+					name: "Widget launch",
+					slugId: linearSlug,
+					teams: { nodes: [linearTeam] },
+				},
+				issues: [
+					linearIssue("WID-20", "Released the list", {
+						id: "st-released",
+						name: "Released",
+						type: "completed",
+						color: "#4CB782",
+					}),
+				],
+				states: [
+					...linearStates,
+					{
+						id: "st-released",
+						name: "Released",
+						type: "completed",
+						position: 5.5,
+						color: "#4CB782",
+					},
+				],
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(report.lanes.map((lane) => lane.name)).toContain("Released");
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const ticket = overview.projects
+					.find((item) => item.name === "Widget launch")
+					?.tickets.find((item) => item.key === "WID-20");
+				expect(ticket?.lane).toBe("Released");
+				expect(ticket?.statusType).toBe("done");
+			},
+		);
+	});
+
+	test("the overview counts a repo on the app lanes by status type", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: plainRepo }] }),
+			repoFetch({
+				[plainRepo]: [
+					githubIssue(1, "Open note", plainRepo),
+					githubIssue(2, "Shipped note", plainRepo, {
+						state: "closed",
+						state_reason: "completed",
+					}),
+				],
+			}),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expect(
+					overview.projects.find((item) => item.name === plainRepo)
+						?.statusTypes,
+				).toEqual({
+					backlog: 1,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					done: 1,
+					dropped: 0,
+				});
 			},
 		);
 	});

@@ -58,6 +58,7 @@ function card(
 			statusType: string;
 		}[];
 		crossProjectBlockers: [];
+		statusTypes: Record<string, number>;
 	}[];
 	fetchedAt: string;
 	error: null;
@@ -88,6 +89,14 @@ function card(
 					},
 				],
 				crossProjectBlockers: [],
+				statusTypes: {
+					backlog: 1,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					done: 0,
+					dropped: 0,
+				},
 			},
 		],
 		fetchedAt: "2026-10-18T12:00:00.000Z",
@@ -1746,6 +1755,14 @@ describe("review cycle", () => {
 						progress: 0,
 						fetchedAt: "2026-10-18T12:00:00.000Z",
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 						tags: [],
 						unlinkedPrs: [],
 						tickets: [

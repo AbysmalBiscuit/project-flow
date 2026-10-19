@@ -672,7 +672,15 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				hidden,
 				...(listedTickets.board === undefined
 					? {}
-					: { board: listedTickets.board }),
+					: {
+							board:
+								project.owner === undefined || project.number === undefined
+									? listedTickets.board
+									: {
+											...listedTickets.board,
+											teamKey: `${project.owner}/${project.number}`,
+										},
+						}),
 				...(project.closed === undefined ? {} : { closed: project.closed }),
 				windowTickets,
 			});

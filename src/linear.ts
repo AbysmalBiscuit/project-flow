@@ -329,10 +329,7 @@ function linearAuthor(
 	return commentAuthor(user) ?? "";
 }
 
-function toTicket(
-	node: z.infer<typeof issueNode>,
-	teamKey?: string,
-): Ticket | null {
+function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 	if (node.state === null || node.identifier === undefined) {
 		return null;
 	}
@@ -371,7 +368,6 @@ function toTicket(
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 		...(node.assignee === undefined ? {} : { assignee }),
 		...(status === undefined ? {} : { status }),
-		...(teamKey === undefined ? {} : { teamKey }),
 	};
 }
 
@@ -525,20 +521,11 @@ async function listTeamStates(
 		}));
 }
 
-function linearBoard(
-	project: LinearProject,
-	statuses: TicketStatus[],
-): Board | undefined {
+function linearBoard(project: LinearProject, statuses: TicketStatus[]): Board {
 	const team = project.teams?.nodes[0];
-	if (team === undefined) {
-		return undefined;
-	}
-	if (statuses.length === 0) {
-		return undefined;
-	}
 	return {
 		kind: "linear",
-		teamKey: team.key,
+		...(team === undefined ? {} : { teamKey: team.key }),
 		statuses,
 		factoryLabels: false,
 	};
@@ -926,7 +913,7 @@ export function linearTracker(
 			);
 			const tickets: Ticket[] = [];
 			for (const node of nodes) {
-				const ticket = toTicket(node, team?.key);
+				const ticket = toTicket(node);
 				if (ticket === null) {
 					continue;
 				}
@@ -953,7 +940,7 @@ export function linearTracker(
 			return {
 				name: project.name,
 				tickets,
-				...(board === undefined ? {} : { board }),
+				board,
 			};
 		},
 		async listPulls(pin, since = null) {

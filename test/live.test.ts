@@ -178,20 +178,28 @@ function openEventStream(base: string): {
 	};
 }
 
-function openEvents(base: string): Promise<ChangeEvent> {
-	return new Promise((resolve, reject) => {
+function openEvents(base: string): {
+	event: Promise<ChangeEvent>;
+	ready: Promise<void>;
+} {
+	let markReady = () => {};
+	const ready = new Promise<void>((resolve) => {
+		markReady = resolve;
+	});
+	const event = new Promise<ChangeEvent>((resolve, reject) => {
 		let buffer = "";
 		const socket = Bun.connect({
 			hostname: "127.0.0.1",
 			port: Number(new URL(base).port),
 			socket: {
 				data(_socket, data) {
+					markReady();
 					buffer += data.toString();
 					const parsed = readSseEvents(buffer);
 					buffer = parsed.rest;
-					const event = parsed.events[0];
-					if (event !== undefined) {
-						resolve(event);
+					const received = parsed.events[0];
+					if (received !== undefined) {
+						resolve(received);
 					}
 				},
 				error(_socket, error) {
@@ -209,6 +217,7 @@ function openEvents(base: string): Promise<ChangeEvent> {
 			reject(new Error("no event within 3000ms"));
 		}, 3_000);
 	});
+	return { event, ready };
 }
 
 function failingAfterGoodPoll(requests: string[]): Fetch {
@@ -312,6 +321,7 @@ type OverviewBody = {
 		progress: number;
 		fetchedAt: string | null;
 		error: string | null;
+		statusTypes?: Record<string, number>;
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
@@ -346,6 +356,18 @@ function counts(
 			backlog + done === 0 ? 0 : Math.round((done / (backlog + done)) * 100),
 		fetchedAt,
 		error,
+		...(error !== null && tickets.length === 0
+			? {}
+			: {
+					statusTypes: {
+						backlog,
+						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						done,
+						dropped: 0,
+					},
+				}),
 	};
 }
 
@@ -1171,7 +1193,8 @@ describe("live updates", () => {
 	test("a failed fetch keeps the stored overview and names the error", async () => {
 		const requests: string[] = [];
 		await withServer(failingAfterGoodPoll(requests), 3600, async (base) => {
-			expect((await fetch(new URL("/api/overview", base))).status).toBe(200);
+			const events = openEvents(base);
+			await events.ready;
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
@@ -1194,6 +1217,8 @@ describe("live updates", () => {
 			expect(body.projects[0]?.error).toContain(`stale since ${goodPoll}`);
 			expect(body.fetchedAt).toBe(goodPoll);
 			expect(body.error).toBeNull();
+			const received = await events.event;
+			expect(JSON.parse(received.data)).toEqual(body);
 		});
 	});
 
@@ -1622,7 +1647,8 @@ describe("live updates", () => {
 	test("a recorded tracker change reaches a subscriber after one poll", async () => {
 		const requests: string[] = [];
 		await withServer(changingFetch(requests), 3600, async (base) => {
-			const eventPromise = openEvents(base);
+			const events = openEvents(base);
+			await events.ready;
 			const before = await fetch(new URL("/api/overview", base));
 			const beforeBody = (await before.json()) as OverviewBody;
 			expect(beforeBody.projects).toEqual([
@@ -1634,7 +1660,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const received = await eventPromise;
+			const received = await events.event;
 			expect(received.event).toBe("overview");
 			const eventBody = JSON.parse(received.data) as OverviewBody;
 			expect(eventBody.projects).toEqual([

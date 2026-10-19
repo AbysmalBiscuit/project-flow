@@ -74,7 +74,6 @@ export type Ticket = {
 	assignee?: string | null;
 	assignees?: string[];
 	status?: TicketStatus;
-	teamKey?: string;
 	emptyStatus?: boolean;
 };
 
@@ -936,15 +935,14 @@ function insertAwaitingMerge(lanes: Lane[]): Lane[] {
 		lanes.some(
 			(lane) =>
 				lane.evidence === "awaitingMerge" ||
-				awaitingNames.has(lane.name.trim().toLowerCase()),
+				awaitingNames.has(laneName(lane.name)),
 		)
 	) {
 		return lanes;
 	}
 	const review = lanes.findLastIndex(
 		(lane) =>
-			lane.statusType === "inReview" ||
-			reviewNames.has(lane.name.trim().toLowerCase()),
+			lane.statusType === "inReview" || reviewNames.has(laneName(lane.name)),
 	);
 	const added: Lane = {
 		id: "awaiting-merge",
@@ -963,27 +961,23 @@ function insertAwaitingMerge(lanes: Lane[]): Lane[] {
 	return [...lanes.slice(0, review + 1), added, ...lanes.slice(review + 1)];
 }
 
-type LaneMapping = {
-	backlog?: string | undefined;
-	inProgress?: string | undefined;
-	inReview?: string | undefined;
-	awaitingMerge?: string | undefined;
-	done?: string | undefined;
-	dropped?: string | undefined;
-};
+type LaneMapping = Configuration["laneMappings"][string];
+
+function trackerLanes(board: Board | undefined): boolean {
+	if (board === undefined) {
+		return false;
+	}
+	if (board.kind === "github-repo") {
+		return board.factoryLabels;
+	}
+	return board.statuses.length > 0;
+}
 
 export function lanesFor(
 	board: Board | undefined,
 	mapping: LaneMapping,
-	tickets: Ticket[] = [],
 ): Lane[] {
-	if (
-		board === undefined ||
-		(board.kind === "github-repo" && !board.factoryLabels) ||
-		(board.kind === "github-project" &&
-			(board.statuses.length === 0 ||
-				tickets.some((ticket) => ticket.emptyStatus === true)))
-	) {
+	if (!trackerLanes(board) || board === undefined) {
 		return appLanes();
 	}
 	const lanes = board.statuses.map((status) => {
@@ -1020,41 +1014,80 @@ export function laneForTicket(
 			statusType: "backlog",
 		};
 	}
-	if (ticket.state === "closed") {
-		const closedType = closedReasons.has(ticket.stateReason ?? "")
-			? "dropped"
-			: "done";
+	if (ticket.emptyStatus === true) {
+		return appLane(closedLaneType(ticket) ?? "backlog");
+	}
+	const matched =
+		ticket.status === undefined
+			? undefined
+			: laneOfStatus(ticket, lanes, mapping);
+	const closedType = closedLaneType(ticket);
+	if (closedType !== undefined) {
+		if (matched?.statusType === closedType) {
+			return matched;
+		}
 		return (
 			lanes.find((lane) => lane.statusType === closedType) ??
 			lanes.find((lane) => namesMatch(lane.name, appLaneNames[closedType])) ??
-			fallback
+			appLane(closedType)
 		);
 	}
-	if (ticket.emptyStatus === true || ticket.status === undefined) {
+	if (matched !== undefined) {
+		return matched;
+	}
+	if (ticket.status === undefined) {
 		return (
 			lanes.find((lane) => lane.statusType === "backlog") ??
 			lanes.find((lane) => namesMatch(lane.name, "Backlog")) ??
 			fallback
 		);
 	}
+	return fallback;
+}
+
+function appLane(statusType: StatusType): Lane {
+	const lane = appLanes().find((item) => item.statusType === statusType);
+	if (lane !== undefined) {
+		return lane;
+	}
+	return {
+		id: statusType,
+		name: appLaneNames[statusType],
+		colour: appColours[statusType],
+		statusType,
+	};
+}
+
+function closedLaneType(ticket: Ticket): StatusType | undefined {
+	if (ticket.state !== "closed") {
+		return undefined;
+	}
+	return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
+}
+
+function laneOfStatus(
+	ticket: Ticket,
+	lanes: Lane[],
+	mapping: LaneMapping,
+): Lane | undefined {
+	const status = ticket.status;
+	if (status === undefined) {
+		return undefined;
+	}
 	const mapped = (
 		Object.entries(mapping) as [StatusType, string | undefined][]
 	).find(
-		([, name]) =>
-			name !== undefined && namesMatch(name, ticket.status?.name ?? ""),
+		([, name]) => name !== undefined && namesMatch(name, status.name),
 	)?.[0];
 	if (mapped !== undefined) {
-		const named = lanes.find((lane) =>
-			namesMatch(lane.name, ticket.status?.name ?? ""),
-		);
+		const named = lanes.find((lane) => namesMatch(lane.name, status.name));
 		if (named !== undefined) {
 			return named;
 		}
 	}
 	return (
-		lanes.find((lane) => lane.id === ticket.status?.id) ??
-		lanes.find((lane) => namesMatch(lane.name, ticket.status?.name ?? "")) ??
-		fallback
+		lanes.find((lane) => lane.id === status.id) ??
+		lanes.find((lane) => namesMatch(lane.name, status.name))
 	);
 }
 
@@ -2203,17 +2236,7 @@ export function projectCounts(
 		pmBot: Record<string, boolean>;
 	},
 	board?: Board,
-	laneMappings: Record<
-		string,
-		{
-			backlog?: string | undefined;
-			inProgress?: string | undefined;
-			inReview?: string | undefined;
-			awaitingMerge?: string | undefined;
-			done?: string | undefined;
-			dropped?: string | undefined;
-		}
-	> = {},
+	laneMappings: Configuration["laneMappings"] = {},
 ): {
 	counts: ProjectCounts;
 	needsYou: NeedsYouItem[];
@@ -2233,7 +2256,7 @@ export function projectCounts(
 	const statusTypes = emptyStatusTypes();
 	const mapping =
 		board?.teamKey === undefined ? {} : (laneMappings[board.teamKey] ?? {});
-	const lanes = lanesFor(board, mapping, tickets);
+	const lanes = lanesFor(board, mapping);
 	const counted = board !== undefined;
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
@@ -2358,15 +2381,7 @@ export function projectCounts(
 		progress: progressRatio(counts),
 		...staleView(status, status.fetchedAt),
 		tags: [...tags],
-		...(counted &&
-		!(board.kind === "github-repo" && !board.factoryLabels) &&
-		!(
-			board.kind === "github-project" &&
-			(board.statuses.length === 0 ||
-				tickets.some((ticket) => ticket.emptyStatus === true))
-		)
-			? { statusTypes }
-			: {}),
+		...(counted ? { statusTypes } : {}),
 	};
 	const report = projectReport(
 		project,
