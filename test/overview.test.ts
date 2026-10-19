@@ -276,7 +276,7 @@ function linearFetch(requests: string[]): Fetch {
 			{ nodes: linearRecorded.slice(4), endCursor: null },
 		],
 		requests,
-		github: async (input) => {
+		github: async (input, init) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -3712,7 +3712,7 @@ describe("GET /api/overview", () => {
 				body: "",
 			};
 		}
-		const recorded: Fetch = async (input) => {
+		const recorded: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -3870,7 +3870,7 @@ describe("GET /api/overview", () => {
 		const ask = "<!-- workcell:ask 11-2 -->";
 		const listed = "acme/listed";
 		const commentBody = `This waits on Lev.\n\n${ask}`;
-		const recorded: Fetch = async (input) => {
+		const recorded: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -4081,7 +4081,7 @@ describe("GET /api/overview", () => {
 		const { path, cleanup } = await tempConfig("{}");
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const bin = await mkdtemp(join(tmpdir(), "project-flow-no-gh-"));
-		const recorded: Fetch = async (input) => {
+		const recorded: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			if (url.startsWith("https://api.github.com/")) {
 				throw new Error("GitHub must not be called without a token");

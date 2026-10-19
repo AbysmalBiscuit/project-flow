@@ -299,7 +299,7 @@ describe("GET /api/overview blockers", () => {
 				slugId: linearProject,
 			},
 			issues: linearIssues,
-			github: async (input) => {
+			github: async (input, init) => {
 				const url = urlOf(input);
 				if (url === "https://api.github.com/user") {
 					return new Response(JSON.stringify({ login: "lev" }), {
@@ -476,7 +476,7 @@ describe("GET /api/overview blockers", () => {
 				linearIssue("SWE-13234", "", "started"),
 				linearIssue("SWE-9", "", "started"),
 			],
-			github: async (input) => {
+			github: async (input, init) => {
 				const url = urlOf(input);
 				if (url === "https://api.github.com/user") {
 					return new Response(JSON.stringify({ login: "lev" }), {
@@ -765,7 +765,7 @@ describe("GET /api/overview blockers", () => {
 				linearIssue("SWE-51", "**Blocked by**:", "unstarted"),
 				linearIssue("SWE-52", "__Blocks__:   ", "unstarted"),
 			],
-			github: async (input) => {
+			github: async (input, init) => {
 				const url = urlOf(input);
 				if (url === "https://api.github.com/user") {
 					return new Response(JSON.stringify({ login: "lev" }), {
