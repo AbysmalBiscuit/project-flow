@@ -74,6 +74,7 @@ export type PullRequest = {
 	body: string;
 	closingKeys: string[];
 	headSha: string;
+	headCommittedAt: string | null;
 	merged: boolean;
 	checks: BotCheck[];
 	comments: BotComment[];
@@ -90,6 +91,7 @@ export type BotCheck = {
 export type BotComment = {
 	login: string;
 	body: string;
+	createdAt: string | null;
 };
 
 export type BotReview = {
@@ -100,6 +102,7 @@ export type BotReview = {
 export type BotReaction = {
 	login: string;
 	content: string;
+	createdAt: string | null;
 };
 
 export type UnlinkedPr = {
@@ -1021,9 +1024,26 @@ function botWarning(pull: PullRequest, bot: KnownBot): string | null {
 	}
 	const login = botLogin[bot];
 	const limited = pull.comments.some(
-		(comment) => comment.login === login && usageLimit.test(comment.body),
+		(comment) =>
+			comment.login === login &&
+			usageLimit.test(comment.body) &&
+			countsForHead(pull, bot, comment.createdAt),
 	);
 	return limited ? `${bot} usage limit` : null;
+}
+
+function countsForHead(
+	pull: PullRequest,
+	bot: KnownBot,
+	createdAt: string | null,
+): boolean {
+	if (bot !== "grok") {
+		return true;
+	}
+	if (pull.headCommittedAt === null || createdAt === null) {
+		return false;
+	}
+	return Date.parse(createdAt) > Date.parse(pull.headCommittedAt);
 }
 
 function reviewState(

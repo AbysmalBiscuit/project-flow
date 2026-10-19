@@ -673,11 +673,18 @@ function fetchComments(
 		token,
 		fetchImpl,
 		"list comments",
-		loginRow.extend({ body: z.string().nullable() }),
+		loginRow.extend({
+			body: z.string().nullable(),
+			created_at: z.string().optional(),
+		}),
 		(comment) =>
 			comment.user === null
 				? null
-				: { login: comment.user.login, body: comment.body ?? "" },
+				: {
+						login: comment.user.login,
+						body: comment.body ?? "",
+						createdAt: comment.created_at ?? null,
+					},
 	);
 }
 
@@ -713,11 +720,15 @@ function fetchReactions(
 		token,
 		fetchImpl,
 		"list reactions",
-		loginRow.extend({ content: z.string() }),
+		loginRow.extend({ content: z.string(), created_at: z.string().optional() }),
 		(reaction) =>
 			reaction.user === null
 				? null
-				: { login: reaction.user.login, content: reaction.content },
+				: {
+						login: reaction.user.login,
+						content: reaction.content,
+						createdAt: reaction.created_at ?? null,
+					},
 	);
 }
 
@@ -768,11 +779,36 @@ export async function mergedPullHistory(
 			body: pull.body ?? "",
 			closingKeys: [],
 			headSha: head,
+			headCommittedAt: null,
 			merged: true,
 			...review,
 		});
 	}
 	return pulls;
+}
+
+const githubCommit = z.object({
+	commit: z.object({
+		committer: z.object({ date: z.string() }).nullable(),
+	}),
+});
+
+export async function fetchHeadCommittedAt(
+	repo: string,
+	sha: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<string | null> {
+	const response = await fetchImpl(
+		`https://api.github.com/repos/${repo}/commits/${sha}`,
+		{ headers: githubHeaders(token) },
+	);
+	if (!response.ok) {
+		return null;
+	}
+	return (
+		githubCommit.parse(await response.json()).commit.committer?.date ?? null
+	);
 }
 
 export async function pullReview(
@@ -908,6 +944,10 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						token,
 						fetchImpl,
 					);
+					const headCommittedAt =
+						pull.draft === true
+							? null
+							: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
 					pulls.push({
 						repo,
 						number: pull.number,
@@ -918,6 +958,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						body,
 						closingKeys: keys,
 						headSha: head,
+						headCommittedAt,
 						merged: false,
 						...review,
 					});

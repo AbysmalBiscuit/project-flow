@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { PullRequest, Ticket, TicketRef } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
+	fetchHeadCommittedAt,
 	githubHeaders,
 	githubPull,
 	mergedPullHistory,
@@ -525,6 +526,15 @@ export function linearTracker(
 						githubToken,
 						fetchImpl,
 					);
+					const headCommittedAt =
+						pull.draft === true
+							? null
+							: await fetchHeadCommittedAt(
+									target.repo,
+									pull.head.sha,
+									githubToken,
+									fetchImpl,
+								);
 					pulls.push({
 						repo: target.repo,
 						number: pull.number,
@@ -535,6 +545,7 @@ export function linearTracker(
 						body: pull.body ?? "",
 						closingKeys: [identifier],
 						headSha: pull.head.sha,
+						headCommittedAt,
 						merged: false,
 						...review,
 					});

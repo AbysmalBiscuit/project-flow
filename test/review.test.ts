@@ -143,6 +143,7 @@ function githubFetch(recorded: {
 	commentsByPull: Record<number, Record<string, unknown>[]>;
 	reviewsByPull: Record<number, Record<string, unknown>[]>;
 	reactionsByPull: Record<number, Record<string, unknown>[]>;
+	commitsBySha?: Record<string, Record<string, unknown>>;
 	mergedPulls?: Record<string, unknown>[];
 	closedNext?: string | null;
 }): Fetch {
@@ -193,6 +194,14 @@ function githubFetch(recorded: {
 		if (checkMatch?.[1] !== undefined) {
 			return page({ check_runs: recorded.checksBySha[checkMatch[1]] ?? [] });
 		}
+		const commitMatch = url.match(/\/commits\/([^/?]+)$/);
+		if (commitMatch?.[1] !== undefined) {
+			const commit = recorded.commitsBySha?.[commitMatch[1]];
+			if (commit === undefined) {
+				return new Response("not recorded", { status: 404 });
+			}
+			return page(commit);
+		}
 		const thread = url.match(
 			/\/(?:issues|pulls)\/(\d+)\/(comments|reviews|reactions)\?per_page=100&page=(\d+)/,
 		);
@@ -235,6 +244,7 @@ async function overview(recorded: {
 	commentsByPull?: Record<number, Record<string, unknown>[]>;
 	reviewsByPull?: Record<number, Record<string, unknown>[]>;
 	reactionsByPull?: Record<number, Record<string, unknown>[]>;
+	commitsBySha?: Record<string, Record<string, unknown>>;
 	mergedPulls?: Record<string, unknown>[];
 	closedNext?: string | null;
 	config?: string;
@@ -268,6 +278,9 @@ async function overview(recorded: {
 					commentsByPull: recorded.commentsByPull ?? {},
 					reviewsByPull: recorded.reviewsByPull ?? {},
 					reactionsByPull: recorded.reactionsByPull ?? {},
+					...(recorded.commitsBySha === undefined
+						? {}
+						: { commitsBySha: recorded.commitsBySha }),
 					mergedPulls: recorded.mergedPulls ?? [],
 					...(recorded.closedNext === undefined
 						? {}
@@ -449,6 +462,95 @@ describe("review cycle", () => {
 				inReview: 0,
 				awaitingMerge: 1,
 			}),
+		);
+	});
+
+	test("a Grok usage-limit comment counts only when it is newer than the head commit", async () => {
+		const olderLimit = await overview({
+			issues: [issue(8)],
+			pulls: [pull(90)],
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+						app: { slug: "grok-code-review" },
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			commentsByPull: {
+				90: [
+					{
+						user: { login: grok },
+						body: "You have reached your Grok usage limit for code reviews.",
+						created_at: "2026-10-17T12:00:00Z",
+					},
+				],
+			},
+			commitsBySha: {
+				[head]: {
+					sha: head,
+					commit: { committer: { date: "2026-10-18T11:00:00Z" } },
+				},
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(olderLimit).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+		const newerLimit = await overview({
+			issues: [issue(8)],
+			pulls: [pull(91)],
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+						app: { slug: "grok-code-review" },
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			commentsByPull: {
+				91: [
+					{
+						user: { login: grok },
+						body: "You have reached your Grok usage limit for code reviews.",
+						created_at: "2026-10-18T11:30:00Z",
+					},
+				],
+			},
+			commitsBySha: {
+				[head]: {
+					sha: head,
+					commit: { committer: { date: "2026-10-18T11:00:00Z" } },
+				},
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(newerLimit).toEqual(
+			card(
+				"awaitingMerge",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 1,
+				},
+				["grok usage limit"],
+			),
 		);
 	});
 
