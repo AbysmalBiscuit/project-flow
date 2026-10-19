@@ -1712,9 +1712,6 @@ function levReply(comments: Comment[], askIndex: number): Comment | null {
 			continue;
 		}
 		const opening = comment.body.trim();
-		if (askId(opening) !== null) {
-			continue;
-		}
 		if (
 			(id !== null && quotesAsk(opening, id)) ||
 			answerPrefix.test(opening) ||
