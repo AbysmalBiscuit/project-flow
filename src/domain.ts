@@ -297,7 +297,7 @@ export function attentionOf(
 			);
 			const reply =
 				item.reason === "ask" && ask !== null
-					? replyAfter(commentsOnTicket, ask.index)
+					? levReply(commentsOnTicket, ask.index)
 					: null;
 			comments.set(`${item.project}\n${item.key}`, {
 				stamp: commentStamp(commentsOnTicket),
@@ -319,13 +319,13 @@ export function attentionOf(
 	};
 }
 
-export function primeAttention(attention: Attention): string[] {
+export function attentionIds(attention: Attention): string[] {
 	return [
 		...attention.needsYou.map(
 			(item) => `needsYou\n${item.project}\n${item.key}`,
 		),
 		...[...attention.comments].map(
-			([id, seen]) => `comment\n${id}\n${seen.stamp}`,
+			([id, comment]) => `comment\n${id}\n${comment.stamp}`,
 		),
 	];
 }

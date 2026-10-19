@@ -13,6 +13,7 @@ import type {
 	Thread,
 } from "./domain.ts";
 import {
+	attentionIds,
 	attentionOf,
 	checkoutBasenames,
 	checkoutNamesProject,
@@ -23,7 +24,6 @@ import {
 	linearNamesFromCheckouts,
 	notificationsFor,
 	panelReplyBody,
-	primeAttention,
 	projectCounts,
 	projectHasNoSenior,
 	projectSnapshots,
@@ -694,7 +694,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		: [];
 
 	if (!options.primed) {
-		for (const id of primeAttention(after)) {
+		for (const id of attentionIds(after)) {
 			options.seenNotifications.add(id);
 		}
 		options.primed = true;
