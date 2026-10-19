@@ -16,31 +16,41 @@ const originalFetch = globalThis.fetch.bind(globalThis);
 let upstreamOrigin = "";
 let streamOpen = false;
 let permissionGranted = false;
+let proxy: ReturnType<typeof Bun.serve> | undefined;
+let armTimer: ReturnType<typeof setTimeout> | undefined;
 
-await runLinearProof("0", rootDir, (line) => {
-	upstreamOrigin = new URL(line).origin;
-	startProxy();
-	if (holdAsk) {
-		return;
-	}
-	const origin = upstreamOrigin;
-	const arm = async () => {
-		if (!streamOpen || !permissionGranted) {
-			setTimeout(() => {
-				void arm();
-			}, 200);
+await runLinearProof(
+	"0",
+	rootDir,
+	(line) => {
+		upstreamOrigin = new URL(line).origin;
+		startProxy();
+		if (holdAsk) {
 			return;
 		}
-		releaseLinearAsk();
-		await originalFetch(new URL("/api/refresh", origin), { method: "POST" });
-	};
-	setTimeout(() => {
-		void arm();
-	}, 200);
-});
+		const origin = upstreamOrigin;
+		const arm = async () => {
+			if (!streamOpen || !permissionGranted) {
+				armTimer = setTimeout(() => {
+					void arm();
+				}, 200);
+				return;
+			}
+			releaseLinearAsk();
+			await originalFetch(new URL("/api/refresh", origin), { method: "POST" });
+		};
+		armTimer = setTimeout(() => {
+			void arm();
+		}, 200);
+	},
+	async () => {
+		clearTimeout(armTimer);
+		await proxy?.stop(true);
+	},
+);
 
 function startProxy(): void {
-	const proxy = Bun.serve({
+	proxy = Bun.serve({
 		hostname: "127.0.0.1",
 		port: Number(port),
 		async fetch(request) {

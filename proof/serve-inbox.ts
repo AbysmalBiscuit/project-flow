@@ -92,6 +92,7 @@ export async function runLinearProof(
 	proofPort: string,
 	proofRoot: string,
 	onListen: (line: string) => void,
+	onStop?: () => Promise<void>,
 ): Promise<void> {
 	const root = await mkdtemp(join(proofRoot, "project-flow-proof-"));
 	const config = join(root, "config.json");
@@ -122,6 +123,7 @@ export async function runLinearProof(
 			},
 		);
 	} finally {
+		await onStop?.();
 		await rm(root, { recursive: true, force: true });
 	}
 }
@@ -129,21 +131,29 @@ export async function runLinearProof(
 if (import.meta.main) {
 	const port = process.argv[2] ?? "4174";
 	const rootDir = process.argv[3] ?? "/var/tmp";
-	await runLinearProof(port, rootDir, (line) => {
-		console.log(line);
-		const arm = async () => {
-			const inbox = await fetch(new URL("/inbox", line));
-			if (!inbox.ok) {
-				setTimeout(() => {
-					void arm();
-				}, 200);
-				return;
-			}
-			releaseLinearAsk();
-			await fetch(new URL("/api/refresh", line), { method: "POST" });
-		};
-		setTimeout(() => {
-			void arm();
-		}, 200);
-	});
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	await runLinearProof(
+		port,
+		rootDir,
+		(line) => {
+			console.log(line);
+			const arm = async () => {
+				const inbox = await fetch(new URL("/inbox", line));
+				if (!inbox.ok) {
+					timer = setTimeout(() => {
+						void arm();
+					}, 200);
+					return;
+				}
+				releaseLinearAsk();
+				await fetch(new URL("/api/refresh", line), { method: "POST" });
+			};
+			timer = setTimeout(() => {
+				void arm();
+			}, 200);
+		},
+		async () => {
+			clearTimeout(timer);
+		},
+	);
 }
