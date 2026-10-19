@@ -3,8 +3,6 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 
-const port = process.argv[2] ?? "4174";
-const rootDir = process.argv[3] ?? "/var/tmp";
 const ask = "<!-- workcell:ask pf-1 -->";
 const question = "Which bot should review this?";
 
@@ -117,6 +115,8 @@ export async function runLinearProof(
 }
 
 if (import.meta.main) {
+	const port = process.argv[2] ?? "4174";
+	const rootDir = process.argv[3] ?? "/var/tmp";
 	await runLinearProof(port, rootDir, (line) => {
 		console.log(line);
 		const arm = async () => {
