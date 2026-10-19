@@ -772,7 +772,7 @@ export function projectCounts(
 	};
 }
 
-const stateTotal = [
+const stateKeys = [
 	"done",
 	"dropped",
 	"blocked",
@@ -780,14 +780,10 @@ const stateTotal = [
 	"inProgress",
 ] as const;
 
-export function progressRatio(counts: {
-	done: number;
-	dropped: number;
-	blocked: number;
-	backlog: number;
-	inProgress: number;
-}): number {
-	const total = stateTotal.reduce((sum, state) => sum + counts[state], 0);
+function progressRatio(
+	counts: Pick<ProjectCounts, (typeof stateKeys)[number]>,
+): number {
+	const total = stateKeys.reduce((sum, state) => sum + counts[state], 0);
 	if (total === 0) {
 		return 0;
 	}
@@ -804,7 +800,11 @@ function askId(body: string): string | null {
 }
 
 function quotesAsk(body: string, id: string): boolean {
-	return body.toLowerCase().includes(id.toLowerCase());
+	const pattern = new RegExp(
+		`(?<![A-Za-z0-9_.-])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9_.-])`,
+		"i",
+	);
+	return pattern.test(body);
 }
 
 function needsYouTicket(
@@ -849,7 +849,15 @@ function addressedToLev(
 	if (tracker === "linear") {
 		return true;
 	}
-	return namesLev && nameCue.test(body);
+	if (!namesLev) {
+		return false;
+	}
+	const cueAt = body.search(nameCue);
+	const nameAt = body.search(/\blev\b/i);
+	if (cueAt < 0 || nameAt < 0) {
+		return false;
+	}
+	return Math.abs(cueAt - nameAt) <= 80;
 }
 
 function opensForSenior(body: string): boolean {
