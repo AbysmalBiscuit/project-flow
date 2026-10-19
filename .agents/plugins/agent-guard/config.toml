@@ -1,0 +1,3 @@
+# Opts project-flow into the agent-guard rules layer and the fallow changeset audit.
+# Stop and SubagentStop refuse to finish while the audit has findings.
+block = true
