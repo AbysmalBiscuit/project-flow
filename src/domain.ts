@@ -549,10 +549,13 @@ export function githubRepoForTodo(
 }
 
 export function checkoutBasenames(
-	checkouts: { path?: string; repo: string }[],
+	checkouts: (
+		| { path: string; tracker: "github"; repo: string }
+		| { path: string; tracker: "linear" }
+	)[],
 ): { name: string; repo: string }[] {
 	return checkouts.flatMap((checkout) => {
-		if (checkout.path === undefined || checkout.repo.trim() === "") {
+		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {
 			return [];
 		}
 		const name = checkout.path.split(/[/\\]/).at(-1) ?? "";
@@ -574,16 +577,19 @@ export function todoNamesForCheckout(
 }
 
 export function linearNamesFromCheckouts(
-	checkouts: { path?: string; tracker: string; names?: string[] }[],
+	checkouts: (
+		| { path: string; tracker: "github"; names: string[] }
+		| { path: string; tracker: "linear"; names: string[] }
+	)[],
 	rows: { project: string }[],
 ): string[] {
 	const names: string[] = [];
 	for (const checkout of checkouts) {
-		if (checkout.tracker !== "linear" || checkout.path === undefined) {
+		if (checkout.tracker !== "linear") {
 			continue;
 		}
 		const checkoutName = checkout.path.split(/[/\\]/).at(-1) ?? "";
-		names.push(...(checkout.names ?? []));
+		names.push(...checkout.names);
 		names.push(...todoNamesForCheckout(checkoutName, rows));
 	}
 	return names;

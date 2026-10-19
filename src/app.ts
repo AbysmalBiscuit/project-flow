@@ -212,8 +212,8 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		}
 		if (
 			!checkoutNamesProject(
-				checkout.hasTrackerConfig === true,
-				checkout.originOwner ?? null,
+				checkout.hasTrackerConfig,
+				checkout.originOwner,
 				viewer,
 			)
 		) {

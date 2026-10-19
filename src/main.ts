@@ -158,7 +158,6 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 		kind === "linear" || (kind === "github" && ownerRepo.test(configured));
 	if (kind === "linear") {
 		return {
-			repo: "",
 			tracker: "linear",
 			path,
 			names: await worktreeNames(path),
@@ -177,6 +176,7 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 		path,
 		originOwner: origin?.owner ?? "",
 		hasTrackerConfig,
+		names: [],
 	};
 }
 
@@ -215,7 +215,7 @@ export async function listDevkitCheckouts(
 				if (checkout === null) {
 					continue;
 				}
-				const id = `${checkout.tracker}:${checkout.path ?? checkout.repo}`;
+				const id = `${checkout.tracker}:${checkout.path}`;
 				if (seen.has(id)) {
 					continue;
 				}
