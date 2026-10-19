@@ -987,6 +987,38 @@ describe("tracker lanes", () => {
 		);
 	});
 
+	test("a board with no In Review lane inserts Awaiting merge at the awaiting merge position", async () => {
+		const options = [
+			{ id: "opt-todo", name: "Todo", color: "GRAY" },
+			{ id: "opt-doing", name: "Doing", color: "YELLOW" },
+			{ id: "opt-shipped", name: "Shipped", color: "GREEN" },
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			projectFetch(
+				[projectItem(12, "Still doing", { name: "Doing", color: "YELLOW" })],
+				options,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(report.lanes.map((lane) => lane.name)).toEqual([
+					"Todo",
+					"Doing",
+					"Awaiting merge",
+					"Shipped",
+				]);
+				const added = report.lanes.find(
+					(lane) => lane.name === "Awaiting merge",
+				);
+				expect(added?.statusType).toBe("awaitingMerge");
+				expect(added?.added).toBe(true);
+			},
+		);
+	});
+
 	test("a lane mapping override maps evidence to a named status", async () => {
 		await withApp(
 			JSON.stringify({
