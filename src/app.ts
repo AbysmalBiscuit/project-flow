@@ -781,8 +781,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			};
 		});
 		// A listen callback reads stored rows before this poll lists tickets.
-		const fallback = setTimeout(releaseLists, 1_000);
-		fallback.unref?.();
+		setTimeout(releaseLists, 1_000);
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;
@@ -868,7 +867,9 @@ export async function start(options: StartOptions): Promise<Running> {
 					const body = Response.json(
 						overview(opened.store, configuration, pollOptions.viewers),
 					);
-					releaseLists();
+					// Releasing in the handler lets the held poll list tickets
+					// before this body is delivered.
+					setTimeout(releaseLists, 0);
 					return body;
 				},
 			},
@@ -939,9 +940,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		},
 	});
 	if (hadRows) {
-		setTimeout(() => {
-			void pollAgain();
-		}, 0);
+		void pollAgain();
 	}
 	return {
 		url: server.url,
