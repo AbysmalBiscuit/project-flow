@@ -10,15 +10,19 @@ The checks are `bun run typecheck`, `bun run test` and `bun run lint`. `bun run 
 
 ## Coding standards
 
-The parent spec, issue #1, holds the full rules. Use the terms in `GLOSSARY.md`.
+Issue #1 holds the v1 rules. Issue #97 overrides #1 where they differ. Use the terms in `GLOSSARY.md`.
 
 ### Stack
 
-- One Bun process serves the React page and the JSON API on localhost. Bun bundles the page from an HTML import. Do not add a bundler or a framework.
+- The stack is Bun, React and StyleX. One Bun process serves the React page and the JSON API on localhost. Bun bundles the page from an HTML import. Do not add a second bundler or a framework.
+- Styles move to StyleX (ADR 0001). Until a component moves, it styles through its CSS module and `src/tokens.css`.
+- The StyleX Bun plugin runs in the dev server and the production build once styles move.
 - Bun's built-in SQLite is the store. The store is a cache: the next poll fills it again. The notifications table and seeded_ids keep history.
 - One Zod schema validates the configuration file and gives its TypeScript type. Do not write a second type for the configuration.
-- The browser renders diagrams with Mermaid.
-- A component styles only through its CSS module and the custom properties in `src/tokens.css`. Do not add a colour, `px` or `rem` literal in any other CSS file.
+- Graphs move to React Flow (ADR 0002). Until a graph moves, Mermaid draws it.
+- Mermaid leaves the dependencies when both graphs move.
+- StyleX variables are the one source of colours and sizes after a component moves. Until then, `src/tokens.css` is that source.
+- A component that has moved styles only through StyleX. Do not add a colour, `px` or `rem` literal outside a StyleX variable. Computed graph coordinates stay allowed.
 
 ### Architecture
 
