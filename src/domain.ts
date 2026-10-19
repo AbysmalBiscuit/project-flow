@@ -29,6 +29,8 @@ export type TicketRef = {
 	project: string;
 	key: string;
 	state?: "open" | "closed";
+	title?: string;
+	projectName?: string;
 };
 
 export type Comment = {
@@ -251,6 +253,7 @@ export type Attention = {
 	>;
 	blockers: Map<string, string>;
 	closed: Set<string>;
+	closedBlockers: Set<string>;
 };
 
 function newestComment(comments: Comment[] | undefined): {
@@ -311,6 +314,7 @@ export function attentionOf(
 	>();
 	const blockers = new Map<string, string>();
 	const closed = new Set<string>();
+	const closedBlockers = new Set<string>();
 	const tickets = new Map<string, Ticket>();
 	for (const view of views) {
 		for (const ticket of view.row.tickets) {
@@ -346,9 +350,21 @@ export function attentionOf(
 		}
 		for (const blocker of view.counts.crossProjectBlockers) {
 			blockers.set(
-				`${view.counts.name}\n${blocker.tracker}\n${blocker.project}\n${blocker.key}`,
+				`${view.counts.name}\n${blocker.tracker}\n${blocker.key}`,
 				blocker.title.trim() === "" ? blocker.key : blocker.title,
 			);
+		}
+		for (const ticket of view.row.tickets) {
+			if (ticket.key === null) {
+				continue;
+			}
+			for (const ref of ticket.blockedBy) {
+				const id = ticketKey(ref.tracker, ref.key);
+				if (tickets.has(id) || ref.state !== "closed") {
+					continue;
+				}
+				closedBlockers.add(id);
+			}
 		}
 	}
 	return {
@@ -356,6 +372,7 @@ export function attentionOf(
 		comments,
 		blockers,
 		closed,
+		closedBlockers,
 	};
 }
 
@@ -483,8 +500,12 @@ export function notificationsFor(
 			if (after.blockers.has(id)) {
 				continue;
 			}
-			const [, tracker = "", , itemKey = ""] = id.split("\n");
-			if (!after.closed.has(`${tracker}\n${itemKey.toLowerCase()}`)) {
+			const [, tracker = "", itemKey = ""] = id.split("\n");
+			const closedKey = `${tracker}\n${itemKey.toLowerCase()}`;
+			if (
+				!after.closed.has(closedKey) &&
+				!after.closedBlockers.has(closedKey)
+			) {
 				continue;
 			}
 			const [project = ""] = id.split("\n");
@@ -884,7 +905,7 @@ function outsideTicket(ref: TicketRef): Ticket {
 		id: ref.key,
 		tracker: ref.tracker,
 		key: ref.key,
-		title: ref.key,
+		title: ref.title?.trim() || ref.key,
 		state: "open",
 		stateReason: null,
 		updatedAt: "",
@@ -1350,6 +1371,9 @@ function blockerProject(
 	const home = groups.find((group) => group.tickets.includes(blocker))?.project;
 	if (home !== undefined) {
 		return home;
+	}
+	if (ref?.projectName !== undefined && ref.projectName.trim() !== "") {
+		return ref.projectName;
 	}
 	if (ref?.project !== undefined && ref.project !== "") {
 		return ref.project;

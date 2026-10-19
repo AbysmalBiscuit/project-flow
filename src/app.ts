@@ -858,6 +858,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			comments: new Map(),
 			blockers: new Map(),
 			closed: new Set(),
+			closedBlockers: new Set(),
 		},
 		seenNotifications: new Set([
 			...opened.store
