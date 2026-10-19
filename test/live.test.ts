@@ -669,18 +669,25 @@ describe("live updates", () => {
 							}
 							continue;
 						}
-						if (names.includes(thirdRepo)) {
-							throw new Error("third project arrived before its poll ended");
+						if (!sawOther) {
+							if (names.includes(thirdRepo)) {
+								throw new Error("third project arrived before its poll ended");
+							}
+							if (names.includes(otherRepo)) {
+								sawOther = true;
+								releases.get(thirdRepo)?.();
+							}
+							continue;
 						}
-						if (names.includes(otherRepo) && !names.includes(thirdRepo)) {
-							sawOther = true;
-							break;
+						if (!names.includes(thirdRepo) || body.polling === true) {
+							continue;
 						}
+						expect(body.polling).toBeUndefined();
+						break;
 					}
 					expect(sawWidget).toBe(true);
 					expect(sawOther).toBe(true);
 					clearTimeout(timer);
-					releases.get(thirdRepo)?.();
 					stream.close();
 					resolve();
 				})().catch((error: unknown) => {

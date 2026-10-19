@@ -727,6 +727,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	for (const id of seeded) {
 		options.seenNotifications.add(id);
 	}
+	options.polling = false;
 	const notifications = options.primed
 		? notificationsFor(
 				before,
@@ -888,6 +889,16 @@ export async function start(options: StartOptions): Promise<Running> {
 			try {
 				configuration = await poll(pollOptions);
 				pollOptions.fallback = configuration;
+				if (pollOptions.polling) {
+					pollOptions.polling = false;
+					notifier.publish({
+						overview: overview(
+							opened.store,
+							configuration,
+							pollOptions.viewers,
+						),
+					});
+				}
 			} catch (error) {
 				if (stopped) {
 					return;
@@ -922,7 +933,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	if (hadRows) {
 		armTimer();
 	} else {
-		void firstPoll.finally(armTimer);
+		void firstPoll.then(armTimer, armTimer);
 	}
 	const server = Bun.serve({
 		hostname: options.hostname,
