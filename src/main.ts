@@ -104,17 +104,6 @@ async function command(args: string[]): Promise<string | null> {
 	return code === 0 ? out.trim() : null;
 }
 
-function checkoutRoots(env: Record<string, string | undefined>): string[] {
-	const configured = env.PROJECT_FLOW_CHECKOUT_ROOTS;
-	if (configured !== undefined) {
-		return configured.split(/(?:,|\n)/).flatMap((root) => {
-			const trimmed = root.trim();
-			return trimmed === "" ? [] : [trimmed];
-		});
-	}
-	return [join(homedir(), "Git")];
-}
-
 async function readText(path: string): Promise<string | null> {
 	try {
 		return await readFile(path, "utf8");
@@ -192,11 +181,11 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 }
 
 export async function listDevkitCheckouts(
-	env: Record<string, string | undefined> = process.env,
+	roots: string[],
 ): Promise<LocalCheckout[]> {
 	const found: LocalCheckout[] = [];
 	const seen = new Set<string>();
-	for (const root of checkoutRoots(env)) {
+	for (const root of roots) {
 		let owners: string[];
 		try {
 			owners = await readdir(root);
@@ -408,7 +397,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
 			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
 			listTodos: io.listTodos ?? listDevkitTodos,
-			listCheckouts: io.listCheckouts ?? (() => listDevkitCheckouts(io.env)),
+			listCheckouts:
+				io.listCheckouts ??
+				(() => listDevkitCheckouts(configuration.checkoutRoots)),
 			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		writeOut(running.url.href);

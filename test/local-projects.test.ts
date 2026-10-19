@@ -158,9 +158,11 @@ async function overview(input: {
 	roots?: string;
 	fetch?: Fetch;
 }): Promise<{ body: unknown; requests: string[] }> {
-	const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const scan = await mkdtemp(join(tmpdir(), "project-flow-scan-"));
+	const { path, cleanup } = await tempConfig(
+		JSON.stringify({ pinned: [], checkoutRoots: [input.roots ?? scan] }),
+	);
 	const requests = input.requests ?? [];
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<unknown>((resolve, reject) => {
@@ -187,7 +189,6 @@ async function overview(input: {
 					...(input.linear === true
 						? { LINEAR_API_KEY: "recorded-linear-key" }
 						: {}),
-					PROJECT_FLOW_CHECKOUT_ROOTS: input.roots ?? scan,
 				},
 				fetch: input.fetch ?? localFetch(requests),
 				readGhToken: async () => null,
@@ -765,6 +766,67 @@ describe("local projects", () => {
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank checkout root and the old env var name no project", async () => {
+		const blank = await overview({
+			roots: "   ",
+			files: {
+				"lev/local-only/.git/config": originConfig,
+				"lev/local-only/devkit.toml": "",
+			},
+		});
+		expect(blank.body).toEqual({
+			projects: [],
+			fetchedAt: null,
+			error: null,
+		});
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [], checkoutRoots: [] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const scan = await mkdtemp(join(tmpdir(), "project-flow-scan-"));
+		try {
+			await mkdir(join(scan, "lev", "local-only", ".git"), { recursive: true });
+			await writeFile(
+				join(scan, "lev", "local-only", ".git", "config"),
+				originConfig,
+			);
+			await writeFile(join(scan, "lev", "local-only", "devkit.toml"), "");
+			let startChecks: (base: string) => void = () => {};
+			const checks = new Promise<unknown>((resolve, reject) => {
+				startChecks = (base: string) => {
+					fetch(new URL("/api/overview", base))
+						.then(async (response) => resolve(await response.json()))
+						.catch(reject);
+				};
+			});
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						PROJECT_FLOW_CHECKOUT_ROOTS: scan,
+					},
+					fetch: localFetch([]),
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(await checks).toEqual({
+				projects: [],
+				fetchedAt: null,
+				error: null,
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+			await rm(scan, { recursive: true, force: true });
 		}
 	});
 
