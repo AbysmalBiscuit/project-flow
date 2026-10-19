@@ -1,5 +1,14 @@
 import { z } from "zod";
-import type { Comment, PullRequest, Ticket, TicketRef } from "./domain.ts";
+import type {
+	BotCheck,
+	BotComment,
+	BotReaction,
+	BotReview,
+	Comment,
+	PullRequest,
+	Ticket,
+	TicketRef,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -29,14 +38,15 @@ const githubIssue = z.object({
 	comments: z.number().optional(),
 });
 
-const githubPull = z.object({
+export const githubPull = z.object({
 	number: z.number(),
 	title: z.string(),
 	html_url: z.string(),
 	draft: z.boolean().optional(),
 	body: z.string().nullable(),
-	head: z.object({ ref: z.string() }),
+	head: z.object({ ref: z.string(), sha: z.string().optional() }),
 	state: z.string(),
+	merged_at: z.string().nullable().optional(),
 });
 
 const linkedDevelopment = z.object({
@@ -587,7 +597,244 @@ async function listProjectTickets(
 	return tickets;
 }
 
+async function fetchJson(
+	url: string,
+	token: string,
+	fetchImpl: Fetch,
+	label: string,
+): Promise<unknown> {
+	const response = await fetchImpl(url, { headers: githubHeaders(token) });
+	if (!response.ok) {
+		throw new Error(`GitHub ${label} failed (HTTP ${response.status}): ${url}`);
+	}
+	return response.json();
+}
+
+async function fetchRows<Row, Mapped>(
+	start: string,
+	repo: string,
+	token: string,
+	fetchImpl: Fetch,
+	label: string,
+	row: z.ZodType<Row>,
+	map: (item: Row) => Mapped | null,
+): Promise<Mapped[]> {
+	const mapped: Mapped[] = [];
+	const bodies = await pages(start, token, fetchImpl, repo, label);
+	for (const body of bodies) {
+		for (const item of z.array(row).parse(body)) {
+			const value = map(item);
+			if (value !== null) {
+				mapped.push(value);
+			}
+		}
+	}
+	return mapped;
+}
+
+const loginRow = z.object({
+	user: z.object({ login: z.string() }).nullable(),
+});
+
+async function fetchChecks(
+	repo: string,
+	sha: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotCheck[]> {
+	const body = await fetchJson(
+		`https://api.github.com/repos/${repo}/commits/${sha}/check-runs?per_page=100`,
+		token,
+		fetchImpl,
+		"list checks",
+	);
+	return z
+		.object({
+			check_runs: z.array(
+				z.object({
+					name: z.string(),
+					status: z.string(),
+					conclusion: z.string().nullable(),
+				}),
+			),
+		})
+		.parse(body).check_runs;
+}
+
+function fetchComments(
+	repo: string,
+	number: number,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotComment[]> {
+	return fetchRows(
+		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+		repo,
+		token,
+		fetchImpl,
+		"list comments",
+		loginRow.extend({
+			body: z.string().nullable(),
+			created_at: z.string().optional(),
+		}),
+		(comment) =>
+			comment.user === null
+				? null
+				: {
+						login: comment.user.login,
+						body: comment.body ?? "",
+						createdAt: comment.created_at ?? null,
+					},
+	);
+}
+
+function fetchReviews(
+	repo: string,
+	number: number,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotReview[]> {
+	return fetchRows(
+		`https://api.github.com/repos/${repo}/pulls/${number}/reviews?per_page=100&page=1`,
+		repo,
+		token,
+		fetchImpl,
+		"list reviews",
+		loginRow.extend({ commit_id: z.string() }),
+		(review) =>
+			review.user === null
+				? null
+				: { login: review.user.login, commitId: review.commit_id },
+	);
+}
+
+function fetchReactions(
+	repo: string,
+	number: number,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<BotReaction[]> {
+	return fetchRows(
+		`https://api.github.com/repos/${repo}/issues/${number}/reactions?per_page=100&page=1`,
+		repo,
+		token,
+		fetchImpl,
+		"list reactions",
+		loginRow.extend({ content: z.string(), created_at: z.string().optional() }),
+		(reaction) =>
+			reaction.user === null
+				? null
+				: {
+						login: reaction.user.login,
+						content: reaction.content,
+						createdAt: reaction.created_at ?? null,
+					},
+	);
+}
+
+export type ReviewEvidence = Pick<
+	PullRequest,
+	"checks" | "comments" | "reviews" | "reactions"
+>;
+
+function mergedReviewKey(repo: string, number: number): string {
+	return `${repo}#${number}`;
+}
+
+export async function mergedPullHistory(
+	repo: string,
+	token: string,
+	fetchImpl: Fetch,
+	seen: Map<string, ReviewEvidence>,
+): Promise<PullRequest[]> {
+	const page = z
+		.array(githubPull)
+		.parse(
+			await fetchJson(
+				`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
+				token,
+				fetchImpl,
+				"list merged pulls",
+			),
+		);
+	const pulls: PullRequest[] = [];
+	for (const pull of page) {
+		if ((pull.merged_at ?? null) === null) {
+			continue;
+		}
+		const head = pull.head.sha ?? "";
+		const key = mergedReviewKey(repo, pull.number);
+		const cached = seen.get(key);
+		const review =
+			cached ??
+			(await pullReview(repo, pull.number, head, false, token, fetchImpl));
+		seen.set(key, review);
+		pulls.push({
+			repo,
+			number: pull.number,
+			url: pull.html_url,
+			title: pull.title,
+			draft: pull.draft === true,
+			branch: pull.head.ref,
+			body: pull.body ?? "",
+			closingKeys: [],
+			headSha: head,
+			headCommittedAt: null,
+			merged: true,
+			...review,
+		});
+	}
+	return pulls;
+}
+
+const githubCommit = z.object({
+	commit: z.object({
+		committer: z.object({ date: z.string() }).nullable(),
+	}),
+});
+
+export async function fetchHeadCommittedAt(
+	repo: string,
+	sha: string,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<string | null> {
+	const response = await fetchImpl(
+		`https://api.github.com/repos/${repo}/commits/${sha}`,
+		{ headers: githubHeaders(token) },
+	);
+	if (!response.ok) {
+		return null;
+	}
+	const parsed = githubCommit.safeParse(await response.json());
+	if (!parsed.success) {
+		return null;
+	}
+	return parsed.data.commit.committer?.date ?? null;
+}
+
+export async function pullReview(
+	repo: string,
+	number: number,
+	sha: string,
+	draft: boolean,
+	token: string,
+	fetchImpl: Fetch,
+): Promise<ReviewEvidence> {
+	if (draft) {
+		return { checks: [], comments: [], reviews: [], reactions: [] };
+	}
+	const [checks, comments, reviews, reactions] = await Promise.all([
+		fetchChecks(repo, sha, token, fetchImpl),
+		fetchComments(repo, number, token, fetchImpl),
+		fetchReviews(repo, number, token, fetchImpl),
+		fetchReactions(repo, number, token, fetchImpl),
+	]);
+	return { checks, comments, reviews, reactions };
+}
+
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
+	const seenReviews = new Map<string, ReviewEvidence>();
 	return {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
@@ -690,7 +937,24 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 							}
 						}
 					}
+					const head = pull.head.sha ?? "";
+					const review =
+						head === ""
+							? { checks: [], comments: [], reviews: [], reactions: [] }
+							: await pullReview(
+									repo,
+									pull.number,
+									head,
+									pull.draft === true,
+									token,
+									fetchImpl,
+								);
+					const headCommittedAt =
+						pull.draft === true || head === ""
+							? null
+							: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
 					pulls.push({
+						repo,
 						number: pull.number,
 						url: pull.html_url,
 						title: pull.title,
@@ -698,8 +962,17 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						branch: pull.head.ref,
 						body,
 						closingKeys: keys,
+						headSha: head,
+						headCommittedAt,
+						merged: false,
+						...review,
 					});
 				}
+			}
+			if (pulls.length > 0) {
+				pulls.push(
+					...(await mergedPullHistory(repo, token, fetchImpl, seenReviews)),
+				);
 			}
 			return pulls;
 		},

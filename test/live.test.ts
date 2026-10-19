@@ -33,8 +33,17 @@ function page(items: Record<string, unknown>[]): Response {
 }
 
 function recordedOrEmpty(url: string): Response | null {
-	if (url.includes("/pulls?") || url.includes("/branches?")) {
+	if (
+		url.includes("/pulls?") ||
+		url.includes("/branches?") ||
+		url.includes("/comments") ||
+		url.includes("/reviews") ||
+		url.includes("/reactions")
+	) {
 		return page([]);
+	}
+	if (url.includes("/check-runs")) {
+		return new Response(JSON.stringify({ check_runs: [] }), { status: 200 });
 	}
 	return null;
 }
@@ -205,6 +214,9 @@ type OverviewBody = {
 		blocked: number;
 		backlog: number;
 		inProgress: number;
+		inReview: number;
+		awaitingMerge: number;
+		tags: string[];
 		unlinkedPrs: unknown[];
 		tickets: {
 			key: string | null;
@@ -239,6 +251,9 @@ function counts(
 		blocked: 0,
 		backlog,
 		inProgress: 0,
+		inReview: 0,
+		awaitingMerge: 0,
+		tags: [],
 		unlinkedPrs: [],
 		tickets,
 		crossProjectBlockers: [],
@@ -1226,6 +1241,12 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
+			if (url.includes("/pulls?state=closed")) {
+				return new Response("[]", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
 			if (url.startsWith("https://api.github.com/repos/acme/widget/pulls/7")) {
 				requests.push(url);
 				return new Response(
@@ -1235,7 +1256,7 @@ describe("live updates", () => {
 						html_url: "https://github.com/acme/widget/pull/7",
 						draft: true,
 						body: "closes acme/widget#1",
-						head: { ref: "wid-1" },
+						head: { ref: "wid-1", sha: "sha-7" },
 						state: "open",
 					}),
 					{ status: 200, headers: { "content-type": "application/json" } },

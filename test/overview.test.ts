@@ -86,6 +86,29 @@ function githubFetch(requests: string[] = []): Fetch {
 		if (url.includes("/pulls?") || url.includes("/branches?")) {
 			return page([], null);
 		}
+		if (url.includes("/check-runs")) {
+			return new Response(JSON.stringify({ check_runs: [] }), { status: 200 });
+		}
+		if (
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/reactions") ||
+			/\/pulls\/\d+$/.test(url)
+		) {
+			return page([], null);
+		}
+		if (url === "https://api.github.com/graphql") {
+			return new Response(
+				JSON.stringify({
+					data: {
+						repository: {
+							pullRequest: { closingIssuesReferences: { nodes: [] } },
+						},
+					},
+				}),
+				{ status: 200 },
+			);
+		}
 		if (url === "https://api.linear.app/graphql") {
 			return new Response(JSON.stringify({ data: { viewer: { id: "lev" } } }), {
 				status: 200,
@@ -113,6 +136,9 @@ async function assertCard(base: string): Promise<void> {
 			blocked: 0,
 			backlog: 2,
 			inProgress: 0,
+			inReview: 0,
+			awaitingMerge: 0,
+			tags: [],
 			unlinkedPrs: [],
 			tickets: [
 				{ key: `${repo}#1`, title: "Ticket 1", state: "done", blockers: [] },
@@ -210,6 +236,31 @@ function linearFetch(requests: string[]): Fetch {
 			}
 			if (url.includes("/pulls?") || url.includes("/branches?")) {
 				return page([], null);
+			}
+			if (url.includes("/check-runs")) {
+				return new Response(JSON.stringify({ check_runs: [] }), {
+					status: 200,
+				});
+			}
+			if (
+				url.includes("/comments") ||
+				url.includes("/reviews") ||
+				url.includes("/reactions") ||
+				/\/pulls\/\d+$/.test(url)
+			) {
+				return page([], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							repository: {
+								pullRequest: { closingIssuesReferences: { nodes: [] } },
+							},
+						},
+					}),
+					{ status: 200 },
+				);
 			}
 			return new Response("not recorded", { status: 404 });
 		},
@@ -351,6 +402,9 @@ describe("GET /api/overview", () => {
 						blocked: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						unlinkedPrs: [],
 						tickets: [
 							{
@@ -383,6 +437,9 @@ describe("GET /api/overview", () => {
 						blocked: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						unlinkedPrs: [],
 						tickets: [
 							{
@@ -555,6 +612,9 @@ describe("GET /api/overview", () => {
 						blocked: 0,
 						backlog: 0,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						unlinkedPrs: [],
 						tickets: [
 							{
@@ -764,6 +824,9 @@ describe("GET /api/overview", () => {
 							blocked: 0,
 							backlog: 2,
 							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							tags: [],
 							unlinkedPrs: [],
 							tickets: [
 								{
@@ -820,6 +883,9 @@ describe("GET /api/overview", () => {
 							blocked: 0,
 							backlog: 2,
 							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							tags: [],
 							unlinkedPrs: [],
 							tickets: [
 								{
@@ -1016,6 +1082,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -1200,6 +1269,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -1229,6 +1301,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -1431,6 +1506,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -1585,6 +1663,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -1946,6 +2027,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -1975,6 +2059,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -2148,6 +2235,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -2319,6 +2409,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -2494,6 +2587,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -2665,6 +2761,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,
@@ -3061,6 +3160,9 @@ describe("GET /api/overview", () => {
 						dropped: 0,
 						backlog: 0,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						blocked: 0,
 						crossProjectBlockers: [],
 						needsYou: 0,

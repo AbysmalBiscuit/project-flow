@@ -308,7 +308,7 @@ describe("GET /api/overview blockers", () => {
 				if (url.includes("/pulls?") || url.includes("/branches?")) {
 					return page([]);
 				}
-				if (url.endsWith("/comments")) {
+				if (url.includes("/comments")) {
 					return page([]);
 				}
 				return new Response("not recorded", { status: 404 });

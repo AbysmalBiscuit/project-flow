@@ -31,7 +31,13 @@ function issue(
 
 function view(
 	number: number,
-	state: "backlog" | "inProgress" | "done" | "dropped",
+	state:
+		| "backlog"
+		| "inProgress"
+		| "inReview"
+		| "awaitingMerge"
+		| "done"
+		| "dropped",
 ): { key: string; title: string; state: string; blockers: string[] } {
 	return {
 		key: `${repo}#${number}`,
@@ -51,7 +57,7 @@ function pull(
 		state: "open",
 		draft: false,
 		html_url: `https://github.com/${repo}/pull/${number}`,
-		head: { ref: `pr-${number}` },
+		head: { ref: `pr-${number}`, sha: `sha-${number}` },
 		body: "",
 		...fields,
 	};
@@ -90,13 +96,37 @@ function githubFetch(
 		if (url === issues) {
 			return page(recorded.issues);
 		}
-		if (url === pulls) {
-			return page(recorded.pulls);
+		if (url === pulls || url.includes("/pulls?state=closed")) {
+			return url.includes("state=closed") ? page([]) : page(recorded.pulls);
 		}
 		if (url === branches) {
 			return page(recorded.branches ?? []);
 		}
 
+		if (url.includes("check-runs") || url.includes("/commits/")) {
+			return new Response(JSON.stringify({ check_runs: [] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}
+		if (url.includes("/reactions")) {
+			return page([]);
+		}
+		if (url.includes("/comments") || url.includes("/reviews")) {
+			return page([]);
+		}
+		const pullMatch = url.match(/\/pulls\/(\d+)$/);
+		if (pullMatch?.[1] !== undefined) {
+			const found = recorded.pulls.find(
+				(item) => item.number === Number(pullMatch[1]),
+			);
+			if (found !== undefined) {
+				return new Response(JSON.stringify(found), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+		}
 		if (url === "https://api.github.com/graphql") {
 			const body = typeof init?.body === "string" ? init.body : "";
 			requests.push(body);
@@ -206,6 +236,9 @@ function linearFetch(): Fetch {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
+			if (url.includes("/pulls?state=closed")) {
+				return page([]);
+			}
 			if (url === "https://api.github.com/repos/acme/widget/pulls/77") {
 				return new Response(
 					JSON.stringify(
@@ -217,6 +250,18 @@ function linearFetch(): Fetch {
 					),
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
+			}
+			if (url.includes("/check-runs")) {
+				return new Response(JSON.stringify({ check_runs: [] }), {
+					status: 200,
+				});
+			}
+			if (
+				url.includes("/comments") ||
+				url.includes("/reviews") ||
+				url.includes("/reactions")
+			) {
+				return page([]);
 			}
 			return new Response("not recorded", { status: 404 });
 		},
@@ -239,6 +284,9 @@ describe("unlinked PRs", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [
 						{
 							number: 91,
@@ -271,6 +319,9 @@ describe("unlinked PRs", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [
 						{
 							number: 90,
@@ -308,6 +359,9 @@ describe("in progress", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(20, "inProgress")],
 					crossProjectBlockers: [],
@@ -335,10 +389,13 @@ describe("in progress", () => {
 					done: 0,
 					dropped: 0,
 					blocked: 0,
-					backlog: 1,
+					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 1,
+					tags: [],
 					unlinkedPrs: [],
-					tickets: [view(18, "inProgress"), view(19, "backlog")],
+					tickets: [view(18, "inProgress"), view(19, "awaitingMerge")],
 					crossProjectBlockers: [],
 					needsYou: 0,
 					progress: 0,
@@ -364,6 +421,9 @@ describe("in progress", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(4, "backlog")],
 					crossProjectBlockers: [],
@@ -391,6 +451,9 @@ describe("in progress", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(21, "inProgress")],
 					crossProjectBlockers: [],
@@ -418,6 +481,9 @@ describe("in progress", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(23, "backlog")],
 					crossProjectBlockers: [],
@@ -445,6 +511,9 @@ describe("in progress", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(22, "backlog")],
 					crossProjectBlockers: [],
@@ -472,6 +541,9 @@ describe("in progress", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(24, "inProgress")],
 					crossProjectBlockers: [],
@@ -499,6 +571,9 @@ describe("in progress", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(22, "inProgress")],
 					crossProjectBlockers: [],
@@ -527,6 +602,9 @@ describe("PR links", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [
 						{
 							number: 55,
@@ -559,6 +637,9 @@ describe("PR links", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(6, "done")],
 					crossProjectBlockers: [],
@@ -585,6 +666,9 @@ describe("PR links", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(12, "inProgress")],
 					crossProjectBlockers: [],
@@ -619,6 +703,9 @@ describe("PR links", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(14, "inProgress")],
 					crossProjectBlockers: [],
@@ -672,6 +759,9 @@ describe("PR links", () => {
 						blocked: 0,
 						backlog: 0,
 						inProgress: 1,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						unlinkedPrs: [],
 						tickets: [
 							{
@@ -701,7 +791,7 @@ describe("PR links", () => {
 				pull(42, {
 					body: "No keyword here.",
 					draft: true,
-					head: { ref: "7-feat-link-prs-to-tickets" },
+					head: { ref: "7-feat-link-prs-to-tickets", sha: "sha-42" },
 				}),
 			],
 		});
@@ -715,6 +805,9 @@ describe("PR links", () => {
 					blocked: 0,
 					backlog: 0,
 					inProgress: 1,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [view(7, "inProgress")],
 					crossProjectBlockers: [],

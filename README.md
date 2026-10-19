@@ -40,6 +40,7 @@ The file can be empty `{}`. Create the file before the first start. These fields
 - `pinned` names projects that always show.
 - `hidden` names projects that never show.
 - `activityWindowDays` is the activity window for a found project.
+- `expectedBots` names the review bots for a repo. The key is `owner/name`. The value is a list of `grok`, `codex` and `greptile`. An empty list means the repo has no expected bots. When the field is absent, the app reads the bots from the repo's recent merged PRs.
 
 A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`.
 
@@ -49,7 +50,10 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
     { "tracker": "github", "repo": "owner/name" }
   ],
   "hidden": [],
-  "activityWindowDays": 30
+  "activityWindowDays": 30,
+  "expectedBots": {
+    "owner/name": ["grok", "codex"]
+  }
 }
 ```
 
