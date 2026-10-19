@@ -96,7 +96,7 @@ const legend: Record<TicketState | "theme" | "dashed", string> = {
 
 function StateLegend() {
 	return (
-		<ul className="state-legend" aria-label="Ticket states">
+		<ul className="state-legend" aria-label="Diagram key">
 			{Object.entries(legend).map(([kind, label]) => (
 				<li key={kind}>
 					<span className={`swatch ${kind}`} />
