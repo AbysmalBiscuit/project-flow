@@ -1,3 +1,33 @@
+import { z } from "zod";
+
+const todoListing = z.array(z.unknown());
+
+const todoRow = z.object({
+	project: z.string().optional(),
+});
+
+export function todoRows(listing: string): { project: string }[] {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(listing);
+	} catch {
+		return [];
+	}
+	const rows = todoListing.safeParse(parsed);
+	if (!rows.success) {
+		return [];
+	}
+	const projects: { project: string }[] = [];
+	for (const row of rows.data) {
+		const parsedRow = todoRow.safeParse(row);
+		if (!parsedRow.success || parsedRow.data.project === undefined) {
+			continue;
+		}
+		projects.push({ project: parsedRow.data.project });
+	}
+	return projects;
+}
+
 export type TicketState =
 	| "done"
 	| "dropped"

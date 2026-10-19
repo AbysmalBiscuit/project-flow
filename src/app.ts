@@ -11,12 +11,12 @@ import {
 	projectSnapshots,
 	staleView,
 	startedTodoKeys,
+	todoRows,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubProjectByNumber, githubTracker } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
-import { todoRows } from "./main.ts";
 import { memoryNotifier } from "./notifier.ts";
 import type {
 	CheckoutSource,
