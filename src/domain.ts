@@ -1084,7 +1084,20 @@ export function projectSnapshots(
 					: {
 							...ticket,
 							body: ticket.body.trim() === "" ? donor.body : ticket.body,
-							blockedBy: mergeBlockedBy([donor.blockedBy, ticket.blockedBy]),
+							blockedBy: mergeBlockedBy([
+								donor.blockedBy,
+								ticket.blockedBy,
+								bodyBlockers(
+									donor,
+									bodyProject(donor, project.key),
+									"blockedBy",
+								),
+								bodyBlockers(
+									ticket,
+									bodyProject(ticket, project.key),
+									"blockedBy",
+								),
+							]),
 						};
 			if (ticket.ref !== undefined && !project.key.includes("/")) {
 				claimed.add(ticket.ref);

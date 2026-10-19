@@ -2096,4 +2096,349 @@ describe("GET /api/overview blockers", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a project card keeps blockers from both nonempty bodies", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const projectId = "PVT_widget";
+		const board = "Widget board";
+		let polls = 0;
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				return Response.json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: projectId,
+								number: 3,
+								title: board,
+								closed: false,
+								updatedAt: "2026-08-18T12:00:00Z",
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectItems")
+			) {
+				const cleared = polls > 0;
+				polls += 1;
+				return Response.json({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_shared",
+											number: 40,
+											title: "Sits on the repo and the project",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: cleared
+												? "2026-08-18T13:00:00Z"
+												: "2026-08-18T12:00:00Z",
+											body: cleared ? "Blocked by: #42" : "Blocked by: #41",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_blank",
+											number: 43,
+											title: "A blank body borrows the repo line",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: cleared ? "Blocked by: #41" : "   ",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_41",
+											number: 41,
+											title: "Open blocker from the project body",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_42",
+											number: 42,
+											title: "Open blocker from the repo body",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_spaced",
+											number: 44,
+											title: "Repeated spaces in both bodies",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "Blocked by:   #41",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_blank_both",
+											number: 45,
+											title: "Blank on both rows",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "   ",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_prose",
+											number: 46,
+											title: "A prose mention names no blocker",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "This ticket is blocked by the release, with no ref.",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
+				const cleared = url.includes("since=");
+				return page([
+					{
+						...issue(40, cleared ? "Blocked by: #41" : "Blocked by: #42"),
+						updated_at: cleared
+							? "2026-08-18T13:00:00Z"
+							: "2026-08-18T12:00:00Z",
+						html_url: `https://github.com/${githubRepo}/issues/40`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/40/comments`,
+					},
+					{
+						...issue(43, "Blocked by: #42"),
+						html_url: `https://github.com/${githubRepo}/issues/43`,
+						comments_url: `https://api.github.com/${githubRepo}/issues/43/comments`,
+					},
+					{
+						...issue(41, "Open."),
+						html_url: `https://github.com/${githubRepo}/issues/41`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/41/comments`,
+					},
+					{
+						...issue(42, "Open."),
+						html_url: `https://github.com/${githubRepo}/issues/42`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/42/comments`,
+					},
+					{
+						...issue(44, "Blocked by:   #42"),
+						html_url: `https://github.com/${githubRepo}/issues/44`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/44/comments`,
+					},
+					{
+						...issue(45, "   "),
+						html_url: `https://github.com/${githubRepo}/issues/45`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/45/comments`,
+					},
+					{
+						...issue(46, "Blocked by: none"),
+						html_url: `https://github.com/${githubRepo}/issues/46`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/46/comments`,
+					},
+				]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			if (url.includes("/comments")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", owner: "acme", project: 3 },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				const shared = `${githubRepo}#40`;
+				const blank = `${githubRepo}#43`;
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const first = (await response.json()) as {
+							projects: {
+								name: string;
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						const project = first.projects.find((item) => item.name === board);
+						const repoCard = first.projects.find(
+							(item) => item.name === githubRepo,
+						);
+						expect(blockersOf(project?.tickets ?? [], shared).state).toBe(
+							"blocked",
+						);
+						expect(
+							blockersOf(project?.tickets ?? [], shared).blockers.toSorted(),
+						).toEqual([`${githubRepo}#41`, `${githubRepo}#42`]);
+						expect(blockersOf(project?.tickets ?? [], blank)).toEqual({
+							state: "blocked",
+							blockers: [`${githubRepo}#42`],
+						});
+						expect(
+							(repoCard?.tickets ?? []).some((ticket) => ticket.key === shared),
+						).toBe(false);
+						expect(
+							(repoCard?.tickets ?? []).some((ticket) => ticket.key === blank),
+						).toBe(false);
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#44`).state,
+						).toBe("blocked");
+						expect(
+							blockersOf(
+								project?.tickets ?? [],
+								`${githubRepo}#44`,
+							).blockers.toSorted(),
+						).toEqual([`${githubRepo}#41`, `${githubRepo}#42`]);
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#45`),
+						).toEqual({
+							state: "backlog",
+							blockers: [],
+						});
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#46`),
+						).toEqual({
+							state: "backlog",
+							blockers: [],
+						});
+						const refresh = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(refresh.status).toBe(204);
+						const second = (await (
+							await fetch(new URL("/api/overview", base))
+						).json()) as typeof first;
+						const nextProject = second.projects.find(
+							(item) => item.name === board,
+						);
+						const nextRepo = second.projects.find(
+							(item) => item.name === githubRepo,
+						);
+						expect(blockersOf(nextProject?.tickets ?? [], shared).state).toBe(
+							"blocked",
+						);
+						expect(
+							blockersOf(
+								nextProject?.tickets ?? [],
+								shared,
+							).blockers.toSorted(),
+						).toEqual([`${githubRepo}#41`, `${githubRepo}#42`]);
+						expect(
+							(nextRepo?.tickets ?? []).some((ticket) => ticket.key === shared),
+						).toBe(false);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
