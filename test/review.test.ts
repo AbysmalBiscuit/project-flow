@@ -2204,6 +2204,74 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a second final report with an open ask keeps the PR awaiting merge", async () => {
+		const progressComment = issue51Comments[0];
+		const report = issue51Comments[1];
+		if (
+			progressComment === undefined ||
+			report === undefined ||
+			typeof progressComment.body !== "string" ||
+			typeof report.body !== "string"
+		) {
+			throw new Error("issue 51 comments were not recorded");
+		}
+		const lines = progressComment.body.split("\n");
+		const askLine = lines.find((line) =>
+			line.trim().replace(/^-\s*/, "").startsWith("ask-1:"),
+		);
+		const answeredAt = lines.findIndex((line) =>
+			line.trim().replace(/^-\s*/, "").startsWith("ask-1 answered:"),
+		);
+		if (askLine === undefined || answeredAt < 0) {
+			throw new Error("issue 51 progress has no ask-1 entry");
+		}
+		const resumed = {
+			...progressComment,
+			body: [
+				...lines.slice(0, answeredAt + 1),
+				"- stage 1: implementing the second report",
+				"- stage 5: round 2 of 2",
+				askLine.replace("ask-1:", "ask-2:"),
+			].join("\n"),
+		};
+		const second = report.body.replaceAll("51-1", "51-2");
+		const body = await overview({
+			issues: [{ ...issue(51), comments: 3 }],
+			pulls: [pull(52, 51)],
+			commentsByIssue: {
+				51: [resumed, report, { ...report, id: 6260874284, body: second }],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card(
+				"awaitingMerge",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 1,
+				},
+				[],
+				1,
+				`${repo}#51`,
+				"Ticket 51",
+			),
+		);
+	});
+
 	test("a later stage line puts the PR back in review while the final-report ask stays open", async () => {
 		const progressComment = issue51Comments[0];
 		const report = issue51Comments[1];

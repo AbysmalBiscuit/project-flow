@@ -1505,7 +1505,7 @@ function workcellRun(
 		.filter((line) => line !== "" && line !== progressHeading);
 	const later = commentsAfter(comments, progress);
 	const reportAt = lines.findLastIndex((line) => finalReportLine.test(line));
-	const report = later.find(
+	const report = later.findLast(
 		(comment) => comment !== progress && isReportComment(comment.body),
 	);
 	const reportAsk = report === undefined ? null : askId(report.body);
