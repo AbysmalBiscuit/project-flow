@@ -1508,6 +1508,7 @@ function progressRatio(
 }
 
 const askMarker = /<!--\s*workcell:ask\s+([A-Za-z0-9_.-]+)\s*-->/i;
+const workcellMarker = /<!--\s*workcell:/i;
 const answerPrefix = /^(?:senior|reply|answer)\b/i;
 const decisionRecord = /^\**\s*decision\b/i;
 const nameCue =
@@ -1699,7 +1700,7 @@ function levReply(comments: Comment[], askIndex: number): Comment | null {
 	const id = askId(ask.body);
 	for (let index = ordered.length - 1; index > askIndex; index -= 1) {
 		const comment = ordered[index];
-		if (comment === undefined) {
+		if (comment === undefined || workcellMarker.test(comment.body)) {
 			continue;
 		}
 		const opening = comment.body.trim();

@@ -1272,6 +1272,57 @@ describe("replies", () => {
 		}
 	});
 
+	test("a later workcell report that starts with Reply leaves the ask open", async () => {
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-25",
+					identifier: "PF-25",
+					title: "Open ask",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: [
+							{
+								id: "comment-ask-25",
+								body: `Which name?\n\n${ask("pf-25")}`,
+								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Ada" },
+								reactions: [],
+							},
+							{
+								id: "comment-report-25",
+								body: "Reply recorded.\n\n<!-- workcell:report -->",
+								createdAt: "2026-08-18T12:30:00.000Z",
+								user: { name: "workcell" },
+								reactions: [],
+							},
+						],
+					},
+				},
+			],
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		try {
+			const items = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(items.find((item) => item.key === "PF-25")).toMatchObject({
+				answered: false,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a GitHub project with a senior posts an unnamed ask unchanged", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {
