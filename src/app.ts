@@ -486,7 +486,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	);
 	const linear = options.linear;
 	const github = options.github;
-	let githubPage: { projects: FoundProject[]; viewer: Viewer | null } = {
+	let githubPage: {
+		projects: FoundProject[];
+		viewer: Viewer | null;
+		error?: string;
+	} = {
 		projects: [],
 		viewer: null,
 	};
@@ -495,6 +499,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	if (github !== null) {
 		try {
 			githubPage = await github.findProjects();
+			if (githubPage.error !== undefined) {
+				failed = githubPage.error;
+			}
 		} catch (error) {
 			failed = error instanceof Error ? error.message : "poll failed";
 		}
