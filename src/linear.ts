@@ -503,14 +503,14 @@ async function listTeamStates(
 		);
 	}
 	const body = await response.json();
+	const failed = linearError(body, "list team statuses");
+	if (failed !== null) {
+		throw new Error(failed);
+	}
 	const recorded = teamStates.safeParse(body);
 	const team = recorded.success ? recorded.data.data.team : null;
 	if (!recorded.success || team === null) {
 		throw new Error(`Linear list team statuses failed: ${teamId}`);
-	}
-	const error = recorded.data.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`Linear list team statuses failed: ${error.message}`);
 	}
 	const nodes = team.states.nodes;
 	return [...nodes]
@@ -523,8 +523,10 @@ async function listTeamStates(
 		}));
 }
 
-function linearBoard(project: LinearProject, statuses: TicketStatus[]): Board {
-	const team = project.teams?.nodes[0];
+function linearBoard(
+	team: { key: string } | undefined,
+	statuses: TicketStatus[],
+): Board {
 	return {
 		kind: "linear",
 		...(team === undefined ? {} : { teamKey: team.key }),
@@ -899,7 +901,7 @@ export function linearTracker(
 			const team = project.teams?.nodes[0];
 			const statuses =
 				team === undefined ? [] : await listTeamStates(key, team.id, fetchImpl);
-			const board = linearBoard(project, statuses);
+			const board = linearBoard(team, statuses);
 			const nodes = await issues(project.id, since);
 			const openKeys = new Set(
 				nodes.flatMap((node) =>
