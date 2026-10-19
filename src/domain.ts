@@ -904,7 +904,7 @@ const codexMarker = "<!-- codex-pull-request-review-summary -->";
 const greptileMarker = "<!-- greptile_summary -->";
 const codexRow = /^\|[^|\n]*\*\*([^*|\n]+)[^|\n]*\|([^|\n]*)\|/gm;
 
-export function expectedBotsFromHistory(pulls: PullRequest[]): KnownBot[] {
+function expectedBotsFromHistory(pulls: PullRequest[]): KnownBot[] {
 	const found = new Set<KnownBot>();
 	for (const pull of pulls) {
 		if (!pull.merged) {
