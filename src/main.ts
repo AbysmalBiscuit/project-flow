@@ -8,12 +8,11 @@ import { start } from "./app.ts";
 import { loadConfiguration } from "./configuration.ts";
 import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { checkToken } from "./github.ts";
+import { checkToken, missingToken } from "./github.ts";
 import { checkLinearKey, missingLinearKey } from "./linear.ts";
 import type { CheckoutSource, LocalCheckout, TodoSource } from "./ports.ts";
 
-export const missingToken =
-	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
+export { missingToken };
 export const rejectedToken =
 	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
 export { missingLinearKey };

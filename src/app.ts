@@ -33,10 +33,10 @@ import {
 	githubProjectByNumber,
 	githubTicketKey,
 	githubTracker,
+	missingToken,
 } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
-import { missingToken } from "./main.ts";
 import { memoryNotifier } from "./notifier.ts";
 import type {
 	CheckoutSource,
@@ -777,14 +777,17 @@ export async function start(options: StartOptions): Promise<Running> {
 		const fetched = rows.filter(
 			(row) => opened.store.projectError(row.key) === null,
 		);
-		const coldError =
-			firstStatus.error ??
-			(rows[0] === undefined ? null : opened.store.projectError(rows[0].key));
-		const missingGithub =
-			options.token === null &&
-			coldError !== null &&
-			coldError.includes("GITHUB_TOKEN");
-		if (fetched.length === 0 && coldError !== null && !missingGithub) {
+		const projectErrors = rows.map((row) => opened.store.projectError(row.key));
+		const everyFailureIsMissingToken =
+			projectErrors.length > 0 &&
+			projectErrors.every((error) => error === missingToken);
+		const coldError = everyFailureIsMissingToken
+			? null
+			: (firstStatus.error ??
+				(rows[0] === undefined
+					? null
+					: opened.store.projectError(rows[0].key)));
+		if (fetched.length === 0 && coldError !== null) {
 			stopped = true;
 			await (polling ?? Promise.resolve());
 			opened.close();

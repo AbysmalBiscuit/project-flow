@@ -26,6 +26,9 @@ export class TrackerError extends Error {
 	}
 }
 
+export const missingToken =
+	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
+
 const dependency = z.object({
 	number: z.number(),
 	state: z.string(),
