@@ -376,12 +376,16 @@ export function notificationsFor(
 		}
 	}
 	if (triggers.comment) {
-		for (const [id, seen] of after.comments) {
+		for (const [id, comment] of after.comments) {
 			const earlier = before.comments.get(id)?.stamp;
-			if (earlier === undefined || seen.stamp === "" || seen.stamp <= earlier) {
+			if (
+				earlier === undefined ||
+				comment.stamp === "" ||
+				comment.stamp <= earlier
+			) {
 				continue;
 			}
-			if (seen.replyStamp !== "" && seen.stamp === seen.replyStamp) {
+			if (comment.replyStamp !== "" && comment.stamp === comment.replyStamp) {
 				continue;
 			}
 			const item = after.needsYou.find(
@@ -390,7 +394,7 @@ export function notificationsFor(
 			const [project = "", itemKey = ""] = id.split("\n");
 			push(
 				"comment",
-				`comment\n${id}\n${seen.stamp}`,
+				`comment\n${id}\n${comment.stamp}`,
 				project,
 				itemKey,
 				item?.headline ?? itemKey,
