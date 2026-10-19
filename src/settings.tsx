@@ -6,8 +6,6 @@ import styles from "./settings.module.css";
 import shell from "./shell.module.css";
 
 type ProjectRef = Configuration["pinned"][number];
-type Settings = Configuration;
-
 function refLine(ref: ProjectRef): string {
 	if (ref.tracker === "linear") {
 		return `linear ${ref.project}`;
@@ -85,8 +83,8 @@ function Menu({
 	settings,
 	onSave,
 }: {
-	settings: Settings;
-	onSave: (next: Settings) => Promise<string | null>;
+	settings: Configuration;
+	onSave: (next: Configuration) => Promise<string | null>;
 }) {
 	const [pinned, setPinned] = useState(settings.pinned.map(refLine).join("\n"));
 	const [hidden, setHidden] = useState(settings.hidden.map(refLine).join("\n"));
@@ -254,44 +252,7 @@ function Menu({
 					type="button"
 					className={shell.button}
 					onClick={() => {
-						void (async () => {
-							let next: Settings;
-							try {
-								next = {
-									...settings,
-									pinned: parseRefs(pinned),
-									hidden: parseRefs(hidden),
-									activityWindowDays: Number(activityWindowDays),
-									pollIntervalSeconds: Number(pollIntervalSeconds),
-									checkoutRoots: lines(checkoutRoots),
-									expectedBots: parseBots(expectedBots),
-									viewerLogins: lines(viewerLogins),
-									noSenior: Object.fromEntries(
-										lines(noSenior).map((name) => [name, true]),
-									),
-									needsYouLabels: lines(needsYouLabels),
-									notificationTriggers: {
-										needsYou,
-										comment,
-										blockerCleared,
-									},
-								};
-							} catch (error) {
-								setFailed(true);
-								setMessage(
-									error instanceof Error ? error.message : "invalid settings",
-								);
-								return;
-							}
-							const error = await onSave(next);
-							setFailed(error !== null);
-							setMessage(error ?? "Saved");
-							requestAnimationFrame(() => {
-								document
-									.getElementById("settings-message")
-									?.scrollIntoView({ block: "end" });
-							});
-						})();
+						void onSaveClick();
 					}}
 				>
 					Save
@@ -307,10 +268,45 @@ function Menu({
 			)}
 		</main>
 	);
+
+	async function onSaveClick(): Promise<void> {
+		try {
+			const next: Configuration = {
+				...settings,
+				pinned: parseRefs(pinned),
+				hidden: parseRefs(hidden),
+				activityWindowDays: Number(activityWindowDays),
+				pollIntervalSeconds: Number(pollIntervalSeconds),
+				checkoutRoots: lines(checkoutRoots),
+				expectedBots: parseBots(expectedBots),
+				viewerLogins: lines(viewerLogins),
+				noSenior: Object.fromEntries(
+					lines(noSenior).map((name) => [name, true]),
+				),
+				needsYouLabels: lines(needsYouLabels),
+				notificationTriggers: {
+					needsYou,
+					comment,
+					blockerCleared,
+				},
+			};
+			const error = await onSave(next);
+			setFailed(error !== null);
+			setMessage(error ?? "Saved");
+		} catch (error) {
+			setFailed(true);
+			setMessage(error instanceof Error ? error.message : "save failed");
+		}
+		requestAnimationFrame(() => {
+			document
+				.getElementById("settings-message")
+				?.scrollIntoView({ block: "end" });
+		});
+	}
 }
 
 function Page() {
-	const [settings, setSettings] = useState<Settings | null>(null);
+	const [settings, setSettings] = useState<Configuration | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		let stopped = false;
@@ -319,7 +315,7 @@ function Page() {
 				if (!response.ok) {
 					throw new Error(`settings failed (HTTP ${response.status})`);
 				}
-				return (await response.json()) as Settings;
+				return (await response.json()) as Configuration;
 			})
 			.then((body) => {
 				if (!stopped) {
@@ -350,11 +346,21 @@ function Page() {
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify(next),
 				});
+				const body: unknown = await response.json().catch(() => null);
 				if (!response.ok) {
-					const body = (await response.json()) as { error?: string };
-					return body.error ?? `save failed (HTTP ${response.status})`;
+					const message =
+						body !== null &&
+						typeof body === "object" &&
+						"error" in body &&
+						typeof body.error === "string"
+							? body.error
+							: `save failed (HTTP ${response.status})`;
+					return message;
 				}
-				setSettings((await response.json()) as Settings);
+				if (body === null) {
+					throw new Error("save failed");
+				}
+				setSettings(body as Configuration);
 				return null;
 			}}
 		/>
