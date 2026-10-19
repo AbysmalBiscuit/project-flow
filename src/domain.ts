@@ -959,13 +959,7 @@ function pullShowsBot(pull: PullRequest, bot: KnownBot): boolean {
 type BotPass = { done: boolean; warning: string | null };
 
 function botPass(pull: PullRequest, bot: KnownBot): BotPass {
-	if (
-		bot === "codex" &&
-		pull.reactions.some(
-			(reaction) =>
-				reaction.login === botLogin.codex && reaction.content === "eyes",
-		)
-	) {
+	if (bot === "codex" && eyesStillRunning(pull)) {
 		return { done: false, warning: null };
 	}
 	const warning = botWarning(pull, bot);
@@ -1030,6 +1024,45 @@ function botWarning(pull: PullRequest, bot: KnownBot): string | null {
 			countsForHead(pull, bot, comment.createdAt),
 	);
 	return limited ? `${bot} usage limit` : null;
+}
+
+function eyesStillRunning(pull: PullRequest): boolean {
+	const eyes = pull.reactions.filter(
+		(reaction) =>
+			reaction.login === botLogin.codex && reaction.content === "eyes",
+	);
+	if (eyes.length === 0) {
+		return false;
+	}
+	if (eyes.some((reaction) => reaction.createdAt === null)) {
+		return true;
+	}
+	const eyesAt = newestAt(eyes.map((reaction) => reaction.createdAt));
+	const limitAt = newestAt(
+		pull.comments
+			.filter(
+				(comment) =>
+					comment.login === botLogin.codex && usageLimit.test(comment.body),
+			)
+			.map((comment) => comment.createdAt),
+	);
+	if (eyesAt === null || limitAt === null) {
+		return true;
+	}
+	return Date.parse(eyesAt) >= Date.parse(limitAt);
+}
+
+function newestAt(times: (string | null)[]): string | null {
+	let newest: string | null = null;
+	for (const time of times) {
+		if (time === null) {
+			continue;
+		}
+		if (newest === null || Date.parse(time) > Date.parse(newest)) {
+			newest = time;
+		}
+	}
+	return newest;
 }
 
 function countsForHead(

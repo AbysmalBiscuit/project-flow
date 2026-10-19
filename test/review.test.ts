@@ -1542,6 +1542,50 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a Codex usage-limit comment newer than the eyes reaction marks Codex done with a warning tag", async () => {
+		const body = await overview({
+			issues: [issue(8)],
+			pulls: [pull(98)],
+			commentsByPull: {
+				1: [
+					{
+						user: { login: codex },
+						body: "<!-- codex-pull-request-review-summary -->",
+					},
+				],
+				98: [
+					{
+						user: { login: codex },
+						body: "You have reached your Codex usage limits for code reviews.",
+						created_at: "2026-10-18T11:30:00Z",
+					},
+				],
+			},
+			reactionsByPull: {
+				98: [
+					{
+						user: { login: codex },
+						content: "eyes",
+						created_at: "2026-10-18T11:00:00Z",
+					},
+				],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card(
+				"awaitingMerge",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 1,
+				},
+				["codex usage limit"],
+			),
+		);
+	});
+
 	test("a Codex eyes reaction stays in review despite a usage-limit comment", async () => {
 		const body = await overview({
 			issues: [issue(8)],
