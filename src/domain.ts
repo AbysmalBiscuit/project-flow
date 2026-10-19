@@ -362,7 +362,11 @@ export function notificationsFor(
 	triggers: Configuration["notificationTriggers"],
 	at: string,
 	seen: ReadonlySet<string>,
+	viewers: readonly string[] = [],
 ): Notification[] {
+	const viewerAuthors = new Set(
+		viewers.map((viewer) => viewer.trim().toLowerCase()).filter(Boolean),
+	);
 	const found: Notification[] = [];
 	const push = (
 		trigger: NotificationTrigger,
@@ -412,6 +416,13 @@ export function notificationsFor(
 				continue;
 			}
 			if (comment.replyStamp !== "" && comment.stamp === comment.replyStamp) {
+				continue;
+			}
+			if (
+				comment.authors.some((author) =>
+					viewerAuthors.has(author.toLowerCase()),
+				)
+			) {
 				continue;
 			}
 			const item = after.needsYou.find(

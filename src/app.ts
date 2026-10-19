@@ -729,6 +729,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				configuration.notificationTriggers,
 				polledAt.toISOString(),
 				options.seenNotifications,
+				viewerLogins(configuration, options.viewers),
 			)
 		: [];
 

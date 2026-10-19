@@ -979,6 +979,113 @@ describe("inbox", () => {
 		}
 	});
 
+	test("a comment by the viewer adds no inbox entry", async () => {
+		const headline = "Which bot should review this?";
+		const viewerName = `viewer-${crypto.randomUUID()}`;
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+			user: { name: "Ada Lovelace" },
+		};
+		const viewerNote = {
+			body: "A later note from the viewer.",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "Not A Login", displayName: viewerName },
+		};
+		const otherNote = {
+			body: "A later note from someone else.",
+			createdAt: "2026-08-18T15:00:00.000Z",
+			user: { name: "Ada Lovelace" },
+		};
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			const response = await recorded(input, init);
+			if (!bodyOf(init).includes("viewer")) {
+				return response;
+			}
+			const page = (await response.json()) as {
+				data?: { viewer?: { id?: string } };
+			};
+			if (page.data?.viewer !== undefined) {
+				page.data.viewer.id = viewerName;
+			}
+			return Response.json(page);
+		};
+		let current = [linearIssue("PF-1", "Open ask", headline, [askComment])];
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const done = new Promise<void>((resolve, reject) => {
+			startChecks = (base) => {
+				void (async () => {
+					expect(viewerName).not.toBe("viewer-ada");
+					expect(await inboxOf(base)).toEqual([]);
+					current = [
+						linearIssue("PF-1", "Open ask", headline, [
+							askComment,
+							{
+								body: "A note with a blank author.",
+								createdAt: "2026-08-18T13:30:00.000Z",
+								user: { name: "   ", displayName: "" },
+							},
+							{
+								body: "   ",
+								createdAt: "2026-08-18T13:00:00.000Z",
+								user: { name: "   ", displayName: "   " },
+							},
+							viewerNote,
+						]),
+					];
+					await refresh(base);
+					expect(await inboxOf(base)).toEqual([]);
+					current = [
+						linearIssue(
+							"PF-1",
+							"Open ask",
+							headline,
+							[askComment, viewerNote, otherNote],
+							{},
+							"2026-08-18T15:00:00.000Z",
+						),
+					];
+					const events = notificationEvent(base);
+					await Bun.sleep(50);
+					await refresh(base);
+					const event = await events;
+					expect(event).toMatchObject({
+						trigger: "comment",
+						project: "Project Flow",
+						key: "PF-1",
+						text: headline,
+					});
+					expect(await inboxOf(base)).toEqual([event]);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: done,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a blank reply, a repeated-space reply and a failing comment page add no inbox entry", async () => {
 		const headline = "Which bot should review this?";
 		const askComment = {
