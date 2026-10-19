@@ -62,7 +62,14 @@ function parseBots(text: string): Record<string, KnownBot[]> {
 		if (repo === undefined) {
 			continue;
 		}
-		bots[repo] = names.filter(knownBot);
+		const parsed: KnownBot[] = [];
+		for (const name of names) {
+			if (!knownBot(name)) {
+				throw new Error(`bot: ${name}`);
+			}
+			parsed.push(name);
+		}
+		bots[repo] = parsed;
 	}
 	return bots;
 }
