@@ -61,27 +61,33 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 ## Tokens
 
-The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. `gh auth token` runs only when a pin uses the GitHub tracker. Without a GitHub pin, the app uses `GITHUB_TOKEN` when it is set and otherwise finds no GitHub projects.
+The app reads `GITHUB_TOKEN` from the environment. A blank value does not count. Otherwise the app reads `gh auth token`, whatever the configuration pins. A configuration with only Linear pins uses `GITHUB_TOKEN` when it is set and does not run `gh`.
 
-A configuration with only Linear pins starts without a GitHub token. An empty or absent `pinned` list also starts without a GitHub token. The app needs the token when a pin uses the GitHub tracker.
+An empty configuration starts without a token when neither source gives one. A pin that uses the GitHub tracker does not: startup exits and names `GITHUB_TOKEN`. With no token, a GitHub project found from a local checkout shows that same error.
 
 `src/main.ts` decides that:
 
 ```ts
-		const needsGithub = configuration.pinned.some(
-			(pin) => pin.tracker === "github",
-		);
+		const linearOnly =
+			configuration.pinned.length > 0 &&
+			configuration.pinned.every((pin) => pin.tracker === "linear");
 ```
 
 `src/main.ts` resolves the token:
 
 ```ts
-async function resolveToken(io: RunIo): Promise<string | null> {
-	const fromEnv = io.env.GITHUB_TOKEN;
-	if (fromEnv !== undefined && fromEnv.trim() !== "") {
-		return fromEnv;
+async function resolveToken(
+	io: RunIo,
+	envToken: string | null,
+): Promise<string | null> {
+	if (envToken !== null) {
+		return envToken;
 	}
-	return io.readGhToken(io.env);
+	const fromGh = await io.readGhToken(io.env);
+	if (fromGh === null || fromGh.trim() === "") {
+		return null;
+	}
+	return fromGh;
 }
 ```
 

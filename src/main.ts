@@ -8,12 +8,11 @@ import { start } from "./app.ts";
 import { loadConfiguration } from "./configuration.ts";
 import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { checkToken } from "./github.ts";
+import { checkToken, missingToken } from "./github.ts";
 import { checkLinearKey, missingLinearKey } from "./linear.ts";
 import type { CheckoutSource, LocalCheckout, TodoSource } from "./ports.ts";
 
-export const missingToken =
-	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
+export { missingToken };
 export const rejectedToken =
 	"GITHUB_TOKEN was rejected by GitHub (HTTP 401): set a valid token.";
 export { missingLinearKey };
@@ -286,12 +285,18 @@ function flagValue(args: string[], name: string): string | undefined {
 	return args[index + 1];
 }
 
-async function resolveToken(io: RunIo): Promise<string | null> {
-	const fromEnv = io.env.GITHUB_TOKEN;
-	if (fromEnv !== undefined && fromEnv.trim() !== "") {
-		return fromEnv;
+async function resolveToken(
+	io: RunIo,
+	envToken: string | null,
+): Promise<string | null> {
+	if (envToken !== null) {
+		return envToken;
 	}
-	return io.readGhToken(io.env);
+	const fromGh = await io.readGhToken(io.env);
+	if (fromGh === null || fromGh.trim() === "") {
+		return null;
+	}
+	return fromGh;
 }
 
 async function openStore(path: string): Promise<void> {
@@ -343,14 +348,18 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const needsGithub = configuration.pinned.some(
 			(pin) => pin.tracker === "github",
 		);
-		let token: string | null = null;
-		if (needsGithub) {
-			token = await resolveToken(io);
-			if (token === null) {
-				writeErr(missingToken);
-				return result(1, false);
-			}
-
+		const linearOnly =
+			configuration.pinned.length > 0 &&
+			configuration.pinned.every((pin) => pin.tracker === "linear");
+		const fromEnv = io.env.GITHUB_TOKEN;
+		const envToken =
+			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
+		const token = linearOnly ? envToken : await resolveToken(io, envToken);
+		if (needsGithub && token === null) {
+			writeErr(missingToken);
+			return result(1, false);
+		}
+		if (!linearOnly && token !== null) {
 			const user = await checkToken(token, io.fetch);
 			if (user.status === 401) {
 				writeErr(rejectedToken);
@@ -359,11 +368,6 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			if (!user.ok) {
 				writeErr(`GitHub token check failed (HTTP ${user.status}).`);
 				return result(1, false);
-			}
-		} else {
-			const fromEnv = io.env.GITHUB_TOKEN?.trim() ?? "";
-			if (fromEnv !== "") {
-				token = fromEnv;
 			}
 		}
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
