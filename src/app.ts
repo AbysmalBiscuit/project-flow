@@ -405,6 +405,8 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 	}
 	if (reconciled.globalError !== null) {
 		options.store.recordFetchError(reconciled.globalError);
+	} else if (failed !== null) {
+		options.store.recordFetchError(failed);
 	}
 	options.notifier.publish({
 		overview: overview(options.store),
