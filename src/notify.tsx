@@ -7,20 +7,29 @@ export const triggerLabel: Record<InboxNotification["trigger"], string> = {
 	blockerCleared: "Blocker cleared",
 };
 
+function showNotification(event: MessageEvent): void {
+	const notification = JSON.parse(event.data) as InboxNotification;
+	const title = triggerLabel[notification.trigger];
+	const body = `${notification.project}: ${notification.text}`;
+	if (Notification.permission !== "granted") {
+		return;
+	}
+	new Notification(title, { body, tag: notification.id });
+}
+
 export function watchNotifications(): () => void {
 	if (typeof Notification === "undefined") {
 		return () => {};
 	}
-	if (Notification.permission === "default") {
-		void Notification.requestPermission();
+	return onAppEvent("notification", showNotification);
+}
+
+export function askNotificationPermission(): void {
+	if (
+		typeof Notification === "undefined" ||
+		Notification.permission !== "default"
+	) {
+		return;
 	}
-	const stop = onAppEvent("notification", (event) => {
-		const notification = JSON.parse(event.data) as InboxNotification;
-		const title = triggerLabel[notification.trigger];
-		const body = `${notification.project}: ${notification.text}`;
-		if (Notification.permission === "granted") {
-			new Notification(title, { body, tag: notification.id });
-		}
-	});
-	return stop;
+	void Notification.requestPermission();
 }

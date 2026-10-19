@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import styles from "./cards.module.css";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
+import { askNotificationPermission } from "./notify.tsx";
 import shell from "./shell.module.css";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
 
@@ -436,6 +437,14 @@ function OverviewPage({
 				<a className={shell.link} href="/inbox">
 					Inbox
 				</a>
+				<button
+					type="button"
+					id="notify-permission"
+					className={shell.button}
+					onClick={askNotificationPermission}
+				>
+					Allow notifications
+				</button>
 				<button
 					type="button"
 					className={shell.button}

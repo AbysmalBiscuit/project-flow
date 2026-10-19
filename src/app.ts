@@ -401,6 +401,7 @@ function eventStream(notifier: Notifier): Response {
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			const encoder = new TextEncoder();
+			controller.enqueue(encoder.encode(": open\n\n"));
 			unsubscribe = notifier.subscribe((change) => {
 				controller.enqueue(
 					encoder.encode(
@@ -812,6 +813,8 @@ export async function start(options: StartOptions): Promise<Running> {
 			pollOptions.viewers,
 		);
 	}
+	let streamOpen = false;
+	let permissionGranted = false;
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
 	if (hadRows) {
@@ -949,6 +952,21 @@ export async function start(options: StartOptions): Promise<Running> {
 					server.timeout(request, 0);
 					return eventStream(notifier);
 				},
+			},
+			"/api/proof/stream-open": {
+				POST: () => {
+					streamOpen = true;
+					return new Response(null, { status: 204 });
+				},
+				GET: () => new Response(null, { status: streamOpen ? 204 : 404 }),
+			},
+			"/api/proof/permission": {
+				POST: () => {
+					permissionGranted = true;
+					return new Response(null, { status: 204 });
+				},
+				GET: () =>
+					new Response(null, { status: permissionGranted ? 204 : 404 }),
 			},
 			"/api/refresh": {
 				POST: async () => {
