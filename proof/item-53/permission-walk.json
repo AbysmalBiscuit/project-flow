@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4177",
+	"serve": [
+		"bun",
+		"proof/serve-browser-notification.ts",
+		"4177",
+		"/var/tmp",
+		"hold"
+	],
+	"steps": [
+		{ "goto": "/?proof=notification" },
+		{ "assert_text": "Projects" },
+		{ "assert_text": "Allow notifications" },
+		{ "assert_text": "permission-calls 0" },
+		{ "shot": "permission-before-click" },
+		{ "click": "#notify-permission" },
+		{ "assert_text": "permission-calls 1" },
+		{ "shot": "permission-after-click" }
+	]
+}
