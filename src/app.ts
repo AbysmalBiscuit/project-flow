@@ -1002,12 +1002,6 @@ export async function start(options: StartOptions): Promise<Running> {
 				GET: () => Response.json(configuration),
 				PUT: async (request: Request) => {
 					const text = await request.text();
-					if (text.trim() === "") {
-						return Response.json(
-							{ error: "invalid configuration: configuration" },
-							{ status: 400 },
-						);
-					}
 					try {
 						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(text);
