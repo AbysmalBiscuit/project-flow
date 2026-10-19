@@ -1,5 +1,7 @@
 import type { Configuration } from "./configuration.ts";
-import type { Overview, PullRequest, Ticket } from "./domain.ts";
+import type { Overview, PullRequest, Snapshot, Ticket } from "./domain.ts";
+
+export type { Snapshot };
 
 export type Clock = {
 	now: () => Date;
@@ -42,16 +44,6 @@ export type Viewer = {
 	orgs: string[];
 };
 
-export type Snapshot = {
-	key: string;
-	name: string;
-	tracker: "github" | "linear";
-	tickets: Ticket[];
-	pulls: PullRequest[];
-	branches: string[];
-	startedKeys: string[];
-};
-
 export type TicketList = {
 	name: string;
 	tickets: Ticket[];
@@ -59,7 +51,7 @@ export type TicketList = {
 
 export type Tracker = {
 	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
-	listPulls: (project: string) => Promise<PullRequest[]>;
+	listPulls: (project: string, since?: Date | null) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
@@ -75,6 +67,9 @@ export type Store = {
 	lastGoodPollAt: (project: string) => Date | null;
 	recordGoodPoll: (project: string, at: Date) => void;
 	recordFetchError: (message: string) => void;
+	recordProjectError: (project: string, message: string) => void;
+	clearProjectError: (project: string) => void;
+	projectError: (project: string) => string | null;
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
 };
 

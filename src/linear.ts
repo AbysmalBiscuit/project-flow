@@ -465,6 +465,7 @@ export function linearTracker(
 			return found;
 		},
 		async listTickets(pin, since) {
+			issuesByProject.clear();
 			const project = await findLinearProject(key, pin, fetchImpl);
 			const tickets: Ticket[] = [];
 			for (const node of await issues(project.id, since)) {
@@ -475,9 +476,9 @@ export function linearTracker(
 			}
 			return { name: project.name, tickets };
 		},
-		async listPulls(pin) {
+		async listPulls(pin, since = null) {
 			const project = await findLinearProject(key, pin, fetchImpl);
-			const nodes = await issues(project.id, null);
+			const nodes = await issues(project.id, since ?? null);
 			const pulls: PullRequest[] = [];
 			if (githubToken === null) {
 				return pulls;

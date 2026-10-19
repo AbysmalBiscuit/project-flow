@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ProjectCounts } from "../src/domain.ts";
+import type { Overview, ProjectCounts } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
@@ -145,6 +145,8 @@ async function assertCard(base: string): Promise<void> {
 			crossProjectBlockers: [],
 			needsYou: 0,
 			progress: 33,
+			fetchedAt: body.fetchedAt,
+			error: null,
 		},
 	]);
 	expect(body.error).toBeNull();
@@ -255,8 +257,6 @@ describe("GET /api/overview", () => {
 	test("a later poll drops a repo that is no longer pinned", async () => {
 		const repoA = "acme/alpha";
 		const repoB = "acme/beta";
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		const databasePath = join(root, "project-flow.sqlite");
 		const requests: string[] = [];
 		const recordedFetch =
 			(pinned: string): Fetch =>
@@ -290,7 +290,12 @@ describe("GET /api/overview", () => {
 				}
 				return emptyList(url) ?? new Response("not recorded", { status: 404 });
 			};
-		const serve = async (pinned: string): Promise<unknown> => {
+		const store = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(store, "project-flow.sqlite");
+		const serve = async (
+			pinned: string,
+			refresh: boolean,
+		): Promise<unknown> => {
 			const { path, cleanup } = await tempConfig(
 				JSON.stringify({
 					pinned: [{ tracker: "github", repo: pinned }],
@@ -299,12 +304,17 @@ describe("GET /api/overview", () => {
 			let startChecks: (base: string) => void = () => {};
 			const checks = new Promise<unknown>((resolve, reject) => {
 				startChecks = (base: string) => {
-					fetch(new URL("/api/overview", base))
-						.then(async (response) => {
-							expect(response.status).toBe(200);
-							resolve(await response.json());
-						})
-						.catch(reject);
+					void (async () => {
+						if (refresh) {
+							const posted = await fetch(new URL("/api/refresh", base), {
+								method: "POST",
+							});
+							expect(posted.status).toBe(204);
+						}
+						const response = await fetch(new URL("/api/overview", base));
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})().catch(reject);
 				};
 			});
 			try {
@@ -330,8 +340,8 @@ describe("GET /api/overview", () => {
 			}
 		};
 		try {
-			const first = await serve(repoA);
-			expect(first).toMatchObject({
+			const first = (await serve(repoA, false)) as Overview;
+			expect(first).toEqual({
 				projects: [
 					{
 						name: repoA,
@@ -353,12 +363,17 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
+						fetchedAt: first.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: first.fetchedAt,
 				error: null,
 			});
-			const second = await serve(repoB);
-			expect(second).toMatchObject({
+			const before = requests.length;
+			const second = (await serve(repoB, true)) as Overview;
+			expect(second.projects.map((project) => project.name)).toEqual([repoB]);
+			expect(second).toEqual({
 				projects: [
 					{
 						name: repoB,
@@ -380,15 +395,19 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 0,
+						fetchedAt: second.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: second.fetchedAt,
 				error: null,
 			});
-			const beta = requests.filter((url) => url.includes(`/repos/${repoB}/`));
-			expect(beta).toHaveLength(1);
+			const beta = requests
+				.slice(before)
+				.filter((url) => url.includes(`/repos/${repoB}/issues`));
 			expect(new URL(beta[0] ?? "").searchParams.get("since")).toBeNull();
 		} finally {
-			await rm(root, { recursive: true, force: true });
+			await rm(store, { recursive: true, force: true });
 		}
 	});
 
@@ -525,7 +544,8 @@ describe("GET /api/overview", () => {
 				}),
 			);
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: linearName,
@@ -547,8 +567,11 @@ describe("GET /api/overview", () => {
 						crossProjectBlockers: [],
 						needsYou: 0,
 						progress: 100,
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
 				error: null,
 			});
 		} finally {
@@ -730,9 +753,10 @@ describe("GET /api/overview", () => {
 							error: string | null;
 						};
 						expect(body.projects).toHaveLength(2);
-						expect(
-							body.projects.find((project) => project.tracker === "github"),
-						).toEqual({
+						const github = body.projects.find(
+							(project) => project.tracker === "github",
+						);
+						expect(github).toEqual({
 							name: repo,
 							tracker: "github",
 							done: 2,
@@ -782,10 +806,13 @@ describe("GET /api/overview", () => {
 							crossProjectBlockers: [],
 							needsYou: 0,
 							progress: 33,
+							fetchedAt: github?.fetchedAt ?? null,
+							error: null,
 						});
-						expect(
-							body.projects.find((project) => project.tracker === "linear"),
-						).toEqual({
+						const linear = body.projects.find(
+							(project) => project.tracker === "linear",
+						);
+						expect(linear).toEqual({
 							name: linearName,
 							tracker: "linear",
 							done: 2,
@@ -835,6 +862,8 @@ describe("GET /api/overview", () => {
 							crossProjectBlockers: [],
 							needsYou: 0,
 							progress: 33,
+							fetchedAt: linear?.fetchedAt ?? null,
+							error: null,
 						});
 						expect(body.error).toBeNull();
 						resolve();
@@ -864,7 +893,7 @@ describe("GET /api/overview", () => {
 				(body) => JSON.parse(body) as { query: string; variables: unknown },
 			);
 			expect(sent.every((call) => call.query.includes("state"))).toBe(true);
-			expect(sent.map((call) => call.variables)).toEqual([
+			expect(sent.slice(0, 2).map((call) => call.variables)).toEqual([
 				{
 					filter: { project: { id: { eq: "project-1" } } },
 					after: null,
@@ -977,7 +1006,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: pullRepo,
@@ -999,8 +1029,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -1156,7 +1190,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: repo,
@@ -1184,6 +1219,8 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 					{
 						name: "Widget launch",
@@ -1211,8 +1248,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[1]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 			expect(requests.some((sent) => sent.includes("viewer { id }"))).toBe(
 				true,
@@ -1380,7 +1421,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: "Org board",
@@ -1402,8 +1444,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 			expect(
 				requests.some(
@@ -1529,7 +1575,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: "Member launch",
@@ -1551,8 +1598,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 			const listed = requests.find((sent) => sent.includes("projects("));
 			expect(listed).toContain("lead: { id: { eq: $viewer } }");
@@ -1885,7 +1936,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: "Widget board",
@@ -1913,6 +1965,8 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 					{
 						name: repo,
@@ -1934,8 +1988,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[1]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 			expect(requests.some((sent) => sent.includes(`node(id: $id)`))).toBe(
 				true,
@@ -2080,7 +2138,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: "Pinned board",
@@ -2102,8 +2161,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -2246,7 +2309,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: repo,
@@ -2268,8 +2332,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -2416,7 +2484,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: repo,
@@ -2438,8 +2507,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -2582,7 +2655,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: repo,
@@ -2604,8 +2678,12 @@ describe("GET /api/overview", () => {
 							},
 						],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -2793,7 +2871,12 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({ projects: [], error: null });
+			const empty = (await checks) as Overview;
+			expect(empty).toEqual({
+				projects: [],
+				fetchedAt: empty.fetchedAt,
+				error: null,
+			});
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -2968,7 +3051,8 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({
+			const body = (await checks) as Overview;
+			expect(body).toEqual({
 				projects: [
 					{
 						name: "Quiet linear",
@@ -2983,8 +3067,12 @@ describe("GET /api/overview", () => {
 						progress: 0,
 						tickets: [],
 						unlinkedPrs: [],
+						fetchedAt: body.projects[0]?.fetchedAt ?? null,
+						error: null,
 					},
 				],
+				fetchedAt: body.fetchedAt,
+				error: null,
 			});
 		} finally {
 			await cleanup();
@@ -3103,7 +3191,12 @@ describe("GET /api/overview", () => {
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
-			expect(await checks).toMatchObject({ projects: [], error: null });
+			const empty = (await checks) as Overview;
+			expect(empty).toEqual({
+				projects: [],
+				fetchedAt: empty.fetchedAt,
+				error: null,
+			});
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

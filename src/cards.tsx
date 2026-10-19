@@ -169,6 +169,9 @@ function CardsList({
 							{project.name}
 						</ProjectLink>
 					</h2>
+					{project.error === null ? null : (
+						<p className="stale">{project.error}</p>
+					)}
 					<p className="counts">
 						Done {project.done} Dropped {project.dropped} Blocked{" "}
 						{project.blocked} Backlog {project.backlog} In progress{" "}
