@@ -8,6 +8,7 @@ import type {
 	TicketView,
 } from "./domain.ts";
 import { NeedsItem } from "./needs-item.tsx";
+import { TicketPanel } from "./panel.tsx";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -26,25 +27,48 @@ function openPath(project: string, ticket: string | null): string {
 		: `${path}?ticket=${encodeURIComponent(ticket)}`;
 }
 
-function openProject(project: string, ticket: string | null): void {
-	window.history.pushState({}, "", openPath(project, ticket));
+function openProject(
+	project: string,
+	ticket: string | null,
+	openPanel = false,
+): void {
+	window.history.pushState(
+		openPanel ? { panel: true } : {},
+		"",
+		openPath(project, ticket),
+	);
 	window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 function TicketLine({
 	ticket,
 	highlight,
+	onOpen,
 }: {
 	ticket: TicketView;
 	highlight: string | null;
+	onOpen: (key: string) => void;
 }) {
 	const marked = highlight !== null && highlight === ticket.key;
+	const key = ticket.key;
 	return (
 		<li
 			className={marked ? "ticket highlighted" : "ticket"}
-			data-ticket={ticket.key ?? ""}
+			data-ticket={key ?? ""}
 		>
-			{ticket.key} {ticket.title} {ticket.state}
+			{key === null ? (
+				<>
+					{ticket.title} {ticket.state}
+				</>
+			) : (
+				<button
+					type="button"
+					className="ticket-open"
+					onClick={() => onOpen(key)}
+				>
+					{key} {ticket.title} {ticket.state}
+				</button>
+			)}
 		</li>
 	);
 }
@@ -138,9 +162,11 @@ function DiagramView({
 function Report({
 	report,
 	ticket,
+	onOpen,
 }: {
 	report: ProjectReport;
 	ticket: string | null;
+	onOpen: (key: string) => void;
 }) {
 	return (
 		<main className="project-page" data-project={report.name}>
@@ -179,6 +205,7 @@ function Report({
 									key={`${item.key ?? ""} ${item.title}`}
 									ticket={item}
 									highlight={ticket}
+									onOpen={onOpen}
 								/>
 							))}
 						</ul>
@@ -186,7 +213,7 @@ function Report({
 					{section.needsYou === undefined ? null : (
 						<ul className="needs-you-list">
 							{section.needsYou.map((item) => (
-								<NeedsItem key={item.key} item={item} />
+								<NeedsItem key={item.key} item={item} onOpen={onOpen} />
 							))}
 						</ul>
 					)}
@@ -208,12 +235,14 @@ function Report({
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
+	const [open, setOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	useEffect(() => {
 		const onPop = () => {
 			setName(projectName());
 			setTicket(highlightKey());
+			setOpen(window.history.state?.panel === true);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
@@ -264,7 +293,7 @@ function Page() {
 		}
 		let stopped = false;
 		const bound: { drawn: SVGGElement; open: () => void }[] = [];
-		void mermaid.run({ nodes }).then(() => {
+		const bind = () => {
 			if (stopped) {
 				return;
 			}
@@ -277,11 +306,11 @@ function Page() {
 						continue;
 					}
 					for (const node of diagram.nodes) {
-						if (!node.dashed || node.ticket === null) {
+						if (node.ticket === null) {
 							continue;
 						}
 						const drawn = [...figure.querySelectorAll("g.node")].find((item) =>
-							item.id.startsWith(`flowchart-${node.id}-`),
+							item.id.includes(`flowchart-${node.id}-`),
 						);
 						if (!(drawn instanceof SVGGElement)) {
 							continue;
@@ -289,7 +318,7 @@ function Page() {
 						const ticket = node.ticket;
 						const project = node.project;
 						const open = () => {
-							openProject(project, ticket);
+							openProject(project, ticket, true);
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
@@ -297,7 +326,8 @@ function Page() {
 					}
 				}
 			}
-		});
+		};
+		void mermaid.run({ nodes }).then(bind);
 		return () => {
 			stopped = true;
 			for (const { drawn, open } of bound) {
@@ -311,7 +341,26 @@ function Page() {
 	if (report === null) {
 		return <main>Loading {name}</main>;
 	}
-	return <Report report={report} ticket={ticket} />;
+	return (
+		<>
+			<Report
+				report={report}
+				ticket={ticket}
+				onOpen={(key) => {
+					setTicket(key);
+					setOpen(true);
+				}}
+			/>
+			{open && ticket !== null ? (
+				<TicketPanel
+					tracker={report.tracker}
+					project={report.name}
+					ticketKey={ticket}
+					onClose={() => setOpen(false)}
+				/>
+			) : null}
+		</>
+	);
 }
 
 function mount(): void {
