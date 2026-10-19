@@ -1,6 +1,6 @@
 {
 	"base_url": "http://127.0.0.1:4173",
-	"serve": ["bun", "proof/item-1/states.mjs"],
+	"serve": ["bun", "proof/item-1/states.ts"],
 	"steps": [
 		{ "goto": "/projects/acme%2Fboard" },
 		{ "assert_text": "Feature map" },

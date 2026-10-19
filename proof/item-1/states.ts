@@ -1,7 +1,9 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
+import { recordedDiscovery, urlOf } from "../../test/support.ts";
 
 const board = "acme/board";
 const gate = "acme/gate";
@@ -9,7 +11,12 @@ const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const older = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const codex = "chatgpt-codex-connector[bot]";
 
-function issue(number, title, fields = {}, repo = board) {
+function issue(
+	number: number,
+	title: string,
+	fields: Record<string, unknown> = {},
+	repo = board,
+): Record<string, unknown> {
 	return {
 		number,
 		title,
@@ -22,7 +29,7 @@ function issue(number, title, fields = {}, repo = board) {
 	};
 }
 
-function pull(number, ticket, draft) {
+function pull(number: number, ticket: number, draft: boolean) {
 	return {
 		number,
 		title: `PR ${number}`,
@@ -35,13 +42,17 @@ function pull(number, ticket, draft) {
 	};
 }
 
-const child = (number, title, fields = {}) =>
+const child = (
+	number: number,
+	title: string,
+	fields: Record<string, unknown> = {},
+) =>
 	issue(number, title, {
 		parent_issue_url: `https://api.github.com/repos/${board}/issues/1`,
 		...fields,
 	});
 
-const held = (number, title, blocker) =>
+const held = (number: number, title: string, blocker: number) =>
 	child(number, title, {
 		body: `Blocked by: #${blocker}`,
 		issue_dependencies_summary: { blocked_by: 1, total_blocked_by: 1 },
@@ -95,49 +106,24 @@ const completedReview = {
 	created_at: "2026-10-18T11:00:00Z",
 };
 
-const localBlocker = {
-	2: 9,
-	10: 5,
-	11: 6,
-	12: 7,
-	13: 8,
-	14: 1,
+const localBlocker: Record<string, number> = {
+	"2": 9,
+	"10": 5,
+	"11": 6,
+	"12": 7,
+	"13": 8,
+	"14": 1,
 };
 
-function recorded(input, init) {
-	const url = typeof input === "string" ? input : input.url;
+const recorded: Fetch = async (input, init) => {
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	const url = urlOf(input);
 	const body = typeof init?.body === "string" ? init.body : "";
 	if (url === "https://api.github.com/user") {
 		return Response.json({ login: "lev" });
-	}
-	if (url.startsWith("https://api.github.com/user/repos")) {
-		return Response.json([]);
-	}
-	if (
-		url === "https://api.github.com/graphql" &&
-		(body.includes("OrgProjects") || body.includes("ViewerProjects"))
-	) {
-		return Response.json({
-			data: {
-				viewer: {
-					login: "lev",
-					projectsV2: {
-						nodes: [],
-						pageInfo: { hasNextPage: false, endCursor: null },
-					},
-					organizations: {
-						nodes: [],
-						pageInfo: { hasNextPage: false, endCursor: null },
-					},
-				},
-				organization: {
-					projectsV2: {
-						nodes: [],
-						pageInfo: { hasNextPage: false, endCursor: null },
-					},
-				},
-			},
-		});
 	}
 	if (
 		url === "https://api.github.com/graphql" &&
@@ -220,7 +206,7 @@ function recorded(input, init) {
 		});
 	}
 	return new Response(`not recorded ${url}`, { status: 404 });
-}
+};
 
 const dir = await mkdtemp(join(tmpdir(), "project-flow-proof-"));
 const configPath = join(dir, "config.json");
