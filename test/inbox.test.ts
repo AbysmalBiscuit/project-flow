@@ -1159,7 +1159,7 @@ describe("inbox", () => {
 		});
 	});
 
-	test("a ticket that leaves needs-you and joins again raises a second notification", async () => {
+	test("a ticket that leaves needs-you and joins again raises a notification", async () => {
 		const headline = "Which bot should review this?";
 		const askComment = {
 			body: `${headline}\n\n${ask("pf-1")}`,
@@ -1549,6 +1549,7 @@ describe("inbox", () => {
 		};
 		const openOn = (
 			project: typeof idle,
+			identifier: string,
 			comments: {
 				body: string;
 				createdAt?: string;
@@ -1556,12 +1557,12 @@ describe("inbox", () => {
 			}[],
 			updatedAt: string,
 		) => ({
-			...linearIssue("PF-1", "Open ask", headline, comments, {}, updatedAt),
+			...linearIssue(identifier, "Open ask", headline, comments, {}, updatedAt),
 			projectId: project.id,
 		});
 		let current = [
-			openOn(idle, [askComment], "2026-06-01T12:00:00.000Z"),
-			openOn(loaded, [askComment], "2026-10-18T12:00:00.000Z"),
+			openOn(idle, "IDLE-1", [askComment], "2026-06-01T12:00:00.000Z"),
+			openOn(loaded, "LOAD-1", [askComment], "2026-10-18T12:00:00.000Z"),
 		];
 		const recorded = linearFake({ project: null });
 		const fetchImpl: Fetch = async (input, init) => {
@@ -1630,6 +1631,12 @@ describe("inbox", () => {
 			);
 			const base = await started;
 			expect(await inboxOf(base)).toEqual([]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([
+				expect.objectContaining({ project: "Idle", key: "IDLE-1" }),
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
 			const shownConfig = {
 				pinned: [
 					{ tracker: "linear", project: "idle" },
@@ -1638,54 +1645,97 @@ describe("inbox", () => {
 				pollIntervalSeconds: 3600,
 				checkoutRoots: [],
 			};
-			await Bun.write(
-				path,
-				JSON.stringify({
-					...shownConfig,
-					hidden: [{ tracker: "linear", project: "idle" }],
+			const hiddenConfig = {
+				...shownConfig,
+				hidden: [{ tracker: "linear", project: "idle" }],
+			};
+			await Bun.write(path, JSON.stringify(hiddenConfig));
+			await refresh(base);
+			const hiddenList = await fetch(new URL("/api/needs-you", base));
+			expect(hiddenList.status).toBe(200);
+			expect(await hiddenList.json()).toEqual([
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
+			expect(await inboxOf(base)).toEqual([]);
+			stop();
+			await running;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const restarted = run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => againReady(line),
+					waitForStop: secondStop,
 				}),
 			);
-			await refresh(base);
-			current = [
-				openOn(idle, [askComment, reply], "2026-06-01T14:00:00.000Z"),
-				openOn(loaded, [askComment], "2026-10-18T12:00:00.000Z"),
-			];
-			await refresh(base);
-			expect(await inboxOf(base)).toEqual([]);
+			const next = await second;
+			const hiddenAgain = await fetch(new URL("/api/needs-you", next));
+			expect(hiddenAgain.status).toBe(200);
+			expect(await hiddenAgain.json()).toEqual([
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
 			await Bun.write(path, JSON.stringify(shownConfig));
-			const shown = notificationEvent(base, 400);
+			const shown = notificationEvent(next, 400);
 			await Bun.sleep(50);
-			await refresh(base);
+			await refresh(next);
 			await expect(shown).rejects.toThrow("no notification event");
-			expect(await inboxOf(base)).toEqual([]);
+			expect(await inboxOf(next)).toEqual([]);
+			await refresh(next);
+			const shownList = await fetch(new URL("/api/needs-you", next));
+			expect(shownList.status).toBe(200);
+			expect(await shownList.json()).toEqual([
+				expect.objectContaining({ project: "Idle", key: "IDLE-1" }),
+				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
+			]);
 			current = [
-				openOn(idle, [askComment, reply], "2026-06-01T14:00:00.000Z"),
-				openOn(loaded, [askComment, reply], "2026-10-18T14:00:00.000Z"),
+				openOn(idle, "IDLE-1", [askComment], "2026-06-01T12:00:00.000Z"),
+				openOn(
+					loaded,
+					"LOAD-1",
+					[askComment, reply],
+					"2026-10-18T14:00:00.000Z",
+				),
 			];
-			await refresh(base);
-			expect(await inboxOf(base)).toEqual([]);
+			await refresh(next);
+			expect(await inboxOf(next)).toEqual([]);
 			current = [
-				openOn(idle, [askComment, reply], "2026-06-01T14:00:00.000Z"),
-				openOn(loaded, [askComment, reply, again], "2026-10-18T16:00:00.000Z"),
+				openOn(idle, "IDLE-1", [askComment], "2026-06-01T12:00:00.000Z"),
+				openOn(
+					loaded,
+					"LOAD-1",
+					[askComment, reply, again],
+					"2026-10-18T16:00:00.000Z",
+				),
 			];
-			const events = notificationEvent(base);
+			const events = notificationEvent(next);
 			await Bun.sleep(50);
-			await refresh(base);
+			await refresh(next);
 			const event = await events;
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Loaded",
-				key: "PF-1",
+				key: "LOAD-1",
 				text: headline,
 			});
-			expect(await inboxOf(base)).toEqual([event]);
-			stop();
-			await running;
+			expect(await inboxOf(next)).toEqual([event]);
+			stopSecond();
+			await restarted;
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
-	}, 15_000);
+	}, 30_000);
 
 	test("a ticket that joins, leaves and joins again raises two needs-you notifications", async () => {
 		const headline = "Which bot should review this?";
