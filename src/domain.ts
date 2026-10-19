@@ -547,6 +547,25 @@ function closingKeys(body: string, repo: string): string[] {
 	return keys;
 }
 
+function sameRef(left: TicketRef, right: TicketRef): boolean {
+	return (
+		left.tracker === right.tracker &&
+		left.key.toLowerCase() === right.key.toLowerCase()
+	);
+}
+
+function mergeBlockedBy(rows: TicketRef[][]): TicketRef[] {
+	const refs: TicketRef[] = [];
+	for (const row of rows) {
+		for (const ref of row) {
+			if (!refs.some((item) => sameRef(item, ref))) {
+				refs.push(ref);
+			}
+		}
+	}
+	return refs;
+}
+
 export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 	const byId = new Map(stored.map((ticket) => [ticket.id, ticket]));
 	for (const ticket of incoming) {
@@ -724,13 +743,6 @@ function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
 	return null;
 }
 
-function sameRef(left: TicketRef, right: TicketRef): boolean {
-	return (
-		left.tracker === right.tracker &&
-		left.key.toLowerCase() === right.key.toLowerCase()
-	);
-}
-
 function parseLine(
 	line: string,
 	project: string,
@@ -790,9 +802,20 @@ function indexKey(tracker: string, key: string): string {
 function indexTickets(tickets: Ticket[]): TicketIndex {
 	const index = new Map<string, Ticket>();
 	for (const ticket of tickets) {
-		if (ticket.key !== null) {
-			index.set(indexKey(ticket.tracker, ticket.key), ticket);
+		if (ticket.key === null) {
+			continue;
 		}
+		const key = indexKey(ticket.tracker, ticket.key);
+		const earlier = index.get(key);
+		if (earlier === undefined) {
+			index.set(key, ticket);
+			continue;
+		}
+		index.set(key, {
+			...earlier,
+			body: earlier.body.trim() === "" ? ticket.body : earlier.body,
+			blockedBy: mergeBlockedBy([earlier.blockedBy, ticket.blockedBy]),
+		});
 	}
 	return index;
 }
@@ -842,15 +865,49 @@ function parseKey(ticket: Ticket): string {
 	return indexKey(ticket.tracker, ticket.key ?? "");
 }
 
+function bodyLines(donor: Ticket | undefined, ticket: Ticket): string {
+	if (donor === undefined || donor === ticket || ticket.body.trim() === "") {
+		return "";
+	}
+	const lines = [];
+	for (const line of donor.body.split("\n")) {
+		const trimmed = line.trim();
+		if (trimmed.startsWith("Blocks:") || trimmed.startsWith("Blocking:")) {
+			lines.push(trimmed);
+		}
+	}
+	return lines.join("\n");
+}
+
+function bodyProject(ticket: Ticket, project: string): string {
+	if (project.includes("/")) {
+		return project;
+	}
+	const repo = ticket.key?.split("#")[0];
+	if (ticket.tracker === "github" && repo?.includes("/") === true) {
+		return repo;
+	}
+	return project;
+}
+
 function parseBodies(
 	groups: { project: string; tickets: Ticket[] }[],
 ): ParsedBodies {
 	const parsed: ParsedBodies = new Map();
 	for (const group of groups) {
 		for (const ticket of group.tickets) {
-			parsed.set(parseKey(ticket), {
-				blockedBy: bodyBlockers(ticket, group.project, "blockedBy"),
-				blocks: bodyBlockers(ticket, group.project, "blocks"),
+			const key = parseKey(ticket);
+			const project = bodyProject(ticket, group.project);
+			const blockedBy = bodyBlockers(ticket, project, "blockedBy");
+			const blocks = bodyBlockers(ticket, project, "blocks");
+			const earlier = parsed.get(key);
+			if (earlier === undefined) {
+				parsed.set(key, { blockedBy, blocks });
+				continue;
+			}
+			parsed.set(key, {
+				blockedBy: mergeBlockedBy([earlier.blockedBy, blockedBy]),
+				blocks: mergeBlockedBy([earlier.blocks, blocks]),
 			});
 		}
 	}
@@ -863,7 +920,10 @@ export function openBlockers(
 	parsed: ParsedBodies,
 ): Ticket[] {
 	const self = asRef(ticket);
-	const incoming = ticket.blockedBy.filter((ref) => stillOpen(ref, index));
+	const merged = self === null ? undefined : known(index, self);
+	const incoming = (merged?.blockedBy ?? ticket.blockedBy).filter((ref) =>
+		stillOpen(ref, index),
+	);
 	const fromBody = (parsed.get(parseKey(ticket))?.blockedBy ?? []).filter(
 		(ref) => stillOpen(ref, index),
 	);
@@ -1008,15 +1068,55 @@ export function projectSnapshots(
 			})
 		);
 	});
+	const carried = new Map<string, Ticket>();
+	for (const project of shown) {
+		if (!project.key.includes("/")) {
+			continue;
+		}
+		for (const ticket of project.tickets) {
+			if (ticket.ref !== undefined) {
+				carried.set(ticket.ref, ticket);
+			}
+		}
+	}
 	const claimed = new Set<string>();
 	const rows = [];
 	for (const project of shown) {
-		const tickets = project.tickets.filter((ticket) => {
-			if (ticket.ref === undefined || claimed.has(ticket.ref)) {
-				return ticket.ref === undefined;
+		const tickets = project.tickets.flatMap((ticket) => {
+			if (ticket.ref !== undefined && claimed.has(ticket.ref)) {
+				return [];
 			}
-			claimed.add(ticket.ref);
-			return true;
+			const donor =
+				ticket.ref === undefined ? undefined : carried.get(ticket.ref);
+			const outgoing = bodyLines(donor, ticket);
+			const kept =
+				donor === undefined || donor === ticket
+					? ticket
+					: {
+							...ticket,
+							body:
+								ticket.body.trim() === ""
+									? donor.body
+									: `${ticket.body}\n${outgoing}`,
+							blockedBy: mergeBlockedBy([
+								donor.blockedBy,
+								ticket.blockedBy,
+								bodyBlockers(
+									donor,
+									bodyProject(donor, project.key),
+									"blockedBy",
+								),
+								bodyBlockers(
+									ticket,
+									bodyProject(ticket, project.key),
+									"blockedBy",
+								),
+							]),
+						};
+			if (ticket.ref !== undefined) {
+				claimed.add(ticket.ref);
+			}
+			return [kept];
 		});
 		rows.push({
 			key: project.key,
@@ -1743,8 +1843,10 @@ export function projectCounts(
 			if (blocker.key === null) {
 				continue;
 			}
+			const self = asRef(ticket);
+			const merged = self === null ? undefined : known(index, self);
 			const source = [
-				...ticket.blockedBy,
+				...(merged?.blockedBy ?? ticket.blockedBy),
 				...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
 			].find(
 				(ref) =>
