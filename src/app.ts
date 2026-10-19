@@ -417,7 +417,6 @@ type PollOptions = {
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
-	readyToList: Promise<void>;
 	viewers: Viewer[];
 	attention: Attention;
 	seenNotifications: Set<string>;
@@ -593,7 +592,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		const pinned = pinnedKeys.has(project.key);
 		const hidden = hiddenKeys.has(project.key);
 		try {
-			await options.readyToList;
 			await options.holdLists;
 			const listedTickets = await tracker.listTickets(project.key, since);
 			const pulls = await tracker.listPulls(
@@ -685,6 +683,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	const nextOverview = overview(options.store, configuration, options.viewers);
 	const after = attentionOf(
 		projectViews(options.store, configuration, options.viewers),
+		configuration.noSenior,
 	);
 	const notifications = options.primed
 		? notificationsFor(
@@ -752,7 +751,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
-		readyToList: Promise.resolve(),
 		viewers: [],
 		attention: {
 			needsYou: [],
@@ -768,16 +766,13 @@ export async function start(options: StartOptions): Promise<Running> {
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionOf(
 			projectViews(opened.store, configuration, pollOptions.viewers),
+			configuration.noSenior,
 		);
 	}
 	let releaseLists = () => {};
-	let markListening = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
 	if (hadRows) {
 		let released = false;
-		pollOptions.readyToList = new Promise<void>((resolve) => {
-			markListening = resolve;
-		});
 		pollOptions.holdLists = new Promise<void>((resolve) => {
 			releaseLists = () => {
 				if (released) {
@@ -788,7 +783,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			};
 		});
 		// A listen callback reads stored rows before this poll lists tickets.
-		setTimeout(releaseLists, 1_000);
+		setTimeout(releaseLists, 1_000).unref?.();
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;
@@ -945,7 +940,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		},
 	});
 	if (hadRows) {
-		markListening();
 		void pollAgain();
 	}
 	return {
