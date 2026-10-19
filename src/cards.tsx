@@ -1,10 +1,17 @@
 import mermaid from "mermaid";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import styles from "./cards.module.css";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
+import shell from "./shell.module.css";
+import { mermaidTheme, watchPageTheme } from "./theme.ts";
 
-mermaid.initialize({ startOnLoad: false });
+function startMermaid(): void {
+	mermaid.initialize({ startOnLoad: false, theme: mermaidTheme() });
+}
+
+startMermaid();
 
 function projectPath(name: string, ticket?: string): string {
 	const path = `/projects/${encodeURIComponent(name)}`;
@@ -40,7 +47,7 @@ function openedLabel(): string | null {
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
-			className="blocker-chip"
+			className={styles.chip}
 			href={projectPath(blocker.project, blocker.key)}
 			onClick={(event) => {
 				event.preventDefault();
@@ -147,40 +154,65 @@ function CardsList({
 	onOpen: (label: string) => void;
 }) {
 	return (
-		<ul>
+		<ul className={styles.list}>
 			{overview.projects.map((project) => (
 				<li
 					key={`${project.tracker}:${project.name}`}
 					className={
 						opened === `Opened ${project.name}` ||
 						opened?.startsWith(`Opened ${project.name} `) === true
-							? "card highlighted"
-							: "card"
+							? `${styles.card} ${styles.highlighted}`
+							: styles.card
 					}
 				>
-					<h2>
+					<h2 className={shell.heading}>
 						<ProjectLink
 							name={project.name}
-							className="project-link"
+							className={styles.projectLink}
 							onOpen={onOpen}
 						>
 							{project.name}
 						</ProjectLink>
 					</h2>
 					{project.error === null ? null : (
-						<p className="stale">{project.error}</p>
+						<p className={shell.stale}>{project.error}</p>
 					)}
-					<p className="counts">
-						Done {project.done} Dropped {project.dropped} Blocked{" "}
-						{project.blocked} Backlog {project.backlog} In progress{" "}
-						{project.inProgress} In review {project.inReview} Awaiting merge{" "}
-						{project.awaitingMerge} Needs you {project.needsYou}
+					<p className={styles.counts}>
+						<span className={styles.count}>
+							<span className={`${styles.swatch} ${styles.done}`} />
+							Done {project.done}
+						</span>
+						<span className={styles.count}>
+							<span className={`${styles.swatch} ${styles.dropped}`} />
+							Dropped {project.dropped}
+						</span>
+						<span className={styles.count}>
+							<span className={`${styles.swatch} ${styles.blocked}`} />
+							Blocked {project.blocked}
+						</span>
+						<span className={styles.count}>
+							<span className={`${styles.swatch} ${styles.backlog}`} />
+							Backlog {project.backlog}
+						</span>
+						<span className={styles.count}>
+							<span className={`${styles.swatch} ${styles.inProgress}`} />
+							In progress {project.inProgress}
+						</span>
+						<span className={styles.count}>
+							<span className={`${styles.swatch} ${styles.inReview}`} />
+							In review {project.inReview}
+						</span>
+						<span className={styles.count}>
+							<span className={`${styles.swatch} ${styles.awaitingMerge}`} />
+							Awaiting merge {project.awaitingMerge}
+						</span>
+						<span className={styles.count}>Needs you {project.needsYou}</span>
 					</p>
 					{project.tags.length === 0 ? null : (
-						<p className="tags">{project.tags.join(" ")}</p>
+						<p className={styles.tags}>{project.tags.join(" ")}</p>
 					)}
 					{project.crossProjectBlockers.length === 0 ? null : (
-						<p className="blockers">
+						<p className={styles.blockers}>
 							{project.crossProjectBlockers.map((blocker) => (
 								<Chip
 									key={`${blocker.project} ${blocker.key}`}
@@ -316,8 +348,8 @@ function GraphView({
 		bindGraph(node, overview, graphEdges(overview), onOpen);
 	}, [onOpen, overview, svg]);
 	return (
-		<div className="graph">
-			<div ref={host} className="mermaid-host" />
+		<div className={styles.graph}>
+			<div ref={host} className={styles.mermaidHost} />
 		</div>
 	);
 }
@@ -332,7 +364,7 @@ function TableView({
 	const [sortKey, setSortKey] = useState<SortKey>("progress");
 	const rows = sortProjects(overview.projects, sortKey);
 	return (
-		<table>
+		<table className={styles.table}>
 			<thead>
 				<tr>
 					<th>Project</th>
@@ -355,7 +387,7 @@ function TableView({
 						<td>
 							<ProjectLink
 								name={project.name}
-								className="project-link"
+								className={styles.projectLink}
 								onOpen={onOpen}
 							>
 								{project.name}
@@ -395,27 +427,41 @@ function OverviewPage({
 		table: <TableView overview={overview} onOpen={setOpened} />,
 	};
 	return (
-		<main>
-			<h1>Projects</h1>
-			<p>
-				<a href="/needs-you">Needs you</a> <a href="/inbox">Inbox</a>
-			</p>
-			<button
-				type="button"
-				onClick={() => {
-					void fetch("/api/refresh", { method: "POST" });
-				}}
-			>
-				Refresh
-			</button>
+		<main className={shell.page}>
+			<h1 className={shell.title}>Projects</h1>
+			<nav className={shell.nav}>
+				<a className={shell.link} href="/needs-you">
+					Needs you
+				</a>
+				<a className={shell.link} href="/inbox">
+					Inbox
+				</a>
+				<button
+					type="button"
+					className={shell.button}
+					onClick={() => {
+						void fetch("/api/refresh", { method: "POST" });
+					}}
+				>
+					Refresh
+				</button>
+				<button
+					type="button"
+					className={`${shell.button} ${shell.theme}`}
+					data-theme-toggle=""
+				>
+					Dark mode
+				</button>
+			</nav>
 			{overview.error !== null ? (
-				<p className="stale">{overview.error}</p>
+				<p className={shell.stale}>{overview.error}</p>
 			) : null}
-			<nav className="tabs">
+			<nav className={shell.nav} aria-label="Overview tabs">
 				{tabs.map((name) => (
 					<button
 						key={name}
 						type="button"
+						className={shell.button}
 						id={`tab-${name}`}
 						aria-pressed={tab === name}
 						onClick={() => choose(name)}
@@ -426,11 +472,11 @@ function OverviewPage({
 				))}
 			</nav>
 			{opened === null ? null : (
-				<p className="opened">
+				<p className={styles.opened}>
 					{opened}{" "}
 					<button
 						type="button"
-						className="back"
+						className={`${shell.button} ${shell.back}`}
 						onClick={() => window.history.back()}
 					>
 						Back
@@ -456,6 +502,7 @@ function Page() {
 	useEffect(() => {
 		const show = (next: Overview) => {
 			setOverview(next);
+			startMermaid();
 			void renderGraph(next).then(setGraphSvg);
 		};
 		const stopOverview = onAppEvent("overview", (event) => {
@@ -464,10 +511,19 @@ function Page() {
 		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
 		});
+		const stopTheme = watchPageTheme(() => {
+			setOverview((current) => {
+				if (current !== null) {
+					show(current);
+				}
+				return current;
+			});
+		});
 		void readOverview().then(show);
 		return () => {
 			stopOverview();
 			stopOpen();
+			stopTheme();
 		};
 	}, []);
 	if (overview === null) {

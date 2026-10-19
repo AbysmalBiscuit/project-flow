@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Thread, ThreadComment } from "./domain.ts";
+import styles from "./panel.module.css";
+import shell from "./shell.module.css";
 
 type ReplyTarget = {
 	parentId?: string;
@@ -16,14 +18,18 @@ function CommentTree({
 	onReply: (comment: ThreadComment) => void;
 }) {
 	return (
-		<ul className="thread">
+		<ul className={styles.thread}>
 			{comments.map((comment) => (
-				<li key={comment.id} data-comment={comment.id}>
-					<p className="comment-body">{comment.body}</p>
+				<li
+					key={comment.id}
+					className={styles.comment}
+					data-comment={comment.id}
+				>
+					<p className={styles.body}>{comment.body}</p>
 					{nested || comment.kind === "review" ? (
 						<button
 							type="button"
-							className="reply-open"
+							className={shell.button}
 							onClick={() => onReply(comment)}
 						>
 							Reply
@@ -124,8 +130,12 @@ export function TicketPanel({
 		}
 	}
 	return (
-		<aside className="ticket-panel" aria-label="Ticket thread">
-			<button type="button" className="panel-close" onClick={onClose}>
+		<aside className={styles.panel} aria-label="Ticket thread">
+			<button
+				type="button"
+				className={`${shell.button} ${styles.close}`}
+				onClick={onClose}
+			>
 				Close
 			</button>
 			{missing ? <p>Thread not found</p> : null}
@@ -134,7 +144,7 @@ export function TicketPanel({
 				<>
 					<h2>{thread.title}</h2>
 					<p>
-						<a className="tracker-link" href={thread.url}>
+						<a className={styles.tracker} href={thread.url}>
 							Open in tracker
 						</a>
 					</p>
@@ -151,7 +161,7 @@ export function TicketPanel({
 					{tracker === "linear" ? (
 						<button
 							type="button"
-							className="reply-open new-comment"
+							className={shell.button}
 							onClick={() => setReplyTo({ kind: "comment" })}
 						>
 							New comment
@@ -159,7 +169,7 @@ export function TicketPanel({
 					) : (
 						<button
 							type="button"
-							className="reply-open"
+							className={shell.button}
 							onClick={() => setReplyTo({ kind: "comment" })}
 						>
 							Reply
@@ -167,22 +177,22 @@ export function TicketPanel({
 					)}
 					{replyTo === null ? null : (
 						<form
-							className="reply"
+							className={styles.reply}
 							onSubmit={(event) => {
 								event.preventDefault();
 								void send(replyTo);
 							}}
 						>
 							<textarea
-								className="reply-text"
+								className={styles.text}
 								aria-label="Reply"
 								value={draft}
 								onChange={(event) => setDraft(event.target.value)}
 							/>
-							<button type="submit" className="reply-send" disabled={pending}>
+							<button type="submit" className={shell.button} disabled={pending}>
 								Send
 							</button>
-							{error === null ? null : <p className="reply-error">{error}</p>}
+							{error === null ? null : <p className={styles.error}>{error}</p>}
 						</form>
 					)}
 				</>

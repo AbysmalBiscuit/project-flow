@@ -8,7 +8,7 @@
 		"dev": "bun --hot src/main.ts",
 		"typecheck": "bun check",
 		"test": "bun test",
-		"lint": "biome ci --error-on-warnings .",
+		"lint": "biome ci --error-on-warnings . && bun src/lint-tokens.ts",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {

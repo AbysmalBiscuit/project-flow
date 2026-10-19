@@ -18,6 +18,7 @@ The parent spec, issue #1, holds the full rules. Use the terms in `GLOSSARY.md`.
 - Bun's built-in SQLite is the store. The store is a cache: the next poll fills it again. The notifications table and seeded_ids keep history.
 - One Zod schema validates the configuration file and gives its TypeScript type. Do not write a second type for the configuration.
 - The browser renders diagrams with Mermaid.
+- A component styles only through its CSS module and the custom properties in `src/tokens.css`. Do not add a colour, `px` or `rem` literal in any other CSS file.
 
 ### Architecture
 

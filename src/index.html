@@ -4,43 +4,6 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Project Flow</title>
-		<style>
-			body { font-family: sans-serif; margin: 2rem; }
-			.card { border: 1px solid #ccc; padding: 1rem; max-width: 24rem; }
-			.tags { color: #8a4b08; }
-			.blocker-chip { display: inline-block; margin-right: 0.5rem; border: 1px solid #888; border-radius: 1rem; padding: 0.15rem 0.6rem; }
-			.highlighted { outline: 2px solid #1a5fb4; }
-			.stale { background: #f6e3a1; padding: 0.25rem 0.5rem; }
-			.tabs button { margin-right: 0.5rem; }
-			.tabs button[aria-pressed="true"] { font-weight: bold; }
-			table { border-collapse: collapse; }
-			th, td { border: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
-			.mermaid-host svg { max-width: 48rem; }
-			.mermaid-host .node, .mermaid-host .edgeLabel { cursor: pointer; }
-			.dashed-node { border: 1px dashed #888; padding: 0.15rem 0.4rem; }
-			.report-nav { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; }
-			.report-nav a { color: inherit; }
-			.report-section { margin-top: 1.5rem; }
-			.state-legend { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; list-style: none; padding: 0; margin: 0 0 0.75rem; }
-			.state-legend li { display: flex; align-items: center; gap: 0.35rem; }
-			.swatch { width: 0.9rem; height: 0.9rem; border: 1px solid #888; display: inline-block; }
-			.swatch.done { background: #8fbc8f; }
-			.swatch.dropped { background: #9ca3af; }
-			.swatch.blocked { background: #e6a0a0; }
-			.swatch.backlog { background: #d0d7de; }
-			.swatch.inProgress { background: #f0c674; }
-			.swatch.inReview { background: #9ecbff; }
-			.swatch.awaitingMerge { background: #b7e1cd; }
-			.swatch.theme { background: #e8eef7; border-color: #1a5fb4; }
-			.swatch.dashed { background: #fff; border-style: dashed; }
-			.needs-you .headline { font-weight: bold; }
-			.needs-you .tag { margin-left: 0.5rem; }
-			.needs-you.answered { color: #777; }
-			.ticket-open { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
-			.ticket-panel { position: fixed; top: 0; right: 0; width: 24rem; max-width: 100%; height: 100%; overflow: auto; background: #fff; border-left: 1px solid #ccc; padding: 1rem; }
-			.thread { padding-left: 1.2rem; }
-			.reply-error { color: #9b1c1c; }
-		</style>
 	</head>
 	<body>
 		<div id="root"></div>
