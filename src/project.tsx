@@ -1,5 +1,5 @@
 import mermaid from "mermaid";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
 	Diagram,
@@ -274,17 +274,6 @@ function Page() {
 			events.close();
 		};
 	}, [name]);
-	const highlightBlocker = useCallback(
-		(project: string, key: string): void => {
-			if (project === name) {
-				setTicket(key);
-				setOpen(false);
-				return;
-			}
-			openProject(project, key);
-		},
-		[name],
-	);
 	useEffect(() => {
 		if (report === null) {
 			return;
@@ -309,7 +298,7 @@ function Page() {
 						continue;
 					}
 					for (const node of diagram.nodes) {
-						if (!node.dashed || node.ticket === null) {
+						if (node.ticket === null) {
 							continue;
 						}
 						const drawn = [...figure.querySelectorAll("g.node")].find((item) =>
@@ -321,7 +310,7 @@ function Page() {
 						const ticket = node.ticket;
 						const project = node.project;
 						const open = () => {
-							highlightBlocker(project, ticket);
+							openProject(project, ticket);
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
@@ -336,7 +325,7 @@ function Page() {
 				drawn.removeEventListener("click", open);
 			}
 		};
-	}, [report, highlightBlocker]);
+	}, [report]);
 	if (missing) {
 		return <main>Project not found</main>;
 	}
