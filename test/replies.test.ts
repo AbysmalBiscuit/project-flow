@@ -899,6 +899,101 @@ describe("replies", () => {
 		}
 	});
 
+	test("a Linear thread longer than 50 comments keeps the newest comment", async () => {
+		const nodes = Array.from({ length: 51 }, (_, index) => ({
+			id: `comment-${index}`,
+			body: `Comment ${index}`,
+			createdAt: `2026-08-18T12:${String(index).padStart(2, "0")}:00.000Z`,
+			user: { name: "Ada" },
+		}));
+		const newest = nodes[50];
+		if (newest === undefined) {
+			throw new Error("missing newest comment");
+		}
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-51",
+					identifier: "PF-51",
+					title: "Long thread",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: nodes.slice(0, 50),
+						pageInfo: { hasNextPage: true, endCursor: "page-2" },
+					},
+				},
+			],
+		});
+		const pages = new Map([
+			[
+				null,
+				{
+					nodes: nodes.slice(0, 50),
+					pageInfo: { hasNextPage: true, endCursor: "page-2" },
+				},
+			],
+			[
+				"page-2",
+				{
+					nodes: [newest],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				},
+			],
+		]);
+		const app = await serve(
+			async (input, init) => {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("IssueThread")) {
+					const after =
+						(
+							JSON.parse(body) as {
+								variables?: { after?: string | null };
+							}
+						).variables?.after ?? null;
+					const page = pages.get(after);
+					if (page === undefined) {
+						return new Response("not recorded", { status: 404 });
+					}
+					return new Response(
+						JSON.stringify({
+							data: {
+								issue: {
+									identifier: "PF-51",
+									title: "Long thread",
+									url: "https://linear.app/issue/PF-51",
+									comments: page,
+								},
+							},
+						}),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				return recorded(input, init);
+			},
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+			}),
+		);
+		try {
+			const response = await fetch(
+				new URL("/api/threads/linear/PF-51?project=widget-launch", app.base),
+			);
+			expect(response.status).toBe(200);
+			const thread = (await response.json()) as Thread;
+			expect(thread.comments.at(-1)?.id).toBe("comment-50");
+			expect(thread.comments).toHaveLength(51);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a Linear reply error returns 502 and the tracker message", async () => {
 		const recorded = linearFake({
 			project: linearProject,

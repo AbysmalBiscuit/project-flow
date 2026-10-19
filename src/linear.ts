@@ -832,12 +832,12 @@ export function linearTracker(
 	};
 }
 
-const threadQuery = `query IssueThread($id: String!) {
+const threadQuery = `query IssueThread($id: String!, $after: String) {
 	issue(id: $id) {
 		identifier
 		title
 		url
-		comments(first: 50) {
+		comments(first: 50, after: $after) {
 			nodes {
 				id
 				body
@@ -846,6 +846,7 @@ const threadQuery = `query IssueThread($id: String!) {
 				parent { id }
 				user { name displayName }
 			}
+			pageInfo { hasNextPage endCursor }
 		}
 	}
 }`;
@@ -873,6 +874,7 @@ const threadPage = z.object({
 							.optional(),
 					}),
 				),
+				pageInfo,
 			}),
 		}),
 	}),
@@ -940,28 +942,51 @@ export async function fetchLinearThread(
 	project: string,
 	ticketKey: string,
 ): Promise<Thread | null> {
-	const body = await linearPost(
-		key,
-		fetchImpl,
-		threadQuery,
-		{ id: ticketKey },
-		"fetch thread",
-	);
-	if (linearError(body, "fetch thread") !== null) {
+	const nodes: z.infer<
+		typeof threadPage
+	>["data"]["issue"]["comments"]["nodes"] = [];
+	let issue: z.infer<typeof threadPage>["data"]["issue"] | null = null;
+	let after: string | null = null;
+	do {
+		const body = await linearPost(
+			key,
+			fetchImpl,
+			threadQuery,
+			{ id: ticketKey, after },
+			"fetch thread",
+		);
+		if (linearError(body, "fetch thread") !== null) {
+			return null;
+		}
+		const page = threadPage.parse(body);
+		issue = page.data.issue;
+		nodes.push(...issue.comments.nodes);
+		after = issue.comments.pageInfo.hasNextPage
+			? issue.comments.pageInfo.endCursor
+			: null;
+	} while (after !== null);
+	if (issue === null) {
 		return null;
 	}
-	const page = threadPage.parse(body);
-	const issue = page.data.issue;
-	const comments: ThreadComment[] = issue.comments.nodes.map((comment) => ({
-		id: comment.id,
-		body: comment.body ?? "",
-		author: linearAuthor(comment.user),
-		createdAt: comment.createdAt ?? "",
-		url: comment.url ?? "",
-		parentId: comment.parent?.id ?? null,
-		kind: "comment",
-		children: [],
-	}));
+	const comments: ThreadComment[] = nodes
+		.map((comment) => ({
+			id: comment.id,
+			body: comment.body ?? "",
+			author: linearAuthor(comment.user),
+			createdAt: comment.createdAt ?? "",
+			url: comment.url ?? "",
+			parentId: comment.parent?.id ?? null,
+			kind: "comment" as const,
+			children: [],
+		}))
+		.sort((left, right) => {
+			const leftTime = Date.parse(left.createdAt);
+			const rightTime = Date.parse(right.createdAt);
+			return (
+				(Number.isNaN(leftTime) ? 0 : leftTime) -
+				(Number.isNaN(rightTime) ? 0 : rightTime)
+			);
+		});
 	return {
 		tracker: "linear",
 		project,

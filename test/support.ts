@@ -207,6 +207,7 @@ export function linearFake(options: LinearFake = {}): Fetch {
 								parent: null,
 								...comment,
 							})),
+							pageInfo: { hasNextPage: false, endCursor: null },
 						},
 					},
 				},
