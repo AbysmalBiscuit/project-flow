@@ -35,6 +35,7 @@ export type Comment = {
 	id?: string;
 	body: string;
 	createdAt?: string;
+	updatedAt?: string;
 	author?: string;
 	reactions?: number;
 };
@@ -1475,6 +1476,11 @@ function pullNumbers(text: string): number[] {
 	return numbers;
 }
 
+function commentsAfter(comments: Comment[], progress: Comment): Comment[] {
+	const progressAt = comments.indexOf(progress);
+	return comments.slice(progressAt + 1);
+}
+
 function workcellRun(
 	comments: Comment[],
 	pull: PullRequest,
@@ -1496,12 +1502,11 @@ function workcellRun(
 			stage = Number(stageMatch[1]);
 		}
 	}
-	const progressAt = comments.indexOf(progress);
-	const later = comments.slice(progressAt + 1);
+	const later = commentsAfter(comments, progress);
 	const mergeAsk = openMergeAsk(later, pull.number);
 	if (
 		mergeAsk !== null &&
-		!askAnswered(later.slice(mergeAsk.index + 1), mergeAsk.id)
+		!askAnswered([progress, ...later.slice(mergeAsk.index + 1)], mergeAsk.id)
 	) {
 		return { state: "awaitingMerge", tags: [] };
 	}
@@ -1533,8 +1538,12 @@ function lineDecidesPull(
 }
 
 function commentDecidesPull(body: string, pull: PullRequest): boolean {
+	return commentNamesPull(body, pull.number);
+}
+
+function commentNamesPull(body: string, number: number): boolean {
 	const numbers = pullNumbers(body);
-	return numbers.length === 0 || numbers.includes(pull.number);
+	return numbers.length === 0 || numbers.includes(number);
 }
 
 function openMergeAsk(
@@ -1543,24 +1552,47 @@ function openMergeAsk(
 ): { id: string; index: number } | null {
 	let found: { id: string; index: number } | null = null;
 	for (const [index, comment] of later.entries()) {
-		const first = comment.body.split("\n")[0]?.trim() ?? "";
-		const asked = first.match(mergeAskLine)?.[1];
-		if (asked === undefined || Number(asked) !== number) {
+		const marker = askId(comment.body);
+		if (marker === null || !commentNamesPull(comment.body, number)) {
 			continue;
 		}
-		const marker = askId(comment.body);
-		if (marker !== null) {
+		const first = comment.body.split("\n")[0]?.trim() ?? "";
+		if (
+			first.match(mergeAskLine)?.[1] === String(number) ||
+			isFinalReport(comment.body)
+		) {
 			found = { id: marker, index };
 		}
 	}
 	return found;
 }
 
+function isFinalReport(body: string): boolean {
+	const first = body.split("\n")[0]?.trim() ?? "";
+	return body.includes(reportMarker) || /^final report\b/i.test(first);
+}
+
 function askAnswered(later: Comment[], id: string): boolean {
 	return later.some(
 		(comment) =>
-			quotesAsk(comment.body, id) || answerPrefix.test(comment.body.trim()),
+			quotesAsk(comment.body, id) ||
+			answerPrefix.test(comment.body.trim()) ||
+			progressAnswered(comment.body, id),
 	);
+}
+
+function progressAnswered(body: string, id: string): boolean {
+	if (!body.trimStart().startsWith(progressHeading)) {
+		return false;
+	}
+	const askNumber = id.split("-").at(-1);
+	if (askNumber === undefined) {
+		return false;
+	}
+	const marker = new RegExp(`^ask-${askNumber}\\s+answered\\b`, "i");
+	return body
+		.split("\n")
+		.some((line) => marker.test(line.trim().replace(/^-\s*/, "")));
 }
 
 function shownState(

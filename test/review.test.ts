@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
@@ -29,6 +29,8 @@ function card(
 	},
 	tags: string[] = [],
 	needsYou = counts.awaitingMerge,
+	key = `${repo}#8`,
+	title = "Ticket 8",
 ): {
 	projects: {
 		name: string;
@@ -74,8 +76,8 @@ function card(
 				unlinkedPrs: [],
 				tickets: [
 					{
-						key: `${repo}#8`,
-						title: "Ticket 8",
+						key,
+						title,
 						state,
 						blockers: [],
 					},
@@ -2041,6 +2043,146 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a progress entry after the final report puts the PR back in review", async () => {
+		const recorded = JSON.parse(
+			await readFile(
+				new URL("./fixtures/issue-51-comments.json", import.meta.url),
+				"utf8",
+			),
+		) as Record<string, unknown>[];
+		const progressComment = recorded[0];
+		const report = recorded[1];
+		if (progressComment === undefined || report === undefined) {
+			throw new Error("issue 51 comments were not recorded");
+		}
+		const body = await overview({
+			issues: [{ ...issue(51), comments: recorded.length }],
+			pulls: [pull(52, 51)],
+			commentsByIssue: { 51: recorded },
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(progressComment.updated_at).toBe("2026-10-19T06:23:53Z");
+		expect(report.created_at).toBe("2026-10-19T06:10:10Z");
+		expect(body).toEqual(
+			card(
+				"inReview",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 1,
+					awaitingMerge: 0,
+				},
+				[],
+				0,
+				`${repo}#51`,
+				"Ticket 51",
+			),
+		);
+	});
+
+	test("an answered final-report ask puts the PR back in review and an open one keeps it awaiting merge", async () => {
+		const recorded = JSON.parse(
+			await readFile(
+				new URL("./fixtures/issue-51-comments.json", import.meta.url),
+				"utf8",
+			),
+		) as Record<string, unknown>[];
+		const progressComment = recorded[0];
+		const report = recorded[1];
+		if (
+			progressComment === undefined ||
+			report === undefined ||
+			typeof progressComment.body !== "string"
+		) {
+			throw new Error("issue 51 comments were not recorded");
+		}
+		const openProgress = {
+			...progressComment,
+			body: progressComment.body
+				.split("\n")
+				.filter((line) => !line.includes("ask-1 answered:"))
+				.join("\n"),
+		};
+		const open = await overview({
+			issues: [{ ...issue(51), comments: recorded.length }],
+			pulls: [pull(52, 51)],
+			commentsByIssue: { 51: [openProgress, report] },
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(open).toEqual(
+			card(
+				"awaitingMerge",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 1,
+				},
+				[],
+				1,
+				`${repo}#51`,
+				"Ticket 51",
+			),
+		);
+		const answered = await overview({
+			issues: [{ ...issue(51), comments: recorded.length }],
+			pulls: [pull(52, 51)],
+			commentsByIssue: { 51: recorded },
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(answered).toEqual(
+			card(
+				"inReview",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 1,
+					awaitingMerge: 0,
+				},
+				[],
+				0,
+				`${repo}#51`,
+				"Ticket 51",
+			),
+		);
+	});
+
 	test("a stage line after the final report puts the run back in review", async () => {
 		const body = await overview({
 			issues: [{ ...issue(8), comments: 1 }],
@@ -2106,6 +2248,40 @@ describe("review cycle", () => {
 			mergedPulls: [mergedPull()],
 		});
 		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a blank final-report ask leaves the run at its stage", async () => {
+		const blank = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{ body: progress("- stage 5: round 1 of 3") },
+					{ body: "   \n\n<!-- workcell:ask 8-1 -->" },
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(blank).toEqual(
 			card("inReview", {
 				backlog: 0,
 				inProgress: 0,
