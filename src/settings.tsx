@@ -1,30 +1,12 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { knownBots } from "./domain.ts";
+import type { Configuration } from "./configuration.ts";
+import { type KnownBot, knownBots } from "./domain.ts";
 import styles from "./settings.module.css";
 import shell from "./shell.module.css";
 
-type ProjectRef =
-	| { tracker: "github"; repo: string }
-	| { tracker: "github"; owner: string; project: number }
-	| { tracker: "linear"; project: string };
-
-type Settings = {
-	pinned: ProjectRef[];
-	hidden: ProjectRef[];
-	activityWindowDays: number;
-	pollIntervalSeconds: number;
-	checkoutRoots: string[];
-	expectedBots?: Record<string, string[]>;
-	noSenior: Record<string, boolean>;
-	needsYouLabels: string[];
-	viewerLogins: string[];
-	notificationTriggers: {
-		needsYou: boolean;
-		comment: boolean;
-		blockerCleared: boolean;
-	};
-};
+type ProjectRef = Configuration["pinned"][number];
+type Settings = Configuration;
 
 function refLine(ref: ProjectRef): string {
 	if (ref.tracker === "linear") {
@@ -73,14 +55,18 @@ function botLines(bots: Record<string, string[]> | undefined): string {
 		.join("\n");
 }
 
-function parseBots(text: string): Record<string, string[]> {
-	const bots: Record<string, string[]> = {};
+function knownBot(name: string): name is KnownBot {
+	return knownBots.some((bot) => bot === name);
+}
+
+function parseBots(text: string): Record<string, KnownBot[]> {
+	const bots: Record<string, KnownBot[]> = {};
 	for (const line of lines(text)) {
 		const [repo, ...names] = line.split(/\s+/);
 		if (repo === undefined) {
 			continue;
 		}
-		bots[repo] = names;
+		bots[repo] = names.filter(knownBot);
 	}
 	return bots;
 }
