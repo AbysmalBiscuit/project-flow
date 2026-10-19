@@ -1698,7 +1698,7 @@ export function needsYouItems(
 	const items: NeedsYouItem[] = [];
 	const linkedByTicket = new Map<string, PullRequest[]>();
 	for (const ticket of tickets) {
-		if (ticket.key === null) {
+		if (ticket.state !== "open" || ticket.key === null) {
 			continue;
 		}
 		linkedByTicket.set(ticket.key, linked(ticket, pulls, project));

@@ -1865,4 +1865,131 @@ describe("needs you", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a PR linked only to a closed ticket stays an unlinked PR ask", async () => {
+		const repo = "acme/widget";
+		const headline = "This waits on Lev for the signing key.";
+		const recorded: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (url === "https://api.github.com/graphql") {
+				return Response.json({
+					data: {
+						repository: {
+							pullRequest: { closingIssuesReferences: { nodes: [] } },
+						},
+					},
+				});
+			}
+			if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
+				return page([
+					{
+						number: 8,
+						title: "Ship the signing key",
+						state: "closed",
+						state_reason: "completed",
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						comments: 0,
+						assignee: null,
+						labels: [],
+					},
+				]);
+			}
+			if (
+				url ===
+				`https://api.github.com/repos/${repo}/pulls?state=open&per_page=100&page=1`
+			) {
+				return page([
+					{
+						number: 49,
+						title: "Count PR asks",
+						state: "open",
+						draft: false,
+						html_url: `https://github.com/${repo}/pull/49`,
+						head: { ref: "49-feat-pr-ask", sha: "sha-49" },
+						body: "Closes #8",
+						merged_at: null,
+					},
+				]);
+			}
+			if (
+				url ===
+				`https://api.github.com/repos/${repo}/issues/49/comments?per_page=100&page=1`
+			) {
+				return page([
+					{
+						body: `${headline}\n\n${ask("pr-49")}`,
+						created_at: "2026-10-01T00:00:00Z",
+						user: { login: "agent" },
+					},
+				]);
+			}
+			if (
+				url.includes("/pulls?state=closed") ||
+				url.includes("/branches?") ||
+				url.includes("/comments?") ||
+				url.includes("/reviews?") ||
+				url.includes("/reactions?") ||
+				url.includes("/check-runs") ||
+				url.includes("/commits/")
+			) {
+				return url.includes("/check-runs")
+					? Response.json({ check_runs: [] })
+					: url.includes("/commits/")
+						? Response.json({
+								commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+							})
+						: page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
+			startChecks = (base) => {
+				fetch(new URL("/api/needs-you", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve((await response.json()) as NeedsYouItem[]);
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const items = await checks;
+			expect(items.map((item) => item.key)).toEqual([`${repo}#49`]);
+			expect(items[0]).toMatchObject({
+				tracker: "github",
+				headline,
+				reason: "ask",
+				answered: false,
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
