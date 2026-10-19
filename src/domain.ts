@@ -865,6 +865,20 @@ function parseKey(ticket: Ticket): string {
 	return indexKey(ticket.tracker, ticket.key ?? "");
 }
 
+function bodyLines(donor: Ticket | undefined, ticket: Ticket): string {
+	if (donor === undefined || donor === ticket || ticket.body.trim() === "") {
+		return "";
+	}
+	const lines = [];
+	for (const line of donor.body.split("\n")) {
+		const trimmed = line.trim();
+		if (trimmed.startsWith("Blocks:") || trimmed.startsWith("Blocking:")) {
+			lines.push(trimmed);
+		}
+	}
+	return lines.join("\n");
+}
+
 function bodyProject(ticket: Ticket, project: string): string {
 	if (project.includes("/")) {
 		return project;
@@ -1069,21 +1083,21 @@ export function projectSnapshots(
 	const rows = [];
 	for (const project of shown) {
 		const tickets = project.tickets.flatMap((ticket) => {
-			if (
-				ticket.ref !== undefined &&
-				claimed.has(ticket.ref) &&
-				project.key.includes("/")
-			) {
+			if (ticket.ref !== undefined && claimed.has(ticket.ref)) {
 				return [];
 			}
 			const donor =
 				ticket.ref === undefined ? undefined : carried.get(ticket.ref);
+			const outgoing = bodyLines(donor, ticket);
 			const kept =
 				donor === undefined || donor === ticket
 					? ticket
 					: {
 							...ticket,
-							body: ticket.body.trim() === "" ? donor.body : ticket.body,
+							body:
+								ticket.body.trim() === ""
+									? donor.body
+									: `${ticket.body}\n${outgoing}`,
 							blockedBy: mergeBlockedBy([
 								donor.blockedBy,
 								ticket.blockedBy,
@@ -1099,7 +1113,7 @@ export function projectSnapshots(
 								),
 							]),
 						};
-			if (ticket.ref !== undefined && !project.key.includes("/")) {
+			if (ticket.ref !== undefined) {
 				claimed.add(ticket.ref);
 			}
 			return [kept];

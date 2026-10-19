@@ -2441,4 +2441,261 @@ describe("GET /api/overview blockers", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a project card keeps a Blocks line from the repo body", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				return Response.json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: "PVT_widget",
+								number: 3,
+								title: "Widget board",
+								closed: false,
+								updatedAt: "2026-08-18T12:00:00Z",
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectItems")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							items: {
+								nodes: [20, 21].map((number) => ({
+									content: {
+										__typename: "Issue",
+										id: `I_${number}`,
+										number,
+										title: `Ticket ${number}`,
+										state: "OPEN",
+										stateReason: null,
+										updatedAt: "2026-08-18T12:00:00Z",
+										body: number === 20 ? "Waiting on the release." : "",
+										repository: { nameWithOwner: githubRepo },
+										milestone: null,
+										labels: { nodes: [] },
+										parent: null,
+										blockedBy: { nodes: [] },
+									},
+								})),
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
+				return page([issue(20, "Blocks: #21"), issue(21, "Open.")]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			if (url.includes("/comments")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", owner: "acme", project: 3 },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const body = (await response.json()) as {
+							projects: {
+								name: string;
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						const project = body.projects.find(
+							(item) => item.name === "Widget board",
+						);
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#21`),
+						).toEqual({
+							state: "blocked",
+							blockers: [`${githubRepo}#20`],
+						});
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a ticket on two GitHub projects stays on the first card", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				const number = body.includes('"number":4') ? 4 : 3;
+				return Response.json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: `PVT_${number}`,
+								number,
+								title: `Board ${number}`,
+								closed: false,
+								updatedAt: "2026-08-18T12:00:00Z",
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectItems")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_20",
+											number: 20,
+											title: "Shared across two boards",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			if (url.includes("/comments")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", owner: "acme", project: 3 },
+					{ tracker: "github", owner: "acme", project: 4 },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const body = (await response.json()) as {
+							projects: { name: string; tickets: { key: string }[] }[];
+						};
+						const cards = body.projects.filter((item) =>
+							item.tickets.some((ticket) => ticket.key === `${githubRepo}#20`),
+						);
+						expect(cards.map((item) => item.name)).toEqual(["Board 3"]);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
