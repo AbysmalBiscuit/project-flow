@@ -94,66 +94,86 @@ function isIssueQuery(
 	);
 }
 
-function notificationEvent(
-	base: string,
-	timeoutMs = 3_000,
-): Promise<InboxEntry> {
-	return new Promise((resolve, reject) => {
-		let buffer = "";
-		let settled = false;
-		const finish = (error?: Error, entry?: InboxEntry) => {
-			if (settled) {
-				return;
-			}
-			settled = true;
-			clearTimeout(timer);
-			void socket.then((open) => open.end());
-			if (error !== undefined) {
-				reject(error);
-				return;
-			}
-			if (entry !== undefined) {
-				resolve(entry);
-			}
-		};
-		const socket = Bun.connect({
-			hostname: "127.0.0.1",
-			port: Number(new URL(base).port),
-			socket: {
-				data(_socket, data) {
-					buffer += data.toString();
-					const blocks = buffer.split("\n\n");
-					buffer = blocks.pop() ?? "";
-					for (const text of blocks) {
-						const event = text
-							.split("\n")
-							.find((line) => line.startsWith("event:"))
-							?.slice("event:".length)
-							.trim();
-						const payload = text
-							.split("\n")
-							.filter((line) => line.startsWith("data:"))
-							.map((line) => line.slice("data:".length).trim())
-							.join("\n");
-						if (event === "notification" && payload !== "") {
-							finish(undefined, JSON.parse(payload) as InboxEntry);
-						}
-					}
-				},
-				error(_socket, error) {
-					finish(error);
-				},
-				open(openSocket) {
-					openSocket.write(
-						"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
-					);
-				},
-			},
-		});
-		const timer = setTimeout(() => {
-			finish(new Error("no notification event within 3000ms"));
-		}, timeoutMs);
+function notificationEvents(base: string): {
+	next: () => Promise<InboxEntry>;
+	close: () => void;
+	ready: Promise<void>;
+} {
+	const queue: InboxEntry[] = [];
+	let wake: (() => void) | null = null;
+	let closed = false;
+	let failed: Error | undefined;
+	let buffer = "";
+	let markReady = () => {};
+	const ready = new Promise<void>((resolve) => {
+		markReady = resolve;
 	});
+	const socket = Bun.connect({
+		hostname: "127.0.0.1",
+		port: Number(new URL(base).port),
+		socket: {
+			data(_socket, data) {
+				markReady();
+				buffer += data.toString();
+				const blocks = buffer.split("\n\n");
+				buffer = blocks.pop() ?? "";
+				for (const text of blocks) {
+					const event = text
+						.split("\n")
+						.find((line) => line.startsWith("event:"))
+						?.slice("event:".length)
+						.trim();
+					const payload = text
+						.split("\n")
+						.filter((line) => line.startsWith("data:"))
+						.map((line) => line.slice("data:".length).trim())
+						.join("\n");
+					if (event === "notification" && payload !== "") {
+						queue.push(JSON.parse(payload) as InboxEntry);
+						wake?.();
+					}
+				}
+			},
+			error(_socket, error) {
+				failed = error;
+				closed = true;
+				wake?.();
+			},
+			open(openSocket) {
+				openSocket.write(
+					"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
+				);
+			},
+		},
+	});
+	return {
+		next: () =>
+			new Promise((resolve, reject) => {
+				const take = () => {
+					if (failed !== undefined) {
+						reject(failed);
+						return;
+					}
+					const entry = queue.shift();
+					if (entry !== undefined) {
+						resolve(entry);
+						return;
+					}
+					if (closed) {
+						reject(new Error("notification stream closed"));
+						return;
+					}
+					wake = take;
+				};
+				take();
+			}),
+		close: () => {
+			closed = true;
+			wake?.();
+			void socket.then((open) => open.end());
+		},
+		ready,
+	};
 }
 
 async function withInbox(
@@ -287,6 +307,21 @@ const twoProjects = {
 	pollIntervalSeconds: 3600,
 };
 
+async function expectQuietRefresh(base: string): Promise<void> {
+	const stream = notificationEvents(base);
+	await stream.ready;
+	const pending = stream.next();
+	await refresh(base);
+	stream.close();
+	const entry = await pending.catch((error: Error) => error);
+	if (!(entry instanceof Error)) {
+		throw new Error("notification event arrived on a quiet poll");
+	}
+	if (entry.message !== "notification stream closed") {
+		throw entry;
+	}
+}
+
 async function notificationForPoll(
 	base: string,
 	releasePoll: () => void,
@@ -332,10 +367,11 @@ describe("inbox", () => {
 					"2026-08-18T13:00:00.000Z",
 				),
 			]);
-			const events = notificationEvent(base);
-			await Bun.sleep(50);
+			const events = notificationEvents(base);
+			await events.ready;
 			await refresh(base);
-			const event = await events;
+			const event = await events.next();
+			events.close();
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
@@ -382,10 +418,11 @@ describe("inbox", () => {
 					"2026-08-18T14:00:00.000Z",
 				),
 			]);
-			const events = notificationEvent(base);
-			await Bun.sleep(50);
+			const events = notificationEvents(base);
+			await events.ready;
 			await refresh(base);
-			const event = await events;
+			const event = await events.next();
+			events.close();
 			expect(event).toMatchObject({
 				trigger: "comment",
 				project: "Project Flow",
@@ -410,10 +447,11 @@ describe("inbox", () => {
 						updatedAt: "2026-08-18T15:00:00.000Z",
 					},
 				]);
-				const events = notificationEvent(base);
-				await Bun.sleep(50);
+				const events = notificationEvents(base);
+				await events.ready;
 				await refresh(base);
-				const event = await events;
+				const event = await events.next();
+				events.close();
 				expect(event).toMatchObject({
 					trigger: "blockerCleared",
 					project: "Project Flow",
@@ -511,10 +549,11 @@ describe("inbox", () => {
 					}),
 				);
 				setIssues([closedOutside]);
-				const events = notificationEvent(base);
-				await Bun.sleep(50);
+				const events = notificationEvents(base);
+				await events.ready;
 				await refresh(base);
-				const event = await events;
+				const event = await events.next();
+				events.close();
 				expect(event).toMatchObject({
 					trigger: "blockerCleared",
 					project: "Project Flow",
@@ -775,10 +814,11 @@ describe("inbox", () => {
 						),
 					).toBe(true);
 					closed = true;
-					const events = notificationEvent(base);
-					await Bun.sleep(50);
+					const events = notificationEvents(base);
+					await events.ready;
 					await refresh(base);
-					const event = await events;
+					const event = await events.next();
+					events.close();
 					expect(event).toMatchObject({
 						trigger: "blockerCleared",
 						project: repo,
@@ -906,10 +946,11 @@ describe("inbox", () => {
 					await refresh(base);
 					expect(await inboxOf(base)).toEqual([]);
 					phase = "closed";
-					const events = notificationEvent(base);
-					await Bun.sleep(50);
+					const events = notificationEvents(base);
+					await events.ready;
 					await refresh(base);
-					const event = await events;
+					const event = await events.next();
+					events.close();
 					expect(event).toMatchObject({
 						trigger: "blockerCleared",
 						project: repo,
@@ -1337,10 +1378,11 @@ describe("inbox", () => {
 					"2026-08-18T15:00:00.000Z",
 				),
 			]);
-			const events = notificationEvent(base);
-			await Bun.sleep(50);
+			const events = notificationEvents(base);
+			await events.ready;
 			await refresh(base);
-			const event = await events;
+			const event = await events.next();
+			events.close();
 			expect(event).toMatchObject({
 				trigger: "comment",
 				project: "Project Flow",
@@ -1562,10 +1604,11 @@ describe("inbox", () => {
 		);
 		await withInbox(pinned, [issue], async (base, setIssues) => {
 			setIssues([commented]);
-			const events = notificationEvent(base);
-			await Bun.sleep(50);
+			const events = notificationEvents(base);
+			await events.ready;
 			await refresh(base);
-			const event = await events;
+			const event = await events.next();
+			events.close();
 			expect(event).toMatchObject({
 				trigger: "comment",
 				project: "Project Flow",
@@ -1659,10 +1702,11 @@ describe("inbox", () => {
 						expect.objectContaining({ key: "PF-1", headline }),
 					]);
 					joined = true;
-					const events = notificationEvent(base);
-					await Bun.sleep(50);
+					const events = notificationEvents(base);
+					await events.ready;
 					await refresh(base);
-					const event = await events;
+					const event = await events.next();
+					events.close();
 					expect(event).toMatchObject({
 						trigger: "needsYou",
 						project: "Project Flow",
@@ -1766,10 +1810,11 @@ describe("inbox", () => {
 							"2026-08-18T15:00:00.000Z",
 						),
 					];
-					const events = notificationEvent(base);
-					await Bun.sleep(50);
+					const events = notificationEvents(base);
+					await events.ready;
 					await refresh(base);
-					const event = await events;
+					const event = await events.next();
+					events.close();
 					expect(event).toMatchObject({
 						trigger: "comment",
 						project: "Project Flow",
@@ -1899,10 +1944,11 @@ describe("inbox", () => {
 					"2026-08-18T16:00:00.000Z",
 				),
 			]);
-			const events = notificationEvent(base);
-			await Bun.sleep(50);
+			const events = notificationEvents(base);
+			await events.ready;
 			await refresh(base);
-			const event = await events;
+			const event = await events.next();
+			events.close();
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
@@ -2241,7 +2287,6 @@ describe("inbox", () => {
 			});
 			const started = start(firstStop, ready);
 			const base = await first;
-			await Bun.sleep(50);
 			expect(await inboxOf(base)).toEqual([
 				expect.objectContaining({
 					id: "needsYou\nProject Flow\nPF-1",
@@ -2275,12 +2320,7 @@ describe("inbox", () => {
 				hidden: [{ tracker: "linear", project: "project-flow" }],
 			};
 			await Bun.write(path, JSON.stringify(hiddenConfig));
-			const hiddenEvents = notificationEvent(next, 400);
-			await Bun.sleep(50);
-			await refresh(next);
-			await expect(hiddenEvents).rejects.toThrow(
-				"no notification event within",
-			);
+			await expectQuietRefresh(next);
 			const hiddenList = await fetch(new URL("/api/needs-you", next));
 			expect(hiddenList.status).toBe(200);
 			expect(await hiddenList.json()).toEqual([]);
@@ -2291,10 +2331,7 @@ describe("inbox", () => {
 				}),
 			]);
 			await Bun.write(path, JSON.stringify(pinned));
-			const shown = notificationEvent(next, 400);
-			await Bun.sleep(50);
-			await refresh(next);
-			await expect(shown).rejects.toThrow("no notification event within");
+			await expectQuietRefresh(next);
 			expect(await inboxOf(next)).toEqual([
 				expect.objectContaining({
 					id: "needsYou\nProject Flow\nPF-1",
@@ -2531,10 +2568,7 @@ describe("inbox", () => {
 				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
 			]);
 			await Bun.write(path, JSON.stringify(shownConfig));
-			const shown = notificationEvent(next, 400);
-			await Bun.sleep(50);
-			await refresh(next);
-			await expect(shown).rejects.toThrow("no notification event");
+			await expectQuietRefresh(next);
 			expect(await inboxOf(next)).toEqual([]);
 			await refresh(next);
 			const shownList = await fetch(new URL("/api/needs-you", next));
@@ -2563,10 +2597,11 @@ describe("inbox", () => {
 					"2026-10-18T16:00:00.000Z",
 				),
 			];
-			const events = notificationEvent(next);
-			await Bun.sleep(50);
+			const events = notificationEvents(next);
+			await events.ready;
 			await refresh(next);
-			const event = await events;
+			const event = await events.next();
+			events.close();
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Loaded",
@@ -2599,8 +2634,8 @@ describe("inbox", () => {
 		};
 		await withInbox(pinned, [], async (base, setIssues) => {
 			expect(await inboxOf(base)).toEqual([]);
-			const joined = notificationEvent(base);
-			await Bun.sleep(50);
+			const joined = notificationEvents(base);
+			await joined.ready;
 			setIssues([
 				linearIssue(
 					"PF-1",
@@ -2612,7 +2647,8 @@ describe("inbox", () => {
 				),
 			]);
 			await refresh(base);
-			const first = await joined;
+			const first = await joined.next();
+			joined.close();
 			expect(first).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
@@ -2631,8 +2667,8 @@ describe("inbox", () => {
 			]);
 			await refresh(base);
 			expect(await inboxOf(base)).toEqual([first]);
-			const rejoined = notificationEvent(base);
-			await Bun.sleep(50);
+			const rejoined = notificationEvents(base);
+			await rejoined.ready;
 			setIssues([
 				linearIssue(
 					"PF-1",
@@ -2644,7 +2680,8 @@ describe("inbox", () => {
 				),
 			]);
 			await refresh(base);
-			const second = await rejoined;
+			const second = await rejoined.next();
+			rejoined.close();
 			expect(second).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
@@ -2849,10 +2886,11 @@ describe("inbox pull comments", () => {
 						],
 					},
 				});
-				const events = notificationEvent(base);
-				await Bun.sleep(50);
+				const events = notificationEvents(base);
+				await events.ready;
 				await refresh(base);
-				const event = await events;
+				const event = await events.next();
+				events.close();
 				expect(event).toMatchObject({
 					trigger: "comment",
 					project: githubRepo,
@@ -2896,10 +2934,11 @@ describe("inbox pull comments", () => {
 						],
 					},
 				});
-				const events = notificationEvent(base);
-				await Bun.sleep(50);
+				const events = notificationEvents(base);
+				await events.ready;
 				await refresh(base);
-				const event = await events;
+				const event = await events.next();
+				events.close();
 				expect(event).toMatchObject({
 					trigger: "comment",
 					project: githubRepo,
@@ -2952,10 +2991,11 @@ describe("inbox pull comments", () => {
 						],
 					},
 				});
-				const events = notificationEvent(base);
-				await Bun.sleep(50);
+				const events = notificationEvents(base);
+				await events.ready;
 				await refresh(base);
-				const event = await events;
+				const event = await events.next();
+				events.close();
 				expect(event).toMatchObject({
 					trigger: "comment",
 					key: `${githubRepo}#8`,
