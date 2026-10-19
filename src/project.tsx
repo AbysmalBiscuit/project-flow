@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
 	Diagram,
-	NeedsYouItem,
 	ProjectReport,
 	TicketState,
 	TicketView,
 } from "./domain.ts";
+import { NeedsItem } from "./needs-item.tsx";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -135,20 +135,6 @@ function DiagramView({
 	);
 }
 
-function NeedsLine({ item }: { item: NeedsYouItem }) {
-	return (
-		<li
-			className={item.answered ? "needs-you answered" : "needs-you"}
-			data-needs={item.key}
-		>
-			<span className="headline">{item.headline}</span>
-			{item.tags.length === 0 ? null : (
-				<span className="tag">{item.tags.join(" ")}</span>
-			)}
-		</li>
-	);
-}
-
 function Report({
 	report,
 	ticket,
@@ -200,7 +186,7 @@ function Report({
 					{section.needsYou === undefined ? null : (
 						<ul className="needs-you-list">
 							{section.needsYou.map((item) => (
-								<NeedsLine key={item.key} item={item} />
+								<NeedsItem key={item.key} item={item} />
 							))}
 						</ul>
 					)}

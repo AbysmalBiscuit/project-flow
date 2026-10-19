@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
+import { NeedsItem } from "./needs-item.tsx";
 
 function NeedsList({ items }: { items: NeedsYouItem[] }) {
 	return (
@@ -13,19 +14,7 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 			<h1>Needs you</h1>
 			<ul className="needs-you-list">
 				{items.map((item) => (
-					<li
-						key={`${item.project} ${item.key}`}
-						className={item.answered ? "needs-you answered" : "needs-you"}
-						data-needs={item.key}
-					>
-						<a href={`/projects/${encodeURIComponent(item.project)}`}>
-							{item.project}
-						</a>{" "}
-						<span className="headline">{item.headline}</span>
-						{item.tags.length === 0 ? null : (
-							<span className="tag">{item.tags.join(" ")}</span>
-						)}
-					</li>
+					<NeedsItem key={`${item.project} ${item.key}`} item={item} project />
 				))}
 			</ul>
 		</main>
