@@ -158,7 +158,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			readNotifications() {
 				const rows = db
 					.query(
-						"select id, trigger, project, item_key, text, at from notifications order by at, id",
+						"select id, trigger, project, item_key, text, at from notifications order by at desc, id desc",
 					)
 					.all() as {
 					id: string;
