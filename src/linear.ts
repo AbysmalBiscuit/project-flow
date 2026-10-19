@@ -408,7 +408,12 @@ const commentPage = z.object({
 		issue: z
 			.object({
 				comments: z.object({
-					nodes: z.array(z.object({ body: z.string().nullable() })),
+					nodes: z.array(
+						z.object({
+							body: z.string().nullable(),
+							createdAt: z.string().optional(),
+						}),
+					),
 					pageInfo,
 				}),
 			})
@@ -420,7 +425,7 @@ const commentPage = z.object({
 const commentsQuery = `query IssueComments($id: String!, $after: String) {
 	issue(id: $id) {
 		comments(first: 50, after: $after) {
-			nodes { body }
+			nodes { body createdAt }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
@@ -431,8 +436,8 @@ async function commentPages(
 	fetchImpl: Fetch,
 	id: string,
 	after: string | null,
-): Promise<{ body: string }[]> {
-	const comments: { body: string }[] = [];
+): Promise<{ body: string; createdAt?: string }[]> {
+	const comments: { body: string; createdAt?: string }[] = [];
 	let cursor = after;
 	do {
 		const response = await fetchImpl(endpoint, {
@@ -460,7 +465,12 @@ async function commentPages(
 		for (const node of connection.nodes) {
 			const body = node.body ?? "";
 			if (body !== "") {
-				comments.push({ body });
+				comments.push({
+					body,
+					...(node.createdAt === undefined
+						? {}
+						: { createdAt: node.createdAt }),
+				});
 			}
 		}
 		cursor = connection.pageInfo.hasNextPage

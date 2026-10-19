@@ -2897,6 +2897,185 @@ describe("review cycle", () => {
 		}
 	});
 
+	test("a later Linear comment page with a time stays after the progress comment", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+				expectedBots: { [repo]: ["grok"] },
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const recorded = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					identifier: "WID-8",
+					title: "Linear ticket 8",
+					updatedAt: "2026-10-01T00:00:00.000Z",
+					state: { type: "unstarted" },
+					comments: {
+						nodes: [
+							{
+								body: progress(
+									"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
+								),
+								createdAt: "2026-10-02T00:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: true, endCursor: "page-2" },
+					},
+					attachments: {
+						nodes: [
+							{
+								url: "https://github.com/acme/widget/pull/83",
+								title: "PR 83",
+								sourceType: "github",
+							},
+						],
+					},
+				},
+			],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				if (url === "https://api.github.com/repos/acme/widget/pulls/83") {
+					return page(pull(83));
+				}
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
+					return page({
+						check_runs: [
+							{
+								name: "Grok code review",
+								status: "completed",
+								conclusion: "success",
+							},
+						],
+					});
+				}
+				if (url.includes("/commits/")) {
+					return page({
+						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+					});
+				}
+				if (url.includes("/pulls?state=closed")) {
+					return page([]);
+				}
+				if (url.includes("/pulls/83/reviews")) {
+					return page([
+						{ user: { login: grok }, commit_id: head, state: "COMMENTED" },
+					]);
+				}
+				if (
+					url.includes("/comments") ||
+					url.includes("/reviews") ||
+					url.includes("/reactions") ||
+					url.includes("/branches")
+				) {
+					return page([]);
+				}
+				return new Response("not recorded", { status: 404 });
+			},
+		});
+		const commentQueries: string[] = [];
+		const fetchImpl: Fetch = async (input, init) => {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (sent.includes("IssueComments")) {
+				commentQueries.push(sent);
+				const after =
+					(JSON.parse(sent) as { variables?: { after?: string | null } })
+						.variables?.after ?? null;
+				const nodes =
+					after === "page-2"
+						? [
+								{
+									body: "Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->",
+									createdAt: "2026-10-03T00:00:00.000Z",
+								},
+							]
+						: [
+								{
+									body: "noted",
+									createdAt: "2026-10-01T00:00:00.000Z",
+								},
+							];
+				return page({
+					data: {
+						issue: {
+							comments: {
+								nodes,
+								pageInfo: {
+									hasNextPage: after !== "page-2",
+									endCursor: after === "page-2" ? null : "page-2",
+								},
+							},
+						},
+					},
+				});
+			}
+			return recorded(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+			expect(commentQueries.some((body) => body.includes("createdAt"))).toBe(
+				true,
+			);
+			expect(await checks).toMatchObject({
+				projects: [
+					{
+						name: "Widget launch",
+						tracker: "linear",
+						inReview: 0,
+						awaitingMerge: 1,
+						tickets: [{ key: "WID-8", state: "awaitingMerge" }],
+					},
+				],
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a workcell progress comment on a GitHub project ticket keeps its PR in review", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
