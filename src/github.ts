@@ -103,7 +103,13 @@ export function githubHeaders(token: string): HeadersInit {
 	};
 }
 
-type RestCache = Map<string, { etag: string; body: unknown }>;
+type RestEntry = {
+	etag: string;
+	body: unknown;
+	headers: [string, string][];
+};
+
+type RestCache = Map<string, RestEntry>;
 
 function restUrl(input: string | URL | Request): string {
 	if (typeof input === "string") {
@@ -120,6 +126,26 @@ function restKey(url: string): string {
 	parsed.searchParams.delete("since");
 	parsed.searchParams.sort();
 	return parsed.href;
+}
+
+function cachedHeaders(entry: RestEntry): Headers {
+	const headers = new Headers(entry.headers);
+	headers.delete("content-encoding");
+	headers.delete("content-length");
+	headers.delete("transfer-encoding");
+	if (!headers.has("content-type")) {
+		headers.set("content-type", "application/json");
+	}
+	return headers;
+}
+
+function storedHeaders(response: Response): [string, string][] {
+	return [...response.headers.entries()].filter(
+		([name]) =>
+			name !== "content-encoding" &&
+			name !== "content-length" &&
+			name !== "transfer-encoding",
+	);
 }
 
 function isRestRead(url: string, method: string): boolean {
@@ -146,16 +172,34 @@ export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
 			headers.set("if-none-match", stored.etag);
 		}
 		const response = await fetchImpl(input, { ...init, headers });
-		if (response.status === 304) {
-			const body = stored?.body ?? [];
-			return new Response(JSON.stringify(body), {
+		if (response.status === 304 && stored !== undefined) {
+			const replayed = cachedHeaders(stored);
+			response.headers.forEach((value, name) => {
+				if (name === "etag" || name === "content-length") {
+					return;
+				}
+				replayed.set(name, value);
+			});
+			const next = response.headers.get("etag");
+			const etag = next !== null && next !== "" ? next : stored.etag;
+			replayed.set("etag", etag);
+			cache.set(key, {
+				etag,
+				body: stored.body,
+				headers: [...replayed.entries()],
+			});
+			return new Response(JSON.stringify(stored.body), {
 				status: 200,
-				headers: { "content-type": "application/json" },
+				headers: replayed,
 			});
 		}
 		const next = response.headers.get("etag");
 		if (response.ok && next !== null && next !== "") {
-			cache.set(key, { etag: next, body: await response.clone().json() });
+			cache.set(key, {
+				etag: next,
+				body: await response.clone().json(),
+				headers: storedHeaders(response),
+			});
 		}
 		return response;
 	};

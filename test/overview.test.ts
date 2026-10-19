@@ -4173,4 +4173,156 @@ describe("GET /api/overview", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a 304 on a later page keeps that page's branches on the overview", async () => {
+		const repoName = "acme/paged-branches";
+		const pageEtag = '"recorded-branches-page-1"';
+		const laterEtag = '"recorded-branches-page-2"';
+		const issueEtag = '"recorded-paged-issues"';
+		const later = `https://api.github.com/repos/${repoName}/branches?per_page=100&page=2`;
+		const sent: { url: string; headers: Headers }[] = [];
+		const reads = new Map<string, number>();
+		const readOf = (url: string): number => {
+			const count = (reads.get(url) ?? 0) + 1;
+			reads.set(url, count);
+			return count;
+		};
+		const recorded: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			sent.push({ url, headers: new Headers(init?.headers) });
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			if (url.startsWith("https://api.github.com/user/repos")) {
+				return new Response(
+					JSON.stringify([
+						{
+							full_name: repoName,
+							pushed_at: "2026-10-18T12:00:00.000Z",
+						},
+					]),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				if (readOf(url) > 1) {
+					return new Response(null, {
+						status: 304,
+						headers: { etag: issueEtag },
+					});
+				}
+				return page([ticket(21, "open", null)], null, { etag: issueEtag });
+			}
+			if (
+				url.includes(`/repos/${repoName}/branches?`) &&
+				!url.includes("page=2")
+			) {
+				if (readOf(url) > 1) {
+					return new Response(null, {
+						status: 304,
+						headers: { etag: pageEtag, "x-poll-interval": "60" },
+					});
+				}
+				return page([{ name: "main" }], later, { etag: pageEtag });
+			}
+			if (url === later) {
+				if (readOf(url) > 1) {
+					return new Response(null, {
+						status: 304,
+						headers: { etag: laterEtag },
+					});
+				}
+				return page([{ name: "21-feat-ship-the-widget" }], null, {
+					etag: laterEtag,
+				});
+			}
+			if (url.includes("/pulls?")) {
+				return page([], null);
+			}
+			if (url === "https://api.github.com/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: {
+								login: "lev",
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								organizations: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-pages-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const first = await fetch(new URL("/api/overview", base));
+					expect(first.status).toBe(200);
+					const before = (await first.json()) as Overview;
+					expect(before.projects[0]?.tickets).toEqual([
+						{
+							key: `${repoName}#21`,
+							title: "Ticket 21",
+							state: "inProgress",
+							blockers: [],
+						},
+					]);
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(refresh.status).toBe(204);
+					const second = await fetch(new URL("/api/overview", base));
+					const after = (await second.json()) as Overview;
+					expect(after.projects).toEqual(before.projects);
+					expect(after.error).toBeNull();
+					const laterReads = sent.filter((item) => item.url === later);
+					expect(laterReads).toHaveLength(2);
+					expect(laterReads[1]?.headers.get("if-none-match")).toBe(laterEtag);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
