@@ -491,8 +491,8 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				const dependencies = `https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by`;
-				const closedNative = `https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by`;
+				const dependencies = `https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by?per_page=100&page=1`;
+				const closedNative = `https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by?per_page=100&page=1`;
 				if (url === closedNative) {
 					return page([
 						{
@@ -589,8 +589,8 @@ describe("GET /api/overview blockers", () => {
 								url.includes("/dependencies/blocked_by"),
 							),
 						).toEqual([
-							`https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by`,
-							`https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by`,
+							`https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by?per_page=100&page=1`,
+							`https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by?per_page=100&page=1`,
 						]);
 						resolve();
 					})
@@ -779,7 +779,7 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				if (url.endsWith("/issues/90/dependencies/blocked_by")) {
+				if (url.includes("/issues/90/dependencies/blocked_by")) {
 					return page([
 						{
 							number: 7,
@@ -788,7 +788,7 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				if (url.endsWith("/issues/93/dependencies/blocked_by")) {
+				if (url.includes("/issues/93/dependencies/blocked_by")) {
 					return page([
 						{
 							number: 8,
@@ -925,7 +925,7 @@ describe("GET /api/overview blockers", () => {
 			}
 			if (
 				url ===
-				`https://api.github.com/repos/${githubRepo}/issues/80/dependencies/blocked_by`
+				`https://api.github.com/repos/${githubRepo}/issues/80/dependencies/blocked_by?per_page=100&page=1`
 			) {
 				return page([
 					{
@@ -1160,7 +1160,7 @@ describe("GET /api/overview blockers", () => {
 					issue(8, "Closed native blocker.", "closed"),
 				]);
 			}
-			if (url.endsWith("/issues/4/dependencies/blocked_by")) {
+			if (url.includes("/issues/4/dependencies/blocked_by")) {
 				return page([
 					{
 						number: 8,
@@ -1232,7 +1232,7 @@ describe("GET /api/overview blockers", () => {
 						});
 						expect(overview.projects[0]?.blocked).toBe(2);
 						expect(
-							requests.some((url) => url.endsWith("/dependencies/blocked_by")),
+							requests.some((url) => url.includes("/dependencies/blocked_by")),
 						).toBe(false);
 						resolve();
 					})
@@ -1606,7 +1606,7 @@ describe("GET /api/overview blockers", () => {
 			}
 			if (
 				url ===
-				`https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by`
+				`https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`
 			) {
 				return page([
 					{
@@ -2687,6 +2687,397 @@ describe("GET /api/overview blockers", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a repo ticket shows every blocker from a second REST page", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
+		const second = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=2`;
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
+				return page([
+					{
+						...issue(21, ""),
+						issue_dependencies_summary: {
+							blocked_by: 2,
+							total_blocked_by: 2,
+						},
+					},
+					issue(20, "Open blocker on the first page."),
+					issue(19, "Open blocker on the second page."),
+				]);
+			}
+			if (url === first) {
+				return new Response(
+					JSON.stringify([
+						{
+							number: 20,
+							state: "open",
+							repository_url: `https://api.github.com/repos/${githubRepo}`,
+						},
+					]),
+					{
+						status: 200,
+						headers: {
+							"content-type": "application/json",
+							link: `<${second}>; rel="next"`,
+						},
+					},
+				);
+			}
+			if (url === second) {
+				return page([
+					{
+						number: 19,
+						state: "open",
+						repository_url: `https://api.github.com/repos/${githubRepo}`,
+					},
+				]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const requests: string[] = [];
+		const fetching: Fetch = async (input, init) => {
+			requests.push(urlOf(input));
+			return recordedFetch(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const overview = (await response.json()) as {
+							projects: {
+								name: string;
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						const card = overview.projects.find(
+							(project) => project.name === githubRepo,
+						);
+						expect(
+							blockersOf(card?.tickets ?? [], `${githubRepo}#21`).blockers,
+						).toEqual([`${githubRepo}#20`, `${githubRepo}#19`]);
+						expect(
+							requests.filter((sent) =>
+								sent.includes("/dependencies/blocked_by"),
+							),
+						).toEqual([first, second]);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetching,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a failed second REST page leaves the repo card on its last good poll", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
+		const second = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=2`;
+		let polls = 0;
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
+				return page([
+					{
+						...issue(21, ""),
+						issue_dependencies_summary: {
+							blocked_by: 2,
+							total_blocked_by: 2,
+						},
+					},
+					issue(20, "Open blocker on the first page."),
+					issue(19, "Open blocker on the second page."),
+				]);
+			}
+			if (url === first) {
+				return new Response(
+					JSON.stringify([
+						{
+							number: 20,
+							state: "open",
+							repository_url: `https://api.github.com/repos/${githubRepo}`,
+						},
+					]),
+					{
+						status: 200,
+						headers: {
+							"content-type": "application/json",
+							link: `<${second}>; rel="next"`,
+						},
+					},
+				);
+			}
+			if (url === second) {
+				polls += 1;
+				if (polls > 1) {
+					return new Response("unavailable", { status: 404 });
+				}
+				return page([
+					{
+						number: 19,
+						state: "open",
+						repository_url: `https://api.github.com/repos/${githubRepo}`,
+					},
+				]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				const key = `${githubRepo}#21`;
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const before = (await response.json()) as {
+							projects: {
+								name: string;
+								error: string | null;
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						expect(
+							blockersOf(before.projects[0]?.tickets ?? [], key).blockers,
+						).toEqual([`${githubRepo}#20`, `${githubRepo}#19`]);
+						const refresh = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(refresh.status).toBe(204);
+						const after = (await (
+							await fetch(new URL("/api/overview", base))
+						).json()) as typeof before;
+						const card = after.projects.find(
+							(project) => project.name === githubRepo,
+						);
+						expect(card?.error).toContain("HTTP 404");
+						expect(blockersOf(card?.tickets ?? [], key).blockers).toEqual([
+							`${githubRepo}#20`,
+							`${githubRepo}#19`,
+						]);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a closed blocker on a later REST page adds no blocker", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
+		const second = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=2`;
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
+				return page([
+					{
+						...issue(21, ""),
+						issue_dependencies_summary: {
+							blocked_by: 1,
+							total_blocked_by: 2,
+						},
+					},
+					issue(20, "Open blocker on the first page."),
+				]);
+			}
+			if (url === first) {
+				return new Response(
+					JSON.stringify([
+						{
+							number: 20,
+							state: "open",
+							repository_url: `https://api.github.com/repos/${githubRepo}`,
+						},
+					]),
+					{
+						status: 200,
+						headers: {
+							"content-type": "application/json",
+							link: `<${second}>; rel="next"`,
+						},
+					},
+				);
+			}
+			if (url === second) {
+				return new Response(
+					JSON.stringify([
+						{
+							number: 19,
+							state: "closed",
+							repository_url: `https://api.github.com/repos/${githubRepo}`,
+						},
+					]),
+					{
+						status: 200,
+						headers: {
+							"content-type": "application/json",
+							link: `<${first}>; rel="prev"`,
+						},
+					},
+				);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const requests: string[] = [];
+		const fetching: Fetch = async (input, init) => {
+			requests.push(urlOf(input));
+			return recordedFetch(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const overview = (await response.json()) as {
+							projects: {
+								name: string;
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						const card = overview.projects.find(
+							(project) => project.name === githubRepo,
+						);
+						expect(blockersOf(card?.tickets ?? [], `${githubRepo}#21`)).toEqual(
+							{
+								state: "blocked",
+								blockers: [`${githubRepo}#20`],
+							},
+						);
+						expect(
+							requests.filter((sent) =>
+								sent.includes("/dependencies/blocked_by"),
+							),
+						).toEqual([first, second]);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetching,
+					readGhToken: async () => null,
+					databasePath,
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
 				}),
