@@ -80,10 +80,32 @@ export async function tempConfig(
 	return { path, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
-export function testIo(io: RunIo): RunIo {
+export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
+	const stdout = io.stdout;
+	const first = options?.first === true;
+	let seen = false;
 	return {
 		listTodos: async () => "",
 		...io,
+		...(stdout === undefined
+			? {}
+			: {
+					stdout: (line: string) => {
+						if (first) {
+							if (seen) {
+								return;
+							}
+							seen = true;
+							stdout(line);
+							return;
+						}
+						if (!seen) {
+							seen = true;
+							return;
+						}
+						stdout(line);
+					},
+				}),
 	};
 }
 

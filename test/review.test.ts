@@ -3937,7 +3937,7 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					onListen: (url) => startChecks(url.href),
+					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
 				}),
 			);
@@ -4124,7 +4124,7 @@ describe("review cycle", () => {
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					onListen: (url) => startChecks(url.href),
+					stdout: (line) => startChecks(line),
 					waitForStop: checks.then(() => undefined),
 				}),
 			);

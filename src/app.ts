@@ -711,7 +711,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 	}
 	options.polling = false;
-	publishPoll(options, configuration, outcomes, fullKeys, failed);
+	publishPoll(options, configuration, outcomes, fullKeys, failed, false);
 	const after = attentionFor(options.store, configuration, options.viewers);
 	const firstGood = new Set(
 		listed.flatMap((project) =>
@@ -759,6 +759,7 @@ function publishPoll(
 	outcomes: Map<string, ProjectPoll>,
 	fullKeys: string[],
 	failed: string | null,
+	publish = true,
 ): void {
 	const reconciled = reconcilePoll(
 		options.store.readTickets(),
@@ -773,6 +774,9 @@ function publishPoll(
 		options.store.recordFetchError(reconciled.globalError);
 	} else if (failed !== null) {
 		options.store.recordFetchError(failed);
+	}
+	if (!publish) {
+		return;
 	}
 	options.notifier.publish({
 		overview: runningOverview(options, configuration),
@@ -868,6 +872,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;
+	let firstPollDone = false;
 	const pollAgain = (): Promise<void> => {
 		if (stopped) {
 			return Promise.resolve();
@@ -876,8 +881,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			return polling;
 		}
 		polling = (async () => {
-			const cold = !hadRows && opened.store.readTickets().length === 0;
-			if (cold) {
+			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
 			}
 			try {
@@ -903,7 +907,9 @@ export async function start(options: StartOptions): Promise<Running> {
 		});
 		return polling;
 	};
-	const firstPoll = pollAgain();
+	const firstPoll = pollAgain().finally(() => {
+		firstPollDone = true;
+	});
 	let timer: ReturnType<typeof setInterval> | null = null;
 	const armTimer = () => {
 		if (timer !== null || stopped) {

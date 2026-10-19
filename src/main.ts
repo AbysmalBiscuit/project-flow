@@ -25,7 +25,6 @@ export type RunIo = {
 	readGhToken: (
 		env?: Record<string, string | undefined>,
 	) => Promise<string | null>;
-	onListen?: (url: URL) => void;
 	stdout?: (line: string) => void;
 	stderr?: (line: string) => void;
 	databasePath?: string;
@@ -400,7 +399,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		listened = true;
-		io.onListen?.(running.url);
+		writeOut(running.url.href);
 		const coldStart = await running.settled;
 		if (coldStart instanceof Error) {
 			await running.stop();

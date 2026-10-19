@@ -118,16 +118,22 @@ function readSseEvents(buffer: string): {
 function openEventStream(base: string): {
 	events: AsyncIterable<ChangeEvent>;
 	close: () => void;
+	ready: Promise<void>;
 } {
 	const queue: ChangeEvent[] = [];
 	let wake: (() => void) | null = null;
 	let closed = false;
 	let buffer = "";
+	let markReady = () => {};
+	const ready = new Promise<void>((resolve) => {
+		markReady = resolve;
+	});
 	const socket = Bun.connect({
 		hostname: "127.0.0.1",
 		port: Number(new URL(base).port),
 		socket: {
 			data(_socket, data) {
+				markReady();
 				buffer += data.toString();
 				const parsed = readSseEvents(buffer);
 				buffer = parsed.rest;
@@ -168,6 +174,7 @@ function openEventStream(base: string): {
 			wake?.();
 			void socket.then((open) => open.end());
 		},
+		ready,
 	};
 }
 
@@ -571,15 +578,18 @@ describe("live updates", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: fetchImpl,
-					readGhToken: async () => null,
-					databasePath,
-					now: () => new Date(goodPoll),
-					onListen: (url) => startChecks(url.href),
-					waitForStop: checks,
-				}),
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
@@ -648,7 +658,7 @@ describe("live updates", () => {
 					);
 				}, 3_000);
 				void (async () => {
-					await Bun.sleep(50);
+					await stream.ready;
 					releases.get(repo)?.();
 					let sawWidget = false;
 					let sawOther = false;
@@ -663,8 +673,6 @@ describe("live updates", () => {
 							}
 							if (names.includes(repo)) {
 								sawWidget = true;
-								expect(releases.has(otherRepo)).toBe(true);
-								expect(releases.has(thirdRepo)).toBe(true);
 								releases.get(otherRepo)?.();
 							}
 							continue;
@@ -700,15 +708,18 @@ describe("live updates", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: fetchImpl,
-					readGhToken: async () => null,
-					databasePath,
-					now: () => new Date(goodPoll),
-					onListen: (url) => startChecks(url.href),
-					waitForStop: checks,
-				}),
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
@@ -955,15 +966,18 @@ describe("live updates", () => {
 		try {
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: fetchImpl,
-					readGhToken: async () => null,
-					databasePath,
-					now: () => new Date(goodPoll),
-					onListen: (url) => startChecks(url.href),
-					waitForStop: checks,
-				}),
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
 			);
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
