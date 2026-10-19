@@ -434,106 +434,113 @@ describe("inbox", () => {
 	});
 
 	test("closing an outside blocker raises Blocker cleared on the ticket it blocked", async () => {
-		const outside = {
-			id: "project-outside",
-			name: "Outside Gate",
-			slugId: "outside-gate-9f3a",
-		};
+		const recorded = outsideRelations.linearAut1040;
+		const blockerRelation = recorded.inverseRelations.nodes.find(
+			(relation) => relation.type === "blocks",
+		);
+		const blockerProject = blockerRelation?.issue.project;
+		if (
+			blockerRelation === undefined ||
+			blockerProject === null ||
+			blockerProject === undefined
+		) {
+			throw new Error("recorded AUT-1040 has no outside blocks relation");
+		}
 		const blockedTicket = {
 			...linearIssue(
-				"PF-4",
-				"Hold the launch",
-				"",
+				recorded.identifier,
+				recorded.title,
+				recorded.description,
 				[],
-				{
-					inverseRelations: {
-						nodes: [
-							{
-								type: "blocks",
-								issue: {
-									identifier: "OUT-2",
-									title: "Ship the outside gate",
-									state: { type: "started" },
-									project: { slugId: outside.slugId, name: outside.name },
-								},
-							},
-						],
-					},
-				},
-				"2026-08-18T12:00:00.000Z",
+				{ state: recorded.state, inverseRelations: recorded.inverseRelations },
+				recorded.updatedAt,
 			),
 			projectId: linearProject.id,
 		};
 		const closedOutside = {
 			...blockedTicket,
-			updatedAt: "2026-08-18T15:00:00.000Z",
+			updatedAt: "2026-10-19T15:00:00.000Z",
 			inverseRelations: {
-				nodes: [
-					{
-						type: "blocks",
-						issue: {
-							identifier: "OUT-2",
-							title: "Ship the outside gate",
-							state: { type: "completed" },
-							project: { slugId: outside.slugId, name: outside.name },
-						},
-					},
-				],
+				nodes: recorded.inverseRelations.nodes.map((relation) =>
+					relation.type === "blocks"
+						? {
+								...relation,
+								issue: {
+									...relation.issue,
+									state: { type: "completed" },
+								},
+							}
+						: relation,
+				),
 			},
 		};
-		await withInbox(pinned, [blockedTicket], async (base, setIssues) => {
-			expect(await inboxOf(base)).toEqual([]);
-			const overview = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as {
-				projects: {
-					name: string;
-					tickets: { key: string; state: string }[];
-					crossProjectBlockers: {
-						project: string;
-						tracker: string;
-						key: string;
-						title: string;
+		await withInbox(
+			pinned,
+			[blockedTicket],
+			async (base, setIssues, _failComments, requests) => {
+				expect(await inboxOf(base)).toEqual([]);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as {
+					projects: {
+						name: string;
+						tickets: { key: string; state: string }[];
+						crossProjectBlockers: {
+							project: string;
+							tracker: string;
+							key: string;
+							title: string;
+						}[];
 					}[];
-				}[];
-			};
-			const project = overview.projects.find(
-				(item) => item.name === "Project Flow",
-			);
-			expect(project?.tickets.find((item) => item.key === "PF-4")?.state).toBe(
-				"blocked",
-			);
-			expect(project?.crossProjectBlockers).toEqual([
-				{
-					project: outside.name,
-					tracker: "linear",
-					key: "OUT-2",
-					title: "Ship the outside gate",
-				},
-			]);
-			setIssues([closedOutside]);
-			const events = notificationEvent(base);
-			await Bun.sleep(50);
-			await refresh(base);
-			const event = await events;
-			expect(event).toMatchObject({
-				trigger: "blockerCleared",
-				project: "Project Flow",
-				key: "OUT-2",
-				text: "Ship the outside gate",
-			});
-			expect(await inboxOf(base)).toEqual([event]);
-			const cleared = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as {
-				projects: { tickets: { key: string; state: string }[] }[];
-			};
-			expect(
-				cleared.projects
-					.flatMap((item) => item.tickets)
-					.find((item) => item.key === "PF-4")?.state,
-			).toBe("backlog");
-		});
+				};
+				const project = overview.projects.find(
+					(item) => item.name === "Project Flow",
+				);
+				expect(
+					project?.tickets.find((item) => item.key === recorded.identifier)
+						?.state,
+				).toBe("blocked");
+				expect(project?.crossProjectBlockers).toEqual([
+					{
+						project: blockerProject.name,
+						tracker: "linear",
+						key: blockerRelation.issue.identifier,
+						title: blockerRelation.issue.title,
+					},
+				]);
+				const issueReads = requests.filter((request) =>
+					request.query.includes("ProjectIssues"),
+				);
+				expect(issueReads[0]?.query).toContain("inverseRelations");
+				expect(issueReads[0]?.variables).toEqual(
+					expect.objectContaining({
+						filter: { project: { id: { eq: linearProject.id } } },
+					}),
+				);
+				setIssues([closedOutside]);
+				const events = notificationEvent(base);
+				await Bun.sleep(50);
+				await refresh(base);
+				const event = await events;
+				expect(event).toMatchObject({
+					trigger: "blockerCleared",
+					project: "Project Flow",
+					key: blockerRelation.issue.identifier,
+					text: blockerRelation.issue.title,
+				});
+				expect(await inboxOf(base)).toEqual([event]);
+				const cleared = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as {
+					projects: { tickets: { key: string; state: string }[] }[];
+				};
+				expect(
+					cleared.projects
+						.flatMap((item) => item.tickets)
+						.find((item) => item.key === recorded.identifier)?.state,
+				).toBe("backlog");
+			},
+		);
 	});
 
 	test("a stale closed relation to a loaded open blocker raises no Blocker cleared", async () => {
@@ -707,9 +714,7 @@ describe("inbox", () => {
 				return Response.json([
 					{
 						...recorded,
-						updated_at: closed
-							? "2026-10-19T16:00:00Z"
-							: recorded.updated_at,
+						updated_at: closed ? "2026-10-19T16:00:00Z" : recorded.updated_at,
 						issue_dependencies_summary: closed
 							? {
 									...recorded.issue_dependencies_summary,
@@ -817,39 +822,45 @@ describe("inbox", () => {
 	});
 
 	test("a blank outside title and a still-open outside relation raise no Blocker cleared", async () => {
-		const outside = {
-			id: "project-quiet",
-			name: "Quiet Gate",
-			slugId: "quiet-gate",
-		};
+		const evidence = outsideRelations.blankTitleEvidence;
+		expect(evidence.blankTitles).toBe(0);
+		expect(evidence.scannedBlockRelations).toBeGreaterThan(0);
+		const recorded = outsideRelations.linearAut1040;
+		const blockerRelation = recorded.inverseRelations.nodes.find(
+			(relation) => relation.type === "blocks",
+		);
+		const blockerProject = blockerRelation?.issue.project;
+		if (
+			blockerRelation === undefined ||
+			blockerProject === null ||
+			blockerProject === undefined
+		) {
+			throw new Error("recorded AUT-1040 has no outside blocks relation");
+		}
 		const blockedTicket = {
 			...linearIssue(
-				"PF-5",
-				"Wait on a quiet gate",
-				"",
+				recorded.identifier,
+				recorded.title,
+				recorded.description,
 				[],
 				{
+					state: recorded.state,
 					inverseRelations: {
 						nodes: [
 							{
-								type: "blocks",
-								issue: {
-									identifier: "OUT-3",
-									title: "   ",
-									state: { type: "started" },
-									project: { slugId: outside.slugId, name: outside.name },
-								},
+								...blockerRelation,
+								issue: { ...blockerRelation.issue, title: "   " },
 							},
 						],
 					},
 				},
-				"2026-08-18T12:00:00.000Z",
+				recorded.updatedAt,
 			),
 			projectId: linearProject.id,
 		};
 		const stillOpen = {
 			...blockedTicket,
-			updatedAt: "2026-08-18T15:00:00.000Z",
+			updatedAt: "2026-10-19T15:00:00.000Z",
 			description: "A note, with the same open blocker.",
 		};
 		await withInbox(pinned, [blockedTicket], async (base, setIssues) => {
@@ -869,10 +880,10 @@ describe("inbox", () => {
 				overview.projects.flatMap((item) => item.crossProjectBlockers),
 			).toEqual([
 				{
-					project: outside.name,
+					project: blockerProject.name,
 					tracker: "linear",
-					key: "OUT-3",
-					title: "OUT-3",
+					key: blockerRelation.issue.identifier,
+					title: blockerRelation.issue.identifier,
 				},
 			]);
 			setIssues([stillOpen]);

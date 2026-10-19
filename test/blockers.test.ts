@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import outsideRelations from "./fixtures/outside-relations.json";
 import {
 	linearFake,
 	recordedDiscovery,
@@ -1127,6 +1128,18 @@ describe("GET /api/overview blockers", () => {
 	});
 
 	test("a blank outside title and a missing project name fall back to the key and slug", async () => {
+		const evidence = outsideRelations.blankTitleEvidence;
+		expect(evidence.blankTitles).toBe(0);
+		expect(evidence.emptyProjectNames).toBe(0);
+		const recorded = outsideRelations.linearOps3838;
+		const relation = recorded.inverseRelations.nodes.find(
+			(item) => item.type === "blocks",
+		);
+		if (relation === undefined || relation.issue.project !== null) {
+			throw new Error("recorded OPS-3838 has no null-project blocks relation");
+		}
+		const slugOnly = "bare-slug";
+		const requests: string[] = [];
 		const recordedFetch = linearFake({
 			project: {
 				id: "project-widget",
@@ -1135,22 +1148,25 @@ describe("GET /api/overview blockers", () => {
 			},
 			issues: [
 				{
-					...linearIssue("SWE-41", "", "unstarted"),
+					...linearIssue(recorded.identifier, "", "unstarted"),
+					title: recorded.title,
+					updatedAt: recorded.updatedAt,
+					state: recorded.state,
 					inverseRelations: {
 						nodes: [
 							{
-								type: "blocks",
+								...relation,
 								issue: {
-									identifier: "SWE-4",
+									...relation.issue,
 									title: "   ",
-									state: { type: "started" },
-									project: { slugId: "bare-slug" },
+									project: { slugId: slugOnly },
 								},
 							},
 						],
 					},
 				},
 			],
+			requests,
 		});
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1181,10 +1197,10 @@ describe("GET /api/overview blockers", () => {
 						);
 						expect(project?.crossProjectBlockers).toEqual([
 							{
-								project: "bare-slug",
+								project: slugOnly,
 								tracker: "linear",
-								key: "SWE-4",
-								title: "SWE-4",
+								key: relation.issue.identifier,
+								title: relation.issue.identifier,
 							},
 						]);
 						resolve();

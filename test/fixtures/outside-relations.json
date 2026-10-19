@@ -1,0 +1,390 @@
+{
+	"recordedAt": "2026-10-19",
+	"blankTitleEvidence": {
+		"query": "issues(filter: { hasBlockedByRelations: { eq: true } }) inverseRelations issue.title",
+		"scannedBlockRelations": 483,
+		"blankTitles": 0,
+		"nullProjects": 11,
+		"emptyProjectNames": 0
+	},
+	"githubIssue80": {
+		"number": 80,
+		"title": "feat: name and notify outside blockers",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-19T15:18:30Z",
+		"body": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/80",
+		"comments": 1,
+		"issue_dependencies_summary": {
+			"blocked_by": 0,
+			"total_blocked_by": 1,
+			"blocking": 0,
+			"total_blocking": 0
+		}
+	},
+	"githubIssue80BlockedBy": [
+		{
+			"number": 74,
+			"title": "fix: read blockers on GitHub project tickets",
+			"state": "closed",
+			"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/74",
+			"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow"
+		}
+	],
+	"linearAut1040": {
+		"identifier": "AUT-1040",
+		"title": "liquid-handler command framework in hamilton-driver (CommandResponse, dispatch-time checks, attention, step decisions)",
+		"description": "",
+		"state": {
+			"type": "started"
+		},
+		"updatedAt": "2026-10-07T11:41:04.569Z",
+		"inverseRelations": {
+			"nodes": [
+				{
+					"type": "related",
+					"issue": {
+						"identifier": "AUT-1052",
+						"title": "Keep required inner fields of object command inputs in the published catalog",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "Hamilton liquid handling as AutomationHub commands",
+							"slugId": "50dcf22acc17"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "AUT-821",
+						"title": "Own the VENUS session lifecycle in the Hamilton driver",
+						"state": {
+							"type": "started"
+						},
+						"project": {
+							"name": "Migrate Hamilton Runner into Scheduler Dashboard",
+							"slugId": "31436ea5d557"
+						}
+					}
+				}
+			]
+		}
+	},
+	"linearOps3838": {
+		"identifier": "OPS-3838",
+		"title": "Swap Lukas Horstmann's take-home reminder before his FA call",
+		"description": "",
+		"state": {
+			"type": "unstarted"
+		},
+		"updatedAt": "2026-10-18T22:30:44.202Z",
+		"inverseRelations": {
+			"nodes": [
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "OPS-3837",
+						"title": "Define the Founders Associate take-home",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": null
+					}
+				}
+			]
+		}
+	},
+	"linearSwe13029": {
+		"identifier": "SWE-13029",
+		"title": "Get Macs added with Apple Configurator into Fleet",
+		"description": "",
+		"state": {
+			"type": "unstarted"
+		},
+		"updatedAt": "2026-10-15T07:00:32.859Z",
+		"inverseRelations": {
+			"nodes": [
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-12334",
+						"title": "Create company Microsoft Azure account",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-12207",
+						"title": "Scale Fleet infra up as the device count grows",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-11753",
+						"title": "Pick the MDM solution",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-11763",
+						"title": "Verify what retroactive enrollment costs on business-channel devices",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-11752",
+						"title": "Set up Windows Autopilot (Microsoft equivalent of Apple Business)",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-11750",
+						"title": "Investigate MDM / fleet management solutions",
+						"state": {
+							"type": "started"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13008",
+						"title": "Connect Fleet to Microsoft Entra ID",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-11747",
+						"title": "Set up zero-trust networking with Tailscale",
+						"state": {
+							"type": "started"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13015",
+						"title": "Keep Tailscale always on for company phones and tablets",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13013",
+						"title": "Apply the device baseline to Windows",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13014",
+						"title": "Apply the device baseline to Linux",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13007",
+						"title": "Turn on Windows MDM in Fleet",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13006",
+						"title": "Turn on Android MDM through Android Enterprise",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13011",
+						"title": "Enforce SOC 2 and ISO 27001 device controls on Macs",
+						"state": {
+							"type": "unstarted"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13005",
+						"title": "Require Google sign-in during device enrollment",
+						"state": {
+							"type": "completed"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13010",
+						"title": "Enforce CIS Level 1 on Macs",
+						"state": {
+							"type": "completed"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13016",
+						"title": "Roll out the new work MacBooks",
+						"state": {
+							"type": "started"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				},
+				{
+					"type": "blocks",
+					"issue": {
+						"identifier": "SWE-13012",
+						"title": "Keep Tailscale always on for Macs",
+						"state": {
+							"type": "started"
+						},
+						"project": {
+							"name": "MDM/Fleet Management",
+							"slugId": "257b06861460"
+						}
+					}
+				}
+			]
+		}
+	},
+	"githubFactory279": {
+		"number": 279,
+		"title": "fix(flow): commit an agent-authored change as the agent, unsigned",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-19T01:49:24Z",
+		"body": null,
+		"html_url": "https://github.com/AbysmalBiscuit/factory/issues/279",
+		"comments": 0,
+		"issue_dependencies_summary": {
+			"blocked_by": 1,
+			"total_blocked_by": 1,
+			"blocking": 0,
+			"total_blocking": 0
+		}
+	},
+	"githubFactory279BlockedBy": [
+		{
+			"number": 381,
+			"title": "fix(manage): commit as the harness, unsigned, when it is the author",
+			"state": "open",
+			"html_url": "https://github.com/AbysmalBiscuit/workcell/issues/381",
+			"repository_url": "https://api.github.com/repos/AbysmalBiscuit/workcell"
+		}
+	]
+}
