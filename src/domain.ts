@@ -304,13 +304,13 @@ export function attentionOf(
 	};
 }
 
-export function primeAttention(attention: Attention, seen: Set<string>): void {
-	for (const item of attention.needsYou) {
-		seen.add(`needsYou\n${item.project}\n${item.key}`);
-	}
-	for (const [id, stamp] of attention.comments) {
-		seen.add(`comment\n${id}\n${stamp}`);
-	}
+export function primeAttention(attention: Attention): string[] {
+	return [
+		...attention.needsYou.map(
+			(item) => `needsYou\n${item.project}\n${item.key}`,
+		),
+		...[...attention.comments].map(([id, stamp]) => `comment\n${id}\n${stamp}`),
+	];
 }
 
 export function notificationsFor(
@@ -318,7 +318,7 @@ export function notificationsFor(
 	after: Attention,
 	triggers: Configuration["notificationTriggers"],
 	at: string,
-	seen: Set<string>,
+	seen: ReadonlySet<string>,
 ): Notification[] {
 	const found: Notification[] = [];
 	const push = (
@@ -331,7 +331,6 @@ export function notificationsFor(
 		if (seen.has(key)) {
 			return;
 		}
-		seen.add(key);
 		found.push({
 			id: key,
 			trigger,
