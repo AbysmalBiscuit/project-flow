@@ -6,6 +6,7 @@ import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
+	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
@@ -80,7 +81,10 @@ function githubFetch(issues = githubIssues): Fetch {
 		if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
 			return page(otherIssues);
 		}
-		if (url.includes("/pulls?") || url.includes("/labels?")) {
+		if (url.includes("/labels?")) {
+			return page([]);
+		}
+		if (url.includes("/pulls?")) {
 			if (url.includes(githubRepo)) {
 				return page([
 					{
@@ -105,7 +109,10 @@ function githubFetch(issues = githubIssues): Fetch {
 		if (url.endsWith("/comments")) {
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			emptyProjectFields(input, init) ??
+			new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -751,6 +758,15 @@ describe("GET /api/projects/:name", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return Response.json({
@@ -802,7 +818,10 @@ describe("GET /api/projects/:name", () => {
 					},
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		await withApp(
 			JSON.stringify({

@@ -6,6 +6,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import issue51Comments from "./fixtures/issue-51-comments.json";
 import {
+	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
@@ -225,6 +226,15 @@ function projectBoard(
 				},
 			});
 		}
+		if (
+			url === "https://api.github.com/graphql" &&
+			sent.includes("ProjectFields")
+		) {
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
+		}
 		if (url === "https://api.github.com/graphql" && sent.includes("node(id:")) {
 			const variables = JSON.parse(sent) as {
 				variables?: { after?: string | null };
@@ -361,7 +371,10 @@ function projectBoard(
 		) {
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			emptyProjectFields(input, init) ??
+			new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -435,7 +448,10 @@ function githubFetch(recorded: {
 		if (commitMatch?.[1] !== undefined) {
 			const commit = recorded.commitsBySha?.[commitMatch[1]];
 			if (commit === undefined) {
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			}
 			return page(commit);
 		}
@@ -479,7 +495,10 @@ function githubFetch(recorded: {
 		if (url.includes("/labels?")) {
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			emptyProjectFields(input, init) ??
+			new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -1309,7 +1328,10 @@ describe("review cycle", () => {
 							) {
 								return page([]);
 							}
-							return new Response("not recorded", { status: 404 });
+							return (
+								emptyProjectFields(input, init) ??
+								new Response("not recorded", { status: 404 })
+							);
 						},
 					}),
 					readGhToken: async () => null,
@@ -1613,7 +1635,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		try {
@@ -1726,7 +1751,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		try {
@@ -3265,7 +3293,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const fetchImpl: Fetch = async (input, init) => {
@@ -3429,7 +3460,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const commentCursors: string[] = [];
@@ -3613,7 +3647,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const commentQueries: string[] = [];
@@ -3834,7 +3871,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		let startChecks: (base: string) => void = () => {};
@@ -3948,7 +3988,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const fetchImpl: Fetch = async (input, init) => {
@@ -4695,7 +4738,10 @@ describe("review cycle", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const commentQueries: string[] = [];

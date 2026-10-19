@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	emptyProjectFields,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const named = "lev/local-only";
 const strangerOrigin = "stranger/local-only";
@@ -150,7 +156,10 @@ function localFetch(requests: string[]): Fetch {
 				{ status: 200, headers: { "content-type": "application/json" } },
 			);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			emptyProjectFields(input, init) ??
+			new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -807,6 +816,15 @@ describe("local projects", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
 			if (url === "https://api.github.com/graphql" && body.includes("node(")) {
 				return new Response(
 					JSON.stringify({
@@ -834,7 +852,10 @@ describe("local projects", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let base = "";
 		let onListen: (line: string) => void = () => {};

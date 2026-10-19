@@ -186,11 +186,11 @@ function repoFetch(
 			return Response.json({ login: "lev" });
 		}
 		for (const [repo, issues] of Object.entries(repos)) {
-			if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
-				return page(issues);
-			}
 			if (url.startsWith(`https://api.github.com/repos/${repo}/labels?`)) {
 				return page(labels[repo] ?? []);
+			}
+			if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
+				return page(issues);
 			}
 		}
 		if (

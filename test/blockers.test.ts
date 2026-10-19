@@ -6,6 +6,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import outsideRelations from "./fixtures/outside-relations.json";
 import {
+	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
@@ -106,7 +107,10 @@ function recordedFetch(): Fetch {
 			}
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return (
+			emptyProjectFields(input, init) ??
+			new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -320,7 +324,10 @@ describe("GET /api/overview blockers", () => {
 				if (url.includes("/comments")) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const { path, cleanup } = await tempConfig(
@@ -529,7 +536,10 @@ describe("GET /api/overview blockers", () => {
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const { path, cleanup } = await tempConfig(
@@ -662,7 +672,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -824,7 +837,10 @@ describe("GET /api/overview blockers", () => {
 				if (url.includes("/comments")) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			},
 		});
 		const { path, cleanup } = await tempConfig(
@@ -968,7 +984,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1321,7 +1340,10 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
@@ -1444,6 +1466,15 @@ describe("GET /api/overview blockers", () => {
 						},
 					},
 				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -1620,7 +1651,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1782,7 +1816,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1883,6 +1920,15 @@ describe("GET /api/overview blockers", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectItems")
 			) {
 				return Response.json({
@@ -1956,7 +2002,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2064,6 +2113,15 @@ describe("GET /api/overview blockers", () => {
 						},
 					},
 				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2181,7 +2239,10 @@ describe("GET /api/overview blockers", () => {
 					},
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2293,6 +2354,15 @@ describe("GET /api/overview blockers", () => {
 						},
 					},
 				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2487,7 +2557,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2642,6 +2715,15 @@ describe("GET /api/overview blockers", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectItems")
 			) {
 				return Response.json({
@@ -2685,7 +2767,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2782,6 +2867,15 @@ describe("GET /api/overview blockers", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectItems")
 			) {
 				return Response.json({
@@ -2823,7 +2917,10 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2936,7 +3033,10 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3068,7 +3168,10 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3209,7 +3312,10 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({

@@ -7,6 +7,7 @@ import type { Overview, ProjectCounts } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { readGhAuthToken, run } from "../src/main.ts";
 import {
+	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
@@ -131,7 +132,11 @@ function githubFetch(requests: string[] = []): Fetch {
 				headers: { "content-type": "application/json" },
 			});
 		}
-		return emptyList(url) ?? new Response("not recorded", { status: 404 });
+		return (
+			emptyList(url) ??
+			emptyProjectFields(input, init) ??
+			new Response("not recorded", { status: 404 })
+		);
 	};
 }
 
@@ -312,7 +317,10 @@ function linearFetch(requests: string[]): Fetch {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		},
 	});
 }
@@ -393,7 +401,11 @@ describe("GET /api/overview", () => {
 				) {
 					return page([], null);
 				}
-				return emptyList(url) ?? new Response("not recorded", { status: 404 });
+				return (
+					emptyList(url) ??
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			};
 		const store = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(store, "project-flow.sqlite");
@@ -1183,7 +1195,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1377,7 +1393,11 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1533,6 +1553,15 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return new Response(
@@ -1641,7 +1670,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1808,7 +1841,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1960,6 +1997,15 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				const variables = JSON.parse(body) as { variables?: { id?: string } };
@@ -2008,7 +2054,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2084,6 +2134,15 @@ describe("GET /api/overview", () => {
 				`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`
 			) {
 				return page([shared, repoOnly], null);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2182,7 +2241,11 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2362,6 +2425,15 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				const variables = JSON.parse(body) as { variables?: { id?: string } };
@@ -2415,7 +2487,11 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2547,6 +2623,15 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return new Response(
@@ -2596,7 +2681,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2735,6 +2824,15 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return new Response(
@@ -2784,7 +2882,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2919,6 +3021,15 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return (
+					emptyProjectFields(input, init) ??
+					new Response("not recorded", { status: 404 })
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return new Response(
@@ -2968,7 +3079,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3155,7 +3270,11 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3377,7 +3496,11 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3528,7 +3651,11 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3679,7 +3806,10 @@ describe("GET /api/overview", () => {
 			) {
 				return page([], null);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3808,7 +3938,10 @@ describe("GET /api/overview", () => {
 			) {
 				return page([], null);
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: listed }] }),
@@ -3900,7 +4033,11 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ??
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3949,7 +4086,10 @@ describe("GET /api/overview", () => {
 			if (url.startsWith("https://api.github.com/")) {
 				throw new Error("GitHub must not be called without a token");
 			}
-			return new Response("not recorded", { status: 404 });
+			return (
+				emptyProjectFields(input, init) ??
+				new Response("not recorded", { status: 404 })
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {

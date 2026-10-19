@@ -49,13 +49,36 @@ export function recordedDiscovery(
 			{ status: 200, headers: { "content-type": "application/json" } },
 		);
 	}
-	if (url.includes("/labels?")) {
-		return new Response("[]", {
-			status: 200,
-			headers: { "content-type": "application/json" },
-		});
-	}
 	return null;
+}
+
+export function emptyLabelPage(url: string): Response | null {
+	if (!url.includes("/labels?")) {
+		return null;
+	}
+	return new Response("[]", {
+		status: 200,
+		headers: { "content-type": "application/json" },
+	});
+}
+
+export function emptyProjectFields(
+	input: string | URL | Request,
+	init?: RequestInit,
+): Response | null {
+	const body = typeof init?.body === "string" ? init.body : "";
+	if (urlOf(input) !== "https://api.github.com/graphql") {
+		return null;
+	}
+	if (!body.includes("ProjectFields")) {
+		return null;
+	}
+	return new Response(
+		JSON.stringify({
+			data: { node: { fields: { nodes: [{}] } } },
+		}),
+		{ status: 200, headers: { "content-type": "application/json" } },
+	);
 }
 
 export function urlOf(input: string | URL | Request): string {
