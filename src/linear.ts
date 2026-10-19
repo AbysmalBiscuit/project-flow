@@ -221,7 +221,8 @@ const issueNode = z.object({
 				}),
 			),
 		})
-		.optional(),
+		.nullish()
+		.transform((relations) => relations ?? { nodes: [] }),
 });
 
 const issuePage = z.object({
