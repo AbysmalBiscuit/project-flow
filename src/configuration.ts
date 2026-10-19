@@ -31,7 +31,14 @@ const configurationSchema = z.strictObject({
 	pollIntervalSeconds: z.number().int().positive().default(60),
 	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
 	expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
-	noSenior: z.array(z.string()).default([]),
+	noSenior: z
+		.union([z.array(z.string()), z.record(z.string(), z.boolean())])
+		.default({})
+		.transform((value) =>
+			Array.isArray(value)
+				? Object.fromEntries(value.map((key) => [key, true]))
+				: value,
+		),
 	needsYouLabels: z
 		.array(z.string())
 		.default(["needs-human", "needs-engineer"]),
