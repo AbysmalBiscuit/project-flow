@@ -990,7 +990,7 @@ describe("GET /api/overview blockers", () => {
 								project: unloaded,
 								tracker: "github",
 								key: `${unloaded}#9`,
-								title: `${unloaded}#9`,
+								title: "Open issue in an unloaded repo",
 							},
 						]);
 						expect(
@@ -1039,7 +1039,10 @@ describe("GET /api/overview blockers", () => {
 									identifier: "SWE-3",
 									title: "Open issue in an unpinned project",
 									state: { type: "started" },
-									project: { slugId: "unpinned-project" },
+									project: {
+										slugId: "unpinned-project",
+										name: "Unpinned",
+									},
 								},
 							},
 						],
@@ -1087,10 +1090,10 @@ describe("GET /api/overview blockers", () => {
 						expect(project?.blocked).toBe(1);
 						expect(project?.crossProjectBlockers).toEqual([
 							{
-								project: "unpinned-project",
+								project: "Unpinned",
 								tracker: "linear",
 								key: "SWE-3",
-								title: "SWE-3",
+								title: "Open issue in an unpinned project",
 							},
 						]);
 						expect(
@@ -1098,6 +1101,92 @@ describe("GET /api/overview blockers", () => {
 								(item) => item.name === "unpinned-project",
 							),
 						).toBe(false);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank outside title and a missing project name fall back to the key and slug", async () => {
+		const recordedFetch = linearFake({
+			project: {
+				id: "project-widget",
+				name: linearProject,
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					...linearIssue("SWE-41", "", "unstarted"),
+					inverseRelations: {
+						nodes: [
+							{
+								type: "blocks",
+								issue: {
+									identifier: "SWE-4",
+									title: "   ",
+									state: { type: "started" },
+									project: { slugId: "bare-slug" },
+								},
+							},
+						],
+					},
+				},
+			],
+		});
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const overview = (await response.json()) as {
+							projects: {
+								name: string;
+								crossProjectBlockers: {
+									project: string;
+									tracker: string;
+									key: string;
+									title: string;
+								}[];
+							}[];
+						};
+						const project = overview.projects.find(
+							(item) => item.name === linearProject,
+						);
+						expect(project?.crossProjectBlockers).toEqual([
+							{
+								project: "bare-slug",
+								tracker: "linear",
+								key: "SWE-4",
+								title: "SWE-4",
+							},
+						]);
 						resolve();
 					})
 					.catch(reject);

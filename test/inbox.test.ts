@@ -400,6 +400,174 @@ describe("inbox", () => {
 		);
 	});
 
+	test("closing an outside blocker raises Blocker cleared on the ticket it blocked", async () => {
+		const outside = {
+			id: "project-outside",
+			name: "Outside Gate",
+			slugId: "outside-gate-9f3a",
+		};
+		const blockedTicket = {
+			...linearIssue(
+				"PF-4",
+				"Hold the launch",
+				"",
+				[],
+				{
+					inverseRelations: {
+						nodes: [
+							{
+								type: "blocks",
+								issue: {
+									identifier: "OUT-2",
+									title: "Ship the outside gate",
+									state: { type: "started" },
+									project: { slugId: outside.slugId, name: outside.name },
+								},
+							},
+						],
+					},
+				},
+				"2026-08-18T12:00:00.000Z",
+			),
+			projectId: linearProject.id,
+		};
+		const closedOutside = {
+			...blockedTicket,
+			updatedAt: "2026-08-18T15:00:00.000Z",
+			inverseRelations: {
+				nodes: [
+					{
+						type: "blocks",
+						issue: {
+							identifier: "OUT-2",
+							title: "Ship the outside gate",
+							state: { type: "completed" },
+							project: { slugId: outside.slugId, name: outside.name },
+						},
+					},
+				],
+			},
+		};
+		await withInbox(pinned, [blockedTicket], async (base, setIssues) => {
+			expect(await inboxOf(base)).toEqual([]);
+			const overview = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as {
+				projects: {
+					name: string;
+					tickets: { key: string; state: string }[];
+					crossProjectBlockers: {
+						project: string;
+						tracker: string;
+						key: string;
+						title: string;
+					}[];
+				}[];
+			};
+			const project = overview.projects.find(
+				(item) => item.name === "Project Flow",
+			);
+			expect(project?.tickets.find((item) => item.key === "PF-4")?.state).toBe(
+				"blocked",
+			);
+			expect(project?.crossProjectBlockers).toEqual([
+				{
+					project: outside.name,
+					tracker: "linear",
+					key: "OUT-2",
+					title: "Ship the outside gate",
+				},
+			]);
+			setIssues([closedOutside]);
+			const events = notificationEvent(base);
+			await Bun.sleep(50);
+			await refresh(base);
+			const event = await events;
+			expect(event).toMatchObject({
+				trigger: "blockerCleared",
+				project: "Project Flow",
+				key: "OUT-2",
+				text: "Ship the outside gate",
+			});
+			expect(await inboxOf(base)).toEqual([event]);
+			const cleared = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as {
+				projects: { tickets: { key: string; state: string }[] }[];
+			};
+			expect(
+				cleared.projects
+					.flatMap((item) => item.tickets)
+					.find((item) => item.key === "PF-4")?.state,
+			).toBe("backlog");
+		});
+	});
+
+	test("a blank outside title and a still-open outside relation raise no Blocker cleared", async () => {
+		const outside = {
+			id: "project-quiet",
+			name: "Quiet Gate",
+			slugId: "quiet-gate",
+		};
+		const blockedTicket = {
+			...linearIssue(
+				"PF-5",
+				"Wait on a quiet gate",
+				"",
+				[],
+				{
+					inverseRelations: {
+						nodes: [
+							{
+								type: "blocks",
+								issue: {
+									identifier: "OUT-3",
+									title: "   ",
+									state: { type: "started" },
+									project: { slugId: outside.slugId, name: outside.name },
+								},
+							},
+						],
+					},
+				},
+				"2026-08-18T12:00:00.000Z",
+			),
+			projectId: linearProject.id,
+		};
+		const stillOpen = {
+			...blockedTicket,
+			updatedAt: "2026-08-18T15:00:00.000Z",
+			description: "A note, with the same open blocker.",
+		};
+		await withInbox(pinned, [blockedTicket], async (base, setIssues) => {
+			const overview = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as {
+				projects: {
+					crossProjectBlockers: {
+						project: string;
+						tracker: string;
+						key: string;
+						title: string;
+					}[];
+				}[];
+			};
+			expect(
+				overview.projects.flatMap((item) => item.crossProjectBlockers),
+			).toEqual([
+				{
+					project: outside.name,
+					tracker: "linear",
+					key: "OUT-3",
+					title: "OUT-3",
+				},
+			]);
+			setIssues([stillOpen]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+		});
+	});
+
 	test("a disabled trigger produces no event and no inbox entry", async () => {
 		const headline = "Which bot should review this?";
 		await withInbox(
