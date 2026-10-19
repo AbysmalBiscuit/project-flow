@@ -405,7 +405,6 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			await running.stop();
 			throw coldStart;
 		}
-		writeOut(running.url.href);
 		await (io.waitForStop ?? Promise.resolve());
 		await running.stop();
 		return result(0);

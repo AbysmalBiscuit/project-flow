@@ -83,7 +83,6 @@ export async function tempConfig(
 export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
 	const stdout = io.stdout;
 	const first = options?.first === true;
-	let seen = false;
 	return {
 		listTodos: async () => "",
 		...io,
@@ -92,18 +91,26 @@ export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
 			: {
 					stdout: (line: string) => {
 						if (first) {
-							if (seen) {
-								return;
-							}
-							seen = true;
 							stdout(line);
 							return;
 						}
-						if (!seen) {
-							seen = true;
-							return;
-						}
-						stdout(line);
+						void (async () => {
+							const deadline = Date.now() + 3_000;
+							while (Date.now() < deadline) {
+								const response = await fetch(
+									new URL("/api/overview", line),
+								).catch(() => null);
+								if (response === null || !response.ok) {
+									break;
+								}
+								const body = (await response.json()) as { polling?: true };
+								if (body.polling !== true) {
+									break;
+								}
+								await Bun.sleep(20);
+							}
+							stdout(line);
+						})();
 					},
 				}),
 	};
