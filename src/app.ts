@@ -869,7 +869,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					const body = Response.json(
 						overview(opened.store, configuration, pollOptions.viewers),
 					);
-					setTimeout(releaseLists, 0);
+					releaseLists();
 					return body;
 				},
 			},
@@ -940,7 +940,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		},
 	});
 	if (hadRows) {
-		void pollAgain();
+		setTimeout(() => void pollAgain(), 0);
 	}
 	return {
 		url: server.url,
