@@ -66,35 +66,43 @@ afterAll(() => {
 const spawn = Bun.spawn.bind(Bun);
 const spawnSync = Bun.spawnSync.bind(Bun);
 
-type SpawnOptions = NonNullable<Parameters<typeof Bun.spawn>[1]>;
+type SpawnCall = Parameters<typeof Bun.spawn>;
+type CommandCall = [string[], SpawnCall[1]?];
+type ObjectCall = [Exclude<SpawnCall[0], string[]>];
 
-function optionsOf(
-	args: Parameters<typeof Bun.spawn>,
-): SpawnOptions | undefined {
-	const second = args[1];
-	if (second !== undefined && !Array.isArray(second)) {
-		return second;
-	}
-	const first = args[0];
-	if (!Array.isArray(first) && typeof first === "object") {
-		return first;
-	}
-	return undefined;
+function isCommandCall(args: SpawnCall): args is CommandCall {
+	return Array.isArray(args[0]);
 }
 
-function withChildEnv(
-	args: Parameters<typeof Bun.spawn>,
-): Parameters<typeof Bun.spawn> {
-	isolateChild(process.env);
-	const options = optionsOf(args);
-	if (options === undefined) {
-		return [args[0], { env: { ...process.env } }];
-	}
-	const given = options.env;
+function childEnv(
+	given: Record<string, string | undefined> | undefined,
+): Record<string, string | undefined> {
 	const env: Record<string, string | undefined> =
 		given === undefined ? { ...process.env } : { ...given };
 	isolateChild(env);
-	return [args[0], { ...options, env }];
+	return env;
+}
+
+function withCommandEnv(args: CommandCall): CommandCall {
+	const [cmd, options] = args;
+	if (options === undefined) {
+		return [cmd, { env: childEnv(undefined) }];
+	}
+	return [cmd, Object.assign({}, options, { env: childEnv(options.env) })];
+}
+
+function withObjectEnv(args: ObjectCall): ObjectCall {
+	const [options] = args;
+	const given: { env?: Record<string, string | undefined> } = options;
+	return [Object.assign({}, options, { env: childEnv(given.env) })];
+}
+
+function withChildEnv(args: SpawnCall): SpawnCall {
+	isolateChild(process.env);
+	if (isCommandCall(args)) {
+		return withCommandEnv(args);
+	}
+	return withObjectEnv(args);
 }
 
 Bun.spawn = ((...args: Parameters<typeof Bun.spawn>) =>

@@ -168,6 +168,102 @@ test("git credential fill for github.com runs no helper", async () => {
 		const frozenRun = Bun.spawnSync(["git", "credential", "fill"], frozen);
 		expect(frozenRun.stdout.toString()).not.toContain("password");
 		expect(await Bun.file(log).exists()).toBe(false);
+
+		const objectEnv = {
+			PATH: process.env.PATH ?? "",
+			GIT_CONFIG_COUNT: "1",
+			GIT_CONFIG_KEY_0: "CrEdEnTiAl.HeLpEr",
+			GIT_CONFIG_VALUE_0: helper,
+			GIT_CONFIG_PARAMETERS: `'credential.helper'='${helper}'`,
+			GIT_CONFIG_GLOBAL: host,
+		};
+		const objectOptions = {
+			cmd: ["git", "credential", "fill"],
+			stdin: Buffer.from("protocol=https\nhost=github.com\n\n"),
+			stdout: "pipe" as const,
+			stderr: "pipe" as const,
+			env: objectEnv,
+		};
+		const objectRun = Bun.spawnSync(objectOptions);
+		expect(objectOptions.env).toBe(objectEnv);
+		expect(objectEnv.GIT_CONFIG_KEY_0).toBe("CrEdEnTiAl.HeLpEr");
+		expect(objectEnv.GIT_CONFIG_GLOBAL).toBe(host);
+		expect(await Bun.file(log).exists()).toBe(false);
+		expect(objectRun.stdout.toString()).not.toContain("password");
+		expect(objectRun.exitCode).not.toBe(0);
+
+		const other = Bun.spawnSync({
+			cmd: ["git", "credential", "fill"],
+			stdin: Buffer.from("protocol=https\nhost=example.invalid\n\n"),
+			stdout: "pipe",
+			stderr: "pipe",
+			env: {
+				PATH: process.env.PATH ?? "",
+				GIT_CONFIG_KEY_0: "CrEdEnTiAl.HeLpEr",
+				GIT_CONFIG_VALUE_0: helper,
+				GIT_CONFIG_PARAMETERS: `'credential.helper'='${helper}'`,
+			},
+		});
+		expect(await Bun.file(log).exists()).toBe(false);
+		expect(other.stdout.toString()).not.toContain("password");
+
+		const asyncOptions = {
+			cmd: ["git", "credential", "fill"],
+			stdin: Buffer.from("protocol=https\nhost=github.com\n\n"),
+			stdout: "pipe" as const,
+			stderr: "pipe" as const,
+			env: {
+				PATH: process.env.PATH ?? "",
+				GIT_CONFIG_KEY_0: "CrEdEnTiAl.HeLpEr",
+				GIT_CONFIG_VALUE_0: helper,
+				GIT_CONFIG_PARAMETERS: `'credential.helper'='${helper}'`,
+				GIT_CONFIG_GLOBAL: host,
+			},
+		};
+		const asyncProc = Bun.spawn(asyncOptions);
+		const asyncOut = await new Response(asyncProc.stdout).text();
+		const asyncCode = await asyncProc.exited;
+		expect(asyncOptions.env.GIT_CONFIG_GLOBAL).toBe(host);
+		expect(await Bun.file(log).exists()).toBe(false);
+		expect(asyncOut).not.toContain("password");
+		expect(asyncCode).not.toBe(0);
+
+		for (const input of ["protocol=https\nhost=   \n\n", "\n", "   \n"]) {
+			const blank = Bun.spawnSync({
+				cmd: ["git", "credential", "fill"],
+				stdin: Buffer.from(input),
+				stdout: "pipe",
+				stderr: "pipe",
+				env: {
+					PATH: process.env.PATH ?? "",
+					GIT_CONFIG_KEY_0: "CrEdEnTiAl.HeLpEr",
+					GIT_CONFIG_VALUE_0: helper,
+					GIT_CONFIG_PARAMETERS: `'credential.helper'='${helper}'`,
+				},
+			});
+			expect(await Bun.file(log).exists()).toBe(false);
+			expect(blank.stdout.toString()).not.toContain("password");
+		}
+
+		const frozenObject = Object.freeze({
+			cmd: ["git", "credential", "fill"],
+			stdin: Buffer.from("protocol=https\nhost=github.com\n\n"),
+			stdout: "pipe" as const,
+			stderr: "pipe" as const,
+			env: Object.freeze({
+				PATH: process.env.PATH ?? "",
+				GIT_CONFIG_KEY_0: "CrEdEnTiAl.HeLpEr",
+				GIT_CONFIG_VALUE_0: helper,
+				GIT_CONFIG_PARAMETERS: `'credential.helper'='${helper}'`,
+				GIT_CONFIG_GLOBAL: host,
+			}),
+		});
+		const frozenObjectRun = Bun.spawnSync(frozenObject);
+		expect(frozenObject.env.GIT_CONFIG_GLOBAL).toBe(host);
+		expect(frozenObject.env.GIT_CONFIG_KEY_0).toBe("CrEdEnTiAl.HeLpEr");
+		expect(await Bun.file(log).exists()).toBe(false);
+		expect(frozenObjectRun.stdout.toString()).not.toContain("password");
+		expect(frozenObjectRun.exitCode).not.toBe(0);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
 		delete process.env.GIT_CONFIG_COUNT;
