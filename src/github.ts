@@ -731,7 +731,7 @@ export async function mergedPullHistory(
 	repo: string,
 	token: string,
 	fetchImpl: Fetch,
-	seen: Map<string, ReviewEvidence> = new Map(),
+	seen: Map<string, ReviewEvidence>,
 ): Promise<PullRequest[]> {
 	const page = z
 		.array(githubPull)
