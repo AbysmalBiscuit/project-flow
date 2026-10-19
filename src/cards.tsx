@@ -33,20 +33,14 @@ function openedLabel(): string | null {
 	return ticket === null ? `Opened ${name}` : `Opened ${name} ${ticket}`;
 }
 
-function Chip({
-	blocker,
-	onOpen,
-}: {
-	blocker: CrossProjectBlocker;
-	onOpen: (label: string) => void;
-}) {
+function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
 			className="blocker-chip"
 			href={projectPath(blocker.project, blocker.key)}
 			onClick={(event) => {
 				event.preventDefault();
-				openProject(blocker.project, onOpen, blocker.key);
+				window.location.assign(projectPath(blocker.project, blocker.key));
 			}}
 		>
 			{blocker.project} {blocker.key}
@@ -183,7 +177,6 @@ function CardsList({
 								<Chip
 									key={`${blocker.project} ${blocker.key}`}
 									blocker={blocker}
-									onOpen={onOpen}
 								/>
 							))}
 						</p>
