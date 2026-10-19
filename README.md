@@ -22,6 +22,8 @@ bun start
 
 The process prints a URL on localhost. Open that URL in a browser.
 
+A missing configuration file is created as `{}` on start, with its parent folder. The process prints the path.
+
 `--config` sets the configuration file. `--host` sets the host. `--port` sets the port. The default host is `127.0.0.1`. Pass flags after `--`, for example `bun start -- --port 4000`.
 
 ## Configuration
@@ -37,7 +39,7 @@ function defaultConfigPath(env: Record<string, string | undefined>): string {
 }
 ```
 
-The file can be empty `{}`. Create the file before the first start. These fields are optional:
+The file can be empty `{}`. These fields are optional:
 
 - `pinned` names projects that always show.
 - `hidden` names projects that never show.
