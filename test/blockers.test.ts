@@ -1547,4 +1547,126 @@ describe("GET /api/overview blockers", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a later poll drops a blocker the tracker no longer returns", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
+				const cleared = url.includes("since=");
+				return page([
+					{
+						...issue(21, cleared ? "   " : "Blocked by: #20"),
+						html_url: `https://github.com/${githubRepo}/issues/21`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/21/comments`,
+						updated_at: "2026-08-18T12:00:00Z",
+						...(cleared
+							? {}
+							: {
+									issue_dependencies_summary: {
+										blocked_by: 1,
+										total_blocked_by: 1,
+									},
+								}),
+					},
+					{
+						...issue(20, "Open blocker."),
+						html_url: `https://github.com/${githubRepo}/issues/20`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/20/comments`,
+						updated_at: "2026-08-18T12:00:00Z",
+					},
+				]);
+			}
+			if (
+				url ===
+				`https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by`
+			) {
+				return page([
+					{
+						number: 20,
+						state: "open",
+						repository_url: `https://api.github.com/repos/${githubRepo}`,
+					},
+				]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			if (url.includes("/comments")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				const key = `${githubRepo}#21`;
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const first = (await response.json()) as {
+							projects: {
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						expect(blockersOf(first.projects[0]?.tickets ?? [], key)).toEqual({
+							state: "blocked",
+							blockers: [`${githubRepo}#20`],
+						});
+						const refresh = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(refresh.status).toBe(204);
+						const second = (await (
+							await fetch(new URL("/api/overview", base))
+						).json()) as typeof first;
+						expect(blockersOf(second.projects[0]?.tickets ?? [], key)).toEqual({
+							state: "backlog",
+							blockers: [],
+						});
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });

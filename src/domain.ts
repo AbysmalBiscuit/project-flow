@@ -569,16 +569,7 @@ function mergeBlockedBy(rows: TicketRef[][]): TicketRef[] {
 export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 	const byId = new Map(stored.map((ticket) => [ticket.id, ticket]));
 	for (const ticket of incoming) {
-		const earlier = byId.get(ticket.id);
-		if (earlier === undefined) {
-			byId.set(ticket.id, ticket);
-			continue;
-		}
-		byId.set(ticket.id, {
-			...ticket,
-			body: ticket.body.trim() === "" ? earlier.body : ticket.body,
-			blockedBy: mergeBlockedBy([earlier.blockedBy, ticket.blockedBy]),
-		});
+		byId.set(ticket.id, ticket);
 	}
 	return [...byId.values()];
 }
