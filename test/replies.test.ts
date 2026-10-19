@@ -1002,19 +1002,16 @@ describe("replies", () => {
 				}),
 			});
 			expect(posted.status).toBe(201);
-			const quoted = `> ${headline}\n\n${text}`;
 			const created = sent.find((body) => body.includes("commentCreate"));
 			expect(created).toBeDefined();
 			expect(JSON.parse(created ?? "{}")).toMatchObject({
 				variables: {
 					input: {
 						issueId: "PF-13",
-						body: quoted,
+						body: `> ${headline}\n\n${text}`,
 					},
 				},
 			});
-			expect(quoted).not.toContain("workcell:");
-			expect(quoted.startsWith("Reply")).toBe(false);
 			const answered = (await (
 				await fetch(new URL("/api/needs-you", app.base))
 			).json()) as NeedsYouItem[];
