@@ -504,15 +504,15 @@ async function listTeamStates(
 	}
 	const body = await response.json();
 	const recorded = teamStates.safeParse(body);
-	if (!recorded.success || recorded.data.data.team === null) {
+	const team = recorded.success ? recorded.data.data.team : null;
+	if (!recorded.success || team === null) {
 		throw new Error(`Linear list team statuses failed: ${teamId}`);
 	}
-	const page = recorded.data;
-	const error = page.errors?.[0];
+	const error = recorded.data.errors?.[0];
 	if (error !== undefined) {
 		throw new Error(`Linear list team statuses failed: ${error.message}`);
 	}
-	const nodes = page.data.team.states.nodes;
+	const nodes = team.states.nodes;
 	return [...nodes]
 		.sort((left, right) => left.position - right.position)
 		.map((node) => ({
