@@ -4,7 +4,10 @@ import { createRoot } from "react-dom/client";
 import styles from "./cards.module.css";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import { askNotificationPermission } from "./notify.tsx";
+import {
+	askNotificationPermission,
+	notificationPermission,
+} from "./notify.tsx";
 import shell from "./shell.module.css";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
 
@@ -413,6 +416,9 @@ function OverviewPage({
 }) {
 	const [opened, setOpened] = useState(openedLabel);
 	const [tab, setTab] = useState(readTab);
+	const [notifyPermission, setNotifyPermission] = useState(
+		notificationPermission,
+	);
 	useEffect(() => {
 		const onPop = () => setOpened(openedLabel());
 		window.addEventListener("popstate", onPop);
@@ -437,14 +443,20 @@ function OverviewPage({
 				<a className={shell.link} href="/inbox">
 					Inbox
 				</a>
-				<button
-					type="button"
-					id="notify-permission"
-					className={shell.button}
-					onClick={askNotificationPermission}
-				>
-					Allow notifications
-				</button>
+				{notifyPermission === "default" ? (
+					<button
+						type="button"
+						id="notify-permission"
+						className={shell.button}
+						onClick={() => {
+							void askNotificationPermission().finally(() => {
+								setNotifyPermission(notificationPermission());
+							});
+						}}
+					>
+						Allow notifications
+					</button>
+				) : null}
 				<button
 					type="button"
 					className={shell.button}

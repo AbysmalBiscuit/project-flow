@@ -24,12 +24,16 @@ export function watchNotifications(): () => void {
 	return onAppEvent("notification", showNotification);
 }
 
-export function askNotificationPermission(): void {
-	if (
-		typeof Notification === "undefined" ||
-		Notification.permission !== "default"
-	) {
-		return;
+export function notificationPermission(): NotificationPermission | null {
+	if (typeof Notification === "undefined") {
+		return null;
 	}
-	void Notification.requestPermission();
+	return Notification.permission;
+}
+
+export function askNotificationPermission(): Promise<void> {
+	if (notificationPermission() !== "default") {
+		return Promise.resolve();
+	}
+	return Notification.requestPermission().then(() => undefined);
 }
