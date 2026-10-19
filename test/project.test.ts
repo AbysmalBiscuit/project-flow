@@ -326,9 +326,7 @@ describe("GET /api/projects/:name", () => {
 				const beta = linearMap?.diagrams?.[0]?.definition ?? "";
 				expect(beta).not.toContain("WID_2d_2");
 				expect(beta).toContain("Launch epic");
-				expect(beta).toContain(
-					'Beta_3a_Launch_20_epic["Launch epic"]:::theme',
-				);
+				expect(beta).toContain('Beta_3a_Launch_20_epic["Launch epic"]:::theme');
 				const later = linearMap?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_Later",
 				);
