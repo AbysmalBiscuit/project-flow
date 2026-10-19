@@ -10,9 +10,10 @@ import type {
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
-import styles from "./project.module.css";
-import shell from "./shell.module.css";
+import { navLabel, stateLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
+import { clsx } from "./ui.ts";
+import { project as page, shell } from "./ui-styles.ts";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -57,9 +58,7 @@ function TicketLine({
 	const key = ticket.key;
 	return (
 		<li
-			className={
-				marked ? `${styles.ticket} ${styles.highlighted}` : styles.ticket
-			}
+			className={clsx(page.ticket, marked && page.highlighted)}
 			data-ticket={key ?? ""}
 		>
 			{key === null ? (
@@ -69,7 +68,7 @@ function TicketLine({
 			) : (
 				<button
 					type="button"
-					className={styles.ticketOpen}
+					className={clsx(page.ticketOpen, page.ticketHover)}
 					onClick={() => onOpen(key)}
 				>
 					{key} {ticket.title} {ticket.state}
@@ -91,11 +90,7 @@ function NodeLine({
 		return (
 			<li>
 				<a
-					className={
-						marked
-							? `${styles.dashedNode} ${styles.highlighted}`
-							: styles.dashedNode
-					}
+					className={clsx(page.dashedNode, marked && page.highlighted)}
 					data-node={node.id}
 					href={openPath(node.project, node.ticket)}
 					onClick={(event) => {
@@ -110,7 +105,7 @@ function NodeLine({
 	}
 	return (
 		<li
-			className={marked ? styles.highlighted : undefined}
+			className={marked ? clsx(page.highlighted) : undefined}
 			data-node={node.id}
 			data-ticket={node.ticket ?? ""}
 		>
@@ -119,37 +114,36 @@ function NodeLine({
 	);
 }
 
-const stateSwatches: { kind: TicketState; label: string; swatch: string }[] = [
-	{ kind: "done", label: "Done", swatch: styles.done },
-	{ kind: "dropped", label: "Dropped", swatch: styles.dropped },
-	{ kind: "blocked", label: "Blocked", swatch: styles.blocked },
-	{ kind: "inProgress", label: "In progress", swatch: styles.inProgress },
-	{ kind: "inReview", label: "In review", swatch: styles.inReview },
-	{
-		kind: "awaitingMerge",
-		label: "Awaiting merge",
-		swatch: styles.awaitingMerge,
-	},
-	{ kind: "backlog", label: "Backlog", swatch: styles.backlog },
+const stateSwatches: {
+	kind: TicketState;
+	swatch: typeof page.done;
+}[] = [
+	{ kind: "done", swatch: page.done },
+	{ kind: "dropped", swatch: page.dropped },
+	{ kind: "blocked", swatch: page.blocked },
+	{ kind: "inProgress", swatch: page.inProgress },
+	{ kind: "inReview", swatch: page.inReview },
+	{ kind: "awaitingMerge", swatch: page.awaitingMerge },
+	{ kind: "backlog", swatch: page.backlog },
 ];
 
 function StateLegend({ theme }: { theme: boolean }) {
 	return (
-		<ul className={styles.legend} aria-label="Diagram key">
+		<ul className={clsx(page.legend)} aria-label="Diagram key">
 			{stateSwatches.map((item) => (
-				<li key={item.kind} className={styles.legendItem}>
-					<span className={`${styles.swatch} ${item.swatch}`} />
-					{item.label}
+				<li key={item.kind} className={clsx(page.legendItem)}>
+					<span className={clsx(page.swatch, item.swatch)} />
+					{stateLabel[item.kind]}
 				</li>
 			))}
 			{theme ? (
-				<li className={styles.legendItem}>
-					<span className={`${styles.swatch} ${styles.theme}`} />
+				<li className={clsx(page.legendItem)}>
+					<span className={clsx(page.swatch, page.theme)} />
 					Theme
 				</li>
 			) : null}
-			<li className={styles.legendItem}>
-				<span className={`${styles.swatch} ${styles.dashed}`} />
+			<li className={clsx(page.legendItem)}>
+				<span className={clsx(page.swatch, page.dashed)} />
 				Cross-project blocker
 			</li>
 		</ul>
@@ -164,12 +158,12 @@ function DiagramView({
 	ticket: string | null;
 }) {
 	return (
-		<figure className={styles.diagram} data-diagram={diagram.id}>
+		<figure className={clsx(page.diagram)} data-diagram={diagram.id}>
 			<figcaption>{diagram.title}</figcaption>
 			<pre key={diagram.definition} className="mermaid">
 				{diagram.definition}
 			</pre>
-			<ul className={styles.nodes}>
+			<ul className={clsx(page.nodes)}>
 				{diagram.nodes.map((node) => (
 					<NodeLine key={node.id} node={node} ticket={ticket} />
 				))}
@@ -188,30 +182,43 @@ function Report({
 	onOpen: (key: string) => void;
 }) {
 	return (
-		<main className={shell.page} data-project={report.name}>
-			<p className={shell.nav}>
-				<a className={shell.link} href="/">
-					Projects
+		<main className={clsx(shell.page)} data-project={report.name}>
+			<p className={clsx(shell.nav)}>
+				<a className={clsx(shell.link, shell.linkFocus)} href="/">
+					{navLabel.projects}
 				</a>
 				<button
 					type="button"
-					className={`${shell.button} ${shell.theme}`}
+					className={clsx(
+						shell.button,
+						shell.buttonHover,
+						shell.buttonFocus,
+						shell.theme,
+					)}
 					data-theme-toggle=""
 				>
 					Dark mode
 				</button>
 			</p>
-			<h1 className={shell.title}>{report.name}</h1>
-			<nav className={styles.reportNav} aria-label="Report sections">
+			<h1 className={clsx(shell.title)}>{report.name}</h1>
+			<nav className={clsx(page.reportNav)} aria-label="Report sections">
 				{report.sections.map((section) => (
-					<a key={section.id} href={`#${section.id}`}>
+					<a
+						key={section.id}
+						className={clsx(page.reportLink)}
+						href={`#${section.id}`}
+					>
 						{section.title}
 					</a>
 				))}
 			</nav>
 			{report.sections.map((section) => (
-				<section key={section.id} className={styles.section} id={section.id}>
-					<h2 className={shell.heading}>{section.title}</h2>
+				<section
+					key={section.id}
+					className={clsx(page.section)}
+					id={section.id}
+				>
+					<h2 className={clsx(shell.heading)}>{section.title}</h2>
 					{section.id === "featureMap" ? (
 						<StateLegend
 							theme={
@@ -222,10 +229,10 @@ function Report({
 						/>
 					) : null}
 					{section.text === undefined ? null : (
-						<p className={styles.summary}>{section.text}</p>
+						<p className={clsx(page.summary)}>{section.text}</p>
 					)}
 					{section.items === undefined ? null : (
-						<ul className={styles.tickets}>
+						<ul className={clsx(page.tickets)}>
 							{section.items.map((item) => (
 								<TicketLine
 									key={`${item.key ?? ""} ${item.title}`}

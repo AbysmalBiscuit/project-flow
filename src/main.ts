@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { version } from "../package.json";
 import { start } from "./app.ts";
@@ -412,7 +412,42 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	}
 }
 
+function configArgsForCheckout(args: string[], callerDir: string): string[] {
+	const next = [...args];
+	const index = next.indexOf("--config");
+	const value = next[index + 1];
+	if (index === -1 || value === undefined || value.trim() === "") {
+		return next;
+	}
+	const trimmed = value.trim();
+	if (isAbsolute(trimmed)) {
+		next[index + 1] = trimmed;
+		return next;
+	}
+	next[index + 1] = resolve(callerDir, trimmed);
+	return next;
+}
+
 if (import.meta.main) {
+	const checkout = dirname(import.meta.dir);
+	const bunfig = join(checkout, "bunfig.toml");
+	if (existsSync(bunfig) && process.cwd() !== checkout) {
+		const callerDir = process.cwd();
+		const child = Bun.spawn(
+			[
+				process.execPath,
+				...process.execArgv,
+				...configArgsForCheckout(process.argv.slice(1), callerDir),
+			],
+			{
+				cwd: checkout,
+				stdin: "inherit",
+				stdout: "inherit",
+				stderr: "inherit",
+			},
+		);
+		process.exit(await child.exited);
+	}
 	const result = await run(process.argv.slice(2), {
 		env: process.env,
 		fetch: globalThis.fetch,

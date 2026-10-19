@@ -1,0 +1,12 @@
+*,
+*::before,
+*::after {
+	box-sizing: content-box;
+}
+
+main,
+main *,
+main *::before,
+main *::after {
+	box-sizing: border-box;
+}
