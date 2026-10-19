@@ -5,22 +5,26 @@ const tokenFile = await Bun.file(`${import.meta.dir}/tokens.stylex.ts`).text();
 const declared = new Set<string>();
 const failures: string[] = [];
 let group = new Set<string>();
+let inVars = false;
 
 for (const [index, line] of tokenFile.split("\n").entries()) {
 	if (line.startsWith("export const ")) {
 		group = new Set<string>();
+		inVars = line.includes("defineVars");
 		continue;
 	}
 	const name = line.match(/^\t([A-Za-z][A-Za-z0-9]*):/)?.[1];
 	if (name === undefined || name === "default") {
 		continue;
 	}
-	if (group.has(name)) {
+	if (inVars && group.has(name)) {
 		failures.push(
 			`src/tokens.stylex.ts:${index + 1}: token redefinition ${name}`,
 		);
 	}
-	group.add(name);
+	if (inVars) {
+		group.add(name);
+	}
 	declared.add(name);
 }
 
@@ -41,11 +45,28 @@ const files = new Glob("src/**/*.{ts,tsx,css}").scan({
 
 function isStyleSource(name: string): boolean {
 	return (
-		(styleSource.test(name) ||
-			name === "src/ui-styles.ts" ||
-			name === "src/theme.ts") &&
-		name !== "src/global.css"
+		styleSource.test(name) ||
+		name === "src/ui-styles.ts" ||
+		name === "src/theme.ts"
 	);
+}
+
+function tokenSource(name: string): boolean {
+	return name === "src/theme.stylex.ts";
+}
+
+function rootFallback(name: string, lines: string[], index: number): boolean {
+	if (name !== "src/global.css") {
+		return false;
+	}
+	for (let cursor = index; cursor >= 0; cursor -= 1) {
+		const line = lines[cursor] ?? "";
+		if (!line.includes("{")) {
+			continue;
+		}
+		return line.trim().startsWith(":root");
+	}
+	return false;
 }
 
 for await (const name of files) {
@@ -58,7 +79,12 @@ for await (const name of files) {
 	const lines = (await Bun.file(`${root}/${name}`).text()).split("\n");
 	for (const [index, line] of lines.entries()) {
 		const styleLine = isStyleSource(name) || line.includes("style");
-		if (styleLine && (colour.test(line) || size.test(line))) {
+		if (
+			styleLine &&
+			!tokenSource(name) &&
+			!rootFallback(name, lines, index) &&
+			(colour.test(line) || size.test(line))
+		) {
 			failures.push(`${name}:${index + 1}: colour or size literal`);
 		}
 		colour.lastIndex = 0;

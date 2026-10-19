@@ -8,7 +8,7 @@
 		"dev": "bun --hot src/main.ts",
 		"typecheck": "bun check",
 		"test": "sh scripts/test-slot.sh",
-		"lint": "biome ci --error-on-warnings . && bun src/lint-tokens.ts && bun src/lint-terms.ts",
+		"lint": "biome ci --error-on-warnings . && bun src/lint-tokens.ts; token_status=$?; bun src/lint-terms.ts; term_status=$?; test \"$token_status\" = 0 && test \"$term_status\" = 0",
 		"format": "biome check --write ."
 	},
 	"devDependencies": {
