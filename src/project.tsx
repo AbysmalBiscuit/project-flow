@@ -222,21 +222,21 @@ function Page() {
 						if (!node.dashed || node.ticket === null) {
 							continue;
 						}
-						const drawn = figure.querySelector(`g.node.${node.id}`);
-						if (drawn === null) {
+						const drawn = [...figure.querySelectorAll("g.node")].find((item) =>
+							item.id.includes(node.id),
+						);
+						if (!(drawn instanceof SVGGElement)) {
 							continue;
 						}
-						if (drawn instanceof HTMLElement || drawn instanceof SVGElement) {
-							drawn.style.cursor = "pointer";
-						}
-						drawn.addEventListener("click", () => {
-							window.history.pushState(
-								{},
-								"",
-								openPath(node.project, node.ticket),
-							);
+						const ticket = node.ticket;
+						const project = node.project;
+						const open = () => {
+							window.history.pushState({}, "", openPath(project, ticket));
 							window.dispatchEvent(new PopStateEvent("popstate"));
-						});
+						};
+						drawn.style.cursor = "pointer";
+						drawn.addEventListener("click", open);
+						Object.assign(drawn, { click: open });
 					}
 				}
 			}
