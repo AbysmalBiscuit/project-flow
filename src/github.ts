@@ -655,7 +655,7 @@ async function fetchChecks(
 		fetchImpl,
 		"list checks",
 	);
-	const parsed = z
+	return z
 		.object({
 			check_runs: z.array(
 				z.object({
@@ -665,12 +665,7 @@ async function fetchChecks(
 				}),
 			),
 		})
-		.parse(body);
-	return parsed.check_runs.map((run) => ({
-		name: run.name,
-		status: run.status,
-		conclusion: run.conclusion,
-	}));
+		.parse(body).check_runs;
 }
 
 function fetchComments(
