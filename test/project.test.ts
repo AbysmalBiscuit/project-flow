@@ -244,6 +244,8 @@ describe("GET /api/projects/:name", () => {
 				expect(epicMap?.definition).toContain(
 					"classDef inProgress fill:#f0c674",
 				);
+				expect(epicMap?.definition).toContain("classDef dropped fill:#9ca3af");
+				expect(epicMap?.definition).toContain("classDef backlog fill:#d0d7de");
 				expect(epicMap?.definition).toContain(
 					'Ship_20_the_20_map_3a_Ship_20_the_20_map["Ship the map"]:::theme',
 				);

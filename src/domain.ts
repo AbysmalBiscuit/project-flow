@@ -1536,7 +1536,7 @@ function externalNode(blocker: CrossProjectBlocker): DiagramNode {
 
 const stateFill: Record<TicketState, string> = {
 	done: "#8fbc8f",
-	dropped: "#c0c0c0",
+	dropped: "#9ca3af",
 	blocked: "#e6a0a0",
 	backlog: "#d0d7de",
 	inProgress: "#f0c674",
