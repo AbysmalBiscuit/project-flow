@@ -1561,12 +1561,20 @@ function askHeadline(body: string): string {
 
 function quotesAskText(body: string, askBody: string): boolean {
 	const headline = askHeadline(askBody);
-	if (headline === "") {
+	const text = askBody.replace(askMarker, "").trim();
+	if (headline === "" && text === "") {
 		return false;
 	}
 	return body.split("\n").some((line) => {
 		const quoted = line.trimStart();
-		return quoted.startsWith(">") && quoted.slice(1).trim() === headline;
+		if (!quoted.startsWith(">")) {
+			return false;
+		}
+		const content = quoted.slice(1).trim();
+		return (
+			(headline !== "" && content === headline) ||
+			(text !== "" && content.includes(text))
+		);
 	});
 }
 

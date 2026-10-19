@@ -1179,6 +1179,59 @@ describe("replies", () => {
 		}
 	});
 
+	test("a full-line quote of a one-line ask answers it", async () => {
+		const askText = "Which name?";
+		const comments: Record<string, unknown>[] = [
+			{
+				id: "comment-ask-full",
+				body: `${askText}\n\n${ask("pf-full")}`,
+				createdAt: "2026-08-18T12:00:00.000Z",
+				user: { name: "Ada" },
+				reactions: [],
+			},
+			{
+				id: "comment-quoted-full",
+				body: `> Senior, ${askText}\n\nUse the short name.`,
+				createdAt: "2026-08-18T13:00:00.000Z",
+				user: { name: "Lev" },
+				reactions: [],
+			},
+		];
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-full",
+					identifier: "PF-FULL",
+					title: "Needs a name",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: { nodes: comments },
+				},
+			],
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		try {
+			const items = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(items.find((item) => item.key === "PF-FULL")).toMatchObject({
+				answered: true,
+				acknowledged: false,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a blank ask, repeated spaces and a partial quote stay unanswered", async () => {
 		const sent: string[] = [];
 		const headline = "Which name should the panel use?";
