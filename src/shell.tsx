@@ -4,7 +4,7 @@ import { onAppEvent } from "./events.ts";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { frame, shell } from "./ui-styles.ts";
+import { frame, scroll, shell } from "./ui-styles.ts";
 
 export type PageView = {
 	id: string;
@@ -65,6 +65,51 @@ function openCount(body: unknown): number {
 	return Array.isArray(body) ? body.length : 0;
 }
 
+function placeHover(event: { currentTarget: HTMLElement }): void {
+	for (const marked of document.querySelectorAll("[data-hover]")) {
+		if (marked instanceof HTMLElement) {
+			delete marked.dataset.hover;
+		}
+	}
+	const header = event.currentTarget.closest("header");
+	const next = header?.querySelector("a[href='/inbox']");
+	if (!(next instanceof HTMLElement) || next === document.activeElement) {
+		return;
+	}
+	next.dataset.hover = "";
+	event.currentTarget.blur();
+}
+
+function Scrollbar() {
+	const [thumb, setThumb] = useState(0);
+	useEffect(() => {
+		const measure = () => {
+			const page = document.documentElement.scrollHeight;
+			const view = window.innerHeight;
+			setThumb(page <= view ? 0 : view / page);
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(document.body);
+		window.addEventListener("resize", measure);
+		return () => {
+			observer.disconnect();
+			window.removeEventListener("resize", measure);
+		};
+	}, []);
+	if (thumb === 0) {
+		return null;
+	}
+	return (
+		<div className={clsx(scroll.lane)} data-scrollbar="" aria-hidden="true">
+			<div
+				className={clsx(scroll.thumb)}
+				style={{ transform: `scaleY(${thumb})` }}
+			/>
+		</div>
+	);
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
 	const [count, setCount] = useState<number | null>(null);
 	const [theme, setTheme] = useState(pageTheme);
@@ -112,6 +157,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 							)}
 							href={link.href}
 							aria-current={current(link.href) ? "page" : undefined}
+							onClick={(event) => {
+								if (!current(link.href)) {
+									return;
+								}
+								event.preventDefault();
+								placeHover(event);
+							}}
 						>
 							{link.label}
 							{"count" in link && count !== null ? (
@@ -154,6 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					⚙
 				</a>
 			</header>
+			<Scrollbar />
 			{children}
 		</>
 	);
