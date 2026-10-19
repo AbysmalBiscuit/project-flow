@@ -1394,6 +1394,9 @@ export function projectCounts(
 		name,
 		tracker,
 		tickets,
+		active,
+		unlinkedPrs.map((item) => item.number),
+		expectedBots,
 		shownByKey,
 		{
 			labels: rules.labels,
@@ -1645,10 +1648,43 @@ function assignedToViewer(ticket: Ticket, viewers: Set<string>): boolean {
 	});
 }
 
+function needsYouItem(
+	project: string,
+	tracker: ProjectCounts["tracker"],
+	key: string,
+	title: string,
+	ask: OpenAsk | null,
+	comments: Comment[],
+	reason: NeedsYouItem["reason"],
+): NeedsYouItem {
+	const reply = ask === null ? null : replyAfter(comments, ask.index);
+	return {
+		project,
+		tracker,
+		key,
+		headline: ask?.headline ?? title,
+		reason: ask !== null ? "ask" : reason,
+		tags: ask?.tags ?? [],
+		answered: reply !== null,
+		acknowledged: (reply?.reactions ?? 0) > 0,
+	};
+}
+
+function pullComments(pull: PullRequest): Comment[] {
+	return pull.comments.map((comment) => ({
+		body: comment.body,
+		...(comment.createdAt === null ? {} : { createdAt: comment.createdAt }),
+		author: comment.login,
+	}));
+}
+
 export function needsYouItems(
 	project: string,
 	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
+	pulls: PullRequest[],
+	unlinkedNumbers: number[],
+	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
 	rules: NeedsYouRules,
 ): NeedsYouItem[] {
@@ -1670,18 +1706,63 @@ export function needsYouItems(
 		if (ask === null && !labelled && !awaiting) {
 			continue;
 		}
-		const reply =
-			ask === null ? null : replyAfter(ticket.comments ?? [], ask.index);
-		items.push({
-			project,
-			tracker,
-			key: ticket.key,
-			headline: ask?.headline ?? ticket.title,
-			reason: ask !== null ? "ask" : awaiting ? "awaitingMerge" : "label",
-			tags: ask?.tags ?? [],
-			answered: reply !== null,
-			acknowledged: (reply?.reactions ?? 0) > 0,
-		});
+		items.push(
+			needsYouItem(
+				project,
+				tracker,
+				ticket.key,
+				ticket.title,
+				ask,
+				ticket.comments ?? [],
+				awaiting ? "awaitingMerge" : "label",
+			),
+		);
+	}
+	for (const pull of pulls) {
+		if (pull.merged) {
+			continue;
+		}
+		const comments = pullComments(pull);
+		const ask = openAsk(comments, rules.noSenior);
+		if (ask === null) {
+			continue;
+		}
+		items.push(
+			needsYouItem(
+				project,
+				tracker,
+				`${pull.repo}#${pull.number}`,
+				pull.title,
+				ask,
+				comments,
+				"ask",
+			),
+		);
+	}
+	const unlinked = new Set(unlinkedNumbers);
+	const listed = new Set(items.map((item) => item.key));
+	for (const pull of pulls) {
+		if (pull.merged || pull.draft || !unlinked.has(pull.number)) {
+			continue;
+		}
+		const key = `${pull.repo}#${pull.number}`;
+		if (listed.has(key)) {
+			continue;
+		}
+		if (reviewState([pull], expectedBots, []).state !== "awaitingMerge") {
+			continue;
+		}
+		items.push(
+			needsYouItem(
+				project,
+				tracker,
+				key,
+				pull.title,
+				null,
+				[],
+				"awaitingMerge",
+			),
+		);
 	}
 	items.sort((left, right) => Number(left.answered) - Number(right.answered));
 	return items;
