@@ -723,7 +723,7 @@ export type ReviewEvidence = Pick<
 	"checks" | "comments" | "reviews" | "reactions"
 >;
 
-export function mergedReviewKey(repo: string, number: number): string {
+function mergedReviewKey(repo: string, number: number): string {
 	return `${repo}#${number}`;
 }
 
