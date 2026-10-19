@@ -17,17 +17,19 @@ export function pageTheme(): PageTheme {
 const lightClass = stylex.props(lightTheme).className ?? "";
 const darkClass = stylex.props(darkTheme).className ?? "";
 
+function classTokens(value: string): string[] {
+	return value.split(" ").filter((token) => token !== "");
+}
+
 export function applyPageTheme(theme: PageTheme): void {
 	const root = document.documentElement;
 	root.dataset.theme = theme;
-	for (const token of [lightClass, darkClass]) {
-		if (token !== "") {
-			root.classList.remove(token);
-		}
+	for (const token of classTokens(`${lightClass} ${darkClass}`)) {
+		root.classList.remove(token);
 	}
 	const selected = theme === "dark" ? darkClass : lightClass;
-	if (selected !== "") {
-		root.classList.add(selected);
+	for (const token of classTokens(selected)) {
+		root.classList.add(token);
 	}
 }
 
