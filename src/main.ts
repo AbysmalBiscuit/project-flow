@@ -393,9 +393,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
 			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
 			listTodos: io.listTodos ?? listDevkitTodos,
-			listCheckouts:
-				io.listCheckouts ??
-				(() => listDevkitCheckouts(configuration.checkoutRoots)),
+			listCheckouts: io.listCheckouts ?? listDevkitCheckouts,
 			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		listened = true;

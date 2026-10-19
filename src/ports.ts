@@ -36,7 +36,7 @@ export type LocalCheckout = CheckoutNames &
 		  }
 	);
 
-export type CheckoutSource = () => Promise<LocalCheckout[]>;
+export type CheckoutSource = (roots: string[]) => Promise<LocalCheckout[]>;
 
 export type FoundProject = {
 	key: string;

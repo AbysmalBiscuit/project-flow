@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import type { LocalCheckout } from "../src/ports.ts";
 import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
 
 const shown = "acme/shown";
@@ -68,6 +69,9 @@ function recorded(input: string | URL | Request, init?: RequestInit): Response {
 	}
 	if (match?.[1] === quiet) {
 		return page([issue(1, "2026-01-01T12:00:00.000Z")]);
+	}
+	if (match?.[1] === savedRepo) {
+		return page([issue(7, "2026-08-10T12:00:00.000Z")]);
 	}
 	if (
 		url.includes("/pulls?") ||
@@ -140,9 +144,24 @@ function recorded(input: string | URL | Request, init?: RequestInit): Response {
 
 const fetchImpl: Fetch = async (input, init) => recorded(input, init);
 
+const savedRoot = "/var/tmp/project-flow-saved-root";
+const savedRepo = "acme/from-saved-root";
+
+function checkoutFor(root: string): LocalCheckout {
+	return {
+		tracker: "github",
+		path: `${root}/acme/from-saved-root`,
+		repo: savedRepo,
+		originOwner: "acme",
+		hasTrackerConfig: true,
+		names: [],
+	};
+}
+
 async function withApp(
 	body: string,
 	check: (base: string, configPath: string) => Promise<void>,
+	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
 ): Promise<void> {
 	const { path, cleanup } = await tempConfig(body);
 	const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
@@ -166,6 +185,7 @@ async function withApp(
 				now: () => new Date("2026-08-18T12:00:00.000Z"),
 				stdout: (line) => startChecks(line),
 				waitForStop: checks,
+				...(listCheckouts === undefined ? {} : { listCheckouts }),
 			}),
 		);
 		expect(result.stderr).toBe("");
@@ -319,6 +339,47 @@ describe("settings", () => {
 			expect(named.error).toContain("activityWindowDays");
 			expect(await readFile(configPath, "utf8")).toBe(before);
 		});
+	});
+
+	test("a saved checkout root lists only the checkout that root returns", async () => {
+		const startupRoot = "/var/tmp/project-flow-startup-root";
+		const asked: string[][] = [];
+		await withApp(
+			JSON.stringify({ pinned: [], checkoutRoots: [startupRoot] }),
+			async (base) => {
+				const before = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(before.projects.map((project) => project.name)).not.toContain(
+					savedRepo,
+				);
+				expect(asked).toEqual([[startupRoot]]);
+
+				const current = await (
+					await fetch(new URL("/api/settings", base))
+				).json();
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						checkoutRoots: [savedRoot],
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const after = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(after.projects.map((project) => project.name)).toContain(
+					savedRepo,
+				);
+				expect(asked.at(-1)).toEqual([savedRoot]);
+			},
+			async (roots) => {
+				asked.push(roots);
+				return roots.includes(savedRoot) ? [checkoutFor(savedRoot)] : [];
+			},
+		);
 	});
 
 	test("a blank settings body names the configuration and leaves the file", async () => {

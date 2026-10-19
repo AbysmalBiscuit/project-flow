@@ -470,7 +470,10 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		return options.fallback;
 	}
 	const todoListing = (await options.listTodos?.()) ?? "";
-	const checkouts = (await options.listCheckouts?.().catch(() => [])) ?? [];
+	const checkouts =
+		(await options
+			.listCheckouts?.(configuration.checkoutRoots)
+			.catch(() => [])) ?? [];
 	const startedKeys = startedTodoKeys(
 		todoListing,
 		checkoutBasenames(checkouts),
