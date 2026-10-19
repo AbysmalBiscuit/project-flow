@@ -748,11 +748,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	const departed = departedNeedsYouIds(
 		before,
 		after,
-		new Set(
-			views.map((view) =>
-				view.row.key.includes("/") ? view.row.key : view.row.name,
-			),
-		),
+		new Set(views.map((view) => view.row.name)),
 	);
 	for (const id of departed) {
 		options.seenNotifications.delete(id);
