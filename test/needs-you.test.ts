@@ -1147,6 +1147,16 @@ describe("needs you", () => {
 						body: "A fix with no ticket.",
 						merged_at: null,
 					},
+					{
+						number: 91,
+						title: "Draft fix",
+						state: "open",
+						draft: true,
+						html_url: `https://github.com/${repo}/pull/91`,
+						head: { ref: "pr-91", sha: "sha-91" },
+						body: "   ",
+						merged_at: null,
+					},
 				]);
 			}
 			if (
@@ -1156,11 +1166,11 @@ describe("needs you", () => {
 				url.includes("/reviews?") ||
 				url.includes("/reactions?") ||
 				url.includes("/check-runs") ||
-				url.includes("/commits/sha-90")
+				url.includes("/commits/")
 			) {
 				return url.includes("/check-runs")
 					? Response.json({ check_runs: [] })
-					: url.includes("/commits/sha-90")
+					: url.includes("/commits/")
 						? Response.json({
 								commit: { committer: { date: "2026-10-01T00:00:00Z" } },
 							})
@@ -1213,8 +1223,8 @@ describe("needs you", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 			const { items, needsYou } = await checks;
-			expect(needsYou).toBe(1);
 			expect(items.map((item) => item.key)).toEqual([`${repo}#90`]);
+			expect(needsYou).toBe(1);
 			expect(items[0]).toMatchObject({
 				headline: "A fix with no ticket",
 				reason: "awaitingMerge",
@@ -1227,7 +1237,7 @@ describe("needs you", () => {
 		}
 	});
 
-	test("omits a draft unlinked PR and a senior-only PR ask, and keeps an answered PR ask", async () => {
+	test("omits a senior-only PR ask and keeps an answered PR ask", async () => {
 		const repo = "acme/widget";
 		const question = "Which bot should review this?";
 		const recorded: Fetch = async (input, init) => {
@@ -1256,16 +1266,6 @@ describe("needs you", () => {
 				`https://api.github.com/repos/${repo}/pulls?state=open&per_page=100&page=1`
 			) {
 				return page([
-					{
-						number: 91,
-						title: "Draft fix",
-						state: "open",
-						draft: true,
-						html_url: `https://github.com/${repo}/pull/91`,
-						head: { ref: "pr-91", sha: "sha-91" },
-						body: "   ",
-						merged_at: null,
-					},
 					{
 						number: 92,
 						title: "Senior ask",
