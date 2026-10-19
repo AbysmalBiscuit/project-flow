@@ -2322,7 +2322,7 @@ describe("review cycle", () => {
 				"Ticket 51",
 			),
 		);
-		const pmBot = await overview({
+		const noPmBot = await overview({
 			issues: [{ ...issue(51), comments: issue51Comments.length }],
 			pulls: [pull(52, 51)],
 			commentsByIssue: { 51: [openProgress, report] },
@@ -2345,7 +2345,7 @@ describe("review cycle", () => {
 			},
 			mergedPulls: [mergedPull()],
 		});
-		expect(pmBot).toEqual({
+		expect(noPmBot).toEqual({
 			body: card(
 				"inReview",
 				{
