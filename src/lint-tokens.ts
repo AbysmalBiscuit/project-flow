@@ -34,11 +34,7 @@ const files = new Glob("**/*.css").scan({
 const failures: string[] = [];
 
 for await (const name of files) {
-	if (
-		name.startsWith("node_modules/") ||
-		name.endsWith("/tokens.css") ||
-		name === "tokens.css"
-	) {
+	if (name.startsWith("node_modules/") || name === "src/tokens.css") {
 		continue;
 	}
 	const text = await Bun.file(`${root}/${name}`).text();
