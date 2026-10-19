@@ -86,7 +86,7 @@ An open ticket in a review that has begun and has not finished. The tracker stat
 _Avoid_: Under review, PR open
 
 **Awaiting merge**:
-An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. Auto-merge is off, or auto-merge is set to ask.
+An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. Auto-merge is off, or auto-merge is set to ask. A ticket stays In review until its PR merges when its reviews are done and auto-merge is on.
 _Avoid_: Ready, pending merge, mergeable
 
 **Backlog**:
