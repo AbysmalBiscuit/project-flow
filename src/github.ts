@@ -732,43 +732,69 @@ function projectBlockedByRefs(
 	return refs;
 }
 
-async function blockedByPages(
+async function connectionPages<Node>(
 	token: string,
 	fetchImpl: Fetch,
 	issueId: string,
 	start: string,
-): Promise<z.infer<typeof projectBlockedByNode>[]> {
-	const nodes: z.infer<typeof projectBlockedByNode>[] = [];
+	query: string,
+	label: string,
+	read: (body: unknown) => { nodes: Node[]; pageInfo: z.infer<typeof pageInfo> },
+): Promise<Node[]> {
+	const nodes: Node[] = [];
 	let after: string | null = start;
 	do {
 		const response = await fetchImpl("https://api.github.com/graphql", {
 			method: "POST",
 			headers: githubHeaders(token),
 			body: JSON.stringify({
-				query: blockedByQuery,
+				query,
 				variables: { id: issueId, after },
 			}),
 		});
 		if (!response.ok) {
 			throw new Error(
-				`GitHub list blockers failed (HTTP ${response.status}): ${issueId}`,
+				`GitHub ${label} failed (HTTP ${response.status}): ${issueId}`,
 			);
 		}
-		const page = blockedByPage.parse(await response.json());
-		const error = page.errors?.[0];
+		const body: unknown = await response.json();
+		const errors = z
+			.object({ errors: z.array(z.object({ message: z.string() })).optional() })
+			.parse(body).errors;
+		const error = errors?.[0];
 		if (error !== undefined) {
-			throw new Error(`GitHub list blockers failed: ${error.message}`);
+			throw new Error(`GitHub ${label} failed: ${error.message}`);
 		}
-		const connection = page.data.node?.blockedBy;
-		if (connection === undefined) {
-			throw new Error(`GitHub list blockers failed: ${issueId}`);
-		}
+		const connection = read(body);
 		nodes.push(...connection.nodes);
 		after = connection.pageInfo.hasNextPage
 			? connection.pageInfo.endCursor
 			: null;
 	} while (after !== null);
 	return nodes;
+}
+
+function blockedByPages(
+	token: string,
+	fetchImpl: Fetch,
+	issueId: string,
+	start: string,
+): Promise<z.infer<typeof projectBlockedByNode>[]> {
+	return connectionPages(
+		token,
+		fetchImpl,
+		issueId,
+		start,
+		blockedByQuery,
+		"list blockers",
+		(body) => {
+			const connection = blockedByPage.parse(body).data.node?.blockedBy;
+			if (connection === undefined) {
+				throw new Error(`GitHub list blockers failed: ${issueId}`);
+			}
+			return connection;
+		},
+	);
 }
 
 async function listProjectTickets(
@@ -834,43 +860,28 @@ async function listProjectTickets(
 	return tickets;
 }
 
-async function closingPullPages(
+function closingPullPages(
 	token: string,
 	fetchImpl: Fetch,
 	issueId: string,
 	start: string,
 ): Promise<z.infer<typeof closingPullNode>[]> {
-	const nodes: z.infer<typeof closingPullNode>[] = [];
-	let after: string | null = start;
-	do {
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: closingPullsQuery,
-				variables: { id: issueId, after },
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`GitHub list closing pulls failed (HTTP ${response.status}): ${issueId}`,
-			);
-		}
-		const page = closingPulls.parse(await response.json());
-		const error = page.errors?.[0];
-		if (error !== undefined) {
-			throw new Error(`GitHub list closing pulls failed: ${error.message}`);
-		}
-		const connection = page.data.node?.closedByPullRequestsReferences;
-		if (connection === undefined) {
-			throw new Error(`GitHub list closing pulls failed: ${issueId}`);
-		}
-		nodes.push(...connection.nodes);
-		after = connection.pageInfo.hasNextPage
-			? connection.pageInfo.endCursor
-			: null;
-	} while (after !== null);
-	return nodes;
+	return connectionPages(
+		token,
+		fetchImpl,
+		issueId,
+		start,
+		closingPullsQuery,
+		"list closing pulls",
+		(body) => {
+			const connection =
+				closingPulls.parse(body).data.node?.closedByPullRequestsReferences;
+			if (connection === undefined) {
+				throw new Error(`GitHub list closing pulls failed: ${issueId}`);
+			}
+			return connection;
+		},
+	);
 }
 
 async function listProjectPulls(
