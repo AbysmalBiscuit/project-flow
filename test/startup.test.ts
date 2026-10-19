@@ -36,12 +36,32 @@ function recordedFetch(userStatus: number): Fetch {
 		if (
 			url.includes("/issues?") ||
 			url.includes("/pulls?") ||
-			url.includes("/branches?")
+			url.includes("/branches?") ||
+			url.includes("/check-runs") ||
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/reactions") ||
+			/\/pulls\/\d+$/.test(url)
 		) {
-			return new Response("[]", {
-				status: 200,
-				headers: { "content-type": "application/json" },
-			});
+			return new Response(
+				url.includes("/check-runs") ? '{"check_runs":[]}' : "[]",
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		}
+		if (url === "https://api.github.com/graphql") {
+			return new Response(
+				JSON.stringify({
+					data: {
+						repository: {
+							pullRequest: { closingIssuesReferences: { nodes: [] } },
+						},
+					},
+				}),
+				{ status: 200 },
+			);
 		}
 		if (url === "https://api.linear.app/graphql") {
 			return new Response(JSON.stringify({ data: { viewer: { id: "lev" } } }), {

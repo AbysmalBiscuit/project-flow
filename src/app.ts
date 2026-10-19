@@ -9,6 +9,7 @@ import type {
 import {
 	checkoutBasenames,
 	checkoutNamesProject,
+	expectedBotsByRepo,
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
@@ -84,7 +85,7 @@ function matchesRef(
 	return project.owner === ref.owner && project.number === ref.project;
 }
 
-function counted(store: Store) {
+function counted(store: Store, configuration: Configuration) {
 	const rows = store.readTickets();
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
@@ -102,6 +103,7 @@ function counted(store: Store) {
 				row.branches,
 				row.startedKeys,
 				all,
+				expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 				{
 					fetchedAt: goodPoll?.toISOString() ?? null,
 					error: store.projectError(row.key),
@@ -111,8 +113,8 @@ function counted(store: Store) {
 	});
 }
 
-function overview(store: Store): Overview {
-	const projects = counted(store).map((item) => item.counts);
+function overview(store: Store, configuration: Configuration): Overview {
+	const projects = counted(store, configuration).map((item) => item.counts);
 	const goodPolls = projects.flatMap((project) => {
 		const at = store.lastGoodPollAt(project.name);
 		return at === null ? [] : [at.toISOString()];
@@ -126,8 +128,12 @@ function overview(store: Store): Overview {
 	};
 }
 
-function reportFor(store: Store, name: string): ProjectReport | null {
-	const match = counted(store).find(
+function reportFor(
+	store: Store,
+	configuration: Configuration,
+	name: string,
+): ProjectReport | null {
+	const match = counted(store, configuration).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
@@ -190,13 +196,13 @@ type PollOptions = {
 	fetch: Fetch;
 	listTodos?: TodoSource | undefined;
 	listCheckouts?: CheckoutSource | undefined;
-	fallback: Configuration | null;
+	fallback: Configuration;
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
 };
 
-async function poll(options: PollOptions): Promise<Configuration | null> {
+async function poll(options: PollOptions): Promise<Configuration> {
 	const polledAt = options.clock.now();
 	let configuration: Configuration;
 	try {
@@ -206,7 +212,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		options.store.recordFetchError(message);
 		if (options.store.readTickets().length > 0) {
 			options.notifier.publish({
-				overview: overview(options.store),
+				overview: overview(options.store, options.fallback),
 			});
 		}
 		return options.fallback;
@@ -434,7 +440,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		options.store.recordFetchError(failed);
 	}
 	options.notifier.publish({
-		overview: overview(options.store),
+		overview: overview(options.store, configuration),
 	});
 	return configuration;
 }
@@ -506,11 +512,8 @@ export async function start(options: StartOptions): Promise<Running> {
 		}
 		polling = (async () => {
 			try {
-				const next = await poll(pollOptions);
-				if (next !== null) {
-					configuration = next;
-					pollOptions.fallback = configuration;
-				}
+				configuration = await poll(pollOptions);
+				pollOptions.fallback = configuration;
 			} catch (error) {
 				if (stopped) {
 					return;
@@ -520,7 +523,9 @@ export async function start(options: StartOptions): Promise<Running> {
 				if (opened.store.readTickets().length === 0) {
 					throw error;
 				}
-				notifier.publish({ overview: overview(opened.store) });
+				notifier.publish({
+					overview: overview(opened.store, configuration),
+				});
 			}
 		})().finally(() => {
 			polling = null;
@@ -564,7 +569,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/projects/*": page,
 			"/api/overview": {
 				GET: () => {
-					const body = Response.json(overview(opened.store));
+					const body = Response.json(overview(opened.store, configuration));
 					releaseLists();
 					return body;
 				},
@@ -572,7 +577,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/projects/:name": {
 				GET: (request) => {
 					const name = request.params.name;
-					const report = reportFor(opened.store, name);
+					const report = reportFor(opened.store, configuration, name);
 					if (report === null) {
 						return Response.json(
 							{ error: "project not found" },

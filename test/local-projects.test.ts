@@ -219,6 +219,9 @@ const card = {
 	blocked: 0,
 	backlog: 1,
 	inProgress: 0,
+	inReview: 0,
+	awaitingMerge: 0,
+	tags: [],
 	unlinkedPrs: [],
 	fetchedAt: "2026-10-18T12:00:00.000Z",
 	error: null,
@@ -398,6 +401,9 @@ describe("local projects", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [
 						{
@@ -511,6 +517,9 @@ describe("local projects", () => {
 					blocked: 0,
 					backlog: 1,
 					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					tags: [],
 					unlinkedPrs: [],
 					tickets: [
 						{
@@ -636,6 +645,9 @@ describe("local projects", () => {
 						blocked: 0,
 						backlog: 1,
 						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						tags: [],
 						unlinkedPrs: [],
 						tickets: [
 							{
@@ -808,6 +820,9 @@ describe("local projects", () => {
 								blocked: 0,
 								backlog: 1,
 								inProgress: 0,
+								inReview: 0,
+								awaitingMerge: 0,
+								tags: [],
 								unlinkedPrs: [],
 								tickets: [
 									{
