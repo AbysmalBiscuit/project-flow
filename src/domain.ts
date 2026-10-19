@@ -1283,6 +1283,7 @@ function shownState(
 
 export function projectCounts(
 	name: string,
+	key: string,
 	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
 	pulls: PullRequest[],
@@ -1291,12 +1292,14 @@ export function projectCounts(
 	all: { project: string; tickets: Ticket[] }[],
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
-	rules: NeedsYouRules = {
-		noSenior: tracker === "linear",
-		labels: ["needs-human", "needs-engineer"],
-		viewerLogins: ["lev", "AbysmalBiscuit"],
+	rules: Omit<NeedsYouRules, "noSenior"> & {
+		noSenior: Record<string, boolean>;
 	},
-): ProjectCounts {
+): {
+	counts: ProjectCounts;
+	needsYou: NeedsYouItem[];
+	report: ProjectReport;
+} {
 	const index = indexTickets(all.flatMap((group) => group.tickets));
 	const parsed = parseBodies(all);
 	const counts = {
@@ -1382,7 +1385,7 @@ export function projectCounts(
 			title: pull.title,
 			url: pull.url,
 		}));
-	const needsYou = needsYouItems(
+	const needsYouItemsForProject = needsYouItems(
 		name,
 		tracker,
 		tickets,
@@ -1391,8 +1394,12 @@ export function projectCounts(
 		startedKeys,
 		all,
 		expectedBots,
-		rules,
-	).length;
+		{
+			labels: rules.labels,
+			viewerLogins: rules.viewerLogins,
+			noSenior: projectHasNoSenior(rules.noSenior, key, tracker),
+		},
+	);
 	const unlinkedReview = reviewState(
 		active.filter((pull) => !linkedNumbers.has(pull.number)),
 		expectedBots,
@@ -1401,17 +1408,23 @@ export function projectCounts(
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
 	}
-	return {
+	const project: ProjectCounts = {
 		name,
 		tracker,
 		...counts,
 		unlinkedPrs,
 		tickets: views,
 		crossProjectBlockers: [...cross.values()],
-		needsYou,
+		needsYou: needsYouItemsForProject.length,
 		progress: progressRatio(counts),
 		...staleView(status, status.fetchedAt),
 		tags: [...tags],
+	};
+	const report = projectReport(project, tickets, needsYouItemsForProject);
+	return {
+		counts: project,
+		needsYou: needsYouItemsForProject,
+		report,
 	};
 }
 
@@ -1445,6 +1458,17 @@ export type NeedsYouRules = {
 	labels: string[];
 	viewerLogins: string[];
 };
+
+function projectHasNoSenior(
+	noSenior: Record<string, boolean>,
+	key: string,
+	tracker: "github" | "linear",
+): boolean {
+	const match = Object.entries(noSenior).find(
+		([name]) => name.toLowerCase() === key.toLowerCase(),
+	);
+	return match?.[1] ?? tracker === "linear";
+}
 
 function askId(body: string): string | null {
 	return body.match(askMarker)?.[1] ?? null;
@@ -2082,7 +2106,11 @@ export function projectReport(
 		{ id: "featureMap", title: "Feature map", diagrams: maps },
 		{ id: "inFlight", title: "In flight", items: inFlight },
 		{ id: "blockingChains", title: "Blocking chains", diagrams: chains },
-		{ id: "needsYou", title: "Needs you", needsYou: needs },
+		{
+			id: "needsYou",
+			title: "Needs you",
+			needsYou: needs,
+		},
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
 	return {

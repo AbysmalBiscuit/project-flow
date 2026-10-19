@@ -1,7 +1,6 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type {
-	NeedsYouItem,
 	Overview,
 	ProjectPoll,
 	ProjectReport,
@@ -14,9 +13,7 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
-	needsYouItems,
 	projectCounts,
-	projectReport,
 	projectSnapshots,
 	reconcilePoll,
 	staleView,
@@ -87,7 +84,15 @@ function matchesRef(
 	return project.owner === ref.owner && project.number === ref.project;
 }
 
-function counted(store: Store, configuration: Configuration) {
+function needsYouRules(configuration: Configuration) {
+	return {
+		noSenior: configuration.noSenior,
+		labels: configuration.needsYouLabels,
+		viewerLogins: configuration.viewerLogins,
+	};
+}
+
+function projectViews(store: Store, configuration: Configuration) {
 	const rows = store.readTickets();
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
@@ -95,55 +100,9 @@ function counted(store: Store, configuration: Configuration) {
 	}));
 	return rows.map((row) => {
 		const goodPoll = store.lastGoodPollAt(row.key);
-		return {
-			row,
-			counts: projectCounts(
-				row.name,
-				row.tracker,
-				row.tickets,
-				row.pulls,
-				row.branches,
-				row.startedKeys,
-				all,
-				expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
-				{
-					fetchedAt: goodPoll?.toISOString() ?? null,
-					error: store.projectError(row.key),
-				},
-				{
-					noSenior: noSeniorFor(configuration, row.key, row.tracker),
-					labels: configuration.needsYouLabels,
-					viewerLogins: configuration.viewerLogins,
-				},
-			),
-		};
-	});
-}
-
-function noSeniorFor(
-	configuration: Configuration,
-	key: string,
-	tracker: "github" | "linear",
-): boolean {
-	if (
-		configuration.noSenior.some(
-			(name) => name.toLowerCase() === key.toLowerCase(),
-		)
-	) {
-		return true;
-	}
-	return tracker === "linear" && configuration.noSenior.length === 0;
-}
-
-function needsYou(store: Store, configuration: Configuration): NeedsYouItem[] {
-	const rows = store.readTickets();
-	const all = rows.map((row) => ({
-		project: row.key.includes("/") ? row.key : row.name,
-		tickets: row.tickets,
-	}));
-	return rows.flatMap((row) =>
-		needsYouItems(
+		const counted = projectCounts(
 			row.name,
+			row.key,
 			row.tracker,
 			row.tickets,
 			row.pulls,
@@ -152,16 +111,24 @@ function needsYou(store: Store, configuration: Configuration): NeedsYouItem[] {
 			all,
 			expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 			{
-				noSenior: noSeniorFor(configuration, row.key, row.tracker),
-				labels: configuration.needsYouLabels,
-				viewerLogins: configuration.viewerLogins,
+				fetchedAt: goodPoll?.toISOString() ?? null,
+				error: store.projectError(row.key),
 			},
-		),
-	);
+			needsYouRules(configuration),
+		);
+		return {
+			row,
+			items: counted.needsYou,
+			counts: counted.counts,
+			report: counted.report,
+		};
+	});
 }
 
 function overview(store: Store, configuration: Configuration): Overview {
-	const projects = counted(store, configuration).map((item) => item.counts);
+	const projects = projectViews(store, configuration).map(
+		(item) => item.counts,
+	);
 	const goodPolls = projects.flatMap((project) => {
 		const at = store.lastGoodPollAt(project.name);
 		return at === null ? [] : [at.toISOString()];
@@ -180,16 +147,13 @@ function reportFor(
 	configuration: Configuration,
 	name: string,
 ): ProjectReport | null {
-	const match = counted(store, configuration).find(
+	const match = projectViews(store, configuration).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
 		return null;
 	}
-	const items = needsYou(store, configuration).filter(
-		(item) => item.project.toLowerCase() === match.counts.name.toLowerCase(),
-	);
-	return projectReport(match.counts, match.row.tickets, items);
+	return match.report;
 }
 
 function mergeFound(
@@ -626,7 +590,12 @@ export async function start(options: StartOptions): Promise<Running> {
 				},
 			},
 			"/api/needs-you": {
-				GET: () => Response.json(needsYou(opened.store, configuration)),
+				GET: () =>
+					Response.json(
+						projectViews(opened.store, configuration).flatMap(
+							(item) => item.items,
+						),
+					),
 			},
 			"/api/projects/:name": {
 				GET: (request) => {
