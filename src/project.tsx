@@ -10,6 +10,9 @@ import type {
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
+import styles from "./project.module.css";
+import shell from "./shell.module.css";
+import { mermaidTheme, watchPageTheme } from "./theme.ts";
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -54,7 +57,9 @@ function TicketLine({
 	const key = ticket.key;
 	return (
 		<li
-			className={marked ? "ticket highlighted" : "ticket"}
+			className={
+				marked ? `${styles.ticket} ${styles.highlighted}` : styles.ticket
+			}
 			data-ticket={key ?? ""}
 		>
 			{key === null ? (
@@ -64,7 +69,7 @@ function TicketLine({
 			) : (
 				<button
 					type="button"
-					className="ticket-open"
+					className={styles.ticketOpen}
 					onClick={() => onOpen(key)}
 				>
 					{key} {ticket.title} {ticket.state}
@@ -86,7 +91,11 @@ function NodeLine({
 		return (
 			<li>
 				<a
-					className={marked ? "dashed-node highlighted" : "dashed-node"}
+					className={
+						marked
+							? `${styles.dashedNode} ${styles.highlighted}`
+							: styles.dashedNode
+					}
 					data-node={node.id}
 					href={openPath(node.project, node.ticket)}
 					onClick={(event) => {
@@ -101,7 +110,7 @@ function NodeLine({
 	}
 	return (
 		<li
-			className={marked ? "highlighted" : undefined}
+			className={marked ? styles.highlighted : undefined}
 			data-node={node.id}
 			data-ticket={node.ticket ?? ""}
 		>
@@ -110,30 +119,39 @@ function NodeLine({
 	);
 }
 
-const stateLabels: Record<TicketState, string> = {
-	done: "Done",
-	dropped: "Dropped",
-	blocked: "Blocked",
-	inProgress: "In progress",
-	inReview: "In review",
-	awaitingMerge: "Awaiting merge",
-	backlog: "Backlog",
-};
+const stateSwatches: { kind: TicketState; label: string; swatch: string }[] = [
+	{ kind: "done", label: "Done", swatch: styles.done },
+	{ kind: "dropped", label: "Dropped", swatch: styles.dropped },
+	{ kind: "blocked", label: "Blocked", swatch: styles.blocked },
+	{ kind: "inProgress", label: "In progress", swatch: styles.inProgress },
+	{ kind: "inReview", label: "In review", swatch: styles.inReview },
+	{
+		kind: "awaitingMerge",
+		label: "Awaiting merge",
+		swatch: styles.awaitingMerge,
+	},
+	{ kind: "backlog", label: "Backlog", swatch: styles.backlog },
+];
 
 function StateLegend({ theme }: { theme: boolean }) {
-	const kinds = [
-		...Object.entries(stateLabels),
-		...(theme ? [["theme", "Theme"]] : []),
-		["dashed", "Cross-project blocker"],
-	];
 	return (
-		<ul className="state-legend" aria-label="Diagram key">
-			{kinds.map(([kind, label]) => (
-				<li key={kind}>
-					<span className={`swatch ${kind}`} />
-					{label}
+		<ul className={styles.legend} aria-label="Diagram key">
+			{stateSwatches.map((item) => (
+				<li key={item.kind} className={styles.legendItem}>
+					<span className={`${styles.swatch} ${item.swatch}`} />
+					{item.label}
 				</li>
 			))}
+			{theme ? (
+				<li className={styles.legendItem}>
+					<span className={`${styles.swatch} ${styles.theme}`} />
+					Theme
+				</li>
+			) : null}
+			<li className={styles.legendItem}>
+				<span className={`${styles.swatch} ${styles.dashed}`} />
+				Cross-project blocker
+			</li>
 		</ul>
 	);
 }
@@ -146,12 +164,12 @@ function DiagramView({
 	ticket: string | null;
 }) {
 	return (
-		<figure className="diagram" data-diagram={diagram.id}>
+		<figure className={styles.diagram} data-diagram={diagram.id}>
 			<figcaption>{diagram.title}</figcaption>
 			<pre key={diagram.definition} className="mermaid">
 				{diagram.definition}
 			</pre>
-			<ul className="nodes">
+			<ul className={styles.nodes}>
 				{diagram.nodes.map((node) => (
 					<NodeLine key={node.id} node={node} ticket={ticket} />
 				))}
@@ -170,14 +188,21 @@ function Report({
 	onOpen: (key: string) => void;
 }) {
 	return (
-		<main className="project-page" data-project={report.name}>
-			<p>
-				<a className="back" href="/">
+		<main className={shell.page} data-project={report.name}>
+			<p className={shell.nav}>
+				<a className={shell.link} href="/">
 					Projects
 				</a>
+				<button
+					type="button"
+					className={`${shell.button} ${shell.theme}`}
+					data-theme-toggle=""
+				>
+					Dark mode
+				</button>
 			</p>
-			<h1>{report.name}</h1>
-			<nav className="report-nav" aria-label="Report sections">
+			<h1 className={shell.title}>{report.name}</h1>
+			<nav className={styles.reportNav} aria-label="Report sections">
 				{report.sections.map((section) => (
 					<a key={section.id} href={`#${section.id}`}>
 						{section.title}
@@ -185,8 +210,8 @@ function Report({
 				))}
 			</nav>
 			{report.sections.map((section) => (
-				<section key={section.id} className="report-section" id={section.id}>
-					<h2>{section.title}</h2>
+				<section key={section.id} className={styles.section} id={section.id}>
+					<h2 className={shell.heading}>{section.title}</h2>
 					{section.id === "featureMap" ? (
 						<StateLegend
 							theme={
@@ -197,10 +222,10 @@ function Report({
 						/>
 					) : null}
 					{section.text === undefined ? null : (
-						<p className="summary">{section.text}</p>
+						<p className={styles.summary}>{section.text}</p>
 					)}
 					{section.items === undefined ? null : (
-						<ul>
+						<ul className={styles.tickets}>
 							{section.items.map((item) => (
 								<TicketLine
 									key={`${item.key ?? ""} ${item.title}`}
@@ -212,7 +237,7 @@ function Report({
 						</ul>
 					)}
 					{section.needsYou === undefined ? null : (
-						<ul className="needs-you-list">
+						<ul>
 							{section.needsYou.map((item) => (
 								<NeedsItem key={item.key} item={item} onOpen={onOpen} />
 							))}
@@ -239,6 +264,7 @@ function Page() {
 	const [open, setOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
+	const [diagramTheme, setDiagramTheme] = useState(mermaidTheme);
 	useEffect(() => {
 		const onPop = () => {
 			setName(projectName());
@@ -286,7 +312,11 @@ function Page() {
 		if (report === null) {
 			return;
 		}
-		mermaid.initialize({ startOnLoad: false, securityLevel: "strict" });
+		mermaid.initialize({
+			startOnLoad: false,
+			securityLevel: "strict",
+			theme: diagramTheme,
+		});
 		const nodes = document.querySelectorAll<HTMLElement>(".mermaid");
 		if (nodes.length === 0) {
 			return;
@@ -334,7 +364,8 @@ function Page() {
 				drawn.removeEventListener("click", open);
 			}
 		};
-	}, [report]);
+	}, [diagramTheme, report]);
+	useEffect(() => watchPageTheme(() => setDiagramTheme(mermaidTheme())), []);
 	if (missing) {
 		return <main>Project not found</main>;
 	}

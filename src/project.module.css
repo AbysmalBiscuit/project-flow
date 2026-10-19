@@ -1,0 +1,146 @@
+.section {
+	margin-top: var(--space-xl);
+	padding-top: var(--space-md);
+	border-top: var(--line-hairline) solid var(--colour-line);
+}
+
+.summary {
+	max-width: var(--page-width);
+	margin: 0;
+	font-size: var(--type-heading);
+}
+
+.legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-md) var(--space-lg);
+	margin: 0 0 var(--space-md);
+	padding: 0;
+	list-style: none;
+}
+
+.legendItem {
+	display: flex;
+	align-items: center;
+	gap: var(--space-xs);
+	font-size: var(--type-small);
+}
+
+.swatch {
+	width: var(--swatch-size);
+	height: var(--swatch-size);
+	border: var(--line-hairline) solid var(--colour-line-strong);
+	border-radius: var(--radius-sm);
+	display: inline-block;
+}
+
+.done {
+	background: var(--colour-done);
+}
+
+.dropped {
+	background: var(--colour-dropped);
+}
+
+.blocked {
+	background: var(--colour-blocked);
+}
+
+.backlog {
+	background: var(--colour-backlog);
+}
+
+.inProgress {
+	background: var(--colour-in-progress);
+}
+
+.inReview {
+	background: var(--colour-in-review);
+}
+
+.awaitingMerge {
+	background: var(--colour-awaiting-merge);
+}
+
+.theme {
+	background: var(--colour-theme);
+	border-color: var(--colour-accent);
+}
+
+.dashed {
+	background: var(--colour-dashed);
+	border-style: dashed;
+}
+
+.tickets {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.ticket {
+	padding: var(--space-xs) 0;
+	border-bottom: var(--line-hairline) solid var(--colour-line);
+}
+
+.ticketOpen {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ticketOpen:hover {
+	color: var(--colour-link);
+}
+
+.highlighted {
+	outline: var(--line-focus) solid var(--colour-accent);
+	outline-offset: var(--space-2xs);
+}
+
+.diagram {
+	margin: var(--space-lg) 0;
+	padding: var(--space-md);
+	border: var(--line-hairline) solid var(--colour-line);
+	border-radius: var(--radius-md);
+	background: var(--colour-surface);
+}
+
+.diagram :global(.mermaid svg) {
+	max-width: var(--diagram-width);
+}
+
+.nodes {
+	margin: var(--space-md) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.dashedNode {
+	display: inline-block;
+	padding: var(--space-2xs) var(--space-sm);
+	border: var(--line-hairline) dashed var(--colour-line-strong);
+	border-radius: var(--radius-sm);
+	color: var(--colour-link);
+}
+
+.reportNav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-md) var(--space-lg);
+	padding: var(--space-sm) 0;
+	border-bottom: var(--line-hairline) solid var(--colour-line);
+}
+
+.reportNav a {
+	color: var(--colour-link);
+	text-decoration: none;
+}
+
+.reportNav a:hover {
+	text-decoration: underline;
+}
