@@ -296,73 +296,38 @@ describe("startup", () => {
 		}
 	});
 
-	test("a Linear-only configuration with a rejected gh token still starts", async () => {
+	test("a Linear-only configuration with a rejected gh token exits 1", async () => {
 		const linearProject = "widget-launch-0d42ae5d46d0";
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
-		const fetchImpl = linearFake({
-			project: {
-				id: "project-1",
-				name: "Widget launch",
-				slugId: linearProject,
-			},
-			issues: [
-				{
-					identifier: "WID-8",
-					title: "Linear ticket 8",
-					updatedAt: "2026-10-01T00:00:00.000Z",
-					state: { type: "unstarted" },
-				},
-			],
-			github: async (input) => {
-				const url = urlOf(input);
-				if (url === "https://api.github.com/user") {
-					return new Response(JSON.stringify({ message: "Bad credentials" }), {
-						status: 401,
-					});
-				}
-				return new Response("not recorded", { status: 404 });
-			},
-		});
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<Overview>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) =>
-						resolve((await response.json()) as Overview),
-					)
-					.catch(reject);
-			};
-		});
 		try {
 			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				["--config", path],
 				testIo({
 					env: { LINEAR_API_KEY: "recorded-linear-key" },
-					fetch: fetchImpl,
+					fetch: linearFake({
+						github: async (input) => {
+							const url = urlOf(input);
+							if (url === "https://api.github.com/user") {
+								return new Response(
+									JSON.stringify({ message: "Bad credentials" }),
+									{ status: 401 },
+								);
+							}
+							throw new Error(`unexpected GitHub call: ${url}`);
+						},
+					}),
 					readGhToken: async () => "rejected-gh-token",
-					databasePath: join(root, "project-flow.sqlite"),
-					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks.then(() => undefined),
 				}),
 			);
-			expect(result.stderr).toBe("");
-			expect(result.exitCode).toBe(0);
-			expect(result.listened).toBe(true);
-			const body = await checks;
-			expect(body.projects[0]).toMatchObject({
-				tracker: "linear",
-				error: null,
-				tickets: [{ key: "WID-8", state: "backlog" }],
-			});
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toBe(rejectedToken);
+			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
-			await rm(root, { recursive: true, force: true });
 		}
 	});
 
@@ -400,6 +365,36 @@ describe("startup", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("an empty configuration with a rejected GITHUB_TOKEN exits 1", async () => {
+		const { path, cleanup } = await tempConfig("{}");
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { GITHUB_TOKEN: "rejected-token" },
+					fetch: async (input) => {
+						const url = urlOf(input);
+						if (url === "https://api.github.com/user") {
+							return new Response(
+								JSON.stringify({ message: "Bad credentials" }),
+								{ status: 401 },
+							);
+						}
+						throw new Error(`unexpected tracker call: ${url}`);
+					},
+					readGhToken: async () => {
+						throw new Error("gh must not run when GITHUB_TOKEN is set");
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toBe(rejectedToken);
+			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
 		}

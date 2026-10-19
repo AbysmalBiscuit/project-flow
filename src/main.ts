@@ -354,10 +354,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const envToken =
 			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
 		const token = await resolveToken(io, envToken);
-		const checksGitHub = configuration.pinned.some(
-			(pin) => pin.tracker === "github",
-		);
-		if (checksGitHub && token !== null) {
+		if (token !== null) {
 			const user = await checkToken(token, io.fetch);
 			if (user.status === 401) {
 				writeErr(rejectedToken);
