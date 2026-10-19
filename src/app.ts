@@ -710,6 +710,8 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			options.lastFullPollAt.set(key, polledAt.getTime());
 		}
 	}
+	options.polling = false;
+	publishPoll(options, configuration, outcomes, fullKeys, failed);
 	const after = attentionFor(options.store, configuration, options.viewers);
 	const firstGood = new Set(
 		listed.flatMap((project) =>
@@ -720,7 +722,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	for (const id of seeded) {
 		options.seenNotifications.add(id);
 	}
-	options.polling = false;
 	const notifications = options.primed
 		? notificationsFor(
 				before,
@@ -745,7 +746,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
-	publishPoll(options, configuration, outcomes, fullKeys, failed);
 	options.notifier.publish({
 		overview: runningOverview(options, configuration),
 		notifications,
@@ -766,11 +766,6 @@ function publishPoll(
 		fullKeys,
 	);
 	options.store.replaceTickets(reconciled.rows);
-	if (reconciled.globalError !== null) {
-		options.store.recordFetchError(reconciled.globalError);
-	} else if (failed !== null) {
-		options.store.recordFetchError(failed);
-	}
 	for (const projectError of reconciled.projectErrors) {
 		options.store.recordProjectError(projectError.key, projectError.error);
 	}
@@ -781,6 +776,7 @@ function publishPoll(
 	}
 	options.notifier.publish({
 		overview: runningOverview(options, configuration),
+		notifications: [],
 	});
 }
 
@@ -937,7 +933,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					const body = Response.json(
 						runningOverview(pollOptions, configuration),
 					);
-					releaseLists();
+					setTimeout(releaseLists, 0);
 					return body;
 				},
 			},
@@ -1053,7 +1049,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		);
 	} else {
 		settle(null);
-		setTimeout(() => void pollAgain(), 0);
 	}
 	return {
 		url: server.url,
