@@ -1012,6 +1012,8 @@ export async function start(options: StartOptions): Promise<Running> {
 								: "invalid configuration: configuration";
 						return Response.json({ error: message }, { status: 400 });
 					}
+					await (polling ?? Promise.resolve());
+					configuration = await configurationPort.read();
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
