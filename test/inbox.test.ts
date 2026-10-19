@@ -299,7 +299,7 @@ async function notificationForPoll(
 		(entry) => !before.some((earlier) => earlier.id === entry.id),
 	);
 	if (raised === undefined) {
-		throw new Error("no notification event for the poll");
+		throw new Error("no new inbox entry after the poll");
 	}
 	return raised;
 }
@@ -2064,8 +2064,11 @@ describe("inbox", () => {
 			),
 		];
 		const recorded = linearFake({ project: linearProject });
+		let releaseIssues = () => {};
+		let issuesHeld = Promise.resolve();
 		const fetchImpl: Fetch = async (input, init) => {
 			if (isIssueQuery(input, init)) {
+				await issuesHeld;
 				return recordedIssues(current);
 			}
 			return recorded(input, init);
@@ -2133,6 +2136,9 @@ describe("inbox", () => {
 					"2026-08-18T16:00:00.000Z",
 				),
 			];
+			issuesHeld = new Promise<void>((resolve) => {
+				releaseIssues = resolve;
+			});
 			let stopSecond: () => void = () => {};
 			const secondStop = new Promise<void>((resolve) => {
 				stopSecond = resolve;
@@ -2143,10 +2149,7 @@ describe("inbox", () => {
 			});
 			const restarted = start(secondStop, againReady);
 			const next = await second;
-			const events = notificationEvent(next);
-			await Bun.sleep(50);
-			await refresh(next);
-			const event = await events;
+			const event = await notificationForPoll(next, releaseIssues);
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
