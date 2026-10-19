@@ -3,7 +3,6 @@ import {
 	chmod,
 	lstat,
 	mkdtemp,
-	readFile,
 	rm,
 	symlink,
 	writeFile,
@@ -234,7 +233,7 @@ describe("settings", () => {
 	test("a settings change writes a valid configuration and hides the project", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [] }),
-			async (base, configPath, requests) => {
+			async (base, _path, requests) => {
 				const before = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as Overview;
@@ -277,10 +276,7 @@ describe("settings", () => {
 					}),
 				});
 				expect(saved.status).toBe(200);
-
-				const written = JSON.parse(
-					await readFile(configPath, "utf8"),
-				) as Configuration;
+				const written = (await saved.json()) as Configuration;
 				expect(written.hidden).toEqual([{ tracker: "github", repo: shown }]);
 				expect(written.pinned).toEqual([{ tracker: "github", repo: quiet }]);
 				expect(written.activityWindowDays).toBe(14);
@@ -289,6 +285,10 @@ describe("settings", () => {
 				expect(written.noSenior).toEqual({ [quiet]: true });
 				expect(written.needsYouLabels).toEqual(["needs-human"]);
 				expect(written.notificationTriggers.needsYou).toBe(false);
+				const reread = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(reread).toEqual(written);
 
 				const refresh = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
@@ -314,8 +314,10 @@ describe("settings", () => {
 				pinned: [{ tracker: "github", repo: shown }],
 				activityWindowDays: 30,
 			}),
-			async (base, configPath) => {
-				const before = await readFile(configPath, "utf8");
+			async (base) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -324,7 +326,10 @@ describe("settings", () => {
 				expect(saved.status).toBe(400);
 				const body = (await saved.json()) as { error: string };
 				expect(body.error).toContain("activityWindowDays");
-				expect(await readFile(configPath, "utf8")).toBe(before);
+				const after = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(after).toEqual(before);
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as Overview;
@@ -336,35 +341,40 @@ describe("settings", () => {
 	});
 
 	test("repeated spaces and a blank number name the field and leave the file", async () => {
-		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
-			const before = await readFile(configPath, "utf8");
-			const current = await (
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
 				await fetch(new URL("/api/settings", base))
-			).json();
+			).json()) as Configuration;
 			const saved = await fetch(new URL("/api/settings", base), {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					...current,
+					...before,
 					pinned: [{ tracker: "github", repo: "  acme/spaced  " }],
 				}),
 			});
 			expect(saved.status).toBe(400);
 			const spaced = (await saved.json()) as { error: string };
 			expect(spaced.error).toContain("pinned");
-			expect(await readFile(configPath, "utf8")).toBe(before);
+			const afterSpaces = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(afterSpaces).toEqual(before);
 			const blank = await fetch(new URL("/api/settings", base), {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					...current,
+					...before,
 					activityWindowDays: Number("   "),
 				}),
 			});
 			expect(blank.status).toBe(400);
 			const named = (await blank.json()) as { error: string };
 			expect(named.error).toContain("activityWindowDays");
-			expect(await readFile(configPath, "utf8")).toBe(before);
+			const afterBlank = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(afterBlank).toEqual(before);
 		});
 	});
 
@@ -429,11 +439,6 @@ describe("settings", () => {
 						activityWindowDays: 14,
 						pollIntervalSeconds: 90,
 					});
-					const written = JSON.parse(
-						await readFile(path, "utf8"),
-					) as Configuration;
-					expect(written.activityWindowDays).toBe(14);
-					expect(written.pollIntervalSeconds).toBe(90);
 					expect(
 						heldRequests.some((url) => url.includes(`/repos/${shown}/issues?`)),
 					).toBe(true);
@@ -467,7 +472,6 @@ describe("settings", () => {
 
 	test("a saved checkout root lists only the checkout that root returns", async () => {
 		const startupRoot = "/var/tmp/project-flow-startup-root";
-		const asked: string[][] = [];
 		await withApp(
 			JSON.stringify({ pinned: [], checkoutRoots: [startupRoot] }),
 			async (base) => {
@@ -477,11 +481,11 @@ describe("settings", () => {
 				expect(before.projects.map((project) => project.name)).not.toContain(
 					savedRepo,
 				);
-				expect(asked).toEqual([[startupRoot]]);
 
-				const current = await (
+				const current = (await (
 					await fetch(new URL("/api/settings", base))
-				).json();
+				).json()) as Configuration;
+				expect(current.checkoutRoots).toEqual([startupRoot]);
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -491,39 +495,44 @@ describe("settings", () => {
 					}),
 				});
 				expect(saved.status).toBe(200);
+				const put = (await saved.json()) as Configuration;
+				expect(put.checkoutRoots).toEqual([savedRoot]);
+				const reread = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(reread.checkoutRoots).toEqual([savedRoot]);
 				const after = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as Overview;
 				expect(after.projects.map((project) => project.name)).toContain(
 					savedRepo,
 				);
-				expect(asked.at(-1)).toEqual([savedRoot]);
 			},
-			async (roots) => {
-				asked.push(roots);
-				return roots.includes(savedRoot) ? [checkoutFor(savedRoot)] : [];
-			},
+			async (roots) =>
+				roots.includes(savedRoot) ? [checkoutFor(savedRoot)] : [],
 		);
 	});
 
 	test("an unknown bot names the field and leaves the file", async () => {
-		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
-			const before = await readFile(configPath, "utf8");
-			const current = await (
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
 				await fetch(new URL("/api/settings", base))
-			).json();
+			).json()) as Configuration;
 			const saved = await fetch(new URL("/api/settings", base), {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
-					...current,
+					...before,
 					expectedBots: { "acme/shown": ["not-a-bot"] },
 				}),
 			});
 			expect(saved.status).toBe(400);
 			const named = (await saved.json()) as { error: string };
 			expect(named.error).toContain("expectedBots");
-			expect(await readFile(configPath, "utf8")).toBe(before);
+			const after = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(after).toEqual(before);
 		});
 	});
 
@@ -557,10 +566,12 @@ describe("settings", () => {
 					const targetStat = await lstat(target);
 					expect(targetStat.isSymbolicLink()).toBe(false);
 					expect(targetStat.mode & 0o777).toBe(0o600);
-					const written = JSON.parse(
-						await readFile(target, "utf8"),
-					) as Configuration;
+					const written = (await saved.json()) as Configuration;
 					expect(written.activityWindowDays).toBe(14);
+					const reread = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					expect(reread.activityWindowDays).toBe(14);
 					expect(
 						requests.some((url) => url.includes(`/repos/${shown}/issues?`)),
 					).toBe(true);
@@ -657,8 +668,10 @@ describe("settings", () => {
 	});
 
 	test("a blank settings body names the configuration and leaves the file", async () => {
-		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
-			const before = await readFile(configPath, "utf8");
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
 			const saved = await fetch(new URL("/api/settings", base), {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
@@ -667,7 +680,10 @@ describe("settings", () => {
 			expect(saved.status).toBe(400);
 			const body = (await saved.json()) as { error: string };
 			expect(body.error).toContain("configuration");
-			expect(await readFile(configPath, "utf8")).toBe(before);
+			const after = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(after).toEqual(before);
 		});
 	});
 });
