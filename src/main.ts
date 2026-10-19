@@ -350,14 +350,14 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			writeErr(`created configuration file: ${configPath}`);
 		}
 		const configuration = await loadConfiguration(configPath);
-		const linearOnly =
-			configuration.pinned.length > 0 &&
-			configuration.pinned.every((pin) => pin.tracker === "linear");
 		const fromEnv = io.env.GITHUB_TOKEN;
 		const envToken =
 			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
-		const token = linearOnly ? envToken : await resolveToken(io, envToken);
-		if (!linearOnly && token !== null) {
+		const token = await resolveToken(io, envToken);
+		const checksGitHub = configuration.pinned.some(
+			(pin) => pin.tracker === "github",
+		);
+		if (checksGitHub && token !== null) {
 			const user = await checkToken(token, io.fetch);
 			if (user.status === 401) {
 				writeErr(rejectedToken);
