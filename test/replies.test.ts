@@ -22,10 +22,14 @@ const linearProject = {
 
 type Sent = { url: string; method: string; body: string };
 
-function json(body: unknown, status = 200): Response {
+function json(
+	body: unknown,
+	status = 200,
+	headers: Record<string, string> = {},
+): Response {
 	return new Response(JSON.stringify(body), {
 		status,
-		headers: { "content-type": "application/json" },
+		headers: { "content-type": "application/json", ...headers },
 	});
 }
 
@@ -83,11 +87,18 @@ function githubFetch(
 			});
 		}
 		const comments = url.match(
-			/\/repos\/acme\/widget\/issues\/(\d+)\/comments(?:\?|$)/,
+			/\/repos\/acme\/widget\/issues\/(\d+)\/comments(?:\?([^#]*))?$/,
 		);
 		if (comments !== null && method === "GET") {
 			const number = Number(comments[1]);
-			return json(options.comments?.[number] ?? []);
+			const page = Number(new URL(url).searchParams.get("page") ?? "1");
+			const rows = options.comments?.[number] ?? [];
+			if (page === 1 && rows.length > 100) {
+				return json(rows.slice(0, 100), 200, {
+					link: `<https://api.github.com/repos/acme/widget/issues/${number}/comments?per_page=100&page=2>; rel="next"`,
+				});
+			}
+			return json(page === 1 ? rows : rows.slice(100));
 		}
 		if (comments !== null && method === "POST") {
 			const number = Number(comments[1]);
@@ -98,40 +109,53 @@ function githubFetch(
 				return new Response("recorded failure", { status: 422 });
 			}
 			const posted = JSON.parse(body) as { body?: string };
-			return json(
-				{
-					id: 900,
-					body: posted.body ?? "",
-					html_url: "https://github.com/acme/widget/issues/7#issuecomment-900",
-					created_at: "2026-08-18T13:00:00.000Z",
-					user: { login: "lev" },
-				},
-				201,
-			);
+			const created = {
+				id: 900,
+				body: posted.body ?? "",
+				html_url: "https://github.com/acme/widget/issues/7#issuecomment-900",
+				created_at: "2026-08-18T13:00:00.000Z",
+				user: { login: "lev" },
+			};
+			const rows = options.comments?.[number] ?? [];
+			options.comments ??= {};
+			options.comments[number] = [...rows, created];
+			return json(created, 201);
 		}
 		const review = url.match(
-			/\/repos\/acme\/widget\/pulls\/(\d+)\/comments(?:\?|$)/,
+			/\/repos\/acme\/widget\/pulls\/(\d+)\/comments(?:\?([^#]*))?$/,
 		);
 		if (review !== null && method === "GET") {
 			const number = Number(review[1]);
-			return json(options.reviewComments?.[number] ?? []);
+			const page = Number(new URL(url).searchParams.get("page") ?? "1");
+			const rows = options.reviewComments?.[number] ?? [];
+			if (page === 1 && rows.length > 100) {
+				return json(rows.slice(0, 100), 200, {
+					link: `<https://api.github.com/repos/acme/widget/pulls/${number}/comments?per_page=100&page=2>; rel="next"`,
+				});
+			}
+			return json(page === 1 ? rows : rows.slice(100));
 		}
 		if (review !== null && method === "POST") {
+			const number = Number(review[1]);
 			if (options.failReply === true) {
 				return new Response("recorded failure", { status: 422 });
 			}
-			const posted = JSON.parse(body) as { body?: string };
-			return json(
-				{
-					id: 901,
-					body: posted.body ?? "",
-					html_url: "https://github.com/acme/widget/pull/8#discussion_r901",
-					created_at: "2026-08-18T13:00:00.000Z",
-					user: { login: "lev" },
-					in_reply_to_id: 44,
-				},
-				201,
-			);
+			const posted = JSON.parse(body) as {
+				body?: string;
+				in_reply_to?: number;
+			};
+			const created = {
+				id: 901,
+				body: posted.body ?? "",
+				html_url: "https://github.com/acme/widget/pull/8#discussion_r901",
+				created_at: "2026-08-18T13:00:00.000Z",
+				user: { login: "lev" },
+				in_reply_to_id: posted.in_reply_to ?? null,
+			};
+			const rows = options.reviewComments?.[number] ?? [];
+			options.reviewComments ??= {};
+			options.reviewComments[number] = [...rows, created];
+			return json(created, 201);
 		}
 		if (url.includes("/pulls?")) {
 			return json([]);
@@ -613,6 +637,44 @@ describe("replies", () => {
 				answered: true,
 				acknowledged: false,
 			});
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a thread longer than 100 comments keeps the newest comment", async () => {
+		const sent: Sent[] = [];
+		const comments = Array.from({ length: 101 }, (_, index) => ({
+			id: index + 1,
+			body: `Note ${index + 1}`,
+			user: { login: "ada" },
+			created_at: "2026-08-18T12:00:00.000Z",
+			html_url: `https://github.com/acme/widget/issues/7#issuecomment-${index + 1}`,
+		}));
+		const recorded = githubFetch(sent, {
+			issues: [issue(7, 101)],
+			comments: { 7: comments },
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(200);
+			const thread = (await response.json()) as Thread;
+			expect(thread.comments).toHaveLength(101);
+			expect(thread.comments.at(-1)?.body).toBe("Note 101");
+			expect(
+				sent.some((item) =>
+					item.url.includes("/issues/7/comments?per_page=100&page=2"),
+				),
+			).toBe(true);
 		} finally {
 			await app.stop();
 		}

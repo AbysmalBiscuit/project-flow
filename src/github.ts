@@ -1370,26 +1370,6 @@ const postedComment = z.object({
 	created_at: z.string(),
 });
 
-async function githubJson(
-	url: string,
-	token: string,
-	fetchImpl: Fetch,
-	init: RequestInit,
-	label: string,
-): Promise<unknown> {
-	const response = await fetchImpl(url, {
-		...init,
-		headers: { ...githubHeaders(token), ...init.headers },
-	});
-	if (!response.ok) {
-		throw new TrackerError(
-			`GitHub ${label} failed (HTTP ${response.status})`,
-			response.status,
-		);
-	}
-	return response.json();
-}
-
 function toThreadComment(
 	comment: z.infer<typeof githubThreadComment>,
 	kind: ThreadComment["kind"],
@@ -1440,33 +1420,37 @@ export async function fetchGithubThread(
 			pull_request: z.unknown().optional(),
 		})
 		.parse(await issueResponse.json());
-	const comments = z
-		.array(githubThreadComment)
-		.parse(
-			await githubJson(
-				`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
-				token,
-				fetchImpl,
-				{},
-				"fetch thread",
-			),
+	const comments = (
+		await pages(
+			`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+			token,
+			fetchImpl,
+			repo,
+			"fetch thread",
 		)
-		.map((comment) => toThreadComment(comment, "comment"));
+	).flatMap((item) =>
+		z
+			.array(githubThreadComment)
+			.parse(item)
+			.map((comment) => toThreadComment(comment, "comment")),
+	);
 	const review =
 		issue.pull_request === undefined
 			? []
-			: z
-					.array(githubThreadComment)
-					.parse(
-						await githubJson(
-							`https://api.github.com/repos/${repo}/pulls/${number}/comments?per_page=100&page=1`,
-							token,
-							fetchImpl,
-							{},
-							"fetch review thread",
-						),
+			: (
+					await pages(
+						`https://api.github.com/repos/${repo}/pulls/${number}/comments?per_page=100&page=1`,
+						token,
+						fetchImpl,
+						repo,
+						"fetch review thread",
 					)
-					.map((comment) => toThreadComment(comment, "review"));
+				).flatMap((item) =>
+					z
+						.array(githubThreadComment)
+						.parse(item)
+						.map((comment) => toThreadComment(comment, "review")),
+				);
 	return {
 		tracker: "github",
 		project,
