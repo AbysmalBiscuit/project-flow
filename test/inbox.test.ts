@@ -287,6 +287,23 @@ const twoProjects = {
 	pollIntervalSeconds: 3600,
 };
 
+async function notificationForPoll(
+	base: string,
+	releasePoll: () => void,
+): Promise<InboxEntry> {
+	const before = await inboxOf(base);
+	releasePoll();
+	await refresh(base);
+	const after = await inboxOf(base);
+	const raised = after.find(
+		(entry) => !before.some((earlier) => earlier.id === entry.id),
+	);
+	if (raised === undefined) {
+		throw new Error("no new inbox entry after the poll");
+	}
+	return raised;
+}
+
 async function refresh(base: string): Promise<void> {
 	const response = await fetch(new URL("/api/refresh", base), {
 		method: "POST",
@@ -1933,8 +1950,11 @@ describe("inbox", () => {
 			),
 		];
 		const recorded = linearFake({ project: linearProject });
+		let releaseIssues = () => {};
+		let issuesHeld = Promise.resolve();
 		const fetchImpl: Fetch = async (input, init) => {
 			if (isIssueQuery(input, init)) {
+				await issuesHeld;
 				return recordedIssues(current);
 			}
 			return recorded(input, init);
@@ -1989,6 +2009,9 @@ describe("inbox", () => {
 					"2026-08-18T16:00:00.000Z",
 				),
 			];
+			issuesHeld = new Promise<void>((resolve) => {
+				releaseIssues = resolve;
+			});
 			let stopSecond: () => void = () => {};
 			const secondStop = new Promise<void>((resolve) => {
 				stopSecond = resolve;
@@ -1999,10 +2022,7 @@ describe("inbox", () => {
 			});
 			const restarted = start(secondStop, againReady);
 			const next = await second;
-			const events = notificationEvent(next);
-			await Bun.sleep(50);
-			await refresh(next);
-			const event = await events;
+			const event = await notificationForPoll(next, releaseIssues);
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
@@ -2044,8 +2064,11 @@ describe("inbox", () => {
 			),
 		];
 		const recorded = linearFake({ project: linearProject });
+		let releaseIssues = () => {};
+		let issuesHeld = Promise.resolve();
 		const fetchImpl: Fetch = async (input, init) => {
 			if (isIssueQuery(input, init)) {
+				await issuesHeld;
 				return recordedIssues(current);
 			}
 			return recorded(input, init);
@@ -2113,6 +2136,9 @@ describe("inbox", () => {
 					"2026-08-18T16:00:00.000Z",
 				),
 			];
+			issuesHeld = new Promise<void>((resolve) => {
+				releaseIssues = resolve;
+			});
 			let stopSecond: () => void = () => {};
 			const secondStop = new Promise<void>((resolve) => {
 				stopSecond = resolve;
@@ -2123,10 +2149,7 @@ describe("inbox", () => {
 			});
 			const restarted = start(secondStop, againReady);
 			const next = await second;
-			const events = notificationEvent(next);
-			await Bun.sleep(50);
-			await refresh(next);
-			const event = await events;
+			const event = await notificationForPoll(next, releaseIssues);
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
