@@ -274,6 +274,20 @@ function newestComment(comments: Comment[] | undefined): {
 	return { stamp: newest, authors };
 }
 
+function commentSources(
+	item: NeedsYouItem,
+	tickets: Map<string, Ticket>,
+	pulls: PullRequest[],
+): Comment[] {
+	const ticket = tickets.get(ticketKey(item.tracker, item.key));
+	if (ticket !== undefined) {
+		const linkedPulls = linked(ticket, pulls, item.project);
+		return [...(ticket.comments ?? []), ...linkedPulls.flatMap(pullComments)];
+	}
+	const pull = pulls.find((candidate) => pullKey(candidate) === item.key);
+	return pull === undefined ? [] : pullComments(pull);
+}
+
 function ticketKey(tracker: string, key: string): string {
 	return `${tracker}\n${key.toLowerCase()}`;
 }
@@ -311,18 +325,18 @@ export function attentionOf(
 		}
 	}
 	for (const view of views) {
+		const pulls = view.row.pulls.filter((pull) => !pull.merged);
 		for (const item of view.items) {
-			const ticket = tickets.get(ticketKey(item.tracker, item.key));
-			const commentsOnTicket = ticket?.comments ?? [];
+			const itemComments = commentSources(item, tickets, pulls);
 			const ask = openAsk(
-				commentsOnTicket,
+				itemComments,
 				projectHasNoSenior(noSenior, view.row.key, view.row.tracker),
 			);
 			const reply =
 				item.reason === "ask" && ask !== null
-					? levReply(commentsOnTicket, ask.index)
+					? levReply(itemComments, ask.index)
 					: null;
-			const newest = newestComment(commentsOnTicket);
+			const newest = newestComment(itemComments);
 			comments.set(`${item.project}\n${item.key}`, {
 				stamp: newest.stamp,
 				replyStamp: reply?.createdAt ?? "",
@@ -345,15 +359,33 @@ export function attentionOf(
 	};
 }
 
+function needsYouSeenId(item: NeedsYouItem): string {
+	return `needsYou\n${item.project}\n${item.key}`;
+}
+
+function needsYouNotificationId(item: NeedsYouItem, at: string): string {
+	return `${needsYouSeenId(item)}\n${at}`;
+}
+
 export function attentionIds(attention: Attention): string[] {
 	return [
-		...attention.needsYou.map(
-			(item) => `needsYou\n${item.project}\n${item.key}`,
-		),
+		...attention.needsYou.map(needsYouSeenId),
 		...[...attention.comments].map(
 			([id, comment]) => `comment\n${id}\n${comment.stamp}`,
 		),
 	];
+}
+
+export function departedNeedsYouIds(
+	before: Attention,
+	after: Attention,
+): string[] {
+	const current = new Set(
+		after.needsYou.map((item) => `${item.project}\n${item.key}`),
+	);
+	return before.needsYou.flatMap((item) =>
+		current.has(`${item.project}\n${item.key}`) ? [] : [needsYouSeenId(item)],
+	);
 }
 
 export function notificationsFor(
@@ -396,9 +428,13 @@ export function notificationsFor(
 			if (previous.has(id)) {
 				continue;
 			}
+			const seenId = needsYouSeenId(item);
+			if (seen.has(seenId)) {
+				continue;
+			}
 			push(
 				"needsYou",
-				`needsYou\n${id}`,
+				needsYouNotificationId(item, at),
 				item.project,
 				item.key,
 				item.headline,

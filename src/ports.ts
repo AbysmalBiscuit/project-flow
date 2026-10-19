@@ -87,6 +87,7 @@ export type Store = {
 	appendNotifications: (entries: Notification[]) => void;
 	readSeededIds: () => string[];
 	recordSeededIds: (ids: string[]) => void;
+	forgetSeededIds: (ids: string[]) => void;
 };
 
 export type Change = {

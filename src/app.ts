@@ -18,6 +18,7 @@ import {
 	checkoutBasenames,
 	checkoutNamesProject,
 	commentTree,
+	departedNeedsYouIds,
 	expectedBotsByRepo,
 	githubRepoForTodo,
 	linearKeysForNames,
@@ -744,8 +745,18 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		options.primed = true;
 	}
 	options.store.recordSeededIds(seeded);
+	const departed = departedNeedsYouIds(before, after);
+	for (const id of departed) {
+		options.seenNotifications.delete(id);
+	}
+	options.store.forgetSeededIds(departed);
 	for (const entry of notifications) {
 		options.seenNotifications.add(entry.id);
+		if (entry.trigger === "needsYou") {
+			const seenId = `needsYou\n${entry.project}\n${entry.key}`;
+			options.seenNotifications.add(seenId);
+			options.store.recordSeededIds([seenId]);
+		}
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
