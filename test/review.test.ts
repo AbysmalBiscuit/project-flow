@@ -41,6 +41,8 @@ function card(
 		awaitingMerge: number;
 		needsYou: number;
 		progress: number;
+		fetchedAt: string;
+		error: null;
 		tags: string[];
 		unlinkedPrs: [];
 		tickets: {
@@ -65,6 +67,8 @@ function card(
 				...counts,
 				needsYou: 0,
 				progress: 0,
+				fetchedAt: "2026-10-18T12:00:00.000Z",
+				error: null,
 				tags,
 				unlinkedPrs: [],
 				tickets: [
@@ -702,11 +706,15 @@ describe("review cycle", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
 		try {
 			const result = await run(
 				["--config", path],
 				testIo({
 					env: { GITHUB_TOKEN: "recorded-token" },
+					databasePath,
+					listCheckouts: async () => [],
 					fetch: async (input, init) => {
 						const url = urlOf(input);
 						if (url.includes("/reviews?")) {
@@ -730,6 +738,7 @@ describe("review cycle", () => {
 			expect(result.listened).toBe(false);
 		} finally {
 			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 
@@ -1373,6 +1382,8 @@ describe("review cycle", () => {
 						awaitingMerge: 1,
 						needsYou: 0,
 						progress: 0,
+						fetchedAt: "2026-10-18T12:00:00.000Z",
+						error: null,
 						tags: [],
 						unlinkedPrs: [],
 						tickets: [

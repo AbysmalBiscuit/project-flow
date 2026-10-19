@@ -116,8 +116,8 @@ function counted(store: Store, configuration: Configuration) {
 function overview(store: Store, configuration: Configuration): Overview {
 	const projects = counted(store, configuration).map((item) => item.counts);
 	const goodPolls = projects.flatMap((project) => {
-		const at = project.fetchedAt;
-		return at === null ? [] : [at];
+		const at = store.lastGoodPollAt(project.name);
+		return at === null ? [] : [at.toISOString()];
 	});
 	return {
 		projects,

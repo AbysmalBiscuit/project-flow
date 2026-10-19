@@ -1241,6 +1241,12 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
+			if (url.includes("/pulls?state=closed")) {
+				return new Response("[]", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
 			if (url.startsWith("https://api.github.com/repos/acme/widget/pulls/7")) {
 				requests.push(url);
 				return new Response(
@@ -1250,7 +1256,7 @@ describe("live updates", () => {
 						html_url: "https://github.com/acme/widget/pull/7",
 						draft: true,
 						body: "closes acme/widget#1",
-						head: { ref: "wid-1" },
+						head: { ref: "wid-1", sha: "sha-7" },
 						state: "open",
 					}),
 					{ status: 200, headers: { "content-type": "application/json" } },
