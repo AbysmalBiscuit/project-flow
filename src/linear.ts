@@ -6,6 +6,7 @@ import {
 	githubPull,
 	mergedPullHistory,
 	pullReview,
+	type ReviewEvidence,
 } from "./github.ts";
 import type { FoundProject, Tracker } from "./ports.ts";
 
@@ -416,6 +417,7 @@ export function linearTracker(
 	githubToken: string | null = null,
 ): Tracker {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
+	const seenReviews = new Map<string, ReviewEvidence>();
 	const issues = (project: string, since: Date | null) => {
 		const cacheKey = `${project}\0${since?.toISOString() ?? ""}`;
 		const cached = issuesByProject.get(cacheKey);
@@ -539,7 +541,14 @@ export function linearTracker(
 			}
 			const repos = [...new Set(pulls.map((pull) => pull.repo))];
 			for (const repo of repos) {
-				pulls.push(...(await mergedPullHistory(repo, githubToken, fetchImpl)));
+				pulls.push(
+					...(await mergedPullHistory(
+						repo,
+						githubToken,
+						fetchImpl,
+						seenReviews,
+					)),
+				);
 			}
 			return pulls;
 		},

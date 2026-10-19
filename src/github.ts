@@ -730,10 +730,20 @@ function fetchReactions(
 	);
 }
 
+export type ReviewEvidence = Pick<
+	PullRequest,
+	"checks" | "comments" | "reviews" | "reactions"
+>;
+
+export function mergedReviewKey(repo: string, number: number): string {
+	return `${repo}#${number}`;
+}
+
 export async function mergedPullHistory(
 	repo: string,
 	token: string,
 	fetchImpl: Fetch,
+	seen: Map<string, ReviewEvidence> = new Map(),
 ): Promise<PullRequest[]> {
 	const response = await fetchImpl(
 		`https://api.github.com/repos/${repo}/pulls?state=closed&per_page=10&page=1`,
@@ -751,7 +761,11 @@ export async function mergedPullHistory(
 			continue;
 		}
 		const head = pull.head.sha;
-		const review = await pullReview(repo, pull.number, head, token, fetchImpl);
+		const key = mergedReviewKey(repo, pull.number);
+		const cached = seen.get(key);
+		const review =
+			cached ?? (await pullReview(repo, pull.number, head, token, fetchImpl));
+		seen.set(key, review);
 		pulls.push({
 			repo,
 			number: pull.number,
@@ -786,6 +800,7 @@ export async function pullReview(
 }
 
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
+	const seenReviews = new Map<string, ReviewEvidence>();
 	return {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
@@ -912,7 +927,11 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					});
 				}
 			}
-			pulls.push(...(await mergedPullHistory(repo, token, fetchImpl)));
+			if (pulls.some((pull) => pull.repo === repo)) {
+				pulls.push(
+					...(await mergedPullHistory(repo, token, fetchImpl, seenReviews)),
+				);
+			}
 			return pulls;
 		},
 		async listBranches(repo) {
