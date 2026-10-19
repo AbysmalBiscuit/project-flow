@@ -616,6 +616,7 @@ describe("inbox", () => {
 						tickets: { key: string; state: string }[];
 						crossProjectBlockers: {
 							project: string;
+							tracker: string;
 							key: string;
 							title: string;
 						}[];
