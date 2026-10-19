@@ -103,6 +103,26 @@ export type FetchStatus = {
 	error: string | null;
 };
 
+export type Snapshot = {
+	key: string;
+	name: string;
+	tracker: "github" | "linear";
+	tickets: Ticket[];
+	pulls: PullRequest[];
+	branches: string[];
+	startedKeys: string[];
+};
+
+export type ProjectPoll = {
+	key: string;
+	ok: boolean;
+	error: string | null;
+	full: boolean;
+	pinned: boolean;
+	hidden: boolean;
+	row: Snapshot | null;
+};
+
 export function staleView(
 	status: FetchStatus,
 	goodPollAt: string | null,
@@ -145,55 +165,105 @@ export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 	return [...byId.values()];
 }
 
-type StoredSnapshot = {
-	key: string;
-	name: string;
-	tracker: "github" | "linear";
-	tickets: Ticket[];
-	pulls: PullRequest[];
-	branches: string[];
-	startedKeys: string[];
+export type PollReconcile = {
+	rows: Snapshot[];
+	projectErrors: { key: string; error: string }[];
+	globalError: string | null;
 };
 
-export function reconcileSnapshots(
-	previous: StoredSnapshot[],
-	shown: StoredSnapshot[],
-	foundKeys: string[],
-	fullKeys: string[],
-	failed: boolean,
-): StoredSnapshot[] {
-	const shownKeys = new Set(shown.map((row) => row.key));
-	const found = new Set(foundKeys);
-	const full = new Set(fullKeys);
-	const carried = previous.filter((row) => {
-		if (shownKeys.has(row.key)) {
-			return false;
-		}
-		return failed && found.has(row.key);
-	});
-	return [...shown, ...carried].map((row) => {
-		const prior = previous.find((item) => item.key === row.key);
-		if (prior === undefined) {
-			return row;
-		}
-		const tickets = full.has(row.key)
-			? replaceMembership(prior.tickets, row.tickets)
-			: mergeTickets(prior.tickets, row.tickets);
-		return { ...row, tickets };
-	});
-}
-
-export function replaceMembership(
-	stored: Ticket[],
-	incoming: Ticket[],
-): Ticket[] {
-	const seen = new Set(incoming.map((ticket) => ticket.id));
+function keptPulls(
+	stored: PullRequest[],
+	incoming: PullRequest[],
+	returnedIds: Set<string>,
+	full: boolean,
+): PullRequest[] {
+	if (full) {
+		return incoming;
+	}
+	const incomingKeys = new Set(incoming.flatMap((pull) => pull.closingKeys));
 	return [
 		...incoming,
 		...stored.filter(
-			(ticket) => ticket.tracker !== "linear" && !seen.has(ticket.id),
+			(pull) =>
+				!pull.closingKeys.some(
+					(key) => returnedIds.has(key) || incomingKeys.has(key),
+				),
 		),
 	];
+}
+
+export function reconcilePoll(
+	previous: Snapshot[],
+	outcomes: ProjectPoll[],
+	fullKeys: string[],
+): PollReconcile {
+	const full = new Set(fullKeys);
+	const rows: Snapshot[] = [];
+	const projectErrors: { key: string; error: string }[] = [];
+	const seen = new Set<string>();
+	for (const outcome of outcomes) {
+		seen.add(outcome.key);
+		if (outcome.ok) {
+			if (outcome.row === null) {
+				continue;
+			}
+			const prior = previous.find((row) => row.key === outcome.key);
+			const tickets = outcome.full
+				? outcome.row.tickets
+				: mergeTickets(prior?.tickets ?? [], outcome.row.tickets);
+			const returnedIds = new Set(
+				outcome.row.tickets.flatMap((ticket) =>
+					ticket.key === null ? [] : [ticket.key],
+				),
+			);
+			rows.push({
+				...outcome.row,
+				tickets,
+				pulls: keptPulls(
+					prior?.pulls ?? [],
+					outcome.row.pulls,
+					returnedIds,
+					outcome.full,
+				),
+			});
+			continue;
+		}
+		if (outcome.error !== null) {
+			projectErrors.push({ key: outcome.key, error: outcome.error });
+		}
+		const prior = previous.find((row) => row.key === outcome.key);
+		if (prior !== undefined) {
+			rows.push(prior);
+			continue;
+		}
+		if (
+			outcome.row === null ||
+			outcome.error === null ||
+			!showsFailedProject({
+				pinned: outcome.pinned,
+				hidden: outcome.hidden,
+				hasStoredRows: false,
+			})
+		) {
+			continue;
+		}
+		rows.push(outcome.row);
+	}
+	for (const row of previous) {
+		if (seen.has(row.key) || full.size > 0) {
+			continue;
+		}
+		rows.push(row);
+	}
+	const failed = outcomes.find(
+		(outcome) =>
+			!outcome.ok &&
+			outcome.error !== null &&
+			!outcome.hidden &&
+			!rows.some((row) => row.key === outcome.key),
+	);
+	const globalError = failed?.error ?? null;
+	return { rows, projectErrors, globalError };
 }
 
 const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
@@ -425,6 +495,17 @@ export function openBlockers(
 			) === position
 		);
 	});
+}
+
+export function showsFailedProject(input: {
+	pinned: boolean;
+	hidden: boolean;
+	hasStoredRows: boolean;
+}): boolean {
+	if (input.hidden || input.hasStoredRows) {
+		return false;
+	}
+	return input.pinned;
 }
 
 export function showsProject(input: {
@@ -737,6 +818,7 @@ export function projectCounts(
 	branches: string[] = [],
 	startedKeys: string[] = [],
 	all: { project: string; tickets: Ticket[] }[] = [{ project: name, tickets }],
+	status: FetchStatus = { fetchedAt: null, error: null },
 ): ProjectCounts {
 	const index = indexTickets(all.flatMap((group) => group.tickets));
 	const parsed = parseBodies(all);
@@ -822,8 +904,7 @@ export function projectCounts(
 		crossProjectBlockers: [...cross.values()],
 		needsYou,
 		progress: progressRatio(counts),
-		fetchedAt: null,
-		error: null,
+		...staleView(status, status.fetchedAt),
 	};
 }
 
