@@ -1838,4 +1838,171 @@ describe("GET /api/overview blockers", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a project ticket keeps blockers from a later dependency page", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const projectId = "PVT_widget";
+		const board = "Widget board";
+		const requests: string[] = [];
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			requests.push(`${url} ${body}`);
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				return Response.json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: projectId,
+								number: 3,
+								title: board,
+								closed: false,
+								updatedAt: "2026-08-18T12:00:00Z",
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectItems")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_paged",
+											number: 30,
+											title: "Waits on two dependency pages",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: {
+												nodes: [
+													{
+														number: 31,
+														state: "OPEN",
+														repository: { nameWithOwner: githubRepo },
+													},
+												],
+												pageInfo: {
+													hasNextPage: true,
+													endCursor: "cursor-31",
+												},
+											},
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("BlockedBy")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							blockedBy: {
+								nodes: [
+									{
+										number: 32,
+										state: "OPEN",
+										repository: { nameWithOwner: githubRepo },
+									},
+									{
+										number: 33,
+										state: "CLOSED",
+										repository: { nameWithOwner: githubRepo },
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const overview = (await response.json()) as {
+							projects: {
+								name: string;
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						const project = overview.projects.find(
+							(item) => item.name === board,
+						);
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#30`).blockers,
+						).toEqual([`${githubRepo}#31`, `${githubRepo}#32`]);
+						expect(
+							requests.some(
+								(sent) =>
+									sent.includes("BlockedBy") && sent.includes("cursor-31"),
+							),
+						).toBe(true);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
