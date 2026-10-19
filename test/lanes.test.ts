@@ -1122,6 +1122,89 @@ describe("tracker lanes", () => {
 		);
 	});
 
+	test("a Linear team status error names the tracker message", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: async (input, init) => {
+						const body = typeof init?.body === "string" ? init.body : "";
+						if (body.includes("TeamStates")) {
+							return Response.json({
+								data: null,
+								errors: [{ message: "Team not found" }],
+							});
+						}
+						return linearFake({
+							project: {
+								id: "project-widget",
+								name: "Widget launch",
+								slugId: linearSlug,
+								teams: { nodes: [linearTeam] },
+							},
+						})(input, init);
+					},
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("Team not found");
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank started Linear status stays in progress", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({
+				project: {
+					id: "project-widget",
+					name: "Widget launch",
+					slugId: linearSlug,
+					teams: { nodes: [linearTeam] },
+				},
+				issues: [
+					linearIssue("WID-4", "Name the lane", {
+						id: "st-blank",
+						name: "   ",
+						type: "started",
+						color: "#F2C94C",
+					}),
+				],
+				states: [
+					{
+						id: "st-blank",
+						name: "   ",
+						type: "started",
+						position: 0,
+						color: "#F2C94C",
+					},
+				],
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(report.lanes.find((lane) => lane.id === "st-blank")).toEqual({
+					id: "st-blank",
+					name: "   ",
+					colour: "#F2C94C",
+					statusType: "inProgress",
+				});
+				expect(flight(report)).toEqual([
+					placed("WID-4", "Name the lane", "   ", "inProgress"),
+				]);
+			},
+		);
+	});
+
 	test("a failing status read keeps the stored lanes and reports the error", async () => {
 		let fields = 0;
 		await withApp(
