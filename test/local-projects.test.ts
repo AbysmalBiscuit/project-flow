@@ -871,7 +871,13 @@ describe("local projects", () => {
 			},
 		});
 		expect(body).toEqual({
-			projects: [card],
+			projects: [
+				{
+					...card,
+					fetchedAt: "2026-10-18T12:00:00.000Z",
+					error: null,
+				},
+			],
 			fetchedAt: "2026-10-18T12:00:00.000Z",
 			error:
 				"GitHub find projects failed: viewer unavailable (stale since 2026-10-18T12:00:00.000Z)",
