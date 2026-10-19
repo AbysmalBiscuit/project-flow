@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import outsideRelations from "./fixtures/outside-relations.json";
 import {
 	linearFake,
 	recordedDiscovery,
@@ -990,7 +991,7 @@ describe("GET /api/overview blockers", () => {
 								project: unloaded,
 								tracker: "github",
 								key: `${unloaded}#9`,
-								title: `${unloaded}#9`,
+								title: "Open issue in an unloaded repo",
 							},
 						]);
 						expect(
@@ -1039,7 +1040,10 @@ describe("GET /api/overview blockers", () => {
 									identifier: "SWE-3",
 									title: "Open issue in an unpinned project",
 									state: { type: "started" },
-									project: { slugId: "unpinned-project" },
+									project: {
+										slugId: "unpinned-project",
+										name: "Unpinned",
+									},
 								},
 							},
 						],
@@ -1087,10 +1091,10 @@ describe("GET /api/overview blockers", () => {
 						expect(project?.blocked).toBe(1);
 						expect(project?.crossProjectBlockers).toEqual([
 							{
-								project: "unpinned-project",
+								project: "Unpinned",
 								tracker: "linear",
 								key: "SWE-3",
-								title: "SWE-3",
+								title: "Open issue in an unpinned project",
 							},
 						]);
 						expect(
@@ -1098,6 +1102,122 @@ describe("GET /api/overview blockers", () => {
 								(item) => item.name === "unpinned-project",
 							),
 						).toBe(false);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank outside title and a missing project name fall back to the key and slug", async () => {
+		const recorded = outsideRelations.linearOps3838;
+		const relation = recorded.inverseRelations.nodes.find(
+			(item) => item.type === "blocks",
+		);
+		if (relation === undefined || relation.issue.project !== null) {
+			throw new Error("recorded OPS-3838 has no null-project blocks relation");
+		}
+		const slugOnly = "bare-slug";
+		const requests: string[] = [];
+		const sent: {
+			url: string;
+			query: string;
+			variables: Record<string, unknown>;
+		}[] = [];
+		const recordedFetch = linearFake({
+			project: {
+				id: "project-widget",
+				name: linearProject,
+				slugId: linearProject,
+			},
+			issues: [
+				{
+					...linearIssue(recorded.identifier, "", "unstarted"),
+					title: recorded.title,
+					updatedAt: recorded.updatedAt,
+					state: recorded.state,
+					inverseRelations: {
+						nodes: [
+							{
+								...relation,
+								issue: {
+									...relation.issue,
+									title: "   ",
+									project: { slugId: slugOnly },
+								},
+							},
+						],
+					},
+				},
+			],
+			requests,
+			sent,
+		});
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const overview = (await response.json()) as {
+							projects: {
+								name: string;
+								crossProjectBlockers: {
+									project: string;
+									tracker: string;
+									key: string;
+									title: string;
+								}[];
+							}[];
+						};
+						const project = overview.projects.find(
+							(item) => item.name === linearProject,
+						);
+						expect(project?.crossProjectBlockers).toEqual([
+							{
+								project: slugOnly,
+								tracker: "linear",
+								key: relation.issue.identifier,
+								title: relation.issue.identifier,
+							},
+						]);
+						const issueReads = sent.filter((request) =>
+							request.query.includes("ProjectIssues"),
+						);
+						expect(issueReads.length).toBeGreaterThan(0);
+						expect(issueReads[0]?.query).toContain("inverseRelations");
+						expect(issueReads[0]?.query).toContain("title");
+						expect(issueReads[0]?.query).toContain("project { name slugId }");
+						expect(issueReads[0]?.variables).toEqual(
+							expect.objectContaining({
+								filter: { project: { id: { eq: "project-widget" } } },
+							}),
+						);
 						resolve();
 					})
 					.catch(reject);
@@ -1232,8 +1352,12 @@ describe("GET /api/overview blockers", () => {
 						});
 						expect(overview.projects[0]?.blocked).toBe(2);
 						expect(
-							requests.some((url) => url.includes("/dependencies/blocked_by")),
-						).toBe(false);
+							requests.filter((url) =>
+								url.includes("/issues/4/dependencies/blocked_by"),
+							),
+						).toEqual([
+							`https://api.github.com/repos/${githubRepo}/issues/4/dependencies/blocked_by?per_page=100&page=1`,
+						]);
 						resolve();
 					})
 					.catch(reject);
