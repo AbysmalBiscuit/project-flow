@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
@@ -155,22 +156,6 @@ const linearIssues = [
 	},
 ];
 
-type Report = {
-	name: string;
-	tracker: string;
-	sections: {
-		id: string;
-		title: string;
-		text?: string;
-		items?: { key: string | null; title: string; state: string }[];
-		diagrams?: {
-			id: string;
-			definition: string;
-			nodes: { id: string; dashed: boolean; label: string; state: string }[];
-		}[];
-	}[];
-};
-
 async function withApp(
 	config: string,
 	fetchImpl: Fetch,
@@ -221,12 +206,12 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const second = (await (
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				expect(second).toEqual(first);
 				expect(first.sections.map((section) => section.id)).toEqual([
 					"summary",
@@ -309,11 +294,11 @@ describe("GET /api/projects/:name", () => {
 			async (base) => {
 				const linearReport = (await (
 					await fetch(new URL("/api/projects/Widget%20launch", base))
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const again = (await (
 					await fetch(new URL("/api/projects/Widget%20launch", base))
-				).json()) as Report;
-				const definitions = (report: Report) =>
+				).json()) as ProjectReport;
+				const definitions = (report: ProjectReport) =>
 					report.sections.flatMap(
 						(section) =>
 							section.diagrams?.map((diagram) => diagram.definition) ?? [],
@@ -375,7 +360,7 @@ describe("GET /api/projects/:name", () => {
 						await fetch(
 							new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 						)
-					).json()) as Report;
+					).json()) as ProjectReport;
 					definitions =
 						report.sections
 							.find((section) => section.id === "featureMap")
@@ -441,7 +426,7 @@ describe("GET /api/projects/:name", () => {
 			async (base) => {
 				const report = (await (
 					await fetch(new URL("/api/projects/Widget%20launch", base))
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const map = report.sections.find(
 					(section) => section.id === "featureMap",
 				);
@@ -468,7 +453,7 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const map = report.sections.find(
 					(section) => section.id === "featureMap",
 				);
@@ -517,7 +502,7 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const summary = report.sections.find(
 					(section) => section.id === "summary",
 				);
@@ -547,7 +532,7 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const map = report.sections.find(
 					(section) => section.id === "featureMap",
 				);
@@ -577,7 +562,7 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const ids =
 					report.sections
 						.find((section) => section.id === "featureMap")
@@ -609,7 +594,7 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const map = report.sections.find(
 					(section) => section.id === "featureMap",
 				);
@@ -640,7 +625,7 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as Report;
+				).json()) as ProjectReport;
 				const map = report.sections.find(
 					(section) => section.id === "featureMap",
 				);
@@ -759,7 +744,7 @@ describe("GET /api/projects/:name", () => {
 			async (base) => {
 				const report = (await (
 					await fetch(new URL("/api/projects/Widget%20board", base))
-				).json()) as Report;
+				).json()) as ProjectReport;
 				expect(report.name).toBe("Widget board");
 				expect(report.tracker).toBe("github");
 				const map = report.sections.find(
