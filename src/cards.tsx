@@ -2,7 +2,7 @@ import mermaid from "mermaid";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
-import { onAppEvent } from "./events.ts";
+import { onAppEvent, onEventStreamOpen } from "./events.ts";
 
 mermaid.initialize({ startOnLoad: false });
 
@@ -461,6 +461,9 @@ function Page() {
 		};
 		const stop = onAppEvent("overview", (event) => {
 			show(JSON.parse(event.data) as Overview);
+		});
+		onEventStreamOpen(() => {
+			void readOverview().then(show);
 		});
 		void readOverview().then(show);
 		return stop;

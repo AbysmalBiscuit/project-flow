@@ -5,10 +5,14 @@ type Listener = (event: MessageEvent) => void;
 const listeners = new Map<EventName, Set<Listener>>();
 let source: EventSource | null = null;
 let users = 0;
+let onOpen: (() => void) | null = null;
 
 function open(): EventSource {
 	if (source === null) {
 		source = new EventSource("/api/events");
+		source.addEventListener("open", () => {
+			onOpen?.();
+		});
 		for (const name of listeners.keys()) {
 			for (const listener of listeners.get(name) ?? []) {
 				source.addEventListener(name, listener);
@@ -16,6 +20,10 @@ function open(): EventSource {
 		}
 	}
 	return source;
+}
+
+export function onEventStreamOpen(listener: () => void): void {
+	onOpen = listener;
 }
 
 export function onAppEvent(name: EventName, listener: Listener): () => void {
@@ -31,6 +39,7 @@ export function onAppEvent(name: EventName, listener: Listener): () => void {
 		if (users === 0 && source !== null) {
 			source.close();
 			source = null;
+			onOpen = null;
 		}
 	};
 }
