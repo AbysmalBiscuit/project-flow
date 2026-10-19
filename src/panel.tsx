@@ -59,10 +59,10 @@ export function TicketPanel({
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
+	const threadPath = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}`;
 	useEffect(() => {
 		let stopped = false;
-		const path = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}`;
-		fetch(path)
+		fetch(threadPath)
 			.then(async (response) => {
 				if (stopped) {
 					return;
@@ -83,7 +83,7 @@ export function TicketPanel({
 		return () => {
 			stopped = true;
 		};
-	}, [tracker, project, ticketKey]);
+	}, [threadPath]);
 	async function send(target: ReplyTarget): Promise<void> {
 		if (draft.trim() === "" || pending) {
 			return;
@@ -110,33 +110,13 @@ export function TicketPanel({
 				setError(failed.error ?? "Reply failed");
 				return;
 			}
-			const created = (await response.json()) as {
-				id: string;
-				url: string;
-				createdAt: string;
-			};
 			setDraft("");
 			setReplyTo(null);
-			setThread((current) =>
-				current === null
-					? current
-					: {
-							...current,
-							comments: [
-								...current.comments,
-								{
-									id: created.id,
-									body: draft,
-									author: "",
-									createdAt: created.createdAt ?? "",
-									url: created.url ?? "",
-									parentId: target.parentId ?? null,
-									kind: target.kind,
-									children: [],
-								},
-							],
-						},
-			);
+			const loaded = await fetch(threadPath);
+			if (loaded.ok) {
+				setMissing(false);
+				setThread((await loaded.json()) as Thread);
+			}
 		} catch {
 			setError("Reply failed");
 		} finally {

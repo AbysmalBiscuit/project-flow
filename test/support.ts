@@ -219,8 +219,30 @@ export function linearFake(options: LinearFake = {}): Fetch {
 					errors: [{ message: "Issue not found" }],
 				});
 			}
-			const input = (query as { variables?: { input?: { body?: string } } })
-				.variables?.input;
+			const input = (
+				query as {
+					variables?: {
+						input?: { issueId?: string; body?: string; parentId?: string };
+					};
+				}
+			).variables?.input;
+			const issue = (options.issues ?? []).find(
+				(item) =>
+					item.identifier === input?.issueId || item.id === input?.issueId,
+			);
+			const comments = issue?.comments as
+				| { nodes?: Record<string, unknown>[] }
+				| undefined;
+			comments?.nodes?.push({
+				id: "comment-created",
+				body: input?.body ?? "",
+				createdAt: "2026-08-18T13:00:00.000Z",
+				url: "https://linear.app/issue/PF-1#comment-created",
+				...(input?.parentId === undefined
+					? {}
+					: { parent: { id: input.parentId } }),
+				user: { name: "Lev" },
+			});
 			return linearJson({
 				data: {
 					commentCreate: {
