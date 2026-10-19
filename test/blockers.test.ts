@@ -1482,42 +1482,42 @@ describe("GET /api/overview blockers", () => {
 							(item) => item.name === githubRepo,
 						);
 						const key = `${githubRepo}#20`;
-						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#21`)).toEqual(
-							{
-								state: "blocked",
-								blockers: [key],
-							},
-						);
-						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#22`)).toEqual(
-							{
-								state: "blocked",
-								blockers: [key],
-							},
-						);
-						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#23`)).toEqual(
-							{
-								state: "blocked",
-								blockers: [key],
-							},
-						);
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#21`),
+						).toEqual({
+							state: "blocked",
+							blockers: [key],
+						});
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#22`),
+						).toEqual({
+							state: "blocked",
+							blockers: [key],
+						});
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#23`),
+						).toEqual({
+							state: "blocked",
+							blockers: [key],
+						});
 						expect(
 							blockersOf(repoCard?.tickets ?? [], `${githubRepo}#23`),
 						).toEqual({
 							state: "blocked",
 							blockers: [key],
 						});
-						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#24`)).toEqual(
-							{
-								state: "backlog",
-								blockers: [],
-							},
-						);
-						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#25`)).toEqual(
-							{
-								state: "backlog",
-								blockers: [],
-							},
-						);
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#24`),
+						).toEqual({
+							state: "backlog",
+							blockers: [],
+						});
+						expect(
+							blockersOf(project?.tickets ?? [], `${githubRepo}#25`),
+						).toEqual({
+							state: "backlog",
+							blockers: [],
+						});
 						expect(
 							requests.some((sent) =>
 								sent.includes("/dependencies/blocked_by"),

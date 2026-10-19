@@ -1063,9 +1063,44 @@ export function projectSnapshots(
 			})
 		);
 	});
+	const carried = new Map<string, Ticket>();
+	for (const project of shown) {
+		if (project.key.includes("/")) {
+			continue;
+		}
+		for (const ticket of project.tickets) {
+			if (ticket.ref !== undefined) {
+				carried.set(ticket.ref, ticket);
+			}
+		}
+	}
+	const claimed = new Set<string>();
 	const rows = [];
 	for (const project of shown) {
-		const tickets = project.tickets;
+		const tickets = project.tickets.flatMap((ticket) => {
+			const claimedByProject =
+				ticket.ref !== undefined &&
+				claimed.has(ticket.ref) &&
+				project.key.includes("/") &&
+				!project.pinned;
+			if (claimedByProject) {
+				return [];
+			}
+			const donor =
+				ticket.ref === undefined ? undefined : carried.get(ticket.ref);
+			const kept =
+				donor === undefined || donor === ticket
+					? ticket
+					: {
+							...ticket,
+							body: ticket.body.trim() === "" ? donor.body : ticket.body,
+							blockedBy: mergeBlockedBy([donor.blockedBy, ticket.blockedBy]),
+						};
+			if (ticket.ref !== undefined && !project.key.includes("/")) {
+				claimed.add(ticket.ref);
+			}
+			return [kept];
+		});
 		rows.push({
 			key: project.key,
 			name: project.name ?? project.key,
@@ -1791,7 +1826,8 @@ export function projectCounts(
 			if (blocker.key === null) {
 				continue;
 			}
-			const merged = ticket.key === null ? undefined : known(index, ticket);
+			const self = asRef(ticket);
+			const merged = self === null ? undefined : known(index, self);
 			const source = [
 				...(merged?.blockedBy ?? ticket.blockedBy),
 				...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
