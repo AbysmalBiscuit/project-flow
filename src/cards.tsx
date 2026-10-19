@@ -131,15 +131,9 @@ function CardsList({ overview }: { overview: Overview }) {
 	return (
 		<ul className={styles.list}>
 			{overview.projects.map((project) => (
-				<li
-					key={`${project.tracker}:${project.name}`}
-					className={styles.card}
-				>
+				<li key={`${project.tracker}:${project.name}`} className={styles.card}>
 					<h2 className={shell.heading}>
-						<ProjectLink
-							name={project.name}
-							className={styles.projectLink}
-						>
+						<ProjectLink name={project.name} className={styles.projectLink}>
 							{project.name}
 						</ProjectLink>
 					</h2>
@@ -288,13 +282,7 @@ function bindGraph(
 	}
 }
 
-function GraphView({
-	overview,
-	svg,
-}: {
-	overview: Overview;
-	svg: string;
-}) {
+function GraphView({ overview, svg }: { overview: Overview; svg: string }) {
 	const host = useRef<HTMLDivElement>(null);
 	useLayoutEffect(() => {
 		const node = host.current;
@@ -345,10 +333,7 @@ function TableView({ overview }: { overview: Overview }) {
 				{rows.map((project) => (
 					<tr key={`${project.tracker}:${project.name}`}>
 						<td>
-							<ProjectLink
-								name={project.name}
-								className={styles.projectLink}
-							>
+							<ProjectLink name={project.name} className={styles.projectLink}>
 								{project.name}
 							</ProjectLink>
 						</td>
