@@ -31,6 +31,11 @@ const configurationSchema = z.strictObject({
 	pollIntervalSeconds: z.number().int().positive().default(60),
 	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
 	expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
+	noSenior: z.record(z.string(), z.boolean()).default({}),
+	needsYouLabels: z
+		.array(z.string())
+		.default(["needs-human", "needs-engineer"]),
+	viewerLogins: z.array(z.string()).default([]),
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;
