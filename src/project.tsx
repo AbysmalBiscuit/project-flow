@@ -84,7 +84,7 @@ function NodeLine({
 	);
 }
 
-const legend: Record<TicketState | "theme" | "dashed", string> = {
+const stateLabels: Record<TicketState, string> = {
 	done: "Done",
 	dropped: "Dropped",
 	blocked: "Blocked",
@@ -92,14 +92,17 @@ const legend: Record<TicketState | "theme" | "dashed", string> = {
 	inReview: "In review",
 	awaitingMerge: "Awaiting merge",
 	backlog: "Backlog",
-	theme: "Theme",
-	dashed: "Cross-project blocker",
 };
 
-function StateLegend() {
+function StateLegend({ theme }: { theme: boolean }) {
+	const kinds = [
+		...Object.entries(stateLabels),
+		...(theme ? [["theme", "Theme"]] : []),
+		["dashed", "Cross-project blocker"],
+	];
 	return (
 		<ul className="state-legend" aria-label="Diagram key">
-			{Object.entries(legend).map(([kind, label]) => (
+			{kinds.map(([kind, label]) => (
 				<li key={kind}>
 					<span className={`swatch ${kind}`} />
 					{label}
@@ -119,7 +122,6 @@ function DiagramView({
 	return (
 		<figure className="diagram" data-diagram={diagram.id}>
 			<figcaption>{diagram.title}</figcaption>
-			<StateLegend />
 			<pre key={diagram.definition} className="mermaid">
 				{diagram.definition}
 			</pre>
@@ -157,6 +159,15 @@ function Report({
 			{report.sections.map((section) => (
 				<section key={section.id} className="report-section" id={section.id}>
 					<h2>{section.title}</h2>
+					{section.id === "featureMap" ? (
+						<StateLegend
+							theme={
+								section.diagrams?.some((diagram) =>
+									diagram.nodes.some((node) => node.state === "theme"),
+								) ?? false
+							}
+						/>
+					) : null}
 					{section.text === undefined ? null : (
 						<p className="summary">{section.text}</p>
 					)}
