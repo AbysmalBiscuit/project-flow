@@ -20,7 +20,8 @@ function NeedsList({
 			<p>
 				<a className="back" href="/">
 					Projects
-				</a>
+				</a>{" "}
+				<a href="/inbox">Inbox</a>
 			</p>
 			<h1>Needs you</h1>
 			<ul className="needs-you-list">

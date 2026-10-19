@@ -225,6 +225,174 @@ export type NeedsYouItem = {
 	acknowledged: boolean;
 };
 
+export type NotificationTrigger = "needsYou" | "comment" | "blockerCleared";
+
+export type Notification = {
+	id: string;
+	trigger: NotificationTrigger;
+	project: string;
+	key: string;
+	text: string;
+	at: string;
+};
+
+export type NotificationTriggers = {
+	needsYou: boolean;
+	comment: boolean;
+	blockerCleared: boolean;
+};
+
+const defaultTriggers: NotificationTriggers = {
+	needsYou: true,
+	comment: true,
+	blockerCleared: true,
+};
+
+export function notificationTriggers(
+	triggers: Partial<NotificationTriggers> | undefined,
+): NotificationTriggers {
+	return { ...defaultTriggers, ...triggers };
+}
+
+type Attention = {
+	needsYou: NeedsYouItem[];
+	comments: Map<string, string>;
+	blockers: Map<string, string>;
+};
+
+function commentStamp(comments: Comment[] | undefined): string {
+	return (comments ?? [])
+		.map((comment) => `${comment.createdAt ?? ""}:${comment.body}`)
+		.join("\n");
+}
+
+export function attentionOf(
+	views: {
+		items: NeedsYouItem[];
+		counts: ProjectCounts;
+		row: Snapshot;
+	}[],
+): Attention {
+	const comments = new Map<string, string>();
+	const blockers = new Map<string, string>();
+	for (const view of views) {
+		const byKey = new Map(
+			view.row.tickets.flatMap((ticket) =>
+				ticket.key === null ? [] : [[ticket.key.toLowerCase(), ticket]],
+			),
+		);
+		for (const item of view.items) {
+			const ticket = byKey.get(item.key.toLowerCase());
+			comments.set(
+				`${item.project}\n${item.key}`,
+				commentStamp(ticket?.comments),
+			);
+		}
+		for (const blocker of view.counts.crossProjectBlockers) {
+			blockers.set(
+				`${view.counts.name}\n${blocker.tracker}\n${blocker.project}\n${blocker.key}`,
+				blocker.title.trim() === "" ? blocker.key : blocker.title,
+			);
+		}
+	}
+	return {
+		needsYou: views.flatMap((view) => view.items),
+		comments,
+		blockers,
+	};
+}
+
+export function notificationsFor(
+	before: Attention,
+	after: Attention,
+	triggers: NotificationTriggers,
+	at: string,
+	seen: Set<string>,
+): Notification[] {
+	const found: Notification[] = [];
+	const push = (
+		trigger: NotificationTrigger,
+		key: string,
+		project: string,
+		itemKey: string,
+		text: string,
+	) => {
+		if (seen.has(key)) {
+			return;
+		}
+		seen.add(key);
+		found.push({
+			id: key,
+			trigger,
+			project,
+			key: itemKey,
+			text,
+			at,
+		});
+	};
+	if (triggers.needsYou) {
+		const previous = new Set(
+			before.needsYou.map((item) => `${item.project}\n${item.key}`),
+		);
+		for (const item of after.needsYou) {
+			const id = `${item.project}\n${item.key}`;
+			if (previous.has(id)) {
+				continue;
+			}
+			push(
+				"needsYou",
+				`needsYou\n${id}`,
+				item.project,
+				item.key,
+				item.headline,
+			);
+		}
+	}
+	if (triggers.comment) {
+		const still = new Set(
+			after.needsYou.map((item) => `${item.project}\n${item.key}`),
+		);
+		for (const [id, stamp] of after.comments) {
+			if (!still.has(id)) {
+				continue;
+			}
+			const earlier = before.comments.get(id);
+			if (earlier === undefined || earlier === stamp) {
+				continue;
+			}
+			const item = after.needsYou.find(
+				(candidate) => `${candidate.project}\n${candidate.key}` === id,
+			);
+			const [project = "", itemKey = ""] = id.split("\n");
+			push(
+				"comment",
+				`comment\n${id}\n${stamp}`,
+				project,
+				itemKey,
+				item?.headline ?? itemKey,
+			);
+		}
+	}
+	if (triggers.blockerCleared) {
+		for (const [id, title] of before.blockers) {
+			if (after.blockers.has(id)) {
+				continue;
+			}
+			const [project = "", , , itemKey = ""] = id.split("\n");
+			push(
+				"blockerCleared",
+				`blockerCleared\n${id}\n${at}`,
+				project,
+				itemKey,
+				title,
+			);
+		}
+	}
+	return found;
+}
+
+export type { Attention };
+
 export type ReportSection = {
 	id:
 		| "summary"

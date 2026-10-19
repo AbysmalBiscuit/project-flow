@@ -1,5 +1,6 @@
 import type { Configuration } from "./configuration.ts";
 import type {
+	Notification,
 	Overview,
 	PostedReply,
 	PullRequest,
@@ -82,10 +83,13 @@ export type Store = {
 	clearProjectError: (project: string) => void;
 	projectError: (project: string) => string | null;
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
+	readNotifications: () => Notification[];
+	appendNotifications: (entries: Notification[]) => void;
 };
 
 export type Change = {
 	overview: Overview;
+	notifications: Notification[];
 };
 
 export type Notifier = {

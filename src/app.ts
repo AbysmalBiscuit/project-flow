@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type {
+	Attention,
 	Comment,
 	Overview,
 	PostedReply,
@@ -12,6 +13,7 @@ import type {
 	Thread,
 } from "./domain.ts";
 import {
+	attentionOf,
 	checkoutBasenames,
 	checkoutNamesProject,
 	commentTree,
@@ -19,6 +21,8 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	notificationsFor,
+	notificationTriggers,
 	panelReplyBody,
 	projectCounts,
 	projectHasNoSenior,
@@ -316,6 +320,7 @@ async function replyResponse(
 		recordPostedReply(store, reply, created);
 		notifier.publish({
 			overview: overview(store, configuration, viewers),
+			notifications: [],
 		});
 		return Response.json(created, { status: 201 });
 	} catch (error) {
@@ -376,6 +381,13 @@ function eventStream(notifier: Notifier): Response {
 						`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
 					),
 				);
+				for (const notification of change.notifications) {
+					controller.enqueue(
+						encoder.encode(
+							`event: notification\ndata: ${JSON.stringify(notification)}\n\n`,
+						),
+					);
+				}
 			});
 		},
 		cancel() {
@@ -406,10 +418,14 @@ type PollOptions = {
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
 	viewers: Viewer[];
+	attention: Attention;
+	seenNotifications: Set<string>;
+	primed: boolean;
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
 	const polledAt = options.clock.now();
+	const before = options.attention;
 	let configuration: Configuration;
 	try {
 		configuration = await options.configuration.read();
@@ -419,6 +435,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		if (options.store.readTickets().length > 0) {
 			options.notifier.publish({
 				overview: overview(options.store, options.fallback, options.viewers),
+				notifications: [],
 			});
 		}
 		return options.fallback;
@@ -663,10 +680,40 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	} else if (failed !== null) {
 		options.store.recordFetchError(failed);
 	}
+	const nextOverview = overview(options.store, configuration, options.viewers);
+	const after = attentionOf(
+		projectViews(options.store, configuration, options.viewers),
+	);
+	const notifications = options.primed
+		? notificationsFor(
+				before,
+				after,
+				notificationTriggers(configuration.notificationTriggers),
+				polledAt.toISOString(),
+				options.seenNotifications,
+			)
+		: [];
+
+	if (!options.primed) {
+		primeAttention(after, options.seenNotifications);
+		options.primed = true;
+	}
+	options.attention = after;
+	options.store.appendNotifications(notifications);
 	options.notifier.publish({
-		overview: overview(options.store, configuration, options.viewers),
+		overview: nextOverview,
+		notifications,
 	});
 	return configuration;
+}
+
+function primeAttention(attention: Attention, seen: Set<string>): void {
+	for (const item of attention.needsYou) {
+		seen.add(`needsYou\n${item.project}\n${item.key}`);
+	}
+	for (const [id, stamp] of attention.comments) {
+		seen.add(`comment\n${id}\n${stamp}`);
+	}
 }
 
 export async function start(options: StartOptions): Promise<Running> {
@@ -708,6 +755,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
 		viewers: [],
+		attention: { needsYou: [], comments: new Map(), blockers: new Map() },
+		seenNotifications: new Set(
+			opened.store.readNotifications().map((entry) => entry.id),
+		),
+		primed: opened.store.readTickets().length > 0,
 	};
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
@@ -750,6 +802,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				}
 				notifier.publish({
 					overview: overview(opened.store, configuration, pollOptions.viewers),
+					notifications: [],
 				});
 			}
 		})().finally(() => {
@@ -760,6 +813,11 @@ export async function start(options: StartOptions): Promise<Running> {
 	if (!hadRows) {
 		try {
 			await pollAgain();
+			pollOptions.attention = attentionOf(
+				projectViews(opened.store, configuration, pollOptions.viewers),
+			);
+			primeAttention(pollOptions.attention, pollOptions.seenNotifications);
+			pollOptions.primed = true;
 		} catch (error) {
 			stopped = true;
 			await (polling ?? Promise.resolve());
@@ -802,6 +860,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		routes: {
 			"/": page,
 			"/needs-you": page,
+			"/inbox": page,
 			"/projects/*": page,
 			"/api/overview": {
 				GET: () => {
@@ -821,6 +880,9 @@ export async function start(options: StartOptions): Promise<Running> {
 							pollOptions.viewers,
 						).flatMap((item) => item.items),
 					),
+			},
+			"/api/inbox": {
+				GET: () => Response.json(opened.store.readNotifications()),
 			},
 			"/api/projects/:name": {
 				GET: (request) => {
