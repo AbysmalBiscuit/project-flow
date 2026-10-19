@@ -1,12 +1,22 @@
 #!/bin/sh
 # A full suite holds one machine slot until this process exits.
-# A path or a name filter is not a full suite and takes no slot.
+# A path or a filter is not a full suite and takes no slot.
 set -eu
 
 full=1
+expect=
 for arg in "$@"; do
+	if [ -n "$expect" ]; then
+		expect=
+		continue
+	fi
 	case "$arg" in
-	-t | --test-name-pattern | --test-name-pattern=* | -g | --todo) full=0 ;;
+	-t | --test-name-pattern | --test-name-pattern=* | -g | --todo | --only | --shard | --shard=* | --changed | --changed=*)
+		full=0
+		;;
+	--timeout | --rerun-each | --retry | --seed | --coverage-reporter | --coverage-dir | --bail | --reporter | --reporter-outfile | --max-concurrency | --path-ignore-patterns | --parallel | --parallel-delay | --timings)
+		expect=1
+		;;
 	-*) ;;
 	*) full=0 ;;
 	esac
@@ -22,9 +32,7 @@ if [ "$slots" -lt 1 ]; then
 fi
 
 dir=/tmp/test-slots
-if [ ! -d "$dir" ]; then
-	mkdir -m 1777 "$dir"
-fi
+mkdir -p -m 1777 "$dir"
 chmod 1777 "$dir"
 
 take() {
