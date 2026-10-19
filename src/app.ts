@@ -1,6 +1,7 @@
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type {
+	NeedsYouItem,
 	Overview,
 	ProjectPoll,
 	ProjectReport,
@@ -13,6 +14,7 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	needsYouItems,
 	projectCounts,
 	projectReport,
 	projectSnapshots,
@@ -108,9 +110,54 @@ function counted(store: Store, configuration: Configuration) {
 					fetchedAt: goodPoll?.toISOString() ?? null,
 					error: store.projectError(row.key),
 				},
+				{
+					noSenior: noSeniorFor(configuration, row.key, row.tracker),
+					labels: configuration.needsYouLabels,
+					viewerLogins: configuration.viewerLogins,
+				},
 			),
 		};
 	});
+}
+
+function noSeniorFor(
+	configuration: Configuration,
+	key: string,
+	tracker: "github" | "linear",
+): boolean {
+	if (
+		configuration.noSenior.some(
+			(name) => name.toLowerCase() === key.toLowerCase(),
+		)
+	) {
+		return true;
+	}
+	return tracker === "linear" && configuration.noSenior.length === 0;
+}
+
+function needsYou(store: Store, configuration: Configuration): NeedsYouItem[] {
+	const rows = store.readTickets();
+	const all = rows.map((row) => ({
+		project: row.key.includes("/") ? row.key : row.name,
+		tickets: row.tickets,
+	}));
+	return rows.flatMap((row) =>
+		needsYouItems(
+			row.name,
+			row.tracker,
+			row.tickets,
+			row.pulls,
+			row.branches,
+			row.startedKeys,
+			all,
+			expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
+			{
+				noSenior: noSeniorFor(configuration, row.key, row.tracker),
+				labels: configuration.needsYouLabels,
+				viewerLogins: configuration.viewerLogins,
+			},
+		),
+	);
 }
 
 function overview(store: Store, configuration: Configuration): Overview {
@@ -139,7 +186,10 @@ function reportFor(
 	if (match === undefined) {
 		return null;
 	}
-	return projectReport(match.counts, match.row.tickets);
+	const items = needsYou(store, configuration).filter(
+		(item) => item.project.toLowerCase() === match.counts.name.toLowerCase(),
+	);
+	return projectReport(match.counts, match.row.tickets, items);
 }
 
 function mergeFound(
@@ -566,6 +616,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		development: false,
 		routes: {
 			"/": page,
+			"/needs-you": page,
 			"/projects/*": page,
 			"/api/overview": {
 				GET: () => {
@@ -573,6 +624,9 @@ export async function start(options: StartOptions): Promise<Running> {
 					releaseLists();
 					return body;
 				},
+			},
+			"/api/needs-you": {
+				GET: () => Response.json(needsYou(opened.store, configuration)),
 			},
 			"/api/projects/:name": {
 				GET: (request) => {
