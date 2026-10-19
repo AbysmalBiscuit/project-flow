@@ -97,7 +97,7 @@ export type BotComment = {
 	login: string;
 	body: string;
 	createdAt: string | null;
-	reactions: number;
+	reactions?: number;
 };
 
 export type BotReview = {
@@ -1671,7 +1671,9 @@ function pullComments(pull: PullRequest): Comment[] {
 		body: comment.body,
 		...(comment.createdAt === null ? {} : { createdAt: comment.createdAt }),
 		author: comment.login,
-		reactions: comment.reactions,
+		...(comment.reactions === undefined
+			? {}
+			: { reactions: comment.reactions }),
 	}));
 }
 
