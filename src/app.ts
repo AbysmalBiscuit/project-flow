@@ -1006,6 +1006,7 @@ export async function start(options: StartOptions): Promise<Running> {
 						);
 					}
 					try {
+						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(text);
 					} catch (error) {
 						const message =
