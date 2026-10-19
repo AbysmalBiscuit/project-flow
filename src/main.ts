@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -344,7 +345,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 
 	try {
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
-		if (!(await Bun.file(configPath).exists())) {
+		if (!existsSync(configPath)) {
 			await mkdir(dirname(configPath), { recursive: true });
 			await writeFile(configPath, "{}\n");
 			writeErr(`created configuration file: ${configPath}`);

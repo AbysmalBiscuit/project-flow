@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
@@ -64,19 +64,7 @@ function recordedFetch(userStatus: number): Fetch {
 			);
 		}
 		if (url === "https://api.linear.app/graphql") {
-			const body = typeof init?.body === "string" ? init.body : "";
-			const payload = body.includes("MemberProjects")
-				? {
-						data: {
-							viewer: { id: "lev" },
-							projects: {
-								nodes: [],
-								pageInfo: { hasNextPage: false, endCursor: null },
-							},
-						},
-					}
-				: { data: { viewer: { id: "lev" } } };
-			return new Response(JSON.stringify(payload), {
+			return new Response(JSON.stringify({ data: { viewer: { id: "lev" } } }), {
 				status: 200,
 				headers: { "content-type": "application/json" },
 			});
@@ -427,6 +415,30 @@ describe("startup", () => {
 		}
 	});
 
+	test("a directory at the configuration path is not created over", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
+		const path = join(root, "config-dir");
+		await mkdir(path);
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+					listCheckouts: async () => [],
+					databasePath: join(root, "store", "project-flow.sqlite"),
+					waitForStop: Promise.resolve(),
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toBe(`configuration file cannot be read: ${path}`);
+			expect(result.listened).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a start creates the missing parent folder of the configuration file", async () => {
 		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
 		const path = join(root, "missing", "nested", "config.json");
@@ -445,7 +457,6 @@ describe("startup", () => {
 			);
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
-			expect((await stat(path)).isFile()).toBe(true);
 			expect(await Bun.file(path).text()).toBe("{}\n");
 		} finally {
 			await rm(root, { recursive: true, force: true });

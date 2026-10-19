@@ -22,7 +22,7 @@ bun start
 
 The process prints a URL on localhost. Open that URL in a browser.
 
-A missing configuration file is created as `{}` on start, with its parent folder. The process prints the path.
+When the configuration file is missing, the app creates it as `{}`, with its parent folder. The process prints the path.
 
 `--config` sets the configuration file. `--host` sets the host. `--port` sets the port. The default host is `127.0.0.1`. Pass flags after `--`, for example `bun start -- --port 4000`.
 
