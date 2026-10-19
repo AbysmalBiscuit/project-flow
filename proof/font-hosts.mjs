@@ -1,4 +1,4 @@
-const port = process.env.PORT ?? "4173";
+const port = process.env.PORT ?? "4174";
 const page = await fetch(`http://127.0.0.1:${port}/`);
 const html = await page.text();
 const cssPath = html.match(/href="(\/chunk-[^"]+\.css)"/)?.[1];
