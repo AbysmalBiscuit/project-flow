@@ -1,6 +1,9 @@
+import mermaid from "mermaid";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
+
+mermaid.initialize({ startOnLoad: false });
 
 function projectPath(name: string, ticket?: string): string {
 	const path = `/projects/${encodeURIComponent(name)}`;
@@ -230,23 +233,9 @@ function mermaidSource(projects: ProjectCounts[], edges: GraphEdge[]): string {
 	return lines.join("\n");
 }
 
-type MermaidApi = {
-	render: (id: string, source: string) => Promise<{ svg: string }>;
-};
-
-declare global {
-	interface Window {
-		mermaid?: MermaidApi;
-	}
-}
-
 async function renderGraph(overview: Overview): Promise<string> {
-	const draw = window.mermaid;
-	if (draw === undefined) {
-		return "";
-	}
 	try {
-		const drawn = await draw.render(
+		const drawn = await mermaid.render(
 			"project-flow-graph",
 			mermaidSource(overview.projects, graphEdges(overview)),
 		);
