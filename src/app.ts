@@ -23,6 +23,7 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	mergeTickets,
 	needsYouSeenId,
 	notificationsFor,
 	panelReplyBody,
@@ -645,6 +646,12 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				project.tracker === "github" && github !== null
 					? await github.listBranches(project.key)
 					: [];
+			const stored = options.store
+				.readTickets()
+				.find((row) => row.key === project.key);
+			const windowTickets = full
+				? listedTickets.tickets
+				: mergeTickets(stored?.tickets ?? [], listedTickets.tickets);
 			listed.push({
 				...project,
 				name: project.name ?? listedTickets.name,
@@ -655,6 +662,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				pinned,
 				hidden,
 				...(project.closed === undefined ? {} : { closed: project.closed }),
+				windowTickets,
 			});
 			outcomes.set(project.key, {
 				key: project.key,
