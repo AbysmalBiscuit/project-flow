@@ -159,6 +159,7 @@ async function overview(
 					: { listTodos: async () => recorded.todos ?? "" }),
 			}),
 		);
+		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
 		return await checks;
 	} finally {
