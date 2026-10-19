@@ -1,6 +1,14 @@
-import { readFile } from "node:fs/promises";
+import {
+	chmod,
+	lstat,
+	readFile,
+	realpath,
+	rename,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import { knownBots } from "./domain.ts";
 
@@ -63,6 +71,20 @@ function configurationError(error: z.ZodError): string {
 	return `invalid configuration: ${fields}`;
 }
 
+export function parseConfiguration(text: string): Configuration {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		throw new Error("invalid configuration: configuration is not JSON");
+	}
+	const result = configurationSchema.safeParse(parsed);
+	if (!result.success) {
+		throw new Error(configurationError(result.error));
+	}
+	return result.data;
+}
+
 export async function loadConfiguration(path: string): Promise<Configuration> {
 	let text: string;
 	try {
@@ -76,15 +98,27 @@ export async function loadConfiguration(path: string): Promise<Configuration> {
 				: `configuration file cannot be read: ${path}`,
 		);
 	}
-	let parsed: unknown;
+	return parseConfiguration(text);
+}
+
+export async function saveConfiguration(
+	path: string,
+	text: string,
+): Promise<Configuration> {
+	const configuration = parseConfiguration(text);
+	const target = await realpath(path);
+	const info = await lstat(target);
+	const next = join(
+		dirname(target),
+		`.${basename(target)}.${process.pid}.${crypto.randomUUID()}`,
+	);
+	await writeFile(next, `${JSON.stringify(configuration, null, "\t")}\n`);
 	try {
-		parsed = JSON.parse(text);
-	} catch {
-		throw new Error("invalid configuration: configuration is not JSON");
+		await chmod(next, info.mode & 0o777);
+		await rename(next, target);
+	} catch (error) {
+		await rm(next, { force: true });
+		throw error;
 	}
-	const result = configurationSchema.safeParse(parsed);
-	if (!result.success) {
-		throw new Error(configurationError(result.error));
-	}
-	return result.data;
+	return configuration;
 }

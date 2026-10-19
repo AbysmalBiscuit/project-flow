@@ -98,4 +98,18 @@ declare module "*/panel.module.css" {
 	export default classes;
 }
 
+declare module "*/settings.module.css" {
+	const classes: CssModule<
+		| "field"
+		| "triggers"
+		| "control"
+		| "refs"
+		| "note"
+		| "choice"
+		| "error"
+		| "saved"
+	>;
+	export default classes;
+}
+
 declare module "*/tokens.css";
