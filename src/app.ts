@@ -10,7 +10,6 @@ import type {
 	ReplyRequest,
 	Snapshot,
 	Thread,
-	Ticket,
 } from "./domain.ts";
 import {
 	checkoutBasenames,
@@ -291,16 +290,17 @@ async function replyResponse(
 	if (parsed.data.body.trim() === "") {
 		return Response.json({ error: "reply is empty" }, { status: 400 });
 	}
+	const row = rowForReply(store, parsed.data);
 	const reply: ReplyRequest = {
 		tracker: parsed.data.tracker,
 		project: parsed.data.project,
 		key: parsed.data.key,
 		body: panelReplyBody(
-			ticketForReply(store, parsed.data),
+			row?.tickets.find((ticket) => ticket.key === parsed.data.key),
 			parsed.data.body,
 			projectHasNoSenior(
 				configuration.noSenior,
-				rowForReply(store, parsed.data)?.key ?? parsed.data.project,
+				row?.key ?? parsed.data.project,
 				parsed.data.tracker,
 			),
 		),
@@ -335,15 +335,6 @@ function rowForReply(
 		}
 		return repo !== undefined && item.key === repo;
 	});
-}
-
-function ticketForReply(
-	store: Store,
-	reply: { tracker: string; project: string; key: string },
-): Ticket | undefined {
-	return rowForReply(store, reply)?.tickets.find(
-		(ticket) => ticket.key === reply.key,
-	);
 }
 
 function recordPostedReply(
