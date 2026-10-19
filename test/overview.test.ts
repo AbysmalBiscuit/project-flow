@@ -3123,6 +3123,7 @@ describe("GET /api/overview", () => {
 				title: `Ticket ${number}`,
 				state,
 				state_reason: state === "closed" ? "completed" : null,
+				updated_at: "2026-10-18T12:00:00Z",
 				body: "",
 			};
 		}
@@ -3291,6 +3292,7 @@ describe("GET /api/overview", () => {
 							title: "Counted comments",
 							state: "open",
 							state_reason: null,
+							updated_at: "2026-10-18T12:00:00Z",
 							body: "",
 							comments: 3,
 						},
