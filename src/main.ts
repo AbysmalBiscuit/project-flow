@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
@@ -344,6 +345,11 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 
 	try {
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
+		if (!existsSync(configPath)) {
+			await mkdir(dirname(configPath), { recursive: true });
+			await writeFile(configPath, "{}\n");
+			writeErr(`created configuration file: ${configPath}`);
+		}
 		const configuration = await loadConfiguration(configPath);
 		const needsGithub = configuration.pinned.some(
 			(pin) => pin.tracker === "github",
