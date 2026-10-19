@@ -301,7 +301,7 @@ export function attentionOf(
 		counts: ProjectCounts;
 		row: Snapshot;
 	}[],
-	noSenior: Record<string, boolean> = {},
+	pmBot: Record<string, boolean> = {},
 ): Attention {
 	const comments = new Map<
 		string,
@@ -334,7 +334,7 @@ export function attentionOf(
 			const itemComments = commentSources(item, tickets, pulls);
 			const ask = openAsk(
 				itemComments,
-				projectHasNoSenior(noSenior, view.row.key, view.row.tracker),
+				projectHasPmBot(pmBot, view.row.key, view.row.tracker),
 			);
 			const reply =
 				item.reason === "ask" && ask !== null
@@ -1834,8 +1834,8 @@ export function projectCounts(
 	all: { project: string; tickets: Ticket[] }[],
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
-	rules: Omit<NeedsYouRules, "noSenior"> & {
-		noSenior: Record<string, boolean>;
+	rules: Omit<NeedsYouRules, "pmBot"> & {
+		pmBot: Record<string, boolean>;
 	},
 ): {
 	counts: ProjectCounts;
@@ -1948,7 +1948,7 @@ export function projectCounts(
 		{
 			labels: rules.labels,
 			viewerLogins: rules.viewerLogins,
-			noSenior: projectHasNoSenior(rules.noSenior, key, tracker),
+			pmBot: projectHasPmBot(rules.pmBot, key, tracker),
 		},
 	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
@@ -2001,20 +2001,20 @@ const nameCue =
 	/\b(?:waits on|held for|left for|decision|verify|restore|passphrase|signing key)\b/i;
 
 export type NeedsYouRules = {
-	noSenior: boolean;
+	pmBot: boolean;
 	labels: string[];
 	viewerLogins: string[];
 };
 
-export function projectHasNoSenior(
-	noSenior: Record<string, boolean>,
+export function projectHasPmBot(
+	pmBot: Record<string, boolean>,
 	key: string,
 	tracker: "github" | "linear",
 ): boolean {
-	const match = Object.entries(noSenior).find(
+	const match = Object.entries(pmBot).find(
 		([name]) => name.toLowerCase() === key.toLowerCase(),
 	);
-	return match?.[1] ?? tracker === "linear";
+	return match?.[1] ?? tracker === "github";
 }
 
 function askId(body: string): string | null {
@@ -2098,7 +2098,7 @@ function matchedByName(body: string): boolean {
 	return cueAt >= 0 && nameAt >= 0 && Math.abs(cueAt - nameAt) <= 80;
 }
 
-function addressedToLev(body: string, noSenior: boolean): boolean {
+function addressedToLev(body: string, pmBot: boolean): boolean {
 	if (decisionRecord.test(body.trim())) {
 		return false;
 	}
@@ -2106,10 +2106,10 @@ function addressedToLev(body: string, noSenior: boolean): boolean {
 	if (opensForSenior(body) && !namesLev(body)) {
 		return false;
 	}
-	if (noSenior) {
-		return true;
+	if (pmBot) {
+		return named;
 	}
-	return named;
+	return true;
 }
 
 function progressPicked(body: string, id: string): boolean {
@@ -2131,12 +2131,12 @@ function askClosed(later: Comment[], id: string): boolean {
 export function panelReplyBody(
 	ticket: Ticket | undefined,
 	body: string,
-	noSenior: boolean,
+	pmBot: boolean,
 	parentId?: string,
 ): string {
 	const text = body.trim();
 	const comments = ticket?.comments ?? [];
-	const ask = openAsk(comments, noSenior);
+	const ask = openAsk(comments, pmBot);
 	if (ask === null) {
 		return text;
 	}
@@ -2160,7 +2160,7 @@ type OpenAsk = {
 	index: number;
 };
 
-function openAsk(comments: Comment[], noSenior: boolean): OpenAsk | null {
+function openAsk(comments: Comment[], pmBot: boolean): OpenAsk | null {
 	const ordered = orderedComments(comments);
 	const latest = new Map<string, number>();
 	ordered.forEach((comment, index) => {
@@ -2172,7 +2172,7 @@ function openAsk(comments: Comment[], noSenior: boolean): OpenAsk | null {
 	let found: OpenAsk | null = null;
 	for (const [id, index] of latest) {
 		const comment = ordered[index];
-		if (comment === undefined || !addressedToLev(comment.body, noSenior)) {
+		if (comment === undefined || !addressedToLev(comment.body, pmBot)) {
 			continue;
 		}
 		if (askClosed(ordered.slice(index + 1), id)) {
@@ -2285,7 +2285,7 @@ export function needsYouItems(
 			...(ticket.comments ?? []),
 			...linkedPulls.flatMap(pullComments),
 		];
-		const ask = openAsk(comments, rules.noSenior);
+		const ask = openAsk(comments, rules.pmBot);
 		const labelled =
 			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
@@ -2313,7 +2313,7 @@ export function needsYouItems(
 			continue;
 		}
 		const comments = pullComments(pull);
-		const ask = openAsk(comments, rules.noSenior);
+		const ask = openAsk(comments, rules.pmBot);
 		if (ask === null) {
 			continue;
 		}

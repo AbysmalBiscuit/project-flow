@@ -688,6 +688,73 @@ describe("startup", () => {
 		}
 	});
 
+	test("a configuration with noSenior exits 1 and names the field", async () => {
+		const bodies = [
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: "acme/widget" }],
+				noSenior: { "acme/widget": true },
+			}),
+			JSON.stringify({ noSenior: {} }),
+			JSON.stringify({ noSenior: { "acme/widget": " true " } }),
+			`{\n  "noSenior": { "acme/widget": true }\n}`,
+		];
+		for (const body of bodies) {
+			const { path, cleanup } = await tempConfig(body);
+			try {
+				const result = await run(
+					["--config", path],
+					testIo({
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: recordedFetch(200),
+						readGhToken: async () => null,
+					}),
+				);
+				expect(result.exitCode).toBe(1);
+				expect(result.stderr).toContain("noSenior");
+				expect(result.listened).toBe(false);
+			} finally {
+				await cleanup();
+			}
+		}
+	});
+
+	test("an empty pmBot map starts and serves the overview", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: "acme/widget" }],
+				pmBot: {},
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<number>((resolve, reject) => {
+			startChecks = (base) => {
+				fetch(new URL("/api/overview", base))
+					.then((response) => resolve(response.status))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(await checks).toBe(200);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("an invalid configuration exits 1 and names the field", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({

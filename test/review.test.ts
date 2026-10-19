@@ -2322,14 +2322,14 @@ describe("review cycle", () => {
 				"Ticket 51",
 			),
 		);
-		const noSenior = await overview({
+		const pmBot = await overview({
 			issues: [{ ...issue(51), comments: issue51Comments.length }],
 			pulls: [pull(52, 51)],
 			commentsByIssue: { 51: [openProgress, report] },
 			withNeedsYou: true,
 			config: JSON.stringify({
 				pinned: [{ tracker: "github", repo }],
-				noSenior: { [repo]: true },
+				pmBot: { [repo]: false },
 			}),
 			checksBySha: {
 				[head]: [
@@ -2345,7 +2345,7 @@ describe("review cycle", () => {
 			},
 			mergedPulls: [mergedPull()],
 		});
-		expect(noSenior).toEqual({
+		expect(pmBot).toEqual({
 			body: card(
 				"inReview",
 				{

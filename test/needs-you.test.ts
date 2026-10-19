@@ -308,6 +308,111 @@ describe("needs you", () => {
 		}
 	});
 
+	test("a GitHub project with pmBot false lists an unnamed ask", async () => {
+		const repo = "acme/widget";
+		const unnamed = "Which bot should review this?";
+		const recorded: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (url === "https://api.github.com/graphql") {
+				return Response.json({
+					data: {
+						repository: {
+							pullRequest: { closingIssuesReferences: { nodes: [] } },
+						},
+					},
+				});
+			}
+			if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
+				return page([
+					{
+						number: 5,
+						title: "Unnamed ask",
+						state: "open",
+						state_reason: null,
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						comments: 1,
+						assignee: null,
+						labels: [],
+					},
+				]);
+			}
+			if (
+				url ===
+				`https://api.github.com/repos/${repo}/issues/5/comments?per_page=100&page=1`
+			) {
+				return page([
+					{
+						body: `${unnamed}\n\n${ask("gh-5")}`,
+						created_at: "2026-10-01T00:00:00Z",
+						user: { login: "agent" },
+					},
+				]);
+			}
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/comments") ||
+				url.includes("/reviews") ||
+				url.includes("/reactions")
+			) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pmBot: { [repo]: false },
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
+			startChecks = (base) => {
+				fetch(new URL("/api/needs-you", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve((await response.json()) as NeedsYouItem[]);
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recorded,
+					readGhToken: async () => null,
+					databasePath: join(root, "store.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			const items = await checks;
+			expect(items.map((item) => item.key)).toEqual([`${repo}#5`]);
+			expect(items[0]).toMatchObject({
+				headline: unnamed,
+				reason: "ask",
+				tags: [],
+				answered: false,
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a later workcell progress comment leaves the ask unanswered", async () => {
 		const question = "Which bot should review this?";
 		const issues = [
@@ -402,7 +507,7 @@ describe("needs you", () => {
 		}
 	});
 
-	test("a Linear project set false omits an unnamed ask", async () => {
+	test("a Linear project with a PM Bot omits an unnamed ask", async () => {
 		const unnamed = "Which bot should review this?";
 		const issues = [
 			linearIssue("PF-1", "Unnamed ask", unnamed, [
@@ -413,7 +518,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: "project-flow" }],
-				noSenior: { "project-flow": false },
+				pmBot: { "project-flow": true },
 			}),
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -1341,7 +1446,7 @@ describe("needs you", () => {
 			JSON.stringify({
 				pinned: [{ tracker: "github", repo }],
 				expectedBots: { [repo]: ["grok"] },
-				noSenior: { [repo]: false },
+				pmBot: { [repo]: true },
 			}),
 		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));

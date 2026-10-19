@@ -266,7 +266,7 @@ describe("settings", () => {
 						activityWindowDays: 14,
 						pollIntervalSeconds: 120,
 						expectedBots: { [quiet]: ["grok"] },
-						noSenior: { [quiet]: true },
+						pmBot: { [quiet]: false },
 						needsYouLabels: ["needs-human"],
 						notificationTriggers: {
 							needsYou: false,
@@ -282,7 +282,7 @@ describe("settings", () => {
 				expect(written.activityWindowDays).toBe(14);
 				expect(written.pollIntervalSeconds).toBe(120);
 				expect(written.expectedBots).toEqual({ [quiet]: ["grok"] });
-				expect(written.noSenior).toEqual({ [quiet]: true });
+				expect(written.pmBot).toEqual({ [quiet]: false });
 				expect(written.needsYouLabels).toEqual(["needs-human"]);
 				expect(written.notificationTriggers.needsYou).toBe(false);
 				const reread = (await (
@@ -602,53 +602,53 @@ describe("settings", () => {
 		}
 	});
 
-	test("a blank no-senior line and a bare name leave the saved flags", async () => {
+	test("a blank PM Bot line and a bare name leave the saved flags", async () => {
 		const linear = "linear-project";
-		const savedFlags = { [linear]: false, [quiet]: true };
+		const savedFlags = { [linear]: true, [quiet]: false };
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: linear }],
-				noSenior: savedFlags,
+				pmBot: savedFlags,
 			}),
 			async (base) => {
 				const current = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-				expect(current.noSenior).toEqual(savedFlags);
+				expect(current.pmBot).toEqual(savedFlags);
 
 				const rejected = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...current,
-						noSenior: `${linear} false\n\n${quiet}`,
+						pmBot: `${linear} true\n\n${quiet}`,
 					}),
 				});
 				expect(rejected.status).toBe(400);
 				const body = (await rejected.json()) as { error: string };
-				expect(body.error).toContain("noSenior");
+				expect(body.error).toContain("pmBot");
 
 				const written = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-				expect(written.noSenior).toEqual(savedFlags);
+				expect(written.pmBot).toEqual(savedFlags);
 			},
 		);
 	});
 
-	test("an unchanged menu keeps an explicit no-senior false", async () => {
+	test("an unchanged menu keeps an explicit PM Bot false", async () => {
 		const linear = "linear-project";
-		const savedFlags = { [linear]: false, [quiet]: true };
+		const savedFlags = { [linear]: true, [quiet]: false };
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: linear }],
-				noSenior: savedFlags,
+				pmBot: savedFlags,
 			}),
 			async (base) => {
 				const current = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-				expect(current.noSenior).toEqual(savedFlags);
+				expect(current.pmBot).toEqual(savedFlags);
 
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
@@ -657,12 +657,12 @@ describe("settings", () => {
 				});
 				expect(saved.status).toBe(200);
 				const body = (await saved.json()) as Configuration;
-				expect(body.noSenior).toEqual(savedFlags);
+				expect(body.pmBot).toEqual(savedFlags);
 
 				const written = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-				expect(written.noSenior).toEqual(savedFlags);
+				expect(written.pmBot).toEqual(savedFlags);
 			},
 		);
 	});
