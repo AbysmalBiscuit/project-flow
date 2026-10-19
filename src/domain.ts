@@ -1082,10 +1082,15 @@ function countsForHead(
 function reviewState(
 	pulls: PullRequest[],
 	expectedByRepo: Map<string, KnownBot[]>,
+	comments: Comment[] = [],
 ): { state: "inReview" | "awaitingMerge" | null; tags: string[] } {
 	const open = pulls.filter((pull) => !pull.merged);
 	if (open.length === 0 || open.some((pull) => pull.draft)) {
 		return { state: null, tags: [] };
+	}
+	const run = workcellRun(comments);
+	if (run !== null) {
+		return { state: run, tags: [] };
 	}
 	const tags: string[] = [];
 	let waiting = false;
@@ -1101,6 +1106,71 @@ function reviewState(
 		}
 	}
 	return { state: waiting ? "inReview" : "awaitingMerge", tags };
+}
+
+const progressHeading = "**Workcell progress**";
+const stageLine = /^stage\s+(\d+)\b/i;
+const finalReportLine = /^final report\b/i;
+const mergeAskLine = /^Merge PR #\d+\b/i;
+const reportMarker = "<!-- workcell:report -->";
+
+function workcellRun(comments: Comment[]): "inReview" | "awaitingMerge" | null {
+	const progress = comments.find(
+		(comment) => comment.body.split("\n")[0]?.trim() === progressHeading,
+	);
+	if (progress === undefined) {
+		return null;
+	}
+	const lines = progress.body
+		.split("\n")
+		.map((line) => line.trim().replace(/^-\s*/, ""))
+		.filter((line) => line !== "" && line !== progressHeading);
+	let stage: number | null = null;
+	let reported = false;
+	let mergeAsk: string | null = null;
+	for (const line of lines) {
+		const stageMatch = line.match(stageLine);
+		if (stageMatch?.[1] !== undefined) {
+			stage = Number(stageMatch[1]);
+			reported = false;
+			mergeAsk = null;
+			continue;
+		}
+		if (finalReportLine.test(line)) {
+			reported = true;
+			continue;
+		}
+		const ask = line.match(/^ask-([A-Za-z0-9_.-]+):\s+\S+\s+(.+)$/);
+		if (
+			ask?.[1] !== undefined &&
+			ask[2] !== undefined &&
+			mergeAskLine.test(ask[2])
+		) {
+			mergeAsk = ask[1];
+		}
+	}
+	const progressAt = comments.indexOf(progress);
+	const later = comments.slice(progressAt + 1);
+	if (mergeAsk !== null && !askAnswered(later, mergeAsk)) {
+		return "awaitingMerge";
+	}
+	if (
+		reported &&
+		later.some((comment) => comment.body.includes(reportMarker))
+	) {
+		return "awaitingMerge";
+	}
+	if (stage !== null && stage <= 5) {
+		return "inReview";
+	}
+	return null;
+}
+
+function askAnswered(later: Comment[], id: string): boolean {
+	return later.some(
+		(comment) =>
+			quotesAsk(comment.body, id) || answerPrefix.test(comment.body.trim()),
+	);
 }
 
 export function projectCounts(
@@ -1145,7 +1215,7 @@ export function projectCounts(
 			startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
 		const pushed =
 			key !== null && branches.some((branch) => branchLinksTicket(branch, key));
-		const review = reviewState(links, expectedBots);
+		const review = reviewState(links, expectedBots, ticket.comments ?? []);
 		for (const tag of review.tags) {
 			tags.add(tag);
 		}

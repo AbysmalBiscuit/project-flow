@@ -98,6 +98,10 @@ function issue(number: number): Record<string, unknown> {
 	};
 }
 
+function progress(lines: string): string {
+	return `**Workcell progress**\n\n${lines}`;
+}
+
 function pull(
 	number: number,
 	ticket = 8,
@@ -143,6 +147,7 @@ function githubFetch(recorded: {
 	commentsByPull: Record<number, Record<string, unknown>[]>;
 	reviewsByPull: Record<number, Record<string, unknown>[]>;
 	reactionsByPull: Record<number, Record<string, unknown>[]>;
+	commentsByIssue?: Record<number, Record<string, unknown>[]>;
 	commitsBySha?: Record<string, Record<string, unknown>>;
 	mergedPulls?: Record<string, unknown>[];
 	closedNext?: string | null;
@@ -207,12 +212,18 @@ function githubFetch(recorded: {
 		);
 		if (thread?.[1] !== undefined && thread[2] !== undefined) {
 			const number = Number(thread[1]);
+			const issueComments =
+				url.includes("/issues/") && thread[2] === "comments"
+					? recorded.commentsByIssue?.[number]
+					: undefined;
 			const rows =
+				issueComments ??
 				(thread[2] === "comments"
 					? recorded.commentsByPull[number]
 					: thread[2] === "reviews"
 						? recorded.reviewsByPull[number]
-						: recorded.reactionsByPull[number]) ?? [];
+						: recorded.reactionsByPull[number]) ??
+				[];
 			const pageNumber = Number(thread[3]);
 			const start = (pageNumber - 1) * 100;
 			const slice = rows.slice(start, start + 100);
@@ -244,6 +255,7 @@ async function overview(recorded: {
 	commentsByPull?: Record<number, Record<string, unknown>[]>;
 	reviewsByPull?: Record<number, Record<string, unknown>[]>;
 	reactionsByPull?: Record<number, Record<string, unknown>[]>;
+	commentsByIssue?: Record<number, Record<string, unknown>[]>;
 	commitsBySha?: Record<string, Record<string, unknown>>;
 	mergedPulls?: Record<string, unknown>[];
 	closedNext?: string | null;
@@ -278,6 +290,9 @@ async function overview(recorded: {
 					commentsByPull: recorded.commentsByPull ?? {},
 					reviewsByPull: recorded.reviewsByPull ?? {},
 					reactionsByPull: recorded.reactionsByPull ?? {},
+					...(recorded.commentsByIssue === undefined
+						? {}
+						: { commentsByIssue: recorded.commentsByIssue }),
 					...(recorded.commitsBySha === undefined
 						? {}
 						: { commitsBySha: recorded.commitsBySha }),
@@ -1692,6 +1707,329 @@ describe("review cycle", () => {
 			);
 			expect(mergedReads).toHaveLength(4);
 			expect(closedReads).toHaveLength(2);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a workcell run at stage 5 or earlier stays in review", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 1: implementing issue 8\n- stage 5: round 1 of 3",
+						),
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("an open merge ask on a workcell run is awaiting merge", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 3\n- ask-1: 2026-10-18T12:00:00Z Merge PR #83 by squash?",
+						),
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
+	});
+
+	test("a workcell run that ended at its final report with the PR open is awaiting merge", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 3\n- final report sent https://github.com/acme/widget/pull/83",
+						),
+					},
+					{
+						body: "Final report for https://github.com/acme/widget/pull/83\n\n<!-- workcell:report -->",
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("awaitingMerge", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 1,
+			}),
+		);
+	});
+
+	test("a stage line after the final report puts the run back in review", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 3\n- final report sent https://github.com/acme/widget/pull/83\n- stage 1: implementing issue 8 again",
+						),
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("an answered merge ask leaves the run at its stage", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 2 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: progress(
+							"- stage 5: round 1 of 3\n- ask-1: 2026-10-18T12:00:00Z Merge PR #83 by squash?",
+						),
+					},
+					{ body: "answer: not yet" },
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a blank progress line and repeated spaces still read the stage", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [
+					{
+						body: `**Workcell progress**\n\n- \n-   stage   5: round 1 of 3`,
+					},
+				],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a stage past 5 with no merge ask and no final report uses the expected bots", async () => {
+		const body = await overview({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83)],
+			commentsByIssue: {
+				8: [{ body: progress("- stage 6: merging") }],
+			},
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "in_progress",
+						conclusion: null,
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		});
+		expect(body).toEqual(
+			card("inReview", {
+				backlog: 0,
+				inProgress: 0,
+				inReview: 1,
+				awaitingMerge: 0,
+			}),
+		);
+	});
+
+	test("a failed comment read does not invent a workcell run", async () => {
+		const requests: string[] = [];
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const recorded = githubFetch({
+			issues: [{ ...issue(8), comments: 1 }],
+			pulls: [pull(83)],
+			checksBySha: {
+				[head]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			commentsByPull: {},
+			reviewsByPull: {
+				83: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			reactionsByPull: {},
+			mergedPulls: [mergedPull()],
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			requests.push(url);
+			if (url.includes("/issues/8/comments")) {
+				return new Response("recorded failure", { status: 500 });
+			}
+			return recorded(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<unknown>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						resolve(await response.json());
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.exitCode).not.toBe(0);
+			expect(requests.some((url) => url.includes("/issues/8/comments"))).toBe(
+				true,
+			);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
