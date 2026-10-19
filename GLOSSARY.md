@@ -50,6 +50,26 @@ _Avoid_: Category, scope group
 
 ### State
 
+**State**:
+The place of a ticket in its workflow. The tracker status sets the state. GitHub evidence and workcell evidence move the state forward. Missing evidence never moves the state back. Done and Dropped come from the tracker. A merged PR that closes the ticket also sets Done.
+_Avoid_: Status (when the state is meant), column
+
+**Lane**:
+The column a ticket sits in on a project board. The lane matches the ticket's state. The tracker sets the lanes, in tracker order and tracker colours. The app adds an Awaiting merge lane when the tracker has none.
+_Avoid_: Column, status column
+
+**Blocked**:
+A flag on a ticket in any state. The ticket has at least one open blocker. The ticket stays in the lane of its state.
+_Avoid_: Blocked state
+
+**Stale status**:
+A chip that names the tracker status when that status lags the state.
+_Avoid_: Stale, out of date, wrong status
+
+**Run failed**:
+A chip on a ticket whose workcell run failed or stalled. The ticket returns to the lane of its tracker status.
+_Avoid_: Failed, error, stalled
+
 **Done**:
 A closed ticket that was completed.
 
@@ -57,23 +77,20 @@ A closed ticket that was completed.
 A closed ticket that was cancelled or closed as not planned.
 _Avoid_: Cancelled, won't do
 
-**Blocked**:
-An open ticket with at least one open blocker.
-
 **In progress**:
-An open, unblocked ticket with a pushed branch, a started devkit todo, or a draft PR, and no open PR ready for review. The tracker's own status does not count.
+An open ticket whose state has moved forward on a live workcell run, a pushed branch, a started devkit todo, or a draft PR.
 _Avoid_: Started, active
 
 **In review**:
-An open, unblocked ticket whose least advanced open PR is out of draft and has a review cycle that has begun but not finished. The review cycle is the workcell run's review rounds when a run exists, else the expected review bots.
+An open ticket whose least advanced open PR is out of draft and has a review cycle that has begun but not finished. The review cycle is the workcell run's review rounds when a run exists, else the expected review bots.
 _Avoid_: Under review, PR open
 
 **Awaiting merge**:
-An open, unblocked ticket whose every open PR has finished its review cycle and waits for a human to approve and merge it.
+An open ticket whose every open PR has finished its review cycle and waits for a human to merge it. Auto-merge is off, or auto-merge is set to ask.
 _Avoid_: Ready, pending merge, mergeable
 
 **Backlog**:
-An open ticket that is neither blocked nor in progress.
+An open ticket that has not moved forward from its tracker status, and whose tracker status is the start of the workflow.
 _Avoid_: Todo, not started
 
 **Blocker**:

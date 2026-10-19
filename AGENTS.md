@@ -14,11 +14,12 @@ The parent spec, issue #1, holds the full rules. Use the terms in `GLOSSARY.md`.
 
 ### Stack
 
-- One Bun process serves the React page and the JSON API on localhost. Bun bundles the page from an HTML import. Do not add a bundler or a framework.
+- The stack is Bun, React and StyleX. One Bun process serves the React page and the JSON API on localhost. Bun bundles the page from an HTML import. Do not add a second bundler or a framework.
+- The StyleX Bun plugin runs in the dev server and the production build.
 - Bun's built-in SQLite is the store. The store is a cache: the next poll fills it again. The notifications table and seeded_ids keep history.
 - One Zod schema validates the configuration file and gives its TypeScript type. Do not write a second type for the configuration.
-- The browser renders diagrams with Mermaid.
-- A component styles only through its CSS module and the custom properties in `src/tokens.css`. Do not add a colour, `px` or `rem` literal in any other CSS file.
+- React Flow draws the overview graph and the project graph. Mermaid leaves the dependencies when both graphs move.
+- StyleX variables are the one source of colours and sizes. A component styles only through StyleX. Do not add a colour, `px` or `rem` literal outside a StyleX variable. Computed graph coordinates stay allowed.
 
 ### Architecture
 
