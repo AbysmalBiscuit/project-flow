@@ -739,7 +739,10 @@ async function connectionPages<Node>(
 	start: string,
 	query: string,
 	label: string,
-	read: (body: unknown) => { nodes: Node[]; pageInfo: z.infer<typeof pageInfo> },
+	read: (body: unknown) => {
+		nodes: Node[];
+		pageInfo: z.infer<typeof pageInfo>;
+	},
 ): Promise<Node[]> {
 	const nodes: Node[] = [];
 	let after: string | null = start;
