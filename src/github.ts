@@ -15,12 +15,7 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import {
-	factoryBoard,
-	githubOptionColour,
-	labelColour,
-	statusTypeOfName,
-} from "./domain.ts";
+import { backlogColour, factoryBoard, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -836,6 +831,29 @@ function githubReason(reason: string | null): string | null {
 }
 
 type ProjectItem = z.infer<typeof projectItem>;
+
+const githubOptionColours: Record<string, string> = {
+	GRAY: "#BEC2C8",
+	PURPLE: "#5E6AD2",
+	YELLOW: "#F2C94C",
+	BLUE: "#4C9AFF",
+	GREEN: "#4CB782",
+	RED: "#EB5757",
+	ORANGE: "#F2994A",
+	PINK: "#F7C8C8",
+};
+
+function githubOptionColour(color: string): string {
+	return githubOptionColours[color] ?? backlogColour;
+}
+
+function labelColour(color: string): string {
+	const hex = color.replace(/^#/, "");
+	if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
+		return backlogColour;
+	}
+	return `#${hex.toUpperCase()}`;
+}
 
 function openLinkedKeys(items: ProjectItem[]): Set<string> {
 	const keys = new Set<string>();

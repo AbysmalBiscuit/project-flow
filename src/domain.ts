@@ -800,17 +800,6 @@ const statusTypeOrder: StatusType[] = [
 	"dropped",
 ];
 
-const githubOptionColours: Record<string, string> = {
-	GRAY: "#BEC2C8",
-	PURPLE: "#5E6AD2",
-	YELLOW: "#F2C94C",
-	BLUE: "#4C9AFF",
-	GREEN: "#4CB782",
-	RED: "#EB5757",
-	ORANGE: "#F2994A",
-	PINK: "#F7C8C8",
-};
-
 const factoryLabels = [
 	"ready",
 	"factory: running",
@@ -916,17 +905,7 @@ export function linearStatusType(type: string, name: string): StatusType {
 	return "backlog";
 }
 
-export function githubOptionColour(color: string): string {
-	return githubOptionColours[color] ?? appColours.backlog;
-}
-
-export function labelColour(color: string): string {
-	const hex = color.replace(/^#/, "");
-	if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
-		return appColours.backlog;
-	}
-	return `#${hex.toUpperCase()}`;
-}
+export const backlogColour = appColours.backlog;
 
 function namesMatch(left: string, right: string): boolean {
 	return laneName(left) === laneName(right);
