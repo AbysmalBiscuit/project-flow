@@ -97,6 +97,7 @@ export type BotComment = {
 	login: string;
 	body: string;
 	createdAt: string | null;
+	reactions?: number;
 };
 
 export type BotReview = {
@@ -1282,6 +1283,10 @@ function shownState(
 	return state;
 }
 
+function pullKey(pull: PullRequest): string {
+	return `${pull.repo}#${pull.number}`;
+}
+
 export function projectCounts(
 	name: string,
 	key: string,
@@ -1317,6 +1322,8 @@ export function projectCounts(
 	const shownByKey = new Map<string, TicketState>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
+	const linkedByTicket = new Map<string, PullRequest[]>();
+	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed);
 		const state = ticketState(
@@ -1326,7 +1333,13 @@ export function projectCounts(
 				return ref === null ? [] : [ref];
 			}),
 		);
-		const links = ticket.state === "open" ? linked(ticket, active, name) : [];
+		const links = linked(ticket, active, name);
+		for (const pull of links) {
+			linkedKeys.add(pullKey(pull));
+		}
+		if (ticket.state === "open" && ticket.key !== null) {
+			linkedByTicket.set(ticket.key, links);
+		}
 		const review = reviewState(links, expectedBots, ticket.comments ?? []);
 		for (const tag of review.tags) {
 			tags.add(tag);
@@ -1378,22 +1391,20 @@ export function projectCounts(
 			});
 		}
 	}
-	const linkedNumbers = new Set(
-		tickets.flatMap((ticket) =>
-			linked(ticket, active, name).map((pull) => pull.number),
-		),
-	);
-	const unlinkedPrs = active
-		.filter((pull) => !linkedNumbers.has(pull.number))
-		.map((pull) => ({
-			number: pull.number,
-			title: pull.title,
-			url: pull.url,
-		}));
+	const unlinked = active.filter((pull) => !linkedKeys.has(pullKey(pull)));
+	const unlinkedPrs = unlinked.map((pull) => ({
+		number: pull.number,
+		title: pull.title,
+		url: pull.url,
+	}));
 	const needsYouItemsForProject = needsYouItems(
 		name,
 		tracker,
 		tickets,
+		active,
+		unlinked,
+		linkedByTicket,
+		expectedBots,
 		shownByKey,
 		{
 			labels: rules.labels,
@@ -1401,11 +1412,7 @@ export function projectCounts(
 			noSenior: projectHasNoSenior(rules.noSenior, key, tracker),
 		},
 	);
-	const unlinkedReview = reviewState(
-		active.filter((pull) => !linkedNumbers.has(pull.number)),
-		expectedBots,
-		[],
-	);
+	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
 	}
@@ -1645,10 +1652,47 @@ function assignedToViewer(ticket: Ticket, viewers: Set<string>): boolean {
 	});
 }
 
+function needsYouItem(
+	project: string,
+	tracker: ProjectCounts["tracker"],
+	key: string,
+	title: string,
+	ask: OpenAsk | null,
+	comments: Comment[],
+	reason: NeedsYouItem["reason"],
+): NeedsYouItem {
+	const reply = ask === null ? null : replyAfter(comments, ask.index);
+	return {
+		project,
+		tracker,
+		key,
+		headline: ask?.headline ?? title,
+		reason,
+		tags: ask?.tags ?? [],
+		answered: reply !== null,
+		acknowledged: (reply?.reactions ?? 0) > 0,
+	};
+}
+
+function pullComments(pull: PullRequest): Comment[] {
+	return pull.comments.map((comment) => ({
+		body: comment.body,
+		...(comment.createdAt === null ? {} : { createdAt: comment.createdAt }),
+		author: comment.login,
+		...(comment.reactions === undefined
+			? {}
+			: { reactions: comment.reactions }),
+	}));
+}
+
 export function needsYouItems(
 	project: string,
 	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
+	pulls: PullRequest[],
+	unlinkedPulls: PullRequest[],
+	linkedByTicket: Map<string, PullRequest[]>,
+	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
 	rules: NeedsYouRules,
 ): NeedsYouItem[] {
@@ -1662,7 +1706,12 @@ export function needsYouItems(
 			continue;
 		}
 		const shown = shownByKey.get(ticket.key);
-		const ask = openAsk(ticket.comments ?? [], rules.noSenior);
+		const linkedPulls = linkedByTicket.get(ticket.key) ?? [];
+		const comments = [
+			...(ticket.comments ?? []),
+			...linkedPulls.flatMap(pullComments),
+		];
+		const ask = openAsk(comments, rules.noSenior);
 		const labelled =
 			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
@@ -1670,18 +1719,62 @@ export function needsYouItems(
 		if (ask === null && !labelled && !awaiting) {
 			continue;
 		}
-		const reply =
-			ask === null ? null : replyAfter(ticket.comments ?? [], ask.index);
-		items.push({
-			project,
-			tracker,
-			key: ticket.key,
-			headline: ask?.headline ?? ticket.title,
-			reason: ask !== null ? "ask" : awaiting ? "awaitingMerge" : "label",
-			tags: ask?.tags ?? [],
-			answered: reply !== null,
-			acknowledged: (reply?.reactions ?? 0) > 0,
-		});
+		items.push(
+			needsYouItem(
+				project,
+				tracker,
+				ticket.key,
+				ticket.title,
+				ask,
+				comments,
+				ask !== null ? "ask" : awaiting ? "awaitingMerge" : "label",
+			),
+		);
+	}
+	const folded = new Set(
+		[...linkedByTicket.values()].flat().map((pull) => pullKey(pull)),
+	);
+	for (const pull of pulls) {
+		if (folded.has(pullKey(pull))) {
+			continue;
+		}
+		const comments = pullComments(pull);
+		const ask = openAsk(comments, rules.noSenior);
+		if (ask === null) {
+			continue;
+		}
+		items.push(
+			needsYouItem(
+				project,
+				"github",
+				pullKey(pull),
+				pull.title,
+				ask,
+				comments,
+				"ask",
+			),
+		);
+	}
+	const listed = new Set(items.map((item) => item.key));
+	for (const pull of unlinkedPulls) {
+		const key = pullKey(pull);
+		if (listed.has(key)) {
+			continue;
+		}
+		if (reviewState([pull], expectedBots, []).state !== "awaitingMerge") {
+			continue;
+		}
+		items.push(
+			needsYouItem(
+				project,
+				"github",
+				key,
+				pull.title,
+				null,
+				[],
+				"awaitingMerge",
+			),
+		);
 	}
 	items.sort((left, right) => Number(left.answered) - Number(right.answered));
 	return items;
