@@ -143,7 +143,7 @@ async function drivenPoll(base: string): Promise<InboxEntry | null> {
 		return null;
 	}
 	let buffered = "";
-	while (!notificationBlock(buffered, raised.id)) {
+	while (streamedNotification(buffered, raised.id) === undefined) {
 		const chunk = await reader.read();
 		if (chunk.done) {
 			break;
@@ -151,18 +151,26 @@ async function drivenPoll(base: string): Promise<InboxEntry | null> {
 		buffered += decoder.decode(chunk.value, { stream: true });
 	}
 	await reader.cancel();
-	if (!notificationBlock(buffered, raised.id)) {
+	const streamed = streamedNotification(buffered, raised.id);
+	if (streamed === undefined) {
 		throw new Error("notification event missing for the raised inbox entry");
 	}
-	return raised;
+	return streamed;
 }
 
-function notificationBlock(text: string, id: string): boolean {
-	return eventsOf(text).some(
-		(event) =>
-			event.event === "notification" &&
-			(JSON.parse(event.data) as InboxEntry).id === id,
+function streamedNotification(
+	text: string,
+	id: string,
+): InboxEntry | undefined {
+	const event = eventsOf(text).find(
+		(item) =>
+			item.event === "notification" &&
+			(JSON.parse(item.data) as InboxEntry).id === id,
 	);
+	if (event === undefined) {
+		return undefined;
+	}
+	return JSON.parse(event.data) as InboxEntry;
 }
 
 async function withInbox(
