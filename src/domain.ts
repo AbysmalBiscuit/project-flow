@@ -548,6 +548,47 @@ export function githubRepoForTodo(
 	return checkout.repo;
 }
 
+export function checkoutBasenames(
+	checkouts: { path?: string; repo: string }[],
+): { name: string; repo: string }[] {
+	return checkouts.flatMap((checkout) => {
+		if (checkout.path === undefined || checkout.repo.trim() === "") {
+			return [];
+		}
+		const name = checkout.path.split(/[/\\]/).at(-1) ?? "";
+		if (name === "") {
+			return [];
+		}
+		return [{ name, repo: checkout.repo.trim() }];
+	});
+}
+
+export function todoNamesForCheckout(
+	checkoutName: string,
+	rows: { project: string }[],
+): string[] {
+	const prefix = `${checkoutName}.`;
+	return rows.flatMap((row) =>
+		row.project.startsWith(prefix) ? [row.project.slice(prefix.length)] : [],
+	);
+}
+
+export function linearNamesFromCheckouts(
+	checkouts: { path?: string; tracker: string; names?: string[] }[],
+	rows: { project: string }[],
+): string[] {
+	const names: string[] = [];
+	for (const checkout of checkouts) {
+		if (checkout.tracker !== "linear" || checkout.path === undefined) {
+			continue;
+		}
+		const checkoutName = checkout.path.split(/[/\\]/).at(-1) ?? "";
+		names.push(...(checkout.names ?? []));
+		names.push(...todoNamesForCheckout(checkoutName, rows));
+	}
+	return names;
+}
+
 export function linearKeysForNames(names: string[]): string[] {
 	const keys: string[] = [];
 	for (const name of names) {

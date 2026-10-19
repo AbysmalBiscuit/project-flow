@@ -1,11 +1,12 @@
-import { basename } from "node:path";
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type { Overview } from "./domain.ts";
 import {
+	checkoutBasenames,
 	checkoutNamesProject,
 	githubRepoForTodo,
 	linearKeysForNames,
+	linearNamesFromCheckouts,
 	mergeTickets,
 	projectCounts,
 	projectSnapshots,
@@ -23,7 +24,6 @@ import type {
 	Clock,
 	ConfigurationPort,
 	FoundProject,
-	LocalCheckout,
 	Notifier,
 	Store,
 	TodoSource,
@@ -73,37 +73,6 @@ function matchesRef(
 		return project.key === ref.repo;
 	}
 	return project.owner === ref.owner && project.number === ref.project;
-}
-
-function checkoutNames(
-	checkouts: LocalCheckout[],
-): { name: string; repo: string }[] {
-	return checkouts.flatMap((checkout) => {
-		if (checkout.path === undefined || checkout.repo.trim() === "") {
-			return [];
-		}
-		return [{ name: basename(checkout.path), repo: checkout.repo.trim() }];
-	});
-}
-
-function linearKeysFromCheckouts(
-	checkouts: LocalCheckout[],
-	rows: { project: string }[],
-): string[] {
-	const names: string[] = [];
-	for (const checkout of checkouts) {
-		if (checkout.tracker !== "linear" || checkout.path === undefined) {
-			continue;
-		}
-		const checkoutName = basename(checkout.path);
-		names.push(...(checkout.names ?? []));
-		for (const row of rows) {
-			if (row.project.startsWith(`${checkoutName}.`)) {
-				names.push(row.project.slice(checkoutName.length + 1));
-			}
-		}
-	}
-	return linearKeysForNames(names);
 }
 
 function overview(store: Store): Overview {
@@ -257,7 +226,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 	}
 	const rows = todoRows(todoListing);
 	for (const row of rows) {
-		const repo = githubRepoForTodo(row.project, checkoutNames(checkouts));
+		const repo = githubRepoForTodo(row.project, checkoutBasenames(checkouts));
 		if (repo === null || named.has(repo.toLowerCase())) {
 			continue;
 		}
@@ -265,7 +234,7 @@ async function poll(options: PollOptions): Promise<Configuration | null> {
 		mergeFound(discovered, [{ key: repo, tracker: "github", updatedAt: null }]);
 	}
 	if (linear !== null) {
-		const keys = linearKeysFromCheckouts(checkouts, rows);
+		const keys = linearKeysForNames(linearNamesFromCheckouts(checkouts, rows));
 		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
 	}
 	const found = [...discovered];
