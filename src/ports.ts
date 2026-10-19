@@ -101,4 +101,5 @@ export type Notifier = {
 
 export type ConfigurationPort = {
 	read: () => Promise<Configuration>;
+	write: (text: string) => Promise<Configuration>;
 };

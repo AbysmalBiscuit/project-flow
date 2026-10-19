@@ -1,0 +1,305 @@
+import { describe, expect, test } from "bun:test";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import type { Overview } from "../src/domain.ts";
+import type { Fetch } from "../src/fetch.ts";
+import { run } from "../src/main.ts";
+import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+
+const shown = "acme/shown";
+const quiet = "acme/quiet";
+
+function issue(
+	number: number,
+	updatedAt: string,
+	state: "open" | "closed" = "open",
+): Record<string, unknown> {
+	return {
+		number,
+		title: `Ticket ${number}`,
+		state,
+		state_reason: state === "closed" ? "completed" : null,
+		html_url: `https://github.com/${shown}/issues/${number}`,
+		updated_at: updatedAt,
+		body: "",
+	};
+}
+
+function page(items: Record<string, unknown>[]): Response {
+	return new Response(JSON.stringify(items), {
+		status: 200,
+		headers: { "content-type": "application/json" },
+	});
+}
+
+function recorded(input: string | URL | Request, init?: RequestInit): Response {
+	const url = urlOf(input);
+	if (url.startsWith("https://api.github.com/user/repos")) {
+		return new Response(
+			JSON.stringify([
+				{
+					full_name: shown,
+					owner: { login: "lev" },
+					permissions: { push: true },
+					pushed_at: "2026-08-01T12:00:00.000Z",
+				},
+				{
+					full_name: quiet,
+					owner: { login: "lev" },
+					permissions: { push: true },
+					pushed_at: "2026-01-01T12:00:00.000Z",
+				},
+			]),
+			{ status: 200, headers: { "content-type": "application/json" } },
+		);
+	}
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	if (url === "https://api.github.com/user") {
+		return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+	}
+	const match = url.match(
+		/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?/,
+	);
+	if (match?.[1] === shown) {
+		return page([issue(1, "2026-08-01T12:00:00.000Z")]);
+	}
+	if (match?.[1] === quiet) {
+		return page([issue(1, "2026-01-01T12:00:00.000Z")]);
+	}
+	if (
+		url.includes("/pulls?") ||
+		url.includes("/branches?") ||
+		url.includes("/comments") ||
+		url.includes("/reviews") ||
+		url.includes("/reactions") ||
+		/\/pulls\/\d+$/.test(url)
+	) {
+		return page([]);
+	}
+	if (url.includes("/check-runs")) {
+		return new Response(JSON.stringify({ check_runs: [] }), { status: 200 });
+	}
+	if (url === "https://api.github.com/graphql") {
+		const body = typeof init?.body === "string" ? init.body : "";
+		if (body.includes("ViewerProjects") || body.includes("OrgProjects")) {
+			return new Response(
+				JSON.stringify({
+					data: {
+						viewer: {
+							login: "lev",
+							projectsV2: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+							organizations: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+						organization: {
+							projectsV2: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				}),
+				{ status: 200 },
+			);
+		}
+		return new Response(
+			JSON.stringify({
+				data: {
+					repository: {
+						pullRequest: { closingIssuesReferences: { nodes: [] } },
+					},
+				},
+			}),
+			{ status: 200 },
+		);
+	}
+	if (url === "https://api.linear.app/graphql") {
+		return new Response(
+			JSON.stringify({
+				data: {
+					viewer: { id: "lev" },
+					projects: {
+						nodes: [],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			}),
+			{ status: 200, headers: { "content-type": "application/json" } },
+		);
+	}
+	return new Response("not recorded", { status: 404 });
+}
+
+const fetchImpl: Fetch = async (input, init) => recorded(input, init);
+
+async function withApp(
+	body: string,
+	check: (base: string, configPath: string) => Promise<void>,
+): Promise<void> {
+	const { path, cleanup } = await tempConfig(body);
+	const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+	let startChecks: (base: string) => void = () => {};
+	const checks = new Promise<void>((resolve, reject) => {
+		startChecks = (base: string) => {
+			check(base, path).then(resolve, reject);
+		};
+	});
+	try {
+		const result = await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				fetch: fetchImpl,
+				readGhToken: async () => null,
+				databasePath: join(root, "project-flow.sqlite"),
+				now: () => new Date("2026-08-18T12:00:00.000Z"),
+				stdout: (line) => startChecks(line),
+				waitForStop: checks,
+			}),
+		);
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+	} finally {
+		await cleanup();
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
+describe("settings", () => {
+	test("a settings change writes a valid configuration and hides the project", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
+			const before = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as Overview;
+			expect(before.projects.map((project) => project.name).sort()).toEqual([
+				shown,
+			]);
+
+			const current = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as {
+				hidden: unknown[];
+				activityWindowDays: number;
+				pollIntervalSeconds: number;
+				expectedBots: Record<string, string[]>;
+				noSenior: Record<string, boolean>;
+				needsYouLabels: string[];
+				notificationTriggers: {
+					needsYou: boolean;
+					comment: boolean;
+					blockerCleared: boolean;
+				};
+			};
+			expect(current.activityWindowDays).toBe(30);
+			expect(current.pollIntervalSeconds).toBe(60);
+			expect(current.needsYouLabels).toEqual(["needs-human", "needs-engineer"]);
+			expect(current.notificationTriggers).toEqual({
+				needsYou: true,
+				comment: true,
+				blockerCleared: true,
+			});
+
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...current,
+					pinned: [{ tracker: "github", repo: quiet }],
+					hidden: [{ tracker: "github", repo: shown }],
+					activityWindowDays: 14,
+					pollIntervalSeconds: 120,
+					expectedBots: { [quiet]: ["grok"] },
+					noSenior: { [quiet]: true },
+					needsYouLabels: ["needs-human"],
+					notificationTriggers: {
+						needsYou: false,
+						comment: true,
+						blockerCleared: false,
+					},
+				}),
+			});
+			expect(saved.status).toBe(200);
+
+			const written = JSON.parse(await readFile(configPath, "utf8")) as {
+				hidden: { tracker: string; repo: string }[];
+				pinned: { tracker: string; repo: string }[];
+				activityWindowDays: number;
+				pollIntervalSeconds: number;
+				expectedBots: Record<string, string[]>;
+				noSenior: Record<string, boolean>;
+				needsYouLabels: string[];
+				notificationTriggers: { needsYou: boolean };
+			};
+			expect(written.hidden).toEqual([{ tracker: "github", repo: shown }]);
+			expect(written.pinned).toEqual([{ tracker: "github", repo: quiet }]);
+			expect(written.activityWindowDays).toBe(14);
+			expect(written.pollIntervalSeconds).toBe(120);
+			expect(written.expectedBots).toEqual({ [quiet]: ["grok"] });
+			expect(written.noSenior).toEqual({ [quiet]: true });
+			expect(written.needsYouLabels).toEqual(["needs-human"]);
+			expect(written.notificationTriggers.needsYou).toBe(false);
+
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const after = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as Overview;
+			expect(after.projects.map((project) => project.name)).toEqual([quiet]);
+		});
+	});
+
+	test("an invalid settings write names the field and leaves the file", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: shown }],
+				activityWindowDays: 30,
+			}),
+			async (base, configPath) => {
+				const before = await readFile(configPath, "utf8");
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ activityWindowDays: 0, extra: true }),
+				});
+				expect(saved.status).toBe(400);
+				const body = (await saved.json()) as { error: string };
+				expect(body.error).toContain("activityWindowDays");
+				expect(await readFile(configPath, "utf8")).toBe(before);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(overview.projects.map((project) => project.name)).toContain(
+					shown,
+				);
+			},
+		);
+	});
+
+	test("a blank settings body names the configuration and leaves the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
+			const before = await readFile(configPath, "utf8");
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: "   ",
+			});
+			expect(saved.status).toBe(400);
+			const body = (await saved.json()) as { error: string };
+			expect(body.error).toContain("configuration");
+			expect(await readFile(configPath, "utf8")).toBe(before);
+		});
+	});
+});
