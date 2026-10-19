@@ -867,14 +867,13 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				return [];
 			}
 			const pulls: PullRequest[] = [];
-			const openListed = await pages(
+			const listed = await pages(
 				`https://api.github.com/repos/${repo}/pulls?state=open&per_page=100&page=1`,
 				token,
 				fetchImpl,
 				repo,
 				"list pulls",
 			);
-			const listed = openListed;
 			for (const item of listed) {
 				const page = z.array(githubPull).parse(item);
 				for (const pull of page) {
