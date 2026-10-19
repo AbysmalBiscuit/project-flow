@@ -103,6 +103,144 @@ export function githubHeaders(token: string): HeadersInit {
 	};
 }
 
+type RestEntry = {
+	etag: string;
+	body: unknown;
+	headers: [string, string][];
+};
+
+export type RestCache = Map<string, RestEntry>;
+
+const issueList =
+	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?(.*)$/;
+
+function issueWindow(url: string): { repo: string; since: string } | null {
+	const match = issueList.exec(url);
+	if (match?.[1] === undefined || match[2] === undefined) {
+		return null;
+	}
+	const since = new URLSearchParams(match[2]).get("since");
+	if (since === null) {
+		return null;
+	}
+	return { repo: match[1], since };
+}
+
+export function retainIssueWindow(cache: RestCache, repo: string): void {
+	let current: string | undefined;
+	for (const key of cache.keys()) {
+		const window = issueWindow(key);
+		if (window?.repo !== repo) {
+			continue;
+		}
+		if (current === undefined || window.since > current) {
+			current = window.since;
+		}
+	}
+	if (current === undefined) {
+		return;
+	}
+	for (const key of cache.keys()) {
+		const window = issueWindow(key);
+		if (window?.repo === repo && window.since < current) {
+			cache.delete(key);
+		}
+	}
+}
+
+function restUrl(input: string | URL | Request): string {
+	if (typeof input === "string") {
+		return input;
+	}
+	if (input instanceof URL) {
+		return input.href;
+	}
+	return input.url;
+}
+
+function restKey(url: string): string {
+	const parsed = new URL(url);
+	parsed.searchParams.sort();
+	return parsed.href;
+}
+
+function cachedHeaders(entry: RestEntry): Headers {
+	const headers = new Headers(entry.headers);
+	headers.delete("content-encoding");
+	headers.delete("content-length");
+	headers.delete("transfer-encoding");
+	if (!headers.has("content-type")) {
+		headers.set("content-type", "application/json");
+	}
+	return headers;
+}
+
+function storedHeaders(response: Response): [string, string][] {
+	return [...response.headers.entries()].filter(
+		([name]) =>
+			name !== "content-encoding" &&
+			name !== "content-length" &&
+			name !== "transfer-encoding",
+	);
+}
+
+function isRestRead(url: string, method: string): boolean {
+	if (method !== "GET" && method !== "") {
+		return false;
+	}
+	if (!url.startsWith("https://api.github.com/")) {
+		return false;
+	}
+	return !url.startsWith("https://api.github.com/graphql");
+}
+
+export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
+	return async (input, init) => {
+		const url = restUrl(input);
+		const method = (init?.method ?? "GET").toUpperCase();
+		if (!isRestRead(url, method)) {
+			return fetchImpl(input, init);
+		}
+		const key = restKey(url);
+		const stored = cache.get(key);
+		const headers = new Headers(init?.headers);
+		if (stored !== undefined && !headers.has("if-none-match")) {
+			headers.set("if-none-match", stored.etag);
+		}
+		const response = await fetchImpl(input, { ...init, headers });
+		if (response.status === 304 && stored !== undefined) {
+			const replayed = cachedHeaders(stored);
+			response.headers.forEach((value, name) => {
+				if (name === "etag" || name === "content-length") {
+					return;
+				}
+				replayed.set(name, value);
+			});
+			const next = response.headers.get("etag");
+			const etag = next !== null && next !== "" ? next : stored.etag;
+			replayed.set("etag", etag);
+			cache.set(key, {
+				etag,
+				body: stored.body,
+				headers: [...replayed.entries()],
+			});
+			return new Response(JSON.stringify(stored.body), {
+				status: 200,
+				headers: replayed,
+			});
+		}
+		const next = response.headers.get("etag");
+		if (response.ok && next !== null && next !== "") {
+			cache.set(key, {
+				etag: next,
+				body: await response.clone().json(),
+				headers: storedHeaders(response),
+			});
+		}
+		return response;
+	};
+}
+
 function nextPage(link: string | null): string | null {
 	if (link === null) {
 		return null;
