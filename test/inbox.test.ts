@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { linearFake, tempConfig, testIo } from "./support.ts";
+import { linearFake, tempConfig, testIo, urlOf } from "./support.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 
@@ -60,29 +60,17 @@ function recordedIssues(issues: Record<string, unknown>[]): Response {
 	});
 }
 
-function bodyOf(input: string | URL | Request, init?: RequestInit): string {
-	if (typeof init?.body === "string") {
-		return init.body;
-	}
-	if (input instanceof Request) {
-		return "";
-	}
-	return "";
+function bodyOf(init?: RequestInit): string {
+	return typeof init?.body === "string" ? init.body : "";
 }
 
 function isPinQuery(
 	input: string | URL | Request,
 	init?: RequestInit,
 ): boolean {
-	const url =
-		typeof input === "string"
-			? input
-			: input instanceof URL
-				? input.href
-				: input.url;
 	return (
-		url === "https://api.linear.app/graphql" &&
-		bodyOf(input, init).includes("ProjectByPin")
+		urlOf(input) === "https://api.linear.app/graphql" &&
+		bodyOf(init).includes("ProjectByPin")
 	);
 }
 
@@ -90,15 +78,9 @@ function isIssueQuery(
 	input: string | URL | Request,
 	init?: RequestInit,
 ): boolean {
-	const url =
-		typeof input === "string"
-			? input
-			: input instanceof URL
-				? input.href
-				: input.url;
 	return (
-		url === "https://api.linear.app/graphql" &&
-		bodyOf(input, init).includes("ProjectIssues")
+		urlOf(input) === "https://api.linear.app/graphql" &&
+		bodyOf(init).includes("ProjectIssues")
 	);
 }
 
@@ -159,7 +141,7 @@ async function withInbox(
 	const recorded = linearFake({ project: projects[0] ?? linearProject });
 	const fetchImpl: Fetch = async (input, init) => {
 		if (isIssueQuery(input, init)) {
-			const body = bodyOf(input, init);
+			const body = bodyOf(init);
 			const projectId = body.match(/"project":\{"id":\{"eq":"([^"]+)"/)?.[1];
 			const project = projects.find((item) => item.id === projectId);
 			const nodes = current.filter(
@@ -173,7 +155,7 @@ async function withInbox(
 			);
 		}
 		if (isPinQuery(input, init)) {
-			const slug = bodyOf(input, init).match(/"pin":"([^"]+)"/)?.[1];
+			const slug = bodyOf(init).match(/"pin":"([^"]+)"/)?.[1];
 			const project = projects.find((item) => item.slugId === slug) ?? null;
 			return Response.json({
 				data: { projects: { nodes: project === null ? [] : [project] } },
@@ -497,6 +479,36 @@ describe("inbox", () => {
 			await refresh(base);
 			expect(await inboxOf(base)).toEqual([]);
 		});
+	});
+
+	test("editing or deleting a comment adds no inbox entry", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const note = {
+			body: "A later note on the same ask.",
+			createdAt: "2026-08-18T14:00:00.000Z",
+		};
+		await withInbox(
+			pinned,
+			[linearIssue("PF-1", "Open ask", headline, [askComment, note])],
+			async (base, setIssues) => {
+				expect(await inboxOf(base)).toEqual([]);
+				setIssues([
+					linearIssue("PF-1", "Open ask", headline, [
+						askComment,
+						{ ...note, body: "A later note, edited." },
+					]),
+				]);
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+				setIssues([linearIssue("PF-1", "Open ask", headline, [askComment])]);
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+			},
+		);
 	});
 
 	test("a reply that answers the open ask adds no inbox entry", async () => {

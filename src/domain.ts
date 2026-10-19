@@ -250,12 +250,17 @@ type Attention = {
 };
 
 function commentStamp(comments: Comment[] | undefined): string {
-	return (comments ?? [])
-		.flatMap((comment) => {
-			const body = comment.body.trim();
-			return body === "" ? [] : [`${comment.createdAt ?? ""}:${body}`];
-		})
-		.join("\n");
+	let newest = "";
+	for (const comment of comments ?? []) {
+		if (comment.body.trim() === "") {
+			continue;
+		}
+		const createdAt = comment.createdAt ?? "";
+		if (createdAt > newest) {
+			newest = createdAt;
+		}
+	}
+	return newest;
 }
 
 export function attentionOf(
@@ -359,15 +364,9 @@ export function notificationsFor(
 		}
 	}
 	if (triggers.comment) {
-		const still = new Set(
-			after.needsYou.map((item) => `${item.project}\n${item.key}`),
-		);
 		for (const [id, stamp] of after.comments) {
-			if (!still.has(id)) {
-				continue;
-			}
 			const earlier = before.comments.get(id);
-			if (earlier === undefined || earlier === stamp) {
+			if (earlier === undefined || stamp === "" || stamp <= earlier) {
 				continue;
 			}
 			const item = after.needsYou.find(
