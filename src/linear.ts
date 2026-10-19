@@ -69,6 +69,10 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			title
 			description
 			state { type }
+			updatedAt
+			parent { identifier }
+			projectMilestone { name }
+			labels { nodes { name } }
 			attachments {
 				nodes { url title sourceType }
 			}
@@ -144,6 +148,11 @@ const issueNode = z.object({
 	description: z.string().nullable().optional(),
 	updatedAt: z.string(),
 	state: z.object({ type: z.string() }).nullable(),
+	parent: z.object({ identifier: z.string() }).nullable().optional(),
+	projectMilestone: z.object({ name: z.string() }).nullable().optional(),
+	labels: z
+		.object({ nodes: z.array(z.object({ name: z.string() })) })
+		.optional(),
 	attachments: z.object({ nodes: z.array(attachmentNode) }).optional(),
 	inverseRelations: z
 		.object({
@@ -242,6 +251,9 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		updatedAt: node.updatedAt,
 		body: node.description ?? "",
 		blockedBy: blockedBy(node),
+		milestone: node.projectMilestone?.name ?? null,
+		parent: node.parent?.identifier ?? null,
+		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 	};
 }
 

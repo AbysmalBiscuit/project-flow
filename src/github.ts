@@ -16,6 +16,9 @@ const githubIssue = z.object({
 	state_reason: z.string().nullable(),
 	updated_at: z.string(),
 	body: z.string().nullable().optional(),
+	milestone: z.object({ title: z.string() }).nullable().optional(),
+	labels: z.array(z.object({ name: z.string() })).optional(),
+	parent_issue_url: z.string().nullable().optional(),
 	issue_dependencies_summary: z
 		.object({
 			blocked_by: z.number(),
@@ -398,7 +401,13 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 				nodes {
 					content {
 						__typename
-						... on Issue { number title state stateReason updatedAt repository { nameWithOwner } }
+						... on Issue {
+							number title state stateReason updatedAt
+							repository { nameWithOwner }
+							milestone { title }
+							labels(first: 20) { nodes { name } }
+							parent { number repository { nameWithOwner } }
+						}
 					}
 				}
 				pageInfo { hasNextPage endCursor }
@@ -424,6 +433,23 @@ const projectItems = z.object({
 									updatedAt: z.string().optional(),
 									repository: z
 										.object({ nameWithOwner: z.string() })
+										.optional(),
+									milestone: z
+										.object({ title: z.string() })
+										.nullable()
+										.optional(),
+									labels: z
+										.object({
+											nodes: z.array(z.object({ name: z.string() })),
+										})
+										.nullable()
+										.optional(),
+									parent: z
+										.object({
+											number: z.number(),
+											repository: z.object({ nameWithOwner: z.string() }),
+										})
+										.nullable()
 										.optional(),
 								})
 								.nullable(),
@@ -460,6 +486,19 @@ function githubState(state: string): "open" | "closed" | null {
 		return "closed";
 	}
 	return null;
+}
+
+function parentKey(url: string | null | undefined): string | null {
+	if (url === null || url === undefined) {
+		return null;
+	}
+	const match = url.match(/\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)/);
+	const repo = match?.[1];
+	const number = match?.[2];
+	if (repo === undefined || number === undefined) {
+		return null;
+	}
+	return `${repo}#${number}`;
 }
 
 function githubReason(reason: string | null): string | null {
@@ -520,17 +559,25 @@ async function listProjectTickets(
 			if (state === null) {
 				continue;
 			}
+			const repoName = content.repository.nameWithOwner;
+			const parent =
+				content.parent === null || content.parent === undefined
+					? null
+					: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
 			tickets.push({
 				id: String(content.number),
 				tracker: "github",
-				key: `${content.repository.nameWithOwner}#${content.number}`,
+				key: `${repoName}#${content.number}`,
 				title: content.title ?? "",
 				state,
 				stateReason: githubReason(content.stateReason ?? null),
 				updatedAt: content.updatedAt ?? "",
-				ref: `${content.repository.nameWithOwner}#${content.number}`,
+				ref: `${repoName}#${content.number}`,
 				body: "",
 				blockedBy: [],
+				milestone: content.milestone?.title ?? null,
+				parent,
+				labels: content.labels?.nodes.map((label) => label.name) ?? [],
 			});
 		}
 		after = page.data.node.items.pageInfo.hasNextPage
@@ -594,6 +641,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						body: issue.body ?? "",
 						blockedBy,
 						...(comments.length === 0 ? {} : { comments }),
+						milestone: issue.milestone?.title ?? null,
+						parent: parentKey(issue.parent_issue_url),
+						labels: issue.labels?.map((label) => label.name) ?? [],
 					});
 				}
 			}

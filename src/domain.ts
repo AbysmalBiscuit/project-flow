@@ -43,6 +43,9 @@ export type Ticket = {
 	body: string;
 	blockedBy: TicketRef[];
 	comments?: Comment[];
+	milestone: string | null;
+	parent: string | null;
+	labels: string[];
 };
 
 export type TicketView = {
@@ -90,6 +93,44 @@ export type ProjectCounts = {
 	progress: number;
 	fetchedAt: string | null;
 	error: string | null;
+};
+
+export type DiagramNode = {
+	id: string;
+	label: string;
+	state: TicketState | "external" | "theme";
+	dashed: boolean;
+	project: string;
+	tracker: "github" | "linear";
+	ticket: string | null;
+};
+
+export type DiagramEdge = {
+	from: string;
+	to: string;
+};
+
+export type Diagram = {
+	id: string;
+	title: string;
+	direction: "TD" | "LR";
+	nodes: DiagramNode[];
+	edges: DiagramEdge[];
+	definition: string;
+};
+
+export type ReportSection = {
+	id: "summary" | "featureMap" | "inFlight" | "blockingChains" | "backlog";
+	title: string;
+	text?: string;
+	items?: TicketView[];
+	diagrams?: Diagram[];
+};
+
+export type ProjectReport = {
+	name: string;
+	tracker: "github" | "linear";
+	sections: ReportSection[];
 };
 
 export type Overview = {
@@ -999,4 +1040,427 @@ function addressedToLev(
 function opensForSenior(body: string): boolean {
 	const opening = body.trim().slice(0, 240).toLowerCase();
 	return /\b(?:senior|for the senior)\b/.test(opening);
+}
+
+const noScope = "no scope";
+const noWorkstream = "no workstream";
+
+const scopeInTitle = /^(?:[a-z]+)\(([^)]+)\)!?\s*:|^\[([^\]]+)\]/i;
+
+function scopeOf(title: string): string {
+	const match = title.match(scopeInTitle);
+	const scope = match?.[1] ?? match?.[2];
+	if (scope === undefined || scope.trim() === "") {
+		return noScope;
+	}
+	return scope.trim().toLowerCase();
+}
+
+function mermaidId(value: string): string {
+	const id = [...value]
+		.map((char) => {
+			if (/[A-Za-z0-9]/.test(char)) {
+				return char;
+			}
+			const code = char.codePointAt(0) ?? 0;
+			return `_${code.toString(16)}_`;
+		})
+		.join("");
+	return /^[A-Za-z]/.test(id) ? id : `n_${id}`;
+}
+
+function mermaidLabel(value: string): string {
+	return value.replace(/"/g, "#quot;");
+}
+
+type Placed = {
+	ticket: Ticket;
+	view: TicketView;
+	workstream: string;
+	theme: string;
+};
+
+function parentOf(
+	ticket: Ticket,
+	byKey: Map<string, Ticket>,
+): Ticket | undefined {
+	const parentKey = ticket.parent;
+	if (parentKey === null) {
+		return undefined;
+	}
+	return byKey.get(parentKey.toLowerCase());
+}
+
+function* ancestors(
+	ticket: Ticket,
+	byKey: Map<string, Ticket>,
+): Generator<Ticket> {
+	const seen = new Set<string>();
+	let current = ticket;
+	for (;;) {
+		const parent = parentOf(current, byKey);
+		if (parent === undefined || parent.key === null) {
+			return;
+		}
+		const key = parent.key.toLowerCase();
+		if (seen.has(key)) {
+			return;
+		}
+		seen.add(key);
+		yield parent;
+		current = parent;
+	}
+}
+
+function rootOf(ticket: Ticket, byKey: Map<string, Ticket>): Ticket {
+	let root = ticket;
+	for (const parent of ancestors(ticket, byKey)) {
+		root = parent;
+	}
+	return root;
+}
+
+function isEpic(ticket: Ticket): boolean {
+	return ticket.labels.some((label) => label.toLowerCase() === "epic");
+}
+
+function themeOf(
+	ticket: Ticket,
+	root: Ticket,
+	byKey: Map<string, Ticket>,
+	parents: Set<string>,
+): string {
+	if (isEpic(ticket)) {
+		return ticket.title;
+	}
+	const parent = parentOf(ticket, byKey);
+	if (parent !== undefined && isEpic(parent) && parent !== root) {
+		return parent.title;
+	}
+	if (isEpic(root) && root === ticket) {
+		return root.title;
+	}
+	const belowRoot = [...ancestors(ticket, byKey)].find(
+		(ancestor) => ancestor !== root,
+	);
+	if (isEpic(root) && belowRoot !== undefined) {
+		return belowRoot.title;
+	}
+	if (isEpic(root)) {
+		return scopeOf(ticket.title);
+	}
+	if (root !== ticket && root.key !== null) {
+		return root.title;
+	}
+	if (ticket.key !== null && parents.has(ticket.key.toLowerCase())) {
+		return ticket.title;
+	}
+	return scopeOf(ticket.title);
+}
+
+function linearMilestone(
+	ticket: Ticket,
+	byKey: Map<string, Ticket>,
+): string | null {
+	if (ticket.milestone !== null) {
+		return ticket.milestone;
+	}
+	for (const parent of ancestors(ticket, byKey)) {
+		if (parent.milestone !== null) {
+			return parent.milestone;
+		}
+	}
+	return null;
+}
+
+function workstreamOf(
+	ticket: Ticket,
+	root: Ticket,
+	tracker: ProjectCounts["tracker"],
+	byKey: Map<string, Ticket>,
+): string {
+	if (tracker === "linear") {
+		return linearMilestone(ticket, byKey) ?? noWorkstream;
+	}
+	if (isEpic(root)) {
+		return root.title;
+	}
+	return ticket.milestone ?? noWorkstream;
+}
+
+function placeTickets(
+	tickets: Ticket[],
+	views: TicketView[],
+	tracker: ProjectCounts["tracker"],
+): Placed[] {
+	const byKey = new Map<string, Ticket>();
+	for (const ticket of tickets) {
+		if (ticket.key !== null) {
+			byKey.set(ticket.key.toLowerCase(), ticket);
+		}
+	}
+	const parents = new Set<string>();
+	for (const ticket of tickets) {
+		const parent = parentOf(ticket, byKey);
+		if (parent?.key !== null && parent?.key !== undefined) {
+			parents.add(parent.key.toLowerCase());
+		}
+	}
+	return tickets.flatMap((ticket, index) => {
+		const view = views[index];
+		if (view === undefined) {
+			return [];
+		}
+		const root = rootOf(ticket, byKey);
+		return [
+			{
+				ticket,
+				view,
+				workstream: workstreamOf(ticket, root, tracker, byKey),
+				theme: themeOf(ticket, root, byKey, parents),
+			},
+		];
+	});
+}
+
+function nodeOf(
+	placed: Placed,
+	project: string,
+	tracker: ProjectCounts["tracker"],
+): DiagramNode {
+	const key = placed.ticket.key ?? placed.view.title;
+	return {
+		id: mermaidId(key),
+		label: placed.view.title,
+		state: placed.view.state,
+		dashed: false,
+		project,
+		tracker,
+		ticket: placed.ticket.key,
+	};
+}
+
+function externalNode(blocker: CrossProjectBlocker): DiagramNode {
+	return {
+		id: mermaidId(`${blocker.tracker}:${blocker.project}:${blocker.key}`),
+		label: `${blocker.project} ${blocker.key}`,
+		state: "external",
+		dashed: true,
+		project: blocker.project,
+		tracker: blocker.tracker,
+		ticket: blocker.key,
+	};
+}
+
+const stateFill: Record<TicketState, string> = {
+	done: "#8fbc8f",
+	dropped: "#c0c0c0",
+	blocked: "#e6a0a0",
+	backlog: "#d0d7de",
+	inProgress: "#f0c674",
+};
+
+function defineDiagram(diagram: Omit<Diagram, "definition">): Diagram {
+	const lines = [`flowchart ${diagram.direction}`];
+	for (const node of diagram.nodes) {
+		const shape = `["${mermaidLabel(node.label)}"]`;
+		const klass = node.dashed ? ":::dashed" : `:::${node.state}`;
+		lines.push(`  ${node.id}${shape}${klass}`);
+	}
+	for (const edge of diagram.edges) {
+		lines.push(`  ${edge.from} --> ${edge.to}`);
+	}
+	for (const state of Object.keys(stateFill) as TicketState[]) {
+		lines.push(`  classDef ${state} fill:${stateFill[state]}`);
+	}
+	lines.push("  classDef theme fill:#e8eef7,stroke:#1a5fb4");
+	lines.push("  classDef dashed fill:#fff,stroke:#888,stroke-dasharray: 5 5");
+	return { ...diagram, definition: `${lines.join("\n")}\n` };
+}
+
+function crossNode(
+	key: string,
+	cross: CrossProjectBlocker[],
+): DiagramNode | undefined {
+	const outside = cross.find(
+		(blocker) => blocker.key.toLowerCase() === key.toLowerCase(),
+	);
+	return outside === undefined ? undefined : externalNode(outside);
+}
+
+function featureDiagrams(
+	placed: Placed[],
+	project: string,
+	tracker: ProjectCounts["tracker"],
+	cross: CrossProjectBlocker[],
+): Diagram[] {
+	const groups = new Map<string, Map<string, Placed[]>>();
+	for (const item of placed) {
+		const themes = groups.get(item.workstream) ?? new Map<string, Placed[]>();
+		const items = themes.get(item.theme) ?? [];
+		items.push(item);
+		themes.set(item.theme, items);
+		groups.set(item.workstream, themes);
+	}
+	const diagrams: Diagram[] = [];
+	const workstreams = [...groups.keys()].sort((left, right) =>
+		left.localeCompare(right),
+	);
+	for (const workstream of workstreams) {
+		const themes = groups.get(workstream);
+		if (themes === undefined) {
+			continue;
+		}
+		const nodes: DiagramNode[] = [];
+		const edges: DiagramEdge[] = [];
+		const seen = new Set<string>();
+		for (const theme of [...themes.keys()].sort((left, right) =>
+			left.localeCompare(right),
+		)) {
+			const themeId = mermaidId(`${workstream}:${theme}`);
+			nodes.push({
+				id: themeId,
+				label: theme,
+				state: "theme",
+				dashed: false,
+				project,
+				tracker,
+				ticket: null,
+			});
+			seen.add(themeId);
+			const items = [...(themes.get(theme) ?? [])]
+				.map((item) => ({ item, node: nodeOf(item, project, tracker) }))
+				.sort((left, right) => left.node.id.localeCompare(right.node.id));
+			for (const { item, node } of items) {
+				if (!seen.has(node.id)) {
+					nodes.push(node);
+					seen.add(node.id);
+				}
+				edges.push({ from: themeId, to: node.id });
+				for (const key of item.view.blockers) {
+					const external = crossNode(key, cross);
+					if (external === undefined) {
+						continue;
+					}
+					if (!seen.has(external.id)) {
+						nodes.push(external);
+						seen.add(external.id);
+					}
+					edges.push({ from: external.id, to: node.id });
+				}
+			}
+		}
+		diagrams.push(
+			defineDiagram({
+				id: mermaidId(`map:${workstream}`),
+				title: workstream,
+				direction: "TD",
+				nodes,
+				edges,
+			}),
+		);
+	}
+	return diagrams;
+}
+
+function chainDiagrams(
+	placed: Placed[],
+	project: string,
+	tracker: ProjectCounts["tracker"],
+	cross: CrossProjectBlocker[],
+): Diagram[] {
+	const blocked = placed.filter((item) => item.view.state === "blocked");
+	if (blocked.length === 0) {
+		return [];
+	}
+	const nodes: DiagramNode[] = [];
+	const edges: DiagramEdge[] = [];
+	const seen = new Set<string>();
+	const add = (node: DiagramNode) => {
+		if (seen.has(node.id)) {
+			return;
+		}
+		seen.add(node.id);
+		nodes.push(node);
+	};
+	for (const item of blocked) {
+		const node = nodeOf(item, project, tracker);
+		add(node);
+		for (const key of item.view.blockers) {
+			const local = placed.find(
+				(candidate) =>
+					candidate.ticket.key?.toLowerCase() === key.toLowerCase(),
+			);
+			if (local !== undefined) {
+				const blocker = nodeOf(local, project, tracker);
+				add(blocker);
+				edges.push({ from: blocker.id, to: node.id });
+				continue;
+			}
+			const external = crossNode(key, cross);
+			if (external === undefined) {
+				continue;
+			}
+			add(external);
+			edges.push({ from: external.id, to: node.id });
+		}
+	}
+	nodes.sort((left, right) => left.id.localeCompare(right.id));
+	edges.sort((left, right) =>
+		`${left.from} ${left.to}`.localeCompare(`${right.from} ${right.to}`),
+	);
+	return [
+		defineDiagram({
+			id: "blocking_chains",
+			title: "Blocking chains",
+			direction: "LR",
+			nodes,
+			edges,
+		}),
+	];
+}
+
+function summaryLine(counts: ProjectCounts): string {
+	return `${counts.name}: ${counts.done} done, ${counts.dropped} dropped, ${counts.blocked} blocked, ${counts.inProgress} in progress, ${counts.backlog} backlog.`;
+}
+
+export function projectReport(
+	counts: ProjectCounts,
+	tickets: Ticket[],
+): ProjectReport {
+	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
+	const maps = featureDiagrams(
+		placed,
+		counts.name,
+		counts.tracker,
+		counts.crossProjectBlockers,
+	);
+	const chains = chainDiagrams(
+		placed,
+		counts.name,
+		counts.tracker,
+		counts.crossProjectBlockers,
+	);
+	const inFlight = [
+		...counts.tickets.filter((ticket) => ticket.state === "inProgress"),
+		...counts.unlinkedPrs.map((pull) => ({
+			key: `#${pull.number}`,
+			title: pull.title,
+			state: "inProgress" as const,
+			blockers: [],
+		})),
+	];
+	const backlog = counts.tickets.filter((ticket) => ticket.state === "backlog");
+	const sections: ReportSection[] = [
+		{ id: "summary", title: "Summary", text: summaryLine(counts) },
+		{ id: "featureMap", title: "Feature map", diagrams: maps },
+		{ id: "inFlight", title: "In flight", items: inFlight },
+		{ id: "blockingChains", title: "Blocking chains", diagrams: chains },
+		{ id: "backlog", title: "Backlog", items: backlog },
+	];
+	return {
+		name: counts.name,
+		tracker: counts.tracker,
+		sections,
+	};
 }
