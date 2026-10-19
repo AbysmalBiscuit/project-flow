@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Configuration } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import type {
+	Comment,
 	Overview,
 	PostedReply,
 	ProjectPoll,
@@ -13,6 +14,7 @@ import type {
 import {
 	checkoutBasenames,
 	checkoutNamesProject,
+	commentTree,
 	expectedBotsByRepo,
 	githubRepoForTodo,
 	linearKeysForNames,
@@ -139,7 +141,6 @@ function projectViews(
 				error: store.projectError(row.key),
 			},
 			needsYouRules(configuration, viewers),
-			(ticketKey) => store.replyAfter(ticketKey),
 		);
 		return {
 			row,
@@ -228,9 +229,13 @@ function trackerFor(
 
 function trackerError(error: unknown): Response {
 	const message = error instanceof Error ? error.message : "reply failed";
-	const status = message.match(/HTTP (\d+)/)?.[1];
-	const code = status === undefined ? 502 : Number(status);
-	return Response.json({ error: message }, { status: code });
+	const status =
+		error instanceof Error &&
+		"status" in error &&
+		typeof error.status === "number"
+			? error.status
+			: 502;
+	return Response.json({ error: message }, { status });
 }
 
 async function threadResponse(
@@ -252,7 +257,10 @@ async function threadResponse(
 		if (thread === null) {
 			return Response.json({ error: "thread not found" }, { status: 404 });
 		}
-		return Response.json(thread);
+		return Response.json({
+			...thread,
+			comments: commentTree(thread.comments),
+		});
 	} catch (error) {
 		return trackerError(error);
 	}
@@ -289,7 +297,7 @@ async function replyResponse(
 	};
 	try {
 		const created: PostedReply = await tracker.postReply(reply);
-		store.recordReply(reply.key, created.createdAt);
+		recordPostedReply(store, reply, created);
 		notifier.publish({
 			overview: overview(store, configuration, viewers),
 		});
@@ -297,6 +305,37 @@ async function replyResponse(
 	} catch (error) {
 		return trackerError(error);
 	}
+}
+
+function recordPostedReply(
+	store: Store,
+	reply: ReplyRequest,
+	created: PostedReply,
+): void {
+	const rows = store.readTickets();
+	const row = rows.find(
+		(item) =>
+			item.tracker === reply.tracker &&
+			(item.key === reply.project || item.name === reply.project),
+	);
+	if (row === undefined) {
+		return;
+	}
+	const comment: Comment = {
+		body: created.body,
+		createdAt: created.createdAt,
+		reactions: 0,
+	};
+	store.mergeTickets([
+		{
+			...row,
+			tickets: row.tickets.map((ticket) =>
+				ticket.key === reply.key
+					? { ...ticket, comments: [...(ticket.comments ?? []), comment] }
+					: ticket,
+			),
+		},
+	]);
 }
 
 function eventStream(notifier: Notifier): Response {

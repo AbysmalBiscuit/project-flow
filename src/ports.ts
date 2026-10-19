@@ -82,8 +82,6 @@ export type Store = {
 	clearProjectError: (project: string) => void;
 	projectError: (project: string) => string | null;
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
-	recordReply: (key: string, at: string) => void;
-	replyAfter: (key: string) => string | null;
 };
 
 export type Change = {
