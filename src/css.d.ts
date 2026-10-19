@@ -97,4 +97,4 @@ declare module "*/panel.module.css" {
 	export default classes;
 }
 
-declare module "*.css";
+declare module "*/tokens.css";
