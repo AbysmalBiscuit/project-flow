@@ -1032,10 +1032,11 @@ function laneOfType(lanes: Lane[], statusType: StatusType): Lane {
 function placeOnBoard(lanes: Lane[], tickets: Ticket[]): Lane[] {
 	const placed = [...lanes];
 	for (const ticket of tickets) {
-		if (ticket.emptyStatus !== true) {
+		const closedType = closedLaneType(ticket);
+		if (ticket.emptyStatus !== true && closedType === undefined) {
 			continue;
 		}
-		const statusType = closedLaneType(ticket) ?? "backlog";
+		const statusType = closedType ?? "backlog";
 		if (placed.some((lane) => lane.statusType === statusType)) {
 			continue;
 		}

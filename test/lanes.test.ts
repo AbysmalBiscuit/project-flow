@@ -356,6 +356,28 @@ async function projectOf(base: string, name: string): Promise<ProjectBody> {
 	return (await response.json()) as ProjectBody;
 }
 
+function laneNames(report: ProjectBody): Set<string> {
+	return new Set(report.lanes.map((lane) => lane.name));
+}
+
+function expectLanesHoldTickets(
+	report: ProjectBody,
+	overview: OverviewBody,
+	project: string,
+): void {
+	const names = laneNames(report);
+	const tickets =
+		overview.projects.find((item) => item.name === project)?.tickets ?? [];
+	for (const item of tickets) {
+		expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+	}
+	for (const item of report.sections.flatMap(
+		(section) => section.items ?? [],
+	)) {
+		expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+	}
+}
+
 function flight(report: ProjectBody): FlightItem[] {
 	const lanes = new Map(
 		report.lanes.map((lane) => [lane.name, lane.statusType]),
@@ -454,6 +476,10 @@ describe("tracker lanes", () => {
 					placed("WID-1", "Ship the list", "In Progress", "inProgress"),
 					placed("WID-2", "Write the notes", "Todo", "backlog"),
 				]);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expectLanesHoldTickets(report, overview, "Widget launch");
 			},
 		);
 	});
@@ -492,6 +518,10 @@ describe("tracker lanes", () => {
 					),
 					placed("acme/widget#8", "Write the copy", "Backlog", "backlog"),
 				]);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expectLanesHoldTickets(report, overview, "Widget board");
 			},
 		);
 	});
@@ -510,6 +540,15 @@ describe("tracker lanes", () => {
 						}),
 						githubIssue(3, "Review the job", githubRepo, {
 							labels: [{ name: "factory: in-review" }],
+						}),
+						githubIssue(4, "Ship the job", githubRepo, {
+							state: "closed",
+							state_reason: "completed",
+							labels: [{ name: "ready" }],
+						}),
+						githubIssue(5, "Drop the job", githubRepo, {
+							state: "closed",
+							state_reason: "not_planned",
 						}),
 					],
 				},
@@ -532,7 +571,19 @@ describe("tracker lanes", () => {
 					["factory: running", "#FBCA04", "inProgress"],
 					["factory: in-review", "#1D76DB", "inReview"],
 					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
+					["Done", "#8FBC8F", "done"],
+					["Dropped", "#9CA3AF", "dropped"],
 				]);
+				expect(report.lanes.find((lane) => lane.name === "Done")?.added).toBe(
+					true,
+				);
+				expect(
+					report.lanes.find((lane) => lane.name === "Dropped")?.added,
+				).toBe(true);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				expectLanesHoldTickets(report, overview, githubRepo);
 				expect(
 					flight(report)
 						.map((item) => [item.key, item.lane, item.statusType])
