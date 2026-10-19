@@ -322,7 +322,7 @@ type OverviewBody = {
 		progress: number;
 		fetchedAt: string | null;
 		error: string | null;
-		statusTypes?: Record<string, number>;
+		statusTypes: Record<string, number>;
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
@@ -357,18 +357,14 @@ function counts(
 			backlog + done === 0 ? 0 : Math.round((done / (backlog + done)) * 100),
 		fetchedAt,
 		error,
-		...(error !== null && tickets.length === 0
-			? {}
-			: {
-					statusTypes: {
-						backlog,
-						inProgress: 0,
-						inReview: 0,
-						awaitingMerge: 0,
-						done,
-						dropped: 0,
-					},
-				}),
+		statusTypes: {
+			backlog,
+			inProgress: 0,
+			inReview: 0,
+			awaitingMerge: 0,
+			done,
+			dropped: 0,
+		},
 	};
 }
 
