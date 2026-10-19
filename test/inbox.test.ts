@@ -1474,6 +1474,155 @@ describe("inbox", () => {
 		}
 	});
 
+	test("a stored needsYou id for an item still in needs-you raises no notification after an upgrade restart", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[askComment],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const legacy = new Database(databasePath);
+		legacy.run(`
+			create table if not exists notifications (
+				id text primary key,
+				trigger text not null,
+				project text not null,
+				item_key text not null,
+				text text not null,
+				at text not null
+			)
+		`);
+		legacy.run(
+			"insert into notifications (id, trigger, project, item_key, text, at) values (?, ?, ?, ?, ?, ?)",
+			[
+				"needsYou\nProject Flow\nPF-1",
+				"needsYou",
+				"Project Flow",
+				"PF-1",
+				headline,
+				"2026-08-18T12:00:00.000Z",
+			],
+		);
+		legacy.close();
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const first = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await first;
+			await Bun.sleep(50);
+			expect(await inboxOf(base)).toEqual([
+				expect.objectContaining({
+					id: "needsYou\nProject Flow\nPF-1",
+					trigger: "needsYou",
+					key: "PF-1",
+				}),
+			]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					reason: "ask",
+					headline,
+				}),
+			]);
+			stopFirst();
+			await started;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const restarted = start(secondStop, againReady);
+			const next = await second;
+			const hiddenConfig = {
+				...pinned,
+				hidden: [{ tracker: "linear", project: "project-flow" }],
+			};
+			await Bun.write(path, JSON.stringify(hiddenConfig));
+			const hiddenEvents = notificationEvent(next, 400);
+			await Bun.sleep(50);
+			await refresh(next);
+			await expect(hiddenEvents).rejects.toThrow(
+				"no notification event within",
+			);
+			const hiddenList = await fetch(new URL("/api/needs-you", next));
+			expect(hiddenList.status).toBe(200);
+			expect(await hiddenList.json()).toEqual([]);
+			expect(await inboxOf(next)).toEqual([
+				expect.objectContaining({
+					id: "needsYou\nProject Flow\nPF-1",
+					trigger: "needsYou",
+				}),
+			]);
+			await Bun.write(path, JSON.stringify(pinned));
+			const shown = notificationEvent(next, 400);
+			await Bun.sleep(50);
+			await refresh(next);
+			await expect(shown).rejects.toThrow("no notification event within");
+			expect(await inboxOf(next)).toEqual([
+				expect.objectContaining({
+					id: "needsYou\nProject Flow\nPF-1",
+					trigger: "needsYou",
+					key: "PF-1",
+				}),
+			]);
+			const shownList = await fetch(new URL("/api/needs-you", next));
+			expect(shownList.status).toBe(200);
+			expect(await shownList.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					reason: "ask",
+					headline,
+				}),
+			]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a ticket that stays in needs-you raises no second notification", async () => {
 		const headline = "Which bot should review this?";
 		const askComment = {

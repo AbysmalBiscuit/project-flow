@@ -875,6 +875,11 @@ export async function start(options: StartOptions): Promise<Running> {
 			configuration,
 			pollOptions.viewers,
 		);
+		const kept = pollOptions.attention.needsYou.map(needsYouSeenId);
+		for (const id of kept) {
+			pollOptions.seenNotifications.add(id);
+		}
+		opened.store.recordSeededIds(kept);
 	}
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
