@@ -542,7 +542,8 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				ok: false,
 				error: project.tracker === "github" ? missingToken : missingLinearKey,
 				full: false,
-				pinned: pinnedKeys.has(project.key) || project.tracker === "github",
+				// A project with a missing credential shows its error as a pin does.
+				pinned: true,
 				hidden,
 				row: {
 					key: project.key,
