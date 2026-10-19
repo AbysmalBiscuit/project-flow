@@ -253,6 +253,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		blockedBy: blockedBy(node),
 		milestone: node.projectMilestone?.name ?? null,
 		parent: node.parent?.identifier ?? null,
+		epic: false,
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 	};
 }

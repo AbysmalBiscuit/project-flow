@@ -485,6 +485,51 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a project with no blocked ticket has no blocking chain", async () => {
+		const waiting = issue(5, "Write the notes", {
+			milestone: { title: "October" },
+			body: `Blocked by: ${otherRepo}#8`,
+		});
+		const closedGate = issue(
+			8,
+			"Closed gate",
+			{ state: "closed", state_reason: "completed" },
+			otherRepo,
+		);
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
+				return page([closedGate]);
+			}
+			return githubFetch([waiting])(input, init);
+		};
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+			fetchImpl,
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as Report;
+				const summary = report.sections.find(
+					(section) => section.id === "summary",
+				);
+				expect(summary?.text).toContain("0 blocked");
+				const chains = report.sections.find(
+					(section) => section.id === "blockingChains",
+				);
+				expect(chains?.diagrams).toEqual([]);
+			},
+		);
+	});
+
 	test("an Epic label makes the ticket the GitHub workstream", async () => {
 		const parent = issue(31, "Ship the board", {
 			labels: [{ name: "Epic" }],

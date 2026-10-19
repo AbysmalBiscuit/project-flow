@@ -577,6 +577,7 @@ async function listProjectTickets(
 				blockedBy: [],
 				milestone: content.milestone?.title ?? null,
 				parent,
+				epic: false,
 				labels: content.labels?.nodes.map((label) => label.name) ?? [],
 			});
 		}
@@ -643,6 +644,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						...(comments.length === 0 ? {} : { comments }),
 						milestone: issue.milestone?.title ?? null,
 						parent: parentKey(issue.parent_issue_url),
+						epic: false,
 						labels: issue.labels?.map((label) => label.name) ?? [],
 					});
 				}

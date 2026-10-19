@@ -43,9 +43,9 @@ export type Ticket = {
 	body: string;
 	blockedBy: TicketRef[];
 	comments?: Comment[];
-	milestone?: string | null;
-	parent?: string | null;
-	epic?: boolean;
+	milestone: string | null;
+	parent: string | null;
+	epic: boolean;
 	labels: string[];
 };
 
@@ -1086,7 +1086,7 @@ function ancestor(
 	byKey: Map<string, Ticket>,
 ): Ticket | undefined {
 	const parentKey = ticket.parent;
-	if (parentKey === null || parentKey === undefined) {
+	if (parentKey === null) {
 		return undefined;
 	}
 	return byKey.get(parentKey.toLowerCase());
@@ -1110,6 +1110,10 @@ function rootOf(ticket: Ticket, byKey: Map<string, Ticket>): Ticket {
 
 function isEpic(ticket: Ticket): boolean {
 	return ticket.labels.some((label) => label.toLowerCase() === "epic");
+}
+
+function withEpic(ticket: Ticket): Ticket {
+	return { ...ticket, epic: isEpic(ticket) };
 }
 
 function themeOf(
@@ -1144,7 +1148,7 @@ function linearMilestone(
 	const seen = new Set<string>();
 	let current: Ticket | undefined = ticket;
 	while (current !== undefined) {
-		if (current.milestone !== null && current.milestone !== undefined) {
+		if (current.milestone !== null) {
 			return current.milestone;
 		}
 		if (current.key === null || seen.has(current.key.toLowerCase())) {
@@ -1176,20 +1180,21 @@ function placeTickets(
 	views: TicketView[],
 	tracker: ProjectCounts["tracker"],
 ): Placed[] {
+	const decided = tickets.map(withEpic);
 	const byKey = new Map<string, Ticket>();
-	for (const ticket of tickets) {
+	for (const ticket of decided) {
 		if (ticket.key !== null) {
 			byKey.set(ticket.key.toLowerCase(), ticket);
 		}
 	}
 	const roots = new Set<string>();
-	for (const ticket of tickets) {
+	for (const ticket of decided) {
 		const parent = ancestor(ticket, byKey);
 		if (parent?.key !== null && parent?.key !== undefined) {
 			roots.add(parent.key.toLowerCase());
 		}
 	}
-	return tickets.flatMap((ticket, index) => {
+	return decided.flatMap((ticket, index) => {
 		const view = views[index];
 		if (view === undefined) {
 			return [];
@@ -1312,13 +1317,10 @@ function featureDiagrams(
 				ticket: null,
 			});
 			seen.add(themeId);
-			const items = [...(themes.get(theme) ?? [])].sort((left, right) =>
-				nodeOf(left, project, tracker).id.localeCompare(
-					nodeOf(right, project, tracker).id,
-				),
-			);
-			for (const item of items) {
-				const node = nodeOf(item, project, tracker);
+			const items = [...(themes.get(theme) ?? [])]
+				.map((item) => ({ item, node: nodeOf(item, project, tracker) }))
+				.sort((left, right) => left.node.id.localeCompare(right.node.id));
+			for (const { item, node } of items) {
 				if (!seen.has(node.id)) {
 					nodes.push(node);
 					seen.add(node.id);
@@ -1357,7 +1359,7 @@ function chainDiagrams(
 	cross: CrossProjectBlocker[],
 ): Diagram[] {
 	const blocked = placed.filter((item) => item.view.state === "blocked");
-	if (blocked.length === 0 && cross.length === 0) {
+	if (blocked.length === 0) {
 		return [];
 	}
 	const nodes: DiagramNode[] = [];
@@ -1411,8 +1413,6 @@ function summaryLine(counts: ProjectCounts): string {
 	return `${counts.name}: ${counts.done} done, ${counts.dropped} dropped, ${counts.blocked} blocked, ${counts.inProgress} in progress, ${counts.backlog} backlog.`;
 }
 
-const moving = new Set<TicketState>(["inProgress"]);
-
 export function projectReport(
 	counts: ProjectCounts,
 	tickets: Ticket[],
@@ -1431,7 +1431,7 @@ export function projectReport(
 		counts.crossProjectBlockers,
 	);
 	const inFlight = [
-		...counts.tickets.filter((ticket) => moving.has(ticket.state)),
+		...counts.tickets.filter((ticket) => ticket.state === "inProgress"),
 		...counts.unlinkedPrs.map((pull) => ({
 			key: `#${pull.number}`,
 			title: pull.title,
