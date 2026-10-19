@@ -1307,7 +1307,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					}
 					const summary = issue.issue_dependencies_summary;
 					const blockedBy =
-						summary !== undefined && summary.blocked_by > 0
+						summary !== undefined && summary.total_blocked_by > 0
 							? await listBlockedBy(token, fetchImpl, repo, issue.number)
 							: [];
 					const comments =

@@ -1321,8 +1321,12 @@ describe("GET /api/overview blockers", () => {
 						});
 						expect(overview.projects[0]?.blocked).toBe(2);
 						expect(
-							requests.some((url) => url.includes("/dependencies/blocked_by")),
-						).toBe(false);
+							requests.filter((url) =>
+								url.includes("/issues/4/dependencies/blocked_by"),
+							),
+						).toEqual([
+							`https://api.github.com/repos/${githubRepo}/issues/4/dependencies/blocked_by?per_page=100&page=1`,
+						]);
 						resolve();
 					})
 					.catch(reject);
