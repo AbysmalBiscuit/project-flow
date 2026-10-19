@@ -188,7 +188,6 @@ const issueNode = z.object({
 		.object({
 			nodes: z.array(
 				z.object({
-					id: z.string().optional(),
 					body: z.string().nullable().optional(),
 					createdAt: z.string().optional(),
 					user: z
