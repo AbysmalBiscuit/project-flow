@@ -39,6 +39,8 @@ function card(
 		inProgress: number;
 		inReview: number;
 		awaitingMerge: number;
+		needsYou: number;
+		progress: number;
 		tags: string[];
 		unlinkedPrs: [];
 		tickets: {
@@ -61,6 +63,8 @@ function card(
 				dropped: 0,
 				blocked: 0,
 				...counts,
+				needsYou: 0,
+				progress: 0,
 				tags,
 				unlinkedPrs: [],
 				tickets: [
@@ -1367,6 +1371,8 @@ describe("review cycle", () => {
 						inProgress: 0,
 						inReview: 0,
 						awaitingMerge: 1,
+						needsYou: 0,
+						progress: 0,
 						tags: [],
 						unlinkedPrs: [],
 						tickets: [
