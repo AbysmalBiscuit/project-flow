@@ -3,6 +3,9 @@
 # A path or a filter is not a full suite and takes no slot.
 set -eu
 
+# bunfig.toml lives at the checkout. A caller outside it still loads the preload.
+root=$(CDPATH= git -C "$(dirname "$0")" rev-parse --show-toplevel)
+
 full=1
 expect=
 for arg in "$@"; do
@@ -41,7 +44,7 @@ for arg in "$@"; do
 done
 
 if [ "$full" -eq 0 ]; then
-	exec bun test "$@"
+	exec bun test --cwd "$root" "$@"
 fi
 
 slots=$(($(nproc) / 4))
@@ -56,7 +59,7 @@ chmod 1777 "$dir"
 take() {
 	slot=$1
 	shift
-	flock -n --conflict-exit-code 75 "$dir/slot-$slot.lock" bun test "$@"
+	flock -n --conflict-exit-code 75 "$dir/slot-$slot.lock" bun test --cwd "$root" "$@"
 }
 
 i=0
