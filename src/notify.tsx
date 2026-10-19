@@ -18,10 +18,6 @@ export function watchNotifications(): () => void {
 		const notification = JSON.parse(event.data) as InboxNotification;
 		const title = triggerLabel[notification.trigger];
 		const body = `${notification.project}: ${notification.text}`;
-		const shown = document.createElement("p");
-		shown.className = "notified";
-		shown.textContent = title;
-		document.body.append(shown);
 		if (Notification.permission === "granted") {
 			new Notification(title, { body, tag: notification.id });
 		}
