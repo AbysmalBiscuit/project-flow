@@ -52,16 +52,6 @@ export function recordedDiscovery(
 	return null;
 }
 
-export function emptyLabelPage(url: string): Response | null {
-	if (!url.includes("/labels?")) {
-		return null;
-	}
-	return new Response("[]", {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
-
 export function emptyProjectFields(
 	input: string | URL | Request,
 	init?: RequestInit,
