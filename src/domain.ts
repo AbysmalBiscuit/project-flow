@@ -35,7 +35,6 @@ export type Comment = {
 	id?: string;
 	body: string;
 	createdAt?: string;
-	updatedAt?: string;
 	author?: string;
 	reactions?: number;
 };
@@ -1457,6 +1456,7 @@ function botCycle(
 const progressHeading = "**Workcell progress**";
 const stageLine = /^stage\s+(\d+)\b/i;
 const mergeAskLine = /^Merge PR #(\d+)\b/i;
+const finalReportLine = /^final report\b/i;
 const reportMarker = "<!-- workcell:report -->";
 function pullNumbers(text: string): number[] {
 	const numbers: number[] = [];
@@ -1495,14 +1495,39 @@ function workcellRun(
 		.split("\n")
 		.map((line) => line.trim().replace(/^-\s*/, ""))
 		.filter((line) => line !== "" && line !== progressHeading);
-	let stage: number | null = null;
-	for (const line of lines) {
-		const stageMatch = line.match(stageLine);
-		if (stageMatch?.[1] !== undefined && lineDecidesPull(line, pull, lines)) {
-			stage = Number(stageMatch[1]);
+	const later = commentsAfter(comments, progress);
+	const reportAt = lines.findLastIndex((line) => finalReportLine.test(line));
+	const report = later.find(
+		(comment) => comment !== progress && comment.body.includes(reportMarker),
+	);
+	const reportAsk = report === undefined ? null : askId(report.body);
+	if (reportAt >= 0 || report !== undefined) {
+		const resumed = lines
+			.slice(reportAt < 0 ? lines.length : reportAt + 1)
+			.some(
+				(line) =>
+					(stageLine.test(line) && lineDecidesPull(line, pull, lines)) ||
+					(reportAsk !== null && askAnsweredLine(line, reportAsk)),
+			);
+		if (resumed) {
+			return { state: "inReview", tags: [] };
+		}
+		const marker =
+			report !== undefined && commentNamesPull(report.body, pull.number);
+		if (marker && reportAsk === null) {
+			return { state: "awaitingMerge", tags: [] };
+		}
+		if (marker && reportAsk !== null) {
+			const after = later.slice(later.indexOf(report) + 1);
+			if (!askAnswered([progress, ...after], reportAsk)) {
+				return { state: "awaitingMerge", tags: [] };
+			}
+			return { state: "inReview", tags: [] };
+		}
+		if (reportAt >= 0 && lineDecidesPull(lines[reportAt] ?? "", pull, lines)) {
+			return { state: "awaitingMerge", tags: [] };
 		}
 	}
-	const later = commentsAfter(comments, progress);
 	const mergeAsk = openMergeAsk(later, pull.number);
 	if (
 		mergeAsk !== null &&
@@ -1510,14 +1535,12 @@ function workcellRun(
 	) {
 		return { state: "awaitingMerge", tags: [] };
 	}
-	if (
-		later.some(
-			(comment) =>
-				comment.body.includes(reportMarker) &&
-				commentDecidesPull(comment.body, pull),
-		)
-	) {
-		return { state: "awaitingMerge", tags: [] };
+	let stage: number | null = null;
+	for (const line of lines) {
+		const stageMatch = line.match(stageLine);
+		if (stageMatch?.[1] !== undefined && lineDecidesPull(line, pull, lines)) {
+			stage = Number(stageMatch[1]);
+		}
 	}
 	if (stage !== null && stage <= 5) {
 		return { state: "inReview", tags: [] };
@@ -1535,10 +1558,6 @@ function lineDecidesPull(
 		return numbers.includes(pull.number);
 	}
 	return !lines.some((item) => pullNumbers(item).length > 0);
-}
-
-function commentDecidesPull(body: string, pull: PullRequest): boolean {
-	return commentNamesPull(body, pull.number);
 }
 
 function commentNamesPull(body: string, number: number): boolean {
@@ -1559,17 +1578,13 @@ function openMergeAsk(
 		const first = comment.body.split("\n")[0]?.trim() ?? "";
 		if (
 			first.match(mergeAskLine)?.[1] === String(number) ||
-			isFinalReport(comment.body)
+			comment.body.includes(reportMarker) ||
+			finalReportLine.test(first)
 		) {
 			found = { id: marker, index };
 		}
 	}
 	return found;
-}
-
-function isFinalReport(body: string): boolean {
-	const first = body.split("\n")[0]?.trim() ?? "";
-	return body.includes(reportMarker) || /^final report\b/i.test(first);
 }
 
 function askAnswered(later: Comment[], id: string): boolean {
@@ -1581,18 +1596,21 @@ function askAnswered(later: Comment[], id: string): boolean {
 	);
 }
 
-function progressAnswered(body: string, id: string): boolean {
-	if (!body.trimStart().startsWith(progressHeading)) {
-		return false;
-	}
+function askAnsweredLine(line: string, id: string): boolean {
 	const askNumber = id.split("-").at(-1);
 	if (askNumber === undefined) {
 		return false;
 	}
-	const marker = new RegExp(`^ask-${askNumber}\\s+answered\\b`, "i");
+	return new RegExp(`^ask-${askNumber}\\s+answered\\b`, "i").test(line);
+}
+
+function progressAnswered(body: string, id: string): boolean {
+	if (!body.trimStart().startsWith(progressHeading)) {
+		return false;
+	}
 	return body
 		.split("\n")
-		.some((line) => marker.test(line.trim().replace(/^-\s*/, "")));
+		.some((line) => askAnsweredLine(line.trim().replace(/^-\s*/, ""), id));
 }
 
 function shownState(
