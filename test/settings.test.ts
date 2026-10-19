@@ -42,7 +42,25 @@ function page(items: Record<string, unknown>[]): Response {
 	});
 }
 
-function recorded(input: string | URL | Request, init?: RequestInit): Response {
+function recordTracker(
+	requests: string[],
+	input: string | URL | Request,
+): void {
+	const url = urlOf(input);
+	if (
+		url.startsWith("https://api.github.com/") ||
+		url.startsWith("https://api.linear.app/")
+	) {
+		requests.push(url);
+	}
+}
+
+function recorded(
+	requests: string[],
+	input: string | URL | Request,
+	init?: RequestInit,
+): Response {
+	recordTracker(requests, input);
 	const url = urlOf(input);
 	if (url.startsWith("https://api.github.com/user/repos")) {
 		return new Response(
@@ -151,7 +169,9 @@ function recorded(input: string | URL | Request, init?: RequestInit): Response {
 	return new Response("not recorded", { status: 404 });
 }
 
-const fetchImpl: Fetch = async (input, init) => recorded(input, init);
+function fetching(requests: string[]): Fetch {
+	return async (input, init) => recorded(requests, input, init);
+}
 
 const savedRoot = "/var/tmp/project-flow-saved-root";
 const savedRepo = "acme/from-saved-root";
@@ -169,15 +189,20 @@ function checkoutFor(root: string): LocalCheckout {
 
 async function withApp(
 	body: string,
-	check: (base: string, configPath: string) => Promise<void>,
+	check: (
+		base: string,
+		configPath: string,
+		requests: string[],
+	) => Promise<void>,
 	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
 ): Promise<void> {
 	const { path, cleanup } = await tempConfig(body);
 	const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+	const requests: string[] = [];
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
 		startChecks = (base: string) => {
-			check(base, path).then(resolve, reject);
+			check(base, path, requests).then(resolve, reject);
 		};
 	});
 	try {
@@ -188,7 +213,7 @@ async function withApp(
 					GITHUB_TOKEN: "recorded-token",
 					LINEAR_API_KEY: "recorded-linear-key",
 				},
-				fetch: fetchImpl,
+				fetch: fetching(requests),
 				readGhToken: async () => null,
 				databasePath: join(root, "project-flow.sqlite"),
 				now: () => new Date("2026-08-18T12:00:00.000Z"),
@@ -207,68 +232,80 @@ async function withApp(
 
 describe("settings", () => {
 	test("a settings change writes a valid configuration and hides the project", async () => {
-		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
-			const before = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
-			expect(before.projects.map((project) => project.name).sort()).toEqual([
-				shown,
-			]);
+		await withApp(
+			JSON.stringify({ pinned: [] }),
+			async (base, configPath, requests) => {
+				const before = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(before.projects.map((project) => project.name).sort()).toEqual([
+					shown,
+				]);
 
-			const current = (await (
-				await fetch(new URL("/api/settings", base))
-			).json()) as Configuration;
-			expect(current.activityWindowDays).toBe(30);
-			expect(current.pollIntervalSeconds).toBe(60);
-			expect(current.needsYouLabels).toEqual(["needs-human", "needs-engineer"]);
-			expect(current.notificationTriggers).toEqual({
-				needsYou: true,
-				comment: true,
-				blockerCleared: true,
-			});
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(current.activityWindowDays).toBe(30);
+				expect(current.pollIntervalSeconds).toBe(60);
+				expect(current.needsYouLabels).toEqual([
+					"needs-human",
+					"needs-engineer",
+				]);
+				expect(current.notificationTriggers).toEqual({
+					needsYou: true,
+					comment: true,
+					blockerCleared: true,
+				});
 
-			const saved = await fetch(new URL("/api/settings", base), {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					...current,
-					pinned: [{ tracker: "github", repo: quiet }],
-					hidden: [{ tracker: "github", repo: shown }],
-					activityWindowDays: 14,
-					pollIntervalSeconds: 120,
-					expectedBots: { [quiet]: ["grok"] },
-					noSenior: { [quiet]: true },
-					needsYouLabels: ["needs-human"],
-					notificationTriggers: {
-						needsYou: false,
-						comment: true,
-						blockerCleared: false,
-					},
-				}),
-			});
-			expect(saved.status).toBe(200);
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						pinned: [{ tracker: "github", repo: quiet }],
+						hidden: [{ tracker: "github", repo: shown }],
+						activityWindowDays: 14,
+						pollIntervalSeconds: 120,
+						expectedBots: { [quiet]: ["grok"] },
+						noSenior: { [quiet]: true },
+						needsYouLabels: ["needs-human"],
+						notificationTriggers: {
+							needsYou: false,
+							comment: true,
+							blockerCleared: false,
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
 
-			const written = JSON.parse(
-				await readFile(configPath, "utf8"),
-			) as Configuration;
-			expect(written.hidden).toEqual([{ tracker: "github", repo: shown }]);
-			expect(written.pinned).toEqual([{ tracker: "github", repo: quiet }]);
-			expect(written.activityWindowDays).toBe(14);
-			expect(written.pollIntervalSeconds).toBe(120);
-			expect(written.expectedBots).toEqual({ [quiet]: ["grok"] });
-			expect(written.noSenior).toEqual({ [quiet]: true });
-			expect(written.needsYouLabels).toEqual(["needs-human"]);
-			expect(written.notificationTriggers.needsYou).toBe(false);
+				const written = JSON.parse(
+					await readFile(configPath, "utf8"),
+				) as Configuration;
+				expect(written.hidden).toEqual([{ tracker: "github", repo: shown }]);
+				expect(written.pinned).toEqual([{ tracker: "github", repo: quiet }]);
+				expect(written.activityWindowDays).toBe(14);
+				expect(written.pollIntervalSeconds).toBe(120);
+				expect(written.expectedBots).toEqual({ [quiet]: ["grok"] });
+				expect(written.noSenior).toEqual({ [quiet]: true });
+				expect(written.needsYouLabels).toEqual(["needs-human"]);
+				expect(written.notificationTriggers.needsYou).toBe(false);
 
-			const refresh = await fetch(new URL("/api/refresh", base), {
-				method: "POST",
-			});
-			expect(refresh.status).toBe(204);
-			const after = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
-			expect(after.projects.map((project) => project.name)).toEqual([quiet]);
-		});
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				const after = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(after.projects.map((project) => project.name)).toEqual([quiet]);
+				expect(
+					requests.some((url) => url.includes(`/repos/${quiet}/issues?`)),
+				).toBe(true);
+				expect(
+					requests.some((url) => url.includes(`/repos/${shown}/issues?`)),
+				).toBe(true);
+			},
+		);
 	});
 
 	test("an invalid settings write names the field and leaves the file", async () => {
@@ -341,14 +378,14 @@ describe("settings", () => {
 			enteredHold = resolve;
 		});
 		let holdIssues = false;
-		const fetching = recorded;
+		const heldRequests: string[] = [];
 		const held: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			if (holdIssues && url.includes("/repos/") && url.includes("/issues?")) {
 				enteredHold();
 				await issuesHeld;
 			}
-			return fetching(input, init);
+			return recorded(heldRequests, input, init);
 		};
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
@@ -397,6 +434,9 @@ describe("settings", () => {
 					) as Configuration;
 					expect(written.activityWindowDays).toBe(14);
 					expect(written.pollIntervalSeconds).toBe(90);
+					expect(
+						heldRequests.some((url) => url.includes(`/repos/${shown}/issues?`)),
+					).toBe(true);
 				})().then(resolve, reject);
 			};
 		});
@@ -495,6 +535,7 @@ describe("settings", () => {
 		await chmod(target, 0o600);
 		await symlink(target, link);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		const requests: string[] = [];
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -520,6 +561,9 @@ describe("settings", () => {
 						await readFile(target, "utf8"),
 					) as Configuration;
 					expect(written.activityWindowDays).toBe(14);
+					expect(
+						requests.some((url) => url.includes(`/repos/${shown}/issues?`)),
+					).toBe(true);
 				})().then(resolve, reject);
 			};
 		});
@@ -531,7 +575,7 @@ describe("settings", () => {
 						GITHUB_TOKEN: "recorded-token",
 						LINEAR_API_KEY: "recorded-linear-key",
 					},
-					fetch: fetchImpl,
+					fetch: fetching(requests),
 					readGhToken: async () => null,
 					databasePath: join(root, "project-flow.sqlite"),
 					now: () => new Date("2026-08-18T12:00:00.000Z"),
