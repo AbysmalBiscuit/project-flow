@@ -14,6 +14,8 @@ if (stubSource === undefined) {
 }
 const originalFetch = globalThis.fetch.bind(globalThis);
 let upstreamOrigin = "";
+let streamOpen = false;
+let permissionGranted = false;
 
 await runLinearProof("0", rootDir, (line) => {
 	upstreamOrigin = new URL(line).origin;
@@ -23,22 +25,13 @@ await runLinearProof("0", rootDir, (line) => {
 	}
 	const origin = upstreamOrigin;
 	const arm = async () => {
-		const stream = await originalFetch(
-			new URL("/api/proof/stream-open", origin),
-		);
-		const permission = await originalFetch(
-			new URL("/api/proof/permission", origin),
-		);
-		if (!stream.ok || !permission.ok) {
+		if (!streamOpen || !permissionGranted) {
 			setTimeout(() => {
 				void arm();
 			}, 200);
 			return;
 		}
-		releaseLinearAsk(
-			"Which bot should review this?",
-			"<!-- workcell:ask pf-1 -->",
-		);
+		releaseLinearAsk();
 		await originalFetch(new URL("/api/refresh", origin), { method: "POST" });
 	};
 	setTimeout(() => {
@@ -52,6 +45,20 @@ function startProxy(): void {
 		port: Number(port),
 		async fetch(request) {
 			const url = new URL(request.url);
+			if (
+				url.pathname === "/api/proof/stream-open" &&
+				request.method === "POST"
+			) {
+				streamOpen = true;
+				return new Response(null, { status: 204 });
+			}
+			if (
+				url.pathname === "/api/proof/permission" &&
+				request.method === "POST"
+			) {
+				permissionGranted = true;
+				return new Response(null, { status: 204 });
+			}
 			const upstream = new URL(url.pathname + url.search, upstreamOrigin);
 			const init: RequestInit = {
 				method: request.method,
