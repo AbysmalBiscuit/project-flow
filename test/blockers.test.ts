@@ -1258,4 +1258,293 @@ describe("GET /api/overview blockers", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a GitHub project ticket keeps body and native blockers on both cards", async () => {
+		const githubRepo = "AbysmalBiscuit/devkit";
+		const projectId = "PVT_widget";
+		const board = "Widget board";
+		const requests: string[] = [];
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			requests.push(`${url} ${body}`);
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				return Response.json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: projectId,
+								number: 3,
+								title: board,
+								closed: false,
+								updatedAt: "2026-08-18T12:00:00Z",
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectItems")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_body",
+											number: 21,
+											title: "Waits on a body line",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "Blocked by: #20",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_native",
+											number: 22,
+											title: "Waits on a native dependency",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "No body line.",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: {
+												nodes: [
+													{
+														number: 20,
+														state: "OPEN",
+														repository: { nameWithOwner: githubRepo },
+													},
+												],
+											},
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_shared",
+											number: 23,
+											title: "Sits on the repo and the project",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_blank",
+											number: 24,
+											title: "Blank body and a closed dependency",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "   ",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: {
+												nodes: [
+													{
+														number: 19,
+														state: "CLOSED",
+														repository: { nameWithOwner: githubRepo },
+													},
+												],
+											},
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_plain",
+											number: 25,
+											title: "No dependency field",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "Blocked by: none.",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_blocker",
+											number: 20,
+											title: "Open blocker",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											body: "",
+											repository: { nameWithOwner: githubRepo },
+											milestone: null,
+											labels: { nodes: [] },
+											parent: null,
+											blockedBy: { nodes: [] },
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
+			if (url.startsWith(list) && url.includes("state=all")) {
+				return page([
+					{
+						...issue(23, "Blocked by: #20"),
+						html_url: `https://github.com/${githubRepo}/issues/23`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/23/comments`,
+					},
+					{
+						...issue(20, "Open blocker."),
+						html_url: `https://github.com/${githubRepo}/issues/20`,
+						comments_url: `https://api.github.com/repos/${githubRepo}/issues/20/comments`,
+					},
+				]);
+			}
+			if (url.includes("/pulls?") || url.includes("/branches?")) {
+				return page([]);
+			}
+			if (url.includes("/comments")) {
+				return page([]);
+			}
+			return new Response("not recorded", { status: 404 });
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", owner: "acme", project: 3 },
+				],
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const overview = (await response.json()) as {
+							projects: {
+								name: string;
+								tickets: {
+									key: string;
+									state: string;
+									blockers: string[];
+								}[];
+							}[];
+						};
+						const project = overview.projects.find(
+							(item) => item.name === board,
+						);
+						const repoCard = overview.projects.find(
+							(item) => item.name === githubRepo,
+						);
+						const key = `${githubRepo}#20`;
+						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#21`)).toEqual(
+							{
+								state: "blocked",
+								blockers: [key],
+							},
+						);
+						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#22`)).toEqual(
+							{
+								state: "blocked",
+								blockers: [key],
+							},
+						);
+						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#23`)).toEqual(
+							{
+								state: "blocked",
+								blockers: [key],
+							},
+						);
+						expect(
+							blockersOf(repoCard?.tickets ?? [], `${githubRepo}#23`),
+						).toEqual({
+							state: "blocked",
+							blockers: [key],
+						});
+						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#24`)).toEqual(
+							{
+								state: "backlog",
+								blockers: [],
+							},
+						);
+						expect(blockersOf(project?.tickets ?? [], `${githubRepo}#25`)).toEqual(
+							{
+								state: "backlog",
+								blockers: [],
+							},
+						);
+						expect(
+							requests.some((sent) =>
+								sent.includes("/dependencies/blocked_by"),
+							),
+						).toBe(false);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
