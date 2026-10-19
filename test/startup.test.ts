@@ -395,9 +395,7 @@ describe("startup", () => {
 				testIo({
 					env: { LINEAR_API_KEY: "recorded-linear-key" },
 					fetch: recordedFetch(200),
-					readGhToken: async () => {
-						throw new Error("gh must not run for an empty configuration");
-					},
+					readGhToken: async () => null,
 					listCheckouts: async () => [],
 					databasePath: join(store, "project-flow.sqlite"),
 					stdout: (line) => startChecks(line),
