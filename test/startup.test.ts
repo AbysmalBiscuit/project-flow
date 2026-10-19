@@ -402,6 +402,56 @@ describe("startup", () => {
 		}
 	});
 
+	test("a configuration with no Linear pin starts when the Linear viewer query returns HTTP 500", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<{ status: number; body: Overview }>(
+			(resolve, reject) => {
+				startChecks = (base: string) => {
+					void (async () => {
+						const response = await fetch(new URL("/api/overview", base));
+						resolve({
+							status: response.status,
+							body: (await response.json()) as Overview,
+						});
+					})().catch(reject);
+				};
+			},
+		);
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.linear.app/graphql") {
+				return new Response("linear down", { status: 500 });
+			}
+			return recordedFetch(200)(input, init);
+		};
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			const overview = await checks;
+			expect(overview.status).toBe(200);
+			expect(overview.body.projects.length).toBeGreaterThan(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a GitHub-only configuration starts without a Linear key", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-data-"));

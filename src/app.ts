@@ -446,9 +446,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	const discovered = [...githubPage.projects];
 	if (linear !== null) {
-		const linearPage = await linear.findProjects();
-		linearViewer = linearPage.viewer;
-		mergeFound(discovered, linearPage.projects);
+		try {
+			const linearPage = await linear.findProjects();
+			linearViewer = linearPage.viewer;
+			mergeFound(discovered, linearPage.projects);
+		} catch (error) {
+			failed = error instanceof Error ? error.message : "poll failed";
+		}
 	}
 	options.viewers = [githubPage.viewer, linearViewer].flatMap((viewer) =>
 		viewer === null ? [] : [viewer],

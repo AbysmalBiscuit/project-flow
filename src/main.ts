@@ -369,7 +369,10 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			}
 		}
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
-		if (linearKey !== "") {
+		const needsLinear = configuration.pinned.some(
+			(pin) => pin.tracker === "linear",
+		);
+		if (needsLinear && linearKey !== "") {
 			const viewer = await checkLinearKey(linearKey, io.fetch);
 			if (viewer.status === 401) {
 				writeErr(rejectedLinearKey);
