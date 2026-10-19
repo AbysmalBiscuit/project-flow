@@ -671,7 +671,7 @@ export function ticketState(
 }
 
 const label =
-	/^(?:[-*+]|\d+[.)])?\s*(?:\*\*|__)?\s*(blocked by|blocks|blocking)\b\s*:?\s*(?:\*\*|__)?\s*(.*)$/i;
+	/^(?:[-*+]|\d+[.)])?\s*(?:\*\*|__)?\s*(blocked by|blocks|blocking)(?![\p{L}\p{N}])\s*(?:\*\*|__)?\s*:?\s*(?:\*\*|__)?\s*(.*)$/iu;
 
 const anchoredRef =
 	/^(?:https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/(?:issues|pull)\/(\d+)|https?:\/\/linear\.app\/[^/\s]+\/issue\/([A-Za-z][A-Za-z0-9]+-\d+)(?:\/[^\s)]*)?|([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]+-\d+))$/i;
@@ -815,6 +815,23 @@ function asRef(ticket: Ticket): TicketRef | null {
 	return { tracker: ticket.tracker, project: "", key: ticket.key };
 }
 
+function outsideTicket(ref: TicketRef): Ticket {
+	return {
+		id: ref.key,
+		tracker: ref.tracker,
+		key: ref.key,
+		title: ref.key,
+		state: "open",
+		stateReason: null,
+		updatedAt: "",
+		body: "",
+		blockedBy: [],
+		milestone: null,
+		parent: null,
+		labels: [],
+	};
+}
+
 type ParsedBodies = Map<
 	string,
 	{ blockedBy: TicketRef[]; blocks: TicketRef[] }
@@ -866,7 +883,10 @@ export function openBlockers(
 	const refs = [...incoming, ...fromBody, ...fromBlocks];
 	const resolved = refs.flatMap((ref) => {
 		const blocker = known(index, ref);
-		return blocker === undefined ? [] : [blocker];
+		if (blocker !== undefined) {
+			return [blocker];
+		}
+		return ref.state === "open" ? [outsideTicket(ref)] : [];
 	});
 	return resolved.filter((blocker, position) => {
 		if (
