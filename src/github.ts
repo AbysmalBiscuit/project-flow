@@ -916,6 +916,7 @@ function fetchComments(
 		loginRow.extend({
 			body: z.string().nullable(),
 			created_at: z.string().optional(),
+			reactions: z.object({ total_count: z.number().optional() }).optional(),
 		}),
 		(comment) =>
 			comment.user === null
@@ -924,6 +925,7 @@ function fetchComments(
 						login: comment.user.login,
 						body: comment.body ?? "",
 						createdAt: comment.created_at ?? null,
+						reactions: comment.reactions?.total_count ?? 0,
 					},
 	);
 }

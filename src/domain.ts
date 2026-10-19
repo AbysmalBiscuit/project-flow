@@ -97,6 +97,7 @@ export type BotComment = {
 	login: string;
 	body: string;
 	createdAt: string | null;
+	reactions: number;
 };
 
 export type BotReview = {
@@ -1383,19 +1384,18 @@ export function projectCounts(
 			linked(ticket, active, name).map((pull) => pull.number),
 		),
 	);
-	const unlinkedPrs = active
-		.filter((pull) => !linkedNumbers.has(pull.number))
-		.map((pull) => ({
-			number: pull.number,
-			title: pull.title,
-			url: pull.url,
-		}));
+	const unlinked = active.filter((pull) => !linkedNumbers.has(pull.number));
+	const unlinkedPrs = unlinked.map((pull) => ({
+		number: pull.number,
+		title: pull.title,
+		url: pull.url,
+	}));
 	const needsYouItemsForProject = needsYouItems(
 		name,
 		tracker,
 		tickets,
 		active,
-		unlinkedPrs.map((item) => item.number),
+		unlinked,
 		expectedBots,
 		shownByKey,
 		{
@@ -1404,11 +1404,7 @@ export function projectCounts(
 			noSenior: projectHasNoSenior(rules.noSenior, key, tracker),
 		},
 	);
-	const unlinkedReview = reviewState(
-		active.filter((pull) => !linkedNumbers.has(pull.number)),
-		expectedBots,
-		[],
-	);
+	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
 	}
@@ -1675,7 +1671,12 @@ function pullComments(pull: PullRequest): Comment[] {
 		body: comment.body,
 		...(comment.createdAt === null ? {} : { createdAt: comment.createdAt }),
 		author: comment.login,
+		reactions: comment.reactions,
 	}));
+}
+
+function pullKey(pull: PullRequest): string {
+	return `${pull.repo}#${pull.number}`;
 }
 
 export function needsYouItems(
@@ -1683,7 +1684,7 @@ export function needsYouItems(
 	tracker: ProjectCounts["tracker"],
 	tickets: Ticket[],
 	pulls: PullRequest[],
-	unlinkedNumbers: number[],
+	unlinkedPulls: PullRequest[],
 	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
 	rules: NeedsYouRules,
@@ -1693,12 +1694,41 @@ export function needsYouItems(
 		rules.viewerLogins.map((login) => login.toLowerCase()),
 	);
 	const items: NeedsYouItem[] = [];
+	const linkedByTicket = new Map<string, PullRequest[]>();
+	for (const ticket of tickets) {
+		if (ticket.key === null) {
+			continue;
+		}
+		linkedByTicket.set(ticket.key, linked(ticket, pulls, project));
+	}
 	for (const ticket of tickets) {
 		if (ticket.state !== "open" || ticket.key === null) {
 			continue;
 		}
 		const shown = shownByKey.get(ticket.key);
-		const ask = openAsk(ticket.comments ?? [], rules.noSenior);
+		const ticketComments = ticket.comments ?? [];
+		const ticketAsk = openAsk(ticketComments, rules.noSenior);
+		const linkedPulls = linkedByTicket.get(ticket.key) ?? [];
+		let ask = ticketAsk;
+		let comments = ticketComments;
+		const ticketComment =
+			orderedComments(ticketComments)[ticketAsk?.index ?? -1];
+		let askedAt =
+			ticketComment === undefined ? null : commentTime(ticketComment);
+		for (const pull of linkedPulls) {
+			const pullThread = pullComments(pull);
+			const pullAsk = openAsk(pullThread, rules.noSenior);
+			const pullComment = orderedComments(pullThread)[pullAsk?.index ?? -1];
+			if (pullAsk === null || pullComment === undefined) {
+				continue;
+			}
+			const at = commentTime(pullComment);
+			if (ask === null || at >= (askedAt ?? 0)) {
+				ask = pullAsk;
+				comments = pullThread;
+				askedAt = at;
+			}
+		}
 		const labelled =
 			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
@@ -1713,13 +1743,16 @@ export function needsYouItems(
 				ticket.key,
 				ticket.title,
 				ask,
-				ticket.comments ?? [],
-				awaiting ? "awaitingMerge" : "label",
+				comments,
+				ask !== null ? "ask" : awaiting ? "awaitingMerge" : "label",
 			),
 		);
 	}
+	const folded = new Set(
+		[...linkedByTicket.values()].flat().map((pull) => pullKey(pull)),
+	);
 	for (const pull of pulls) {
-		if (pull.merged) {
+		if (folded.has(pullKey(pull))) {
 			continue;
 		}
 		const comments = pullComments(pull);
@@ -1730,8 +1763,8 @@ export function needsYouItems(
 		items.push(
 			needsYouItem(
 				project,
-				tracker,
-				`${pull.repo}#${pull.number}`,
+				"github",
+				pullKey(pull),
 				pull.title,
 				ask,
 				comments,
@@ -1739,13 +1772,9 @@ export function needsYouItems(
 			),
 		);
 	}
-	const unlinked = new Set(unlinkedNumbers);
 	const listed = new Set(items.map((item) => item.key));
-	for (const pull of pulls) {
-		if (pull.merged || pull.draft || !unlinked.has(pull.number)) {
-			continue;
-		}
-		const key = `${pull.repo}#${pull.number}`;
+	for (const pull of unlinkedPulls) {
+		const key = pullKey(pull);
 		if (listed.has(key)) {
 			continue;
 		}
@@ -1755,7 +1784,7 @@ export function needsYouItems(
 		items.push(
 			needsYouItem(
 				project,
-				tracker,
+				"github",
 				key,
 				pull.title,
 				null,
