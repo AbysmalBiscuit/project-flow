@@ -491,9 +491,6 @@ export async function start(options: StartOptions): Promise<Running> {
 				resolve();
 			};
 		});
-		// A listen callback reads stored rows before this poll lists tickets.
-		const fallback = setTimeout(releaseLists, 1_000);
-		fallback.unref?.();
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;
