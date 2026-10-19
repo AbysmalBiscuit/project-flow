@@ -331,7 +331,7 @@ describe("settings", () => {
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					...current,
-					activityWindowDays: "   ",
+					activityWindowDays: Number("   "),
 				}),
 			});
 			expect(blank.status).toBe(400);
