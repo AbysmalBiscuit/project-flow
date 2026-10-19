@@ -43,12 +43,15 @@ type ProjectBody = {
 	sections: {
 		id: string;
 		items?: FlightItem[];
+		diagrams?: { nodes: { ticket: string | null }[] }[];
 	}[];
 };
 
 type OverviewBody = {
 	projects: {
 		name: string;
+		blocked?: number;
+		inProgress?: number;
 		statusTypes?: Record<string, number>;
 		tickets: {
 			key: string | null;
@@ -383,7 +386,7 @@ function placed(
 	return {
 		key,
 		title,
-		state: "backlog",
+		state: statusType,
 		blockers: [],
 		lane,
 		statusType,
@@ -529,7 +532,11 @@ describe("tracker lanes", () => {
 					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
 				]);
 				expect(
-					flight(report).map((item) => [item.key, item.lane, item.statusType]),
+					flight(report)
+						.map((item) => [item.key, item.lane, item.statusType])
+						.toSorted((left, right) =>
+							(left[0] ?? "").localeCompare(right[0] ?? ""),
+						),
 				).toEqual([
 					["acme/widget#1", "ready", "backlog"],
 					["acme/widget#2", "factory: running", "inProgress"],
@@ -587,6 +594,61 @@ describe("tracker lanes", () => {
 					.find((item) => item.key === "acme/widget#9");
 				expect(ticket?.state).toBe("backlog");
 				expect(report.lanes[0]?.name).toBe("Backlog");
+			},
+		);
+	});
+
+	test("a blocked ticket in a tracker lane stays in that lane", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			projectFetch([
+				{
+					...projectItem(21, "Wait on the gate", {
+						name: "In Progress",
+						color: "YELLOW",
+					}),
+					content: {
+						...(projectItem(21, "Wait on the gate", {
+							name: "In Progress",
+							color: "YELLOW",
+						}).content as Record<string, unknown>),
+						body: "Blocked by: acme/widget#8",
+					},
+				},
+				projectItem(8, "The gate", { name: "Backlog", color: "GRAY" }),
+			]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				const items = report.sections.flatMap((section) => section.items ?? []);
+				const waiting = items.find((item) => item.key === "acme/widget#21");
+				expect(waiting?.lane).toBe("In Progress");
+				expect(waiting?.statusType).toBe("inProgress");
+				expect(waiting?.state).toBe("inProgress");
+				expect(waiting?.blocked).toBe(true);
+				const flightKeys = report.sections
+					.find((section) => section.id === "inFlight")
+					?.items?.map((item) => item.key);
+				expect(flightKeys).toEqual(["acme/widget#21"]);
+				const chains = report.sections.find(
+					(section) => section.id === "blockingChains",
+				);
+				expect(
+					chains?.diagrams?.[0]?.nodes.some(
+						(node) => node.ticket === "acme/widget#21",
+					),
+				).toBe(true);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const card = overview.projects.find(
+					(item) => item.name === "Widget board",
+				);
+				expect(card?.blocked).toBe(1);
+				expect(card?.inProgress).toBe(0);
+				expect(card?.statusTypes?.inProgress).toBe(1);
 			},
 		);
 	});

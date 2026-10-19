@@ -15,14 +15,15 @@ export function todoRows(listing: string): { project: string }[] {
 	return projects;
 }
 
-export type TicketState =
-	| "done"
-	| "dropped"
-	| "blocked"
+export type StatusType =
 	| "backlog"
 	| "inProgress"
 	| "inReview"
-	| "awaitingMerge";
+	| "awaitingMerge"
+	| "done"
+	| "dropped";
+
+export type TicketState = StatusType;
 
 export type TicketRef = {
 	tracker: "github" | "linear";
@@ -40,14 +41,6 @@ export type Comment = {
 	author?: string;
 	reactions?: number;
 };
-
-export type StatusType =
-	| "backlog"
-	| "inProgress"
-	| "inReview"
-	| "awaitingMerge"
-	| "done"
-	| "dropped";
 
 export type TicketStatus = {
 	id: string;
@@ -588,6 +581,7 @@ export type FetchStatus = {
 export type Board = {
 	kind: "linear" | "github-project" | "github-repo";
 	teamKey?: string;
+	laneKey?: string;
 	statuses: TicketStatus[];
 	factoryLabels: boolean;
 };
@@ -1130,19 +1124,6 @@ export const emptyStatusTypes = (): Record<StatusType, number> => ({
 });
 
 const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
-
-export function ticketState(
-	ticket: Ticket,
-	blockers: TicketRef[],
-): TicketState {
-	if (ticket.state === "closed") {
-		return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
-	}
-	if (blockers.length > 0) {
-		return "blocked";
-	}
-	return "backlog";
-}
 
 const label =
 	/^(?:[-*+]|\d+[.)])?\s*(?:\*\*|__)?\s*(blocked by|blocks|blocking)(?![\p{L}\p{N}])\s*(?:\*\*|__)?\s*:?\s*(?:\*\*|__)?\s*(.*)$/iu;
@@ -2254,8 +2235,9 @@ export function projectCounts(
 		awaitingMerge: 0,
 	};
 	const statusTypes = emptyStatusTypes();
+	const mappingKey = board?.laneKey ?? board?.teamKey;
 	const mapping =
-		board?.teamKey === undefined ? {} : (laneMappings[board.teamKey] ?? {});
+		mappingKey === undefined ? {} : (laneMappings[mappingKey] ?? {});
 	const lanes = lanesFor(board, mapping);
 	const counted = board !== undefined;
 	const tags = new Set<string>();
@@ -2267,13 +2249,6 @@ export function projectCounts(
 	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed);
-		const state = ticketState(
-			ticket,
-			blockers.flatMap((blocker) => {
-				const ref = asRef(blocker);
-				return ref === null ? [] : [ref];
-			}),
-		);
 		const links = linked(ticket, active, name);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));
@@ -2285,19 +2260,23 @@ export function projectCounts(
 		for (const tag of review.tags) {
 			tags.add(tag);
 		}
+		const lane = laneForTicket(ticket, lanes, mapping);
 		const shown = shownState(
 			ticket,
-			state,
+			lane.statusType,
 			links,
 			branches,
 			startedKeys,
 			review,
 		);
-		const lane = laneForTicket(ticket, lanes, mapping);
 		if (ticket.key !== null) {
 			shownByKey.set(ticket.key, shown);
 		}
-		counts[shown] += 1;
+		if (blockers.length > 0 && ticket.state === "open") {
+			counts.blocked += 1;
+		} else {
+			counts[shown] += 1;
+		}
 		if (counted && lane.name !== "") {
 			statusTypes[lane.statusType] += 1;
 		}
@@ -2315,7 +2294,7 @@ export function projectCounts(
 				? { blocked: true }
 				: {}),
 		});
-		if (shown !== "blocked") {
+		if (blockers.length === 0 || ticket.state !== "open") {
 			continue;
 		}
 		for (const blocker of blockers) {
@@ -2988,7 +2967,6 @@ function externalNode(blocker: CrossProjectBlocker): DiagramNode {
 const stateFill: Record<TicketState, string> = {
 	done: "#8fbc8f",
 	dropped: "#9ca3af",
-	blocked: "#e6a0a0",
 	backlog: "#d0d7de",
 	inProgress: "#f0c674",
 	inReview: "#9ecbff",
@@ -3104,7 +3082,7 @@ function chainDiagrams(
 	tracker: ProjectCounts["tracker"],
 	cross: CrossProjectBlocker[],
 ): Diagram[] {
-	const blocked = placed.filter((item) => item.view.state === "blocked");
+	const blocked = placed.filter((item) => item.view.blocked === true);
 	if (blocked.length === 0) {
 		return [];
 	}
@@ -3183,9 +3161,7 @@ export function projectReport(
 			(ticket) =>
 				ticket.state === "inProgress" ||
 				ticket.state === "inReview" ||
-				ticket.state === "awaitingMerge" ||
-				ticket.state === "blocked" ||
-				ticket.blocked === true,
+				ticket.state === "awaitingMerge",
 		),
 		...counts.unlinkedPrs.map((pull) => ({
 			key: `${pull.repo}#${pull.number}`,

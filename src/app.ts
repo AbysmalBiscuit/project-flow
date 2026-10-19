@@ -678,7 +678,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 									? listedTickets.board
 									: {
 											...listedTickets.board,
-											teamKey: `${project.owner}/${project.number}`,
+											laneKey: `${project.owner}/${project.number}`,
 										},
 						}),
 				...(project.closed === undefined ? {} : { closed: project.closed }),

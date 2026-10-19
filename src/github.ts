@@ -1620,7 +1620,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				const statuses = await listProjectStatuses(token, fetchImpl, repo);
 				const board: Board = {
 					kind: "github-project",
-					teamKey: repo,
 					statuses,
 					factoryLabels: false,
 				};

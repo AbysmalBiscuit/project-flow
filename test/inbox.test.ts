@@ -606,7 +606,7 @@ describe("inbox", () => {
 				expect(
 					project?.tickets.find((item) => item.key === recorded.identifier)
 						?.state,
-				).toBe("blocked");
+				).toBe("backlog");
 				expect(project?.crossProjectBlockers).toEqual([
 					{
 						project: blockerProject.name,
@@ -764,7 +764,7 @@ describe("inbox", () => {
 				expect(
 					overview.projects.find((item) => item.name === beta.name)?.tickets[0]
 						?.state,
-				).toBe("blocked");
+				).toBe("backlog");
 				setIssues([dropped, openBlocker, betaTicket]);
 				await refresh(base);
 				expect(await inboxOf(base)).toEqual([]);
@@ -778,7 +778,7 @@ describe("inbox", () => {
 				expect(
 					after.projects.find((item) => item.name === beta.name)?.tickets[0]
 						?.state,
-				).toBe("blocked");
+				).toBe("backlog");
 				const issueReads = requests.filter((request) =>
 					request.query.includes("ProjectIssues"),
 				);

@@ -239,9 +239,9 @@ describe("GET /api/projects/:name", () => {
 					(diagram) => diagram.id === "map_3a_Ship_20_the_20_map",
 				);
 				expect(epicMap?.definition).toContain(
-					'acme_2f_widget_23_2["feat(ux): draw the nodes"]:::blocked',
+					'acme_2f_widget_23_2["feat(ux): draw the nodes"]:::backlog',
 				);
-				expect(epicMap?.definition).toContain("classDef blocked fill:#e6a0a0");
+				expect(epicMap?.definition).not.toContain("classDef blocked");
 				expect(epicMap?.definition).toContain(
 					"classDef inProgress fill:#f0c674",
 				);
@@ -274,15 +274,22 @@ describe("GET /api/projects/:name", () => {
 					(section) => section.id === "inFlight",
 				);
 				expect(flight?.items?.map((item) => item.key)).toEqual([
-					"acme/widget#2",
 					"acme/widget#4",
 					"acme/widget#40",
 				]);
+				expect(
+					first.sections
+						.find((section) => section.id === "blockingChains")
+						?.diagrams?.[0]?.nodes.some(
+							(node) => node.ticket === "acme/widget#2",
+						),
+				).toBe(true);
 				const backlog = first.sections.find(
 					(section) => section.id === "backlog",
 				);
 				expect(backlog?.items?.map((item) => item.key)).toEqual([
 					"acme/widget#1",
+					"acme/widget#2",
 					"acme/widget#3",
 				]);
 			},

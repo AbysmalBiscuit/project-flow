@@ -120,7 +120,6 @@ const stateSwatches: {
 }[] = [
 	{ kind: "done", swatch: page.done },
 	{ kind: "dropped", swatch: page.dropped },
-	{ kind: "blocked", swatch: page.blocked },
 	{ kind: "inProgress", swatch: page.inProgress },
 	{ kind: "inReview", swatch: page.inReview },
 	{ kind: "awaitingMerge", swatch: page.awaitingMerge },
