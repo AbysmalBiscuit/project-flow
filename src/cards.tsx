@@ -409,7 +409,7 @@ function OverviewPage({
 				</button>
 			</nav>
 			{overview.polling === true ? (
-				<p className="loading">Loading projects</p>
+				<p className={styles.loading}>Loading projects</p>
 			) : overview.error !== null ? (
 				<p className={shell.stale}>{overview.error}</p>
 			) : null}

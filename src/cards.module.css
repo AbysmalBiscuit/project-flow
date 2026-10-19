@@ -136,3 +136,8 @@
 	background: var(--colour-surface-muted);
 	font-size: var(--type-small);
 }
+
+.loading {
+	margin: 0 0 var(--space-md);
+	color: var(--colour-ink-muted);
+}
