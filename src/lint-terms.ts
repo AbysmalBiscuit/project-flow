@@ -24,6 +24,12 @@ const avoided = [...glossary.matchAll(/_Avoid_: ([^\n]+)/g)].flatMap((match) =>
 		.filter((item) => item !== null),
 );
 
+const terms = new Set(
+	[...glossary.matchAll(/^\*\*([^*]+)\*\*:/gm)].map((match) =>
+		(match[1] ?? "").trim(),
+	),
+);
+
 const failures: string[] = [];
 const files = new Glob("src/**/*.tsx").scan({ cwd: root, onlyFiles: true });
 const attribute =
@@ -60,6 +66,9 @@ function containsWord(value: string, word: string): boolean {
 }
 
 function hits(value: string, line: string): Avoided[] {
+	if (terms.has(value)) {
+		return [];
+	}
 	return avoided.filter((item) => {
 		if (!containsWord(value, item.word)) {
 			return false;
