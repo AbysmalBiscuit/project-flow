@@ -124,6 +124,12 @@ export function linearFake(options: LinearFake = {}): Fetch {
 			if (options.github !== undefined) {
 				return options.github(input, init);
 			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
 			return new Response("not recorded", { status: 404 });
 		}
 		if (url !== "https://api.linear.app/graphql") {
