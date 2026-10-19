@@ -1662,6 +1662,7 @@ export function needsYouItems(
 			acknowledged: (reply?.reactions ?? 0) > 0,
 		});
 	}
+	items.sort((left, right) => Number(left.answered) - Number(right.answered));
 	return items;
 }
 
