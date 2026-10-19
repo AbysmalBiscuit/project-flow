@@ -897,14 +897,7 @@ async function listProjectItems(
 }
 
 function githubItemStatus(
-	value:
-		| {
-				name?: string | null | undefined;
-				optionId?: string | null | undefined;
-				color?: string | null | undefined;
-		  }
-		| null
-		| undefined,
+	value: z.infer<typeof projectItem>["fieldValueByName"],
 ): { status: TicketStatus } | { emptyStatus: true } {
 	const name = value?.name?.trim() ?? "";
 	const optionId = value?.optionId ?? "";
