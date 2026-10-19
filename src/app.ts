@@ -36,6 +36,7 @@ import {
 } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
+import { missingToken } from "./main.ts";
 import { memoryNotifier } from "./notifier.ts";
 import type {
 	CheckoutSource,
@@ -440,9 +441,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		github === null &&
 		configuration.pinned.some((pin) => pin.tracker === "github")
 	) {
-		throw new Error(
-			'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".',
-		);
+		throw new Error(missingToken);
 	}
 	let githubPage: { projects: FoundProject[]; viewer: Viewer | null } = {
 		projects: [],
@@ -506,9 +505,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 		if (pin.tracker === "github" && "project" in pin) {
 			if (options.token === null) {
-				throw new Error(
-					'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".',
-				);
+				throw new Error(missingToken);
 			}
 			const located = await githubProjectByNumber(
 				options.token,
@@ -546,6 +543,28 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	for (const project of found) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
+			if (project.tracker === "github") {
+				const pinned = true;
+				const hidden = hiddenKeys.has(project.key);
+				outcomes.set(project.key, {
+					key: project.key,
+					ok: false,
+					error: missingToken,
+					full: false,
+					pinned,
+					hidden,
+					row: {
+						key: project.key,
+						name: project.name ?? project.key,
+						tracker: "github",
+						tickets: [],
+						pulls: [],
+						branches: [],
+						startedKeys,
+					},
+				});
+				continue;
+			}
 			throw new Error(missingLinearKey);
 		}
 		const lastGood = options.store.lastGoodPollAt(project.key);
@@ -761,7 +780,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		const coldError =
 			firstStatus.error ??
 			(rows[0] === undefined ? null : opened.store.projectError(rows[0].key));
-		if (fetched.length === 0 && coldError !== null) {
+		const missingGithub =
+			options.token === null &&
+			coldError !== null &&
+			coldError.includes("GITHUB_TOKEN");
+		if (fetched.length === 0 && coldError !== null && !missingGithub) {
 			stopped = true;
 			await (polling ?? Promise.resolve());
 			opened.close();

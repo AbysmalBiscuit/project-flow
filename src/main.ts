@@ -291,7 +291,11 @@ async function resolveToken(io: RunIo): Promise<string | null> {
 	if (fromEnv !== undefined && fromEnv.trim() !== "") {
 		return fromEnv;
 	}
-	return io.readGhToken(io.env);
+	const fromGh = await io.readGhToken(io.env);
+	if (fromGh === null || fromGh.trim() === "") {
+		return null;
+	}
+	return fromGh;
 }
 
 async function openStore(path: string): Promise<void> {
@@ -343,14 +347,18 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const needsGithub = configuration.pinned.some(
 			(pin) => pin.tracker === "github",
 		);
-		let token: string | null = null;
-		if (needsGithub) {
-			token = await resolveToken(io);
-			if (token === null) {
-				writeErr(missingToken);
-				return result(1, false);
-			}
-
+		const linearOnly =
+			configuration.pinned.length > 0 &&
+			configuration.pinned.every((pin) => pin.tracker === "linear");
+		const fromEnv = io.env.GITHUB_TOKEN;
+		const envToken =
+			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
+		const token = linearOnly ? envToken : await resolveToken(io);
+		if (needsGithub && token === null) {
+			writeErr(missingToken);
+			return result(1, false);
+		}
+		if (!linearOnly && token !== null) {
 			const user = await checkToken(token, io.fetch);
 			if (user.status === 401) {
 				writeErr(rejectedToken);
@@ -359,11 +367,6 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			if (!user.ok) {
 				writeErr(`GitHub token check failed (HTTP ${user.status}).`);
 				return result(1, false);
-			}
-		} else {
-			const fromEnv = io.env.GITHUB_TOKEN?.trim() ?? "";
-			if (fromEnv !== "") {
-				token = fromEnv;
 			}
 		}
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";

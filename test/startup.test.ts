@@ -125,9 +125,7 @@ describe("startup", () => {
 					fetch: async () => {
 						throw new Error("no tracker call for an empty pin list");
 					},
-					readGhToken: async () => {
-						throw new Error("gh must not run for an empty pin list");
-					},
+					readGhToken: async () => null,
 					databasePath: ":memory:",
 					waitForStop: Promise.resolve(),
 				}),
