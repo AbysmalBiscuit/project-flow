@@ -65,21 +65,6 @@ function openCount(body: unknown): number {
 	return Array.isArray(body) ? body.length : 0;
 }
 
-function placeHover(event: { currentTarget: HTMLElement }): void {
-	for (const marked of document.querySelectorAll("[data-hover]")) {
-		if (marked instanceof HTMLElement) {
-			delete marked.dataset.hover;
-		}
-	}
-	const header = event.currentTarget.closest("header");
-	const next = header?.querySelector("a[href='/inbox']");
-	if (!(next instanceof HTMLElement) || next === document.activeElement) {
-		return;
-	}
-	next.dataset.hover = "";
-	event.currentTarget.blur();
-}
-
 function Scrollbar() {
 	const [thumb, setThumb] = useState(0);
 	useEffect(() => {
@@ -157,13 +142,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 							)}
 							href={link.href}
 							aria-current={current(link.href) ? "page" : undefined}
-							onClick={(event) => {
-								if (!current(link.href)) {
-									return;
-								}
-								event.preventDefault();
-								placeHover(event);
-							}}
 						>
 							{link.label}
 							{"count" in link && count !== null ? (

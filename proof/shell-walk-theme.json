@@ -20,16 +20,6 @@
 		{ "shot": "scroll-dark" },
 		{ "click": "button[data-theme-toggle]" },
 		{ "assert_text": "Settings" },
-		{ "shot": "scroll-light" },
-		{ "goto": "/" },
-		{ "assert_text": "All projects" },
-		{ "click": "a[aria-current='page']" },
-		{ "assert_text": "Overview" },
-		{ "shot": "hover-light" },
-		{ "click": "button[data-theme-toggle]" },
-		{ "assert_text": "Overview" },
-		{ "click": "a[aria-current='page']" },
-		{ "assert_text": "Overview" },
-		{ "shot": "hover-dark" }
+		{ "shot": "scroll-light" }
 	]
 }

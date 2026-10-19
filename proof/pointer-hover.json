@@ -1,0 +1,21 @@
+{
+	"base_url": "http://127.0.0.1:4174",
+	"serve": ["bun", "proof/serve-open.ts"],
+	"browser": "headed",
+	"why": "walk_replay.py has click, fill, assert_text and shot. Its ProofShot session is headless, and a headless pointer does not apply :hover.",
+	"replay": "AGENT_BROWSER_HEADED=1 bun proof/pointer-hover.mjs",
+	"steps": [
+		"agent-browser open http://127.0.0.1:4174/ --headed",
+		"agent-browser wait --text 'All projects'",
+		"agent-browser mouse move 8 8",
+		"agent-browser screenshot .devkit/proof/item-2/hover-rest.png",
+		"agent-browser get box a[href='/inbox']",
+		"agent-browser mouse move 394 32",
+		"agent-browser eval a[href='/inbox'] matches :hover and has no data-hover",
+		"agent-browser screenshot .devkit/proof/item-2/hover-light.png",
+		"agent-browser click button[data-theme-toggle]",
+		"agent-browser get box a[href='/inbox']",
+		"agent-browser mouse move 394 32",
+		"agent-browser screenshot .devkit/proof/item-2/hover-dark.png"
+	]
+}

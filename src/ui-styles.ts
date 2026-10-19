@@ -94,8 +94,6 @@ export const frame = stylex.create({
 		backgroundColor: {
 			default: "transparent",
 			":hover": colours.surfaceMuted,
-			":focus": colours.surfaceMuted,
-			":is([data-hover])": colours.surfaceMuted,
 		},
 	},
 	current: {
@@ -134,8 +132,6 @@ export const frame = stylex.create({
 		backgroundColor: {
 			default: colours.canvas,
 			":hover": colours.surfaceMuted,
-			":focus": colours.surfaceMuted,
-			":is([data-hover])": colours.surfaceMuted,
 		},
 		color: colours.ink,
 		font: "inherit",
