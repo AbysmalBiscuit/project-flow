@@ -134,16 +134,37 @@ async function drivenPoll(
 	if (!decoder.decode(opened.value).includes(": open")) {
 		throw new Error("event stream did not open");
 	}
-	const pending = reader.read();
+	const before = await inboxOf(base);
 	await refresh(base);
-	const polled = await pending;
-	await reader.cancel();
-	const events = eventsOf(decoder.decode(polled.value));
-	const notification = events.find((event) => event.event === "notification");
-	if (notification === undefined) {
+	const after = await inboxOf(base);
+	const raised = after.find(
+		(entry) => !before.some((earlier) => earlier.id === entry.id),
+	);
+	if (raised === undefined) {
+		await reader.cancel();
 		return { notification: null };
 	}
-	return { notification: JSON.parse(notification.data) as InboxEntry };
+	let buffered = "";
+	while (!notificationBlock(buffered, raised.id)) {
+		const chunk = await reader.read();
+		if (chunk.done) {
+			break;
+		}
+		buffered += decoder.decode(chunk.value, { stream: true });
+	}
+	await reader.cancel();
+	if (!notificationBlock(buffered, raised.id)) {
+		throw new Error("notification event missing for the raised inbox entry");
+	}
+	return { notification: raised };
+}
+
+function notificationBlock(text: string, id: string): boolean {
+	return eventsOf(text).some(
+		(event) =>
+			event.event === "notification" &&
+			(JSON.parse(event.data) as InboxEntry).id === id,
+	);
 }
 
 async function withInbox(
