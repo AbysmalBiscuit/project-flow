@@ -999,17 +999,9 @@ export function laneForTicket(
 	lanes: Lane[],
 	mapping: LaneMapping,
 ): Lane {
-	const fallback = lanes[0] ?? appLanes()[0];
-	if (fallback === undefined) {
-		return {
-			id: "backlog",
-			name: appLaneNames.backlog,
-			colour: appColours.backlog,
-			statusType: "backlog",
-		};
-	}
+	const fallback = lanes[0] ?? appLane("backlog");
 	if (ticket.emptyStatus === true) {
-		return appLane(closedLaneType(ticket) ?? "backlog");
+		return laneOfType(lanes, closedLaneType(ticket) ?? "backlog");
 	}
 	const matched =
 		ticket.status === undefined
@@ -1020,30 +1012,50 @@ export function laneForTicket(
 		if (matched?.statusType === closedType) {
 			return matched;
 		}
-		return (
-			lanes.find((lane) => lane.statusType === closedType) ??
-			lanes.find((lane) => namesMatch(lane.name, appLaneNames[closedType])) ??
-			appLane(closedType)
-		);
+		return laneOfType(lanes, closedType);
 	}
 	if (matched !== undefined) {
 		return matched;
 	}
 	if (ticket.status === undefined) {
-		return (
-			lanes.find((lane) => lane.statusType === "backlog") ??
-			lanes.find((lane) => namesMatch(lane.name, "Backlog")) ??
-			fallback
-		);
+		return laneOfType(lanes, "backlog");
 	}
 	return fallback;
 }
 
-function appLane(statusType: StatusType): Lane {
-	const lane = appLanes().find((item) => item.statusType === statusType);
-	if (lane !== undefined) {
-		return lane;
+function laneOfType(lanes: Lane[], statusType: StatusType): Lane {
+	return (
+		lanes.find((lane) => lane.statusType === statusType) ?? appLane(statusType)
+	);
+}
+
+function placeOnBoard(lanes: Lane[], tickets: Ticket[]): Lane[] {
+	const placed = [...lanes];
+	for (const ticket of tickets) {
+		if (ticket.emptyStatus !== true) {
+			continue;
+		}
+		const statusType = closedLaneType(ticket) ?? "backlog";
+		if (placed.some((lane) => lane.statusType === statusType)) {
+			continue;
+		}
+		placed.splice(laneInsertAt(placed, statusType), 0, {
+			...appLane(statusType),
+			added: true,
+		});
 	}
+	return placed;
+}
+
+function laneInsertAt(lanes: Lane[], statusType: StatusType): number {
+	const order = statusTypeOrder.indexOf(statusType);
+	const after = lanes.findLastIndex(
+		(lane) => statusTypeOrder.indexOf(lane.statusType) < order,
+	);
+	return after + 1;
+}
+
+function appLane(statusType: StatusType): Lane {
 	return {
 		id: statusType,
 		name: appLaneNames[statusType],
@@ -2238,7 +2250,7 @@ export function projectCounts(
 	const mappingKey = board?.laneKey ?? board?.teamKey;
 	const mapping =
 		mappingKey === undefined ? {} : (laneMappings[mappingKey] ?? {});
-	const lanes = lanesFor(board, mapping);
+	const lanes = placeOnBoard(lanesFor(board, mapping), tickets);
 	const counted = board !== undefined;
 	const tags = new Set<string>();
 	const views: TicketView[] = [];

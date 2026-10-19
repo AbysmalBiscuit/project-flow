@@ -207,6 +207,7 @@ function projectItem(
 	number: number,
 	title: string,
 	status: { name: string; color: string } | null,
+	content: Record<string, unknown> = {},
 ): Record<string, unknown> {
 	return {
 		fieldValueByName:
@@ -231,6 +232,7 @@ function projectItem(
 			labels: { nodes: [] },
 			parent: null,
 			blockedBy: { nodes: [] },
+			...content,
 		},
 	};
 }
@@ -705,6 +707,133 @@ describe("tracker lanes", () => {
 					done: 0,
 					dropped: 0,
 				});
+			},
+		);
+	});
+
+	test("an empty Status uses a renamed board lane of that status type", async () => {
+		const options = [
+			{ id: "opt-todo", name: "Todo", color: "GRAY" },
+			{ id: "opt-doing", name: "Doing", color: "YELLOW" },
+			{ id: "opt-review", name: "Review", color: "BLUE" },
+			{ id: "opt-shipped", name: "Shipped", color: "GREEN" },
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			projectFetch(
+				[
+					projectItem(9, "No status yet", null),
+					projectItem(8, "Blank status", { name: "   ", color: "GRAY" }),
+					projectItem(10, "Shipped without a status", null, {
+						state: "CLOSED",
+						stateReason: "COMPLETED",
+					}),
+					projectItem(15, "Closed with no reason", null, {
+						state: "CLOSED",
+						stateReason: null,
+					}),
+					projectItem(12, "Dropped without a status", null, {
+						state: "CLOSED",
+						stateReason: "NOT_PLANNED",
+					}),
+				],
+				options,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(report.lanes.map((lane) => lane.name)).toEqual([
+					"Todo",
+					"Doing",
+					"Review",
+					"Awaiting merge",
+					"Shipped",
+					"Dropped",
+				]);
+				expect(report.lanes.map((lane) => lane.name)).not.toContain("Backlog");
+				expect(report.lanes.map((lane) => lane.name)).not.toContain("Done");
+				const sections = report.sections.flatMap(
+					(section) => section.items ?? [],
+				);
+				const open = sections.find((item) => item.key === "acme/widget#9");
+				const blank = sections.find((item) => item.key === "acme/widget#8");
+				expect(open?.lane).toBe("Todo");
+				expect(open?.statusType).toBe("backlog");
+				expect(blank?.lane).toBe("Todo");
+				expect(blank?.statusType).toBe("backlog");
+				expect(report.lanes.find((lane) => lane.name === "Dropped")?.added).toBe(
+					true,
+				);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const tickets =
+					overview.projects.find((item) => item.name === "Widget board")
+						?.tickets ?? [];
+				const names = new Set(report.lanes.map((lane) => lane.name));
+				expect(tickets.find((item) => item.key === "acme/widget#10")).toEqual(
+					expect.objectContaining({ lane: "Shipped", statusType: "done" }),
+				);
+				expect(tickets.find((item) => item.key === "acme/widget#15")).toEqual(
+					expect.objectContaining({ lane: "Shipped", statusType: "done" }),
+				);
+				expect(tickets.find((item) => item.key === "acme/widget#12")).toEqual(
+					expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
+				);
+				for (const item of tickets) {
+					expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+				}
+			},
+		);
+	});
+
+	test("an empty Status adds the app lane when the board has no lane of that type", async () => {
+		const options = [
+			{ id: "opt-doing", name: "Doing", color: "YELLOW" },
+			{ id: "opt-review", name: "Review", color: "BLUE" },
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			projectFetch(
+				[
+					projectItem(9, "No status yet", null),
+					projectItem(11, "Wait for review", { name: "Review", color: "BLUE" }),
+				],
+				options,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(report.lanes.map((lane) => lane.name)).toEqual([
+					"Backlog",
+					"Doing",
+					"Review",
+					"Awaiting merge",
+				]);
+				expect(report.lanes.find((lane) => lane.name === "Doing")).toEqual({
+					id: "opt-doing",
+					name: "Doing",
+					colour: "#F2C94C",
+					statusType: "inProgress",
+				});
+				const added = report.lanes.find((lane) => lane.name === "Backlog");
+				expect(added?.statusType).toBe("backlog");
+				expect(added?.colour).toBe("#D0D7DE");
+				expect(added?.added).toBe(true);
+				const items = report.sections.flatMap((section) => section.items ?? []);
+				const empty = items.find((item) => item.key === "acme/widget#9");
+				const placedItem = items.find((item) => item.key === "acme/widget#11");
+				expect(empty?.lane).toBe("Backlog");
+				expect(empty?.statusType).toBe("backlog");
+				expect(placedItem?.lane).toBe("Review");
+				const names = new Set(report.lanes.map((lane) => lane.name));
+				for (const item of items) {
+					expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+				}
 			},
 		);
 	});
