@@ -242,27 +242,19 @@ export type NotificationTriggers = {
 	blockerCleared: boolean;
 };
 
-const defaultTriggers: NotificationTriggers = {
-	needsYou: true,
-	comment: true,
-	blockerCleared: true,
-};
-
-export function notificationTriggers(
-	triggers: Partial<NotificationTriggers> | undefined,
-): NotificationTriggers {
-	return { ...defaultTriggers, ...triggers };
-}
-
 type Attention = {
 	needsYou: NeedsYouItem[];
 	comments: Map<string, string>;
 	blockers: Map<string, string>;
+	closed: Set<string>;
 };
 
 function commentStamp(comments: Comment[] | undefined): string {
 	return (comments ?? [])
-		.map((comment) => `${comment.createdAt ?? ""}:${comment.body}`)
+		.flatMap((comment) => {
+			const body = comment.body.trim();
+			return body === "" ? [] : [`${comment.createdAt ?? ""}:${body}`];
+		})
 		.join("\n");
 }
 
@@ -275,14 +267,22 @@ export function attentionOf(
 ): Attention {
 	const comments = new Map<string, string>();
 	const blockers = new Map<string, string>();
+	const closed = new Set<string>();
+	const tickets = new Map<string, Ticket>();
 	for (const view of views) {
-		const byKey = new Map(
-			view.row.tickets.flatMap((ticket) =>
-				ticket.key === null ? [] : [[ticket.key.toLowerCase(), ticket]],
-			),
-		);
+		for (const ticket of view.row.tickets) {
+			if (ticket.key === null) {
+				continue;
+			}
+			tickets.set(`${ticket.tracker}\n${ticket.key.toLowerCase()}`, ticket);
+			if (ticket.state === "closed") {
+				closed.add(`${ticket.tracker}\n${ticket.key.toLowerCase()}`);
+			}
+		}
+	}
+	for (const view of views) {
 		for (const item of view.items) {
-			const ticket = byKey.get(item.key.toLowerCase());
+			const ticket = tickets.get(`${item.tracker}\n${item.key.toLowerCase()}`);
 			comments.set(
 				`${item.project}\n${item.key}`,
 				commentStamp(ticket?.comments),
@@ -299,7 +299,17 @@ export function attentionOf(
 		needsYou: views.flatMap((view) => view.items),
 		comments,
 		blockers,
+		closed,
 	};
+}
+
+export function primeAttention(attention: Attention, seen: Set<string>): void {
+	for (const item of attention.needsYou) {
+		seen.add(`needsYou\n${item.project}\n${item.key}`);
+	}
+	for (const [id, stamp] of attention.comments) {
+		seen.add(`comment\n${id}\n${stamp}`);
+	}
 }
 
 export function notificationsFor(
@@ -363,6 +373,9 @@ export function notificationsFor(
 			const item = after.needsYou.find(
 				(candidate) => `${candidate.project}\n${candidate.key}` === id,
 			);
+			if (item?.answered === true) {
+				continue;
+			}
 			const [project = "", itemKey = ""] = id.split("\n");
 			push(
 				"comment",
@@ -378,7 +391,11 @@ export function notificationsFor(
 			if (after.blockers.has(id)) {
 				continue;
 			}
-			const [project = "", , , itemKey = ""] = id.split("\n");
+			const [, tracker = "", , itemKey = ""] = id.split("\n");
+			if (!after.closed.has(`${tracker}\n${itemKey.toLowerCase()}`)) {
+				continue;
+			}
+			const [project = ""] = id.split("\n");
 			push(
 				"blockerCleared",
 				`blockerCleared\n${id}\n${at}`,

@@ -22,8 +22,8 @@ import {
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	notificationsFor,
-	notificationTriggers,
 	panelReplyBody,
+	primeAttention,
 	projectCounts,
 	projectHasNoSenior,
 	projectSnapshots,
@@ -688,7 +688,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		? notificationsFor(
 				before,
 				after,
-				notificationTriggers(configuration.notificationTriggers),
+				configuration.notificationTriggers,
 				polledAt.toISOString(),
 				options.seenNotifications,
 			)
@@ -705,15 +705,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		notifications,
 	});
 	return configuration;
-}
-
-function primeAttention(attention: Attention, seen: Set<string>): void {
-	for (const item of attention.needsYou) {
-		seen.add(`needsYou\n${item.project}\n${item.key}`);
-	}
-	for (const [id, stamp] of attention.comments) {
-		seen.add(`comment\n${id}\n${stamp}`);
-	}
 }
 
 export async function start(options: StartOptions): Promise<Running> {
@@ -755,12 +746,22 @@ export async function start(options: StartOptions): Promise<Running> {
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
 		viewers: [],
-		attention: { needsYou: [], comments: new Map(), blockers: new Map() },
+		attention: {
+			needsYou: [],
+			comments: new Map(),
+			blockers: new Map(),
+			closed: new Set(),
+		},
 		seenNotifications: new Set(
 			opened.store.readNotifications().map((entry) => entry.id),
 		),
 		primed: opened.store.readTickets().length > 0,
 	};
+	if (pollOptions.primed) {
+		pollOptions.attention = attentionOf(
+			projectViews(opened.store, configuration, pollOptions.viewers),
+		);
+	}
 	let releaseLists = () => {};
 	const hadRows = opened.store.readTickets().length > 0;
 	if (hadRows) {
@@ -813,11 +814,6 @@ export async function start(options: StartOptions): Promise<Running> {
 	if (!hadRows) {
 		try {
 			await pollAgain();
-			pollOptions.attention = attentionOf(
-				projectViews(opened.store, configuration, pollOptions.viewers),
-			);
-			primeAttention(pollOptions.attention, pollOptions.seenNotifications);
-			pollOptions.primed = true;
 		} catch (error) {
 			stopped = true;
 			await (polling ?? Promise.resolve());

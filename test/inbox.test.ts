@@ -27,7 +27,11 @@ function linearIssue(
 	identifier: string,
 	title: string,
 	description: string,
-	comments: { body: string; createdAt?: string }[] = [],
+	comments: {
+		body: string;
+		createdAt?: string;
+		user?: { name: string };
+	}[] = [],
 	fields: Record<string, unknown> = {},
 	updatedAt = "2026-08-18T12:00:00.000Z",
 ): Record<string, unknown> {
@@ -359,7 +363,7 @@ describe("inbox", () => {
 		});
 	});
 
-	test("a cleared cross-project blocker produces an event and an inbox entry", async () => {
+	test("closing the blocker ticket produces an event and an inbox entry", async () => {
 		const gate = {
 			id: "project-gate",
 			name: "Gate",
@@ -382,7 +386,7 @@ describe("inbox", () => {
 				"Open the gate",
 				"",
 				[],
-				{},
+				{ state: { type: "started" } },
 				"2026-08-18T12:00:00.000Z",
 			),
 			projectId: gate.id,
@@ -399,12 +403,12 @@ describe("inbox", () => {
 			async (base, setIssues) => {
 				expect(await inboxOf(base)).toEqual([]);
 				setIssues([
+					blocked,
 					{
-						...blocked,
-						description: "The gate is open.",
+						...blocker,
+						state: { type: "completed" },
 						updatedAt: "2026-08-18T15:00:00.000Z",
 					},
-					blocker,
 				]);
 				const events = notificationEvent(base);
 				await Bun.sleep(50);
@@ -455,7 +459,7 @@ describe("inbox", () => {
 		);
 	});
 
-	test("a blank trigger and a repeated poll add no inbox entry", async () => {
+	test("a blank comment and a repeated poll add no inbox entry", async () => {
 		const headline = "Which bot should review this?";
 		const issue = linearIssue(
 			"PF-1",
@@ -489,12 +493,169 @@ describe("inbox", () => {
 				),
 			]);
 			await refresh(base);
-			const first = await inboxOf(base);
-			expect(first).toHaveLength(1);
-			expect(first[0]?.trigger).toBe("comment");
+			expect(await inboxOf(base)).toEqual([]);
 			await refresh(base);
-			expect(await inboxOf(base)).toEqual(first);
+			expect(await inboxOf(base)).toEqual([]);
 		});
+	});
+
+	test("a reply that answers the open ask adds no inbox entry", async () => {
+		const headline = "Which bot should review this?";
+		const issue = linearIssue(
+			"PF-1",
+			"Open ask",
+			headline,
+			[
+				{
+					body: `${headline}\n\n${ask("pf-1")}`,
+					createdAt: "2026-08-18T12:00:00.000Z",
+				},
+			],
+			{},
+			"2026-08-18T12:00:00.000Z",
+		);
+		await withInbox(pinned, [issue], async (base, setIssues) => {
+			setIssues([
+				linearIssue(
+					"PF-1",
+					"Open ask",
+					headline,
+					[
+						{
+							body: `${headline}\n\n${ask("pf-1")}`,
+							createdAt: "2026-08-18T12:00:00.000Z",
+						},
+						{
+							body: "Reply: use the review bot.",
+							createdAt: "2026-08-18T14:00:00.000Z",
+							user: { name: "AbysmalBiscuit" },
+						},
+					],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			]);
+			await refresh(base);
+			expect(await inboxOf(base)).toEqual([]);
+		});
+	});
+
+	test("dropping the blocker line without closing the ticket adds no inbox entry", async () => {
+		const gate = {
+			id: "project-gate",
+			name: "Gate",
+			slugId: "gate",
+		};
+		const blocked = {
+			...linearIssue(
+				"PF-2",
+				"Hold the launch",
+				"Blocked by: GATE-9",
+				[],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+			projectId: linearProject.id,
+		};
+		const blocker = {
+			...linearIssue(
+				"GATE-9",
+				"Open the gate",
+				"",
+				[],
+				{ state: { type: "started" } },
+				"2026-08-18T12:00:00.000Z",
+			),
+			projectId: gate.id,
+		};
+		await withInbox(
+			{
+				pinned: [
+					{ tracker: "linear", project: "project-flow" },
+					{ tracker: "linear", project: "gate" },
+				],
+				pollIntervalSeconds: 3600,
+			},
+			[blocked, blocker],
+			async (base, setIssues) => {
+				setIssues([
+					{
+						...blocked,
+						description: "The gate is open.",
+						updatedAt: "2026-08-18T15:00:00.000Z",
+					},
+					blocker,
+				]);
+				await refresh(base);
+				expect(await inboxOf(base)).toEqual([]);
+			},
+			[linearProject, gate],
+		);
+	});
+
+	test("a restart on the same store does not notify the stored needs-you item again", async () => {
+		const headline = "Which bot should review this?";
+		const issue = linearIssue(
+			"PF-1",
+			"Open ask",
+			headline,
+			[{ body: `${headline}\n\n${ask("pf-1")}` }],
+			{},
+			"2026-08-18T13:00:00.000Z",
+		);
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues([issue]);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const first = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await first;
+			expect(await inboxOf(base)).toEqual([]);
+			stopFirst();
+			await started;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let again: (base: string) => void = () => {};
+			const second = new Promise<string>((resolve) => {
+				again = resolve;
+			});
+			const restarted = start(secondStop, again);
+			const next = await second;
+			await refresh(next);
+			expect(await inboxOf(next)).toEqual([]);
+			stopSecond();
+			await restarted;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test("a disabled comment trigger leaves a new comment out of the inbox", async () => {
