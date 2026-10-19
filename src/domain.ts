@@ -1134,11 +1134,20 @@ function themeOf(
 		return ticket.title;
 	}
 	const parent = parentOf(ticket, byKey);
-	if (parent !== undefined && isEpic(parent)) {
+	if (parent !== undefined && isEpic(parent) && parent !== root) {
 		return parent.title;
 	}
-	if (isEpic(root)) {
+	if (isEpic(root) && root === ticket) {
 		return root.title;
+	}
+	const belowRoot = [...ancestors(ticket, byKey)].find(
+		(ancestor) => ancestor !== root,
+	);
+	if (isEpic(root) && belowRoot !== undefined) {
+		return belowRoot.title;
+	}
+	if (isEpic(root)) {
+		return scopeOf(ticket.title);
 	}
 	if (root !== ticket && root.key !== null) {
 		return root.title;

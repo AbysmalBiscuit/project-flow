@@ -831,6 +831,48 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a root epic workstream themes the nearest parent below it", async () => {
+		const root = issue(40, "Ship the board", {
+			labels: [{ name: "Epic" }],
+		});
+		const mid = issue(41, "Draw the legend", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/40`,
+		});
+		const leaf = issue(42, "feat(legend): add the key", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/41`,
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([root, mid, leaf]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const map = report.sections.find(
+					(section) => section.id === "featureMap",
+				);
+				const board = map?.diagrams?.find(
+					(diagram) => diagram.id === "map_3a_Ship_20_the_20_board",
+				);
+				expect(board?.definition).toContain(
+					'Ship_20_the_20_board_3a_Draw_20_the_20_legend["Draw the legend"]:::theme',
+				);
+				expect(board?.definition).toContain(
+					"Ship_20_the_20_board_3a_Draw_20_the_20_legend --> acme_2f_widget_23_42",
+				);
+				const leafEdge = board?.edges.find(
+					(edge) => edge.to === "acme_2f_widget_23_42",
+				);
+				expect(
+					board?.nodes.find((node) => node.id === leafEdge?.from)?.label,
+				).toBe("Draw the legend");
+			},
+		);
+	});
+
 	test("a missing project is not found, and a blank name is not found", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
