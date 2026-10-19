@@ -5,7 +5,13 @@ import { join } from "node:path";
 import type { NeedsYouItem } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { linearFake, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	linearFake,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	urlOf,
+} from "./support.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 
@@ -143,32 +149,15 @@ describe("needs you", () => {
 		const repo = "acme/widget";
 		const named = "This waits on Lev for the signing key.";
 		const recorded: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
 			const url = urlOf(input);
-			const body = typeof init?.body === "string" ? init.body : "";
 			if (url === "https://api.github.com/user") {
 				return Response.json({ login: "lev" });
 			}
-			if (url.startsWith("https://api.github.com/user/repos")) {
-				return page([]);
-			}
 			if (url === "https://api.github.com/graphql") {
-				if (body.includes("ViewerProjects") || body.includes("OrgProjects")) {
-					return Response.json({
-						data: {
-							viewer: {
-								login: "lev",
-								projectsV2: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-								organizations: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-							},
-						},
-					});
-				}
 				return Response.json({
 					data: {
 						repository: {
@@ -186,7 +175,18 @@ describe("needs you", () => {
 						state_reason: null,
 						updated_at: "2026-10-01T00:00:00Z",
 						body: "",
-						comments: 1,
+						comments: 2,
+						assignee: null,
+						labels: [],
+					},
+					{
+						number: 6,
+						title: "Answered ask",
+						state: "open",
+						state_reason: null,
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						comments: 2,
 						assignee: null,
 						labels: [],
 					},
@@ -212,6 +212,23 @@ describe("needs you", () => {
 						body: `Senior, ${named}\n\n${ask("gh-4")}`,
 						created_at: "2026-10-01T00:00:00Z",
 						user: { login: "agent" },
+					},
+				]);
+			}
+			if (
+				url ===
+				`https://api.github.com/repos/${repo}/issues/6/comments?per_page=100&page=1`
+			) {
+				return page([
+					{
+						body: `Senior, ${named}\n\n${ask("gh-6")}`,
+						created_at: "2026-10-01T00:00:00Z",
+						user: { login: "agent" },
+					},
+					{
+						body: "Noted, no change.",
+						created_at: "2026-10-01T01:00:00Z",
+						user: { login: "lev" },
 					},
 				]);
 			}
@@ -268,11 +285,17 @@ describe("needs you", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 			const items = await checks;
-			expect(items.map((item) => item.key)).toEqual([`${repo}#4`]);
+			expect(items.map((item) => item.key)).toEqual([`${repo}#4`, `${repo}#6`]);
 			expect(items[0]).toMatchObject({
 				headline: named,
 				reason: "ask",
 				tags: ["matched by name"],
+				answered: false,
+			});
+			expect(items[1]).toMatchObject({
+				headline: named,
+				reason: "ask",
+				answered: true,
 			});
 		} finally {
 			await cleanup();
@@ -280,7 +303,7 @@ describe("needs you", () => {
 		}
 	});
 
-	test("a Linear project set false omits an unnamed ask and a string list still loads", async () => {
+	test("a Linear project set false omits an unnamed ask", async () => {
 		const unnamed = "Which bot should review this?";
 		const issues = [
 			linearIssue("PF-1", "Unnamed ask", unnamed, [
@@ -291,13 +314,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: "project-flow" }],
-				noSenior: { "project-flow": false, "kept-as-list": true },
-			}),
-		);
-		const listed = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "linear", project: "project-flow" }],
-				noSenior: ["project-flow"],
+				noSenior: { "project-flow": false },
 			}),
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -313,18 +330,6 @@ describe("needs you", () => {
 			};
 		});
 		try {
-			const loaded = await run(
-				["--config", listed.path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { LINEAR_API_KEY: "recorded-linear-key" },
-					fetch: recorded,
-					readGhToken: async () => null,
-					databasePath: join(root, "listed.sqlite"),
-					waitForStop: Promise.resolve(),
-				}),
-			);
-			expect(loaded.exitCode).toBe(0);
-			expect(loaded.stderr).toBe("");
 			const result = await run(
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				testIo({
@@ -341,7 +346,6 @@ describe("needs you", () => {
 			expect(await checks).toEqual([]);
 		} finally {
 			await cleanup();
-			await listed.cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
 	});
@@ -350,32 +354,15 @@ describe("needs you", () => {
 		const repo = "acme/widget";
 		const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 		const recorded: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return Response.json({ login: "lev" });
 			}
-			if (url.startsWith("https://api.github.com/user/repos")) {
-				return page([]);
-			}
 			if (url === "https://api.github.com/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("ViewerProjects") || body.includes("OrgProjects")) {
-					return Response.json({
-						data: {
-							viewer: {
-								login: "lev",
-								projectsV2: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-								organizations: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-							},
-						},
-					});
-				}
 				return Response.json({
 					data: {
 						repository: {
@@ -414,7 +401,41 @@ describe("needs you", () => {
 						updated_at: "2026-10-01T00:00:00Z",
 						body: "",
 						assignee: { login: "someone" },
+						assignees: [{ login: "someone" }],
 						labels: [{ name: "needs-human" }],
+					},
+					{
+						number: 11,
+						title: "Second assignee",
+						state: "open",
+						state_reason: null,
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						assignee: { login: "someone" },
+						assignees: [{ login: "someone" }, { login: "lev" }],
+						labels: [{ name: "needs-human" }],
+					},
+					{
+						number: 12,
+						title: "Empty assignees",
+						state: "open",
+						state_reason: null,
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						assignee: null,
+						assignees: [],
+						labels: [{ name: "needs-human" }],
+					},
+					{
+						number: 13,
+						title: "Blank login",
+						state: "open",
+						state_reason: null,
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						assignee: { login: " " },
+						assignees: [{ login: " " }, { login: "" }],
+						labels: [{ name: "needs-engineer" }],
 					},
 				]);
 			}
@@ -487,6 +508,7 @@ describe("needs you", () => {
 			expect(result.exitCode).toBe(0);
 			const items = await checks;
 			expect(items.map((item) => item.key).sort()).toEqual([
+				`${repo}#11`,
 				`${repo}#8`,
 				`${repo}#9`,
 			]);
@@ -496,6 +518,10 @@ describe("needs you", () => {
 			});
 			expect(items.find((item) => item.key === `${repo}#9`)).toMatchObject({
 				headline: "Needs an engineer",
+				reason: "label",
+			});
+			expect(items.find((item) => item.key === `${repo}#11`)).toMatchObject({
+				headline: "Second assignee",
 				reason: "label",
 			});
 		} finally {
