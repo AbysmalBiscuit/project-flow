@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
+import styles from "./needs.module.css";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
+import shell from "./shell.module.css";
 
 function NeedsList({
 	items,
@@ -17,15 +19,24 @@ function NeedsList({
 	onClose: () => void;
 }) {
 	return (
-		<main className="needs-you-page">
-			<p>
-				<a className="back" href="/">
+		<main className={shell.page}>
+			<p className={shell.nav}>
+				<a className={shell.link} href="/">
 					Projects
-				</a>{" "}
-				<a href="/inbox">Inbox</a>
+				</a>
+				<a className={shell.link} href="/inbox">
+					Inbox
+				</a>
+				<button
+					type="button"
+					className={`${shell.button} ${shell.theme}`}
+					data-theme-toggle=""
+				>
+					Dark mode
+				</button>
 			</p>
-			<h1>Needs you</h1>
-			<ul className="needs-you-list">
+			<h1 className={shell.title}>Needs you</h1>
+			<ul className={styles.list}>
 				{items.map((item) => (
 					<NeedsItem
 						key={`${item.project} ${item.key}`}
@@ -75,7 +86,7 @@ function Page() {
 		};
 	}, []);
 	if (items === null) {
-		return <main>Loading needs you</main>;
+		return <main className={shell.page}>Loading needs you</main>;
 	}
 	return (
 		<NeedsList

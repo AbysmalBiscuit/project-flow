@@ -236,7 +236,11 @@ const result = await run(
 		now: () => new Date("2026-10-18T12:00:00.000Z"),
 		stdout: (line) => console.log(line),
 		stderr: (line) => console.error(line),
-		waitForStop: new Promise(() => {}),
+		waitForStop: new Promise<void>((resolve) => {
+			const stop = () => resolve();
+			process.once("SIGINT", stop);
+			process.once("SIGTERM", stop);
+		}),
 	},
 );
 process.exit(result.exitCode);

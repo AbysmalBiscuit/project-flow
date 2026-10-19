@@ -1,4 +1,5 @@
 import type { NeedsYouItem } from "./domain.ts";
+import styles from "./needs.module.css";
 
 export function NeedsItem({
 	item,
@@ -11,29 +12,32 @@ export function NeedsItem({
 }) {
 	return (
 		<li
-			className={item.answered ? "needs-you answered" : "needs-you"}
+			className={
+				item.answered ? `${styles.item} ${styles.answered}` : styles.item
+			}
 			data-needs={item.key}
 		>
 			{project ? (
-				<>
-					<a href={`/projects/${encodeURIComponent(item.project)}`}>
-						{item.project}
-					</a>{" "}
-				</>
+				<a
+					className={styles.project}
+					href={`/projects/${encodeURIComponent(item.project)}`}
+				>
+					{item.project}
+				</a>
 			) : null}
 			{onOpen === undefined ? (
-				<span className="headline">{item.headline}</span>
+				<span className={styles.headline}>{item.headline}</span>
 			) : (
 				<button
 					type="button"
-					className="ticket-open headline"
+					className={`${styles.open} ${styles.headline}`}
 					onClick={() => onOpen(item.key)}
 				>
 					{item.headline}
 				</button>
 			)}
 			{item.tags.length === 0 ? null : (
-				<span className="tag">{item.tags.join(" ")}</span>
+				<span className={styles.tag}>{item.tags.join(" ")}</span>
 			)}
 		</li>
 	);
