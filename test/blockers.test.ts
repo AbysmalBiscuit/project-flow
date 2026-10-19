@@ -491,8 +491,8 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				const dependencies = `https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by`;
-				const closedNative = `https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by`;
+				const dependencies = `https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by?per_page=100&page=1`;
+				const closedNative = `https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by?per_page=100&page=1`;
 				if (url === closedNative) {
 					return page([
 						{
@@ -589,8 +589,8 @@ describe("GET /api/overview blockers", () => {
 								url.includes("/dependencies/blocked_by"),
 							),
 						).toEqual([
-							`https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by`,
-							`https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by`,
+							`https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by?per_page=100&page=1`,
+							`https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by?per_page=100&page=1`,
 						]);
 						resolve();
 					})
@@ -779,7 +779,7 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				if (url.endsWith("/issues/90/dependencies/blocked_by")) {
+				if (url.includes("/issues/90/dependencies/blocked_by")) {
 					return page([
 						{
 							number: 7,
@@ -788,7 +788,7 @@ describe("GET /api/overview blockers", () => {
 						},
 					]);
 				}
-				if (url.endsWith("/issues/93/dependencies/blocked_by")) {
+				if (url.includes("/issues/93/dependencies/blocked_by")) {
 					return page([
 						{
 							number: 8,
@@ -925,7 +925,7 @@ describe("GET /api/overview blockers", () => {
 			}
 			if (
 				url ===
-				`https://api.github.com/repos/${githubRepo}/issues/80/dependencies/blocked_by`
+				`https://api.github.com/repos/${githubRepo}/issues/80/dependencies/blocked_by?per_page=100&page=1`
 			) {
 				return page([
 					{
@@ -1160,7 +1160,7 @@ describe("GET /api/overview blockers", () => {
 					issue(8, "Closed native blocker.", "closed"),
 				]);
 			}
-			if (url.endsWith("/issues/4/dependencies/blocked_by")) {
+			if (url.includes("/issues/4/dependencies/blocked_by")) {
 				return page([
 					{
 						number: 8,
@@ -1232,7 +1232,7 @@ describe("GET /api/overview blockers", () => {
 						});
 						expect(overview.projects[0]?.blocked).toBe(2);
 						expect(
-							requests.some((url) => url.endsWith("/dependencies/blocked_by")),
+							requests.some((url) => url.includes("/dependencies/blocked_by")),
 						).toBe(false);
 						resolve();
 					})
@@ -1606,7 +1606,7 @@ describe("GET /api/overview blockers", () => {
 			}
 			if (
 				url ===
-				`https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by`
+				`https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`
 			) {
 				return page([
 					{
@@ -2701,7 +2701,7 @@ describe("GET /api/overview blockers", () => {
 
 	test("a repo ticket shows every blocker from a second REST page", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
-		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by`;
+		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
 		const second = `${first}?page=2`;
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
@@ -2824,7 +2824,7 @@ describe("GET /api/overview blockers", () => {
 
 	test("a failed second REST page leaves the repo card on its last good poll", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
-		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by`;
+		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
 		const second = `${first}?page=2`;
 		let polls = 0;
 		const recordedFetch: Fetch = async (input, init) => {
@@ -2958,7 +2958,7 @@ describe("GET /api/overview blockers", () => {
 
 	test("a closed blocker and a blank link on later REST pages add no blocker", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
-		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by`;
+		const first = `https://api.github.com/repos/${githubRepo}/issues/21/dependencies/blocked_by?per_page=100&page=1`;
 		const second = `${first}?page=2`;
 		const third = ` ${first}?page=3 `;
 		const recordedFetch: Fetch = async (input, init) => {

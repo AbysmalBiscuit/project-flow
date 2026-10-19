@@ -1738,7 +1738,7 @@ async function listBlockedBy(
 ): Promise<TicketRef[]> {
 	const refs: TicketRef[] = [];
 	let url: string | null =
-		`https://api.github.com/repos/${repo}/issues/${number}/dependencies/blocked_by`;
+		`https://api.github.com/repos/${repo}/issues/${number}/dependencies/blocked_by?per_page=100&page=1`;
 	let first = true;
 	while (url !== null) {
 		const response = await fetchImpl(url, { headers: githubHeaders(token) });
