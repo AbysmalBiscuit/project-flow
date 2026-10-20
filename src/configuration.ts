@@ -58,25 +58,55 @@ export const overviewFilters = [
 ] as const;
 
 export const overviewSorts = [
-	"name",
+	"project",
+	"tracker",
 	"progress",
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"needsYou",
+	"blockedBy",
+] as const;
+
+export const overviewDirections = ["asc", "desc"] as const;
+
+export const overviewViews = ["cards", "graph", "table"] as const;
+
+const storedSorts = [
+	...overviewSorts,
+	"name",
 	"needs-you",
 	"blockers",
 ] as const;
 
-export const overviewViews = ["cards", "graph", "table"] as const;
-
-const overviewView = z.strictObject({
-	filter: z.enum(overviewFilters).default("all"),
-	sort: z.enum(overviewSorts).default("name"),
-	view: z.enum(overviewViews).default("cards"),
-});
+const overviewView = z
+	.strictObject({
+		filter: z.enum(overviewFilters).default("all"),
+		sort: z.enum(storedSorts).default("project"),
+		direction: z.enum(overviewDirections).default("asc"),
+		view: z.enum(overviewViews).default("cards"),
+	})
+	.transform(({ filter, sort, direction, view }) => ({
+		filter,
+		sort:
+			sort === "name"
+				? "project"
+				: sort === "needs-you"
+					? "needsYou"
+					: sort === "blockers"
+						? "blockedBy"
+						: sort,
+		direction,
+		view,
+	}));
 
 const configurationSchema = z.strictObject({
 	theme: z.enum(["light", "dark"]).default("light"),
 	overview: overviewView.default({
 		filter: "all",
-		sort: "name",
+		sort: "project",
+		direction: "asc",
 		view: "cards",
 	}),
 	pinned: z.array(projectRef).default([]),

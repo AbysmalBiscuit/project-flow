@@ -101,10 +101,32 @@ export const overviewFilterLabel = {
 } as const;
 
 export const overviewSortLabel = {
-	name: "Name",
+	project: "Project",
+	tracker: "Tracker",
 	progress: "Progress",
-	"needs-you": "Needs you",
-	blockers: "Cross-project blockers",
+	backlog: "Backlog",
+	inProgress: "In progress",
+	inReview: "In review",
+	awaitingMerge: "Awaiting merge",
+	needsYou: "Needs you",
+	blockedBy: "Blocked by",
+} as const;
+
+export const trackerLabel = {
+	github: "GitHub",
+	linear: "Linear",
+} as const;
+
+export const tableColumnLabel = {
+	project: "Project",
+	tracker: "Tracker",
+	progress: "Progress",
+	backlog: stateLabel.backlog,
+	inProgress: stateLabel.inProgress,
+	inReview: stateLabel.inReview,
+	awaitingMerge: stateLabel.awaitingMerge,
+	needsYou: navLabel.needsYou,
+	blockedBy: "Blocked by",
 } as const;
 
 export const overviewControlLabel = {
@@ -114,6 +136,8 @@ export const overviewControlLabel = {
 	search: "Search projects",
 	needsYouFirst: "Needs you first",
 	polled: "polled",
+	projects: "projects",
+	tickets: "tickets",
 	unlinked: "unlinked PR",
 } as const;
 
