@@ -830,7 +830,9 @@ function githubState(state: string): "open" | "closed" | null {
 }
 
 function issueRefFromUrl(url: string): { repo: string; number: number } | null {
-	const match = url.match(/\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)/);
+	const match = url.match(
+		/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/,
+	);
 	const repo = match?.[1];
 	const raw = match?.[2];
 	if (repo === undefined || raw === undefined) {
@@ -843,7 +845,8 @@ function parentKey(url: string | null | undefined): string | null {
 	if (url === null || url === undefined) {
 		return null;
 	}
-	const ref = issueRefFromUrl(url);
+	const query = url.indexOf("?");
+	const ref = issueRefFromUrl(query === -1 ? url : url.slice(0, query));
 	if (ref === null) {
 		return null;
 	}
@@ -2084,17 +2087,13 @@ function issueNumberFromCommentUrl(
 	repo: string,
 ): number | null {
 	const ref = issueRefFromUrl(issueUrl);
-	if (
-		ref === null ||
-		ref.repo !== repo ||
-		!issueUrl.endsWith(`/repos/${ref.repo}/issues/${ref.number}`)
-	) {
+	if (ref === null || ref.repo.toLowerCase() !== repo.toLowerCase()) {
 		return null;
 	}
 	return ref.number;
 }
 
-// Loads an issue whose updated_at did not move.
+// Reads each issue the issue list did not return when a comment was edited in the window.
 async function issuesWithEditedComments(
 	token: string,
 	fetchImpl: Fetch,

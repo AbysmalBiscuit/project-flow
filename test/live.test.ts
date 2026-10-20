@@ -2074,6 +2074,7 @@ describe("live updates", () => {
 		};
 		const edited = {
 			...recorded,
+			issue_url: `https://api.github.com/repos/${repo.toUpperCase()}/issues/192`,
 			body: `${recorded.body}\n- stage 4: implementing`,
 			updated_at: "2026-04-01T12:05:10.000Z",
 		};
