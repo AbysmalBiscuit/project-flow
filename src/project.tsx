@@ -1,3 +1,4 @@
+import "@xyflow/react/dist/style.css";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ProjectViewSettings } from "./configuration.ts";
@@ -11,6 +12,7 @@ import type {
 import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
+import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
 import { blockedLabel, navLabel, stateLabel } from "./terms.ts";
@@ -892,6 +894,7 @@ function FilterPanel({
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
+	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
 	const [panelProject, setPanelProject] = useState(panelProjectName);
 	const panelProjectRef = useRef(panelProject);
 	panelProjectRef.current = panelProject;
@@ -899,7 +902,6 @@ function Page() {
 		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [view, setView] = useState<OpenView>("board");
-	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
@@ -1015,7 +1017,7 @@ function Page() {
 			</AppShell>
 		);
 	}
-	if (report === null) {
+	if (report === null || settings === null) {
 		return (
 			<AppShell>
 				<main className={clsx(frame.page, frame.wide)}>Loading {name}</main>
@@ -1100,6 +1102,14 @@ function Page() {
 						<h1 className={clsx(board.name)}>{report.name}</h1>
 						<p className={clsx(board.counts)}>{countLine(report, settings)}</p>
 					</div>
+					{view === "graph" ? (
+						<DirectionSwitch
+							direction={settings.graphDirection}
+							onChange={(next) =>
+								saveView({ ...settings, graphDirection: next })
+							}
+						/>
+					) : null}
 				</div>
 				<div className={clsx(board.toolbar)}>
 					<div className={clsx(board.filterSlot)}>
@@ -1165,6 +1175,26 @@ function Page() {
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
 							onOpenOutside={openOutsideInPanel}
+						/>
+					) : view === "graph" ? (
+						<ProjectGraph
+							report={report}
+							direction={settings.graphDirection}
+							openKey={open ? ticket : null}
+							onOpen={(node) => {
+								setPanelReport(null);
+								setPanelProject(node.project);
+								setPanelTracker(node.tracker);
+								setTicket(node.key);
+								setOpen(true);
+								if (!node.outside) {
+									openTicket({
+										tracker: node.tracker,
+										project: node.project,
+										key: node.key,
+									});
+								}
+							}}
 						/>
 					) : (
 						<p className={clsx(board.placeholder)}>{view}</p>
