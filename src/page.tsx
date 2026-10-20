@@ -1,8 +1,10 @@
+import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
 
 watchNotifications();
+mountJumpBox();
 
 applyPageTheme(pageTheme());
 
