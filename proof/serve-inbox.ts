@@ -1,8 +1,9 @@
-import { Database } from "bun:sqlite";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { Notification } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { sqliteStore } from "../src/store.ts";
 
 const ask = "<!-- workcell:ask pf-1 -->";
 const question = "Which bot should review this?";
@@ -125,118 +126,92 @@ export function releaseLinearAsk(): void {
 }
 
 function seedInbox(databasePath: string): void {
-	const seeded = new Database(databasePath);
-	seeded.run(`
-		create table if not exists notifications (
-			id text primary key,
-			trigger text not null,
-			project text not null,
-			item_key text not null,
-			text text not null,
-			at text not null,
-			read integer not null default 0
-		)
-	`);
-	const columns = seeded.query("pragma table_info(notifications)").all() as {
-		name: string;
-	}[];
-	if (!columns.some((column) => column.name === "read")) {
-		seeded.run(
-			"alter table notifications add column read integer not null default 0",
-		);
-	}
-	const insert = seeded.query(
-		"insert or ignore into notifications (id, trigger, project, item_key, text, at, read) values (?, ?, ?, ?, ?, ?, ?)",
-	);
-	const rows: [string, string, string, string, string, string, number][] = [
-		[
-			"needsYou\nProject Flow\nPF-1\n2026-10-18T14:12:00.000Z",
-			"needsYou",
-			"Project Flow",
-			"PF-1",
-			"Which bot should review this?",
-			"2026-10-18T14:12:00.000Z",
-			0,
-		],
-		[
-			"comment\nProject Flow\nPF-2\n2026-10-18T14:02:00.000Z",
-			"comment",
-			"Project Flow",
-			"PF-2",
-			"New comment on #72 from grok-72",
-			"2026-10-18T14:02:00.000Z",
-			0,
-		],
-		[
-			"blockerCleared\nProject Flow\nlinear\nPF-3\n2026-10-18T13:47:00.000Z",
-			"blockerCleared",
-			"Project Flow",
-			"PF-3",
-			"devkit#212 closed, #80 can start",
-			"2026-10-18T13:47:00.000Z",
-			0,
-		],
-		[
-			"needsYou\nProject Flow\nPF-4\n2026-10-18T13:31:00.000Z",
-			"needsYou",
-			"Project Flow",
-			"PF-4",
-			"Ask 53-2 on #53 waits for an answer",
-			"2026-10-18T13:31:00.000Z",
-			1,
-		],
-		[
-			"comment\nworkcell\n#431\n2026-10-18T12:58:00.000Z",
-			"comment",
-			"workcell",
-			"#431",
-			"New comment on PR #431 from codex-reviewer",
-			"2026-10-18T12:58:00.000Z",
-			1,
-		],
-		[
-			"needsYou\nPlatform\nPLAT-212\n2026-10-18T11:20:00.000Z",
-			"needsYou",
-			"Platform",
-			"PLAT-212",
-			"PLAT-212 asks a question about the billing export",
-			"2026-10-18T11:20:00.000Z",
-			0,
-		],
-		[
-			"blockerCleared\nPlatform\nlinear\nPLAT-15\n2026-10-17T18:44:00.000Z",
-			"blockerCleared",
-			"Platform",
-			"PLAT-15",
-			"project-flow#15 closed, PLAT-198 can start",
-			"2026-10-17T18:44:00.000Z",
-			1,
-		],
-		[
-			"comment\nworkcell\n#426\n2026-10-17T16:05:00.000Z",
-			"comment",
-			"workcell",
-			"#426",
-			"New comment on #426 from lev",
-			"2026-10-17T16:05:00.000Z",
-			1,
-		],
-		[
-			"needsYou\nProject Flow\nPF-78\n2026-10-17T09:12:00.000Z",
-			"needsYou",
-			"Project Flow",
-			"PF-78",
-			"PR #78 is ready to merge",
-			"2026-10-17T09:12:00.000Z",
-			1,
-		],
+	const opened = sqliteStore(databasePath);
+	const rows: Notification[] = [
+		{
+			id: "needsYou\nProject Flow\nPF-1\n2026-10-18T14:12:00.000Z",
+			trigger: "needsYou",
+			project: "Project Flow",
+			key: "PF-1",
+			text: "Which bot should review this?",
+			at: "2026-10-18T14:12:00.000Z",
+			read: false,
+		},
+		{
+			id: "comment\nProject Flow\nPF-2\n2026-10-18T14:02:00.000Z",
+			trigger: "comment",
+			project: "Project Flow",
+			key: "PF-2",
+			text: "New comment on #72 from grok-72",
+			at: "2026-10-18T14:02:00.000Z",
+			read: false,
+		},
+		{
+			id: "blockerCleared\nProject Flow\nlinear\nPF-3\n2026-10-18T13:47:00.000Z",
+			trigger: "blockerCleared",
+			project: "Project Flow",
+			key: "PF-3",
+			text: "devkit#212 closed, #80 can start",
+			at: "2026-10-18T13:47:00.000Z",
+			read: false,
+		},
+		{
+			id: "needsYou\nProject Flow\nPF-4\n2026-10-18T13:31:00.000Z",
+			trigger: "needsYou",
+			project: "Project Flow",
+			key: "PF-4",
+			text: "Ask 53-2 on #53 waits for an answer",
+			at: "2026-10-18T13:31:00.000Z",
+			read: true,
+		},
+		{
+			id: "comment\nworkcell\n#431\n2026-10-18T12:58:00.000Z",
+			trigger: "comment",
+			project: "workcell",
+			key: "#431",
+			text: "New comment on PR #431 from codex-reviewer",
+			at: "2026-10-18T12:58:00.000Z",
+			read: true,
+		},
+		{
+			id: "needsYou\nPlatform\nPLAT-212\n2026-10-18T11:20:00.000Z",
+			trigger: "needsYou",
+			project: "Platform",
+			key: "PLAT-212",
+			text: "PLAT-212 asks a question about the billing export",
+			at: "2026-10-18T11:20:00.000Z",
+			read: false,
+		},
+		{
+			id: "blockerCleared\nPlatform\nlinear\nPLAT-15\n2026-10-17T18:44:00.000Z",
+			trigger: "blockerCleared",
+			project: "Platform",
+			key: "PLAT-15",
+			text: "project-flow#15 closed, PLAT-198 can start",
+			at: "2026-10-17T18:44:00.000Z",
+			read: true,
+		},
+		{
+			id: "comment\nworkcell\n#426\n2026-10-17T16:05:00.000Z",
+			trigger: "comment",
+			project: "workcell",
+			key: "#426",
+			text: "New comment on #426 from lev",
+			at: "2026-10-17T16:05:00.000Z",
+			read: true,
+		},
+		{
+			id: "needsYou\nProject Flow\nPF-78\n2026-10-17T09:12:00.000Z",
+			trigger: "needsYou",
+			project: "Project Flow",
+			key: "PF-78",
+			text: "PR #78 is ready to merge",
+			at: "2026-10-17T09:12:00.000Z",
+			read: true,
+		},
 	];
-	seeded.transaction(() => {
-		for (const row of rows) {
-			insert.run(...row);
-		}
-	})();
-	seeded.close();
+	opened.store.appendNotifications(rows);
+	opened.close();
 }
 
 export function proofDatabase(root: string): string {
