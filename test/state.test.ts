@@ -599,6 +599,16 @@ async function devkitWorktree(options: {
 	return { root, cleanup: () => rm(root, { recursive: true, force: true }) };
 }
 
+async function fakeHerdr(
+	script: string,
+): Promise<{ path: string; cleanup: () => Promise<void> }> {
+	const path = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+	const herdr = join(path, "herdr");
+	await writeFile(herdr, script);
+	await chmod(herdr, 0o755);
+	return { path, cleanup: () => rm(path, { recursive: true, force: true }) };
+}
+
 describe("forward state", () => {
 	test("a Linear ticket in Todo with a live workcell run is In progress with a Stale status of Todo", async () => {
 		const checkout = await devkitWorktree({ key: "WID-1", status: "running" });
@@ -921,10 +931,7 @@ describe("forward state", () => {
 			status: "running",
 			manager: "manager-144-unread",
 		});
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
-		const herdr = join(bin, "herdr");
-		await writeFile(herdr, "#!/bin/sh\nexit 1\n");
-		await chmod(herdr, 0o755);
+		const herdr = await fakeHerdr("#!/bin/sh\nexit 1\n");
 		try {
 			await withApp(
 				JSON.stringify({
@@ -946,7 +953,7 @@ describe("forward state", () => {
 				]),
 				{
 					LINEAR_API_KEY: "recorded-linear-key",
-					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					PATH: `${herdr.path}:${process.env.PATH ?? ""}`,
 				},
 				async (base) => {
 					const report = await projectOf(base, "Widget launch");
@@ -962,7 +969,7 @@ describe("forward state", () => {
 			);
 		} finally {
 			await checkout.cleanup();
-			await rm(bin, { recursive: true, force: true });
+			await herdr.cleanup();
 		}
 	});
 
@@ -988,16 +995,12 @@ describe("forward state", () => {
 			statePath,
 			JSON.stringify({ status: "starting", manager: recorded.manager }),
 		);
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
-		const herdr = join(bin, "herdr");
-		await writeFile(
-			herdr,
+		const herdr = await fakeHerdr(
 			`#!/usr/bin/env bun
 const body = process.env.HERDR_BODY ?? '{"result":{"agents":[]}}';
 console.log(body);
 `,
 		);
-		await chmod(herdr, 0o755);
 		try {
 			await withApp(
 				JSON.stringify({
@@ -1006,7 +1009,7 @@ console.log(body);
 				recordedLinear([linearIssue("WID-13", "Ship the list", todoState)]),
 				{
 					LINEAR_API_KEY: "recorded-linear-key",
-					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					PATH: `${herdr.path}:${process.env.PATH ?? ""}`,
 					HERDR_BODY: "not json {",
 				},
 				async (base) => {
@@ -1023,7 +1026,7 @@ console.log(body);
 			);
 		} finally {
 			await checkout.cleanup();
-			await rm(bin, { recursive: true, force: true });
+			await herdr.cleanup();
 		}
 	});
 
@@ -1049,15 +1052,11 @@ console.log(body);
 			statePath,
 			JSON.stringify({ status: "starting", manager: recorded.manager }),
 		);
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
-		const herdr = join(bin, "herdr");
-		await writeFile(
-			herdr,
+		const herdr = await fakeHerdr(
 			`#!/usr/bin/env bun
 console.log(JSON.stringify({ result: { agents: [] } }));
 `,
 		);
-		await chmod(herdr, 0o755);
 		try {
 			await withApp(
 				JSON.stringify({
@@ -1066,7 +1065,7 @@ console.log(JSON.stringify({ result: { agents: [] } }));
 				recordedLinear([linearIssue("WID-13", "Ship the list", todoState)]),
 				{
 					LINEAR_API_KEY: "recorded-linear-key",
-					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					PATH: `${herdr.path}:${process.env.PATH ?? ""}`,
 				},
 				async (base) => {
 					const report = await projectOf(base, "Widget launch");
@@ -1088,7 +1087,7 @@ console.log(JSON.stringify({ result: { agents: [] } }));
 			);
 		} finally {
 			await checkout.cleanup();
-			await rm(bin, { recursive: true, force: true });
+			await herdr.cleanup();
 		}
 	});
 
@@ -1098,16 +1097,12 @@ console.log(JSON.stringify({ result: { agents: [] } }));
 			status: "running",
 			manager: "manager-144-gone",
 		});
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
-		const herdr = join(bin, "herdr");
-		await writeFile(
-			herdr,
+		const herdr = await fakeHerdr(
 			`#!/usr/bin/env bun
 const agents = process.env.HERDR_AGENTS ?? "[]";
 console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 `,
 		);
-		await chmod(herdr, 0o755);
 		try {
 			await withApp(
 				JSON.stringify({
@@ -1129,7 +1124,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 				]),
 				{
 					LINEAR_API_KEY: "recorded-linear-key",
-					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					PATH: `${herdr.path}:${process.env.PATH ?? ""}`,
 					HERDR_AGENTS: "[]",
 				},
 				async (base) => {
@@ -1155,7 +1150,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 			);
 		} finally {
 			await checkout.cleanup();
-			await rm(bin, { recursive: true, force: true });
+			await herdr.cleanup();
 		}
 	});
 
@@ -1165,16 +1160,12 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 			status: "running",
 			manager: "manager-144-live",
 		});
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
-		const herdr = join(bin, "herdr");
-		await writeFile(
-			herdr,
+		const herdr = await fakeHerdr(
 			`#!/usr/bin/env bun
 const agents = process.env.HERDR_AGENTS ?? "[]";
 console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 `,
 		);
-		await chmod(herdr, 0o755);
 		try {
 			await withApp(
 				JSON.stringify({
@@ -1196,7 +1187,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 				]),
 				{
 					LINEAR_API_KEY: "recorded-linear-key",
-					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					PATH: `${herdr.path}:${process.env.PATH ?? ""}`,
 					HERDR_AGENTS: JSON.stringify([{ name: "manager-144-live" }]),
 				},
 				async (base) => {
@@ -1218,7 +1209,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 			);
 		} finally {
 			await checkout.cleanup();
-			await rm(bin, { recursive: true, force: true });
+			await herdr.cleanup();
 		}
 	});
 
