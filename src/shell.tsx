@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { onAppEvent } from "./events.ts";
 import { openJumpBox } from "./jump.tsx";
 import { navLabel } from "./terms.ts";
@@ -113,8 +113,10 @@ function openCount(body: unknown): number {
 	return Array.isArray(body) ? body.length : 0;
 }
 
-async function saveTheme(theme: "light" | "dark"): Promise<boolean> {
-	try {
+let themeSave = Promise.resolve();
+
+function saveTheme(theme: "light" | "dark"): Promise<boolean> {
+	const turn = themeSave.then(async () => {
 		const loaded = await fetch("/api/settings");
 		if (!loaded.ok) {
 			return false;
@@ -129,14 +131,20 @@ async function saveTheme(theme: "light" | "dark"): Promise<boolean> {
 			body: JSON.stringify({ ...current, theme }),
 		});
 		return saved.ok;
-	} catch {
-		return false;
-	}
+	});
+	themeSave = turn.then(
+		() => undefined,
+		() => undefined,
+	);
+	return turn.catch(() => false);
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
 	const [count, setCount] = useState<number | null>(null);
 	const [theme, setTheme] = useState(pageTheme);
+	const themeRef = useRef(theme);
+	themeRef.current = theme;
+	const [themeSaveFailed, setThemeSaveFailed] = useState(false);
 	const path = window.location.pathname;
 	useEffect(() => {
 		let stopped = false;
@@ -217,19 +225,25 @@ export function AppShell({ children }: { children: ReactNode }) {
 					aria-label={navLabel.theme}
 					title={theme === "dark" ? navLabel.light : navLabel.dark}
 					onClick={() => {
-						const next = theme === "dark" ? "light" : "dark";
+						const next = themeRef.current === "dark" ? "light" : "dark";
+						themeRef.current = next;
+						applyPageTheme(next);
+						setTheme(next);
 						void saveTheme(next).then((saved) => {
-							if (!saved) {
-								return;
+							if (next === themeRef.current) {
+								setThemeSaveFailed(!saved);
 							}
-							applyPageTheme(next);
-							setTheme(next);
 						});
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}
 				</button>
 			</header>
+			{themeSaveFailed ? (
+				<p className={clsx(frame.themeSave)} role="alert">
+					Theme not saved. This choice will not survive a reload.
+				</p>
+			) : null}
 			{children}
 		</div>
 	);

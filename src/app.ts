@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { AutoMerge, Configuration } from "./configuration.ts";
-import { loadConfiguration, saveConfiguration } from "./configuration.ts";
+import {
+	loadConfiguration,
+	parseConfiguration,
+	saveConfiguration,
+} from "./configuration.ts";
 import type {
 	Comment,
 	Overview,
@@ -380,15 +384,22 @@ function viewOnlyChange(before: Configuration, after: Configuration): boolean {
 	const {
 		projectViews: previousViews,
 		overview: previousOverview,
+		theme: previousTheme,
 		...rest
 	} = before;
-	const { projectViews: nextViews, overview: nextOverview, ...kept } = after;
+	const {
+		projectViews: nextViews,
+		overview: nextOverview,
+		theme: nextTheme,
+		...kept
+	} = after;
 	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
 	const viewsChanged =
 		JSON.stringify(previousViews) !== JSON.stringify(nextViews);
 	const overviewChanged =
 		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
-	return restSame && (viewsChanged || overviewChanged);
+	const themeChanged = previousTheme !== nextTheme;
+	return restSame && (viewsChanged || overviewChanged || themeChanged);
 }
 
 function mergeFound(
@@ -1003,11 +1014,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
+	const current = await options.configuration.read();
+	options.fallback = current;
 	options.notifier.publish({
-		overview: runningOverview(options, configuration),
+		overview: runningOverview(options, current),
 		notifications,
 	});
-	return configuration;
+	return current;
 }
 
 function publishPoll(
@@ -1152,7 +1165,6 @@ export async function start(options: StartOptions): Promise<Running> {
 			}
 			try {
 				configuration = await poll(pollOptions);
-				pollOptions.fallback = configuration;
 			} catch (error) {
 				if (stopped) {
 					return;
@@ -1317,7 +1329,33 @@ export async function start(options: StartOptions): Promise<Running> {
 				GET: () => Response.json(settingsResponse(configuration, options)),
 				PUT: async (request: Request) => {
 					const text = withoutTrackers(await request.text());
-					const previous = configuration;
+					let parsed: Configuration;
+					try {
+						parsed = parseConfiguration(text);
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: "invalid configuration: configuration";
+						return Response.json({ error: message }, { status: 400 });
+					}
+					if (viewOnlyChange(configuration, parsed)) {
+						try {
+							configuration = await configurationPort.write(text);
+						} catch (error) {
+							const message =
+								error instanceof Error
+									? error.message
+									: "invalid configuration: configuration";
+							return Response.json({ error: message }, { status: 400 });
+						}
+						pollOptions.fallback = configuration;
+						notifier.publish({
+							overview: runningOverview(pollOptions, configuration),
+							notifications: [],
+						});
+						return Response.json(settingsResponse(configuration, options));
+					}
 					try {
 						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(text);
@@ -1333,13 +1371,6 @@ export async function start(options: StartOptions): Promise<Running> {
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
-					if (viewOnlyChange(previous, configuration)) {
-						notifier.publish({
-							overview: runningOverview(pollOptions, configuration),
-							notifications: [],
-						});
-						return Response.json(settingsResponse(configuration, options));
-					}
 					await pollAgain();
 					return Response.json(settingsResponse(configuration, options));
 				},

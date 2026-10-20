@@ -822,6 +822,130 @@ describe("settings", () => {
 		);
 	});
 
+	test("a view-only settings write answers while a poll is held open and sends no tracker request", async () => {
+		let releaseIssues: () => void = () => {};
+		const issuesHeld = new Promise<void>((resolve) => {
+			releaseIssues = resolve;
+		});
+		let enteredHold: () => void = () => {};
+		const holding = new Promise<void>((resolve) => {
+			enteredHold = resolve;
+		});
+		let holdIssues = false;
+		const heldRequests: string[] = [];
+		const held: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (holdIssues && url.includes("/repos/") && url.includes("/issues?")) {
+				enteredHold();
+				await issuesHeld;
+			}
+			return recorded(heldRequests, input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				(async () => {
+					const ready = await fetch(new URL("/api/overview", base));
+					expect(ready.status).toBe(200);
+					const beforeRefresh = heldRequests.length;
+					holdIssues = true;
+					const refreshing = fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					await holding;
+					const current = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					expect(current.theme).toBe("light");
+					const sent = heldRequests.length;
+					const started = Date.now();
+					const saving = fetch(new URL("/api/settings", base), {
+						method: "PUT",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({ ...current, theme: "dark" }),
+					});
+					const saved = await saving;
+					expect(Date.now() - started).toBeLessThan(2_000);
+					expect(saved.status).toBe(200);
+					expect(heldRequests.length).toBe(sent);
+					const written = (await saved.json()) as Configuration;
+					expect(written.theme).toBe("dark");
+					expect(written.pinned).toEqual(current.pinned);
+					expect(written.pollIntervalSeconds).toBe(current.pollIntervalSeconds);
+					const page = await fetch(new URL("/", base));
+					expect(page.status).toBe(200);
+					expect(await page.text()).toContain('data-theme="dark"');
+					holdIssues = false;
+					releaseIssues();
+					expect((await refreshing).status).toBe(204);
+					expect(heldRequests.length).toBeGreaterThan(beforeRefresh);
+					const after = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					expect(after.theme).toBe("dark");
+					expect(after.pollIntervalSeconds).toBe(current.pollIntervalSeconds);
+				})().then(resolve, reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {
+						GITHUB_TOKEN: "recorded-token",
+						LINEAR_API_KEY: "recorded-linear-key",
+					},
+					fetch: held,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releaseIssues();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a theme save writes the current settings shape and sends no tracker request", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [] }),
+			async (base, _path, requests) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(before.theme).toBe("light");
+				const sent = requests.length;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...before, theme: "dark" }),
+				});
+				expect(saved.status).toBe(200);
+				expect(requests.length).toBe(sent);
+				const written = (await saved.json()) as Configuration;
+				expect(written.theme).toBe("dark");
+				expect(written.pinned).toEqual(before.pinned);
+				expect(written.pollIntervalSeconds).toBe(before.pollIntervalSeconds);
+				expect(written.overview).toEqual(before.overview);
+				const again = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(again.theme).toBe("dark");
+				const page = await fetch(new URL("/", base));
+				expect(page.status).toBe(200);
+				expect(await page.text()).toContain('data-theme="dark"');
+			},
+		);
+	});
+
 	test("a blank theme and an unknown theme name the field and leave the file", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
 			const before = (await (

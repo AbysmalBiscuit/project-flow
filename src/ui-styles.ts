@@ -122,6 +122,12 @@ export const frame = stylex.create({
 		height: measure.glyph,
 		flexShrink: 0,
 	},
+	themeSave: {
+		margin: 0,
+		padding: `${space.xs} ${space.pageInset}`,
+		color: colours.danger,
+		fontSize: type.meta,
+	},
 	icon: {
 		display: "inline-flex",
 		alignItems: "center",
