@@ -775,6 +775,42 @@ describe("review cycle", () => {
 		).not.toBe("approved");
 	});
 
+	test("a later approval from the same reviewer supersedes changes requested", async () => {
+		const listed = (await overview({
+			issues: [issue(8)],
+			pulls: [pull(92)],
+			withNeedsYou: true,
+			checksBySha: {
+				[head]: [
+					{
+						name: "ci",
+						status: "completed",
+						conclusion: "success",
+					},
+				],
+			},
+			reviewsByPull: {
+				92: [
+					{
+						user: { login: "ada" },
+						commit_id: head,
+						state: "CHANGES_REQUESTED",
+					},
+					{
+						user: { login: "ada" },
+						commit_id: head,
+						state: "APPROVED",
+					},
+				],
+			},
+		})) as { needsYou: NeedsYouItem[] };
+		expect(
+			listed.needsYou.find((item) => item.key === `${repo}#8`)?.pull,
+		).toMatchObject({
+			review: "approved",
+		});
+	});
+
 	test("a Grok usage-limit comment counts only when it is newer than the head commit", async () => {
 		const olderLimit = await overview({
 			issues: [issue(8)],

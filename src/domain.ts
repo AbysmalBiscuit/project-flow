@@ -2853,15 +2853,23 @@ function ciOf(pull: PullRequest): PullStatus["ci"] {
 }
 
 function reviewOf(pull: PullRequest): PullStatus["review"] {
+	const latest = new Map<string, BotReview>();
+	for (const review of pull.reviews) {
+		if (review.commitId !== pull.headSha || review.state === "COMMENTED") {
+			continue;
+		}
+		latest.set(review.login, review);
+	}
+	const decided = [...latest.values()];
+	if (decided.some((review) => review.state === "CHANGES_REQUESTED")) {
+		return "changes";
+	}
+	if (decided.some((review) => review.state === "APPROVED")) {
+		return "approved";
+	}
 	const onHead = pull.reviews.filter(
 		(review) => review.commitId === pull.headSha,
 	);
-	if (onHead.some((review) => review.state === "CHANGES_REQUESTED")) {
-		return "changes";
-	}
-	if (onHead.some((review) => review.state === "APPROVED")) {
-		return "approved";
-	}
 	const completed = knownBots.some((bot) => {
 		if (!botPass(pull, bot).done) {
 			return false;
