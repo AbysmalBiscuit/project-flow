@@ -57,7 +57,7 @@ function styleSource(name: string): boolean {
 }
 
 function tokenValues(name: string): boolean {
-	return name === "src/theme.stylex.ts";
+	return name === "src/tokens.stylex.ts";
 }
 
 function inGraph(name: string, lines: string[], index: number): boolean {

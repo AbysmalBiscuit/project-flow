@@ -1,0 +1,10 @@
+{
+	"base_url": "http://127.0.0.1:4174",
+	"serve": ["bun", "proof/serve-open.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "Needs you" },
+		{ "shot": "fonts-local" }
+	]
+}

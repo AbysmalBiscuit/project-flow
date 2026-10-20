@@ -2,31 +2,14 @@ import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { Notification } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
+import { PageFrame } from "./shell.tsx";
 import { navLabel, triggerLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { inbox, shell } from "./ui-styles.ts";
+import { inbox } from "./ui-styles.ts";
 
 function InboxList({ entries }: { entries: Notification[] }) {
 	return (
-		<main className={clsx(shell.page)}>
-			<p className={clsx(shell.nav)}>
-				<a className={clsx(shell.link, shell.linkFocus)} href="/">
-					{navLabel.projects}
-				</a>
-				<button
-					type="button"
-					className={clsx(
-						shell.button,
-						shell.buttonHover,
-						shell.buttonFocus,
-						shell.theme,
-					)}
-					data-theme-toggle=""
-				>
-					Dark mode
-				</button>
-			</p>
-			<h1 className={clsx(shell.title)}>{navLabel.inbox}</h1>
+		<PageFrame title={navLabel.inbox}>
 			{entries.length === 0 ? <p>No notifications</p> : null}
 			<ul className={clsx(inbox.list)}>
 				{entries.map((entry) => (
@@ -42,7 +25,7 @@ function InboxList({ entries }: { entries: Notification[] }) {
 					</li>
 				))}
 			</ul>
-		</main>
+		</PageFrame>
 	);
 }
 
@@ -73,7 +56,7 @@ function Page() {
 		};
 	}, []);
 	if (entries === null) {
-		return <main className={clsx(shell.page)}>Loading inbox</main>;
+		return <PageFrame title={navLabel.inbox}>Loading inbox</PageFrame>;
 	}
 	return <InboxList entries={entries} />;
 }
