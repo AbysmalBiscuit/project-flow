@@ -1,5 +1,5 @@
 {
-	"base_url": "http://127.0.0.1:4175",
+	"base_url": "http://127.0.0.1:4174",
 	"serve": ["bun", "proof/restart-theme.ts"],
 	"steps": [
 		{ "goto": "/" },

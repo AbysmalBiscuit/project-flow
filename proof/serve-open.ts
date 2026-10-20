@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
@@ -172,7 +173,7 @@ const recorded: Fetch = async (input, init) => {
 	if (url.includes("/pulls?state=closed")) {
 		return Response.json(url.includes(board) ? [mergedPull] : []);
 	}
-	if (url.includes("/branches?")) {
+	if (url.includes("/branches?") || url.includes("/labels?")) {
 		return Response.json([]);
 	}
 	if (url.includes("/check-runs")) {
@@ -207,19 +208,26 @@ const recorded: Fetch = async (input, init) => {
 	return new Response(`not recorded ${url}`, { status: 404 });
 };
 
-const dir = await mkdtemp(join("/var/tmp", "project-flow-proof-"));
+const shared = process.env.THEME_PROOF_DIR;
+if (process.env.THEME_PROOF_RESTART === "1" && shared === undefined) {
+	console.error("theme proof restart needs THEME_PROOF_DIR");
+	process.exit(1);
+}
+const dir = shared ?? (await mkdtemp(join("/var/tmp", "project-flow-proof-")));
 const configPath = join(dir, "config.json");
-await writeFile(
-	configPath,
-	`${JSON.stringify({
-		pinned: [
-			{ tracker: "github", repo: board },
-			{ tracker: "github", repo: gate },
-		],
-		expectedBots: { [board]: ["codex"] },
-		checkoutRoots: [],
-	})}\n`,
-);
+if (!existsSync(configPath)) {
+	await writeFile(
+		configPath,
+		`${JSON.stringify({
+			pinned: [
+				{ tracker: "github", repo: board },
+				{ tracker: "github", repo: gate },
+			],
+			expectedBots: { [board]: ["codex"] },
+			checkoutRoots: [],
+		})}\n`,
+	);
+}
 
 const port = process.env.PORT ?? "4174";
 const result = await run(

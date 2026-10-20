@@ -2,13 +2,13 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-const port = process.env.PORT ?? "4175";
+const port = process.env.PORT ?? "4174";
 const page = `http://127.0.0.1:${port}/`;
 const dir = await mkdtemp(join("/var/tmp", "project-flow-theme-proof-"));
 let next: ChildProcess | null = null;
 
 function serve(generation: string): ChildProcess {
-	return spawn("bun", ["proof/serve-theme.ts"], {
+	return spawn("bun", ["proof/serve-open.ts"], {
 		env: {
 			...process.env,
 			PORT: port,
