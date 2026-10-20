@@ -89,7 +89,7 @@ function NeedsTabs({
 	reason: ReasonFilter;
 	onReason: (reason: ReasonFilter) => void;
 }) {
-	const tabs = [
+	const tabs: readonly { id: ReasonFilter; label: string }[] = [
 		{ id: allReasons, label: "All" },
 		...reasonOrder.map((id) => ({ id, label: reasonLabel[id] })),
 	];
