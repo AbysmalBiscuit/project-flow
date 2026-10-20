@@ -1267,6 +1267,10 @@ function indexKey(tracker: string, key: string): string {
 	return `${tracker}\0${key.toLowerCase()}`;
 }
 
+export function sameTicketKey(left: string, right: string): boolean {
+	return left.toLowerCase() === right.toLowerCase();
+}
+
 function indexTickets(tickets: Ticket[]): TicketIndex {
 	const index = new Map<string, Ticket>();
 	for (const ticket of tickets) {
