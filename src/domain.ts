@@ -604,9 +604,6 @@ export type Snapshot = {
 	pulls: PullRequest[];
 	branches: string[];
 	startedKeys: string[];
-	runs?: WorkcellRun[];
-	workcellAuto?: Record<string, AutoMerge>;
-	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 };
 
@@ -1425,9 +1422,6 @@ export type ListedProject = {
 	pulls: PullRequest[];
 	branches: string[];
 	startedKeys: string[];
-	runs?: WorkcellRun[];
-	workcellAuto?: Record<string, AutoMerge>;
-	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 	pinned: boolean;
 	hidden: boolean;
@@ -1447,9 +1441,6 @@ export function projectSnapshots(
 	pulls: PullRequest[];
 	branches: string[];
 	startedKeys: string[];
-	runs?: WorkcellRun[];
-	workcellAuto?: Record<string, AutoMerge>;
-	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 }[] {
 	const projects = [
@@ -1552,13 +1543,6 @@ export function projectSnapshots(
 			pulls: project.pulls,
 			branches: project.branches,
 			startedKeys: project.startedKeys,
-			...(project.runs === undefined ? {} : { runs: project.runs }),
-			...(project.workcellAuto === undefined
-				? {}
-				: { workcellAuto: project.workcellAuto }),
-			...(project.repoAutoMerge === undefined
-				? {}
-				: { repoAutoMerge: project.repoAutoMerge }),
 			...(project.board === undefined ? {} : { board: project.board }),
 		});
 	}
