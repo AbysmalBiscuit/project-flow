@@ -241,7 +241,7 @@ export type ReplyRequest = {
 
 const htmlComment = /<!--[\s\S]*?-->/g;
 
-export function visibleCommentBody(body: string): string {
+function visibleCommentBody(body: string): string {
 	return body
 		.replace(htmlComment, "")
 		.replace(/[ \t]+\n/g, "\n")
