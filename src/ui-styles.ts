@@ -240,12 +240,7 @@ export const frame = stylex.create({
 		cursor: "pointer",
 	},
 	select: {
-		display: "inline-flex",
-		gap: space.sm,
-		alignItems: "center",
-		boxSizing: "border-box",
-		height: measure.menu,
-		padding: `0 ${space.md}`,
+		padding: `${space.twoXs} ${space.sm}`,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
 		borderColor: colours.lineStrong,
@@ -253,8 +248,6 @@ export const frame = stylex.create({
 		backgroundColor: colours.surface,
 		color: colours.ink,
 		font: "inherit",
-		textAlign: "left",
-		cursor: "pointer",
 	},
 	menuButton: {
 		display: "inline-flex",
