@@ -2115,8 +2115,9 @@ export const board = stylex.create({
 	legendBox: {
 		position: "absolute",
 		zIndex: 5,
-		top: space.sm,
-		left: space.sm,
+		bottom: space.sm,
+		right: space.sm,
+		maxWidth: measure.lane,
 		display: "flex",
 		flexDirection: "column",
 		gap: space.xs,
