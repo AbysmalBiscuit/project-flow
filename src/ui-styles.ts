@@ -1526,6 +1526,19 @@ export const inbox = stylex.create({
 		margin: `${space.lg} 0`,
 		color: colours.inkMuted,
 	},
+	stage: {
+		display: "flex",
+		flex: "1 1 auto",
+		gap: space.md,
+		alignItems: "stretch",
+		minHeight: 0,
+	},
+	list: {
+		flex: "1 1 auto",
+		minWidth: 0,
+		minHeight: 0,
+		overflow: "auto",
+	},
 });
 
 export const board = stylex.create({

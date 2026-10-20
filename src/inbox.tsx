@@ -127,7 +127,7 @@ function InboxList({
 		});
 	};
 	return (
-		<PageFrame title={navLabel.inbox}>
+		<PageFrame title={navLabel.inbox} wide>
 			<div className={clsx(inbox.lead)}>
 				<p>{inboxCopy.lead}</p>
 				<p data-unread-count={unread}>
@@ -206,58 +206,67 @@ function InboxList({
 					</button>
 				</div>
 			</div>
-			{shown.length === 0 ? (
-				<p className={clsx(inbox.empty)}>{inboxCopy.empty}</p>
-			) : null}
-			{groups.map((group) => (
-				<section key={group.name}>
-					<h2 className={clsx(inbox.day)}>{inboxCopy[group.name]}</h2>
-					<ul className={clsx(inbox.group)}>
-						{group.rows.map((entry) => (
-							<li key={entry.id}>
-								<button
-									type="button"
-									className={clsx(inbox.row, shell.buttonFocus)}
-									data-inbox={entry.id}
-									data-trigger={entry.trigger}
-									data-read={entry.read ? "true" : "false"}
-									onClick={() => {
-										setOpenId(entry.id);
-										if (!entry.read) {
-											markOne(entry.id);
-										}
-									}}
-								>
-									<span
-										className={clsx(inbox.dot, entry.read && inbox.dotRead)}
-										aria-hidden="true"
-									/>
-									<span className={clsx(inbox.body)}>
-										<span className={clsx(inbox.meta)}>
-											{triggerLabel[entry.trigger]} / {entry.project}
-										</span>
-										<span
-											className={clsx(inbox.text, entry.read && inbox.textRead)}
+			<div className={clsx(inbox.stage)}>
+				<div className={clsx(inbox.list)}>
+					{shown.length === 0 ? (
+						<p className={clsx(inbox.empty)}>{inboxCopy.empty}</p>
+					) : null}
+					{groups.map((group) => (
+						<section key={group.name}>
+							<h2 className={clsx(inbox.day)}>{inboxCopy[group.name]}</h2>
+							<ul className={clsx(inbox.group)}>
+								{group.rows.map((entry) => (
+									<li key={entry.id}>
+										<button
+											type="button"
+											className={clsx(inbox.row, shell.buttonFocus)}
+											data-inbox={entry.id}
+											data-trigger={entry.trigger}
+											data-read={entry.read ? "true" : "false"}
+											onClick={() => {
+												setOpenId(entry.id);
+												if (!entry.read) {
+													markOne(entry.id);
+												}
+											}}
 										>
-											{entry.text}
-										</span>
-									</span>
-									<span className={clsx(inbox.time)}>{clock(entry.at)}</span>
-								</button>
-							</li>
-						))}
-					</ul>
-				</section>
-			))}
-			{open === null ? null : (
-				<TicketPanel
-					key={open.id}
-					tracker={trackerOf(open.key)}
-					project={open.project}
-					ticketKey={open.key}
-					onClose={() => setOpenId(null)}
-				/>
-			)}
+											<span
+												className={clsx(inbox.dot, entry.read && inbox.dotRead)}
+												aria-hidden="true"
+											/>
+											<span className={clsx(inbox.body)}>
+												<span className={clsx(inbox.meta)}>
+													{triggerLabel[entry.trigger]} / {entry.project}
+												</span>
+												<span
+													className={clsx(
+														inbox.text,
+														entry.read && inbox.textRead,
+													)}
+												>
+													{entry.text}
+												</span>
+											</span>
+											<span className={clsx(inbox.time)}>
+												{clock(entry.at)}
+											</span>
+										</button>
+									</li>
+								))}
+							</ul>
+						</section>
+					))}
+				</div>
+				{open === null ? null : (
+					<TicketPanel
+						key={open.id}
+						tracker={trackerOf(open.key)}
+						project={open.project}
+						ticketKey={open.key}
+						onClose={() => setOpenId(null)}
+					/>
+				)}
+			</div>
 		</PageFrame>
 	);
 }
