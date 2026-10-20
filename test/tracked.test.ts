@@ -202,15 +202,6 @@ async function startWith(body: string, root?: string): Promise<Started> {
 	}
 }
 
-function ticketRequests(sent: string[]): string[] {
-	return sent.filter(
-		(request) =>
-			/\/repos\/[^/]+\/[^/]+\/(issues|pulls|branches)\?/.test(request) ||
-			request.includes(" ProjectByPin ") ||
-			request.includes(" ProjectIssues "),
-	);
-}
-
 describe("tracked projects", () => {
 	test("a start with no tracked project sends only the membership requests", async () => {
 		const { overview, settings, sent } = await startWith("{}");
@@ -238,13 +229,20 @@ describe("tracked projects", () => {
 		expect(
 			settings.projects.filter((project) => project.tracked).map((p) => p.key),
 		).toEqual(["board-1-0d42ae5d46d0", "acme/repo-3"]);
-		expect([...new Set(ticketRequests(sent))].sort()).toEqual([
+		expect([...new Set(sent)].sort()).toEqual([
+			"https://api.github.com/graphql ViewerProjects",
+			"https://api.github.com/repos/acme/repo-3",
 			"https://api.github.com/repos/acme/repo-3/branches?per_page=100&page=1",
 			"https://api.github.com/repos/acme/repo-3/issues?state=all&per_page=100&page=1",
+			"https://api.github.com/repos/acme/repo-3/labels?per_page=100&page=1",
 			"https://api.github.com/repos/acme/repo-3/pulls?state=closed&per_page=10&page=1",
 			"https://api.github.com/repos/acme/repo-3/pulls?state=open&per_page=100&page=1",
+			"https://api.github.com/user",
+			"https://api.github.com/user/repos?affiliation=owner,collaborator&per_page=100&page=1",
+			"https://api.linear.app/graphql MemberProjects",
 			'https://api.linear.app/graphql ProjectByPin {"pin":"board-1-0d42ae5d46d0"}',
 			'https://api.linear.app/graphql ProjectIssues {"filter":{"project":{"id":{"eq":"id-board-1-0d42ae5d46d0"}}},"after":null}',
+			"https://api.linear.app/graphql viewer",
 		]);
 		expect(overview.projects.map((project) => project.name)).toEqual([
 			"acme/repo-3",
