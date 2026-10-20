@@ -15,6 +15,8 @@ export const stateLabel: Record<TicketState, string> = {
 
 export const blockedLabel = "Blocked";
 
+export const loadingLabel = "Loading";
+
 export const navLabel = {
 	logo: "Project Flow",
 	overview: "Overview",

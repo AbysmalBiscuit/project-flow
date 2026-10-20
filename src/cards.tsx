@@ -33,6 +33,7 @@ import {
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
 	actionLabel,
+	loadingLabel,
 	navLabel,
 	overviewControlLabel,
 	overviewFilterLabel,
@@ -937,7 +938,7 @@ function OverviewPage({
 				</div>
 			)}
 			{overview.polling === true ? (
-				<p className={clsx(cards.loading)}>Loading projects</p>
+				<p className={clsx(cards.loading)}>{loadingLabel}</p>
 			) : overview.error !== null ? (
 				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
@@ -989,7 +990,7 @@ function Page() {
 		};
 	}, []);
 	if (overview === null || settings === null) {
-		return <PageFrame title={navLabel.overview}>Loading projects</PageFrame>;
+		return <PageFrame title={navLabel.overview}>{loadingLabel}</PageFrame>;
 	}
 	return (
 		<OverviewPage

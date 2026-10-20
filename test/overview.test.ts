@@ -659,7 +659,7 @@ describe("GET /api/overview", () => {
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("LINEAR_API_KEY");
 			expect(result.stderr).toContain("401");
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}

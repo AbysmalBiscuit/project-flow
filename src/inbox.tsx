@@ -13,6 +13,7 @@ import { PageFrame } from "./shell.tsx";
 import {
 	inboxCopy,
 	inboxFilterLabel,
+	loadingLabel,
 	navLabel,
 	triggerLabel,
 } from "./terms.ts";
@@ -320,6 +321,7 @@ function InboxList({
 
 function Page() {
 	const [entries, setEntries] = useState<InboxEntry[] | null>(null);
+	const [polling, setPolling] = useState(true);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -334,6 +336,18 @@ function Page() {
 						setEntries([]);
 					}
 				});
+			fetch("/api/overview")
+				.then(async (response) => {
+					if (!stopped && response.ok) {
+						const body = (await response.json()) as { polling?: true };
+						setPolling(body.polling === true);
+					}
+				})
+				.catch(() => {
+					if (!stopped) {
+						setPolling(false);
+					}
+				});
 		};
 		load();
 		const stopOverview = onAppEvent("overview", () => {
@@ -344,8 +358,8 @@ function Page() {
 			stopOverview();
 		};
 	}, []);
-	if (entries === null) {
-		return <PageFrame title={navLabel.inbox}>Loading inbox</PageFrame>;
+	if (entries === null || (polling && entries.length === 0)) {
+		return <PageFrame title={navLabel.inbox}>{loadingLabel}</PageFrame>;
 	}
 	return <InboxList entries={entries} onChange={setEntries} />;
 }

@@ -576,7 +576,6 @@ function recordPostedReply(
 	const comment: Comment = {
 		body: created.body,
 		createdAt: created.createdAt,
-		reactions: 0,
 	};
 	store.mergeTickets([
 		{
@@ -1090,6 +1089,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		opened.close();
 		throw error;
 	}
+	const hadRows = opened.store.readTickets().length > 0;
 	const pollOptions: PollOptions = {
 		configuration: configurationPort,
 		...trackers,
@@ -1124,7 +1124,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				.map((entry) => entry.id),
 			...opened.store.readSeededIds(),
 		]),
-		primed: opened.store.readTickets().length > 0,
+		primed: hadRows,
 		polling: false,
 	};
 	if (pollOptions.primed) {
@@ -1136,7 +1136,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		opened.store.recordSeededIds(kept);
 	}
 	let releaseLists = () => {};
-	const hadRows = opened.store.readTickets().length > 0;
 	if (hadRows) {
 		let released = false;
 		pollOptions.holdLists = new Promise<void>((resolve) => {
