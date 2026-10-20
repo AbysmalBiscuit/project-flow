@@ -523,10 +523,7 @@ export const needs = stylex.create({
 	},
 	item: {
 		display: "flex",
-		flexWrap: "wrap",
-		gap: `${space.xs} ${space.sm}`,
-		alignItems: "baseline",
-		padding: `${space.md} 0`,
+		alignItems: "center",
 		borderBottomWidth: measure.hairline,
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.line,
@@ -537,21 +534,6 @@ export const needs = stylex.create({
 	headline: {
 		fontWeight: type.weight,
 	},
-	open: {
-		padding: 0,
-		borderWidth: 0,
-		backgroundColor: "transparent",
-		color: "inherit",
-		font: "inherit",
-		textAlign: "left",
-		cursor: "pointer",
-	},
-	openHover: {
-		color: {
-			default: "inherit",
-			":hover": colours.link,
-		},
-	},
 	tag: {
 		padding: `${space.twoXs} ${space.sm}`,
 		borderRadius: radius.pill,
@@ -560,7 +542,53 @@ export const needs = stylex.create({
 		fontSize: type.small,
 	},
 	project: {
+		flexShrink: 0,
 		color: colours.link,
+		textDecoration: "none",
+	},
+	row: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: `${space.xs} ${space.sm}`,
+		alignItems: "center",
+		width: "100%",
+		padding: `${space.sm} 0`,
+		borderWidth: 0,
+		backgroundColor: {
+			default: "transparent",
+			":hover": colours.surfaceMuted,
+		},
+		color: "inherit",
+		font: "inherit",
+		textAlign: "left",
+		cursor: "pointer",
+	},
+	icon: {
+		display: "inline-flex",
+		flexShrink: 0,
+		alignItems: "center",
+		justifyContent: "center",
+		width: measure.icon,
+		height: measure.icon,
+		color: colours.inkMuted,
+	},
+	key: {
+		fontFamily: font.mono,
+		fontSize: type.small,
+		color: colours.inkMuted,
+	},
+	group: {
+		margin: `${space.lg} 0 0`,
+	},
+	groupTitle: {
+		margin: `0 0 ${space.xs}`,
+		fontSize: type.heading,
+	},
+	tabs: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.sm,
+		margin: `0 0 ${space.lg}`,
 	},
 });
 
