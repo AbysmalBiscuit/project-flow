@@ -170,7 +170,8 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 		(ticket) => (ticket.outsideBlockers ?? []).length > 0,
 	).length;
 	const need = needs === 1 ? "needs" : "need";
-	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects)`;
+	const lanes = visible.map((lane) => lane.name).join(", ");
+	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects). Lanes: ${lanes}`;
 }
 
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
@@ -466,6 +467,7 @@ function FilterPanel({
 		),
 	].filter((name) => name !== "");
 	const picked = new Set(view.assignees.map((name) => name.toLowerCase()));
+	const [ageDraft, setAgeDraft] = useState<Record<string, string>>({});
 	return (
 		<div className={clsx(board.menu, board.menuBelow)} id="project-filter-menu">
 			<p className={clsx(board.menuLabel)}>Lanes</p>
@@ -501,23 +503,31 @@ function FilterPanel({
 						className={clsx(board.age)}
 						aria-label={`${lane.name} max age`}
 						data-lane-age={lane.name}
-						value={String(
-							laneAgeCap(view.maxAgeDays, lane.name, lane.statusType),
-						)}
+						value={
+							ageDraft[lane.name] ??
+							String(laneAgeCap(view.maxAgeDays, lane.name, lane.statusType))
+						}
 						placeholder={
 							laneAgeCap(view.maxAgeDays, lane.name, lane.statusType) === 0
 								? "unlimited"
 								: undefined
 						}
 						onChange={(event) => {
-							const next = { ...view.maxAgeDays };
-							const days = Number(event.target.value);
-							if (event.target.value.trim() === "" || Number.isNaN(days)) {
-								delete next[lane.name];
-							} else {
-								next[lane.name] = days;
+							const raw = event.target.value;
+							const days = Number(raw);
+							if (raw.trim() === "" || Number.isNaN(days)) {
+								setAgeDraft((current) => ({ ...current, [lane.name]: raw }));
+								return;
 							}
-							onChange({ ...view, maxAgeDays: next });
+							setAgeDraft((current) => {
+								const next = { ...current };
+								delete next[lane.name];
+								return next;
+							});
+							onChange({
+								...view,
+								maxAgeDays: { ...view.maxAgeDays, [lane.name]: days },
+							});
 						}}
 					/>
 				</label>
