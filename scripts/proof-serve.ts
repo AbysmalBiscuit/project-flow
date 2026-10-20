@@ -394,7 +394,7 @@ const fakeTrackers: Fetch = async (input, init) => {
 
 const portFlag = process.argv.indexOf("--port");
 const portArg = portFlag === -1 ? undefined : process.argv[portFlag + 1];
-const port = portArg ?? "4763";
+const port = portArg ?? process.env.PORT ?? "4763";
 
 try {
 	const result = await run(["--config", configPath, "--port", port], {
