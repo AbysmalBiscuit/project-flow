@@ -221,7 +221,7 @@ async function withApp(
 }
 
 describe("GET /api/projects/:name", () => {
-	test("the same tracker data gives the same groups and diagram definitions", async () => {
+	test("the same tracker data gives the same project report", async () => {
 		await withApp(
 			JSON.stringify({
 				pinned: [
@@ -245,9 +245,7 @@ describe("GET /api/projects/:name", () => {
 				expect(second).toEqual(first);
 				expect(first.sections.map((section) => section.id)).toEqual([
 					"summary",
-					"featureMap",
 					"inFlight",
-					"blockingChains",
 					"needsYou",
 					"backlog",
 				]);
@@ -257,55 +255,6 @@ describe("GET /api/projects/:name", () => {
 				expect(summary?.text).toBe(
 					"acme/widget: 0 done, 0 dropped, 1 blocked, 1 in progress, 2 backlog.",
 				);
-				const map = first.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
-					"map_3a_no_20_workstream",
-					"map_3a_October",
-					"map_3a_Ship_20_the_20_map",
-				]);
-				const epicMap = map?.diagrams?.find(
-					(diagram) => diagram.id === "map_3a_Ship_20_the_20_map",
-				);
-				expect(
-					epicMap?.nodes.find((node) => node.ticket === "acme/widget#2"),
-				).toMatchObject({
-					id: "acme_2f_widget_23_2",
-					label: "feat(ux): draw the nodes",
-					state: "backlog",
-				});
-				expect(JSON.stringify(epicMap)).not.toContain("classDef");
-				expect(JSON.stringify(epicMap)).not.toContain("flowchart");
-				expect(
-					epicMap?.nodes.find((node) => node.state === "theme"),
-				).toMatchObject({
-					id: "Ship_20_the_20_map_3a_Ship_20_the_20_map",
-					label: "Ship the map",
-				});
-				expect(
-					epicMap?.nodes.find((node) => node.ticket === "acme/platform#9")?.id,
-				).toBe("github_3a_acme_2f_platform_3a_acme_2f_platform_23_9");
-				const dashed = epicMap?.nodes.find((node) => node.dashed);
-				expect(dashed?.project).toBe("acme/platform");
-				expect(dashed?.ticket).toBe("acme/platform#9");
-				expect(dashed?.label).toBe("acme/platform#9");
-				const platform = (await (
-					await fetch(new URL("/api/projects/acme%2Fplatform", base))
-				).json()) as ProjectReport;
-				expect(
-					platform.sections
-						.find((section) => section.id === "featureMap")
-						?.diagrams?.some((diagram) =>
-							diagram.nodes.some((node) => node.ticket === "acme/platform#9"),
-						),
-				).toBe(true);
-				const october = map?.diagrams?.find(
-					(diagram) => diagram.id === "map_3a_October",
-				);
-				expect(
-					october?.nodes.some((node) => node.id === "acme_2f_widget_23_2"),
-				).toBe(false);
 				const flight = first.sections.find(
 					(section) => section.id === "inFlight",
 				);
@@ -313,13 +262,10 @@ describe("GET /api/projects/:name", () => {
 					"acme/widget#4",
 					"acme/widget#40",
 				]);
-				expect(
-					first.sections
-						.find((section) => section.id === "blockingChains")
-						?.diagrams?.[0]?.nodes.some(
-							(node) => node.ticket === "acme/widget#2",
-						),
-				).toBe(true);
+				const blocked = first.tickets.find(
+					(ticket) => ticket.key === "acme/widget#2",
+				);
+				expect(blocked?.blocked).toBe(true);
 				const backlog = first.sections.find(
 					(section) => section.id === "backlog",
 				);
@@ -328,6 +274,29 @@ describe("GET /api/projects/:name", () => {
 					"acme/widget#2",
 					"acme/widget#3",
 				]);
+				const groupOf = (key: string) => {
+					const ticket = first.tickets.find((item) => item.key === key);
+					return {
+						workstream: ticket?.workstream,
+						theme: ticket?.theme,
+					};
+				};
+				expect(groupOf("acme/widget#1")).toEqual({
+					workstream: "Ship the map",
+					theme: "Ship the map",
+				});
+				expect(groupOf("acme/widget#2")).toEqual({
+					workstream: "Ship the map",
+					theme: "ux",
+				});
+				expect(groupOf("acme/widget#3")).toEqual({
+					workstream: "October",
+					theme: "no scope",
+				});
+				expect(groupOf("acme/widget#4")).toEqual({
+					workstream: "no workstream",
+					theme: "no scope",
+				});
 			},
 		);
 		await withApp(
@@ -354,14 +323,10 @@ describe("GET /api/projects/:name", () => {
 				const again = (await (
 					await fetch(new URL("/api/projects/Widget%20launch", base))
 				).json()) as ProjectReport;
-				const diagrams = (report: ProjectReport) =>
-					report.sections.flatMap((section) => section.diagrams ?? []);
-				expect(diagrams(again)).toEqual(diagrams(linearReport));
+				expect(again).toEqual(linearReport);
 				expect(linearReport.sections.map((section) => section.title)).toEqual([
 					"Summary",
-					"Feature map",
 					"In flight",
-					"Blocking chains",
 					"Needs you",
 					"Backlog",
 				]);
@@ -370,65 +335,34 @@ describe("GET /api/projects/:name", () => {
 				);
 				expect(linearSummary?.text).toContain("1 blocked");
 				expect(linearSummary?.text).toContain("3 backlog");
-				const linearMap = linearReport.sections.find(
-					(section) => section.id === "featureMap",
+				const held = linearReport.tickets.find(
+					(ticket) => ticket.key === "WID-2",
 				);
-				expect(linearMap?.diagrams?.map((diagram) => diagram.id)).toEqual([
-					"map_3a_Beta",
-					"map_3a_Later",
-				]);
-				const beta = linearMap?.diagrams?.[0];
-				expect(beta?.nodes.some((node) => node.id === "WID_2d_2")).toBe(false);
-				expect(beta?.nodes.map((node) => node.label)).toContain("Launch epic");
-				expect(
-					beta?.nodes.find((node) => node.state === "theme"),
-				).toMatchObject({
-					id: "Beta_3a_Launch_20_epic",
-					label: "Launch epic",
+				expect(held?.blocked).toBe(true);
+				const groupOf = (key: string) => {
+					const ticket = linearReport.tickets.find((item) => item.key === key);
+					return {
+						workstream: ticket?.workstream,
+						theme: ticket?.theme,
+					};
+				};
+				expect(groupOf("WID-1")).toEqual({
+					workstream: "Beta",
+					theme: "Launch epic",
 				});
-				const later = linearMap?.diagrams?.find(
-					(diagram) => diagram.id === "map_3a_Later",
-				);
-				expect(later?.nodes.some((node) => node.id === "WID_2d_2")).toBe(true);
-				expect(later?.nodes.some((node) => node.dashed)).toBe(true);
-				const chains = linearReport.sections.find(
-					(section) => section.id === "blockingChains",
-				);
-				expect(
-					chains?.diagrams?.[0]?.nodes.some((node) => node.id === "WID_2d_2"),
-				).toBe(true);
+				expect(groupOf("WID-4")).toEqual({
+					workstream: "Beta",
+					theme: "no scope",
+				});
+				expect(groupOf("WID-2")).toEqual({
+					workstream: "Later",
+					theme: "Ship the list",
+				});
+				expect(groupOf("WID-3")).toEqual({
+					workstream: "Beta",
+					theme: "no scope",
+				});
 			},
-		);
-	});
-
-	test("the same tickets in another order give the same diagram definitions", async () => {
-		const reversed = [...githubIssues].reverse();
-		const readMap = async (fetchImpl: Fetch): Promise<unknown[]> => {
-			let diagrams: unknown[] = [];
-			await withApp(
-				JSON.stringify({
-					pinned: [
-						{ tracker: "github", repo: githubRepo },
-						{ tracker: "github", repo: otherRepo },
-					],
-				}),
-				fetchImpl,
-				{ GITHUB_TOKEN: "recorded-token" },
-				async (base) => {
-					const report = (await (
-						await fetch(
-							new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-						)
-					).json()) as ProjectReport;
-					diagrams =
-						report.sections.find((section) => section.id === "featureMap")
-							?.diagrams ?? [];
-				},
-			);
-			return diagrams;
-		};
-		expect(await readMap(githubFetch(reversed))).toEqual(
-			await readMap(githubFetch()),
 		);
 	});
 
@@ -485,15 +419,9 @@ describe("GET /api/projects/:name", () => {
 				const report = (await (
 					await fetch(new URL("/api/projects/Widget%20launch", base))
 				).json()) as ProjectReport;
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
-					"map_3a_Beta",
-				]);
 				expect(
-					map?.diagrams?.[0]?.nodes.some((node) => node.id === "WID_2d_8"),
-				).toBe(true);
+					report.tickets.find((ticket) => ticket.key === "WID-8"),
+				).toMatchObject({ workstream: "Beta" });
 			},
 		);
 	});
@@ -514,67 +442,12 @@ describe("GET /api/projects/:name", () => {
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
 				).json()) as ProjectReport;
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				expect(map?.diagrams?.map((diagram) => diagram.id).sort()).toEqual([
-					"map_3a_October",
-					"map_3a_no_20_workstream",
-				]);
-				const october = map?.diagrams?.find(
-					(diagram) => diagram.id === "map_3a_October",
-				);
 				expect(
-					october?.nodes.some((node) => node.id === "acme_2f_widget_23_8"),
-				).toBe(true);
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
+				).toMatchObject({ workstream: "October" });
 				expect(
-					october?.nodes.some((node) => node.id === "acme_2f_widget_23_7"),
-				).toBe(false);
-			},
-		);
-	});
-
-	test("a project with no blocked ticket has no blocking chain", async () => {
-		const waiting = issue(5, "Write the notes", {
-			milestone: { title: "October" },
-			body: `Blocked by: ${otherRepo}#8`,
-		});
-		const closedGate = issue(
-			8,
-			"Closed gate",
-			{ state: "closed", state_reason: "completed" },
-			otherRepo,
-		);
-		const fetchImpl: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
-				return page([closedGate]);
-			}
-			return githubFetch([waiting])(input, init);
-		};
-		await withApp(
-			JSON.stringify({
-				pinned: [
-					{ tracker: "github", repo: githubRepo },
-					{ tracker: "github", repo: otherRepo },
-				],
-			}),
-			fetchImpl,
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const summary = report.sections.find(
-					(section) => section.id === "summary",
-				);
-				expect(summary?.text).toContain("0 blocked");
-				const chains = report.sections.find(
-					(section) => section.id === "blockingChains",
-				);
-				expect(chains?.diagrams).toEqual([]);
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
+				).toMatchObject({ workstream: "no workstream" });
 			},
 		);
 	});
@@ -597,54 +470,12 @@ describe("GET /api/projects/:name", () => {
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
 				).json()) as ProjectReport;
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
-					"map_3a_Ship_20_the_20_board",
-				]);
 				expect(
-					map?.diagrams?.[0]?.nodes.some(
-						(node) => node.id === "acme_2f_widget_23_32",
-					),
-				).toBe(true);
-			},
-		);
-	});
-
-	test("workstreams that differ only by punctuation get distinct diagram ids", async () => {
-		const dashed = issue(21, "Ship the dashed quarter", {
-			milestone: { title: "Q1-2026" },
-		});
-		const spaced = issue(22, "Ship the spaced quarter", {
-			milestone: { title: "Q1 2026" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([dashed, spaced]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const ids =
-					report.sections
-						.find((section) => section.id === "featureMap")
-						?.diagrams?.map((diagram) => diagram.id) ?? [];
-				expect(new Set(ids).size).toBe(ids.length);
-				expect(ids).toHaveLength(2);
-				const nodes =
-					report.sections
-						.find((section) => section.id === "featureMap")
-						?.diagrams?.flatMap((diagram) => diagram.nodes) ?? [];
-				expect(nodes.some((node) => node.id === "acme_2f_widget_23_21")).toBe(
-					true,
-				);
-				expect(nodes.some((node) => node.id === "acme_2f_widget_23_22")).toBe(
-					true,
-				);
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#31`),
+				).toMatchObject({ workstream: "Ship the board" });
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#32`),
+				).toMatchObject({ workstream: "Ship the board" });
 			},
 		);
 	});
@@ -661,22 +492,9 @@ describe("GET /api/projects/:name", () => {
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
 				).json()) as ProjectReport;
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
 				expect(
-					map?.diagrams?.[0]?.nodes.find((node) => node.state === "theme"),
-				).toMatchObject({
-					id: "no_20_workstream_3a_ux",
-					label: "ux",
-				});
-				expect(
-					map?.diagrams?.[0]?.nodes.some(
-						(node) =>
-							node.state === "theme" &&
-							node.label === "feat(ux)!: redraw the nodes",
-					),
-				).toBe(false);
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#6`),
+				).toMatchObject({ theme: "ux" });
 			},
 		);
 	});
@@ -703,40 +521,19 @@ describe("GET /api/projects/:name", () => {
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
 				).json()) as ProjectReport;
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				const october = map?.diagrams?.find(
-					(diagram) => diagram.id === "map_3a_October",
-				);
-				expect(
-					october?.nodes.find((node) => node.ticket === "acme/widget#11")
-						?.label,
-				).toBe("Draw the legend");
-				expect(
-					october?.nodes
-						.filter((node) => node.state === "theme")
-						.map((node) => node.label),
-				).toEqual(["Ship the board"]);
-				expect(
-					october?.nodes.find((node) => node.state === "theme"),
-				).toMatchObject({
-					id: "October_3a_Ship_20_the_20_board",
-					label: "Ship the board",
+				const groupOf = (number: number) =>
+					report.tickets.find(
+						(ticket) => ticket.key === `${githubRepo}#${number}`,
+					);
+				expect(groupOf(11)).toMatchObject({
+					workstream: "October",
+					theme: "Ship the board",
 				});
-				expect(
-					october?.edges.some(
-						(edge) =>
-							edge.from === "October_3a_Ship_20_the_20_board" &&
-							edge.to === "acme_2f_widget_23_11",
-					),
-				).toBe(true);
-				expect(
-					october?.nodes.some(
-						(node) =>
-							node.state === "theme" && node.label === "Draw the legend",
-					),
-				).toBe(false);
+				expect(groupOf(12)).toMatchObject({
+					workstream: "October",
+					theme: "Ship the board",
+				});
+				expect(groupOf(10)).toMatchObject({ theme: "Ship the board" });
 			},
 		);
 	});
@@ -759,37 +556,12 @@ describe("GET /api/projects/:name", () => {
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
 				).json()) as ProjectReport;
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				const october = map?.diagrams?.find(
-					(diagram) => diagram.id === "map_3a_October",
-				);
 				expect(
-					october?.nodes.find((node) => node.state === "theme"),
-				).toMatchObject({
-					id: "October_3a_Write_20_the_20_notes",
-					label: "Write the notes",
-				});
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
+				).toMatchObject({ theme: "Write the notes" });
 				expect(
-					october?.edges.filter(
-						(edge) => edge.from === "October_3a_Write_20_the_20_notes",
-					),
-				).toEqual([
-					{
-						from: "October_3a_Write_20_the_20_notes",
-						to: "acme_2f_widget_23_7",
-					},
-					{
-						from: "October_3a_Write_20_the_20_notes",
-						to: "acme_2f_widget_23_8",
-					},
-				]);
-				expect(
-					october?.nodes
-						.filter((node) => node.state === "theme")
-						.map((node) => node.id),
-				).toEqual(["October_3a_Write_20_the_20_notes"]);
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
+				).toMatchObject({ theme: "Write the notes" });
 			},
 		);
 	});
@@ -897,52 +669,18 @@ describe("GET /api/projects/:name", () => {
 				).json()) as ProjectReport;
 				expect(report.name).toBe("Widget board");
 				expect(report.tracker).toBe("github");
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
-					"map_3a_Ship_20_the_20_board",
-				]);
-				const drawn = map?.diagrams?.[0];
 				expect(
-					drawn?.nodes.find(
-						(node) =>
-							node.id === "Ship_20_the_20_board_3a_Ship_20_the_20_board",
-					),
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#11`),
 				).toMatchObject({
-					id: "Ship_20_the_20_board_3a_Ship_20_the_20_board",
-					label: "Ship the board",
-					state: "theme",
+					workstream: "Ship the board",
+					theme: "Ship the board",
 				});
 				expect(
-					drawn?.edges.some(
-						(edge) =>
-							edge.from === "Ship_20_the_20_board_3a_Ship_20_the_20_board",
-					),
-				).toBe(true);
-				expect(
-					drawn?.nodes.find(
-						(node) => node.id === "Ship_20_the_20_board_3a_no_20_scope",
-					),
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#12`),
 				).toMatchObject({
-					id: "Ship_20_the_20_board_3a_no_20_scope",
-					label: "no scope",
-					state: "theme",
+					workstream: "Ship the board",
+					theme: "no scope",
 				});
-				expect(
-					drawn?.edges.some(
-						(edge) => edge.from === "Ship_20_the_20_board_3a_no_20_scope",
-					),
-				).toBe(true);
-				expect(
-					drawn?.nodes.some((node) => node.id === "acme_2f_widget_23_11"),
-				).toBe(true);
-				expect(
-					drawn?.nodes.some((node) => node.id === "acme_2f_widget_23_12"),
-				).toBe(true);
-				expect(
-					map?.diagrams?.some((diagram) => diagram.id === "map_3a_October"),
-				).toBe(false);
 				const backlog = report.sections.find(
 					(section) => section.id === "backlog",
 				);
@@ -974,31 +712,18 @@ describe("GET /api/projects/:name", () => {
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
 				).json()) as ProjectReport;
-				const map = report.sections.find(
-					(section) => section.id === "featureMap",
-				);
-				const board = map?.diagrams?.find(
-					(diagram) => diagram.id === "map_3a_Ship_20_the_20_board",
-				);
 				expect(
-					board?.nodes.find((node) => node.state === "theme"),
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#42`),
 				).toMatchObject({
-					id: "Ship_20_the_20_board_3a_Draw_20_the_20_legend",
-					label: "Draw the legend",
+					workstream: "Ship the board",
+					theme: "Draw the legend",
 				});
 				expect(
-					board?.edges.some(
-						(edge) =>
-							edge.from === "Ship_20_the_20_board_3a_Draw_20_the_20_legend" &&
-							edge.to === "acme_2f_widget_23_42",
-					),
-				).toBe(true);
-				const leafEdge = board?.edges.find(
-					(edge) => edge.to === "acme_2f_widget_23_42",
-				);
-				expect(
-					board?.nodes.find((node) => node.id === leafEdge?.from)?.label,
-				).toBe("Draw the legend");
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#41`),
+				).toMatchObject({
+					workstream: "Ship the board",
+					theme: "no scope",
+				});
 			},
 		);
 	});
@@ -1039,11 +764,6 @@ describe("GET /api/projects/:name", () => {
 					`${githubRepo}#8`,
 					`${otherRepo}#9`,
 				]);
-				expect(
-					report.sections
-						.find((section) => section.id === "featureMap")
-						?.diagrams?.some((diagram) => Object.hasOwn(diagram, "definition")),
-				).toBe(false);
 				expect(drawnView?.outsideBlockers).toEqual([
 					{
 						tracker: "github",
