@@ -657,16 +657,6 @@ export const cards = stylex.create({
 		color: colours.inkMuted,
 		fontSize: type.meta,
 	},
-	graphBar: {
-		display: "flex",
-		height: space.xs,
-		overflow: "hidden",
-		borderRadius: radius.pill,
-		backgroundColor: colours.segment,
-	},
-	graphFill: {
-		height: "100%",
-	},
 	graphCount: {
 		margin: `${space.sm} 0 0`,
 		color: colours.inkMuted,

@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { openProject } from "./paths.ts";
+import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
@@ -26,12 +27,10 @@ const columnGap = 320;
 const rowGap = 150;
 
 type ProjectNodeData = {
-	name: string;
+	project: ProjectCounts;
 	tracker: string;
 	done: number;
 	total: number;
-	needsYou: number;
-	segments: { key: (typeof segmentKeys)[number]; share: number }[];
 };
 
 type BlockerEdgeData = {
@@ -41,21 +40,6 @@ type BlockerEdgeData = {
 	tracker: CrossProjectBlocker["tracker"];
 	labelOffset: number;
 };
-
-export function ticketTotal(project: ProjectCounts): number {
-	return (
-		project.done +
-		project.dropped +
-		project.backlog +
-		project.inProgress +
-		project.inReview +
-		project.awaitingMerge
-	);
-}
-
-export function trackerName(tracker: ProjectCounts["tracker"]): string {
-	return tracker === "linear" ? "Linear" : "GitHub";
-}
 
 function depths(
 	projects: ProjectCounts[],
@@ -120,59 +104,28 @@ function layout(
 	return positions;
 }
 
-const segmentKeys = [
-	"done",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"backlog",
-] as const;
-
-const segmentTone = {
-	done: cards.done,
-	inProgress: cards.inProgress,
-	inReview: cards.inReview,
-	awaitingMerge: cards.awaitingMerge,
-	backlog: cards.backlog,
-} as const;
-
 function ProjectNode({ data }: { data: ProjectNodeData }) {
 	return (
 		<div
 			className={clsx(
 				cards.graphNode,
-				data.needsYou > 0 && cards.graphNeedsYou,
+				data.project.needsYou > 0 && cards.graphNeedsYou,
 			)}
-			data-project={data.name}
+			data-project={data.project.name}
 		>
 			<Handle type="target" position={Position.Left} />
 			<div className={clsx(cards.graphHead)}>
-				<p className={clsx(cards.graphTitle)}>{data.name}</p>
-				{data.needsYou > 0 ? (
+				<p className={clsx(cards.graphTitle)}>{data.project.name}</p>
+				{data.project.needsYou > 0 ? (
 					<span className={clsx(cards.graphBadge)}>
-						{data.needsYou === 1
+						{data.project.needsYou === 1
 							? overviewControlLabel.needsYouOne
-							: `${data.needsYou} ${overviewControlLabel.needsYouMany}`}
+							: `${data.project.needsYou} ${overviewControlLabel.needsYouMany}`}
 					</span>
 				) : null}
 			</div>
 			<p className={clsx(cards.graphMeta)}>{data.tracker}</p>
-			<div
-				className={clsx(cards.graphBar)}
-				role="progressbar"
-				aria-valuenow={data.done}
-				aria-valuemin={0}
-				aria-valuemax={data.total}
-				aria-label={data.name}
-			>
-				{data.segments.map((segment) => (
-					<div
-						key={segment.key}
-						className={clsx(cards.graphFill, segmentTone[segment.key])}
-						style={{ width: `${segment.share}%` }}
-					/>
-				))}
-			</div>
+			<SegmentedBar project={data.project} />
 			<p className={clsx(cards.graphCount)}>
 				{data.done} of {data.total} done
 			</p>
@@ -231,20 +184,11 @@ const nodeTypes = { project: ProjectNode };
 const edgeTypes = { blocker: BlockerEdge };
 
 function nodeData(project: ProjectCounts): ProjectNodeData {
-	const total = ticketTotal(project);
 	return {
-		name: project.name,
+		project,
 		tracker: trackerName(project.tracker),
 		done: project.done,
-		total,
-		needsYou: project.needsYou,
-		segments: segmentKeys.flatMap((key) => {
-			const count = project.statusTypes[key];
-			if (count === 0 || total === 0) {
-				return [];
-			}
-			return [{ key, share: (count / total) * 100 }];
-		}),
+		total: ticketTotal(project),
 	};
 }
 

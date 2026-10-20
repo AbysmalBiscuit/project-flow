@@ -1,5 +1,4 @@
 import "@xyflow/react/dist/style.css";
-import * as stylex from "@stylexjs/stylex";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -21,7 +20,8 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import { OverviewGraph, ticketTotal, trackerName } from "./overview-graph.tsx";
+import { OverviewGraph } from "./overview-graph.tsx";
+import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { openProject, projectPath } from "./paths.ts";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
@@ -196,14 +196,6 @@ function subtitle(project: ProjectCounts): string {
 	return `${trackerName(project.tracker)}, ${project.ref.owner}/${project.ref.project}`;
 }
 
-const barSegments = [
-	{ key: "done", tone: cards.done },
-	{ key: "inProgress", tone: cards.inProgress },
-	{ key: "inReview", tone: cards.inReview },
-	{ key: "awaitingMerge", tone: cards.awaitingMerge },
-	{ key: "backlog", tone: cards.backlog },
-] as const;
-
 const legendSegments = [
 	{ key: "backlog", label: stateLabel.backlog, tone: cards.backlog },
 	{ key: "inProgress", label: stateLabel.inProgress, tone: cards.inProgress },
@@ -214,36 +206,6 @@ const legendSegments = [
 		tone: cards.awaitingMerge,
 	},
 ] as const;
-
-function SegmentedBar({ project }: { project: ProjectCounts }) {
-	const total = ticketTotal(project);
-	return (
-		<div
-			className={clsx(cards.bar)}
-			role="progressbar"
-			aria-valuenow={project.progress}
-			aria-valuemin={0}
-			aria-valuemax={100}
-			aria-label={`${project.name} progress`}
-		>
-			{total === 0
-				? null
-				: barSegments.map((item) =>
-						project.statusTypes[item.key] === 0 ? null : (
-							<div
-								key={item.key}
-								{...stylex.props(
-									cards.segment(
-										`${(project.statusTypes[item.key] / total) * 100}%`,
-									),
-									item.tone,
-								)}
-							/>
-						),
-					)}
-		</div>
-	);
-}
 
 function Legend({ project }: { project: ProjectCounts }) {
 	return (
