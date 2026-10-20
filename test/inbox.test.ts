@@ -2155,6 +2155,125 @@ describe("inbox", () => {
 		}
 	});
 
+	test("a refresh during the first poll stores the reply that arrived while the issue read was held", async () => {
+		const headline = "Which bot should review this?";
+		const askComment = {
+			body: `${headline}\n\n${ask("pf-1")}`,
+			createdAt: "2026-08-18T12:00:00.000Z",
+		};
+		const reply = {
+			body: "Reply: use the review bot.",
+			createdAt: "2026-08-18T14:00:00.000Z",
+			user: { name: "AbysmalBiscuit" },
+		};
+		let current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[askComment],
+				{},
+				"2026-08-18T12:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		let releaseIssues = () => {};
+		const issuesHeld = new Promise<void>((resolve) => {
+			releaseIssues = resolve;
+		});
+		let enteredHold: () => void = () => {};
+		const holding = new Promise<void>((resolve) => {
+			enteredHold = resolve;
+		});
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				issueReads += 1;
+				const seen = current;
+				if (issueReads === 1) {
+					enteredHold();
+					await issuesHeld;
+				}
+				return recordedIssues(seen);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		let stop: () => void = () => {};
+		const stopped = new Promise<void>((resolve) => {
+			stop = resolve;
+		});
+		let ready: (base: string) => void = () => {};
+		const listening = new Promise<string>((resolve) => {
+			ready = resolve;
+		});
+		const started = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo(
+				{
+					env: { LINEAR_API_KEY: "recorded-linear-key" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: ready,
+					waitForStop: stopped,
+				},
+				{ first: true },
+			),
+		);
+		try {
+			const base = await listening;
+			await holding;
+			expect(await inboxOf(base)).toEqual([]);
+			current = [
+				linearIssue(
+					"PF-1",
+					"Review bot chosen",
+					headline,
+					[askComment, reply],
+					{},
+					"2026-08-18T14:00:00.000Z",
+				),
+			];
+			const refreshing = fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			releaseIssues();
+			const refreshed = await refreshing;
+			expect(refreshed.status).toBe(204);
+			const project = await fetch(
+				new URL("/api/projects/Project%20Flow?view=all", base),
+			);
+			expect(project.status).toBe(200);
+			const report = (await project.json()) as {
+				tickets: { key: string | null; title: string }[];
+			};
+			expect(report.tickets).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					title: "Review bot chosen",
+				}),
+			]);
+			const listed = await fetch(new URL("/api/needs-you", base));
+			expect(listed.status).toBe(200);
+			expect(await listed.json()).toEqual([
+				expect.objectContaining({
+					key: "PF-1",
+					reason: "ask",
+					headline,
+					answered: true,
+				}),
+			]);
+		} finally {
+			stop();
+			await started;
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a stored needsYou notification id still lets a rejoin notify after restart", async () => {
 		const headline = "Which bot should review this?";
 		const askComment = {
