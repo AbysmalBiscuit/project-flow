@@ -124,19 +124,6 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			headers text not null
 		)
 	`);
-	const validatorColumns = db.query("pragma table_info(validators)").all() as {
-		name: string;
-	}[];
-	if (!validatorColumns.some((column) => column.name === "body")) {
-		db.run(
-			"alter table validators add column body text not null default 'null'",
-		);
-	}
-	if (!validatorColumns.some((column) => column.name === "headers")) {
-		db.run(
-			"alter table validators add column headers text not null default '[]'",
-		);
-	}
 	return {
 		store: {
 			replaceTickets(rows) {
