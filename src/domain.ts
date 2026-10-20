@@ -2839,7 +2839,14 @@ function ciOf(pull: PullRequest): PullStatus["ci"] {
 	) {
 		return "pending";
 	}
-	if (pull.checks.every((check) => check.conclusion === "success")) {
+	if (
+		pull.checks.every(
+			(check) =>
+				check.conclusion === "success" ||
+				check.conclusion === "skipped" ||
+				check.conclusion === "neutral",
+		)
+	) {
 		return "passing";
 	}
 	return "pending";

@@ -962,6 +962,60 @@ describe("review cycle", () => {
 		);
 	});
 
+	test("a skipped Grok check counts as passing CI and keeps its warning", async () => {
+		const listed = (await overview({
+			issues: [issue(8)],
+			pulls: [pull(91)],
+			withNeedsYou: true,
+			checksBySha: {
+				[head]: [
+					{
+						name: "ci",
+						status: "completed",
+						conclusion: "success",
+					},
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "skipped",
+						app: { slug: "grok-code-review" },
+					},
+				],
+				[older]: [
+					{
+						name: "Grok code review",
+						status: "completed",
+						conclusion: "success",
+						app: { slug: "grok-code-review" },
+					},
+				],
+			},
+			reviewsByPull: {
+				1: [{ user: { login: grok }, commit_id: older, state: "COMMENTED" }],
+				91: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
+			},
+			mergedPulls: [mergedPull()],
+		})) as { body: unknown; needsYou: NeedsYouItem[] };
+		expect(listed.body).toEqual(
+			card(
+				"awaitingMerge",
+				{
+					backlog: 0,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 1,
+				},
+				["grok skipped"],
+			),
+		);
+		expect(
+			listed.needsYou.find((item) => item.key === `${repo}#8`)?.pull,
+		).toMatchObject({
+			ci: "passing",
+		});
+		expect(JSON.stringify(listed.body)).toContain("grok skipped");
+	});
+
 	test("a skipped Greptile check is awaiting merge with a warning tag", async () => {
 		const body = await overview({
 			issues: [issue(8)],
