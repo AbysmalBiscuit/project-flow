@@ -294,6 +294,19 @@ function failingThenRecorded(requests: string[]): Fetch {
 
 const goodPoll = "2026-04-01T12:00:00.000Z";
 
+type ShownTicket = {
+	key: string | null;
+	title: string;
+	state: string;
+	blockers: string[];
+	lane?: string;
+	statusType?: string;
+	chips?: string[];
+	run?: { status: string; stage?: string };
+	enteredStateAt?: string;
+	updatedAt?: string;
+};
+
 type OverviewBody = {
 	projects: {
 		name: string;
@@ -307,16 +320,7 @@ type OverviewBody = {
 		awaitingMerge: number;
 		tags: string[];
 		unlinkedPrs: unknown[];
-		tickets: {
-			key: string | null;
-			title: string;
-			state: string;
-			blockers: string[];
-			lane?: string;
-			statusType?: string;
-			enteredStateAt?: string;
-			updatedAt?: string;
-		}[];
+		tickets: ShownTicket[];
 		crossProjectBlockers: unknown[];
 		needsYou: number;
 		progress: number;
@@ -395,9 +399,7 @@ function githubTicket(
 	};
 }
 
-function linearTicket(
-	number: number,
-): OverviewBody["projects"][number]["tickets"][number] {
+function linearTicket(number: number): ShownTicket {
 	return {
 		key: `WID-${number}`,
 		title: "",
@@ -433,6 +435,10 @@ function linearPage(nodes: Record<string, unknown>[]): string {
 type IssueFilter = {
 	project?: { id?: { eq?: string } };
 	updatedAt?: { gte?: string };
+	or?: {
+		updatedAt?: { gte?: string };
+		comments?: { updatedAt?: { gte?: string } };
+	}[];
 };
 
 function linearIssueFilter(body: string): IssueFilter | null {
@@ -447,7 +453,13 @@ function linearIssueFilter(body: string): IssueFilter | null {
 }
 
 function linearListSince(body: string): string | null {
-	return linearIssueFilter(body)?.updatedAt?.gte ?? null;
+	const filter = linearIssueFilter(body);
+	return (
+		filter?.updatedAt?.gte ??
+		filter?.or?.find((branch) => branch.updatedAt?.gte !== undefined)?.updatedAt
+			?.gte ??
+		null
+	);
 }
 
 function linearPinFetch(requests: string[]): Fetch {
@@ -1518,7 +1530,10 @@ describe("live updates", () => {
 				expect(filters[0]?.updatedAt).toBeUndefined();
 				expect(filters[1]).toEqual({
 					project: { id: { eq: "project-1" } },
-					updatedAt: { gte: goodPoll },
+					or: [
+						{ updatedAt: { gte: goodPoll } },
+						{ comments: { updatedAt: { gte: goodPoll } } },
+					],
 				});
 			},
 			[{ tracker: "linear", project: linearProject }],
@@ -1875,6 +1890,159 @@ describe("live updates", () => {
 				expect(body.error).toBeNull();
 			},
 			[],
+			{
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
+		);
+	});
+
+	test("a Linear progress comment edited in place reaches the next incremental poll", async () => {
+		const requests: string[] = [];
+		const createdAt = "2026-04-01T08:00:00.000Z";
+		const firstEdit = "2026-04-01T10:04:00.000Z";
+		const editedAt = "2026-04-01T12:05:10.000Z";
+		const progress = (stage: string): Record<string, unknown> => ({
+			id: "comment-progress",
+			body: `**Workcell progress**\n\n- stage ${stage}: implementing`,
+			createdAt,
+			updatedAt: stage === "1" ? firstEdit : editedAt,
+			user: { displayName: "workcell" },
+			reactions: [],
+		});
+		const issue = (stage: string): Record<string, unknown> => ({
+			...linearIssue("1"),
+			title: "Live run",
+			// Assume a comment edit leaves the issue updatedAt.
+			updatedAt: createdAt,
+			comments: {
+				nodes: [progress(stage)],
+				pageInfo: { hasNextPage: false, endCursor: null },
+			},
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === "https://api.linear.app/graphql") {
+				const body =
+					typeof init?.body === "string"
+						? init.body
+						: JSON.stringify(init?.body);
+				const parsed = JSON.parse(body) as { query?: string };
+				if (parsed.query?.includes("viewer")) {
+					return new Response(
+						JSON.stringify({ data: { viewer: { id: "lev" } } }),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (parsed.query?.includes("ProjectByPin")) {
+					return new Response(
+						JSON.stringify({
+							data: {
+								projects: {
+									nodes: [
+										{
+											id: "project-1",
+											name: linearProject,
+											slugId: linearProject,
+										},
+									],
+								},
+							},
+						}),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				const filter = linearIssueFilter(body);
+				if (filter === null) {
+					return new Response("not recorded", { status: 404 });
+				}
+				requests.push(body);
+				const since = linearListSince(body);
+				const nodes =
+					filter.or?.some((branch) => branch.comments !== undefined) === true
+						? [issue("4")]
+						: since === null
+							? [issue("1")]
+							: [];
+				return new Response(linearPage(nodes), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return unrecorded(input);
+		};
+		await withServer(
+			fetchImpl,
+			3600,
+			async (base, advance) => {
+				const firstOverview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const first = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(linearProject)}`, base),
+					)
+				).json()) as { tickets: ShownTicket[] };
+				expect(first.tickets[0]).toMatchObject({
+					key: "WID-1",
+					state: "inProgress",
+					run: { status: "running", stage: "stage 1" },
+				});
+				expect(first.tickets[0]?.chips ?? []).not.toContain("Run failed");
+				expect(firstOverview.error).toBeNull();
+				advance(5 * 60 * 1000);
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				const body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(linearProject)}`, base),
+					)
+				).json()) as { tickets: ShownTicket[] };
+				const ticket = report.tickets[0];
+				expect(ticket).toMatchObject({
+					key: "WID-1",
+					state: "inProgress",
+					run: { status: "running", stage: "stage 4" },
+				});
+				expect(ticket?.chips ?? []).not.toContain("Run failed");
+				expect(body.projects[0]?.tickets[0]?.state).toBe("inProgress");
+				const needsYou = (await (
+					await fetch(new URL("/api/needs-you", base))
+				).json()) as { key: string; reason: string }[];
+				expect(needsYou.filter((row) => row.key === "WID-1")).toEqual([]);
+				expect(body.error).toBeNull();
+				expect(requests.map(linearListSince)).toEqual([null, goodPoll]);
+				const commentFilters = requests
+					.map(linearIssueFilter)
+					.filter((filter) =>
+						filter?.or?.some((branch) => branch.comments !== undefined),
+					);
+				expect(commentFilters).toHaveLength(1);
+				expect(commentFilters[0]?.updatedAt).toBeUndefined();
+				expect(commentFilters[0]?.or).toEqual([
+					{ updatedAt: { gte: goodPoll } },
+					{ comments: { updatedAt: { gte: goodPoll } } },
+				]);
+			},
+			[{ tracker: "linear", project: linearProject }],
 			{
 				GITHUB_TOKEN: "recorded-token",
 				LINEAR_API_KEY: "recorded-linear-key",
