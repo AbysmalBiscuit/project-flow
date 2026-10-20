@@ -45,6 +45,13 @@ import {
 import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
 
+function blockerTicket(blocker: CrossProjectBlocker): string {
+	if (blocker.key.includes("#")) {
+		return blocker.key;
+	}
+	return `${blocker.project}#${blocker.key}`;
+}
+
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
@@ -55,7 +62,7 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 				window.location.assign(projectPath(blocker.project, blocker.key));
 			}}
 		>
-			Blocked by {blocker.project}#{blocker.key}
+			Blocked by {blockerTicket(blocker)}
 		</a>
 	);
 }
@@ -514,9 +521,7 @@ function TableView({
 											)}
 											href={projectPath(blocker.project, blocker.key)}
 										>
-											{blocker.key.includes("#")
-												? blocker.key
-												: `${blocker.project}#${blocker.key}`}
+											{blockerTicket(blocker)}
 										</a>
 									))}
 								</div>
