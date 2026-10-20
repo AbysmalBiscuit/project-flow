@@ -139,7 +139,7 @@ function WhySection({
 	}
 	return (
 		<section className={clsx(panel.section)} aria-label={whyLabel}>
-			<h3 className={clsx(panel.label)}>{whyLabel}</h3>
+			<h3 className={clsx(panel.whyLabel)}>{whyLabel}</h3>
 			{question === undefined ? null : (
 				<p className={clsx(panel.question)}>{question}</p>
 			)}

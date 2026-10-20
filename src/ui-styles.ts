@@ -1793,7 +1793,7 @@ export const panel = stylex.create({
 	section: {
 		margin: `${space.lg} 0`,
 	},
-	label: {
+	whyLabel: {
 		margin: `0 0 ${space.xs}`,
 		color: colours.inkMuted,
 		fontSize: type.small,
