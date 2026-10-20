@@ -1,8 +1,10 @@
+import type { CrossProjectBlocker } from "./domain.ts";
+
 export function projectPath(
 	name: string,
 	ticket?: string,
 	panelProject?: string,
-	panelTracker?: "github" | "linear",
+	panelTracker?: CrossProjectBlocker["tracker"],
 ): string {
 	const path = `/projects/${encodeURIComponent(name)}`;
 	const params = new URLSearchParams();
@@ -23,7 +25,7 @@ export function openProject(
 	name: string,
 	ticket?: string,
 	panelProject?: string,
-	panelTracker?: "github" | "linear",
+	panelTracker?: CrossProjectBlocker["tracker"],
 ): void {
 	window.location.assign(projectPath(name, ticket, panelProject, panelTracker));
 }

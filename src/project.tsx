@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
+	CrossProjectBlocker,
 	NeedsYouItem,
 	OutsideBlocker,
 	ProjectReport,
@@ -46,7 +47,7 @@ function panelProjectName(): string {
 	return queryValue("panelProject") ?? projectName();
 }
 
-function panelTrackerName(): "github" | "linear" {
+function panelTrackerName(): CrossProjectBlocker["tracker"] {
 	return queryValue("panelTracker") === "linear" ? "linear" : "github";
 }
 
@@ -391,9 +392,9 @@ function Page() {
 	const [panelProject, setPanelProject] = useState(panelProjectName);
 	const panelProjectRef = useRef(panelProject);
 	panelProjectRef.current = panelProject;
-	const [panelTracker, setPanelTracker] = useState<"github" | "linear">(
-		panelTrackerName,
-	);
+	const [panelTracker, setPanelTracker] = useState<
+		CrossProjectBlocker["tracker"]
+	>(panelTrackerName);
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [view, setView] = useState("board");
 	const [report, setReport] = useState<ProjectReport | null>(null);
