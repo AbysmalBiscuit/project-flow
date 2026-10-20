@@ -100,7 +100,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 				nodes { url title sourceType }
 			}
 			comments(first: 50) {
-				nodes { id body createdAt user { name displayName } reactions { id } }
+				nodes { id body createdAt updatedAt user { name displayName } reactions { id } }
 				pageInfo { hasNextPage endCursor }
 			}
 			history(first: 50) {
@@ -220,6 +220,7 @@ const issueNode = z.object({
 					id: z.string().optional(),
 					body: z.string().nullable().optional(),
 					createdAt: z.string().optional(),
+					updatedAt: z.string().optional(),
 					user: z
 						.object({
 							name: z.string().nullable().optional(),
@@ -582,6 +583,7 @@ const commentPage = z.object({
 							id: z.string().optional(),
 							body: z.string().nullable(),
 							createdAt: z.string().optional(),
+							updatedAt: z.string().optional(),
 							user: z
 								.object({
 									name: z.string().nullable().optional(),
@@ -603,7 +605,7 @@ const commentPage = z.object({
 const commentsQuery = `query IssueComments($id: String!, $after: String) {
 	issue(id: $id) {
 		comments(first: 50, after: $after) {
-			nodes { id body createdAt user { name displayName } reactions { id } }
+			nodes { id body createdAt updatedAt user { name displayName } reactions { id } }
 			pageInfo { hasNextPage endCursor }
 		}
 	}
@@ -633,6 +635,7 @@ function listedComment(node: {
 	id?: string | undefined;
 	body?: string | null | undefined;
 	createdAt?: string | undefined;
+	updatedAt?: string | undefined;
 	user?:
 		| {
 				name?: string | null | undefined;
@@ -651,6 +654,7 @@ function listedComment(node: {
 		body,
 		...(node.id === undefined ? {} : { id: node.id }),
 		...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }),
+		...(node.updatedAt === undefined ? {} : { updatedAt: node.updatedAt }),
 		...(author === undefined ? {} : { author }),
 		...(node.reactions === undefined
 			? {}
