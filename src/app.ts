@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { AutoMerge, Configuration } from "./configuration.ts";
-import { loadConfiguration, saveConfiguration } from "./configuration.ts";
+import {
+	loadConfiguration,
+	parseConfiguration,
+	saveConfiguration,
+} from "./configuration.ts";
 import type {
 	Comment,
 	Overview,
@@ -1158,7 +1162,8 @@ export async function start(options: StartOptions): Promise<Running> {
 				pollOptions.polling = true;
 			}
 			try {
-				configuration = await poll(pollOptions);
+				await poll(pollOptions);
+				configuration = await configurationPort.read();
 				pollOptions.fallback = configuration;
 			} catch (error) {
 				if (stopped) {
@@ -1324,7 +1329,33 @@ export async function start(options: StartOptions): Promise<Running> {
 				GET: () => Response.json(settingsResponse(configuration, options)),
 				PUT: async (request: Request) => {
 					const text = withoutTrackers(await request.text());
-					const previous = configuration;
+					let parsed: Configuration;
+					try {
+						parsed = parseConfiguration(text);
+					} catch (error) {
+						const message =
+							error instanceof Error
+								? error.message
+								: "invalid configuration: configuration";
+						return Response.json({ error: message }, { status: 400 });
+					}
+					if (viewOnlyChange(configuration, parsed)) {
+						try {
+							configuration = await configurationPort.write(text);
+						} catch (error) {
+							const message =
+								error instanceof Error
+									? error.message
+									: "invalid configuration: configuration";
+							return Response.json({ error: message }, { status: 400 });
+						}
+						pollOptions.fallback = configuration;
+						notifier.publish({
+							overview: runningOverview(pollOptions, configuration),
+							notifications: [],
+						});
+						return Response.json(settingsResponse(configuration, options));
+					}
 					try {
 						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(text);
@@ -1340,13 +1371,6 @@ export async function start(options: StartOptions): Promise<Running> {
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
-					if (viewOnlyChange(previous, configuration)) {
-						notifier.publish({
-							overview: runningOverview(pollOptions, configuration),
-							notifications: [],
-						});
-						return Response.json(settingsResponse(configuration, options));
-					}
 					await pollAgain();
 					return Response.json(settingsResponse(configuration, options));
 				},
