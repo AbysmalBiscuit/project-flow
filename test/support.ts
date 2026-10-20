@@ -52,6 +52,20 @@ export function recordedDiscovery(
 	return null;
 }
 
+export function recordedViewer(
+	input: string | URL | Request,
+	init?: RequestInit,
+): Response | null {
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	if (urlOf(input) === "https://api.github.com/user") {
+		return Response.json({ login: "lev" });
+	}
+	return null;
+}
+
 export function unrecorded(input: string | URL | Request): Response {
 	const url = urlOf(input);
 	if (/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/labels\?/.test(url)) {

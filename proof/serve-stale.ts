@@ -3,16 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { recordedViewer, urlOf } from "../test/support.ts";
 
 const root = await mkdtemp(join(tmpdir(), "project-flow-stale-"));
 const databasePath = join(root, "project-flow.sqlite");
 let polls = 0;
 
-const recordedThenFailing: Fetch = async (input) => {
-	const url = typeof input === "string" ? input : input.toString();
-	if (url === "https://api.github.com/user") {
-		return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+const recordedThenFailing: Fetch = async (input, init) => {
+	const known = recordedViewer(input, init);
+	if (known !== null) {
+		return known;
 	}
+	const url = urlOf(input);
 	if (url.includes("/issues?")) {
 		polls += 1;
 		if (polls === 1) {

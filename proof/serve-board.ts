@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery } from "../test/support.ts";
+import { recordedViewer, urlOf } from "../test/support.ts";
 
 const root =
 	process.env.XDG_DATA_HOME ??
@@ -63,14 +63,11 @@ function page(items: Record<string, unknown>[]): Response {
 }
 
 const recorded: Fetch = async (input, init) => {
-	const discovered = recordedDiscovery(input, init);
-	if (discovered !== null) {
-		return discovered;
+	const known = recordedViewer(input, init);
+	if (known !== null) {
+		return known;
 	}
-	const url = typeof input === "string" ? input : input.toString();
-	if (url === "https://api.github.com/user") {
-		return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-	}
+	const url = urlOf(input);
 	if (url.includes(`/repos/${widget}/issues?`)) {
 		return page(widgetIssues);
 	}
