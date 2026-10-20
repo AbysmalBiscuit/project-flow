@@ -98,9 +98,10 @@ const recorded: Fetch = async (input, init) => {
 			},
 		]);
 	}
-	const chain = /^https:\/\/api\.github\.com\/repos\/acme\/widget\/issues\/(1[0-3])\/dependencies\/blocked_by$/.exec(
-		url,
-	);
+	const chain =
+		/^https:\/\/api\.github\.com\/repos\/acme\/widget\/issues\/(1[0-3])\/dependencies\/blocked_by$/.exec(
+			url,
+		);
 	if (chain?.[1] !== undefined) {
 		const number = Number(chain[1]);
 		const previous = parents.find((item) => item.number === number - 1);
