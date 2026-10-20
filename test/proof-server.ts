@@ -1,4 +1,5 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
@@ -11,14 +12,12 @@ import {
 } from "./support.ts";
 
 const port = process.argv.find((arg) => arg.startsWith("--port="))?.slice(7);
-const data = process.argv.find((arg) => arg.startsWith("--data="))?.slice(7);
-if (
-	port === undefined ||
-	!/^\d+$/.test(port) ||
-	data === undefined ||
-	data.trim() === ""
-) {
-	console.error("usage: bun test/proof-server.ts --port=N --data=DIR");
+if (port === undefined || !/^\d+$/.test(port)) {
+	console.error("usage: bun test/proof-server.ts --port=N");
+	process.exit(1);
+}
+if (process.argv.some((arg) => arg.startsWith("--data="))) {
+	console.error("proof server owns its data directory; do not pass --data");
 	process.exit(1);
 }
 
@@ -154,8 +153,7 @@ const recorded: Fetch = async (input, init) => {
 	return unrecorded(input);
 };
 
-await rm(data, { recursive: true, force: true });
-await mkdir(data, { recursive: true });
+const data = await mkdtemp(join(tmpdir(), "project-flow-proof-"));
 const configPath = join(data, "config.json");
 await writeFile(
 	configPath,
@@ -212,6 +210,7 @@ const ready = (async () => {
 		console.error("proof server was not ready within 9s");
 		gate.stop(true);
 		process.exitCode = 1;
+		await rm(data, { recursive: true, force: true });
 		stopped.abort();
 	}
 })();
