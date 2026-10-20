@@ -22,6 +22,9 @@ await writeFile(
 		checkoutRoots: [],
 		pollIntervalSeconds: 3600,
 		viewerLogins: ["lev"],
+		projectViews: {
+			[widget]: { openView: "graph" },
+		},
 	}),
 );
 
@@ -47,6 +50,16 @@ const widgetIssues = [
 	issue(widget, 4, "Read the review"),
 ];
 const platformIssues = [issue(platform, 9, "Platform gate")];
+const platformPull = {
+	number: 90,
+	title: "Open the gate",
+	state: "open",
+	draft: false,
+	html_url: `https://github.com/${platform}/pull/90`,
+	head: { ref: "9-platform-gate", sha: "abc123" },
+	body: `Closes #9`,
+	user: { login: "ada" },
+};
 
 function page(items: Record<string, unknown>[]): Response {
 	return new Response(JSON.stringify(items), {
@@ -97,6 +110,19 @@ const recorded: Fetch = async (input, init) => {
 			},
 		]);
 	}
+	if (url.includes(`/repos/${platform}/pulls?`)) {
+		return page([platformPull]);
+	}
+	if (url.includes(`/repos/${platform}/pulls/90/reviews`)) {
+		return page([
+			{
+				user: { login: "bea" },
+				state: "APPROVED",
+				commit_id: "abc123",
+				submitted_at: "2026-08-18T12:00:00Z",
+			},
+		]);
+	}
 	if (
 		url.includes("/pulls?") ||
 		url.includes("/branches?") ||
@@ -110,6 +136,11 @@ const recorded: Fetch = async (input, init) => {
 	}
 	if (url.includes("/check-runs")) {
 		return Response.json({ check_runs: [] });
+	}
+	if (url.includes(`/repos/${platform}/commits/abc123`)) {
+		return Response.json({
+			commit: { committer: { date: "2026-08-18T12:00:00Z" } },
+		});
 	}
 	if (url === "https://api.linear.app/graphql") {
 		return Response.json({
@@ -158,7 +189,23 @@ try {
 								(blocker) => blocker.key === "acme/platform#9",
 							),
 						);
-						if (outside) {
+						const home = await fetch(
+							new URL(
+								`/api/projects/${encodeURIComponent(platform)}?view=all`,
+								base,
+							),
+						).catch(() => null);
+						const platformBody = home?.ok
+							? ((await home.json()) as {
+									tickets?: { key?: string; state?: string }[];
+								})
+							: null;
+						const reviewed = platformBody?.tickets?.some(
+							(ticket) =>
+								ticket.key === "acme/platform#9" &&
+								ticket.state === "awaitingMerge",
+						);
+						if (outside && reviewed) {
 							const internal = new URL(base);
 							Bun.serve({
 								hostname: "127.0.0.1",
@@ -185,7 +232,7 @@ try {
 				}
 				await new Promise((pause) => setTimeout(pause, 50));
 			}
-			throw new Error("project load returned no outside ticket");
+			throw new Error("project load returned no reviewed outside ticket");
 		})(),
 	});
 } finally {
