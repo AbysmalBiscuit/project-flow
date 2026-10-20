@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
+	CrossProjectBlocker,
 	NeedsYouItem,
 	OutsideBlocker,
 	ProjectReport,
@@ -30,12 +31,24 @@ function projectName(): string {
 	);
 }
 
-function highlightKey(): string | null {
-	const ticket = new URLSearchParams(window.location.search).get("ticket");
-	if (ticket === null || ticket.trim() === "") {
+function queryValue(name: string): string | null {
+	const value = new URLSearchParams(window.location.search).get(name);
+	if (value === null || value.trim() === "") {
 		return null;
 	}
-	return ticket;
+	return value;
+}
+
+function highlightKey(): string | null {
+	return queryValue("ticket");
+}
+
+function panelProjectName(): string {
+	return queryValue("panelProject") ?? projectName();
+}
+
+function panelTrackerName(): CrossProjectBlocker["tracker"] {
+	return queryValue("panelTracker") === "linear" ? "linear" : "github";
 }
 
 function clearTicketQuery(): void {
@@ -376,12 +389,11 @@ function Board({
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
-	const [panelProject, setPanelProject] = useState(projectName);
+	const [panelProject, setPanelProject] = useState(panelProjectName);
 	const panelProjectRef = useRef(panelProject);
 	panelProjectRef.current = panelProject;
-	const [panelTracker, setPanelTracker] = useState<"github" | "linear">(
-		"github",
-	);
+	const [panelTracker, setPanelTracker] =
+		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [view, setView] = useState("board");
 	const [report, setReport] = useState<ProjectReport | null>(null);
@@ -391,6 +403,8 @@ function Page() {
 		const onPop = () => {
 			const next = highlightKey();
 			setName(projectName());
+			setPanelProject(panelProjectName());
+			setPanelTracker(panelTrackerName());
 			setTicket(next);
 			setOpen(next !== null || window.history.state?.panel === true);
 		};
@@ -449,7 +463,9 @@ function Page() {
 				if (stopped || !response.ok) {
 					return;
 				}
-				setPanelReport((await response.json()) as ProjectReport);
+				const body = (await response.json()) as ProjectReport;
+				setPanelReport(body);
+				setPanelTracker(body.tracker);
 			})
 			.catch(() => {});
 		return () => {

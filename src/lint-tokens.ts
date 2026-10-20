@@ -133,6 +133,9 @@ for await (const name of files) {
 		}
 		for (const match of line.matchAll(customProperty)) {
 			const property = match[0];
+			if (property.startsWith("--xy-")) {
+				continue;
+			}
 			const key = property.slice(2);
 			if (declared.has(key)) {
 				failures.push(`${name}:${index + 1}: hashed token name ${property}`);

@@ -62,6 +62,23 @@ function issue(
 	};
 }
 
+function graphIssue(
+	repo: string,
+	number: number,
+	title: string,
+	needsYou: boolean,
+	blockedBy = 0,
+): Record<string, unknown> {
+	return {
+		...issue(repo, number, title, "ready", needsYou),
+		labels: needsYou ? [{ name: "needs-human" }] : [],
+		issue_dependencies_summary: {
+			blocked_by: blockedBy,
+			total_blocked_by: blockedBy,
+		},
+	};
+}
+
 const alphaIssues = [
 	issue("acme/alpha", 1, "Alpha ready", "ready", false),
 	issue("acme/alpha", 2, "Alpha running", "factory: running", false),
@@ -145,6 +162,17 @@ const fakeTrackers: Fetch = async (input, init) => {
 						organizations: {
 							nodes: [],
 							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			});
+		}
+		if (body.includes("LinkedPulls")) {
+			return json({
+				data: {
+					repository: {
+						issue: {
+							closedByPullRequestsReferences: { nodes: [] },
 						},
 					},
 				},
@@ -332,8 +360,28 @@ const fakeTrackers: Fetch = async (input, init) => {
 			},
 		]);
 	}
+	if (url.includes("/repos/acme/beta/issues/2/dependencies/blocked_by")) {
+		return json([
+			{
+				number: 1,
+				title: "Alpha ticket",
+				state: "open",
+				repository_url: "https://api.github.com/repos/acme/alpha",
+			},
+		]);
+	}
+	const oneIssue = url.match(
+		/^https:\/\/api\.github\.com\/repos\/(acme\/(?:alpha|beta))\/issues\/(\d+)$/,
+	);
+	if (oneIssue?.[1] === "acme/alpha" && oneIssue[2] === "1") {
+		return json(graphIssue("acme/alpha", 1, "Alpha ticket", false));
+	}
+	if (oneIssue?.[1] === "acme/beta" && oneIssue[2] === "2") {
+		return json(graphIssue("acme/beta", 2, "Beta ticket", true, 1));
+	}
 	if (
 		url.includes("/pulls?") ||
+		url.includes("/pulls/") ||
 		url.includes("/branches?") ||
 		url.includes("/comments") ||
 		url.includes("/reviews") ||
@@ -346,7 +394,7 @@ const fakeTrackers: Fetch = async (input, init) => {
 
 const portFlag = process.argv.indexOf("--port");
 const portArg = portFlag === -1 ? undefined : process.argv[portFlag + 1];
-const port = portArg ?? "4763";
+const port = portArg ?? process.env.PORT ?? "4763";
 
 try {
 	const result = await run(["--config", configPath, "--port", port], {

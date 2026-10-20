@@ -1,4 +1,6 @@
+import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
+import { ReactFlowProvider } from "@xyflow/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -20,6 +22,14 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
+import { GraphZoom, OverviewGraph } from "./overview-graph.tsx";
+import { openProject, projectPath } from "./paths.ts";
+import {
+	barSegments,
+	SegmentedBar,
+	ticketTotal,
+	trackerName,
+} from "./progress-bar.tsx";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
 	actionLabel,
@@ -34,18 +44,6 @@ import {
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
-
-function projectPath(name: string, ticket?: string): string {
-	const path = `/projects/${encodeURIComponent(name)}`;
-	if (ticket === undefined) {
-		return path;
-	}
-	return `${path}?ticket=${encodeURIComponent(ticket)}`;
-}
-
-function openProject(name: string, ticket?: string): void {
-	window.location.assign(projectPath(name, ticket));
-}
 
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
@@ -195,10 +193,6 @@ function slug(value: string): string {
 	return cleaned === "" ? "item" : cleaned;
 }
 
-function trackerName(tracker: ProjectCounts["tracker"]): string {
-	return tracker === "linear" ? "Linear" : "GitHub";
-}
-
 function subtitle(project: ProjectCounts): string {
 	if (project.ref.tracker === "linear") {
 		return `${trackerName(project.tracker)}, ${project.ref.project}`;
@@ -208,25 +202,6 @@ function subtitle(project: ProjectCounts): string {
 	}
 	return `${trackerName(project.tracker)}, ${project.ref.owner}/${project.ref.project}`;
 }
-
-function ticketTotal(project: ProjectCounts): number {
-	return (
-		project.done +
-		project.dropped +
-		project.backlog +
-		project.inProgress +
-		project.inReview +
-		project.awaitingMerge
-	);
-}
-
-const barSegments = [
-	{ key: "done", tone: cards.done },
-	{ key: "inProgress", tone: cards.inProgress },
-	{ key: "inReview", tone: cards.inReview },
-	{ key: "awaitingMerge", tone: cards.awaitingMerge },
-	{ key: "backlog", tone: cards.backlog },
-] as const;
 
 const legendSegments = [
 	{ key: "backlog", label: stateLabel.backlog, tone: cards.backlog },
@@ -238,36 +213,6 @@ const legendSegments = [
 		tone: cards.awaitingMerge,
 	},
 ] as const;
-
-function SegmentedBar({ project }: { project: ProjectCounts }) {
-	const total = ticketTotal(project);
-	return (
-		<div
-			className={clsx(cards.bar)}
-			role="progressbar"
-			aria-valuenow={project.progress}
-			aria-valuemin={0}
-			aria-valuemax={100}
-			aria-label={`${project.name} progress`}
-		>
-			{total === 0
-				? null
-				: barSegments.map((item) =>
-						project.statusTypes[item.key] === 0 ? null : (
-							<div
-								key={item.key}
-								{...stylex.props(
-									cards.segment(
-										`${(project.statusTypes[item.key] / total) * 100}%`,
-									),
-									item.tone,
-								)}
-							/>
-						),
-					)}
-		</div>
-	);
-}
 
 function Legend({ project }: { project: ProjectCounts }) {
 	return (
@@ -360,162 +305,6 @@ function CardsList({ projects }: { projects: ProjectCounts[] }) {
 				/>
 			))}
 		</ul>
-	);
-}
-
-type GraphEdge = {
-	from: string;
-	blocker: CrossProjectBlocker;
-};
-
-const graphColumnGap = 220;
-const graphRowStep = 116;
-const graphNodeWidth = 196;
-const graphNodeHeight = 92;
-const graphPad = 28;
-
-function graphEdges(projects: ProjectCounts[]): GraphEdge[] {
-	const names = new Set(projects.map((project) => project.name));
-	return projects.flatMap((project) =>
-		project.crossProjectBlockers
-			.filter((blocker) => names.has(blocker.project))
-			.map((blocker) => ({
-				from: project.name,
-				blocker,
-			})),
-	);
-}
-
-function graphLayout(projects: ProjectCounts[], edges: GraphEdge[]) {
-	const depth = new Map(projects.map((project) => [project.name, 0]));
-	for (let pass = 0; pass < projects.length; pass += 1) {
-		for (const edge of edges) {
-			const next = (depth.get(edge.from) ?? 0) + 1;
-			if (next > (depth.get(edge.blocker.project) ?? 0)) {
-				depth.set(edge.blocker.project, next);
-			}
-		}
-	}
-	const columns = new Map<number, string[]>();
-	for (const project of projects) {
-		const column = depth.get(project.name) ?? 0;
-		const names = columns.get(column) ?? [];
-		names.push(project.name);
-		columns.set(column, names);
-	}
-	const place = new Map<string, { x: number; y: number }>();
-	for (const [column, names] of columns) {
-		names.forEach((name, row) => {
-			place.set(name, {
-				x: graphPad + column * graphColumnGap,
-				y: graphPad + row * graphRowStep,
-			});
-		});
-	}
-	const widest = Math.max(1, columns.size);
-	const width = graphPad * 2 + (widest - 1) * graphColumnGap + graphNodeWidth;
-	const tallest = Math.max(
-		1,
-		...[...columns.values()].map((names) => names.length),
-	);
-	const height = graphPad + tallest * graphRowStep;
-	return { place, width, height };
-}
-
-function GraphNode({ project }: { project: ProjectCounts }) {
-	return (
-		<button
-			type="button"
-			className={clsx(
-				cards.node,
-				cards.pointer,
-				project.needsYou > 0 && cards.nodeNeed,
-			)}
-			onClick={() => openProject(project.name)}
-		>
-			<span className={clsx(cards.nodeTop)}>
-				<strong>{project.name}</strong>
-				{project.needsYou === 0 ? null : (
-					<span className={clsx(cards.badge)}>{project.needsYou}</span>
-				)}
-			</span>
-			<span className={clsx(cards.meta)}>{trackerName(project.tracker)}</span>
-			<SegmentedBar project={project} />
-			<span className={clsx(cards.quiet)}>
-				{project.done} of {ticketTotal(project)} done
-			</span>
-		</button>
-	);
-}
-
-function GraphView({ projects }: { projects: ProjectCounts[] }) {
-	const edges = graphEdges(projects);
-	const { place, width, height } = graphLayout(projects, edges);
-	const byName = new Map(projects.map((project) => [project.name, project]));
-	return (
-		<div className={clsx(cards.graph)}>
-			<div className={clsx(cards.canvas)} style={{ height }}>
-				<svg
-					className={clsx(cards.arrows)}
-					width={width}
-					height={height}
-					aria-hidden="true"
-				>
-					{edges.map((edge) => {
-						const from = place.get(edge.from);
-						const to = place.get(edge.blocker.project);
-						if (from === undefined || to === undefined) {
-							return null;
-						}
-						const x1 = from.x + graphNodeWidth;
-						const y1 = from.y + graphNodeHeight / 2;
-						const x2 = to.x;
-						const y2 = to.y + graphNodeHeight / 2;
-						const mid = (x1 + x2) / 2;
-						return (
-							<g
-								key={`${edge.from}-${edge.blocker.project}-${edge.blocker.key}`}
-							>
-								<path
-									d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
-									className={clsx(cards.arrow)}
-								/>
-								<a
-									href={projectPath(edge.blocker.project, edge.blocker.key)}
-									onClick={(event) => {
-										event.preventDefault();
-										openProject(edge.blocker.project, edge.blocker.key);
-									}}
-								>
-									<text
-										x={mid}
-										y={(y1 + y2) / 2 - 8}
-										className={clsx(cards.edgeLabel)}
-									>
-										{edge.blocker.key}
-									</text>
-								</a>
-							</g>
-						);
-					})}
-				</svg>
-				{projects.map((project) => {
-					const spot = place.get(project.name);
-					if (spot === undefined || byName.get(project.name) === undefined) {
-						return null;
-					}
-					return (
-						<div
-							key={`${project.tracker}:${project.name}`}
-							className={clsx(cards.placed)}
-							{...stylex.props(cards.placeAt(`${spot.x}px`, `${spot.y}px`))}
-						>
-							<GraphNode project={project} />
-						</div>
-					);
-				})}
-			</div>
-		</div>
 	);
 }
 
@@ -916,7 +705,7 @@ function OverviewPage({
 	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
-		graph: <GraphView projects={projects} />,
+		graph: <OverviewGraph projects={projects} catalogue={overview.projects} />,
 		table: (
 			<TableView
 				projects={projects}
@@ -1026,7 +815,7 @@ function OverviewPage({
 			))}
 		</MenuButton>
 	);
-	return (
+	const page = (
 		<PageFrame
 			title={navLabel.overview}
 			subtitle={summary}
@@ -1140,7 +929,7 @@ function OverviewPage({
 					<div className={clsx(cards.controls)}>
 						{pinnedMenu}
 						{filterMenu}
-						{sortMenu}
+						{view.view === "graph" ? <GraphZoom /> : sortMenu}
 					</div>
 				</div>
 			)}
@@ -1152,12 +941,15 @@ function OverviewPage({
 			{panes[view.view]}
 			{view.view === "graph" ? (
 				<p className={clsx(cards.caption)}>
-					An arrow runs from a blocking project to the project it blocks. Its
-					label is the blocking ticket; click it to open that ticket. Projects
-					with a dark border need you.
+					{overviewControlLabel.edgeCaption}
 				</p>
 			) : null}
 		</PageFrame>
+	);
+	return view.view === "graph" ? (
+		<ReactFlowProvider>{page}</ReactFlowProvider>
+	) : (
+		page
 	);
 }
 
