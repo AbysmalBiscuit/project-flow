@@ -1745,6 +1745,7 @@ describe("forward state", () => {
 	});
 
 	test("a repo with no factory labels keeps its close time", async () => {
+		const createdAt = "2026-10-18T15:11:18Z";
 		const closedAt = "2026-08-16T08:00:00Z";
 		const editedAt = "2026-08-18T15:00:00Z";
 		await withApp(
@@ -1755,6 +1756,7 @@ describe("forward state", () => {
 						title: "Closed after a later edit",
 						state: "closed",
 						state_reason: "completed",
+						created_at: createdAt,
 						updated_at: editedAt,
 						closed_at: closedAt,
 					}),
@@ -1762,11 +1764,13 @@ describe("forward state", () => {
 						title: "Blank close time",
 						state: "closed",
 						state_reason: "not_planned",
+						created_at: createdAt,
 						updated_at: editedAt,
 						closed_at: "   ",
 					}),
 					githubIssue(8, {
 						title: "Open with no lanes",
+						created_at: createdAt,
 						updated_at: editedAt,
 					}),
 				],
@@ -1789,9 +1793,43 @@ describe("forward state", () => {
 					lane: "Dropped",
 					enteredStateAt: editedAt,
 				});
-				expect(ticketOf(report, `${githubRepo}#8`).enteredStateAt).toBe(
-					editedAt,
-				);
+				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
+					lane: "Backlog",
+					enteredStateAt: createdAt,
+				});
+			},
+		);
+	});
+
+	test("an unlabelled ticket enters Backlog at its created time", async () => {
+		const createdAt = "2026-10-18T15:11:18Z";
+		const editedAt = "2026-08-18T15:00:00Z";
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recordedRepo(
+				[
+					githubIssue(8, {
+						title: "No status label",
+						created_at: createdAt,
+						updated_at: editedAt,
+					}),
+				],
+				[],
+				[],
+				{ allow_auto_merge: false },
+				[],
+				[],
+				[],
+				factoryLabels,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
+					lane: "ready",
+					statusType: "backlog",
+					enteredStateAt: createdAt,
+				});
 			},
 		);
 	});

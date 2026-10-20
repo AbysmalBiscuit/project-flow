@@ -45,6 +45,7 @@ const githubIssue = z.object({
 	state: z.string(),
 	state_reason: z.string().nullable(),
 	updated_at: z.string(),
+	created_at: z.string().optional(),
 	closed_at: z.string().nullable().optional(),
 	body: z.string().nullable().optional(),
 	milestone: z.object({ title: z.string() }).nullable().optional(),
@@ -1793,6 +1794,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						continue;
 					}
 					const closedAt = issue.closed_at?.trim() ?? "";
+					const createdAt = issue.created_at?.trim() ?? "";
 					const summary = issue.issue_dependencies_summary;
 					const blockedBy =
 						summary !== undefined && summary.total_blocked_by > 0
@@ -1837,6 +1839,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						parent: parentKey(issue.parent_issue_url),
 						labels: issue.labels?.map((label) => label.name) ?? [],
 						...(closedAt === "" ? {} : { closedAt }),
+						...(createdAt === "" ? {} : { createdAt }),
 						...(issue.assignee === undefined && issue.assignees === undefined
 							? {}
 							: {
