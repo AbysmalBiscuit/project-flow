@@ -669,18 +669,26 @@ function Page() {
 			return;
 		}
 		let stopped = false;
-		fetch(`/api/projects/${encodeURIComponent(panelProject)}?view=all`)
-			.then(async (response) => {
-				if (stopped || !response.ok) {
-					return;
-				}
-				const body = (await response.json()) as ProjectReport;
-				setPanelReport(body);
-				setPanelTracker(body.tracker);
-			})
-			.catch(() => {});
+		const path = `/api/projects/${encodeURIComponent(panelProject)}?view=all`;
+		const load = () => {
+			fetch(path)
+				.then(async (response) => {
+					if (stopped || !response.ok) {
+						return;
+					}
+					const body = (await response.json()) as ProjectReport;
+					setPanelReport(body);
+					setPanelTracker(body.tracker);
+				})
+				.catch(() => {});
+		};
+		load();
+		const stop = onAppEvent("overview", () => {
+			load();
+		});
 		return () => {
 			stopped = true;
+			stop();
 		};
 	}, [open, ticket, panelProject]);
 	const source = panelReport;
