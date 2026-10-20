@@ -32,9 +32,17 @@ export function columnDepth(
 	return depth;
 }
 
-export function readViewport(root: ParentNode = document): Viewport | null {
+function viewportElement(root: ParentNode): Element | null {
 	const pane = root.querySelector(".react-flow__viewport");
 	if (!(pane instanceof SVGElement) && !(pane instanceof HTMLElement)) {
+		return null;
+	}
+	return pane;
+}
+
+export function readViewport(root: ParentNode = document): Viewport | null {
+	const pane = viewportElement(root);
+	if (pane === null) {
 		return null;
 	}
 	const transform = pane.style.transform;
@@ -52,31 +60,56 @@ export function readViewport(root: ParentNode = document): Viewport | null {
 	};
 }
 
-function settledViewport(
+function watchViewport(
 	setViewport: (viewport: Viewport | null) => void,
 	root: ParentNode,
 ): () => void {
 	let stopped = false;
+	let observer: MutationObserver | null = null;
+	const publish = () => {
+		if (!stopped) {
+			setViewport(readViewport(root));
+		}
+	};
+	const attach = () => {
+		if (stopped || observer !== null) {
+			return;
+		}
+		const pane = viewportElement(root);
+		if (pane === null) {
+			return;
+		}
+		observer = new MutationObserver(publish);
+		observer.observe(pane, {
+			attributes: true,
+			attributeFilter: ["style"],
+		});
+		publish();
+	};
 	let last = "";
 	let frames = 0;
 	const tick = () => {
 		if (stopped) {
 			return;
 		}
-		const pane = root.querySelector(".react-flow__viewport");
-		const transform = pane instanceof HTMLElement ? pane.style.transform : "";
+		const pane = viewportElement(root);
+		const transform = pane?.style.transform ?? "";
 		frames += 1;
 		if ((transform === "" || transform !== last) && frames < 40) {
 			last = transform;
 			requestAnimationFrame(tick);
 			return;
 		}
-		setViewport(readViewport(root));
+		attach();
+		if (observer === null) {
+			publish();
+		}
 	};
 	const frame = requestAnimationFrame(tick);
 	return () => {
 		stopped = true;
 		cancelAnimationFrame(frame);
+		observer?.disconnect();
 	};
 }
 
@@ -93,7 +126,7 @@ export function GraphTools({
 	const [viewport, setViewport] = useState<Viewport | null>(null);
 	useEffect(
 		() =>
-			settledViewport(
+			watchViewport(
 				setViewport,
 				scope === "" ? document : (document.querySelector(scope) ?? document),
 			),
