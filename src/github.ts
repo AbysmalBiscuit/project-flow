@@ -232,23 +232,42 @@ function isRestRead(url: string, method: string): boolean {
 	return !url.startsWith("https://api.github.com/graphql");
 }
 
+function parseStoredHeaders(headers: string): [string, string][] {
+	const parsed: unknown = JSON.parse(headers);
+	if (!Array.isArray(parsed)) {
+		return [];
+	}
+	const entries: [string, string][] = [];
+	for (const item of parsed) {
+		if (!Array.isArray(item) || item.length < 2) {
+			continue;
+		}
+		const name = item[0];
+		const value = item[1];
+		if (typeof name === "string" && typeof value === "string") {
+			entries.push([name, value]);
+		}
+	}
+	return entries;
+}
+
 export function rememberValidator(
 	cache: RestCache,
 	url: string,
 	etag: string,
 	body: unknown,
+	headers: string,
 ): void {
 	const key = restKey(url);
-	const stored = cache.get(key);
-	if (stored !== undefined) {
-		stored.etag = etag;
-		stored.body = body;
-		return;
-	}
+	const stored = parseStoredHeaders(headers);
+	const restored =
+		stored.length > 0
+			? stored
+			: ([["etag", etag]] satisfies [string, string][]);
 	cache.set(key, {
 		etag,
 		body,
-		headers: [["etag", etag]],
+		headers: restored,
 	});
 }
 
@@ -282,7 +301,7 @@ export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
 export function conditionalFetch(
 	fetchImpl: Fetch,
 	cache: RestCache,
-	remember?: (url: string, etag: string, body: string) => void,
+	remember?: (url: string, etag: string, body: string, headers: string) => void,
 ): Fetch {
 	return async (input, init) => {
 		const url = restUrl(input);
@@ -313,7 +332,12 @@ export function conditionalFetch(
 				body: stored.body,
 				headers: [...replayed.entries()],
 			});
-			remember?.(key, etag, JSON.stringify(stored.body));
+			remember?.(
+				key,
+				etag,
+				JSON.stringify(stored.body),
+				JSON.stringify([...replayed.entries()]),
+			);
 			return new Response(JSON.stringify(stored.body), {
 				status: 200,
 				headers: replayed,
@@ -322,12 +346,13 @@ export function conditionalFetch(
 		const next = response.headers.get("etag");
 		if (response.ok && next !== null && next !== "") {
 			const body: unknown = await response.clone().json();
+			const kept = storedHeaders(response);
 			cache.set(key, {
 				etag: next,
 				body,
-				headers: storedHeaders(response),
+				headers: kept,
 			});
-			remember?.(key, next, JSON.stringify(body));
+			remember?.(key, next, JSON.stringify(body), JSON.stringify(kept));
 		}
 		return response;
 	};

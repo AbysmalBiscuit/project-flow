@@ -120,7 +120,8 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 		create table if not exists validators (
 			url text primary key,
 			etag text not null,
-			body text not null default 'null'
+			body text not null,
+			headers text not null
 		)
 	`);
 	const validatorColumns = db.query("pragma table_info(validators)").all() as {
@@ -279,18 +280,19 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			},
 			readValidators() {
 				const rows = db
-					.query("select url, etag, body from validators")
+					.query("select url, etag, body, headers from validators")
 					.all() as {
 					url: string;
 					etag: string;
 					body: string;
+					headers: string;
 				}[];
 				return rows;
 			},
-			recordValidator(url, etag, body) {
+			recordValidator(url, etag, body, headers) {
 				db.query(
-					"insert into validators (url, etag, body) values (?, ?, ?) on conflict(url) do update set etag = excluded.etag, body = excluded.body",
-				).run(url, etag, body);
+					"insert into validators (url, etag, body, headers) values (?, ?, ?, ?) on conflict(url) do update set etag = excluded.etag, body = excluded.body, headers = excluded.headers",
+				).run(url, etag, body, headers);
 			},
 			forgetValidator(url) {
 				db.query("delete from validators where url = ?").run(url);

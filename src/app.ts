@@ -1211,6 +1211,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			validator.url,
 			validator.etag,
 			JSON.parse(validator.body) as unknown,
+			validator.headers,
 		);
 	}
 	const requests = new AbortController();
