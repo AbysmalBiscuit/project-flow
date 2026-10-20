@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { AutoMerge, Configuration } from "./configuration.ts";
-import type { TicketState } from "./domain.ts";
+import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
+import { sameRef } from "./configuration.ts";
+import type { KnownBot, TicketState } from "./domain.ts";
+import { knownBots } from "./domain.ts";
+import { onAppEvent } from "./events.ts";
 import { PageFrame } from "./shell.tsx";
 import {
 	navLabel,
@@ -22,15 +25,34 @@ import {
 
 type Trackers = { github: boolean; linear: boolean };
 
-type SettingsBody = Configuration & { trackers?: Trackers };
+type SettingsProject = {
+	name: string;
+	key: string;
+	tracker: "github" | "linear";
+	source: "found" | "pinned";
+	pinned: boolean;
+	hidden: boolean;
+	pmBot: boolean;
+	expectedBots: KnownBot[];
+	ref: ProjectPin;
+};
+
+type SettingsBody = Configuration & {
+	trackers?: Trackers;
+	projects?: SettingsProject[];
+};
 
 const sections = [
 	{ id: "general", label: settingsSection.general },
 	{ id: "project-views", label: settingsSection.views },
+	{ id: "projects", label: settingsSection.projects },
 	{ id: "review", label: settingsSection.review },
 	{ id: "notifications", label: settingsSection.notifications },
 	{ id: "trackers", label: settingsSection.trackers },
 ] as const;
+
+const trackerFilters = ["all", "github", "linear"] as const;
+const stateFilters = ["all", "pinned", "hidden", "shown"] as const;
 
 const laneStates = [
 	"backlog",
@@ -186,11 +208,15 @@ function Chips({
 function Menu({
 	loaded,
 	trackers,
+	projects,
 	onSave,
+	onReload,
 }: {
 	loaded: Configuration;
 	trackers: Trackers;
+	projects: SettingsProject[];
 	onSave: (next: Configuration) => Promise<string | null>;
+	onReload: () => void;
 }) {
 	const [saved, setSaved] = useState(draftOf(loaded));
 	const [draft, setDraft] = useState(draftOf(loaded));
@@ -201,6 +227,8 @@ function Menu({
 	const dirty = !same(draft, saved);
 	const view = draft.projectViews["*"] ?? viewDefaults();
 	const theme = pageTheme();
+
+	useEffect(() => onAppEvent("overview", onReload), [onReload]);
 
 	useEffect(() => {
 		const notify = navigator.permissions?.query({
@@ -283,10 +311,10 @@ function Menu({
 							hint={settingsCopy.activityHint}
 						>
 							<label className={clsx(fields.number)}>
-								<input
+								<select
 									id="activity-window"
-									className={clsx(fields.numberInput)}
-									inputMode="numeric"
+									className={clsx(fields.select)}
+									aria-label={settingsCopy.activityWindow}
 									value={String(draft.activityWindowDays)}
 									onChange={(event) => {
 										const days = Number(event.target.value);
@@ -294,7 +322,22 @@ function Menu({
 											patch({ activityWindowDays: days });
 										}
 									}}
-								/>
+								>
+									{ageChoices.map((days) =>
+										days === 0 ? null : (
+											<option key={days} value={days}>
+												{days}
+											</option>
+										),
+									)}
+									{ageChoices.includes(
+										draft.activityWindowDays as (typeof ageChoices)[number],
+									) ? null : (
+										<option value={draft.activityWindowDays}>
+											{draft.activityWindowDays}
+										</option>
+									)}
+								</select>
 								{settingsCopy.days}
 							</label>
 						</Row>
@@ -458,6 +501,8 @@ function Menu({
 							/>
 						</Row>
 					</section>
+
+					<ProjectsTable projects={projects} draft={draft} onChange={patch} />
 
 					<section id="review" className={clsx(fields.card)}>
 						<h2 className={clsx(fields.cardTitle)}>{settingsSection.review}</h2>
@@ -849,12 +894,390 @@ function AutoMergeEditor({
 }
 
 function configurationOf(body: SettingsBody): Configuration {
-	const { trackers: _trackers, ...configuration } = body;
+	const { trackers: _trackers, projects: _projects, ...configuration } = body;
 	return configuration;
+}
+
+function SearchGlyph() {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(fields.filterGlyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<circle cx="11" cy="11" r="6.5" />
+			<path d="M16 16l4 4" />
+		</svg>
+	);
+}
+
+function FilterGlyph() {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(fields.filterGlyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z" />
+		</svg>
+	);
+}
+
+function withoutRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
+	return refs.filter((item) => !sameRef(item, ref));
+}
+
+function withRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
+	return refs.some((item) => sameRef(item, ref)) ? refs : [...refs, ref];
+}
+
+function botsOf(draft: Configuration, key: string): KnownBot[] {
+	const match = Object.entries(draft.expectedBots ?? {}).find(
+		([name]) => name.toLowerCase() === key.toLowerCase(),
+	);
+	return match?.[1] ?? [];
+}
+
+function setBots(
+	draft: Configuration,
+	key: string,
+	bots: KnownBot[],
+): Configuration["expectedBots"] {
+	const next = { ...draft.expectedBots };
+	const match = Object.keys(next).find(
+		(name) => name.toLowerCase() === key.toLowerCase(),
+	);
+	if (match !== undefined) {
+		delete next[match];
+	}
+	if (bots.length > 0) {
+		next[key] = bots;
+	}
+	return next;
+}
+
+function pmBotOf(draft: Configuration, key: string): boolean | undefined {
+	const match = Object.entries(draft.pmBot).find(
+		([name]) => name.toLowerCase() === key.toLowerCase(),
+	);
+	return match?.[1];
+}
+
+function setPmBot(
+	draft: Configuration,
+	key: string,
+	tracker: SettingsProject["tracker"],
+	on: boolean,
+): Configuration["pmBot"] {
+	const next = { ...draft.pmBot };
+	const match = Object.keys(next).find(
+		(name) => name.toLowerCase() === key.toLowerCase(),
+	);
+	if (match !== undefined) {
+		delete next[match];
+	}
+	const implied = tracker === "github";
+	if (on !== implied) {
+		next[key] = on;
+	}
+	return next;
+}
+
+function projectMatches(
+	project: SettingsProject,
+	query: string,
+	tracker: (typeof trackerFilters)[number],
+	state: (typeof stateFilters)[number],
+): boolean {
+	if (tracker !== "all" && project.tracker !== tracker) {
+		return false;
+	}
+	if (state === "pinned" && !project.pinned) {
+		return false;
+	}
+	if (state === "hidden" && !project.hidden) {
+		return false;
+	}
+	if (state === "shown" && project.hidden) {
+		return false;
+	}
+	const needle = query.trim().toLowerCase();
+	if (needle === "") {
+		return true;
+	}
+	return (
+		project.name.toLowerCase().includes(needle) ||
+		project.key.toLowerCase().includes(needle)
+	);
+}
+
+function ProjectsTable({
+	projects,
+	draft,
+	onChange,
+}: {
+	projects: SettingsProject[];
+	draft: Configuration;
+	onChange: (next: Partial<Configuration>) => void;
+}) {
+	const [query, setQuery] = useState("");
+	const [tracker, setTracker] =
+		useState<(typeof trackerFilters)[number]>("all");
+	const [state, setState] = useState<(typeof stateFilters)[number]>("all");
+	const [filtersOpen, setFiltersOpen] = useState(false);
+
+	const shown = projects.filter((project) =>
+		projectMatches(project, query, tracker, state),
+	);
+
+	return (
+		<section id="projects" className={clsx(fields.card)}>
+			<h2 className={clsx(fields.cardTitle)}>{settingsSection.projects}</h2>
+			<p className={clsx(fields.projectsLead)}>{settingsCopy.projectsLead}</p>
+			<div className={clsx(fields.toolbar)}>
+				<label className={clsx(fields.projectSearch)} htmlFor="project-search">
+					<SearchGlyph />
+					<input
+						id="project-search"
+						className={clsx(fields.projectQuery)}
+						type="search"
+						aria-label={settingsCopy.searchProjects}
+						placeholder={settingsCopy.searchProjects}
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+					/>
+				</label>
+				<button
+					id="project-filter"
+					type="button"
+					className={clsx(fields.filterButton)}
+					aria-label={settingsCopy.filter}
+					aria-expanded={filtersOpen}
+					onClick={() => setFiltersOpen((open) => !open)}
+				>
+					<FilterGlyph />
+					{settingsCopy.filter}
+				</button>
+				<span id="project-count" className={clsx(fields.count)}>
+					{shown.length} {settingsCopy.of} {projects.length}{" "}
+					{settingsCopy.projects}
+				</span>
+			</div>
+			{filtersOpen ? (
+				<div id="project-filters" className={clsx(fields.filterPanel)}>
+					<div id="tracker-filter" className={clsx(fields.filterLabel)}>
+						<span>{settingsCopy.tracker}</span>
+						{(
+							[
+								["all", settingsCopy.all],
+								["github", settingsCopy.github],
+								["linear", settingsCopy.linear],
+							] as const
+						).map(([value, label]) => (
+							<button
+								key={value}
+								id={`tracker-${value}`}
+								type="button"
+								aria-pressed={tracker === value}
+								className={clsx(
+									fields.filterChoice,
+									tracker === value && fields.filterOn,
+								)}
+								onClick={() => setTracker(value)}
+							>
+								{label}
+							</button>
+						))}
+					</div>
+					<div id="state-filter" className={clsx(fields.filterLabel)}>
+						<span>{settingsCopy.state}</span>
+						{(
+							[
+								["all", settingsCopy.all],
+								["pinned", settingsCopy.pinned],
+								["hidden", settingsCopy.hidden],
+								["shown", settingsCopy.shown],
+							] as const
+						).map(([value, label]) => (
+							<button
+								key={value}
+								id={`state-${value}`}
+								type="button"
+								aria-pressed={state === value}
+								className={clsx(
+									fields.filterChoice,
+									state === value && fields.filterOn,
+								)}
+								onClick={() => setState(value)}
+							>
+								{label}
+							</button>
+						))}
+					</div>
+				</div>
+			) : null}
+			<table className={clsx(fields.table)}>
+				<thead className={clsx(fields.head)}>
+					<tr>
+						<th className={clsx(fields.headCell)}>{settingsCopy.project}</th>
+						<th className={clsx(fields.headSwitch)}>{settingsCopy.pinned}</th>
+						<th className={clsx(fields.headSwitch)}>{settingsCopy.hidden}</th>
+						<th className={clsx(fields.headSwitch)}>{settingsCopy.pmBot}</th>
+						<th className={clsx(fields.headCell)}>
+							{settingsCopy.expectedBots}
+						</th>
+					</tr>
+				</thead>
+				<tbody>
+					{shown.map((project) => (
+						<ProjectRow
+							key={`${project.tracker}:${project.key}`}
+							project={project}
+							draft={draft}
+							onChange={onChange}
+						/>
+					))}
+				</tbody>
+			</table>
+		</section>
+	);
+}
+
+function ProjectRow({
+	project,
+	draft,
+	onChange,
+}: {
+	project: SettingsProject;
+	draft: Configuration;
+	onChange: (next: Partial<Configuration>) => void;
+}) {
+	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
+	const bots = botsOf(draft, project.key);
+	const pmBot = pmBotOf(draft, project.key) ?? project.tracker === "github";
+	const pinned = draft.pinned.some((ref) => sameRef(ref, project.ref));
+	const hidden = draft.hidden.some((ref) => sameRef(ref, project.ref));
+	const missing = knownBots.filter((bot) => !bots.includes(bot));
+	return (
+		<tr id={`project-row-${id}`}>
+			<td className={clsx(fields.cell)}>
+				<div className={clsx(fields.projectName)}>{project.name}</div>
+				<div className={clsx(fields.projectMeta)}>
+					{project.tracker === "github"
+						? settingsCopy.github
+						: settingsCopy.linear}
+					{", "}
+					{project.key}
+				</div>
+			</td>
+			<td className={clsx(fields.switchCell)}>
+				<Switch
+					id={`pin-${id}`}
+					checked={pinned}
+					label={`${settingsCopy.pinned} ${project.name}`}
+					onChange={(next) =>
+						onChange({
+							pinned: next
+								? withRef(draft.pinned, project.ref)
+								: withoutRef(draft.pinned, project.ref),
+						})
+					}
+				/>
+			</td>
+			<td className={clsx(fields.switchCell)}>
+				<Switch
+					id={`hide-${id}`}
+					checked={hidden}
+					label={`${settingsCopy.hidden} ${project.name}`}
+					onChange={(next) =>
+						onChange({
+							hidden: next
+								? withRef(draft.hidden, project.ref)
+								: withoutRef(draft.hidden, project.ref),
+						})
+					}
+				/>
+			</td>
+			<td className={clsx(fields.switchCell)}>
+				<Switch
+					id={`pm-bot-${id}`}
+					checked={pmBot}
+					label={`${settingsCopy.pmBot} ${project.name}`}
+					onChange={(next) =>
+						onChange({
+							pmBot: setPmBot(draft, project.key, project.tracker, next),
+						})
+					}
+				/>
+			</td>
+			<td className={clsx(fields.cell)}>
+				<div className={clsx(fields.bots)}>
+					{bots.map((bot) => (
+						<span key={bot} className={clsx(fields.chip)}>
+							{bot}
+							<button
+								type="button"
+								className={clsx(fields.chipRemove)}
+								aria-label={`Remove ${bot}`}
+								onClick={() =>
+									onChange({
+										expectedBots: setBots(
+											draft,
+											project.key,
+											bots.filter((item) => item !== bot),
+										),
+									})
+								}
+							>
+								×
+							</button>
+						</span>
+					))}
+					{missing.length === 0 ? null : (
+						<select
+							id={`add-bot-${id}`}
+							className={clsx(fields.addBot)}
+							aria-label={`${settingsCopy.addBot} ${project.name}`}
+							value=""
+							onChange={(event) => {
+								const bot = knownBots.find(
+									(item) => item === event.target.value,
+								);
+								if (bot === undefined) {
+									return;
+								}
+								onChange({
+									expectedBots: setBots(draft, project.key, [...bots, bot]),
+								});
+							}}
+						>
+							<option value="">{settingsCopy.addBot}</option>
+							{missing.map((bot) => (
+								<option key={bot} value={bot}>
+									{bot}
+								</option>
+							))}
+						</select>
+					)}
+				</div>
+			</td>
+		</tr>
+	);
 }
 
 function Page() {
 	const [settings, setSettings] = useState<Configuration | null>(null);
+	const [projects, setProjects] = useState<SettingsProject[]>([]);
 	const [trackers, setTrackers] = useState<Trackers>({
 		github: false,
 		linear: false,
@@ -872,6 +1295,7 @@ function Page() {
 			.then((body) => {
 				if (!stopped) {
 					setTrackers(body.trackers ?? { github: false, linear: false });
+					setProjects(body.projects ?? []);
 					setSettings(configurationOf(body));
 				}
 			})
@@ -894,6 +1318,18 @@ function Page() {
 		<Menu
 			loaded={settings}
 			trackers={trackers}
+			projects={projects}
+			onReload={() => {
+				void fetch("/api/settings")
+					.then(async (response) =>
+						response.ok ? ((await response.json()) as SettingsBody) : null,
+					)
+					.then((body) => {
+						if (body?.projects !== undefined) {
+							setProjects(body.projects);
+						}
+					});
+			}}
 			onSave={async (next) => {
 				const current = await fetch("/api/settings");
 				if (!current.ok) {
@@ -909,8 +1345,10 @@ function Page() {
 						...next,
 						theme: live.theme,
 						overview: live.overview,
-						pinned: live.pinned,
-						hidden: live.hidden,
+						pinned: next.pinned,
+						hidden: next.hidden,
+						pmBot: next.pmBot,
+						expectedBots: next.expectedBots,
 						projectViews: {
 							...live.projectViews,
 							...(star === undefined ? {} : { "*": star }),
@@ -927,6 +1365,7 @@ function Page() {
 					throw new Error("save failed");
 				}
 				setTrackers(body.trackers ?? trackers);
+				setProjects(body.projects ?? []);
 				setSettings(configurationOf(body));
 				return null;
 			}}
