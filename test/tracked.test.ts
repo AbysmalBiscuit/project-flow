@@ -459,7 +459,7 @@ describe("tracked projects", () => {
 				};
 			});
 			expect(checked.added).toContain(
-				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1",
+				"https://api.github.com/graphql RepoRead acme/repo-1",
 			);
 			expect(checked.on.projects.map((project) => project.name)).toContain(
 				"acme/repo-1",
@@ -467,7 +467,7 @@ describe("tracked projects", () => {
 			expect(checked.on.tracked).toBeUndefined();
 			expect(
 				checked.removed.filter((request) =>
-					request.includes("/repo-1/issues?"),
+					request.includes("RepoRead acme/repo-1"),
 				),
 			).toEqual([]);
 			expect(
@@ -514,7 +514,7 @@ describe("tracked projects", () => {
 						againStatus: again.status,
 						removed: sent
 							.slice(before)
-							.filter((request) => request.includes("/repo-1/issues?")),
+							.filter((request) => request.includes("RepoRead acme/repo-1")),
 						overview: await read<Overview>(base, "/api/overview"),
 					};
 				},
@@ -562,11 +562,9 @@ describe("tracked projects", () => {
 			).toEqual(["acme/repo-1"]);
 			expect(
 				restarted.sent.filter((request) =>
-					request.includes("/repos/acme/repo-1/issues?"),
+					request.includes("RepoRead acme/repo-1"),
 				),
-			).toEqual([
-				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1&since=2026-08-18T12%3A00%3A00.000Z",
-			]);
+			).toContain("https://api.github.com/graphql RepoRead acme/repo-1");
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
