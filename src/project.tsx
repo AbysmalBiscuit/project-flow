@@ -310,19 +310,6 @@ function laneMark(colour: string) {
 	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
 }
 
-const stateMarks: Record<TicketView["state"], typeof board.markBacklog> = {
-	backlog: board.markBacklog,
-	inProgress: board.markInProgress,
-	inReview: board.markInReview,
-	awaitingMerge: board.markAwaitingMerge,
-	done: board.markDone,
-	dropped: board.markDropped,
-};
-
-function stateMark(state: TicketView["state"]) {
-	return stateMarks[state];
-}
-
 function Lane({
 	name,
 	colour,
@@ -418,14 +405,21 @@ const columnLabel: Record<Column, string> = {
 	updated: "Updated",
 };
 
-const stateOrder: Record<TicketView["state"], number> = {
-	backlog: 0,
-	inProgress: 1,
-	inReview: 2,
-	awaitingMerge: 3,
-	done: 4,
-	dropped: 5,
-};
+function relationSplit(ticket: TicketView): {
+	local: string[];
+	outside: OutsideBlocker[];
+} {
+	const outside = ticket.outsideBlockers ?? [];
+	const outsideKeys = new Set(
+		outside.map((blocker) => blocker.key.toLowerCase()),
+	);
+	return {
+		local: ticket.blockers.filter(
+			(blocker) => !outsideKeys.has(blocker.toLowerCase()),
+		),
+		outside,
+	};
+}
 
 function relationKeys(
 	ticket: TicketView,
@@ -434,16 +428,36 @@ function relationKeys(
 	if (column === "blocks") {
 		return (ticket.blocks ?? []).map((blocker) => blocker.key);
 	}
-	const outside = new Set(
-		(ticket.outsideBlockers ?? []).map((blocker) => blocker.key.toLowerCase()),
-	);
-	return [
-		...ticket.blockers.filter((key) => !outside.has(key.toLowerCase())),
-		...(ticket.outsideBlockers ?? []).map((blocker) => blocker.key),
-	];
+	const { local, outside } = relationSplit(ticket);
+	return [...local, ...outside.map((blocker) => blocker.key)];
 }
 
-function sortValue(ticket: TicketView, column: Column): string | number {
+function displayedLaneName(ticket: TicketView): string {
+	return ticket.lane ?? stateLabel[ticket.state];
+}
+
+function displayedLane(
+	ticket: TicketView,
+	lanes: ProjectReport["lanes"],
+): ProjectReport["lanes"][number] | undefined {
+	const name = displayedLaneName(ticket);
+	return lanes.find((lane) => lane.name === name);
+}
+
+const unknownLane = Number.MAX_SAFE_INTEGER;
+
+function laneRank(ticket: TicketView, lanes: ProjectReport["lanes"]): number {
+	const index = lanes.findIndex(
+		(lane) => lane.name === displayedLaneName(ticket),
+	);
+	return index === -1 ? unknownLane : index;
+}
+
+function sortValue(
+	ticket: TicketView,
+	column: Column,
+	lanes: ProjectReport["lanes"],
+): string | number {
 	if (column === "key") {
 		return ticket.key?.toLowerCase() ?? "";
 	}
@@ -451,7 +465,7 @@ function sortValue(ticket: TicketView, column: Column): string | number {
 		return ticket.title.toLowerCase();
 	}
 	if (column === "state") {
-		return stateOrder[ticket.state];
+		return laneRank(ticket, lanes);
 	}
 	if (column === "pr") {
 		return ticket.pull?.toLowerCase() ?? "";
@@ -471,9 +485,10 @@ function compareTickets(
 	right: TicketView,
 	column: Column,
 	direction: "asc" | "desc",
+	lanes: ProjectReport["lanes"],
 ): number {
-	const leftValue = sortValue(left, column);
-	const rightValue = sortValue(right, column);
+	const leftValue = sortValue(left, column, lanes);
+	const rightValue = sortValue(right, column, lanes);
 	const order =
 		typeof leftValue === "number" && typeof rightValue === "number"
 			? leftValue - rightValue
@@ -482,6 +497,18 @@ function compareTickets(
 		return direction === "asc" ? order : -order;
 	}
 	return (left.key ?? left.title).localeCompare(right.key ?? right.title);
+}
+
+function SortMark({ direction }: { direction: "asc" | "desc" }) {
+	return (
+		<svg
+			viewBox="0 0 8 8"
+			aria-hidden="true"
+			className={clsx(board.sortMark, direction === "desc" && board.sortDown)}
+		>
+			<path d="M1 5.5 4 2.5 7 5.5" fill="none" stroke="currentColor" />
+		</svg>
+	);
 }
 
 function updatedLabel(value: string | undefined): string {
@@ -497,25 +524,22 @@ function updatedLabel(value: string | undefined): string {
 
 function TableRow({
 	ticket,
+	lanes,
 	order,
 	selected,
 	onOpen,
 	onOpenOutside,
 }: {
 	ticket: TicketView;
+	lanes: ProjectReport["lanes"];
 	order: number;
 	selected: boolean;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
 	const key = ticket.key;
-	const outside = ticket.outsideBlockers ?? [];
-	const outsideKeys = new Set(
-		outside.map((blocker) => blocker.key.toLowerCase()),
-	);
-	const local = ticket.blockers.filter(
-		(blocker) => !outsideKeys.has(blocker.toLowerCase()),
-	);
+	const { local, outside } = relationSplit(ticket);
+	const lane = displayedLane(ticket, lanes);
 	return (
 		<tr
 			className={clsx(board.row, selected && board.rowOn)}
@@ -533,8 +557,13 @@ function TableRow({
 			</td>
 			<td className={clsx(board.rowCell, board.rowTitle)}>{ticket.title}</td>
 			<td className={clsx(board.rowCell)}>
-				<span className={clsx(board.stateMark, stateMark(ticket.state))} />
-				{ticket.lane ?? stateLabel[ticket.state]}
+				<span
+					className={clsx(
+						board.stateMark,
+						lane === undefined ? board.markBacklog : laneMark(lane.colour),
+					)}
+				/>
+				{displayedLaneName(ticket)}
 			</td>
 			<td className={clsx(board.rowCell)}>{ticket.pull ?? ""}</td>
 			<td className={clsx(board.rowCell)}>
@@ -598,7 +627,7 @@ function TicketTable({
 	const [column, setColumn] = useState<Column>("state");
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
 	const rows = [...report.tickets].sort((left, right) =>
-		compareTickets(left, right, column, direction),
+		compareTickets(left, right, column, direction, report.lanes),
 	);
 	return (
 		<div
@@ -629,7 +658,11 @@ function TicketTable({
 										type="button"
 										className={clsx(board.sort, shell.buttonFocus)}
 										data-column={item}
-										aria-label={`Sort by ${columnLabel[item]}`}
+										aria-label={
+											column === item
+												? `Sort by ${columnLabel[item]}, ${direction === "asc" ? "ascending" : "descending"}`
+												: `Sort by ${columnLabel[item]}`
+										}
 										onClick={() => {
 											if (column === item) {
 												setDirection((current) =>
@@ -642,11 +675,9 @@ function TicketTable({
 										}}
 									>
 										{columnLabel[item]}
-										{column === item
-											? direction === "asc"
-												? " up"
-												: " down"
-											: ""}
+										{column === item ? (
+											<SortMark direction={direction} />
+										) : null}
 									</button>
 								</th>
 							))}
@@ -657,6 +688,7 @@ function TicketTable({
 							<TableRow
 								key={`${ticket.key ?? ""} ${ticket.title}`}
 								ticket={ticket}
+								lanes={report.lanes}
 								order={index + 1}
 								selected={selected !== null && ticket.key === selected}
 								onOpen={onOpen}
@@ -1060,6 +1092,13 @@ function Page() {
 			key,
 		});
 	};
+	const openOutsideInPanel = (blocker: OutsideBlocker) => {
+		setPanelReport(null);
+		setPanelProject(blocker.project);
+		setPanelTracker(blocker.tracker);
+		setTicket(blocker.key);
+		setOpen(true);
+	};
 	return (
 		<AppShell>
 			<main className={clsx(frame.page, frame.wide, frame.fill)}>
@@ -1126,26 +1165,14 @@ function Page() {
 							settings={settings}
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
-							onOpenOutside={(blocker) => {
-								setPanelReport(null);
-								setPanelProject(blocker.project);
-								setPanelTracker(blocker.tracker);
-								setTicket(blocker.key);
-								setOpen(true);
-							}}
+							onOpenOutside={openOutsideInPanel}
 						/>
 					) : view === "table" ? (
 						<TicketTable
 							report={report}
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
-							onOpenOutside={(blocker) => {
-								setPanelReport(null);
-								setPanelProject(blocker.project);
-								setPanelTracker(blocker.tracker);
-								setTicket(blocker.key);
-								setOpen(true);
-							}}
+							onOpenOutside={openOutsideInPanel}
 						/>
 					) : (
 						<p className={clsx(board.placeholder)}>{view}</p>

@@ -1924,6 +1924,9 @@ export const board = stylex.create({
 		whiteSpace: "nowrap",
 	},
 	sort: {
+		display: "inline-flex",
+		alignItems: "center",
+		gap: space.xs,
 		padding: 0,
 		borderWidth: 0,
 		backgroundColor: "transparent",
@@ -1934,6 +1937,13 @@ export const board = stylex.create({
 		textAlign: "left",
 		cursor: "pointer",
 	},
+	sortMark: {
+		width: measure.dot,
+		height: measure.dot,
+	},
+	sortDown: {
+		transform: "scaleY(-1)",
+	},
 	row: {
 		backgroundColor: {
 			default: "transparent",
@@ -1942,7 +1952,10 @@ export const board = stylex.create({
 		cursor: "pointer",
 	},
 	rowOn: {
-		backgroundColor: colours.surfaceMuted,
+		backgroundColor: {
+			default: colours.rowOn,
+			":hover": colours.rowOn,
+		},
 	},
 	rowCell: {
 		padding: `${space.sm} ${space.md}`,

@@ -56,6 +56,7 @@ export const lightValues = {
 	controlLine: "#e7e7e4",
 	controlInk: "#18181b",
 	controlFill: "#ffffff",
+	rowOn: "#eef2fd",
 };
 
 export const darkValues = {
@@ -112,6 +113,7 @@ export const darkValues = {
 	controlLine: "#26262c",
 	controlInk: "#ededef",
 	controlFill: "#16161a",
+	rowOn: "#1a2236",
 };
 
 export const colours = stylex.defineVars({
@@ -198,6 +200,7 @@ export const colours = stylex.defineVars({
 		default: lightValues.controlFill,
 		[dark]: darkValues.controlFill,
 	},
+	rowOn: { default: lightValues.rowOn, [dark]: darkValues.rowOn },
 });
 
 export const space = stylex.defineVars({
