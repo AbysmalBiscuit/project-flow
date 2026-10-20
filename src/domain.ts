@@ -120,6 +120,8 @@ export type TicketView = {
 	run?: LiveRun;
 	updatedAt?: string;
 	assignees?: string[];
+	workstream?: string;
+	theme?: string;
 };
 
 export type CrossProjectBlocker = {
@@ -3426,6 +3428,7 @@ export function needsYouItems(
 
 const noScope = "no scope";
 const noWorkstream = "no workstream";
+const noAssignee = "Unassigned";
 
 const scopeInTitle = /^(?:[a-z]+)\(([^)]+)\)!?\s*:|^\[([^\]]+)\]/i;
 
@@ -3564,6 +3567,24 @@ function workstreamOf(
 		return root.title;
 	}
 	return ticket.milestone ?? noWorkstream;
+}
+
+export function groupKeyOf(
+	view: {
+		workstream?: string;
+		theme?: string;
+		assignees?: string[];
+	},
+	key: "workstream" | "theme" | "assignee",
+): string {
+	if (key === "assignee") {
+		const name = view.assignees?.[0];
+		return name === undefined || name.trim() === "" ? noAssignee : name.trim();
+	}
+	if (key === "workstream") {
+		return view.workstream ?? noWorkstream;
+	}
+	return view.theme ?? noScope;
 }
 
 function placeTickets(
@@ -3849,6 +3870,13 @@ export function projectReport(
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
 	const needsKeys = new Set(needs.map((item) => item.key.toLowerCase()));
+	const placedByKey = new Map(
+		placed.flatMap((item) =>
+			item.ticket.key === null
+				? []
+				: [[item.ticket.key.toLowerCase(), item] as const],
+		),
+	);
 	const boardTickets = counts.tickets.map((view) => {
 		const relations =
 			view.key === null
@@ -3858,8 +3886,13 @@ export function projectReport(
 			view.key === null ? undefined : pullByKey.get(view.key.toLowerCase());
 		const commentRun =
 			view.key === null ? undefined : runByKey.get(view.key.toLowerCase());
+		const placedItem =
+			view.key === null ? undefined : placedByKey.get(view.key.toLowerCase());
 		return {
 			...view,
+			...(placedItem === undefined
+				? {}
+				: { workstream: placedItem.workstream, theme: placedItem.theme }),
 			...(commentRun === undefined ? {} : { run: commentRun }),
 			...(relations === undefined ? {} : { blockers: relations.blockers }),
 			...(relations === undefined || relations.outsideBlockers.length === 0

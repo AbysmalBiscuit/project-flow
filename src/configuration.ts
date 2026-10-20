@@ -16,6 +16,7 @@ import {
 	defaultOpenView,
 	emptyMaxAgeDays,
 	graphDirections,
+	groupByKeys,
 	openViews,
 } from "./view-settings.ts";
 
@@ -119,6 +120,7 @@ const projectViewSettings = z.strictObject({
 	search: z.string().default(""),
 	openView: z.enum(openViews).default(defaultOpenView),
 	graphDirection: z.enum(graphDirections).default(defaultGraphDirection),
+	groupBy: z.enum(groupByKeys).default("none"),
 });
 
 const configurationSchema = z.strictObject({

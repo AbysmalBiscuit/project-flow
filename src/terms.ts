@@ -178,6 +178,13 @@ export const graphDirectionLabel = {
 	"top-to-bottom": "Top to bottom",
 } as const;
 
+export const groupByLabel = {
+	workstream: "Workstream",
+	theme: "Theme",
+	assignee: "Assignee",
+	none: "None",
+} as const;
+
 export const projectGraphLabel = {
 	legend: "Graph legend",
 	arrow: "Arrow: blocker to blocked",

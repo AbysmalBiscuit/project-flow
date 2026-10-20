@@ -1,5 +1,5 @@
 import "@xyflow/react/dist/style.css";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
@@ -9,17 +9,26 @@ import type {
 	ProjectReport,
 	TicketView,
 } from "./domain.ts";
-import { sameTicketKey } from "./domain.ts";
+import { groupKeyOf, sameTicketKey } from "./domain.ts";
+import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
-import { blockedLabel, loadingLabel, navLabel, stateLabel } from "./terms.ts";
+import {
+	blockedLabel,
+	groupByLabel,
+	loadingLabel,
+	navLabel,
+	stateLabel,
+} from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
 import {
+	type GroupBy,
+	groupByKeys,
 	laneAgeCap,
 	savedProjectView,
 	visibleLaneNames,
@@ -175,6 +184,30 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects).`;
 }
 
+function isGroupBy(value: string): value is GroupBy {
+	return (groupByKeys as readonly string[]).includes(value);
+}
+
+function groupNames(tickets: TicketView[], key: GroupBy): string[] {
+	if (key === "none") {
+		return [];
+	}
+	return [...new Set(tickets.map((ticket) => groupKeyOf(ticket, key)))].sort(
+		(left, right) => left.localeCompare(right),
+	);
+}
+
+function ticketsInGroup(
+	tickets: TicketView[],
+	key: GroupBy,
+	name: string,
+): TicketView[] {
+	if (key === "none") {
+		return tickets;
+	}
+	return tickets.filter((ticket) => groupKeyOf(ticket, key) === name);
+}
+
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
 	return report.tickets.filter((ticket) => displayedLaneName(ticket) === lane);
 }
@@ -320,10 +353,34 @@ function laneMark(colour: string) {
 	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
 }
 
+function LaneCards({
+	tickets,
+	onOpen,
+	onOpenOutside,
+}: {
+	tickets: TicketView[];
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
+}) {
+	return (
+		<ul className={clsx(board.cards)}>
+			{tickets.map((ticket) => (
+				<Card
+					key={`${ticket.key ?? ""} ${ticket.title}`}
+					ticket={ticket}
+					onOpen={onOpen}
+					onOpenOutside={onOpenOutside}
+				/>
+			))}
+		</ul>
+	);
+}
+
 function Lane({
 	name,
 	colour,
 	tickets,
+	groupBy,
 	capped,
 	shown,
 	reveal,
@@ -334,6 +391,7 @@ function Lane({
 	name: string;
 	colour: string;
 	tickets: TicketView[];
+	groupBy: GroupBy;
 	capped: boolean;
 	shown: boolean;
 	reveal: string | null;
@@ -362,16 +420,26 @@ function Lane({
 				/>
 				{name} {tickets.length}
 			</h2>
-			<ul className={clsx(board.cards, capped && !shown && board.cardsClip)}>
-				{visible.map((ticket) => (
-					<Card
-						key={`${ticket.key ?? ""} ${ticket.title}`}
-						ticket={ticket}
+			<div className={clsx(capped && !shown && board.cardsClip)}>
+				{groupBy === "none" ? (
+					<LaneCards
+						tickets={visible}
 						onOpen={onOpen}
 						onOpenOutside={onOpenOutside}
 					/>
-				))}
-			</ul>
+				) : (
+					groupNames(visible, groupBy).map((group) => (
+						<div key={group} data-group={group}>
+							<h3 className={clsx(board.swimlane)}>{group}</h3>
+							<LaneCards
+								tickets={ticketsInGroup(visible, groupBy, group)}
+								onOpen={onOpen}
+								onOpenOutside={onOpenOutside}
+							/>
+						</div>
+					))
+				)}
+			</div>
 			{capped && !shown && tickets.length > doneCap ? (
 				<button
 					type="button"
@@ -609,11 +677,13 @@ function TableRow({
 
 function TicketTable({
 	report,
+	groupBy,
 	selected,
 	onOpen,
 	onOpenOutside,
 }: {
 	report: ProjectReport;
+	groupBy: GroupBy;
 	selected: string | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: OutsideBlocker) => void;
@@ -628,6 +698,7 @@ function TicketTable({
 			className={clsx(board.grid)}
 			data-sort={column}
 			data-direction={direction}
+			data-group-by={groupBy}
 		>
 			{rows.length === 0 ? (
 				<p className={clsx(board.empty)}>No tickets</p>
@@ -678,17 +749,48 @@ function TicketTable({
 						</tr>
 					</thead>
 					<tbody>
-						{rows.map((ticket, index) => (
-							<TableRow
-								key={`${ticket.key ?? ""} ${ticket.title}`}
-								ticket={ticket}
-								lanes={report.lanes}
-								order={index + 1}
-								selected={selected !== null && ticket.key === selected}
-								onOpen={onOpen}
-								onOpenOutside={onOpenOutside}
-							/>
-						))}
+						{(groupBy === "none" ? [""] : groupNames(rows, groupBy)).flatMap(
+							(group) => {
+								const grouped =
+									groupBy === "none"
+										? rows
+										: ticketsInGroup(rows, groupBy, group);
+								const heading: ReactNode[] =
+									groupBy === "none"
+										? []
+										: [
+												<tr key={`group-${group}`} data-group={group}>
+													<th
+														className={clsx(board.groupRow)}
+														colSpan={columns.length}
+														scope="rowgroup"
+													>
+														{group} {grouped.length}
+													</th>
+												</tr>,
+											];
+								return [
+									...heading,
+									...grouped.map((ticket) => (
+										<TableRow
+											key={`${ticket.key ?? ""} ${ticket.title}`}
+											ticket={ticket}
+											lanes={report.lanes}
+											order={
+												rows.findIndex(
+													(item) =>
+														item.key === ticket.key &&
+														item.title === ticket.title,
+												) + 1
+											}
+											selected={selected !== null && ticket.key === selected}
+											onOpen={onOpen}
+											onOpenOutside={onOpenOutside}
+										/>
+									)),
+								];
+							},
+						)}
 					</tbody>
 				</table>
 			)}
@@ -711,12 +813,13 @@ function Board({
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
-		<div className={clsx(board.lanes)}>
+		<div className={clsx(board.lanes)} data-group-by={settings.groupBy}>
 			{visibleLanes(report, settings).map((lane) => (
 				<Lane
 					key={lane.id}
 					name={lane.name}
 					colour={lane.colour}
+					groupBy={settings.groupBy}
 					tickets={laneTickets(report, lane.name)}
 					capped={lane.statusType === "done"}
 					shown={shownDone}
@@ -1202,6 +1305,20 @@ function Page() {
 							saveView({ ...settings, search: event.target.value })
 						}
 					/>
+					<Dropdown
+						id="project-group"
+						label="Group by"
+						value={settings.groupBy}
+						choices={groupByKeys.map((id) => ({
+							id,
+							label: `Group by ${groupByLabel[id]}`,
+						}))}
+						onChange={(id) => {
+							if (isGroupBy(id)) {
+								saveView({ ...settings, groupBy: id });
+							}
+						}}
+					/>
 					<fieldset className={clsx(board.views)}>
 						<legend className={clsx(frame.legend)}>Views</legend>
 						{views.map((item) => (
@@ -1230,7 +1347,11 @@ function Page() {
 				{filterOpen ? (
 					<FilterPanel report={report} view={settings} onChange={saveView} />
 				) : null}
-				<div data-project={report.name} data-open-view={view} />
+				<div
+					data-project={report.name}
+					data-open-view={view}
+					data-group-by={settings.groupBy}
+				/>
 				<div className={clsx(board.stage)}>
 					{view === "board" ? (
 						<Board
@@ -1243,6 +1364,7 @@ function Page() {
 					) : view === "table" ? (
 						<TicketTable
 							report={report}
+							groupBy={settings.groupBy}
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
 							onOpenOutside={openOutsideInPanel}
@@ -1252,6 +1374,7 @@ function Page() {
 							report={report}
 							reports={outsideReports}
 							direction={settings.graphDirection}
+							groupBy={settings.groupBy}
 							openKey={open ? ticket : null}
 							onOpen={(node) => {
 								if (node.outside) {
