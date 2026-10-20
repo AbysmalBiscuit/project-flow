@@ -74,7 +74,7 @@ export type Ticket = {
 	assignees?: string[];
 	status?: TicketStatus;
 	emptyStatus?: boolean;
-	history?: { statusId: string; at: string }[];
+	history?: { statusId: string; at: string; statusType?: StatusType }[];
 };
 
 export type TicketView = {
@@ -2184,7 +2184,10 @@ function enteredStateAt(ticket: Ticket, lane: Lane): string {
 	const history = ticket.history ?? [];
 	let entered: string | undefined;
 	for (const change of history) {
-		if (change.statusId === lane.id && change.at !== "") {
+		const sameLane = change.statusId === lane.id;
+		const sameType =
+			change.statusType !== undefined && change.statusType === lane.statusType;
+		if ((sameLane || sameType) && change.at !== "") {
 			entered =
 				entered === undefined || change.at > entered ? change.at : entered;
 		}

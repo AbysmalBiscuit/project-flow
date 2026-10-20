@@ -9,6 +9,7 @@ import type {
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
+	StatusType,
 	Thread,
 	ThreadComment,
 	Ticket,
@@ -655,6 +656,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 							name
 							optionId
 							color
+							updatedAt
 						}
 					}
 					content {
@@ -720,6 +722,7 @@ const projectItem = z.object({
 			name: z.string().nullable().optional(),
 			optionId: z.string().nullable().optional(),
 			color: z.string().nullable().optional(),
+			updatedAt: z.string().nullable().optional(),
 		})
 		.nullable()
 		.optional(),
@@ -930,6 +933,24 @@ function githubItemStatus(
 			statusType: statusTypeOfName(name),
 			colour: githubOptionColour(value?.color ?? ""),
 		},
+	};
+}
+
+function statusChangedAt(
+	value: z.infer<typeof projectItem>["fieldValueByName"],
+):
+	| {
+			history: { statusId: string; at: string; statusType: StatusType }[];
+	  }
+	| Record<string, never> {
+	const name = value?.name?.trim() ?? "";
+	const statusId = value?.optionId?.trim() ?? "";
+	const at = value?.updatedAt?.trim() ?? "";
+	if (name === "" || statusId === "" || at === "") {
+		return {};
+	}
+	return {
+		history: [{ statusId, at, statusType: statusTypeOfName(name) }],
 	};
 }
 
@@ -1215,6 +1236,7 @@ async function listProjectTickets(
 			parent,
 			labels: content.labels?.nodes.map((label) => label.name) ?? [],
 			...githubItemStatus(item.fieldValueByName),
+			...statusChangedAt(item.fieldValueByName),
 		});
 	}
 	return tickets;
