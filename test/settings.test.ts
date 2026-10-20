@@ -1048,7 +1048,12 @@ describe("settings", () => {
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...before,
-						overview: { filter: "needs-you", sort: "progress", view: "table" },
+						overview: {
+							filter: "needs-you",
+							sort: "progress",
+							direction: "asc",
+							view: "table",
+						},
 					}),
 				});
 				expect(viewOnly.status).toBe(200);
@@ -1056,6 +1061,7 @@ describe("settings", () => {
 				expect(saved.overview).toEqual({
 					filter: "needs-you",
 					sort: "progress",
+					direction: "asc",
 					view: "table",
 				});
 				expect(requests.length).toBe(seen);
