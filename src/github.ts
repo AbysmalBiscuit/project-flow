@@ -271,6 +271,19 @@ export function rememberValidator(
 	});
 }
 
+function sameHeaders(
+	left: [string, string][],
+	right: [string, string][],
+): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+	return left.every(
+		([name, value], index) =>
+			name === right[index]?.[0] && value === right[index]?.[1],
+	);
+}
+
 function requestUrl(input: string | URL | Request): string {
 	if (typeof input === "string") {
 		return input;
@@ -327,17 +340,20 @@ export function conditionalFetch(
 			const next = response.headers.get("etag");
 			const etag = next !== null && next !== "" ? next : stored.etag;
 			replayed.set("etag", etag);
-			cache.set(key, {
-				etag,
-				body: stored.body,
-				headers: [...replayed.entries()],
-			});
-			remember?.(
-				key,
-				etag,
-				JSON.stringify(stored.body),
-				JSON.stringify([...replayed.entries()]),
-			);
+			const kept = [...replayed.entries()];
+			if (etag !== stored.etag || !sameHeaders(stored.headers, kept)) {
+				cache.set(key, {
+					etag,
+					body: stored.body,
+					headers: kept,
+				});
+				remember?.(
+					key,
+					etag,
+					JSON.stringify(stored.body),
+					JSON.stringify(kept),
+				);
+			}
 			return new Response(JSON.stringify(stored.body), {
 				status: 200,
 				headers: replayed,
