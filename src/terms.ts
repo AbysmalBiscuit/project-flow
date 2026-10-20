@@ -122,7 +122,6 @@ export const overviewFilterLabel = {
 	all: "All projects",
 	"needs-you": "Needs you",
 	blocked: "Blocked",
-	pinned: "Pinned",
 } as const;
 
 export const overviewSortLabel = {
@@ -155,7 +154,6 @@ export const tableColumnLabel = {
 } as const;
 
 export const overviewControlLabel = {
-	pinned: "Pinned",
 	filter: "Filter",
 	sort: "Sort",
 	search: "Search projects",
@@ -249,9 +247,6 @@ export const settingsCopy = {
 	theme: "Theme",
 	themeHint:
 		"The theme button in the header switches light and dark. The app writes the choice to the configuration file at once, and starts in it next time.",
-	activityWindow: "Activity window",
-	activityHint: "Show projects with ticket activity in this many days.",
-	days: "days",
 	pollInterval: "Poll interval",
 	pollHint: "How often each tracker is read.",
 	viewsLead:
@@ -309,15 +304,13 @@ export const settingsCopy = {
 	statusName: "Status name",
 	repo: "Repo",
 	projectsLead:
-		"Pinned projects always show. Hidden projects never show. Expected review bots must review a PR before it counts as reviewed. PM Bot reviews and answers the run's questions for this project.",
+		"Project Flow polls only tracked projects, and only tracked projects show on the overview. Expected review bots must review a PR before it counts as reviewed. PM Bot reviews and answers the run's questions for this project.",
 	searchProjects: "Search projects",
 	filter: "Filter",
 	tracker: "Tracker",
 	state: "State",
 	all: "All",
-	pinned: "Pinned",
-	hidden: "Hidden",
-	shown: "Shown",
+	tracked: "Tracked",
 	project: "Project",
 	pmBot: "PM Bot",
 	expectedBots: "Expected review bots",

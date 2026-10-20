@@ -9,6 +9,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	trackFound,
 	unrecorded,
 	urlOf,
 } from "./support.ts";
@@ -168,17 +169,22 @@ async function overview(input: {
 	linear?: boolean;
 	roots?: string;
 	fetch?: Fetch;
+	tracked?: { tracker: "github"; repo: string }[];
 }): Promise<{ body: unknown; requests: string[] }> {
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const scan = await mkdtemp(join(tmpdir(), "project-flow-scan-"));
 	const { path, cleanup } = await tempConfig(
-		JSON.stringify({ pinned: [], checkoutRoots: [input.roots ?? scan] }),
+		JSON.stringify({
+			tracked: input.tracked ?? [],
+			checkoutRoots: [input.roots ?? scan],
+		}),
 	);
 	const requests = input.requests ?? [];
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<unknown>((resolve, reject) => {
 		startChecks = (base: string) => {
-			fetch(new URL("/api/overview", base))
+			trackFound(base)
+				.then(() => fetch(new URL("/api/overview", base)))
 				.then(async (response) => {
 					expect(response.status).toBe(200);
 					resolve(await response.json());
@@ -259,7 +265,6 @@ const card = {
 	crossProjectBlockers: [],
 	needsYou: 0,
 	progress: 0,
-	pinned: false,
 	ref: { tracker: "github" as const, repo: named },
 };
 
@@ -288,7 +293,7 @@ describe("local projects", () => {
 		).toBe(true);
 		expect(
 			requests.filter((request) => request.includes("ViewerProjects")),
-		).toHaveLength(1);
+		).toHaveLength(2);
 	});
 
 	test("a project named only by a devkit todo appears", async () => {
@@ -438,7 +443,6 @@ describe("local projects", () => {
 				{
 					name: linearName,
 					tracker: "linear",
-					pinned: false,
 					ref: { tracker: "linear", project: linearPin },
 					done: 0,
 					dropped: 0,
@@ -568,7 +572,6 @@ describe("local projects", () => {
 				{
 					name: linearName,
 					tracker: "linear",
-					pinned: false,
 					ref: { tracker: "linear", project: linearPin },
 					done: 0,
 					dropped: 0,
@@ -709,7 +712,6 @@ describe("local projects", () => {
 					{
 						name: linearName,
 						tracker: "linear",
-						pinned: false,
 						ref: { tracker: "linear", project: linearPin },
 						done: 0,
 						dropped: 0,
@@ -760,6 +762,7 @@ describe("local projects", () => {
 		const base = localFetch(requests);
 		const { body } = await overview({
 			requests,
+			tracked: [{ tracker: "github", repo: named }],
 			fetch: async (input, init) => {
 				const bodyText = typeof init?.body === "string" ? init.body : "";
 				if (
@@ -897,6 +900,7 @@ describe("local projects", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
+					await trackFound(base);
 					const second = await fetch(new URL("/api/overview", base));
 					expect(second.status).toBe(200);
 					expect(await second.json()).toEqual({
@@ -904,7 +908,6 @@ describe("local projects", () => {
 							{
 								name: "Local board",
 								tracker: "github",
-								pinned: false,
 								ref: { tracker: "github", owner: "lev", project: 4 },
 								done: 0,
 								dropped: 0,
@@ -947,7 +950,7 @@ describe("local projects", () => {
 					});
 					expect(
 						requests.filter((body) => body.includes("ViewerProjects")),
-					).toHaveLength(2);
+					).toHaveLength(3);
 					resolve();
 				})().catch(reject);
 			};
@@ -978,6 +981,7 @@ describe("local projects", () => {
 		const base = localFetch(requests);
 		const { body } = await overview({
 			requests,
+			tracked: [{ tracker: "github", repo: named }],
 			fetch: async (input, init) => {
 				const bodyText = typeof init?.body === "string" ? init.body : "";
 				if (

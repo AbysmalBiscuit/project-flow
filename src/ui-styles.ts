@@ -765,21 +765,6 @@ export const cards = stylex.create({
 		width: measure.sortMark,
 		height: measure.sortMark,
 	},
-	star: {
-		display: "inline-flex",
-		alignItems: "center",
-		justifyContent: "center",
-		padding: 0,
-		borderWidth: measure.none,
-		backgroundColor: "transparent",
-		color: colours.inkMuted,
-		font: "inherit",
-		lineHeight: 1,
-		cursor: "pointer",
-	},
-	pinned: {
-		color: colours.ink,
-	},
 	name: {
 		fontWeight: type.weight,
 	},
@@ -960,13 +945,6 @@ export const cards = stylex.create({
 		fontSize: type.small,
 		fontWeight: type.weight,
 		whiteSpace: "nowrap",
-	},
-	pin: {
-		color: colours.ink,
-		fontSize: type.small,
-	},
-	pinOff: {
-		color: colours.inkSoft,
 	},
 	quiet: {
 		color: colours.inkSoft,
@@ -2568,26 +2546,6 @@ export const settings = stylex.create({
 	hint: {
 		color: colours.inkSoft,
 		fontSize: type.meta,
-	},
-	number: {
-		display: "inline-flex",
-		gap: space.xs,
-		alignItems: "center",
-		color: colours.inkMuted,
-		fontSize: type.meta,
-	},
-	numberInput: {
-		boxSizing: "border-box",
-		width: measure.narrow,
-		padding: `${space.xs} ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.sm,
-		backgroundColor: colours.page,
-		color: colours.ink,
-		font: "inherit",
-		textAlign: "right",
 	},
 	select: {
 		padding: `${space.xs} ${space.sm}`,

@@ -59,12 +59,7 @@ export function sameRef(left: ProjectPin, right: ProjectPin): boolean {
 
 const knownBot = z.enum(knownBots);
 
-export const overviewFilters = [
-	"all",
-	"needs-you",
-	"blocked",
-	"pinned",
-] as const;
+export const overviewFilters = ["all", "needs-you", "blocked"] as const;
 
 export const overviewSorts = [
 	"project",
@@ -91,13 +86,13 @@ const storedSorts = [
 
 const overviewView = z
 	.strictObject({
-		filter: z.enum(overviewFilters).default("all"),
+		filter: z.enum([...overviewFilters, "pinned"]).default("all"),
 		sort: z.enum(storedSorts).default("project"),
 		direction: z.enum(overviewDirections).default("asc"),
 		view: z.enum(overviewViews).default("cards"),
 	})
 	.transform(({ filter, sort, direction, view }) => ({
-		filter,
+		filter: filter === "pinned" ? "all" : filter,
 		sort:
 			sort === "name"
 				? "project"
@@ -124,48 +119,62 @@ const projectViewSettings = z.strictObject({
 	groupBy: z.enum(groupByKeys).default(defaultGroupBy),
 });
 
-const configurationSchema = z.strictObject({
-	theme: z.enum(["light", "dark"]).default("light"),
-	overview: overviewView.default({
-		filter: "all",
-		sort: "project",
-		direction: "asc",
-		view: "cards",
-	}),
-	pinned: z.array(projectRef).default([]),
-	hidden: z.array(projectRef).default([]),
-	activityWindowDays: z.number().int().positive().default(30),
-	pollIntervalSeconds: z.number().int().positive().default(300),
-	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
-	expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
-	pmBot: z.record(z.string(), z.boolean()).default({}),
-	autoMerge: z.record(z.string(), z.enum(["yes", "ask", "no"])).default({}),
-	laneMappings: z
-		.record(
-			z.string(),
-			z.strictObject({
-				backlog: z.string().optional(),
-				inProgress: z.string().optional(),
-				inReview: z.string().optional(),
-				awaitingMerge: z.string().optional(),
-				done: z.string().optional(),
-				dropped: z.string().optional(),
-			}),
-		)
-		.default({}),
-	needsYouLabels: z
-		.array(z.string())
-		.default(["needs-human", "needs-engineer"]),
-	viewerLogins: z.array(z.string()).default([]),
-	notificationTriggers: z
-		.strictObject({
-			needsYou: z.boolean().default(true),
-			comment: z.boolean().default(true),
-			blockerCleared: z.boolean().default(true),
-		})
-		.default({ needsYou: true, comment: true, blockerCleared: true }),
-	projectViews: z.record(z.string(), projectViewSettings).default({}),
-});
+const configurationSchema = z
+	.strictObject({
+		theme: z.enum(["light", "dark"]).default("light"),
+		overview: overviewView.default({
+			filter: "all",
+			sort: "project",
+			direction: "asc",
+			view: "cards",
+		}),
+		tracked: z.array(projectRef).optional(),
+		pinned: z.array(projectRef).optional(),
+		hidden: z.unknown().optional(),
+		activityWindowDays: z.unknown().optional(),
+		pollIntervalSeconds: z.number().int().positive().default(300),
+		checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
+		expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
+		pmBot: z.record(z.string(), z.boolean()).default({}),
+		autoMerge: z.record(z.string(), z.enum(["yes", "ask", "no"])).default({}),
+		laneMappings: z
+			.record(
+				z.string(),
+				z.strictObject({
+					backlog: z.string().optional(),
+					inProgress: z.string().optional(),
+					inReview: z.string().optional(),
+					awaitingMerge: z.string().optional(),
+					done: z.string().optional(),
+					dropped: z.string().optional(),
+				}),
+			)
+			.default({}),
+		needsYouLabels: z
+			.array(z.string())
+			.default(["needs-human", "needs-engineer"]),
+		viewerLogins: z.array(z.string()).default([]),
+		notificationTriggers: z
+			.strictObject({
+				needsYou: z.boolean().default(true),
+				comment: z.boolean().default(true),
+				blockerCleared: z.boolean().default(true),
+			})
+			.default({ needsYou: true, comment: true, blockerCleared: true }),
+		projectViews: z.record(z.string(), projectViewSettings).default({}),
+	})
+	.transform(
+		({
+			tracked,
+			pinned,
+			hidden: _hidden,
+			activityWindowDays: _days,
+			...rest
+		}) => ({
+			...rest,
+			tracked: tracked ?? pinned ?? [],
+		}),
+	);
 
 export type ProjectViewSettings = z.infer<typeof projectViewSettings>;
 

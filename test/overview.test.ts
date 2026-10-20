@@ -13,6 +13,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	trackFound,
 	unrecorded,
 	urlOf,
 } from "./support.ts";
@@ -152,7 +153,6 @@ async function assertCard(base: string): Promise<void> {
 		{
 			name: repo,
 			tracker: "github",
-			pinned: true,
 			ref: { tracker: "github", repo },
 			done: 2,
 			dropped: 2,
@@ -472,7 +472,6 @@ describe("GET /api/overview", () => {
 					{
 						name: repoA,
 						tracker: "github",
-						pinned: true,
 						ref: { tracker: "github", repo: repoA },
 						done: 0,
 						dropped: 0,
@@ -521,7 +520,6 @@ describe("GET /api/overview", () => {
 					{
 						name: repoB,
 						tracker: "github",
-						pinned: true,
 						ref: { tracker: "github", repo: repoB },
 						done: 0,
 						dropped: 0,
@@ -728,7 +726,6 @@ describe("GET /api/overview", () => {
 					{
 						name: linearName,
 						tracker: "linear",
-						pinned: true,
 						ref: { tracker: "linear", project: linearProject },
 						done: 1,
 						dropped: 0,
@@ -954,7 +951,6 @@ describe("GET /api/overview", () => {
 						expect(github).toEqual({
 							name: repo,
 							tracker: "github",
-							pinned: true,
 							ref: { tracker: "github", repo },
 							done: 2,
 							dropped: 2,
@@ -1047,7 +1043,6 @@ describe("GET /api/overview", () => {
 						expect(linear).toEqual({
 							name: linearName,
 							tracker: "linear",
-							pinned: true,
 							ref: { tracker: "linear", project: linearProject },
 							done: 2,
 							dropped: 2,
@@ -1254,7 +1249,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};
@@ -1283,7 +1279,6 @@ describe("GET /api/overview", () => {
 					{
 						name: pullRepo,
 						tracker: "github",
-						pinned: false,
 						ref: { tracker: "github", repo: pullRepo },
 						done: 0,
 						dropped: 0,
@@ -1454,7 +1449,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
 						resolve(await response.json());
@@ -1486,7 +1482,6 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
-						pinned: false,
 						ref: { tracker: "github", repo: repo },
 						done: 1,
 						dropped: 0,
@@ -1536,7 +1531,6 @@ describe("GET /api/overview", () => {
 					{
 						name: "Widget launch",
 						tracker: "linear",
-						pinned: false,
 						ref: { tracker: "linear", project: linearProject },
 						done: 1,
 						dropped: 0,
@@ -1738,7 +1732,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};
@@ -1767,7 +1762,6 @@ describe("GET /api/overview", () => {
 					{
 						name: "Org board",
 						tracker: "github",
-						pinned: false,
 						ref: { tracker: "github", owner: "acme", project: 9 },
 						done: 0,
 						dropped: 0,
@@ -1910,7 +1904,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};
@@ -1939,7 +1934,6 @@ describe("GET /api/overview", () => {
 					{
 						name: "Member launch",
 						tracker: "linear",
-						pinned: false,
 						ref: { tracker: "linear", project: "member-launch" },
 						done: 0,
 						dropped: 0,
@@ -2122,7 +2116,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};
@@ -2304,7 +2299,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};
@@ -2333,7 +2329,6 @@ describe("GET /api/overview", () => {
 					{
 						name: "Widget board",
 						tracker: "github",
-						pinned: false,
 						ref: { tracker: "github", owner: "acme", project: 3 },
 						done: 1,
 						dropped: 0,
@@ -2381,7 +2376,6 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
-						pinned: false,
 						ref: { tracker: "github", repo: repo },
 						done: 0,
 						dropped: 0,
@@ -2431,13 +2425,12 @@ describe("GET /api/overview", () => {
 		}
 	});
 
-	test("a pinned GitHub project shows and a hidden GitHub project never shows", async () => {
+	test("a tracked GitHub project shows and an untracked GitHub project never shows", async () => {
 		const pinnedId = "PVT_pinned";
 		const hiddenId = "PVT_hidden";
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
-				pinned: [{ tracker: "github", owner: "acme", project: 7 }],
-				hidden: [{ tracker: "github", owner: "acme", project: 8 }],
+				tracked: [{ tracker: "github", owner: "acme", project: 7 }],
 			}),
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -2579,7 +2572,6 @@ describe("GET /api/overview", () => {
 					{
 						name: "Pinned board",
 						tracker: "github",
-						pinned: true,
 						ref: { tracker: "github", owner: "acme", project: 7 },
 						done: 0,
 						dropped: 0,
@@ -2625,208 +2617,10 @@ describe("GET /api/overview", () => {
 		}
 	});
 
-	test("a quiet GitHub project releases its tickets to the repo", async () => {
-		const quietId = "PVT_quiet";
-		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		const quietBoard: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			const body = typeof init?.body === "string" ? init.body : "";
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url.startsWith("https://api.github.com/user/repos")) {
-				return new Response(
-					JSON.stringify([
-						{
-							full_name: repo,
-							pushed_at: "2026-08-18T12:00:00.000Z",
-						},
-					]),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			if (url.includes(`/repos/${repo}/issues?`)) {
-				return page([ticket(9, "open", null)], null);
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ViewerProjects")
-			) {
-				return new Response(
-					JSON.stringify({
-						data: {
-							viewer: {
-								login: "lev",
-								projectsV2: {
-									nodes: [
-										{
-											id: quietId,
-											number: 4,
-											owner: { login: "acme" },
-											title: "Quiet board",
-											closed: false,
-											updatedAt: "2026-01-01T12:00:00Z",
-										},
-									],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-								organizations: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-							},
-						},
-					}),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ProjectFields")
-			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("node(id:")
-			) {
-				return new Response(
-					JSON.stringify({
-						data: {
-							node: {
-								items: {
-									nodes: [
-										{
-											content: {
-												__typename: "Issue",
-												number: 9,
-												state: "OPEN",
-												stateReason: null,
-												repository: { nameWithOwner: repo },
-											},
-										},
-									],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-							},
-						},
-					}),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			if (
-				url === "https://api.linear.app/graphql" &&
-				body.includes("projects(")
-			) {
-				return new Response(
-					JSON.stringify({
-						data: {
-							viewer: { id: "lev" },
-							projects: {
-								nodes: [],
-								pageInfo: { hasNextPage: false, endCursor: null },
-							},
-						},
-					}),
-					{ status: 200 },
-				);
-			}
-			if (url === "https://api.linear.app/graphql") {
-				return new Response(
-					JSON.stringify({ data: { viewer: { id: "lev" } } }),
-					{ status: 200 },
-				);
-			}
-			return (
-				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
-			);
-		};
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<unknown>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) => resolve(await response.json()))
-					.catch(reject);
-			};
-		});
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: {
-						GITHUB_TOKEN: "recorded-token",
-						LINEAR_API_KEY: "recorded-linear-key",
-					},
-					fetch: quietBoard,
-					readGhToken: async () => null,
-					databasePath: join(root, "project-flow.sqlite"),
-					now: () => new Date("2026-08-18T12:00:00.000Z"),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks.then(() => undefined),
-				}),
-			);
-			expect(result.stderr).toBe("");
-			expect(result.exitCode).toBe(0);
-			const body = (await checks) as Overview;
-			expect(body).toEqual({
-				projects: [
-					{
-						name: repo,
-						tracker: "github",
-						pinned: false,
-						ref: { tracker: "github", repo: repo },
-						done: 0,
-						dropped: 0,
-						backlog: 1,
-						inProgress: 0,
-						inReview: 0,
-						awaitingMerge: 0,
-						tags: [],
-						blocked: 0,
-						crossProjectBlockers: [],
-						needsYou: 0,
-						progress: 0,
-						tickets: [
-							{
-								key: `${repo}#9`,
-								title: "Ticket 9",
-								state: "backlog",
-								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
-								enteredStateAt: "2026-10-18T12:00:00.000Z",
-								updatedAt: "2026-10-18T12:00:00.000Z",
-							},
-						],
-						unlinkedPrs: [],
-						fetchedAt: body.projects[0]?.fetchedAt ?? null,
-						error: null,
-						statusTypes: {
-							backlog: 1,
-							inProgress: 0,
-							inReview: 0,
-							awaitingMerge: 0,
-							done: 0,
-							dropped: 0,
-						},
-					},
-				],
-				fetchedAt: body.fetchedAt,
-				error: null,
-			});
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("a hidden GitHub project releases its tickets to the repo", async () => {
+	test("an untracked GitHub project releases its tickets to the repo", async () => {
 		const hiddenId = "PVT_hidden_claim";
 		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				hidden: [{ tracker: "github", owner: "acme", project: 8 }],
-			}),
+			JSON.stringify({ tracked: [{ tracker: "github", repo }] }),
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const hiddenBoard: Fetch = async (input, init) => {
@@ -2974,7 +2768,6 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
-						pinned: false,
 						ref: { tracker: "github", repo: repo },
 						done: 0,
 						dropped: 0,
@@ -3141,7 +2934,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};
@@ -3170,7 +2964,6 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
-						pinned: false,
 						ref: { tracker: "github", repo: repo },
 						done: 0,
 						dropped: 0,
@@ -3211,159 +3004,6 @@ describe("GET /api/overview", () => {
 				fetchedAt: body.fetchedAt,
 				error: null,
 			});
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("a quiet project is hidden, a pinned project always shows, and a hidden project never shows", async () => {
-		const quietRepo = "acme/quiet";
-		const activeRepo = "acme/active";
-		const pinnedRepo = "acme/pinned-quiet";
-		const hiddenRepo = "acme/hidden-active";
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo: pinnedRepo }],
-				hidden: [{ tracker: "github", repo: hiddenRepo }],
-			}),
-		);
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		const databasePath = join(root, "project-flow.sqlite");
-		const now = new Date("2026-08-18T12:00:00.000Z");
-		const recent = "2026-08-01T12:00:00.000Z";
-		const stale = "2026-01-01T12:00:00.000Z";
-		const visibility: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			const body = typeof init?.body === "string" ? init.body : "";
-			if (url === "https://api.github.com/user") {
-				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-			}
-			if (url.startsWith("https://api.github.com/user/repos")) {
-				return new Response(
-					JSON.stringify([
-						{
-							full_name: quietRepo,
-							owner: { login: "lev" },
-							permissions: { push: true },
-							pushed_at: stale,
-						},
-						{
-							full_name: activeRepo,
-							owner: { login: "lev" },
-							permissions: { push: true },
-							pushed_at: recent,
-						},
-						{
-							full_name: pinnedRepo,
-							owner: { login: "lev" },
-							permissions: { push: true },
-							pushed_at: stale,
-						},
-						{
-							full_name: hiddenRepo,
-							owner: { login: "lev" },
-							permissions: { push: true },
-							pushed_at: recent,
-						},
-					]),
-					{ status: 200, headers: { "content-type": "application/json" } },
-				);
-			}
-			const match = url.match(
-				/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?/,
-			);
-			if (match?.[1] !== undefined) {
-				const open = match[1] === activeRepo || match[1] === hiddenRepo;
-				return page(
-					[
-						{
-							...ticket(1, open ? "open" : "closed", open ? null : "completed"),
-							updated_at: match[1] === quietRepo ? stale : recent,
-						},
-					],
-					null,
-				);
-			}
-			if (url === "https://api.github.com/graphql") {
-				return new Response(
-					JSON.stringify({
-						data: {
-							viewer: {
-								login: "lev",
-								projectsV2: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-								organizations: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-							},
-						},
-					}),
-					{ status: 200 },
-				);
-			}
-			if (url === "https://api.linear.app/graphql") {
-				if (body.includes("projects(")) {
-					return new Response(
-						JSON.stringify({
-							data: {
-								viewer: { id: "lev" },
-								projects: {
-									nodes: [],
-									pageInfo: { hasNextPage: false, endCursor: null },
-								},
-							},
-						}),
-						{ status: 200 },
-					);
-				}
-				return new Response(
-					JSON.stringify({ data: { viewer: { id: "lev" } } }),
-					{
-						status: 200,
-					},
-				);
-			}
-			return (
-				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
-			);
-		};
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<unknown>((resolve, reject) => {
-			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
-					.then(async (response) => resolve(await response.json()))
-					.catch(reject);
-			};
-		});
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: {
-						GITHUB_TOKEN: "recorded-token",
-						LINEAR_API_KEY: "recorded-linear-key",
-					},
-					fetch: visibility,
-					readGhToken: async () => null,
-					databasePath,
-					now: () => now,
-					stdout: (line) => startChecks(line),
-					waitForStop: checks.then(() => undefined),
-				}),
-			);
-			expect(result.stderr).toBe("");
-			expect(result.exitCode).toBe(0);
-			const overview = (await checks) as {
-				projects: { name: string }[];
-			};
-			expect(overview.projects.map((project) => project.name).sort()).toEqual([
-				activeRepo,
-				pinnedRepo,
-			]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -3437,13 +3077,12 @@ describe("GET /api/overview", () => {
 		}
 	});
 
-	test("a pinned quiet Linear project shows and a hidden active project does not", async () => {
+	test("a tracked quiet Linear project shows and an untracked active project does not", async () => {
 		const pinnedLinear = "quiet-linear";
 		const hiddenRepo = "acme/hidden-live";
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
-				pinned: [{ tracker: "linear", project: pinnedLinear }],
-				hidden: [{ tracker: "github", repo: hiddenRepo }],
+				tracked: [{ tracker: "linear", project: pinnedLinear }],
 			}),
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -3587,7 +3226,6 @@ describe("GET /api/overview", () => {
 					{
 						name: "Quiet linear",
 						tracker: "linear",
-						pinned: true,
 						ref: { tracker: "linear", project: pinnedLinear },
 						done: 0,
 						dropped: 0,
@@ -4087,7 +3725,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};
@@ -4136,7 +3775,8 @@ describe("GET /api/overview", () => {
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
 			startChecks = (base: string) => {
-				fetch(new URL("/api/overview", base))
+				trackFound(base)
+					.then(() => fetch(new URL("/api/overview", base)))
 					.then(async (response) => resolve(await response.json()))
 					.catch(reject);
 			};

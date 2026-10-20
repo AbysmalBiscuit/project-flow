@@ -39,7 +39,6 @@ function card(
 	projects: {
 		name: string;
 		tracker: "github";
-		pinned: boolean;
 		ref: { tracker: "github"; repo: string };
 		done: number;
 		dropped: number;
@@ -75,7 +74,6 @@ function card(
 			{
 				name: repo,
 				tracker: "github",
-				pinned: true,
 				ref: { tracker: "github", repo },
 				done: 0,
 				dropped: 0,
@@ -1619,7 +1617,6 @@ describe("review cycle", () => {
 				{
 					name: repo,
 					tracker: "github",
-					pinned: true,
 					ref: { tracker: "github", repo },
 					done: 1,
 					dropped: 0,
@@ -1920,7 +1917,6 @@ describe("review cycle", () => {
 					{
 						name: "Widget launch",
 						tracker: "linear",
-						pinned: true,
 						ref: { tracker: "linear", project: linearProject },
 						done: 0,
 						dropped: 0,

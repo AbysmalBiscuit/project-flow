@@ -34,7 +34,7 @@ import {
 	knownRepos,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
-	mergeTickets,
+	matchesRef,
 	needsYouSeenId,
 	notificationsFor,
 	optionReplyBody,
@@ -44,6 +44,7 @@ import {
 	projectSnapshots,
 	projectViewFor,
 	reconcilePoll,
+	refKey,
 	type SettingsProject,
 	settingsProjects,
 	staleView,
@@ -100,32 +101,6 @@ export type Running = {
 	readonly settled: Promise<Error | null>;
 };
 
-function refKey(ref: Configuration["pinned"][number]): string {
-	if (ref.tracker === "linear") {
-		return ref.project;
-	}
-	if ("repo" in ref) {
-		return ref.repo;
-	}
-	return `${ref.owner}/${ref.project}`;
-}
-
-function matchesRef(
-	project: FoundProject,
-	ref: Configuration["pinned"][number],
-): boolean {
-	if (project.tracker !== ref.tracker) {
-		return false;
-	}
-	if (ref.tracker === "linear") {
-		return project.key === ref.project;
-	}
-	if ("repo" in ref) {
-		return project.key === ref.repo;
-	}
-	return project.owner === ref.owner && project.number === ref.project;
-}
-
 function seededForProjects(
 	attention: Attention,
 	projects: ReadonlySet<string>,
@@ -165,7 +140,7 @@ function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
 
 function boardPin(
 	row: Snapshot,
-): Extract<Configuration["pinned"][number], { owner: string }> | null {
+): Extract<Configuration["tracked"][number], { owner: string }> | null {
 	const [laneOwner, numberText] = row.board?.laneKey?.split("/") ?? [];
 	const laneNumber = Number(numberText);
 	const owner = row.owner ?? laneOwner;
@@ -184,7 +159,7 @@ function boardPin(
 
 function sameProjectRef(
 	row: Snapshot,
-	ref: Configuration["pinned"][number],
+	ref: Configuration["tracked"][number],
 ): boolean {
 	if (refKey(ref) === row.key) {
 		return true;
@@ -201,9 +176,9 @@ function sameProjectRef(
 
 function projectRef(
 	row: Snapshot,
-	pinned: Configuration["pinned"],
-): Configuration["pinned"][number] {
-	const pin = pinned.find((ref) => sameProjectRef(row, ref));
+	tracked: Configuration["tracked"],
+): Configuration["tracked"][number] {
+	const pin = tracked.find((ref) => sameProjectRef(row, ref));
 	if (pin !== undefined) {
 		return pin;
 	}
@@ -218,7 +193,11 @@ function projectRef(
 }
 
 function projectViews(options: PollOptions, configuration: Configuration) {
-	const rows = options.store.readTickets();
+	const rows = options.store
+		.readTickets()
+		.filter((row) =>
+			configuration.tracked.some((ref) => sameProjectRef(row, ref)),
+		);
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
 		tickets: row.tickets,
@@ -256,8 +235,7 @@ function projectViews(options: PollOptions, configuration: Configuration) {
 			items: counted.needsYou,
 			counts: {
 				...counted.counts,
-				pinned: configuration.pinned.some((ref) => sameProjectRef(row, ref)),
-				ref: projectRef(row, configuration.pinned),
+				ref: projectRef(row, configuration.tracked),
 			},
 			report: counted.report,
 		};
@@ -395,18 +373,17 @@ function withoutTrackers(text: string): string {
 	const {
 		trackers: _trackers,
 		projects: _projects,
-		baselinePinned: _baselinePinned,
-		baselineHidden: _baselineHidden,
+		baselineTracked: _baselineTracked,
 		...configuration
 	} = parsed as Record<string, unknown>;
 	return JSON.stringify(configuration);
 }
 
 function applyRefEdits(
-	live: Configuration["pinned"],
-	baseline: Configuration["pinned"],
-	draft: Configuration["pinned"],
-): Configuration["pinned"] {
+	live: Configuration["tracked"],
+	baseline: Configuration["tracked"],
+	draft: Configuration["tracked"],
+): Configuration["tracked"] {
 	const removed = baseline.filter(
 		(ref) => !draft.some((item) => sameRef(item, ref)),
 	);
@@ -423,15 +400,14 @@ function applyRefEdits(
 }
 
 const refBaseline = z.object({
-	baselinePinned: z.array(z.unknown()).optional(),
-	baselineHidden: z.array(z.unknown()).optional(),
+	baselineTracked: z.array(z.unknown()).optional(),
 });
 
-function refList(value: unknown): Configuration["pinned"] | undefined {
+function refList(value: unknown): Configuration["tracked"] | undefined {
 	if (!Array.isArray(value)) {
 		return undefined;
 	}
-	const refs: Configuration["pinned"] = [];
+	const refs: Configuration["tracked"] = [];
 	for (const item of value) {
 		const parsed = projectRefSchema.safeParse(item);
 		if (!parsed.success) {
@@ -475,18 +451,13 @@ function mergedSettingsWrite(
 	}
 	const baseline = refBaseline.safeParse(raw);
 	const sent = baseline.success ? baseline.data : {};
-	const pinnedBaseline = refList(sent.baselinePinned);
-	const hiddenBaseline = refList(sent.baselineHidden);
+	const trackedBaseline = refList(sent.baselineTracked);
 	return {
 		...parsed,
-		pinned:
-			pinnedBaseline === undefined
-				? parsed.pinned
-				: applyRefEdits(live.pinned, pinnedBaseline, parsed.pinned),
-		hidden:
-			hiddenBaseline === undefined
-				? parsed.hidden
-				: applyRefEdits(live.hidden, hiddenBaseline, parsed.hidden),
+		tracked:
+			trackedBaseline === undefined
+				? parsed.tracked
+				: applyRefEdits(live.tracked, trackedBaseline, parsed.tracked),
 	};
 }
 
@@ -868,35 +839,26 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		discovered.map((project) => `${project.tracker}:${project.key}`),
 	);
 	const found = [...discovered];
-	for (const pin of configuration.pinned) {
-		if (found.some((project) => matchesRef(project, pin))) {
+	const trackedProjects = new Set<FoundProject>();
+	for (const pin of configuration.tracked) {
+		const known = found.find((project) => matchesRef(project, pin));
+		if (known !== undefined) {
+			trackedProjects.add(known);
 			continue;
 		}
-		if (pin.tracker === "github" && "project" in pin) {
-			if (options.token === null) {
-				found.push({
-					key: refKey(pin),
-					tracker: pin.tracker,
-					updatedAt: null,
-				});
-				continue;
-			}
-			const located = await githubProjectByNumber(
-				options.token,
-				options.fetchGithub,
-				pin.owner,
-				pin.project,
-			);
-			if (located !== null) {
-				found.push(located);
-			}
-			continue;
+		const located =
+			pin.tracker === "github" && "project" in pin && options.token !== null
+				? await githubProjectByNumber(
+						options.token,
+						options.fetchGithub,
+						pin.owner,
+						pin.project,
+					)
+				: { key: refKey(pin), tracker: pin.tracker, updatedAt: null };
+		if (located !== null) {
+			found.push(located);
+			trackedProjects.add(located);
 		}
-		found.push({
-			key: refKey(pin),
-			tracker: pin.tracker,
-			updatedAt: null,
-		});
 	}
 	options.catalogue = found.map((project) => ({
 		...project,
@@ -904,40 +866,24 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			? {}
 			: { configuredOnly: true }),
 	}));
-	const pinnedKeys = new Set(
-		found
-			.filter((project) =>
-				configuration.pinned.some((pin) => matchesRef(project, pin)),
-			)
-			.map((project) => project.key),
-	);
-	const hiddenKeys = new Set(
-		found
-			.filter((project) =>
-				configuration.hidden.some((pin) => matchesRef(project, pin)),
-			)
-			.map((project) => project.key),
-	);
+	const tracked = found.filter((project) => trackedProjects.has(project));
+	const trackedKeys = new Set(tracked.map((project) => project.key));
 	const outcomes = new Map<string, ProjectPoll>();
 	const awaitingFirstPoll = new Set(
-		found.flatMap((project) =>
+		tracked.flatMap((project) =>
 			options.store.lastGoodPollAt(project.key) === null ? [project.key] : [],
 		),
 	);
 	const listed = [];
 	const fillAsPolled = options.store.readTickets().length === 0;
-	for (const project of found) {
+	for (const project of tracked) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
-			const hidden = hiddenKeys.has(project.key);
 			outcomes.set(project.key, {
 				key: project.key,
 				ok: false,
 				error: project.tracker === "github" ? missingToken : missingLinearKey,
 				full: false,
-				// A project with a missing credential shows its error as a pin does.
-				pinned: true,
-				hidden,
 				row: {
 					key: project.key,
 					name: project.name ?? project.key,
@@ -961,8 +907,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			options.fullPoll.add(project.key);
 		}
 		const since = full ? null : lastGood;
-		const pinned = pinnedKeys.has(project.key);
-		const hidden = hiddenKeys.has(project.key);
 		try {
 			await options.holdLists;
 			const listedTickets = await tracker.listTickets(project.key, since);
@@ -987,12 +931,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
 				}
 			}
-			const stored = options.store
-				.readTickets()
-				.find((row) => row.key === project.key);
-			const windowTickets = full
-				? listedTickets.tickets
-				: mergeTickets(stored?.tickets ?? [], listedTickets.tickets);
 			listed.push({
 				...project,
 				name: project.name ?? listedTickets.name,
@@ -1000,8 +938,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				pulls,
 				branches,
 				startedKeys,
-				pinned,
-				hidden,
 				...(listedTickets.board === undefined
 					? {}
 					: {
@@ -1014,15 +950,12 @@ async function poll(options: PollOptions): Promise<Configuration> {
 										},
 						}),
 				...(project.closed === undefined ? {} : { closed: project.closed }),
-				windowTickets,
 			});
 			outcomes.set(project.key, {
 				key: project.key,
 				ok: true,
 				error: null,
 				full,
-				pinned,
-				hidden,
 				row: null,
 			});
 			options.store.recordGoodPoll(project.key, polledAt);
@@ -1034,11 +967,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					options.store.forgetValidator,
 				);
 			}
-			const shown = projectSnapshots(
-				listed,
-				polledAt,
-				configuration.activityWindowDays,
-			);
+			const shown = projectSnapshots(listed);
 			const visible = new Set(shown.map((item) => item.key));
 			for (const item of listed) {
 				const outcome = outcomes.get(item.key);
@@ -1048,7 +977,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				outcome.row = shown.find((row) => row.key === item.key) ?? null;
 			}
 			if (fillAsPolled && visible.has(project.key)) {
-				publishPoll(options, configuration, outcomes, [], null);
+				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
 			}
 		} catch (error) {
 			if (options.stopped) {
@@ -1074,12 +1003,10 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				ok: false,
 				error: message,
 				full,
-				pinned,
-				hidden,
 				row: stored ?? empty,
 			});
 			if (fillAsPolled) {
-				publishPoll(options, configuration, outcomes, [], null);
+				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
 			}
 		}
 	}
@@ -1094,7 +1021,15 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	if (options.stopped) {
 		return configuration;
 	}
-	publishPoll(options, configuration, outcomes, fullKeys, failed, false);
+	publishPoll(
+		options,
+		configuration,
+		trackedKeys,
+		outcomes,
+		fullKeys,
+		failed,
+		false,
+	);
 	const views = projectViews(options, configuration);
 	const after = attentionOf(views, configuration.pmBot);
 	const firstGood = new Set(
@@ -1156,13 +1091,20 @@ async function poll(options: PollOptions): Promise<Configuration> {
 function publishPoll(
 	options: PollOptions,
 	configuration: Configuration,
+	trackedKeys: ReadonlySet<string>,
 	outcomes: Map<string, ProjectPoll>,
 	fullKeys: string[],
 	failed: string | null,
 	publish = true,
 ): void {
+	const stored = options.store.readTickets();
+	for (const row of stored) {
+		if (!trackedKeys.has(row.key)) {
+			options.store.forgetGoodPoll(row.key);
+		}
+	}
 	const reconciled = reconcilePoll(
-		options.store.readTickets(),
+		stored.filter((row) => trackedKeys.has(row.key)),
 		[...outcomes.values()],
 		fullKeys,
 	);

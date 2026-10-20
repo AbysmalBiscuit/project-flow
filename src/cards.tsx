@@ -10,7 +10,6 @@ import {
 	overviewFilters,
 	overviewSorts,
 	overviewViews,
-	sameRef,
 } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -79,9 +78,6 @@ function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
 	}
 	if (filter === "blocked") {
 		return project.blocked > 0 || project.crossProjectBlockers.length > 0;
-	}
-	if (filter === "pinned") {
-		return project.pinned;
 	}
 	return true;
 }
@@ -236,14 +232,6 @@ function Legend({ project }: { project: ProjectCounts }) {
 	);
 }
 
-function PinMark({ on }: { on: boolean }) {
-	return (
-		<span className={clsx(cards.pin, !on && cards.pinOff)}>
-			{on ? "★" : "☆"}
-		</span>
-	);
-}
-
 function ProjectCard({ project }: { project: ProjectCounts }) {
 	const id = `project-card-${slug(project.name)}`;
 	const total = ticketTotal(project);
@@ -259,9 +247,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 						openProject(project.name);
 					}}
 				>
-					<h2 className={clsx(cards.nameRow)}>
-						{project.name} <PinMark on={project.pinned} />
-					</h2>
+					<h2 className={clsx(cards.nameRow)}>{project.name}</h2>
 					<p className={clsx(cards.meta)}>{subtitle(project)}</p>
 				</a>
 				{project.needsYou === 0 ? null : (
@@ -382,33 +368,15 @@ function ProgressBar({ project }: { project: ProjectCounts }) {
 	);
 }
 
-function Star({ filled }: { filled: boolean }) {
-	return (
-		<svg
-			viewBox="0 0 24 24"
-			aria-hidden="true"
-			className={clsx(frame.glyph)}
-			fill={filled ? "currentColor" : "none"}
-			stroke="currentColor"
-			strokeWidth="1.75"
-			strokeLinejoin="round"
-		>
-			<path d="M12 3.2 14.7 8.7 20.8 9.6 16.4 13.9 17.4 20 12 17.1 6.6 20 7.6 13.9 3.2 9.6 9.3 8.7 12 3.2z" />
-		</svg>
-	);
-}
-
 function TableView({
 	projects,
 	sort,
 	direction,
-	onPin,
 	onSort,
 }: {
 	projects: ProjectCounts[];
 	sort: SortKey;
 	direction: SortDirection;
-	onPin: (project: ProjectCounts) => void;
 	onSort: (sort: SortKey, direction: SortDirection) => void;
 }) {
 	return (
@@ -416,7 +384,6 @@ function TableView({
 			<table className={clsx(cards.table)}>
 				<thead>
 					<tr>
-						<th className={clsx(cards.cell, cards.head)} />
 						{tableColumns.map((item) => {
 							const active = sort === item.key;
 							return (
@@ -460,18 +427,6 @@ function TableView({
 							key={`${project.tracker}:${project.name}`}
 							id={`overview-row-${slug(project.name)}`}
 						>
-							<td className={clsx(cards.cell)}>
-								<button
-									type="button"
-									id={`pin-${slug(project.name)}`}
-									className={clsx(cards.star, project.pinned && cards.pinned)}
-									aria-pressed={project.pinned}
-									aria-label={`${overviewControlLabel.pinned} ${project.name}`}
-									onClick={() => onPin(project)}
-								>
-									<Star filled={project.pinned} />
-								</button>
-							</td>
 							<td className={clsx(cards.cell, cards.name)}>
 								<a
 									className={clsx(cards.projectLink)}
@@ -620,7 +575,7 @@ function OverviewPage({
 	onSettings: (next: Configuration) => void;
 }) {
 	const [query, setQuery] = useState("");
-	const [menu, setMenu] = useState<"pinned" | "filter" | "sort" | null>(null);
+	const [menu, setMenu] = useState<"filter" | "sort" | null>(null);
 	const [now, setNow] = useState(() => Date.now());
 	const [notifyPermission, setNotifyPermission] = useState(
 		notificationPermission,
@@ -679,14 +634,6 @@ function OverviewPage({
 		savePatch((current) => ({ ...current, overview: next }));
 		setMenu(null);
 	};
-	const togglePin = (project: ProjectCounts) => {
-		savePatch((current) => {
-			const pinned = current.pinned.some((item) => sameRef(item, project.ref))
-				? current.pinned.filter((item) => !sameRef(item, project.ref))
-				: [...current.pinned, project.ref];
-			return { ...current, pinned };
-		});
-	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
 		graph: <OverviewGraph projects={projects} catalogue={overview.projects} />,
@@ -695,7 +642,6 @@ function OverviewPage({
 				projects={projects}
 				sort={view.sort}
 				direction={view.direction}
-				onPin={togglePin}
 				onSort={(sort, direction) => saveView({ ...view, sort, direction })}
 			/>
 		),
@@ -761,9 +707,6 @@ function OverviewPage({
 			))}
 		</MenuButton>
 	);
-	const pinnedCount = overview.projects.filter(
-		(project) => project.pinned,
-	).length;
 	const summary = [
 		`${overview.projects.length} ${overviewControlLabel.projects}`,
 		`${tickets} ${overviewControlLabel.tickets}`,
@@ -773,32 +716,6 @@ function OverviewPage({
 		.join(", ");
 	const sectionTitle =
 		view.view === "graph" ? "Projects and their blockers" : navLabel.projects;
-	const pinnedMenu = (
-		<MenuButton
-			id="overview-pinned"
-			label={
-				<>
-					<PinMark on /> {overviewControlLabel.pinned} {pinnedCount}
-				</>
-			}
-			open={menu === "pinned"}
-			onToggle={() => setMenu(menu === "pinned" ? null : "pinned")}
-		>
-			{overview.projects.map((project) => (
-				<label
-					key={`${project.tracker}:${project.name}`}
-					className={clsx(cards.choice)}
-				>
-					<input
-						type="checkbox"
-						checked={project.pinned}
-						onChange={() => togglePin(project)}
-					/>
-					{project.name}
-				</label>
-			))}
-		</MenuButton>
-	);
 	const page = (
 		<PageFrame
 			title={navLabel.overview}
@@ -866,7 +783,6 @@ function OverviewPage({
 						<p className={clsx(cards.tableLabel)}>{navLabel.projects}</p>
 					</div>
 					<span className={clsx(cards.grow)} />
-					{pinnedMenu}
 					{filterMenu}
 				</div>
 			) : null}
@@ -911,7 +827,6 @@ function OverviewPage({
 				<div className={clsx(cards.section)}>
 					<h2 className={clsx(cards.sectionLabel)}>{sectionTitle}</h2>
 					<div className={clsx(cards.controls)}>
-						{pinnedMenu}
 						{filterMenu}
 						{view.view === "graph" ? null : sortMenu}
 					</div>
