@@ -50,6 +50,7 @@ export type FoundProject = {
 	owner?: string;
 	number?: number;
 	closed?: boolean;
+	configuredOnly?: boolean;
 };
 
 export type Viewer = {
