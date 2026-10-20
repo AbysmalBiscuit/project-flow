@@ -574,9 +574,9 @@ function recordPostedReply(
 		return;
 	}
 	const comment: Comment = {
+		id: created.id,
 		body: created.body,
 		createdAt: created.createdAt,
-		reactions: 0,
 	};
 	store.mergeTickets([
 		{
