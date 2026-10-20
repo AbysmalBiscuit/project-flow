@@ -12,8 +12,8 @@ import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket } from "./selection.ts";
-import { AppShell } from "./shell.tsx";
-import { blockedLabel, navLabel, stateLabel } from "./terms.ts";
+import { AppShell, PageFrame } from "./shell.tsx";
+import { blockedLabel, loadingLabel, navLabel, stateLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
@@ -1016,11 +1016,7 @@ function Page() {
 		);
 	}
 	if (report === null) {
-		return (
-			<AppShell>
-				<main className={clsx(frame.page, frame.wide)}>Loading {name}</main>
-			</AppShell>
-		);
+		return <PageFrame title={name}>{loadingLabel}</PageFrame>;
 	}
 	const saveView = (next: ProjectViewSettings) => {
 		const project = name;

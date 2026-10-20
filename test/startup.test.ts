@@ -959,4 +959,103 @@ describe("startup", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("a restart serves the cached overview before a blocked tracker request completes", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-cache-open-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let stopFill: () => void = () => {};
+		const fillStopped = new Promise<void>((resolve) => {
+			stopFill = resolve;
+		});
+		let filled: () => void = () => {};
+		const fill = new Promise<void>((resolve) => {
+			filled = resolve;
+		});
+		const fillRun = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch(200),
+				readGhToken: async () => null,
+				databasePath,
+				stdout: filled,
+				waitForStop: fillStopped,
+			}),
+		);
+		let releaseTracker: () => void = () => {};
+		const trackerHeld = new Promise<void>((resolve) => {
+			releaseTracker = resolve;
+		});
+		let trackerCompleted = 0;
+		const blockingFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (
+				url.startsWith("http://127.0.0.1") ||
+				url.startsWith("http://localhost")
+			) {
+				return fetch(input, init);
+			}
+			if (url === "https://api.github.com/user") {
+				return recordedFetch(200)(input, init);
+			}
+			await trackerHeld;
+			trackerCompleted += 1;
+			return recordedFetch(200)(input, init);
+		};
+		let stopRestart: () => void = () => {};
+		const restartStopped = new Promise<void>((resolve) => {
+			stopRestart = resolve;
+		});
+		try {
+			await fill;
+			stopFill();
+			await fillRun;
+			const first = await new Promise<Overview>((resolve, reject) => {
+				const deadline = setTimeout(() => {
+					reject(
+						new Error(
+							`cached overview waited for a tracker request (${trackerCompleted} completed)`,
+						),
+					);
+				}, 2_000);
+				void run(
+					["--config", path, "--host", "127.0.0.1", "--port", "0"],
+					testIo(
+						{
+							env: { GITHUB_TOKEN: "recorded-token" },
+							fetch: blockingFetch,
+							readGhToken: async () => null,
+							databasePath,
+							stdout: (line) => {
+								void fetch(new URL("/api/overview", line))
+									.then(async (response) => {
+										clearTimeout(deadline);
+										expect(response.status).toBe(200);
+										resolve((await response.json()) as Overview);
+									})
+									.catch((error: unknown) => {
+										clearTimeout(deadline);
+										reject(error);
+									});
+							},
+							waitForStop: restartStopped,
+						},
+						{ first: true },
+					),
+				);
+			});
+			expect(trackerCompleted).toBe(0);
+			expect(first.projects.map((project) => project.name)).toEqual([
+				"acme/widget",
+			]);
+			expect(first.fetchedAt).not.toBeNull();
+		} finally {
+			releaseTracker();
+			stopFill();
+			stopRestart();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });

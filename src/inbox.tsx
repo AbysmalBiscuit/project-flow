@@ -13,6 +13,7 @@ import { PageFrame } from "./shell.tsx";
 import {
 	inboxCopy,
 	inboxFilterLabel,
+	loadingLabel,
 	navLabel,
 	triggerLabel,
 } from "./terms.ts";
@@ -345,7 +346,7 @@ function Page() {
 		};
 	}, []);
 	if (entries === null) {
-		return <PageFrame title={navLabel.inbox}>Loading inbox</PageFrame>;
+		return <PageFrame title={navLabel.inbox}>{loadingLabel}</PageFrame>;
 	}
 	return <InboxList entries={entries} onChange={setEntries} />;
 }

@@ -5,6 +5,7 @@ import type { AutoMerge, Configuration } from "./configuration.ts";
 import type { TicketState } from "./domain.ts";
 import { PageFrame } from "./shell.tsx";
 import {
+	loadingLabel,
 	navLabel,
 	settingsCopy,
 	settingsSection,
@@ -888,7 +889,7 @@ function Page() {
 		return <PageFrame title={navLabel.settings}>{error}</PageFrame>;
 	}
 	if (settings === null) {
-		return <PageFrame title={navLabel.settings}>Loading settings</PageFrame>;
+		return <PageFrame title={navLabel.settings}>{loadingLabel}</PageFrame>;
 	}
 	return (
 		<Menu

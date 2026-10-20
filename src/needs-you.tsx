@@ -15,6 +15,7 @@ import {
 } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import {
+	loadingLabel,
 	type NeedsGroup,
 	navLabel,
 	needsGroupLabel,
@@ -339,7 +340,7 @@ function Page() {
 		};
 	}, []);
 	if (items === null) {
-		return <PageFrame title={navLabel.needsYou}>Loading needs you</PageFrame>;
+		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
 	return <NeedsList items={items} polled={polled} />;
 }
