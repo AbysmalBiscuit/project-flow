@@ -2150,7 +2150,6 @@ export const board = stylex.create({
 	},
 	ticketOutside: {
 		borderStyle: "dashed",
-		borderColor: colours.lineStrong,
 	},
 	ticketReady: { borderColor: colours.ready },
 	ticketProgress: { borderColor: colours.progress },
