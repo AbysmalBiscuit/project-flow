@@ -51,7 +51,7 @@ import {
 	todoRows,
 	type WorkcellRun,
 } from "./domain.ts";
-import type { Fetch } from "./fetch.ts";
+import { abortableFetch, type Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
 	githubProjectByNumber,
@@ -59,6 +59,7 @@ import {
 	githubTracker,
 	missingToken,
 	type RestCache,
+	rememberValidator,
 	retainListWindows,
 } from "./github.ts";
 import page from "./index.html";
@@ -756,6 +757,7 @@ type PollOptions = {
 	seenNotifications: Set<string>;
 	primed: boolean;
 	polling: boolean;
+	stopped: boolean;
 	catalogue: FoundProject[];
 };
 
@@ -1026,7 +1028,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			options.store.recordGoodPoll(project.key, polledAt);
 			options.store.clearProjectError(project.key);
 			if (project.tracker === "github" && project.key.includes("/")) {
-				retainListWindows(options.restCache, project.key);
+				retainListWindows(
+					options.restCache,
+					project.key,
+					options.store.forgetValidator,
+				);
 			}
 			const shown = projectSnapshots(
 				listed,
@@ -1045,6 +1051,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				publishPoll(options, configuration, outcomes, [], null);
 			}
 		} catch (error) {
+			if (options.stopped) {
+				continue;
+			}
 			const message = error instanceof Error ? error.message : "poll failed";
 			const stored = options.store
 				.readTickets()
@@ -1082,6 +1091,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 	}
 	options.polling = false;
+	if (options.stopped) {
+		return configuration;
+	}
 	publishPoll(options, configuration, outcomes, fullKeys, failed, false);
 	const views = projectViews(options, configuration);
 	const after = attentionOf(views, configuration.pmBot);
@@ -1192,14 +1204,34 @@ export async function start(options: StartOptions): Promise<Running> {
 		write: (text: string) => saveConfiguration(options.configPath, text),
 	};
 	const restCache = new Map();
-	const fetchGithub = conditionalFetch(options.fetch, restCache);
+	for (const validator of opened.store.readValidators()) {
+		rememberValidator(
+			restCache,
+			validator.url,
+			validator.etag,
+			JSON.parse(validator.body) as unknown,
+			validator.headers,
+		);
+	}
+	const requests = new AbortController();
+	const trackerFetch = abortableFetch(options.fetch, requests.signal);
+	const fetchGithub = conditionalFetch(
+		trackerFetch,
+		restCache,
+		opened.store.recordValidator,
+	);
 	const trackers = {
 		github:
 			options.token === null ? null : githubTracker(options.token, fetchGithub),
 		linear:
 			options.linearKey === null
 				? null
-				: linearTracker(options.linearKey, options.fetch, options.token),
+				: linearTracker(
+						options.linearKey,
+						trackerFetch,
+						options.token,
+						fetchGithub,
+					),
 	};
 	let configuration: Configuration;
 	try {
@@ -1216,7 +1248,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		clock,
 		notifier,
 		token: options.token,
-		fetch: options.fetch,
+		fetch: trackerFetch,
 		fetchGithub,
 		restCache,
 		listTodos: options.listTodos,
@@ -1245,6 +1277,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		]),
 		primed: hadRows,
 		polling: false,
+		stopped: false,
 		catalogue: [],
 	};
 	if (pollOptions.primed) {
@@ -1323,11 +1356,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const armTimer = () => {
 		schedule(configuration.pollIntervalSeconds);
 	};
-	if (hadRows) {
-		armTimer();
-	} else {
-		void firstPoll.then(armTimer, armTimer);
-	}
+	void firstPoll.then(armTimer, armTimer);
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
@@ -1606,6 +1635,8 @@ export async function start(options: StartOptions): Promise<Running> {
 		settled,
 		stop: async () => {
 			stopped = true;
+			pollOptions.stopped = true;
+			requests.abort();
 			releaseLists();
 			if (timer !== null) {
 				clearInterval(timer);

@@ -859,8 +859,8 @@ export function linearTracker(
 	key: string,
 	fetchImpl: Fetch,
 	githubToken: string | null = null,
+	fetchGithub: Fetch = conditionalFetch(fetchImpl, new Map()),
 ): Tracker {
-	const fetchGithub = conditionalFetch(fetchImpl, new Map());
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const seenReviews = new Map<string, ReviewEvidence>();
 	const issues = (project: string, since: Date | null) => {

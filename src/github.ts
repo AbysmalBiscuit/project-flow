@@ -148,6 +148,7 @@ function retainWindow(
 	cache: RestCache,
 	repo: string,
 	read: (url: string) => { repo: string; since: string } | null,
+	forget?: (url: string) => void,
 ): void {
 	let current: string | undefined;
 	for (const key of cache.keys()) {
@@ -166,13 +167,18 @@ function retainWindow(
 		const window = read(key);
 		if (window?.repo === repo && window.since < current) {
 			cache.delete(key);
+			forget?.(key);
 		}
 	}
 }
 
-export function retainListWindows(cache: RestCache, repo: string): void {
-	retainWindow(cache, repo, (url) => listWindow(url, issueList));
-	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList));
+export function retainListWindows(
+	cache: RestCache,
+	repo: string,
+	forget?: (url: string) => void,
+): void {
+	retainWindow(cache, repo, (url) => listWindow(url, issueList), forget);
+	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList), forget);
 }
 
 function restUrl(input: string | URL | Request): string {
@@ -221,7 +227,63 @@ function isRestRead(url: string, method: string): boolean {
 	return !url.startsWith("https://api.github.com/graphql");
 }
 
-export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
+function parseStoredHeaders(headers: string): [string, string][] {
+	const parsed: unknown = JSON.parse(headers);
+	if (!Array.isArray(parsed)) {
+		return [];
+	}
+	const entries: [string, string][] = [];
+	for (const item of parsed) {
+		if (!Array.isArray(item) || item.length < 2) {
+			continue;
+		}
+		const name = item[0];
+		const value = item[1];
+		if (typeof name === "string" && typeof value === "string") {
+			entries.push([name, value]);
+		}
+	}
+	return entries;
+}
+
+export function rememberValidator(
+	cache: RestCache,
+	url: string,
+	etag: string,
+	body: unknown,
+	headers: string,
+): void {
+	const key = restKey(url);
+	const stored = parseStoredHeaders(headers);
+	const restored =
+		stored.length > 0
+			? stored
+			: ([["etag", etag]] satisfies [string, string][]);
+	cache.set(key, {
+		etag,
+		body,
+		headers: restored,
+	});
+}
+
+function sameHeaders(
+	left: [string, string][],
+	right: [string, string][],
+): boolean {
+	if (left.length !== right.length) {
+		return false;
+	}
+	return left.every(
+		([name, value], index) =>
+			name === right[index]?.[0] && value === right[index]?.[1],
+	);
+}
+
+export function conditionalFetch(
+	fetchImpl: Fetch,
+	cache: RestCache,
+	remember?: (url: string, etag: string, body: string, headers: string) => void,
+): Fetch {
 	return async (input, init) => {
 		const url = restUrl(input);
 		const method = (init?.method ?? "GET").toUpperCase();
@@ -246,11 +308,20 @@ export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
 			const next = response.headers.get("etag");
 			const etag = next !== null && next !== "" ? next : stored.etag;
 			replayed.set("etag", etag);
-			cache.set(key, {
-				etag,
-				body: stored.body,
-				headers: [...replayed.entries()],
-			});
+			const kept = [...replayed.entries()];
+			if (etag !== stored.etag || !sameHeaders(stored.headers, kept)) {
+				cache.set(key, {
+					etag,
+					body: stored.body,
+					headers: kept,
+				});
+				remember?.(
+					key,
+					etag,
+					JSON.stringify(stored.body),
+					JSON.stringify(kept),
+				);
+			}
 			return new Response(JSON.stringify(stored.body), {
 				status: 200,
 				headers: replayed,
@@ -258,11 +329,14 @@ export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
 		}
 		const next = response.headers.get("etag");
 		if (response.ok && next !== null && next !== "") {
+			const body: unknown = await response.clone().json();
+			const kept = storedHeaders(response);
 			cache.set(key, {
 				etag: next,
-				body: await response.clone().json(),
-				headers: storedHeaders(response),
+				body,
+				headers: kept,
 			});
+			remember?.(key, next, JSON.stringify(body), JSON.stringify(kept));
 		}
 		return response;
 	};
