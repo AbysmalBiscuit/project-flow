@@ -574,7 +574,6 @@ function recordPostedReply(
 		return;
 	}
 	const comment: Comment = {
-		id: created.id,
 		body: created.body,
 		createdAt: created.createdAt,
 	};
