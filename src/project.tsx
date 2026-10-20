@@ -5,6 +5,7 @@ import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import { PageFrame } from "./shell.tsx";
 import { blockedLabel, navLabel, stateLabel } from "./terms.ts";
+import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
 
@@ -193,8 +194,23 @@ function Card({
 	);
 }
 
+const laneMarks: Record<string, typeof board.markBacklog> = {
+	[lightValues.done.toLowerCase()]: board.markDone,
+	[lightValues.dropped.toLowerCase()]: board.markDropped,
+	[lightValues.blocked.toLowerCase()]: board.markBlocked,
+	[lightValues.backlog.toLowerCase()]: board.markBacklog,
+	[lightValues.inProgress.toLowerCase()]: board.markInProgress,
+	[lightValues.inReview.toLowerCase()]: board.markInReview,
+	[lightValues.awaitingMerge.toLowerCase()]: board.markAwaitingMerge,
+};
+
+function laneMark(colour: string) {
+	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
+}
+
 function Lane({
 	name,
+	colour,
 	tickets,
 	capped,
 	shown,
@@ -204,6 +220,7 @@ function Lane({
 	onOpenOutside,
 }: {
 	name: string;
+	colour: string;
 	tickets: TicketView[];
 	capped: boolean;
 	shown: boolean;
@@ -223,6 +240,10 @@ function Lane({
 	return (
 		<section className={clsx(board.lane)} data-lane={name} aria-label={name}>
 			<h2 className={clsx(board.laneTitle)}>
+				<span
+					className={clsx(board.laneMark, laneMark(colour))}
+					data-lane-colour={colour}
+				/>
 				{name} {tickets.length}
 			</h2>
 			<ul className={clsx(board.cards)}>
@@ -274,6 +295,7 @@ function Board({
 					<Lane
 						key={lane.id}
 						name={lane.name}
+						colour={lane.colour}
 						tickets={laneTickets(report, lane.name)}
 						capped={lane.statusType === "done"}
 						shown={shownDone}
