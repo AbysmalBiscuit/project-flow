@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:4188",
+	"serve": ["bun", "proof/serve-jump.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "click": "#header-search" },
+		{ "fill": "#jump-query", "text": "widget" },
+		{ "assert_text": "Ship the widget" },
+		{ "assert_text": "acme/board#12" },
+		{ "shot": "search-open" }
+	]
+}
