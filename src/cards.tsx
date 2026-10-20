@@ -1,4 +1,5 @@
 import "@xyflow/react/dist/style.css";
+import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -23,7 +24,12 @@ import {
 } from "./notify.tsx";
 import { GraphZoom, OverviewGraph } from "./overview-graph.tsx";
 import { openProject, projectPath } from "./paths.ts";
-import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
+import {
+	barSegments,
+	SegmentedBar,
+	ticketTotal,
+	trackerName,
+} from "./progress-bar.tsx";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
 	actionLabel,
@@ -299,6 +305,73 @@ function CardsList({ projects }: { projects: ProjectCounts[] }) {
 				/>
 			))}
 		</ul>
+	);
+}
+
+const tableColumns: {
+	key: SortKey;
+	label: string;
+	number: boolean;
+}[] = [
+	{ key: "project", label: tableColumnLabel.project, number: false },
+	{ key: "tracker", label: tableColumnLabel.tracker, number: false },
+	{ key: "progress", label: tableColumnLabel.progress, number: false },
+	{ key: "backlog", label: tableColumnLabel.backlog, number: true },
+	{ key: "inProgress", label: tableColumnLabel.inProgress, number: true },
+	{ key: "inReview", label: tableColumnLabel.inReview, number: true },
+	{
+		key: "awaitingMerge",
+		label: tableColumnLabel.awaitingMerge,
+		number: true,
+	},
+	{ key: "needsYou", label: tableColumnLabel.needsYou, number: true },
+	{ key: "blockedBy", label: tableColumnLabel.blockedBy, number: false },
+];
+
+function SortMark({ direction }: { direction: "asc" | "desc" | "none" }) {
+	const up = direction === "asc";
+	const down = direction === "desc";
+	return (
+		<svg
+			viewBox="0 0 12 12"
+			aria-hidden="true"
+			className={clsx(cards.mark)}
+			fill="currentColor"
+		>
+			<path d="M6 1.5 9.2 5.2H2.8z" opacity={up ? 1 : 0.35} />
+			<path d="M6 10.5 2.8 6.8h6.4z" opacity={down ? 1 : 0.35} />
+		</svg>
+	);
+}
+
+function ProgressBar({ project }: { project: ProjectCounts }) {
+	const total = ticketTotal(project);
+	return (
+		<div className={clsx(cards.progressCell)}>
+			<div
+				className={clsx(cards.barThin)}
+				role="progressbar"
+				aria-valuenow={project.progress}
+				aria-valuemin={0}
+				aria-valuemax={100}
+				aria-label={`${project.name} progress`}
+			>
+				{barSegments.map((item) =>
+					project.statusTypes[item.key] === 0 || total === 0 ? null : (
+						<div
+							key={item.key}
+							{...stylex.props(
+								cards.segment(
+									`${(project.statusTypes[item.key] / total) * 100}%`,
+								),
+								item.tone,
+							)}
+						/>
+					),
+				)}
+			</div>
+			<span>{project.progress}%</span>
+		</div>
 	);
 }
 
