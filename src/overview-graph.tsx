@@ -38,7 +38,7 @@ type BlockerEdgeData = {
 	ticket: string;
 	blocked: string;
 	blocker: string;
-	tracker: "github" | "linear";
+	tracker: CrossProjectBlocker["tracker"];
 	labelOffset: number;
 };
 
