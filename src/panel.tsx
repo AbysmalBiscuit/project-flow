@@ -142,8 +142,8 @@ export function TicketPanel({
 	title?: string;
 	url?: string | undefined;
 	state?: TicketState;
-	lane?: string;
-	laneColour?: string;
+	lane?: string | undefined;
+	laneColour?: string | undefined;
 	blockers?: OutsideBlocker[];
 	blocks?: OutsideBlocker[];
 	onOpenBlocker?: (blocker: OutsideBlocker) => void;
