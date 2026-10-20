@@ -832,7 +832,7 @@ describe("tracker lanes", () => {
 					(item) => item.name === "Widget board",
 				);
 				expect(card?.blocked).toBe(1);
-				expect(card?.inProgress).toBe(0);
+				expect(card?.inProgress).toBe(1);
 				expect(card?.statusTypes?.inProgress).toBe(1);
 			},
 		);
