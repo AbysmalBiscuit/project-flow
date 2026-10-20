@@ -2285,7 +2285,7 @@ function mergesOnItsOwn(
 	projectKey: string,
 	configAuto: Record<string, AutoMerge>,
 	workcellAuto: Record<string, AutoMerge>,
-	repoAuto: Record<string, boolean> = {},
+	repoAuto: Record<string, boolean>,
 ): boolean {
 	const open = links.filter((pull) => !pull.merged);
 	if (open.length === 0) {
@@ -2802,10 +2802,10 @@ export function needsYouItems(
 	shownByKey: Map<string, TicketState>,
 	failedKeys: Set<string>,
 	rules: NeedsYouRules,
-	configAuto: Record<string, AutoMerge> = {},
-	workcellAuto: Record<string, AutoMerge> = {},
-	repoAutoMerge: Record<string, boolean> = {},
-	projectKey = project,
+	configAuto: Record<string, AutoMerge>,
+	workcellAuto: Record<string, AutoMerge>,
+	repoAutoMerge: Record<string, boolean>,
+	projectKey: string,
 ): NeedsYouItem[] {
 	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
 	const viewers = new Set(
