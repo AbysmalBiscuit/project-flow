@@ -966,7 +966,7 @@ describe("forward state", () => {
 		}
 	});
 
-	test("a starting run whose manager agent is gone is stalled in needs-you", async () => {
+	test("malformed herdr output does not stall an open run", async () => {
 		const checkout = await devkitWorktree({
 			key: "WID-13",
 			status: "running",
@@ -1021,6 +1021,44 @@ console.log(body);
 				},
 				checkout.root,
 			);
+		} finally {
+			await checkout.cleanup();
+			await rm(bin, { recursive: true, force: true });
+		}
+	});
+
+	test("a starting run whose manager agent is gone is stalled in needs-you", async () => {
+		const checkout = await devkitWorktree({
+			key: "WID-13",
+			status: "running",
+			manager: "  manager-144-starting  ",
+		});
+		const statePath = join(
+			checkout.root,
+			"acme",
+			"widget_workspaces",
+			"WID-13-feat",
+			".devkit",
+			"workcell",
+			"state.json",
+		);
+		const recorded = JSON.parse(await readFile(statePath, "utf8")) as {
+			manager: string;
+		};
+		await writeFile(
+			statePath,
+			JSON.stringify({ status: "starting", manager: recorded.manager }),
+		);
+		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+		const herdr = join(bin, "herdr");
+		await writeFile(
+			herdr,
+			`#!/usr/bin/env bun
+console.log(JSON.stringify({ result: { agents: [] } }));
+`,
+		);
+		await chmod(herdr, 0o755);
+		try {
 			await withApp(
 				JSON.stringify({
 					pinned: [{ tracker: "linear", project: linearSlug }],
