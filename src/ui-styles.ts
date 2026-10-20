@@ -162,10 +162,6 @@ export const frame = stylex.create({
 		outlineOffset: space.twoXs,
 	},
 	actions: {
-		position: "absolute",
-		top: space.md,
-		right: space.pageInset,
-		zIndex: stack.panel,
 		display: "flex",
 		gap: space.sm,
 		alignItems: "center",

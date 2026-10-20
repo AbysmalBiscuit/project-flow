@@ -21,6 +21,7 @@ export type PageHeaderProps = {
 	views?: readonly PageView[];
 	view?: string;
 	onView?: (id: string) => void;
+	actions?: ReactNode;
 };
 
 function Glyph({ children }: { children: ReactNode }) {
@@ -243,11 +244,13 @@ export function PageHeader({
 	views,
 	view,
 	onView,
+	actions,
 }: PageHeaderProps) {
 	const showTools =
 		filter !== undefined ||
 		sort !== undefined ||
 		search !== undefined ||
+		actions !== undefined ||
 		(views !== undefined && views.length > 0);
 	return (
 		<div className={clsx(frame.row, views !== undefined && frame.rowTall)}>
@@ -283,6 +286,7 @@ export function PageHeader({
 							))}
 						</fieldset>
 					)}
+					{actions}
 				</div>
 			) : null}
 		</div>

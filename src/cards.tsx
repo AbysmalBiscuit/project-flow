@@ -805,6 +805,38 @@ function OverviewPage({
 					saveView({ ...view, view: next });
 				}
 			}}
+			actions={
+				<div className={clsx(frame.actions)}>
+					<button
+						type="button"
+						id="overview-refresh"
+						className={clsx(frame.icon, shell.buttonFocus)}
+						aria-label="Refresh"
+						title="Refresh"
+						onClick={() => {
+							void fetch("/api/refresh", { method: "POST" });
+						}}
+					>
+						<RefreshIcon />
+					</button>
+					{notifyPermission === "default" &&
+					typeof Notification !== "undefined" ? (
+						<button
+							type="button"
+							id="notify-permission"
+							className={clsx(frame.notify, shell.buttonFocus)}
+							onClick={() => {
+								void askNotificationPermission().finally(() => {
+									setNotifyPermission(notificationPermission());
+								});
+							}}
+						>
+							<NotifyIcon />
+							Allow notifications
+						</button>
+					) : null}
+				</div>
+			}
 		>
 			{needs.length === 0 || view.view !== "cards" ? null : (
 				<section>
@@ -915,36 +947,6 @@ function OverviewPage({
 						</MenuButton>
 					)}
 				</div>
-			</div>
-			<div className={clsx(frame.actions)}>
-				<button
-					type="button"
-					id="overview-refresh"
-					className={clsx(frame.icon, shell.buttonFocus)}
-					aria-label="Refresh"
-					title="Refresh"
-					onClick={() => {
-						void fetch("/api/refresh", { method: "POST" });
-					}}
-				>
-					<RefreshIcon />
-				</button>
-				{notifyPermission === "default" &&
-				typeof Notification !== "undefined" ? (
-					<button
-						type="button"
-						id="notify-permission"
-						className={clsx(frame.notify, shell.buttonFocus)}
-						onClick={() => {
-							void askNotificationPermission().finally(() => {
-								setNotifyPermission(notificationPermission());
-							});
-						}}
-					>
-						<NotifyIcon />
-						Allow notifications
-					</button>
-				) : null}
 			</div>
 			{overview.polling === true ? (
 				<p className={clsx(cards.loading)}>Loading projects</p>
