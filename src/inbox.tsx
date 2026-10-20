@@ -16,7 +16,7 @@ import {
 	triggerLabel,
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { inbox, shell } from "./ui-styles.ts";
+import { frame, inbox, shell } from "./ui-styles.ts";
 
 const filters = ["all", "needsYou", "comment", "blockerCleared"] as const;
 type InboxFilter = (typeof filters)[number];

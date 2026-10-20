@@ -435,9 +435,7 @@ async function inboxOf(base: string): Promise<InboxEntry[]> {
 
 async function markRead(base: string, id?: string): Promise<Response> {
 	const path =
-		id === undefined
-			? "/api/inbox"
-			: `/api/inbox/${encodeURIComponent(id)}`;
+		id === undefined ? "/api/inbox" : `/api/inbox/${encodeURIComponent(id)}`;
 	return fetch(new URL(path, base), {
 		method: "POST",
 		headers: { "content-type": "application/json" },
