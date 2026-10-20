@@ -83,19 +83,26 @@ function listedRead(
 	const owner = parsed.variables?.owner ?? "";
 	const name = parsed.variables?.name ?? "";
 	const since = parsed.variables?.since ?? null;
+	const omitted = since === null || since === "";
 	return {
-		url: `https://api.github.com/repos/${owner}/${name}/issues?since=${since ?? ""}`,
-		since: since === null ? null : String(since),
+		url: omitted
+			? `https://api.github.com/repos/${owner}/${name}/issues`
+			: `https://api.github.com/repos/${owner}/${name}/issues?since=${since}`,
+		since: omitted ? null : String(since),
 		repo: `${owner}/${name}`,
 		poll: `${owner}/${name}\0${since ?? ""}`,
 	};
 }
 
 function listUrl(url: string, name = repo): URL | null {
-	if (!url.startsWith(`https://api.github.com/repos/${name}/issues?`)) {
+	const parsed = new URL(url);
+	if (parsed.origin !== "https://api.github.com") {
 		return null;
 	}
-	return new URL(url);
+	if (parsed.pathname !== `/repos/${name}/issues`) {
+		return null;
+	}
+	return parsed;
 }
 
 function issuesResponse(
@@ -861,7 +868,7 @@ describe("live updates", () => {
 					) ?? page([])
 				);
 			}
-			return recordedOrEmpty(url) ?? unrecorded(input, init);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1437,14 +1444,18 @@ describe("live updates", () => {
 			}
 			const read = listedRead(input, init);
 			if (read !== null && (read.repo === repo || read.repo === otherRepo)) {
-				pushListed(requests, read);
-				if (read.repo === otherRepo && !failedPins.has(read.url)) {
-					failedPins.add(read.url);
+				requests.push(read.url);
+				if (read.repo === otherRepo && !failedPins.has(read.repo)) {
+					failedPins.add(read.repo);
 					return new Response("recorded failure", { status: 500 });
 				}
 				return (
-					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
-					page([])
+					issuesResponse(
+						input,
+						init,
+						[ticket(1, "2026-04-01T00:00:00Z")],
+						read.repo,
+					) ?? page([])
 				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
@@ -1480,12 +1491,17 @@ describe("live updates", () => {
 				const secondLists = requests.filter(
 					(url) => listUrl(url, otherRepo) !== null,
 				);
-				expect(firstLists.length).toBeGreaterThan(0);
-				expect(secondLists.length).toBeGreaterThan(0);
-				expect(new URL(firstLists[0] ?? "").searchParams.get("since")).toBe("");
+				expect(firstLists).toHaveLength(3);
+				expect(secondLists).toHaveLength(2);
+				expect(
+					new URL(firstLists[0] ?? "").searchParams.get("since"),
+				).toBeNull();
 				expect(new URL(firstLists[1] ?? "").searchParams.get("since")).toBe(
 					goodPoll,
 				);
+				expect(
+					new URL(firstLists[2] ?? "").searchParams.get("since"),
+				).toBeNull();
 				expect(
 					new URL(secondLists[0] ?? "").searchParams.get("since"),
 				).toBeNull();
@@ -1780,7 +1796,7 @@ describe("live updates", () => {
 			expect(refresh.status).toBe(204);
 			const lists = requests.filter((url) => listUrl(url) !== null);
 			expect(lists.length).toBeGreaterThan(1);
-			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBe("");
+			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBeNull();
 			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
 				goodPoll,
 			);

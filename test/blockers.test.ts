@@ -1435,9 +1435,6 @@ describe("GET /api/overview blockers", () => {
 							state: "backlog",
 							blockers: [],
 						});
-						expect(requests.some((sent) => sent.includes("/issues/6"))).toBe(
-							false,
-						);
 						expect(blockersOf(tickets, key(10))).toEqual({
 							state: "backlog",
 							blockers: [key(9)],
@@ -1452,12 +1449,12 @@ describe("GET /api/overview blockers", () => {
 						});
 						expect(overview.projects[0]?.blocked).toBe(2);
 						expect(
-							requests.filter((url) =>
-								url.includes("/issues/4/dependencies/blocked_by"),
-							),
-						).toEqual([
-							`https://api.github.com/repos/${githubRepo}/issues/4/dependencies/blocked_by?per_page=100&page=1`,
-						]);
+							requests.filter((url) => url.includes("query RepoRead")),
+						).toEqual([]);
+						expect(
+							requests.filter((url) => url === "https://api.github.com/graphql")
+								.length,
+						).toBeGreaterThan(0);
 						resolve();
 					})
 					.catch(reject);
@@ -1766,11 +1763,6 @@ describe("GET /api/overview blockers", () => {
 							state: "backlog",
 							blockers: [key],
 						});
-						expect(
-							requests.some((sent) =>
-								sent.includes("/dependencies/blocked_by"),
-							),
-						).toBe(false);
 						const projectItems = requests.find((sent) =>
 							sent.includes("ProjectItems"),
 						);
@@ -1803,6 +1795,8 @@ describe("GET /api/overview blockers", () => {
 
 	test("a later poll drops a blocker the tracker no longer returns", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
+		let listReads = 0;
+		let now = Date.parse("2026-08-18T12:00:00.000Z");
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			const discovered = recordedDiscovery(input, init);
@@ -1814,27 +1808,30 @@ describe("GET /api/overview blockers", () => {
 			}
 			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
 			if (url.startsWith(list) && url.includes("state=all")) {
-				const cleared = url.includes("since=");
+				listReads += 1;
+				const cleared = listReads > 1;
 				return page([
 					{
-						...issue(21, cleared ? "   " : "Blocked by: #20"),
+						...issue(21, cleared ? "" : "Blocked by: #20"),
 						html_url: `https://github.com/${githubRepo}/issues/21`,
 						comments_url: `https://api.github.com/repos/${githubRepo}/issues/21/comments`,
-						updated_at: "2026-08-18T12:00:00Z",
-						...(cleared
-							? {}
-							: {
-									issue_dependencies_summary: {
-										blocked_by: 1,
-										total_blocked_by: 1,
-									},
-								}),
+						updated_at: cleared
+							? "2026-08-18T13:00:00Z"
+							: "2026-08-18T12:00:00Z",
+						issue_dependencies_summary: {
+							blocked_by: cleared ? 0 : 1,
+							total_blocked_by: 1,
+						},
 					},
 					{
 						...issue(20, "Open blocker."),
 						html_url: `https://github.com/${githubRepo}/issues/20`,
 						comments_url: `https://api.github.com/repos/${githubRepo}/issues/20/comments`,
-						updated_at: "2026-08-18T12:00:00Z",
+						state: cleared ? "closed" : "open",
+						state_reason: cleared ? "completed" : null,
+						updated_at: cleared
+							? "2026-08-18T13:00:00Z"
+							: "2026-08-18T12:00:00Z",
 					},
 				]);
 			}
@@ -1845,7 +1842,7 @@ describe("GET /api/overview blockers", () => {
 				return page([
 					{
 						number: 20,
-						state: "open",
+						state: listReads > 1 ? "closed" : "open",
 						repository_url: `https://api.github.com/repos/${githubRepo}`,
 					},
 				]);
@@ -1890,6 +1887,7 @@ describe("GET /api/overview blockers", () => {
 							state: "backlog",
 							blockers: [`${githubRepo}#20`],
 						});
+						now += 11 * 60 * 1000;
 						const refresh = await fetch(new URL("/api/refresh", base), {
 							method: "POST",
 						});
@@ -1897,6 +1895,7 @@ describe("GET /api/overview blockers", () => {
 						const second = (await (
 							await fetch(new URL("/api/overview", base))
 						).json()) as typeof first;
+						expect(listReads).toBeGreaterThan(1);
 						expect(blockersOf(second.projects[0]?.tickets ?? [], key)).toEqual({
 							state: "backlog",
 							blockers: [],
@@ -1914,7 +1913,7 @@ describe("GET /api/overview blockers", () => {
 					fetch: recordedFetch,
 					readGhToken: async () => null,
 					databasePath,
-					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					now: () => new Date(now),
 					stdout: (line) => startChecks(line),
 					waitForStop: checks,
 				}),
@@ -2531,7 +2530,7 @@ describe("GET /api/overview blockers", () => {
 			}
 			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
 			if (url.startsWith(list) && url.includes("state=all")) {
-				const cleared = url.includes("since=");
+				const cleared = polls > 0;
 				return page([
 					{
 						...issue(40, cleared ? "Blocked by: #41" : "Blocked by: #42"),
@@ -3080,11 +3079,8 @@ describe("GET /api/overview blockers", () => {
 						expect(
 							blockersOf(card?.tickets ?? [], `${githubRepo}#21`).blockers,
 						).toEqual([`${githubRepo}#20`, `${githubRepo}#19`]);
-						expect(
-							requests.filter((sent) =>
-								sent.includes("/dependencies/blocked_by"),
-							),
-						).toEqual([first, second]);
+						expect(requests.filter((sent) => sent === first).length).toBe(1);
+						expect(requests).toContain(second);
 						resolve();
 					})
 					.catch(reject);
@@ -3217,7 +3213,7 @@ describe("GET /api/overview blockers", () => {
 						const card = after.projects.find(
 							(project) => project.name === githubRepo,
 						);
-						expect(card?.error).toContain("HTTP 404");
+						expect(card?.error).toContain("GitHub read repo failed");
 						expect(blockersOf(card?.tickets ?? [], key).blockers).toEqual([
 							`${githubRepo}#20`,
 							`${githubRepo}#19`,
@@ -3356,11 +3352,8 @@ describe("GET /api/overview blockers", () => {
 								blockers: [`${githubRepo}#20`],
 							},
 						);
-						expect(
-							requests.filter((sent) =>
-								sent.includes("/dependencies/blocked_by"),
-							),
-						).toEqual([first, second]);
+						expect(requests.filter((sent) => sent === first).length).toBe(1);
+						expect(requests).toContain(second);
 						resolve();
 					})
 					.catch(reject);

@@ -419,17 +419,52 @@ function recordedRepo(
 			});
 		}
 		if (url === "https://api.github.com/graphql") {
+			const issuesWithComments = issues.map((issue) => ({
+				...issue,
+				commentRows: comments.filter(
+					(comment) =>
+						comment.id === issue.number ||
+						comment.issue_url ===
+							`https://api.github.com/repos/${githubRepo}/issues/${issue.number}`,
+				),
+			}));
 			const read = repoReadFromLists(
 				input,
 				init,
-				{ [githubRepo]: issues },
+				{ [githubRepo]: issuesWithComments },
 				{ [githubRepo]: [...pulls, ...closed] },
 			);
 			if (read !== null) {
 				requests.push(
 					`https://api.github.com/repos/${githubRepo}/issues?state=all`,
 				);
-				return read;
+				const payload = (await read.json()) as {
+					data: {
+						repository: {
+							autoMergeAllowed?: boolean;
+							labels: {
+								nodes: { name: string; color: string }[];
+							};
+						};
+					};
+				};
+				payload.data.repository.autoMergeAllowed =
+					repoBody.allow_auto_merge === true;
+				const labelNodes = labels.flatMap((label) =>
+					typeof label.name === "string"
+						? [
+								{
+									name: label.name,
+									color:
+										typeof label.color === "string" ? label.color : "ededed",
+								},
+							]
+						: [],
+				);
+				if (labelNodes.length > 0) {
+					payload.data.repository.labels.nodes = labelNodes;
+				}
+				return Response.json(payload);
 			}
 			const body = typeof init?.body === "string" ? init.body : "";
 			const number = body.match(/"number":\s*(\d+)/)?.[1];
@@ -863,6 +898,8 @@ describe("forward state", () => {
 					run: { status: "running", stage: "stage 3" },
 				});
 			},
+			undefined,
+			new Date("2026-08-18T14:00:00.000Z"),
 		);
 	});
 

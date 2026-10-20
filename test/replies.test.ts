@@ -162,7 +162,10 @@ function githubFetch(
 		}
 		if (url === "https://api.github.com/graphql" && method === "POST") {
 			const read = repoReadFromLists(input, init, {
-				"acme/widget": options.issues,
+				"acme/widget": options.issues.map((item) => ({
+					...item,
+					commentRows: options.comments?.[Number(item.number)] ?? [],
+				})),
 			});
 			if (read !== null) {
 				return read;

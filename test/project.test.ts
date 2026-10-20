@@ -11,7 +11,6 @@ import {
 	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
-	repoReadFromHandler,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -100,45 +99,14 @@ function githubFetch(
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
 		}
-		const listed = await repoReadFromHandler(input, init, async (restInput) => {
-			const restUrl = urlOf(restInput);
-			if (
-				restUrl.startsWith(`https://api.github.com/repos/${githubRepo}/issues?`)
-			) {
-				return page(issues);
+		if (url === "https://api.github.com/graphql") {
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (body.includes("query RepoRead")) {
+				return new Response("{}", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
 			}
-			if (
-				restUrl.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)
-			) {
-				return page(others);
-			}
-			if (restUrl.includes("/pulls?")) {
-				return page(
-					restUrl.includes(githubRepo)
-						? [
-								{
-									number: 40,
-									title: "Fix the legend",
-									state: "open",
-									draft: true,
-									html_url: `https://github.com/${githubRepo}/pull/40`,
-									head: { ref: "legend" },
-									body: "",
-								},
-							]
-						: [],
-				);
-			}
-			if (restUrl.includes("/branches?")) {
-				return page(
-					restUrl.includes(githubRepo) ? [{ name: "4-draft-the-page" }] : [],
-				);
-			}
-			return page([]);
-		});
-		if (listed !== null) {
-			calls?.push(`https://api.github.com/repos/${githubRepo}/issues?`);
-			return listed;
 		}
 		if (url.startsWith(`https://api.github.com/repos/${githubRepo}/issues?`)) {
 			return page(issues);
@@ -1071,6 +1039,7 @@ describe("GET /api/projects/:name", () => {
 					source.tickets.find((item) => item.key === `${githubRepo}#12`)
 						?.blocks ?? [],
 				).toEqual([]);
+
 				const other = (await (
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(otherRepo)}`, base),

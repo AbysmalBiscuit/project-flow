@@ -2159,12 +2159,15 @@ function ticketFromGraphql(
 		),
 		repo,
 	);
-	const blocking = dependencyRefs(
-		(issue.blocking?.nodes ?? []).flatMap((node) =>
-			node === undefined ? [] : [node],
-		),
-		repo,
-	);
+	const blocking =
+		state === "closed"
+			? []
+			: dependencyRefs(
+					(issue.blocking?.nodes ?? []).flatMap((node) =>
+						node === undefined ? [] : [node],
+					),
+					repo,
+				);
 	const assignees = (issue.assignees?.nodes ?? []).flatMap((person) =>
 		person === undefined ? [] : [person.login],
 	);
