@@ -119,7 +119,7 @@ function eventsOf(text: string): StreamEvent[] {
 	return events;
 }
 
-async function drivenPoll(base: string): Promise<InboxEntry | null> {
+async function openEvents(base: string) {
 	const response = await fetch(new URL("/api/events", base), {
 		headers: { accept: "text/event-stream" },
 	});
@@ -130,8 +130,23 @@ async function drivenPoll(base: string): Promise<InboxEntry | null> {
 	const decoder = new TextDecoder();
 	const opened = await reader.read();
 	if (!decoder.decode(opened.value).includes(": open")) {
+		await reader.cancel();
 		throw new Error("event stream did not open");
 	}
+	return {
+		reader,
+		read: async () => {
+			const chunk = await reader.read();
+			if (chunk.done) {
+				return null;
+			}
+			return decoder.decode(chunk.value, { stream: true });
+		},
+	};
+}
+
+async function drivenPoll(base: string): Promise<InboxEntry | null> {
+	const stream = await openEvents(base);
 	const before = await inboxOf(base);
 	await refresh(base);
 	const after = await inboxOf(base);
@@ -139,23 +154,88 @@ async function drivenPoll(base: string): Promise<InboxEntry | null> {
 		(entry) => !before.some((earlier) => earlier.id === entry.id),
 	);
 	if (raised === undefined) {
-		await reader.cancel();
+		await stream.reader.cancel();
 		return null;
 	}
 	let buffered = "";
 	while (streamedNotification(buffered, raised.id) === undefined) {
-		const chunk = await reader.read();
-		if (chunk.done) {
+		const chunk = await stream.read();
+		if (chunk === null) {
 			break;
 		}
-		buffered += decoder.decode(chunk.value, { stream: true });
+		buffered += chunk;
 	}
-	await reader.cancel();
+	await stream.reader.cancel();
 	const streamed = streamedNotification(buffered, raised.id);
 	if (streamed === undefined) {
 		throw new Error("notification event missing for the raised inbox entry");
 	}
 	return streamed;
+}
+
+async function quietPoll(base: string): Promise<void> {
+	const before = await inboxOf(base);
+	const stream = await openEvents(base);
+	try {
+		await refresh(base);
+		const after = await inboxOf(base);
+		const raised = after.find(
+			(entry) => !before.some((earlier) => earlier.id === entry.id),
+		);
+		if (raised !== undefined) {
+			throw new Error("inbox gained an entry on a quiet poll");
+		}
+		const events = eventsOf(await pollText(stream.reader));
+		for (const event of events) {
+			if (event.event === "notification") {
+				throw new Error("notification event arrived on a quiet poll");
+			}
+		}
+		if (!events.some((event) => event.event === "overview")) {
+			throw new Error("quiet poll ended before its overview event");
+		}
+	} finally {
+		await stream.reader.cancel();
+	}
+}
+
+// The server writes the overview chunk, then each notification chunk.
+// A gap shorter than this still belongs to the same poll.
+const pollIdleMs = 50;
+
+async function pollText(
+	reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<string> {
+	const decoder = new TextDecoder();
+	let buffered = "";
+	const readOne = (): Promise<Uint8Array | null> => {
+		let settled = false;
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				if (!settled) {
+					resolve(null);
+				}
+			}, pollIdleMs);
+			reader.read().then(
+				(chunk) => {
+					settled = true;
+					clearTimeout(timer);
+					resolve(chunk.done ? null : (chunk.value?.slice() ?? null));
+				},
+				(error: unknown) => {
+					settled = true;
+					clearTimeout(timer);
+					reject(error);
+				},
+			);
+		});
+	};
+	let bytes = await readOne();
+	while (bytes !== null) {
+		buffered += decoder.decode(bytes, { stream: true });
+		bytes = await readOne();
+	}
+	return buffered;
 }
 
 function streamedNotification(
@@ -313,10 +393,7 @@ async function notificationAfterRefresh(base: string): Promise<InboxEntry> {
 }
 
 async function expectQuietRefresh(base: string): Promise<void> {
-	const polled = await drivenPoll(base);
-	if (polled !== null) {
-		throw new Error("notification event arrived on a quiet poll");
-	}
+	await quietPoll(base);
 }
 
 async function quietUntil(
