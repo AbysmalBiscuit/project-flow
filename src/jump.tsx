@@ -125,7 +125,8 @@ export function JumpBox() {
 					</div>
 				</div>
 			) : null}
-			{ticket === null ? null : (
+			{ticket === null ||
+			window.location.pathname.startsWith("/projects/") ? null : (
 				<TicketPanel
 					key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
 					tracker={ticket.tracker}
@@ -140,6 +141,7 @@ export function JumpBox() {
 
 export function mountJumpBox(): void {
 	const host = document.createElement("div");
+	host.style.display = "contents";
 	document.body.append(host);
 	createRoot(host).render(<JumpBox />);
 	const opener = document.createElement("button");

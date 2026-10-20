@@ -39,6 +39,24 @@ function ThemeIcon({ children }: { children: ReactNode }) {
 	);
 }
 
+function LogoMark() {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<rect x="4" y="4" width="16" height="16" rx="3" />
+			<path d="M8 12h8M12 8v8" />
+		</svg>
+	);
+}
+
 function MoonIcon() {
 	return (
 		<ThemeIcon>
@@ -118,9 +136,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const current = (href: string) =>
 		href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
 	return (
-		<>
+		<div className={clsx(frame.shell)}>
 			<header className={clsx(frame.bar)}>
 				<a className={clsx(frame.logo, shell.linkFocus)} href="/">
+					<LogoMark />
 					{navLabel.logo}
 				</a>
 				<nav className={clsx(frame.nav)} aria-label="App">
@@ -146,12 +165,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 				<button
 					type="button"
 					id="header-search"
-					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
-					aria-label="Search"
-					title="Search"
+					className={clsx(frame.query, shell.buttonFocus)}
+					aria-label="Search tickets"
+					title="Search tickets"
 					onClick={() => openJumpBox()}
 				>
-					Search
+					<span aria-hidden="true">⌕</span>
+					Search tickets
 				</button>
 				<button
 					type="button"
@@ -175,22 +195,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 						{navLabel.theme} {theme}
 					</span>
 				</button>
-				<a
-					className={clsx(
-						frame.icon,
-						shell.linkFocus,
-						path === "/settings" && frame.current,
-					)}
-					href="/settings"
-					aria-label={navLabel.settings}
-					aria-current={path === "/settings" ? "page" : undefined}
-					title={navLabel.settings}
-				>
-					⚙
+				<a className={clsx(frame.legend)} href="/settings">
+					{navLabel.settings}
 				</a>
 			</header>
 			{children}
-		</>
+		</div>
 	);
 }
 
