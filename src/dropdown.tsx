@@ -43,7 +43,7 @@ export function Dropdown({
 			<button
 				type="button"
 				id={id}
-				className={clsx(frame.select, shell.buttonFocus)}
+				className={clsx(frame.menuButton, shell.buttonFocus)}
 				aria-label={label}
 				aria-haspopup="listbox"
 				aria-expanded={open}
