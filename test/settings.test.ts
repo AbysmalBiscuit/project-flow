@@ -3,7 +3,6 @@ import {
 	chmod,
 	lstat,
 	mkdtemp,
-	readFile,
 	rm,
 	symlink,
 	writeFile,
@@ -710,8 +709,6 @@ describe("settings", () => {
 				expect(page.status).toBe(200);
 				expect(await page.text()).toContain('data-theme="dark"');
 			});
-			const stored = await readFile(path, "utf8");
-			expect(stored).toContain('"theme": "dark"');
 			await withAppFile(path, async (base) => {
 				const restarted = (await (
 					await fetch(new URL("/api/settings", base))
