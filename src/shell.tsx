@@ -14,13 +14,14 @@ export type PageView = {
 
 export type PageHeaderProps = {
 	title: string;
-	subtitle?: ReactNode;
+	subtitle?: string;
 	filter?: ReactNode;
 	sort?: ReactNode;
 	search?: ReactNode;
 	views?: readonly PageView[];
 	view?: string;
 	onView?: (id: string) => void;
+	actions?: ReactNode;
 };
 
 function Glyph({ children }: { children: ReactNode }) {
@@ -40,6 +41,15 @@ function Glyph({ children }: { children: ReactNode }) {
 	);
 }
 
+function SearchIcon() {
+	return (
+		<Glyph>
+			<circle cx="11" cy="11" r="6.5" />
+			<path d="M16 16l4 4" />
+		</Glyph>
+	);
+}
+
 function LogoMark() {
 	return (
 		<svg
@@ -52,8 +62,8 @@ function LogoMark() {
 			strokeLinecap="round"
 			strokeLinejoin="round"
 		>
-			<rect x="4" y="4" width="16" height="16" rx="3" />
-			<path d="M8 12h8M12 8v8" />
+			<rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+			<path d="M8 14.5l2.4-3.2 2.1 2.2L16.2 9" />
 		</svg>
 	);
 }
@@ -63,6 +73,15 @@ export function SearchGlyph() {
 		<Glyph>
 			<circle cx="11" cy="11" r="6" />
 			<path d="M16 16l4 4" />
+		</Glyph>
+	);
+}
+
+function SettingsIcon() {
+	return (
+		<Glyph>
+			<path d="M10.2 3.4h3.6l.5 2.1 1.8.8 1.6-1.5 2.5 2.5-1.5 1.6.8 1.8 2.1.5v3.6l-2.1.5-.8 1.8 1.5 1.6-2.5 2.5-1.6-1.5-1.8.8-.5 2.1h-3.6l-.5-2.1-1.8-.8-1.6 1.5-2.5-2.5 1.5-1.6-.8-1.8-2.1-.5v-3.6l2.1-.5.8-1.8-1.5-1.6 2.5-2.5 1.6 1.5 1.8-.8z" />
+			<circle cx="12" cy="12" r="2.6" />
 		</Glyph>
 	);
 }
@@ -180,9 +199,17 @@ export function AppShell({ children }: { children: ReactNode }) {
 					title="Search tickets"
 					onClick={() => openJumpBox()}
 				>
-					<span aria-hidden="true">⌕</span>
+					<SearchIcon />
 					Search tickets
 				</button>
+				<a
+					className={clsx(frame.icon, shell.linkFocus)}
+					href="/settings"
+					aria-label={navLabel.settings}
+					title={navLabel.settings}
+				>
+					<SettingsIcon />
+				</a>
 				<button
 					type="button"
 					className={clsx(frame.icon, shell.buttonFocus)}
@@ -201,13 +228,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}
-					<span className={clsx(frame.legend)}>
-						{navLabel.theme} {theme}
-					</span>
 				</button>
-				<a className={clsx(frame.legend)} href="/settings">
-					{navLabel.settings}
-				</a>
 			</header>
 			{children}
 		</div>
@@ -223,15 +244,17 @@ export function PageHeader({
 	views,
 	view,
 	onView,
+	actions,
 }: PageHeaderProps) {
 	const showTools =
 		filter !== undefined ||
 		sort !== undefined ||
 		search !== undefined ||
+		actions !== undefined ||
 		(views !== undefined && views.length > 0);
 	return (
-		<div className={clsx(frame.head)}>
-			<div>
+		<div className={clsx(frame.row, views !== undefined && frame.rowTall)}>
+			<div className={clsx(frame.heading)}>
 				<h1 className={clsx(frame.title)}>{title}</h1>
 				{subtitle === undefined ? null : (
 					<p className={clsx(frame.subtitle)}>{subtitle}</p>
@@ -263,6 +286,7 @@ export function PageHeader({
 							))}
 						</fieldset>
 					)}
+					{actions}
 				</div>
 			) : null}
 		</div>

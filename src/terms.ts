@@ -40,10 +40,19 @@ export const viewLabel = {
 } as const;
 
 export const reasonLabel: Record<NeedsYouItem["reason"], string> = {
-	ask: "Ask",
-	awaitingMerge: "Awaiting merge",
-	label: "Label",
+	ask: "Question",
+	awaitingMerge: "Ready to merge",
+	label: "Labeled for you",
 	runFailed: "Run failed",
+};
+
+export const answeredReason = "Answered, clearing";
+
+export const reasonTab: Record<NeedsYouItem["reason"], string> = {
+	ask: "Questions",
+	awaitingMerge: "Merges",
+	label: "Labels",
+	runFailed: "Runs",
 };
 
 export const reasonOrder: readonly NeedsYouItem["reason"][] = [
@@ -84,3 +93,41 @@ export const overviewControlLabel = {
 	polled: "polled",
 	unlinked: "unlinked PR",
 } as const;
+
+export function actionLabel(
+	item: NeedsYouItem,
+	surface: "row" | "strip" = "row",
+): string {
+	if (item.reason === "ask") {
+		if (surface === "strip") {
+			return "Answer question";
+		}
+		return item.answered ? "View" : "Answer";
+	}
+	if (item.reason === "awaitingMerge") {
+		return "Merge";
+	}
+	if (item.reason === "label") {
+		return "Open ticket";
+	}
+	return "View";
+}
+
+export function polledAgo(fetchedAt: string | null): string | null {
+	if (fetchedAt === null) {
+		return null;
+	}
+	const then = Date.parse(fetchedAt);
+	if (Number.isNaN(then)) {
+		return null;
+	}
+	const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+	if (seconds < 60) {
+		return `polled ${seconds} s ago`;
+	}
+	const minutes = Math.round(seconds / 60);
+	if (minutes < 60) {
+		return `polled ${minutes} min ago`;
+	}
+	return `polled ${Math.round(minutes / 60)} h ago`;
+}

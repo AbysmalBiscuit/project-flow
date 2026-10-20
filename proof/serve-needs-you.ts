@@ -66,6 +66,30 @@ const recorded: Fetch = async (input, init) => {
 		});
 	}
 	if (url === "https://api.linear.app/graphql") {
+		if (body.includes("IssueThread")) {
+			return Response.json({
+				data: {
+					issue: {
+						identifier: "PF-1",
+						title: "Open ask",
+						url: "https://linear.app/issue/PF-1",
+						comments: {
+							nodes: [
+								{
+									id: "pf-1-ask",
+									body: `${question}\n\n${ask}`,
+									createdAt: "2026-08-18T12:00:00.000Z",
+									url: "https://linear.app/issue/PF-1#comment-pf-1-ask",
+									parent: null,
+									user: { name: "Ada", displayName: "Ada" },
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			});
+		}
 		if (body.includes("MemberProjects") || body.includes("viewer")) {
 			return Response.json({
 				data: {

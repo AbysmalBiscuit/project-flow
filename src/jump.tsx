@@ -73,15 +73,21 @@ export function JumpBox() {
 			clearTimeout(handle);
 		};
 	}, [open, query]);
-	if (!open && ticket === null) {
+	const pageRendersPanel =
+		window.location.pathname === "/needs-you" ||
+		window.location.pathname.startsWith("/projects/");
+	if (!open && (ticket === null || pageRendersPanel)) {
 		return null;
 	}
 	return (
 		<>
 			{open ? (
 				<div className={clsx(jump.shade)}>
-					<div className={clsx(jump.box)} role="dialog" aria-label="Jump box">
-						<h2 className={clsx(jump.title)}>Jump box</h2>
+					<div
+						className={clsx(jump.box)}
+						role="dialog"
+						aria-label="Search tickets"
+					>
 						<input
 							className={clsx(jump.query)}
 							id="jump-query"
@@ -125,8 +131,7 @@ export function JumpBox() {
 					</div>
 				</div>
 			) : null}
-			{ticket === null ||
-			window.location.pathname.startsWith("/projects/") ? null : (
+			{ticket === null || pageRendersPanel ? null : (
 				<TicketPanel
 					key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
 					tracker={ticket.tracker}
