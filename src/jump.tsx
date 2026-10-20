@@ -75,6 +75,7 @@ export function JumpBox() {
 	}, [open, query]);
 	const pageRendersPanel =
 		window.location.pathname === "/needs-you" ||
+		window.location.pathname === "/inbox" ||
 		window.location.pathname.startsWith("/projects/");
 	if (!open && (ticket === null || pageRendersPanel)) {
 		return null;

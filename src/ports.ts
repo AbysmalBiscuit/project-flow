@@ -93,7 +93,7 @@ export type Store = {
 	readNotifications: () => Notification[];
 	appendNotifications: (entries: Notification[]) => void;
 	markNotificationRead: (id: string) => boolean;
-	markAllNotificationsRead: () => void;
+	markNotificationsRead: (ids: readonly string[]) => void;
 	/** Ids that must not notify again. */
 	readSeededIds: () => string[];
 	/** Record ids that must not notify again. */

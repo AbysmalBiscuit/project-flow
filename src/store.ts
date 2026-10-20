@@ -230,8 +230,13 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					.run(id);
 				return changed.changes > 0;
 			},
-			markAllNotificationsRead() {
-				db.run("update notifications set read = 1");
+			markNotificationsRead(ids) {
+				const mark = db.query("update notifications set read = 1 where id = ?");
+				db.transaction(() => {
+					for (const id of ids) {
+						mark.run(id);
+					}
+				})();
 			},
 			readSeededIds() {
 				const rows = db.query("select id from seeded_ids").all() as {

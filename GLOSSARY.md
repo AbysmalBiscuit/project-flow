@@ -140,3 +140,7 @@ An event the browser shows when a configured trigger fires: a new needs-you item
 
 **Inbox**:
 The list of every notification Project Flow has raised.
+
+**Read**:
+A notification that Lev opened or marked read.
+_Avoid_: Seen, acknowledged

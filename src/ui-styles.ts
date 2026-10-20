@@ -1359,7 +1359,7 @@ export const inbox = stylex.create({
 		gap: space.sm,
 		alignItems: "baseline",
 		justifyContent: "space-between",
-		margin: `${space.xs} 0 ${space.lg}`,
+		margin: `0 0 ${space.lg}`,
 		color: colours.inkMuted,
 		fontSize: type.small,
 	},
@@ -1529,9 +1529,6 @@ export const inbox = stylex.create({
 	},
 	text: {
 		color: colours.ink,
-		fontWeight: type.weight,
-	},
-	textRead: {
 		fontWeight: type.regular,
 	},
 	time: {

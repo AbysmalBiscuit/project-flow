@@ -23,6 +23,7 @@ import {
 	departedNeedsYouIds,
 	expectedBotsByRepo,
 	githubRepoForTodo,
+	inboxEntries,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	mergeTickets,
@@ -365,11 +366,15 @@ const replyBody = z.object({
 
 const readMarkBody = z.object({ read: z.literal(true) });
 
+const readIdsBody = readMarkBody.extend({
+	ids: z.array(z.string()),
+});
+
 type Trackers = Pick<PollOptions, "github" | "linear">;
 
-async function readMark(request: Request): Promise<true | null> {
+async function readMark(request: Request): Promise<boolean> {
 	const parsed = readMarkBody.safeParse(await request.json().catch(() => null));
-	return parsed.success ? true : null;
+	return parsed.success;
 }
 
 function trackerFor(trackers: Trackers, name: string): Tracker | null {
@@ -407,7 +412,7 @@ async function threadResponse(
 	try {
 		const thread: Thread | null = await tracker.fetchThread(
 			project,
-			decodeURIComponent(key),
+			key.trim(),
 		);
 		if (thread === null) {
 			return Response.json({ error: "thread not found" }, { status: 404 });
@@ -1173,29 +1178,34 @@ export async function start(options: StartOptions): Promise<Running> {
 					),
 			},
 			"/api/inbox": {
-				GET: () => Response.json(opened.store.readNotifications()),
+				GET: () =>
+					Response.json(
+						inboxEntries(opened.store.readNotifications(), clock.now()),
+					),
 				POST: async (request: Request) => {
-					const marked = await readMark(request);
-					if (marked === null) {
+					const parsed = readIdsBody.safeParse(
+						await request.json().catch(() => null),
+					);
+					if (!parsed.success) {
 						return Response.json(
 							{ error: "read must be true" },
 							{ status: 400 },
 						);
 					}
-					opened.store.markAllNotificationsRead();
+					opened.store.markNotificationsRead(parsed.data.ids);
 					return new Response(null, { status: 204 });
 				},
 			},
 			"/api/inbox/:id": {
 				POST: async (request) => {
 					const marked = await readMark(request);
-					if (marked === null) {
+					if (!marked) {
 						return Response.json(
 							{ error: "read must be true" },
 							{ status: 400 },
 						);
 					}
-					const id = decodeURIComponent(request.params.id).trim();
+					const id = request.params.id.trim();
 					if (id === "") {
 						return Response.json(
 							{ error: "notification id is blank" },

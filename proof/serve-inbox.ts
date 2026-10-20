@@ -1,9 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { Notification } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { sqliteStore } from "../src/store.ts";
 
 const ask = "<!-- workcell:ask pf-1 -->";
 const question = "Which bot should review this?";
@@ -55,41 +53,6 @@ const recorded: Fetch = async (input, init) => {
 		if (body.includes("ProjectIssues")) {
 			return recordedIssues();
 		}
-		if (body.includes("IssueThread")) {
-			const current = issues[0];
-			const title = body.includes("PF-2")
-				? "New comment on #72 from grok-72"
-				: typeof current?.title === "string"
-					? current.title
-					: "Open ask";
-			const identifier = body.includes("PF-2")
-				? "PF-2"
-				: typeof current?.identifier === "string"
-					? current.identifier
-					: "PF-1";
-			return Response.json({
-				data: {
-					issue: {
-						identifier,
-						title,
-						url: `https://linear.app/project-flow/issue/${identifier}`,
-						comments: {
-							nodes: [
-								{
-									id: "comment-1",
-									body: "Which bot should review this?",
-									createdAt: "2026-08-18T13:00:00.000Z",
-									url: `https://linear.app/project-flow/issue/${identifier}#comment-1`,
-									parent: null,
-									user: { name: "Ada", displayName: "Ada" },
-								},
-							],
-							pageInfo: { hasNextPage: false, endCursor: null },
-						},
-					},
-				},
-			});
-		}
 	}
 	return new Response("not recorded", { status: 404 });
 };
@@ -125,99 +88,6 @@ export function releaseLinearAsk(): void {
 	];
 }
 
-function seedInbox(databasePath: string): void {
-	const opened = sqliteStore(databasePath);
-	const rows: Notification[] = [
-		{
-			id: "needsYou\nProject Flow\nPF-1\n2026-10-18T14:12:00.000Z",
-			trigger: "needsYou",
-			project: "Project Flow",
-			key: "PF-1",
-			text: "Which bot should review this?",
-			at: "2026-10-18T14:12:00.000Z",
-			read: false,
-		},
-		{
-			id: "comment\nProject Flow\nPF-2\n2026-10-18T14:02:00.000Z",
-			trigger: "comment",
-			project: "Project Flow",
-			key: "PF-2",
-			text: "New comment on #72 from grok-72",
-			at: "2026-10-18T14:02:00.000Z",
-			read: false,
-		},
-		{
-			id: "blockerCleared\nProject Flow\nlinear\nPF-3\n2026-10-18T13:47:00.000Z",
-			trigger: "blockerCleared",
-			project: "Project Flow",
-			key: "PF-3",
-			text: "devkit#212 closed, #80 can start",
-			at: "2026-10-18T13:47:00.000Z",
-			read: false,
-		},
-		{
-			id: "needsYou\nProject Flow\nPF-4\n2026-10-18T13:31:00.000Z",
-			trigger: "needsYou",
-			project: "Project Flow",
-			key: "PF-4",
-			text: "Ask 53-2 on #53 waits for an answer",
-			at: "2026-10-18T13:31:00.000Z",
-			read: true,
-		},
-		{
-			id: "comment\nworkcell\n#431\n2026-10-18T12:58:00.000Z",
-			trigger: "comment",
-			project: "workcell",
-			key: "#431",
-			text: "New comment on PR #431 from codex-reviewer",
-			at: "2026-10-18T12:58:00.000Z",
-			read: true,
-		},
-		{
-			id: "needsYou\nPlatform\nPLAT-212\n2026-10-18T11:20:00.000Z",
-			trigger: "needsYou",
-			project: "Platform",
-			key: "PLAT-212",
-			text: "PLAT-212 asks a question about the billing export",
-			at: "2026-10-18T11:20:00.000Z",
-			read: false,
-		},
-		{
-			id: "blockerCleared\nPlatform\nlinear\nPLAT-15\n2026-10-17T18:44:00.000Z",
-			trigger: "blockerCleared",
-			project: "Platform",
-			key: "PLAT-15",
-			text: "project-flow#15 closed, PLAT-198 can start",
-			at: "2026-10-17T18:44:00.000Z",
-			read: true,
-		},
-		{
-			id: "comment\nworkcell\n#426\n2026-10-17T16:05:00.000Z",
-			trigger: "comment",
-			project: "workcell",
-			key: "#426",
-			text: "New comment on #426 from lev",
-			at: "2026-10-17T16:05:00.000Z",
-			read: true,
-		},
-		{
-			id: "needsYou\nProject Flow\nPF-78\n2026-10-17T09:12:00.000Z",
-			trigger: "needsYou",
-			project: "Project Flow",
-			key: "PF-78",
-			text: "PR #78 is ready to merge",
-			at: "2026-10-17T09:12:00.000Z",
-			read: true,
-		},
-	];
-	opened.store.appendNotifications(rows);
-	opened.close();
-}
-
-export function proofDatabase(root: string): string {
-	return join(root, "store.sqlite");
-}
-
 export async function runLinearProof(
 	proofPort: string,
 	proofRoot: string,
@@ -225,8 +95,6 @@ export async function runLinearProof(
 	onStop?: () => Promise<void>,
 ): Promise<void> {
 	const root = await mkdtemp(join(proofRoot, "project-flow-proof-"));
-	const databasePath = proofDatabase(root);
-	seedInbox(databasePath);
 	const config = join(root, "config.json");
 	await writeFile(
 		config,
@@ -248,8 +116,8 @@ export async function runLinearProof(
 				env: { LINEAR_API_KEY: "recorded-linear-key" },
 				fetch: recorded,
 				readGhToken: async () => null,
-				databasePath,
-				now: () => new Date("2026-10-18T14:30:00.000Z"),
+				databasePath: join(root, "store.sqlite"),
+				now: () => new Date("2026-10-18T12:00:00.000Z"),
 				stdout: onListen,
 				waitForStop: stop,
 			},
@@ -263,12 +131,29 @@ export async function runLinearProof(
 if (import.meta.main) {
 	const port = process.argv[2] ?? "4174";
 	const rootDir = process.argv[3] ?? "/var/tmp";
+	let timer: ReturnType<typeof setTimeout> | undefined;
 	await runLinearProof(
 		port,
 		rootDir,
 		(line) => {
 			console.log(line);
+			const arm = async () => {
+				const inbox = await fetch(new URL("/inbox", line));
+				if (!inbox.ok) {
+					timer = setTimeout(() => {
+						void arm();
+					}, 200);
+					return;
+				}
+				releaseLinearAsk();
+				await fetch(new URL("/api/refresh", line), { method: "POST" });
+			};
+			timer = setTimeout(() => {
+				void arm();
+			}, 200);
 		},
-		async () => {},
+		async () => {
+			clearTimeout(timer);
+		},
 	);
 }

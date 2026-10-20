@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Notification, NotificationTrigger } from "./domain.ts";
+import type { InboxEntry, NotificationTrigger } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
 import { TicketPanel } from "./panel.tsx";
+import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import {
 	inboxCopy,
@@ -21,7 +22,6 @@ import { frame, inbox, shell } from "./ui-styles.ts";
 const filters = ["all", "needsYou", "comment", "blockerCleared"] as const;
 type InboxFilter = (typeof filters)[number];
 const dayOrder = ["today", "yesterday", "earlier"] as const;
-type DayGroup = (typeof dayOrder)[number];
 
 const filterLabel: Record<InboxFilter, string> = {
 	all: "All",
@@ -30,35 +30,16 @@ const filterLabel: Record<InboxFilter, string> = {
 	blockerCleared: inboxFilterLabel.blockerCleared,
 };
 
-function dayStart(stamp: Date): number {
-	return new Date(
-		stamp.getFullYear(),
-		stamp.getMonth(),
-		stamp.getDate(),
-	).getTime();
-}
-
-function dayGroup(at: string, newest: Date): DayGroup {
-	const stamp = new Date(at);
-	if (Number.isNaN(stamp.getTime()) || Number.isNaN(newest.getTime())) {
-		return "earlier";
-	}
-	const age = dayStart(newest) - dayStart(stamp);
-	if (age <= 0) {
-		return "today";
-	}
-	if (age <= 24 * 60 * 60 * 1000) {
-		return "yesterday";
-	}
-	return "earlier";
-}
-
 function clock(at: string): string {
 	const stamp = new Date(at);
 	if (Number.isNaN(stamp.getTime())) {
 		return "";
 	}
-	return stamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+	return stamp.toLocaleTimeString([], {
+		hour: "2-digit",
+		minute: "2-digit",
+		hourCycle: "h23",
+	});
 }
 
 function Glyph({ children }: { children: ReactNode }) {
@@ -120,27 +101,15 @@ function TriggerIcon({ trigger }: { trigger: NotificationTrigger }) {
 	);
 }
 
-function trackerOf(key: string): "github" | "linear" {
-	return key.includes("#") ? "github" : "linear";
-}
-
-function asRead(entry: Notification): Notification {
+function asRead(entry: InboxEntry): InboxEntry {
 	return { ...entry, read: true };
 }
 
-function marked(entries: Notification[]): Notification[] {
-	return entries.map(asRead);
-}
-
-const readBody = JSON.stringify({ read: true });
-
-async function saveRead(id: string | null): Promise<boolean> {
-	const path =
-		id === null ? "/api/inbox" : `/api/inbox/${encodeURIComponent(id)}`;
+async function saveRead(path: string, body: string): Promise<boolean> {
 	const response = await fetch(path, {
 		method: "POST",
 		headers: { "content-type": "application/json" },
-		body: readBody,
+		body,
 	});
 	return response.ok;
 }
@@ -149,40 +118,53 @@ function InboxList({
 	entries,
 	onChange,
 }: {
-	entries: Notification[];
-	onChange: (entries: Notification[]) => void;
+	entries: InboxEntry[];
+	onChange: (entries: InboxEntry[]) => void;
 }) {
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
-	const [openId, setOpenId] = useState<string | null>(null);
 	const [permission, setPermission] = useState(notificationPermission);
+	const ticket = useActiveTicket();
 	const unread = entries.filter((entry) => !entry.read).length;
 	const shown = entries.filter(
 		(entry) =>
 			(filter === "all" || entry.trigger === filter) &&
 			(!unreadOnly || !entry.read),
 	);
-	const open = entries.find((entry) => entry.id === openId) ?? null;
-	const newestAt = entries.reduce(
-		(latest, entry) => (entry.at > latest ? entry.at : latest),
-		entries[0]?.at ?? "",
-	);
 	const groups = dayOrder.flatMap((name) => {
-		const rows = shown.filter(
-			(entry) => dayGroup(entry.at, new Date(newestAt)) === name,
-		);
+		const rows = shown.filter((entry) => entry.day === name);
 		return rows.length === 0 ? [] : [{ name, rows }];
 	});
-	const markOne = (id: string) => {
-		const next = entries.map((entry) =>
-			entry.id === id ? { ...entry, read: true } : entry,
-		);
+	const applyRead = (
+		next: InboxEntry[],
+		path: string,
+		body: string,
+		previous: InboxEntry[],
+	) => {
 		onChange(next);
-		void saveRead(id).then((saved) => {
+		void saveRead(path, body).then((saved) => {
 			if (!saved) {
-				onChange(entries);
+				onChange(previous);
 			}
 		});
+	};
+	const markOne = (id: string) => {
+		applyRead(
+			entries.map((entry) => (entry.id === id ? asRead(entry) : entry)),
+			`/api/inbox/${encodeURIComponent(id)}`,
+			JSON.stringify({ read: true }),
+			entries,
+		);
+	};
+	const markShown = () => {
+		const ids = shown.map((entry) => entry.id);
+		const markedIds = new Set(ids);
+		applyRead(
+			entries.map((entry) => (markedIds.has(entry.id) ? asRead(entry) : entry)),
+			"/api/inbox",
+			JSON.stringify({ read: true, ids }),
+			entries,
+		);
 	};
 	return (
 		<PageFrame title={navLabel.inbox} wide>
@@ -262,15 +244,7 @@ function InboxList({
 							shell.buttonFocus,
 							inbox.markAll,
 						)}
-						onClick={() => {
-							const previous = entries;
-							onChange(marked(previous));
-							void saveRead(null).then((saved) => {
-								if (!saved) {
-									onChange(previous);
-								}
-							});
-						}}
+						onClick={markShown}
 					>
 						<CheckIcon />
 						{inboxCopy.markAll}
@@ -295,7 +269,11 @@ function InboxList({
 											data-trigger={entry.trigger}
 											data-read={entry.read ? "true" : "false"}
 											onClick={() => {
-												setOpenId(entry.id);
+												openTicket({
+													project: entry.project,
+													tracker: entry.tracker,
+													key: entry.key,
+												});
 												if (!entry.read) {
 													markOne(entry.id);
 												}
@@ -314,14 +292,7 @@ function InboxList({
 														{entry.project}
 													</span>
 												</span>
-												<span
-													className={clsx(
-														inbox.text,
-														entry.read && inbox.textRead,
-													)}
-												>
-													{entry.text}
-												</span>
+												<span className={clsx(inbox.text)}>{entry.text}</span>
 											</span>
 											<span className={clsx(inbox.time)}>
 												{clock(entry.at)}
@@ -333,13 +304,13 @@ function InboxList({
 						</section>
 					))}
 				</div>
-				{open === null ? null : (
+				{ticket === null ? null : (
 					<TicketPanel
-						key={open.id}
-						tracker={trackerOf(open.key)}
-						project={open.project}
-						ticketKey={open.key}
-						onClose={() => setOpenId(null)}
+						key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
+						tracker={ticket.tracker}
+						project={ticket.project}
+						ticketKey={ticket.key}
+						onClose={closeTicket}
 					/>
 				)}
 			</div>
@@ -348,14 +319,14 @@ function InboxList({
 }
 
 function Page() {
-	const [entries, setEntries] = useState<Notification[] | null>(null);
+	const [entries, setEntries] = useState<InboxEntry[] | null>(null);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
 			fetch("/api/inbox")
 				.then(async (response) => {
 					if (!stopped && response.ok) {
-						setEntries((await response.json()) as Notification[]);
+						setEntries((await response.json()) as InboxEntry[]);
 					}
 				})
 				.catch(() => {
