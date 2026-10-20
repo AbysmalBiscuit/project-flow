@@ -363,24 +363,13 @@ const replyBody = z.object({
 	kind: z.enum(["comment", "review"]).optional(),
 });
 
+const readMarkBody = z.object({ read: z.literal(true) });
+
 type Trackers = Pick<PollOptions, "github" | "linear">;
 
 async function readMark(request: Request): Promise<true | null> {
-	let body: unknown;
-	try {
-		body = await request.json();
-	} catch {
-		return null;
-	}
-	if (
-		body === null ||
-		typeof body !== "object" ||
-		!("read" in body) ||
-		body.read !== true
-	) {
-		return null;
-	}
-	return true;
+	const parsed = readMarkBody.safeParse(await request.json().catch(() => null));
+	return parsed.success ? true : null;
 }
 
 function trackerFor(trackers: Trackers, name: string): Tracker | null {
