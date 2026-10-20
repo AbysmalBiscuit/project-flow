@@ -426,6 +426,77 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a GitHub ticket with no milestone takes its parent issue as its workstream", async () => {
+		const parent = issue(21, "Ship the list");
+		const child = issue(22, "Draw the rows", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/21`,
+		});
+		const grandchild = issue(23, "Name the columns", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/22`,
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([parent, child, grandchild]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const workstreamOf = (number: number) =>
+					report.tickets.find(
+						(ticket) => ticket.key === `${githubRepo}#${number}`,
+					)?.workstream;
+				expect(workstreamOf(21)).toBe("no workstream");
+				expect(workstreamOf(22)).toBe("Ship the list");
+				expect(workstreamOf(23)).toBe("Ship the list");
+			},
+		);
+	});
+
+	test("a GitHub ticket with a blank parent stays in no workstream", async () => {
+		const lone = issue(24, "Leave the draft", {
+			parent_issue_url: "   ",
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([lone]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#24`),
+				).toMatchObject({ workstream: "no workstream" });
+			},
+		);
+	});
+
+	test("a GitHub ticket whose parent is outside the project stays in no workstream", async () => {
+		const orphan = issue(25, "Wait on the other repo", {
+			parent_issue_url: `https://api.github.com/repos/${otherRepo}/issues/9`,
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([orphan]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#25`),
+				).toMatchObject({ workstream: "no workstream" });
+			},
+		);
+	});
+
 	test("a GitHub ticket under a non-epic root takes its own milestone", async () => {
 		const parent = issue(7, "Write the notes");
 		const child = issue(8, "feat(notes): add the heading", {

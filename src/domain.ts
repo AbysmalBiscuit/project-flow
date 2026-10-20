@@ -3474,7 +3474,13 @@ function workstreamOf(
 	if (isEpic(root)) {
 		return root.title;
 	}
-	return ticket.milestone ?? noWorkstream;
+	if (ticket.milestone !== null) {
+		return ticket.milestone;
+	}
+	if (root !== ticket && root.key !== null) {
+		return root.title;
+	}
+	return noWorkstream;
 }
 
 export type GroupKey = Exclude<GroupBy, "none">;
