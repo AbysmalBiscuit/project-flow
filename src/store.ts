@@ -56,10 +56,8 @@ const busyTimeoutMs = 5_000;
 
 export function sqliteStore(path: string): { store: Store; close: () => void } {
 	const db = new Database(path);
-	if (path !== ":memory:") {
-		db.run("pragma journal_mode = WAL");
-	}
 	db.run(`pragma busy_timeout = ${busyTimeoutMs}`);
+	db.run("pragma journal_mode = WAL");
 	db.run(`
 		create table if not exists snapshots (
 			snapshot_key text primary key,
