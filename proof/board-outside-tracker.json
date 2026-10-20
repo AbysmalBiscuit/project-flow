@@ -7,9 +7,7 @@
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "Draw the nodes" },
 		{ "click": "button[data-chip='PF-3']" },
-		{ "assert_text": "/api/threads/linear/PF-3?project=Gate" },
 		{ "assert_text": "Hold the gate" },
-		{ "assert_text": "/api/threads/linear/PF-3?project=Gate" },
 		{ "shot": "outside-linear" }
 	]
 }

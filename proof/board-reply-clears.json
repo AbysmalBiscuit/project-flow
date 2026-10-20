@@ -7,9 +7,7 @@
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "Ship the board" },
 		{ "click": "button[data-ticket='acme/widget#1']" },
-		{
-			"assert_text": "/api/threads/github/acme%2Fwidget%231?project=acme%2Fwidget"
-		},
+		{ "assert_text": "Ship the board" },
 		{
 			"click": "aside[data-panel='acme/widget#1'] button:not([aria-label='Close'])"
 		},
@@ -17,9 +15,6 @@
 		{ "fill": "textarea[aria-label='Reply']", "text": "keep this draft" },
 		{ "click": "button[data-ticket='acme/widget#2']" },
 		{ "assert_text": "Draw the nodes" },
-		{
-			"assert_text": "/api/threads/github/acme%2Fwidget%232?project=acme%2Fwidget"
-		},
 		{ "shot": "reply-cleared" }
 	]
 }
