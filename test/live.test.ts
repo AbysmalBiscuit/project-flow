@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import recordedProgressComment from "./fixtures/github-progress-comment.json";
 import {
 	recordedDiscovery,
 	tempConfig,
@@ -2048,6 +2049,219 @@ describe("live updates", () => {
 				LINEAR_API_KEY: "recorded-linear-key",
 			},
 		);
+	});
+
+	test("a GitHub progress comment edited in place reaches the next incremental poll", async () => {
+		const requests: string[] = [];
+		const issueUpdatedAt = "2026-04-01T08:00:00.000Z";
+		const issue = {
+			number: 192,
+			title: "Live run",
+			state: "open",
+			state_reason: null,
+			updated_at: issueUpdatedAt,
+			created_at: "2026-04-01T07:00:00.000Z",
+			html_url: `https://github.com/${repo}/issues/192`,
+			comments: 1,
+			body: "",
+		};
+		const recorded = {
+			...recordedProgressComment,
+			issue_url: `https://api.github.com/repos/${repo}/issues/192`,
+			html_url: `https://github.com/${repo}/issues/192#issuecomment-${recordedProgressComment.id}`,
+		};
+		const edited = {
+			...recorded,
+			body: `${recorded.body}\n- stage 4: implementing`,
+			updated_at: "2026-04-01T12:05:10.000Z",
+		};
+		let commentReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			requests.push(url);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url === `https://api.github.com/repos/${repo}`) {
+				return Response.json({ allow_auto_merge: false });
+			}
+			const listed = listUrl(url);
+			if (listed !== null) {
+				return listed.searchParams.get("since") === null
+					? page([issue])
+					: page([]);
+			}
+			if (url.includes(`/repos/${repo}/issues/comments?`)) {
+				return page([edited]);
+			}
+			if (url === `https://api.github.com/repos/${repo}/issues/192`) {
+				return Response.json(issue);
+			}
+			if (url.includes("/issues/192/comments")) {
+				commentReads += 1;
+				return page([commentReads === 1 ? recorded : edited]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base, advance) => {
+			const firstOverview = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			const first = (await (
+				await fetch(new URL(`/api/projects/${encodeURIComponent(repo)}`, base))
+			).json()) as { tickets: ShownTicket[] };
+			expect(first.tickets[0]).toMatchObject({
+				key: `${repo}#192`,
+				state: "inProgress",
+				run: { status: "running", stage: "stage 2" },
+			});
+			expect(first.tickets[0]?.chips ?? []).not.toContain("Run failed");
+			expect(firstOverview.error).toBeNull();
+			advance(5 * 60 * 1000);
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const body = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			const report = (await (
+				await fetch(new URL(`/api/projects/${encodeURIComponent(repo)}`, base))
+			).json()) as { tickets: ShownTicket[] };
+			const ticket = report.tickets[0];
+			expect(ticket).toMatchObject({
+				key: `${repo}#192`,
+				state: "inProgress",
+				run: { status: "running", stage: "stage 4" },
+			});
+			expect(ticket?.chips ?? []).not.toContain("Run failed");
+			expect(body.projects[0]?.tickets[0]?.state).toBe("inProgress");
+			const needsYou = (await (
+				await fetch(new URL("/api/needs-you", base))
+			).json()) as { key: string; reason: string }[];
+			expect(needsYou.filter((row) => row.key === `${repo}#192`)).toEqual([]);
+			expect(body.error).toBeNull();
+			const lists = requests.filter((item) => listUrl(item) !== null);
+			expect(lists).toHaveLength(2);
+			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
+			const commentLists = requests.filter((item) =>
+				item.includes(`/repos/${repo}/issues/comments?`),
+			);
+			expect(commentLists).toHaveLength(1);
+			const commentList = new URL(commentLists[0] ?? "");
+			expect(commentList.searchParams.get("since")).toBe(goodPoll);
+			expect(commentList.searchParams.get("sort")).toBe("updated");
+		});
+	});
+
+	test("an edited comment with a blank issue link leaves the stored ticket", async () => {
+		const requests: string[] = [];
+		let polls = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				requests.push(url);
+				polls += 1;
+				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
+			}
+			if (url.includes(`/repos/${repo}/issues/comments?`)) {
+				requests.push(url);
+				return page([
+					{
+						id: 1,
+						issue_url: "   ",
+						body: "   ",
+						updated_at: "2026-04-01T12:05:00.000Z",
+					},
+					{
+						id: 2,
+						issue_url: `https://api.github.com/repos/${otherRepo}/issues/9`,
+						body: "edited elsewhere",
+						updated_at: "2026-04-01T12:05:00.000Z",
+					},
+				]);
+			}
+			if (url === `https://api.github.com/repos/${repo}/issues/1`) {
+				requests.push(url);
+				return new Response("recorded failure", { status: 500 });
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const body = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(body.projects[0]?.tickets).toEqual([githubTicket(1, "backlog")]);
+			expect(body.error).toBeNull();
+			expect(requests.some((url) => url.endsWith("/issues/1"))).toBe(false);
+		});
+	});
+
+	test("a missing edited issue leaves the stored tickets", async () => {
+		const requests: string[] = [];
+		let polls = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				requests.push(url);
+				polls += 1;
+				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
+			}
+			if (url.includes(`/repos/${repo}/issues/comments?`)) {
+				return page([
+					{
+						id: 3,
+						issue_url: `https://api.github.com/repos/${repo}/issues/404`,
+						body: "**Workcell progress**\n\n- stage 4: implementing",
+						updated_at: "2026-04-01T12:05:00.000Z",
+						user: { login: "lev" },
+					},
+				]);
+			}
+			if (url === `https://api.github.com/repos/${repo}/issues/404`) {
+				requests.push(url);
+				return new Response("not found", { status: 404 });
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const body = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(body.projects[0]?.tickets.map((item) => item.key)).toEqual([
+				`${repo}#1`,
+			]);
+			expect(body.error).toBeNull();
+			expect(
+				requests.filter((url) => url.endsWith("/issues/404")),
+			).toHaveLength(1);
+		});
 	});
 
 	test("an incremental Linear poll keeps stored PRs of untouched tickets", async () => {
