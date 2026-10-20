@@ -137,6 +137,7 @@ async function saveTheme(theme: "light" | "dark"): Promise<boolean> {
 export function AppShell({ children }: { children: ReactNode }) {
 	const [count, setCount] = useState<number | null>(null);
 	const [theme, setTheme] = useState(pageTheme);
+	const [themeSaveFailed, setThemeSaveFailed] = useState(false);
 	const path = window.location.pathname;
 	useEffect(() => {
 		let stopped = false;
@@ -220,12 +221,19 @@ export function AppShell({ children }: { children: ReactNode }) {
 						const next = theme === "dark" ? "light" : "dark";
 						applyPageTheme(next);
 						setTheme(next);
-						void saveTheme(next);
+						void saveTheme(next).then((saved) => {
+							setThemeSaveFailed(!saved);
+						});
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}
 				</button>
 			</header>
+			{themeSaveFailed ? (
+				<p className={clsx(frame.themeSave)} role="alert">
+					Theme not saved. This choice will not survive a reload.
+				</p>
+			) : null}
 			{children}
 		</div>
 	);

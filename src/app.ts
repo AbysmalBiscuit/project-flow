@@ -380,15 +380,22 @@ function viewOnlyChange(before: Configuration, after: Configuration): boolean {
 	const {
 		projectViews: previousViews,
 		overview: previousOverview,
+		theme: previousTheme,
 		...rest
 	} = before;
-	const { projectViews: nextViews, overview: nextOverview, ...kept } = after;
+	const {
+		projectViews: nextViews,
+		overview: nextOverview,
+		theme: nextTheme,
+		...kept
+	} = after;
 	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
 	const viewsChanged =
 		JSON.stringify(previousViews) !== JSON.stringify(nextViews);
 	const overviewChanged =
 		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
-	return restSame && (viewsChanged || overviewChanged);
+	const themeChanged = previousTheme !== nextTheme;
+	return restSame && (viewsChanged || overviewChanged || themeChanged);
 }
 
 function mergeFound(

@@ -822,31 +822,36 @@ describe("settings", () => {
 		);
 	});
 
-	test("a theme save writes the current settings shape and the page opens in it", async () => {
-		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
-			const before = (await (
-				await fetch(new URL("/api/settings", base))
-			).json()) as Configuration;
-			expect(before.theme).toBe("light");
-			const saved = await fetch(new URL("/api/settings", base), {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ ...before, theme: "dark" }),
-			});
-			expect(saved.status).toBe(200);
-			const written = (await saved.json()) as Configuration;
-			expect(written.theme).toBe("dark");
-			expect(written.pinned).toEqual(before.pinned);
-			expect(written.pollIntervalSeconds).toBe(before.pollIntervalSeconds);
-			expect(written.overview).toEqual(before.overview);
-			const again = (await (
-				await fetch(new URL("/api/settings", base))
-			).json()) as Configuration;
-			expect(again.theme).toBe("dark");
-			const page = await fetch(new URL("/", base));
-			expect(page.status).toBe(200);
-			expect(await page.text()).toContain('data-theme="dark"');
-		});
+	test("a theme save writes the current settings shape and sends no tracker request", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [] }),
+			async (base, _path, requests) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(before.theme).toBe("light");
+				const sent = requests.length;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...before, theme: "dark" }),
+				});
+				expect(saved.status).toBe(200);
+				expect(requests.length).toBe(sent);
+				const written = (await saved.json()) as Configuration;
+				expect(written.theme).toBe("dark");
+				expect(written.pinned).toEqual(before.pinned);
+				expect(written.pollIntervalSeconds).toBe(before.pollIntervalSeconds);
+				expect(written.overview).toEqual(before.overview);
+				const again = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(again.theme).toBe("dark");
+				const page = await fetch(new URL("/", base));
+				expect(page.status).toBe(200);
+				expect(await page.text()).toContain('data-theme="dark"');
+			},
+		);
 	});
 
 	test("a blank theme and an unknown theme name the field and leave the file", async () => {
