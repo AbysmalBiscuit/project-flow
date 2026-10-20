@@ -322,6 +322,10 @@ type OverviewBody = {
 		fetchedAt: string | null;
 		error: string | null;
 		statusTypes: Record<string, number>;
+		pinned: boolean;
+		ref:
+			| { tracker: "github"; repo: string }
+			| { tracker: "linear"; project: string };
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
@@ -364,6 +368,11 @@ function counts(
 			done,
 			dropped: 0,
 		},
+		pinned: true,
+		ref:
+			tracker === "linear"
+				? { tracker: "linear", project: name }
+				: { tracker: "github", repo: name },
 	};
 }
 

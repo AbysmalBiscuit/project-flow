@@ -151,6 +151,8 @@ async function assertCard(base: string): Promise<void> {
 		{
 			name: repo,
 			tracker: "github",
+			pinned: true,
+			ref: { tracker: "github", repo },
 			done: 2,
 			dropped: 2,
 			blocked: 0,
@@ -903,7 +905,7 @@ describe("GET /api/overview", () => {
 				projects: { name: string; tracker: string }[];
 			};
 			expect(overview.projects[0]?.name).toBe(projectName);
-			expect(JSON.stringify(overview)).not.toContain(pin);
+			expect(overview.projects[0]?.name).not.toContain(pin);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -1736,7 +1738,7 @@ describe("GET /api/overview", () => {
 						name: "Org board",
 						tracker: "github",
 						pinned: false,
-						ref: { tracker: "github", repo: "Org board" },
+						ref: { tracker: "github", owner: "acme", project: 9 },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -2301,7 +2303,7 @@ describe("GET /api/overview", () => {
 						name: "Widget board",
 						tracker: "github",
 						pinned: false,
-						ref: { tracker: "github", repo: "Widget board" },
+						ref: { tracker: "github", owner: "acme", project: 3 },
 						done: 1,
 						dropped: 0,
 						backlog: 1,

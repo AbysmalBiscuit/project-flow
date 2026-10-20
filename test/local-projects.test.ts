@@ -258,6 +258,8 @@ const card = {
 	crossProjectBlockers: [],
 	needsYou: 0,
 	progress: 0,
+	pinned: false,
+	ref: { tracker: "github" as const, repo: named },
 };
 
 const originConfig = [
@@ -307,6 +309,7 @@ describe("local projects", () => {
 		const strangerCard = {
 			...card,
 			name: strangerOrigin,
+			ref: { tracker: "github" as const, repo: strangerOrigin },
 			tickets: [
 				{
 					key: `${strangerOrigin}#9`,
@@ -433,6 +436,8 @@ describe("local projects", () => {
 				{
 					name: linearName,
 					tracker: "linear",
+					pinned: false,
+					ref: { tracker: "linear", project: linearPin },
 					done: 0,
 					dropped: 0,
 					blocked: 0,
@@ -560,6 +565,8 @@ describe("local projects", () => {
 				{
 					name: linearName,
 					tracker: "linear",
+					pinned: false,
+					ref: { tracker: "linear", project: linearPin },
 					done: 0,
 					dropped: 0,
 					blocked: 0,
@@ -698,6 +705,8 @@ describe("local projects", () => {
 					{
 						name: linearName,
 						tracker: "linear",
+						pinned: false,
+						ref: { tracker: "linear", project: linearPin },
 						done: 0,
 						dropped: 0,
 						blocked: 0,
@@ -890,6 +899,8 @@ describe("local projects", () => {
 							{
 								name: "Local board",
 								tracker: "github",
+								pinned: false,
+								ref: { tracker: "github", owner: "lev", project: 4 },
 								done: 0,
 								dropped: 0,
 								blocked: 0,
