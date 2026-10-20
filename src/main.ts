@@ -570,6 +570,10 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		listened = true;
 		writeOut(running.url.href);
 		const credential = (async (): Promise<string | null> => {
+			const warn = (message: string) => {
+				writeErr(message);
+				return null;
+			};
 			try {
 				if (token !== null) {
 					const user = await checkToken(token, io.fetch);
@@ -577,7 +581,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 						return rejectedToken;
 					}
 					if (!user.ok) {
-						return `GitHub token check failed (HTTP ${user.status}).`;
+						return warn(`GitHub token check failed (HTTP ${user.status}).`);
 					}
 				}
 				if (needsLinear && linearKey !== "") {
@@ -586,14 +590,14 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 						return rejectedLinearKey;
 					}
 					if (!viewer.ok) {
-						return `Linear key check failed (HTTP ${viewer.status}).`;
+						return warn(`Linear key check failed (HTTP ${viewer.status}).`);
 					}
 				}
 				return null;
 			} catch (error) {
-				return error instanceof Error
-					? error.message
-					: "credential check failed";
+				return warn(
+					error instanceof Error ? error.message : "credential check failed",
+				);
 			}
 		})();
 		const stop = io.waitForStop ?? new Promise<void>(() => {});
