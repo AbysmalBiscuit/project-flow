@@ -1,0 +1,16 @@
+{
+	"base_url": "http://127.0.0.1:4175",
+	"serve": ["bun", "proof/restart-theme.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "All projects" },
+		{ "shot": "theme-chosen" },
+		{ "goto": "http://127.0.0.1:4176/restart" },
+		{ "assert_text": "restarted" },
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "shot": "theme-restart" }
+	]
+}

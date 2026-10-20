@@ -41,6 +41,7 @@ function defaultConfigPath(env: Record<string, string | undefined>): string {
 
 The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema is the full list of fields. The schema holds the current defaults. Each field is optional. An omitted field takes the default below.
 
+- `theme` is `light` or `dark`. The header theme button writes it. The page opens in that theme. The default is `light`.
 - `pinned` names projects that always show. The default is `[]`.
 - `hidden` names projects that never show. The default is `[]`.
 - `activityWindowDays` is the activity window for a found project. The default is `30`.
@@ -57,6 +58,7 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 ```json
 {
+  "theme": "light",
   "pinned": [
     { "tracker": "github", "repo": "owner/name" }
   ],

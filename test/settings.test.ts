@@ -674,6 +674,69 @@ describe("settings", () => {
 		);
 	});
 
+	test("a saved dark theme survives a restart", async () => {
+		let savedText = "";
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(before.theme).toBe("light");
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...before, theme: "dark" }),
+			});
+			expect(saved.status).toBe(200);
+			const written = (await saved.json()) as Configuration;
+			expect(written.theme).toBe("dark");
+			savedText = JSON.stringify(written);
+			const page = await fetch(new URL("/", base));
+			expect(page.status).toBe(200);
+			expect(await page.text()).toContain('data-theme="dark"');
+		});
+		await withApp(savedText, async (base) => {
+			const restarted = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(restarted.theme).toBe("dark");
+			const page = await fetch(new URL("/", base));
+			expect(page.status).toBe(200);
+			expect(await page.text()).toContain('data-theme="dark"');
+		});
+	});
+
+	test("a blank theme and an unknown theme name the field and leave the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const blank = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...before, theme: "   " }),
+			});
+			expect(blank.status).toBe(400);
+			const blankBody = (await blank.json()) as { error: string };
+			expect(blankBody.error).toContain("theme");
+			const afterBlank = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(afterBlank).toEqual(before);
+			const unknown = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...before, theme: "sepia" }),
+			});
+			expect(unknown.status).toBe(400);
+			const unknownBody = (await unknown.json()) as { error: string };
+			expect(unknownBody.error).toContain("theme");
+			const afterUnknown = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(afterUnknown).toEqual(before);
+		});
+	});
+
 	test("a blank settings body names the configuration and leaves the file", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
 			const before = (await (

@@ -9,15 +9,8 @@ import { root } from "./ui-styles.ts";
 
 export type PageTheme = "light" | "dark";
 
-const themeKey = "project-flow-theme";
-
-/** The theme the page applies: the toggle's stored choice, else light. */
 export function pageTheme(): PageTheme {
-	try {
-		return localStorage.getItem(themeKey) === "dark" ? "dark" : "light";
-	} catch {
-		return "light";
-	}
+	return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
 }
 
 const lightClass =
@@ -29,9 +22,30 @@ function classTokens(value: string): string[] {
 	return value.split(" ").filter((token) => token !== "");
 }
 
+function paintVariables(theme: PageTheme): void {
+	const palettes = (
+		window as Window & {
+			__projectFlowTheme?: { light: string; dark: string };
+		}
+	).__projectFlowTheme;
+	const colours = palettes?.[theme];
+	const style = document.getElementById("project-flow-theme");
+	if (colours === undefined || style === null) {
+		return;
+	}
+	const painted = style.textContent?.match(
+		/html\[data-theme="light"\]\{[^}]+\}html\[data-theme="dark"\]\{[^}]+\}/,
+	)?.[0];
+	style.textContent = `@layer priority1{:root{${colours}}html{color-scheme:${theme}}}${painted ?? ""}`;
+}
+
 export function applyPageTheme(theme: PageTheme): void {
 	const element = document.documentElement;
 	element.dataset.theme = theme;
+	element.style.colorScheme = theme;
+	element.style.backgroundColor = "";
+	element.style.color = "";
+	paintVariables(theme);
 	for (const token of classTokens(`${lightClass} ${darkClass}`)) {
 		element.classList.remove(token);
 	}

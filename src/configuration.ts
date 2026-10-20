@@ -33,6 +33,7 @@ const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
 const knownBot = z.enum(knownBots);
 
 const configurationSchema = z.strictObject({
+	theme: z.enum(["light", "dark"]).default("light"),
 	pinned: z.array(projectRef).default([]),
 	hidden: z.array(projectRef).default([]),
 	activityWindowDays: z.number().int().positive().default(30),

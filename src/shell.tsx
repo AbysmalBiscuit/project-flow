@@ -65,6 +65,27 @@ function openCount(body: unknown): number {
 	return Array.isArray(body) ? body.length : 0;
 }
 
+async function saveTheme(theme: "light" | "dark"): Promise<boolean> {
+	try {
+		const loaded = await fetch("/api/settings");
+		if (!loaded.ok) {
+			return false;
+		}
+		const current: unknown = await loaded.json();
+		if (current === null || typeof current !== "object") {
+			return false;
+		}
+		const saved = await fetch("/api/settings", {
+			method: "PUT",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ ...current, theme }),
+		});
+		return saved.ok;
+	} catch {
+		return false;
+	}
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
 	const [count, setCount] = useState<number | null>(null);
 	const [theme, setTheme] = useState(pageTheme);
@@ -129,13 +150,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 					title={theme === "dark" ? navLabel.light : navLabel.dark}
 					onClick={() => {
 						const next = theme === "dark" ? "light" : "dark";
-						applyPageTheme(next);
-						setTheme(next);
-						try {
-							localStorage.setItem("project-flow-theme", next);
-						} catch {
-							// A private window can throw. The chosen theme still shows this visit.
-						}
+						void saveTheme(next).then((saved) => {
+							if (!saved) {
+								return;
+							}
+							applyPageTheme(next);
+							setTheme(next);
+						});
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}

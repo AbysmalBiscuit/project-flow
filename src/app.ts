@@ -48,6 +48,7 @@ import {
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
+import { paintPage } from "./page-theme.ts";
 import type {
 	CheckoutSource,
 	Clock,
@@ -997,15 +998,28 @@ export async function start(options: StartOptions): Promise<Running> {
 	} else {
 		void firstPoll.then(armTimer, armTimer);
 	}
-	const server = Bun.serve({
+	let server: ReturnType<typeof Bun.serve>;
+	const pageResponse = async (): Promise<Response> => {
+		const bundled = await fetch(new URL("/_page", server.url));
+		const html = await paintPage(
+			await bundled.text(),
+			configuration.theme,
+			server.url.origin,
+		);
+		const headers = new Headers(bundled.headers);
+		headers.delete("content-length");
+		return new Response(html, { status: bundled.status, headers });
+	};
+	server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
 		development: false,
 		routes: {
-			"/": page,
-			"/needs-you": page,
-			"/inbox": page,
-			"/projects/*": page,
+			"/_page": page,
+			"/": pageResponse,
+			"/needs-you": pageResponse,
+			"/inbox": pageResponse,
+			"/projects/*": pageResponse,
 			"/api/overview": {
 				GET: () => {
 					const body = Response.json(
@@ -1059,7 +1073,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					return new Response(null, { status: 204 });
 				},
 			},
-			"/settings": page,
+			"/settings": pageResponse,
 			"/api/settings": {
 				GET: () => Response.json(configuration),
 				PUT: async (request: Request) => {
