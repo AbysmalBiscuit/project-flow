@@ -167,6 +167,9 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					"update fetch_status set fetched_at = ?, error = null where id = 1",
 				).run(fetchedAt);
 			},
+			forgetGoodPoll(project) {
+				db.query("delete from project_polls where project = ?").run(project);
+			},
 			recordFetchError(message) {
 				db.query("update fetch_status set error = ? where id = 1").run(message);
 			},

@@ -59,16 +59,27 @@ function membership(sent: string[]): Fetch {
 			/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?/,
 		);
 		if (issues?.[1] !== undefined) {
-			return json([
-				{
-					number: 1,
-					title: "Ticket 1",
-					state: "open",
-					state_reason: null,
-					html_url: `https://github.com/${issues[1]}/issues/1`,
-					updated_at: "2026-08-18T12:00:00.000Z",
-				},
-			]);
+			const since = new URL(url).searchParams.get("since") ?? "";
+			return json(
+				[
+					{
+						number: 1,
+						title: "Ticket 1",
+						state: "open",
+						state_reason: null,
+						html_url: `https://github.com/${issues[1]}/issues/1`,
+						updated_at: "2026-08-18T12:00:00.000Z",
+					},
+					{
+						number: 2,
+						title: "Older ticket",
+						state: "open",
+						state_reason: null,
+						html_url: `https://github.com/${issues[1]}/issues/2`,
+						updated_at: "2026-03-01T12:00:00.000Z",
+					},
+				].filter((issue) => issue.updated_at >= since),
+			);
 		}
 		if (url.includes("/pulls?") || url.includes("/branches?")) {
 			return json([]);
@@ -145,14 +156,14 @@ type Started = {
 async function serve<T>(
 	body: string,
 	root: string,
-	check: (base: string) => Promise<T>,
+	check: (base: string, sent: readonly string[]) => Promise<T>,
 ): Promise<{ checked: T; sent: string[] }> {
 	const { path, cleanup } = await tempConfig(body);
 	const sent: string[] = [];
 	let startChecks: (base: string) => void = () => {};
 	const checked = new Promise<T>((resolve, reject) => {
 		startChecks = (base) => {
-			check(base).then(resolve, reject);
+			check(base, sent).then(resolve, reject);
 		};
 	});
 	try {
@@ -274,6 +285,50 @@ describe("tracked projects", () => {
 			);
 			expect(checked.projects.map((project) => project.name)).toEqual([
 				"acme/repo-3",
+			]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a re-tracked project gets a full poll after an untrack", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const repo1 = { tracker: "github", repo: "acme/repo-1" };
+		const repo3 = { tracker: "github", repo: "acme/repo-3" };
+		const save = async (base: string, tracked: unknown[]) => {
+			const current = await read<Configuration>(base, "/api/settings");
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...current, tracked }),
+			});
+			expect(saved.status).toBe(200);
+		};
+		try {
+			const { checked } = await serve(
+				JSON.stringify({ tracked: [repo3, repo1] }),
+				root,
+				async (base, sent) => {
+					await save(base, [repo3]);
+					const issuesBefore = sent.length;
+					await save(base, [repo3, repo1]);
+					return {
+						retracked: sent
+							.slice(issuesBefore)
+							.filter((request) => request.includes("/repo-1/issues?")),
+						overview: await read<Overview>(base, "/api/overview"),
+					};
+				},
+			);
+			expect(checked.retracked).toEqual([
+				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1",
+			]);
+			const repo = checked.overview.projects.find(
+				(project) => project.name === "acme/repo-1",
+			);
+			expect(repo?.tickets.map((ticket) => ticket.title).sort()).toEqual([
+				"Older ticket",
+				"Ticket 1",
 			]);
 		} finally {
 			await rm(root, { recursive: true, force: true });

@@ -1121,8 +1121,14 @@ function publishPoll(
 	failed: string | null,
 	publish = true,
 ): void {
+	const stored = options.store.readTickets();
+	for (const row of stored) {
+		if (!trackedKeys.has(row.key)) {
+			options.store.forgetGoodPoll(row.key);
+		}
+	}
 	const reconciled = reconcilePoll(
-		options.store.readTickets().filter((row) => trackedKeys.has(row.key)),
+		stored.filter((row) => trackedKeys.has(row.key)),
 		[...outcomes.values()],
 		fullKeys,
 	);
