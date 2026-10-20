@@ -56,6 +56,10 @@ const parents = [
 	issue(7, "Draw the footer", 5),
 	issue(8, "Hold the launch", 5, 1),
 	issue(9, "Open the gate", 5, 1),
+	issue(10, "Seal the gate", 5, 1),
+	issue(11, "Name the gate", 5, 1),
+	issue(12, "Count the gate", 5, 1),
+	issue(13, "Close the gate", 5, 1),
 ];
 
 const recorded: Fetch = async (input, init) => {
@@ -93,6 +97,25 @@ const recorded: Fetch = async (input, init) => {
 				repository_url: `https://api.github.com/repos/${repo}`,
 			},
 		]);
+	}
+	const chain = /^https:\/\/api\.github\.com\/repos\/acme\/widget\/issues\/(1[0-3])\/dependencies\/blocked_by$/.exec(
+		url,
+	);
+	if (chain?.[1] !== undefined) {
+		const number = Number(chain[1]);
+		const previous = parents.find((item) => item.number === number - 1);
+		return page(
+			previous === undefined
+				? []
+				: [
+						{
+							number: previous.number,
+							title: previous.title,
+							state: "open",
+							repository_url: `https://api.github.com/repos/${repo}`,
+						},
+					],
+		);
 	}
 	const thread =
 		/^https:\/\/api\.github\.com\/repos\/acme\/widget\/issues\/(\d+)$/.exec(
