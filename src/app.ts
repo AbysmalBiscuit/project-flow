@@ -1215,9 +1215,9 @@ export async function start(options: StartOptions): Promise<Running> {
 		);
 	}
 	const requests = new AbortController();
-	const fetch = abortableFetch(options.fetch, requests.signal);
+	const trackerFetch = abortableFetch(options.fetch, requests.signal);
 	const fetchGithub = conditionalFetch(
-		fetch,
+		trackerFetch,
 		restCache,
 		opened.store.recordValidator,
 	);
@@ -1227,7 +1227,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		linear:
 			options.linearKey === null
 				? null
-				: linearTracker(options.linearKey, fetch, options.token, fetchGithub),
+				: linearTracker(
+						options.linearKey,
+						trackerFetch,
+						options.token,
+						fetchGithub,
+					),
 	};
 	let configuration: Configuration;
 	try {
@@ -1244,7 +1249,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		clock,
 		notifier,
 		token: options.token,
-		fetch,
+		fetch: trackerFetch,
 		fetchGithub,
 		restCache,
 		listTodos: options.listTodos,
@@ -1355,7 +1360,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	void firstPoll.then(armTimer, armTimer);
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (): Promise<Response> => {
-		const bundled = await globalThis.fetch(new URL("/_page", server.url));
+		const bundled = await fetch(new URL("/_page", server.url));
 		const html = paintPage(await bundled.text(), configuration.theme);
 		const headers = new Headers(bundled.headers);
 		headers.delete("content-length");
