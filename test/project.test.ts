@@ -1652,6 +1652,77 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a saved filter keeps each ticket's update time", async () => {
+		const calls: string[] = [];
+		const issues = [
+			issue(1, "Ship the map", { updated_at: "2026-08-18T09:00:00.000Z" }),
+			issue(2, "Draw the legend", {
+				updated_at: "2026-08-12T09:00:00.000Z",
+				assignee: { login: "bea" },
+			}),
+			issue(3, "Hold the map copy", { updated_at: "2026-08-18T15:00:00.000Z" }),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+				projectViews: {
+					[githubRepo]: {
+						search: "map",
+						needsYouOnly: false,
+						blockedOnly: false,
+					},
+				},
+			}),
+			githubFetch(issues, [], calls),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.map((ticket) => ({
+						key: ticket.key,
+						updatedAt: ticket.updatedAt,
+					})),
+				).toEqual([
+					{
+						key: `${githubRepo}#1`,
+						updatedAt: "2026-08-18T09:00:00.000Z",
+					},
+					{
+						key: `${githubRepo}#3`,
+						updatedAt: "2026-08-18T15:00:00.000Z",
+					},
+				]);
+				const blank = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						pinned: [{ tracker: "github", repo: githubRepo }],
+						projectViews: {
+							[githubRepo]: { search: "   " },
+						},
+					}),
+				});
+				expect(blank.status).toBe(200);
+				const cleared = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(cleared.tickets.map((ticket) => ticket.updatedAt)).toEqual([
+					"2026-08-18T09:00:00.000Z",
+					"2026-08-12T09:00:00.000Z",
+					"2026-08-18T15:00:00.000Z",
+				]);
+				const missing = cleared.tickets.find((ticket) => ticket.key === null);
+				expect(missing).toBeUndefined();
+			},
+		);
+	});
+
 	test("a missing project is not found, and a blank name is not found", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),

@@ -310,6 +310,19 @@ function laneMark(colour: string) {
 	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
 }
 
+const stateMarks: Record<TicketView["state"], typeof board.markBacklog> = {
+	backlog: board.markBacklog,
+	inProgress: board.markInProgress,
+	inReview: board.markInReview,
+	awaitingMerge: board.markAwaitingMerge,
+	done: board.markDone,
+	dropped: board.markDropped,
+};
+
+function stateMark(state: TicketView["state"]) {
+	return stateMarks[state];
+}
+
 function Lane({
 	name,
 	colour,
@@ -378,6 +391,278 @@ function Lane({
 				</button>
 			) : null}
 		</section>
+	);
+}
+
+const columns = [
+	"key",
+	"title",
+	"state",
+	"pr",
+	"blockedBy",
+	"blocks",
+	"needsYou",
+	"updated",
+] as const;
+
+type Column = (typeof columns)[number];
+
+const columnLabel: Record<Column, string> = {
+	key: "Key",
+	title: "Title",
+	state: "State",
+	pr: "PR",
+	blockedBy: "Blocked by",
+	blocks: "Blocks",
+	needsYou: "Needs you",
+	updated: "Updated",
+};
+
+const stateOrder: Record<TicketView["state"], number> = {
+	backlog: 0,
+	inProgress: 1,
+	inReview: 2,
+	awaitingMerge: 3,
+	done: 4,
+	dropped: 5,
+};
+
+function relationKeys(
+	ticket: TicketView,
+	column: "blockedBy" | "blocks",
+): string[] {
+	if (column === "blocks") {
+		return (ticket.blocks ?? []).map((blocker) => blocker.key);
+	}
+	const outside = new Set(
+		(ticket.outsideBlockers ?? []).map((blocker) => blocker.key.toLowerCase()),
+	);
+	return [
+		...ticket.blockers.filter((key) => !outside.has(key.toLowerCase())),
+		...(ticket.outsideBlockers ?? []).map((blocker) => blocker.key),
+	];
+}
+
+function sortValue(ticket: TicketView, column: Column): string | number {
+	if (column === "key") {
+		return ticket.key?.toLowerCase() ?? "";
+	}
+	if (column === "title") {
+		return ticket.title.toLowerCase();
+	}
+	if (column === "state") {
+		return stateOrder[ticket.state];
+	}
+	if (column === "pr") {
+		return ticket.pull?.toLowerCase() ?? "";
+	}
+	if (column === "needsYou") {
+		return ticket.needsYou === true ? 1 : 0;
+	}
+	if (column === "updated") {
+		const at = Date.parse(ticket.updatedAt ?? "");
+		return Number.isNaN(at) ? 0 : at;
+	}
+	return relationKeys(ticket, column).join(" ").toLowerCase();
+}
+
+function compareTickets(
+	left: TicketView,
+	right: TicketView,
+	column: Column,
+	direction: "asc" | "desc",
+): number {
+	const leftValue = sortValue(left, column);
+	const rightValue = sortValue(right, column);
+	const order =
+		typeof leftValue === "number" && typeof rightValue === "number"
+			? leftValue - rightValue
+			: String(leftValue).localeCompare(String(rightValue));
+	if (order !== 0) {
+		return direction === "asc" ? order : -order;
+	}
+	return (left.key ?? left.title).localeCompare(right.key ?? right.title);
+}
+
+function updatedLabel(value: string | undefined): string {
+	const at = Date.parse(value ?? "");
+	if (Number.isNaN(at)) {
+		return "";
+	}
+	return new Intl.DateTimeFormat("en", {
+		month: "short",
+		day: "numeric",
+	}).format(new Date(at));
+}
+
+function TableRow({
+	ticket,
+	order,
+	selected,
+	onOpen,
+	onOpenOutside,
+}: {
+	ticket: TicketView;
+	order: number;
+	selected: boolean;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
+}) {
+	const key = ticket.key;
+	const outside = ticket.outsideBlockers ?? [];
+	const outsideKeys = new Set(
+		outside.map((blocker) => blocker.key.toLowerCase()),
+	);
+	const local = ticket.blockers.filter(
+		(blocker) => !outsideKeys.has(blocker.toLowerCase()),
+	);
+	return (
+		<tr
+			className={clsx(board.row, selected && board.rowOn)}
+			data-ticket={key ?? ""}
+			data-order={order}
+			data-selected={selected ? "true" : "false"}
+			onClick={() => {
+				if (key !== null) {
+					onOpen(key);
+				}
+			}}
+		>
+			<td className={clsx(board.rowCell, board.rowKey)}>
+				{key === null ? "" : shortKey(key)}
+			</td>
+			<td className={clsx(board.rowCell, board.rowTitle)}>{ticket.title}</td>
+			<td className={clsx(board.rowCell)}>
+				<span className={clsx(board.stateMark, stateMark(ticket.state))} />
+				{ticket.lane ?? stateLabel[ticket.state]}
+			</td>
+			<td className={clsx(board.rowCell)}>{ticket.pull ?? ""}</td>
+			<td className={clsx(board.rowCell)}>
+				<span className={clsx(board.links)}>
+					{local.map((blocker) => (
+						<Chip
+							key={blocker}
+							label={shortKey(blocker)}
+							ticketKey={blocker}
+							onOpen={onOpen}
+						/>
+					))}
+					{outside.map((blocker) => (
+						<Chip
+							key={blocker.key}
+							label={blocker.key}
+							ticketKey={blocker.key}
+							outside
+							onOpen={() => onOpenOutside(blocker)}
+						/>
+					))}
+				</span>
+			</td>
+			<td className={clsx(board.rowCell)}>
+				<span className={clsx(board.links)}>
+					{(ticket.blocks ?? []).map((blocker) => (
+						<Chip
+							key={blocker.key}
+							label={shortKey(blocker.key)}
+							ticketKey={blocker.key}
+							onOpen={onOpen}
+						/>
+					))}
+				</span>
+			</td>
+			<td className={clsx(board.rowCell)}>
+				{ticket.needsYou ? (
+					<span className={clsx(board.needs)}>{navLabel.needsYou}</span>
+				) : (
+					""
+				)}
+			</td>
+			<td className={clsx(board.rowCell)} data-updated={ticket.updatedAt ?? ""}>
+				{updatedLabel(ticket.updatedAt)}
+			</td>
+		</tr>
+	);
+}
+
+function TicketTable({
+	report,
+	selected,
+	onOpen,
+	onOpenOutside,
+}: {
+	report: ProjectReport;
+	selected: string | null;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
+}) {
+	const [column, setColumn] = useState<Column>("state");
+	const [direction, setDirection] = useState<"asc" | "desc">("asc");
+	const rows = [...report.tickets].sort((left, right) =>
+		compareTickets(left, right, column, direction),
+	);
+	return (
+		<div
+			className={clsx(board.grid)}
+			data-sort={column}
+			data-direction={direction}
+		>
+			{rows.length === 0 ? (
+				<p className={clsx(board.empty)}>No tickets</p>
+			) : (
+				<table className={clsx(board.rows)}>
+					<thead>
+						<tr>
+							{columns.map((item) => (
+								<th key={item} className={clsx(board.headerCell)} scope="col">
+									<button
+										type="button"
+										className={clsx(board.sort, shell.buttonFocus)}
+										data-column={item}
+										aria-sort={
+											column === item
+												? direction === "asc"
+													? "ascending"
+													: "descending"
+												: "none"
+										}
+										aria-label={`Sort by ${columnLabel[item]}`}
+										onClick={() => {
+											if (column === item) {
+												setDirection((current) =>
+													current === "asc" ? "desc" : "asc",
+												);
+												return;
+											}
+											setColumn(item);
+											setDirection("asc");
+										}}
+									>
+										{columnLabel[item]}
+										{column === item
+											? direction === "asc"
+												? " up"
+												: " down"
+											: ""}
+									</button>
+								</th>
+							))}
+						</tr>
+					</thead>
+					<tbody>
+						{rows.map((ticket, index) => (
+							<TableRow
+								key={`${ticket.key ?? ""} ${ticket.title}`}
+								ticket={ticket}
+								order={index + 1}
+								selected={selected !== null && ticket.key === selected}
+								onOpen={onOpen}
+								onOpenOutside={onOpenOutside}
+							/>
+						))}
+					</tbody>
+				</table>
+			)}
+		</div>
 	);
 }
 
@@ -655,9 +940,7 @@ function Page() {
 		};
 		setMissing(false);
 		load();
-		const stop = onAppEvent("overview", () => {
-			load();
-		});
+		const stop = onAppEvent("overview", load);
 		return () => {
 			stopped = true;
 			stop();
@@ -837,6 +1120,19 @@ function Page() {
 						<Board
 							report={report}
 							settings={settings}
+							selected={open ? ticket : null}
+							onOpen={openTicketInPanel}
+							onOpenOutside={(blocker) => {
+								setPanelReport(null);
+								setPanelProject(blocker.project);
+								setPanelTracker(blocker.tracker);
+								setTicket(blocker.key);
+								setOpen(true);
+							}}
+						/>
+					) : view === "table" ? (
+						<TicketTable
+							report={report}
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
 							onOpenOutside={(blocker) => {
