@@ -450,7 +450,7 @@ describe("GET /api/projects/:name", () => {
 					)?.workstream;
 				expect(workstreamOf(21)).toBe("no workstream");
 				expect(workstreamOf(22)).toBe("Ship the list");
-				expect(workstreamOf(23)).toBe("Ship the list");
+				expect(workstreamOf(23)).toBe("Draw the rows");
 			},
 		);
 	});

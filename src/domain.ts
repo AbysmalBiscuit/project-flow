@@ -3477,8 +3477,9 @@ function workstreamOf(
 	if (ticket.milestone !== null) {
 		return ticket.milestone;
 	}
-	if (root !== ticket && root.key !== null) {
-		return root.title;
+	const parent = parentOf(ticket, byKey);
+	if (parent !== undefined && parent.key !== null) {
+		return parent.title;
 	}
 	return noWorkstream;
 }
