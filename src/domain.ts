@@ -2172,10 +2172,13 @@ function commentsAfter(comments: Comment[], progress: Comment): Comment[] {
 
 const failedLine = /\b(?:failed|stalled)\b/i;
 
-function progressRun(comments: Comment[]):
+function progressComment(comments: Comment[]):
 	| {
-			status: "running" | "failed";
-			stage: string;
+			progress: Comment;
+			lines: string[];
+			later: Comment[];
+			reportAt: number;
+			report: Comment | undefined;
 	  }
 	| undefined {
 	const progress = comments.find(
@@ -2189,8 +2192,28 @@ function progressRun(comments: Comment[]):
 		.map((line) => line.trim().replace(/^-\s*/, ""))
 		.filter((line) => line !== "" && line !== progressHeading);
 	const later = commentsAfter(comments, progress);
-	const reportAt = lines.findLastIndex((line) => finalReportLine.test(line));
-	const report = later.findLast((comment) => isReportComment(comment.body));
+	return {
+		progress,
+		lines,
+		later,
+		reportAt: lines.findLastIndex((line) => finalReportLine.test(line)),
+		report: later.findLast(
+			(comment) => comment !== progress && isReportComment(comment.body),
+		),
+	};
+}
+
+function progressRun(comments: Comment[]):
+	| {
+			status: "running" | "failed";
+			stage: string;
+	  }
+	| undefined {
+	const found = progressComment(comments);
+	if (found === undefined) {
+		return undefined;
+	}
+	const { lines, reportAt, report } = found;
 	const afterReport = lines.slice(reportAt < 0 ? lines.length : reportAt + 1);
 	const resumed = afterReport.some((line) => stageLine.test(line));
 	if ((reportAt >= 0 || report !== undefined) && !resumed) {
@@ -2216,21 +2239,11 @@ function workcellRun(
 	comments: Comment[],
 	pull: PullRequest,
 ): { state: "inReview" | "awaitingMerge"; tags: string[] } | null {
-	const progress = comments.find(
-		(comment) => comment.body.split("\n")[0]?.trim() === progressHeading,
-	);
-	if (progress === undefined) {
+	const found = progressComment(comments);
+	if (found === undefined) {
 		return null;
 	}
-	const lines = progress.body
-		.split("\n")
-		.map((line) => line.trim().replace(/^-\s*/, ""))
-		.filter((line) => line !== "" && line !== progressHeading);
-	const later = commentsAfter(comments, progress);
-	const reportAt = lines.findLastIndex((line) => finalReportLine.test(line));
-	const report = later.findLast(
-		(comment) => comment !== progress && isReportComment(comment.body),
-	);
+	const { progress, lines, later, reportAt, report } = found;
 	const reportAsk = report === undefined ? null : askId(report.body);
 	if (reportAt >= 0 || report !== undefined) {
 		const resumed = lines
