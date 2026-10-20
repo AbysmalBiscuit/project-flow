@@ -8,6 +8,7 @@ import { TicketPanel } from "./panel.tsx";
 import {
 	activeTicket,
 	closeTicket,
+	type OpenedTicket,
 	openTicket,
 	replaceActiveItem,
 	useActiveTicket,
@@ -38,8 +39,9 @@ export function JumpBox() {
 	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
 	const needsRef = useRef(needs);
 	needsRef.current = needs;
-	const pendingItem = useRef(false);
+	const pendingItem = useRef<OpenedTicket | null>(null);
 	const ticket = useActiveTicket();
+	const opened = useRef<OpenedTicket | null>(null);
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const openRef = useRef(false);
@@ -103,20 +105,29 @@ export function JumpBox() {
 	const applyNeeds = useCallback((loaded: NeedsYouItem[]) => {
 		needsRef.current = loaded;
 		setNeeds(loaded);
-		if (!pendingItem.current) {
+		const pending = pendingItem.current;
+		if (pending === null) {
 			return;
 		}
 		const selected = activeTicket();
+		if (
+			selected === null ||
+			selected.tracker !== pending.tracker ||
+			selected.project !== pending.project ||
+			!sameTicketKey(selected.key, pending.key)
+		) {
+			pendingItem.current = null;
+			return;
+		}
 		const item = loaded.find(
 			(candidate) =>
-				selected !== null &&
-				candidate.tracker === selected.tracker &&
-				candidate.project === selected.project &&
-				sameTicketKey(candidate.key, selected.key),
+				candidate.tracker === pending.tracker &&
+				candidate.project === pending.project &&
+				sameTicketKey(candidate.key, pending.key),
 		);
 		if (item !== undefined) {
 			replaceActiveItem(item);
-			pendingItem.current = false;
+			pendingItem.current = null;
 		}
 	}, []);
 	const loadNeeds = useCallback(() => {
@@ -135,6 +146,26 @@ export function JumpBox() {
 			loadNeeds();
 		});
 	}, [loadNeeds]);
+	if (ticket === null) {
+		if (opened.current !== null) {
+			pendingItem.current = null;
+			opened.current = null;
+		}
+	} else if (
+		opened.current === null ||
+		opened.current.tracker !== ticket.tracker ||
+		opened.current.project !== ticket.project ||
+		!sameTicketKey(opened.current.key, ticket.key)
+	) {
+		if (opened.current !== null) {
+			pendingItem.current = null;
+		}
+		opened.current = {
+			project: ticket.project,
+			tracker: ticket.tracker,
+			key: ticket.key,
+		};
+	}
 	useEffect(() => {
 		if (open) {
 			loadNeeds();
@@ -218,13 +249,20 @@ export function JumpBox() {
 										data-ticket={hit.key}
 										onClick={() => {
 											const item = needsItem(hit);
-											pendingItem.current = item === undefined;
 											openTicket({
 												project: hit.project,
 												tracker: hit.tracker,
 												key: hit.key,
 												...(item === undefined ? {} : { item }),
 											});
+											pendingItem.current =
+												item === undefined
+													? {
+															project: hit.project,
+															tracker: hit.tracker,
+															key: hit.key,
+														}
+													: null;
 											closeSearch();
 										}}
 									>
