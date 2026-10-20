@@ -235,7 +235,7 @@ export const settingsCopy = {
 	pollHint: "How often each tracker is read.",
 	viewsLead:
 		"The board, graph and table views save these to the configuration file when you change them there.",
-	openBoard: "Last used view",
+	openBoard: "Lane",
 	openGraph: "Graph",
 	openTable: "Table",
 	openIn: "Open projects in",
