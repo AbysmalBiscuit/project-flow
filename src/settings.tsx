@@ -302,10 +302,10 @@ function Menu({
 							hint={settingsCopy.activityHint}
 						>
 							<label className={clsx(fields.number)}>
-								<select
+								<input
 									id="activity-window"
-									className={clsx(fields.select)}
-									aria-label={settingsCopy.activityWindow}
+									className={clsx(fields.numberInput)}
+									inputMode="numeric"
 									value={String(draft.activityWindowDays)}
 									onChange={(event) => {
 										const days = Number(event.target.value);
@@ -313,22 +313,7 @@ function Menu({
 											patch({ activityWindowDays: days });
 										}
 									}}
-								>
-									{ageChoices.map((days) =>
-										days === 0 ? null : (
-											<option key={days} value={days}>
-												{days}
-											</option>
-										),
-									)}
-									{ageChoices.includes(
-										draft.activityWindowDays as (typeof ageChoices)[number],
-									) ? null : (
-										<option value={draft.activityWindowDays}>
-											{draft.activityWindowDays}
-										</option>
-									)}
-								</select>
+								/>
 								{settingsCopy.days}
 							</label>
 						</Row>
