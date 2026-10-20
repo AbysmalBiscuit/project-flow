@@ -298,6 +298,7 @@ export const measure = stylex.defineVars({
 	narrow: "7rem",
 	switch: "2.1rem",
 	knob: "0.95rem",
+	switchCol: "5.5rem",
 });
 
 export const stack = stylex.defineVars({

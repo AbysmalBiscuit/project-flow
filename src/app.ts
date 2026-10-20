@@ -3,6 +3,8 @@ import type { AutoMerge, Configuration } from "./configuration.ts";
 import {
 	loadConfiguration,
 	parseConfiguration,
+	projectRef as projectRefSchema,
+	sameRef,
 	saveConfiguration,
 } from "./configuration.ts";
 import type {
@@ -29,6 +31,7 @@ import {
 	filterProjectReport,
 	githubRepoForTodo,
 	inboxEntries,
+	knownRepos,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	mergeTickets,
@@ -41,6 +44,8 @@ import {
 	projectSnapshots,
 	projectViewFor,
 	reconcilePoll,
+	type SettingsProject,
+	settingsProjects,
 	staleView,
 	startedTodoKeys,
 	todoRows,
@@ -283,6 +288,8 @@ function overview(
 	};
 }
 
+export type { SettingsProject };
+
 export type TicketSearchHit = {
 	project: string;
 	tracker: "github" | "linear";
@@ -349,13 +356,22 @@ function reportFor(
 function settingsResponse(
 	configuration: Configuration,
 	credentials: { token: string | null; linearKey: string | null },
-): Configuration & { trackers: { github: boolean; linear: boolean } } {
+	catalogue: FoundProject[],
+	snapshots: {
+		key: string;
+		pulls: Parameters<typeof expectedBotsByRepo>[0];
+	}[],
+): Configuration & {
+	trackers: { github: boolean; linear: boolean };
+	projects: SettingsProject[];
+} {
 	return {
 		...configuration,
 		trackers: {
 			github: credentials.token !== null,
 			linear: credentials.linearKey !== null,
 		},
+		projects: settingsProjects(configuration, catalogue, snapshots),
 	};
 }
 
@@ -373,11 +389,102 @@ function withoutTrackers(text: string): string {
 	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
 		return text;
 	}
-	const { trackers: _trackers, ...configuration } = parsed as Record<
-		string,
-		unknown
-	>;
+	const {
+		trackers: _trackers,
+		projects: _projects,
+		baselinePinned: _baselinePinned,
+		baselineHidden: _baselineHidden,
+		...configuration
+	} = parsed as Record<string, unknown>;
 	return JSON.stringify(configuration);
+}
+
+function applyRefEdits(
+	live: Configuration["pinned"],
+	baseline: Configuration["pinned"],
+	draft: Configuration["pinned"],
+): Configuration["pinned"] {
+	const removed = baseline.filter(
+		(ref) => !draft.some((item) => sameRef(item, ref)),
+	);
+	const added = draft.filter(
+		(ref) => !baseline.some((item) => sameRef(item, ref)),
+	);
+	const kept = live.filter(
+		(ref) => !removed.some((item) => sameRef(item, ref)),
+	);
+	return [
+		...kept,
+		...added.filter((ref) => !kept.some((item) => sameRef(item, ref))),
+	];
+}
+
+const refBaseline = z.object({
+	baselinePinned: z.array(z.unknown()).optional(),
+	baselineHidden: z.array(z.unknown()).optional(),
+});
+
+function refList(value: unknown): Configuration["pinned"] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const refs: Configuration["pinned"] = [];
+	for (const item of value) {
+		const parsed = projectRefSchema.safeParse(item);
+		if (!parsed.success) {
+			return undefined;
+		}
+		refs.push(parsed.data);
+	}
+	return refs;
+}
+
+function rejectUnknownBotKeys(
+	parsed: Configuration,
+	live: Configuration,
+	snapshots: {
+		key: string;
+		pulls: { repo: string }[];
+	}[],
+	catalogue: FoundProject[],
+): string | null {
+	const known = knownRepos(snapshots, catalogue);
+	const previous = new Set(Object.keys(live.expectedBots ?? {}));
+	for (const key of Object.keys(parsed.expectedBots ?? {})) {
+		if (known.has(key) || previous.has(key)) {
+			continue;
+		}
+		return `invalid configuration: expectedBots.${key}`;
+	}
+	return null;
+}
+
+function mergedSettingsWrite(
+	live: Configuration,
+	parsed: Configuration,
+	text: string,
+): Configuration {
+	let raw: unknown = null;
+	try {
+		raw = JSON.parse(text);
+	} catch {
+		raw = null;
+	}
+	const baseline = refBaseline.safeParse(raw);
+	const sent = baseline.success ? baseline.data : {};
+	const pinnedBaseline = refList(sent.baselinePinned);
+	const hiddenBaseline = refList(sent.baselineHidden);
+	return {
+		...parsed,
+		pinned:
+			pinnedBaseline === undefined
+				? parsed.pinned
+				: applyRefEdits(live.pinned, pinnedBaseline, parsed.pinned),
+		hidden:
+			hiddenBaseline === undefined
+				? parsed.hidden
+				: applyRefEdits(live.hidden, hiddenBaseline, parsed.hidden),
+	};
 }
 
 function viewOnlyChange(before: Configuration, after: Configuration): boolean {
@@ -647,6 +754,7 @@ type PollOptions = {
 	seenNotifications: Set<string>;
 	primed: boolean;
 	polling: boolean;
+	catalogue: FoundProject[];
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
@@ -752,6 +860,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		const keys = linearKeysForNames(linearNamesFromCheckouts(checkouts, rows));
 		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
 	}
+	const discoveredKeys = new Set(
+		discovered.map((project) => `${project.tracker}:${project.key}`),
+	);
 	const found = [...discovered];
 	for (const pin of configuration.pinned) {
 		if (found.some((project) => matchesRef(project, pin))) {
@@ -783,6 +894,12 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			updatedAt: null,
 		});
 	}
+	options.catalogue = found.map((project) => ({
+		...project,
+		...(discoveredKeys.has(`${project.tracker}:${project.key}`)
+			? {}
+			: { configuredOnly: true }),
+	}));
 	const pinnedKeys = new Set(
 		found
 			.filter((project) =>
@@ -1126,6 +1243,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		]),
 		primed: hadRows,
 		polling: false,
+		catalogue: [],
 	};
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(pollOptions, configuration);
@@ -1325,9 +1443,18 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/settings": pageResponse,
 			"/api/settings": {
-				GET: () => Response.json(settingsResponse(configuration, options)),
+				GET: () =>
+					Response.json(
+						settingsResponse(
+							configuration,
+							options,
+							pollOptions.catalogue,
+							opened.store.readTickets(),
+						),
+					),
 				PUT: async (request: Request) => {
-					const text = withoutTrackers(await request.text());
+					const rawText = await request.text();
+					const text = withoutTrackers(rawText);
 					let parsed: Configuration;
 					try {
 						parsed = parseConfiguration(text);
@@ -1338,9 +1465,21 @@ export async function start(options: StartOptions): Promise<Running> {
 								: "invalid configuration: configuration";
 						return Response.json({ error: message }, { status: 400 });
 					}
-					if (viewOnlyChange(configuration, parsed)) {
+					const current = await configurationPort.read();
+					const unknownBot = rejectUnknownBotKeys(
+						parsed,
+						current,
+						opened.store.readTickets(),
+						pollOptions.catalogue,
+					);
+					if (unknownBot !== null) {
+						return Response.json({ error: unknownBot }, { status: 400 });
+					}
+					const merged = mergedSettingsWrite(current, parsed, rawText);
+					const mergedText = JSON.stringify(merged);
+					if (viewOnlyChange(current, merged)) {
 						try {
-							configuration = await configurationPort.write(text);
+							configuration = await configurationPort.write(mergedText);
 						} catch (error) {
 							const message =
 								error instanceof Error
@@ -1353,11 +1492,18 @@ export async function start(options: StartOptions): Promise<Running> {
 							overview: runningOverview(pollOptions, configuration),
 							notifications: [],
 						});
-						return Response.json(settingsResponse(configuration, options));
+						return Response.json(
+							settingsResponse(
+								configuration,
+								options,
+								pollOptions.catalogue,
+								opened.store.readTickets(),
+							),
+						);
 					}
 					try {
 						await (polling ?? Promise.resolve());
-						configuration = await configurationPort.write(text);
+						configuration = await configurationPort.write(mergedText);
 					} catch (error) {
 						const message =
 							error instanceof Error
@@ -1371,7 +1517,14 @@ export async function start(options: StartOptions): Promise<Running> {
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
 					await pollAgain();
-					return Response.json(settingsResponse(configuration, options));
+					return Response.json(
+						settingsResponse(
+							configuration,
+							options,
+							pollOptions.catalogue,
+							opened.store.readTickets(),
+						),
+					);
 				},
 			},
 			"/api/threads/:tracker/:key": {
