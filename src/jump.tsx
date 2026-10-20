@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { TicketState } from "./domain.ts";
 import { TicketPanel } from "./panel.tsx";
+import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
@@ -12,12 +13,6 @@ export type TicketSearchHit = {
 	key: string;
 	title: string;
 	state: TicketState;
-};
-
-type OpenedTicket = {
-	project: string;
-	tracker: "github" | "linear";
-	key: string;
 };
 
 const listeners = new Set<() => void>();
@@ -39,7 +34,7 @@ export function JumpBox() {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
-	const [ticket, setTicket] = useState<OpenedTicket | null>(null);
+	const ticket = useActiveTicket();
 	const queryRef = useRef<HTMLInputElement>(null);
 	useEffect(() => onOpenJumpBox(() => setOpen(true)), []);
 	useEffect(() => {
@@ -121,7 +116,7 @@ export function JumpBox() {
 										className={clsx(jump.hit)}
 										data-ticket={hit.key}
 										onClick={() => {
-											setTicket({
+											openTicket({
 												project: hit.project,
 												tracker: hit.tracker,
 												key: hit.key,
@@ -140,10 +135,11 @@ export function JumpBox() {
 			) : null}
 			{ticket === null ? null : (
 				<TicketPanel
+					key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
 					tracker={ticket.tracker}
 					project={ticket.project}
 					ticketKey={ticket.key}
-					onClose={() => setTicket(null)}
+					onClose={closeTicket}
 				/>
 			)}
 		</>

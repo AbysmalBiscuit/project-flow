@@ -9,7 +9,7 @@ import type {
 } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
-import { TicketPanel } from "./panel.tsx";
+import { type OpenedTicket, openTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import { stateLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
@@ -33,17 +33,14 @@ function openPath(project: string, ticket: string | null): string {
 		: `${path}?ticket=${encodeURIComponent(ticket)}`;
 }
 
-function openProject(
-	project: string,
-	ticket: string | null,
-	openPanel = false,
-): void {
-	window.history.pushState(
-		openPanel ? { panel: true } : {},
-		"",
-		openPath(project, ticket),
-	);
+function openProject(project: string, ticket: string | null): void {
+	window.history.pushState({}, "", openPath(project, ticket));
 	window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function openDrawnTicket(ticket: OpenedTicket): void {
+	openProject(ticket.project, ticket.key);
+	openTicket(ticket);
 }
 
 function TicketLine({
@@ -289,7 +286,6 @@ function Report({
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
-	const [open, setOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [diagramTheme, setDiagramTheme] = useState(mermaidTheme);
@@ -297,7 +293,6 @@ function Page() {
 		const onPop = () => {
 			setName(projectName());
 			setTicket(highlightKey());
-			setOpen(window.history.state?.panel === true);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
@@ -381,9 +376,12 @@ function Page() {
 							continue;
 						}
 						const ticket = node.ticket;
-						const project = node.project;
 						const open = () => {
-							openProject(project, ticket, true);
+							openDrawnTicket({
+								tracker: node.tracker,
+								project: node.project,
+								key: ticket,
+							});
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
@@ -414,24 +412,17 @@ function Page() {
 		return <PageFrame title={name}>Loading {name}</PageFrame>;
 	}
 	return (
-		<>
-			<Report
-				report={report}
-				ticket={ticket}
-				onOpen={(key) => {
-					setTicket(key);
-					setOpen(true);
-				}}
-			/>
-			{open && ticket !== null ? (
-				<TicketPanel
-					tracker={report.tracker}
-					project={report.name}
-					ticketKey={ticket}
-					onClose={() => setOpen(false)}
-				/>
-			) : null}
-		</>
+		<Report
+			report={report}
+			ticket={ticket}
+			onOpen={(key) => {
+				openDrawnTicket({
+					tracker: report.tracker,
+					project: report.name,
+					key,
+				});
+			}}
+		/>
 	);
 }
 

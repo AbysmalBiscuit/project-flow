@@ -6,6 +6,7 @@ import {
 	radius,
 	scheme,
 	space,
+	stack,
 	type,
 } from "./tokens.stylex.ts";
 
@@ -594,6 +595,7 @@ export const inbox = stylex.create({
 export const jump = stylex.create({
 	shade: {
 		position: "fixed",
+		zIndex: stack.jump,
 		top: 0,
 		right: 0,
 		bottom: 0,
@@ -667,6 +669,7 @@ export const jump = stylex.create({
 export const panel = stylex.create({
 	panel: {
 		position: "fixed",
+		zIndex: stack.panel,
 		top: 0,
 		right: 0,
 		width: measure.panel,
