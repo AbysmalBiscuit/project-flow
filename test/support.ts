@@ -68,7 +68,12 @@ export function recordedViewer(
 
 export function unrecorded(input: string | URL | Request): Response {
 	const url = urlOf(input);
-	if (/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/labels\?/.test(url)) {
+	if (
+		/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/labels\?/.test(url) ||
+		/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/issues\/comments\?/.test(
+			url,
+		)
+	) {
 		return new Response("[]", {
 			status: 200,
 			headers: { "content-type": "application/json" },
