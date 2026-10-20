@@ -1,8 +1,11 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import { run } from "../src/main.ts";
 import { recordedDiscovery, urlOf } from "../test/support.ts";
+import {
+	emptyLinear,
+	emptyLists,
+	serveRecorded,
+	unrecorded,
+} from "./recorded.ts";
 
 const board = "acme/board";
 const gate = "acme/gate";
@@ -60,65 +63,21 @@ const recorded: Fetch = async (input, init) => {
 			},
 		]);
 	}
-	if (
-		url.includes("/pulls?") ||
-		url.includes("/branches?") ||
-		url.includes("/labels?") ||
-		url.includes("/comments") ||
-		url.includes("/reviews") ||
-		url.includes("/reactions") ||
-		url.includes("/dependencies/blocked_by")
-	) {
+	if (emptyLists(url)) {
 		return Response.json([]);
 	}
-	if (url === "https://api.linear.app/graphql") {
-		return Response.json({
-			data: {
-				viewer: { id: "lev" },
-				projects: {
-					nodes: [],
-					pageInfo: { hasNextPage: false, endCursor: null },
-				},
-			},
-		});
-	}
-	return new Response(`not recorded ${url}`, { status: 404 });
+	return emptyLinear(url) ?? unrecorded(input);
 };
 
-const dir = await mkdtemp(join("/var/tmp", "project-flow-jump-"));
-await writeFile(
-	join(dir, "config.json"),
-	`${JSON.stringify({
+await serveRecorded({
+	prefix: "project-flow-jump-",
+	port: process.env.PORT ?? "4188",
+	config: {
 		pinned: [
 			{ tracker: "github", repo: board },
 			{ tracker: "github", repo: gate },
 		],
 		checkoutRoots: [],
-	})}\n`,
-);
-
-const port = process.env.PORT ?? "4188";
-const result = await run(
-	["--config", join(dir, "config.json"), "--host", "127.0.0.1", "--port", port],
-	{
-		env: {
-			GITHUB_TOKEN: "recorded-token",
-			LINEAR_API_KEY: "recorded-linear-key",
-			XDG_DATA_HOME: dir,
-		},
-		fetch: recorded,
-		readGhToken: async () => null,
-		listTodos: async () => "",
-		listCheckouts: async () => [],
-		databasePath: join(dir, "project-flow.sqlite"),
-		now: () => new Date("2026-10-18T12:00:00.000Z"),
-		stdout: (line) => console.log(line),
-		stderr: (line) => console.error(line),
-		waitForStop: new Promise<void>((resolve) => {
-			const stop = () => resolve();
-			process.once("SIGINT", stop);
-			process.once("SIGTERM", stop);
-		}),
 	},
-);
-process.exit(result.exitCode);
+	fetch: recorded,
+});
