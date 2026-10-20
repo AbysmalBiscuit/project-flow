@@ -46,6 +46,10 @@ function panelProjectName(): string {
 	return queryValue("panelProject") ?? projectName();
 }
 
+function panelTrackerName(): "github" | "linear" {
+	return queryValue("panelTracker") === "linear" ? "linear" : "github";
+}
+
 function clearTicketQuery(): void {
 	const url = new URL(window.location.href);
 	if (!url.searchParams.has("ticket")) {
@@ -388,7 +392,7 @@ function Page() {
 	const panelProjectRef = useRef(panelProject);
 	panelProjectRef.current = panelProject;
 	const [panelTracker, setPanelTracker] = useState<"github" | "linear">(
-		"github",
+		panelTrackerName,
 	);
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [view, setView] = useState("board");
@@ -400,6 +404,7 @@ function Page() {
 			const next = highlightKey();
 			setName(projectName());
 			setPanelProject(panelProjectName());
+			setPanelTracker(panelTrackerName());
 			setTicket(next);
 			setOpen(next !== null || window.history.state?.panel === true);
 		};
@@ -458,7 +463,9 @@ function Page() {
 				if (stopped || !response.ok) {
 					return;
 				}
-				setPanelReport((await response.json()) as ProjectReport);
+				const body = (await response.json()) as ProjectReport;
+				setPanelReport(body);
+				setPanelTracker(body.tracker);
 			})
 			.catch(() => {});
 		return () => {

@@ -38,6 +38,7 @@ type BlockerEdgeData = {
 	ticket: string;
 	blocked: string;
 	blocker: string;
+	tracker: "github" | "linear";
 };
 
 function ticketTotal(project: ProjectCounts): number {
@@ -196,6 +197,7 @@ function BlockerEdge({
 	const ticket = data?.ticket ?? "";
 	const blocked = data?.blocked ?? "";
 	const blocker = data?.blocker ?? "";
+	const tracker = data?.tracker ?? "github";
 	return (
 		<>
 			<BaseEdge id={id} path={path} />
@@ -208,7 +210,7 @@ function BlockerEdge({
 					}}
 					aria-label={`${ticket} ${blocked}`}
 					onClick={() => {
-						openProject(blocked, ticket, blocker);
+						openProject(blocked, ticket, blocker, tracker);
 					}}
 				>
 					{ticket}
@@ -289,6 +291,7 @@ function edgeFor(
 				ticket: blocker.key,
 				blocked,
 				blocker: blocker.project,
+				tracker: blocker.tracker,
 			},
 		},
 	];
