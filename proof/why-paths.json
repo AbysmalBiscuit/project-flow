@@ -12,7 +12,7 @@
 		{ "click": "aside[data-panel] button[aria-label='Close']" },
 		{ "click": "#view-graph" },
 		{ "assert_text": "Pick a review bot" },
-		{ "click": "#project-diagram button[data-ticket='acme/widget#7']" },
+		{ "click": "#project-graph button[data-graph-node='acme/widget#7']" },
 		{ "assert_text": "WHY THIS NEEDS YOU" },
 		{ "assert_text": "Which bot should review this?" },
 		{ "assert_text": "Keep the current bot" },

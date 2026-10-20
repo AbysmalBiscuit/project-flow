@@ -4,7 +4,6 @@ import { createRoot } from "react-dom/client";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
-	DiagramNode,
 	NeedsYouItem,
 	OutsideBlocker,
 	ProjectReport,
@@ -19,7 +18,7 @@ import { AppShell, PageFrame } from "./shell.tsx";
 import { blockedLabel, loadingLabel, navLabel, stateLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, frame, project, shell } from "./ui-styles.ts";
+import { board, frame, shell } from "./ui-styles.ts";
 import {
 	laneAgeCap,
 	savedProjectView,
@@ -697,89 +696,6 @@ function TicketTable({
 	);
 }
 
-function DiagramNodes({
-	report,
-	onOpen,
-	onOpenOutside,
-}: {
-	report: ProjectReport;
-	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
-}) {
-	const diagrams = report.sections.flatMap((section) => section.diagrams ?? []);
-	return (
-		<div id="project-diagram">
-			{diagrams.map((diagram) => (
-				<figure
-					key={diagram.id}
-					className={clsx(project.diagram)}
-					data-diagram={diagram.id}
-				>
-					<figcaption>{diagram.title}</figcaption>
-					<ul className={clsx(project.nodes)}>
-						{diagram.nodes.map((node) => (
-							<DiagramNodeButton
-								key={node.id}
-								node={node}
-								onOpen={onOpen}
-								onOpenOutside={onOpenOutside}
-							/>
-						))}
-					</ul>
-				</figure>
-			))}
-		</div>
-	);
-}
-
-function DiagramNodeButton({
-	node,
-	onOpen,
-	onOpenOutside,
-}: {
-	node: DiagramNode;
-	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
-}) {
-	if (node.ticket === null) {
-		return (
-			<li className={clsx(project.ticket)} data-node={node.id}>
-				{node.label}
-			</li>
-		);
-	}
-	const ticket = node.ticket;
-	return (
-		<li>
-			<button
-				type="button"
-				className={clsx(
-					project.ticketOpen,
-					project.ticketHover,
-					shell.buttonFocus,
-					node.dashed && project.dashedNode,
-				)}
-				data-node={node.id}
-				data-ticket={ticket}
-				onClick={() => {
-					if (node.dashed) {
-						onOpenOutside({
-							tracker: node.tracker,
-							project: node.project,
-							key: ticket,
-							title: node.label,
-						});
-						return;
-					}
-					onOpen(ticket);
-				}}
-			>
-				{node.label}
-			</button>
-		</li>
-	);
-}
-
 function Board({
 	report,
 	settings,
@@ -1249,10 +1165,12 @@ function Page() {
 		setPanelTracker(report.tracker);
 		setTicket(key);
 		setOpen(true);
+		const item = needsYouItem(report, report.tracker, report.name, key);
 		openTicket({
 			tracker: report.tracker,
 			project: report.name,
 			key,
+			...(item === null ? {} : { item }),
 		});
 	};
 	const openOutsideInPanel = (
@@ -1392,7 +1310,15 @@ function Page() {
 							}
 							blockers={incoming}
 							blocks={outgoing}
-							item={needsYouItem(source, panelTracker, panelProject, ticket)}
+							item={
+								needsYouItem(source, panelTracker, panelProject, ticket) ??
+								(active !== null &&
+								active.tracker === panelTracker &&
+								active.project === panelProject &&
+								sameTicketKey(active.key, ticket)
+									? (active.item ?? null)
+									: null)
+							}
 							onOpenBlocker={(blocker) => {
 								setPanelReport(null);
 								setPanelProject(blocker.project);
