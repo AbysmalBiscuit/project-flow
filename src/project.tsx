@@ -9,7 +9,7 @@ import type {
 } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
-import { TicketPanel } from "./panel.tsx";
+import { closeTicket, type OpenedTicket, openTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import { stateLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
@@ -44,6 +44,53 @@ function openProject(
 		openPath(project, ticket),
 	);
 	window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function openDrawnTicket(ticket: OpenedTicket): void {
+	openProject(ticket.project, ticket.key, true);
+	openTicket(ticket);
+}
+
+function ticketFromUrl(report: ProjectReport): OpenedTicket | null {
+	const key = highlightKey();
+	if (key === null) {
+		return null;
+	}
+	for (const section of report.sections) {
+		for (const diagram of section.diagrams ?? []) {
+			for (const node of diagram.nodes) {
+				if (node.ticket === key) {
+					return {
+						tracker: node.tracker,
+						project: node.project,
+						key,
+					};
+				}
+			}
+		}
+		for (const item of section.items ?? []) {
+			if (item.key === key) {
+				return { tracker: report.tracker, project: report.name, key };
+			}
+		}
+	}
+	return { tracker: report.tracker, project: report.name, key };
+}
+
+function restorePanel(report: ProjectReport | null): void {
+	const panel = window.history.state?.panel === true;
+	const named = highlightKey();
+	if (!panel || named === null) {
+		closeTicket();
+		return;
+	}
+	if (report === null) {
+		return;
+	}
+	const ticket = ticketFromUrl(report);
+	if (ticket !== null) {
+		openTicket(ticket);
+	}
 }
 
 function TicketLine({
@@ -289,7 +336,6 @@ function Report({
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
-	const [open, setOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [diagramTheme, setDiagramTheme] = useState(mermaidTheme);
@@ -297,11 +343,16 @@ function Page() {
 		const onPop = () => {
 			setName(projectName());
 			setTicket(highlightKey());
-			setOpen(window.history.state?.panel === true);
+			restorePanel(report);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
-	}, []);
+	}, [report]);
+	useEffect(() => {
+		if (window.history.state?.panel === true && highlightKey() !== null) {
+			restorePanel(report);
+		}
+	}, [report]);
 	useEffect(() => {
 		const path = `/api/projects/${encodeURIComponent(name)}`;
 		let stopped = false;
@@ -381,9 +432,12 @@ function Page() {
 							continue;
 						}
 						const ticket = node.ticket;
-						const project = node.project;
 						const open = () => {
-							openProject(project, ticket, true);
+							openDrawnTicket({
+								tracker: node.tracker,
+								project: node.project,
+								key: ticket,
+							});
 						};
 						drawn.style.cursor = "pointer";
 						drawn.addEventListener("click", open);
@@ -414,24 +468,17 @@ function Page() {
 		return <PageFrame title={name}>Loading {name}</PageFrame>;
 	}
 	return (
-		<>
-			<Report
-				report={report}
-				ticket={ticket}
-				onOpen={(key) => {
-					setTicket(key);
-					setOpen(true);
-				}}
-			/>
-			{open && ticket !== null ? (
-				<TicketPanel
-					tracker={report.tracker}
-					project={report.name}
-					ticketKey={ticket}
-					onClose={() => setOpen(false)}
-				/>
-			) : null}
-		</>
+		<Report
+			report={report}
+			ticket={ticket}
+			onOpen={(key) => {
+				openDrawnTicket({
+					tracker: report.tracker,
+					project: report.name,
+					key,
+				});
+			}}
+		/>
 	);
 }
 
