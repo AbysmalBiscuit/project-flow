@@ -53,6 +53,7 @@ import {
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
+	abortableFetch,
 	conditionalFetch,
 	githubProjectByNumber,
 	githubTicketKey,
@@ -757,6 +758,7 @@ type PollOptions = {
 	seenNotifications: Set<string>;
 	primed: boolean;
 	polling: boolean;
+	stopped: boolean;
 	catalogue: FoundProject[];
 };
 
@@ -1046,6 +1048,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				publishPoll(options, configuration, outcomes, [], null);
 			}
 		} catch (error) {
+			if (options.stopped) {
+				continue;
+			}
 			const message = error instanceof Error ? error.message : "poll failed";
 			const stored = options.store
 				.readTickets()
@@ -1083,6 +1088,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 	}
 	options.polling = false;
+	if (options.stopped) {
+		return configuration;
+	}
 	publishPoll(options, configuration, outcomes, fullKeys, failed, false);
 	const views = projectViews(options, configuration);
 	const after = attentionOf(views, configuration.pmBot);
@@ -1194,10 +1202,17 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	const restCache = new Map();
 	for (const validator of opened.store.readValidators()) {
-		rememberValidator(restCache, validator.url, validator.etag);
+		rememberValidator(
+			restCache,
+			validator.url,
+			validator.etag,
+			JSON.parse(validator.body) as unknown,
+		);
 	}
+	const requests = new AbortController();
+	const fetch = abortableFetch(options.fetch, requests.signal);
 	const fetchGithub = conditionalFetch(
-		options.fetch,
+		fetch,
 		restCache,
 		opened.store.recordValidator,
 	);
@@ -1207,12 +1222,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		linear:
 			options.linearKey === null
 				? null
-				: linearTracker(
-						options.linearKey,
-						options.fetch,
-						options.token,
-						fetchGithub,
-					),
+				: linearTracker(options.linearKey, fetch, options.token, fetchGithub),
 	};
 	let configuration: Configuration;
 	try {
@@ -1229,7 +1239,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		clock,
 		notifier,
 		token: options.token,
-		fetch: options.fetch,
+		fetch,
 		fetchGithub,
 		restCache,
 		listTodos: options.listTodos,
@@ -1258,6 +1268,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		]),
 		primed: hadRows,
 		polling: false,
+		stopped: false,
 		catalogue: [],
 	};
 	if (pollOptions.primed) {
@@ -1339,7 +1350,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	void firstPoll.then(armTimer, armTimer);
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (): Promise<Response> => {
-		const bundled = await fetch(new URL("/_page", server.url));
+		const bundled = await globalThis.fetch(new URL("/_page", server.url));
 		const html = paintPage(await bundled.text(), configuration.theme);
 		const headers = new Headers(bundled.headers);
 		headers.delete("content-length");
@@ -1615,6 +1626,8 @@ export async function start(options: StartOptions): Promise<Running> {
 		settled,
 		stop: async () => {
 			stopped = true;
+			pollOptions.stopped = true;
+			requests.abort();
 			releaseLists();
 			if (timer !== null) {
 				clearInterval(timer);

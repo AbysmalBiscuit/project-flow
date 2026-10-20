@@ -225,24 +225,53 @@ export function rememberValidator(
 	cache: RestCache,
 	url: string,
 	etag: string,
+	body: unknown,
 ): void {
 	const key = restKey(url);
 	const stored = cache.get(key);
 	if (stored !== undefined) {
 		stored.etag = etag;
+		stored.body = body;
 		return;
 	}
 	cache.set(key, {
 		etag,
-		body: null,
+		body,
 		headers: [["etag", etag]],
 	});
+}
+
+function requestUrl(input: string | URL | Request): string {
+	if (typeof input === "string") {
+		return input;
+	}
+	if (input instanceof URL) {
+		return input.href;
+	}
+	return input.url;
+}
+
+function isTrackerRequest(input: string | URL | Request): boolean {
+	const url = requestUrl(input);
+	return (
+		url.startsWith("https://api.github.com/") ||
+		url.startsWith("https://api.linear.app/")
+	);
+}
+
+export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
+	return (input, init) => {
+		if (init?.signal !== undefined || !isTrackerRequest(input)) {
+			return fetchImpl(input, init);
+		}
+		return fetchImpl(input, { ...init, signal });
+	};
 }
 
 export function conditionalFetch(
 	fetchImpl: Fetch,
 	cache: RestCache,
-	remember?: (url: string, etag: string) => void,
+	remember?: (url: string, etag: string, body: string) => void,
 ): Fetch {
 	return async (input, init) => {
 		const url = restUrl(input);
@@ -258,9 +287,6 @@ export function conditionalFetch(
 		}
 		const response = await fetchImpl(input, { ...init, headers });
 		if (response.status === 304 && stored !== undefined) {
-			if (stored.body === null) {
-				return response;
-			}
 			const replayed = cachedHeaders(stored);
 			response.headers.forEach((value, name) => {
 				if (name === "etag" || name === "content-length") {
@@ -276,7 +302,7 @@ export function conditionalFetch(
 				body: stored.body,
 				headers: [...replayed.entries()],
 			});
-			remember?.(key, etag);
+			remember?.(key, etag, JSON.stringify(stored.body));
 			return new Response(JSON.stringify(stored.body), {
 				status: 200,
 				headers: replayed,
@@ -284,12 +310,13 @@ export function conditionalFetch(
 		}
 		const next = response.headers.get("etag");
 		if (response.ok && next !== null && next !== "") {
+			const body: unknown = await response.clone().json();
 			cache.set(key, {
 				etag: next,
-				body: await response.clone().json(),
+				body,
 				headers: storedHeaders(response),
 			});
-			remember?.(key, next);
+			remember?.(key, next, JSON.stringify(body));
 		}
 		return response;
 	};
