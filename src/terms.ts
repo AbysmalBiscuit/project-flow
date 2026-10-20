@@ -55,6 +55,29 @@ export const reasonTab: Record<NeedsYouItem["reason"], string> = {
 	runFailed: "Runs",
 };
 
+export const whyLabel = "Why this needs you";
+
+export const heldActionLabel = {
+	merge: "Merge",
+	removeLabel: "Remove label",
+} as const;
+
+export const pullStatusLabel = {
+	ci: {
+		passing: "CI passing",
+		failing: "CI failing",
+		pending: "CI pending",
+		none: "CI none",
+	},
+	review: {
+		approved: "Review approved",
+		changes: "Review changes",
+		completed: "Review completed",
+		pending: "Review pending",
+		none: "Review none",
+	},
+} as const;
+
 export const reasonOrder: readonly NeedsYouItem["reason"][] = [
 	"ask",
 	"awaitingMerge",

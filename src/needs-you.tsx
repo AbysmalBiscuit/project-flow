@@ -10,6 +10,7 @@ import {
 	closeTicket,
 	type OpenedTicket,
 	openTicket,
+	replaceActiveItem,
 	useActiveTicket,
 } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
@@ -155,17 +156,19 @@ function NeedsPanel({
 	if (ticket === null) {
 		return null;
 	}
-	const item = items.find(
-		(candidate) =>
-			candidate.project === ticket.project && candidate.key === ticket.key,
-	);
+	const item =
+		ticket.item ??
+		items.find(
+			(candidate) =>
+				candidate.project === ticket.project && candidate.key === ticket.key,
+		);
 	return (
 		<TicketPanel
 			key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
 			tracker={ticket.tracker}
 			project={ticket.project}
 			ticketKey={ticket.key}
-			{...(item === undefined ? {} : { title: item.headline })}
+			{...(item === undefined ? {} : { title: item.headline, item })}
 			onClose={closeTicket}
 		/>
 	);
@@ -227,6 +230,7 @@ function NeedsList({
 			tracker: item.tracker,
 			project: item.project,
 			key: item.key,
+			item,
 		});
 	};
 	return (
@@ -298,7 +302,11 @@ function Page() {
 			fetch("/api/needs-you")
 				.then(async (response) => {
 					if (!stopped && response.ok) {
-						setItems((await response.json()) as NeedsYouItem[]);
+						const loaded = (await response.json()) as NeedsYouItem[];
+						setItems(loaded);
+						for (const item of loaded) {
+							replaceActiveItem(item);
+						}
 					}
 				})
 				.catch(() => {

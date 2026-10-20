@@ -28,6 +28,7 @@ import {
 	mergeTickets,
 	needsYouSeenId,
 	notificationsFor,
+	optionReplyBody,
 	panelReplyBody,
 	projectCounts,
 	projectHasPmBot,
@@ -356,7 +357,8 @@ const replyBody = z.object({
 	tracker: z.enum(["github", "linear"]),
 	project: z.string().trim().min(1),
 	key: z.string().trim().min(1),
-	body: z.string(),
+	body: z.string().optional(),
+	option: z.number().int().positive().optional(),
 	parentId: z.string().optional(),
 	kind: z.enum(["comment", "review"]).optional(),
 });
@@ -427,24 +429,29 @@ async function replyResponse(
 	if (tracker?.postReply === undefined) {
 		return Response.json({ error: "tracker unavailable" }, { status: 404 });
 	}
-	if (parsed.data.body.trim() === "") {
+	const row = rowForReply(options.store, parsed.data);
+	const ticket = row?.tickets.find((item) => item.key === parsed.data.key);
+	const pmBot = projectHasPmBot(
+		configuration.pmBot,
+		row?.key ?? parsed.data.project,
+		parsed.data.tracker,
+	);
+	const picked =
+		parsed.data.option === undefined
+			? null
+			: optionReplyBody(ticket, parsed.data.option, pmBot);
+	if (parsed.data.option !== undefined && picked === null) {
+		return Response.json({ error: "option not found" }, { status: 400 });
+	}
+	const text = picked ?? parsed.data.body ?? "";
+	if (text.trim() === "") {
 		return Response.json({ error: "reply is empty" }, { status: 400 });
 	}
-	const row = rowForReply(options.store, parsed.data);
 	const reply: ReplyRequest = {
 		tracker: parsed.data.tracker,
 		project: parsed.data.project,
 		key: parsed.data.key,
-		body: panelReplyBody(
-			row?.tickets.find((ticket) => ticket.key === parsed.data.key),
-			parsed.data.body,
-			projectHasPmBot(
-				configuration.pmBot,
-				row?.key ?? parsed.data.project,
-				parsed.data.tracker,
-			),
-			parsed.data.parentId,
-		),
+		body: panelReplyBody(ticket, text, pmBot, parsed.data.parentId),
 		...(parsed.data.parentId === undefined
 			? {}
 			: { parentId: parsed.data.parentId }),

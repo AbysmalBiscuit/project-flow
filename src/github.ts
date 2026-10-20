@@ -15,7 +15,12 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { backlogColour, factoryBoard, statusTypeOfName } from "./domain.ts";
+import {
+	backlogColour,
+	factoryBoard,
+	reviewStateValue,
+	statusTypeOfName,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -1595,11 +1600,18 @@ function fetchReviews(
 		token,
 		fetchImpl,
 		"list reviews",
-		loginRow.extend({ commit_id: z.string() }),
+		loginRow.extend({
+			commit_id: z.string(),
+			state: reviewStateValue.optional(),
+		}),
 		(review) =>
 			review.user === null
 				? null
-				: { login: review.user.login, commitId: review.commit_id },
+				: {
+						login: review.user.login,
+						commitId: review.commit_id,
+						...(review.state === undefined ? {} : { state: review.state }),
+					},
 	);
 }
 
