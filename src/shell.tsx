@@ -306,7 +306,6 @@ export function PageFrame({
 	return (
 		<AppShell>
 			<main
-				id={scroll ? "page-scroll" : undefined}
 				className={clsx(
 					frame.page,
 					wide && frame.wide,
@@ -315,9 +314,7 @@ export function PageFrame({
 			>
 				<PageHeader {...header} />
 				{scroll ? (
-					<div id="settings-scroll" className={clsx(frame.scroll)}>
-						{children}
-					</div>
+					<div className={clsx(frame.scroll)}>{children}</div>
 				) : (
 					children
 				)}
