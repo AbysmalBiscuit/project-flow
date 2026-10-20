@@ -11,11 +11,10 @@ import {
 	MarkerType,
 	Position,
 	ReactFlow,
-	ReactFlowProvider,
 	useReactFlow,
-	type Viewport,
+	useViewport,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
@@ -249,98 +248,57 @@ function edgeFor(
 	];
 }
 
-function readViewport(): Viewport | null {
-	const pane = document.querySelector(".react-flow__viewport");
-	if (!(pane instanceof SVGElement) && !(pane instanceof HTMLElement)) {
-		return null;
-	}
-	const transform = pane.style.transform;
-	const shift = /translate\(([^,]+)px,\s*([^)]+)px\)/.exec(transform);
-	const scale = /scale\(([^)]+)\)/.exec(transform)?.[1];
-	const x = shift?.[1];
-	const y = shift?.[2];
-	if (scale === undefined || x === undefined || y === undefined) {
-		return null;
-	}
-	return {
-		x: Math.round(Number(x)),
-		y: Math.round(Number(y)),
-		zoom: Math.round(Number(scale) * 1000) / 1000,
-	};
+function viewportText(x: number, y: number, zoom: number): string {
+	const shownX = Math.round(x);
+	const shownY = Math.round(y);
+	const shownZoom = Math.round(zoom * 1000) / 1000;
+	return `zoom ${shownZoom} at ${shownX},${shownY}`;
 }
 
-function settledViewport(
-	setViewport: (viewport: Viewport | null) => void,
-): () => void {
-	let stopped = false;
-	let last = "";
-	let frames = 0;
-	const tick = () => {
-		if (stopped) {
-			return;
-		}
-		const pane = document.querySelector(".react-flow__viewport");
-		const transform = pane instanceof HTMLElement ? pane.style.transform : "";
-		frames += 1;
-		if ((transform === "" || transform !== last) && frames < 40) {
-			last = transform;
-			requestAnimationFrame(tick);
-			return;
-		}
-		setViewport(readViewport());
-	};
-	const frame = requestAnimationFrame(tick);
-	return () => {
-		stopped = true;
-		cancelAnimationFrame(frame);
-	};
-}
-
-function GraphTools() {
-	const flow = useReactFlow();
-	const [viewport, setViewport] = useState<Viewport | null>(null);
-	useEffect(() => settledViewport(setViewport), []);
-	const show = () => {
-		setViewport(readViewport());
-	};
+function GraphProbe() {
+	const viewport = useViewport();
 	return (
-		<div className={clsx(cards.graphTools)}>
+		<p id="graph-viewport" className={clsx(cards.graphProbe)}>
+			{viewportText(viewport.x, viewport.y, viewport.zoom)}
+		</p>
+	);
+}
+
+export function GraphZoom() {
+	const flow = useReactFlow();
+	return (
+		<>
 			<button
 				type="button"
-				className={clsx(cards.graphTool)}
+				className={clsx(cards.control)}
 				aria-label={overviewControlLabel.zoomOut}
 				onClick={() => {
-					void flow.zoomOut().then(show);
+					void flow.zoomOut();
 				}}
 			>
 				−
 			</button>
 			<button
 				type="button"
-				className={clsx(cards.graphTool)}
+				className={clsx(cards.control)}
 				aria-label={overviewControlLabel.fit}
 				onClick={() => {
-					void flow.fitView().then(show);
+					void flow.fitView();
 				}}
 			>
 				{overviewControlLabel.fit}
 			</button>
 			<button
 				type="button"
-				className={clsx(cards.graphTool)}
+				className={clsx(cards.control)}
 				aria-label={overviewControlLabel.zoomIn}
 				onClick={() => {
-					void flow.zoomIn().then(show);
+					void flow.zoomIn();
 				}}
 			>
 				+
 			</button>
-			<p id="graph-viewport" className={clsx(cards.graphProbe)}>
-				{viewport === null
-					? ""
-					: `zoom ${viewport.zoom} at ${viewport.x},${viewport.y}`}
-			</p>
-		</div>
+		</>
 	);
 }
 
@@ -363,23 +321,21 @@ export function OverviewGraph({
 			<p id="graph-places" className={clsx(cards.graphProbe)}>
 				{places}
 			</p>
-			<ReactFlowProvider>
-				<ReactFlow
-					nodes={model.nodes}
-					edges={model.edges}
-					nodeTypes={nodeTypes}
-					edgeTypes={edgeTypes}
-					nodesDraggable={false}
-					nodesConnectable={false}
-					elementsSelectable={false}
-					panOnDrag={false}
-					fitView
-					proOptions={{ hideAttribution: true }}
-				>
-					<Background variant={BackgroundVariant.Dots} gap={18} />
-					<GraphTools />
-				</ReactFlow>
-			</ReactFlowProvider>
+			<ReactFlow
+				nodes={model.nodes}
+				edges={model.edges}
+				nodeTypes={nodeTypes}
+				edgeTypes={edgeTypes}
+				nodesDraggable={false}
+				nodesConnectable={false}
+				elementsSelectable={false}
+				panOnDrag={false}
+				fitView
+				proOptions={{ hideAttribution: true }}
+			>
+				<Background variant={BackgroundVariant.Dots} gap={18} />
+				<GraphProbe />
+			</ReactFlow>
 		</div>
 	);
 }

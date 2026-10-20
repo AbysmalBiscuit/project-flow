@@ -1,4 +1,5 @@
 import "@xyflow/react/dist/style.css";
+import { ReactFlowProvider } from "@xyflow/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -20,9 +21,9 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import { OverviewGraph } from "./overview-graph.tsx";
-import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
+import { GraphZoom, OverviewGraph } from "./overview-graph.tsx";
 import { openProject, projectPath } from "./paths.ts";
+import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
 	actionLabel,
@@ -741,7 +742,7 @@ function OverviewPage({
 			))}
 		</MenuButton>
 	);
-	return (
+	const page = (
 		<PageFrame
 			title={navLabel.overview}
 			subtitle={summary}
@@ -855,7 +856,7 @@ function OverviewPage({
 					<div className={clsx(cards.controls)}>
 						{pinnedMenu}
 						{filterMenu}
-						{view.view === "graph" ? null : sortMenu}
+						{view.view === "graph" ? <GraphZoom /> : sortMenu}
 					</div>
 				</div>
 			)}
@@ -871,6 +872,11 @@ function OverviewPage({
 				</p>
 			) : null}
 		</PageFrame>
+	);
+	return view.view === "graph" ? (
+		<ReactFlowProvider>{page}</ReactFlowProvider>
+	) : (
+		page
 	);
 }
 
