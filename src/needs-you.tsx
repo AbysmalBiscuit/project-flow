@@ -3,23 +3,13 @@ import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
-import { TicketPanel } from "./panel.tsx";
+import { openTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import { navLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { needs } from "./ui-styles.ts";
 
-function NeedsList({
-	items,
-	opened,
-	onOpen,
-	onClose,
-}: {
-	items: NeedsYouItem[];
-	opened: NeedsYouItem | null;
-	onOpen: (item: NeedsYouItem) => void;
-	onClose: () => void;
-}) {
+function NeedsList({ items }: { items: NeedsYouItem[] }) {
 	return (
 		<PageFrame title={navLabel.needsYou}>
 			<ul className={clsx(needs.list)}>
@@ -28,25 +18,22 @@ function NeedsList({
 						key={`${item.project} ${item.key}`}
 						item={item}
 						project
-						onOpen={() => onOpen(item)}
+						onOpen={() =>
+							openTicket({
+								tracker: item.tracker,
+								project: item.project,
+								key: item.key,
+							})
+						}
 					/>
 				))}
 			</ul>
-			{opened === null ? null : (
-				<TicketPanel
-					tracker={opened.tracker}
-					project={opened.project}
-					ticketKey={opened.key}
-					onClose={onClose}
-				/>
-			)}
 		</PageFrame>
 	);
 }
 
 function Page() {
 	const [items, setItems] = useState<NeedsYouItem[] | null>(null);
-	const [opened, setOpened] = useState<NeedsYouItem | null>(null);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -74,14 +61,7 @@ function Page() {
 	if (items === null) {
 		return <PageFrame title={navLabel.needsYou}>Loading needs you</PageFrame>;
 	}
-	return (
-		<NeedsList
-			items={items}
-			opened={opened}
-			onOpen={setOpened}
-			onClose={() => setOpened(null)}
-		/>
-	);
+	return <NeedsList items={items} />;
 }
 
 const root = document.getElementById("root");

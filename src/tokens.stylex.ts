@@ -174,3 +174,8 @@ export const measure = stylex.defineVars({
 	badge: "1.15rem",
 	search: "12rem",
 });
+
+export const stack = stylex.defineVars({
+	panel: 1,
+	jump: 2,
+});

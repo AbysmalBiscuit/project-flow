@@ -6,6 +6,7 @@ import {
 	radius,
 	scheme,
 	space,
+	stack,
 	type,
 } from "./tokens.stylex.ts";
 
@@ -591,9 +592,84 @@ export const inbox = stylex.create({
 	},
 });
 
+export const jump = stylex.create({
+	shade: {
+		position: "fixed",
+		zIndex: stack.jump,
+		top: 0,
+		right: 0,
+		bottom: 0,
+		left: 0,
+		display: "flex",
+		justifyContent: "center",
+		paddingTop: space.threeXl,
+		backgroundColor: colours.shadow,
+	},
+	title: {
+		margin: `0 0 ${space.sm}`,
+		fontSize: type.heading,
+	},
+	box: {
+		boxSizing: "border-box",
+		width: measure.form,
+		maxWidth: "100%",
+		maxHeight: measure.diagram,
+		overflow: "auto",
+		padding: space.lg,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.line,
+		borderRadius: radius.md,
+		backgroundColor: colours.surface,
+		color: colours.ink,
+		boxShadow: `0 0 ${space.xl} ${colours.shadow}`,
+	},
+	query: {
+		boxSizing: "border-box",
+		width: "100%",
+		marginBottom: space.sm,
+		padding: `${space.twoXs} ${space.sm}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.lineStrong,
+		borderRadius: radius.sm,
+		backgroundColor: colours.canvas,
+		color: colours.ink,
+		font: "inherit",
+		outline: {
+			default: "none",
+			":focus": focusRing,
+			":focus-visible": focusRing,
+		},
+		outlineOffset: space.twoXs,
+	},
+	list: {
+		margin: 0,
+		padding: 0,
+		listStyle: "none",
+	},
+	hit: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: `${space.xs} ${space.sm}`,
+		width: "100%",
+		padding: `${space.xs} ${space.sm}`,
+		borderWidth: 0,
+		backgroundColor: {
+			default: "transparent",
+			":hover": colours.surfaceMuted,
+		},
+		color: colours.ink,
+		font: "inherit",
+		textAlign: "left",
+		cursor: "pointer",
+	},
+});
+
 export const panel = stylex.create({
 	panel: {
 		position: "fixed",
+		zIndex: stack.panel,
 		top: 0,
 		right: 0,
 		width: measure.panel,
