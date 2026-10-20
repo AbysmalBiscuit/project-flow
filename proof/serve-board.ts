@@ -42,7 +42,12 @@ function issue(
 
 const widgetIssues = [
 	issue(widget, 1, "Ship the board"),
-	issue(widget, 2, "Draw the nodes", `Blocked by: ${platform}#9`),
+	issue(
+		widget,
+		2,
+		"Draw the nodes",
+		`Blocked by: ${widget}#1\nBlocked by: ${platform}#9\nBlocks: ${platform}#10`,
+	),
 	issue(widget, 3, "Write the copy"),
 	issue(widget, 4, "Read the review"),
 	...[11, 12, 13, 14, 15, 16].map((number) =>

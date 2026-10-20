@@ -53,6 +53,38 @@ function trackerUrl(
 	return undefined;
 }
 
+function panelBlockers(
+	ticket: TicketView | undefined,
+	source: ProjectReport | null,
+	project: string,
+	tracker: "github" | "linear",
+): OutsideBlocker[] {
+	if (ticket === undefined) {
+		return [];
+	}
+	const outside = ticket.outsideBlockers ?? [];
+	const resolved: OutsideBlocker[] = [];
+	for (const key of ticket.blockers) {
+		const known = outside.find(
+			(blocker) => blocker.key.toLowerCase() === key.toLowerCase(),
+		);
+		if (known !== undefined) {
+			resolved.push(known);
+			continue;
+		}
+		const local = source?.tickets.find(
+			(item) => item.key?.toLowerCase() === key.toLowerCase(),
+		);
+		resolved.push({
+			tracker,
+			project,
+			key,
+			title: local?.title.trim() || key,
+		});
+	}
+	return resolved;
+}
+
 function countLine(report: ProjectReport): string {
 	const counts = new Map<string, number>();
 	for (const ticket of report.tickets) {
@@ -340,10 +372,8 @@ function Page() {
 		source === null || ticket === null
 			? undefined
 			: source.tickets.find((item) => item.key === ticket);
-	const outside = [
-		...(selected?.outsideBlockers ?? []),
-		...(selected?.blocks ?? []),
-	];
+	const incoming = panelBlockers(selected, source, panelProject, panelTracker);
+	const outgoing = selected?.blocks ?? [];
 	if (missing) {
 		return <PageFrame title={name}>Project not found</PageFrame>;
 	}
@@ -420,7 +450,8 @@ function Page() {
 							: trackerUrl(panelTracker, selected.key)
 					}
 					{...(selected?.state === undefined ? {} : { state: selected.state })}
-					blockers={outside}
+					blockers={incoming}
+					blocks={outgoing}
 					onOpenBlocker={(blocker) => {
 						setPanelReport(null);
 						setPanelProject(blocker.project);

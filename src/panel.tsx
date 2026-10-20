@@ -58,6 +58,43 @@ function CommentTree({
 	);
 }
 
+function RelationList({
+	label,
+	relations,
+	onOpen,
+}: {
+	label: string;
+	relations: OutsideBlocker[];
+	onOpen?: (blocker: OutsideBlocker) => void;
+}) {
+	if (relations.length === 0) {
+		return null;
+	}
+	return (
+		<section aria-label={label}>
+			<h3>{label}</h3>
+			<ul className={clsx(panel.thread)}>
+				{relations.map((blocker) => (
+					<li key={`${blocker.project} ${blocker.key}`}>
+						<button
+							type="button"
+							className={clsx(
+								shell.button,
+								shell.buttonHover,
+								shell.buttonFocus,
+							)}
+							data-blocker={blocker.key}
+							onClick={() => onOpen?.(blocker)}
+						>
+							{blocker.key}
+						</button>
+					</li>
+				))}
+			</ul>
+		</section>
+	);
+}
+
 export function TicketPanel({
 	tracker,
 	project,
@@ -66,6 +103,7 @@ export function TicketPanel({
 	url,
 	state,
 	blockers = [],
+	blocks = [],
 	onOpenBlocker,
 	onClose,
 }: {
@@ -76,6 +114,7 @@ export function TicketPanel({
 	url?: string | undefined;
 	state?: TicketState;
 	blockers?: OutsideBlocker[];
+	blocks?: OutsideBlocker[];
 	onOpenBlocker?: (blocker: OutsideBlocker) => void;
 	onClose: () => void;
 }) {
@@ -174,26 +213,16 @@ export function TicketPanel({
 				<>
 					<h2>{thread?.title ?? title}</h2>
 					{state === undefined ? null : <p>{stateLabel[state]}</p>}
-					{blockers.length === 0 ? null : (
-						<ul className={clsx(panel.thread)} aria-label="Blockers">
-							{blockers.map((blocker) => (
-								<li key={`${blocker.project} ${blocker.key}`}>
-									<button
-										type="button"
-										className={clsx(
-											shell.button,
-											shell.buttonHover,
-											shell.buttonFocus,
-										)}
-										data-blocker={blocker.key}
-										onClick={() => onOpenBlocker?.(blocker)}
-									>
-										{blocker.key}
-									</button>
-								</li>
-							))}
-						</ul>
-					)}
+					<RelationList
+						label="Blockers"
+						relations={blockers}
+						{...(onOpenBlocker === undefined ? {} : { onOpen: onOpenBlocker })}
+					/>
+					<RelationList
+						label="Blocks"
+						relations={blocks}
+						{...(onOpenBlocker === undefined ? {} : { onOpen: onOpenBlocker })}
+					/>
 					{thread === null && url === undefined ? null : (
 						<p>
 							<a className={clsx(panel.tracker)} href={thread?.url ?? url}>
