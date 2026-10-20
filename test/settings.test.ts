@@ -811,6 +811,75 @@ describe("settings", () => {
 		});
 	});
 
+	test("overview filter, sort and view mode survive a restart", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const overview = {
+			filter: "needs-you",
+			sort: "blockers",
+			view: "table",
+		} as const;
+		try {
+			await withAppFile(path, async (base) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(before.overview).toEqual({
+					filter: "all",
+					sort: "name",
+					view: "cards",
+				});
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...before, overview }),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration;
+				expect(written.overview).toEqual(overview);
+			});
+			await withAppFile(path, async (base) => {
+				const restarted = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(restarted.overview).toEqual(overview);
+			});
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a blank overview filter names the field and leaves the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const blank = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...before,
+					overview: { filter: "   " as const, sort: "name", view: "cards" },
+				}),
+			});
+			expect(blank.status).toBe(400);
+			const body = (await blank.json()) as { error: string };
+			expect(body.error).toContain("overview.filter");
+			const repeated = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...before,
+					overview: { filter: "sepia" as const, sort: "name", view: "cards" },
+				}),
+			});
+			expect(repeated.status).toBe(400);
+			const after = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(after).toEqual(before);
+		});
+	});
+
 	test("a blank settings body names the configuration and leaves the file", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
 			const before = (await (

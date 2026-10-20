@@ -32,8 +32,19 @@ const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
 
 const knownBot = z.enum(knownBots);
 
+const overviewView = z.strictObject({
+	filter: z.enum(["all", "needs-you", "blocked", "pinned"]).default("all"),
+	sort: z.enum(["name", "progress", "needs-you", "blockers"]).default("name"),
+	view: z.enum(["cards", "graph", "table"]).default("cards"),
+});
+
 const configurationSchema = z.strictObject({
 	theme: z.enum(["light", "dark"]).default("light"),
+	overview: overviewView.default({
+		filter: "all",
+		sort: "name",
+		view: "cards",
+	}),
 	pinned: z.array(projectRef).default([]),
 	hidden: z.array(projectRef).default([]),
 	activityWindowDays: z.number().int().positive().default(30),
@@ -69,6 +80,8 @@ const configurationSchema = z.strictObject({
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;
+
+export type OverviewView = Configuration["overview"];
 
 export type AutoMerge = Configuration["autoMerge"][string];
 
