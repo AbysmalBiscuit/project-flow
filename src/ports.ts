@@ -86,6 +86,7 @@ export type Store = {
 	mergeTickets: (rows: Snapshot[]) => void;
 	lastGoodPollAt: (project: string) => Date | null;
 	recordGoodPoll: (project: string, at: Date) => void;
+	forgetGoodPoll: (project: string) => void;
 	recordFetchError: (message: string) => void;
 	recordProjectError: (project: string, message: string) => void;
 	clearProjectError: (project: string) => void;

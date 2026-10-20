@@ -430,3 +430,20 @@ export function linearFake(options: LinearFake = {}): Fetch {
 		});
 	};
 }
+
+export async function trackFound(base: string): Promise<void> {
+	const settings = (await (
+		await fetch(new URL("/api/settings", base))
+	).json()) as { projects: { ref: unknown }[] };
+	const saved = await fetch(new URL("/api/settings", base), {
+		method: "PUT",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			...settings,
+			tracked: settings.projects.map((project) => project.ref),
+		}),
+	});
+	if (!saved.ok) {
+		throw new Error(`tracking found projects failed: ${await saved.text()}`);
+	}
+}

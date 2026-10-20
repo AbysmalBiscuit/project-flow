@@ -17,7 +17,7 @@
 		{ "shot": "inbox" },
 		{ "click": "a[href='/settings']" },
 		{ "assert_text": "Settings" },
-		{ "assert_text": "Pinned projects" },
+		{ "assert_text": "Project Flow polls only tracked projects" },
 		{ "shot": "settings" },
 		{ "goto": "/projects/acme%2Fboard" },
 		{ "assert_text": "acme/board" },

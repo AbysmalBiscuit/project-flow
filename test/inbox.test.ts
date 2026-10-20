@@ -2506,11 +2506,8 @@ describe("inbox", () => {
 			});
 			const restarted = start(secondStop, againReady);
 			const next = await second;
-			const hiddenConfig = {
-				...pinnedOffHome,
-				hidden: [{ tracker: "linear", project: "project-flow" }],
-			};
-			await Bun.write(path, JSON.stringify(hiddenConfig));
+			const untrackedConfig = { ...pinnedOffHome, tracked: [] };
+			await Bun.write(path, JSON.stringify(untrackedConfig));
 			await quietUntil(next, async () => {
 				const listed = await fetch(new URL("/api/needs-you", next));
 				expect(listed.status).toBe(200);
@@ -3037,18 +3034,18 @@ describe("inbox", () => {
 				expect.objectContaining({ project: "Loaded", key: "LOAD-1" }),
 			]);
 			const shownConfig = {
-				pinned: [
+				tracked: [
 					{ tracker: "linear", project: "idle" },
 					{ tracker: "linear", project: "loaded" },
 				],
 				pollIntervalSeconds: 3600,
 				checkoutRoots: [],
 			};
-			const hiddenConfig = {
+			const untrackedConfig = {
 				...shownConfig,
-				hidden: [{ tracker: "linear", project: "idle" }],
+				tracked: [{ tracker: "linear", project: "loaded" }],
 			};
-			await Bun.write(path, JSON.stringify(hiddenConfig));
+			await Bun.write(path, JSON.stringify(untrackedConfig));
 			await refresh(base);
 			const hiddenList = await fetch(new URL("/api/needs-you", base));
 			expect(hiddenList.status).toBe(200);

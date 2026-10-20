@@ -328,7 +328,6 @@ type OverviewBody = {
 		fetchedAt: string | null;
 		error: string | null;
 		statusTypes: Record<string, number>;
-		pinned: boolean;
 		ref:
 			| { tracker: "github"; repo: string }
 			| { tracker: "linear"; project: string };
@@ -374,7 +373,6 @@ function counts(
 			done,
 			dropped: 0,
 		},
-		pinned: true,
 		ref:
 			tracker === "linear"
 				? { tracker: "linear", project: name }
@@ -1890,7 +1888,7 @@ describe("live updates", () => {
 				]);
 				expect(body.error).toBeNull();
 			},
-			[],
+			[{ tracker: "linear", project: linearProject }],
 			{
 				GITHUB_TOKEN: "recorded-token",
 				LINEAR_API_KEY: "recorded-linear-key",
