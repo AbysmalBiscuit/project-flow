@@ -613,18 +613,22 @@ function TicketTable({
 					<thead>
 						<tr>
 							{columns.map((item) => (
-								<th key={item} className={clsx(board.headerCell)} scope="col">
+								<th
+									key={item}
+									className={clsx(board.headerCell)}
+									scope="col"
+									aria-sort={
+										column === item
+											? direction === "asc"
+												? "ascending"
+												: "descending"
+											: "none"
+									}
+								>
 									<button
 										type="button"
 										className={clsx(board.sort, shell.buttonFocus)}
 										data-column={item}
-										aria-sort={
-											column === item
-												? direction === "asc"
-													? "ascending"
-													: "descending"
-												: "none"
-										}
 										aria-label={`Sort by ${columnLabel[item]}`}
 										onClick={() => {
 											if (column === item) {
