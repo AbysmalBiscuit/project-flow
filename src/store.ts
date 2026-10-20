@@ -119,9 +119,18 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 	db.run(`
 		create table if not exists validators (
 			url text primary key,
-			etag text not null
+			etag text not null,
+			body text not null default 'null'
 		)
 	`);
+	const validatorColumns = db.query("pragma table_info(validators)").all() as {
+		name: string;
+	}[];
+	if (!validatorColumns.some((column) => column.name === "body")) {
+		db.run(
+			"alter table validators add column body text not null default 'null'",
+		);
+	}
 	return {
 		store: {
 			replaceTickets(rows) {
@@ -269,16 +278,19 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 				})();
 			},
 			readValidators() {
-				const rows = db.query("select url, etag from validators").all() as {
+				const rows = db
+					.query("select url, etag, body from validators")
+					.all() as {
 					url: string;
 					etag: string;
+					body: string;
 				}[];
 				return rows;
 			},
-			recordValidator(url, etag) {
+			recordValidator(url, etag, body) {
 				db.query(
-					"insert into validators (url, etag) values (?, ?) on conflict(url) do update set etag = excluded.etag",
-				).run(url, etag);
+					"insert into validators (url, etag, body) values (?, ?, ?) on conflict(url) do update set etag = excluded.etag, body = excluded.body",
+				).run(url, etag, body);
 			},
 		},
 		close: () => db.close(),

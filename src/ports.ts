@@ -101,10 +101,10 @@ export type Store = {
 	recordSeededIds: (ids: string[]) => void;
 	/** Drop ids that must not notify again. */
 	forgetSeededIds: (ids: string[]) => void;
-	/** ETag of the last GitHub REST response for a URL. */
-	readValidators: () => { url: string; etag: string }[];
-	/** Keep the ETag of a GitHub REST response. */
-	recordValidator: (url: string, etag: string) => void;
+	/** Last GitHub REST response for a URL. */
+	readValidators: () => { url: string; etag: string; body: string }[];
+	/** Keep the last GitHub REST response for a URL. */
+	recordValidator: (url: string, etag: string, body: string) => void;
 };
 
 export type Change = {
