@@ -659,9 +659,10 @@ function TableRow({
 					{(ticket.blocks ?? []).map((blocker) => (
 						<Chip
 							key={blocker.key}
-							label={shortKey(blocker.key)}
+							label={blocker.key}
 							ticketKey={blocker.key}
-							onOpen={onOpen}
+							outside
+							onOpen={() => onOpenOutside(blocker)}
 						/>
 					))}
 				</span>
