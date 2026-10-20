@@ -873,9 +873,7 @@ describe("settings", () => {
 					const written = (await saved.json()) as Configuration;
 					expect(written.theme).toBe("dark");
 					expect(written.pinned).toEqual(current.pinned);
-					expect(written.pollIntervalSeconds).toBe(
-						current.pollIntervalSeconds,
-					);
+					expect(written.pollIntervalSeconds).toBe(current.pollIntervalSeconds);
 					const page = await fetch(new URL("/", base));
 					expect(page.status).toBe(200);
 					expect(await page.text()).toContain('data-theme="dark"');
