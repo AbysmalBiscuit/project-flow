@@ -2563,6 +2563,7 @@ describe("review cycle", () => {
 					project: repo,
 					tracker: "github",
 					key: `${repo}#51`,
+					headline: expect.any(String),
 					reason: "ask",
 					tags: [],
 					answered: false,
