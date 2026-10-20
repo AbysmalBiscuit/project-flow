@@ -22,6 +22,7 @@ import {
 	commentTree,
 	departedNeedsYouIds,
 	expectedBotsByRepo,
+	filterProjectReport,
 	githubRepoForTodo,
 	inboxEntries,
 	linearKeysForNames,
@@ -34,6 +35,7 @@ import {
 	projectCounts,
 	projectHasPmBot,
 	projectSnapshots,
+	projectViewFor,
 	reconcilePoll,
 	staleView,
 	startedTodoKeys,
@@ -326,6 +328,7 @@ function reportFor(
 	options: PollOptions,
 	configuration: Configuration,
 	name: string,
+	filtered: boolean,
 ): ProjectReport | null {
 	const match = projectViews(options, configuration).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
@@ -333,7 +336,23 @@ function reportFor(
 	if (match === undefined) {
 		return null;
 	}
-	return match.report;
+	if (!filtered) {
+		return match.report;
+	}
+	return filterProjectReport(
+		match.report,
+		projectViewFor(configuration, match.counts.name),
+		options.clock.now(),
+	);
+}
+
+function viewOnlyChange(before: Configuration, after: Configuration): boolean {
+	const { projectViews: previous, ...rest } = before;
+	const { projectViews: next, ...kept } = after;
+	return (
+		JSON.stringify(rest) === JSON.stringify(kept) &&
+		JSON.stringify(previous) !== JSON.stringify(next)
+	);
 }
 
 function mergeFound(
@@ -1232,7 +1251,9 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/projects/:name": {
 				GET: (request) => {
 					const name = request.params.name;
-					const report = reportFor(pollOptions, configuration, name);
+					const filtered =
+						new URL(request.url).searchParams.get("view") !== "all";
+					const report = reportFor(pollOptions, configuration, name, filtered);
 					if (report === null) {
 						return Response.json(
 							{ error: "project not found" },
@@ -1260,6 +1281,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				GET: () => Response.json(configuration),
 				PUT: async (request: Request) => {
 					const text = await request.text();
+					const previous = configuration;
 					try {
 						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(text);
@@ -1275,6 +1297,13 @@ export async function start(options: StartOptions): Promise<Running> {
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
+					if (viewOnlyChange(previous, configuration)) {
+						notifier.publish({
+							overview: runningOverview(pollOptions, configuration),
+							notifications: [],
+						});
+						return Response.json(configuration);
+					}
 					await pollAgain();
 					return Response.json(configuration);
 				},

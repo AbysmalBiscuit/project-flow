@@ -82,8 +82,13 @@ const otherIssues = [
 	issue(9, "Platform gate", { labels: [{ name: "epic" }] }, otherRepo),
 ];
 
-function githubFetch(issues = githubIssues, others = otherIssues): Fetch {
+function githubFetch(
+	issues = githubIssues,
+	others = otherIssues,
+	calls?: string[],
+): Fetch {
 	return async (input, init) => {
+		calls?.push(urlOf(input));
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
 			return discovered;
@@ -182,6 +187,7 @@ async function withApp(
 	fetchImpl: Fetch,
 	env: Record<string, string | undefined>,
 	check: (base: string) => Promise<void>,
+	now?: () => Date,
 ): Promise<void> {
 	const { path, cleanup } = await tempConfig(config);
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -199,6 +205,7 @@ async function withApp(
 				fetch: fetchImpl,
 				readGhToken: async () => null,
 				databasePath: join(root, "store.sqlite"),
+				...(now === undefined ? {} : { now }),
 				stdout: (line) => startChecks(line),
 				waitForStop: checks,
 			}),
@@ -1278,6 +1285,370 @@ describe("GET /api/projects/:name", () => {
 					},
 				]);
 			},
+		);
+	});
+
+	test("a filter change writes the project view settings and survives a restart", async () => {
+		const config = JSON.stringify({
+			pinned: [{ tracker: "github", repo: githubRepo }],
+		});
+		const issues = [
+			issue(1, "Ship the map", {
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }],
+			}),
+			issue(2, "Draw the legend", {
+				assignee: { login: "bea" },
+				assignees: [{ login: "bea" }],
+			}),
+			issue(3, "Old done work", {
+				state: "closed",
+				state_reason: "completed",
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }],
+				updated_at: "2026-08-01T12:00:00.000Z",
+			}),
+			issue(4, "Recent done work", {
+				state: "closed",
+				state_reason: "completed",
+				assignee: { login: "cy" },
+				assignees: [{ login: "cy" }],
+				updated_at: "2026-08-17T12:00:00.000Z",
+			}),
+			issue(5, "Dropped the draft", {
+				state: "closed",
+				state_reason: "not_planned",
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }],
+			}),
+		];
+		const keys = async (base: string) => {
+			const report = (await (
+				await fetch(
+					new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+				)
+			).json()) as ProjectReport;
+			return {
+				lanes: report.lanes.map((lane) => lane.name),
+				tickets: report.tickets.flatMap((ticket) =>
+					ticket.key === null ? [] : [ticket.key],
+				),
+			};
+		};
+		let path = "";
+		let cleanup = async () => {};
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		try {
+			const temp = await tempConfig(config);
+			path = temp.path;
+			cleanup = temp.cleanup;
+			const start = (check: (base: string) => Promise<void>): Promise<void> => {
+				let startChecks: (base: string) => void = () => {};
+				const checks = new Promise<void>((resolve, reject) => {
+					startChecks = (line) => {
+						check(line).then(resolve).catch(reject);
+					};
+				});
+				return run(
+					["--config", path, "--host", "127.0.0.1", "--port", "0"],
+					testIo({
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: githubFetch(issues, []),
+						readGhToken: async () => null,
+						databasePath: join(root, "store.sqlite"),
+						now: () => new Date("2026-08-18T12:00:00.000Z"),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					}),
+				).then((result) => {
+					expect(result.stderr).toBe("");
+					expect(result.exitCode).toBe(0);
+				});
+			};
+			await start(async (base) => {
+				const open = await keys(base);
+				expect(open.lanes).toContain("Done");
+				expect(open.lanes).toContain("Dropped");
+				expect(open.tickets).toEqual([
+					`${githubRepo}#1`,
+					`${githubRepo}#2`,
+					`${githubRepo}#4`,
+				]);
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, Record<string, unknown>>;
+				};
+				expect(current.projectViews).toEqual({});
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							[githubRepo]: {
+								shownLanes: ["Backlog", "Done"],
+								maxAgeDays: { Done: 2, Backlog: 0 },
+								needsYouOnly: false,
+								blockedOnly: false,
+								assignees: ["ada", "cy"],
+								search: "done",
+								openView: "table",
+								graphDirection: "top-to-bottom",
+							},
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as {
+					projectViews: Record<string, unknown>;
+				};
+				expect(written.projectViews[githubRepo]).toEqual({
+					shownLanes: ["Backlog", "Done"],
+					maxAgeDays: { Done: 2, Backlog: 0 },
+					needsYouOnly: false,
+					blockedOnly: false,
+					assignees: ["ada", "cy"],
+					search: "done",
+					openView: "table",
+					graphDirection: "top-to-bottom",
+				});
+				const filtered = await keys(base);
+				expect(filtered.tickets).toEqual([`${githubRepo}#4`]);
+			});
+			await start(async (base) => {
+				const again = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, unknown>;
+				};
+				expect(again.projectViews[githubRepo]).toEqual({
+					shownLanes: ["Backlog", "Done"],
+					maxAgeDays: { Done: 2, Backlog: 0 },
+					needsYouOnly: false,
+					blockedOnly: false,
+					assignees: ["ada", "cy"],
+					search: "done",
+					openView: "table",
+					graphDirection: "top-to-bottom",
+				});
+				const filtered = await keys(base);
+				expect(filtered.tickets).toEqual([`${githubRepo}#4`]);
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("the board hides a lane, drops tickets older than the lane max age, and filters by several assignees and by search", async () => {
+		const calls: string[] = [];
+		const issues = [
+			issue(1, "Ship the map", {
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }, { login: "bea" }],
+			}),
+			issue(2, "Draw the legend", {
+				assignee: { login: "bea" },
+				assignees: [{ login: "bea" }],
+			}),
+			issue(3, "Hold the copy", {
+				assignee: { login: "cy" },
+				assignees: [{ login: "cy" }],
+			}),
+			issue(4, "Recent done map", {
+				state: "closed",
+				state_reason: "completed",
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }],
+				updated_at: "2026-08-17T12:00:00.000Z",
+			}),
+			issue(6, "Old done map", {
+				state: "closed",
+				state_reason: "completed",
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }],
+				updated_at: "2026-08-10T12:00:00.000Z",
+			}),
+			issue(7, "Dropped map", {
+				state: "closed",
+				state_reason: "not_planned",
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }],
+			}),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+				projectViews: {
+					[githubRepo]: {
+						shownLanes: ["Backlog", "Done"],
+						maxAgeDays: { Done: 3 },
+						assignees: ["Ada", "Bea"],
+						search: " map",
+					},
+				},
+			}),
+			githubFetch(issues, [], calls),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(report.lanes.map((lane) => lane.name)).toContain("Backlog");
+				expect(report.lanes.map((lane) => lane.name)).toContain("Dropped");
+				expect(
+					report.tickets.flatMap((ticket) =>
+						ticket.key === null ? [] : [ticket.key],
+					),
+				).toEqual([`${githubRepo}#1`, `${githubRepo}#4`]);
+				const settings = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<
+						string,
+						{
+							assignees: string[];
+							search: string;
+							maxAgeDays: Record<string, number>;
+						}
+					>;
+				};
+				const saved = settings.projectViews[githubRepo];
+				expect(saved?.assignees).toEqual(["Ada", "Bea"]);
+				expect(saved?.search).toBe(" map");
+				expect(saved?.maxAgeDays).toEqual({ Done: 3 });
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Record<string, unknown>;
+				const blankSearch = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							[githubRepo]: {
+								shownLanes: ["Backlog"],
+								assignees: ["", "  "],
+								search: "   ",
+								maxAgeDays: { Done: 0 },
+							},
+						},
+					}),
+				});
+				expect(blankSearch.status).toBe(200);
+				const cleared = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(cleared.lanes.map((lane) => lane.name)).toContain("Dropped");
+				expect(
+					cleared.tickets.flatMap((ticket) =>
+						ticket.key === null ? [] : [ticket.key],
+					),
+				).toEqual([`${githubRepo}#1`, `${githubRepo}#2`, `${githubRepo}#3`]);
+				const rejected = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							[githubRepo]: { openView: "kanban", maxAgeDays: { Done: -1 } },
+						},
+					}),
+				});
+				expect(rejected.status).toBe(400);
+				const named = (await rejected.json()) as { error: string };
+				expect(named.error).toContain("projectViews");
+				const left = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, { search: string }>;
+				};
+				expect(left.projectViews[githubRepo]?.search).toBe("   ");
+				const hidden = (await (
+					await fetch(
+						new URL(
+							`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+							base,
+						),
+					)
+				).json()) as ProjectReport;
+				expect(
+					hidden.tickets.flatMap((ticket) =>
+						ticket.key === null ? [] : [ticket.key],
+					),
+				).toEqual([
+					`${githubRepo}#1`,
+					`${githubRepo}#2`,
+					`${githubRepo}#3`,
+					`${githubRepo}#4`,
+					`${githubRepo}#6`,
+					`${githubRepo}#7`,
+				]);
+				const before = calls.length;
+				const events = await fetch(new URL("/api/events", base), {
+					headers: { accept: "text/event-stream" },
+				});
+				const reader = events.body?.getReader();
+				expect(reader).toBeDefined();
+				const opened = await reader?.read();
+				expect(new TextDecoder().decode(opened?.value)).toContain(": open");
+				const viewOnly = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...left,
+						projectViews: {
+							[githubRepo]: { search: "legend" },
+						},
+					}),
+				});
+				expect(viewOnly.status).toBe(200);
+				expect(calls.length).toBe(before);
+				const published = await reader?.read();
+				expect(new TextDecoder().decode(published?.value)).toContain(
+					"event: overview",
+				);
+				await reader?.cancel();
+				const repeated = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...left,
+						projectViews: {
+							[githubRepo]: { search: "map  map", assignees: ["  ada  "] },
+						},
+					}),
+				});
+				expect(repeated.status).toBe(200);
+				const spaced = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					spaced.tickets.flatMap((ticket) =>
+						ticket.key === null ? [] : [ticket.key],
+					),
+				).toEqual([]);
+				const failed = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: "not json",
+				});
+				expect(failed.status).toBe(400);
+				const kept = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, { search: string }>;
+				};
+				expect(kept.projectViews[githubRepo]?.search).toBe("map  map");
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
 	});
 
