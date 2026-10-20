@@ -4,10 +4,7 @@ import type {
 	Configuration,
 	ProjectViewSettings,
 } from "./configuration.ts";
-import {
-	loadConfiguration,
-	saveConfiguration,
-} from "./configuration.ts";
+import { loadConfiguration, saveConfiguration } from "./configuration.ts";
 import type {
 	Comment,
 	Overview,
