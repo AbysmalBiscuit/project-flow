@@ -1965,4 +1965,200 @@ describe("replies", () => {
 			await app.stop();
 		}
 	});
+
+	test("a reply that quotes the old headline stays answered", async () => {
+		const named = "This waits on Lev for the signing key.";
+		const question = "Which key should the panel use?";
+		const askBody = `Senior, ${named}\n${question}\n\n1. the current key\n2. a new key\n\n${ask("pf-40")}`;
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-40",
+					identifier: "PF-40",
+					title: "Needs a key",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: [
+							{
+								id: "comment-ask-40",
+								body: askBody,
+								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Ada" },
+							},
+							{
+								id: "comment-quoted-40",
+								body: `> ${named}\n\nUse the current key.`,
+								createdAt: "2026-08-18T13:00:00.000Z",
+								user: { name: "Lev" },
+							},
+						],
+					},
+				},
+			],
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				pmBot: { "widget-launch": false },
+			}),
+		);
+		try {
+			const listed = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(listed.find((item) => item.key === "PF-40")).toMatchObject({
+				headline: named,
+				question,
+				answered: true,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("picking an option posts a reply that names the pick", async () => {
+		const sent: string[] = [];
+		const question = "Which name should the gate use?";
+		const pick = "the short name";
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-30",
+					identifier: "PF-30",
+					title: "Needs a name",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: [
+							{
+								id: "comment-ask-30",
+								body: `${question}\n\n1. ${pick}\n2. the long name\n\n${ask("pf-30")}`,
+								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Ada" },
+							},
+						],
+					},
+				},
+			],
+			requests: sent,
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				pmBot: { "widget-launch": false },
+			}),
+		);
+		try {
+			const before = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(before.find((item) => item.key === "PF-30")).toMatchObject({
+				question,
+				options: [
+					{ number: 1, label: pick },
+					{ number: 2, label: "the long name" },
+				],
+				answered: false,
+			});
+			const posted = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "linear",
+					project: "widget-launch",
+					key: "PF-30",
+					option: 1,
+				}),
+			});
+			expect(posted.status).toBe(201);
+			const created = sent.find((body) => body.includes("commentCreate"));
+			const input = (
+				JSON.parse(created ?? "{}") as {
+					variables?: { input?: { body?: string } };
+				}
+			).variables?.input?.body;
+			expect(input).toContain("1. the short name");
+			const after = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(after.find((item) => item.key === "PF-30")).toMatchObject({
+				answered: true,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a disabled merge or label action sends no tracker request", async () => {
+		const trackerHosts = ["api.linear.app", "api.github.com"];
+		const writes = ["POST", "PUT", "PATCH", "DELETE"];
+		const calls: { method: string; host: string }[] = [];
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-31",
+					identifier: "PF-31",
+					title: "Ready",
+					description: "Body",
+					state: { type: "started" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [{ name: "needs-human" }] },
+					assignee: { id: "viewer-ada", name: "Ada" },
+					comments: { nodes: [] },
+				},
+			],
+		});
+		const app = await serve(
+			async (input, init) => {
+				const method =
+					init?.method ?? (input instanceof Request ? input.method : "GET");
+				calls.push({ method, host: new URL(urlOf(input)).host });
+				return recorded(input, init);
+			},
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				needsYouLabels: ["needs-human"],
+			}),
+		);
+		try {
+			const listed = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(listed.find((item) => item.key === "PF-31")).toMatchObject({
+				reason: "label",
+			});
+			const before = calls.length;
+			for (const action of ["merge", "remove-label"]) {
+				await fetch(new URL("/api/replies", app.base), {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						tracker: "linear",
+						project: "widget-launch",
+						key: "PF-31",
+						action,
+					}),
+				});
+			}
+			const write = calls
+				.slice(before)
+				.find(
+					(call) =>
+						writes.includes(call.method) && trackerHosts.includes(call.host),
+				);
+			expect(write).toBeUndefined();
+		} finally {
+			await app.stop();
+		}
+	});
 });

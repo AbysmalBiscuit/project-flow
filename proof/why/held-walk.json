@@ -1,0 +1,15 @@
+{
+	"base_url": "http://127.0.0.1:4175",
+	"serve": ["bun", "proof/serve-why.ts", "4175"],
+	"steps": [
+		{ "goto": "/needs-you" },
+		{ "click": "[data-needs='acme/widget#8'] button" },
+		{ "assert_text": "PR #40 Ship the widget" },
+		{ "click": "aside [data-held-action='awaitingMerge']" },
+		{ "assert_text": "Merge" },
+		{ "click": "[data-needs='acme/widget#9'] button" },
+		{ "click": "aside [data-held-action='label']" },
+		{ "assert_text": "Remove label" },
+		{ "shot": "held-actions" }
+	]
+}

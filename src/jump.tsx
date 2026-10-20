@@ -137,6 +137,7 @@ export function JumpBox() {
 					tracker={ticket.tracker}
 					project={ticket.project}
 					ticketKey={ticket.key}
+					item={ticket.item ?? null}
 					onClose={closeTicket}
 				/>
 			)}

@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { OutsideBlocker, ProjectReport, TicketView } from "./domain.ts";
+import type {
+	NeedsYouItem,
+	OutsideBlocker,
+	ProjectReport,
+	TicketView,
+} from "./domain.ts";
+import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket } from "./selection.ts";
@@ -53,6 +59,30 @@ function trackerUrl(
 		return `https://linear.app/issue/${key}`;
 	}
 	return undefined;
+}
+
+function needsYouItem(
+	report: ProjectReport | null,
+	tracker: "github" | "linear",
+	project: string,
+	key: string,
+): NeedsYouItem | null {
+	if (
+		report === null ||
+		report.tracker !== tracker ||
+		report.name !== project
+	) {
+		return null;
+	}
+	const section = report.sections.find((item) => item.id === "needsYou");
+	return (
+		section?.needsYou?.find(
+			(item) =>
+				item.tracker === tracker &&
+				item.project === project &&
+				sameTicketKey(item.key, key),
+		) ?? null
+	);
 }
 
 function panelBlockers(
@@ -541,6 +571,7 @@ function Page() {
 							}
 							blockers={incoming}
 							blocks={outgoing}
+							item={needsYouItem(source, panelTracker, panelProject, ticket)}
 							onOpenBlocker={(blocker) => {
 								setPanelReport(null);
 								setPanelProject(blocker.project);

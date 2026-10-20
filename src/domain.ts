@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { AutoMerge, Configuration } from "./configuration.ts";
 
 export type WorkcellRun = {
@@ -143,9 +144,18 @@ export type BotComment = {
 	reactions?: number;
 };
 
+export const reviewStateValue = z.enum([
+	"APPROVED",
+	"CHANGES_REQUESTED",
+	"COMMENTED",
+	"DISMISSED",
+	"PENDING",
+]);
+
 export type BotReview = {
 	login: string;
 	commitId: string;
+	state?: z.infer<typeof reviewStateValue>;
 };
 
 export type BotReaction = {
@@ -274,6 +284,18 @@ export type PostedReply = {
 	createdAt: string;
 };
 
+export type AskOption = {
+	number: number;
+	label: string;
+};
+
+export type PullStatus = {
+	number: number;
+	title: string;
+	ci: "passing" | "failing" | "pending" | "none";
+	review: "approved" | "changes" | "completed" | "pending" | "none";
+};
+
 export type NeedsYouItem = {
 	project: string;
 	tracker: "github" | "linear";
@@ -283,6 +305,9 @@ export type NeedsYouItem = {
 	tags: string[];
 	answered: boolean;
 	acknowledged: boolean;
+	question?: string;
+	options?: AskOption[];
+	pull?: PullStatus;
 };
 
 export type NotificationTrigger = "needsYou" | "comment" | "blockerCleared";
@@ -1240,6 +1265,10 @@ type TicketIndex = Map<string, Ticket>;
 
 function indexKey(tracker: string, key: string): string {
 	return `${tracker}\0${key.toLowerCase()}`;
+}
+
+export function sameTicketKey(left: string, right: string): boolean {
+	return left.toLowerCase() === right.toLowerCase();
 }
 
 function indexTickets(tickets: Ticket[]): TicketIndex {
@@ -2769,6 +2798,120 @@ function quotesAsk(body: string, id: string): boolean {
 	return pattern.test(body);
 }
 
+const numberedOption = /^(\d+)[.)]\s+(\S.*)$/;
+
+function askOptions(body: string): AskOption[] {
+	const text = body.replace(askMarker, "");
+	const options: AskOption[] = [];
+	for (const line of text.split("\n")) {
+		const match = line.trim().match(numberedOption);
+		const number = match?.[1];
+		const label = match?.[2]?.trim();
+		if (number === undefined || label === undefined || label === "") {
+			continue;
+		}
+		options.push({ number: Number(number), label });
+	}
+	return options;
+}
+
+function askQuestion(body: string, headline: string): string {
+	const lines = body
+		.replace(askMarker, "")
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(
+			(line) =>
+				line !== "" && !line.startsWith("<!--") && !numberedOption.test(line),
+		);
+	const asked = lines.find((line) => line.endsWith("?"));
+	if (asked !== undefined) {
+		return asked;
+	}
+	return lines.at(-1) ?? headline;
+}
+
+function ciOf(pull: PullRequest): PullStatus["ci"] {
+	if (pull.checks.length === 0) {
+		return "none";
+	}
+	if (
+		pull.checks.some(
+			(check) =>
+				check.conclusion === "failure" ||
+				check.conclusion === "cancelled" ||
+				check.conclusion === "timed_out",
+		)
+	) {
+		return "failing";
+	}
+	if (
+		pull.checks.some(
+			(check) => check.status !== "completed" || check.conclusion === null,
+		)
+	) {
+		return "pending";
+	}
+	if (
+		pull.checks.every(
+			(check) =>
+				check.conclusion === "success" ||
+				check.conclusion === "skipped" ||
+				check.conclusion === "neutral",
+		)
+	) {
+		return "passing";
+	}
+	return "pending";
+}
+
+function reviewOf(pull: PullRequest): PullStatus["review"] {
+	const latest = new Map<string, BotReview>();
+	for (const review of pull.reviews) {
+		if (review.commitId !== pull.headSha || review.state === "COMMENTED") {
+			continue;
+		}
+		latest.set(review.login, review);
+	}
+	const decided = [...latest.values()];
+	if (decided.some((review) => review.state === "CHANGES_REQUESTED")) {
+		return "changes";
+	}
+	if (decided.some((review) => review.state === "APPROVED")) {
+		return "approved";
+	}
+	const onHead = pull.reviews.filter(
+		(review) => review.commitId === pull.headSha,
+	);
+	const completed = knownBots.some((bot) => {
+		if (!botPass(pull, bot).done) {
+			return false;
+		}
+		return onHead.some(
+			(review) =>
+				review.login === botLogin[bot] &&
+				review.state !== "APPROVED" &&
+				review.state !== "CHANGES_REQUESTED",
+		);
+	});
+	if (completed) {
+		return "completed";
+	}
+	if (onHead.length > 0) {
+		return "pending";
+	}
+	return "none";
+}
+
+function pullStatus(pull: PullRequest): PullStatus {
+	return {
+		number: pull.number,
+		title: pull.title,
+		ci: ciOf(pull),
+		review: reviewOf(pull),
+	};
+}
+
 function askHeadline(body: string): string {
 	const text = body.replace(askMarker, "").trim();
 	const named = text
@@ -2868,6 +3011,19 @@ function askClosed(later: Comment[], id: string): boolean {
 	);
 }
 
+export function optionReplyBody(
+	ticket: Ticket | undefined,
+	option: number,
+	pmBot: boolean,
+): string | null {
+	const ask = openAsk(ticket?.comments ?? [], pmBot);
+	const picked = ask?.options.find((item) => item.number === option);
+	if (ask === null || picked === undefined) {
+		return null;
+	}
+	return `${picked.number}. ${picked.label}`;
+}
+
 export function panelReplyBody(
 	ticket: Ticket | undefined,
 	body: string,
@@ -2896,6 +3052,8 @@ export function panelReplyBody(
 
 type OpenAsk = {
 	headline: string;
+	question: string;
+	options: AskOption[];
 	tags: string[];
 	index: number;
 };
@@ -2919,8 +3077,11 @@ function openAsk(comments: Comment[], pmBot: boolean): OpenAsk | null {
 			continue;
 		}
 		if (found === null || index > found.index) {
+			const headline = askHeadline(comment.body);
 			found = {
-				headline: askHeadline(comment.body),
+				headline,
+				question: askQuestion(comment.body, headline),
+				options: askOptions(comment.body),
 				tags: matchedByName(comment.body) ? ["matched by name"] : [],
 				index,
 			};
@@ -2974,8 +3135,10 @@ function needsYouItem(
 	ask: OpenAsk | null,
 	comments: Comment[],
 	reason: NeedsYouItem["reason"],
+	pulls: PullRequest[] = [],
 ): NeedsYouItem {
 	const reply = ask === null ? null : levReply(comments, ask.index);
+	const pull = pulls.find((item) => !item.merged) ?? pulls[0];
 	return {
 		project,
 		tracker,
@@ -2985,6 +3148,8 @@ function needsYouItem(
 		tags: ask?.tags ?? [],
 		answered: reply !== null,
 		acknowledged: (reply?.reactions ?? 0) > 0,
+		...(ask === null ? {} : { question: ask.question, options: ask.options }),
+		...(pull === undefined ? {} : { pull: pullStatus(pull) }),
 	};
 }
 
@@ -3052,6 +3217,7 @@ export function needsYouItems(
 						: failed
 							? "runFailed"
 							: "label",
+				linkedPulls,
 			),
 		);
 	}
@@ -3076,6 +3242,7 @@ export function needsYouItems(
 				ask,
 				comments,
 				"ask",
+				[pull],
 			),
 		);
 	}
@@ -3100,6 +3267,7 @@ export function needsYouItems(
 				null,
 				[],
 				"awaitingMerge",
+				[pull],
 			),
 		);
 	}

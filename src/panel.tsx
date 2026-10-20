@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import type {
+	NeedsYouItem,
 	OutsideBlocker,
 	Thread,
 	ThreadComment,
 	TicketState,
 } from "./domain.ts";
-import { stateLabel } from "./terms.ts";
+import { HeldAction } from "./needs-item.tsx";
+import { pullStatusLabel, stateLabel, whyLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, needs, panel, shell } from "./ui-styles.ts";
@@ -118,6 +120,57 @@ function RelationList({
 	);
 }
 
+function WhySection({
+	item,
+	pending,
+	picked,
+	onPick,
+}: {
+	item: NeedsYouItem;
+	pending: boolean;
+	picked: boolean;
+	onPick: (option: number) => void;
+}) {
+	const question = item.question;
+	const options = item.options ?? [];
+	const pull = item.pull;
+	if (question === undefined && pull === undefined && options.length === 0) {
+		return null;
+	}
+	return (
+		<section className={clsx(panel.section)} aria-label={whyLabel}>
+			<h3 className={clsx(panel.whyLabel)}>{whyLabel}</h3>
+			{question === undefined ? null : (
+				<p className={clsx(panel.question)}>{question}</p>
+			)}
+			{pull === undefined ? null : (
+				<p className={clsx(panel.status)}>
+					PR #{pull.number} {pull.title}. {pullStatusLabel.ci[pull.ci]}.{" "}
+					{pullStatusLabel.review[pull.review]}.
+				</p>
+			)}
+			{options.length === 0 ? null : (
+				<ul className={clsx(panel.options)}>
+					{options.map((option) => (
+						<li key={option.number}>
+							<button
+								type="button"
+								className={clsx(panel.option, shell.buttonFocus)}
+								data-option={option.number}
+								disabled={pending || picked || item.answered}
+								onClick={() => onPick(option.number)}
+							>
+								<span className={clsx(panel.number)}>{option.number}</span>
+								<span>{option.label}</span>
+							</button>
+						</li>
+					))}
+				</ul>
+			)}
+		</section>
+	);
+}
+
 export function TicketPanel({
 	tracker,
 	project,
@@ -130,6 +183,7 @@ export function TicketPanel({
 	blockers = [],
 	blocks = [],
 	onOpenBlocker,
+	item = null,
 	onClose,
 	why,
 }: {
@@ -144,6 +198,7 @@ export function TicketPanel({
 	blockers?: OutsideBlocker[];
 	blocks?: OutsideBlocker[];
 	onOpenBlocker?: (blocker: OutsideBlocker) => void;
+	item?: NeedsYouItem | null;
 	onClose: () => void;
 	why?: string;
 }) {
@@ -153,6 +208,12 @@ export function TicketPanel({
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
+	const [picked, setPicked] = useState(false);
+	useEffect(() => {
+		if (item?.answered === true) {
+			setPicked(false);
+		}
+	}, [item?.answered]);
 	const threadPath = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}`;
 	useEffect(() => {
 		let stopped = false;
@@ -178,6 +239,35 @@ export function TicketPanel({
 			stopped = true;
 		};
 	}, [threadPath]);
+	async function pick(option: number): Promise<void> {
+		if (pending || picked) {
+			return;
+		}
+		setPending(true);
+		setError(null);
+		try {
+			const response = await fetch("/api/replies", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ tracker, project, key: ticketKey, option }),
+			});
+			if (!response.ok) {
+				const failed = (await response.json()) as { error?: string };
+				setError(failed.error ?? "Reply failed");
+				return;
+			}
+			setPicked(true);
+			const loaded = await fetch(threadPath);
+			if (loaded.ok) {
+				setMissing(false);
+				setThread((await loaded.json()) as Thread);
+			}
+		} catch {
+			setError("Reply failed");
+		} finally {
+			setPending(false);
+		}
+	}
 	async function send(target: ReplyTarget): Promise<void> {
 		if (draft.trim() === "" || pending) {
 			return;
@@ -269,11 +359,23 @@ export function TicketPanel({
 					{laneName}
 				</p>
 			)}
-			{why === undefined ? null : (
-				<section className={clsx(needs.why)} aria-label="Why this needs you">
-					<h3 className={clsx(needs.whyLabel)}>Why this needs you</h3>
-					<p className={clsx(needs.whyBody)}>{why}</p>
-				</section>
+			<HeldAction item={item ?? null} />
+			{item === null || item === undefined ? (
+				why === undefined ? null : (
+					<section className={clsx(needs.why)} aria-label={whyLabel}>
+						<h3 className={clsx(needs.whyLabel)}>{whyLabel}</h3>
+						<p className={clsx(needs.whyBody)}>{why}</p>
+					</section>
+				)
+			) : (
+				<WhySection
+					item={item}
+					pending={pending}
+					picked={picked || item.answered}
+					onPick={(option) => {
+						void pick(option);
+					}}
+				/>
 			)}
 			<RelationList
 				label="Blockers"
