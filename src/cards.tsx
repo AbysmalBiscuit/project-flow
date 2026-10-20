@@ -870,7 +870,7 @@ function OverviewPage({
 							id="overview-sort"
 							label={
 								view.sort === "needs-you"
-									? "Needs you first"
+									? overviewControlLabel.needsYouFirst
 									: overviewSortLabel[view.sort]
 							}
 							open={menu === "sort"}

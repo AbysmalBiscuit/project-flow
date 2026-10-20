@@ -79,7 +79,8 @@ export const overviewControlLabel = {
 	pinned: "Pinned",
 	filter: "Filter",
 	sort: "Sort",
-	search: "Search tickets",
+	search: "Search projects",
+	needsYouFirst: "Needs you first",
 	polled: "polled",
 	unlinked: "unlinked PR",
 } as const;
