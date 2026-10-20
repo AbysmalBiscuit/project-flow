@@ -365,6 +365,24 @@ const replyBody = z.object({
 
 type Trackers = Pick<PollOptions, "github" | "linear">;
 
+async function readMark(request: Request): Promise<true | null> {
+	let body: unknown;
+	try {
+		body = await request.json();
+	} catch {
+		return null;
+	}
+	if (
+		body === null ||
+		typeof body !== "object" ||
+		!("read" in body) ||
+		body.read !== true
+	) {
+		return null;
+	}
+	return true;
+}
+
 function trackerFor(trackers: Trackers, name: string): Tracker | null {
 	if (name === "github") {
 		return trackers.github;
@@ -1167,6 +1185,42 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/api/inbox": {
 				GET: () => Response.json(opened.store.readNotifications()),
+				POST: async (request: Request) => {
+					const marked = await readMark(request);
+					if (marked === null) {
+						return Response.json(
+							{ error: "read must be true" },
+							{ status: 400 },
+						);
+					}
+					opened.store.markNotificationsRead("");
+					return new Response(null, { status: 204 });
+				},
+			},
+			"/api/inbox/:id": {
+				POST: async (request) => {
+					const marked = await readMark(request);
+					if (marked === null) {
+						return Response.json(
+							{ error: "read must be true" },
+							{ status: 400 },
+						);
+					}
+					const id = decodeURIComponent(request.params.id).trim();
+					if (id === "") {
+						return Response.json(
+							{ error: "notification id is blank" },
+							{ status: 400 },
+						);
+					}
+					if (!opened.store.markNotificationsRead(id)) {
+						return Response.json(
+							{ error: "notification not found" },
+							{ status: 404 },
+						);
+					}
+					return new Response(null, { status: 204 });
+				},
 			},
 			"/api/search": {
 				GET: (request: Request) => {

@@ -99,9 +99,18 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			project text not null,
 			item_key text not null,
 			text text not null,
-			at text not null
+			at text not null,
+			read integer not null default 0
 		)
 	`);
+	const notificationColumns = db
+		.query("pragma table_info(notifications)")
+		.all() as { name: string }[];
+	if (!notificationColumns.some((column) => column.name === "read")) {
+		db.run(
+			"alter table notifications add column read integer not null default 0",
+		);
+	}
 	db.run(`
 		create table if not exists seeded_ids (
 			id text primary key
@@ -176,7 +185,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			readNotifications() {
 				const rows = db
 					.query(
-						"select id, trigger, project, item_key, text, at from notifications order by at desc, id desc",
+						"select id, trigger, project, item_key, text, at, read from notifications order by at desc, id desc",
 					)
 					.all() as {
 					id: string;
@@ -185,6 +194,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					item_key: string;
 					text: string;
 					at: string;
+					read: number;
 				}[];
 				return rows.map((row) => ({
 					id: row.id,
@@ -193,11 +203,12 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					key: row.item_key,
 					text: row.text,
 					at: row.at,
+					read: row.read !== 0,
 				}));
 			},
 			appendNotifications(entries) {
 				const insert = db.query(
-					"insert or ignore into notifications (id, trigger, project, item_key, text, at) values (?, ?, ?, ?, ?, ?)",
+					"insert or ignore into notifications (id, trigger, project, item_key, text, at, read) values (?, ?, ?, ?, ?, ?, ?)",
 				);
 				db.transaction(() => {
 					for (const entry of entries) {
@@ -208,9 +219,20 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 							entry.key,
 							entry.text,
 							entry.at,
+							entry.read ? 1 : 0,
 						);
 					}
 				})();
+			},
+			markNotificationsRead(id) {
+				if (id === "") {
+					db.run("update notifications set read = 1");
+					return true;
+				}
+				const changed = db
+					.query("update notifications set read = 1 where id = ?")
+					.run(id);
+				return changed.changes > 0;
 			},
 			readSeededIds() {
 				const rows = db.query("select id from seeded_ids").all() as {

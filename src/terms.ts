@@ -33,6 +33,27 @@ export const triggerLabel: Record<NotificationTrigger, string> = {
 	blockerCleared: "Blocker cleared",
 };
 
+export const inboxFilterLabel: Record<NotificationTrigger, string> = {
+	needsYou: navLabel.needsYou,
+	comment: "Comments",
+	blockerCleared: "Blockers cleared",
+};
+
+export const inboxCopy = {
+	lead: "Notifications this app sent, newest first",
+	unread: "unread",
+	unreadOnly: "Unread only",
+	markAll: "Mark all read",
+	banner:
+		"Browser notifications are off. The Inbox still collects every entry.",
+	allow: "Allow notifications",
+	dismiss: "Dismiss",
+	today: "Today",
+	yesterday: "Yesterday",
+	earlier: "Earlier",
+	empty: "No notifications",
+} as const;
+
 export const viewLabel = {
 	cards: "Cards",
 	graph: "Graph",

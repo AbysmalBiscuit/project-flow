@@ -32,6 +32,7 @@ type InboxEntry = {
 	key: string;
 	text: string;
 	at: string;
+	read: boolean;
 };
 
 function linearIssue(
@@ -2457,6 +2458,131 @@ describe("inbox", () => {
 				expect(await inboxOf(base)).toEqual(first);
 			},
 		);
+	});
+
+	test("marking one entry or every entry read survives a restart", async () => {
+		const headline = "Which bot should review this?";
+		let current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				headline,
+				[{ body: `${headline}\n\n${ask("pf-1")}` }],
+				{},
+				"2026-08-18T13:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const opened = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await opened;
+			expect(await inboxOf(base)).toEqual([]);
+			current = [
+				...current,
+				linearIssue(
+					"PF-2",
+					"Second ask",
+					"Second question",
+					[{ body: `Second question\n\n${ask("pf-2")}` }],
+					{},
+					"2026-08-18T13:05:00.000Z",
+				),
+			];
+			await refresh(base);
+			const entries = await inboxOf(base);
+			expect(entries).toHaveLength(1);
+			expect(entries[0]?.read).toBe(false);
+			expect(entries[0]?.key).toBe("PF-2");
+			const marked = await fetch(
+				new URL(`/api/inbox/${encodeURIComponent(entries[0]?.id ?? "")}`, base),
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ read: true }),
+				},
+			);
+			expect(marked.status).toBe(204);
+			const markedId = entries[0]?.id ?? "";
+			const oneRead = await inboxOf(base);
+			expect(
+				oneRead.filter((entry) => entry.read).map((entry) => entry.id),
+			).toEqual([markedId]);
+			const blank = await fetch(new URL("/api/inbox/%20", base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ read: true }),
+			});
+			expect(blank.status).toBe(400);
+			const missing = await fetch(new URL("/api/inbox/missing-entry", base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ read: true }),
+			});
+			expect(missing.status).toBe(404);
+			const repeated = await fetch(new URL("/api/inbox", base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ read: true }),
+			});
+			expect(repeated.status).toBe(204);
+			expect((await inboxOf(base)).every((entry) => entry.read)).toBe(true);
+			const again = await fetch(new URL("/api/inbox", base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ read: true }),
+			});
+			expect(again.status).toBe(204);
+			stopFirst();
+			await started;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const restarted = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const resumed = start(secondStop, againReady);
+			const next = await restarted;
+			const kept = await inboxOf(next);
+			expect(kept.map((entry) => entry.id)).toEqual(
+				entries.map((entry) => entry.id),
+			);
+			expect(kept.every((entry) => entry.read)).toBe(true);
+			stopSecond();
+			await resumed;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test("an idle project that shows again raises no second notification, and a leave and rejoin on a loaded project does", async () => {

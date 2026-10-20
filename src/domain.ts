@@ -325,6 +325,7 @@ export type Notification = {
 	key: string;
 	text: string;
 	at: string;
+	read: boolean;
 };
 
 export type Attention = {
@@ -525,6 +526,7 @@ export function notificationsFor(
 			key: itemKey,
 			text,
 			at,
+			read: false,
 		});
 	};
 	if (triggers.needsYou) {
