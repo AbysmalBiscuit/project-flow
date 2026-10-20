@@ -66,6 +66,7 @@ export type Ticket = {
 	ref?: string;
 	body: string;
 	blockedBy: TicketRef[];
+	blocks?: TicketRef[];
 	comments?: Comment[];
 	milestone: string | null;
 	parent: string | null;
@@ -1236,6 +1237,7 @@ function indexTickets(tickets: Ticket[]): TicketIndex {
 			...earlier,
 			body: earlier.body.trim() === "" ? ticket.body : earlier.body,
 			blockedBy: mergeBlockedBy([earlier.blockedBy, ticket.blockedBy]),
+			blocks: mergeBlockedBy([earlier.blocks ?? [], ticket.blocks ?? []]),
 		});
 	}
 	return index;
@@ -1339,6 +1341,7 @@ export function openBlockers(
 	ticket: Ticket,
 	index: TicketIndex,
 	parsed: ParsedBodies,
+	groups: { project: string; tickets: Ticket[] }[] = [],
 ): Ticket[] {
 	const self = asRef(ticket);
 	const merged = self === null ? undefined : known(index, self);
@@ -1349,17 +1352,36 @@ export function openBlockers(
 		(ref) => stillOpen(ref, index),
 	);
 	const fromBlocks: TicketRef[] = [];
-	for (const [otherKey, lines] of parsed) {
-		const other = index.get(otherKey);
-		if (other === undefined || other.state !== "open" || self === null) {
-			continue;
+	if (self !== null) {
+		for (const [otherKey, lines] of parsed) {
+			const other = index.get(otherKey);
+			if (other === undefined || other.state !== "open") {
+				continue;
+			}
+			if (!lines.blocks.some((ref) => sameRef(ref, self))) {
+				continue;
+			}
+			const ref = asRef(other);
+			if (ref !== null) {
+				fromBlocks.push(ref);
+			}
 		}
-		if (!lines.blocks.some((ref) => sameRef(ref, self))) {
-			continue;
-		}
-		const ref = asRef(other);
-		if (ref !== null) {
-			fromBlocks.push(ref);
+		for (const group of groups) {
+			for (const other of group.tickets) {
+				if (other.state !== "open" || other === ticket) {
+					continue;
+				}
+				const native = other.blocks ?? [];
+				if (
+					!native.some((ref) => sameRef(ref, self) && stillOpen(ref, index))
+				) {
+					continue;
+				}
+				const ref = asRef(other);
+				if (ref !== null) {
+					fromBlocks.push(ref);
+				}
+			}
 		}
 	}
 	const refs = [...incoming, ...fromBody, ...fromBlocks];
@@ -1807,44 +1829,46 @@ function ticketRelations(
 		}
 	}
 	const blocks: OutsideBlocker[] = [];
-	if (self !== null) {
-		for (const [otherKey, lines] of parsed) {
-			if (!lines.blocks.some((ref) => sameRef(ref, self))) {
+	const ownBlocks = mergeBlockedBy([
+		parsed.get(parseKey(ticket))?.blocks ?? [],
+		merged?.blocks ?? ticket.blocks ?? [],
+	]);
+	if (self !== null && ticket.state === "open") {
+		for (const ref of ownBlocks) {
+			if (!stillOpen(ref, index)) {
 				continue;
 			}
-			const other = index.get(otherKey);
-			if (other === undefined || other.state !== "open" || other.key === null) {
-				continue;
-			}
-			const otherHome = groups.find((group) =>
-				group.tickets.includes(other),
-			)?.project;
+			const other = known(index, ref);
+			const otherHome =
+				other === undefined
+					? undefined
+					: groups.find((group) => group.tickets.includes(other))?.project;
+			const project = otherHome ?? ref.project;
 			if (
-				otherHome === undefined ||
+				project === "" ||
 				home === undefined ||
-				otherHome.toLowerCase() === home.toLowerCase()
+				project.toLowerCase() === home.toLowerCase() ||
+				blocks.some((item) => sameRef(item, ref))
 			) {
 				continue;
 			}
-			const blocked = outsideOf(other, asRef(other) ?? undefined, groups);
-			if (blocked !== null) {
-				blocks.push({ ...blocked, project: otherHome });
-			}
+			const title = other?.title.trim() || ref.title?.trim() || ref.key;
+			blocks.push({
+				tracker: ref.tracker,
+				project,
+				key: ref.key,
+				title: title || ref.key,
+			});
 		}
 		for (const group of groups) {
-			if (
-				home !== undefined &&
-				group.project.toLowerCase() === home.toLowerCase()
-			) {
+			if (group.project.toLowerCase() === home?.toLowerCase()) {
 				continue;
 			}
 			for (const other of group.tickets) {
 				if (
 					other.state !== "open" ||
 					other.key === null ||
-					blocks.some(
-						(item) => item.key.toLowerCase() === other.key?.toLowerCase(),
-					)
+					blocks.some((item) => sameRef(item, asRef(other) ?? self))
 				) {
 					continue;
 				}
@@ -2496,7 +2520,7 @@ export function projectCounts(
 	const linkedByTicket = new Map<string, PullRequest[]>();
 	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
-		const blockers = openBlockers(ticket, index, parsed);
+		const blockers = openBlockers(ticket, index, parsed, all);
 		const links = linked(ticket, pulls);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));

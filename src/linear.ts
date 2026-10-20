@@ -304,26 +304,46 @@ function toState(
 	return null;
 }
 
+function relationRef(
+	relation: NonNullable<
+		z.infer<typeof issueNode>["inverseRelations"]
+	>["nodes"][number],
+): TicketRef[] {
+	if (relation.issue.state === null) {
+		return [];
+	}
+	const mapped = toState(relation.issue.state.type);
+	if (mapped === null) {
+		return [];
+	}
+	const title = relation.issue.title?.trim() ?? "";
+	const projectName = relation.issue.project?.name?.trim() ?? "";
+	const ref: TicketRef = {
+		tracker: "linear",
+		project: relation.issue.project?.slugId ?? "",
+		key: relation.issue.identifier,
+		state: mapped.state,
+		...(title === "" ? {} : { title }),
+		...(projectName === "" ? {} : { projectName }),
+	};
+	return [ref];
+}
+
 function blockedBy(node: z.infer<typeof issueNode>): TicketRef[] {
 	return (node.inverseRelations?.nodes ?? []).flatMap((relation) => {
-		if (relation.type !== "blocks" || relation.issue.state === null) {
+		if (relation.type !== "blocks") {
 			return [];
 		}
-		const mapped = toState(relation.issue.state.type);
-		if (mapped === null) {
+		return relationRef(relation);
+	});
+}
+
+function blocking(node: z.infer<typeof issueNode>): TicketRef[] {
+	return (node.inverseRelations?.nodes ?? []).flatMap((relation) => {
+		if (relation.type !== "blockedBy" && relation.type !== "blocked") {
 			return [];
 		}
-		const title = relation.issue.title?.trim() ?? "";
-		const projectName = relation.issue.project?.name?.trim() ?? "";
-		const ref: TicketRef = {
-			tracker: "linear",
-			project: relation.issue.project?.slugId ?? "",
-			key: relation.issue.identifier,
-			state: mapped.state,
-			...(title === "" ? {} : { title }),
-			...(projectName === "" ? {} : { projectName }),
-		};
-		return [ref];
+		return relationRef(relation);
 	});
 }
 
@@ -377,6 +397,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		updatedAt: node.updatedAt,
 		body: node.description ?? "",
 		blockedBy: blockedBy(node),
+		...(blocking(node).length === 0 ? {} : { blocks: blocking(node) }),
 		...(comments.length === 0 ? {} : { comments }),
 		milestone: node.projectMilestone?.name ?? null,
 		parent: node.parent?.identifier ?? null,

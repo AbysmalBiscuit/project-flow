@@ -53,6 +53,8 @@ const githubIssue = z.object({
 		.object({
 			blocked_by: z.number(),
 			total_blocked_by: z.number(),
+			blocking: z.number().optional(),
+			total_blocking: z.number().optional(),
 		})
 		.optional(),
 	pull_request: z.unknown().optional(),
@@ -1675,7 +1677,23 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					const summary = issue.issue_dependencies_summary;
 					const blockedBy =
 						summary !== undefined && summary.total_blocked_by > 0
-							? await listBlockedBy(token, fetchImpl, repo, issue.number)
+							? await listDependencies(
+									token,
+									fetchImpl,
+									repo,
+									issue.number,
+									"blocked_by",
+								)
+							: [];
+					const blocking =
+						summary !== undefined && (summary.total_blocking ?? 0) > 0
+							? await listDependencies(
+									token,
+									fetchImpl,
+									repo,
+									issue.number,
+									"blocking",
+								)
 							: [];
 					const comments =
 						issue.state !== "open" ||
@@ -1694,6 +1712,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						ref: `${repo}#${issue.number}`,
 						body: issue.body ?? "",
 						blockedBy,
+						...(blocking.length === 0 ? {} : { blocks: blocking }),
 						...(comments.length === 0 ? {} : { comments }),
 						milestone: issue.milestone?.title ?? null,
 						parent: parentKey(issue.parent_issue_url),
@@ -2128,15 +2147,16 @@ async function postGithubReply(
 	};
 }
 
-async function listBlockedBy(
+async function listDependencies(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
 	number: number,
+	kind: "blocked_by" | "blocking",
 ): Promise<TicketRef[]> {
 	const refs: TicketRef[] = [];
 	let url: string | null =
-		`https://api.github.com/repos/${repo}/issues/${number}/dependencies/blocked_by?per_page=100&page=1`;
+		`https://api.github.com/repos/${repo}/issues/${number}/dependencies/${kind}?per_page=100&page=1`;
 	let first = true;
 	while (url !== null) {
 		const response = await fetchImpl(url, { headers: githubHeaders(token) });
