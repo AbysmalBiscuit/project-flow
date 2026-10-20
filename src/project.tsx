@@ -515,7 +515,7 @@ function FilterPanel({
 						onChange={(event) => {
 							const raw = event.target.value;
 							const days = Number(raw);
-							if (raw.trim() === "" || Number.isNaN(days)) {
+							if (!Number.isInteger(days) || days < 0) {
 								setAgeDraft((current) => ({ ...current, [lane.name]: raw }));
 								return;
 							}
