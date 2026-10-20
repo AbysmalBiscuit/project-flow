@@ -95,7 +95,7 @@ export function NeedsItem({
 }) {
 	const Icon = reasonIcon[item.reason];
 	const action = actionLabel(item);
-	const disabled = item.reason === "awaitingMerge" || item.reason === "label";
+	const disabled = item.reason === "awaitingMerge";
 	const lead = (
 		<>
 			<span className={clsx(needs.icon)} aria-hidden="true">

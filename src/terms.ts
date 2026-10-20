@@ -105,8 +105,7 @@ export function actionLabel(
 		return item.answered ? "View" : "Answer";
 	}
 	if (item.reason === "awaitingMerge") {
-		const number = item.key.split("#").at(-1);
-		return number === undefined ? "Merge" : `Merge PR #${number}`;
+		return "Merge";
 	}
 	if (item.reason === "label") {
 		return "Open ticket";
