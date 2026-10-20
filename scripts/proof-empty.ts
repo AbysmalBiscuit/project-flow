@@ -23,7 +23,10 @@ const fetchImpl: Fetch = async (input) => {
 			: input instanceof URL
 				? input.href
 				: input.url;
-	if (url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost")) {
+	if (
+		url.startsWith("http://127.0.0.1") ||
+		url.startsWith("http://localhost")
+	) {
 		return fetch(input);
 	}
 	return new Promise(() => {});
