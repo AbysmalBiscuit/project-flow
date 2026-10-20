@@ -174,9 +174,7 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 }
 
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
-	return report.tickets.filter(
-		(ticket) => (ticket.lane ?? stateLabel[ticket.state]) === lane,
-	);
+	return report.tickets.filter((ticket) => displayedLaneName(ticket) === lane);
 }
 
 function shortKey(key: string): string {
