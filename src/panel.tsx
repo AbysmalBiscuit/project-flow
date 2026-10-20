@@ -251,6 +251,11 @@ export function TicketPanel({
 					</button>
 				</span>
 			</div>
+			{missing ? (
+				<p className={clsx(panel.error)} role="alert">
+					Thread not found
+				</p>
+			) : null}
 			{thread === null && !missing ? (
 				<p className={clsx(panel.label)}>Loading thread</p>
 			) : null}
@@ -296,29 +301,31 @@ export function TicketPanel({
 					}
 				/>
 			)}
-			<form
-				className={clsx(panel.reply)}
-				onSubmit={(event) => {
-					event.preventDefault();
-					void send(replyTo ?? { kind: "comment" });
-				}}
-			>
-				<label className={clsx(panel.label)} htmlFor="ticket-reply">
-					Reply
-				</label>
-				<textarea
-					id="ticket-reply"
-					className={clsx(panel.text)}
-					aria-label="Reply"
-					placeholder="Write a comment"
-					value={draft}
-					onChange={(event) => setDraft(event.target.value)}
-				/>
-				<button type="submit" className={clsx(panel.send)} disabled={pending}>
-					Comment
-				</button>
-				{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
-			</form>
+			{missing ? null : (
+				<form
+					className={clsx(panel.reply)}
+					onSubmit={(event) => {
+						event.preventDefault();
+						void send(replyTo ?? { kind: "comment" });
+					}}
+				>
+					<label className={clsx(panel.label)} htmlFor="ticket-reply">
+						Reply
+					</label>
+					<textarea
+						id="ticket-reply"
+						className={clsx(panel.text)}
+						aria-label="Reply"
+						placeholder="Write a comment"
+						value={draft}
+						onChange={(event) => setDraft(event.target.value)}
+					/>
+					<button type="submit" className={clsx(panel.send)} disabled={pending}>
+						Comment
+					</button>
+					{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
+				</form>
+			)}
 		</aside>
 	);
 }
