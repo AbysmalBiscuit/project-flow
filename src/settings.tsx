@@ -1,11 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import {
-	type AutoMerge,
-	type Configuration,
-	sameRef,
-} from "./configuration.ts";
+import type { AutoMerge, Configuration } from "./configuration.ts";
 import type { TicketState } from "./domain.ts";
 import { PageFrame } from "./shell.tsx";
 import {
@@ -18,17 +14,6 @@ import { pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
 import { graphDirections, openViews, viewDefaults } from "./view-settings.ts";
-
-type ProjectRef = Configuration["pinned"][number];
-function sameRefs(left: ProjectRef[], right: ProjectRef[]): boolean {
-	return (
-		left.length === right.length &&
-		left.every((ref, index) => {
-			const other = right[index];
-			return other !== undefined && sameRef(ref, other);
-		})
-	);
-}
 
 type Trackers = { github: boolean; linear: boolean };
 
@@ -897,19 +882,6 @@ function Page() {
 					return `settings failed (HTTP ${current.status})`;
 				}
 				const live = (await current.json()) as SettingsBody;
-				const theme =
-					(live.theme === "light" || live.theme === "dark") &&
-					live.theme !== settings.theme
-						? live.theme
-						: next.theme;
-				const overview =
-					live.overview !== null && typeof live.overview === "object"
-						? live.overview
-						: next.overview;
-				const pinned =
-					sameRefs(settings.pinned, next.pinned) && Array.isArray(live.pinned)
-						? live.pinned
-						: next.pinned;
 				const star = next.projectViews["*"] ?? live.projectViews["*"];
 				const response = await fetch("/api/settings", {
 					method: "PUT",
@@ -917,9 +889,10 @@ function Page() {
 					body: JSON.stringify({
 						...configurationOf(live),
 						...next,
-						theme,
-						overview,
-						pinned,
+						theme: live.theme,
+						overview: live.overview,
+						pinned: live.pinned,
+						hidden: live.hidden,
 						projectViews: {
 							...live.projectViews,
 							...(star === undefined ? {} : { "*": star }),
