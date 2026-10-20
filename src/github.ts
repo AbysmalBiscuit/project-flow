@@ -1057,10 +1057,47 @@ const issueEvent = z
 	})
 	.passthrough();
 
+// One page is 100 events. Ten pages covers a busy repo without walking its history.
+const issueEventPageBound = 10;
+
+function oldestUpdate(tickets: Ticket[]): string | null {
+	let oldest: string | null = null;
+	for (const ticket of tickets) {
+		if (oldest === null || ticket.updatedAt < oldest) {
+			oldest = ticket.updatedAt;
+		}
+	}
+	return oldest;
+}
+
+function parseIssueEvents(
+	item: unknown,
+	repo: string,
+): z.infer<typeof issueEvent>[] {
+	const page = z.array(issueEvent).safeParse(item);
+	if (!page.success) {
+		throw new Error(`GitHub list issue events failed: ${repo}`);
+	}
+	return page.data;
+}
+
+// The feed is newest first. A page older than every listed ticket cannot name a later state entry.
+function reachedOldestUpdate(
+	events: z.infer<typeof issueEvent>[],
+	oldest: string | null,
+): boolean {
+	if (oldest === null || events.length === 0) {
+		return false;
+	}
+	const last = events.at(-1);
+	return last !== undefined && last.created_at < oldest;
+}
+
 async function listIssueEvents(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
+	oldest: string | null,
 ): Promise<z.infer<typeof issueEvent>[]> {
 	const start = `https://api.github.com/repos/${repo}/issues/events?per_page=100&page=1`;
 	const first = await fetchImpl(start, { headers: githubHeaders(token) });
@@ -1072,25 +1109,24 @@ async function listIssueEvents(
 			`GitHub list issue events failed (HTTP ${first.status}): ${repo}`,
 		);
 	}
-	const listed = [await first.json()];
+	const events = parseIssueEvents(await first.json(), repo);
+	if (reachedOldestUpdate(events, oldest)) {
+		return events;
+	}
 	let url = nextPage(first.headers.get("link"));
-	while (url !== null) {
+	for (let page = 2; page <= issueEventPageBound && url !== null; page += 1) {
 		const response = await fetchImpl(url, { headers: githubHeaders(token) });
 		if (!response.ok) {
 			throw new Error(
 				`GitHub list issue events failed (HTTP ${response.status}): ${repo}`,
 			);
 		}
-		listed.push(await response.json());
-		url = nextPage(response.headers.get("link"));
-	}
-	const events: z.infer<typeof issueEvent>[] = [];
-	for (const item of listed) {
-		const page = z.array(issueEvent).safeParse(item);
-		if (!page.success) {
-			throw new Error(`GitHub list issue events failed: ${repo}`);
+		const next = parseIssueEvents(await response.json(), repo);
+		events.push(...next);
+		if (reachedOldestUpdate(next, oldest)) {
+			return events;
 		}
-		events.push(...page.data);
+		url = nextPage(response.headers.get("link"));
 	}
 	return events;
 }
@@ -1814,9 +1850,10 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			}
 			const labels = await listRepoLabels(token, fetchImpl, repo);
 			const board = factoryBoard(labels);
-			const events = board.factoryLabels
-				? await listIssueEvents(token, fetchImpl, repo)
-				: [];
+			const events =
+				board.factoryLabels && tickets.length > 0
+					? await listIssueEvents(token, fetchImpl, repo, oldestUpdate(tickets))
+					: [];
 			if (board.factoryLabels) {
 				for (const ticket of tickets) {
 					const status = board.statuses.find((item) =>

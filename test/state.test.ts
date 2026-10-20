@@ -1351,6 +1351,171 @@ describe("forward state", () => {
 		);
 	});
 
+	test("an empty repo poll skips the issue event feed", async () => {
+		const requests: string[] = [];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recordedRepo(
+				[],
+				[],
+				[],
+				{ allow_auto_merge: false },
+				[],
+				requests,
+				[],
+				factoryLabels,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				await projectOf(base, githubRepo);
+				expect(
+					requests.filter((item) => item.includes("/issues/events")),
+				).toEqual([]);
+			},
+		);
+	});
+
+	test("the issue event feed stops at the oldest ticket update", async () => {
+		const recorded = (await recordedJson(
+			"github-issue-events-stop.json",
+		)) as Record<string, unknown>[];
+		const newer = recorded[0];
+		const older = recorded[1];
+		const enteredAt = String(newer?.created_at);
+		const olderAt = String(older?.created_at);
+		const editedAt = "2026-10-19T17:05:00Z";
+		const requests: string[] = [];
+		const first = `https://api.github.com/repos/${githubRepo}/issues/events?per_page=100&page=1`;
+		const second = `https://api.github.com/repos/${githubRepo}/issues/events?per_page=100&page=2`;
+		const third = `https://api.github.com/repos/${githubRepo}/issues/events?per_page=100&page=3`;
+		const forTicket = (event: Record<string, unknown> | undefined) => ({
+			...event,
+			issue: { number: 8 },
+			label: { name: "factory: running" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			async (input, init) => {
+				const url = urlOf(input);
+				if (url === first) {
+					requests.push(url);
+					return new Response(JSON.stringify([forTicket(newer)]), {
+						status: 200,
+						headers: {
+							"content-type": "application/json",
+							link: `<${second}>; rel="next"`,
+						},
+					});
+				}
+				if (url === second) {
+					requests.push(url);
+					return new Response(JSON.stringify([forTicket(older)]), {
+						status: 200,
+						headers: {
+							"content-type": "application/json",
+							link: `<${third}>; rel="next"`,
+						},
+					});
+				}
+				if (
+					url.startsWith(
+						`https://api.github.com/repos/${githubRepo}/issues/events?`,
+					)
+				) {
+					requests.push(url);
+					return page([]);
+				}
+				return recordedRepo(
+					[
+						githubIssue(8, {
+							title: "Edited after its label",
+							updated_at: editedAt,
+							labels: [{ name: "factory: running" }],
+						}),
+					],
+					[],
+					[],
+					{ allow_auto_merge: false },
+					[],
+					requests,
+					[],
+					factoryLabels,
+				)(input, init);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
+					lane: "factory: running",
+					enteredStateAt: enteredAt,
+				});
+				expect(olderAt < editedAt).toBe(true);
+				expect(requests.filter((item) => item === second)).toEqual([second]);
+				expect(requests.filter((item) => item === third)).toEqual([]);
+				expect(
+					requests.filter((item) => item.includes("/issues/8/events")),
+				).toEqual([]);
+			},
+		);
+	});
+
+	test("the issue event feed stops at a fixed page bound", async () => {
+		const requests: string[] = [];
+		const eventUrl = (page: number) =>
+			`https://api.github.com/repos/${githubRepo}/issues/events?per_page=100&page=${page}`;
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			async (input, init) => {
+				const url = urlOf(input);
+				const match = url.match(/\/issues\/events\?.*page=(\d+)/);
+				if (match !== null) {
+					requests.push(url);
+					const page = Number(match[1]);
+					return new Response(
+						JSON.stringify([
+							{
+								event: "labeled",
+								created_at: "2026-10-20T09:40:21Z",
+								issue: { number: 8 },
+								label: { name: "factory: running" },
+							},
+						]),
+						{
+							status: 200,
+							headers: {
+								"content-type": "application/json",
+								link: `<${eventUrl(page + 1)}>; rel="next"`,
+							},
+						},
+					);
+				}
+				return recordedRepo(
+					[
+						githubIssue(8, {
+							updated_at: "2026-10-18T15:04:15Z",
+							labels: [{ name: "factory: running" }],
+						}),
+					],
+					[],
+					[],
+					{ allow_auto_merge: false },
+					[],
+					requests,
+					[],
+					factoryLabels,
+				)(input, init);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				await projectOf(base, githubRepo);
+				expect(requests.filter((item) => item === eventUrl(10))).toEqual([
+					eventUrl(10),
+				]);
+				expect(requests.filter((item) => item === eventUrl(11))).toEqual([]);
+			},
+		);
+	});
+
 	test("a GitHub ticket with no tracker history uses its last update", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
