@@ -4,9 +4,8 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { recordedViewer, urlOf } from "../test/support.ts";
 
-const root =
-	process.env.XDG_DATA_HOME ??
-	(await mkdtemp(join("/var/tmp", "project-flow-board-")));
+const root = await mkdtemp(join("/var/tmp", "project-flow-board-"));
+process.env.XDG_DATA_HOME = root;
 const configPath = join(root, "config.json");
 const widget = "acme/widget";
 const platform = "acme/platform";
