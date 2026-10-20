@@ -195,14 +195,9 @@ function visibleLanes(
 	return report.lanes.filter((lane) => names.has(lane.name.toLowerCase()));
 }
 
-function countLine(report: ProjectReport, view: ProjectViewSettings): string {
-	const total = report.tickets.length;
-	const visible = visibleLanes(report, view);
-	const doneLane = visible.find((lane) => lane.statusType === "done");
-	const done =
-		doneLane === undefined
-			? report.tickets.filter((ticket) => ticket.state === "done").length
-			: laneTickets(report, doneLane.name).length;
+function countLine(report: ProjectReport): string {
+	const total = report.total;
+	const done = report.done;
 	const needs = report.tickets.filter((ticket) => ticket.needsYou).length;
 	const blocked = report.tickets.filter((ticket) => ticket.blocked).length;
 	const outside = report.tickets.filter(
@@ -392,10 +387,27 @@ function LaneCards({
 	);
 }
 
+function withinAge(
+	ticket: TicketView,
+	view: ProjectViewSettings,
+	now: number,
+): boolean {
+	const cap = laneAgeCap(view.maxAgeDays, ticket.lane ?? "", ticket.statusType);
+	if (cap <= 0) {
+		return true;
+	}
+	const at = Date.parse(ticket.enteredStateAt ?? "");
+	if (Number.isNaN(at)) {
+		return true;
+	}
+	return (now - at) / (24 * 60 * 60 * 1000) <= cap;
+}
+
 function Lane({
 	name,
 	colour,
 	tickets,
+	fresh,
 	groupBy,
 	capped,
 	shown,
@@ -407,6 +419,7 @@ function Lane({
 	name: string;
 	colour: string;
 	tickets: TicketView[];
+	fresh: TicketView[];
 	groupBy: GroupBy;
 	capped: boolean;
 	shown: boolean;
@@ -415,14 +428,13 @@ function Lane({
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
-	const selectedHidden =
+	const pool = capped && !shown ? fresh : tickets;
+	const listed = pool.slice(0, capped && !shown ? doneCap : pool.length);
+	const selected =
 		capped && !shown && reveal !== null
-			? tickets.slice(doneCap).filter((ticket) => ticket.key === reveal)
+			? pool.slice(doneCap).filter((ticket) => ticket.key === reveal)
 			: [];
-	const visible =
-		capped && !shown
-			? [...tickets.slice(0, doneCap), ...selectedHidden]
-			: tickets;
+	const visible = [...listed, ...selected];
 	return (
 		<section
 			className={clsx(board.lane, capped && board.laneDone)}
@@ -434,7 +446,7 @@ function Lane({
 					className={clsx(board.laneMark, laneMark(colour))}
 					data-lane-colour={colour}
 				/>
-				{name} {tickets.length}
+				{name} {listed.length}
 			</h2>
 			<div className={clsx(capped && !shown && board.cardsClip)}>
 				{groupBy === "none" ? (
@@ -456,7 +468,7 @@ function Lane({
 					))
 				)}
 			</div>
-			{capped && !shown && tickets.length > doneCap ? (
+			{capped && !shown && listed.length < tickets.length ? (
 				<button
 					type="button"
 					className={clsx(
@@ -823,6 +835,8 @@ function Board({
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
 	const [shownDone, setShownDone] = useState(false);
+	const parsed = Date.parse(report.asOf);
+	const now = Number.isNaN(parsed) ? Date.now() : parsed;
 	return (
 		<div className={clsx(board.lanes)} data-group-by={boardGroupBy(settings)}>
 			{visibleLanes(report, settings).map((lane) => (
@@ -831,7 +845,18 @@ function Board({
 					name={lane.name}
 					colour={lane.colour}
 					groupBy={boardGroupBy(settings)}
-					tickets={laneTickets(report, lane.name)}
+					tickets={
+						lane.statusType === "done"
+							? report.doneTickets
+							: laneTickets(report, lane.name)
+					}
+					fresh={
+						lane.statusType === "done"
+							? report.doneTickets.filter((ticket) =>
+									withinAge(ticket, settings, now),
+								)
+							: laneTickets(report, lane.name)
+					}
 					capped={lane.statusType === "done"}
 					shown={shownDone}
 					reveal={selected}
@@ -1313,7 +1338,7 @@ function Page() {
 					<div className={clsx(board.identity)}>
 						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 						<h1 className={clsx(board.name)}>{report.name}</h1>
-						<p className={clsx(board.counts)}>{countLine(report, settings)}</p>
+						<p className={clsx(board.counts)}>{countLine(report)}</p>
 					</div>
 					{view === "graph" ? (
 						<DirectionSwitch

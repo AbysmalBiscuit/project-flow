@@ -660,6 +660,10 @@ export type ProjectReport = {
 	lanes: Lane[];
 	tickets: TicketView[];
 	sections: ReportSection[];
+	done: number;
+	total: number;
+	doneTickets: TicketView[];
+	asOf: string;
 };
 
 export type Overview = {
@@ -2696,9 +2700,8 @@ export function projectCounts(
 		}
 		if (blockers.length > 0 && ticket.state === "open") {
 			counts.blocked += 1;
-		} else {
-			counts[shown.state] += 1;
 		}
+		counts[shown.state] += 1;
 		statusTypes[shown.lane.statusType] += 1;
 		if (ticket.key !== null) {
 			relationsByKey.set(
@@ -2809,6 +2812,7 @@ export function projectCounts(
 		pullByKey,
 		needsYouItemsForProject,
 		runByKey,
+		now,
 	);
 	return {
 		counts: project,
@@ -2820,9 +2824,10 @@ export function projectCounts(
 const stateKeys = [
 	"done",
 	"dropped",
-	"blocked",
 	"backlog",
 	"inProgress",
+	"inReview",
+	"awaitingMerge",
 ] as const;
 
 function progressRatio(
@@ -3637,6 +3642,7 @@ export function projectReport(
 	pullByKey: Map<string, string> = new Map(),
 	needs: NeedsYouItem[] = [],
 	runByKey: Map<string, LiveRun> = new Map(),
+	asOf: Date = new Date(),
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
 	const ticketsByKey = new Map(
@@ -3726,6 +3732,10 @@ export function projectReport(
 		lanes,
 		tickets: boardTickets,
 		sections,
+		done: counts.done,
+		total: counts.tickets.length,
+		doneTickets: boardTickets.filter((ticket) => ticket.statusType === "done"),
+		asOf: asOf.toISOString(),
 	};
 }
 
