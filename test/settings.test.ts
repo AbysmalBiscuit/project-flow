@@ -577,9 +577,9 @@ async function withApp(
 }
 
 describe("settings", () => {
-	test("a settings change writes a valid configuration and hides the project", async () => {
+	test("a settings change writes a valid configuration and untracks the project", async () => {
 		await withApp(
-			JSON.stringify({ pinned: [] }),
+			JSON.stringify({ tracked: [{ tracker: "github", repo: shown }] }),
 			async (base, _path, requests) => {
 				const before = (await (
 					await fetch(new URL("/api/overview", base))
@@ -591,7 +591,6 @@ describe("settings", () => {
 				const current = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-				expect(current.activityWindowDays).toBe(30);
 				expect(current.pollIntervalSeconds).toBe(300);
 				expect(current.needsYouLabels).toEqual([
 					"needs-human",
@@ -608,9 +607,7 @@ describe("settings", () => {
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...current,
-						pinned: [{ tracker: "github", repo: quiet }],
-						hidden: [{ tracker: "github", repo: shown }],
-						activityWindowDays: 14,
+						tracked: [{ tracker: "github", repo: quiet }],
 						pollIntervalSeconds: 120,
 						expectedBots: { [quiet]: ["grok"] },
 						pmBot: { [quiet]: false },
@@ -624,9 +621,7 @@ describe("settings", () => {
 				});
 				expect(saved.status).toBe(200);
 				const written = (await saved.json()) as Configuration;
-				expect(written.hidden).toEqual([{ tracker: "github", repo: shown }]);
-				expect(written.pinned).toEqual([{ tracker: "github", repo: quiet }]);
-				expect(written.activityWindowDays).toBe(14);
+				expect(written.tracked).toEqual([{ tracker: "github", repo: quiet }]);
 				expect(written.pollIntervalSeconds).toBe(120);
 				expect(written.expectedBots).toEqual({ [quiet]: ["grok"] });
 				expect(written.pmBot).toEqual({ [quiet]: false });
@@ -657,10 +652,7 @@ describe("settings", () => {
 
 	test("an invalid settings write names the field and leaves the file", async () => {
 		await withApp(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo: shown }],
-				activityWindowDays: 30,
-			}),
+			JSON.stringify({ tracked: [{ tracker: "github", repo: shown }] }),
 			async (base) => {
 				const before = (await (
 					await fetch(new URL("/api/settings", base))
@@ -668,11 +660,11 @@ describe("settings", () => {
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ activityWindowDays: 0, extra: true }),
+					body: JSON.stringify({ pollIntervalSeconds: 0, extra: true }),
 				});
 				expect(saved.status).toBe(400);
 				const body = (await saved.json()) as { error: string };
-				expect(body.error).toContain("activityWindowDays");
+				expect(body.error).toContain("pollIntervalSeconds");
 				const after = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
@@ -697,12 +689,12 @@ describe("settings", () => {
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					...before,
-					pinned: [{ tracker: "github", repo: "  acme/spaced  " }],
+					tracked: [{ tracker: "github", repo: "  acme/spaced  " }],
 				}),
 			});
 			expect(saved.status).toBe(400);
 			const spaced = (await saved.json()) as { error: string };
-			expect(spaced.error).toContain("pinned");
+			expect(spaced.error).toContain("tracked");
 			const afterSpaces = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
@@ -712,12 +704,12 @@ describe("settings", () => {
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					...before,
-					activityWindowDays: Number("   "),
+					pollIntervalSeconds: Number("   "),
 				}),
 			});
 			expect(blank.status).toBe(400);
 			const named = (await blank.json()) as { error: string };
-			expect(named.error).toContain("activityWindowDays");
+			expect(named.error).toContain("pollIntervalSeconds");
 			const afterBlank = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
@@ -744,7 +736,9 @@ describe("settings", () => {
 			}
 			return recorded(heldRequests, input, init);
 		};
-		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ tracked: [{ tracker: "github", repo: shown }] }),
+		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -765,7 +759,6 @@ describe("settings", () => {
 						headers: { "content-type": "application/json" },
 						body: JSON.stringify({
 							...current,
-							activityWindowDays: 14,
 							pollIntervalSeconds: 90,
 						}),
 					});
@@ -775,7 +768,6 @@ describe("settings", () => {
 					const saved = await saving;
 					expect(saved.status).toBe(200);
 					expect(await saved.json()).toMatchObject({
-						activityWindowDays: 14,
 						pollIntervalSeconds: 90,
 					});
 					expect((await refreshing).status).toBe(204);
@@ -783,7 +775,6 @@ describe("settings", () => {
 						await fetch(new URL("/api/settings", base))
 					).json();
 					expect(after).toMatchObject({
-						activityWindowDays: 14,
 						pollIntervalSeconds: 90,
 					});
 					expect(
@@ -820,18 +811,14 @@ describe("settings", () => {
 	test("a saved checkout root lists only the checkout that root returns", async () => {
 		const startupRoot = "/var/tmp/project-flow-startup-root";
 		await withApp(
-			JSON.stringify({ pinned: [], checkoutRoots: [startupRoot] }),
+			JSON.stringify({ checkoutRoots: [startupRoot] }),
 			async (base) => {
-				const before = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as Overview;
-				expect(before.projects.map((project) => project.name)).not.toContain(
-					savedRepo,
-				);
-
 				const current = (await (
 					await fetch(new URL("/api/settings", base))
-				).json()) as Configuration;
+				).json()) as Configuration & { projects: { key: string }[] };
+				expect(current.projects.map((project) => project.key)).not.toContain(
+					savedRepo,
+				);
 				expect(current.checkoutRoots).toEqual([startupRoot]);
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
@@ -842,18 +829,15 @@ describe("settings", () => {
 					}),
 				});
 				expect(saved.status).toBe(200);
-				const put = (await saved.json()) as Configuration;
+				const put = (await saved.json()) as Configuration & {
+					projects: { key: string }[];
+				};
 				expect(put.checkoutRoots).toEqual([savedRoot]);
+				expect(put.projects.map((project) => project.key)).toContain(savedRepo);
 				const reread = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
 				expect(reread.checkoutRoots).toEqual([savedRoot]);
-				const after = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as Overview;
-				expect(after.projects.map((project) => project.name)).toContain(
-					savedRepo,
-				);
 			},
 			async (roots) =>
 				roots.includes(savedRoot) ? [checkoutFor(savedRoot)] : [],
@@ -887,7 +871,13 @@ describe("settings", () => {
 		const dir = await mkdtemp(join("/var/tmp", "project-flow-settings-link-"));
 		const target = join(dir, "target.json");
 		const link = join(dir, "config.json");
-		await writeFile(target, JSON.stringify({ pinned: [], checkoutRoots: [] }));
+		await writeFile(
+			target,
+			JSON.stringify({
+				tracked: [{ tracker: "github", repo: shown }],
+				checkoutRoots: [],
+			}),
+		);
 		await chmod(target, 0o600);
 		await symlink(target, link);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
@@ -904,7 +894,7 @@ describe("settings", () => {
 						headers: { "content-type": "application/json" },
 						body: JSON.stringify({
 							...current,
-							activityWindowDays: 14,
+							pollIntervalSeconds: 120,
 						}),
 					});
 					expect(saved.status).toBe(200);
@@ -914,11 +904,11 @@ describe("settings", () => {
 					expect(targetStat.isSymbolicLink()).toBe(false);
 					expect(targetStat.mode & 0o777).toBe(0o600);
 					const written = (await saved.json()) as Configuration;
-					expect(written.activityWindowDays).toBe(14);
+					expect(written.pollIntervalSeconds).toBe(120);
 					const reread = (await (
 						await fetch(new URL("/api/settings", base))
 					).json()) as Configuration;
-					expect(reread.activityWindowDays).toBe(14);
+					expect(reread.pollIntervalSeconds).toBe(120);
 					expect(
 						requests.some((url) => url.includes(`/repos/${shown}/issues?`)),
 					).toBe(true);
@@ -954,7 +944,10 @@ describe("settings", () => {
 		const savedFlags = { [linear]: true, [quiet]: false };
 		await withApp(
 			JSON.stringify({
-				pinned: [{ tracker: "linear", project: linear }],
+				tracked: [
+					{ tracker: "linear", project: linear },
+					{ tracker: "github", repo: shown },
+				],
 				pmBot: savedFlags,
 			}),
 			async (base) => {
@@ -988,7 +981,10 @@ describe("settings", () => {
 		const savedFlags = { [linear]: true, [quiet]: false };
 		await withApp(
 			JSON.stringify({
-				pinned: [{ tracker: "linear", project: linear }],
+				tracked: [
+					{ tracker: "linear", project: linear },
+					{ tracker: "github", repo: shown },
+				],
 				pmBot: savedFlags,
 			}),
 			async (base) => {
@@ -1123,7 +1119,9 @@ describe("settings", () => {
 			}
 			return recorded(heldRequests, input, init);
 		};
-		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ tracked: [{ tracker: "github", repo: shown }] }),
+		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -1154,7 +1152,7 @@ describe("settings", () => {
 					expect(heldRequests.length).toBe(sent);
 					const written = (await saved.json()) as Configuration;
 					expect(written.theme).toBe("dark");
-					expect(written.pinned).toEqual(current.pinned);
+					expect(written.tracked).toEqual(current.tracked);
 					expect(written.pollIntervalSeconds).toBe(current.pollIntervalSeconds);
 					const page = await fetch(new URL("/", base));
 					expect(page.status).toBe(200);
@@ -1214,7 +1212,7 @@ describe("settings", () => {
 				expect(requests.length).toBe(sent);
 				const written = (await saved.json()) as Configuration;
 				expect(written.theme).toBe("dark");
-				expect(written.pinned).toEqual(before.pinned);
+				expect(written.tracked).toEqual(before.tracked);
 				expect(written.pollIntervalSeconds).toBe(before.pollIntervalSeconds);
 				expect(written.overview).toEqual(before.overview);
 				const again = (await (
@@ -1260,22 +1258,22 @@ describe("settings", () => {
 		});
 	});
 
-	test("a github owner/project pin is pinned on the overview and a Pinned menu write round-trips it", async () => {
+	test("a tracked github owner/project shows on the overview and a settings write round-trips it", async () => {
 		const pin = { tracker: "github" as const, owner: "acme", project: 7 };
-		await withApp(JSON.stringify({ pinned: [pin] }), async (base) => {
+		const repo = { tracker: "github" as const, repo: shown };
+		await withApp(JSON.stringify({ tracked: [pin, repo] }), async (base) => {
+			const onBoard = (overview: Overview) =>
+				overview.projects.find(
+					(item) =>
+						item.ref.tracker === "github" &&
+						"owner" in item.ref &&
+						item.ref.owner === pin.owner &&
+						item.ref.project === pin.project,
+				);
 			const overview = (await (
 				await fetch(new URL("/api/overview", base))
 			).json()) as Overview;
-			const project = overview.projects.find(
-				(item) =>
-					item.ref.tracker === "github" &&
-					"owner" in item.ref &&
-					item.ref.owner === pin.owner &&
-					item.ref.project === pin.project,
-			);
-			expect(project).toBeDefined();
-			expect(project?.pinned).toBe(true);
-			expect(project?.ref).toEqual(pin);
+			expect(onBoard(overview)?.ref).toEqual(pin);
 
 			const before = (await (
 				await fetch(new URL("/api/settings", base))
@@ -1283,10 +1281,14 @@ describe("settings", () => {
 			const removed = await fetch(new URL("/api/settings", base), {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ ...before, pinned: [] }),
+				body: JSON.stringify({ ...before, tracked: [repo] }),
 			});
 			expect(removed.status).toBe(200);
-			expect(((await removed.json()) as Configuration).pinned).toEqual([]);
+			expect(((await removed.json()) as Configuration).tracked).toEqual([repo]);
+			const untracked = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as Overview;
+			expect(onBoard(untracked)).toBeUndefined();
 
 			const current = (await (
 				await fetch(new URL("/api/settings", base))
@@ -1294,21 +1296,19 @@ describe("settings", () => {
 			const restored = await fetch(new URL("/api/settings", base), {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ ...current, pinned: [pin] }),
+				body: JSON.stringify({ ...current, tracked: [repo, pin] }),
 			});
 			expect(restored.status).toBe(200);
 			const written = (await restored.json()) as Configuration;
-			expect(written.pinned).toEqual([pin]);
+			expect(written.tracked).toEqual([repo, pin]);
 			const reread = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
-			expect(reread.pinned).toEqual([pin]);
+			expect(reread.tracked).toEqual([repo, pin]);
 			const after = (await (
 				await fetch(new URL("/api/overview", base))
 			).json()) as Overview;
-			expect(
-				after.projects.find((item) => item.name === project?.name)?.pinned,
-			).toBe(true);
+			expect(onBoard(after)?.ref).toEqual(pin);
 		});
 	});
 
@@ -1539,7 +1539,7 @@ describe("settings", () => {
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...saved,
-						activityWindowDays: 14,
+						pollIntervalSeconds: 120,
 					}),
 				});
 				expect(other.status).toBe(200);
@@ -1547,7 +1547,7 @@ describe("settings", () => {
 				const after = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-				expect(after.activityWindowDays).toBe(14);
+				expect(after.pollIntervalSeconds).toBe(120);
 				expect(after.overview.view).toBe("table");
 			},
 		);
@@ -1569,7 +1569,7 @@ describe("settings", () => {
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					...before,
-					activityWindowDays: 14,
+					tracked: [{ tracker: "github", repo: shown }],
 					pollIntervalSeconds: 60,
 					projectViews: {
 						"*": {
@@ -1598,7 +1598,7 @@ describe("settings", () => {
 			});
 			expect(saved.status).toBe(200);
 			const body = (await saved.json()) as Configuration;
-			expect(body.activityWindowDays).toBe(14);
+			expect(body.tracked).toEqual([{ tracker: "github", repo: shown }]);
 			expect(body.pollIntervalSeconds).toBe(60);
 			expect(body.projectViews["*"]?.openView).toBe("graph");
 			expect(body.projectViews["*"]?.graphDirection).toBe("top-to-bottom");
@@ -1627,7 +1627,7 @@ describe("settings", () => {
 				).json()) as Configuration & {
 					trackers: { github: boolean; linear: boolean };
 				};
-				expect(again.activityWindowDays).toBe(14);
+				expect(again.tracked).toEqual([{ tracker: "github", repo: shown }]);
 				expect(again.pollIntervalSeconds).toBe(60);
 				expect(again.projectViews["*"]?.openView).toBe("graph");
 				expect(again.projectViews["*"]?.needsYouOnly).toBe(true);
@@ -1702,15 +1702,14 @@ describe("settings", () => {
 		});
 	});
 
-	test("settings lists every found, pinned and hidden project with its tracker and source", async () => {
+	test("settings lists every found and tracked project with its tracker and source", async () => {
 		const pinnedOnly = "acme/pinned-only";
 		await withApp(
 			JSON.stringify({
-				pinned: [
+				tracked: [
 					{ tracker: "github", repo: quiet },
 					{ tracker: "github", repo: pinnedOnly },
 				],
-				hidden: [{ tracker: "github", repo: shown }],
 				pmBot: { [shown]: false },
 				expectedBots: { [shown]: ["grok", "codex"] },
 			}),
@@ -1723,8 +1722,7 @@ describe("settings", () => {
 						key: string;
 						tracker: string;
 						source: string;
-						pinned: boolean;
-						hidden: boolean;
+						tracked: boolean;
 						pmBot: boolean;
 						expectedBots: string[];
 						ref: unknown;
@@ -1743,8 +1741,7 @@ describe("settings", () => {
 				expect(byKey.get(shown)).toMatchObject({
 					tracker: "github",
 					source: "found",
-					pinned: false,
-					hidden: true,
+					tracked: false,
 					pmBot: false,
 					expectedBots: ["grok", "codex"],
 					ref: { tracker: "github", repo: shown },
@@ -1752,21 +1749,18 @@ describe("settings", () => {
 				expect(byKey.get(quiet)).toMatchObject({
 					tracker: "github",
 					source: "found",
-					pinned: true,
-					hidden: false,
+					tracked: true,
 				});
 				expect(byKey.get(pinnedOnly)).toMatchObject({
 					tracker: "github",
-					source: "pinned",
-					pinned: true,
-					hidden: false,
+					source: "tracked",
+					tracked: true,
 					ref: { tracker: "github", repo: pinnedOnly },
 				});
 				expect(byKey.get(savedRepo)).toMatchObject({
 					tracker: "github",
 					source: "found",
-					pinned: false,
-					hidden: false,
+					tracked: false,
 				});
 			},
 			async () => [checkoutFor(savedRoot)],
@@ -1776,8 +1770,7 @@ describe("settings", () => {
 	test("switch and bot changes save and survive a restart", async () => {
 		await withApp(
 			JSON.stringify({
-				pinned: [{ tracker: "github", repo: shown }],
-				hidden: [],
+				tracked: [{ tracker: "github", repo: shown }],
 				pmBot: {},
 				expectedBots: {},
 			}),
@@ -1807,10 +1800,8 @@ describe("settings", () => {
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...configuration,
-						pinned: [{ tracker: "github", repo: quiet }],
-						hidden: [{ tracker: "github", repo: shown }],
-						baselinePinned: configuration.pinned,
-						baselineHidden: configuration.hidden,
+						tracked: [{ tracker: "github", repo: quiet }],
+						baselineTracked: configuration.tracked,
 						pmBot: { [quiet]: false, [shown]: true },
 						expectedBots: { [quiet]: ["codex"], [shown]: ["grok"] },
 					}),
@@ -1819,8 +1810,7 @@ describe("settings", () => {
 				const written = (await saved.json()) as {
 					projects: {
 						key: string;
-						pinned: boolean;
-						hidden: boolean;
+						tracked: boolean;
 						pmBot: boolean;
 						expectedBots: string[];
 					}[];
@@ -1828,14 +1818,12 @@ describe("settings", () => {
 				const quietRow = written.projects.find((row) => row.key === quiet);
 				const shownRow = written.projects.find((row) => row.key === shown);
 				expect(quietRow).toMatchObject({
-					pinned: true,
-					hidden: false,
+					tracked: true,
 					pmBot: false,
 					expectedBots: ["codex"],
 				});
 				expect(shownRow).toMatchObject({
-					pinned: false,
-					hidden: true,
+					tracked: false,
 					pmBot: true,
 					expectedBots: ["grok"],
 				});
@@ -1844,20 +1832,17 @@ describe("settings", () => {
 					const again = (await (
 						await fetch(new URL("/api/settings", restarted))
 					).json()) as {
-						pinned: unknown;
-						hidden: unknown;
+						tracked: unknown;
 						pmBot: unknown;
 						expectedBots: unknown;
 						projects: {
 							key: string;
-							pinned: boolean;
-							hidden: boolean;
+							tracked: boolean;
 							pmBot: boolean;
 							expectedBots: string[];
 						}[];
 					};
-					expect(again.pinned).toEqual([{ tracker: "github", repo: quiet }]);
-					expect(again.hidden).toEqual([{ tracker: "github", repo: shown }]);
+					expect(again.tracked).toEqual([{ tracker: "github", repo: quiet }]);
 					expect(again.pmBot).toEqual({ [quiet]: false, [shown]: true });
 					expect(again.expectedBots).toEqual({
 						[quiet]: ["codex"],
@@ -1865,14 +1850,14 @@ describe("settings", () => {
 					});
 					expect(again.projects.find((row) => row.key === quiet)).toMatchObject(
 						{
-							pinned: true,
+							tracked: true,
 							pmBot: false,
 							expectedBots: ["codex"],
 						},
 					);
 					expect(again.projects.find((row) => row.key === shown)).toMatchObject(
 						{
-							hidden: true,
+							tracked: false,
 							pmBot: true,
 							expectedBots: ["grok"],
 						},
@@ -1882,14 +1867,10 @@ describe("settings", () => {
 		);
 	});
 
-	test("a settings save keeps a pin and a hide made after the draft loaded", async () => {
-		const overviewPin = { tracker: "github" as const, repo: quiet };
-		const overviewHide = { tracker: "github" as const, repo: savedRepo };
+	test("a settings save keeps a tracked project added after the draft loaded", async () => {
+		const added = { tracker: "github" as const, repo: quiet };
 		await withApp(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo: shown }],
-				hidden: [],
-			}),
+			JSON.stringify({ tracked: [{ tracker: "github", repo: shown }] }),
 			async (base) => {
 				const loaded = (await (
 					await fetch(new URL("/api/settings", base))
@@ -1902,42 +1883,33 @@ describe("settings", () => {
 					projects: _projects,
 					...baseline
 				} = loaded;
-				const overview = await fetch(new URL("/api/settings", base), {
+				const other = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...baseline,
-						pinned: [...baseline.pinned, overviewPin],
-						hidden: [overviewHide],
+						tracked: [...baseline.tracked, added],
 					}),
 				});
-				expect(overview.status).toBe(200);
+				expect(other.status).toBe(200);
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...baseline,
 						pollIntervalSeconds: 60,
-						pinned: baseline.pinned,
-						hidden: baseline.hidden,
-						baselinePinned: baseline.pinned,
-						baselineHidden: baseline.hidden,
+						tracked: baseline.tracked,
+						baselineTracked: baseline.tracked,
 					}),
 				});
 				expect(saved.status).toBe(200);
 				const body = (await saved.json()) as Configuration;
-				expect(body.pinned).toEqual([
-					{ tracker: "github", repo: shown },
-					overviewPin,
-				]);
 				expect(body.pollIntervalSeconds).toBe(60);
-				expect(body.pinned).toEqual([
+				expect(body.tracked).toEqual([
 					{ tracker: "github", repo: shown },
-					overviewPin,
+					added,
 				]);
-				expect(body.hidden).toEqual([overviewHide]);
 			},
-			async () => [checkoutFor(savedRoot)],
 		);
 	});
 
@@ -2103,7 +2075,10 @@ describe("settings", () => {
 	test("removing the last expected bot saves an empty override for that repository", async () => {
 		await withApp(
 			JSON.stringify({
-				pinned: [{ tracker: "github", repo: shown }],
+				tracked: [
+					{ tracker: "github", repo: shown },
+					{ tracker: "linear", project: "PLAT" },
+				],
 				expectedBots: { [shown]: ["grok"] },
 			}),
 			async (base, configPath) => {
@@ -2177,7 +2152,10 @@ describe("settings", () => {
 	test("adding the first expected bot keeps the inferred bots for that repository", async () => {
 		await withApp(
 			JSON.stringify({
-				pinned: [{ tracker: "github", repo: shown }],
+				tracked: [
+					{ tracker: "github", repo: shown },
+					{ tracker: "linear", project: "PLAT" },
+				],
 				expectedBots: {},
 			}),
 			async (base) => {
@@ -2231,7 +2209,10 @@ describe("settings", () => {
 	test("deleting an empty expected-bot override restores inferred bots", async () => {
 		await withApp(
 			JSON.stringify({
-				pinned: [{ tracker: "github", repo: shown }],
+				tracked: [
+					{ tracker: "github", repo: shown },
+					{ tracker: "linear", project: "PLAT" },
+				],
 				expectedBots: { [shown]: [] },
 			}),
 			async (base) => {
@@ -2284,32 +2265,6 @@ describe("settings", () => {
 			},
 			async () => [],
 			fetchingBots,
-		);
-	});
-
-	test("a hidden-only project that discovery missed reports source hidden", async () => {
-		const hiddenOnly = "acme/hidden-only";
-		await withApp(
-			JSON.stringify({ hidden: [{ tracker: "github", repo: hiddenOnly }] }),
-			async (base) => {
-				const body = (await (
-					await fetch(new URL("/api/settings", base))
-				).json()) as {
-					projects: {
-						key: string;
-						source: string;
-						pinned: boolean;
-						hidden: boolean;
-					}[];
-				};
-				expect(
-					body.projects.find((row) => row.key === hiddenOnly),
-				).toMatchObject({
-					source: "hidden",
-					pinned: false,
-					hidden: true,
-				});
-			},
 		);
 	});
 });

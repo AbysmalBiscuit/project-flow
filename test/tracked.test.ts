@@ -1,0 +1,263 @@
+import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import type { Configuration } from "../src/configuration.ts";
+import type { Overview, SettingsProject } from "../src/domain.ts";
+import type { Fetch } from "../src/fetch.ts";
+import { run } from "../src/main.ts";
+import { tempConfig, testIo, trackerRequest, unrecorded } from "./support.ts";
+
+const repos = Array.from({ length: 5 }, (_, index) => `acme/repo-${index}`);
+const linearSlugs = Array.from(
+	{ length: 5 },
+	(_, index) => `board-${index}-0d42ae5d46d0`,
+);
+
+function json(body: unknown): Response {
+	return new Response(JSON.stringify(body), {
+		status: 200,
+		headers: { "content-type": "application/json" },
+	});
+}
+
+const emptyPage = {
+	nodes: [],
+	pageInfo: { hasNextPage: false, endCursor: null },
+};
+
+function linearProject(slugId: string) {
+	return { id: `id-${slugId}`, name: `Board ${slugId}`, slugId };
+}
+
+function membership(sent: string[]): Fetch {
+	return async (input, init) => {
+		const request = trackerRequest(input, init);
+		const named = request.query.match(/^\s*query\s*(?:(\w+)|\{\s*(\w+))/);
+		const operation = named?.[1] ?? named?.[2];
+		sent.push(
+			operation === undefined
+				? request.url
+				: operation === "ProjectByPin" || operation === "ProjectIssues"
+					? `${request.url} ${operation} ${JSON.stringify(request.variables)}`
+					: `${request.url} ${operation}`,
+		);
+		const url = request.url;
+		if (url === "https://api.github.com/user") {
+			return json({ login: "lev" });
+		}
+		if (url.startsWith("https://api.github.com/user/repos")) {
+			return json(
+				repos.map((repo) => ({
+					full_name: repo,
+					owner: { login: "lev" },
+					permissions: { admin: true, push: true, pull: true },
+					pushed_at: "2026-08-18T12:00:00.000Z",
+				})),
+			);
+		}
+		const issues = url.match(
+			/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?/,
+		);
+		if (issues?.[1] !== undefined) {
+			return json([
+				{
+					number: 1,
+					title: "Ticket 1",
+					state: "open",
+					state_reason: null,
+					html_url: `https://github.com/${issues[1]}/issues/1`,
+					updated_at: "2026-08-18T12:00:00.000Z",
+				},
+			]);
+		}
+		if (url.includes("/pulls?") || url.includes("/branches?")) {
+			return json([]);
+		}
+		if (url === "https://api.github.com/graphql") {
+			if (operation === "ViewerProjects" || operation === "OrgProjects") {
+				return json({
+					data: {
+						viewer: {
+							login: "lev",
+							projectsV2: emptyPage,
+							organizations: emptyPage,
+						},
+					},
+				});
+			}
+			return json({ data: { node: { fields: { nodes: [{}] } } } });
+		}
+		if (url === "https://api.linear.app/graphql") {
+			if (operation === "MemberProjects") {
+				return json({
+					data: {
+						viewer: { id: "lev" },
+						projects: {
+							nodes: linearSlugs.map((slugId) => ({
+								...linearProject(slugId),
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							})),
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				});
+			}
+			if (operation === "ProjectByPin") {
+				const pin = String(request.variables.pin ?? "");
+				const slugId = linearSlugs.find((slug) => slug === pin);
+				return json({
+					data: {
+						projects: {
+							nodes: slugId === undefined ? [] : [linearProject(slugId)],
+						},
+					},
+				});
+			}
+			if (operation === "ProjectIssues") {
+				return json({
+					data: {
+						issues: {
+							nodes: [
+								{
+									identifier: "BRD-1",
+									title: "Linear ticket 1",
+									updatedAt: "2026-08-18T12:00:00.000Z",
+									state: { type: "unstarted" },
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				});
+			}
+			return json({ data: { viewer: { id: "lev" } } });
+		}
+		return unrecorded(input);
+	};
+}
+
+type Started = {
+	overview: Overview;
+	settings: Configuration & { projects: SettingsProject[] };
+	sent: string[];
+};
+
+async function startWith(body: string): Promise<Started> {
+	const { path, cleanup } = await tempConfig(body);
+	const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+	const sent: string[] = [];
+	let startChecks: (base: string) => void = () => {};
+	const checks = new Promise<Omit<Started, "sent">>((resolve, reject) => {
+		startChecks = (base) => {
+			Promise.all([
+				fetch(new URL("/api/overview", base)).then((response) =>
+					response.json(),
+				),
+				fetch(new URL("/api/settings", base)).then((response) =>
+					response.json(),
+				),
+			]).then(
+				([overview, settings]) => resolve({ overview, settings }),
+				reject,
+			);
+		};
+	});
+	try {
+		const result = await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				fetch: membership(sent),
+				readGhToken: async () => null,
+				databasePath: join(root, "project-flow.sqlite"),
+				now: () => new Date("2026-08-18T12:00:00.000Z"),
+				stdout: (line) => startChecks(line),
+				waitForStop: checks.then(() => undefined),
+			}),
+		);
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+		return { ...(await checks), sent };
+	} finally {
+		await cleanup();
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
+function ticketRequests(sent: string[]): string[] {
+	return sent.filter(
+		(request) =>
+			/\/repos\/[^/]+\/[^/]+\/(issues|pulls|branches)\?/.test(request) ||
+			request.includes(" ProjectByPin ") ||
+			request.includes(" ProjectIssues "),
+	);
+}
+
+describe("tracked projects", () => {
+	test("a start with no tracked project sends only the membership requests", async () => {
+		const { overview, settings, sent } = await startWith("{}");
+		expect([...new Set(sent)].sort()).toEqual([
+			"https://api.github.com/graphql ViewerProjects",
+			"https://api.github.com/user",
+			"https://api.github.com/user/repos?affiliation=owner,collaborator&per_page=100&page=1",
+			"https://api.linear.app/graphql MemberProjects",
+			"https://api.linear.app/graphql viewer",
+		]);
+		expect(overview.projects).toEqual([]);
+		expect(settings.projects).toHaveLength(10);
+		expect(settings.projects.every((project) => !project.tracked)).toBe(true);
+	});
+
+	test("only the tracked 2 of 10 found projects get ticket and PR requests and show", async () => {
+		const tracked = [
+			{ tracker: "github", repo: "acme/repo-3" },
+			{ tracker: "linear", project: "board-1-0d42ae5d46d0" },
+		];
+		const { overview, settings, sent } = await startWith(
+			JSON.stringify({ tracked }),
+		);
+		expect(settings.projects).toHaveLength(10);
+		expect(
+			settings.projects.filter((project) => project.tracked).map((p) => p.key),
+		).toEqual(["board-1-0d42ae5d46d0", "acme/repo-3"]);
+		expect([...new Set(ticketRequests(sent))].sort()).toEqual([
+			"https://api.github.com/repos/acme/repo-3/branches?per_page=100&page=1",
+			"https://api.github.com/repos/acme/repo-3/issues?state=all&per_page=100&page=1",
+			"https://api.github.com/repos/acme/repo-3/pulls?state=closed&per_page=10&page=1",
+			"https://api.github.com/repos/acme/repo-3/pulls?state=open&per_page=100&page=1",
+			'https://api.linear.app/graphql ProjectByPin {"pin":"board-1-0d42ae5d46d0"}',
+			'https://api.linear.app/graphql ProjectIssues {"filter":{"project":{"id":{"eq":"id-board-1-0d42ae5d46d0"}}},"after":null}',
+		]);
+		expect(overview.projects.map((project) => project.name)).toEqual([
+			"acme/repo-3",
+			"Board board-1-0d42ae5d46d0",
+		]);
+	});
+
+	test("a configuration file with pinned and hidden loads and its pinned projects are tracked", async () => {
+		const { overview, settings } = await startWith(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: "acme/repo-2" }],
+				hidden: [{ tracker: "github", repo: "acme/repo-4" }],
+				activityWindowDays: 14,
+				overview: { filter: "pinned" },
+			}),
+		);
+		expect(settings.overview.filter).toBe("all");
+		expect(settings.tracked).toEqual([
+			{ tracker: "github", repo: "acme/repo-2" },
+		]);
+		expect(settings).not.toHaveProperty("pinned");
+		expect(settings).not.toHaveProperty("hidden");
+		expect(settings).not.toHaveProperty("activityWindowDays");
+		expect(
+			settings.projects.filter((project) => project.tracked).map((p) => p.key),
+		).toEqual(["acme/repo-2"]);
+		expect(overview.projects.map((project) => project.name)).toEqual([
+			"acme/repo-2",
+		]);
+	});
+});

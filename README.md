@@ -42,9 +42,7 @@ function defaultConfigPath(env: Record<string, string | undefined>): string {
 The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema is the full list of fields. The schema holds the current defaults. Each field is optional. An omitted field takes the default below.
 
 - `theme` is `light` or `dark`. The header theme button writes it. The page opens in that theme. The default is `light`.
-- `pinned` names projects that always show. The default is `[]`.
-- `hidden` names projects that never show. The default is `[]`.
-- `activityWindowDays` is the activity window for a found project. The default is `30`.
+- `tracked` names the tracked projects. The app polls only these projects, and only these projects show on the overview. The default is `[]`.
 - `pollIntervalSeconds` is the gap between polls. The default is `300`.
 - `checkoutRoots` names folders the app scans for local checkouts. Each entry is an absolute path. The app does not expand `~`. The default is the `Git` folder in the home directory.
 - `expectedBots` names the review bots for a repo. The key is `owner/name`. The value is a list of `grok`, `codex` and `greptile`. An empty list means the repo has no expected bots. When the field is absent, the app reads the bots from the repo's recent merged PRs.
@@ -55,16 +53,14 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
 - `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. The default for each one is `true`.
 
-A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`. `pinned` and `hidden` use the same pin shape.
+A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin names a `project` slug. Each pin sets `tracker` to `github` or `linear`. `tracked` holds pins of this shape.
 
 ```json
 {
   "theme": "light",
-  "pinned": [
+  "tracked": [
     { "tracker": "github", "repo": "owner/name" }
   ],
-  "hidden": [],
-  "activityWindowDays": 30,
   "pollIntervalSeconds": 300,
   "checkoutRoots": ["/home/you/Git"],
   "expectedBots": {
@@ -83,6 +79,8 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
   }
 }
 ```
+
+An older file can hold `pinned`, `hidden` and `activityWindowDays`. The app loads that file. Its `pinned` list becomes the `tracked` list when the file has no `tracked` list. The app ignores `hidden` and `activityWindowDays`. The next settings save writes the file without them.
 
 ## Tokens
 

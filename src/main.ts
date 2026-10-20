@@ -549,7 +549,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
 		const token = await resolveToken(io, envToken);
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
-		const needsLinear = configuration.pinned.some(
+		const needsLinear = configuration.tracked.some(
 			(pin) => pin.tracker === "linear",
 		);
 		const databasePath = io.databasePath ?? defaultStorePath(io.env);

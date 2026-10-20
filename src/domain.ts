@@ -196,8 +196,7 @@ export type UnlinkedPr = {
 export type ProjectCounts = {
 	name: string;
 	tracker: "github" | "linear";
-	pinned: boolean;
-	ref: Configuration["pinned"][number];
+	ref: Configuration["tracked"][number];
 	done: number;
 	dropped: number;
 	blocked: number;
@@ -216,7 +215,7 @@ export type ProjectCounts = {
 	statusTypes: Record<StatusType, number>;
 };
 
-export type ProjectBody = Omit<ProjectCounts, "pinned" | "ref">;
+export type ProjectBody = Omit<ProjectCounts, "ref">;
 
 export type ThreadComment = {
 	id: string;
@@ -699,8 +698,6 @@ export type ProjectPoll = {
 	ok: boolean;
 	error: string | null;
 	full: boolean;
-	pinned: boolean;
-	hidden: boolean;
 	row: Snapshot | null;
 };
 
@@ -848,15 +845,7 @@ export function reconcilePoll(
 			rows.push(prior);
 			continue;
 		}
-		if (
-			outcome.row === null ||
-			outcome.error === null ||
-			!showsFailedProject({
-				pinned: outcome.pinned,
-				hidden: outcome.hidden,
-				hasStoredRows: false,
-			})
-		) {
+		if (outcome.row === null || outcome.error === null) {
 			continue;
 		}
 		rows.push(outcome.row);
@@ -871,7 +860,6 @@ export function reconcilePoll(
 		(outcome) =>
 			!outcome.ok &&
 			outcome.error !== null &&
-			!outcome.hidden &&
 			!rows.some((row) => row.key === outcome.key),
 	);
 	const globalError = failed?.error ?? null;
@@ -1488,39 +1476,6 @@ export function openBlockers(
 	});
 }
 
-export function showsFailedProject(input: {
-	pinned: boolean;
-	hidden: boolean;
-	hasStoredRows: boolean;
-}): boolean {
-	if (input.hidden || input.hasStoredRows) {
-		return false;
-	}
-	return input.pinned;
-}
-
-export function showsProject(input: {
-	pinned: boolean;
-	hidden: boolean;
-	openTickets: number;
-	updatedAt: string | null;
-	now: Date;
-	activityWindowDays: number;
-}): boolean {
-	if (input.hidden) {
-		return false;
-	}
-	if (input.pinned) {
-		return true;
-	}
-	if (input.openTickets === 0 || input.updatedAt === null) {
-		return false;
-	}
-	const updated = Date.parse(input.updatedAt);
-	const windowMs = input.activityWindowDays * 24 * 60 * 60 * 1000;
-	return updated >= input.now.getTime() - windowMs;
-}
-
 export type ListedProject = {
 	key: string;
 	name?: string;
@@ -1531,17 +1486,10 @@ export type ListedProject = {
 	branches: string[];
 	startedKeys: string[];
 	board?: Board;
-	pinned: boolean;
-	hidden: boolean;
 	closed?: boolean;
-	windowTickets?: Ticket[];
 };
 
-export function projectSnapshots(
-	found: ListedProject[],
-	now: Date,
-	activityWindowDays: number,
-): {
+export function projectSnapshots(found: ListedProject[]): {
 	key: string;
 	name: string;
 	tracker: ListedProject["tracker"];
@@ -1559,40 +1507,7 @@ export function projectSnapshots(
 			(project) => project.tracker === "linear" || project.key.includes("/"),
 		),
 	];
-	const shown = projects.filter((project) => {
-		const windowTickets = project.windowTickets ?? project.tickets;
-		const openTickets = windowTickets.filter(
-			(ticket) => ticket.state === "open",
-		).length;
-		const ticketUpdated = windowTickets.reduce<string | null>(
-			(latest, ticket) => {
-				if (ticket.updatedAt === undefined) {
-					return latest;
-				}
-				return latest === null || ticket.updatedAt > latest
-					? ticket.updatedAt
-					: latest;
-			},
-			null,
-		);
-		const updatedAt =
-			project.updatedAt === null
-				? ticketUpdated
-				: ticketUpdated === null || project.updatedAt > ticketUpdated
-					? project.updatedAt
-					: ticketUpdated;
-		return (
-			project.closed !== true &&
-			showsProject({
-				pinned: project.pinned,
-				hidden: project.hidden,
-				openTickets,
-				updatedAt,
-				now,
-				activityWindowDays,
-			})
-		);
-	});
+	const shown = projects.filter((project) => project.closed !== true);
 	const carried = new Map<string, Ticket>();
 	for (const project of shown) {
 		if (!project.key.includes("/")) {
@@ -3835,9 +3750,8 @@ export type SettingsProject = {
 	name: string;
 	key: string;
 	tracker: "github" | "linear";
-	source: "found" | "pinned" | "hidden";
-	pinned: boolean;
-	hidden: boolean;
+	source: "found" | "tracked";
+	tracked: boolean;
 	pmBot: boolean;
 	repos: string[];
 	expectedBots: KnownBot[];
@@ -3861,22 +3775,6 @@ type CatalogueProject = {
 	number?: number;
 	configuredOnly?: boolean;
 };
-
-function samePin(left: ProjectPin, right: ProjectPin): boolean {
-	if (left.tracker !== right.tracker) {
-		return false;
-	}
-	if (left.tracker === "linear" && right.tracker === "linear") {
-		return left.project === right.project;
-	}
-	if ("repo" in left && "repo" in right) {
-		return left.repo === right.repo;
-	}
-	if ("owner" in left && "owner" in right) {
-		return left.owner === right.owner && left.project === right.project;
-	}
-	return false;
-}
 
 function refKey(ref: ProjectPin): string {
 	if (ref.tracker === "linear") {
@@ -3903,9 +3801,9 @@ function matchesRef(project: CatalogueProject, ref: ProjectPin): boolean {
 
 export function refForFound(
 	project: CatalogueProject,
-	pinned: readonly ProjectPin[],
+	tracked: readonly ProjectPin[],
 ): ProjectPin {
-	const pin = pinned.find((ref) => matchesRef(project, ref));
+	const pin = tracked.find((ref) => matchesRef(project, ref));
 	if (pin !== undefined) {
 		return pin;
 	}
@@ -4012,8 +3910,7 @@ function catalogueRow(
 		key: project.key,
 		tracker: project.tracker,
 		source,
-		pinned: configuration.pinned.some((item) => matchesRef(project, item)),
-		hidden: configuration.hidden.some((item) => matchesRef(project, item)),
+		tracked: configuration.tracked.some((item) => matchesRef(project, item)),
 		pmBot: projectHasPmBot(configuration.pmBot, project.key, project.tracker),
 		repos,
 		expectedBots: bots.expectedBots,
@@ -4032,11 +3929,11 @@ export function settingsProjects(
 			project,
 			configuration,
 			snapshots,
-			project.configuredOnly === true ? "pinned" : "found",
-			refForFound(project, configuration.pinned),
+			project.configuredOnly === true ? "tracked" : "found",
+			refForFound(project, configuration.tracked),
 		),
 	);
-	for (const pin of configuration.pinned) {
+	for (const pin of configuration.tracked) {
 		const located = catalogue.find((project) => matchesRef(project, pin));
 		if (located !== undefined && rows.some((row) => row.key === located.key)) {
 			continue;
@@ -4044,31 +3941,10 @@ export function settingsProjects(
 		const key = located?.key ?? refKey(pin);
 		const absent = located ?? absentProject(key, pin.tracker);
 		rows.push({
-			...catalogueRow(absent, configuration, snapshots, "pinned", pin),
+			...catalogueRow(absent, configuration, snapshots, "tracked", pin),
 			key,
 			tracker: pin.tracker,
-			pinned: true,
-			hidden: configuration.hidden.some((ref) => samePin(ref, pin)),
-		});
-	}
-	for (const pin of configuration.hidden) {
-		if (
-			catalogue.some((project) => matchesRef(project, pin)) ||
-			configuration.pinned.some((ref) => samePin(ref, pin))
-		) {
-			continue;
-		}
-		const key = refKey(pin);
-		rows.push({
-			...catalogueRow(
-				absentProject(key, pin.tracker),
-				configuration,
-				snapshots,
-				"hidden",
-				pin,
-			),
-			pinned: false,
-			hidden: true,
+			tracked: true,
 		});
 	}
 	rows.sort((left, right) => left.name.localeCompare(right.name));

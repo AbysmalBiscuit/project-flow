@@ -1,0 +1,15 @@
+{
+	"base_url": "http://127.0.0.1:47199",
+	"serve": ["bun", "proof/serve-settings.ts", "47199"],
+	"steps": [
+		{ "goto": "/settings" },
+		{ "assert_text": "Project Flow polls only tracked projects" },
+		{ "click": "#contents-projects" },
+		{ "assert_text": "Tracked" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "settings-tracked" },
+		{ "goto": "/" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "overview-tracked" }
+	]
+}

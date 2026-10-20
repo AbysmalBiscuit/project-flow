@@ -41,7 +41,7 @@ const sections = [
 ] as const;
 
 const trackerFilters = ["all", "github", "linear"] as const;
-const stateFilters = ["all", "pinned", "hidden", "shown"] as const;
+const stateFilters = ["all", "tracked"] as const;
 
 const laneStates = [
 	"backlog",
@@ -297,26 +297,6 @@ function Menu({
 							<span id="theme-value">
 								{theme === "dark" ? navLabel.dark : navLabel.light}
 							</span>
-						</Row>
-						<Row
-							title={settingsCopy.activityWindow}
-							hint={settingsCopy.activityHint}
-						>
-							<label className={clsx(fields.number)}>
-								<input
-									id="activity-window"
-									className={clsx(fields.numberInput)}
-									inputMode="numeric"
-									value={String(draft.activityWindowDays)}
-									onChange={(event) => {
-										const days = Number(event.target.value);
-										if (Number.isInteger(days) && days > 0) {
-											patch({ activityWindowDays: days });
-										}
-									}}
-								/>
-								{settingsCopy.days}
-							</label>
 						</Row>
 						<Row title={settingsCopy.pollInterval} hint={settingsCopy.pollHint}>
 							<select
@@ -972,18 +952,13 @@ function projectMatches(
 	state: (typeof stateFilters)[number],
 	draft: Configuration,
 ): boolean {
-	const pinned = draft.pinned.some((ref) => sameRef(ref, project.ref));
-	const hidden = draft.hidden.some((ref) => sameRef(ref, project.ref));
 	if (tracker !== "all" && project.tracker !== tracker) {
 		return false;
 	}
-	if (state === "pinned" && !pinned) {
-		return false;
-	}
-	if (state === "hidden" && !hidden) {
-		return false;
-	}
-	if (state === "shown" && hidden) {
+	if (
+		state === "tracked" &&
+		!draft.tracked.some((ref) => sameRef(ref, project.ref))
+	) {
 		return false;
 	}
 	const needle = query.trim().toLowerCase();
@@ -1079,9 +1054,7 @@ function ProjectsTable({
 						{(
 							[
 								["all", settingsCopy.all],
-								["pinned", settingsCopy.pinned],
-								["hidden", settingsCopy.hidden],
-								["shown", settingsCopy.shown],
+								["tracked", settingsCopy.tracked],
 							] as const
 						).map(([value, label]) => (
 							<button
@@ -1105,8 +1078,7 @@ function ProjectsTable({
 				<thead className={clsx(fields.head)}>
 					<tr>
 						<th className={clsx(fields.headCell)}>{settingsCopy.project}</th>
-						<th className={clsx(fields.headSwitch)}>{settingsCopy.pinned}</th>
-						<th className={clsx(fields.headSwitch)}>{settingsCopy.hidden}</th>
+						<th className={clsx(fields.headSwitch)}>{settingsCopy.tracked}</th>
 						<th className={clsx(fields.headSwitch)}>{settingsCopy.pmBot}</th>
 						<th className={clsx(fields.headCell)}>
 							{settingsCopy.expectedBots}
@@ -1140,8 +1112,7 @@ function ProjectRow({
 	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
 	const repos = project.repos;
 	const pmBot = projectHasPmBot(draft.pmBot, project.key, project.tracker);
-	const pinned = draft.pinned.some((ref) => sameRef(ref, project.ref));
-	const hidden = draft.hidden.some((ref) => sameRef(ref, project.ref));
+	const tracked = draft.tracked.some((ref) => sameRef(ref, project.ref));
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
@@ -1156,28 +1127,14 @@ function ProjectRow({
 			</td>
 			<td className={clsx(fields.switchCell)}>
 				<Switch
-					id={`pin-${id}`}
-					checked={pinned}
-					label={`${settingsCopy.pinned} ${project.name}`}
+					id={`track-${id}`}
+					checked={tracked}
+					label={`${settingsCopy.tracked} ${project.name}`}
 					onChange={(next) =>
 						onChange({
-							pinned: next
-								? withRef(draft.pinned, project.ref)
-								: withoutRef(draft.pinned, project.ref),
-						})
-					}
-				/>
-			</td>
-			<td className={clsx(fields.switchCell)}>
-				<Switch
-					id={`hide-${id}`}
-					checked={hidden}
-					label={`${settingsCopy.hidden} ${project.name}`}
-					onChange={(next) =>
-						onChange({
-							hidden: next
-								? withRef(draft.hidden, project.ref)
-								: withoutRef(draft.hidden, project.ref),
+							tracked: next
+								? withRef(draft.tracked, project.ref)
+								: withoutRef(draft.tracked, project.ref),
 						})
 					}
 				/>
@@ -1337,10 +1294,8 @@ function Page() {
 						...next,
 						theme: live.theme,
 						overview: live.overview,
-						pinned: next.pinned,
-						hidden: next.hidden,
-						baselinePinned: baseline.pinned,
-						baselineHidden: baseline.hidden,
+						tracked: next.tracked,
+						baselineTracked: baseline.tracked,
 						pmBot: next.pmBot,
 						expectedBots: next.expectedBots,
 						projectViews: {
