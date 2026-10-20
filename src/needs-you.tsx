@@ -18,11 +18,7 @@ import { frame, needs, shell } from "./ui-styles.ts";
 const allReasons = "all";
 const allProjects = "all";
 
-function countLabel(label: string, count: number): string {
-	return `${label} ${count}`;
-}
-
-function ChoiceButtons({
+function ChoiceSelect({
 	id,
 	label,
 	value,
@@ -36,29 +32,49 @@ function ChoiceButtons({
 	onChange: (id: string) => void;
 }) {
 	return (
-		<fieldset className={clsx(frame.views)} id={id}>
-			<legend className={clsx(frame.legend)}>{label}</legend>
-			{choices.map((choice) => {
-				const pressed = value === choice.id;
-				return (
-					<button
-						key={choice.id}
-						type="button"
-						id={`${id}-${choice.id}`}
-						className={clsx(
-							shell.button,
-							shell.buttonHover,
-							shell.buttonFocus,
-							pressed && shell.pressed,
-						)}
-						aria-pressed={pressed}
-						onClick={() => onChange(choice.id)}
-					>
-						{choice.label}
-					</button>
-				);
-			})}
-		</fieldset>
+		<select
+			id={id}
+			className={clsx(frame.select)}
+			aria-label={label}
+			size={choices.length}
+			value={value}
+			onChange={(event) => onChange(event.currentTarget.value)}
+		>
+			{choices.map((choice) => (
+				<option key={choice.id} value={choice.id}>
+					{choice.label}
+				</option>
+			))}
+		</select>
+	);
+}
+
+function PressedButton({
+	id,
+	pressed,
+	onClick,
+	children,
+}: {
+	id: string;
+	pressed: boolean;
+	onClick: () => void;
+	children: string;
+}) {
+	return (
+		<button
+			type="button"
+			id={id}
+			className={clsx(
+				shell.button,
+				shell.buttonHover,
+				shell.buttonFocus,
+				pressed && shell.pressed,
+			)}
+			aria-pressed={pressed}
+			onClick={onClick}
+		>
+			{children}
+		</button>
 	);
 }
 
@@ -82,23 +98,15 @@ function NeedsTabs({
 					tab.id === allReasons
 						? items.length
 						: items.filter((item) => item.reason === tab.id).length;
-				const pressed = reason === tab.id;
 				return (
-					<button
+					<PressedButton
 						key={tab.id}
-						type="button"
 						id={`reason-${tab.id}`}
-						className={clsx(
-							shell.button,
-							shell.buttonHover,
-							shell.buttonFocus,
-							pressed && shell.pressed,
-						)}
-						aria-pressed={pressed}
+						pressed={reason === tab.id}
 						onClick={() => onReason(tab.id)}
 					>
-						{countLabel(tab.label, count)}
-					</button>
+						{`${tab.label} ${count}`}
+					</PressedButton>
 				);
 			})}
 		</div>
@@ -165,41 +173,42 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 	const [project, setProject] = useState(allProjects);
 	const [group, setGroup] = useState<NeedsGroup>("none");
 	const projects = [...new Set(items.map((item) => item.project))];
-	const projectChoices = projects.map((name, index) => ({
-		id: `p${index + 1}`,
-		label: name,
-	}));
-	const picked = projectChoices.find((choice) => choice.id === project);
 	const shown = items.filter(
 		(item) =>
 			(reason === allReasons || item.reason === reason) &&
-			(project === allProjects || item.project === picked?.label),
+			(project === allProjects || item.project === project),
 	);
 	return (
 		<PageFrame
 			title={navLabel.needsYou}
 			filter={
-				<ChoiceButtons
+				<ChoiceSelect
 					id="needs-project"
 					label="Project"
 					value={project}
 					choices={[
 						{ id: allProjects, label: "All projects" },
-						...projectChoices,
+						...projects.map((name) => ({ id: name, label: name })),
 					]}
 					onChange={setProject}
 				/>
 			}
 			sort={
-				<ChoiceButtons
+				<ChoiceSelect
 					id="needs-group"
 					label="Group by"
-					value={group}
-					choices={(Object.keys(needsGroupLabel) as NeedsGroup[]).map((id) => ({
-						id,
-						label: needsGroupLabel[id],
+					value={needsGroupLabel[group]}
+					choices={Object.values(needsGroupLabel).map((label) => ({
+						id: label,
+						label,
 					}))}
-					onChange={(id) => setGroup(id as NeedsGroup)}
+					onChange={(label) => {
+						for (const id of ["project", "reason", "none"] as const) {
+							if (needsGroupLabel[id] === label) {
+								setGroup(id);
+							}
+						}
+					}}
 				/>
 			}
 		>
