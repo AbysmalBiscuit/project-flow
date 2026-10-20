@@ -920,12 +920,7 @@ async function listProjectItems(
 
 function githubItemStatus(
 	value: z.infer<typeof projectItem>["fieldValueByName"],
-):
-	| {
-			status: TicketStatus;
-			history?: { statusId: string; at: string; statusType: StatusType }[];
-	  }
-	| { emptyStatus: true } {
+) {
 	const name = value?.name?.trim() ?? "";
 	const optionId = value?.optionId ?? "";
 	if (name === "" || optionId === "") {
