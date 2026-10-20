@@ -174,17 +174,15 @@ async function worktreeList(path: string): Promise<{
 	return { paths, names };
 }
 
-const workcellState = z
-	.object({
-		status: z.string(),
-		manager: z.string().optional(),
-	})
-	.passthrough();
+const workcellState = z.object({
+	status: z.string(),
+	manager: z.string().optional(),
+});
 
 const agentList = z.object({
 	result: z
 		.object({
-			agents: z.array(z.object({ name: z.string().optional() }).passthrough()),
+			agents: z.array(z.object({ name: z.string().optional() })),
 		})
 		.optional(),
 });
