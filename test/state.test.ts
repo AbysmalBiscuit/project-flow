@@ -1399,7 +1399,7 @@ describe("forward state", () => {
 						labels: [{ name: "factory: in-review" }],
 					}),
 					githubIssue(11, {
-						title: "Unlabeled status label",
+						title: "No event for its status label",
 						updated_at: editedAt,
 						labels: [{ name: "factory: running" }],
 					}),
