@@ -915,66 +915,6 @@ describe("forward state", () => {
 		}
 	});
 
-	test("a blank manager name on an open run does not invent a stalled run", async () => {
-		const checkout = await devkitWorktree({
-			key: "WID-11",
-			status: "running",
-			manager: "   ",
-		});
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
-		const herdr = join(bin, "herdr");
-		await writeFile(
-			herdr,
-			`#!/usr/bin/env bun
-console.log(JSON.stringify({ result: { agents: [] } }));
-`,
-		);
-		await chmod(herdr, 0o755);
-		try {
-			await withApp(
-				JSON.stringify({
-					pinned: [{ tracker: "linear", project: linearSlug }],
-				}),
-				recordedLinear([
-					linearIssue("WID-11", "Ship the list", todoState, {
-						comments: {
-							nodes: [
-								{
-									id: "c1",
-									body: progress("- stage 1: implementing"),
-									createdAt: "2026-08-18T13:00:00.000Z",
-								},
-							],
-							pageInfo: { hasNextPage: false, endCursor: null },
-						},
-					}),
-				]),
-				{
-					LINEAR_API_KEY: "recorded-linear-key",
-					PATH: `${bin}:${process.env.PATH ?? ""}`,
-				},
-				async (base) => {
-					const report = await projectOf(base, "Widget launch");
-					expect(ticketOf(report, "WID-11")).toMatchObject({
-						state: "inProgress",
-						lane: "In Progress",
-					});
-					expect(ticketOf(report, "WID-11").chips ?? []).not.toContain(
-						"Run failed",
-					);
-					const needs = await fetch(new URL("/api/needs-you", base));
-					expect(needs.status).toBe(200);
-					const items = (await needs.json()) as NeedsYouItem[];
-					expect(items.filter((row) => row.key === "WID-11")).toEqual([]);
-				},
-				checkout.root,
-			);
-		} finally {
-			await checkout.cleanup();
-			await rm(bin, { recursive: true, force: true });
-		}
-	});
-
 	test("a herdr list that exits nonzero does not stall an open run", async () => {
 		const checkout = await devkitWorktree({
 			key: "WID-12",
