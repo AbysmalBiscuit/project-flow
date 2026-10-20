@@ -116,6 +116,12 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			id text primary key
 		)
 	`);
+	db.run(`
+		create table if not exists validators (
+			url text primary key,
+			etag text not null
+		)
+	`);
 	return {
 		store: {
 			replaceTickets(rows) {
@@ -261,6 +267,18 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 						remove.run(id);
 					}
 				})();
+			},
+			readValidators() {
+				const rows = db.query("select url, etag from validators").all() as {
+					url: string;
+					etag: string;
+				}[];
+				return rows;
+			},
+			recordValidator(url, etag) {
+				db.query(
+					"insert into validators (url, etag) values (?, ?) on conflict(url) do update set etag = excluded.etag",
+				).run(url, etag);
 			},
 		},
 		close: () => db.close(),

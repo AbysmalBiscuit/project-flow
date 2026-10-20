@@ -221,7 +221,29 @@ function isRestRead(url: string, method: string): boolean {
 	return !url.startsWith("https://api.github.com/graphql");
 }
 
-export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
+export function rememberValidator(
+	cache: RestCache,
+	url: string,
+	etag: string,
+): void {
+	const key = restKey(url);
+	const stored = cache.get(key);
+	if (stored !== undefined) {
+		stored.etag = etag;
+		return;
+	}
+	cache.set(key, {
+		etag,
+		body: null,
+		headers: [["etag", etag]],
+	});
+}
+
+export function conditionalFetch(
+	fetchImpl: Fetch,
+	cache: RestCache,
+	remember?: (url: string, etag: string) => void,
+): Fetch {
 	return async (input, init) => {
 		const url = restUrl(input);
 		const method = (init?.method ?? "GET").toUpperCase();
@@ -236,6 +258,9 @@ export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
 		}
 		const response = await fetchImpl(input, { ...init, headers });
 		if (response.status === 304 && stored !== undefined) {
+			if (stored.body === null) {
+				return response;
+			}
 			const replayed = cachedHeaders(stored);
 			response.headers.forEach((value, name) => {
 				if (name === "etag" || name === "content-length") {
@@ -251,6 +276,7 @@ export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
 				body: stored.body,
 				headers: [...replayed.entries()],
 			});
+			remember?.(key, etag);
 			return new Response(JSON.stringify(stored.body), {
 				status: 200,
 				headers: replayed,
@@ -263,6 +289,7 @@ export function conditionalFetch(fetchImpl: Fetch, cache: RestCache): Fetch {
 				body: await response.clone().json(),
 				headers: storedHeaders(response),
 			});
+			remember?.(key, next);
 		}
 		return response;
 	};

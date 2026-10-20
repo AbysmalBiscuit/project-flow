@@ -59,6 +59,7 @@ import {
 	githubTracker,
 	missingToken,
 	type RestCache,
+	rememberValidator,
 	retainListWindows,
 } from "./github.ts";
 import page from "./index.html";
@@ -1192,14 +1193,26 @@ export async function start(options: StartOptions): Promise<Running> {
 		write: (text: string) => saveConfiguration(options.configPath, text),
 	};
 	const restCache = new Map();
-	const fetchGithub = conditionalFetch(options.fetch, restCache);
+	for (const validator of opened.store.readValidators()) {
+		rememberValidator(restCache, validator.url, validator.etag);
+	}
+	const fetchGithub = conditionalFetch(
+		options.fetch,
+		restCache,
+		opened.store.recordValidator,
+	);
 	const trackers = {
 		github:
 			options.token === null ? null : githubTracker(options.token, fetchGithub),
 		linear:
 			options.linearKey === null
 				? null
-				: linearTracker(options.linearKey, options.fetch, options.token),
+				: linearTracker(
+						options.linearKey,
+						options.fetch,
+						options.token,
+						fetchGithub,
+					),
 	};
 	let configuration: Configuration;
 	try {
@@ -1323,11 +1336,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const armTimer = () => {
 		schedule(configuration.pollIntervalSeconds);
 	};
-	if (hadRows) {
-		armTimer();
-	} else {
-		void firstPoll.then(armTimer, armTimer);
-	}
+	void firstPoll.then(armTimer, armTimer);
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
