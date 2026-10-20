@@ -8,7 +8,7 @@ import type {
 import { stateLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, panel, shell } from "./ui-styles.ts";
+import { board, needs, panel, shell } from "./ui-styles.ts";
 
 const laneMarks: Record<string, typeof board.markBacklog> = {
 	[lightValues.done.toLowerCase()]: board.markDone,
@@ -62,14 +62,10 @@ function CommentTree({
 					{nested || comment.kind === "review" ? (
 						<button
 							type="button"
-							className={clsx(
-								shell.button,
-								shell.buttonHover,
-								shell.buttonFocus,
-							)}
+							className={clsx(panel.answer, shell.buttonFocus)}
 							onClick={() => onReply(comment)}
 						>
-							Reply
+							Answer
 						</button>
 					) : null}
 					{comment.children.length === 0 ? null : (
@@ -135,6 +131,7 @@ export function TicketPanel({
 	blocks = [],
 	onOpenBlocker,
 	onClose,
+	why,
 }: {
 	tracker: "github" | "linear";
 	project: string;
@@ -148,6 +145,7 @@ export function TicketPanel({
 	blocks?: OutsideBlocker[];
 	onOpenBlocker?: (blocker: OutsideBlocker) => void;
 	onClose: () => void;
+	why?: string;
 }) {
 	const [thread, setThread] = useState<Thread | null>(null);
 	const [missing, setMissing] = useState(false);
@@ -224,7 +222,7 @@ export function TicketPanel({
 		lane ?? (state === undefined ? undefined : stateLabel[state]);
 	return (
 		<aside
-			className={clsx(panel.panel)}
+			className={clsx(panel.panel, why === undefined ? null : panel.needs)}
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 		>
@@ -249,8 +247,14 @@ export function TicketPanel({
 					</button>
 				</span>
 			</div>
-			{missing ? <p>Thread not found</p> : null}
-			{thread === null && !missing ? <p>Loading thread</p> : null}
+			{missing ? (
+				<p className={clsx(panel.error)} role="alert">
+					Thread not found
+				</p>
+			) : null}
+			{thread === null && !missing ? (
+				<p className={clsx(panel.label)}>Loading thread</p>
+			) : null}
 			{thread !== null || title !== undefined ? (
 				<h2 className={clsx(panel.heading)}>{thread?.title ?? title}</h2>
 			) : null}
@@ -264,6 +268,12 @@ export function TicketPanel({
 					/>
 					{laneName}
 				</p>
+			)}
+			{why === undefined ? null : (
+				<section className={clsx(needs.why)} aria-label="Why this needs you">
+					<h3 className={clsx(needs.whyLabel)}>Why this needs you</h3>
+					<p className={clsx(needs.whyBody)}>{why}</p>
+				</section>
 			)}
 			<RelationList
 				label="Blockers"
@@ -287,29 +297,31 @@ export function TicketPanel({
 					}
 				/>
 			)}
-			<form
-				className={clsx(panel.reply)}
-				onSubmit={(event) => {
-					event.preventDefault();
-					void send(replyTo ?? { kind: "comment" });
-				}}
-			>
-				<label className={clsx(panel.label)} htmlFor="ticket-reply">
-					Reply
-				</label>
-				<textarea
-					id="ticket-reply"
-					className={clsx(panel.text)}
-					aria-label="Reply"
-					placeholder="Write a comment"
-					value={draft}
-					onChange={(event) => setDraft(event.target.value)}
-				/>
-				<button type="submit" className={clsx(panel.send)} disabled={pending}>
-					Comment
-				</button>
-				{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
-			</form>
+			{missing ? null : (
+				<form
+					className={clsx(panel.reply)}
+					onSubmit={(event) => {
+						event.preventDefault();
+						void send(replyTo ?? { kind: "comment" });
+					}}
+				>
+					<label className={clsx(panel.label)} htmlFor="ticket-reply">
+						Reply
+					</label>
+					<textarea
+						id="ticket-reply"
+						className={clsx(panel.text)}
+						aria-label="Reply"
+						placeholder="Write a comment"
+						value={draft}
+						onChange={(event) => setDraft(event.target.value)}
+					/>
+					<button type="submit" className={clsx(panel.send)} disabled={pending}>
+						Comment
+					</button>
+					{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
+				</form>
+			)}
 		</aside>
 	);
 }

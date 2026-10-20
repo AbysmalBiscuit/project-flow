@@ -22,6 +22,7 @@ import {
 } from "./notify.tsx";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
+	actionLabel,
 	navLabel,
 	overviewControlLabel,
 	overviewFilterLabel,
@@ -579,6 +580,43 @@ function TableView({ projects }: { projects: ProjectCounts[] }) {
 	);
 }
 
+function NotifyIcon() {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5" />
+			<path d="M5 16.5h14" />
+			<path d="M10 19a2 2 0 0 0 4 0" />
+		</svg>
+	);
+}
+
+function RefreshIcon() {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M20 12a8 8 0 1 1-2.3-5.6" />
+			<path d="M20 4v5h-5" />
+		</svg>
+	);
+}
+
 function MenuButton({
 	id,
 	label,
@@ -616,20 +654,6 @@ function MenuButton({
 function ticketKey(key: string): string {
 	const hash = key.lastIndexOf("#");
 	return hash === -1 ? key : key.slice(hash + 1);
-}
-
-function actionLabel(item: NeedsYouItem): string {
-	const key = ticketKey(item.key);
-	if (item.reason === "awaitingMerge") {
-		return `Merge PR #${key}`;
-	}
-	if (item.reason === "ask") {
-		return "Answer question";
-	}
-	if (item.reason === "runFailed") {
-		return "Open run";
-	}
-	return `Review ${key}`;
 }
 
 async function readSettings(): Promise<Configuration | null> {
@@ -781,6 +805,38 @@ function OverviewPage({
 					saveView({ ...view, view: next });
 				}
 			}}
+			actions={
+				<div className={clsx(frame.actions)}>
+					<button
+						type="button"
+						id="overview-refresh"
+						className={clsx(frame.icon, shell.buttonFocus)}
+						aria-label="Refresh"
+						title="Refresh"
+						onClick={() => {
+							void fetch("/api/refresh", { method: "POST" });
+						}}
+					>
+						<RefreshIcon />
+					</button>
+					{notifyPermission === "default" &&
+					typeof Notification !== "undefined" ? (
+						<button
+							type="button"
+							id="notify-permission"
+							className={clsx(frame.notify, shell.buttonFocus)}
+							onClick={() => {
+								void askNotificationPermission().finally(() => {
+									setNotifyPermission(notificationPermission());
+								});
+							}}
+						>
+							<NotifyIcon />
+							Allow notifications
+						</button>
+					) : null}
+				</div>
+			}
 		>
 			{needs.length === 0 || view.view !== "cards" ? null : (
 				<section>
@@ -812,7 +868,7 @@ function OverviewPage({
 									className={clsx(cards.pill)}
 									href={projectPath(item.project, item.key)}
 								>
-									{actionLabel(item)}
+									{actionLabel(item, "strip")}
 								</a>
 							</li>
 						))}
@@ -892,20 +948,6 @@ function OverviewPage({
 					)}
 				</div>
 			</div>
-			{notifyPermission === "default" ? (
-				<button
-					type="button"
-					id="notify-permission"
-					className={clsx(frame.legend)}
-					onClick={() => {
-						void askNotificationPermission().finally(() => {
-							setNotifyPermission(notificationPermission());
-						});
-					}}
-				>
-					Allow notifications
-				</button>
-			) : null}
 			{overview.polling === true ? (
 				<p className={clsx(cards.loading)}>Loading projects</p>
 			) : overview.error !== null ? (

@@ -712,6 +712,41 @@ describe("replies", () => {
 		}
 	});
 
+	test("a thread hides the workcell marker from the rendered body", async () => {
+		const recorded = githubFetch([], {
+			issues: [issue(7)],
+			comments: {
+				7: [
+					{
+						id: 71,
+						body: "Which name?\n\n<!-- workcell:ask 7-1 -->",
+						user: { login: "ada" },
+						created_at: "2026-08-18T12:00:00.000Z",
+						html_url: "https://github.com/acme/widget/issues/7#issuecomment-71",
+					},
+				],
+			},
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(200);
+			const thread = (await response.json()) as Thread;
+			expect(thread.comments[0]?.body).toBe("Which name?");
+			expect(thread.comments[0]?.body).not.toContain("workcell:ask");
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a GitHub issue thread returns the tracker URL", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {
