@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { TicketSearchHit } from "./app.ts";
+import type { NeedsYouItem } from "./domain.ts";
+import { sameTicketKey } from "./domain.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
@@ -26,6 +28,7 @@ export function JumpBox() {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
+	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
 	const ticket = useActiveTicket();
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
@@ -91,6 +94,27 @@ export function JumpBox() {
 		if (!open) {
 			return;
 		}
+		let stopped = false;
+		fetch("/api/needs-you")
+			.then(async (response) => {
+				if (stopped || !response.ok) {
+					return;
+				}
+				setNeeds((await response.json()) as NeedsYouItem[]);
+			})
+			.catch(() => {
+				if (!stopped) {
+					setNeeds([]);
+				}
+			});
+		return () => {
+			stopped = true;
+		};
+	}, [open]);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
 		const needle = query.trim();
 		if (needle === "") {
 			setHits([]);
@@ -116,6 +140,17 @@ export function JumpBox() {
 			clearTimeout(handle);
 		};
 	}, [open, query]);
+	const needsItem = (hit: {
+		tracker: NeedsYouItem["tracker"];
+		project: string;
+		key: string;
+	}): NeedsYouItem | undefined =>
+		needs.find(
+			(item) =>
+				item.tracker === hit.tracker &&
+				item.project === hit.project &&
+				sameTicketKey(item.key, hit.key),
+		);
 	const pageRendersPanel =
 		window.location.pathname === "/needs-you" ||
 		window.location.pathname === "/inbox" ||
@@ -153,10 +188,12 @@ export function JumpBox() {
 										className={clsx(jump.hit)}
 										data-ticket={hit.key}
 										onClick={() => {
+											const item = needsItem(hit);
 											openTicket({
 												project: hit.project,
 												tracker: hit.tracker,
 												key: hit.key,
+												...(item === undefined ? {} : { item }),
 											});
 											closeSearch();
 										}}
@@ -176,7 +213,7 @@ export function JumpBox() {
 					tracker={ticket.tracker}
 					project={ticket.project}
 					ticketKey={ticket.key}
-					item={ticket.item ?? null}
+					item={ticket.item ?? needsItem(ticket) ?? null}
 					onClose={closeTicket}
 				/>
 			)}

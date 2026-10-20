@@ -1,0 +1,29 @@
+{
+	"base_url": "http://127.0.0.1:4191",
+	"serve": ["bun", "proof/serve-why-paths.ts", "4191"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Pick a review bot" },
+		{ "click": "button[data-ticket='acme/widget#7']" },
+		{ "assert_text": "WHY THIS NEEDS YOU" },
+		{ "assert_text": "Which bot should review this?" },
+		{ "assert_text": "Keep the current bot" },
+		{ "shot": "board-why" },
+		{ "click": "aside[data-panel] button[aria-label='Close']" },
+		{ "click": "#view-graph" },
+		{ "assert_text": "Pick a review bot" },
+		{ "click": "#project-diagram button[data-ticket='acme/widget#7']" },
+		{ "assert_text": "WHY THIS NEEDS YOU" },
+		{ "assert_text": "Which bot should review this?" },
+		{ "assert_text": "Keep the current bot" },
+		{ "shot": "diagram-why" },
+		{ "click": "aside[data-panel] button[aria-label='Close']" },
+		{ "click": "#header-search" },
+		{ "fill": "#jump-query", "text": "review bot" },
+		{ "click": "[role='dialog'] button[data-ticket='acme/widget#7']" },
+		{ "assert_text": "WHY THIS NEEDS YOU" },
+		{ "assert_text": "Which bot should review this?" },
+		{ "assert_text": "Keep the current bot" },
+		{ "shot": "jump-why" }
+	]
+}
