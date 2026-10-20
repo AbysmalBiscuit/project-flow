@@ -2000,7 +2000,7 @@ const repoReadPage = z.object({
 		repository: z
 			.object({
 				nameWithOwner: z.string(),
-				autoMergeAllowed: z.boolean().optional(),
+				autoMergeAllowed: z.boolean().nullable().optional().catch(null),
 				refs: graphqlConnection(
 					z.object({ name: z.string() }).nullable(),
 				).optional(),
@@ -2033,6 +2033,60 @@ type PageCursors = {
 	labels: string | null;
 	edited: string | null;
 };
+
+const autoMergeQuery = `query RepoRead($owner: String!, $name: String!) {
+	repository(owner: $owner, name: $name) { nameWithOwner autoMergeAllowed }
+}`;
+
+async function readAutoMerge(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+): Promise<boolean> {
+	const parts = splitRepo(repo);
+	if (parts === null) {
+		return false;
+	}
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({
+			query: autoMergeQuery,
+			variables: { owner: parts.owner, name: parts.name },
+		}),
+	});
+	if (response.status === 404) {
+		return false;
+	}
+	if (!response.ok) {
+		throw new Error(
+			`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
+		);
+	}
+	const parsed = z
+		.object({
+			data: z.object({
+				repository: z
+					.object({
+						nameWithOwner: z.string(),
+						autoMergeAllowed: z.boolean().nullable(),
+					})
+					.nullable(),
+			}),
+			errors: z.array(z.object({ message: z.string() })).optional(),
+		})
+		.safeParse(await response.json());
+	const repository = parsed.success ? parsed.data.data.repository : null;
+	if (
+		!parsed.success ||
+		parsed.data.errors?.[0] !== undefined ||
+		repository === null ||
+		repository.nameWithOwner.toLowerCase() !== repo.toLowerCase()
+	) {
+		throw new Error(`GitHub read repo failed: ${repo}`);
+	}
+	return repository.autoMergeAllowed === true;
+}
 
 async function readRepoPage(
 	token: string,
@@ -2776,6 +2830,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		projectItemsById.set(projectId, listed);
 		return listed;
 	};
+	const autoMergeByRepo = new Map<string, Promise<boolean>>();
 	let pollReads = new Map<string, Promise<Date | null>>();
 	const beginPoll = () => {
 		const reads = new Map<string, Promise<Date | null>>();
@@ -2822,6 +2877,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		if (pollReads === activeReads) {
 			activeReads = beginPoll();
 			repoSnapshots.clear();
+			autoMergeByRepo.clear();
 		}
 	};
 	return {
@@ -2905,11 +2961,17 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			if (!repo.includes("/")) {
 				return false;
 			}
-			const batched = await repoReadFor(repo, null);
-			if (batched === null) {
-				throw new Error(`GitHub read repo failed: ${repo}`);
+			const cached = autoMergeByRepo.get(repo);
+			if (cached !== undefined) {
+				return cached;
 			}
-			return batched.autoMerge;
+			const snapshot = repoSnapshots.get(repo);
+			const read =
+				snapshot === undefined
+					? readAutoMerge(token, fetchImpl, repo)
+					: snapshot.then((opened) => opened?.autoMerge ?? false);
+			autoMergeByRepo.set(repo, read);
+			return read;
 		},
 		async listBranches(repo) {
 			if (!repo.includes("/")) {

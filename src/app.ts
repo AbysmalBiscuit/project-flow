@@ -930,7 +930,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 						continue;
 					}
 					readRepos.add(repo);
-					options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+					try {
+						options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+					} catch {
+						options.repoAutoMerge[repo] = false;
+					}
 				}
 			}
 			listed.push({
