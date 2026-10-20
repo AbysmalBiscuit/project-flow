@@ -5,7 +5,6 @@ import type {
 	ProjectViewSettings,
 } from "./configuration.ts";
 import {
-	configurationWrite,
 	loadConfiguration,
 	saveConfiguration,
 } from "./configuration.ts";
@@ -362,6 +361,27 @@ function settingsResponse(
 			linear: credentials.linearKey !== null,
 		},
 	};
+}
+
+function withoutTrackers(text: string): string {
+	const trimmed = text.trim();
+	if (trimmed === "") {
+		return text;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(trimmed);
+	} catch {
+		return text;
+	}
+	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return text;
+	}
+	const { trackers: _trackers, ...configuration } = parsed as Record<
+		string,
+		unknown
+	>;
+	return JSON.stringify(configuration);
 }
 
 function viewOnlyChange(before: Configuration, after: Configuration): boolean {
@@ -1304,7 +1324,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/settings": {
 				GET: () => Response.json(settingsResponse(configuration, options)),
 				PUT: async (request: Request) => {
-					const text = configurationWrite(await request.text());
+					const text = withoutTrackers(await request.text());
 					const previous = configuration;
 					try {
 						await (polling ?? Promise.resolve());
