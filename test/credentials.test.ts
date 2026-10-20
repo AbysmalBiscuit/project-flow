@@ -9,6 +9,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -82,6 +83,7 @@ function githubLists(seen: string[]): Fetch {
 		if (
 			url.includes("/pulls?") ||
 			url.includes("/branches?") ||
+			url.includes("/labels?") ||
 			url.includes("/comments") ||
 			url.includes("/reviews") ||
 			url.includes("/reactions") ||
@@ -107,7 +109,7 @@ function githubLists(seen: string[]): Fetch {
 				{ status: 200 },
 			);
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 

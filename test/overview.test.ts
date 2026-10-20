@@ -7,10 +7,12 @@ import type { Overview, ProjectCounts } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { readGhAuthToken, run } from "../src/main.ts";
 import {
+	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -56,7 +58,11 @@ function page(
 }
 
 function emptyList(url: string): Response | null {
-	if (url.includes("/pulls?") || url.includes("/branches?")) {
+	if (
+		url.includes("/pulls?") ||
+		url.includes("/branches?") ||
+		url.includes("/labels?")
+	) {
 		return page([], null);
 	}
 	return null;
@@ -91,7 +97,11 @@ function githubFetch(requests: string[] = []): Fetch {
 		if (url === second) {
 			return page(recorded.slice(4), null);
 		}
-		if (url.includes("/pulls?") || url.includes("/branches?")) {
+		if (
+			url.includes("/pulls?") ||
+			url.includes("/branches?") ||
+			url.includes("/labels?")
+		) {
 			return page([], null);
 		}
 		if (url.includes("/check-runs")) {
@@ -123,7 +133,9 @@ function githubFetch(requests: string[] = []): Fetch {
 				headers: { "content-type": "application/json" },
 			});
 		}
-		return emptyList(url) ?? new Response("not recorded", { status: 404 });
+		return (
+			emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+		);
 	};
 }
 
@@ -149,31 +161,53 @@ async function assertCard(base: string): Promise<void> {
 			tags: [],
 			unlinkedPrs: [],
 			tickets: [
-				{ key: `${repo}#1`, title: "Ticket 1", state: "done", blockers: [] },
+				{
+					key: `${repo}#1`,
+					title: "Ticket 1",
+					state: "done",
+					blockers: [],
+					lane: "Done",
+					statusType: "done",
+				},
 				{
 					key: `${repo}#2`,
 					title: "Ticket 2",
 					state: "dropped",
 					blockers: [],
+					lane: "Dropped",
+					statusType: "dropped",
 				},
 				{
 					key: `${repo}#3`,
 					title: "Ticket 3",
 					state: "dropped",
 					blockers: [],
+					lane: "Dropped",
+					statusType: "dropped",
 				},
-				{ key: `${repo}#4`, title: "Ticket 4", state: "done", blockers: [] },
+				{
+					key: `${repo}#4`,
+					title: "Ticket 4",
+					state: "done",
+					blockers: [],
+					lane: "Done",
+					statusType: "done",
+				},
 				{
 					key: `${repo}#5`,
 					title: "Ticket 5",
 					state: "backlog",
 					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
 				},
 				{
 					key: `${repo}#6`,
 					title: "Ticket 6",
 					state: "backlog",
 					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
 				},
 			],
 			crossProjectBlockers: [],
@@ -181,6 +215,14 @@ async function assertCard(base: string): Promise<void> {
 			progress: 33,
 			fetchedAt: body.fetchedAt,
 			error: null,
+			statusTypes: {
+				backlog: 2,
+				inProgress: 0,
+				inReview: 0,
+				awaitingMerge: 0,
+				done: 2,
+				dropped: 2,
+			},
 		},
 	]);
 	expect(body.error).toBeNull();
@@ -233,7 +275,7 @@ function linearFetch(requests: string[]): Fetch {
 			{ nodes: linearRecorded.slice(4), endCursor: null },
 		],
 		requests,
-		github: async (input) => {
+		github: async (input, init) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -242,7 +284,11 @@ function linearFetch(requests: string[]): Fetch {
 			if (url === list) {
 				return page(recorded, null);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
 			if (url.includes("/check-runs")) {
@@ -270,7 +316,7 @@ function linearFetch(requests: string[]): Fetch {
 					{ status: 200 },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		},
 	});
 }
@@ -344,10 +390,16 @@ describe("GET /api/overview", () => {
 					requests.push(url);
 					return page([ticket(1, "open", null)], null);
 				}
-				if (url.includes("/pulls?") || url.includes("/branches?")) {
+				if (
+					url.includes("/pulls?") ||
+					url.includes("/branches?") ||
+					url.includes("/labels?")
+				) {
 					return page([], null);
 				}
-				return emptyList(url) ?? new Response("not recorded", { status: 404 });
+				return (
+					emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+				);
 			};
 		const store = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(store, "project-flow.sqlite");
@@ -420,6 +472,8 @@ describe("GET /api/overview", () => {
 								title: "Ticket 1",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						crossProjectBlockers: [],
@@ -427,6 +481,14 @@ describe("GET /api/overview", () => {
 						progress: 0,
 						fetchedAt: first.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: first.fetchedAt,
@@ -455,6 +517,8 @@ describe("GET /api/overview", () => {
 								title: "Ticket 1",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						crossProjectBlockers: [],
@@ -462,6 +526,14 @@ describe("GET /api/overview", () => {
 						progress: 0,
 						fetchedAt: second.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: second.fetchedAt,
@@ -645,6 +717,8 @@ describe("GET /api/overview", () => {
 								title: "Linear ticket 1",
 								state: "done",
 								blockers: [],
+								lane: "Done",
+								statusType: "done",
 							},
 						],
 						crossProjectBlockers: [],
@@ -652,6 +726,14 @@ describe("GET /api/overview", () => {
 						progress: 100,
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 0,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 1,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -857,36 +939,48 @@ describe("GET /api/overview", () => {
 									title: "Ticket 1",
 									state: "done",
 									blockers: [],
+									lane: "Done",
+									statusType: "done",
 								},
 								{
 									key: `${repo}#2`,
 									title: "Ticket 2",
 									state: "dropped",
 									blockers: [],
+									lane: "Dropped",
+									statusType: "dropped",
 								},
 								{
 									key: `${repo}#3`,
 									title: "Ticket 3",
 									state: "dropped",
 									blockers: [],
+									lane: "Dropped",
+									statusType: "dropped",
 								},
 								{
 									key: `${repo}#4`,
 									title: "Ticket 4",
 									state: "done",
 									blockers: [],
+									lane: "Done",
+									statusType: "done",
 								},
 								{
 									key: `${repo}#5`,
 									title: "Ticket 5",
 									state: "backlog",
 									blockers: [],
+									lane: "Backlog",
+									statusType: "backlog",
 								},
 								{
 									key: `${repo}#6`,
 									title: "Ticket 6",
 									state: "backlog",
 									blockers: [],
+									lane: "Backlog",
+									statusType: "backlog",
 								},
 							],
 							crossProjectBlockers: [],
@@ -894,6 +988,14 @@ describe("GET /api/overview", () => {
 							progress: 33,
 							fetchedAt: github?.fetchedAt ?? null,
 							error: null,
+							statusTypes: {
+								backlog: 2,
+								inProgress: 0,
+								inReview: 0,
+								awaitingMerge: 0,
+								done: 2,
+								dropped: 2,
+							},
 						});
 						const linear = body.projects.find(
 							(project) => project.tracker === "linear",
@@ -916,36 +1018,48 @@ describe("GET /api/overview", () => {
 									title: "Linear ticket 1",
 									state: "done",
 									blockers: [],
+									lane: "Done",
+									statusType: "done",
 								},
 								{
 									key: "WID-2",
 									title: "Linear ticket 2",
 									state: "dropped",
 									blockers: [],
+									lane: "Dropped",
+									statusType: "dropped",
 								},
 								{
 									key: "WID-3",
 									title: "Linear ticket 3",
 									state: "dropped",
 									blockers: [],
+									lane: "Dropped",
+									statusType: "dropped",
 								},
 								{
 									key: "WID-4",
 									title: "Linear ticket 4",
 									state: "done",
 									blockers: [],
+									lane: "Done",
+									statusType: "done",
 								},
 								{
 									key: "WID-5",
 									title: "Linear ticket 5",
 									state: "backlog",
 									blockers: [],
+									lane: "Backlog",
+									statusType: "backlog",
 								},
 								{
 									key: "WID-6",
 									title: "Linear ticket 6",
 									state: "backlog",
 									blockers: [],
+									lane: "Backlog",
+									statusType: "backlog",
 								},
 							],
 							crossProjectBlockers: [],
@@ -953,6 +1067,14 @@ describe("GET /api/overview", () => {
 							progress: 33,
 							fetchedAt: linear?.fetchedAt ?? null,
 							error: null,
+							statusTypes: {
+								backlog: 2,
+								inProgress: 0,
+								inReview: 0,
+								awaitingMerge: 0,
+								done: 2,
+								dropped: 2,
+							},
 						});
 						expect(body.error).toBeNull();
 						resolve();
@@ -1067,7 +1189,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1118,11 +1242,21 @@ describe("GET /api/overview", () => {
 								title: "Ticket 1",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -1251,7 +1385,9 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1305,17 +1441,29 @@ describe("GET /api/overview", () => {
 								title: "Ticket 1",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 							{
 								key: `${repo}#2`,
 								title: "Ticket 2",
 								state: "done",
 								blockers: [],
+								lane: "Done",
+								statusType: "done",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 1,
+							dropped: 0,
+						},
 					},
 					{
 						name: "Widget launch",
@@ -1337,17 +1485,29 @@ describe("GET /api/overview", () => {
 								title: "Linear ticket 1",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 							{
 								key: "WID-2",
 								title: "Linear ticket 2",
 								state: "done",
 								blockers: [],
+								lane: "Done",
+								statusType: "done",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[1]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 1,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -1380,6 +1540,12 @@ describe("GET /api/overview", () => {
 					status: 200,
 					headers: { "content-type": "application/json" },
 				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -1491,7 +1657,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1542,11 +1710,21 @@ describe("GET /api/overview", () => {
 								title: "",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -1648,7 +1826,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1699,11 +1879,21 @@ describe("GET /api/overview", () => {
 								title: "Linear ticket 1",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -1790,6 +1980,12 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				const variables = JSON.parse(body) as { variables?: { id?: string } };
@@ -1838,7 +2034,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -1914,6 +2112,12 @@ describe("GET /api/overview", () => {
 				`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`
 			) {
 				return page([shared, repoOnly], null);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2012,7 +2216,9 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2063,17 +2269,29 @@ describe("GET /api/overview", () => {
 								title: "",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 							{
 								key: "acme/widget#8",
 								title: "",
 								state: "done",
 								blockers: [],
+								lane: "Done",
+								statusType: "done",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 1,
+							dropped: 0,
+						},
 					},
 					{
 						name: repo,
@@ -2095,11 +2313,21 @@ describe("GET /api/overview", () => {
 								title: "Ticket 4",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[1]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -2170,6 +2398,12 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				const variables = JSON.parse(body) as { variables?: { id?: string } };
@@ -2223,7 +2457,9 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2271,11 +2507,21 @@ describe("GET /api/overview", () => {
 								title: "",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -2345,6 +2591,12 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return new Response(
@@ -2394,7 +2646,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2445,11 +2699,21 @@ describe("GET /api/overview", () => {
 								title: "Ticket 9",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -2523,6 +2787,12 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return new Response(
@@ -2572,7 +2842,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2623,11 +2895,21 @@ describe("GET /api/overview", () => {
 								title: "Ticket 9",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -2697,6 +2979,12 @@ describe("GET /api/overview", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return new Response(
@@ -2746,7 +3034,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -2797,11 +3087,21 @@ describe("GET /api/overview", () => {
 								title: "Ticket 9",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -2923,7 +3223,9 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3145,7 +3447,9 @@ describe("GET /api/overview", () => {
 					{ status: 200 },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3194,6 +3498,14 @@ describe("GET /api/overview", () => {
 						unlinkedPrs: [],
 						fetchedAt: body.projects[0]?.fetchedAt ?? null,
 						error: null,
+						statusTypes: {
+							backlog: 0,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: body.fetchedAt,
@@ -3288,7 +3600,9 @@ describe("GET /api/overview", () => {
 					},
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3345,7 +3659,7 @@ describe("GET /api/overview", () => {
 				body: "",
 			};
 		}
-		const recorded: Fetch = async (input) => {
+		const recorded: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -3432,10 +3746,14 @@ describe("GET /api/overview", () => {
 			if (url.includes(`/repos/${asked}/issues/7/comments`)) {
 				return page([{ body: `This waits on Lev.\n\n${ask}` }], null);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3496,7 +3814,7 @@ describe("GET /api/overview", () => {
 		const ask = "<!-- workcell:ask 11-2 -->";
 		const listed = "acme/listed";
 		const commentBody = `This waits on Lev.\n\n${ask}`;
-		const recorded: Fetch = async (input) => {
+		const recorded: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
@@ -3557,10 +3875,14 @@ describe("GET /api/overview", () => {
 					null,
 				);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: listed }] }),
@@ -3652,7 +3974,9 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return emptyList(url) ?? new Response("not recorded", { status: 404 });
+			return (
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
+			);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3696,12 +4020,12 @@ describe("GET /api/overview", () => {
 		const { path, cleanup } = await tempConfig("{}");
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const bin = await mkdtemp(join(tmpdir(), "project-flow-no-gh-"));
-		const recorded: Fetch = async (input) => {
+		const recorded: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			if (url.startsWith("https://api.github.com/")) {
 				throw new Error("GitHub must not be called without a token");
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3947,7 +4271,7 @@ describe("GET /api/overview", () => {
 				}
 				return page([], null, { etag: closedEtag });
 			}
-			if (url.includes("/branches?")) {
+			if (url.includes("/branches?") || url.includes("/labels?")) {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
@@ -3973,7 +4297,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3998,6 +4322,8 @@ describe("GET /api/overview", () => {
 							title: "Ticket 4",
 							state: "backlog",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					]);
 					expect(before.projects[0]?.unlinkedPrs).toEqual([
@@ -4097,6 +4423,7 @@ describe("GET /api/overview", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
@@ -4123,7 +4450,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4143,6 +4470,8 @@ describe("GET /api/overview", () => {
 							title: "Ticket 4",
 							state: "backlog",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					]);
 					const refresh = await fetch(new URL("/api/refresh", base), {
@@ -4251,7 +4580,7 @@ describe("GET /api/overview", () => {
 					etag: laterEtag,
 				});
 			}
-			if (url.includes("/pulls?")) {
+			if (url.includes("/pulls?") || url.includes("/labels?")) {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
@@ -4274,7 +4603,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4296,6 +4625,8 @@ describe("GET /api/overview", () => {
 							title: "Ticket 21",
 							state: "inProgress",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					]);
 					const refresh = await fetch(new URL("/api/refresh", base), {
@@ -4382,7 +4713,11 @@ describe("GET /api/overview", () => {
 				}
 				return page([ticket(8, "open", null)], null, { etag: windowEtag });
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
@@ -4405,7 +4740,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4543,7 +4878,7 @@ describe("GET /api/overview", () => {
 				const etag = since.includes("T12:00:") ? firstEtag : secondEtag;
 				return page([ticket(8, "open", null)], null, { etag });
 			}
-			if (url.includes("/pulls?")) {
+			if (url.includes("/pulls?") || url.includes("/labels?")) {
 				return page([], null, { etag: stableEtag });
 			}
 			if (url.includes("/branches?")) {
@@ -4569,7 +4904,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4716,7 +5051,7 @@ describe("GET /api/overview", () => {
 					page([ticket(8, "open", null)], null, { etag: windowEtag }),
 				);
 			}
-			if (url.includes("/pulls?")) {
+			if (url.includes("/pulls?") || url.includes("/labels?")) {
 				return note(200, page([], null));
 			}
 			if (url.includes("/branches?")) {
@@ -4742,7 +5077,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({

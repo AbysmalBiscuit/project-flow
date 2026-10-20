@@ -15,6 +15,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -38,6 +39,7 @@ function recordedFetch(userStatus: number): Fetch {
 			url.includes("/issues?") ||
 			url.includes("/pulls?") ||
 			url.includes("/branches?") ||
+			url.includes("/labels?") ||
 			url.includes("/check-runs") ||
 			url.includes("/comments") ||
 			url.includes("/reviews") ||
@@ -70,7 +72,7 @@ function recordedFetch(userStatus: number): Fetch {
 				headers: { "content-type": "application/json" },
 			});
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -172,14 +174,15 @@ describe("startup", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return new Response("[]", {
 						status: 200,
 						headers: { "content-type": "application/json" },
 					});
 				}
-				return new Response("not recorded", { status: 404 });
+				return unrecorded(input);
 			},
 		});
 		let startChecks: (base: string) => void = () => {};

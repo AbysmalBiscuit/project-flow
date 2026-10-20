@@ -52,6 +52,38 @@ export function recordedDiscovery(
 	return null;
 }
 
+export function unrecorded(input: string | URL | Request): Response {
+	const url = urlOf(input);
+	if (/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/labels\?/.test(url)) {
+		return new Response("[]", {
+			status: 200,
+			headers: { "content-type": "application/json" },
+		});
+	}
+	return (
+		recordedDiscovery(input) ?? new Response("not recorded", { status: 404 })
+	);
+}
+
+export function emptyProjectFields(
+	input: string | URL | Request,
+	init?: RequestInit,
+): Response | null {
+	const body = typeof init?.body === "string" ? init.body : "";
+	if (urlOf(input) !== "https://api.github.com/graphql") {
+		return null;
+	}
+	if (!body.includes("ProjectFields")) {
+		return null;
+	}
+	return new Response(
+		JSON.stringify({
+			data: { node: { fields: { nodes: [{}] } } },
+		}),
+		{ status: 200, headers: { "content-type": "application/json" } },
+	);
+}
+
 export function urlOf(input: string | URL | Request): string {
 	if (typeof input === "string") {
 		return input;
@@ -123,7 +155,19 @@ export type TrackerRequest = {
 };
 
 export type LinearFake = {
-	project?: { id: string; name: string; slugId: string } | null;
+	project?: {
+		id: string;
+		name: string;
+		slugId: string;
+		teams?: { nodes: { id: string; key: string; name: string }[] };
+	} | null;
+	states?: {
+		id: string;
+		name: string;
+		type: string;
+		position: number;
+		color: string;
+	}[];
 	issues?: Record<string, unknown>[];
 	pages?: { nodes: Record<string, unknown>[]; endCursor: string | null }[];
 	fail?: "lookup" | "issues" | "key" | "reply";
@@ -186,10 +230,10 @@ export function linearFake(options: LinearFake = {}): Fetch {
 					headers: { "content-type": "application/json" },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		}
 		if (url !== "https://api.linear.app/graphql") {
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		}
 		const body = typeof init?.body === "string" ? init.body : "";
 		const query = JSON.parse(body) as {
@@ -225,6 +269,15 @@ export function linearFake(options: LinearFake = {}): Fetch {
 				return new Response("unauthorized", { status: 401 });
 			}
 			return linearJson({ data: { viewer: { id: "viewer-ada" } } });
+		}
+		if (query.query?.includes("TeamStates")) {
+			return linearJson({
+				data: {
+					team: {
+						states: { nodes: options.states ?? [] },
+					},
+				},
+			});
 		}
 		if (query.query?.includes("ProjectByPin")) {
 			if (options.fail === "lookup") {

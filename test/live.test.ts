@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	unrecorded,
+	urlOf,
+} from "./support.ts";
 
 const repo = "acme/widget";
 const otherRepo = "acme/other";
@@ -37,6 +43,7 @@ function recordedOrEmpty(url: string): Response | null {
 	if (
 		url.includes("/pulls?") ||
 		url.includes("/branches?") ||
+		url.includes("/labels?") ||
 		url.includes("/comments") ||
 		url.includes("/reviews") ||
 		url.includes("/reactions")
@@ -79,9 +86,7 @@ function changingFetch(requests: string[]): Fetch {
 				ticket(2, "2026-04-02T00:00:00Z"),
 			]);
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -178,20 +183,28 @@ function openEventStream(base: string): {
 	};
 }
 
-function openEvents(base: string): Promise<ChangeEvent> {
-	return new Promise((resolve, reject) => {
+function openEvents(base: string): {
+	event: Promise<ChangeEvent>;
+	ready: Promise<void>;
+} {
+	let markReady = () => {};
+	const ready = new Promise<void>((resolve) => {
+		markReady = resolve;
+	});
+	const event = new Promise<ChangeEvent>((resolve, reject) => {
 		let buffer = "";
 		const socket = Bun.connect({
 			hostname: "127.0.0.1",
 			port: Number(new URL(base).port),
 			socket: {
 				data(_socket, data) {
+					markReady();
 					buffer += data.toString();
 					const parsed = readSseEvents(buffer);
 					buffer = parsed.rest;
-					const event = parsed.events[0];
-					if (event !== undefined) {
-						resolve(event);
+					const received = parsed.events[0];
+					if (received !== undefined) {
+						resolve(received);
 					}
 				},
 				error(_socket, error) {
@@ -209,6 +222,7 @@ function openEvents(base: string): Promise<ChangeEvent> {
 			reject(new Error("no event within 3000ms"));
 		}, 3_000);
 	});
+	return { event, ready };
 }
 
 function failingAfterGoodPoll(requests: string[]): Fetch {
@@ -224,15 +238,16 @@ function failingAfterGoodPoll(requests: string[]): Fetch {
 		}
 		if (listUrl(url) !== null) {
 			requests.push(url);
+			if (!url.includes("/issues?")) {
+				return page([]);
+			}
 			polls += 1;
 			if (polls === 1) {
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
 			return new Response("recorded failure", { status: 500 });
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -250,9 +265,7 @@ function unchangedFetch(requests: string[]): Fetch {
 			requests.push(url);
 			return page([]);
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -275,9 +288,7 @@ function failingThenRecorded(requests: string[]): Fetch {
 			}
 			return page([ticket(1, "2026-04-01T00:00:00Z")]);
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -301,12 +312,15 @@ type OverviewBody = {
 			title: string;
 			state: string;
 			blockers: string[];
+			lane?: string;
+			statusType?: string;
 		}[];
 		crossProjectBlockers: unknown[];
 		needsYou: number;
 		progress: number;
 		fetchedAt: string | null;
 		error: string | null;
+		statusTypes: Record<string, number>;
 	}[];
 	fetchedAt: string | null;
 	error: string | null;
@@ -341,6 +355,14 @@ function counts(
 			backlog + done === 0 ? 0 : Math.round((done / (backlog + done)) * 100),
 		fetchedAt,
 		error,
+		statusTypes: {
+			backlog,
+			inProgress: 0,
+			inReview: 0,
+			awaitingMerge: 0,
+			done,
+			dropped: 0,
+		},
 	};
 }
 
@@ -353,6 +375,8 @@ function githubTicket(
 		title: `Ticket ${number}`,
 		state,
 		blockers: [],
+		lane: state === "done" ? "Done" : "Backlog",
+		statusType: state,
 	};
 }
 
@@ -364,6 +388,8 @@ function linearTicket(
 		title: "",
 		state: "backlog",
 		blockers: [],
+		lane: "Backlog",
+		statusType: "backlog",
 	};
 }
 
@@ -463,7 +489,7 @@ function linearPinFetch(requests: string[]): Fetch {
 				headers: { "content-type": "application/json" },
 			});
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -544,9 +570,7 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -620,9 +644,7 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -703,9 +725,7 @@ describe("live updates", () => {
 				await heldFor;
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -826,9 +846,7 @@ describe("live updates", () => {
 				await pollHeld;
 				return page([ticket(9, "2026-04-03T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -856,10 +874,7 @@ describe("live updates", () => {
 					if (listUrl(url) !== null) {
 						return page([ticket(1, "2026-04-01T00:00:00Z")]);
 					}
-					return (
-						recordedOrEmpty(url) ??
-						new Response("not recorded", { status: 404 })
-					);
+					return recordedOrEmpty(url) ?? unrecorded(input);
 				},
 				readGhToken: async () => null,
 				databasePath,
@@ -999,9 +1014,7 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -1131,9 +1144,7 @@ describe("live updates", () => {
 				polls += 1;
 				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(fetchImpl, 3600, async (base) => {
 			const refresh = await fetch(new URL("/api/refresh", base), {
@@ -1162,7 +1173,8 @@ describe("live updates", () => {
 	test("a failed fetch keeps the stored overview and names the error", async () => {
 		const requests: string[] = [];
 		await withServer(failingAfterGoodPoll(requests), 3600, async (base) => {
-			const eventPromise = openEvents(base);
+			const events = openEvents(base);
+			await events.ready;
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
@@ -1185,7 +1197,7 @@ describe("live updates", () => {
 			expect(body.projects[0]?.error).toContain(`stale since ${goodPoll}`);
 			expect(body.fetchedAt).toBe(goodPoll);
 			expect(body.error).toBeNull();
-			const received = await eventPromise;
+			const received = await events.event;
 			expect(JSON.parse(received.data)).toEqual(body);
 		});
 	});
@@ -1210,9 +1222,7 @@ describe("live updates", () => {
 				}
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1278,9 +1288,7 @@ describe("live updates", () => {
 				}
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1350,6 +1358,8 @@ describe("live updates", () => {
 								title: "Ticket 1",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						"2026-04-01T12:00:01.000Z",
@@ -1424,7 +1434,7 @@ describe("live updates", () => {
 					headers: { "content-type": "application/json" },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1613,7 +1623,8 @@ describe("live updates", () => {
 	test("a recorded tracker change reaches a subscriber after one poll", async () => {
 		const requests: string[] = [];
 		await withServer(changingFetch(requests), 3600, async (base) => {
-			const eventPromise = openEvents(base);
+			const events = openEvents(base);
+			await events.ready;
 			const before = await fetch(new URL("/api/overview", base));
 			const beforeBody = (await before.json()) as OverviewBody;
 			expect(beforeBody.projects).toEqual([
@@ -1625,7 +1636,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const received = await eventPromise;
+			const received = await events.event;
 			expect(received.event).toBe("overview");
 			const eventBody = JSON.parse(received.data) as OverviewBody;
 			expect(eventBody.projects).toEqual([
@@ -1695,9 +1706,7 @@ describe("live updates", () => {
 				}
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1800,9 +1809,7 @@ describe("live updates", () => {
 			if (discovered !== null) {
 				return discovered;
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1855,7 +1862,7 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (url.includes("/pulls?state=closed")) {
+			if (url.includes("/pulls?state=closed") || url.includes("/labels?")) {
 				return new Response("[]", {
 					status: 200,
 					headers: { "content-type": "application/json" },
@@ -1938,7 +1945,7 @@ describe("live updates", () => {
 					headers: { "content-type": "application/json" },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,

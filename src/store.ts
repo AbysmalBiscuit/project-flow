@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import type { Notification, Ticket } from "./domain.ts";
+import type { Board, Notification, Ticket } from "./domain.ts";
 import { mergeTickets } from "./domain.ts";
 import type { Snapshot, Store } from "./ports.ts";
 
@@ -8,6 +8,7 @@ type StoredPayload = {
 	pulls: Snapshot["pulls"];
 	branches: string[];
 	startedKeys: string[];
+	board?: Board;
 };
 
 function readRows(db: Database): Snapshot[] {
@@ -29,6 +30,7 @@ function readRows(db: Database): Snapshot[] {
 			pulls: payload.pulls,
 			branches: payload.branches,
 			startedKeys: payload.startedKeys,
+			...(payload.board === undefined ? {} : { board: payload.board }),
 		};
 	});
 }
@@ -45,6 +47,7 @@ function writeRow(db: Database, row: Snapshot): void {
 			pulls: row.pulls,
 			branches: row.branches,
 			startedKeys: row.startedKeys,
+			...(row.board === undefined ? {} : { board: row.board }),
 		}),
 	);
 }

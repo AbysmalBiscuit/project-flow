@@ -13,6 +13,7 @@ import {
 	tempConfig,
 	testIo,
 	trackerRequest,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -606,7 +607,7 @@ describe("inbox", () => {
 				expect(
 					project?.tickets.find((item) => item.key === recorded.identifier)
 						?.state,
-				).toBe("blocked");
+				).toBe("backlog");
 				expect(project?.crossProjectBlockers).toEqual([
 					{
 						project: blockerProject.name,
@@ -764,7 +765,7 @@ describe("inbox", () => {
 				expect(
 					overview.projects.find((item) => item.name === beta.name)?.tickets[0]
 						?.state,
-				).toBe("blocked");
+				).toBe("backlog");
 				setIssues([dropped, openBlocker, betaTicket]);
 				await refresh(base);
 				expect(await inboxOf(base)).toEqual([]);
@@ -778,7 +779,7 @@ describe("inbox", () => {
 				expect(
 					after.projects.find((item) => item.name === beta.name)?.tickets[0]
 						?.state,
-				).toBe("blocked");
+				).toBe("backlog");
 				const issueReads = requests.filter((request) =>
 					request.query.includes("ProjectIssues"),
 				);
@@ -838,13 +839,17 @@ describe("inbox", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return Response.json([]);
 			}
 			if (url.includes("/comments")) {
 				return Response.json([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -977,13 +982,17 @@ describe("inbox", () => {
 					},
 				]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return Response.json([]);
 			}
 			if (url.includes("/comments")) {
 				return Response.json([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1070,17 +1079,21 @@ describe("inbox", () => {
 			}
 			if (url.includes(`/issues/${recorded.number}/dependencies/blocked_by`)) {
 				if (failed) {
-					return new Response("not recorded", { status: 404 });
+					return unrecorded(input);
 				}
 				return Response.json([dependency]);
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return Response.json([]);
 			}
 			if (url.includes("/comments")) {
 				return Response.json([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2846,6 +2859,7 @@ async function withGithubInbox(
 		if (
 			url.includes("/pulls?state=closed") ||
 			url.includes("/branches?") ||
+			url.includes("/labels?") ||
 			url.includes("/comments?") ||
 			url.includes("/reviews?") ||
 			url.includes("/reactions?") ||
@@ -2860,7 +2874,7 @@ async function withGithubInbox(
 						})
 					: githubPage([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({

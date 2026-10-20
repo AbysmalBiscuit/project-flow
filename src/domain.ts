@@ -15,14 +15,15 @@ export function todoRows(listing: string): { project: string }[] {
 	return projects;
 }
 
-export type TicketState =
-	| "done"
-	| "dropped"
-	| "blocked"
+export type StatusType =
 	| "backlog"
 	| "inProgress"
 	| "inReview"
-	| "awaitingMerge";
+	| "awaitingMerge"
+	| "done"
+	| "dropped";
+
+export type TicketState = StatusType;
 
 export type TicketRef = {
 	tracker: "github" | "linear";
@@ -39,6 +40,13 @@ export type Comment = {
 	createdAt?: string;
 	author?: string;
 	reactions?: number;
+};
+
+export type TicketStatus = {
+	id: string;
+	name: string;
+	statusType: StatusType;
+	colour: string;
 };
 
 export type Ticket = {
@@ -58,6 +66,8 @@ export type Ticket = {
 	labels: string[];
 	assignee?: string | null;
 	assignees?: string[];
+	status?: TicketStatus;
+	emptyStatus?: boolean;
 };
 
 export type TicketView = {
@@ -65,6 +75,9 @@ export type TicketView = {
 	title: string;
 	state: TicketState;
 	blockers: string[];
+	lane?: string;
+	statusType?: StatusType;
+	blocked?: boolean;
 };
 
 export type CrossProjectBlocker = {
@@ -141,6 +154,7 @@ export type ProjectCounts = {
 	fetchedAt: string | null;
 	error: string | null;
 	tags: string[];
+	statusTypes: Record<StatusType, number>;
 };
 
 export type DiagramNode = {
@@ -536,9 +550,19 @@ export type ReportSection = {
 	diagrams?: Diagram[];
 };
 
+export type Lane = {
+	id: string;
+	name: string;
+	colour: string;
+	statusType: StatusType;
+	added?: boolean;
+	evidence?: StatusType;
+};
+
 export type ProjectReport = {
 	name: string;
 	tracker: "github" | "linear";
+	lanes: Lane[];
 	sections: ReportSection[];
 };
 
@@ -554,6 +578,13 @@ export type FetchStatus = {
 	error: string | null;
 };
 
+export type Board = {
+	kind: "linear" | "github-project" | "github-repo";
+	laneKey?: string;
+	statuses: TicketStatus[];
+	factoryLabels: boolean;
+};
+
 export type Snapshot = {
 	key: string;
 	name: string;
@@ -562,6 +593,7 @@ export type Snapshot = {
 	pulls: PullRequest[];
 	branches: string[];
 	startedKeys: string[];
+	board?: Board;
 };
 
 export type ProjectPoll = {
@@ -740,20 +772,313 @@ export function reconcilePoll(
 	return { rows, projectErrors, globalError };
 }
 
-const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
+const appColours: Record<StatusType, string> = {
+	backlog: "#D0D7DE",
+	inProgress: "#F0C674",
+	inReview: "#9ECBFF",
+	awaitingMerge: "#B7E1CD",
+	done: "#8FBC8F",
+	dropped: "#9CA3AF",
+};
 
-export function ticketState(
-	ticket: Ticket,
-	blockers: TicketRef[],
-): TicketState {
-	if (ticket.state === "closed") {
-		return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
+const appLaneNames: Record<StatusType, string> = {
+	backlog: "Backlog",
+	inProgress: "In progress",
+	inReview: "In review",
+	awaitingMerge: "Awaiting merge",
+	done: "Done",
+	dropped: "Dropped",
+};
+
+const statusTypeOrder: StatusType[] = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+];
+
+const factoryLabels = [
+	"ready",
+	"factory: running",
+	"factory: in-review",
+] as const;
+
+const reviewNames = new Set([
+	"in review",
+	"in-review",
+	"review",
+	"factory: in-review",
+]);
+
+const progressNames = new Set([
+	"in progress",
+	"in-progress",
+	"doing",
+	"started",
+	"factory: running",
+]);
+
+const awaitingNames = new Set([
+	"awaiting merge",
+	"awaiting-merge",
+	"ready to merge",
+	"ready for merge",
+]);
+
+const doneNames = new Set(["done", "completed", "shipped", "merged"]);
+
+const droppedNames = new Set([
+	"dropped",
+	"canceled",
+	"cancelled",
+	"duplicate",
+	"won't do",
+	"wont do",
+]);
+
+function laneName(name: string): string {
+	return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function appLane(statusType: StatusType): Lane {
+	return {
+		id: statusType,
+		name: appLaneNames[statusType],
+		colour: appColours[statusType],
+		statusType,
+	};
+}
+
+export function appLanes(): Lane[] {
+	return statusTypeOrder.map(appLane);
+}
+
+export function statusTypeOfName(name: string): StatusType {
+	const lowered = laneName(name);
+	if (reviewNames.has(lowered)) {
+		return "inReview";
 	}
-	if (blockers.length > 0) {
-		return "blocked";
+	if (awaitingNames.has(lowered)) {
+		return "awaitingMerge";
+	}
+	if (progressNames.has(lowered)) {
+		return "inProgress";
+	}
+	if (doneNames.has(lowered)) {
+		return "done";
+	}
+	if (droppedNames.has(lowered)) {
+		return "dropped";
 	}
 	return "backlog";
 }
+
+export function linearStatusType(type: string, name: string): StatusType {
+	if (type === "completed") {
+		return "done";
+	}
+	if (type === "canceled" || type === "duplicate") {
+		return "dropped";
+	}
+	if (type === "started") {
+		const named = statusTypeOfName(name);
+		if (named === "inReview" || named === "awaitingMerge") {
+			return named;
+		}
+		return "inProgress";
+	}
+	return "backlog";
+}
+
+export const backlogColour = appColours.backlog;
+
+function namesMatch(left: string, right: string): boolean {
+	return laneName(left) === laneName(right);
+}
+
+function mappedEvidence(
+	mapping: LaneMapping,
+	name: string,
+): StatusType | undefined {
+	for (const statusType of statusTypeOrder) {
+		const mapped = mapping[statusType];
+		if (mapped !== undefined && namesMatch(mapped, name)) {
+			return statusType;
+		}
+	}
+	return undefined;
+}
+
+function insertAwaitingMerge(lanes: Lane[]): Lane[] {
+	if (
+		lanes.some(
+			(lane) =>
+				lane.evidence === "awaitingMerge" ||
+				awaitingNames.has(laneName(lane.name)),
+		)
+	) {
+		return lanes;
+	}
+	const review = lanes.findLastIndex(
+		(lane) =>
+			lane.statusType === "inReview" || reviewNames.has(laneName(lane.name)),
+	);
+	const added: Lane = {
+		id: "awaiting-merge",
+		name: appLaneNames.awaitingMerge,
+		colour: appColours.awaitingMerge,
+		statusType: "awaitingMerge",
+		added: true,
+	};
+	const at = review === -1 ? laneInsertAt(lanes, "awaitingMerge") : review + 1;
+	return [...lanes.slice(0, at), added, ...lanes.slice(at)];
+}
+
+type LaneMapping = Configuration["laneMappings"][string];
+
+function trackerLanes(board: Board | undefined): boolean {
+	if (board === undefined) {
+		return false;
+	}
+	if (board.kind === "github-repo") {
+		return board.factoryLabels;
+	}
+	return board.statuses.length > 0;
+}
+
+export function lanesFor(
+	board: Board | undefined,
+	mapping: LaneMapping,
+): Lane[] {
+	if (!trackerLanes(board) || board === undefined) {
+		return appLanes();
+	}
+	const lanes = board.statuses.map((status) => {
+		const evidence = mappedEvidence(mapping, status.name);
+		const lane: Lane = {
+			id: status.id,
+			name: status.name,
+			colour: status.colour,
+			statusType: status.statusType,
+		};
+		if (evidence !== undefined) {
+			lane.evidence = evidence;
+		}
+		return lane;
+	});
+	return insertAwaitingMerge(lanes);
+}
+
+export function laneForTicket(ticket: Ticket, lanes: Lane[]): Lane {
+	if (ticket.emptyStatus === true) {
+		return laneOfType(lanes, closedLaneType(ticket) ?? "backlog");
+	}
+	const matched =
+		ticket.status === undefined ? undefined : laneOfStatus(ticket, lanes);
+	const closedType = closedLaneType(ticket);
+	if (closedType !== undefined) {
+		if (matched?.statusType === closedType) {
+			return matched;
+		}
+		return laneOfType(lanes, closedType);
+	}
+	if (matched !== undefined) {
+		return matched;
+	}
+	if (ticket.status === undefined) {
+		return laneOfType(lanes, "backlog");
+	}
+	return laneOfType(lanes, ticket.status.statusType);
+}
+
+function laneOfType(lanes: Lane[], statusType: StatusType): Lane {
+	return (
+		lanes.find((lane) => lane.statusType === statusType) ?? appLane(statusType)
+	);
+}
+
+function placeOnBoard(lanes: Lane[], tickets: Ticket[]): Lane[] {
+	const placed = [...lanes];
+	for (const ticket of tickets) {
+		const statusType = laneForTicket(ticket, placed).statusType;
+		if (placed.some((lane) => lane.statusType === statusType)) {
+			continue;
+		}
+		placed.splice(laneInsertAt(placed, statusType), 0, {
+			...appLane(statusType),
+			added: true,
+		});
+	}
+	return placed;
+}
+
+function laneInsertAt(lanes: Lane[], statusType: StatusType): number {
+	const order = statusTypeOrder.indexOf(statusType);
+	const after = lanes.findLastIndex(
+		(lane) => statusTypeOrder.indexOf(lane.statusType) < order,
+	);
+	return after + 1;
+}
+
+function closedLaneType(ticket: Ticket): StatusType | undefined {
+	if (ticket.state !== "closed") {
+		return undefined;
+	}
+	return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
+}
+
+function laneOfStatus(ticket: Ticket, lanes: Lane[]): Lane | undefined {
+	const status = ticket.status;
+	if (status === undefined) {
+		return undefined;
+	}
+	return (
+		lanes.find((lane) => lane.id === status.id) ??
+		lanes.find((lane) => namesMatch(lane.name, status.name))
+	);
+}
+
+function factoryLaneType(name: string): StatusType {
+	if (name === "ready") {
+		return "backlog";
+	}
+	if (name === "factory: running") {
+		return "inProgress";
+	}
+	return "inReview";
+}
+
+export function factoryBoard(
+	labels: { name: string; colour: string }[],
+): Board {
+	const present = factoryLabels.flatMap((name) => {
+		const label = labels.find((item) => item.name === name);
+		return label === undefined ? [] : [label];
+	});
+	return {
+		kind: "github-repo",
+		factoryLabels: present.length === factoryLabels.length,
+		statuses: present.map((label) => ({
+			id: label.name,
+			name: label.name,
+			colour: label.colour,
+			statusType: factoryLaneType(label.name),
+		})),
+	};
+}
+
+export const emptyStatusTypes = (): Record<StatusType, number> => ({
+	backlog: 0,
+	inProgress: 0,
+	inReview: 0,
+	awaitingMerge: 0,
+	done: 0,
+	dropped: 0,
+});
+
+const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
 
 const label =
 	/^(?:[-*+]|\d+[.)])?\s*(?:\*\*|__)?\s*(blocked by|blocks|blocking)(?![\p{L}\p{N}])\s*(?:\*\*|__)?\s*:?\s*(?:\*\*|__)?\s*(.*)$/iu;
@@ -1074,6 +1399,7 @@ export type ListedProject = {
 	pulls: PullRequest[];
 	branches: string[];
 	startedKeys: string[];
+	board?: Board;
 	pinned: boolean;
 	hidden: boolean;
 	closed?: boolean;
@@ -1092,6 +1418,7 @@ export function projectSnapshots(
 	pulls: PullRequest[];
 	branches: string[];
 	startedKeys: string[];
+	board?: Board;
 }[] {
 	const projects = [
 		...found.filter(
@@ -1193,6 +1520,7 @@ export function projectSnapshots(
 			pulls: project.pulls,
 			branches: project.branches,
 			startedKeys: project.startedKeys,
+			...(project.board === undefined ? {} : { board: project.board }),
 		});
 	}
 	return rows;
@@ -1843,6 +2171,8 @@ export function projectCounts(
 	rules: Omit<NeedsYouRules, "pmBot"> & {
 		pmBot: Record<string, boolean>;
 	},
+	laneMappings: Configuration["laneMappings"],
+	board?: Board,
 ): {
 	counts: ProjectCounts;
 	needsYou: NeedsYouItem[];
@@ -1859,6 +2189,11 @@ export function projectCounts(
 		inReview: 0,
 		awaitingMerge: 0,
 	};
+	const statusTypes = emptyStatusTypes();
+	const mappingKey = board?.laneKey;
+	const mapping =
+		mappingKey === undefined ? {} : (laneMappings[mappingKey] ?? {});
+	const lanes = placeOnBoard(lanesFor(board, mapping), tickets);
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
 	const shownByKey = new Map<string, TicketState>();
@@ -1868,13 +2203,6 @@ export function projectCounts(
 	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed);
-		const state = ticketState(
-			ticket,
-			blockers.flatMap((blocker) => {
-				const ref = asRef(blocker);
-				return ref === null ? [] : [ref];
-			}),
-		);
 		const links = linked(ticket, active, name);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));
@@ -1886,9 +2214,10 @@ export function projectCounts(
 		for (const tag of review.tags) {
 			tags.add(tag);
 		}
+		const lane = laneForTicket(ticket, lanes);
 		const shown = shownState(
 			ticket,
-			state,
+			lane.statusType,
 			links,
 			branches,
 			startedKeys,
@@ -1897,7 +2226,12 @@ export function projectCounts(
 		if (ticket.key !== null) {
 			shownByKey.set(ticket.key, shown);
 		}
-		counts[shown] += 1;
+		if (blockers.length > 0 && ticket.state === "open") {
+			counts.blocked += 1;
+		} else {
+			counts[shown] += 1;
+		}
+		statusTypes[lane.statusType] += 1;
 		views.push({
 			key: ticket.key,
 			title: ticket.title,
@@ -1905,8 +2239,13 @@ export function projectCounts(
 			blockers: blockers.flatMap((blocker) =>
 				blocker.key === null ? [] : [blocker.key],
 			),
+			lane: lane.name,
+			statusType: lane.statusType,
+			...(blockers.length > 0 && ticket.state === "open"
+				? { blocked: true }
+				: {}),
 		});
-		if (shown !== "blocked") {
+		if (blockers.length === 0 || ticket.state !== "open") {
 			continue;
 		}
 		for (const blocker of blockers) {
@@ -1972,8 +2311,14 @@ export function projectCounts(
 		progress: progressRatio(counts),
 		...staleView(status, status.fetchedAt),
 		tags: [...tags],
+		statusTypes,
 	};
-	const report = projectReport(project, tickets, needsYouItemsForProject);
+	const report = projectReport(
+		project,
+		tickets,
+		lanes,
+		needsYouItemsForProject,
+	);
 	return {
 		counts: project,
 		needsYou: needsYouItemsForProject,
@@ -2573,7 +2918,6 @@ function externalNode(blocker: CrossProjectBlocker): DiagramNode {
 const stateFill: Record<TicketState, string> = {
 	done: "#8fbc8f",
 	dropped: "#9ca3af",
-	blocked: "#e6a0a0",
 	backlog: "#d0d7de",
 	inProgress: "#f0c674",
 	inReview: "#9ecbff",
@@ -2689,7 +3033,7 @@ function chainDiagrams(
 	tracker: ProjectCounts["tracker"],
 	cross: CrossProjectBlocker[],
 ): Diagram[] {
-	const blocked = placed.filter((item) => item.view.state === "blocked");
+	const blocked = placed.filter((item) => item.view.blocked === true);
 	if (blocked.length === 0) {
 		return [];
 	}
@@ -2747,6 +3091,7 @@ function summaryLine(counts: ProjectCounts): string {
 export function projectReport(
 	counts: ProjectCounts,
 	tickets: Ticket[],
+	lanes: Lane[],
 	needs: NeedsYouItem[] = [],
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
@@ -2763,7 +3108,12 @@ export function projectReport(
 		counts.crossProjectBlockers,
 	);
 	const inFlight = [
-		...counts.tickets.filter((ticket) => ticket.state === "inProgress"),
+		...counts.tickets.filter(
+			(ticket) =>
+				ticket.state === "inProgress" ||
+				ticket.state === "inReview" ||
+				ticket.state === "awaitingMerge",
+		),
 		...counts.unlinkedPrs.map((pull) => ({
 			key: `${pull.repo}#${pull.number}`,
 			title: pull.title,
@@ -2787,6 +3137,7 @@ export function projectReport(
 	return {
 		name: counts.name,
 		tracker: counts.tracker,
+		lanes,
 		sections,
 	};
 }

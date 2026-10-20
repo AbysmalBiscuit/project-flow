@@ -6,10 +6,12 @@ import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
+	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -80,6 +82,9 @@ function githubFetch(issues = githubIssues): Fetch {
 		if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
 			return page(otherIssues);
 		}
+		if (url.includes("/labels?")) {
+			return page([]);
+		}
 		if (url.includes("/pulls?")) {
 			if (url.includes(githubRepo)) {
 				return page([
@@ -105,7 +110,7 @@ function githubFetch(issues = githubIssues): Fetch {
 		if (url.endsWith("/comments")) {
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return emptyProjectFields(input, init) ?? unrecorded(input);
 	};
 }
 
@@ -239,9 +244,9 @@ describe("GET /api/projects/:name", () => {
 					(diagram) => diagram.id === "map_3a_Ship_20_the_20_map",
 				);
 				expect(epicMap?.definition).toContain(
-					'acme_2f_widget_23_2["feat(ux): draw the nodes"]:::blocked',
+					'acme_2f_widget_23_2["feat(ux): draw the nodes"]:::backlog',
 				);
-				expect(epicMap?.definition).toContain("classDef blocked fill:#e6a0a0");
+				expect(epicMap?.definition).not.toContain("classDef blocked");
 				expect(epicMap?.definition).toContain(
 					"classDef inProgress fill:#f0c674",
 				);
@@ -277,11 +282,19 @@ describe("GET /api/projects/:name", () => {
 					"acme/widget#4",
 					"acme/widget#40",
 				]);
+				expect(
+					first.sections
+						.find((section) => section.id === "blockingChains")
+						?.diagrams?.[0]?.nodes.some(
+							(node) => node.ticket === "acme/widget#2",
+						),
+				).toBe(true);
 				const backlog = first.sections.find(
 					(section) => section.id === "backlog",
 				);
 				expect(backlog?.items?.map((item) => item.key)).toEqual([
 					"acme/widget#1",
+					"acme/widget#2",
 					"acme/widget#3",
 				]);
 			},
@@ -743,6 +756,12 @@ describe("GET /api/projects/:name", () => {
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
 				body.includes("node(id:")
 			) {
 				return Response.json({
@@ -794,7 +813,7 @@ describe("GET /api/projects/:name", () => {
 					},
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		await withApp(
 			JSON.stringify({

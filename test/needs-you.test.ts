@@ -10,6 +10,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -252,13 +253,14 @@ describe("needs you", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -365,7 +367,7 @@ describe("needs you", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -659,6 +661,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
@@ -674,7 +677,7 @@ describe("needs you", () => {
 					commit: { committer: { date: "2026-10-01T00:00:00Z" } },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -800,13 +803,14 @@ describe("needs you", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -965,13 +969,14 @@ describe("needs you", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1139,6 +1144,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/reviews?") ||
 				url.includes("/reactions?") ||
@@ -1153,7 +1159,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1266,6 +1272,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
@@ -1281,7 +1288,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1425,6 +1432,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
@@ -1440,7 +1448,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1556,6 +1564,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
@@ -1571,7 +1580,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1744,6 +1753,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
 				url.includes("/reactions?") ||
@@ -1755,7 +1765,7 @@ describe("needs you", () => {
 						})
 					: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1921,6 +1931,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
 				url.includes("/reactions?") ||
@@ -1932,7 +1943,7 @@ describe("needs you", () => {
 						})
 					: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -2038,6 +2049,7 @@ describe("needs you", () => {
 			}
 			if (
 				url.includes("/pulls?state=closed") ||
+				url.includes("/labels?") ||
 				url.includes("/branches?") ||
 				url.includes("/comments?") ||
 				url.includes("/reviews?") ||
@@ -2053,7 +2065,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
