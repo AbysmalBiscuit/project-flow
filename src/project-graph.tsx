@@ -13,7 +13,7 @@ import {
 	ReactFlowProvider,
 } from "@xyflow/react";
 import { useMemo } from "react";
-import type { ProjectReport, TicketView } from "./domain.ts";
+import type { ProjectReport, TicketState, TicketView } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	graphDirectionLabel,
@@ -57,24 +57,29 @@ function nodeId(project: string, key: string): string {
 	return `${project}\n${key.toLowerCase()}`;
 }
 
+const stateTone: Record<
+	TicketState,
+	{ label: string; tone: (typeof board)["ticketReady"] }
+> = {
+	backlog: { label: stateLabel.backlog, tone: board.ticketReady },
+	inProgress: { label: stateLabel.inProgress, tone: board.ticketProgress },
+	inReview: { label: stateLabel.inReview, tone: board.ticketReview },
+	awaitingMerge: { label: stateLabel.awaitingMerge, tone: board.ticketMerge },
+	done: { label: stateLabel.done, tone: board.ticketDone },
+	dropped: { label: stateLabel.dropped, tone: board.ticketDropped },
+};
+
+const legendOrder = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+] as const satisfies ReadonlyArray<TicketState>;
+
 function tone(ticket: TicketView) {
-	const type = ticket.statusType ?? ticket.state;
-	if (type === "done") {
-		return board.ticketDone;
-	}
-	if (type === "dropped") {
-		return board.ticketDropped;
-	}
-	if (type === "inProgress") {
-		return board.ticketProgress;
-	}
-	if (type === "inReview") {
-		return board.ticketReview;
-	}
-	if (type === "awaitingMerge") {
-		return board.ticketMerge;
-	}
-	return board.ticketReady;
+	return stateTone[ticket.state].tone;
 }
 
 function TicketNode({ data }: NodeProps<FlowNode<TicketNodeData>>) {
@@ -336,14 +341,6 @@ function graphModel(
 	return { nodes, edges };
 }
 
-const legendTones = [
-	{ label: projectGraphLabel.ready, tone: board.ticketReady },
-	{ label: stateLabel.inProgress, tone: board.ticketProgress },
-	{ label: stateLabel.inReview, tone: board.ticketReview },
-	{ label: stateLabel.awaitingMerge, tone: board.ticketMerge },
-	{ label: stateLabel.done, tone: board.ticketDone },
-] as const;
-
 function Legend() {
 	return (
 		<section
@@ -351,10 +348,10 @@ function Legend() {
 			aria-label={projectGraphLabel.legend}
 		>
 			<ul className={clsx(board.legendRow)}>
-				{legendTones.map((item) => (
-					<li key={item.label} className={clsx(board.legendItem)}>
-						<span className={clsx(board.legendDot, item.tone)} />
-						{item.label}
+				{legendOrder.map((state) => (
+					<li key={state} className={clsx(board.legendItem)}>
+						<span className={clsx(board.legendDot, stateTone[state].tone)} />
+						{stateTone[state].label}
 					</li>
 				))}
 			</ul>

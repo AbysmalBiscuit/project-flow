@@ -178,7 +178,6 @@ export const graphDirectionLabel = {
 
 export const projectGraphLabel = {
 	legend: "Graph legend",
-	ready: "Ready",
 	arrow: "Arrow: blocker to blocked",
 	dashed: "Dashed: ticket in another project",
 } as const;
