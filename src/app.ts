@@ -336,23 +336,59 @@ function reportFor(
 	if (match === undefined) {
 		return null;
 	}
-	if (!filtered) {
-		return match.report;
+	const view = projectViewFor(configuration, match.counts.name);
+	return filtered
+		? filterProjectReport(match.report, view, options.clock.now())
+		: match.report;
+}
+
+function settingsResponse(
+	configuration: Configuration,
+	credentials: { token: string | null; linearKey: string | null },
+): Configuration & { trackers: { github: boolean; linear: boolean } } {
+	return {
+		...configuration,
+		trackers: {
+			github: credentials.token !== null,
+			linear: credentials.linearKey !== null,
+		},
+	};
+}
+
+function withoutTrackers(text: string): string {
+	const trimmed = text.trim();
+	if (trimmed === "") {
+		return text;
 	}
-	return filterProjectReport(
-		match.report,
-		projectViewFor(configuration, match.counts.name),
-		options.clock.now(),
-	);
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(trimmed);
+	} catch {
+		return text;
+	}
+	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return text;
+	}
+	const { trackers: _trackers, ...configuration } = parsed as Record<
+		string,
+		unknown
+	>;
+	return JSON.stringify(configuration);
 }
 
 function viewOnlyChange(before: Configuration, after: Configuration): boolean {
-	const { projectViews: previous, ...rest } = before;
-	const { projectViews: next, ...kept } = after;
-	return (
-		JSON.stringify(rest) === JSON.stringify(kept) &&
-		JSON.stringify(previous) !== JSON.stringify(next)
-	);
+	const {
+		projectViews: previousViews,
+		overview: previousOverview,
+		...rest
+	} = before;
+	const { projectViews: nextViews, overview: nextOverview, ...kept } = after;
+	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
+	const viewsChanged =
+		JSON.stringify(previousViews) !== JSON.stringify(nextViews);
+	const overviewChanged =
+		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
+	return restSame && (viewsChanged || overviewChanged);
 }
 
 function mergeFound(
@@ -1278,9 +1314,9 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/settings": pageResponse,
 			"/api/settings": {
-				GET: () => Response.json(configuration),
+				GET: () => Response.json(settingsResponse(configuration, options)),
 				PUT: async (request: Request) => {
-					const text = await request.text();
+					const text = withoutTrackers(await request.text());
 					const previous = configuration;
 					try {
 						await (polling ?? Promise.resolve());
@@ -1302,10 +1338,10 @@ export async function start(options: StartOptions): Promise<Running> {
 							overview: runningOverview(pollOptions, configuration),
 							notifications: [],
 						});
-						return Response.json(configuration);
+						return Response.json(settingsResponse(configuration, options));
 					}
 					await pollAgain();
-					return Response.json(configuration);
+					return Response.json(settingsResponse(configuration, options));
 				},
 			},
 			"/api/threads/:tracker/:key": {

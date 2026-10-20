@@ -208,3 +208,83 @@ export function polledAgo(fetchedAt: string | null): string | null {
 	}
 	return `polled ${Math.round(minutes / 60)} h ago`;
 }
+
+export const settingsSection = {
+	general: "General",
+	views: "Project views",
+	review: "Review",
+	notifications: "Notifications",
+	trackers: "Trackers",
+} as const;
+
+export const settingsCopy = {
+	savedTo: "Saved to the configuration file. Changes apply without a restart.",
+
+	newComment: "New comment",
+	newCommentHint: "Someone else comments on a ticket or a linked PR.",
+	blockerCleared: "Blocker cleared",
+	blockerClearedHint: "The last open blocker of a ticket closes.",
+	needsYouHint: "A ticket asks for you, or a PR waits for your merge.",
+	theme: "Theme",
+	themeHint:
+		"The theme button in the header switches light and dark. The app writes the choice to the configuration file at once, and starts in it next time.",
+	activityWindow: "Activity window",
+	activityHint: "Show projects with ticket activity in this many days.",
+	days: "days",
+	pollInterval: "Poll interval",
+	pollHint: "How often each tracker is read.",
+	viewsLead:
+		"The board, graph and table views save these to the configuration file when you change them there.",
+	openBoard: "Lane",
+	openGraph: "Graph",
+	openTable: "Table",
+	openIn: "Open projects in",
+	openHint: "The view a project page opens in.",
+	graphDirection: "Graph direction",
+	graphHint: "Which way the dependency graph runs.",
+	leftToRight: "Left to right",
+	topToBottom: "Top to bottom",
+	ticketFilter: "Ticket filter",
+	ticketHint:
+		"The states the views show, and the oldest ticket each state keeps.",
+	anyAge: "Any age",
+	needsYouOnly: "Needs you only",
+	needsYouOnlyHint: "Show only tickets that wait for you.",
+	blockedOnly: "Blocked only",
+	blockedOnlyHint: "Show only tickets with an open blocker.",
+	laneMappings: "Lane mapping",
+	laneHint:
+		"Map a state to a tracker status name for one Linear team or GitHub project.",
+	autoMerge: "Auto-merge",
+	autoMergeHint:
+		"Override the reading for one repo. Ask keeps a finished review in Awaiting merge.",
+	labels: "Needs-you labels",
+	labelsHint: "A ticket with one of these labels shows in Needs you.",
+	logins: "Your logins",
+	loginsHint: "Comments from these accounts never notify you.",
+	add: "Add",
+	addLabel: "Add label, press Enter",
+	addLogin: "Add login, press Enter",
+	laneState: "Lane state",
+	browserPermission: "Browser permission",
+	browserHint: "The browser decides if Project Flow may show notifications.",
+	allowed: "Allowed",
+	blocked: "Blocked",
+	asking: "Not asked",
+	trackersLead: "Project Flow never stores a token.",
+	github: "GitHub",
+	githubHint: "Token from gh auth token",
+	linear: "Linear",
+	linearHint: "LINEAR_API_KEY found in the environment",
+	connected: "Connected",
+	missing: "Missing",
+	discard: "Discard",
+	save: "Save",
+	saved: "Saved",
+	ask: "Ask",
+	yes: "Yes",
+	no: "No",
+	mappingKey: "Team or project",
+	statusName: "Status name",
+	repo: "Repo",
+} as const;
