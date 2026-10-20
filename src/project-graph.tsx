@@ -11,8 +11,9 @@ import {
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
+	useStore,
 } from "@xyflow/react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import {
 	groupKeysOf,
 	outsideKey,
@@ -33,8 +34,6 @@ import { graphDirections } from "./view-settings.ts";
 
 const columnGap = 280;
 const rowGap = 120;
-const nodeWidth = 196;
-const nodeHeight = 96;
 const groupPad = 16;
 const groupHead = 28;
 
@@ -443,28 +442,36 @@ function groupId(name: string): string {
 	return `group\n${name}`;
 }
 
+type TicketSize = { width: number; height: number };
+
 function clusterNodes(
 	tickets: GraphTicket[],
 	positions: Map<string, { x: number; y: number }>,
+	sizes: Map<string, TicketSize>,
 	groupBy: GroupBy,
 	assignees: readonly string[],
 ): FlowNode<ClusterNodeData, "cluster">[] {
 	if (groupBy === "none") {
 		return [];
 	}
-	const groups = new Map<string, { x: number; y: number }[]>();
+	const groups = new Map<
+		string,
+		{ x: number; y: number; size: TicketSize }[]
+	>();
 	for (const ticket of tickets) {
 		const key = ticket.ticket.key;
 		if (key === null || ticket.outside) {
 			continue;
 		}
 		const name = graphBand(ticket, groupBy, assignees);
-		const place = positions.get(nodeId(ticket.project, key));
-		if (place === undefined || name === "") {
+		const id = nodeId(ticket.project, key);
+		const place = positions.get(id);
+		const size = sizes.get(id);
+		if (place === undefined || size === undefined || name === "") {
 			continue;
 		}
 		const known = groups.get(name) ?? [];
-		known.push(place);
+		known.push({ x: place.x, y: place.y, size });
 		groups.set(name, known);
 	}
 	return [...groups.entries()]
@@ -472,8 +479,12 @@ function clusterNodes(
 		.map(([name, places]) => {
 			const left = Math.min(...places.map((place) => place.x));
 			const top = Math.min(...places.map((place) => place.y));
-			const right = Math.max(...places.map((place) => place.x)) + nodeWidth;
-			const bottom = Math.max(...places.map((place) => place.y)) + nodeHeight;
+			const right = Math.max(
+				...places.map((place) => place.x + place.size.width),
+			);
+			const bottom = Math.max(
+				...places.map((place) => place.y + place.size.height),
+			);
 			const width = right - left + groupPad * 2;
 			const height = bottom - top + groupHead + groupPad;
 			return {
@@ -491,6 +502,38 @@ function clusterNodes(
 		});
 }
 
+function ticketSizes(
+	nodes: {
+		id: string;
+		type?: string | undefined;
+		measured?: { width?: number | undefined; height?: number | undefined };
+	}[],
+): Map<string, TicketSize> | null {
+	const sizes = new Map<string, TicketSize>();
+	for (const node of nodes) {
+		if (node.type !== "ticket") {
+			continue;
+		}
+		const width = node.measured?.width;
+		const height = node.measured?.height;
+		if (width === undefined || height === undefined) {
+			return null;
+		}
+		sizes.set(node.id, { width, height });
+	}
+	return sizes.size === 0 ? null : sizes;
+}
+
+function sizeKey(sizes: Map<string, TicketSize> | null): string {
+	if (sizes === null) {
+		return "";
+	}
+	return [...sizes]
+		.sort((left, right) => left[0].localeCompare(right[0]))
+		.map(([id, size]) => `${id}:${size.width}x${size.height}`)
+		.join("|");
+}
+
 function graphModel(
 	report: ProjectReport,
 	reports: ProjectReport[],
@@ -498,6 +541,7 @@ function graphModel(
 	groupBy: GroupBy,
 	assignees: readonly string[],
 	openKey: string | null,
+	sizes: Map<string, TicketSize>,
 ): {
 	nodes: ProjectNode[];
 	edges: FlowEdge<TicketEdgeData>[];
@@ -512,7 +556,7 @@ function graphModel(
 		assignees,
 	);
 	const horizontal = direction === "left-to-right";
-	const groups = clusterNodes(tickets, positions, groupBy, assignees);
+	const groups = clusterNodes(tickets, positions, sizes, groupBy, assignees);
 	const nodes = tickets.flatMap((item) => {
 		const key = item.ticket.key;
 		if (key === null) {
@@ -600,23 +644,90 @@ export function ProjectGraph({
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
 }) {
-	const model = useMemo(
-		() => graphModel(report, reports, direction, groupBy, assignees, openKey),
+	const placed = useMemo(
+		() =>
+			graphModel(
+				report,
+				reports,
+				direction,
+				groupBy,
+				assignees,
+				openKey,
+				new Map(),
+			),
 		[report, reports, direction, groupBy, assignees, openKey],
 	);
+	return (
+		<ReactFlowProvider>
+			<MeasuredProjectGraph
+				placed={placed}
+				report={report}
+				reports={reports}
+				direction={direction}
+				groupBy={groupBy}
+				assignees={assignees}
+				openKey={openKey}
+				onOpen={onOpen}
+			/>
+		</ReactFlowProvider>
+	);
+}
+
+function MeasuredProjectGraph({
+	placed,
+	report,
+	reports,
+	direction,
+	groupBy,
+	assignees,
+	openKey,
+	onOpen,
+}: {
+	placed: ReturnType<typeof graphModel>;
+	report: ProjectReport;
+	reports: ProjectReport[];
+	direction: GraphDirection;
+	groupBy: GroupBy;
+	assignees: readonly string[];
+	openKey: string | null;
+	onOpen: (ticket: OpenedNode) => void;
+}) {
+	const held = useRef<Map<string, TicketSize> | null>(null);
+	const key = useStore((state) => {
+		const next = ticketSizes([...state.nodeLookup.values()]);
+		if (next !== null) {
+			held.current = next;
+		}
+		return sizeKey(held.current);
+	});
+	const model = useMemo(() => {
+		const measured = held.current;
+		if (measured === null || key === "") {
+			return placed;
+		}
+		return graphModel(
+			report,
+			reports,
+			direction,
+			groupBy,
+			assignees,
+			openKey,
+			measured,
+		);
+	}, [key, placed, report, reports, direction, groupBy, assignees, openKey]);
 	const places = model.nodes
 		.map((node) => {
 			const parent = model.nodes.find((item) => item.id === node.parentId);
 			const x = node.position.x + (parent?.position.x ?? 0);
 			const y = node.position.y + (parent?.position.y ?? 0);
-			const held = node.parentId === undefined ? "" : " held";
+			const parented = node.parentId === undefined ? "" : " held";
 			const width = node.width;
 			const height = node.height;
 			const size =
 				width === undefined || height === undefined
 					? ""
 					: ` ${width}x${height}`;
-			return `${node.id.replaceAll("\n", " ")} ${x},${y}${held}${size}`;
+			return `${node.id.replaceAll("\n", " ")} ${x},${y}${parented}${size}`;
 		})
 		.join(" | ");
 	const outsideLabels = model.nodes.flatMap((node) =>
@@ -639,44 +750,42 @@ export function ProjectGraph({
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
 			</p>
-			<ReactFlowProvider>
-				<ReactFlow
-					key={direction}
-					nodes={model.nodes}
-					edges={model.edges}
-					nodeTypes={nodeTypes}
-					edgeTypes={edgeTypes}
-					nodesDraggable={false}
-					nodesConnectable={false}
-					elementsSelectable={false}
-					panOnDrag
-					fitView
-					proOptions={{ hideAttribution: true }}
-					onNodeClick={(_event, node) => {
-						if (isClusterNode(node)) {
-							return;
-						}
-						onOpen({
-							key: node.data.ticket.key ?? node.data.ticket.title,
-							project: node.data.project,
-							tracker: node.data.tracker,
-							title: node.data.ticket.title,
-							outside: node.data.outside,
-							...(node.data.ticket.state === undefined
-								? {}
-								: { state: node.data.ticket.state }),
-						});
-					}}
-				>
-					<Background variant={BackgroundVariant.Dots} gap={18} />
-					<Legend />
-					<GraphTools
-						probeId="project-graph-viewport"
-						fitId="project-graph-fit"
-						scope="#project-graph"
-					/>
-				</ReactFlow>
-			</ReactFlowProvider>
+			<ReactFlow
+				key={direction}
+				nodes={model.nodes}
+				edges={model.edges}
+				nodeTypes={nodeTypes}
+				edgeTypes={edgeTypes}
+				nodesDraggable={false}
+				nodesConnectable={false}
+				elementsSelectable={false}
+				panOnDrag
+				fitView
+				proOptions={{ hideAttribution: true }}
+				onNodeClick={(_event, node) => {
+					if (isClusterNode(node)) {
+						return;
+					}
+					onOpen({
+						key: node.data.ticket.key ?? node.data.ticket.title,
+						project: node.data.project,
+						tracker: node.data.tracker,
+						title: node.data.ticket.title,
+						outside: node.data.outside,
+						...(node.data.ticket.state === undefined
+							? {}
+							: { state: node.data.ticket.state }),
+					});
+				}}
+			>
+				<Background variant={BackgroundVariant.Dots} gap={18} />
+				<Legend />
+				<GraphTools
+					probeId="project-graph-viewport"
+					fitId="project-graph-fit"
+					scope="#project-graph"
+				/>
+			</ReactFlow>
 		</div>
 	);
 }
