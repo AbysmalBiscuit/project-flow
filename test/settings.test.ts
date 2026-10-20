@@ -3,6 +3,7 @@ import {
 	chmod,
 	lstat,
 	mkdtemp,
+	readFile,
 	rm,
 	symlink,
 	writeFile,
@@ -193,8 +194,8 @@ function checkoutFor(root: string): LocalCheckout {
 	};
 }
 
-async function withApp(
-	body: string,
+async function withAppFile(
+	path: string,
 	check: (
 		base: string,
 		configPath: string,
@@ -202,7 +203,6 @@ async function withApp(
 	) => Promise<void>,
 	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
 ): Promise<void> {
-	const { path, cleanup } = await tempConfig(body);
 	const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
 	const requests: string[] = [];
 	let startChecks: (base: string) => void = () => {};
@@ -231,8 +231,24 @@ async function withApp(
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
 	} finally {
-		await cleanup();
 		await rm(root, { recursive: true, force: true });
+	}
+}
+
+async function withApp(
+	body: string,
+	check: (
+		base: string,
+		configPath: string,
+		requests: string[],
+	) => Promise<void>,
+	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
+): Promise<void> {
+	const { path, cleanup } = await tempConfig(body);
+	try {
+		await withAppFile(path, check, listCheckouts);
+	} finally {
+		await cleanup();
 	}
 }
 
@@ -675,34 +691,95 @@ describe("settings", () => {
 	});
 
 	test("a saved dark theme survives a restart", async () => {
-		let savedText = "";
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		try {
+			await withAppFile(path, async (base) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(before.theme).toBe("light");
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...before, theme: "dark" }),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration;
+				expect(written.theme).toBe("dark");
+				const page = await fetch(new URL("/", base));
+				expect(page.status).toBe(200);
+				expect(await page.text()).toContain('data-theme="dark"');
+			});
+			const stored = await readFile(path, "utf8");
+			expect(stored).toContain('"theme": "dark"');
+			await withAppFile(path, async (base) => {
+				const restarted = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(restarted.theme).toBe("dark");
+				const page = await fetch(new URL("/", base));
+				expect(page.status).toBe(200);
+				expect(await page.text()).toContain('data-theme="dark"');
+			});
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a settings save keeps a theme written after the menu loaded", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
-			const before = (await (
+			const loaded = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
-			expect(before.theme).toBe("light");
+			expect(loaded.theme).toBe("light");
+			const theme = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...loaded, theme: "dark" }),
+			});
+			expect(theme.status).toBe(200);
 			const saved = await fetch(new URL("/api/settings", base), {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ ...before, theme: "dark" }),
+				body: JSON.stringify({
+					...loaded,
+					pollIntervalSeconds: 90,
+					theme: (
+						(await (
+							await fetch(new URL("/api/settings", base))
+						).json()) as Configuration
+					).theme,
+				}),
 			});
 			expect(saved.status).toBe(200);
 			const written = (await saved.json()) as Configuration;
 			expect(written.theme).toBe("dark");
-			savedText = JSON.stringify(written);
-			const page = await fetch(new URL("/", base));
-			expect(page.status).toBe(200);
-			expect(await page.text()).toContain('data-theme="dark"');
-		});
-		await withApp(savedText, async (base) => {
-			const restarted = (await (
+			expect(written.pollIntervalSeconds).toBe(90);
+			const current = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
-			expect(restarted.theme).toBe("dark");
-			const page = await fetch(new URL("/", base));
-			expect(page.status).toBe(200);
-			expect(await page.text()).toContain('data-theme="dark"');
+			expect(current.theme).toBe("dark");
+			expect(current.pollIntervalSeconds).toBe(90);
 		});
+	});
+
+	test("a settings save keeps a theme edit made in the loaded menu", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [], theme: "dark" }),
+			async (base) => {
+				const loaded = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...loaded, theme: "light" }),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration;
+				expect(written.theme).toBe("light");
+			},
+		);
 	});
 
 	test("a blank theme and an unknown theme name the field and leave the file", async () => {
