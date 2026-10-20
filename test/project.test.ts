@@ -1787,9 +1787,6 @@ describe("GET /api/projects/:name", () => {
 			},
 		);
 	});
-			},
-		);
-	});
 
 	test("a missing project is not found, and a blank name is not found", async () => {
 		await withApp(
