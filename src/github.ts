@@ -2016,7 +2016,6 @@ const repoReadPage = z.object({
 });
 
 type RepoReadPage = z.infer<typeof repoReadPage>["data"];
-type RepoRead = NonNullable<RepoReadPage["repository"]>;
 
 function splitRepo(repo: string): { owner: string; name: string } | null {
 	const [owner, name] = repo.split("/");
@@ -2401,7 +2400,7 @@ async function collectConnection<T>(
 	first: Connection<T> | undefined,
 	cursorKey: keyof PageCursors,
 	include: RepoIncludes,
-	read: (page: RepoRead) => Connection<T> | null | undefined,
+	read: (page: RepoReadPage) => Connection<T> | null | undefined,
 ): Promise<T[]> {
 	const nodes = (first?.nodes ?? []).flatMap((node) =>
 		node === undefined ? [] : [node],
@@ -2416,13 +2415,10 @@ async function collectConnection<T>(
 			{ ...emptyCursors, [cursorKey]: cursor },
 			include,
 		);
-		const repository = page?.repository ?? null;
-		if (page === null || repository === null) {
+		if (page === null || page.repository === null) {
 			throw new Error(`GitHub read repo failed: ${repo}`);
 		}
-		const connection = (
-			cursorKey === "edited" ? page.editedIssues : read(repository)
-		) as Connection<T> | null | undefined;
+		const connection = read(page);
 		nodes.push(
 			...(connection?.nodes ?? []).flatMap((node) =>
 				node === undefined ? [] : [node],
@@ -2777,7 +2773,7 @@ async function readRepo(
 			labels: false,
 			edited: false,
 		},
-		(page) => page.issues,
+		(page) => page.repository?.issues,
 	);
 	const edited =
 		since === null
@@ -2798,7 +2794,7 @@ async function readRepo(
 							labels: false,
 							edited: true,
 						},
-						() => undefined,
+						(page) => page.editedIssues,
 					)
 				).flatMap((issue) =>
 					issue === null || issue === undefined ? [] : [issue],
@@ -2826,7 +2822,7 @@ async function readRepo(
 			labels: false,
 			edited: false,
 		},
-		(page) => page.openPullRequests,
+		(page) => page.repository?.openPullRequests,
 	);
 	const refNodes = await collectConnection(
 		token,
@@ -2843,7 +2839,7 @@ async function readRepo(
 			labels: false,
 			edited: false,
 		},
-		(page) => page.refs,
+		(page) => page.repository?.refs,
 	);
 	const labelNodes = await collectConnection(
 		token,
@@ -2860,7 +2856,7 @@ async function readRepo(
 			labels: true,
 			edited: false,
 		},
-		(page) => page.labels,
+		(page) => page.repository?.labels,
 	);
 	const issueNodes = issues.flatMap((issue) =>
 		issue === undefined ? [] : [issue],
