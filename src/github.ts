@@ -70,6 +70,7 @@ export const githubPull = z.object({
 	head: z.object({ ref: z.string(), sha: z.string().optional() }),
 	state: z.string(),
 	merged_at: z.string().nullable().optional(),
+	auto_merge: z.unknown().nullable().optional(),
 });
 
 const linkedDevelopment = z.object({
@@ -1304,13 +1305,20 @@ async function listProjectPulls(
 			}
 		}
 	}
-	for (const repo of new Set(pulls.map((pull) => pull.repo))) {
+	const repos = new Set(pulls.map((pull) => pull.repo));
+	for (const item of items) {
+		const content = item.content;
+		if (content !== null && content.repository !== undefined) {
+			repos.add(content.repository.nameWithOwner);
+		}
+	}
+	for (const repo of repos) {
 		pulls.push(...(await mergedPullHistory(repo, token, fetchImpl, seen)));
 	}
 	return pulls;
 }
 
-async function loadOpenPull(
+export async function loadOpenPull(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
@@ -1327,10 +1335,12 @@ async function loadOpenPull(
 		);
 	}
 	const pull = githubPull.parse(await response.json());
-	if (pull.state !== "open") {
+	const body = pull.body ?? "";
+	const merged = (pull.merged_at ?? null) !== null;
+	if (pull.state !== "open" && !merged) {
 		return null;
 	}
-	const head = pull.head.sha ?? "";
+	const head = merged ? "" : (pull.head.sha ?? "");
 	const review =
 		head === ""
 			? { checks: [], comments: [], reviews: [], reactions: [] }
@@ -1343,7 +1353,7 @@ async function loadOpenPull(
 					fetchImpl,
 				);
 	const headCommittedAt =
-		pull.draft === true || head === ""
+		merged || pull.draft === true || head === ""
 			? null
 			: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
 	return {
@@ -1353,11 +1363,12 @@ async function loadOpenPull(
 		title: pull.title,
 		draft: pull.draft === true,
 		branch: pull.head.ref,
-		body: pull.body ?? "",
+		body,
 		closingKeys,
 		headSha: head,
 		headCommittedAt,
-		merged: false,
+		merged,
+		autoMerge: pull.auto_merge != null,
 		...review,
 	};
 }
@@ -1787,16 +1798,30 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						headSha: head,
 						headCommittedAt,
 						merged: false,
+						autoMerge: pull.auto_merge != null,
 						...review,
 					});
 				}
 			}
-			if (pulls.length > 0) {
-				pulls.push(
-					...(await mergedPullHistory(repo, token, fetchImpl, seenReviews)),
-				);
-			}
+			pulls.push(
+				...(await mergedPullHistory(repo, token, fetchImpl, seenReviews)),
+			);
 			return pulls;
+		},
+		async repoAutoMerge(repo) {
+			if (!repo.includes("/")) {
+				return false;
+			}
+			const response = await fetchImpl(`https://api.github.com/repos/${repo}`, {
+				headers: githubHeaders(token),
+			});
+			if (!response.ok) {
+				return false;
+			}
+			const body = z
+				.object({ allow_auto_merge: z.boolean().optional() })
+				.parse(await response.json());
+			return body.allow_auto_merge === true;
 		},
 		async listBranches(repo) {
 			if (!repo.includes("/")) {

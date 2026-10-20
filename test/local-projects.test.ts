@@ -252,6 +252,7 @@ const card = {
 			blockers: [],
 			lane: "Backlog",
 			statusType: "backlog",
+			enteredStateAt: "2026-10-18T12:00:00.000Z",
 		},
 	],
 	crossProjectBlockers: [],
@@ -314,6 +315,7 @@ describe("local projects", () => {
 					blockers: [],
 					lane: "Backlog",
 					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
 				},
 			],
 		};
@@ -362,7 +364,19 @@ describe("local projects", () => {
 					...card,
 					backlog: 0,
 					inProgress: 1,
-					tickets: [{ ...card.tickets[0], state: "inProgress" }],
+					tickets: [
+						{
+							...card.tickets[0],
+							state: "inProgress",
+							lane: "In progress",
+							statusType: "inProgress",
+						},
+					],
+					statusTypes: {
+						...card.statusTypes,
+						backlog: 0,
+						inProgress: 1,
+					},
 				},
 			],
 			fetchedAt: "2026-10-18T12:00:00.000Z",
@@ -395,7 +409,7 @@ describe("local projects", () => {
 		).toHaveLength(1);
 		expect(
 			requests.filter((request) =>
-				request.includes("/repos/stranger/stranger-repo/issues"),
+				request.includes("/repos/stranger/stranger-repo/issues?"),
 			),
 		).toHaveLength(1);
 	});
@@ -436,6 +450,7 @@ describe("local projects", () => {
 							blockers: [],
 							lane: "Backlog",
 							statusType: "backlog",
+							enteredStateAt: "2026-10-18T12:00:00.000Z",
 						},
 					],
 					crossProjectBlockers: [],
@@ -562,6 +577,7 @@ describe("local projects", () => {
 							blockers: [],
 							lane: "Backlog",
 							statusType: "backlog",
+							enteredStateAt: "2026-10-18T12:00:00.000Z",
 						},
 					],
 					crossProjectBlockers: [],
@@ -699,6 +715,7 @@ describe("local projects", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						crossProjectBlockers: [],
@@ -890,6 +907,7 @@ describe("local projects", () => {
 										blockers: [],
 										lane: "Backlog",
 										statusType: "backlog",
+										enteredStateAt: "2026-10-18T12:00:00.000Z",
 									},
 								],
 								crossProjectBlockers: [],

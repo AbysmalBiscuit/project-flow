@@ -1,0 +1,44 @@
+{
+	"number": 5796,
+	"title": "fix(hooks): preserve reachable PM action obligations",
+	"html_url": "https://github.com/akiojin/gwt/pull/5796",
+	"draft": false,
+	"body": "## Summary\n\n\u5e38\u99d0 PM \u304c\u59d4\u4efb\u6e08\u307f\u306e\u4f5c\u696d\u306b\u3064\u3044\u3066\u3001\u904e\u53bb\u306e implementation / verification / pr \u7fa9\u52d9\u3067 Stop \u3092\u30d6\u30ed\u30c3\u30af\u3055\u308c\u308b\u554f\u984c\u3092\u4fee\u6b63\u3057\u307e\u3059\u3002PM \u306e Issue \u66f4\u65b0\u7fa9\u52d9\u306f\u7dad\u6301\u3057\u3001issue.comment \u306e\u6210\u529f\u3067\u89e3\u653e\u3067\u304d\u307e\u3059\u3002\n\n## Changes\n\n- `crates/gwt/src/cli/hook/action_obligation_stop_check.rs`: PM \u306e\u751f\u6210\u6642\u3068 Stop \u6642\u306e\u5bfe\u8c61\u3092 IssueUpdate \u306b\u7d71\u4e00\u3002\u65e2\u5b58\u53f0\u5e33\u306f\u66f8\u304d\u63db\u3048\u305a\u3001\u65e2\u77e5\u306e\u81ea\u52d5\u901a\u77e5\u306b\u306f\u65e2\u5b58\u306e\u5b8c\u5168\u5f62\u5f0f\u5224\u5b9a\u3092\u5171\u7528\u3057\u307e\u3059\u3002\n- \u540c\u30d5\u30a1\u30a4\u30eb\u306e\u56de\u5e30\u30c6\u30b9\u30c8: \u65e7 PM \u7fa9\u52d9\u3001Issue \u66f4\u65b0\u3068\u30b3\u30e1\u30f3\u30c8\u6210\u529f\u3001\u901a\u77e5\u3068\u4eba\u9593\u306e\u4f9d\u983c\u3001\u901a\u5e38\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u306e\u5b9f\u88c5\u30fb\u691c\u8a3c\u30fbPR \u7fa9\u52d9\u3092\u78ba\u8a8d\u3057\u307e\u3059\u3002\n- `.gwt/work/events/`: \u3053\u306e\u4f5c\u696d\u306e\u6700\u7d42 Work \u8a18\u9332\u3092\u540c\u68b1\u3057\u307e\u3059\u3002\n\n## Testing\n\n- [x] `cargo test -p gwt --lib cli::hook::action_obligation_stop_check::tests -- --test-threads=1` \u2014 12 passed\n- [x] `cargo test -p gwt-core --test test_hygiene_test` \u2014 33 passed\u3001\u4fdd\u5b88 helper 1 ignored\n- [x] `cargo fmt --all -- --check`\n- [x] `cargo clippy -p gwt --all-targets --all-features -- -D warnings`\n- [x] \u901a\u5e38 commit hooks\u3001commitlint\u3001fast pre-push checks\n- [x] \u72ec\u7acb\u30ec\u30d3\u30e5\u30fc: \u4fee\u6b63\u5fc5\u9808\u306e\u6307\u6458\u306a\u3057\n\n\u5909\u66f4\u524d 10 PASS \u2192 \u671f\u5f85\u3059\u308b 3 RED / 9 PASS \u2192 \u4fee\u6b63\u5f8c 12 PASS\u3002\n\npush \u5f8c\u306e canonical pre-pr: `vrr-f1b7bb4381ca4ad980ca7a03726e1ac6`\u3001\u5bfe\u8c61 SHA `29adf782cfa934abdd47141e9c78ceeec75af795`\u3001\u5168 7 \u30b3\u30de\u30f3\u30c9 PASS\uff08checkout gwtd \u5fa9\u5143\u3092\u542b\u3080\uff09\u3002\u30ed\u30fc\u30ab\u30eb coverage \u306f\u672a\u6e2c\u5b9a\u3067\u3059\u3002\u627f\u8a8d\u6e08\u307f pre-pr policy \u306b\u5f93\u3044\u3001outer shell \u9664\u5916\u5f8c\u306e gwt-core + gwt 90% / \u305d\u306e\u4ed6 domain crates 80% \u3092\u5fc5\u9808 `coverage / Rust Coverage` \u306b\u59d4\u306d\u307e\u3059\u3002\n\nUser Verification Result: n/a (autonomous)\n\nAgent Visual Check: n/a (no UI surface)\n\n## PR Readiness\n\n- State: Ready for review\n- Releaseable slice: yes \u2014 PM \u306e prompt-to-action \u5bfe\u8c61\u5224\u5b9a\u3092\u4fee\u6b63\u3059\u308b\u5b8c\u7d50\u3057\u305f\u30b9\u30e9\u30a4\u30b9\u3067\u3059\u3002\n- Known blockers: None\n- Remaining acceptance: None for the functional scope; delivery is confirmed after required CI and merge into develop.\n\n## Closing Issues\n\n- Closes #5790\n\n## Related Issues / Links\n\n- #3393\uff08Hooks \u6b63\u672c\u3001AC-5790 / T-5790\uff09\n- #3431\uff08FR-064 \u306e\u7cbe\u5bc6\u5316\uff09\n\n## Checklist\n\n- [x] Tests added/updated\n- [x] Lint/format passed\n- [x] Documentation: \u5bfe\u8c61 SPEC \u306e spec / plan / tasks \u3068 FR-064 \u3092\u66f4\u65b0\u30fbroundtrip \u6e08\u307f\u3002\u5229\u7528\u8005\u5411\u3051 GUI/README \u306e\u5909\u66f4\u306f n/a\u3002\n- [x] Migration/backfill: n/a \u2014 \u8a18\u9332\u5f62\u5f0f\u3092\u5909\u66f4\u305b\u305a\u3001\u65e7\u7fa9\u52d9\u3092 Stop \u306e\u5bfe\u8c61\u5916\u3068\u3057\u307e\u3059\u3002\n- [x] CHANGELOG impact considered \u2014 fix \u306e patch \u5bfe\u8c61\u3067\u3059\u3002\n\n## Risk / Impact\n\n\u5bfe\u8c61\u306f canonical PM worktree \u306e\u7fa9\u52d9\u5224\u5b9a\u3067\u3059\u3002\u901a\u5e38\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u3001review/orphan \u306e\u4f8b\u5916\u3068\u6b63\u898f settlement \u3092\u56de\u5e30\u30c6\u30b9\u30c8\u3067\u78ba\u8a8d\u3057\u307e\u3057\u305f\u3002\u5207\u308a\u623b\u3057\u306f\u3053\u306e PR \u306e revert \u3067\u53ef\u80fd\u3067\u3059\u3002\u5f8c\u7d9a\u4f5c\u696d\u306f\u3042\u308a\u307e\u305b\u3093\u3002Issue \u306e AC \u5b8c\u4e86\u306f develop \u3078\u306e\u5305\u542b\u78ba\u8a8d\u5f8c\u306b\u66f4\u65b0\u3057\u307e\u3059\u3002\n\n<!-- gwt-agent-work {\"name\":\"\u30a6\u30e1\",\"provider\":\"Codex\",\"session_id\":\"4026d5d7-0e3b-4526-a423-b2369817188b\",\"phase\":\"pr_author\"} -->\nAgent: \u30a6\u30e1 (Codex)\n\n\n<!-- gwt-pr-head-verification v1\n{\"verified_head\":\"29adf782cfa934abdd47141e9c78ceeec75af795\",\"remote_head\":\"29adf782cfa934abdd47141e9c78ceeec75af795\",\"base_head\":\"de9980878f0c930de9b644b2962b3c09f650936f\",\"head_branch\":\"work/issue-5790\",\"base_branch\":\"develop\",\"classification\":\"matched\",\"product_commits\":[],\"product_files\":[],\"record_id\":\"vrr-f1b7bb4381ca4ad980ca7a03726e1ac6\",\"diagnostic\":null}\n-->\n",
+	"head": {
+		"ref": "work/issue-5790",
+		"sha": "29adf782cfa934abdd47141e9c78ceeec75af795"
+	},
+	"state": "open",
+	"merged_at": null,
+	"auto_merge": {
+		"commit_message": null,
+		"commit_title": null,
+		"merge_method": "merge",
+		"enabled_by": {
+			"login": "akiojin",
+			"id": 965624,
+			"node_id": "MDQ6VXNlcjk2NTYyNA==",
+			"avatar_url": "https://avatars.githubusercontent.com/u/965624?v=4",
+			"gravatar_id": "",
+			"url": "https://api.github.com/users/akiojin",
+			"html_url": "https://github.com/akiojin",
+			"followers_url": "https://api.github.com/users/akiojin/followers",
+			"following_url": "https://api.github.com/users/akiojin/following{/other_user}",
+			"gists_url": "https://api.github.com/users/akiojin/gists{/gist_id}",
+			"starred_url": "https://api.github.com/users/akiojin/starred{/owner}{/repo}",
+			"subscriptions_url": "https://api.github.com/users/akiojin/subscriptions",
+			"organizations_url": "https://api.github.com/users/akiojin/orgs",
+			"repos_url": "https://api.github.com/users/akiojin/repos",
+			"events_url": "https://api.github.com/users/akiojin/events{/privacy}",
+			"received_events_url": "https://api.github.com/users/akiojin/received_events",
+			"type": "User",
+			"user_view_type": "public",
+			"site_admin": false
+		}
+	},
+	"user": {
+		"login": "akiojin"
+	},
+	"created_at": "2026-10-20T03:35:45Z",
+	"updated_at": "2026-10-20T03:35:57Z"
+}

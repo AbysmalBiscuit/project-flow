@@ -1,0 +1,28 @@
+[merge]
+method = "squash"
+auto = "ask"
+
+# Grok manages and implements; Codex reviews, verifies, receives and settles design questions.
+[roles.manager]
+prefer = [{ harness = "grok", model = "grok-4.7", effort = "xhigh" }]
+
+[roles.implementer]
+prefer = [{ harness = "grok", model = "grok-4.7", effort = "xhigh" }]
+
+[roles.code-reviewer]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+
+[roles.pr-reviewer]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+
+[roles.verifier]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+
+[roles.receiver]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+
+[roles.probe]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+
+[roles.senior]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "xhigh" }]
