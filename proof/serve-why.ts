@@ -1,12 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { chdir } from "node:process";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
-
-chdir(
-	"/home/lev/git/github/AbysmalBiscuit/project-flow_workspaces/113-feat-show-why-an-item-needs-you",
-);
 
 const repo = "acme/widget";
 const port = process.argv[2] ?? "4175";
