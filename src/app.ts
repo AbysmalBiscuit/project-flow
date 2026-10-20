@@ -217,7 +217,11 @@ function projectRef(
 }
 
 function projectViews(options: PollOptions, configuration: Configuration) {
-	const rows = options.store.readTickets();
+	const rows = options.store
+		.readTickets()
+		.filter((row) =>
+			configuration.tracked.some((ref) => sameProjectRef(row, ref)),
+		);
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
 		tickets: row.tickets,

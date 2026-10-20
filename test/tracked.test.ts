@@ -142,24 +142,17 @@ type Started = {
 	sent: string[];
 };
 
-async function startWith(body: string): Promise<Started> {
+async function serve<T>(
+	body: string,
+	root: string,
+	check: (base: string) => Promise<T>,
+): Promise<{ checked: T; sent: string[] }> {
 	const { path, cleanup } = await tempConfig(body);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
 	const sent: string[] = [];
 	let startChecks: (base: string) => void = () => {};
-	const checks = new Promise<Omit<Started, "sent">>((resolve, reject) => {
+	const checked = new Promise<T>((resolve, reject) => {
 		startChecks = (base) => {
-			Promise.all([
-				fetch(new URL("/api/overview", base)).then((response) =>
-					response.json(),
-				),
-				fetch(new URL("/api/settings", base)).then((response) =>
-					response.json(),
-				),
-			]).then(
-				([overview, settings]) => resolve({ overview, settings }),
-				reject,
-			);
+			check(base).then(resolve, reject);
 		};
 	});
 	try {
@@ -175,15 +168,37 @@ async function startWith(body: string): Promise<Started> {
 				databasePath: join(root, "project-flow.sqlite"),
 				now: () => new Date("2026-08-18T12:00:00.000Z"),
 				stdout: (line) => startChecks(line),
-				waitForStop: checks.then(() => undefined),
+				waitForStop: checked.then(() => undefined),
 			}),
 		);
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
-		return { ...(await checks), sent };
+		return { checked: await checked, sent };
 	} finally {
 		await cleanup();
-		await rm(root, { recursive: true, force: true });
+	}
+}
+
+async function read<T>(base: string, path: string): Promise<T> {
+	return (await fetch(new URL(path, base))).json() as Promise<T>;
+}
+
+async function startWith(body: string, root?: string): Promise<Started> {
+	const store =
+		root ?? (await mkdtemp(join("/var/tmp", "project-flow-tracked-")));
+	try {
+		const { checked, sent } = await serve(body, store, (base) =>
+			Promise.all([
+				read<Overview>(base, "/api/overview"),
+				read<Started["settings"]>(base, "/api/settings"),
+			]),
+		);
+		const [overview, settings] = checked;
+		return { overview, settings, sent };
+	} finally {
+		if (root === undefined) {
+			await rm(store, { recursive: true, force: true });
+		}
 	}
 }
 
@@ -235,6 +250,36 @@ describe("tracked projects", () => {
 			"acme/repo-3",
 			"Board board-1-0d42ae5d46d0",
 		]);
+	});
+
+	test("a restart with a shorter tracked list hides the untracked stored project before the first poll ends", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		try {
+			const first = await startWith(
+				JSON.stringify({
+					tracked: [
+						{ tracker: "github", repo: "acme/repo-3" },
+						{ tracker: "github", repo: "acme/repo-1" },
+					],
+				}),
+				root,
+			);
+			expect(
+				first.overview.projects.map((project) => project.name).sort(),
+			).toEqual(["acme/repo-1", "acme/repo-3"]);
+			const { checked } = await serve(
+				JSON.stringify({
+					tracked: [{ tracker: "github", repo: "acme/repo-3" }],
+				}),
+				root,
+				(base) => read<Overview>(base, "/api/overview"),
+			);
+			expect(checked.projects.map((project) => project.name)).toEqual([
+				"acme/repo-3",
+			]);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	test("a configuration file with pinned and hidden loads and its pinned projects are tracked", async () => {
