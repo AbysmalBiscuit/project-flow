@@ -23,20 +23,17 @@ function classTokens(value: string): string[] {
 }
 
 function paintVariables(theme: PageTheme): void {
-	const palettes = (
+	const blocks = (
 		window as Window & {
 			__projectFlowTheme?: { light: string; dark: string };
 		}
 	).__projectFlowTheme;
-	const colours = palettes?.[theme];
 	const style = document.getElementById("project-flow-theme");
-	if (colours === undefined || style === null) {
+	const block = blocks?.[theme];
+	if (style === null || block === undefined) {
 		return;
 	}
-	const painted = style.textContent?.match(
-		/html\[data-theme="light"\]\{[^}]+\}html\[data-theme="dark"\]\{[^}]+\}/,
-	)?.[0];
-	style.textContent = `@layer priority1{:root{${colours}}html{color-scheme:${theme}}}${painted ?? ""}`;
+	style.textContent = block;
 }
 
 export function applyPageTheme(theme: PageTheme): void {

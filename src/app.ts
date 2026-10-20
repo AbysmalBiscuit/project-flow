@@ -1001,11 +1001,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
-		const html = await paintPage(
-			await bundled.text(),
-			configuration.theme,
-			server.url.origin,
-		);
+		const html = paintPage(await bundled.text(), configuration.theme);
 		const headers = new Headers(bundled.headers);
 		headers.delete("content-length");
 		return new Response(html, { status: bundled.status, headers });
