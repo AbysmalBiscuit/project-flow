@@ -104,10 +104,10 @@ const recorded: Fetch = async (input, init) => {
 		/^https:\/\/api\.github\.com\/repos\/(acme\/(?:alpha|beta))\/issues\?/,
 	);
 	if (issues?.[1] === "acme/alpha") {
-		return json([issue("acme/alpha", 1, "Alpha ticket", true)]);
+		return json([issue("acme/alpha", 1, "Alpha ticket", false)]);
 	}
 	if (issues?.[1] === "acme/beta") {
-		return json([issue("acme/beta", 2, "Beta ticket", false)]);
+		return json([issue("acme/beta", 2, "Beta ticket", true)]);
 	}
 	if (
 		url.includes("/pulls?") ||
