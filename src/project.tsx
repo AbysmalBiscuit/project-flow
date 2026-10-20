@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
 	NeedsYouItem,
@@ -24,6 +25,32 @@ const views = [
 	{ id: "graph", label: "Graph" },
 	{ id: "table", label: "Table" },
 ] as const;
+
+type OpenView = ProjectViewSettings["openView"];
+
+const emptyView: ProjectViewSettings = {
+	maxAgeDays: {},
+	needsYouOnly: false,
+	blockedOnly: false,
+	assignees: [],
+	search: "",
+	openView: "board",
+	graphDirection: "left-to-right",
+};
+
+function isOpenView(value: string): value is OpenView {
+	return views.some((item) => item.id === value);
+}
+
+function savedView(
+	viewsByProject: Record<string, ProjectViewSettings>,
+	name: string,
+): ProjectViewSettings {
+	const match = Object.entries(viewsByProject).find(
+		([key]) => key.toLowerCase() === name.toLowerCase(),
+	);
+	return { ...emptyView, ...match?.[1] };
+}
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -130,9 +157,24 @@ function panelBlockers(
 	return resolved;
 }
 
-function countLine(report: ProjectReport): string {
+function visibleLanes(
+	report: ProjectReport,
+	view: ProjectViewSettings,
+): ProjectReport["lanes"] {
+	if (view.shownLanes !== undefined) {
+		return report.lanes.filter((lane) =>
+			view.shownLanes?.some(
+				(name) => name.toLowerCase() === lane.name.toLowerCase(),
+			),
+		);
+	}
+	return report.lanes.filter((lane) => lane.statusType !== "dropped");
+}
+
+function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 	const total = report.tickets.length;
-	const doneLane = report.lanes.find((lane) => lane.statusType === "done");
+	const visible = visibleLanes(report, view);
+	const doneLane = visible.find((lane) => lane.statusType === "done");
 	const done =
 		doneLane === undefined
 			? report.tickets.filter((ticket) => ticket.state === "done").length
@@ -356,11 +398,13 @@ function Lane({
 
 function Board({
 	report,
+	settings,
 	selected,
 	onOpen,
 	onOpenOutside,
 }: {
 	report: ProjectReport;
+	settings: ProjectViewSettings;
 	selected: string | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: OutsideBlocker) => void;
@@ -368,7 +412,7 @@ function Board({
 	const [shownDone, setShownDone] = useState(false);
 	return (
 		<div className={clsx(board.lanes)}>
-			{report.lanes.map((lane) => (
+			{visibleLanes(report, settings).map((lane) => (
 				<Lane
 					key={lane.id}
 					name={lane.name}
@@ -386,6 +430,170 @@ function Board({
 	);
 }
 
+function FilterMenu({
+	report,
+	view,
+	open,
+	onOpen,
+}: {
+	report: ProjectReport;
+	view: ProjectViewSettings;
+	open: boolean;
+	onOpen: (next: boolean) => void;
+}) {
+	const shown = new Set(
+		(
+			view.shownLanes ??
+			report.lanes
+				.filter((lane) => lane.statusType !== "dropped")
+				.map((lane) => lane.name)
+		).map((name) => name.toLowerCase()),
+	);
+	const active =
+		view.shownLanes !== undefined ||
+		Object.keys(view.maxAgeDays).length > 0 ||
+		view.needsYouOnly ||
+		view.blockedOnly ||
+		view.assignees.length > 0 ||
+		view.search.trim() !== "";
+	return (
+		<div className={clsx(board.menuWrap)}>
+			<button
+				type="button"
+				id="project-filter"
+				className={clsx(board.filter, shell.buttonFocus)}
+				aria-label="Filter"
+				aria-expanded={open}
+				onClick={() => onOpen(!open)}
+			>
+				Filter
+				<span className={clsx(board.filterCount)}>
+					{active ? shown.size : report.lanes.length}
+				</span>
+			</button>
+		</div>
+	);
+}
+
+function FilterPanel({
+	report,
+	view,
+	onChange,
+}: {
+	report: ProjectReport;
+	view: ProjectViewSettings;
+	onChange: (next: ProjectViewSettings) => void;
+}) {
+	const shown = new Set(
+		(
+			view.shownLanes ??
+			report.lanes
+				.filter((lane) => lane.statusType !== "dropped")
+				.map((lane) => lane.name)
+		).map((name) => name.toLowerCase()),
+	);
+	const people = [
+		...new Set(
+			report.tickets.flatMap((ticket) =>
+				(ticket.assignees ?? []).map((name) => name.trim()),
+			),
+		),
+	].filter((name) => name !== "");
+	const picked = new Set(view.assignees.map((name) => name.toLowerCase()));
+	return (
+		<div className={clsx(board.menu, board.menuBelow)} id="project-filter-menu">
+			<p className={clsx(board.menuLabel)}>Lanes</p>
+			{report.lanes.map((lane) => (
+				<label key={lane.id} className={clsx(board.menuRow)}>
+					<span>{lane.name}</span>
+					<input
+						type="checkbox"
+						data-lane-toggle={lane.name}
+						checked={shown.has(lane.name.toLowerCase())}
+						onChange={(event) => {
+							const names = report.lanes.flatMap((item) =>
+								item.name.toLowerCase() === lane.name.toLowerCase()
+									? event.target.checked
+										? [item.name]
+										: []
+									: shown.has(item.name.toLowerCase())
+										? [item.name]
+										: [],
+							);
+							onChange({ ...view, shownLanes: names });
+						}}
+					/>
+				</label>
+			))}
+			<p className={clsx(board.menuLabel)}>Max age</p>
+			{report.lanes.map((lane) => (
+				<label key={`${lane.id}-age`} className={clsx(board.menuRow)}>
+					<span>{lane.name}</span>
+					<input
+						type="number"
+						min={0}
+						className={clsx(board.age)}
+						aria-label={`${lane.name} max age`}
+						data-lane-age={lane.name}
+						value={view.maxAgeDays[lane.name] ?? ""}
+						onChange={(event) => {
+							const next = { ...view.maxAgeDays };
+							const days = Number(event.target.value);
+							if (event.target.value.trim() === "" || Number.isNaN(days)) {
+								delete next[lane.name];
+							} else {
+								next[lane.name] = days;
+							}
+							onChange({ ...view, maxAgeDays: next });
+						}}
+					/>
+				</label>
+			))}
+			<label className={clsx(board.menuRow)}>
+				<span>Needs you only</span>
+				<input
+					type="checkbox"
+					data-needs-you-only=""
+					checked={view.needsYouOnly}
+					onChange={(event) =>
+						onChange({ ...view, needsYouOnly: event.target.checked })
+					}
+				/>
+			</label>
+			<label className={clsx(board.menuRow)}>
+				<span>Blocked only</span>
+				<input
+					type="checkbox"
+					data-blocked-only=""
+					checked={view.blockedOnly}
+					onChange={(event) =>
+						onChange({ ...view, blockedOnly: event.target.checked })
+					}
+				/>
+			</label>
+			<p className={clsx(board.menuLabel)}>Assignees</p>
+			{people.map((person) => (
+				<label key={person} className={clsx(board.menuRow)}>
+					<span>{person}</span>
+					<input
+						type="checkbox"
+						data-assignee={person}
+						checked={picked.has(person.toLowerCase())}
+						onChange={(event) => {
+							const next = event.target.checked
+								? [...view.assignees, person]
+								: view.assignees.filter(
+										(name) => name.toLowerCase() !== person.toLowerCase(),
+									);
+							onChange({ ...view, assignees: next });
+						}}
+					/>
+				</label>
+			))}
+		</div>
+	);
+}
+
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
@@ -395,7 +603,9 @@ function Page() {
 	const [panelTracker, setPanelTracker] =
 		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
 	const [open, setOpen] = useState(highlightKey() !== null);
-	const [view, setView] = useState("board");
+	const [view, setView] = useState<OpenView>("board");
+	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
+	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
@@ -410,6 +620,25 @@ function Page() {
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
+	}, []);
+	useEffect(() => {
+		let stopped = false;
+		fetch("/api/settings")
+			.then(async (response) => {
+				if (stopped || !response.ok) {
+					return;
+				}
+				const body = (await response.json()) as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				const saved = savedView(body.projectViews ?? {}, projectName());
+				setSettings(saved);
+				setView(saved.openView);
+			})
+			.catch(() => {});
+		return () => {
+			stopped = true;
+		};
 	}, []);
 	useEffect(() => {
 		const path = `/api/projects/${encodeURIComponent(name)}`;
@@ -493,6 +722,41 @@ function Page() {
 			</AppShell>
 		);
 	}
+	const saveView = (next: ProjectViewSettings) => {
+		setSettings(next);
+		setView(next.openView);
+		void fetch("/api/settings")
+			.then(async (response) => {
+				if (!response.ok) {
+					return;
+				}
+				const current: unknown = await response.json();
+				if (current === null || typeof current !== "object") {
+					return;
+				}
+				const body = current as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				const projectViews = { ...(body.projectViews ?? {}) };
+				const key =
+					Object.keys(projectViews).find(
+						(item) => item.toLowerCase() === name.toLowerCase(),
+					) ?? name;
+				projectViews[key] = next;
+				const saved = await fetch("/api/settings", {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...body, projectViews }),
+				});
+				if (saved.ok) {
+					const written = (await saved.json()) as {
+						projectViews?: Record<string, ProjectViewSettings>;
+					};
+					setSettings(savedView(written.projectViews ?? {}, name));
+				}
+			})
+			.catch(() => {});
+	};
 	const openTicketInPanel = (key: string) => {
 		setPanelProject(report.name);
 		setPanelTracker(report.tracker);
@@ -511,45 +775,63 @@ function Page() {
 					<div className={clsx(board.identity)}>
 						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 						<h1 className={clsx(board.name)}>{report.name}</h1>
-						<p className={clsx(board.counts)}>{countLine(report)}</p>
-					</div>
-					<div className={clsx(board.tools)}>
-						<button
-							type="button"
-							className={clsx(board.filter, shell.buttonFocus)}
-							aria-label="Filter"
-						>
-							Filter
-							<span className={clsx(board.filterCount)}>
-								{report.lanes.length}
-							</span>
-						</button>
-						<fieldset className={clsx(board.views)}>
-							<legend className={clsx(frame.legend)}>Views</legend>
-							{views.map((item) => (
-								<button
-									key={item.id}
-									type="button"
-									id={`view-${item.id}`}
-									className={clsx(
-										board.view,
-										shell.buttonFocus,
-										view === item.id && board.viewOn,
-									)}
-									aria-pressed={view === item.id}
-									onClick={() => setView(item.id)}
-								>
-									{item.label}
-								</button>
-							))}
-						</fieldset>
+						<p className={clsx(board.counts)}>{countLine(report, settings)}</p>
 					</div>
 				</div>
-				<div data-project={report.name} />
+				<div className={clsx(board.toolbar)}>
+					<div className={clsx(board.filterSlot)}>
+						<FilterMenu
+							report={report}
+							view={settings}
+							open={filterOpen}
+							onOpen={setFilterOpen}
+						/>
+					</div>
+					<input
+						id="project-search"
+						className={clsx(board.find)}
+						type="search"
+						aria-label="Search"
+						placeholder="Search"
+						value={settings.search}
+						onChange={(event) =>
+							saveView({ ...settings, search: event.target.value })
+						}
+					/>
+					<fieldset className={clsx(board.views)}>
+						<legend className={clsx(frame.legend)}>Views</legend>
+						{views.map((item) => (
+							<button
+								key={item.id}
+								type="button"
+								id={`view-${item.id}`}
+								className={clsx(
+									board.view,
+									shell.buttonFocus,
+									view === item.id && board.viewOn,
+								)}
+								aria-pressed={view === item.id}
+								onClick={() => {
+									if (!isOpenView(item.id)) {
+										return;
+									}
+									saveView({ ...settings, openView: item.id });
+								}}
+							>
+								{item.label}
+							</button>
+						))}
+					</fieldset>
+				</div>
+				{filterOpen ? (
+					<FilterPanel report={report} view={settings} onChange={saveView} />
+				) : null}
+				<div data-project={report.name} data-open-view={view} />
 				<div className={clsx(board.stage)}>
 					{view === "board" ? (
 						<Board
 							report={report}
+							settings={settings}
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
 							onOpenOutside={(blocker) => {
