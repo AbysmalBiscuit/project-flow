@@ -1,14 +1,26 @@
 {
-	"base_url": "http://127.0.0.1:4175",
-	"serve": ["bun", "proof/serve-project-stale.ts"],
+	"base_url": "http://127.0.0.1:4174",
+	"serve": ["bun", "proof/serve-open.ts"],
 	"steps": [
 		{ "goto": "/" },
-		{ "assert_text": "acme/widget" },
-		{ "assert_text": "acme/other" },
-		{ "assert_text": "Done 0 Dropped 0 Blocked 0 Backlog 1 In progress 0" },
-		{ "assert_text": "HTTP 500" },
-		{ "assert_text": "acme/other" },
-		{ "assert_text": "stale since 2026-04-01T12:00:00.000Z" },
-		{ "shot": "project-stale" }
+		{ "assert_text": "Overview" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "Inbox" },
+		{ "assert_text": "Search tickets" },
+		{ "assert_text": "Cards" },
+		{ "assert_text": "Graph" },
+		{ "assert_text": "Table" },
+		{ "shot": "overview-light" },
+		{ "click": "[data-theme-toggle]" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "Cards" },
+		{ "shot": "overview-dark" },
+		{ "click": "[aria-label='Settings']" },
+		{ "assert_text": "Settings" },
+		{ "shot": "settings-from-header" },
+		{ "goto": "/" },
+		{ "click": "#overview-refresh" },
+		{ "assert_text": "Overview" },
+		{ "shot": "overview-refreshed" }
 	]
 }
