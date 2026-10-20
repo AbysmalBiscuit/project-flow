@@ -510,11 +510,7 @@ function linearPinFetch(requests: string[]): Fetch {
 			if (filter !== null) {
 				requests.push(body);
 			}
-			if (
-				filter !== null &&
-				linearListSince(body) !== null &&
-				requests.filter((item) => linearListSince(item) !== null).length === 1
-			) {
+			if (filter !== null && requests.length === 2) {
 				return new Response("recorded failure", { status: 500 });
 			}
 			return new Response(linearPage([linearIssue("1")]), {
