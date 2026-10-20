@@ -115,7 +115,7 @@ function recordedFetch(): Fetch {
 			}
 			return page([]);
 		}
-		return emptyProjectFields(input, init) ?? unrecorded(input);
+		return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 	};
 }
 
@@ -304,7 +304,7 @@ describe("GET /api/overview blockers", () => {
 				slugId: linearProject,
 			},
 			issues: linearIssues,
-			github: async (input) => {
+			github: async (input, init) => {
 				const url = urlOf(input);
 				if (url === "https://api.github.com/user") {
 					return new Response(JSON.stringify({ login: "lev" }), {
@@ -329,7 +329,9 @@ describe("GET /api/overview blockers", () => {
 				if (url.includes("/comments")) {
 					return page([]);
 				}
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			},
 		});
 		const { path, cleanup } = await tempConfig(
@@ -588,7 +590,9 @@ describe("GET /api/overview blockers", () => {
 				) {
 					return page([]);
 				}
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			},
 		});
 		const { path, cleanup } = await tempConfig(
@@ -734,7 +738,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -896,7 +900,9 @@ describe("GET /api/overview blockers", () => {
 				if (url.includes("/comments")) {
 					return page([]);
 				}
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			},
 		});
 		const { path, cleanup } = await tempConfig(
@@ -1040,7 +1046,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1393,7 +1399,7 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
@@ -1518,7 +1524,9 @@ describe("GET /api/overview blockers", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -1695,7 +1703,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1857,7 +1865,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1962,7 +1970,9 @@ describe("GET /api/overview blockers", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2039,7 +2049,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2152,7 +2162,9 @@ describe("GET /api/overview blockers", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2270,7 +2282,7 @@ describe("GET /api/overview blockers", () => {
 					},
 				});
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2387,7 +2399,9 @@ describe("GET /api/overview blockers", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2582,7 +2596,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2739,7 +2753,9 @@ describe("GET /api/overview blockers", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2786,7 +2802,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2885,7 +2901,9 @@ describe("GET /api/overview blockers", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
+				return (
+					emptyProjectFields(input, init ?? undefined) ?? unrecorded(input)
+				);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2930,7 +2948,7 @@ describe("GET /api/overview blockers", () => {
 			if (url.includes("/comments")) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3043,7 +3061,7 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3172,7 +3190,7 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3313,7 +3331,7 @@ describe("GET /api/overview blockers", () => {
 			) {
 				return page([]);
 			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({

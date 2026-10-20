@@ -2272,9 +2272,12 @@ describe("live updates", () => {
 				const [owner, name] = read.repo.split("/");
 				return new Response(
 					JSON.stringify(
-						repoReadIssues(owner ?? "acme", name ?? "widget", [node], {
-							edited: read.since === null ? undefined : [node],
-						}),
+						repoReadIssues(
+							owner ?? "acme",
+							name ?? "widget",
+							[node],
+							read.since === null ? {} : { edited: [node] },
+						),
 					),
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);

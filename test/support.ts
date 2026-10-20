@@ -254,14 +254,15 @@ export function githubIssueNode(
 		parent:
 			parent !== null && typeof parent === "object" && "number" in parent
 				? parent
-				: parentMatch === null
+				: parentMatch?.[1] === undefined || parentMatch[2] === undefined
 					? null
 					: {
 							number: Number(parentMatch[2]),
 							repository: { nameWithOwner: parentMatch[1] },
 							title:
 								pool?.[parentMatch[1]]?.find(
-									(row) => row.number === Number(parentMatch[2]),
+									(row: { number?: unknown }) =>
+										row.number === Number(parentMatch[2]),
 								)?.title ?? null,
 						},
 		blockedBy: {

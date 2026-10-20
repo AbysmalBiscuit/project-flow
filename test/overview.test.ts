@@ -74,7 +74,7 @@ function emptyList(url: string): Response | null {
 	return null;
 }
 
-const recorded = [
+const fixtureTickets = [
 	ticket(1, "closed", "completed"),
 	ticket(2, "closed", "not_planned"),
 	ticket(3, "closed", "duplicate"),
@@ -98,10 +98,10 @@ function githubFetch(requests: string[] = []): Fetch {
 		const first = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`;
 		const second = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=2`;
 		if (url === first) {
-			return page(recorded.slice(0, 4), second);
+			return page(fixtureTickets.slice(0, 4), second);
 		}
 		if (url === second) {
-			return page(recorded.slice(4), null);
+			return page(fixtureTickets.slice(4), null);
 		}
 		if (
 			url.includes("/pulls?") ||
@@ -123,7 +123,7 @@ function githubFetch(requests: string[] = []): Fetch {
 		}
 		if (url === "https://api.github.com/graphql") {
 			const read = repoReadFromLists(input, init, {
-				[repo]: [...recorded.slice(0, 4), ...recorded.slice(4)],
+				[repo]: [...fixtureTickets.slice(0, 4), ...fixtureTickets.slice(4)],
 			});
 			if (read !== null) {
 				requests.push(
@@ -315,7 +315,7 @@ function linearFetch(requests: string[]): Fetch {
 			const list = `https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`;
 			if (url === list) {
 				return page(
-					recorded.filter((item) => item.pull_request === undefined),
+					fixtureTickets.filter((item) => item.pull_request === undefined),
 					null,
 				);
 			}
@@ -340,7 +340,7 @@ function linearFetch(requests: string[]): Fetch {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
-				const listed = await repoReadFromHandler(input, init, recorded);
+				const listed = await repoReadFromHandler(input, init, githubFetch());
 				if (listed !== null) {
 					return listed;
 				}

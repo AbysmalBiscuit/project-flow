@@ -2647,8 +2647,12 @@ async function readRepo(
 						},
 						() => undefined,
 					)
-				).flatMap((issue) => (issue === null ? [] : [issue]));
-	const seenIssues = new Set(issues.map((issue) => issue.number));
+				).flatMap((issue) =>
+					issue === null || issue === undefined ? [] : [issue],
+				);
+	const seenIssues = new Set(
+		issues.flatMap((issue) => (issue === undefined ? [] : [issue.number])),
+	);
 	for (const issue of edited) {
 		if (!seenIssues.has(issue.number)) {
 			issues.push(issue);
@@ -2705,25 +2709,25 @@ async function readRepo(
 		},
 		(page) => page.labels,
 	);
-	for (const issue of issues) {
+	const issueNodes = issues.flatMap((issue) =>
+		issue === undefined ? [] : [issue],
+	);
+	for (const issue of issueNodes) {
 		await pageIssueComments(token, fetchImpl, repo, issue);
 	}
-	for (const pull of [
+	const pullPages = [
 		...pullNodes,
-		...(first.mergedPullRequests?.nodes ?? []).flatMap((node) =>
-			node === undefined || node === null ? [] : [node],
-		),
-	]) {
+		...(first.mergedPullRequests?.nodes ?? []),
+	].flatMap((node) => (node === undefined || node === null ? [] : [node]));
+	for (const pull of pullPages) {
 		await pageNestedReviews(token, fetchImpl, repo, pull);
 	}
-	const tickets = issues
+	const tickets = issueNodes
 		.filter((issue) => {
 			const state = issue.state.toLowerCase();
 			return state === "open" || state === "closed";
 		})
-		.flatMap((issue) =>
-			issue === undefined ? [] : [ticketFromGraphql(issue, repo)],
-		);
+		.map((issue) => ticketFromGraphql(issue, repo));
 	const openPulls = pullNodes.flatMap((pull) => {
 		if (pull === undefined) {
 			return [];
