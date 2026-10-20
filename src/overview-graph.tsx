@@ -39,6 +39,7 @@ type BlockerEdgeData = {
 	blocked: string;
 	blocker: string;
 	tracker: "github" | "linear";
+	labelOffset: number;
 };
 
 export function ticketTotal(project: ProjectCounts): number {
@@ -203,6 +204,7 @@ function BlockerEdge({
 	const blocked = data?.blocked ?? "";
 	const blocker = data?.blocker ?? "";
 	const tracker = data?.tracker ?? "github";
+	const labelOffset = data?.labelOffset ?? 0;
 	return (
 		<>
 			<BaseEdge id={id} path={path} />
@@ -211,7 +213,7 @@ function BlockerEdge({
 					type="button"
 					className={`nopan ${clsx(cards.graphEdge, cards.graphLabel)}`}
 					style={{
-						transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+						transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + labelOffset}px)`,
 					}}
 					aria-label={`${ticket} ${blocked}`}
 					onClick={() => {
@@ -253,28 +255,36 @@ function graphModel(
 	nodes: FlowNode<ProjectNodeData>[];
 	edges: FlowEdge<BlockerEdgeData>[];
 } {
-	const names = new Set(catalogue.map((project) => project.name));
-	const positions = layout(catalogue, names);
+	const catalogueNames = new Set(catalogue.map((project) => project.name));
+	const shownNames = new Set(shown.map((project) => project.name));
+	const positions = layout(catalogue, catalogueNames);
 	const nodes = shown.map((project) => ({
 		id: project.name,
 		type: "project",
 		position: positions.get(project.name) ?? { x: 0, y: 0 },
 		data: nodeData(project),
 	}));
+	const pairIndex = new Map<string, number>();
 	const edges = shown.flatMap((project) =>
-		project.crossProjectBlockers.flatMap((blocker) =>
-			edgeFor(project.name, blocker, names),
-		),
+		project.crossProjectBlockers.flatMap((blocker) => {
+			const pair = `${blocker.project}\0${project.name}`;
+			const index = pairIndex.get(pair) ?? 0;
+			pairIndex.set(pair, index + 1);
+			return edgeFor(project.name, blocker, shownNames, index);
+		}),
 	);
 	return { nodes, edges };
 }
 
+const labelStep = 18;
+
 function edgeFor(
 	blocked: string,
 	blocker: CrossProjectBlocker,
-	names: Set<string>,
+	shownNames: Set<string>,
+	index: number,
 ): FlowEdge<BlockerEdgeData>[] {
-	if (!names.has(blocker.project) || blocker.project === blocked) {
+	if (!shownNames.has(blocker.project) || blocker.project === blocked) {
 		return [];
 	}
 	return [
@@ -289,6 +299,7 @@ function edgeFor(
 				blocked,
 				blocker: blocker.project,
 				tracker: blocker.tracker,
+				labelOffset: index * labelStep,
 			},
 		},
 	];
