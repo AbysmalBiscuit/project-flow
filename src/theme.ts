@@ -49,10 +49,11 @@ export function mermaidTheme(): "dark" | "default" {
 export function watchPageTheme(onChange: () => void): () => void {
 	const onClick = (event: Event) => {
 		const target = event.target;
-		if (!(target instanceof HTMLButtonElement)) {
+		if (!(target instanceof Element)) {
 			return;
 		}
-		if (target.dataset.themeToggle === undefined) {
+		const button = target.closest("button");
+		if (button?.dataset.themeToggle === undefined) {
 			return;
 		}
 		queueMicrotask(onChange);
