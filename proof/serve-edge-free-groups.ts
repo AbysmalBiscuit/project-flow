@@ -111,7 +111,7 @@ await serveRecorded({
 		checkoutRoots: [],
 		pmBot: { [repo]: false },
 		pollIntervalSeconds: 3600,
-		theme: "dark",
+		theme: "light",
 		projectViews: {
 			[repo]: {
 				openView: "graph",
