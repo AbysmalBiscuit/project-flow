@@ -1976,21 +1976,6 @@ export const board = stylex.create({
 		flexWrap: "wrap",
 		gap: space.xs,
 	},
-	link: {
-		padding: `${space.twoXs} ${space.sm}`,
-		borderWidth: 0,
-		borderRadius: radius.sm,
-		backgroundColor: colours.warnWash,
-		color: colours.warn,
-		font: "inherit",
-		fontSize: type.meta,
-		lineHeight: type.line,
-		cursor: "pointer",
-	},
-	linkOutside: {
-		backgroundColor: colours.segment,
-		color: colours.inkSoft,
-	},
 	needs: {
 		display: "inline-block",
 		padding: `${space.twoXs} ${space.sm}`,
