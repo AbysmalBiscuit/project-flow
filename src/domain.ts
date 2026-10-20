@@ -3439,7 +3439,7 @@ function scopeOf(title: string): string {
 	return scope.trim().toLowerCase();
 }
 
-function mermaidId(value: string): string {
+function diagramId(value: string): string {
 	const id = [...value]
 		.map((char) => {
 			if (/[A-Za-z0-9]/.test(char)) {
@@ -3452,7 +3452,7 @@ function mermaidId(value: string): string {
 	return /^[A-Za-z]/.test(id) ? id : `n_${id}`;
 }
 
-function mermaidLabel(value: string): string {
+function diagramLabel(value: string): string {
 	return value.replace(/"/g, "#quot;");
 }
 
@@ -3613,7 +3613,7 @@ function nodeOf(
 ): DiagramNode {
 	const key = placed.ticket.key ?? placed.view.title;
 	return {
-		id: mermaidId(key),
+		id: diagramId(key),
 		label: placed.view.title,
 		state: placed.view.state,
 		dashed: false,
@@ -3625,7 +3625,7 @@ function nodeOf(
 
 function externalNode(blocker: CrossProjectBlocker): DiagramNode {
 	return {
-		id: mermaidId(`${blocker.tracker}:${blocker.project}:${blocker.key}`),
+		id: diagramId(`${blocker.tracker}:${blocker.project}:${blocker.key}`),
 		label: `${blocker.project} ${blocker.key}`,
 		state: "external",
 		dashed: true,
@@ -3647,7 +3647,7 @@ const stateFill: Record<TicketState, string> = {
 function defineDiagram(diagram: Omit<Diagram, "definition">): Diagram {
 	const lines = [`flowchart ${diagram.direction}`];
 	for (const node of diagram.nodes) {
-		const shape = `["${mermaidLabel(node.label)}"]`;
+		const shape = `["${diagramLabel(node.label)}"]`;
 		const klass = node.dashed ? ":::dashed" : `:::${node.state}`;
 		lines.push(`  ${node.id}${shape}${klass}`);
 	}
@@ -3701,7 +3701,7 @@ function featureDiagrams(
 		for (const theme of [...themes.keys()].sort((left, right) =>
 			left.localeCompare(right),
 		)) {
-			const themeId = mermaidId(`${workstream}:${theme}`);
+			const themeId = diagramId(`${workstream}:${theme}`);
 			nodes.push({
 				id: themeId,
 				label: theme,
@@ -3736,7 +3736,7 @@ function featureDiagrams(
 		}
 		diagrams.push(
 			defineDiagram({
-				id: mermaidId(`map:${workstream}`),
+				id: diagramId(`map:${workstream}`),
 				title: workstream,
 				direction: "TD",
 				nodes,

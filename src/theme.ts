@@ -55,11 +55,6 @@ export function applyPageTheme(theme: PageTheme): void {
 	);
 }
 
-/** Dark when the page has applied dark, else the mermaid light theme. */
-export function mermaidTheme(): "dark" | "default" {
-	return document.documentElement.dataset.theme === "dark" ? "dark" : "default";
-}
-
 export function watchPageTheme(
 	onChange: (theme: PageTheme) => void,
 ): () => void {
