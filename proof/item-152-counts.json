@@ -1,0 +1,21 @@
+{
+	"base_url": "http://127.0.0.1:4182",
+	"serve": ["bun", "proof/serve-needs-you.ts", "4182"],
+	"steps": [
+		{ "goto": "/needs-you?project=acme%2Fgate" },
+		{ "assert_text": "All 2" },
+		{ "assert_text": "Ask 1" },
+		{ "assert_text": "Awaiting merge 0" },
+		{ "assert_text": "Label 1" },
+		{ "assert_text": "Run failed 0" },
+		{ "assert_text": "Showing 2" },
+		{ "assert_text": "Hold the gate" },
+		{ "click": "#reason-ask" },
+		{ "assert_text": "Showing 1" },
+		{ "assert_text": "Lev, which name should the gate use?" },
+		{ "click": "#reason-all" },
+		{ "assert_text": "Showing 2" },
+		{ "assert_text": "Hold the gate" },
+		{ "shot": "filtered-counts" }
+	]
+}

@@ -1,0 +1,15 @@
+{
+	"base_url": "http://127.0.0.1:4183",
+	"serve": ["bun", "proof/serve-needs-you.ts", "4183"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "All projects" },
+		{ "shot": "overview-filter" },
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "All projects" },
+		{ "assert_text": "Showing 5" },
+		{ "shot": "needs-project" }
+	]
+}

@@ -38,7 +38,6 @@ function ChoiceSelect({
 			id={id}
 			className={clsx(frame.select)}
 			aria-label={label}
-			size={choices.length}
 			value={value}
 			onChange={(event) => onChange(event.currentTarget.value)}
 		>
@@ -170,15 +169,25 @@ function NeedsGroups({
 	);
 }
 
+function projectFromLocation(): string {
+	const named = new URLSearchParams(window.location.search).get("project");
+	return named === null || named === "" ? allProjects : named;
+}
+
 function NeedsList({ items }: { items: NeedsYouItem[] }) {
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
-	const [project, setProject] = useState(allProjects);
+	const [project, setProject] = useState(projectFromLocation);
 	const [group, setGroup] = useState<NeedsGroup>("none");
 	const projects = [...new Set(items.map((item) => item.project))];
-	const shown = items.filter(
-		(item) =>
-			(reason === allReasons || item.reason === reason) &&
-			(project === allProjects || item.project === project),
+	const selected =
+		project === allProjects || projects.includes(project)
+			? project
+			: allProjects;
+	const inProject = items.filter(
+		(item) => selected === allProjects || item.project === selected,
+	);
+	const shown = inProject.filter(
+		(item) => reason === allReasons || item.reason === reason,
 	);
 	return (
 		<PageFrame
@@ -187,7 +196,7 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 				<ChoiceSelect
 					id="needs-project"
 					label="Project"
-					value={project}
+					value={selected}
 					choices={[
 						{ id: allProjects, label: "All projects" },
 						...projects.map((name) => ({ id: name, label: name })),
@@ -214,7 +223,7 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 				/>
 			}
 		>
-			<NeedsTabs items={items} reason={reason} onReason={setReason} />
+			<NeedsTabs items={inProject} reason={reason} onReason={setReason} />
 			<p data-needs-shown={shown.length}>Showing {shown.length}</p>
 			<NeedsGroups
 				items={shown}
