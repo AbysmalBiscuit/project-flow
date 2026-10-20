@@ -2214,7 +2214,10 @@ function shownTicket(
 	const draft = links.some((pull) => pull.draft);
 	const run = runFor(ticket, runs);
 	const live = run?.status === "running";
-	const failed = run?.status === "failed";
+	const mergedClose = links.some(
+		(pull) => pull.merged && closesTicket(pull, ticket),
+	);
+	const failed = run?.status === "failed" && !mergedClose;
 	const open = links.filter((pull) => !pull.merged);
 	if (
 		!failed &&
@@ -2228,11 +2231,7 @@ function shownTicket(
 			review.state === "awaitingMerge" && autoMerge ? "inReview" : review.state;
 		state = laterState(state, reviewed);
 	}
-	if (
-		!failed &&
-		ticket.state === "open" &&
-		links.some((pull) => pull.merged && closesTicket(pull, ticket))
-	) {
+	if (ticket.state === "open" && mergedClose) {
 		state = laterState(state, "done");
 	}
 	const shownLane =
@@ -2254,7 +2253,9 @@ function shownTicket(
 		staleStatus = ticket.status.name;
 		chips.push(staleStatus);
 	}
-	if (failed) {
+	const runFailed =
+		failed && ticket.state === "open" && shownLane.statusType !== "done";
+	if (runFailed) {
 		chips.push("Run failed");
 	}
 	return {
@@ -2262,7 +2263,7 @@ function shownTicket(
 		lane: shownLane,
 		...(staleStatus === undefined ? {} : { staleStatus }),
 		chips,
-		runFailed: failed,
+		runFailed,
 		enteredStateAt: enteredStateAt(ticket, shownLane),
 		blocked: ticket.state === "open" && ticket.blockedBy.length > 0,
 	};

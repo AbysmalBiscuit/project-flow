@@ -810,6 +810,74 @@ describe("forward state", () => {
 		);
 	});
 
+	test("a failed run with a merged PR that closes the ticket is Done with no Run failed chip", async () => {
+		const merged = (await recordedJson(
+			"github-pull-merged.json",
+		)) as RecordedPull;
+		const checkout = await devkitWorktree({ key: "WID-2", status: "failed" });
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear(
+					[
+						linearIssue("WID-2", "Land the branch", approvedState, {
+							attachments: {
+								nodes: [
+									{
+										url: "https://github.com/acme/widget/pull/83",
+										title: merged.title,
+										sourceType: "github",
+									},
+								],
+							},
+						}),
+					],
+					async (input) => {
+						const url = urlOf(input);
+						if (url === "https://api.github.com/user") {
+							return Response.json({ login: "lev" });
+						}
+						if (url === `https://api.github.com/repos/${githubRepo}/pulls/83`) {
+							return Response.json(
+								pullAs(merged, {
+									number: 83,
+									body: "Closes WID-2",
+									state: "closed",
+								}),
+							);
+						}
+						if (url.includes("/pulls?state=closed")) {
+							return page([]);
+						}
+						return unrecorded(input);
+					},
+				),
+				{
+					LINEAR_API_KEY: "recorded-linear-key",
+					GITHUB_TOKEN: "recorded-token",
+				},
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					const ticket = ticketOf(report, "WID-2");
+					expect(ticket).toMatchObject({
+						state: "done",
+						lane: "Done",
+						statusType: "done",
+					});
+					expect(ticket.chips ?? []).not.toContain("Run failed");
+					expect(
+						needsYouOf(report).filter((row) => row.key === "WID-2"),
+					).toEqual([]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
 	test("a failed run returns the ticket to its tracker lane with Run failed and a needs-you item", async () => {
 		const checkout = await devkitWorktree({ key: "WID-4", status: "failed" });
 		try {
