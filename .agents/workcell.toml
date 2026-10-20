@@ -1,3 +1,13 @@
+[merge]
+method = "squash"
+auto = "yes"
+rebase = "never"
+
+[merge]
+method = "squash"
+auto = "yes"
+rebase = "never"
+
 [roles.code-reviewer]
 prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
