@@ -1,4 +1,10 @@
-import type { Configuration } from "./configuration.ts";
+import type { AutoMerge, Configuration } from "./configuration.ts";
+
+export type WorkcellRun = {
+	key: string;
+	status: "running" | "failed";
+	repo?: string;
+};
 
 export function todoRows(listing: string): { project: string }[] {
 	const projects: { project: string }[] = [];
@@ -68,6 +74,7 @@ export type Ticket = {
 	assignees?: string[];
 	status?: TicketStatus;
 	emptyStatus?: boolean;
+	history?: { statusId: string; at: string }[];
 };
 
 export type TicketView = {
@@ -78,6 +85,9 @@ export type TicketView = {
 	lane?: string;
 	statusType?: StatusType;
 	blocked?: boolean;
+	staleStatus?: string;
+	chips?: string[];
+	enteredStateAt?: string;
 };
 
 export type CrossProjectBlocker = {
@@ -99,6 +109,7 @@ export type PullRequest = {
 	headSha: string;
 	headCommittedAt: string | null;
 	merged: boolean;
+	autoMerge?: boolean;
 	checks: BotCheck[];
 	comments: BotComment[];
 	reviews: BotReview[];
@@ -237,7 +248,7 @@ export type NeedsYouItem = {
 	tracker: "github" | "linear";
 	key: string;
 	headline: string;
-	reason: "ask" | "awaitingMerge" | "label";
+	reason: "ask" | "awaitingMerge" | "label" | "runFailed";
 	tags: string[];
 	answered: boolean;
 	acknowledged: boolean;
@@ -298,7 +309,7 @@ function commentSources(
 ): Comment[] {
 	const ticket = tickets.get(ticketKey(item.tracker, item.key));
 	if (ticket !== undefined) {
-		const linkedPulls = linked(ticket, pulls, item.project);
+		const linkedPulls = linked(ticket, pulls);
 		return [...(ticket.comments ?? []), ...linkedPulls.flatMap(pullComments)];
 	}
 	const pull = pulls.find((candidate) => pullKey(candidate) === item.key);
@@ -623,17 +634,25 @@ export function staleView(
 }
 
 const closing =
-	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#(\d+)/gi;
+	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b/gi;
 
 function closingKeys(body: string, repo: string): string[] {
 	const keys: string[] = [];
 	for (const match of body.matchAll(closing)) {
-		const number = match[2];
-		if (number === undefined) {
-			continue;
-		}
-		const key = `${match[1] ?? repo}#${number}`;
-		if (!keys.includes(key)) {
+		const namedRepo = match[1];
+		const namedNumber = match[2];
+		const bareNumber = match[3];
+		const team = match[4];
+		const linearNumber = match[5];
+		const key =
+			namedRepo !== undefined && namedNumber !== undefined
+				? `${namedRepo}#${namedNumber}`
+				: bareNumber !== undefined
+					? `${repo}#${bareNumber}`
+					: team !== undefined && linearNumber !== undefined
+						? `${team.toUpperCase()}-${linearNumber}`
+						: null;
+		if (key !== null && !keys.includes(key)) {
 			keys.push(key);
 		}
 	}
@@ -1673,26 +1692,20 @@ export function startedTodoKeys(
 
 function branchLinksTicket(branch: string, key: string): boolean {
 	const number = ticketNumber(key);
-	if (number !== null) {
-		const leading = new RegExp(`^(?:[^/]+/)?${number}-`);
-		if (leading.test(branch)) {
-			return true;
-		}
+	const leading = branch.match(/^(?:[^/]+\/)?(\d+)-/)?.[1];
+	if (leading !== undefined) {
+		return number !== null && leading === number;
 	}
 	return key.includes("#") && branch.toLowerCase().includes(key.toLowerCase());
 }
 
-function linked(
-	ticket: Ticket,
-	pulls: PullRequest[],
-	repo: string,
-): PullRequest[] {
+function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 	if (ticket.key === null) {
 		return [];
 	}
 	const key = ticket.key;
 	return pulls.filter((pull) => {
-		const keys = [...pull.closingKeys, ...closingKeys(pull.body, repo)];
+		const keys = [...pull.closingKeys, ...closingKeys(pull.body, pull.repo)];
 		return keys.includes(key) || branchLinksTicket(pull.branch, key);
 	});
 }
@@ -2125,14 +2138,73 @@ function progressAnswered(body: string, id: string): boolean {
 		.some((line) => askAnsweredLine(line.trim().replace(/^-\s*/, ""), id));
 }
 
-function shownState(
+function laterState(current: TicketState, next: TicketState): TicketState {
+	const currentAt = statusTypeOrder.indexOf(current);
+	const nextAt = statusTypeOrder.indexOf(next);
+	return nextAt > currentAt ? next : current;
+}
+
+function runFor(ticket: Ticket, runs: WorkcellRun[]): WorkcellRun | undefined {
+	const key = ticket.key;
+	if (key === null) {
+		return undefined;
+	}
+	return runs.find((run) => {
+		if (run.key.toLowerCase() === key.toLowerCase()) {
+			return true;
+		}
+		if (run.repo === undefined) {
+			return false;
+		}
+		return `${run.repo}#${run.key}`.toLowerCase() === key.toLowerCase();
+	});
+}
+
+function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
+	const key = ticket.key;
+	if (key === null || !pull.merged) {
+		return false;
+	}
+	return closingKeys(pull.body, pull.repo).some(
+		(item) => item.toLowerCase() === key.toLowerCase(),
+	);
+}
+
+export type ShownTicket = {
+	state: TicketState;
+	lane: Lane;
+	staleStatus?: string;
+	chips: string[];
+	runFailed: boolean;
+	enteredStateAt: string;
+	blocked: boolean;
+};
+
+function enteredStateAt(ticket: Ticket, lane: Lane): string {
+	const history = ticket.history ?? [];
+	let entered: string | undefined;
+	for (const change of history) {
+		if (change.statusId === lane.id && change.at !== "") {
+			entered =
+				entered === undefined || change.at > entered ? change.at : entered;
+		}
+	}
+	return entered ?? ticket.updatedAt;
+}
+
+function shownTicket(
 	ticket: Ticket,
-	state: TicketState,
+	lane: Lane,
 	links: PullRequest[],
 	branches: string[],
 	startedKeys: string[],
 	review: { state: "inReview" | "awaitingMerge" | null },
-): TicketState {
+	runs: WorkcellRun[],
+	autoMerge: boolean,
+	lanes: Lane[],
+): ShownTicket {
+	const trackerState = lane.statusType;
+	let state = trackerState;
 	const key = ticket.key;
 	const started =
 		key !== null &&
@@ -2140,17 +2212,98 @@ function shownState(
 	const pushed =
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);
-	const moving = draft || pushed || started;
-	if (state === "backlog" && draft) {
-		return "inProgress";
+	const run = runFor(ticket, runs);
+	const live = run?.status === "running";
+	const mergedClose = links.some(
+		(pull) => pull.merged && closesTicket(pull, ticket),
+	);
+	const failed = run?.status === "failed" && !mergedClose;
+	const open = links.filter((pull) => !pull.merged);
+	if (
+		!failed &&
+		ticket.state === "open" &&
+		(draft || pushed || started || (live && open.length === 0))
+	) {
+		state = laterState(state, "inProgress");
 	}
-	if (state === "backlog" && review.state !== null) {
-		return review.state;
+	if (!failed && ticket.state === "open" && review.state !== null) {
+		const reviewed =
+			review.state === "awaitingMerge" && autoMerge ? "inReview" : review.state;
+		state = laterState(state, reviewed);
 	}
-	if (state === "backlog" && moving) {
-		return "inProgress";
+	if (ticket.state === "open" && mergedClose) {
+		state = laterState(state, "done");
 	}
-	return state;
+	const shownLane =
+		failed || state === trackerState
+			? lane
+			: (lanes.find(
+					(item) =>
+						item.statusType === state && item.name === appLaneNames[state],
+				) ??
+				lanes.find((item) => item.statusType === state) ??
+				lane);
+	const chips: string[] = [];
+	let staleStatus: string | undefined;
+	if (
+		ticket.status !== undefined &&
+		shownLane.statusType !== ticket.status.statusType &&
+		ticket.status.name !== ""
+	) {
+		staleStatus = ticket.status.name;
+		chips.push(staleStatus);
+	}
+	const runFailed =
+		failed && ticket.state === "open" && shownLane.statusType !== "done";
+	if (runFailed) {
+		chips.push("Run failed");
+	}
+	return {
+		state: shownLane.statusType,
+		lane: shownLane,
+		...(staleStatus === undefined ? {} : { staleStatus }),
+		chips,
+		runFailed,
+		enteredStateAt: enteredStateAt(ticket, shownLane),
+		blocked: ticket.state === "open" && ticket.blockedBy.length > 0,
+	};
+}
+
+function chipsOf(
+	shown: ShownTicket,
+): { chips: string[] } | Record<string, never> {
+	const chips = shown.blocked ? [...shown.chips, "Blocked"] : shown.chips;
+	return chips.length === 0 ? {} : { chips };
+}
+
+type AutoMergeSources = {
+	config: Record<string, AutoMerge>;
+	workcell: Record<string, AutoMerge>;
+	repo: Record<string, boolean>;
+};
+
+function mergesOnItsOwn(
+	links: PullRequest[],
+	project: string,
+	projectKey: string,
+	auto: AutoMergeSources,
+): boolean {
+	const open = links.filter((pull) => !pull.merged);
+	if (open.length === 0) {
+		return false;
+	}
+	return open.every((pull) => {
+		const configured =
+			auto.config[pull.repo] ?? auto.config[projectKey] ?? auto.config[project];
+		if (configured !== undefined) {
+			return configured === "yes";
+		}
+		const workcell = auto.workcell[pull.repo];
+		if (workcell !== undefined) {
+			return workcell === "yes";
+		}
+		return pull.autoMerge === true || auto.repo[pull.repo] === true;
+	});
 }
 
 function pullKey(pull: PullRequest): string {
@@ -2165,6 +2318,8 @@ export function projectCounts(
 	pulls: PullRequest[],
 	branches: string[],
 	startedKeys: string[],
+	runs: WorkcellRun[],
+	autoMerge: AutoMergeSources,
 	all: { project: string; tickets: Ticket[] }[],
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
@@ -2197,13 +2352,14 @@ export function projectCounts(
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
 	const shownByKey = new Map<string, TicketState>();
+	const failedKeys = new Set<string>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
 	const linkedByTicket = new Map<string, PullRequest[]>();
 	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed);
-		const links = linked(ticket, active, name);
+		const links = linked(ticket, pulls);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));
 		}
@@ -2215,35 +2371,47 @@ export function projectCounts(
 			tags.add(tag);
 		}
 		const lane = laneForTicket(ticket, lanes);
-		const shown = shownState(
+		const mergesAlone = mergesOnItsOwn(links, name, key, autoMerge);
+		const shown = shownTicket(
 			ticket,
-			lane.statusType,
+			lane,
 			links,
 			branches,
 			startedKeys,
 			review,
+			runs,
+			mergesAlone,
+			lanes,
 		);
 		if (ticket.key !== null) {
-			shownByKey.set(ticket.key, shown);
+			shownByKey.set(ticket.key, shown.state);
+			if (shown.runFailed) {
+				failedKeys.add(ticket.key);
+			}
 		}
 		if (blockers.length > 0 && ticket.state === "open") {
 			counts.blocked += 1;
 		} else {
-			counts[shown] += 1;
+			counts[shown.state] += 1;
 		}
-		statusTypes[lane.statusType] += 1;
+		statusTypes[shown.lane.statusType] += 1;
 		views.push({
 			key: ticket.key,
 			title: ticket.title,
-			state: shown,
+			state: shown.state,
 			blockers: blockers.flatMap((blocker) =>
 				blocker.key === null ? [] : [blocker.key],
 			),
-			lane: lane.name,
-			statusType: lane.statusType,
+			lane: shown.lane.name,
+			statusType: shown.lane.statusType,
 			...(blockers.length > 0 && ticket.state === "open"
 				? { blocked: true }
 				: {}),
+			...(shown.staleStatus === undefined
+				? {}
+				: { staleStatus: shown.staleStatus }),
+			...chipsOf(shown),
+			enteredStateAt: shown.enteredStateAt,
 		});
 		if (blockers.length === 0 || ticket.state !== "open") {
 			continue;
@@ -2290,11 +2458,14 @@ export function projectCounts(
 		linkedByTicket,
 		expectedBots,
 		shownByKey,
+		failedKeys,
 		{
 			labels: rules.labels,
 			viewerLogins: rules.viewerLogins,
 			pmBot: projectHasPmBot(rules.pmBot, key, tracker),
 		},
+		autoMerge,
+		key,
 	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
@@ -2619,7 +2790,10 @@ export function needsYouItems(
 	linkedByTicket: Map<string, PullRequest[]>,
 	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
+	failedKeys: Set<string>,
 	rules: NeedsYouRules,
+	autoMerge: AutoMergeSources,
+	projectKey: string,
 ): NeedsYouItem[] {
 	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
 	const viewers = new Set(
@@ -2641,7 +2815,8 @@ export function needsYouItems(
 			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
 		const awaiting = shown === "awaitingMerge";
-		if (ask === null && !labelled && !awaiting) {
+		const failed = failedKeys.has(ticket.key);
+		if (ask === null && !labelled && !awaiting && !failed) {
 			continue;
 		}
 		items.push(
@@ -2652,7 +2827,13 @@ export function needsYouItems(
 				ticket.title,
 				ask,
 				comments,
-				ask !== null ? "ask" : awaiting ? "awaitingMerge" : "label",
+				ask !== null
+					? "ask"
+					: awaiting
+						? "awaitingMerge"
+						: failed
+							? "runFailed"
+							: "label",
 			),
 		);
 	}
@@ -2687,6 +2868,9 @@ export function needsYouItems(
 			continue;
 		}
 		if (reviewState([pull], expectedBots, []).state !== "awaitingMerge") {
+			continue;
+		}
+		if (mergesOnItsOwn([pull], project, projectKey, autoMerge)) {
 			continue;
 		}
 		items.push(
@@ -3107,13 +3291,27 @@ export function projectReport(
 		counts.tracker,
 		counts.crossProjectBlockers,
 	);
+	const ticketsByKey = new Map(
+		tickets.flatMap((ticket) =>
+			ticket.key === null ? [] : [[ticket.key, ticket]],
+		),
+	);
 	const inFlight = [
-		...counts.tickets.filter(
-			(ticket) =>
+		...counts.tickets.filter((ticket) => {
+			if (
 				ticket.state === "inProgress" ||
 				ticket.state === "inReview" ||
-				ticket.state === "awaitingMerge",
-		),
+				ticket.state === "awaitingMerge"
+			) {
+				return true;
+			}
+			const source =
+				ticket.key === null ? undefined : ticketsByKey.get(ticket.key);
+			return (
+				source?.state === "open" &&
+				(ticket.state === "done" || ticket.state === "dropped")
+			);
+		}),
 		...counts.unlinkedPrs.map((pull) => ({
 			key: `${pull.repo}#${pull.number}`,
 			title: pull.title,

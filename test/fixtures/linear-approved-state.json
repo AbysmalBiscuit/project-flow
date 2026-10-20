@@ -1,0 +1,11 @@
+{
+	"id": "174e8c14-8ca5-44b4-bd16-e54a6fa856f6",
+	"name": "Approved",
+	"type": "started",
+	"color": "#0f783c",
+	"team": {
+		"id": "c14f3b79-b213-4c02-820b-75caebf1a61f",
+		"key": "TST",
+		"name": "Test Team"
+	}
+}

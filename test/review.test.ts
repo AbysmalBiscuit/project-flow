@@ -58,6 +58,7 @@ function card(
 			blockers: [];
 			lane: string;
 			statusType: string;
+			enteredStateAt: string;
 		}[];
 		crossProjectBlockers: [];
 		statusTypes: Record<string, number>;
@@ -86,16 +87,17 @@ function card(
 						title,
 						state,
 						blockers: [],
-						lane: "Backlog",
-						statusType: "backlog",
+						lane: laneName(state),
+						statusType: state,
+						enteredStateAt: "2026-10-01T00:00:00Z",
 					},
 				],
 				crossProjectBlockers: [],
 				statusTypes: {
-					backlog: 1,
-					inProgress: 0,
-					inReview: 0,
-					awaitingMerge: 0,
+					backlog: state === "backlog" ? 1 : 0,
+					inProgress: state === "inProgress" ? 1 : 0,
+					inReview: state === "inReview" ? 1 : 0,
+					awaitingMerge: state === "awaitingMerge" ? 1 : 0,
 					done: 0,
 					dropped: 0,
 				},
@@ -104,6 +106,19 @@ function card(
 		fetchedAt: "2026-10-18T12:00:00.000Z",
 		error: null,
 	};
+}
+
+function laneName(state: string): string {
+	if (state === "inProgress") {
+		return "In progress";
+	}
+	if (state === "inReview") {
+		return "In review";
+	}
+	if (state === "awaitingMerge") {
+		return "Awaiting merge";
+	}
+	return "Backlog";
 }
 
 function issue(number: number): Record<string, unknown> {
@@ -1479,7 +1494,7 @@ describe("review cycle", () => {
 		}
 	});
 
-	test("a merged PR does not move an open ticket", async () => {
+	test("a merged PR that closes an open ticket moves it to Done", async () => {
 		const body = await overview({
 			issues: [issue(8)],
 			pulls: [],
@@ -1493,14 +1508,49 @@ describe("review cycle", () => {
 				},
 			],
 		});
-		expect(body).toEqual(
-			card("backlog", {
-				backlog: 1,
-				inProgress: 0,
-				inReview: 0,
-				awaitingMerge: 0,
-			}),
-		);
+		expect(body).toEqual({
+			projects: [
+				{
+					name: repo,
+					tracker: "github",
+					done: 1,
+					dropped: 0,
+					blocked: 0,
+					backlog: 0,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					needsYou: 0,
+					progress: 100,
+					fetchedAt: "2026-10-18T12:00:00.000Z",
+					error: null,
+					tags: [],
+					unlinkedPrs: [],
+					tickets: [
+						{
+							key: `${repo}#8`,
+							title: "Ticket 8",
+							state: "done",
+							blockers: [],
+							lane: "Done",
+							statusType: "done",
+							enteredStateAt: "2026-10-01T00:00:00Z",
+						},
+					],
+					crossProjectBlockers: [],
+					statusTypes: {
+						backlog: 0,
+						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						done: 1,
+						dropped: 0,
+					},
+				},
+			],
+			fetchedAt: "2026-10-18T12:00:00.000Z",
+			error: null,
+		});
 	});
 
 	test("a closed PR list with a next link fetches only page 1", async () => {
@@ -1773,10 +1823,10 @@ describe("review cycle", () => {
 						fetchedAt: "2026-10-18T12:00:00.000Z",
 						error: null,
 						statusTypes: {
-							backlog: 1,
+							backlog: 0,
 							inProgress: 0,
 							inReview: 0,
-							awaitingMerge: 0,
+							awaitingMerge: 1,
 							done: 0,
 							dropped: 0,
 						},
@@ -1788,8 +1838,9 @@ describe("review cycle", () => {
 								title: "Linear ticket 8",
 								state: "awaitingMerge",
 								blockers: [],
-								lane: "Backlog",
-								statusType: "backlog",
+								lane: "Awaiting merge",
+								statusType: "awaitingMerge",
+								enteredStateAt: "2026-10-01T00:00:00.000Z",
 							},
 						],
 						crossProjectBlockers: [],

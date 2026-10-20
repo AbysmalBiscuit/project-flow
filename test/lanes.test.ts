@@ -38,6 +38,7 @@ type FlightItem = {
 	lane: string;
 	statusType: string;
 	blocked?: boolean;
+	enteredStateAt?: string;
 };
 
 type ProjectBody = {
@@ -375,7 +376,8 @@ function flight(report: ProjectBody): FlightItem[] {
 				if (lane === "" || statusType === undefined) {
 					return [];
 				}
-				return [{ ...item, lane, statusType }];
+				const { enteredStateAt: _enteredStateAt, ...rest } = item;
+				return [{ ...rest, lane, statusType }];
 			}),
 		);
 }

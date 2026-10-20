@@ -15,11 +15,8 @@ import { linearStatusType } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
-	fetchHeadCommittedAt,
-	githubHeaders,
-	githubPull,
+	loadOpenPull,
 	mergedPullHistory,
-	pullReview,
 	type ReviewEvidence,
 	TrackerError,
 } from "./github.ts";
@@ -105,6 +102,9 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			comments(first: 50) {
 				nodes { id body createdAt user { name displayName } reactions { id } }
 				pageInfo { hasNextPage endCursor }
+			}
+			history(first: 50) {
+				nodes { createdAt toState { id } }
 			}
 			inverseRelations(first: 30) {
 				nodes {
@@ -233,6 +233,16 @@ const issueNode = z.object({
 			pageInfo: pageInfo.optional(),
 		})
 		.optional(),
+	history: z
+		.object({
+			nodes: z.array(
+				z.object({
+					createdAt: z.string(),
+					toState: z.object({ id: z.string() }).nullable(),
+				}),
+			),
+		})
+		.optional(),
 	inverseRelations: z
 		.object({
 			nodes: z.array(
@@ -337,6 +347,11 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 	if (mapped === null) {
 		return null;
 	}
+	const history = (node.history?.nodes ?? []).flatMap((change) =>
+		change.toState === null
+			? []
+			: [{ statusId: change.toState.id, at: change.createdAt }],
+	);
 	const comments = (node.comments?.nodes ?? []).flatMap((comment) => {
 		const listed = listedComment(comment);
 		return listed === null ? [] : [listed];
@@ -368,6 +383,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 		...(node.assignee === undefined ? {} : { assignee }),
 		...(status === undefined ? {} : { status }),
+		...(history.length === 0 ? {} : { history }),
 	};
 }
 
@@ -708,55 +724,32 @@ async function pullsForIssues(
 				}
 				continue;
 			}
-			const pullResponse = await fetchGithub(
-				`https://api.github.com/repos/${target.repo}/pulls/${target.number}`,
-				{ headers: githubHeaders(githubToken) },
-			);
-			if (!pullResponse.ok) {
+			let opened: Awaited<ReturnType<typeof loadOpenPull>>;
+			try {
+				opened = await loadOpenPull(
+					githubToken,
+					fetchGithub,
+					target.repo,
+					target.number,
+					[identifier],
+				);
+			} catch {
 				continue;
 			}
-			const pull = githubPull.parse(await pullResponse.json());
-			if (pull.state !== "open") {
-				continue;
+			if (opened !== null) {
+				pulls.push(opened);
 			}
-			const head = pull.head.sha ?? "";
-			const review =
-				head === ""
-					? { checks: [], comments: [], reviews: [], reactions: [] }
-					: await pullReview(
-							target.repo,
-							pull.number,
-							head,
-							pull.draft === true,
-							githubToken,
-							fetchGithub,
-						);
-			const headCommittedAt =
-				pull.draft === true || head === ""
-					? null
-					: await fetchHeadCommittedAt(
-							target.repo,
-							head,
-							githubToken,
-							fetchGithub,
-						);
-			pulls.push({
-				repo: target.repo,
-				number: pull.number,
-				url: pull.html_url,
-				title: pull.title,
-				draft: pull.draft === true,
-				branch: pull.head.ref,
-				body: pull.body ?? "",
-				closingKeys: [identifier],
-				headSha: head,
-				headCommittedAt,
-				merged: false,
-				...review,
-			});
 		}
 	}
-	const repos = [...new Set(pulls.map((pull) => pull.repo))];
+	const repos = new Set(pulls.map((pull) => pull.repo));
+	for (const node of nodes) {
+		for (const attachment of node.attachments?.nodes ?? []) {
+			const target = pullFromUrl(attachment.url);
+			if (target !== null) {
+				repos.add(target.repo);
+			}
+		}
+	}
 	for (const repo of repos) {
 		pulls.push(
 			...(await mergedPullHistory(repo, githubToken, fetchGithub, seenReviews)),
@@ -954,6 +947,9 @@ export function linearTracker(
 		},
 		async listBranches(_project) {
 			return [];
+		},
+		async repoAutoMerge(_project) {
+			return false;
 		},
 		fetchThread(project, ticketKey) {
 			return fetchLinearThread(key, fetchImpl, project, ticketKey);

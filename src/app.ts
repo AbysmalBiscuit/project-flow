@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Configuration } from "./configuration.ts";
+import type { AutoMerge, Configuration } from "./configuration.ts";
 import { loadConfiguration, saveConfiguration } from "./configuration.ts";
 import type {
 	Comment,
@@ -34,6 +34,7 @@ import {
 	staleView,
 	startedTodoKeys,
 	todoRows,
+	type WorkcellRun,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
@@ -146,18 +147,14 @@ function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
 	};
 }
 
-function projectViews(
-	store: Store,
-	configuration: Configuration,
-	viewers: Viewer[],
-) {
-	const rows = store.readTickets();
+function projectViews(options: PollOptions, configuration: Configuration) {
+	const rows = options.store.readTickets();
 	const all = rows.map((row) => ({
 		project: row.key.includes("/") ? row.key : row.name,
 		tickets: row.tickets,
 	}));
 	return rows.map((row) => {
-		const goodPoll = store.lastGoodPollAt(row.key);
+		const goodPoll = options.store.lastGoodPollAt(row.key);
 		const counted = projectCounts(
 			row.name,
 			row.key,
@@ -166,13 +163,19 @@ function projectViews(
 			row.pulls,
 			row.branches,
 			row.startedKeys,
+			options.runs,
+			{
+				config: configuration.autoMerge,
+				workcell: options.workcellAuto,
+				repo: options.repoAutoMerge,
+			},
 			all,
 			expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 			{
 				fetchedAt: goodPoll?.toISOString() ?? null,
-				error: store.projectError(row.key),
+				error: options.store.projectError(row.key),
 			},
-			needsYouRules(configuration, viewers),
+			needsYouRules(configuration, options.viewers),
 			configuration.laneMappings,
 			row.board,
 		);
@@ -186,44 +189,38 @@ function projectViews(
 }
 
 function attentionFor(
-	store: Store,
+	options: PollOptions,
 	configuration: Configuration,
-	viewers: Viewer[],
 ): Attention {
-	return attentionOf(
-		projectViews(store, configuration, viewers),
-		configuration.pmBot,
-	);
+	return attentionOf(projectViews(options, configuration), configuration.pmBot);
 }
 
 function overview(
-	store: Store,
+	options: PollOptions,
 	configuration: Configuration,
-	viewers: Viewer[],
 ): Overview {
-	const projects = projectViews(store, configuration, viewers).map(
+	const projects = projectViews(options, configuration).map(
 		(item) => item.counts,
 	);
 	const goodPolls = projects.flatMap((project) => {
-		const at = store.lastGoodPollAt(project.name);
+		const at = options.store.lastGoodPollAt(project.name);
 		return at === null ? [] : [at.toISOString()];
 	});
 	return {
 		projects,
 		...staleView(
-			store.fetchStatus(),
+			options.store.fetchStatus(),
 			goodPolls.length === 0 ? null : (goodPolls.sort()[0] ?? null),
 		),
 	};
 }
 
 function reportFor(
-	store: Store,
+	options: PollOptions,
 	configuration: Configuration,
-	viewers: Viewer[],
 	name: string,
 ): ProjectReport | null {
-	const match = projectViews(store, configuration, viewers).find(
+	const match = projectViews(options, configuration).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
@@ -313,10 +310,9 @@ async function threadResponse(
 async function replyResponse(
 	trackers: Trackers,
 	request: Request,
-	store: Store,
+	options: PollOptions,
 	notifier: Notifier,
 	configuration: Configuration,
-	viewers: Viewer[],
 ): Promise<Response> {
 	const parsed = replyBody.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) {
@@ -329,7 +325,7 @@ async function replyResponse(
 	if (parsed.data.body.trim() === "") {
 		return Response.json({ error: "reply is empty" }, { status: 400 });
 	}
-	const row = rowForReply(store, parsed.data);
+	const row = rowForReply(options.store, parsed.data);
 	const reply: ReplyRequest = {
 		tracker: parsed.data.tracker,
 		project: parsed.data.project,
@@ -351,9 +347,9 @@ async function replyResponse(
 	};
 	try {
 		const created: PostedReply = await tracker.postReply(reply);
-		recordPostedReply(store, reply, created);
+		recordPostedReply(options.store, reply, created);
 		notifier.publish({
-			overview: overview(store, configuration, viewers),
+			overview: overview(options, configuration),
 			notifications: [],
 		});
 		return Response.json(created, { status: 201 });
@@ -455,6 +451,9 @@ type PollOptions = {
 	lastFullPollAt: Map<string, number>;
 	holdLists: Promise<void>;
 	viewers: Viewer[];
+	runs: WorkcellRun[];
+	workcellAuto: Record<string, AutoMerge>;
+	repoAutoMerge: Record<string, boolean>;
 	attention: Attention;
 	seenNotifications: Set<string>;
 	primed: boolean;
@@ -472,7 +471,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		options.store.recordFetchError(message);
 		if (options.store.readTickets().length > 0) {
 			options.notifier.publish({
-				overview: overview(options.store, options.fallback, options.viewers),
+				overview: overview(options, options.fallback),
 				notifications: [],
 			});
 		}
@@ -487,6 +486,15 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		todoListing,
 		checkoutBasenames(checkouts),
 	);
+	options.runs = checkouts.flatMap((checkout) => checkout.runs ?? []);
+	options.workcellAuto = {};
+	const readRepos = new Set<string>();
+	for (const checkout of checkouts) {
+		const repo = checkout.repo;
+		if (repo !== undefined && checkout.mergeAuto !== undefined) {
+			options.workcellAuto[repo] = checkout.mergeAuto;
+		}
+	}
 	const linear = options.linear;
 	const github = options.github;
 	let githubPage: {
@@ -656,6 +664,19 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				project.tracker === "github" && github !== null
 					? await github.listBranches(project.key)
 					: [];
+			if (github !== null) {
+				const repos = new Set([
+					...pulls.map((pull) => pull.repo),
+					...(project.tracker === "github" ? [project.key] : []),
+				]);
+				for (const repo of repos) {
+					if (readRepos.has(repo)) {
+						continue;
+					}
+					readRepos.add(repo);
+					options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+				}
+			}
 			const stored = options.store
 				.readTickets()
 				.find((row) => row.key === project.key);
@@ -752,7 +773,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.polling = false;
 	publishPoll(options, configuration, outcomes, fullKeys, failed, false);
-	const views = projectViews(options.store, configuration, options.viewers);
+	const views = projectViews(options, configuration);
 	const after = attentionOf(views, configuration.pmBot);
 	const firstGood = new Set(
 		listed.flatMap((project) =>
@@ -843,7 +864,7 @@ function runningOverview(
 	options: PollOptions,
 	configuration: Configuration,
 ): Overview {
-	const body = overview(options.store, configuration, options.viewers);
+	const body = overview(options, configuration);
 	if (!options.polling) {
 		return body;
 	}
@@ -892,6 +913,9 @@ export async function start(options: StartOptions): Promise<Running> {
 		lastFullPollAt: new Map(),
 		holdLists: Promise.resolve(),
 		viewers: [],
+		runs: [],
+		workcellAuto: {},
+		repoAutoMerge: {},
 		attention: {
 			needsYou: [],
 			comments: new Map(),
@@ -910,11 +934,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		polling: false,
 	};
 	if (pollOptions.primed) {
-		pollOptions.attention = attentionFor(
-			opened.store,
-			configuration,
-			pollOptions.viewers,
-		);
+		pollOptions.attention = attentionFor(pollOptions, configuration);
 		const kept = pollOptions.attention.needsYou.map(needsYouSeenId);
 		for (const id of kept) {
 			pollOptions.seenNotifications.add(id);
@@ -964,7 +984,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					throw error;
 				}
 				notifier.publish({
-					overview: overview(opened.store, configuration, pollOptions.viewers),
+					overview: overview(pollOptions, configuration),
 					notifications: [],
 				});
 			}
@@ -1028,11 +1048,9 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/needs-you": {
 				GET: () =>
 					Response.json(
-						projectViews(
-							opened.store,
-							configuration,
-							pollOptions.viewers,
-						).flatMap((item) => item.items),
+						projectViews(pollOptions, configuration).flatMap(
+							(item) => item.items,
+						),
 					),
 			},
 			"/api/inbox": {
@@ -1041,12 +1059,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/projects/:name": {
 				GET: (request) => {
 					const name = request.params.name;
-					const report = reportFor(
-						opened.store,
-						configuration,
-						pollOptions.viewers,
-						name,
-					);
+					const report = reportFor(pollOptions, configuration, name);
 					if (report === null) {
 						return Response.json(
 							{ error: "project not found" },
@@ -1107,10 +1120,9 @@ export async function start(options: StartOptions): Promise<Running> {
 					replyResponse(
 						trackers,
 						request,
-						opened.store,
+						pollOptions,
 						notifier,
 						configuration,
-						pollOptions.viewers,
 					),
 			},
 		},
