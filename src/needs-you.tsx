@@ -1,11 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
-import { closeTicket, openTicket } from "./selection.ts";
+import {
+	activeTicket,
+	closeTicket,
+	type OpenedTicket,
+	openTicket,
+	useActiveTicket,
+} from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import {
 	type NeedsGroup,
@@ -35,7 +41,9 @@ function NeedsTabs({
 }) {
 	const tabs: readonly { id: ReasonFilter; label: string }[] = [
 		{ id: allReasons, label: "All" },
-		...reasonOrder.map((id) => ({ id, label: reasonTab[id] })),
+		...reasonOrder
+			.filter((id) => id !== "runFailed")
+			.map((id) => ({ id, label: reasonTab[id] })),
 	];
 	return (
 		<div className={clsx(needs.tabs)} role="tablist" aria-label="Reason">
@@ -137,6 +145,35 @@ function NeedsGroups({
 	);
 }
 
+function NeedsPanel({
+	items,
+	ticket,
+}: {
+	items: NeedsYouItem[];
+	ticket: OpenedTicket | null;
+}) {
+	if (ticket === null) {
+		return null;
+	}
+	const item = items.find(
+		(candidate) =>
+			candidate.project === ticket.project && candidate.key === ticket.key,
+	);
+	return (
+		<TicketPanel
+			key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
+			tracker={ticket.tracker}
+			project={ticket.project}
+			ticketKey={ticket.key}
+			{...(item === undefined ? {} : { title: item.headline })}
+			{...(item === undefined
+				? {}
+				: { why: `${reasonLabel[item.reason]}. ${item.headline}` })}
+			onClose={closeTicket}
+		/>
+	);
+}
+
 function summaryLine(items: NeedsYouItem[], polled: string): string {
 	const tickets =
 		items.length === 1
@@ -162,7 +199,8 @@ function NeedsList({
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
 	const [project, setProject] = useState(allProjects);
 	const [group, setGroup] = useState<NeedsGroup>("project");
-	const [open, setOpen] = useState<NeedsYouItem | null>(items[0] ?? null);
+	const ticket = useActiveTicket();
+	const seeded = useRef(false);
 	const projects = [...new Set(items.map((item) => item.project))];
 	const selected =
 		project === allProjects || projects.includes(project)
@@ -171,11 +209,23 @@ function NeedsList({
 	const inProject = items.filter(
 		(item) => selected === allProjects || item.project === selected,
 	);
+	useEffect(() => {
+		const first = items[0];
+		if (seeded.current || first === undefined || activeTicket() !== null) {
+			seeded.current = true;
+			return;
+		}
+		seeded.current = true;
+		openTicket({
+			tracker: first.tracker,
+			project: first.project,
+			key: first.key,
+		});
+	}, [items]);
 	const shown = inProject.filter(
 		(item) => reason === allReasons || item.reason === reason,
 	);
 	const choose = (item: NeedsYouItem) => {
-		setOpen(item);
 		openTicket({
 			tracker: item.tracker,
 			project: item.project,
@@ -225,24 +275,13 @@ function NeedsList({
 					<NeedsGroups
 						items={shown}
 						group={group}
-						selected={open === null ? null : `${open.project} ${open.key}`}
+						selected={
+							ticket === null ? null : `${ticket.project} ${ticket.key}`
+						}
 						onOpen={choose}
 					/>
 				</div>
-				{open === null ? null : (
-					<TicketPanel
-						key={`${open.tracker} ${open.project} ${open.key}`}
-						tracker={open.tracker}
-						project={open.project}
-						ticketKey={open.key}
-						title={open.headline}
-						why={`${reasonLabel[open.reason]}. ${open.headline}`}
-						onClose={() => {
-							setOpen(null);
-							closeTicket();
-						}}
-					/>
-				)}
+				<NeedsPanel items={items} ticket={ticket} />
 			</div>
 		</PageFrame>
 	);

@@ -73,7 +73,10 @@ export function JumpBox() {
 			clearTimeout(handle);
 		};
 	}, [open, query]);
-	if (!open && ticket === null) {
+	const pageRendersPanel =
+		window.location.pathname === "/needs-you" ||
+		window.location.pathname.startsWith("/projects/");
+	if (!open && (ticket === null || pageRendersPanel)) {
 		return null;
 	}
 	return (
@@ -128,8 +131,7 @@ export function JumpBox() {
 					</div>
 				</div>
 			) : null}
-			{ticket === null ||
-			window.location.pathname.startsWith("/projects/") ? null : (
+			{ticket === null || pageRendersPanel ? null : (
 				<TicketPanel
 					key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
 					tracker={ticket.tracker}
