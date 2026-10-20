@@ -1525,6 +1525,60 @@ describe("forward state", () => {
 		);
 	});
 
+	test("a reopened ticket with its factory label still attached enters at the reopen", async () => {
+		const labeledAt = "2026-08-15T07:00:00Z";
+		const reopenedAt = "2026-08-17T11:00:00Z";
+		const laterLabelAt = "2026-08-17T10:00:00Z";
+		const editedAt = "2026-08-18T15:00:00Z";
+		const events = (await recordedJson("github-issue-reopened.json")) as Record<
+			string,
+			unknown
+		>[];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recordedRepo(
+				[
+					githubIssue(13, {
+						title: "Reopened with the label still attached",
+						state: "open",
+						state_reason: "reopened",
+						updated_at: editedAt,
+						labels: [{ name: "factory: running" }],
+					}),
+					githubIssue(14, {
+						title: "Blank reopen time keeps the label time",
+						state: "open",
+						state_reason: "reopened",
+						updated_at: editedAt,
+						labels: [{ name: "factory: running" }],
+					}),
+				],
+				[],
+				[],
+				{ allow_auto_merge: false },
+				[],
+				[],
+				events,
+				factoryLabels,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				const ticket = ticketOf(report, `${githubRepo}#13`);
+				expect(ticket).toMatchObject({
+					lane: "factory: running",
+					statusType: "inProgress",
+					enteredStateAt: reopenedAt,
+				});
+				expect(ticket.enteredStateAt).not.toBe(labeledAt);
+				expect(ticket.enteredStateAt).not.toBe(editedAt);
+				expect(ticketOf(report, `${githubRepo}#14`).enteredStateAt).toBe(
+					laterLabelAt,
+				);
+			},
+		);
+	});
+
 	test("a repo with no factory labels keeps its close time", async () => {
 		const closedAt = "2026-08-16T08:00:00Z";
 		const editedAt = "2026-08-18T15:00:00Z";

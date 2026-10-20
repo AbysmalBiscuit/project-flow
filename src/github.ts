@@ -1102,11 +1102,13 @@ function labelHistory(
 ) {
 	const history: NonNullable<Ticket["history"]> = [];
 	for (const event of events) {
-		if (event.issue.number !== number || event.event !== "labeled") {
+		if (event.issue.number !== number) {
 			continue;
 		}
-		const name = event.label?.name;
-		if (name !== status.name) {
+		const labelName = event.label?.name;
+		const named = event.event === "labeled" && labelName === status.name;
+		const reopened = event.event === "reopened";
+		if (!named && !reopened) {
 			continue;
 		}
 		const at = event.created_at.trim();
