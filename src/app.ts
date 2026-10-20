@@ -51,9 +51,8 @@ import {
 	todoRows,
 	type WorkcellRun,
 } from "./domain.ts";
-import type { Fetch } from "./fetch.ts";
+import { abortableFetch, type Fetch } from "./fetch.ts";
 import {
-	abortableFetch,
 	conditionalFetch,
 	githubProjectByNumber,
 	githubTicketKey,

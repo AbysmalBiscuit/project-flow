@@ -284,23 +284,6 @@ function sameHeaders(
 	);
 }
 
-function isTrackerRequest(input: string | URL | Request): boolean {
-	const url = restUrl(input);
-	return (
-		url.startsWith("https://api.github.com/") ||
-		url.startsWith("https://api.linear.app/")
-	);
-}
-
-export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
-	return (input, init) => {
-		if (init?.signal !== undefined || !isTrackerRequest(input)) {
-			return fetchImpl(input, init);
-		}
-		return fetchImpl(input, { ...init, signal });
-	};
-}
-
 export function conditionalFetch(
 	fetchImpl: Fetch,
 	cache: RestCache,
