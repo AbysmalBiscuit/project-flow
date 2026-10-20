@@ -1182,18 +1182,11 @@ function Page() {
 							direction={settings.graphDirection}
 							openKey={open ? ticket : null}
 							onOpen={(node) => {
-								setPanelReport(null);
-								setPanelProject(node.project);
-								setPanelTracker(node.tracker);
-								setTicket(node.key);
-								setOpen(true);
-								if (!node.outside) {
-									openTicket({
-										tracker: node.tracker,
-										project: node.project,
-										key: node.key,
-									});
+								if (node.outside) {
+									openOutsideInPanel(node);
+									return;
 								}
+								openTicketInPanel(node.key);
 							}}
 						/>
 					) : (
