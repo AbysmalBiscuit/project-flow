@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { readSettings, writeSettings } from "./client-settings.ts";
 import {
 	type Configuration,
 	type OverviewView,
@@ -22,7 +23,7 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import { GraphZoom, OverviewGraph } from "./overview-graph.tsx";
+import { OverviewGraph } from "./overview-graph.tsx";
 import { openProject, projectPath } from "./paths.ts";
 import {
 	barSegments,
@@ -609,27 +610,6 @@ function ticketKey(key: string): string {
 	return hash === -1 ? key : key.slice(hash + 1);
 }
 
-async function readSettings(): Promise<Configuration | null> {
-	const response = await fetch("/api/settings");
-	if (!response.ok) {
-		return null;
-	}
-	const body: unknown = await response.json();
-	if (body === null || typeof body !== "object") {
-		return null;
-	}
-	return body as Configuration;
-}
-
-async function writeSettings(next: Configuration): Promise<boolean> {
-	const response = await fetch("/api/settings", {
-		method: "PUT",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify(next),
-	});
-	return response.ok;
-}
-
 function OverviewPage({
 	overview,
 	settings,
@@ -933,7 +913,7 @@ function OverviewPage({
 					<div className={clsx(cards.controls)}>
 						{pinnedMenu}
 						{filterMenu}
-						{view.view === "graph" ? <GraphZoom /> : sortMenu}
+						{view.view === "graph" ? null : sortMenu}
 					</div>
 				</div>
 			)}

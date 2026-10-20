@@ -1,3 +1,4 @@
+import "@xyflow/react/dist/style.css";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { ProjectViewSettings } from "./configuration.ts";
@@ -11,6 +12,7 @@ import type {
 import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
+import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
 import { blockedLabel, loadingLabel, navLabel, stateLabel } from "./terms.ts";
@@ -892,16 +894,20 @@ function FilterPanel({
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
+	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
 	const [panelProject, setPanelProject] = useState(panelProjectName);
 	const panelProjectRef = useRef(panelProject);
 	panelProjectRef.current = panelProject;
 	const [panelTracker, setPanelTracker] =
 		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
 	const [open, setOpen] = useState(highlightKey() !== null);
+	const [openedState, setOpenedState] = useState<TicketView["state"] | null>(
+		null,
+	);
 	const [view, setView] = useState<OpenView>("board");
-	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
+	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [polling, setPolling] = useState(true);
@@ -994,6 +1000,52 @@ function Page() {
 			stop();
 		};
 	}, [name]);
+	const outsideProjects = [
+		...new Set(
+			(report?.tickets ?? []).flatMap((item) =>
+				(item.outsideBlockers ?? []).map((blocker) => blocker.project),
+			),
+		),
+	]
+		.sort((left, right) => left.localeCompare(right))
+		.join("\n");
+	useEffect(() => {
+		let stopped = false;
+		const load = () => {
+			if (outsideProjects === "") {
+				setOutsideReports([]);
+				return;
+			}
+			const names = outsideProjects.split("\n");
+			Promise.all(
+				names.map(async (project) => {
+					const response = await fetch(
+						`/api/projects/${encodeURIComponent(project)}?view=all`,
+					);
+					if (!response.ok) {
+						return null;
+					}
+					return (await response.json()) as ProjectReport;
+				}),
+			)
+				.then((loaded) => {
+					if (!stopped) {
+						setOutsideReports(loaded.flatMap((item) => item ?? []));
+					}
+				})
+				.catch(() => {
+					if (!stopped) {
+						setOutsideReports([]);
+					}
+				});
+		};
+		load();
+		const stop = onAppEvent("overview", load);
+		return () => {
+			stopped = true;
+			stop();
+		};
+	}, [outsideProjects]);
 	useEffect(() => {
 		if (!open || ticket === null) {
 			return;
@@ -1090,6 +1142,7 @@ function Page() {
 		saveChain.current = write.catch(() => {});
 	};
 	const openTicketInPanel = (key: string) => {
+		setOpenedState(null);
 		setPanelProject(report.name);
 		setPanelTracker(report.tracker);
 		setTicket(key);
@@ -1100,7 +1153,11 @@ function Page() {
 			key,
 		});
 	};
-	const openOutsideInPanel = (blocker: OutsideBlocker) => {
+	const openOutsideInPanel = (
+		blocker: OutsideBlocker,
+		state?: TicketView["state"],
+	) => {
+		setOpenedState(state ?? null);
 		setPanelReport(null);
 		setPanelProject(blocker.project);
 		setPanelTracker(blocker.tracker);
@@ -1116,6 +1173,14 @@ function Page() {
 						<h1 className={clsx(board.name)}>{report.name}</h1>
 						<p className={clsx(board.counts)}>{countLine(report, settings)}</p>
 					</div>
+					{view === "graph" ? (
+						<DirectionSwitch
+							direction={settings.graphDirection}
+							onChange={(next) =>
+								saveView({ ...settings, graphDirection: next })
+							}
+						/>
+					) : null}
 				</div>
 				<div className={clsx(board.toolbar)}>
 					<div className={clsx(board.filterSlot)}>
@@ -1182,6 +1247,20 @@ function Page() {
 							onOpen={openTicketInPanel}
 							onOpenOutside={openOutsideInPanel}
 						/>
+					) : view === "graph" ? (
+						<ProjectGraph
+							report={report}
+							reports={outsideReports}
+							direction={settings.graphDirection}
+							openKey={open ? ticket : null}
+							onOpen={(node) => {
+								if (node.outside) {
+									openOutsideInPanel(node, node.state);
+									return;
+								}
+								openTicketInPanel(node.key);
+							}}
+						/>
 					) : (
 						<p className={clsx(board.placeholder)}>{view}</p>
 					)}
@@ -1199,9 +1278,11 @@ function Page() {
 									? undefined
 									: trackerUrl(panelTracker, selected.key)
 							}
-							{...(selected?.state === undefined
-								? {}
-								: { state: selected.state })}
+							{...(selected?.state !== undefined
+								? { state: selected.state }
+								: openedState === null
+									? {}
+									: { state: openedState })}
 							lane={selected?.lane}
 							laneColour={
 								report.lanes.find((lane) => lane.name === selected?.lane)
