@@ -1,20 +1,22 @@
-import mermaid from "mermaid";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type {
-	Diagram,
-	ProjectReport,
-	TicketState,
-	TicketView,
-} from "./domain.ts";
+import type { OutsideBlocker, ProjectReport, TicketView } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
-import { NeedsItem } from "./needs-item.tsx";
-import { closeTicket, type OpenedTicket, openTicket } from "./selection.ts";
-import { PageFrame } from "./shell.tsx";
-import { stateLabel } from "./terms.ts";
-import { mermaidTheme, watchPageTheme } from "./theme.ts";
+import { TicketPanel } from "./panel.tsx";
+import { closeTicket, openTicket } from "./selection.ts";
+import { AppShell } from "./shell.tsx";
+import { blockedLabel, navLabel, stateLabel } from "./terms.ts";
+import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { frame, project as page, shell } from "./ui-styles.ts";
+import { board, frame, shell } from "./ui-styles.ts";
+
+const doneCap = 5;
+
+const views = [
+	{ id: "board", label: "Board" },
+	{ id: "graph", label: "Graph" },
+	{ id: "table", label: "Table" },
+] as const;
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -23,336 +25,348 @@ function projectName(): string {
 }
 
 function highlightKey(): string | null {
-	return new URLSearchParams(window.location.search).get("ticket");
-}
-
-function openPath(project: string, ticket: string | null): string {
-	const path = `/projects/${encodeURIComponent(project)}`;
-	return ticket === null
-		? path
-		: `${path}?ticket=${encodeURIComponent(ticket)}`;
-}
-
-function openProject(
-	project: string,
-	ticket: string | null,
-	openPanel = false,
-): void {
-	window.history.pushState(
-		openPanel ? { panel: true } : {},
-		"",
-		openPath(project, ticket),
-	);
-	window.dispatchEvent(new PopStateEvent("popstate"));
-}
-
-function openDrawnTicket(ticket: OpenedTicket): void {
-	openProject(ticket.project, ticket.key, true);
-	openTicket(ticket);
-}
-
-function ticketFromUrl(report: ProjectReport): OpenedTicket | null {
-	const key = highlightKey();
-	if (key === null) {
+	const ticket = new URLSearchParams(window.location.search).get("ticket");
+	if (ticket === null || ticket.trim() === "") {
 		return null;
 	}
-	for (const section of report.sections) {
-		for (const diagram of section.diagrams ?? []) {
-			for (const node of diagram.nodes) {
-				if (node.ticket === key) {
-					return {
-						tracker: node.tracker,
-						project: node.project,
-						key,
-					};
-				}
-			}
-		}
-		for (const item of section.items ?? []) {
-			if (item.key === key) {
-				return { tracker: report.tracker, project: report.name, key };
-			}
-		}
-	}
-	return { tracker: report.tracker, project: report.name, key };
+	return ticket;
 }
 
-function restorePanel(report: ProjectReport | null): void {
-	const panel = window.history.state?.panel === true;
-	const named = highlightKey();
-	if (!panel || named === null) {
-		closeTicket();
+function clearTicketQuery(): void {
+	const url = new URL(window.location.href);
+	if (!url.searchParams.has("ticket")) {
 		return;
 	}
-	if (report === null) {
-		return;
-	}
-	const ticket = ticketFromUrl(report);
-	if (ticket !== null) {
-		openTicket(ticket);
-	}
+	url.searchParams.delete("ticket");
+	const next = `${url.pathname}${url.search}${url.hash}`;
+	window.history.replaceState(window.history.state, "", next);
 }
 
-function TicketLine({
-	ticket,
-	highlight,
+function trackerUrl(
+	tracker: "github" | "linear",
+	key: string,
+): string | undefined {
+	if (tracker === "github" && key.includes("#")) {
+		return `https://github.com/${key.replace("#", "/issues/")}`;
+	}
+	if (tracker === "linear") {
+		return `https://linear.app/issue/${key}`;
+	}
+	return undefined;
+}
+
+function panelBlockers(
+	ticket: TicketView | undefined,
+	source: ProjectReport | null,
+	project: string,
+	tracker: "github" | "linear",
+): OutsideBlocker[] {
+	if (ticket === undefined) {
+		return [];
+	}
+	const outside = ticket.outsideBlockers ?? [];
+	const resolved: OutsideBlocker[] = [];
+	for (const key of ticket.blockers) {
+		const known = outside.find(
+			(blocker) => blocker.key.toLowerCase() === key.toLowerCase(),
+		);
+		if (known !== undefined) {
+			resolved.push(known);
+			continue;
+		}
+		const local = source?.tickets.find(
+			(item) => item.key?.toLowerCase() === key.toLowerCase(),
+		);
+		resolved.push({
+			tracker,
+			project,
+			key,
+			title: local?.title.trim() || key,
+		});
+	}
+	return resolved;
+}
+
+function countLine(report: ProjectReport): string {
+	const total = report.tickets.length;
+	const doneLane = report.lanes.find((lane) => lane.statusType === "done");
+	const done =
+		doneLane === undefined
+			? report.tickets.filter((ticket) => ticket.state === "done").length
+			: laneTickets(report, doneLane.name).length;
+	const needs = report.tickets.filter((ticket) => ticket.needsYou).length;
+	const blocked = report.tickets.filter((ticket) => ticket.blocked).length;
+	const outside = report.tickets.filter(
+		(ticket) => (ticket.outsideBlockers ?? []).length > 0,
+	).length;
+	const need = needs === 1 ? "needs" : "need";
+	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects)`;
+}
+
+function laneTickets(report: ProjectReport, lane: string): TicketView[] {
+	return report.tickets.filter(
+		(ticket) => (ticket.lane ?? stateLabel[ticket.state]) === lane,
+	);
+}
+
+function shortKey(key: string): string {
+	const mark = key.lastIndexOf("#");
+	return mark === -1 ? key : key.slice(mark);
+}
+
+function Chip({
+	label,
+	ticketKey,
+	outside,
 	onOpen,
+}: {
+	label: string;
+	ticketKey?: string;
+	outside?: boolean;
+	onOpen?: (key: string) => void;
+}) {
+	if (ticketKey === undefined || onOpen === undefined) {
+		return <span className={clsx(board.chip, board.chipStatic)}>{label}</span>;
+	}
+	return (
+		<button
+			type="button"
+			className={clsx(
+				board.chip,
+				outside && board.chipOutside,
+				shell.buttonFocus,
+			)}
+			data-chip={ticketKey}
+			onClick={(event) => {
+				event.stopPropagation();
+				onOpen(ticketKey);
+			}}
+		>
+			{label}
+			{outside ? " ↗" : ""}
+		</button>
+	);
+}
+
+function Card({
+	ticket,
+	onOpen,
+	onOpenOutside,
 }: {
 	ticket: TicketView;
-	highlight: string | null;
 	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
-	const marked = highlight !== null && highlight === ticket.key;
 	const key = ticket.key;
-	return (
-		<li
-			className={clsx(page.ticket, marked && page.highlighted)}
-			data-ticket={key ?? ""}
-		>
-			{key === null ? (
-				<>
-					{ticket.title} {ticket.state}
-				</>
-			) : (
-				<button
-					type="button"
-					className={clsx(page.ticketOpen, page.ticketHover)}
-					onClick={() => onOpen(key)}
-				>
-					{key} {ticket.title} {ticket.state}
-				</button>
-			)}
-		</li>
+	const outside = ticket.outsideBlockers ?? [];
+	const outsideKeys = new Set(
+		outside.map((blocker) => blocker.key.toLowerCase()),
 	);
-}
-
-function NodeLine({
-	node,
-	ticket,
-}: {
-	node: Diagram["nodes"][number];
-	ticket: string | null;
-}) {
-	const marked = ticket !== null && ticket === node.ticket;
-	if (node.dashed) {
-		return (
-			<li>
-				<a
-					className={clsx(page.dashedNode, marked && page.highlighted)}
-					data-node={node.id}
-					href={openPath(node.project, node.ticket)}
-					onClick={(event) => {
-						event.preventDefault();
-						openProject(node.project, node.ticket);
-					}}
-				>
-					{node.label}
-				</a>
-			</li>
-		);
-	}
-	return (
-		<li
-			className={marked ? clsx(page.highlighted) : undefined}
-			data-node={node.id}
-			data-ticket={node.ticket ?? ""}
-		>
-			{node.label}
-		</li>
+	const local = ticket.blockers.filter(
+		(blocker) => !outsideKeys.has(blocker.toLowerCase()),
 	);
-}
-
-const stateSwatches: {
-	kind: TicketState;
-	swatch: typeof page.done;
-}[] = [
-	{ kind: "done", swatch: page.done },
-	{ kind: "dropped", swatch: page.dropped },
-	{ kind: "inProgress", swatch: page.inProgress },
-	{ kind: "inReview", swatch: page.inReview },
-	{ kind: "awaitingMerge", swatch: page.awaitingMerge },
-	{ kind: "backlog", swatch: page.backlog },
-];
-
-function StateLegend({ theme }: { theme: boolean }) {
 	return (
-		<ul className={clsx(page.legend)} aria-label="Diagram key">
-			{stateSwatches.map((item) => (
-				<li key={item.kind} className={clsx(page.legendItem)}>
-					<span className={clsx(page.swatch, item.swatch)} />
-					{stateLabel[item.kind]}
-				</li>
-			))}
-			{theme ? (
-				<li className={clsx(page.legendItem)}>
-					<span className={clsx(page.swatch, page.theme)} />
-					Theme
-				</li>
-			) : null}
-			<li className={clsx(page.legendItem)}>
-				<span className={clsx(page.swatch, page.dashed)} />
-				Cross-project blocker
-			</li>
-		</ul>
-	);
-}
-
-function DiagramView({
-	diagram,
-	ticket,
-}: {
-	diagram: Diagram;
-	ticket: string | null;
-}) {
-	return (
-		<figure className={clsx(page.diagram)} data-diagram={diagram.id}>
-			<figcaption>{diagram.title}</figcaption>
-			<pre
-				key={diagram.definition}
-				className="mermaid"
-				data-definition={diagram.definition}
+		<li>
+			<button
+				type="button"
+				className={clsx(
+					board.card,
+					board.cardHover,
+					board.cardFocus,
+					ticket.blocked && board.cardBlocked,
+				)}
+				data-ticket={key ?? ""}
+				onClick={() => {
+					if (key !== null) {
+						onOpen(key);
+					}
+				}}
 			>
-				{diagram.definition}
-			</pre>
-			<ul className={clsx(page.nodes)}>
-				{diagram.nodes.map((node) => (
-					<NodeLine key={node.id} node={node} ticket={ticket} />
+				<span className={clsx(board.meta)}>
+					{key === null ? (
+						<span />
+					) : (
+						<span className={clsx(board.key)}>{shortKey(key)}</span>
+					)}
+					{ticket.pull === undefined ? null : (
+						<span className={clsx(board.pull)}>{ticket.pull}</span>
+					)}
+				</span>
+				<p className={clsx(board.title)}>{ticket.title}</p>
+				{local.length === 0 &&
+				outside.length === 0 &&
+				!ticket.needsYou ? null : (
+					<span className={clsx(board.chips)}>
+						{local.map((blocker) => (
+							<Chip
+								key={blocker}
+								label={`${blockedLabel} by ${shortKey(blocker)}`}
+								ticketKey={blocker}
+								onOpen={onOpen}
+							/>
+						))}
+						{outside.map((blocker) => (
+							<Chip
+								key={blocker.key}
+								label={blocker.key}
+								ticketKey={blocker.key}
+								outside
+								onOpen={() => onOpenOutside(blocker)}
+							/>
+						))}
+						{ticket.needsYou ? (
+							<span className={clsx(board.chip, board.chipNeeds)}>
+								{navLabel.needsYou}
+							</span>
+						) : null}
+					</span>
+				)}
+			</button>
+		</li>
+	);
+}
+
+const laneMarks: Record<string, typeof board.markBacklog> = {
+	[lightValues.done.toLowerCase()]: board.markDone,
+	[lightValues.dropped.toLowerCase()]: board.markDropped,
+	[lightValues.blocked.toLowerCase()]: board.markBlocked,
+	[lightValues.backlog.toLowerCase()]: board.markBacklog,
+	[lightValues.inProgress.toLowerCase()]: board.markInProgress,
+	[lightValues.inReview.toLowerCase()]: board.markInReview,
+	[lightValues.awaitingMerge.toLowerCase()]: board.markAwaitingMerge,
+};
+
+function laneMark(colour: string) {
+	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
+}
+
+function Lane({
+	name,
+	colour,
+	tickets,
+	capped,
+	shown,
+	reveal,
+	onShowAll,
+	onOpen,
+	onOpenOutside,
+}: {
+	name: string;
+	colour: string;
+	tickets: TicketView[];
+	capped: boolean;
+	shown: boolean;
+	reveal: string | null;
+	onShowAll: () => void;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
+}) {
+	const selectedHidden =
+		capped && !shown && reveal !== null
+			? tickets.slice(doneCap).filter((ticket) => ticket.key === reveal)
+			: [];
+	const visible =
+		capped && !shown
+			? [...tickets.slice(0, doneCap), ...selectedHidden]
+			: tickets;
+	return (
+		<section
+			className={clsx(board.lane, capped && board.laneDone)}
+			data-lane={name}
+			aria-label={name}
+		>
+			<h2 className={clsx(board.laneTitle)}>
+				<span
+					className={clsx(board.laneMark, laneMark(colour))}
+					data-lane-colour={colour}
+				/>
+				{name} {tickets.length}
+			</h2>
+			<ul className={clsx(board.cards, capped && !shown && board.cardsClip)}>
+				{visible.map((ticket) => (
+					<Card
+						key={`${ticket.key ?? ""} ${ticket.title}`}
+						ticket={ticket}
+						onOpen={onOpen}
+						onOpenOutside={onOpenOutside}
+					/>
 				))}
 			</ul>
-		</figure>
+			{capped && !shown && tickets.length > doneCap ? (
+				<button
+					type="button"
+					className={clsx(
+						shell.button,
+						shell.buttonHover,
+						shell.buttonFocus,
+						board.showAll,
+					)}
+					data-show-all={name}
+					onClick={onShowAll}
+				>
+					Show all
+				</button>
+			) : null}
+		</section>
 	);
 }
 
-function Report({
+function Board({
 	report,
-	ticket,
+	selected,
 	onOpen,
+	onOpenOutside,
 }: {
 	report: ProjectReport;
-	ticket: string | null;
+	selected: string | null;
 	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
+	const [shownDone, setShownDone] = useState(false);
 	return (
-		<PageFrame
-			title={report.name}
-			filter={
-				<select
-					className={clsx(frame.select)}
-					aria-label="Filter"
-					defaultValue="all"
-				>
-					<option value="all">All lanes</option>
-				</select>
-			}
-			sort={
-				<select
-					className={clsx(frame.select)}
-					aria-label="Sort"
-					defaultValue="updated"
-				>
-					<option value="updated">Updated</option>
-				</select>
-			}
-			search={
-				<input
-					className={clsx(frame.search)}
-					type="search"
-					aria-label="Search"
-					placeholder="Search"
+		<div className={clsx(board.lanes)}>
+			{report.lanes.map((lane) => (
+				<Lane
+					key={lane.id}
+					name={lane.name}
+					colour={lane.colour}
+					tickets={laneTickets(report, lane.name)}
+					capped={lane.statusType === "done"}
+					shown={shownDone}
+					reveal={selected}
+					onShowAll={() => setShownDone(true)}
+					onOpen={onOpen}
+					onOpenOutside={onOpenOutside}
 				/>
-			}
-			views={[
-				{ id: "board", label: "Board" },
-				{ id: "graph", label: "Graph" },
-				{ id: "table", label: "Table" },
-			]}
-			view="board"
-		>
-			<div data-project={report.name} />
-			<nav className={clsx(page.reportNav)} aria-label="Report sections">
-				{report.sections.map((section) => (
-					<a
-						key={section.id}
-						className={clsx(page.reportLink)}
-						href={`#${section.id}`}
-					>
-						{section.title}
-					</a>
-				))}
-			</nav>
-			{report.sections.map((section) => (
-				<section
-					key={section.id}
-					className={clsx(page.section)}
-					id={section.id}
-				>
-					<h2 className={clsx(shell.heading)}>{section.title}</h2>
-					{section.id === "featureMap" ? (
-						<StateLegend
-							theme={
-								section.diagrams?.some((diagram) =>
-									diagram.nodes.some((node) => node.state === "theme"),
-								) ?? false
-							}
-						/>
-					) : null}
-					{section.text === undefined ? null : (
-						<p className={clsx(page.summary)}>{section.text}</p>
-					)}
-					{section.items === undefined ? null : (
-						<ul className={clsx(page.tickets)}>
-							{section.items.map((item) => (
-								<TicketLine
-									key={`${item.key ?? ""} ${item.title}`}
-									ticket={item}
-									highlight={ticket}
-									onOpen={onOpen}
-								/>
-							))}
-						</ul>
-					)}
-					{section.needsYou === undefined ? null : (
-						<ul>
-							{section.needsYou.map((item) => (
-								<NeedsItem key={item.key} item={item} onOpen={onOpen} />
-							))}
-						</ul>
-					)}
-					{section.diagrams === undefined
-						? null
-						: section.diagrams.map((diagram) => (
-								<DiagramView
-									key={diagram.id}
-									diagram={diagram}
-									ticket={ticket}
-								/>
-							))}
-				</section>
 			))}
-		</PageFrame>
+		</div>
 	);
 }
 
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
+	const [panelProject, setPanelProject] = useState(projectName);
+	const panelProjectRef = useRef(panelProject);
+	panelProjectRef.current = panelProject;
+	const [panelTracker, setPanelTracker] = useState<"github" | "linear">(
+		"github",
+	);
+	const [open, setOpen] = useState(highlightKey() !== null);
+	const [view, setView] = useState("board");
 	const [report, setReport] = useState<ProjectReport | null>(null);
+	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
-	const [diagramTheme, setDiagramTheme] = useState(mermaidTheme);
 	useEffect(() => {
 		const onPop = () => {
+			const next = highlightKey();
 			setName(projectName());
-			setTicket(highlightKey());
-			restorePanel(report);
+			setTicket(next);
+			setOpen(next !== null || window.history.state?.panel === true);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
-	}, [report]);
-	useEffect(() => {
-		if (window.history.state?.panel === true && highlightKey() !== null) {
-			restorePanel(report);
-		}
-	}, [report]);
+	}, []);
 	useEffect(() => {
 		const path = `/api/projects/${encodeURIComponent(name)}`;
 		let stopped = false;
@@ -368,7 +382,11 @@ function Page() {
 						return;
 					}
 					setMissing(false);
-					setReport((await response.json()) as ProjectReport);
+					const body = (await response.json()) as ProjectReport;
+					setReport(body);
+					setPanelTracker((current) =>
+						panelProjectRef.current === name ? body.tracker : current,
+					);
 				})
 				.catch(() => {
 					if (!stopped) {
@@ -388,97 +406,158 @@ function Page() {
 		};
 	}, [name]);
 	useEffect(() => {
-		if (report === null) {
+		if (!open || ticket === null) {
 			return;
 		}
-		mermaid.initialize({
-			startOnLoad: false,
-			securityLevel: "strict",
-			theme: diagramTheme,
-		});
-		const nodes = document.querySelectorAll<HTMLElement>(".mermaid");
-		if (nodes.length === 0) {
+		if (panelProject === name) {
+			setPanelReport(report);
 			return;
-		}
-		for (const node of nodes) {
-			const definition = node.dataset.definition;
-			if (definition !== undefined) {
-				node.textContent = definition;
-			}
-			node.removeAttribute("data-processed");
 		}
 		let stopped = false;
-		const bound: { drawn: SVGGElement; open: () => void }[] = [];
-		const bind = () => {
-			if (stopped) {
-				return;
-			}
-			for (const section of report.sections) {
-				for (const diagram of section.diagrams ?? []) {
-					const figure = document.querySelector(
-						`figure[data-diagram="${diagram.id}"]`,
-					);
-					if (figure === null) {
-						continue;
-					}
-					for (const node of diagram.nodes) {
-						if (node.ticket === null) {
-							continue;
-						}
-						const drawn = [...figure.querySelectorAll("g.node")].find((item) =>
-							item.id.includes(`flowchart-${node.id}-`),
-						);
-						if (!(drawn instanceof SVGGElement)) {
-							continue;
-						}
-						const ticket = node.ticket;
-						const open = () => {
-							openDrawnTicket({
-								tracker: node.tracker,
-								project: node.project,
-								key: ticket,
-							});
-						};
-						drawn.style.cursor = "pointer";
-						drawn.addEventListener("click", open);
-						bound.push({ drawn, open });
-					}
+		fetch(`/api/projects/${encodeURIComponent(panelProject)}`)
+			.then(async (response) => {
+				if (stopped || !response.ok) {
+					return;
 				}
-			}
-		};
-		void mermaid.run({ nodes }).then(bind);
+				setPanelReport((await response.json()) as ProjectReport);
+			})
+			.catch(() => {});
 		return () => {
 			stopped = true;
-			for (const { drawn, open } of bound) {
-				drawn.removeEventListener("click", open);
-			}
 		};
-	}, [diagramTheme, report]);
-	useEffect(
-		() =>
-			watchPageTheme((theme) => {
-				setDiagramTheme(theme === "dark" ? "dark" : "default");
-			}),
-		[],
-	);
+	}, [open, ticket, panelProject, name, report]);
+	const source = panelProject === name ? report : panelReport;
+	const selected =
+		source === null || ticket === null
+			? undefined
+			: source.tickets.find((item) => item.key === ticket);
+	const incoming = panelBlockers(selected, source, panelProject, panelTracker);
+	const outgoing = selected?.blocks ?? [];
 	if (missing) {
-		return <PageFrame title={name}>Project not found</PageFrame>;
+		return (
+			<AppShell>
+				<main className={clsx(frame.page, frame.wide)}>Project not found</main>
+			</AppShell>
+		);
 	}
 	if (report === null) {
-		return <PageFrame title={name}>Loading {name}</PageFrame>;
+		return (
+			<AppShell>
+				<main className={clsx(frame.page, frame.wide)}>Loading {name}</main>
+			</AppShell>
+		);
 	}
+	const openTicketInPanel = (key: string) => {
+		setPanelProject(report.name);
+		setPanelTracker(report.tracker);
+		setTicket(key);
+		setOpen(true);
+		openTicket({
+			tracker: report.tracker,
+			project: report.name,
+			key,
+		});
+	};
 	return (
-		<Report
-			report={report}
-			ticket={ticket}
-			onOpen={(key) => {
-				openDrawnTicket({
-					tracker: report.tracker,
-					project: report.name,
-					key,
-				});
-			}}
-		/>
+		<AppShell>
+			<main className={clsx(frame.page, frame.wide, frame.fill)}>
+				<div className={clsx(board.head)}>
+					<div className={clsx(board.identity)}>
+						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
+						<h1 className={clsx(board.name)}>{report.name}</h1>
+						<p className={clsx(board.counts)}>{countLine(report)}</p>
+					</div>
+					<div className={clsx(board.tools)}>
+						<button
+							type="button"
+							className={clsx(board.filter, shell.buttonFocus)}
+							aria-label="Filter"
+						>
+							Filter
+							<span className={clsx(board.filterCount)}>
+								{report.lanes.length}
+							</span>
+						</button>
+						<fieldset className={clsx(board.views)}>
+							<legend className={clsx(frame.legend)}>Views</legend>
+							{views.map((item) => (
+								<button
+									key={item.id}
+									type="button"
+									id={`view-${item.id}`}
+									className={clsx(
+										board.view,
+										shell.buttonFocus,
+										view === item.id && board.viewOn,
+									)}
+									aria-pressed={view === item.id}
+									onClick={() => setView(item.id)}
+								>
+									{item.label}
+								</button>
+							))}
+						</fieldset>
+					</div>
+				</div>
+				<div data-project={report.name} />
+				<div className={clsx(board.stage)}>
+					{view === "board" ? (
+						<Board
+							report={report}
+							selected={open ? ticket : null}
+							onOpen={openTicketInPanel}
+							onOpenOutside={(blocker) => {
+								setPanelReport(null);
+								setPanelProject(blocker.project);
+								setPanelTracker(blocker.tracker);
+								setTicket(blocker.key);
+								setOpen(true);
+							}}
+						/>
+					) : (
+						<p className={clsx(board.placeholder)}>{view}</p>
+					)}
+					{open && ticket !== null ? (
+						<TicketPanel
+							key={`${panelTracker}:${panelProject}:${ticket}`}
+							tracker={panelTracker}
+							project={panelProject}
+							ticketKey={ticket}
+							{...(selected?.title === undefined
+								? {}
+								: { title: selected.title })}
+							url={
+								selected?.key === undefined || selected.key === null
+									? undefined
+									: trackerUrl(panelTracker, selected.key)
+							}
+							{...(selected?.state === undefined
+								? {}
+								: { state: selected.state })}
+							lane={selected?.lane}
+							laneColour={
+								report.lanes.find((lane) => lane.name === selected?.lane)
+									?.colour
+							}
+							blockers={incoming}
+							blocks={outgoing}
+							onOpenBlocker={(blocker) => {
+								setPanelReport(null);
+								setPanelProject(blocker.project);
+								setPanelTracker(blocker.tracker);
+								setTicket(blocker.key);
+								setOpen(true);
+							}}
+							onClose={() => {
+								clearTicketQuery();
+								closeTicket();
+								setOpen(false);
+							}}
+						/>
+					) : null}
+				</div>
+			</main>
+		</AppShell>
 	);
 }
 

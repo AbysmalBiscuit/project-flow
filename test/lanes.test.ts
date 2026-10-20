@@ -39,6 +39,13 @@ type FlightItem = {
 	statusType: string;
 	blocked?: boolean;
 	enteredStateAt?: string;
+	needsYou?: boolean;
+	url?: string;
+	outsideBlockers?: unknown;
+	blocks?: unknown;
+	pull?: string;
+	chips?: string[];
+	staleStatus?: string;
 };
 
 type ProjectBody = {
@@ -376,7 +383,17 @@ function flight(report: ProjectBody): FlightItem[] {
 				if (lane === "" || statusType === undefined) {
 					return [];
 				}
-				const { enteredStateAt: _enteredStateAt, ...rest } = item;
+				const {
+					enteredStateAt: _enteredStateAt,
+					needsYou: _needsYou,
+					url: _url,
+					outsideBlockers: _outsideBlockers,
+					blocks: _blocks,
+					pull: _pull,
+					chips: _chips,
+					staleStatus: _staleStatus,
+					...rest
+				} = item;
 				return [{ ...rest, lane, statusType }];
 			}),
 		);

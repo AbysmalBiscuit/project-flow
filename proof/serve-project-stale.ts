@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
-import { recordedDiscovery } from "../test/support.ts";
+import { recordedViewer, urlOf } from "../test/support.ts";
 
 const root = await mkdtemp(join(tmpdir(), "project-flow-project-stale-"));
 const configPath = join(root, "config.json");
@@ -29,14 +29,11 @@ const ticket = (repo: string) => ({
 
 let otherPolls = 0;
 const recorded: Fetch = async (input, init) => {
-	const discovered = recordedDiscovery(input, init);
-	if (discovered !== null) {
-		return discovered;
+	const known = recordedViewer(input, init);
+	if (known !== null) {
+		return known;
 	}
-	const url = typeof input === "string" ? input : input.toString();
-	if (url === "https://api.github.com/user") {
-		return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
-	}
+	const url = urlOf(input);
 	if (url.includes("/repos/acme/other/issues?")) {
 		otherPolls += 1;
 		if (otherPolls > 1) {

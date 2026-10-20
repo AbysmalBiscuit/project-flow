@@ -1,12 +1,41 @@
 import { useEffect, useState } from "react";
-import type { Thread, ThreadComment } from "./domain.ts";
+import type {
+	OutsideBlocker,
+	Thread,
+	ThreadComment,
+	TicketState,
+} from "./domain.ts";
+import { stateLabel } from "./terms.ts";
+import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { panel, shell } from "./ui-styles.ts";
+import { board, panel, shell } from "./ui-styles.ts";
+
+const laneMarks: Record<string, typeof board.markBacklog> = {
+	[lightValues.done.toLowerCase()]: board.markDone,
+	[lightValues.dropped.toLowerCase()]: board.markDropped,
+	[lightValues.blocked.toLowerCase()]: board.markBlocked,
+	[lightValues.backlog.toLowerCase()]: board.markBacklog,
+	[lightValues.inProgress.toLowerCase()]: board.markInProgress,
+	[lightValues.inReview.toLowerCase()]: board.markInReview,
+	[lightValues.awaitingMerge.toLowerCase()]: board.markAwaitingMerge,
+};
+
+function laneMark(colour: string) {
+	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
+}
 
 type ReplyTarget = {
 	parentId?: string;
 	kind: ThreadComment["kind"];
 };
+
+function commentTime(value: string): string {
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return "";
+	}
+	return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
 
 function CommentTree({
 	comments,
@@ -25,6 +54,10 @@ function CommentTree({
 					className={clsx(panel.comment)}
 					data-comment={comment.id}
 				>
+					<p className={clsx(panel.who)}>
+						<span>{comment.author}</span>
+						<span>{commentTime(comment.createdAt)}</span>
+					</p>
 					<p className={clsx(panel.body)}>{comment.body}</p>
 					{nested || comment.kind === "review" ? (
 						<button
@@ -52,15 +85,68 @@ function CommentTree({
 	);
 }
 
+function RelationList({
+	label,
+	relations,
+	onOpen,
+}: {
+	label: string;
+	relations: OutsideBlocker[];
+	onOpen?: (blocker: OutsideBlocker) => void;
+}) {
+	if (relations.length === 0) {
+		return null;
+	}
+	return (
+		<section aria-label={label}>
+			<h3 className={clsx(panel.label)}>{label}</h3>
+			<ul className={clsx(panel.relations)}>
+				{relations.map((blocker) => (
+					<li key={`${blocker.project} ${blocker.key}`}>
+						<button
+							type="button"
+							className={clsx(
+								shell.button,
+								shell.buttonHover,
+								shell.buttonFocus,
+							)}
+							data-blocker={blocker.key}
+							onClick={() => onOpen?.(blocker)}
+						>
+							{blocker.key}
+						</button>
+					</li>
+				))}
+			</ul>
+		</section>
+	);
+}
+
 export function TicketPanel({
 	tracker,
 	project,
 	ticketKey,
+	title,
+	url,
+	state,
+	lane,
+	laneColour,
+	blockers = [],
+	blocks = [],
+	onOpenBlocker,
 	onClose,
 }: {
 	tracker: "github" | "linear";
 	project: string;
 	ticketKey: string;
+	title?: string;
+	url?: string | undefined;
+	state?: TicketState;
+	lane?: string | undefined;
+	laneColour?: string | undefined;
+	blockers?: OutsideBlocker[];
+	blocks?: OutsideBlocker[];
+	onOpenBlocker?: (blocker: OutsideBlocker) => void;
 	onClose: () => void;
 }) {
 	const [thread, setThread] = useState<Thread | null>(null);
@@ -133,97 +219,97 @@ export function TicketPanel({
 			setPending(false);
 		}
 	}
+	const trackerName = tracker === "linear" ? "Linear" : "GitHub";
+	const laneName =
+		lane ?? (state === undefined ? undefined : stateLabel[state]);
 	return (
-		<aside className={clsx(panel.panel)} aria-label="Ticket thread">
-			<button
-				type="button"
-				className={clsx(
-					shell.button,
-					shell.buttonHover,
-					shell.buttonFocus,
-					panel.close,
-				)}
-				onClick={onClose}
-			>
-				Close
-			</button>
+		<aside
+			className={clsx(panel.panel)}
+			aria-label="Ticket thread"
+			data-panel={ticketKey}
+		>
+			<div className={clsx(panel.head)}>
+				<span className={clsx(panel.key)}>{ticketKey}</span>
+				<span className={clsx(panel.actions)}>
+					{thread === null && url === undefined ? null : (
+						<a
+							className={clsx(panel.open, shell.linkFocus)}
+							href={thread?.url ?? url}
+						>
+							Open on {trackerName}
+						</a>
+					)}
+					<button
+						type="button"
+						className={clsx(panel.dismiss, shell.buttonFocus)}
+						aria-label="Close"
+						onClick={onClose}
+					>
+						×
+					</button>
+				</span>
+			</div>
 			{missing ? <p>Thread not found</p> : null}
 			{thread === null && !missing ? <p>Loading thread</p> : null}
-			{thread === null ? null : (
-				<>
-					<h2>{thread.title}</h2>
-					<p>
-						<a className={clsx(panel.tracker)} href={thread.url}>
-							Open in tracker
-						</a>
-					</p>
-					<CommentTree
-						comments={thread.comments}
-						nested={tracker === "linear"}
-						onReply={(comment) =>
-							setReplyTo({
-								parentId: comment.parentId ?? comment.id,
-								kind: comment.kind,
-							})
-						}
+			{thread !== null || title !== undefined ? (
+				<h2 className={clsx(panel.heading)}>{thread?.title ?? title}</h2>
+			) : null}
+			{laneName === undefined ? null : (
+				<p className={clsx(panel.state)}>
+					<span
+						className={clsx(
+							board.laneMark,
+							laneMark(laneColour ?? lightValues.backlog),
+						)}
 					/>
-					{tracker === "linear" ? (
-						<button
-							type="button"
-							className={clsx(
-								shell.button,
-								shell.buttonHover,
-								shell.buttonFocus,
-							)}
-							onClick={() => setReplyTo({ kind: "comment" })}
-						>
-							New comment
-						</button>
-					) : (
-						<button
-							type="button"
-							className={clsx(
-								shell.button,
-								shell.buttonHover,
-								shell.buttonFocus,
-							)}
-							onClick={() => setReplyTo({ kind: "comment" })}
-						>
-							Reply
-						</button>
-					)}
-					{replyTo === null ? null : (
-						<form
-							className={clsx(panel.reply)}
-							onSubmit={(event) => {
-								event.preventDefault();
-								void send(replyTo);
-							}}
-						>
-							<textarea
-								className={clsx(panel.text)}
-								aria-label="Reply"
-								value={draft}
-								onChange={(event) => setDraft(event.target.value)}
-							/>
-							<button
-								type="submit"
-								className={clsx(
-									shell.button,
-									shell.buttonHover,
-									shell.buttonFocus,
-								)}
-								disabled={pending}
-							>
-								Send
-							</button>
-							{error === null ? null : (
-								<p className={clsx(panel.error)}>{error}</p>
-							)}
-						</form>
-					)}
-				</>
+					{laneName}
+				</p>
 			)}
+			<RelationList
+				label="Blockers"
+				relations={blockers}
+				{...(onOpenBlocker === undefined ? {} : { onOpen: onOpenBlocker })}
+			/>
+			<RelationList
+				label="Blocks"
+				relations={blocks}
+				{...(onOpenBlocker === undefined ? {} : { onOpen: onOpenBlocker })}
+			/>
+			{thread === null ? null : (
+				<CommentTree
+					comments={thread.comments}
+					nested={tracker === "linear"}
+					onReply={(comment) =>
+						setReplyTo({
+							parentId: comment.parentId ?? comment.id,
+							kind: comment.kind,
+						})
+					}
+				/>
+			)}
+			<form
+				className={clsx(panel.reply)}
+				onSubmit={(event) => {
+					event.preventDefault();
+					void send(replyTo ?? { kind: "comment" });
+				}}
+			>
+				<label className={clsx(panel.label)} htmlFor="ticket-reply">
+					Reply
+				</label>
+				<textarea
+					id="ticket-reply"
+					className={clsx(panel.text)}
+					aria-label="Reply"
+					placeholder="Write a comment"
+					value={draft}
+					onChange={(event) => setDraft(event.target.value)}
+				/>
+				<button type="submit" className={clsx(panel.send)} disabled={pending}>
+					Comment
+				</button>
+				{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
+			</form>
 		</aside>
 	);
 }

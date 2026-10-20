@@ -37,6 +37,22 @@ function issue(
 	};
 }
 
+function linearIssue(
+	identifier: string,
+	description: string,
+	stateType: string,
+): Record<string, unknown> {
+	return {
+		id: identifier,
+		identifier,
+		title: identifier,
+		description,
+		updatedAt: "2026-08-18T12:00:00.000Z",
+		state: { type: stateType },
+		inverseRelations: { nodes: [] },
+	};
+}
+
 function page(items: Record<string, unknown>[]): Response {
 	return new Response(JSON.stringify(items), {
 		status: 200,
@@ -66,7 +82,7 @@ const otherIssues = [
 	issue(9, "Platform gate", { labels: [{ name: "epic" }] }, otherRepo),
 ];
 
-function githubFetch(issues = githubIssues): Fetch {
+function githubFetch(issues = githubIssues, others = otherIssues): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
@@ -80,7 +96,7 @@ function githubFetch(issues = githubIssues): Fetch {
 			return page(issues);
 		}
 		if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
-			return page(otherIssues);
+			return page(others);
 		}
 		if (url.includes("/labels?")) {
 			return page([]);
@@ -892,6 +908,375 @@ describe("GET /api/projects/:name", () => {
 				expect(
 					board?.nodes.find((node) => node.id === leafEdge?.from)?.label,
 				).toBe("Draw the legend");
+			},
+		);
+	});
+
+	test("each ticket lists its blockers, outside blockers and the tickets it blocks in other projects", async () => {
+		const gate = issue(8, "Open the gate", { body: "Blocks: #2" }, githubRepo);
+		const drawn = issue(2, "feat(ux): draw the nodes", {
+			body: `Blocked by: #8\nBlocked by: ${otherRepo}#9`,
+		});
+		const held = issue(
+			11,
+			"Hold the platform",
+			{ body: `Blocked by: ${githubRepo}#2` },
+			otherRepo,
+		);
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+			githubFetch(
+				[issue(1, "Ship the map"), drawn, gate],
+				[issue(9, "Platform gate", {}, otherRepo), held],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const drawnView = report.tickets.find(
+					(item) => item.key === `${githubRepo}#2`,
+				);
+				expect(drawnView?.blockers).toEqual([
+					`${githubRepo}#8`,
+					`${otherRepo}#9`,
+				]);
+				expect(drawnView?.outsideBlockers).toEqual([
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#9`,
+						title: "Platform gate",
+					},
+				]);
+				expect(drawnView?.blocks).toEqual([
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#11`,
+						title: "Hold the platform",
+					},
+				]);
+				const local = report.tickets.find(
+					(item) => item.key === `${githubRepo}#8`,
+				);
+				expect(local?.outsideBlockers ?? []).toEqual([]);
+				expect(local?.blocks ?? []).toEqual([]);
+				const empty = report.tickets.find(
+					(item) => item.key === `${githubRepo}#1`,
+				);
+				expect(empty?.blockers).toEqual([]);
+				expect(empty?.outsideBlockers ?? []).toEqual([]);
+				expect(empty?.blocks ?? []).toEqual([]);
+				const spacedBody = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(otherRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					spacedBody.tickets.find((item) => item.key === `${otherRepo}#11`)
+						?.blockers,
+				).toEqual([`${githubRepo}#2`]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+		);
+	});
+
+	test("A Blocks B yields A.blocks and B.blockers across projects", async () => {
+		const otherSlug = "platform-gate";
+		const gate = {
+			...issue(8, "Open the gate", {}, githubRepo),
+			issue_dependencies_summary: {
+				blocked_by: 0,
+				blocking: 1,
+				total_blocked_by: 0,
+				total_blocking: 1,
+			},
+		};
+		const held = issue(11, "Hold the platform", {}, otherRepo);
+		const closed = {
+			...issue(
+				12,
+				"Closed gate",
+				{ state: "closed", state_reason: "completed" },
+				githubRepo,
+			),
+			issue_dependencies_summary: {
+				blocked_by: 0,
+				blocking: 1,
+				total_blocked_by: 0,
+				total_blocking: 1,
+			},
+		};
+		const named = issue(
+			13,
+			"Named blocked by",
+			{ body: `Blocked by: ${githubRepo}#8` },
+			otherRepo,
+		);
+		const closedHeld = issue(
+			14,
+			"Already shipped",
+			{ state: "closed", state_reason: "completed" },
+			otherRepo,
+		);
+		const linearGate = {
+			...linearIssue("WID-8", "", "started"),
+			title: "Open the gate",
+			inverseRelations: {
+				nodes: [
+					{
+						type: "blockedBy",
+						issue: {
+							identifier: "PLAT-11",
+							title: "Hold the platform",
+							state: { type: "started" },
+							project: { name: "Platform gate", slugId: otherSlug },
+						},
+					},
+					{
+						type: "blockedBy",
+						issue: {
+							identifier: "PLAT-14",
+							title: "Already shipped",
+							state: { type: "completed" },
+							project: { name: "Platform gate", slugId: otherSlug },
+						},
+					},
+				],
+			},
+		};
+		const linearClosed = {
+			...linearIssue("WID-12", "Blocks: PLAT-11", "completed"),
+			title: "Closed gate",
+		};
+		const linearHeld = {
+			...linearIssue("PLAT-11", "", "started"),
+			title: "Hold the platform",
+		};
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+					{ tracker: "linear", project: linearSlug },
+					{ tracker: "linear", project: otherSlug },
+				],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				if (url === "https://api.linear.app/graphql") {
+					const body = typeof init?.body === "string" ? init.body : "";
+					const query = JSON.parse(body) as {
+						query?: string;
+						variables?: { pin?: string };
+					};
+					if (query.query?.includes("MemberProjects")) {
+						return Response.json({
+							data: {
+								viewer: { id: "viewer-ada" },
+								projects: {
+									nodes: [
+										{
+											id: "project-widget",
+											name: linearSlug,
+											slugId: linearSlug,
+											updatedAt: "2026-08-18T12:00:00.000Z",
+										},
+										{
+											id: "project-platform",
+											name: otherSlug,
+											slugId: otherSlug,
+											updatedAt: "2026-08-18T12:00:00.000Z",
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						});
+					}
+					if (query.query?.includes("viewer")) {
+						return Response.json({ data: { viewer: { id: "viewer-ada" } } });
+					}
+					if (query.query?.includes("ProjectByPin")) {
+						const pin = query.variables?.pin;
+						const project =
+							pin === linearSlug
+								? {
+										id: "project-widget",
+										name: linearSlug,
+										slugId: linearSlug,
+									}
+								: pin === otherSlug
+									? {
+											id: "project-platform",
+											name: otherSlug,
+											slugId: otherSlug,
+										}
+									: null;
+						return Response.json({
+							data: { projects: { nodes: project === null ? [] : [project] } },
+						});
+					}
+					if (query.query?.includes("ProjectIssues")) {
+						const nodes = body.includes("project-platform")
+							? [linearHeld]
+							: [linearGate, linearClosed];
+						return Response.json({
+							data: {
+								issues: {
+									nodes,
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						});
+					}
+					return Response.json({ data: {} });
+				}
+				const blocking = `https://api.github.com/repos/${githubRepo}/issues/8/dependencies/blocking?per_page=100&page=1`;
+				const closedBlocking = `https://api.github.com/repos/${githubRepo}/issues/12/dependencies/blocking?per_page=100&page=1`;
+				if (url === blocking) {
+					return page([
+						{
+							number: 11,
+							state: "open",
+							title: "Hold the platform",
+							repository_url: `https://api.github.com/repos/${otherRepo}`,
+						},
+						{
+							number: 14,
+							state: "closed",
+							title: "Already shipped",
+							repository_url: `https://api.github.com/repos/${otherRepo}`,
+						},
+						{
+							number: 11,
+							state: "open",
+							title: "Hold the platform",
+							repository_url: `https://api.github.com/repos/${otherRepo}`,
+						},
+					]);
+				}
+				if (url === closedBlocking) {
+					return page([
+						{
+							number: 11,
+							state: "open",
+							title: "Hold the platform",
+							repository_url: `https://api.github.com/repos/${otherRepo}`,
+						},
+					]);
+				}
+				return githubFetch(
+					[issue(1, "Ship the map"), gate, closed],
+					[held, named, closedHeld],
+				)(input, init);
+			},
+			{
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
+			async (base) => {
+				const source = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const gateView = source.tickets.find(
+					(item) => item.key === `${githubRepo}#8`,
+				);
+				expect(gateView?.blockers).toEqual([]);
+				expect(gateView?.blocks).toEqual([
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#11`,
+						title: "Hold the platform",
+					},
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#13`,
+						title: "Named blocked by",
+					},
+				]);
+				expect(
+					source.tickets.find((item) => item.key === `${githubRepo}#12`)
+						?.blocks ?? [],
+				).toEqual([]);
+				const other = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(otherRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const heldView = other.tickets.find(
+					(item) => item.key === `${otherRepo}#11`,
+				);
+				expect(heldView?.blockers).toEqual([`${githubRepo}#8`]);
+				expect(heldView?.outsideBlockers).toEqual([
+					{
+						tracker: "github",
+						project: githubRepo,
+						key: `${githubRepo}#8`,
+						title: "Open the gate",
+					},
+				]);
+				expect(heldView?.blocks ?? []).toEqual([]);
+				expect(
+					other.tickets.find((item) => item.key === `${otherRepo}#13`)
+						?.blockers,
+				).toEqual([`${githubRepo}#8`]);
+				const repeated = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("  ")}`, base),
+				);
+				expect(repeated.status).toBe(404);
+				const linear = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(linearSlug)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					linear.tickets.find((item) => item.key === "WID-8")?.blocks,
+				).toEqual([
+					{
+						tracker: "linear",
+						project: otherSlug,
+						key: "PLAT-11",
+						title: "Hold the platform",
+					},
+				]);
+				expect(
+					linear.tickets.find((item) => item.key === "WID-12")?.blocks ?? [],
+				).toEqual([]);
+				const platform = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(otherSlug)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					platform.tickets.find((item) => item.key === "PLAT-11")?.blockers,
+				).toEqual(["WID-8"]);
+				expect(
+					platform.tickets.find((item) => item.key === "PLAT-11")
+						?.outsideBlockers,
+				).toEqual([
+					{
+						tracker: "linear",
+						project: linearSlug,
+						key: "WID-8",
+						title: "Open the gate",
+					},
+				]);
 			},
 		);
 	});

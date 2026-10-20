@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": [
+		"/home/factory/git/github/AbysmalBiscuit/project-flow_workspaces/feat-project-board-with-a-ticket-side/proof/serve-board.sh"
+	],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Ship the board" },
+		{ "click": "button[data-ticket='acme/widget#1']" },
+		{ "assert_text": "Ship the board" },
+		{
+			"click": "aside[data-panel='acme/widget#1'] button:not([aria-label='Close'])"
+		},
+		{ "assert_text": "Send" },
+		{ "fill": "textarea[aria-label='Reply']", "text": "keep this draft" },
+		{ "click": "button[data-ticket='acme/widget#2']" },
+		{ "assert_text": "Draw the nodes" },
+		{ "shot": "reply-cleared" }
+	]
+}

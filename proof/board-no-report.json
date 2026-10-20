@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/serve-board.ts"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "acme/widget" },
+		{ "assert_text": "Board" },
+		{ "assert_text": "Ship the board" },
+		{ "assert_text": "Backlog" },
+		{ "shot": "no-report" }
+	]
+}

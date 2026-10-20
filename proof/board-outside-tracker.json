@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": [
+		"/home/factory/git/github/AbysmalBiscuit/project-flow_workspaces/feat-project-board-with-a-ticket-side/proof/serve-board.sh"
+	],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Draw the nodes" },
+		{ "click": "button[data-chip='PF-3']" },
+		{ "assert_text": "Hold the gate" },
+		{ "shot": "outside-linear" }
+	]
+}

@@ -32,6 +32,25 @@ export const lightValues = {
 	dashed: "#ffffff",
 	scrollbar: "#a1a1a1",
 	scrollbarTrack: "#f2f2f2",
+	page: "#f7f6f3",
+	raised: "#ffffff",
+	inkSoft: "#8a8680",
+	laneLine: "#eceae6",
+	ready: "#8a8680",
+	readyWash: "#f4f3f1",
+	progress: "#3b6fd8",
+	progressWash: "#eef3fc",
+	review: "#e07a2f",
+	reviewWash: "#fdf3ea",
+	merge: "#1f9d6a",
+	mergeWash: "#e8f6ef",
+	doneWash: "#f3eefe",
+	warn: "#b86e1a",
+	warnWash: "#f8efe4",
+	warnInk: "#8a5a12",
+	needs: "#171717",
+	needsInk: "#ffffff",
+	segment: "#efeeeb",
 };
 
 export const darkValues = {
@@ -64,6 +83,25 @@ export const darkValues = {
 	dashed: "#111111",
 	scrollbar: "#4d4d4d",
 	scrollbarTrack: "#1a1a1a",
+	page: "#141414",
+	raised: "#1c1c1c",
+	inkSoft: "#8a8680",
+	laneLine: "#2a2a2a",
+	ready: "#8a8680",
+	readyWash: "#222222",
+	progress: "#5b8def",
+	progressWash: "#1a2740",
+	review: "#e08a45",
+	reviewWash: "#2c2118",
+	merge: "#3dbe86",
+	mergeWash: "#162820",
+	doneWash: "#241c30",
+	warn: "#e0a15a",
+	warnWash: "#2a2218",
+	warnInk: "#e8c49a",
+	needs: "#ededed",
+	needsInk: "#141414",
+	segment: "#2a2a2a",
 };
 
 export const colours = stylex.defineVars({
@@ -111,6 +149,31 @@ export const colours = stylex.defineVars({
 		default: lightValues.scrollbarTrack,
 		[dark]: darkValues.scrollbarTrack,
 	},
+	page: { default: lightValues.page, [dark]: darkValues.page },
+	raised: { default: lightValues.raised, [dark]: darkValues.raised },
+	inkSoft: { default: lightValues.inkSoft, [dark]: darkValues.inkSoft },
+	laneLine: { default: lightValues.laneLine, [dark]: darkValues.laneLine },
+	ready: { default: lightValues.ready, [dark]: darkValues.ready },
+	readyWash: { default: lightValues.readyWash, [dark]: darkValues.readyWash },
+	progress: { default: lightValues.progress, [dark]: darkValues.progress },
+	progressWash: {
+		default: lightValues.progressWash,
+		[dark]: darkValues.progressWash,
+	},
+	review: { default: lightValues.review, [dark]: darkValues.review },
+	reviewWash: {
+		default: lightValues.reviewWash,
+		[dark]: darkValues.reviewWash,
+	},
+	merge: { default: lightValues.merge, [dark]: darkValues.merge },
+	mergeWash: { default: lightValues.mergeWash, [dark]: darkValues.mergeWash },
+	doneWash: { default: lightValues.doneWash, [dark]: darkValues.doneWash },
+	warn: { default: lightValues.warn, [dark]: darkValues.warn },
+	warnWash: { default: lightValues.warnWash, [dark]: darkValues.warnWash },
+	warnInk: { default: lightValues.warnInk, [dark]: darkValues.warnInk },
+	needs: { default: lightValues.needs, [dark]: darkValues.needs },
+	needsInk: { default: lightValues.needsInk, [dark]: darkValues.needsInk },
+	segment: { default: lightValues.segment, [dark]: darkValues.segment },
 });
 
 export const space = stylex.defineVars({
@@ -143,6 +206,10 @@ export const type = stylex.defineVars({
 	line: "1.45",
 	weight: "600",
 	track: "0.01em",
+	lane: "0.72rem",
+	card: "0.92rem",
+	meta: "0.78rem",
+	count: "0.88rem",
 });
 
 export const scheme = stylex.defineVars({
@@ -173,6 +240,13 @@ export const measure = stylex.defineVars({
 	glyph: "1rem",
 	badge: "1.15rem",
 	search: "12rem",
+	lane: "16rem",
+	laneDone: "7.5rem",
+	boardMin: "36rem",
+	dot: "0.45rem",
+	searchBox: "16rem",
+	reply: "5.5rem",
+	panelTop: "4.5rem",
 });
 
 export const stack = stylex.defineVars({
