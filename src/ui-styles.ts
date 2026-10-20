@@ -841,7 +841,7 @@ export const cards = stylex.create({
 	},
 	need: {
 		display: "grid",
-		gridTemplateColumns: `${measure.progress} 1fr auto`,
+		gridTemplateColumns: "minmax(0, max-content) minmax(0, 1fr) auto",
 		gap: space.md,
 		alignItems: "center",
 		padding: `${space.sm} ${space.md}`,
@@ -849,14 +849,27 @@ export const cards = stylex.create({
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.laneLine,
 		fontSize: type.small,
+		"@media (max-width: 64rem)": {
+			gridTemplateColumns: "minmax(0, 1fr) auto",
+		},
 	},
 	needKey: {
+		maxWidth: "100%",
+		overflow: "hidden",
 		color: colours.inkSoft,
 		fontFamily: font.mono,
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 		textDecoration: "none",
+		"@media (max-width: 64rem)": {
+			gridColumn: "1 / -1",
+		},
 	},
 	needTitle: {
+		overflow: "hidden",
 		color: colours.ink,
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 		textDecoration: "none",
 	},
 	pill: {
@@ -1260,10 +1273,14 @@ export const needs = stylex.create({
 		height: measure.glyph,
 	},
 	key: {
-		flex: `0 0 ${measure.keyCol}`,
+		flex: "0 1 auto",
+		minWidth: 0,
+		overflow: "hidden",
 		color: colours.inkSoft,
 		fontFamily: font.mono,
 		fontSize: type.meta,
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 	},
 	action: {
 		padding: `${space.twoXs} ${space.md}`,
