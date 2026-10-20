@@ -287,6 +287,7 @@ describe("tracked projects", () => {
 			settings.projects.filter((project) => project.tracked).map((p) => p.key),
 		).toEqual(["board-1-0d42ae5d46d0", "acme/repo-3"]);
 		expect([...new Set(sent)].sort()).toEqual([
+			"https://api.github.com/graphql RepoRead",
 			"https://api.github.com/graphql ViewerProjects",
 			"https://api.github.com/repos/acme/repo-3",
 			"https://api.github.com/repos/acme/repo-3/branches?per_page=100&page=1",
