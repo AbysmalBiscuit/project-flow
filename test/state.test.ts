@@ -18,6 +18,7 @@ import teamStates from "./fixtures/linear-team-states.json";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromLists,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -418,6 +419,18 @@ function recordedRepo(
 			});
 		}
 		if (url === "https://api.github.com/graphql") {
+			const read = repoReadFromLists(
+				input,
+				init,
+				{ [githubRepo]: issues },
+				{ [githubRepo]: [...pulls, ...closed] },
+			);
+			if (read !== null) {
+				requests.push(
+					`https://api.github.com/repos/${githubRepo}/issues?state=all`,
+				);
+				return read;
+			}
 			const body = typeof init?.body === "string" ? init.body : "";
 			const number = body.match(/"number":\s*(\d+)/)?.[1];
 			const nodes =

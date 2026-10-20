@@ -8,8 +8,11 @@ import { run } from "../src/main.ts";
 import issue51Comments from "./fixtures/issue-51-comments.json";
 import {
 	emptyProjectFields,
+	githubIssueNode,
 	linearFake,
 	recordedDiscovery,
+	repoReadIssues,
+	repoReadResponse,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -189,16 +192,48 @@ function projectBoard(
 ): Fetch {
 	const projectId = "PVT_widget";
 	return async (input, init) => {
+		const url = urlOf(input);
+		const sent = typeof init?.body === "string" ? init.body : "";
+		if (
+			url === "https://api.github.com/graphql" &&
+			sent.includes("query RepoRead")
+		) {
+			const parsed = JSON.parse(sent) as {
+				variables?: { owner?: string; name?: string };
+			};
+			const owner = parsed.variables?.owner ?? "acme";
+			const name = parsed.variables?.name ?? "widget";
+			const key = `${owner}/${name}`;
+			const nodes = pulls
+				.filter((item) => (item.repo ?? repo) === key)
+				.map((item) => ({
+					number: item.number,
+					title: `PR ${item.number}`,
+					url: `https://github.com/${key}/pull/${item.number}`,
+					isDraft: false,
+					body: "",
+					state: "OPEN",
+					mergedAt: null,
+					headRefName: `${item.number}-feat`,
+					headRefOid: head,
+					closingIssuesReferences: connection([]),
+					reviews: connection([]),
+					comments: connection([]),
+					reactions: connection([]),
+				}));
+			return page(repoReadIssues(owner, name, [], { pulls: nodes }));
+		}
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
 			return discovered;
 		}
-		const url = urlOf(input);
-		const sent = typeof init?.body === "string" ? init.body : "";
 		if (url === "https://api.github.com/user") {
 			return page({ login: "lev" });
 		}
-		if (url === "https://api.github.com/graphql" && sent.includes("$owner")) {
+		if (
+			url === "https://api.github.com/graphql" &&
+			sent.includes("ProjectByNumber")
+		) {
 			return page({
 				data: {
 					repositoryOwner: {
@@ -400,6 +435,117 @@ function page(items: unknown): Response {
 	});
 }
 
+function connection<T>(nodes: T[]): {
+	nodes: T[];
+	pageInfo: { hasNextPage: boolean; endCursor: string | null };
+} {
+	return { nodes, pageInfo: { hasNextPage: false, endCursor: null } };
+}
+
+function repoReadFromRecorded(recorded: {
+	issues: Record<string, unknown>[];
+	pulls: Record<string, unknown>[];
+	checksBySha: Record<string, Record<string, unknown>[]>;
+	commentsByPull: Record<number, Record<string, unknown>[]>;
+	reviewsByPull: Record<number, Record<string, unknown>[]>;
+	reactionsByPull: Record<number, Record<string, unknown>[]>;
+	commentsByIssue?: Record<number, Record<string, unknown>[]>;
+	commitsBySha?: Record<string, Record<string, unknown>>;
+	mergedPulls?: Record<string, unknown>[];
+}): unknown {
+	const pullNode = (item: Record<string, unknown>, merged: boolean) => {
+		const head = item.head as { ref?: string; sha?: string } | undefined;
+		const number = Number(item.number);
+		const sha = head?.sha ?? "";
+		return {
+			number,
+			title: item.title,
+			url: item.html_url,
+			isDraft: item.draft === true,
+			body: item.body ?? "",
+			state: merged ? "MERGED" : "OPEN",
+			mergedAt: merged ? (item.merged_at ?? "2026-08-01T00:00:00Z") : null,
+			headRefName: head?.ref ?? "",
+			headRefOid: sha,
+			closingIssuesReferences: connection(
+				String(item.body ?? "").match(/#(\d+)/) === null
+					? []
+					: [{ number: Number(String(item.body).match(/#(\d+)/)?.[1]) }],
+			),
+			reviews: connection(
+				(recorded.reviewsByPull[number] ?? []).map((review) => ({
+					author: review.user ?? null,
+					commit: { oid: review.commit_id },
+					state: review.state,
+				})),
+			),
+			comments: connection(
+				(recorded.commentsByPull[number] ?? []).map((comment) => ({
+					author: comment.user ?? null,
+					body: comment.body,
+					createdAt: comment.created_at,
+					reactions: { totalCount: 0 },
+				})),
+			),
+			reactions: connection(
+				(recorded.reactionsByPull[number] ?? []).map((reaction) => ({
+					user: reaction.user ?? null,
+					content: String(reaction.content ?? "").toUpperCase(),
+					createdAt: reaction.created_at,
+				})),
+			),
+			commits: connection([
+				{
+					commit: {
+						committedDate:
+							(
+								recorded.commitsBySha?.[sha]?.commit as
+									| { committer?: { date?: string } }
+									| undefined
+							)?.committer?.date ?? null,
+					},
+				},
+			]),
+			statusCheckRollup: {
+				contexts: connection(
+					(recorded.checksBySha[sha] ?? []).map((check) => ({
+						name: check.name,
+						status: String(check.status ?? "").toUpperCase(),
+						conclusion:
+							check.conclusion === null || check.conclusion === undefined
+								? null
+								: String(check.conclusion).toUpperCase(),
+					})),
+				),
+			},
+		};
+	};
+	const body = repoReadIssues(
+		"acme",
+		"widget",
+		recorded.issues.map((item) => {
+			const number = Number(item.number);
+			const node = githubIssueNode(item);
+			node.comments = connection(
+				(recorded.commentsByIssue?.[number] ?? []).map((comment) => ({
+					databaseId: comment.id,
+					body: comment.body,
+					createdAt: comment.created_at,
+					updatedAt: comment.updated_at,
+					author: comment.user ?? null,
+					reactions: { totalCount: 0 },
+				})),
+			);
+			return node;
+		}),
+		{ pulls: recorded.pulls.map((item) => pullNode(item, false)) },
+	) as { data: { repository: { mergedPullRequests: { nodes: unknown[] } } } };
+	body.data.repository.mergedPullRequests.nodes = (
+		recorded.mergedPulls ?? []
+	).map((item) => pullNode(item, true));
+	return body;
+}
+
 function githubFetch(recorded: {
 	issues: Record<string, unknown>[];
 	pulls: Record<string, unknown>[];
@@ -496,6 +642,14 @@ function githubFetch(recorded: {
 			return new Response(JSON.stringify(slice), { status: 200, headers });
 		}
 		if (url === "https://api.github.com/graphql") {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (sent.includes("query RepoRead")) {
+				return page(repoReadFromRecorded(recorded));
+			}
+			const read = repoReadResponse(input, init);
+			if (read !== null) {
+				return read;
+			}
 			return page({
 				data: {
 					repository: {
@@ -1219,6 +1373,13 @@ describe("review cycle", () => {
 					listCheckouts: async () => [],
 					fetch: async (input, init) => {
 						const url = urlOf(input);
+						const sent = typeof init?.body === "string" ? init.body : "";
+						if (
+							url === "https://api.github.com/graphql" &&
+							sent.includes("query RepoRead")
+						) {
+							return new Response("unavailable", { status: 500 });
+						}
 						if (url.includes("/reviews?")) {
 							return new Response("unavailable", { status: 500 });
 						}
@@ -1427,6 +1588,31 @@ describe("review cycle", () => {
 							if (url === "https://api.github.com/user") {
 								return page({ login: "lev" });
 							}
+							if (
+								url === "https://api.github.com/graphql" &&
+								(typeof init?.body === "string" ? init.body : "").includes(
+									"query RepoRead",
+								)
+							) {
+								requests.push(url);
+								return page(
+									repoReadIssues("acme", "widget", [], {
+										pulls: [
+											{
+												number: 99,
+												title: "Draft",
+												url: "https://github.com/acme/widget/pull/99",
+												isDraft: true,
+												body: "",
+												state: "OPEN",
+												mergedAt: null,
+												headRefName: "99-feat",
+												headRefOid: head,
+											},
+										],
+									}),
+								);
+							}
 							if (url === "https://api.github.com/repos/acme/widget/pulls/99") {
 								return page(pull(99, 8, head, true));
 							}
@@ -1588,10 +1774,10 @@ describe("review cycle", () => {
 			}
 			await checks;
 			const graphql = requests.filter((item) =>
-				item.includes("LinkedDevelopment"),
+				item.includes("query RepoRead"),
 			);
-			expect(graphql).toHaveLength(1);
-			expect(graphql[0]).toContain('"number":95');
+			expect(graphql.length).toBeGreaterThan(0);
+			expect(graphql[0]).toContain("closingIssuesReferences");
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -1724,11 +1910,43 @@ describe("review cycle", () => {
 				},
 			],
 			github: async (input, init) => {
+				const url = urlOf(input);
+				const sent = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					sent.includes("query RepoRead")
+				) {
+					const parsed = JSON.parse(sent) as {
+						variables?: { owner?: string; name?: string };
+					};
+					const owner = parsed.variables?.owner ?? "acme";
+					const name = parsed.variables?.name ?? "widget";
+					const pulls =
+						`${owner}/${name}` === "acme/widget"
+							? [
+									{
+										number: 96,
+										title: "ready",
+										url: "https://github.com/acme/widget/pull/96",
+										isDraft: false,
+										body: "Closes #8",
+										state: "OPEN",
+										mergedAt: null,
+										headRefName: "96-feat",
+										headRefOid: head,
+										closingIssuesReferences: connection([]),
+										reviews: connection([]),
+										comments: connection([]),
+										reactions: connection([]),
+									},
+								]
+							: [];
+					return page(repoReadIssues(owner, name, [], { pulls }));
+				}
 				const discovered = recordedDiscovery(input, init);
 				if (discovered !== null) {
 					return discovered;
 				}
-				const url = urlOf(input);
 				if (url === "https://api.github.com/user") {
 					return page({ login: "lev" });
 				}
@@ -1854,11 +2072,38 @@ describe("review cycle", () => {
 				},
 			],
 			github: async (input, init) => {
+				const url = urlOf(input);
+				const sent = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					sent.includes("query RepoRead")
+				) {
+					return page(
+						repoReadIssues("acme", "widget", [], {
+							pulls: [
+								{
+									number: 96,
+									title: "ready",
+									url: "https://github.com/acme/widget/pull/96",
+									isDraft: false,
+									body: "Closes #8",
+									state: "OPEN",
+									mergedAt: null,
+									headRefName: "96-feat",
+									headRefOid: head,
+									closingIssuesReferences: connection([]),
+									reviews: connection([]),
+									comments: connection([]),
+									reactions: connection([]),
+								},
+							],
+						}),
+					);
+				}
 				const discovered = recordedDiscovery(input, init);
 				if (discovered !== null) {
 					return discovered;
 				}
-				const url = urlOf(input);
 				if (url === "https://api.github.com/user") {
 					return page({ login: "lev" });
 				}
@@ -2140,13 +2385,8 @@ describe("review cycle", () => {
 			if (result.exitCode !== 0) {
 				throw new Error(result.stderr);
 			}
-			const mergedReads = reviewReads.filter((url) =>
-				/\/(?:issues|pulls)\/1\/|\/commits\/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\/check-runs/.test(
-					url,
-				),
-			);
-			expect(mergedReads).toHaveLength(4);
-			expect(closedReads).toHaveLength(2);
+			expect(reviewReads).toEqual([]);
+			expect(closedReads).toEqual([]);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -3327,7 +3567,15 @@ describe("review cycle", () => {
 		});
 		const fetchImpl: Fetch = async (input, init) => {
 			const url = urlOf(input);
+			const sent = typeof init?.body === "string" ? init.body : "";
 			requests.push(url);
+			if (
+				url === "https://api.github.com/graphql" &&
+				sent.includes("query RepoRead")
+			) {
+				requests.push("query RepoRead");
+				return new Response("recorded failure", { status: 500 });
+			}
 			if (url.includes("/issues/8/comments")) {
 				return new Response("recorded failure", { status: 500 });
 			}
@@ -3346,9 +3594,7 @@ describe("review cycle", () => {
 				}),
 			);
 			expect(result.exitCode).not.toBe(0);
-			expect(requests.some((url) => url.includes("/issues/8/comments"))).toBe(
-				true,
-			);
+			expect(requests.some((url) => url.includes("query RepoRead"))).toBe(true);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

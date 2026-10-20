@@ -10,6 +10,7 @@ import outsideRelations from "./fixtures/outside-relations.json";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromLists,
 	type TrackerRequest,
 	tempConfig,
 	testIo,
@@ -3274,6 +3275,17 @@ async function withGithubInbox(
 			return githubPage({ login: "lev" });
 		}
 		if (url === "https://api.github.com/graphql") {
+			const read = repoReadFromLists(
+				input,
+				init,
+				{ [githubRepo]: issues },
+				{
+					[githubRepo]: pulls,
+				},
+			);
+			if (read !== null) {
+				return read;
+			}
 			return githubPage({
 				data: {
 					repository: {

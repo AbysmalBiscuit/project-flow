@@ -2,7 +2,12 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, unrecorded, urlOf } from "./support.ts";
+import {
+	recordedDiscovery,
+	repoReadFromLists,
+	unrecorded,
+	urlOf,
+} from "./support.ts";
 
 const repo = "acme/widget";
 
@@ -97,6 +102,10 @@ const recorded: Fetch = async (input, init) => {
 	const url = urlOf(input);
 	if (url === "https://api.github.com/user") {
 		return Response.json({ login: "lev" });
+	}
+	const listed = repoReadFromLists(input, init, { [repo]: issues });
+	if (listed !== null) {
+		return listed;
 	}
 	if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
 		return page(issues);

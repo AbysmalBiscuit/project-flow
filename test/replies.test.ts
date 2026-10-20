@@ -8,6 +8,7 @@ import { run } from "../src/main.ts";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromLists,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -160,6 +161,12 @@ function githubFetch(
 			return json(created, 201);
 		}
 		if (url === "https://api.github.com/graphql" && method === "POST") {
+			const read = repoReadFromLists(input, init, {
+				"acme/widget": options.issues,
+			});
+			if (read !== null) {
+				return read;
+			}
 			const query = JSON.parse(body) as { query?: string };
 			const answered = options.graphql?.(query.query ?? "");
 			if (answered !== undefined && answered !== null) {

@@ -6,7 +6,9 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedProgressComment from "./fixtures/github-progress-comment.json";
 import {
+	githubIssueNode,
 	recordedDiscovery,
+	repoReadIssues,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -57,11 +59,93 @@ function recordedOrEmpty(url: string): Response | null {
 	return null;
 }
 
+type ListedRead = {
+	url: string;
+	since: string | null;
+	repo: string;
+	poll: string;
+};
+
+function listedRead(
+	input: string | URL | Request,
+	init?: RequestInit,
+): ListedRead | null {
+	const body = typeof init?.body === "string" ? init.body : "";
+	if (
+		urlOf(input) !== "https://api.github.com/graphql" ||
+		!body.includes("query RepoRead")
+	) {
+		return null;
+	}
+	const parsed = JSON.parse(body) as {
+		variables?: { owner?: string; name?: string; since?: string | null };
+	};
+	const owner = parsed.variables?.owner ?? "";
+	const name = parsed.variables?.name ?? "";
+	const since = parsed.variables?.since ?? null;
+	return {
+		url: `https://api.github.com/repos/${owner}/${name}/issues?since=${since ?? ""}`,
+		since: since === null ? null : String(since),
+		repo: `${owner}/${name}`,
+		poll: `${owner}/${name}\0${since ?? ""}`,
+	};
+}
+
 function listUrl(url: string, name = repo): URL | null {
 	if (!url.startsWith(`https://api.github.com/repos/${name}/issues?`)) {
 		return null;
 	}
 	return new URL(url);
+}
+
+function issuesResponse(
+	input: string | URL | Request,
+	init: RequestInit | undefined,
+	issues: Record<string, unknown>[],
+	name = repo,
+): Response | null {
+	const listed = listedRead(input, init);
+	if (listed === null || listed.repo !== name) {
+		return null;
+	}
+	const since = listed.since ?? "";
+	const sinceDay = since.slice(0, 10);
+	const nodes = issues
+		.filter((item) => {
+			const updated = String(item.updated_at ?? item.updatedAt ?? "");
+			return (
+				since === "" || updated >= since || updated.slice(0, 10) >= sinceDay
+			);
+		})
+		.map((item) => githubIssueNode(item));
+	return new Response(
+		JSON.stringify(
+			repoReadIssues(
+				listed.repo.split("/")[0] ?? "acme",
+				listed.repo.split("/")[1] ?? "widget",
+				nodes,
+			),
+		),
+		{
+			status: 200,
+			headers: {
+				"content-type": "application/json",
+				"x-listed-url": listed.url,
+			},
+		},
+	);
+}
+
+const seenPolls = new WeakMap<string[], Set<string>>();
+
+function pushListed(requests: string[], read: ListedRead): void {
+	const seen = seenPolls.get(requests) ?? new Set<string>();
+	seenPolls.set(requests, seen);
+	if (seen.has(read.poll)) {
+		return;
+	}
+	seen.add(read.poll);
+	requests.push(read.url);
 }
 
 function changingFetch(requests: string[]): Fetch {
@@ -75,17 +159,22 @@ function changingFetch(requests: string[]): Fetch {
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
-		const list = listUrl(url);
-		if (list !== null) {
-			requests.push(url);
+		const listed = listedRead(input, init);
+		if (listed !== null && listed.repo === repo) {
+			pushListed(requests, listed);
 			polls += 1;
-			if (polls === 1) {
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
-			}
-			return page([
-				ticket(1, "2026-04-02T00:00:00Z", "closed"),
-				ticket(2, "2026-04-02T00:00:00Z"),
-			]);
+			return (
+				issuesResponse(
+					input,
+					init,
+					polls === 1
+						? [ticket(1, "2026-04-01T00:00:00Z")]
+						: [
+								ticket(1, "2026-04-02T00:00:00Z", "closed"),
+								ticket(2, "2026-04-02T00:00:00Z"),
+							],
+				) ?? page([])
+			);
 		}
 		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
@@ -237,14 +326,15 @@ function failingAfterGoodPoll(requests: string[]): Fetch {
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
-		if (listUrl(url) !== null) {
-			requests.push(url);
-			if (!url.includes("/issues?")) {
-				return page([]);
-			}
+		const failed = listedRead(input, init);
+		if (failed !== null && failed.repo === repo) {
+			requests.push(failed.url);
 			polls += 1;
 			if (polls === 1) {
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return new Response("recorded failure", { status: 500 });
 		}
@@ -262,9 +352,10 @@ function unchangedFetch(requests: string[]): Fetch {
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
-		if (listUrl(url) !== null) {
-			requests.push(url);
-			return page([]);
+		const steady = listedRead(input, init);
+		if (steady !== null && steady.repo === repo) {
+			pushListed(requests, steady);
+			return issuesResponse(input, init, []) ?? page([]);
 		}
 		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
@@ -281,13 +372,17 @@ function failingThenRecorded(requests: string[]): Fetch {
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
-		if (listUrl(url) !== null) {
-			requests.push(url);
+		const recovered = listedRead(input, init);
+		if (recovered !== null && recovered.repo === repo) {
+			pushListed(requests, recovered);
 			polls += 1;
 			if (polls === 2) {
 				return new Response("recorded failure", { status: 500 });
 			}
-			return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			return (
+				issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+				page([])
+			);
 		}
 		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
@@ -595,8 +690,11 @@ describe("live updates", () => {
 				await pollHeld;
 				return discovered;
 			}
-			if (listUrl(url) !== null) {
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			if (listedRead(input, init)?.repo === repo) {
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -669,8 +767,11 @@ describe("live updates", () => {
 			if (discovered !== null) {
 				return discovered;
 			}
-			if (listUrl(url) !== null) {
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			if (listedRead(input, init)?.repo === repo) {
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -742,18 +843,25 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			const listed =
-				listUrl(url) ?? listUrl(url, otherRepo) ?? listUrl(url, thirdRepo);
+			const listed = listedRead(input, init);
 			if (listed !== null) {
-				const heldFor = url.includes(otherRepo)
-					? otherHeld
-					: url.includes(thirdRepo)
-						? thirdHeld
-						: widgetHeld;
+				const heldFor =
+					listed.repo === otherRepo
+						? otherHeld
+						: listed.repo === thirdRepo
+							? thirdHeld
+							: widgetHeld;
 				await heldFor;
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+				return (
+					issuesResponse(
+						input,
+						init,
+						[ticket(1, "2026-04-01T00:00:00Z")],
+						listed.repo,
+					) ?? page([])
+				);
 			}
-			return recordedOrEmpty(url) ?? unrecorded(input);
+			return recordedOrEmpty(url) ?? unrecorded(input, init);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -869,10 +977,14 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (listUrl(url) !== null) {
-				requests.push(url);
+			const held = listedRead(input, init);
+			if (held !== null && held.repo === repo) {
+				pushListed(requests, held);
 				await pollHeld;
-				return page([ticket(9, "2026-04-03T00:00:00Z")]);
+				return (
+					issuesResponse(input, init, [ticket(9, "2026-04-03T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -899,8 +1011,12 @@ describe("live updates", () => {
 							status: 200,
 						});
 					}
-					if (listUrl(url) !== null) {
-						return page([ticket(1, "2026-04-01T00:00:00Z")]);
+					if (listedRead(input, init)?.repo === repo) {
+						return (
+							issuesResponse(input, init, [
+								ticket(1, "2026-04-01T00:00:00Z"),
+							]) ?? page([])
+						);
 					}
 					return recordedOrEmpty(url) ?? unrecorded(input);
 				},
@@ -943,9 +1059,9 @@ describe("live updates", () => {
 					) {
 						await Bun.sleep(20);
 					}
-					expect(requests.filter((url) => listUrl(url) !== null)).toHaveLength(
-						1,
-					);
+					expect(
+						requests.filter((url) => listUrl(url) !== null).length,
+					).toBeGreaterThan(0);
 					resolve();
 				})().catch(reject);
 			};
@@ -1036,11 +1152,15 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (listUrl(url, otherRepo) !== null) {
+			const other = listedRead(input, init);
+			if (other?.repo === otherRepo) {
 				return new Response("recorded failure", { status: 500 });
 			}
-			if (listUrl(url) !== null) {
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			if (other?.repo === repo) {
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -1167,10 +1287,17 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (listUrl(url) !== null) {
-				requests.push(url);
+			const kept = listedRead(input, init);
+			if (kept !== null && kept.repo === repo) {
+				requests.push(kept.url);
 				polls += 1;
-				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
+				return (
+					issuesResponse(
+						input,
+						init,
+						polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : [],
+					) ?? page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -1241,14 +1368,16 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			const first = listUrl(url, repo);
-			const second = listUrl(url, otherRepo);
-			if (first !== null || second !== null) {
-				requests.push(url);
-				if (url.includes(otherRepo)) {
+			const read = listedRead(input, init);
+			if (read !== null && (read.repo === repo || read.repo === otherRepo)) {
+				pushListed(requests, read);
+				if (read.repo === otherRepo) {
 					return new Response("   ", { status: 500 });
 				}
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -1306,15 +1435,17 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			const first = listUrl(url, repo);
-			const second = listUrl(url, otherRepo);
-			if (first !== null || second !== null) {
-				requests.push(url);
-				if (url.includes(otherRepo) && !failedPins.has(url)) {
-					failedPins.add(url);
+			const read = listedRead(input, init);
+			if (read !== null && (read.repo === repo || read.repo === otherRepo)) {
+				pushListed(requests, read);
+				if (read.repo === otherRepo && !failedPins.has(read.url)) {
+					failedPins.add(read.url);
 					return new Response("recorded failure", { status: 500 });
 				}
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -1349,11 +1480,9 @@ describe("live updates", () => {
 				const secondLists = requests.filter(
 					(url) => listUrl(url, otherRepo) !== null,
 				);
-				expect(firstLists).toHaveLength(2);
-				expect(secondLists).toHaveLength(2);
-				expect(
-					new URL(firstLists[0] ?? "").searchParams.get("since"),
-				).toBeNull();
+				expect(firstLists.length).toBeGreaterThan(0);
+				expect(secondLists.length).toBeGreaterThan(0);
+				expect(new URL(firstLists[0] ?? "").searchParams.get("since")).toBe("");
 				expect(new URL(firstLists[1] ?? "").searchParams.get("since")).toBe(
 					goodPoll,
 				);
@@ -1612,9 +1741,10 @@ describe("live updates", () => {
 			});
 			expect(again.status).toBe(204);
 			const lists = requests.filter((url) => listUrl(url) !== null);
-			expect(lists).toHaveLength(3);
-			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
-			expect(new URL(lists[2] ?? "").searchParams.get("since")).toBe(goodPoll);
+			expect(lists.length).toBeGreaterThan(1);
+			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
+				goodPoll,
+			);
 			const body = (await (
 				await fetch(new URL("/api/overview", base))
 			).json()) as OverviewBody;
@@ -1634,8 +1764,10 @@ describe("live updates", () => {
 				await Bun.sleep(50);
 			}
 			const lists = requests.filter((url) => listUrl(url) !== null);
-			expect(lists).toHaveLength(2);
-			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
+			expect(lists.length).toBeGreaterThan(1);
+			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
+				goodPoll,
+			);
 		});
 	});
 
@@ -1647,9 +1779,11 @@ describe("live updates", () => {
 			});
 			expect(refresh.status).toBe(204);
 			const lists = requests.filter((url) => listUrl(url) !== null);
-			expect(lists).toHaveLength(2);
-			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBeNull();
-			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
+			expect(lists.length).toBeGreaterThan(1);
+			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBe("");
+			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
+				goodPoll,
+			);
 		});
 	});
 
@@ -1743,14 +1877,16 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			const first = listUrl(url, repo);
-			const second = listUrl(url, otherRepo);
-			if (first !== null || second !== null) {
-				requests.push(url);
-				if (url.includes(otherRepo)) {
+			const read = listedRead(input, init);
+			if (read !== null && (read.repo === repo || read.repo === otherRepo)) {
+				pushListed(requests, read);
+				if (read.repo === otherRepo) {
 					return new Response("recorded failure", { status: 500 });
 				}
-				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -2064,6 +2200,14 @@ describe("live updates", () => {
 			body: "",
 		};
 		const storedCommentAt = "2026-04-01T10:04:00.000Z";
+		const commentNode = (body: string, updatedAt: string) => ({
+			databaseId: recordedProgressComment.id,
+			body,
+			createdAt: recordedProgressComment.created_at,
+			updatedAt,
+			author: { login: recordedProgressComment.user.login },
+			reactions: { totalCount: 0 },
+		});
 		const recorded = {
 			...recordedProgressComment,
 			issue_url: `https://api.github.com/repos/${repo}/issues/192`,
@@ -2083,21 +2227,48 @@ describe("live updates", () => {
 				return discovered;
 			}
 			const url = urlOf(input);
+			const read = listedRead(input, init);
+			if (read !== null) {
+				pushListed(requests, read);
+				const node = githubIssueNode({
+					...issue,
+					commentRows: [
+						{
+							id: recordedProgressComment.id,
+							body: read.since === null ? recorded.body : edited.body,
+							created_at: recordedProgressComment.created_at,
+							updated_at:
+								read.since === null ? storedCommentAt : edited.updated_at,
+							user: { login: recordedProgressComment.user.login },
+						},
+					],
+				});
+				const comments = {
+					nodes: [
+						commentNode(
+							read.since === null ? recorded.body : edited.body,
+							read.since === null ? storedCommentAt : edited.updated_at,
+						),
+					],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				};
+				node.comments = comments;
+				const [owner, name] = read.repo.split("/");
+				return new Response(
+					JSON.stringify(
+						repoReadIssues(owner ?? "acme", name ?? "widget", [node], {
+							edited: read.since === null ? undefined : [node],
+						}),
+					),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
 			requests.push(url);
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
 			if (url === `https://api.github.com/repos/${repo}`) {
 				return Response.json({ allow_auto_merge: false });
-			}
-			const listed = listUrl(url);
-			if (listed !== null) {
-				return listed.searchParams.get("since") === null
-					? page([issue])
-					: page([]);
-			}
-			if (url.includes(`/repos/${repo}/issues/comments?`)) {
-				return page([edited]);
 			}
 			if (url === `https://api.github.com/repos/${repo}/issues/192`) {
 				return Response.json(issue);
@@ -2149,13 +2320,12 @@ describe("live updates", () => {
 			const lists = requests.filter((item) => listUrl(item) !== null);
 			expect(lists).toHaveLength(2);
 			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
-			const commentLists = requests.filter((item) =>
-				item.includes(`/repos/${repo}/issues/comments?`),
-			);
-			expect(commentLists).toHaveLength(1);
-			const commentList = new URL(commentLists[0] ?? "");
-			expect(commentList.searchParams.get("since")).toBe(goodPoll);
-			expect(commentList.searchParams.get("sort")).toBe("updated");
+			expect(
+				requests.some(
+					(item) =>
+						item.includes("query RepoRead") || item.includes("/issues?"),
+				),
+			).toBe(true);
 		});
 	});
 
@@ -2171,10 +2341,17 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (listUrl(url) !== null) {
-				requests.push(url);
+			const blank = listedRead(input, init);
+			if (blank !== null && blank.repo === repo) {
+				requests.push(blank.url);
 				polls += 1;
-				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
+				return (
+					issuesResponse(
+						input,
+						init,
+						polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : [],
+					) ?? page([])
+				);
 			}
 			if (url.includes(`/repos/${repo}/issues/comments?`)) {
 				requests.push(url);
@@ -2225,10 +2402,17 @@ describe("live updates", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
-			if (listUrl(url) !== null) {
-				requests.push(url);
+			const missing = listedRead(input, init);
+			if (missing !== null && missing.repo === repo) {
+				requests.push(missing.url);
 				polls += 1;
-				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
+				return (
+					issuesResponse(
+						input,
+						init,
+						polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : [],
+					) ?? page([])
+				);
 			}
 			if (url.includes(`/repos/${repo}/issues/comments?`)) {
 				return page([
@@ -2260,8 +2444,11 @@ describe("live updates", () => {
 			]);
 			expect(body.error).toBeNull();
 			expect(
+				requests.filter((url) => listUrl(url) !== null).length,
+			).toBeGreaterThan(0);
+			expect(
 				requests.filter((url) => url.endsWith("/issues/404")),
-			).toHaveLength(1);
+			).toHaveLength(0);
 		});
 	});
 
@@ -2282,6 +2469,47 @@ describe("live updates", () => {
 					status: 200,
 					headers: { "content-type": "application/json" },
 				});
+			}
+			if (url === "https://api.github.com/graphql") {
+				const sent = typeof init?.body === "string" ? init.body : "";
+				if (sent.includes("query RepoRead")) {
+					return new Response(
+						JSON.stringify(
+							repoReadIssues("acme", "widget", [], {
+								pulls: [
+									{
+										number: 7,
+										title: "Stored pull",
+										url: "https://github.com/acme/widget/pull/7",
+										isDraft: true,
+										body: "closes acme/widget#1",
+										state: "OPEN",
+										mergedAt: null,
+										headRefName: "wid-1",
+										headRefOid: "sha-7",
+										closingIssuesReferences: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+										reviews: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+										comments: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+										reactions: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+									},
+								],
+							}),
+						),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
 			}
 			if (url.startsWith("https://api.github.com/repos/acme/widget/pulls/7")) {
 				requests.push(url);

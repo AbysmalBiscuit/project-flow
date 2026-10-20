@@ -7,6 +7,7 @@ import { run } from "../src/main.ts";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadResponse,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -61,7 +62,20 @@ function githubLists(seen: string[]): Fetch {
 			return discovered;
 		}
 		const url = urlOf(input);
-		seen.push(url);
+		const body = typeof init?.body === "string" ? init.body : "";
+		if (
+			url === "https://api.github.com/graphql" &&
+			body.includes("query RepoRead")
+		) {
+			const parsed = JSON.parse(body) as {
+				variables?: { owner?: string; name?: string };
+			};
+			seen.push(
+				`https://api.github.com/repos/${parsed.variables?.owner}/${parsed.variables?.name}/issues`,
+			);
+		} else {
+			seen.push(url);
+		}
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
@@ -98,6 +112,10 @@ function githubLists(seen: string[]): Fetch {
 			return new Response(JSON.stringify({ check_runs: [] }), { status: 200 });
 		}
 		if (url === "https://api.github.com/graphql") {
+			const read = repoReadResponse(input, init);
+			if (read !== null) {
+				return read;
+			}
 			return new Response(
 				JSON.stringify({
 					data: {

@@ -11,6 +11,8 @@ import {
 	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
+	repoReadFromLists,
+	repoReadResponse,
 	tempConfig,
 	testIo,
 	trackFound,
@@ -118,6 +120,13 @@ function githubFetch(requests: string[] = []): Fetch {
 			return page([], null);
 		}
 		if (url === "https://api.github.com/graphql") {
+			const read = repoReadFromLists(input, init, { [repo]: recorded });
+			if (read !== null) {
+				requests.push(
+					`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`,
+				);
+				return read;
+			}
 			return new Response(
 				JSON.stringify({
 					data: {
@@ -320,6 +329,10 @@ function linearFetch(requests: string[]): Fetch {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
+				const read = repoReadResponse(input, init);
+				if (read !== null) {
+					return read;
+				}
 				return new Response(
 					JSON.stringify({
 						data: {
@@ -2515,7 +2528,10 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			if (url === "https://api.github.com/graphql" && body.includes("$owner")) {
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
 				const variables = JSON.parse(body) as {
 					variables?: { owner?: string; number?: number };
 				};
@@ -4023,6 +4039,10 @@ describe("GET /api/overview", () => {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
+				const read = repoReadResponse(input, init);
+				if (read !== null) {
+					return read;
+				}
 				return new Response(
 					JSON.stringify({
 						data: {

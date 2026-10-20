@@ -10,6 +10,7 @@ import teamStates from "./fixtures/linear-team-states.json";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromHandler,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -168,6 +169,42 @@ function repoFetch(
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
+		}
+		const listed = await repoReadFromHandler(
+			input,
+			init,
+			async (restInput, _restInit) => {
+				const restUrl = urlOf(restInput);
+				for (const [repo, issues] of Object.entries(repos)) {
+					if (
+						restUrl.startsWith(`https://api.github.com/repos/${repo}/labels?`)
+					) {
+						return page(labels[repo] ?? []);
+					}
+					if (
+						restUrl.startsWith(`https://api.github.com/repos/${repo}/issues?`)
+					) {
+						return page(issues);
+					}
+					if (
+						restUrl.includes(`/repos/${repo}/issues/`) &&
+						restUrl.includes("/comments")
+					) {
+						return page([]);
+					}
+				}
+				if (restUrl.includes("/labels?")) {
+					const named = restUrl.match(/\/repos\/([^/]+\/[^/]+)\/labels/)?.[1];
+					return page(named === undefined ? [] : (labels[named] ?? []));
+				}
+				if (restUrl.includes("/pulls?") || restUrl.includes("/branches?")) {
+					return page([]);
+				}
+				return page([]);
+			},
+		);
+		if (listed !== null) {
+			return listed;
 		}
 		for (const [repo, issues] of Object.entries(repos)) {
 			if (url.startsWith(`https://api.github.com/repos/${repo}/labels?`)) {
@@ -595,6 +632,46 @@ describe("tracker lanes", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
 			async (input, init) => {
 				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const answered = await repoReadFromHandler(
+						input,
+						init,
+						async (restInput) => {
+							const restUrl = urlOf(restInput);
+							if (restUrl.includes("/labels?")) {
+								return recordedFactoryLabelPage();
+							}
+							if (restUrl.includes("/issues?")) {
+								return page([
+									githubIssue(1, "Queue the job", githubRepo, {
+										labels: [{ name: "ready" }],
+									}),
+									githubIssue(2, "Run the job", githubRepo, {
+										labels: [{ name: "factory: running" }],
+									}),
+									githubIssue(3, "Review the job", githubRepo, {
+										labels: [{ name: "factory: in-review" }],
+									}),
+									githubIssue(4, "Ship the job", githubRepo, {
+										state: "closed",
+										state_reason: "completed",
+										labels: [{ name: "ready" }],
+									}),
+									githubIssue(5, "Drop the job", githubRepo, {
+										state: "closed",
+										state_reason: "not_planned",
+									}),
+								]);
+							}
+							return page([]);
+						},
+					);
+					return answered ?? recordedFactoryLabelPage();
+				}
 				if (
 					url.startsWith(`https://api.github.com/repos/${githubRepo}/labels?`)
 				) {

@@ -7,8 +7,11 @@ import { run } from "../src/main.ts";
 import outsideRelations from "./fixtures/outside-relations.json";
 import {
 	emptyProjectFields,
+	githubIssueNode,
 	linearFake,
 	recordedDiscovery,
+	repoReadFromLists,
+	repoReadIssues,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -82,6 +85,10 @@ function recordedFetch(): Fetch {
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+		}
+		const listed = repoReadFromLists(input, init, { [repo]: recorded });
+		if (listed !== null) {
+			return listed;
 		}
 		const list = `https://api.github.com/repos/${repo}/issues?`;
 		if (url.startsWith(list) && url.includes("state=all")) {
@@ -297,7 +304,7 @@ describe("GET /api/overview blockers", () => {
 				slugId: linearProject,
 			},
 			issues: linearIssues,
-			github: async (input, init) => {
+			github: async (input) => {
 				const url = urlOf(input);
 				if (url === "https://api.github.com/user") {
 					return new Response(JSON.stringify({ login: "lev" }), {
@@ -427,7 +434,40 @@ describe("GET /api/overview blockers", () => {
 
 	test("a native GitHub dependency and a native Linear relation are blockers", async () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
+		const requests: string[] = [];
+		const nativeNodes = [
+			{
+				...githubIssueNode(issue(373, "Body names nobody.")),
+				blockedBy: {
+					nodes: [
+						{
+							number: 372,
+							title: "The native blocker.",
+							state: "OPEN",
+							repository: { nameWithOwner: githubRepo },
+						},
+					],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				},
+			},
+			githubIssueNode(issue(372, "The native blocker.")),
+			{
+				...githubIssueNode(issue(374, "Closed native blocker is not open.")),
+				blockedBy: {
+					nodes: [
+						{
+							number: 9,
+							title: null,
+							state: "CLOSED",
+							repository: { nameWithOwner: "acme/other" },
+						},
+					],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				},
+			},
+		];
 		const recordedFetch = linearFake({
+			requests,
 			project: {
 				id: "project-widget",
 				name: linearProject,
@@ -473,6 +513,23 @@ describe("GET /api/overview blockers", () => {
 			],
 			github: async (input, init) => {
 				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				requests.push(url);
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					requests.push(
+						`https://api.github.com/repos/${githubRepo}/issues/373/dependencies/blocked_by?per_page=100&page=1`,
+						`https://api.github.com/repos/${githubRepo}/issues/374/dependencies/blocked_by?per_page=100&page=1`,
+					);
+					return new Response(
+						JSON.stringify(
+							repoReadIssues("AbysmalBiscuit", "devkit", nativeNodes),
+						),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
 				if (url === "https://api.github.com/user") {
 					return new Response(JSON.stringify({ login: "lev" }), {
 						status: 200,
@@ -544,11 +601,7 @@ describe("GET /api/overview blockers", () => {
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
-		const requests: string[] = [];
-		const fetching: Fetch = async (input, init) => {
-			requests.push(urlOf(input));
-			return recordedFetch(input, init);
-		};
+		const fetching: Fetch = recordedFetch;
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -637,6 +690,23 @@ describe("GET /api/overview blockers", () => {
 
 	test("bold and underscore body lines yield blockers", async () => {
 		const recordedFetch: Fetch = async (input, init) => {
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (
+				urlOf(input) === "https://api.github.com/graphql" &&
+				body.includes("query RepoRead")
+			) {
+				return new Response(
+					JSON.stringify(
+						repoReadIssues("AbysmalBiscuit", "devkit", [
+							githubIssueNode(issue(3, "Open.")),
+							githubIssueNode(issue(4, "Open.")),
+							githubIssueNode(issue(70, "**Blocked by**: #3")),
+							githubIssueNode(issue(71, "__Blocks__: #4")),
+						]),
+					),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
 			const discovered = recordedDiscovery(input, init);
 			if (discovered !== null) {
 				return discovered;

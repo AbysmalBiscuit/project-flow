@@ -7,6 +7,7 @@ import { run } from "../src/main.ts";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromHandler,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -173,6 +174,32 @@ function githubFetch(
 			}
 		}
 		if (url === "https://api.github.com/graphql") {
+			const read = await repoReadFromHandler(input, init, async (restInput) => {
+				const linked = recorded.linkedDevelopment ?? [];
+				const restUrl = urlOf(restInput);
+				if (restUrl.includes("/issues?")) {
+					return page(recorded.issues);
+				}
+				if (restUrl.includes("/pulls?")) {
+					return page(
+						recorded.pulls.map((pull) => ({
+							...pull,
+							closing: linked,
+						})),
+					);
+				}
+				if (restUrl.includes("/branches?")) {
+					return page(recorded.branches ?? []);
+				}
+				return page([]);
+			});
+			if (read !== null) {
+				requests.push(
+					`https://api.github.com/repos/${repo}/issues?state=all&per_page=100&page=1`,
+				);
+				requests.push(typeof init?.body === "string" ? init.body : "");
+				return read;
+			}
 			const body = typeof init?.body === "string" ? init.body : "";
 			requests.push(body);
 			const nodes = recorded.linkedDevelopment ?? [];
