@@ -120,12 +120,7 @@ function eventsOf(text: string): StreamEvent[] {
 	return events;
 }
 
-type EventStream = {
-	cancel: () => Promise<void>;
-	read: () => Promise<string | null>;
-};
-
-async function openEvents(base: string): Promise<EventStream> {
+async function openEvents(base: string) {
 	const response = await fetch(new URL("/api/events", base), {
 		headers: { accept: "text/event-stream" },
 	});
@@ -151,36 +146,40 @@ async function openEvents(base: string): Promise<EventStream> {
 	};
 }
 
+type EventStream = Awaited<ReturnType<typeof openEvents>>;
+
 async function drivenPoll(
 	base: string,
 	releasePoll?: () => void,
 ): Promise<InboxEntry | null> {
 	const stream = await openEvents(base);
-	const before = await inboxOf(base);
-	releasePoll?.();
-	await refresh(base);
-	const after = await inboxOf(base);
-	const raised = after.find(
-		(entry) => !before.some((earlier) => earlier.id === entry.id),
-	);
-	if (raised === undefined) {
-		await stream.cancel();
-		return null;
-	}
-	let buffered = "";
-	while (streamedNotification(buffered, raised.id) === undefined) {
-		const chunk = await stream.read();
-		if (chunk === null) {
-			break;
+	try {
+		const before = await inboxOf(base);
+		releasePoll?.();
+		await refresh(base);
+		const after = await inboxOf(base);
+		const raised = after.find(
+			(entry) => !before.some((earlier) => earlier.id === entry.id),
+		);
+		if (raised === undefined) {
+			return null;
 		}
-		buffered += chunk;
+		let buffered = "";
+		while (streamedNotification(buffered, raised.id) === undefined) {
+			const chunk = await stream.read();
+			if (chunk === null) {
+				break;
+			}
+			buffered += chunk;
+		}
+		const streamed = streamedNotification(buffered, raised.id);
+		if (streamed === undefined) {
+			throw new Error("notification event missing for the raised inbox entry");
+		}
+		return streamed;
+	} finally {
+		await stream.cancel();
 	}
-	await stream.cancel();
-	const streamed = streamedNotification(buffered, raised.id);
-	if (streamed === undefined) {
-		throw new Error("notification event missing for the raised inbox entry");
-	}
-	return streamed;
 }
 
 async function quietPoll(base: string): Promise<void> {
