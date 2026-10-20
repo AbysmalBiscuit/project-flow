@@ -297,6 +297,7 @@ function ageLine(fetchedAt: string | null): string {
 function Page() {
 	const [items, setItems] = useState<NeedsYouItem[] | null>(null);
 	const [polled, setPolled] = useState("");
+	const [polling, setPolling] = useState(true);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -320,12 +321,15 @@ function Page() {
 					if (!stopped && response.ok) {
 						const body = (await response.json()) as {
 							fetchedAt: string | null;
+							polling?: true;
 						};
+						setPolling(body.polling === true);
 						setPolled(ageLine(body.fetchedAt));
 					}
 				})
 				.catch(() => {
 					if (!stopped) {
+						setPolling(false);
 						setPolled("");
 					}
 				});
@@ -339,7 +343,7 @@ function Page() {
 			stop();
 		};
 	}, []);
-	if (items === null) {
+	if (items === null || (polling && items.length === 0)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
 	return <NeedsList items={items} polled={polled} />;

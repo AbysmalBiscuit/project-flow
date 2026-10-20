@@ -904,6 +904,7 @@ function Page() {
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
+	const [polling, setPolling] = useState(true);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	useEffect(() => {
@@ -968,7 +969,26 @@ function Page() {
 		};
 		setMissing(false);
 		load();
-		const stop = onAppEvent("overview", load);
+		const readPoll = () => {
+			fetch("/api/overview")
+				.then(async (response) => {
+					if (stopped || !response.ok) {
+						return;
+					}
+					const body = (await response.json()) as { polling?: true };
+					setPolling(body.polling === true);
+				})
+				.catch(() => {
+					if (!stopped) {
+						setPolling(false);
+					}
+				});
+		};
+		readPoll();
+		const stop = onAppEvent("overview", () => {
+			load();
+			readPoll();
+		});
 		return () => {
 			stopped = true;
 			stop();
@@ -1008,7 +1028,7 @@ function Page() {
 			: source.tickets.find((item) => item.key === ticket);
 	const incoming = panelBlockers(selected, source, panelProject, panelTracker);
 	const outgoing = selected?.blocks ?? [];
-	if (missing) {
+	if (missing && !polling) {
 		return (
 			<AppShell>
 				<main className={clsx(frame.page, frame.wide)}>Project not found</main>

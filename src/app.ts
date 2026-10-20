@@ -1125,7 +1125,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			...opened.store.readSeededIds(),
 		]),
 		primed: opened.store.readTickets().length > 0,
-		polling: false,
+		polling: opened.store.readTickets().length === 0,
 	};
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(pollOptions, configuration);
