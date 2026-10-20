@@ -525,7 +525,6 @@ export const needs = stylex.create({
 		display: "flex",
 		gap: space.sm,
 		alignItems: "center",
-		padding: `${space.sm} 0`,
 		borderBottomWidth: measure.hairline,
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.line,
@@ -535,21 +534,6 @@ export const needs = stylex.create({
 	},
 	headline: {
 		fontWeight: type.weight,
-	},
-	open: {
-		padding: 0,
-		borderWidth: 0,
-		backgroundColor: "transparent",
-		color: "inherit",
-		font: "inherit",
-		textAlign: "left",
-		cursor: "pointer",
-	},
-	openHover: {
-		color: {
-			default: "inherit",
-			":hover": colours.link,
-		},
 	},
 	tag: {
 		padding: `${space.twoXs} ${space.sm}`,
@@ -569,7 +553,7 @@ export const needs = stylex.create({
 		gap: `${space.xs} ${space.sm}`,
 		alignItems: "center",
 		width: "100%",
-		padding: 0,
+		padding: `${space.sm} 0`,
 		borderWidth: 0,
 		backgroundColor: {
 			default: "transparent",
