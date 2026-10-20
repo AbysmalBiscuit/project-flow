@@ -15,7 +15,12 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { backlogColour, factoryBoard, statusTypeOfName } from "./domain.ts";
+import {
+	backlogColour,
+	closedReasons,
+	factoryBoard,
+	statusTypeOfName,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -45,6 +50,7 @@ const githubIssue = z.object({
 	state: z.string(),
 	state_reason: z.string().nullable(),
 	updated_at: z.string(),
+	closed_at: z.string().nullable().optional(),
 	body: z.string().nullable().optional(),
 	milestone: z.object({ title: z.string() }).nullable().optional(),
 	labels: z.array(z.object({ name: z.string() })).optional(),
@@ -1047,6 +1053,80 @@ async function labelPage(
 	return page.data;
 }
 
+const issueEvent = z
+	.object({
+		event: z.string(),
+		created_at: z.string(),
+		issue: z.object({ number: z.number() }),
+		label: z.object({ name: z.string() }).nullish(),
+	})
+	.passthrough();
+
+async function listIssueEvents(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+): Promise<z.infer<typeof issueEvent>[]> {
+	const start = `https://api.github.com/repos/${repo}/issues/events?per_page=100&page=1`;
+	const first = await fetchImpl(start, { headers: githubHeaders(token) });
+	if (first.status === 404 || first.status === 410) {
+		return [];
+	}
+	if (!first.ok) {
+		throw new Error(
+			`GitHub list issue events failed (HTTP ${first.status}): ${repo}`,
+		);
+	}
+	const listed = [await first.json()];
+	let url = nextPage(first.headers.get("link"));
+	while (url !== null) {
+		const response = await fetchImpl(url, { headers: githubHeaders(token) });
+		if (!response.ok) {
+			throw new Error(
+				`GitHub list issue events failed (HTTP ${response.status}): ${repo}`,
+			);
+		}
+		listed.push(await response.json());
+		url = nextPage(response.headers.get("link"));
+	}
+	const events: z.infer<typeof issueEvent>[] = [];
+	for (const item of listed) {
+		const page = z.array(issueEvent).safeParse(item);
+		if (!page.success) {
+			throw new Error(`GitHub list issue events failed: ${repo}`);
+		}
+		events.push(...page.data);
+	}
+	return events;
+}
+
+function labelHistory(
+	events: z.infer<typeof issueEvent>[],
+	number: number,
+	status: TicketStatus,
+) {
+	const history: NonNullable<Ticket["history"]> = [];
+	for (const event of events) {
+		if (event.issue.number !== number || event.event !== "labeled") {
+			continue;
+		}
+		const name = event.label?.name;
+		if (name !== status.name) {
+			continue;
+		}
+		const at = event.created_at.trim();
+		if (at === "") {
+			continue;
+		}
+		history.push({
+			statusId: status.id,
+			at,
+			statusType: status.statusType,
+		});
+	}
+	return history;
+}
+
 async function listRepoLabels(
 	token: string,
 	fetchImpl: Fetch,
@@ -1659,6 +1739,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				return { name: repo, tickets, board };
 			}
 			const tickets: Ticket[] = [];
+			const listedIssues: z.infer<typeof githubIssue>[] = [];
 			const sinceQuery =
 				since === null
 					? ""
@@ -1679,6 +1760,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					if (issue.state !== "open" && issue.state !== "closed") {
 						continue;
 					}
+					listedIssues.push(issue);
 					const summary = issue.issue_dependencies_summary;
 					const blockedBy =
 						summary !== undefined && summary.total_blocked_by > 0
@@ -1735,16 +1817,41 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			}
 			const labels = await listRepoLabels(token, fetchImpl, repo);
 			const board = factoryBoard(labels);
-			if (!board.factoryLabels) {
-				return { name: repo, tickets, board };
+			const events = board.factoryLabels
+				? await listIssueEvents(token, fetchImpl, repo)
+				: [];
+			if (board.factoryLabels) {
+				for (const ticket of tickets) {
+					const status = board.statuses.find((item) =>
+						ticket.labels.includes(item.name),
+					);
+					if (status !== undefined) {
+						ticket.status = status;
+						const history = labelHistory(events, Number(ticket.id), status);
+						if (history.length > 0) {
+							ticket.history = history;
+						}
+					}
+				}
 			}
 			for (const ticket of tickets) {
-				const status = board.statuses.find((item) =>
-					ticket.labels.includes(item.name),
-				);
-				if (status !== undefined) {
-					ticket.status = status;
+				if (ticket.state !== "closed") {
+					continue;
 				}
+				const issue = listedIssues.find(
+					(item) => String(item.number) === ticket.id,
+				);
+				const closedAt = issue?.closed_at?.trim() ?? "";
+				if (closedAt === "") {
+					continue;
+				}
+				const closedLane = closedReasons.has(ticket.stateReason ?? "")
+					? "dropped"
+					: "done";
+				ticket.history = [
+					...(ticket.history ?? []),
+					{ statusId: closedLane, at: closedAt, statusType: closedLane },
+				];
 			}
 			return { name: repo, tickets, board };
 		},

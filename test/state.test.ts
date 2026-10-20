@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import factoryLabels from "./fixtures/github-factory-labels.json";
 import projectFields from "./fixtures/github-project-fields.json";
 import approvedState from "./fixtures/linear-approved-state.json";
 import historyNode from "./fixtures/linear-history-node.json";
@@ -88,6 +89,7 @@ type NeedsYouItem = {
 
 type ProjectBody = {
 	lanes: { name: string; statusType: string }[];
+	tickets?: FlightItem[];
 	sections: {
 		id: string;
 		items?: FlightItem[];
@@ -337,6 +339,9 @@ function recordedRepo(
 	closed: Record<string, unknown>[] = [],
 	repoBody: Record<string, unknown> = { allow_auto_merge: false },
 	branches: { name: string }[] = [],
+	requests: string[] = [],
+	events: Record<string, unknown>[] = [],
+	labels: Record<string, unknown>[] = [],
 ): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
@@ -344,6 +349,7 @@ function recordedRepo(
 			return discovered;
 		}
 		const url = urlOf(input);
+		requests.push(url);
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
 		}
@@ -364,7 +370,14 @@ function recordedRepo(
 			return page(issues);
 		}
 		if (url.startsWith(`https://api.github.com/repos/${githubRepo}/labels?`)) {
-			return page([]);
+			return page(labels);
+		}
+		if (
+			url.startsWith(
+				`https://api.github.com/repos/${githubRepo}/issues/events?`,
+			)
+		) {
+			return page(events);
 		}
 		if (
 			url ===
@@ -469,9 +482,10 @@ async function projectOf(base: string, name: string): Promise<ProjectBody> {
 }
 
 function ticketOf(report: ProjectBody, key: string): FlightItem {
-	const found = report.sections
-		.flatMap((section) => section.items ?? [])
-		.find((item) => item.key === key);
+	const found = [
+		...(report.tickets ?? []),
+		...report.sections.flatMap((section) => section.items ?? []),
+	].find((item) => item.key === key);
 	if (found === undefined) {
 		throw new Error(`ticket ${key} is missing from the project`);
 	}
@@ -1348,6 +1362,216 @@ describe("forward state", () => {
 				const report = await projectOf(base, githubRepo);
 				expect(ticketOf(report, `${githubRepo}#8`).enteredStateAt).toBe(
 					"2026-08-18T12:00:00.000Z",
+				);
+			},
+		);
+	});
+
+	test("a repo-board ticket keeps the time it entered its state", async () => {
+		const enteredAt = "2026-08-17T09:00:00Z";
+		const editedAt = "2026-08-18T15:00:00Z";
+		const closedAt = "2026-08-16T08:00:00Z";
+		const requests: string[] = [];
+		const events = (await recordedJson("github-issue-events.json")) as Record<
+			string,
+			unknown
+		>[];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recordedRepo(
+				[
+					githubIssue(8, {
+						title: "Edited after its label",
+						updated_at: editedAt,
+						labels: [{ name: "factory: running" }],
+					}),
+					githubIssue(9, {
+						title: "Closed after a later edit",
+						state: "closed",
+						state_reason: "completed",
+						updated_at: editedAt,
+						closed_at: closedAt,
+						labels: [{ name: "ready" }],
+					}),
+					githubIssue(10, {
+						title: "No label events",
+						updated_at: editedAt,
+						labels: [{ name: "factory: in-review" }],
+					}),
+					githubIssue(11, {
+						title: "Unlabeled status label",
+						updated_at: editedAt,
+						labels: [{ name: "factory: running" }],
+					}),
+					githubIssue(12, {
+						title: "Blank close time",
+						state: "closed",
+						state_reason: "completed",
+						updated_at: editedAt,
+						closed_at: "   ",
+					}),
+				],
+				[],
+				[],
+				{ allow_auto_merge: false },
+				[],
+				requests,
+				events,
+				factoryLabels,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
+					lane: "factory: running",
+					statusType: "inProgress",
+					enteredStateAt: enteredAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#9`)).toMatchObject({
+					lane: "Done",
+					statusType: "done",
+					enteredStateAt: closedAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#10`).enteredStateAt).toBe(
+					editedAt,
+				);
+				expect(ticketOf(report, `${githubRepo}#11`).enteredStateAt).toBe(
+					editedAt,
+				);
+				expect(ticketOf(report, `${githubRepo}#12`).enteredStateAt).toBe(
+					editedAt,
+				);
+				expect(
+					requests.filter((item) => item.includes("/issues/8/timeline")),
+				).toEqual([]);
+				expect(
+					requests.filter((item) => item.includes("/issues/8/events")),
+				).toEqual([]);
+			},
+		);
+	});
+
+	test("a missing issue events page keeps the issue edit time", async () => {
+		const editedAt = "2026-08-18T15:00:00Z";
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			async (input, init) => {
+				const url = urlOf(input);
+				if (url.includes("/issues/events?")) {
+					return new Response("missing", { status: 404 });
+				}
+				return recordedRepo(
+					[
+						githubIssue(8, {
+							title: "No events page",
+							updated_at: editedAt,
+							labels: [{ name: "factory: running" }],
+						}),
+					],
+					[],
+					[],
+					{ allow_auto_merge: false },
+					[],
+					[],
+					[],
+					factoryLabels,
+				)(input, init);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
+					lane: "factory: running",
+					enteredStateAt: editedAt,
+				});
+			},
+		);
+	});
+
+	test("a blank label time falls back to the issue edit time", async () => {
+		const editedAt = "2026-08-18T15:00:00Z";
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recordedRepo(
+				[
+					githubIssue(8, {
+						title: "Blank label time",
+						updated_at: editedAt,
+						labels: [{ name: "factory: running" }],
+					}),
+				],
+				[],
+				[],
+				{ allow_auto_merge: false },
+				[],
+				[],
+				[
+					{
+						event: "labeled",
+						created_at: "   ",
+						issue: { number: 8 },
+						label: { name: "factory: running" },
+					},
+				],
+				factoryLabels,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				expect(ticketOf(report, `${githubRepo}#8`).enteredStateAt).toBe(
+					editedAt,
+				);
+			},
+		);
+	});
+
+	test("a repo with no factory labels keeps its close time", async () => {
+		const closedAt = "2026-08-16T08:00:00Z";
+		const editedAt = "2026-08-18T15:00:00Z";
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recordedRepo(
+				[
+					githubIssue(9, {
+						title: "Closed after a later edit",
+						state: "closed",
+						state_reason: "completed",
+						updated_at: editedAt,
+						closed_at: closedAt,
+					}),
+					githubIssue(12, {
+						title: "Blank close time",
+						state: "closed",
+						state_reason: "not_planned",
+						updated_at: editedAt,
+						closed_at: "   ",
+					}),
+					githubIssue(8, {
+						title: "Open with no lanes",
+						updated_at: editedAt,
+					}),
+				],
+				[],
+				[],
+				{ allow_auto_merge: false },
+				[],
+				[],
+				[],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				expect(ticketOf(report, `${githubRepo}#9`)).toMatchObject({
+					lane: "Done",
+					statusType: "done",
+					enteredStateAt: closedAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#12`)).toMatchObject({
+					lane: "Dropped",
+					enteredStateAt: editedAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#8`).enteredStateAt).toBe(
+					editedAt,
 				);
 			},
 		);
