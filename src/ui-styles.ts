@@ -483,22 +483,40 @@ export const cards = stylex.create({
 		backgroundImage: `radial-gradient(${colours.line} ${measure.hairline}, transparent ${measure.hairline})`,
 		backgroundSize: `${space.lg} ${space.lg}`,
 	},
-	mermaidHost: {
-		maxWidth: measure.diagram,
+	canvas: {
+		position: "relative",
+		width: "100%",
 	},
-	nodes: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.xl,
-		margin: 0,
-		padding: 0,
-		listStyle: "none",
+
+
+	arrows: {
+		position: "absolute",
+		top: 0,
+		left: 0,
+		overflow: "visible",
 	},
+	arrow: {
+		fill: "none",
+		stroke: colours.lineStrong,
+		strokeWidth: measure.focus,
+	},
+	edgeLabel: {
+		fill: colours.chipInk,
+		fontSize: type.small,
+		textAnchor: "middle",
+	},
+	placed: {
+		position: "absolute",
+	},
+	placeAt: (x: string, y: string) => ({
+		left: x,
+		top: y,
+	}),
 	node: {
 		display: "flex",
 		flexDirection: "column",
 		gap: space.xs,
-		width: measure.panel,
+		width: measure.node,
 		padding: space.md,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -508,6 +526,16 @@ export const cards = stylex.create({
 		color: colours.ink,
 		font: "inherit",
 		textAlign: "left",
+	},
+	nodeNeed: {
+		borderColor: colours.ink,
+		borderWidth: measure.focus,
+	},
+	nodeTop: {
+		display: "flex",
+		gap: space.xs,
+		alignItems: "center",
+		justifyContent: "space-between",
 	},
 	pointer: {
 		cursor: "pointer",
@@ -574,7 +602,7 @@ export const cards = stylex.create({
 	},
 	need: {
 		display: "grid",
-		gridTemplateColumns: `${measure.form} 1fr auto`,
+		gridTemplateColumns: `${measure.progress} 1fr auto`,
 		gap: space.md,
 		alignItems: "center",
 		padding: `${space.sm} ${space.md}`,
@@ -690,7 +718,7 @@ export const cards = stylex.create({
 		display: "flex",
 		gap: space.sm,
 		alignItems: "center",
-		width: measure.form,
+		width: measure.progress,
 	},
 	caption: {
 		margin: `${space.sm} 0 0`,

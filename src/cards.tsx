@@ -1,13 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import mermaid from "mermaid";
-import {
-	type ReactNode,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-} from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
 	type Configuration,
@@ -37,15 +29,8 @@ import {
 	stateLabel,
 	viewLabel,
 } from "./terms.ts";
-import { mermaidTheme, watchPageTheme } from "./theme.ts";
-import { classToken, clsx } from "./ui.ts";
+import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
-
-function startMermaid(): void {
-	mermaid.initialize({ startOnLoad: false, theme: mermaidTheme() });
-}
-
-startMermaid();
 
 function projectPath(name: string, ticket?: string): string {
 	const path = `/projects/${encodeURIComponent(name)}`;
@@ -69,7 +54,7 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 				window.location.assign(projectPath(blocker.project, blocker.key));
 			}}
 		>
-			{blocker.project}#{blocker.key}
+			Blocked by {blocker.project}#{blocker.key}
 		</a>
 	);
 }
@@ -347,132 +332,153 @@ type GraphEdge = {
 	blocker: CrossProjectBlocker;
 };
 
-function nodeId(name: string): string {
-	return `node-${slug(name)}`;
-}
-
-function edgeId(from: string, blocker: CrossProjectBlocker): string {
-	return `edge-${slug(from)}-${slug(blocker.key)}`;
-}
+const graphColumnGap = 220;
+const graphRowStep = 116;
+const graphNodeWidth = 196;
+const graphNodeHeight = 92;
+const graphPad = 28;
 
 function graphEdges(projects: ProjectCounts[]): GraphEdge[] {
+	const names = new Set(projects.map((project) => project.name));
 	return projects.flatMap((project) =>
-		project.crossProjectBlockers.map((blocker) => ({
-			from: project.name,
-			blocker,
-		})),
+		project.crossProjectBlockers
+			.filter((blocker) => names.has(blocker.project))
+			.map((blocker) => ({
+				from: project.name,
+				blocker,
+			})),
 	);
 }
 
-function mermaidText(value: string): string {
-	return value.replaceAll('"', "#quot;");
-}
-
-function mermaidSource(projects: ProjectCounts[], edges: GraphEdge[]): string {
-	const lines = ["flowchart LR"];
+function graphLayout(projects: ProjectCounts[], edges: GraphEdge[]) {
+	const depth = new Map(projects.map((project) => [project.name, 0]));
+	for (let pass = 0; pass < projects.length; pass += 1) {
+		for (const edge of edges) {
+			const next = (depth.get(edge.from) ?? 0) + 1;
+			if (next > (depth.get(edge.blocker.project) ?? 0)) {
+				depth.set(edge.blocker.project, next);
+			}
+		}
+	}
+	const columns = new Map<number, string[]>();
 	for (const project of projects) {
-		lines.push(`  ${nodeId(project.name)}["${mermaidText(project.name)}"]`);
+		const column = depth.get(project.name) ?? 0;
+		const names = columns.get(column) ?? [];
+		names.push(project.name);
+		columns.set(column, names);
 	}
-	for (const edge of edges) {
-		lines.push(
-			`  ${nodeId(edge.from)} ${edgeId(edge.from, edge.blocker)}@-->|"${mermaidText(edge.blocker.key)}"| ${nodeId(edge.blocker.project)}`,
-		);
+	const place = new Map<string, { x: number; y: number }>();
+	for (const [column, names] of columns) {
+		names.forEach((name, row) => {
+			place.set(name, {
+				x: graphPad + column * graphColumnGap,
+				y: graphPad + row * graphRowStep,
+			});
+		});
 	}
-	return lines.join("\n");
-}
-
-function renderGraph(projects: ProjectCounts[]): Promise<string> {
-	return mermaid
-		.render("project-flow-graph", mermaidSource(projects, graphEdges(projects)))
-		.then((result) => result.svg)
-		.catch(() => "");
-}
-
-function htmlSpan(root: ParentNode, selector: string): HTMLElement | null {
-	const span = root.querySelector(selector);
-	return span instanceof HTMLElement ? span : null;
-}
-
-function nodeLabel(host: ParentNode, id: string): HTMLElement | null {
-	const pattern = new RegExp(`-${id}-\\d+$`);
-	const shape = [...host.querySelectorAll(".node")].find((item) =>
-		pattern.test(item.id),
+	const widest = Math.max(1, columns.size);
+	const width = graphPad * 2 + (widest - 1) * graphColumnGap + graphNodeWidth;
+	const tallest = Math.max(
+		1,
+		...[...columns.values()].map((names) => names.length),
 	);
-	const span = shape?.querySelector("span.nodeLabel");
-	return span instanceof HTMLElement ? span : null;
+	const height = graphPad + tallest * graphRowStep;
+	return { place, width, height };
 }
 
-function bindGraph(
-	host: HTMLElement,
-	projects: ProjectCounts[],
-	edges: GraphEdge[],
-): void {
-	for (const project of projects) {
-		const id = nodeId(project.name);
-		const label = nodeLabel(host, id);
-		if (label === null) {
-			continue;
-		}
-		label.id = id;
-		label.closest(".node")?.classList.add(classToken(cards.pointer));
-		label.classList.add(classToken(cards.pointer));
-		label.addEventListener("click", () => openProject(project.name));
-	}
-	for (const edge of edges) {
-		const id = edgeId(edge.from, edge.blocker);
-		const label = htmlSpan(host, `[data-id="${id}"] span.edgeLabel`);
-		if (label === null) {
-			continue;
-		}
-		label.id = id;
-		label.classList.add(classToken(cards.pointer));
-		label.addEventListener("click", () =>
-			openProject(edge.blocker.project, edge.blocker.key),
-		);
-	}
+function GraphNode({ project }: { project: ProjectCounts }) {
+	return (
+		<button
+			type="button"
+			className={clsx(
+				cards.node,
+				cards.pointer,
+				project.needsYou > 0 && cards.nodeNeed,
+			)}
+			onClick={() => openProject(project.name)}
+		>
+			<span className={clsx(cards.nodeTop)}>
+				<strong>{project.name}</strong>
+				{project.needsYou === 0 ? null : (
+					<span className={clsx(cards.badge)}>{project.needsYou}</span>
+				)}
+			</span>
+			<span className={clsx(cards.meta)}>{trackerName(project.tracker)}</span>
+			<SegmentedBar project={project} />
+			<span className={clsx(cards.quiet)}>
+				{project.done} of {ticketTotal(project)} done
+			</span>
+		</button>
+	);
 }
 
-function GraphView({
-	projects,
-	svg,
-}: {
-	projects: ProjectCounts[];
-	svg: string | null;
-}) {
-	const host = useRef<HTMLDivElement>(null);
-	useLayoutEffect(() => {
-		const node = host.current;
-		if (node === null || svg === null || svg === "") {
-			return;
-		}
-		node.insertAdjacentHTML("beforeend", svg);
-		bindGraph(node, projects, graphEdges(projects));
-	}, [projects, svg]);
+function GraphView({ projects }: { projects: ProjectCounts[] }) {
+	const edges = graphEdges(projects);
+	const { place, width, height } = graphLayout(projects, edges);
+	const byName = new Map(projects.map((project) => [project.name, project]));
 	return (
 		<div className={clsx(cards.graph)}>
-			<div ref={host} className={clsx(cards.mermaidHost)} />
-			{svg === null || svg === "" ? (
-				<ul className={clsx(cards.nodes)}>
-					{projects.map((project) => (
-						<li key={`${project.tracker}:${project.name}`}>
-							<button
-								type="button"
-								className={clsx(cards.node, cards.pointer)}
-								onClick={() => openProject(project.name)}
+			<div className={clsx(cards.canvas)} style={{ height }}>
+				<svg
+					className={clsx(cards.arrows)}
+					width={width}
+					height={height}
+					aria-hidden="true"
+				>
+					{edges.map((edge) => {
+						const from = place.get(edge.from);
+						const to = place.get(edge.blocker.project);
+						if (from === undefined || to === undefined) {
+							return null;
+						}
+						const x1 = from.x + graphNodeWidth;
+						const y1 = from.y + graphNodeHeight / 2;
+						const x2 = to.x;
+						const y2 = to.y + graphNodeHeight / 2;
+						const mid = (x1 + x2) / 2;
+						return (
+							<g
+								key={`${edge.from}-${edge.blocker.project}-${edge.blocker.key}`}
 							>
-								<strong>{project.name}</strong>
-								<span className={clsx(cards.meta)}>
-									{trackerName(project.tracker)}
-								</span>
-								<span>
-									{project.done} of {ticketTotal(project)} done
-								</span>
-								<SegmentedBar project={project} />
-							</button>
-						</li>
-					))}
-				</ul>
-			) : null}
+								<path
+									d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
+									className={clsx(cards.arrow)}
+								/>
+								<a
+									href={projectPath(edge.blocker.project, edge.blocker.key)}
+									onClick={(event) => {
+										event.preventDefault();
+										openProject(edge.blocker.project, edge.blocker.key);
+									}}
+								>
+									<text
+										x={mid}
+										y={(y1 + y2) / 2 - 8}
+										className={clsx(cards.edgeLabel)}
+									>
+										{edge.blocker.key}
+									</text>
+								</a>
+							</g>
+						);
+					})}
+				</svg>
+				{projects.map((project) => {
+					const spot = place.get(project.name);
+					if (spot === undefined || byName.get(project.name) === undefined) {
+						return null;
+					}
+					return (
+						<div
+							key={`${project.tracker}:${project.name}`}
+							className={clsx(cards.placed)}
+							{...stylex.props(cards.placeAt(`${spot.x}px`, `${spot.y}px`))}
+						>
+							<GraphNode project={project} />
+						</div>
+					);
+				})}
+			</div>
 		</div>
 	);
 }
@@ -669,26 +675,10 @@ function OverviewPage({
 	);
 	const polled = polledLine(overview.fetchedAt, now);
 	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
-	const [graphSvg, setGraphSvg] = useState<string | null>(null);
 	useEffect(() => {
 		const timer = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(timer);
 	}, []);
-	useEffect(() => {
-		if (view.view !== "graph") {
-			return;
-		}
-		let stopped = false;
-		startMermaid();
-		void renderGraph(projects).then((svg) => {
-			if (!stopped && svg !== "") {
-				setGraphSvg(svg);
-			}
-		});
-		return () => {
-			stopped = true;
-		};
-	}, [projects, view.view]);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -742,7 +732,7 @@ function OverviewPage({
 	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
-		graph: <GraphView projects={projects} svg={graphSvg} />,
+		graph: <GraphView projects={projects} />,
 		table: <TableView projects={projects} />,
 	};
 	const views: PageView[] = overviewViews.map((name) => ({
@@ -925,7 +915,8 @@ function OverviewPage({
 			{view.view === "graph" ? (
 				<p className={clsx(cards.caption)}>
 					An arrow runs from a blocking project to the project it blocks. Its
-					label is the blocking ticket. Projects with a dark border need you.
+					label is the blocking ticket; click it to open that ticket. Projects
+					with a dark border need you.
 				</p>
 			) : null}
 		</PageFrame>
@@ -953,7 +944,6 @@ function Page() {
 		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
 		});
-		const stopTheme = watchPageTheme(startMermaid);
 		void readOverview().then(show);
 		void readSettings().then((loaded) => {
 			if (loaded !== null) {
@@ -963,7 +953,6 @@ function Page() {
 		return () => {
 			stopOverview();
 			stopOpen();
-			stopTheme();
 		};
 	}, []);
 	if (overview === null || settings === null) {
