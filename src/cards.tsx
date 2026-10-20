@@ -624,12 +624,7 @@ function OverviewPage({
 		});
 	};
 	const panes = {
-		cards: (
-			<>
-				<p id="overview-hidden">{`hidden ${overview.projects.length - projects.length}`}</p>
-				<CardsList projects={projects} />
-			</>
-		),
+		cards: <CardsList projects={projects} />,
 		graph: <GraphView projects={projects} svg={graphSvg} />,
 		table: <TableView projects={projects} />,
 	};
