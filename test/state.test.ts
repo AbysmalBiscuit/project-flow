@@ -1067,7 +1067,6 @@ console.log(JSON.stringify({ result: { agents: [] } }));
 				{
 					LINEAR_API_KEY: "recorded-linear-key",
 					PATH: `${bin}:${process.env.PATH ?? ""}`,
-					HERDR_BODY: JSON.stringify({ result: { agents: [] } }),
 				},
 				async (base) => {
 					const report = await projectOf(base, "Widget launch");
