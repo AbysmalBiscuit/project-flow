@@ -1595,11 +1595,18 @@ function fetchReviews(
 		token,
 		fetchImpl,
 		"list reviews",
-		loginRow.extend({ commit_id: z.string() }),
+		loginRow.extend({
+			commit_id: z.string(),
+			state: z.string().optional(),
+		}),
 		(review) =>
 			review.user === null
 				? null
-				: { login: review.user.login, commitId: review.commit_id },
+				: {
+						login: review.user.login,
+						commitId: review.commit_id,
+						...(review.state === undefined ? {} : { state: review.state }),
+					},
 	);
 }
 

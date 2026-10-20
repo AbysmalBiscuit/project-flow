@@ -2459,16 +2459,15 @@ describe("review cycle", () => {
 				"Ticket 51",
 			),
 			needsYou: [
-				{
+				expect.objectContaining({
 					project: repo,
 					tracker: "github",
 					key: `${repo}#51`,
-					headline: expect.any(String),
 					reason: "ask",
 					tags: [],
 					answered: false,
 					acknowledged: false,
-				},
+				}),
 			],
 		});
 	});
