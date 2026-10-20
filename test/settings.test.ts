@@ -1357,4 +1357,182 @@ describe("settings", () => {
 			expect(after).toEqual(before);
 		});
 	});
+
+	test("settings lists every found, pinned and hidden project with its tracker and source", async () => {
+		const pinnedOnly = "acme/pinned-only";
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: quiet },
+					{ tracker: "github", repo: pinnedOnly },
+				],
+				hidden: [{ tracker: "github", repo: shown }],
+				pmBot: { [shown]: false },
+				expectedBots: { [shown]: ["grok", "codex"] },
+			}),
+			async (base) => {
+				const body = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projects: {
+						name: string;
+						key: string;
+						tracker: string;
+						source: string;
+						pinned: boolean;
+						hidden: boolean;
+						pmBot: boolean;
+						expectedBots: string[];
+						ref: unknown;
+					}[];
+				};
+				const rows = [...body.projects].sort((left, right) =>
+					left.key.localeCompare(right.key),
+				);
+				expect(rows.map((row) => row.key)).toEqual([
+					savedRepo,
+					pinnedOnly,
+					quiet,
+					shown,
+				]);
+				const byKey = new Map(rows.map((row) => [row.key, row]));
+				expect(byKey.get(shown)).toMatchObject({
+					tracker: "github",
+					source: "found",
+					pinned: false,
+					hidden: true,
+					pmBot: false,
+					expectedBots: ["grok", "codex"],
+					ref: { tracker: "github", repo: shown },
+				});
+				expect(byKey.get(quiet)).toMatchObject({
+					tracker: "github",
+					source: "found",
+					pinned: true,
+					hidden: false,
+				});
+				expect(byKey.get(pinnedOnly)).toMatchObject({
+					tracker: "github",
+					source: "pinned",
+					pinned: true,
+					hidden: false,
+					ref: { tracker: "github", repo: pinnedOnly },
+				});
+				expect(byKey.get(savedRepo)).toMatchObject({
+					tracker: "github",
+					source: "found",
+					pinned: false,
+					hidden: false,
+				});
+			},
+			async () => [checkoutFor(savedRoot)],
+		);
+	});
+
+	test("switch and bot changes save and survive a restart", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: shown }],
+				hidden: [],
+				pmBot: {},
+				expectedBots: {},
+			}),
+			async (base, configPath) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration & {
+					trackers: unknown;
+					projects: unknown[];
+				};
+				const {
+					trackers: _trackers,
+					projects: _projects,
+					...configuration
+				} = current;
+				expect(
+					current.projects.some(
+						(row) =>
+							typeof row === "object" &&
+							row !== null &&
+							"key" in row &&
+							row.key === shown,
+					),
+				).toBe(true);
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...configuration,
+						pinned: [{ tracker: "github", repo: quiet }],
+						hidden: [{ tracker: "github", repo: shown }],
+						pmBot: { [quiet]: false, [shown]: true },
+						expectedBots: { [quiet]: ["codex"], [shown]: ["grok"] },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as {
+					projects: {
+						key: string;
+						pinned: boolean;
+						hidden: boolean;
+						pmBot: boolean;
+						expectedBots: string[];
+					}[];
+				};
+				const quietRow = written.projects.find((row) => row.key === quiet);
+				const shownRow = written.projects.find((row) => row.key === shown);
+				expect(quietRow).toMatchObject({
+					pinned: true,
+					hidden: false,
+					pmBot: false,
+					expectedBots: ["codex"],
+				});
+				expect(shownRow).toMatchObject({
+					pinned: false,
+					hidden: true,
+					pmBot: true,
+					expectedBots: ["grok"],
+				});
+
+				await withAppFile(configPath, async (restarted) => {
+					const again = (await (
+						await fetch(new URL("/api/settings", restarted))
+					).json()) as {
+						pinned: unknown;
+						hidden: unknown;
+						pmBot: unknown;
+						expectedBots: unknown;
+						projects: {
+							key: string;
+							pinned: boolean;
+							hidden: boolean;
+							pmBot: boolean;
+							expectedBots: string[];
+						}[];
+					};
+					expect(again.pinned).toEqual([{ tracker: "github", repo: quiet }]);
+					expect(again.hidden).toEqual([{ tracker: "github", repo: shown }]);
+					expect(again.pmBot).toEqual({ [quiet]: false, [shown]: true });
+					expect(again.expectedBots).toEqual({
+						[quiet]: ["codex"],
+						[shown]: ["grok"],
+					});
+					expect(again.projects.find((row) => row.key === quiet)).toMatchObject(
+						{
+							pinned: true,
+							pmBot: false,
+							expectedBots: ["codex"],
+						},
+					);
+					expect(again.projects.find((row) => row.key === shown)).toMatchObject(
+						{
+							hidden: true,
+							pmBot: true,
+							expectedBots: ["grok"],
+						},
+					);
+				});
+			},
+		);
+	});
 });

@@ -3,6 +3,7 @@ import type { AutoMerge, Configuration } from "./configuration.ts";
 import {
 	loadConfiguration,
 	parseConfiguration,
+	sameRef,
 	saveConfiguration,
 } from "./configuration.ts";
 import type {
@@ -29,6 +30,7 @@ import {
 	filterProjectReport,
 	githubRepoForTodo,
 	inboxEntries,
+	type KnownBot,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	mergeTickets,
@@ -346,16 +348,138 @@ function reportFor(
 		: match.report;
 }
 
+export type SettingsProject = {
+	name: string;
+	key: string;
+	tracker: "github" | "linear";
+	source: "found" | "pinned";
+	pinned: boolean;
+	hidden: boolean;
+	pmBot: boolean;
+	expectedBots: KnownBot[];
+	ref: Configuration["pinned"][number];
+};
+
+function refForFound(
+	project: FoundProject,
+	pinned: Configuration["pinned"],
+): Configuration["pinned"][number] {
+	const pin = pinned.find((ref) => matchesRef(project, ref));
+	if (pin !== undefined) {
+		return pin;
+	}
+	if (project.tracker === "linear") {
+		return { tracker: "linear", project: project.key };
+	}
+	if (
+		project.owner !== undefined &&
+		project.number !== undefined &&
+		!project.key.includes("/")
+	) {
+		return {
+			tracker: "github",
+			owner: project.owner,
+			project: project.number,
+		};
+	}
+	return { tracker: "github", repo: project.key };
+}
+
+function displayName(project: FoundProject): string {
+	if (project.name !== undefined && project.name !== project.key) {
+		return project.name;
+	}
+	const slash = project.key.lastIndexOf("/");
+	return slash === -1 ? project.key : project.key.slice(slash + 1);
+}
+
+function botsFor(
+	project: FoundProject,
+	expectedBots: Configuration["expectedBots"],
+): KnownBot[] {
+	const match = Object.entries(expectedBots ?? {}).find(
+		([name]) => name.toLowerCase() === project.key.toLowerCase(),
+	);
+	return match?.[1] ?? [];
+}
+
+function settingsProjects(
+	configuration: Configuration,
+	catalogue: FoundProject[],
+): SettingsProject[] {
+	const rows: SettingsProject[] = catalogue.map((project) => ({
+		name: displayName(project),
+		key: project.key,
+		tracker: project.tracker,
+		source: "found",
+		pinned: configuration.pinned.some((ref) => matchesRef(project, ref)),
+		hidden: configuration.hidden.some((ref) => matchesRef(project, ref)),
+		pmBot: projectHasPmBot(configuration.pmBot, project.key, project.tracker),
+		expectedBots: botsFor(project, configuration.expectedBots),
+		ref: refForFound(project, configuration.pinned),
+	}));
+	for (const pin of configuration.pinned) {
+		if (catalogue.some((project) => matchesRef(project, pin))) {
+			continue;
+		}
+		const key = refKey(pin);
+		rows.push({
+			name: displayName({ key, tracker: pin.tracker, updatedAt: null }),
+			key,
+			tracker: pin.tracker,
+			source: "pinned",
+			pinned: true,
+			hidden: configuration.hidden.some((ref) => sameRef(ref, pin)),
+			pmBot: projectHasPmBot(configuration.pmBot, key, pin.tracker),
+			expectedBots: botsFor(
+				{ key, tracker: pin.tracker, updatedAt: null },
+				configuration.expectedBots,
+			),
+			ref: pin,
+		});
+	}
+	for (const pin of configuration.hidden) {
+		if (
+			catalogue.some((project) => matchesRef(project, pin)) ||
+			configuration.pinned.some((ref) => sameRef(ref, pin))
+		) {
+			continue;
+		}
+		const key = refKey(pin);
+		rows.push({
+			name: displayName({ key, tracker: pin.tracker, updatedAt: null }),
+			key,
+			tracker: pin.tracker,
+			source: "pinned",
+			pinned: false,
+			hidden: true,
+			pmBot: projectHasPmBot(configuration.pmBot, key, pin.tracker),
+			expectedBots: botsFor(
+				{ key, tracker: pin.tracker, updatedAt: null },
+				configuration.expectedBots,
+			),
+			ref: pin,
+		});
+	}
+	rows.sort((left, right) => left.name.localeCompare(right.name));
+	return rows;
+}
+
 function settingsResponse(
 	configuration: Configuration,
 	credentials: { token: string | null; linearKey: string | null },
-): Configuration & { trackers: { github: boolean; linear: boolean } } {
+	catalogue: FoundProject[],
+): Configuration & {
+	trackers: { github: boolean; linear: boolean };
+	projects: SettingsProject[];
+} {
 	return {
 		...configuration,
 		trackers: {
 			github: credentials.token !== null,
 			linear: credentials.linearKey !== null,
 		},
+		projects: settingsProjects(configuration, catalogue),
 	};
 }
 
@@ -373,10 +497,11 @@ function withoutTrackers(text: string): string {
 	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
 		return text;
 	}
-	const { trackers: _trackers, ...configuration } = parsed as Record<
-		string,
-		unknown
-	>;
+	const {
+		trackers: _trackers,
+		projects: _projects,
+		...configuration
+	} = parsed as Record<string, unknown>;
 	return JSON.stringify(configuration);
 }
 
@@ -648,6 +773,7 @@ type PollOptions = {
 	seenNotifications: Set<string>;
 	primed: boolean;
 	polling: boolean;
+	catalogue: FoundProject[];
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
@@ -754,6 +880,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
 	}
 	const found = [...discovered];
+	options.catalogue = discovered.map((project) => ({ ...project }));
 	for (const pin of configuration.pinned) {
 		if (found.some((project) => matchesRef(project, pin))) {
 			continue;
@@ -1126,6 +1253,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		]),
 		primed: opened.store.readTickets().length > 0,
 		polling: false,
+		catalogue: [],
 	};
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(pollOptions, configuration);
@@ -1326,7 +1454,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/settings": pageResponse,
 			"/api/settings": {
-				GET: () => Response.json(settingsResponse(configuration, options)),
+				GET: () =>
+					Response.json(
+						settingsResponse(configuration, options, pollOptions.catalogue),
+					),
 				PUT: async (request: Request) => {
 					const text = withoutTrackers(await request.text());
 					let parsed: Configuration;
@@ -1354,7 +1485,9 @@ export async function start(options: StartOptions): Promise<Running> {
 							overview: runningOverview(pollOptions, configuration),
 							notifications: [],
 						});
-						return Response.json(settingsResponse(configuration, options));
+						return Response.json(
+							settingsResponse(configuration, options, pollOptions.catalogue),
+						);
 					}
 					try {
 						await (polling ?? Promise.resolve());
@@ -1372,7 +1505,9 @@ export async function start(options: StartOptions): Promise<Running> {
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
 					await pollAgain();
-					return Response.json(settingsResponse(configuration, options));
+					return Response.json(
+						settingsResponse(configuration, options, pollOptions.catalogue),
+					);
 				},
 			},
 			"/api/threads/:tracker/:key": {
