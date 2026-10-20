@@ -819,20 +819,10 @@ const projectItems = z.object({
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
-function nativeState(state: string): TicketRef["state"] | null {
+function githubState(state: string): "open" | "closed" | null {
 	const lower = state.toLowerCase();
 	if (lower === "open" || lower === "closed") {
 		return lower;
-	}
-	return null;
-}
-
-function githubState(state: string): "open" | "closed" | null {
-	if (state === "OPEN" || state === "open") {
-		return "open";
-	}
-	if (state === "CLOSED" || state === "closed") {
-		return "closed";
 	}
 	return null;
 }
@@ -1150,8 +1140,13 @@ function labelHistory(
 	return history;
 }
 
-function projectBlockedByRefs(
-	nodes: z.infer<typeof projectBlockedByNode>[],
+function dependencyRefs(
+	nodes: {
+		number: number;
+		title?: string | null;
+		state: string;
+		repository?: { nameWithOwner: string } | null;
+	}[],
 	fallback: string,
 ): TicketRef[] {
 	const refs: TicketRef[] = [];
@@ -1297,7 +1292,7 @@ async function listProjectTickets(
 			updatedAt: content.updatedAt ?? "",
 			ref: `${repoName}#${content.number}`,
 			body: content.body ?? "",
-			blockedBy: projectBlockedByRefs(blockedByNodes, repoName),
+			blockedBy: dependencyRefs(blockedByNodes, repoName),
 			...(comments.length === 0 ? {} : { comments }),
 			milestone: content.milestone?.title ?? null,
 			parent,
@@ -2156,32 +2151,6 @@ async function readRepoPage(
 	return parsed.data.data;
 }
 
-function dependencyRefs(
-	nodes: z.infer<typeof graphqlDependency>[] | undefined,
-	fallback: string,
-): TicketRef[] {
-	const refs: TicketRef[] = [];
-	for (const node of nodes ?? []) {
-		const state = nativeState(node.state);
-		if (state === null) {
-			continue;
-		}
-		const project = node.repository?.nameWithOwner ?? fallback;
-		const title = node.title?.trim() ?? "";
-		const ref: TicketRef = {
-			tracker: "github",
-			project,
-			key: `${project}#${node.number}`,
-			...(title === "" ? {} : { title }),
-		};
-		if (state !== undefined) {
-			ref.state = state;
-		}
-		refs.push(ref);
-	}
-	return refs;
-}
-
 function ticketFromGraphql(
 	issue: z.infer<typeof graphqlIssueNode>,
 	repo: string,
@@ -2382,6 +2351,19 @@ const emptyCursors: PageCursors = {
 	labels: null,
 	edited: null,
 };
+
+const noIncludes: RepoIncludes = {
+	issues: false,
+	openPulls: false,
+	mergedPulls: false,
+	refs: false,
+	labels: false,
+	edited: false,
+};
+
+function onlyInclude(key: keyof RepoIncludes): RepoIncludes {
+	return { ...noIncludes, [key]: true };
+}
 
 const firstIncludes = (since: Date | null): RepoIncludes => ({
 	issues: true,
@@ -2765,14 +2747,7 @@ async function readRepo(
 		since,
 		first.issues,
 		"issues",
-		{
-			...include,
-			openPulls: false,
-			mergedPulls: false,
-			refs: false,
-			labels: false,
-			edited: false,
-		},
+		onlyInclude("issues"),
 		(page) => page.repository?.issues,
 	);
 	const edited =
@@ -2786,14 +2761,7 @@ async function readRepo(
 						since,
 						opened.editedIssues,
 						"edited",
-						{
-							issues: false,
-							openPulls: false,
-							mergedPulls: false,
-							refs: false,
-							labels: false,
-							edited: true,
-						},
+						onlyInclude("edited"),
 						(page) => page.editedIssues,
 					)
 				).flatMap((issue) =>
@@ -2814,14 +2782,7 @@ async function readRepo(
 		since,
 		first.openPullRequests,
 		"pulls",
-		{
-			issues: false,
-			openPulls: true,
-			mergedPulls: false,
-			refs: false,
-			labels: false,
-			edited: false,
-		},
+		onlyInclude("openPulls"),
 		(page) => page.repository?.openPullRequests,
 	);
 	const refNodes = await collectConnection(
@@ -2831,14 +2792,7 @@ async function readRepo(
 		since,
 		first.refs,
 		"refs",
-		{
-			issues: false,
-			openPulls: false,
-			mergedPulls: false,
-			refs: true,
-			labels: false,
-			edited: false,
-		},
+		onlyInclude("refs"),
 		(page) => page.repository?.refs,
 	);
 	const labelNodes = await collectConnection(
@@ -2848,14 +2802,7 @@ async function readRepo(
 		since,
 		first.labels,
 		"labels",
-		{
-			issues: false,
-			openPulls: false,
-			mergedPulls: false,
-			refs: false,
-			labels: true,
-			edited: false,
-		},
+		onlyInclude("labels"),
 		(page) => page.repository?.labels,
 	);
 	const issueNodes = issues.flatMap((issue) =>
