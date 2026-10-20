@@ -1111,7 +1111,7 @@ export const emptyStatusTypes = (): Record<StatusType, number> => ({
 	dropped: 0,
 });
 
-export const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
+const closedReasons = new Set(["not_planned", "duplicate", "canceled"]);
 
 const label =
 	/^(?:[-*+]|\d+[.)])?\s*(?:\*\*|__)?\s*(blocked by|blocks|blocking)(?![\p{L}\p{N}])\s*(?:\*\*|__)?\s*:?\s*(?:\*\*|__)?\s*(.*)$/iu;
