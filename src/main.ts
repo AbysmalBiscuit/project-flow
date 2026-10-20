@@ -570,25 +570,31 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		listened = true;
 		writeOut(running.url.href);
 		const credential = (async (): Promise<string | null> => {
-			if (token !== null) {
-				const user = await checkToken(token, io.fetch);
-				if (user.status === 401) {
-					return rejectedToken;
+			try {
+				if (token !== null) {
+					const user = await checkToken(token, io.fetch);
+					if (user.status === 401) {
+						return rejectedToken;
+					}
+					if (!user.ok) {
+						return `GitHub token check failed (HTTP ${user.status}).`;
+					}
 				}
-				if (!user.ok) {
-					return `GitHub token check failed (HTTP ${user.status}).`;
+				if (needsLinear && linearKey !== "") {
+					const viewer = await checkLinearKey(linearKey, io.fetch);
+					if (viewer.status === 401) {
+						return rejectedLinearKey;
+					}
+					if (!viewer.ok) {
+						return `Linear key check failed (HTTP ${viewer.status}).`;
+					}
 				}
+				return null;
+			} catch (error) {
+				return error instanceof Error
+					? error.message
+					: "credential check failed";
 			}
-			if (needsLinear && linearKey !== "") {
-				const viewer = await checkLinearKey(linearKey, io.fetch);
-				if (viewer.status === 401) {
-					return rejectedLinearKey;
-				}
-				if (!viewer.ok) {
-					return `Linear key check failed (HTTP ${viewer.status}).`;
-				}
-			}
-			return null;
 		})();
 		const stop = io.waitForStop ?? new Promise<void>(() => {});
 		const outcome = await Promise.race([
