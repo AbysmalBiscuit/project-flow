@@ -33,6 +33,10 @@ import { graphDirections } from "./view-settings.ts";
 
 const columnGap = 280;
 const rowGap = 120;
+const nodeWidth = 196;
+const nodeHeight = 96;
+const groupPad = 16;
+const groupHead = 28;
 
 type GraphTicketView = {
 	key: string | null;
@@ -117,9 +121,9 @@ function ClusterNode({
 	data,
 }: NodeProps<FlowNode<ClusterNodeData, "cluster">>) {
 	return (
-		<p className={clsx(board.cluster)} data-group={data.name}>
+		<div className={clsx(board.cluster)} data-group={data.name}>
 			{data.name}
-		</p>
+		</div>
 	);
 }
 
@@ -364,6 +368,7 @@ function layoutTickets(
 		columnCounts.set(slot, (columnCounts.get(slot) ?? 0) + 1);
 	}
 	const bandGap = direction === "top-to-bottom" ? columnGap : rowGap;
+	const boxGap = groupPad * 2;
 	const bandSize = new Map<string, number>();
 	for (const name of groups) {
 		let largest = 1;
@@ -372,7 +377,7 @@ function layoutTickets(
 				largest = Math.max(largest, count);
 			}
 		}
-		bandSize.set(name, largest * bandGap);
+		bandSize.set(name, largest * bandGap + boxGap);
 	}
 	const bandStart = new Map<string, number>();
 	let cursor = 0;
@@ -434,6 +439,10 @@ function graphEdges(report: ProjectReport): { from: string; to: string }[] {
 	return edges;
 }
 
+function groupId(name: string): string {
+	return `group\n${name}`;
+}
+
 function clusterNodes(
 	tickets: GraphTicket[],
 	positions: Map<string, { x: number; y: number }>,
@@ -443,7 +452,7 @@ function clusterNodes(
 	if (groupBy === "none") {
 		return [];
 	}
-	const groups = new Map<string, { x: number; y: number }>();
+	const groups = new Map<string, { x: number; y: number }[]>();
 	for (const ticket of tickets) {
 		const key = ticket.ticket.key;
 		if (key === null || ticket.outside) {
@@ -454,25 +463,32 @@ function clusterNodes(
 		if (place === undefined || name === "") {
 			continue;
 		}
-		const known = groups.get(name);
-		if (
-			known === undefined ||
-			place.x < known.x ||
-			(place.x === known.x && place.y < known.y)
-		) {
-			groups.set(name, place);
-		}
+		const known = groups.get(name) ?? [];
+		known.push(place);
+		groups.set(name, known);
 	}
 	return [...groups.entries()]
 		.sort((left, right) => left[0].localeCompare(right[0]))
-		.map(([name, place]) => ({
-			id: `group\n${name}`,
-			type: "cluster",
-			position: { x: place.x, y: place.y - 28 },
-			data: { name },
-			draggable: false,
-			selectable: false,
-		}));
+		.map(([name, places]) => {
+			const left = Math.min(...places.map((place) => place.x));
+			const top = Math.min(...places.map((place) => place.y));
+			const right = Math.max(...places.map((place) => place.x)) + nodeWidth;
+			const bottom = Math.max(...places.map((place) => place.y)) + nodeHeight;
+			const width = right - left + groupPad * 2;
+			const height = bottom - top + groupHead + groupPad;
+			return {
+				id: groupId(name),
+				type: "cluster" as const,
+				position: { x: left - groupPad, y: top - groupHead },
+				width,
+				height,
+				data: { name },
+				style: { width, height },
+				zIndex: 0,
+				draggable: false,
+				selectable: false,
+			};
+		});
 }
 
 function graphModel(
@@ -496,16 +512,29 @@ function graphModel(
 		assignees,
 	);
 	const horizontal = direction === "left-to-right";
+	const groups = clusterNodes(tickets, positions, groupBy, assignees);
 	const nodes = tickets.flatMap((item) => {
 		const key = item.ticket.key;
 		if (key === null) {
 			return [];
 		}
 		const id = nodeId(item.project, key);
+		const place = positions.get(id) ?? { x: 0, y: 0 };
+		const name = item.outside ? "" : graphBand(item, groupBy, assignees);
+		const parent = groups.find((group) => group.data.name === name);
 		const node: FlowNode<TicketNodeData, "ticket"> = {
 			id,
 			type: "ticket",
-			position: positions.get(id) ?? { x: 0, y: 0 },
+			position:
+				parent === undefined
+					? place
+					: {
+							x: place.x - parent.position.x,
+							y: place.y - parent.position.y,
+						},
+			...(parent === undefined
+				? {}
+				: { parentId: parent.id, extent: "parent" as const, zIndex: 1 }),
 			sourcePosition: horizontal ? Position.Right : Position.Bottom,
 			targetPosition: horizontal ? Position.Left : Position.Top,
 			data: {
@@ -529,7 +558,7 @@ function graphModel(
 		data: {},
 	}));
 	return {
-		nodes: [...clusterNodes(tickets, positions, groupBy, assignees), ...nodes],
+		nodes: [...groups, ...nodes],
 		edges,
 	};
 }
@@ -576,10 +605,19 @@ export function ProjectGraph({
 		[report, reports, direction, groupBy, assignees, openKey],
 	);
 	const places = model.nodes
-		.map(
-			(node) =>
-				`${node.id.replaceAll("\n", " ")} ${node.position.x},${node.position.y}`,
-		)
+		.map((node) => {
+			const parent = model.nodes.find((item) => item.id === node.parentId);
+			const x = node.position.x + (parent?.position.x ?? 0);
+			const y = node.position.y + (parent?.position.y ?? 0);
+			const held = node.parentId === undefined ? "" : " held";
+			const width = node.width;
+			const height = node.height;
+			const size =
+				width === undefined || height === undefined
+					? ""
+					: ` ${width}x${height}`;
+			return `${node.id.replaceAll("\n", " ")} ${x},${y}${held}${size}`;
+		})
 		.join(" | ");
 	const outsideLabels = model.nodes.flatMap((node) =>
 		isClusterNode(node) || !node.data.outside
