@@ -202,13 +202,14 @@ function boardItem(
 	number: number,
 	title: string,
 	status: { name: string; color: string },
-	field: { updatedAt?: string } = {},
+	field: { updatedAt?: string; optionId?: string } = {},
 	contentFields: Record<string, unknown> = {},
 ): Record<string, unknown> {
 	return {
 		fieldValueByName: {
 			name: status.name,
-			optionId: boardOptionId(status.name) ?? `opt-${status.name}`,
+			optionId:
+				field.optionId ?? boardOptionId(status.name) ?? `opt-${status.name}`,
 			color: status.color,
 			...(field.updatedAt === undefined ? {} : { updatedAt: field.updatedAt }),
 		},
@@ -1404,6 +1405,66 @@ describe("forward state", () => {
 				).toEqual([]);
 				expect(
 					requests.filter((body) => body.includes("timelineItems")),
+				).toEqual([]);
+			},
+		);
+	});
+
+	test("a retired status option keeps the field time as enteredStateAt", async () => {
+		const fieldUpdatedAt = "2026-08-17T09:00:00Z";
+		const editedAt = "2026-08-18T15:00:00Z";
+		const requests: string[] = [];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			boardFetch(
+				[
+					boardItem(
+						11,
+						"Retired progress name",
+						{ name: "Doing", color: "YELLOW" },
+						{ updatedAt: fieldUpdatedAt, optionId: "opt-retired-progress" },
+						{ updatedAt: editedAt },
+					),
+					boardItem(
+						12,
+						"Blank option id",
+						{ name: "Doing", color: "YELLOW" },
+						{ updatedAt: fieldUpdatedAt, optionId: "" },
+						{ updatedAt: editedAt },
+					),
+					boardItem(
+						13,
+						"Spaced field time",
+						{ name: "Doing", color: "YELLOW" },
+						{
+							updatedAt: "   ",
+							optionId: "opt-retired-progress",
+						},
+						{ updatedAt: editedAt },
+					),
+				],
+				[],
+				requests,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(ticketOf(report, `${githubRepo}#11`)).toMatchObject({
+					lane: "In progress",
+					statusType: "inProgress",
+					enteredStateAt: fieldUpdatedAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#12`)).toMatchObject({
+					lane: "Backlog",
+					enteredStateAt: editedAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#13`).enteredStateAt).toBe(
+					editedAt,
+				);
+				expect(
+					requests.filter((body) => body.includes("/issues/11/timeline")),
 				).toEqual([]);
 			},
 		);

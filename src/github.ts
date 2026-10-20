@@ -920,37 +920,27 @@ async function listProjectItems(
 
 function githubItemStatus(
 	value: z.infer<typeof projectItem>["fieldValueByName"],
-): { status: TicketStatus } | { emptyStatus: true } {
+):
+	| {
+			status: TicketStatus;
+			history?: { statusId: string; at: string; statusType: StatusType }[];
+	  }
+	| { emptyStatus: true } {
 	const name = value?.name?.trim() ?? "";
 	const optionId = value?.optionId ?? "";
 	if (name === "" || optionId === "") {
 		return { emptyStatus: true };
 	}
+	const statusType = statusTypeOfName(name);
+	const at = value?.updatedAt?.trim() ?? "";
 	return {
 		status: {
 			id: optionId,
 			name,
-			statusType: statusTypeOfName(name),
+			statusType,
 			colour: githubOptionColour(value?.color ?? ""),
 		},
-	};
-}
-
-function statusChangedAt(
-	value: z.infer<typeof projectItem>["fieldValueByName"],
-):
-	| {
-			history: { statusId: string; at: string; statusType: StatusType }[];
-	  }
-	| Record<string, never> {
-	const name = value?.name?.trim() ?? "";
-	const statusId = value?.optionId?.trim() ?? "";
-	const at = value?.updatedAt?.trim() ?? "";
-	if (name === "" || statusId === "" || at === "") {
-		return {};
-	}
-	return {
-		history: [{ statusId, at, statusType: statusTypeOfName(name) }],
+		...(at === "" ? {} : { history: [{ statusId: optionId, at, statusType }] }),
 	};
 }
 
@@ -1236,7 +1226,6 @@ async function listProjectTickets(
 			parent,
 			labels: content.labels?.nodes.map((label) => label.name) ?? [],
 			...githubItemStatus(item.fieldValueByName),
-			...statusChangedAt(item.fieldValueByName),
 		});
 	}
 	return tickets;
