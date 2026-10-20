@@ -1,0 +1,28 @@
+{
+	"base_url": "http://127.0.0.1:4189",
+	"serve": ["bun", "proof/serve-inbox.ts", "4189", "/var/tmp"],
+	"steps": [
+		{ "goto": "/inbox" },
+		{ "assert_text": "Inbox" },
+		{ "assert_text": "All" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "Comments" },
+		{ "assert_text": "Blockers cleared" },
+		{ "assert_text": "Unread only" },
+		{ "assert_text": "Which bot should review this?" },
+		{ "click": "#inbox-filter-comment" },
+		{ "assert_text": "New comment on #72 from grok-72" },
+		{ "click": "#inbox-filter-blockerCleared" },
+		{ "assert_text": "devkit#212 closed, #80 can start" },
+		{ "click": "#inbox-filter-needsYou" },
+		{ "assert_text": "PLAT-212 asks a question about the billing export" },
+		{ "click": "#inbox-unread-only" },
+		{ "assert_text": "Which bot should review this?" },
+		{ "click": "#inbox-unread-only" },
+		{ "click": "#inbox-filter-all" },
+		{ "click": "[data-inbox]" },
+		{ "assert_text": "Open on Linear" },
+		{ "assert_text": "PF-1" },
+		{ "shot": "inbox-panel" }
+	]
+}
