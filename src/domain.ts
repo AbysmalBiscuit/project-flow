@@ -182,6 +182,8 @@ export type ProjectCounts = {
 	statusTypes: Record<StatusType, number>;
 };
 
+export type ProjectBody = Omit<ProjectCounts, "pinned" | "ref">;
+
 export type DiagramNode = {
 	id: string;
 	label: string;
@@ -2496,7 +2498,7 @@ export function projectCounts(
 	laneMappings: Configuration["laneMappings"],
 	board?: Board,
 ): {
-	counts: Omit<ProjectCounts, "pinned" | "ref">;
+	counts: ProjectBody;
 	needsYou: NeedsYouItem[];
 	report: ProjectReport;
 } {
@@ -2650,7 +2652,7 @@ export function projectCounts(
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
 	}
-	const project: Omit<ProjectCounts, "pinned" | "ref"> = {
+	const project: ProjectBody = {
 		name,
 		tracker,
 		...counts,
@@ -3449,12 +3451,12 @@ function chainDiagrams(
 	];
 }
 
-function summaryLine(counts: Omit<ProjectCounts, "pinned" | "ref">): string {
+function summaryLine(counts: ProjectBody): string {
 	return `${counts.name}: ${counts.done} done, ${counts.dropped} dropped, ${counts.blocked} blocked, ${counts.inProgress} in progress, ${counts.backlog} backlog.`;
 }
 
 export function projectReport(
-	counts: Omit<ProjectCounts, "pinned" | "ref">,
+	counts: ProjectBody,
 	tickets: Ticket[],
 	lanes: Lane[],
 	relationsByKey: Map<string, ReturnType<typeof ticketRelations>> = new Map(),
