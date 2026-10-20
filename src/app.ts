@@ -1132,6 +1132,24 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
+	if (process.env.REJOIN_TRACE === "1" && notifications.length > 0) {
+		console.error(
+			"APP notifications",
+			JSON.stringify(
+				notifications.map((entry) => [entry.trigger, entry.id]),
+			),
+			"primed",
+			options.primed,
+			"beforeNeeds",
+			before.needsYou.map((item) => item.key),
+			"afterNeeds",
+			after.needsYou.map((item) => item.key),
+			"beforeComment",
+			[...before.comments].map(([id, comment]) => [id, comment.stamp]),
+			"afterComment",
+			[...after.comments].map(([id, comment]) => [id, comment.stamp]),
+		);
+	}
 	const current = await options.configuration.read();
 	options.fallback = current;
 	options.notifier.publish({

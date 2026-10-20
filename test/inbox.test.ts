@@ -165,6 +165,20 @@ async function drivenPoll(
 		const raised = after.find(
 			(entry) => !before.some((earlier) => earlier.id === entry.id),
 		);
+		if (process.env.REJOIN_TRACE === "1") {
+			console.error(
+				"TRACE before",
+				JSON.stringify(before.map((entry) => [entry.trigger, entry.id])),
+			);
+			console.error(
+				"TRACE after",
+				JSON.stringify(after.map((entry) => [entry.trigger, entry.id])),
+			);
+			console.error(
+				"TRACE raised",
+				raised === undefined ? "none" : `${raised.trigger} ${raised.id}`,
+			);
+		}
 		if (raised === undefined) {
 			return null;
 		}
