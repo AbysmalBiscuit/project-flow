@@ -166,9 +166,6 @@ function NeedsPanel({
 			project={ticket.project}
 			ticketKey={ticket.key}
 			{...(item === undefined ? {} : { title: item.headline })}
-			{...(item === undefined
-				? {}
-				: { why: `${reasonLabel[item.reason]}. ${item.headline}` })}
 			onClose={closeTicket}
 		/>
 	);
