@@ -1,23 +1,36 @@
-import mermaid from "mermaid";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import * as stylex from "@stylexjs/stylex";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
+import {
+	type Configuration,
+	type OverviewView,
+	overviewFilters,
+	overviewSorts,
+	overviewViews,
+	sameRef,
+} from "./configuration.ts";
+import type {
+	CrossProjectBlocker,
+	NeedsYouItem,
+	Overview,
+	ProjectCounts,
+} from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import { PageFrame, type PageView } from "./shell.tsx";
-import { blockedLabel, navLabel, stateLabel, viewLabel } from "./terms.ts";
-import { mermaidTheme, watchPageTheme } from "./theme.ts";
-import { classToken, clsx } from "./ui.ts";
+import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
+import {
+	navLabel,
+	overviewControlLabel,
+	overviewFilterLabel,
+	overviewSortLabel,
+	stateLabel,
+	viewLabel,
+} from "./terms.ts";
+import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
-
-function startMermaid(): void {
-	mermaid.initialize({ startOnLoad: false, theme: mermaidTheme() });
-}
-
-startMermaid();
 
 function projectPath(name: string, ticket?: string): string {
 	const path = `/projects/${encodeURIComponent(name)}`;
@@ -41,44 +54,53 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 				window.location.assign(projectPath(blocker.project, blocker.key));
 			}}
 		>
-			{blocker.project} {blocker.key}
+			Blocked by {blocker.project}#{blocker.key}
 		</a>
 	);
 }
 
-const tabKey = "project-flow-overview-tab";
-const tabs = ["cards", "graph", "table"] as const;
-type Tab = (typeof tabs)[number];
-type SortKey = "progress" | "needsYou" | "blockers";
+type FilterKey = OverviewView["filter"];
+type SortKey = OverviewView["sort"];
 
-function readTab(): Tab {
-	try {
-		const stored = localStorage.getItem(tabKey);
-		return tabs.find((tab) => tab === stored) ?? "cards";
-	} catch {
-		return "cards";
+function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
+	if (filter === "needs-you") {
+		return project.needsYou > 0;
 	}
+	if (filter === "blocked") {
+		return project.blocked > 0 || project.crossProjectBlockers.length > 0;
+	}
+	if (filter === "pinned") {
+		return project.pinned;
+	}
+	return true;
 }
 
-function writeTab(next: Tab): void {
-	try {
-		localStorage.setItem(tabKey, next);
-	} catch {
-		// A private window can throw. The chosen tab still shows this visit.
+function matchesSearch(project: ProjectCounts, query: string): boolean {
+	const needle = query.trim().toLowerCase();
+	if (needle === "") {
+		return true;
 	}
+	const haystack = [
+		project.name,
+		...project.tags,
+		...project.unlinkedPrs.map((pull) => pull.title),
+		...project.crossProjectBlockers.map(
+			(blocker) => `${blocker.project} ${blocker.key} ${blocker.title}`,
+		),
+	]
+		.join(" ")
+		.toLowerCase();
+	return haystack.includes(needle);
 }
 
-const sortKeys = [
-	{ key: "progress", id: "sort-progress", label: "Progress" },
-	{ key: "needsYou", id: "sort-needs-you", label: navLabel.needsYou },
-	{ key: "blockers", id: "sort-blockers", label: "Cross-project blockers" },
-] as const;
-
-function sortValue(project: ProjectCounts, key: SortKey): number {
+function sortValue(project: ProjectCounts, key: SortKey): number | string {
+	if (key === "name") {
+		return project.name;
+	}
 	if (key === "progress") {
 		return project.progress;
 	}
-	if (key === "needsYou") {
+	if (key === "needs-you") {
 		return project.needsYou;
 	}
 	return project.crossProjectBlockers.length;
@@ -88,14 +110,45 @@ function sortProjects(
 	projects: ProjectCounts[],
 	key: SortKey,
 ): ProjectCounts[] {
-	const leastFirst = key === "progress";
+	const leastFirst = key === "name" || key === "progress";
 	return [...projects].sort((left, right) => {
-		const delta = sortValue(left, key) - sortValue(right, key);
+		const leftValue = sortValue(left, key);
+		const rightValue = sortValue(right, key);
+		const delta =
+			typeof leftValue === "string" || typeof rightValue === "string"
+				? String(leftValue).localeCompare(String(rightValue))
+				: leftValue - rightValue;
 		if (delta !== 0) {
 			return leastFirst ? delta : -delta;
 		}
 		return left.name.localeCompare(right.name);
 	});
+}
+
+function shownProjects(
+	overview: Overview,
+	view: OverviewView,
+	query: string,
+): ProjectCounts[] {
+	return sortProjects(
+		overview.projects.filter(
+			(project) =>
+				matchesFilter(project, view.filter) && matchesSearch(project, query),
+		),
+		view.sort,
+	);
+}
+
+function polledLine(fetchedAt: string | null, now: number): string | null {
+	if (fetchedAt === null) {
+		return null;
+	}
+	const at = Date.parse(fetchedAt);
+	if (Number.isNaN(at)) {
+		return null;
+	}
+	const age = Math.max(0, Math.floor((now - at) / 1000));
+	return `${overviewControlLabel.polled} ${age} s ago`;
 }
 
 function slug(value: string): string {
@@ -106,95 +159,169 @@ function slug(value: string): string {
 	return cleaned === "" ? "item" : cleaned;
 }
 
-function ProjectLink({
-	name,
-	className,
-	children,
-}: {
-	name: string;
-	className: string;
-	children: string;
-}) {
+function trackerName(tracker: ProjectCounts["tracker"]): string {
+	return tracker === "linear" ? "Linear" : "GitHub";
+}
+
+function subtitle(project: ProjectCounts): string {
+	if (project.ref.tracker === "linear") {
+		return `${trackerName(project.tracker)}, ${project.ref.project}`;
+	}
+	if ("repo" in project.ref) {
+		return `${trackerName(project.tracker)}, ${project.ref.repo}`;
+	}
+	return `${trackerName(project.tracker)}, ${project.ref.owner}/${project.ref.project}`;
+}
+
+function ticketTotal(project: ProjectCounts): number {
 	return (
-		<a
-			className={className}
-			href={projectPath(name)}
-			onClick={(event) => {
-				event.preventDefault();
-				openProject(name);
-			}}
-		>
-			{children}
-		</a>
+		project.done +
+		project.dropped +
+		project.backlog +
+		project.inProgress +
+		project.inReview +
+		project.awaitingMerge
 	);
 }
 
-function CardsList({ overview }: { overview: Overview }) {
+const barSegments = [
+	{ key: "done", tone: cards.done },
+	{ key: "inProgress", tone: cards.inProgress },
+	{ key: "inReview", tone: cards.inReview },
+	{ key: "awaitingMerge", tone: cards.awaitingMerge },
+	{ key: "backlog", tone: cards.backlog },
+] as const;
+
+const legendSegments = [
+	{ key: "backlog", label: stateLabel.backlog, tone: cards.backlog },
+	{ key: "inProgress", label: stateLabel.inProgress, tone: cards.inProgress },
+	{ key: "inReview", label: stateLabel.inReview, tone: cards.inReview },
+	{
+		key: "awaitingMerge",
+		label: stateLabel.awaitingMerge,
+		tone: cards.awaitingMerge,
+	},
+] as const;
+
+function SegmentedBar({ project }: { project: ProjectCounts }) {
+	const total = ticketTotal(project);
+	return (
+		<div
+			className={clsx(cards.bar)}
+			role="progressbar"
+			aria-valuenow={project.progress}
+			aria-valuemin={0}
+			aria-valuemax={100}
+			aria-label={`${project.name} progress`}
+		>
+			{total === 0
+				? null
+				: barSegments.map((item) =>
+						project.statusTypes[item.key] === 0 ? null : (
+							<div
+								key={item.key}
+								{...stylex.props(
+									cards.segment(
+										`${(project.statusTypes[item.key] / total) * 100}%`,
+									),
+									item.tone,
+								)}
+							/>
+						),
+					)}
+		</div>
+	);
+}
+
+function Legend({ project }: { project: ProjectCounts }) {
+	return (
+		<p className={clsx(cards.counts)}>
+			{legendSegments.map((item) =>
+				project.statusTypes[item.key] === 0 ? null : (
+					<span key={item.key} className={clsx(cards.count)}>
+						<span className={clsx(cards.swatch, item.tone)} />
+						{item.label} {project.statusTypes[item.key]}
+					</span>
+				),
+			)}
+		</p>
+	);
+}
+
+function PinMark({ on }: { on: boolean }) {
+	return (
+		<span className={clsx(cards.pin, !on && cards.pinOff)}>
+			{on ? "★" : "☆"}
+		</span>
+	);
+}
+
+function ProjectCard({ project }: { project: ProjectCounts }) {
+	const id = `project-card-${slug(project.name)}`;
+	const total = ticketTotal(project);
+	return (
+		<li id={id} className={clsx(cards.card)}>
+			<div className={clsx(cards.cardTop)}>
+				<a
+					className={clsx(cards.projectLink)}
+					href={projectPath(project.name)}
+					aria-label={project.name}
+					onClick={(event) => {
+						event.preventDefault();
+						openProject(project.name);
+					}}
+				>
+					<h2 className={clsx(cards.nameRow)}>
+						{project.name} <PinMark on={project.pinned} />
+					</h2>
+					<p className={clsx(cards.meta)}>{subtitle(project)}</p>
+				</a>
+				{project.needsYou === 0 ? null : (
+					<span className={clsx(cards.badge)}>{project.needsYou} need you</span>
+				)}
+			</div>
+			{project.error === null ? null : (
+				<p className={clsx(shell.stale)}>{project.error}</p>
+			)}
+			<p className={clsx(cards.doneLine)}>
+				<span>
+					{project.done} of {total} done
+				</span>
+				<span>{project.progress}%</span>
+			</p>
+			<SegmentedBar project={project} />
+			<Legend project={project} />
+			{project.crossProjectBlockers.length === 0 &&
+			project.tags.length === 0 &&
+			project.unlinkedPrs.length === 0 ? null : (
+				<p className={clsx(cards.blockers)}>
+					{project.crossProjectBlockers.map((blocker) => (
+						<Chip key={`${blocker.project} ${blocker.key}`} blocker={blocker} />
+					))}
+					{project.tags.map((tag) => (
+						<span key={tag} className={clsx(cards.tagChip)}>
+							{tag}
+						</span>
+					))}
+					{project.unlinkedPrs.length === 0 ? null : (
+						<span className={clsx(cards.quiet)}>
+							{project.unlinkedPrs.length} {overviewControlLabel.unlinked}
+						</span>
+					)}
+				</p>
+			)}
+		</li>
+	);
+}
+
+function CardsList({ projects }: { projects: ProjectCounts[] }) {
 	return (
 		<ul className={clsx(cards.list)}>
-			{overview.projects.map((project) => (
-				<li
+			{projects.map((project) => (
+				<ProjectCard
 					key={`${project.tracker}:${project.name}`}
-					className={clsx(cards.card)}
-				>
-					<h2 className={clsx(shell.heading)}>
-						<ProjectLink
-							name={project.name}
-							className={clsx(cards.projectLink)}
-						>
-							{project.name}
-						</ProjectLink>
-					</h2>
-					{project.error === null ? null : (
-						<p className={clsx(shell.stale)}>{project.error}</p>
-					)}
-					<p className={clsx(cards.counts)}>
-						<span className={clsx(cards.count)}>
-							<span className={clsx(cards.swatch, cards.done)} />
-							{stateLabel.done} {project.done}
-						</span>
-						<span className={clsx(cards.count)}>
-							<span className={clsx(cards.swatch, cards.dropped)} />
-							{stateLabel.dropped} {project.dropped}
-						</span>
-						<span className={clsx(cards.count)}>
-							<span className={clsx(cards.swatch, cards.blocked)} />
-							{blockedLabel} {project.blocked}
-						</span>
-						<span className={clsx(cards.count)}>
-							<span className={clsx(cards.swatch, cards.backlog)} />
-							{stateLabel.backlog} {project.backlog}
-						</span>
-						<span className={clsx(cards.count)}>
-							<span className={clsx(cards.swatch, cards.inProgress)} />
-							{stateLabel.inProgress} {project.inProgress}
-						</span>
-						<span className={clsx(cards.count)}>
-							<span className={clsx(cards.swatch, cards.inReview)} />
-							{stateLabel.inReview} {project.inReview}
-						</span>
-						<span className={clsx(cards.count)}>
-							<span className={clsx(cards.swatch, cards.awaitingMerge)} />
-							{stateLabel.awaitingMerge} {project.awaitingMerge}
-						</span>
-						<span className={clsx(cards.count)}>
-							{navLabel.needsYou} {project.needsYou}
-						</span>
-					</p>
-					{project.tags.length === 0 ? null : (
-						<p className={clsx(cards.tags)}>{project.tags.join(" ")}</p>
-					)}
-					{project.crossProjectBlockers.length === 0 ? null : (
-						<p className={clsx(cards.blockers)}>
-							{project.crossProjectBlockers.map((blocker) => (
-								<Chip
-									key={`${blocker.project} ${blocker.key}`}
-									blocker={blocker}
-								/>
-							))}
-						</p>
-					)}
-				</li>
+					project={project}
+				/>
 			))}
 		</ul>
 	);
@@ -205,236 +332,571 @@ type GraphEdge = {
 	blocker: CrossProjectBlocker;
 };
 
-function nodeId(name: string): string {
-	return `node-${slug(name)}`;
-}
+const graphColumnGap = 220;
+const graphRowStep = 116;
+const graphNodeWidth = 196;
+const graphNodeHeight = 92;
+const graphPad = 28;
 
-function edgeId(from: string, blocker: CrossProjectBlocker): string {
-	return `edge-${slug(from)}-${slug(blocker.key)}`;
-}
-
-function graphEdges(overview: Overview): GraphEdge[] {
-	return overview.projects.flatMap((project) =>
-		project.crossProjectBlockers.map((blocker) => ({
-			from: project.name,
-			blocker,
-		})),
+function graphEdges(projects: ProjectCounts[]): GraphEdge[] {
+	const names = new Set(projects.map((project) => project.name));
+	return projects.flatMap((project) =>
+		project.crossProjectBlockers
+			.filter((blocker) => names.has(blocker.project))
+			.map((blocker) => ({
+				from: project.name,
+				blocker,
+			})),
 	);
 }
 
-function mermaidText(value: string): string {
-	return value.replaceAll('"', "#quot;");
-}
-
-function mermaidSource(projects: ProjectCounts[], edges: GraphEdge[]): string {
-	const lines = ["flowchart LR"];
+function graphLayout(projects: ProjectCounts[], edges: GraphEdge[]) {
+	const depth = new Map(projects.map((project) => [project.name, 0]));
+	for (let pass = 0; pass < projects.length; pass += 1) {
+		for (const edge of edges) {
+			const next = (depth.get(edge.from) ?? 0) + 1;
+			if (next > (depth.get(edge.blocker.project) ?? 0)) {
+				depth.set(edge.blocker.project, next);
+			}
+		}
+	}
+	const columns = new Map<number, string[]>();
 	for (const project of projects) {
-		lines.push(`  ${nodeId(project.name)}["${mermaidText(project.name)}"]`);
+		const column = depth.get(project.name) ?? 0;
+		const names = columns.get(column) ?? [];
+		names.push(project.name);
+		columns.set(column, names);
 	}
-	for (const edge of edges) {
-		lines.push(
-			`  ${nodeId(edge.from)} ${edgeId(edge.from, edge.blocker)}@-->|"${mermaidText(edge.blocker.key)}"| ${nodeId(edge.blocker.project)}`,
-		);
+	const place = new Map<string, { x: number; y: number }>();
+	for (const [column, names] of columns) {
+		names.forEach((name, row) => {
+			place.set(name, {
+				x: graphPad + column * graphColumnGap,
+				y: graphPad + row * graphRowStep,
+			});
+		});
 	}
-	return lines.join("\n");
-}
-
-async function renderGraph(overview: Overview): Promise<string> {
-	try {
-		const drawn = await mermaid.render(
-			"project-flow-graph",
-			mermaidSource(overview.projects, graphEdges(overview)),
-		);
-		return drawn.svg;
-	} catch {
-		return "";
-	}
-}
-
-function htmlSpan(root: ParentNode, selector: string): HTMLElement | null {
-	const span = root.querySelector(selector);
-	return span instanceof HTMLElement ? span : null;
-}
-
-function nodeLabel(host: ParentNode, id: string): HTMLElement | null {
-	const pattern = new RegExp(`-${id}-\\d+$`);
-	const shape = [...host.querySelectorAll(".node")].find((item) =>
-		pattern.test(item.id),
+	const widest = Math.max(1, columns.size);
+	const width = graphPad * 2 + (widest - 1) * graphColumnGap + graphNodeWidth;
+	const tallest = Math.max(
+		1,
+		...[...columns.values()].map((names) => names.length),
 	);
-	const span = shape?.querySelector("span.nodeLabel");
-	return span instanceof HTMLElement ? span : null;
+	const height = graphPad + tallest * graphRowStep;
+	return { place, width, height };
 }
 
-function bindGraph(
-	host: HTMLElement,
-	overview: Overview,
-	edges: GraphEdge[],
-): void {
-	for (const project of overview.projects) {
-		const id = nodeId(project.name);
-		const label = nodeLabel(host, id);
-		if (label === null) {
-			continue;
-		}
-		label.id = id;
-		label.closest(".node")?.classList.add(classToken(cards.pointer));
-		label.classList.add(classToken(cards.pointer));
-		label.addEventListener("click", () => openProject(project.name));
-	}
-	for (const edge of edges) {
-		const id = edgeId(edge.from, edge.blocker);
-		const label = htmlSpan(host, `[data-id="${id}"] span.edgeLabel`);
-		if (label === null) {
-			continue;
-		}
-		label.id = id;
-		label.classList.add(classToken(cards.pointer));
-		label.addEventListener("click", () =>
-			openProject(edge.blocker.project, edge.blocker.key),
-		);
-	}
+function GraphNode({ project }: { project: ProjectCounts }) {
+	return (
+		<button
+			type="button"
+			className={clsx(
+				cards.node,
+				cards.pointer,
+				project.needsYou > 0 && cards.nodeNeed,
+			)}
+			onClick={() => openProject(project.name)}
+		>
+			<span className={clsx(cards.nodeTop)}>
+				<strong>{project.name}</strong>
+				{project.needsYou === 0 ? null : (
+					<span className={clsx(cards.badge)}>{project.needsYou}</span>
+				)}
+			</span>
+			<span className={clsx(cards.meta)}>{trackerName(project.tracker)}</span>
+			<SegmentedBar project={project} />
+			<span className={clsx(cards.quiet)}>
+				{project.done} of {ticketTotal(project)} done
+			</span>
+		</button>
+	);
 }
 
-function GraphView({ overview, svg }: { overview: Overview; svg: string }) {
-	const host = useRef<HTMLDivElement>(null);
-	useLayoutEffect(() => {
-		const node = host.current;
-		if (node === null) {
-			return;
-		}
-		node.replaceChildren();
-		if (svg === "") {
-			return;
-		}
-		const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-		const drawn = parsed.documentElement;
-		if (drawn.namespaceURI !== "http://www.w3.org/2000/svg") {
-			return;
-		}
-		node.appendChild(document.importNode(drawn, true));
-		bindGraph(node, overview, graphEdges(overview));
-	}, [overview, svg]);
+function GraphView({ projects }: { projects: ProjectCounts[] }) {
+	const edges = graphEdges(projects);
+	const { place, width, height } = graphLayout(projects, edges);
+	const byName = new Map(projects.map((project) => [project.name, project]));
 	return (
 		<div className={clsx(cards.graph)}>
-			<div ref={host} className={clsx(cards.mermaidHost)} />
+			<div className={clsx(cards.canvas)} style={{ height }}>
+				<svg
+					className={clsx(cards.arrows)}
+					width={width}
+					height={height}
+					aria-hidden="true"
+				>
+					{edges.map((edge) => {
+						const from = place.get(edge.from);
+						const to = place.get(edge.blocker.project);
+						if (from === undefined || to === undefined) {
+							return null;
+						}
+						const x1 = from.x + graphNodeWidth;
+						const y1 = from.y + graphNodeHeight / 2;
+						const x2 = to.x;
+						const y2 = to.y + graphNodeHeight / 2;
+						const mid = (x1 + x2) / 2;
+						return (
+							<g
+								key={`${edge.from}-${edge.blocker.project}-${edge.blocker.key}`}
+							>
+								<path
+									d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
+									className={clsx(cards.arrow)}
+								/>
+								<a
+									href={projectPath(edge.blocker.project, edge.blocker.key)}
+									onClick={(event) => {
+										event.preventDefault();
+										openProject(edge.blocker.project, edge.blocker.key);
+									}}
+								>
+									<text
+										x={mid}
+										y={(y1 + y2) / 2 - 8}
+										className={clsx(cards.edgeLabel)}
+									>
+										{edge.blocker.key}
+									</text>
+								</a>
+							</g>
+						);
+					})}
+				</svg>
+				{projects.map((project) => {
+					const spot = place.get(project.name);
+					if (spot === undefined || byName.get(project.name) === undefined) {
+						return null;
+					}
+					return (
+						<div
+							key={`${project.tracker}:${project.name}`}
+							className={clsx(cards.placed)}
+							{...stylex.props(cards.placeAt(`${spot.x}px`, `${spot.y}px`))}
+						>
+							<GraphNode project={project} />
+						</div>
+					);
+				})}
+			</div>
 		</div>
 	);
 }
 
-function TableView({ overview }: { overview: Overview }) {
-	const [sortKey, setSortKey] = useState<SortKey>("progress");
-	const rows = sortProjects(overview.projects, sortKey);
+function MiniBar({ project }: { project: ProjectCounts }) {
 	return (
-		<table className={clsx(cards.table)}>
-			<thead>
-				<tr>
-					<th className={clsx(cards.cell, cards.head)}>Project</th>
-					{sortKeys.map((item) => (
-						<th key={item.key} className={clsx(cards.cell, cards.head)}>
-							<button
-								type="button"
-								id={item.id}
-								onClick={() => setSortKey(item.key)}
-							>
-								{item.label}
-							</button>
-						</th>
-					))}
-				</tr>
-			</thead>
-			<tbody>
-				{rows.map((project) => (
-					<tr key={`${project.tracker}:${project.name}`}>
-						<td className={clsx(cards.cell)}>
-							<ProjectLink
-								name={project.name}
-								className={clsx(cards.projectLink)}
-							>
-								{project.name}
-							</ProjectLink>
-						</td>
-						<td className={clsx(cards.cell)}>{project.progress}%</td>
-						<td className={clsx(cards.cell)}>{project.needsYou}</td>
-						<td className={clsx(cards.cell)}>
-							{project.crossProjectBlockers.length}
-						</td>
-					</tr>
-				))}
-			</tbody>
-		</table>
+		<span className={clsx(cards.mini)}>
+			<SegmentedBar project={project} />
+			<span>{project.progress}%</span>
+		</span>
 	);
+}
+
+function TableView({ projects }: { projects: ProjectCounts[] }) {
+	return (
+		<div className={clsx(cards.tableWrap)}>
+			<table className={clsx(cards.table)}>
+				<thead>
+					<tr>
+						<th className={clsx(cards.cell, cards.headCell)} />
+						<th className={clsx(cards.cell, cards.headCell)}>Project</th>
+						<th className={clsx(cards.cell, cards.headCell)}>Tracker</th>
+						<th className={clsx(cards.cell, cards.headCell)}>
+							{overviewSortLabel.progress}
+						</th>
+						<th className={clsx(cards.cell, cards.headCell)}>
+							{stateLabel.backlog}
+						</th>
+						<th className={clsx(cards.cell, cards.headCell)}>
+							{stateLabel.inProgress}
+						</th>
+						<th className={clsx(cards.cell, cards.headCell)}>
+							{stateLabel.inReview}
+						</th>
+						<th className={clsx(cards.cell, cards.headCell)}>
+							{stateLabel.awaitingMerge}
+						</th>
+						<th className={clsx(cards.cell, cards.headCell)}>Needs you</th>
+						<th className={clsx(cards.cell, cards.headCell)}>Blocked by</th>
+					</tr>
+				</thead>
+				<tbody>
+					{projects.map((project) => (
+						<tr key={`${project.tracker}:${project.name}`}>
+							<td className={clsx(cards.cell)}>
+								<PinMark on={project.pinned} />
+							</td>
+							<td className={clsx(cards.cell)}>
+								<a
+									className={clsx(cards.projectLink)}
+									href={projectPath(project.name)}
+									onClick={(event) => {
+										event.preventDefault();
+										openProject(project.name);
+									}}
+								>
+									{project.name}
+								</a>
+							</td>
+							<td className={clsx(cards.cell, cards.quiet)}>
+								{trackerName(project.tracker)}
+							</td>
+							<td className={clsx(cards.cell)}>
+								<MiniBar project={project} />
+							</td>
+							<td className={clsx(cards.cell)}>
+								{project.statusTypes.backlog}
+							</td>
+							<td className={clsx(cards.cell)}>
+								{project.statusTypes.inProgress}
+							</td>
+							<td className={clsx(cards.cell)}>
+								{project.statusTypes.inReview}
+							</td>
+							<td className={clsx(cards.cell)}>
+								{project.statusTypes.awaitingMerge}
+							</td>
+							<td className={clsx(cards.cell)}>
+								{project.needsYou === 0 ? (
+									<span className={clsx(cards.quiet)}>0</span>
+								) : (
+									<span className={clsx(cards.badge)}>{project.needsYou}</span>
+								)}
+							</td>
+							<td className={clsx(cards.cell)}>
+								{project.crossProjectBlockers.map((blocker) => (
+									<Chip
+										key={`${blocker.project} ${blocker.key}`}
+										blocker={blocker}
+									/>
+								))}
+							</td>
+						</tr>
+					))}
+				</tbody>
+			</table>
+		</div>
+	);
+}
+
+function MenuButton({
+	id,
+	label,
+	open,
+	onToggle,
+	children,
+}: {
+	id: string;
+	label: ReactNode;
+	open: boolean;
+	onToggle: () => void;
+	children: ReactNode;
+}) {
+	return (
+		<div className={clsx(cards.menu)}>
+			<button
+				type="button"
+				id={id}
+				className={clsx(cards.control, shell.buttonFocus)}
+				aria-expanded={open}
+				aria-controls={`${id}-panel`}
+				onClick={onToggle}
+			>
+				{label}
+			</button>
+			{open ? (
+				<div id={`${id}-panel`} className={clsx(cards.panel)}>
+					{children}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+function ticketKey(key: string): string {
+	const hash = key.lastIndexOf("#");
+	return hash === -1 ? key : key.slice(hash + 1);
+}
+
+function actionLabel(item: NeedsYouItem): string {
+	const key = ticketKey(item.key);
+	if (item.reason === "awaitingMerge") {
+		return `Merge PR #${key}`;
+	}
+	if (item.reason === "ask") {
+		return "Answer question";
+	}
+	if (item.reason === "runFailed") {
+		return "Open run";
+	}
+	return `Review ${key}`;
+}
+
+async function readSettings(): Promise<Configuration | null> {
+	const response = await fetch("/api/settings");
+	if (!response.ok) {
+		return null;
+	}
+	const body: unknown = await response.json();
+	if (body === null || typeof body !== "object") {
+		return null;
+	}
+	return body as Configuration;
+}
+
+async function writeSettings(next: Configuration): Promise<boolean> {
+	const response = await fetch("/api/settings", {
+		method: "PUT",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify(next),
+	});
+	return response.ok;
 }
 
 function OverviewPage({
 	overview,
-	graphSvg,
+	settings,
+	onSettings,
 }: {
 	overview: Overview;
-	graphSvg: string;
+	settings: Configuration;
+	onSettings: (next: Configuration) => void;
 }) {
-	const [tab, setTab] = useState(readTab);
+	const [query, setQuery] = useState("");
+	const [menu, setMenu] = useState<"pinned" | "filter" | "sort" | null>(null);
+	const [now, setNow] = useState(() => Date.now());
 	const [notifyPermission, setNotifyPermission] = useState(
 		notificationPermission,
 	);
-	const choose = (next: Tab) => {
-		writeTab(next);
-		setTab(next);
+	const view = settings.overview;
+	const projects = useMemo(
+		() => shownProjects(overview, view, query),
+		[overview, view, query],
+	);
+	const polled = polledLine(overview.fetchedAt, now);
+	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
+	useEffect(() => {
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, []);
+	useEffect(() => {
+		let stopped = false;
+		const load = () => {
+			void fetch("/api/needs-you")
+				.then(async (response) => {
+					if (!stopped && response.ok) {
+						setNeeds((await response.json()) as NeedsYouItem[]);
+					}
+				})
+				.catch(() => {
+					if (!stopped) {
+						setNeeds([]);
+					}
+				});
+		};
+		load();
+		const stop = onAppEvent("overview", load);
+		return () => {
+			stopped = true;
+			stop();
+		};
+	}, []);
+	const savePatch = (patch: (current: Configuration) => Configuration) => {
+		onSettings(patch(settings));
+		void readSettings().then(async (current) => {
+			if (current === null) {
+				return;
+			}
+			const next = patch(current);
+			onSettings(next);
+			if (await writeSettings(next)) {
+				return;
+			}
+			const saved = await readSettings();
+			if (saved !== null) {
+				onSettings(saved);
+			}
+		});
+	};
+	const saveView = (next: OverviewView) => {
+		savePatch((current) => ({ ...current, overview: next }));
+		setMenu(null);
+	};
+	const togglePin = (project: ProjectCounts) => {
+		savePatch((current) => {
+			const pinned = current.pinned.some((item) => sameRef(item, project.ref))
+				? current.pinned.filter((item) => !sameRef(item, project.ref))
+				: [...current.pinned, project.ref];
+			return { ...current, pinned };
+		});
 	};
 	const panes = {
-		cards: <CardsList overview={overview} />,
-		graph: <GraphView overview={overview} svg={graphSvg} />,
-		table: <TableView overview={overview} />,
+		cards: <CardsList projects={projects} />,
+		graph: <GraphView projects={projects} />,
+		table: <TableView projects={projects} />,
 	};
-	const views: PageView[] = tabs.map((name) => ({
+	const views: PageView[] = overviewViews.map((name) => ({
 		id: name,
 		label: viewLabel[name],
 	}));
+	const tickets = overview.projects.reduce(
+		(sum, project) => sum + ticketTotal(project),
+		0,
+	);
+	const pinnedCount = overview.projects.filter(
+		(project) => project.pinned,
+	).length;
+	const summary = [
+		`${overview.projects.length} projects`,
+		`${tickets} tickets`,
+		polled,
+	]
+		.filter((part) => part !== null)
+		.join(", ");
+	const sectionTitle =
+		view.view === "graph" ? "Projects and their blockers" : navLabel.projects;
 	return (
 		<PageFrame
 			title={navLabel.overview}
-			filter={
-				<select
-					id="overview-filter"
-					className={clsx(frame.select)}
-					aria-label="Filter"
-					defaultValue="all"
-				>
-					<option value="all">All projects</option>
-				</select>
-			}
-			sort={
-				<select
-					id="overview-sort"
-					className={clsx(frame.select)}
-					aria-label="Sort"
-					defaultValue="name"
-				>
-					<option value="name">Name</option>
-				</select>
-			}
+			subtitle={summary}
 			search={
-				<input
-					id="overview-search"
-					className={clsx(frame.search)}
-					type="search"
-					aria-label="Search"
-					placeholder="Search"
-				/>
+				<label className={clsx(frame.searchBox)} htmlFor="overview-search">
+					<SearchGlyph />
+					<input
+						id="overview-search"
+						className={clsx(frame.search)}
+						type="search"
+						aria-label={overviewControlLabel.search}
+						placeholder={overviewControlLabel.search}
+						value={query}
+						onChange={(event) => setQuery(event.target.value)}
+					/>
+				</label>
 			}
 			views={views}
-			view={tab}
+			view={view.view}
 			onView={(id) => {
-				const next = tabs.find((name) => name === id);
+				const next = overviewViews.find((name) => name === id);
 				if (next !== undefined) {
-					choose(next);
+					saveView({ ...view, view: next });
 				}
 			}}
 		>
+			{needs.length === 0 || view.view !== "cards" ? null : (
+				<section>
+					<div className={clsx(cards.section)}>
+						<h2 className={clsx(cards.sectionLabel)}>{navLabel.needsYou}</h2>
+						<a className={clsx(cards.viewAll)} href="/needs-you">
+							View all
+						</a>
+					</div>
+					<ul className={clsx(cards.needs)}>
+						{needs.slice(0, 4).map((item) => (
+							<li
+								key={`${item.project}:${item.key}`}
+								className={clsx(cards.need)}
+							>
+								<a
+									className={clsx(cards.needKey)}
+									href={projectPath(item.project, item.key)}
+								>
+									{item.project}#{ticketKey(item.key)}
+								</a>
+								<a
+									className={clsx(cards.needTitle)}
+									href={projectPath(item.project, item.key)}
+								>
+									{item.headline}
+								</a>
+								<a
+									className={clsx(cards.pill)}
+									href={projectPath(item.project, item.key)}
+								>
+									{actionLabel(item)}
+								</a>
+							</li>
+						))}
+					</ul>
+				</section>
+			)}
+			<div className={clsx(cards.section)}>
+				<h2 className={clsx(cards.sectionLabel)}>{sectionTitle}</h2>
+				<div className={clsx(cards.controls)}>
+					<MenuButton
+						id="overview-pinned"
+						label={
+							<>
+								<PinMark on /> {overviewControlLabel.pinned} {pinnedCount}
+							</>
+						}
+						open={menu === "pinned"}
+						onToggle={() => setMenu(menu === "pinned" ? null : "pinned")}
+					>
+						{overview.projects.map((project) => (
+							<label
+								key={`${project.tracker}:${project.name}`}
+								className={clsx(cards.choice)}
+							>
+								<input
+									type="checkbox"
+									checked={project.pinned}
+									onChange={() => togglePin(project)}
+								/>
+								{project.name}
+							</label>
+						))}
+					</MenuButton>
+					<MenuButton
+						id="overview-filter"
+						label={overviewControlLabel.filter}
+						open={menu === "filter"}
+						onToggle={() => setMenu(menu === "filter" ? null : "filter")}
+					>
+						{overviewFilters.map((item) => (
+							<label key={item} className={clsx(cards.choice)}>
+								<input
+									type="radio"
+									name="overview-filter"
+									value={item}
+									checked={view.filter === item}
+									onChange={() => saveView({ ...view, filter: item })}
+								/>
+								{overviewFilterLabel[item]}
+							</label>
+						))}
+					</MenuButton>
+					{view.view === "table" ? null : (
+						<MenuButton
+							id="overview-sort"
+							label={
+								view.sort === "needs-you"
+									? overviewControlLabel.needsYouFirst
+									: overviewSortLabel[view.sort]
+							}
+							open={menu === "sort"}
+							onToggle={() => setMenu(menu === "sort" ? null : "sort")}
+						>
+							{overviewSorts.map((item) => (
+								<label key={item} className={clsx(cards.choice)}>
+									<input
+										type="radio"
+										name="overview-sort"
+										value={item}
+										checked={view.sort === item}
+										onChange={() => saveView({ ...view, sort: item })}
+									/>
+									{overviewSortLabel[item]}
+								</label>
+							))}
+						</MenuButton>
+					)}
+				</div>
+			</div>
 			{notifyPermission === "default" ? (
 				<button
 					type="button"
 					id="notify-permission"
-					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+					className={clsx(frame.legend)}
 					onClick={() => {
 						void askNotificationPermission().finally(() => {
 							setNotifyPermission(notificationPermission());
@@ -444,21 +906,19 @@ function OverviewPage({
 					Allow notifications
 				</button>
 			) : null}
-			<button
-				type="button"
-				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
-				onClick={() => {
-					void fetch("/api/refresh", { method: "POST" });
-				}}
-			>
-				Refresh
-			</button>
 			{overview.polling === true ? (
 				<p className={clsx(cards.loading)}>Loading projects</p>
 			) : overview.error !== null ? (
 				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
-			{panes[tab]}
+			{panes[view.view]}
+			{view.view === "graph" ? (
+				<p className={clsx(cards.caption)}>
+					An arrow runs from a blocking project to the project it blocks. Its
+					label is the blocking ticket; click it to open that ticket. Projects
+					with a dark border need you.
+				</p>
+			) : null}
 		</PageFrame>
 	);
 }
@@ -473,12 +933,10 @@ async function readOverview(): Promise<Overview> {
 
 function Page() {
 	const [overview, setOverview] = useState<Overview | null>(null);
-	const [graphSvg, setGraphSvg] = useState("");
+	const [settings, setSettings] = useState<Configuration | null>(null);
 	useEffect(() => {
 		const show = (next: Overview) => {
 			setOverview(next);
-			startMermaid();
-			void renderGraph(next).then(setGraphSvg);
 		};
 		const stopOverview = onAppEvent("overview", (event) => {
 			show(JSON.parse(event.data) as Overview);
@@ -486,26 +944,27 @@ function Page() {
 		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
 		});
-		const stopTheme = watchPageTheme(() => {
-			startMermaid();
-			setOverview((current) => {
-				if (current !== null) {
-					void renderGraph(current).then(setGraphSvg);
-				}
-				return current;
-			});
-		});
 		void readOverview().then(show);
+		void readSettings().then((loaded) => {
+			if (loaded !== null) {
+				setSettings(loaded);
+			}
+		});
 		return () => {
 			stopOverview();
 			stopOpen();
-			stopTheme();
 		};
 	}, []);
-	if (overview === null) {
+	if (overview === null || settings === null) {
 		return <PageFrame title={navLabel.overview}>Loading projects</PageFrame>;
 	}
-	return <OverviewPage overview={overview} graphSvg={graphSvg} />;
+	return (
+		<OverviewPage
+			overview={overview}
+			settings={settings}
+			onSettings={setSettings}
+		/>
+	);
 }
 
 if (typeof document !== "undefined") {

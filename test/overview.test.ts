@@ -151,6 +151,8 @@ async function assertCard(base: string): Promise<void> {
 		{
 			name: repo,
 			tracker: "github",
+			pinned: true,
+			ref: { tracker: "github", repo },
 			done: 2,
 			dropped: 2,
 			blocked: 0,
@@ -463,6 +465,8 @@ describe("GET /api/overview", () => {
 					{
 						name: repoA,
 						tracker: "github",
+						pinned: true,
+						ref: { tracker: "github", repo: repoA },
 						done: 0,
 						dropped: 0,
 						blocked: 0,
@@ -509,6 +513,8 @@ describe("GET /api/overview", () => {
 					{
 						name: repoB,
 						tracker: "github",
+						pinned: true,
+						ref: { tracker: "github", repo: repoB },
 						done: 0,
 						dropped: 0,
 						blocked: 0,
@@ -710,6 +716,8 @@ describe("GET /api/overview", () => {
 					{
 						name: linearName,
 						tracker: "linear",
+						pinned: true,
+						ref: { tracker: "linear", project: linearProject },
 						done: 1,
 						dropped: 0,
 						blocked: 0,
@@ -897,7 +905,7 @@ describe("GET /api/overview", () => {
 				projects: { name: string; tracker: string }[];
 			};
 			expect(overview.projects[0]?.name).toBe(projectName);
-			expect(JSON.stringify(overview)).not.toContain(pin);
+			expect(overview.projects[0]?.name).not.toContain(pin);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
@@ -933,6 +941,8 @@ describe("GET /api/overview", () => {
 						expect(github).toEqual({
 							name: repo,
 							tracker: "github",
+							pinned: true,
+							ref: { tracker: "github", repo },
 							done: 2,
 							dropped: 2,
 							blocked: 0,
@@ -1018,6 +1028,8 @@ describe("GET /api/overview", () => {
 						expect(linear).toEqual({
 							name: linearName,
 							tracker: "linear",
+							pinned: true,
+							ref: { tracker: "linear", project: linearProject },
 							done: 2,
 							dropped: 2,
 							blocked: 0,
@@ -1246,6 +1258,8 @@ describe("GET /api/overview", () => {
 					{
 						name: pullRepo,
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", repo: pullRepo },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -1446,6 +1460,8 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", repo: repo },
 						done: 1,
 						dropped: 0,
 						backlog: 1,
@@ -1492,6 +1508,8 @@ describe("GET /api/overview", () => {
 					{
 						name: "Widget launch",
 						tracker: "linear",
+						pinned: false,
+						ref: { tracker: "linear", project: linearProject },
 						done: 1,
 						dropped: 0,
 						backlog: 1,
@@ -1719,6 +1737,8 @@ describe("GET /api/overview", () => {
 					{
 						name: "Org board",
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", owner: "acme", project: 9 },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -1889,6 +1909,8 @@ describe("GET /api/overview", () => {
 					{
 						name: "Member launch",
 						tracker: "linear",
+						pinned: false,
+						ref: { tracker: "linear", project: "member-launch" },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -2280,6 +2302,8 @@ describe("GET /api/overview", () => {
 					{
 						name: "Widget board",
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", owner: "acme", project: 3 },
 						done: 1,
 						dropped: 0,
 						backlog: 1,
@@ -2326,6 +2350,8 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", repo: repo },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -2521,6 +2547,8 @@ describe("GET /api/overview", () => {
 					{
 						name: "Pinned board",
 						tracker: "github",
+						pinned: true,
+						ref: { tracker: "github", owner: "acme", project: 7 },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -2714,6 +2742,8 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", repo: repo },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -2911,6 +2941,8 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", repo: repo },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -3104,6 +3136,8 @@ describe("GET /api/overview", () => {
 					{
 						name: repo,
 						tracker: "github",
+						pinned: false,
+						ref: { tracker: "github", repo: repo },
 						done: 0,
 						dropped: 0,
 						backlog: 1,
@@ -3518,6 +3552,8 @@ describe("GET /api/overview", () => {
 					{
 						name: "Quiet linear",
 						tracker: "linear",
+						pinned: true,
+						ref: { tracker: "linear", project: pinnedLinear },
 						done: 0,
 						dropped: 0,
 						backlog: 0,
