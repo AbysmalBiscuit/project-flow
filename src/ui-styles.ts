@@ -598,50 +598,9 @@ export const cards = stylex.create({
 		},
 	},
 	graph: {
-		overflow: "auto",
-		padding: space.lg,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.md,
-		backgroundColor: colours.page,
-		backgroundImage: `radial-gradient(${colours.laneLine} ${measure.hairline}, transparent ${measure.hairline})`,
-		backgroundSize: `${space.lg} ${space.lg}`,
-	},
-	canvas: {
 		position: "relative",
-		width: "100%",
-	},
-
-	arrows: {
-		position: "absolute",
-		top: 0,
-		left: 0,
-		overflow: "visible",
-	},
-	arrow: {
-		fill: "none",
-		stroke: colours.laneLine,
-		strokeWidth: measure.focus,
-	},
-	edgeLabel: {
-		fill: colours.chipInk,
-		fontSize: type.small,
-		textAnchor: "middle",
-	},
-	placed: {
-		position: "absolute",
-	},
-	placeAt: (x: string, y: string) => ({
-		left: x,
-		top: y,
-	}),
-	node: {
-		display: "flex",
-		flexDirection: "column",
-		gap: space.xs,
-		width: measure.node,
-		padding: space.md,
+		height: measure.graph,
+		overflow: "hidden",
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
@@ -651,18 +610,53 @@ export const cards = stylex.create({
 		font: "inherit",
 		textAlign: "left",
 	},
-	nodeNeed: {
+	graphNode: {
+		minWidth: measure.search,
+		padding: space.sm,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.lineStrong,
+		borderRadius: radius.sm,
+		backgroundColor: colours.surface,
+		color: colours.ink,
+		fontSize: type.small,
+	},
+	graphNeedsYou: {
 		borderColor: colours.needs,
 		borderWidth: measure.focus,
 	},
-	nodeTop: {
+	graphTitle: {
+		margin: `0 0 ${space.xs}`,
+		fontWeight: type.weight,
+	},
+	graphBar: {
+		height: space.xs,
+		overflow: "hidden",
+		borderRadius: radius.pill,
+		backgroundColor: colours.surfaceMuted,
+	},
+	graphFill: {
+		height: "100%",
+		backgroundColor: colours.accent,
+	},
+	graphEdge: {
+		padding: `${space.twoXs} ${space.xs}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.lineStrong,
+		borderRadius: radius.sm,
+		backgroundColor: colours.chip,
+		color: colours.chipInk,
+		fontSize: type.small,
+		cursor: "pointer",
+	},
+	graphTools: {
+		position: "absolute",
+		zIndex: 5,
+		top: space.sm,
+		left: space.sm,
 		display: "flex",
 		gap: space.xs,
-		alignItems: "center",
-		justifyContent: "space-between",
-	},
-	pointer: {
-		cursor: "pointer",
 	},
 	tableWrap: {
 		overflow: "auto",

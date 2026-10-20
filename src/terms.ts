@@ -162,6 +162,9 @@ export const overviewControlLabel = {
 	projects: "projects",
 	tickets: "tickets",
 	unlinked: "unlinked PR",
+	zoomIn: "Zoom in",
+	zoomOut: "Zoom out",
+	fit: "Fit",
 } as const;
 
 export function actionLabel(

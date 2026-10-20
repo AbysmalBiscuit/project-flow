@@ -267,6 +267,7 @@ export const measure = stylex.defineVars({
 	field: "28rem",
 	fieldMin: "4rem",
 	diagram: "48rem",
+	graph: "32rem",
 	swatch: "0.9rem",
 	hairline: "1px",
 	none: "0",

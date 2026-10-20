@@ -1,3 +1,4 @@
+import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -20,6 +21,7 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
+import { OverviewGraph } from "./overview-graph.tsx";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
 	actionLabel,
@@ -363,229 +365,6 @@ function CardsList({ projects }: { projects: ProjectCounts[] }) {
 	);
 }
 
-type GraphEdge = {
-	from: string;
-	blocker: CrossProjectBlocker;
-};
-
-const graphColumnGap = 220;
-const graphRowStep = 116;
-const graphNodeWidth = 196;
-const graphNodeHeight = 92;
-const graphPad = 28;
-
-function graphEdges(projects: ProjectCounts[]): GraphEdge[] {
-	const names = new Set(projects.map((project) => project.name));
-	return projects.flatMap((project) =>
-		project.crossProjectBlockers
-			.filter((blocker) => names.has(blocker.project))
-			.map((blocker) => ({
-				from: project.name,
-				blocker,
-			})),
-	);
-}
-
-function graphLayout(projects: ProjectCounts[], edges: GraphEdge[]) {
-	const depth = new Map(projects.map((project) => [project.name, 0]));
-	for (let pass = 0; pass < projects.length; pass += 1) {
-		for (const edge of edges) {
-			const next = (depth.get(edge.from) ?? 0) + 1;
-			if (next > (depth.get(edge.blocker.project) ?? 0)) {
-				depth.set(edge.blocker.project, next);
-			}
-		}
-	}
-	const columns = new Map<number, string[]>();
-	for (const project of projects) {
-		const column = depth.get(project.name) ?? 0;
-		const names = columns.get(column) ?? [];
-		names.push(project.name);
-		columns.set(column, names);
-	}
-	const place = new Map<string, { x: number; y: number }>();
-	for (const [column, names] of columns) {
-		names.forEach((name, row) => {
-			place.set(name, {
-				x: graphPad + column * graphColumnGap,
-				y: graphPad + row * graphRowStep,
-			});
-		});
-	}
-	const widest = Math.max(1, columns.size);
-	const width = graphPad * 2 + (widest - 1) * graphColumnGap + graphNodeWidth;
-	const tallest = Math.max(
-		1,
-		...[...columns.values()].map((names) => names.length),
-	);
-	const height = graphPad + tallest * graphRowStep;
-	return { place, width, height };
-}
-
-function GraphNode({ project }: { project: ProjectCounts }) {
-	return (
-		<button
-			type="button"
-			className={clsx(
-				cards.node,
-				cards.pointer,
-				project.needsYou > 0 && cards.nodeNeed,
-			)}
-			onClick={() => openProject(project.name)}
-		>
-			<span className={clsx(cards.nodeTop)}>
-				<strong>{project.name}</strong>
-				{project.needsYou === 0 ? null : (
-					<span className={clsx(cards.badge)}>{project.needsYou}</span>
-				)}
-			</span>
-			<span className={clsx(cards.meta)}>{trackerName(project.tracker)}</span>
-			<SegmentedBar project={project} />
-			<span className={clsx(cards.quiet)}>
-				{project.done} of {ticketTotal(project)} done
-			</span>
-		</button>
-	);
-}
-
-function GraphView({ projects }: { projects: ProjectCounts[] }) {
-	const edges = graphEdges(projects);
-	const { place, width, height } = graphLayout(projects, edges);
-	const byName = new Map(projects.map((project) => [project.name, project]));
-	return (
-		<div className={clsx(cards.graph)}>
-			<div className={clsx(cards.canvas)} style={{ height }}>
-				<svg
-					className={clsx(cards.arrows)}
-					width={width}
-					height={height}
-					aria-hidden="true"
-				>
-					{edges.map((edge) => {
-						const from = place.get(edge.from);
-						const to = place.get(edge.blocker.project);
-						if (from === undefined || to === undefined) {
-							return null;
-						}
-						const x1 = from.x + graphNodeWidth;
-						const y1 = from.y + graphNodeHeight / 2;
-						const x2 = to.x;
-						const y2 = to.y + graphNodeHeight / 2;
-						const mid = (x1 + x2) / 2;
-						return (
-							<g
-								key={`${edge.from}-${edge.blocker.project}-${edge.blocker.key}`}
-							>
-								<path
-									d={`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`}
-									className={clsx(cards.arrow)}
-								/>
-								<a
-									href={projectPath(edge.blocker.project, edge.blocker.key)}
-									onClick={(event) => {
-										event.preventDefault();
-										openProject(edge.blocker.project, edge.blocker.key);
-									}}
-								>
-									<text
-										x={mid}
-										y={(y1 + y2) / 2 - 8}
-										className={clsx(cards.edgeLabel)}
-									>
-										{edge.blocker.key}
-									</text>
-								</a>
-							</g>
-						);
-					})}
-				</svg>
-				{projects.map((project) => {
-					const spot = place.get(project.name);
-					if (spot === undefined || byName.get(project.name) === undefined) {
-						return null;
-					}
-					return (
-						<div
-							key={`${project.tracker}:${project.name}`}
-							className={clsx(cards.placed)}
-							{...stylex.props(cards.placeAt(`${spot.x}px`, `${spot.y}px`))}
-						>
-							<GraphNode project={project} />
-						</div>
-					);
-				})}
-			</div>
-		</div>
-	);
-}
-
-const tableColumns: {
-	key: SortKey;
-	label: string;
-	number: boolean;
-}[] = [
-	{ key: "project", label: tableColumnLabel.project, number: false },
-	{ key: "tracker", label: tableColumnLabel.tracker, number: false },
-	{ key: "progress", label: tableColumnLabel.progress, number: false },
-	{ key: "backlog", label: tableColumnLabel.backlog, number: true },
-	{ key: "inProgress", label: tableColumnLabel.inProgress, number: true },
-	{ key: "inReview", label: tableColumnLabel.inReview, number: true },
-	{
-		key: "awaitingMerge",
-		label: tableColumnLabel.awaitingMerge,
-		number: true,
-	},
-	{ key: "needsYou", label: tableColumnLabel.needsYou, number: true },
-	{ key: "blockedBy", label: tableColumnLabel.blockedBy, number: false },
-];
-
-function SortMark({ direction }: { direction: "asc" | "desc" | "none" }) {
-	const up = direction === "asc";
-	const down = direction === "desc";
-	return (
-		<svg
-			viewBox="0 0 12 12"
-			aria-hidden="true"
-			className={clsx(cards.mark)}
-			fill="currentColor"
-		>
-			<path d="M6 1.5 9.2 5.2H2.8z" opacity={up ? 1 : 0.35} />
-			<path d="M6 10.5 2.8 6.8h6.4z" opacity={down ? 1 : 0.35} />
-		</svg>
-	);
-}
-
-function ProgressBar({ project }: { project: ProjectCounts }) {
-	const total = ticketTotal(project);
-	return (
-		<div className={clsx(cards.progressCell)}>
-			<div
-				className={clsx(cards.barThin)}
-				role="progressbar"
-				aria-valuenow={project.progress}
-				aria-valuemin={0}
-				aria-valuemax={100}
-				aria-label={`${project.name} progress`}
-			>
-				{barSegments.map((item) =>
-					project.statusTypes[item.key] === 0 || total === 0 ? null : (
-						<div
-							key={item.key}
-							{...stylex.props(
-								cards.segment(
-									`${(project.statusTypes[item.key] / total) * 100}%`,
-								),
-								item.tone,
-							)}
-						/>
-					),
-				)}
-			</div>
-			<span>{project.progress}%</span>
-		</div>
-	);
-}
-
 function Star({ filled }: { filled: boolean }) {
 	return (
 		<svg
@@ -916,7 +695,7 @@ function OverviewPage({
 	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
-		graph: <GraphView projects={projects} />,
+		graph: <OverviewGraph projects={projects} />,
 		table: (
 			<TableView
 				projects={projects}
