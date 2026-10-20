@@ -15,11 +15,8 @@ import { linearStatusType } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
-	fetchHeadCommittedAt,
-	githubHeaders,
-	githubPull,
+	loadOpenPull,
 	mergedPullHistory,
-	pullReview,
 	type ReviewEvidence,
 	TrackerError,
 } from "./github.ts";
@@ -727,55 +724,21 @@ async function pullsForIssues(
 				}
 				continue;
 			}
-			const pullResponse = await fetchGithub(
-				`https://api.github.com/repos/${target.repo}/pulls/${target.number}`,
-				{ headers: githubHeaders(githubToken) },
-			);
-			if (!pullResponse.ok) {
+			let opened: Awaited<ReturnType<typeof loadOpenPull>>;
+			try {
+				opened = await loadOpenPull(
+					githubToken,
+					fetchGithub,
+					target.repo,
+					target.number,
+					[identifier],
+				);
+			} catch {
 				continue;
 			}
-			const pull = githubPull.parse(await pullResponse.json());
-			const body = pull.body ?? "";
-			const merged = (pull.merged_at ?? null) !== null;
-			if (pull.state !== "open" && !merged) {
-				continue;
+			if (opened !== null) {
+				pulls.push(opened);
 			}
-			const head = merged ? "" : (pull.head.sha ?? "");
-			const review =
-				head === ""
-					? { checks: [], comments: [], reviews: [], reactions: [] }
-					: await pullReview(
-							target.repo,
-							pull.number,
-							head,
-							pull.draft === true,
-							githubToken,
-							fetchGithub,
-						);
-			const headCommittedAt =
-				merged || pull.draft === true || head === ""
-					? null
-					: await fetchHeadCommittedAt(
-							target.repo,
-							head,
-							githubToken,
-							fetchGithub,
-						);
-			pulls.push({
-				repo: target.repo,
-				number: pull.number,
-				url: pull.html_url,
-				title: pull.title,
-				draft: pull.draft === true,
-				branch: pull.head.ref,
-				body,
-				closingKeys: [identifier],
-				headSha: head,
-				headCommittedAt,
-				merged,
-				autoMerge: pull.auto_merge != null,
-				...review,
-			});
 		}
 	}
 	const repos = new Set(pulls.map((pull) => pull.repo));

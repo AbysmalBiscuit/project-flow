@@ -281,6 +281,19 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 	};
 }
 
+function addCheckout(
+	checkout: LocalCheckout,
+	seen: Set<string>,
+	found: LocalCheckout[],
+): void {
+	const id = `${checkout.tracker}:${checkout.path}`;
+	if (seen.has(id)) {
+		return;
+	}
+	seen.add(id);
+	found.push(checkout);
+}
+
 export async function listDevkitCheckouts(
 	roots: string[],
 ): Promise<LocalCheckout[]> {
@@ -314,11 +327,7 @@ export async function listDevkitCheckouts(
 				}
 				const checkout = await readCheckout(path);
 				if (checkout !== null) {
-					const id = `${checkout.tracker}:${checkout.path}`;
-					if (!seen.has(id)) {
-						seen.add(id);
-						found.push(checkout);
-					}
+					addCheckout(checkout, seen, found);
 				}
 				await readWorktrees(path, seen, found);
 			}
@@ -341,12 +350,7 @@ async function readWorktrees(
 		if (checkout === null) {
 			continue;
 		}
-		const id = `${checkout.tracker}:${checkout.path}`;
-		if (seen.has(id)) {
-			continue;
-		}
-		seen.add(id);
-		found.push(checkout);
+		addCheckout(checkout, seen, found);
 	}
 }
 

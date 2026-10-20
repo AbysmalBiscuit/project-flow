@@ -1318,7 +1318,7 @@ async function listProjectPulls(
 	return pulls;
 }
 
-async function loadOpenPull(
+export async function loadOpenPull(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
