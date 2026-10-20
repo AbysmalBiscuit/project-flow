@@ -905,10 +905,29 @@ describe("GET /api/projects/:name", () => {
 				]);
 				const drawn = map?.diagrams?.[0];
 				expect(
-					drawn?.nodes.find((node) => node.state === "theme"),
+					drawn?.nodes.find(
+						(node) =>
+							node.id === "Ship_20_the_20_board_3a_Ship_20_the_20_board",
+					),
+				).toMatchObject({
+					id: "Ship_20_the_20_board_3a_Ship_20_the_20_board",
+					label: "Ship the board",
+					state: "theme",
+				});
+				expect(
+					drawn?.edges.some(
+						(edge) =>
+							edge.from === "Ship_20_the_20_board_3a_Ship_20_the_20_board",
+					),
+				).toBe(true);
+				expect(
+					drawn?.nodes.find(
+						(node) => node.id === "Ship_20_the_20_board_3a_no_20_scope",
+					),
 				).toMatchObject({
 					id: "Ship_20_the_20_board_3a_no_20_scope",
 					label: "no scope",
+					state: "theme",
 				});
 				expect(
 					drawn?.edges.some(
