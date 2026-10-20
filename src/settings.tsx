@@ -749,6 +749,12 @@ function MappingEditor({
 	);
 }
 
+const autoMergeLabel: Record<AutoMerge, string> = {
+	yes: settingsCopy.yes,
+	ask: settingsCopy.ask,
+	no: settingsCopy.no,
+};
+
 function AutoMergeEditor({
 	overrides,
 	onChange,
@@ -757,7 +763,16 @@ function AutoMergeEditor({
 	onChange: (next: Configuration["autoMerge"]) => void;
 }) {
 	const [repo, setRepo] = useState("");
+	const [choice, setChoice] = useState<AutoMerge>("ask");
 	const rows = Object.entries(overrides);
+	function add(): void {
+		const name = repo.trim();
+		if (name === "") {
+			return;
+		}
+		onChange({ ...overrides, [name]: choice });
+		setRepo("");
+	}
 	return (
 		<div className={clsx(fields.chips)}>
 			{rows.map(([name, value]) => (
@@ -789,29 +804,30 @@ function AutoMergeEditor({
 				id="auto-merge-value"
 				className={clsx(fields.select)}
 				aria-label={settingsCopy.autoMerge}
-				defaultValue="ask"
+				value={choice}
 				onChange={(event) => {
-					const name = repo.trim();
-					if (name === "") {
-						return;
+					const next = autoMergeChoices.find(
+						(item) => item === event.target.value,
+					);
+					if (next !== undefined) {
+						setChoice(next);
 					}
-					onChange({
-						...overrides,
-						[name]: event.target.value as AutoMerge,
-					});
-					setRepo("");
 				}}
 			>
-				{autoMergeChoices.map((choice) => (
-					<option key={choice} value={choice}>
-						{choice === "yes"
-							? settingsCopy.yes
-							: choice === "ask"
-								? settingsCopy.ask
-								: settingsCopy.no}
+				{autoMergeChoices.map((item) => (
+					<option key={item} value={item}>
+						{autoMergeLabel[item]}
 					</option>
 				))}
 			</select>
+			<button
+				id="auto-merge-add"
+				type="button"
+				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+				onClick={add}
+			>
+				Add
+			</button>
 		</div>
 	);
 }
