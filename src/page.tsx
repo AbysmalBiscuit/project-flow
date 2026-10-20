@@ -1,21 +1,45 @@
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
+import { installPageLinks } from "./page-links.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
 
 watchNotifications();
 mountJumpBox();
+installPageLinks();
 
 applyPageTheme(pageTheme());
 
-if (window.location.pathname === "/needs-you") {
-	await import("./needs-you.tsx");
-} else if (window.location.pathname === "/inbox") {
-	await import("./inbox.tsx");
-} else if (window.location.pathname === "/settings") {
-	await import("./settings.tsx");
-} else if (window.location.pathname.startsWith("/projects/")) {
-	await import("./project.tsx");
-} else {
-	await import("./cards.tsx");
+const pages = [
+	{ path: "/needs-you", load: () => import("./needs-you.tsx") },
+	{ path: "/inbox", load: () => import("./inbox.tsx") },
+	{ path: "/settings", load: () => import("./settings.tsx") },
+] as const;
+
+function pageLoad(path: string): () => Promise<unknown> {
+	const match = pages.find((item) => item.path === path);
+	if (match !== undefined) {
+		return match.load;
+	}
+	if (path.startsWith("/projects/")) {
+		return () => import("./project.tsx");
+	}
+	return () => import("./cards.tsx");
 }
+
+let shown = 0;
+
+async function showPage(): Promise<void> {
+	const turn = ++shown;
+	const path = window.location.pathname;
+	await pageLoad(path)();
+	if (turn === shown && window.location.pathname === path) {
+		window.dispatchEvent(new Event("project-flow-page"));
+	}
+}
+
+await showPage();
+
+window.addEventListener("popstate", () => {
+	void showPage();
+});

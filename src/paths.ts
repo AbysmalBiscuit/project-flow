@@ -27,5 +27,7 @@ export function openProject(
 	panelProject?: string,
 	panelTracker?: CrossProjectBlocker["tracker"],
 ): void {
-	window.location.assign(projectPath(name, ticket, panelProject, panelTracker));
+	const next = projectPath(name, ticket, panelProject, panelTracker);
+	window.history.pushState(null, "", next);
+	window.dispatchEvent(new PopStateEvent("popstate"));
 }

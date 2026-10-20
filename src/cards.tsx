@@ -2,7 +2,6 @@ import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { createRoot } from "react-dom/client";
 import { readSettings, writeSettings } from "./client-settings.ts";
 import {
 	type Configuration,
@@ -23,6 +22,12 @@ import {
 	notificationPermission,
 } from "./notify.tsx";
 import { OverviewGraph } from "./overview-graph.tsx";
+import {
+	claimPage,
+	mountPage,
+	readPageCache,
+	writePageCache,
+} from "./page-cache.ts";
 import { openProject, projectPath } from "./paths.ts";
 import {
 	barSegments,
@@ -58,10 +63,6 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 		<a
 			className={clsx(cards.chip, cards.chipHover)}
 			href={projectPath(blocker.project, blocker.key)}
-			onClick={(event) => {
-				event.preventDefault();
-				window.location.assign(projectPath(blocker.project, blocker.key));
-			}}
 		>
 			Blocked by {blockerTicket(blocker)}
 		</a>
@@ -861,10 +862,17 @@ async function readOverview(): Promise<Overview> {
 }
 
 function Page() {
-	const [overview, setOverview] = useState<Overview | null>(null);
-	const [settings, setSettings] = useState<Configuration | null>(null);
+	const [overview, setOverview] = useState<Overview | null>(() => {
+		const cached = readPageCache("overview");
+		return cached === undefined ? null : (cached as Overview);
+	});
+	const [settings, setSettings] = useState<Configuration | null>(() => {
+		const cached = readPageCache("settings");
+		return cached === undefined ? null : (cached as Configuration);
+	});
 	useEffect(() => {
 		const show = (next: Overview) => {
+			writePageCache("overview", next);
 			setOverview(next);
 		};
 		const stopOverview = onAppEvent("overview", (event) => {
@@ -876,6 +884,7 @@ function Page() {
 		void readOverview().then(show);
 		void readSettings().then((loaded) => {
 			if (loaded !== null) {
+				writePageCache("settings", loaded);
 				setSettings(loaded);
 			}
 		});
@@ -896,9 +905,17 @@ function Page() {
 	);
 }
 
-if (typeof document !== "undefined") {
-	const root = document.getElementById("root");
-	if (root !== null) {
-		createRoot(root).render(<Page />);
+function mount(): void {
+	if (window.location.pathname !== "/") {
+		return;
 	}
+	const token = claimPage();
+	mountPage(token, (root) => {
+		root.render(<Page />);
+	});
+}
+
+if (typeof document !== "undefined") {
+	mount();
+	window.addEventListener("project-flow-page", mount);
 }

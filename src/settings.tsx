@@ -1,11 +1,16 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
 import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
 import { sameRef } from "./configuration.ts";
 import type { KnownBot, SettingsProject, TicketState } from "./domain.ts";
 import { knownBots, projectHasPmBot } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
+import {
+	claimPage,
+	mountPage,
+	readPageCache,
+	writePageCache,
+} from "./page-cache.ts";
 import { PageFrame } from "./shell.tsx";
 import {
 	loadingLabel,
@@ -1224,13 +1229,23 @@ function ProjectRow({
 	);
 }
 
+type SettingsPage = {
+	settings: Configuration;
+	projects: SettingsProject[];
+	trackers: Trackers;
+};
+
 function Page() {
-	const [settings, setSettings] = useState<Configuration | null>(null);
-	const [projects, setProjects] = useState<SettingsProject[]>([]);
-	const [trackers, setTrackers] = useState<Trackers>({
-		github: false,
-		linear: false,
-	});
+	const cached = readPageCache("settings-page") as SettingsPage | undefined;
+	const [settings, setSettings] = useState<Configuration | null>(
+		() => cached?.settings ?? null,
+	);
+	const [projects, setProjects] = useState<SettingsProject[]>(
+		() => cached?.projects ?? [],
+	);
+	const [trackers, setTrackers] = useState<Trackers>(
+		() => cached?.trackers ?? { github: false, linear: false },
+	);
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		let stopped = false;
@@ -1242,11 +1257,18 @@ function Page() {
 				return (await response.json()) as SettingsBody;
 			})
 			.then((body) => {
-				if (!stopped) {
-					setTrackers(body.trackers ?? { github: false, linear: false });
-					setProjects(body.projects ?? []);
-					setSettings(configurationOf(body));
+				if (stopped) {
+					return;
 				}
+				const next = {
+					trackers: body.trackers ?? { github: false, linear: false },
+					projects: body.projects ?? [],
+					settings: configurationOf(body),
+				};
+				writePageCache("settings-page", next);
+				setTrackers(next.trackers);
+				setProjects(next.projects);
+				setSettings(next.settings);
 			})
 			.catch((cause: unknown) => {
 				if (!stopped) {
@@ -1313,18 +1335,32 @@ function Page() {
 				if (body === null) {
 					throw new Error("save failed");
 				}
-				setTrackers(body.trackers ?? trackers);
-				setProjects(body.projects ?? []);
-				setSettings(configurationOf(body));
+				const saved = {
+					trackers: body.trackers ?? trackers,
+					projects: body.projects ?? [],
+					settings: configurationOf(body),
+				};
+				writePageCache("settings-page", saved);
+				setTrackers(saved.trackers);
+				setProjects(saved.projects);
+				setSettings(saved.settings);
 				return null;
 			}}
 		/>
 	);
 }
 
-if (typeof document !== "undefined") {
-	const root = document.getElementById("root");
-	if (root !== null) {
-		createRoot(root).render(<Page />);
+function mount(): void {
+	if (window.location.pathname !== "/settings") {
+		return;
 	}
+	const token = claimPage();
+	mountPage(token, (root) => {
+		root.render(<Page />);
+	});
+}
+
+if (typeof document !== "undefined") {
+	mount();
+	window.addEventListener("project-flow-page", mount);
 }

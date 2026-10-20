@@ -1,6 +1,5 @@
 import "@xyflow/react/dist/style.css";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -12,6 +11,12 @@ import type {
 import { sameTicketKey, ticketGroups } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
+import {
+	claimPage,
+	mountPage,
+	readPageCache,
+	writePageCache,
+} from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
@@ -1010,12 +1015,17 @@ function Page() {
 	);
 	const [view, setView] = useState<OpenView>("board");
 	const [filterOpen, setFilterOpen] = useState(false);
-	const [report, setReport] = useState<ProjectReport | null>(null);
+	const [report, setReport] = useState<ProjectReport | null>(() => {
+		const cached = readPageCache(`project:${projectName()}`);
+		return cached === undefined ? null : (cached as ProjectReport);
+	});
 	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
 	const active = useActiveTicket();
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
-	const [polling, setPolling] = useState(true);
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	useEffect(() => {
@@ -1066,7 +1076,8 @@ function Page() {
 		};
 	}, [name]);
 	useEffect(() => {
-		const path = `/api/projects/${encodeURIComponent(name)}`;
+		const loaded = name;
+		const path = `/api/projects/${encodeURIComponent(loaded)}`;
 		let stopped = false;
 		const load = () => {
 			fetch(path)
@@ -1081,9 +1092,10 @@ function Page() {
 					}
 					setMissing(false);
 					const body = (await response.json()) as ProjectReport;
+					writePageCache(`project:${loaded}`, body);
 					setReport(body);
 					setPanelTracker((current) =>
-						panelProjectRef.current === name ? body.tracker : current,
+						panelProjectRef.current === loaded ? body.tracker : current,
 					);
 				})
 				.catch(() => {
@@ -1093,7 +1105,6 @@ function Page() {
 					}
 				});
 		};
-		setMissing(false);
 		load();
 		const readPoll = () => {
 			fetch("/api/overview")
@@ -1102,7 +1113,9 @@ function Page() {
 						return;
 					}
 					const body = (await response.json()) as { polling?: true };
-					setPolling(body.polling === true);
+					const next = body.polling === true;
+					writePageCache("polling", next);
+					setPolling(next);
 				})
 				.catch(() => {
 					if (!stopped) {
@@ -1461,11 +1474,16 @@ function Page() {
 }
 
 function mount(): void {
-	const root = document.getElementById("root");
-	if (root === null) {
+	if (!window.location.pathname.startsWith("/projects/")) {
 		return;
 	}
-	createRoot(root).render(<Page />);
+	const token = claimPage();
+	mountPage(token, (root) => {
+		root.render(<Page key={projectName()} />);
+	});
 }
 
-mount();
+if (typeof document !== "undefined") {
+	mount();
+	window.addEventListener("project-flow-page", mount);
+}

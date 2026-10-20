@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
+import {
+	claimPage,
+	mountPage,
+	readPageCache,
+	writePageCache,
+} from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import {
 	activeTicket,
@@ -295,9 +300,16 @@ function ageLine(fetchedAt: string | null): string {
 }
 
 function Page() {
-	const [items, setItems] = useState<NeedsYouItem[] | null>(null);
-	const [polled, setPolled] = useState("");
-	const [polling, setPolling] = useState(true);
+	const [items, setItems] = useState<NeedsYouItem[] | null>(() => {
+		const cached = readPageCache("needs-you");
+		return cached === undefined ? null : (cached as NeedsYouItem[]);
+	});
+	const [polled, setPolled] = useState(
+		() => (readPageCache("polled") as string | undefined) ?? "",
+	);
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -305,6 +317,7 @@ function Page() {
 				.then(async (response) => {
 					if (!stopped && response.ok) {
 						const loaded = (await response.json()) as NeedsYouItem[];
+						writePageCache("needs-you", loaded);
 						setItems(loaded);
 						for (const item of loaded) {
 							replaceActiveItem(item);
@@ -323,8 +336,12 @@ function Page() {
 							fetchedAt: string | null;
 							polling?: true;
 						};
-						setPolling(body.polling === true);
-						setPolled(ageLine(body.fetchedAt));
+						const next = body.polling === true;
+						writePageCache("polling", next);
+						setPolling(next);
+						const line = ageLine(body.fetchedAt);
+						writePageCache("polled", line);
+						setPolled(line);
 					}
 				})
 				.catch(() => {
@@ -349,7 +366,17 @@ function Page() {
 	return <NeedsList items={items} polled={polled} />;
 }
 
-const root = document.getElementById("root");
-if (root !== null) {
-	createRoot(root).render(<Page />);
+function mount(): void {
+	if (window.location.pathname !== "/needs-you") {
+		return;
+	}
+	const token = claimPage();
+	mountPage(token, (root) => {
+		root.render(<Page />);
+	});
+}
+
+if (typeof document !== "undefined") {
+	mount();
+	window.addEventListener("project-flow-page", mount);
 }
