@@ -61,7 +61,7 @@ const linearIssues = [
 	},
 ];
 
-function recorded(): Fetch {
+function recorded(requests: string[]): Fetch {
 	const linear = linearFake({ project: widget, issues: linearIssues });
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
@@ -69,6 +69,7 @@ function recorded(): Fetch {
 			return discovered;
 		}
 		const url = urlOf(input);
+		requests.push(url);
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
 		}
@@ -106,6 +107,7 @@ describe("ticket search", () => {
 			}),
 		);
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const requests: string[] = [];
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<{
 			byKey: unknown;
@@ -141,7 +143,7 @@ describe("ticket search", () => {
 						GITHUB_TOKEN: "recorded-token",
 						LINEAR_API_KEY: "recorded-linear-key",
 					},
-					fetch: recorded(),
+					fetch: recorded(requests),
 					readGhToken: async () => null,
 					databasePath: join(root, "store.sqlite"),
 					stdout: (line) => startChecks(line),
@@ -178,6 +180,14 @@ describe("ticket search", () => {
 			]);
 			expect(found.blank).toEqual([]);
 			expect(found.miss).toEqual([]);
+			expect(requests.length).toBeGreaterThan(0);
+			expect(
+				requests.every(
+					(url) =>
+						url.startsWith("https://api.github.com/") ||
+						url.startsWith("https://api.linear.app/"),
+				),
+			).toBe(true);
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
