@@ -1,3 +1,5 @@
+import type { ProjectViewSettings } from "./configuration.ts";
+
 export const defaultDoneAgeDays = 2;
 
 export const openViews = ["board", "graph", "table"] as const;
@@ -10,17 +12,6 @@ export const defaultOpenView = "board" as const;
 
 export const defaultGraphDirection = "left-to-right" as const;
 
-type ViewFields = {
-	maxAgeDays: Record<string, number>;
-	needsYouOnly: boolean;
-	blockedOnly: boolean;
-	assignees: string[];
-	search: string;
-	openView: (typeof openViews)[number];
-	graphDirection: (typeof graphDirections)[number];
-	shownLanes?: string[] | undefined;
-};
-
 export function projectViewKey(
 	views: Record<string, unknown>,
 	name: string,
@@ -30,10 +21,10 @@ export function projectViewKey(
 	);
 }
 
-export function savedProjectView<T extends ViewFields>(
-	views: Record<string, T>,
+export function savedProjectView(
+	views: Record<string, ProjectViewSettings>,
 	name: string,
-): T {
+): ProjectViewSettings {
 	const key = projectViewKey(views, name);
 	const saved = key === undefined ? undefined : views[key];
 	return {
@@ -45,7 +36,7 @@ export function savedProjectView<T extends ViewFields>(
 		openView: defaultOpenView,
 		graphDirection: defaultGraphDirection,
 		...saved,
-	} as T;
+	};
 }
 
 type LaneRef = { name: string; statusType: string };
