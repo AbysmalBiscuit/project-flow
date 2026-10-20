@@ -106,27 +106,6 @@ const reasonIcon = {
 	runFailed: FailIcon,
 } as const;
 
-export function HeldAction({ item }: { item: NeedsYouItem | null }) {
-	if (item === null) {
-		return null;
-	}
-	if (item.reason !== "awaitingMerge" && item.reason !== "label") {
-		return null;
-	}
-	return (
-		<button
-			type="button"
-			className={clsx(shell.button, shell.disabled)}
-			data-held-action={item.reason}
-			disabled
-		>
-			{item.reason === "awaitingMerge"
-				? actionLabel.merge
-				: actionLabel.removeLabel}
-		</button>
-	);
-}
-
 export function NeedsItem({
 	item,
 	project,
