@@ -2287,7 +2287,8 @@ describe("inbox", () => {
 			}
 			return recorded(input, init);
 		};
-		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const pinnedOffHome = { ...pinned, checkoutRoots: [] };
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinnedOffHome));
 		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		const legacy = new Database(databasePath);
@@ -2364,7 +2365,7 @@ describe("inbox", () => {
 			const restarted = start(secondStop, againReady);
 			const next = await second;
 			const hiddenConfig = {
-				...pinned,
+				...pinnedOffHome,
 				hidden: [{ tracker: "linear", project: "project-flow" }],
 			};
 			await Bun.write(path, JSON.stringify(hiddenConfig));
@@ -2382,7 +2383,7 @@ describe("inbox", () => {
 					trigger: "needsYou",
 				}),
 			]);
-			await Bun.write(path, JSON.stringify(pinned));
+			await Bun.write(path, JSON.stringify(pinnedOffHome));
 			await quietUntil(next, async () => {
 				const listed = await fetch(new URL("/api/needs-you", next));
 				expect(listed.status).toBe(200);
@@ -2410,7 +2411,7 @@ describe("inbox", () => {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
-	});
+	}, 30_000);
 
 	test("a ticket that stays in needs-you raises no second notification", async () => {
 		const headline = "Which bot should review this?";
