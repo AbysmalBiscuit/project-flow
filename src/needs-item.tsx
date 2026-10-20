@@ -71,8 +71,14 @@ const reasonIcon = {
 	runFailed: FailIcon,
 } as const;
 
-export function actionLabel(item: NeedsYouItem): string {
+export function actionLabel(
+	item: NeedsYouItem,
+	surface: "row" | "strip" = "row",
+): string {
 	if (item.reason === "ask") {
+		if (surface === "strip") {
+			return "Answer question";
+		}
 		return item.answered ? "View" : "Answer";
 	}
 	if (item.reason === "awaitingMerge") {
@@ -103,6 +109,15 @@ export function NeedsItem({
 	const Icon = reasonIcon[item.reason];
 	const action = actionLabel(item);
 	const disabled = item.reason === "awaitingMerge" || item.reason === "label";
+	const lead = (
+		<>
+			<span className={clsx(needs.icon)} aria-hidden="true">
+				<Icon />
+			</span>
+			<span className={clsx(needs.key)}>{item.key}</span>
+			<span className={clsx(needs.headline)}>{item.headline}</span>
+		</>
+	);
 	return (
 		<li
 			className={clsx(
@@ -113,24 +128,14 @@ export function NeedsItem({
 			data-needs={item.key}
 		>
 			{onOpen === undefined ? (
-				<div className={clsx(needs.row)}>
-					<span className={clsx(needs.icon)} aria-hidden="true">
-						<Icon />
-					</span>
-					<span className={clsx(needs.key)}>{item.key}</span>
-					<span className={clsx(needs.headline)}>{item.headline}</span>
-				</div>
+				<div className={clsx(needs.row)}>{lead}</div>
 			) : (
 				<button
 					type="button"
 					className={clsx(needs.row)}
 					onClick={() => onOpen(item.key)}
 				>
-					<span className={clsx(needs.icon)} aria-hidden="true">
-						<Icon />
-					</span>
-					<span className={clsx(needs.key)}>{item.key}</span>
-					<span className={clsx(needs.headline)}>{item.headline}</span>
+					{lead}
 				</button>
 			)}
 			<span className={clsx(needs.aside)}>

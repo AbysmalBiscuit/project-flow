@@ -91,3 +91,22 @@ export const overviewControlLabel = {
 	polled: "polled",
 	unlinked: "unlinked PR",
 } as const;
+
+export function polledAgo(fetchedAt: string | null): string | null {
+	if (fetchedAt === null) {
+		return null;
+	}
+	const then = Date.parse(fetchedAt);
+	if (Number.isNaN(then)) {
+		return null;
+	}
+	const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+	if (seconds < 60) {
+		return `polled ${seconds} s ago`;
+	}
+	const minutes = Math.round(seconds / 60);
+	if (minutes < 60) {
+		return `polled ${minutes} min ago`;
+	}
+	return `polled ${Math.round(minutes / 60)} h ago`;
+}

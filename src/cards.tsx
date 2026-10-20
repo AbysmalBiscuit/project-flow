@@ -16,6 +16,7 @@ import type {
 	ProjectCounts,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
+import { actionLabel } from "./needs-item.tsx";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -618,20 +619,6 @@ function ticketKey(key: string): string {
 	return hash === -1 ? key : key.slice(hash + 1);
 }
 
-function actionLabel(item: NeedsYouItem): string {
-	const key = ticketKey(item.key);
-	if (item.reason === "awaitingMerge") {
-		return `Merge PR #${key}`;
-	}
-	if (item.reason === "ask") {
-		return "Answer question";
-	}
-	if (item.reason === "runFailed") {
-		return "Open run";
-	}
-	return `Review ${key}`;
-}
-
 async function readSettings(): Promise<Configuration | null> {
 	const response = await fetch("/api/settings");
 	if (!response.ok) {
@@ -812,7 +799,7 @@ function OverviewPage({
 									className={clsx(cards.pill)}
 									href={projectPath(item.project, item.key)}
 								>
-									{actionLabel(item)}
+									{actionLabel(item, "strip")}
 								</a>
 							</li>
 						))}

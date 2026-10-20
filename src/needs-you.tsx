@@ -11,6 +11,7 @@ import {
 	type NeedsGroup,
 	navLabel,
 	needsGroupLabel,
+	polledAgo,
 	reasonLabel,
 	reasonOrder,
 	reasonTab,
@@ -248,22 +249,8 @@ function NeedsList({
 }
 
 function ageLine(fetchedAt: string | null): string {
-	if (fetchedAt === null) {
-		return "";
-	}
-	const then = Date.parse(fetchedAt);
-	if (Number.isNaN(then)) {
-		return "";
-	}
-	const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
-	if (seconds < 60) {
-		return `, polled ${seconds} s ago`;
-	}
-	const minutes = Math.round(seconds / 60);
-	if (minutes < 60) {
-		return `, polled ${minutes} min ago`;
-	}
-	return `, polled ${Math.round(minutes / 60)} h ago`;
+	const age = polledAgo(fetchedAt);
+	return age === null ? "" : `, ${age}`;
 }
 
 function Page() {
