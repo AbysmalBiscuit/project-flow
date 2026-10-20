@@ -26,9 +26,6 @@ const fetchImpl: Fetch = async (input) => {
 	if (url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost")) {
 		return fetch(input);
 	}
-	if (url === "https://api.github.com/user") {
-		return Response.json({ login: "lev" });
-	}
 	return new Promise(() => {});
 };
 

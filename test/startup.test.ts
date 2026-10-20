@@ -328,7 +328,7 @@ describe("startup", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toBe(rejectedToken);
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}
@@ -397,7 +397,7 @@ describe("startup", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toBe(rejectedToken);
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}
@@ -515,7 +515,7 @@ describe("startup", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toBe(rejectedToken);
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}
@@ -534,7 +534,7 @@ describe("startup", () => {
 			);
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toContain("HTTP 500");
-			expect(result.listened).toBe(false);
+			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
 		}
@@ -996,9 +996,6 @@ describe("startup", () => {
 			) {
 				return fetch(input, init);
 			}
-			if (url === "https://api.github.com/user") {
-				return recordedFetch(200)(input, init);
-			}
 			await trackerHeld;
 			trackerCompleted += 1;
 			return recordedFetch(200)(input, init);
@@ -1007,6 +1004,7 @@ describe("startup", () => {
 		const restartStopped = new Promise<void>((resolve) => {
 			stopRestart = resolve;
 		});
+		let restartRun: Promise<unknown> = Promise.resolve();
 		try {
 			await fill;
 			stopFill();
@@ -1019,7 +1017,7 @@ describe("startup", () => {
 						),
 					);
 				}, 2_000);
-				void run(
+				restartRun = run(
 					["--config", path, "--host", "127.0.0.1", "--port", "0"],
 					testIo(
 						{
@@ -1054,6 +1052,7 @@ describe("startup", () => {
 			releaseTracker();
 			stopFill();
 			stopRestart();
+			await restartRun;
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
