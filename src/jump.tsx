@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { TicketSearchHit } from "./app.ts";
 import { TicketPanel } from "./panel.tsx";
@@ -28,7 +28,36 @@ export function JumpBox() {
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
 	const ticket = useActiveTicket();
 	const queryRef = useRef<HTMLInputElement>(null);
-	useEffect(() => onOpenJumpBox(() => setOpen(true)), []);
+	const returnFocus = useRef<HTMLElement | null>(null);
+	const openRef = useRef(false);
+	const closeSearch = useCallback(() => {
+		setOpen(false);
+		openRef.current = false;
+		const target = returnFocus.current;
+		returnFocus.current = null;
+		queueMicrotask(() => {
+			if (target?.isConnected === true) {
+				target.focus();
+			}
+		});
+	}, []);
+	useEffect(
+		() =>
+			onOpenJumpBox(() => {
+				if (openRef.current) {
+					return;
+				}
+				const active = document.activeElement;
+				const insideSearch =
+					active instanceof HTMLElement &&
+					active.closest("[role='dialog']") !== null;
+				returnFocus.current =
+					active instanceof HTMLElement && !insideSearch ? active : null;
+				openRef.current = true;
+				setOpen(true);
+			}),
+		[],
+	);
 	useEffect(() => {
 		if (open) {
 			queryRef.current?.focus();
@@ -38,12 +67,26 @@ export function JumpBox() {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
 				event.preventDefault();
-				setOpen(true);
+				openJumpBox();
 			}
 		};
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onEscape = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") {
+				return;
+			}
+			event.preventDefault();
+			closeSearch();
+		};
+		window.addEventListener("keydown", onEscape);
+		return () => window.removeEventListener("keydown", onEscape);
+	}, [open, closeSearch]);
 	useEffect(() => {
 		if (!open) {
 			return;
@@ -98,11 +141,6 @@ export function JumpBox() {
 							value={query}
 							ref={queryRef}
 							onChange={(event) => setQuery(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Escape") {
-									setOpen(false);
-								}
-							}}
 						/>
 						{query.trim() !== "" && hits.length === 0 ? (
 							<p>No tickets</p>
@@ -120,7 +158,7 @@ export function JumpBox() {
 												tracker: hit.tracker,
 												key: hit.key,
 											});
-											setOpen(false);
+											closeSearch();
 										}}
 									>
 										<span>{hit.key}</span> <span>{hit.title}</span>{" "}
