@@ -387,22 +387,6 @@ function LaneCards({
 	);
 }
 
-function withinAge(
-	ticket: TicketView,
-	view: ProjectViewSettings,
-	now: number,
-): boolean {
-	const cap = laneAgeCap(view.maxAgeDays, ticket.lane ?? "", ticket.statusType);
-	if (cap <= 0) {
-		return true;
-	}
-	const at = Date.parse(ticket.enteredStateAt ?? "");
-	if (Number.isNaN(at)) {
-		return true;
-	}
-	return (now - at) / (24 * 60 * 60 * 1000) <= cap;
-}
-
 function Lane({
 	name,
 	colour,
@@ -835,8 +819,6 @@ function Board({
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
 	const [shownDone, setShownDone] = useState(false);
-	const parsed = Date.parse(report.asOf);
-	const now = Number.isNaN(parsed) ? Date.now() : parsed;
 	return (
 		<div className={clsx(board.lanes)} data-group-by={boardGroupBy(settings)}>
 			{visibleLanes(report, settings).map((lane) => (
@@ -852,9 +834,7 @@ function Board({
 					}
 					fresh={
 						lane.statusType === "done"
-							? report.doneTickets.filter((ticket) =>
-									withinAge(ticket, settings, now),
-								)
+							? report.freshDoneTickets
 							: laneTickets(report, lane.name)
 					}
 					capped={lane.statusType === "done"}
