@@ -1014,11 +1014,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
+	const current = await options.configuration.read();
+	options.fallback = current;
 	options.notifier.publish({
-		overview: runningOverview(options, configuration),
+		overview: runningOverview(options, current),
 		notifications,
 	});
-	return configuration;
+	return current;
 }
 
 function publishPoll(
@@ -1162,9 +1164,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				pollOptions.polling = true;
 			}
 			try {
-				await poll(pollOptions);
-				configuration = await configurationPort.read();
-				pollOptions.fallback = configuration;
+				configuration = await poll(pollOptions);
 			} catch (error) {
 				if (stopped) {
 					return;
