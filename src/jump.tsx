@@ -1,8 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { TicketSearchHit } from "./app.ts";
+import type { NeedsYouItem } from "./domain.ts";
+import { sameTicketKey } from "./domain.ts";
+import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
-import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
+import {
+	activeTicket,
+	closeTicket,
+	type OpenedTicket,
+	openTicket,
+	replaceActiveItem,
+	useActiveTicket,
+} from "./selection.ts";
 import { stateLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
@@ -26,7 +36,12 @@ export function JumpBox() {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
+	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
+	const needsRef = useRef(needs);
+	needsRef.current = needs;
+	const pendingItem = useRef<OpenedTicket | null>(null);
 	const ticket = useActiveTicket();
+	const opened = useRef<OpenedTicket | null>(null);
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const openRef = useRef(false);
@@ -87,6 +102,75 @@ export function JumpBox() {
 		window.addEventListener("keydown", onEscape);
 		return () => window.removeEventListener("keydown", onEscape);
 	}, [open, closeSearch]);
+	const applyNeeds = useCallback((loaded: NeedsYouItem[]) => {
+		needsRef.current = loaded;
+		setNeeds(loaded);
+		const pending = pendingItem.current;
+		if (pending === null) {
+			return;
+		}
+		const selected = activeTicket();
+		if (
+			selected === null ||
+			selected.tracker !== pending.tracker ||
+			selected.project !== pending.project ||
+			!sameTicketKey(selected.key, pending.key)
+		) {
+			pendingItem.current = null;
+			return;
+		}
+		const item = loaded.find(
+			(candidate) =>
+				candidate.tracker === pending.tracker &&
+				candidate.project === pending.project &&
+				sameTicketKey(candidate.key, pending.key),
+		);
+		if (item !== undefined) {
+			replaceActiveItem(item);
+			pendingItem.current = null;
+		}
+	}, []);
+	const loadNeeds = useCallback(() => {
+		fetch("/api/needs-you")
+			.then(async (response) => {
+				if (!response.ok) {
+					return;
+				}
+				applyNeeds((await response.json()) as NeedsYouItem[]);
+			})
+			.catch(() => {});
+	}, [applyNeeds]);
+	useEffect(() => {
+		loadNeeds();
+		return onAppEvent("overview", () => {
+			loadNeeds();
+		});
+	}, [loadNeeds]);
+	if (ticket === null) {
+		if (opened.current !== null) {
+			pendingItem.current = null;
+			opened.current = null;
+		}
+	} else if (
+		opened.current === null ||
+		opened.current.tracker !== ticket.tracker ||
+		opened.current.project !== ticket.project ||
+		!sameTicketKey(opened.current.key, ticket.key)
+	) {
+		if (opened.current !== null) {
+			pendingItem.current = null;
+		}
+		opened.current = {
+			project: ticket.project,
+			tracker: ticket.tracker,
+			key: ticket.key,
+		};
+	}
+	useEffect(() => {
+		if (open) {
+			loadNeeds();
+		}
+	}, [open, loadNeeds]);
 	useEffect(() => {
 		if (!open) {
 			return;
@@ -116,6 +200,17 @@ export function JumpBox() {
 			clearTimeout(handle);
 		};
 	}, [open, query]);
+	const needsItem = (hit: {
+		tracker: NeedsYouItem["tracker"];
+		project: string;
+		key: string;
+	}): NeedsYouItem | undefined =>
+		needsRef.current.find(
+			(item) =>
+				item.tracker === hit.tracker &&
+				item.project === hit.project &&
+				sameTicketKey(item.key, hit.key),
+		);
 	const pageRendersPanel =
 		window.location.pathname === "/needs-you" ||
 		window.location.pathname === "/inbox" ||
@@ -153,11 +248,21 @@ export function JumpBox() {
 										className={clsx(jump.hit)}
 										data-ticket={hit.key}
 										onClick={() => {
+											const item = needsItem(hit);
 											openTicket({
 												project: hit.project,
 												tracker: hit.tracker,
 												key: hit.key,
+												...(item === undefined ? {} : { item }),
 											});
+											pendingItem.current =
+												item === undefined
+													? {
+															project: hit.project,
+															tracker: hit.tracker,
+															key: hit.key,
+														}
+													: null;
 											closeSearch();
 										}}
 									>
@@ -171,14 +276,16 @@ export function JumpBox() {
 				</div>
 			) : null}
 			{ticket === null || pageRendersPanel ? null : (
-				<TicketPanel
-					key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
-					tracker={ticket.tracker}
-					project={ticket.project}
-					ticketKey={ticket.key}
-					item={ticket.item ?? null}
-					onClose={closeTicket}
-				/>
+				<div className={clsx(jump.dock)}>
+					<TicketPanel
+						key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
+						tracker={ticket.tracker}
+						project={ticket.project}
+						ticketKey={ticket.key}
+						item={needsItem(ticket) ?? null}
+						onClose={closeTicket}
+					/>
+				</div>
 			)}
 		</>
 	);

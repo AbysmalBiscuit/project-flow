@@ -13,7 +13,7 @@ import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
-import { closeTicket, openTicket } from "./selection.ts";
+import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
 import { blockedLabel, loadingLabel, navLabel, stateLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
@@ -112,6 +112,31 @@ function needsYouItem(
 				sameTicketKey(item.key, key),
 		) ?? null
 	);
+}
+
+function panelItem(
+	report: ProjectReport | null,
+	tracker: "github" | "linear",
+	project: string,
+	key: string,
+	active: {
+		tracker: "github" | "linear";
+		project: string;
+		key: string;
+		item?: NeedsYouItem;
+	} | null,
+): NeedsYouItem | null {
+	if (report?.tracker === tracker && report.name === project) {
+		return needsYouItem(report, tracker, project, key);
+	}
+	if (
+		active?.tracker === tracker &&
+		active.project === project &&
+		sameTicketKey(active.key, key)
+	) {
+		return active.item ?? null;
+	}
+	return null;
 }
 
 function panelBlockers(
@@ -900,6 +925,8 @@ function Page() {
 	panelProjectRef.current = panelProject;
 	const [panelTracker, setPanelTracker] =
 		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
+	const panelTrackerRef = useRef(panelTracker);
+	panelTrackerRef.current = panelTracker;
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [openedState, setOpenedState] = useState<TicketView["state"] | null>(
 		null,
@@ -908,11 +935,27 @@ function Page() {
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
+	const active = useActiveTicket();
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [polling, setPolling] = useState(true);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
+	useEffect(() => {
+		if (active === null) {
+			return;
+		}
+		if (
+			active.project !== panelProjectRef.current ||
+			active.tracker !== panelTrackerRef.current
+		) {
+			setPanelReport(null);
+		}
+		setPanelProject(active.project);
+		setPanelTracker(active.tracker);
+		setTicket(active.key);
+		setOpen(true);
+	}, [active]);
 	useEffect(() => {
 		const onPop = () => {
 			const next = highlightKey();
@@ -1147,10 +1190,12 @@ function Page() {
 		setPanelTracker(report.tracker);
 		setTicket(key);
 		setOpen(true);
+		const item = needsYouItem(report, report.tracker, report.name, key);
 		openTicket({
 			tracker: report.tracker,
 			project: report.name,
 			key,
+			...(item === null ? {} : { item }),
 		});
 	};
 	const openOutsideInPanel = (
@@ -1290,7 +1335,13 @@ function Page() {
 							}
 							blockers={incoming}
 							blocks={outgoing}
-							item={needsYouItem(source, panelTracker, panelProject, ticket)}
+							item={panelItem(
+								source,
+								panelTracker,
+								panelProject,
+								ticket,
+								active,
+							)}
 							onOpenBlocker={(blocker) => {
 								setPanelReport(null);
 								setPanelProject(blocker.project);

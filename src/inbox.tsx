@@ -1,7 +1,12 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { InboxEntry, NotificationTrigger } from "./domain.ts";
+import type {
+	InboxEntry,
+	NeedsYouItem,
+	NotificationTrigger,
+} from "./domain.ts";
+import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import {
 	askNotificationPermission,
@@ -125,7 +130,38 @@ function InboxList({
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
 	const [permission, setPermission] = useState(notificationPermission);
+	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
 	const ticket = useActiveTicket();
+	useEffect(() => {
+		let stopped = false;
+		const load = () => {
+			fetch("/api/needs-you")
+				.then(async (response) => {
+					if (stopped || !response.ok) {
+						return;
+					}
+					setNeeds((await response.json()) as NeedsYouItem[]);
+				})
+				.catch(() => {});
+		};
+		load();
+		const stop = onAppEvent("overview", () => {
+			load();
+		});
+		return () => {
+			stopped = true;
+			stop();
+		};
+	}, []);
+	const selected =
+		ticket === null
+			? null
+			: (needs.find(
+					(item) =>
+						item.tracker === ticket.tracker &&
+						item.project === ticket.project &&
+						sameTicketKey(item.key, ticket.key),
+				) ?? null);
 	const unread = entries.filter((entry) => !entry.read).length;
 	const shown = entries.filter(
 		(entry) =>
@@ -311,6 +347,7 @@ function InboxList({
 						tracker={ticket.tracker}
 						project={ticket.project}
 						ticketKey={ticket.key}
+						item={selected}
 						onClose={closeTicket}
 					/>
 				)}

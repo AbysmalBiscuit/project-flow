@@ -2227,6 +2227,17 @@ export const jump = stylex.create({
 		textAlign: "left",
 		cursor: "pointer",
 	},
+	dock: {
+		position: "fixed",
+		zIndex: stack.panel,
+		top: measure.panelTop,
+		right: space.pageInset,
+		bottom: space.lg,
+		display: "flex",
+		flexDirection: "column",
+		width: measure.panel,
+		maxWidth: "100%",
+	},
 });
 
 export const panel = stylex.create({
