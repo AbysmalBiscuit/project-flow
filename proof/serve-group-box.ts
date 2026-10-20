@@ -1,6 +1,11 @@
 import type { Fetch } from "../src/fetch.ts";
 import { recordedDiscovery, urlOf } from "../test/support.ts";
-import { emptyLinear, serveRecorded, unrecorded } from "./recorded.ts";
+import {
+	emptyLinear,
+	emptyLists,
+	serveRecorded,
+	unrecorded,
+} from "./recorded.ts";
 
 const repo = "acme/widget";
 
@@ -66,19 +71,11 @@ const recorded: Fetch = async (input, init) => {
 			},
 		]);
 	}
-	if (
-		url.includes("/pulls?") ||
-		url.includes("/labels?") ||
-		url.includes("/branches?") ||
-		url.includes("/comments") ||
-		url.includes("/reviews") ||
-		url.includes("/reactions") ||
-		url.includes("/dependencies/") ||
-		url === "https://api.github.com/graphql"
-	) {
-		return url === "https://api.github.com/graphql"
-			? Response.json({ data: {} })
-			: page([]);
+	if (emptyLists(url) || url.includes("/dependencies/")) {
+		return page([]);
+	}
+	if (url === "https://api.github.com/graphql") {
+		return Response.json({ data: {} });
 	}
 	return unrecorded(input);
 };

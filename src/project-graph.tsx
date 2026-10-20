@@ -13,7 +13,7 @@ import {
 	ReactFlowProvider,
 	useStore,
 } from "@xyflow/react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	groupKeysOf,
 	outsideKey,
@@ -367,7 +367,8 @@ function layoutTickets(
 		columnCounts.set(slot, (columnCounts.get(slot) ?? 0) + 1);
 	}
 	const bandGap = direction === "top-to-bottom" ? columnGap : rowGap;
-	const boxGap = groupPad * 2;
+	const boxGap =
+		direction === "top-to-bottom" ? groupPad * 2 : groupHead + groupPad;
 	const bandSize = new Map<string, number>();
 	for (const name of groups) {
 		let largest = 1;
@@ -494,7 +495,6 @@ function clusterNodes(
 				width,
 				height,
 				data: { name },
-				style: { width, height },
 				zIndex: 0,
 				draggable: false,
 				selectable: false,
@@ -522,16 +522,6 @@ function ticketSizes(
 		sizes.set(node.id, { width, height });
 	}
 	return sizes.size === 0 ? null : sizes;
-}
-
-function sizeKey(sizes: Map<string, TicketSize> | null): string {
-	if (sizes === null) {
-		return "";
-	}
-	return [...sizes]
-		.sort((left, right) => left[0].localeCompare(right[0]))
-		.map(([id, size]) => `${id}:${size.width}x${size.height}`)
-		.join("|");
 }
 
 function graphModel(
@@ -644,23 +634,9 @@ export function ProjectGraph({
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
 }) {
-	const placed = useMemo(
-		() =>
-			graphModel(
-				report,
-				reports,
-				direction,
-				groupBy,
-				assignees,
-				openKey,
-				new Map(),
-			),
-		[report, reports, direction, groupBy, assignees, openKey],
-	);
 	return (
 		<ReactFlowProvider>
 			<MeasuredProjectGraph
-				placed={placed}
 				report={report}
 				reports={reports}
 				direction={direction}
@@ -674,7 +650,6 @@ export function ProjectGraph({
 }
 
 function MeasuredProjectGraph({
-	placed,
 	report,
 	reports,
 	direction,
@@ -683,7 +658,6 @@ function MeasuredProjectGraph({
 	openKey,
 	onOpen,
 }: {
-	placed: ReturnType<typeof graphModel>;
 	report: ProjectReport;
 	reports: ProjectReport[];
 	direction: GraphDirection;
@@ -692,17 +666,48 @@ function MeasuredProjectGraph({
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
 }) {
-	const held = useRef<Map<string, TicketSize> | null>(null);
-	const key = useStore((state) => {
-		const next = ticketSizes([...state.nodeLookup.values()]);
-		if (next !== null) {
-			held.current = next;
+	const placed = useMemo(
+		() =>
+			graphModel(
+				report,
+				reports,
+				direction,
+				groupBy,
+				assignees,
+				openKey,
+				new Map(),
+			),
+		[report, reports, direction, groupBy, assignees, openKey],
+	);
+	const snapshot = useStore((state) =>
+		ticketSizes([...state.nodeLookup.values()]),
+	);
+	// React Flow clears measured on each new nodes array.
+	const [held, setHeld] = useState<Map<string, TicketSize>>(new Map());
+	useEffect(() => {
+		if (snapshot === null) {
+			return;
 		}
-		return sizeKey(held.current);
-	});
+		setHeld((previous) => {
+			let changed = false;
+			const next = new Map(previous);
+			for (const [id, size] of snapshot) {
+				const known = next.get(id);
+				if (
+					known !== undefined &&
+					known.width === size.width &&
+					known.height === size.height
+				) {
+					continue;
+				}
+				next.set(id, size);
+				changed = true;
+			}
+			return changed ? next : previous;
+		});
+	}, [snapshot]);
 	const model = useMemo(() => {
-		const measured = held.current;
-		if (measured === null || key === "") {
+		if (held.size === 0) {
 			return placed;
 		}
 		return graphModel(
@@ -712,22 +717,15 @@ function MeasuredProjectGraph({
 			groupBy,
 			assignees,
 			openKey,
-			measured,
+			held,
 		);
-	}, [key, placed, report, reports, direction, groupBy, assignees, openKey]);
+	}, [held, placed, report, reports, direction, groupBy, assignees, openKey]);
 	const places = model.nodes
 		.map((node) => {
 			const parent = model.nodes.find((item) => item.id === node.parentId);
 			const x = node.position.x + (parent?.position.x ?? 0);
 			const y = node.position.y + (parent?.position.y ?? 0);
-			const parented = node.parentId === undefined ? "" : " held";
-			const width = node.width;
-			const height = node.height;
-			const size =
-				width === undefined || height === undefined
-					? ""
-					: ` ${width}x${height}`;
-			return `${node.id.replaceAll("\n", " ")} ${x},${y}${parented}${size}`;
+			return `${node.id.replaceAll("\n", " ")} ${x},${y}`;
 		})
 		.join(" | ");
 	const outsideLabels = model.nodes.flatMap((node) =>
