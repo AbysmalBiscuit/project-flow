@@ -7,6 +7,7 @@ const reasonMark: Record<NeedsYouItem["reason"], string> = {
 	ask: "?",
 	awaitingMerge: "⇄",
 	label: "#",
+	runFailed: "!",
 };
 
 export function NeedsItem({

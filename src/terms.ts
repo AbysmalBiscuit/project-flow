@@ -43,12 +43,14 @@ export const reasonLabel: Record<NeedsYouItem["reason"], string> = {
 	ask: "Ask",
 	awaitingMerge: "Awaiting merge",
 	label: "Label",
+	runFailed: "Run failed",
 };
 
 export const reasonOrder: readonly NeedsYouItem["reason"][] = [
 	"ask",
 	"awaitingMerge",
 	"label",
+	"runFailed",
 ];
 
 export const needsGroupLabel = {
