@@ -66,6 +66,7 @@ export type Ticket = {
 	ref?: string;
 	body: string;
 	blockedBy: TicketRef[];
+	blocks?: TicketRef[];
 	comments?: Comment[];
 	milestone: string | null;
 	parent: string | null;
@@ -77,16 +78,27 @@ export type Ticket = {
 	history?: { statusId: string; at: string }[];
 };
 
+export type OutsideBlocker = {
+	tracker: "github" | "linear";
+	project: string;
+	key: string;
+	title: string;
+};
+
 export type TicketView = {
 	key: string | null;
 	title: string;
 	state: TicketState;
 	blockers: string[];
+	outsideBlockers?: OutsideBlocker[];
+	blocks?: OutsideBlocker[];
 	lane?: string;
 	statusType?: StatusType;
 	blocked?: boolean;
 	staleStatus?: string;
 	chips?: string[];
+	pull?: string;
+	needsYou?: boolean;
 	enteredStateAt?: string;
 };
 
@@ -574,6 +586,7 @@ export type ProjectReport = {
 	name: string;
 	tracker: "github" | "linear";
 	lanes: Lane[];
+	tickets: TicketView[];
 	sections: ReportSection[];
 };
 
@@ -1224,6 +1237,7 @@ function indexTickets(tickets: Ticket[]): TicketIndex {
 			...earlier,
 			body: earlier.body.trim() === "" ? ticket.body : earlier.body,
 			blockedBy: mergeBlockedBy([earlier.blockedBy, ticket.blockedBy]),
+			blocks: mergeBlockedBy([earlier.blocks ?? [], ticket.blocks ?? []]),
 		});
 	}
 	return index;
@@ -1327,6 +1341,7 @@ export function openBlockers(
 	ticket: Ticket,
 	index: TicketIndex,
 	parsed: ParsedBodies,
+	groups: { project: string; tickets: Ticket[] }[] = [],
 ): Ticket[] {
 	const self = asRef(ticket);
 	const merged = self === null ? undefined : known(index, self);
@@ -1337,17 +1352,36 @@ export function openBlockers(
 		(ref) => stillOpen(ref, index),
 	);
 	const fromBlocks: TicketRef[] = [];
-	for (const [otherKey, lines] of parsed) {
-		const other = index.get(otherKey);
-		if (other === undefined || other.state !== "open" || self === null) {
-			continue;
+	if (self !== null) {
+		for (const [otherKey, lines] of parsed) {
+			const other = index.get(otherKey);
+			if (other === undefined || other.state !== "open") {
+				continue;
+			}
+			if (!lines.blocks.some((ref) => sameRef(ref, self))) {
+				continue;
+			}
+			const ref = asRef(other);
+			if (ref !== null) {
+				fromBlocks.push(ref);
+			}
 		}
-		if (!lines.blocks.some((ref) => sameRef(ref, self))) {
-			continue;
-		}
-		const ref = asRef(other);
-		if (ref !== null) {
-			fromBlocks.push(ref);
+		for (const group of groups) {
+			for (const other of group.tickets) {
+				if (other.state !== "open" || other === ticket) {
+					continue;
+				}
+				const native = other.blocks ?? [];
+				if (
+					!native.some((ref) => sameRef(ref, self) && stillOpen(ref, index))
+				) {
+					continue;
+				}
+				const ref = asRef(other);
+				if (ref !== null) {
+					fromBlocks.push(ref);
+				}
+			}
 		}
 	}
 	const refs = [...incoming, ...fromBody, ...fromBlocks];
@@ -1729,6 +1763,132 @@ function blockerProject(
 		return blocker.key.split("#")[0] ?? "";
 	}
 	return "";
+}
+
+function outsideOf(
+	blocker: Ticket,
+	ref: TicketRef | undefined,
+	groups: { project: string; tickets: Ticket[] }[],
+): OutsideBlocker | null {
+	if (blocker.key === null) {
+		return null;
+	}
+	const project = blockerProject(blocker, ref, groups);
+	if (project === "") {
+		return null;
+	}
+	return {
+		tracker: blocker.tracker,
+		project,
+		key: blocker.key,
+		title: blocker.title.trim() || blocker.key,
+	};
+}
+
+function ticketRelations(
+	ticket: Ticket,
+	blockers: Ticket[],
+	index: TicketIndex,
+	parsed: ParsedBodies,
+	groups: { project: string; tickets: Ticket[] }[],
+): {
+	blockers: string[];
+	outsideBlockers: OutsideBlocker[];
+	blocks: OutsideBlocker[];
+} {
+	const self = asRef(ticket);
+	const home = groups.find((group) => group.tickets.includes(ticket))?.project;
+	const merged = self === null ? undefined : known(index, self);
+	const incoming = [
+		...(merged?.blockedBy ?? ticket.blockedBy),
+		...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
+	];
+	const keys: string[] = [];
+	const outsideBlockers: OutsideBlocker[] = [];
+	for (const blocker of blockers) {
+		if (blocker.key === null) {
+			continue;
+		}
+		keys.push(blocker.key);
+		const source = incoming.find(
+			(ref) =>
+				ref.tracker === blocker.tracker &&
+				ref.key.toLowerCase() === blocker.key?.toLowerCase(),
+		);
+		const project = blockerProject(blocker, source, groups);
+		if (
+			project === "" ||
+			home === undefined ||
+			project.toLowerCase() === home.toLowerCase()
+		) {
+			continue;
+		}
+		const outside = outsideOf(blocker, source, groups);
+		if (outside !== null) {
+			outsideBlockers.push(outside);
+		}
+	}
+	const blocks: OutsideBlocker[] = [];
+	const ownBlocks = mergeBlockedBy([
+		parsed.get(parseKey(ticket))?.blocks ?? [],
+		merged?.blocks ?? ticket.blocks ?? [],
+	]);
+	if (self !== null && ticket.state === "open") {
+		for (const ref of ownBlocks) {
+			if (!stillOpen(ref, index)) {
+				continue;
+			}
+			const other = known(index, ref);
+			const otherHome =
+				other === undefined
+					? undefined
+					: groups.find((group) => group.tickets.includes(other))?.project;
+			const project = otherHome ?? ref.project;
+			if (
+				project === "" ||
+				home === undefined ||
+				project.toLowerCase() === home.toLowerCase() ||
+				blocks.some((item) => sameRef(item, ref))
+			) {
+				continue;
+			}
+			const title = other?.title.trim() || ref.title?.trim() || ref.key;
+			blocks.push({
+				tracker: ref.tracker,
+				project,
+				key: ref.key,
+				title: title || ref.key,
+			});
+		}
+		for (const group of groups) {
+			if (group.project.toLowerCase() === home?.toLowerCase()) {
+				continue;
+			}
+			for (const other of group.tickets) {
+				if (
+					other.state !== "open" ||
+					other.key === null ||
+					blocks.some((item) => sameRef(item, asRef(other) ?? self))
+				) {
+					continue;
+				}
+				const refs = [
+					...other.blockedBy,
+					...(parsed.get(parseKey(other))?.blockedBy ?? []),
+				];
+				if (!refs.some((ref) => sameRef(ref, self) && stillOpen(self, index))) {
+					continue;
+				}
+				blocks.push({
+					tracker: other.tracker,
+					project: group.project,
+					key: other.key,
+					title: other.title.trim() || other.key,
+				});
+			}
+		}
+	}
+	return { blockers: keys, outsideBlockers, blocks };
 }
 
 export const knownBots = ["grok", "codex", "greptile"] as const;
@@ -2351,6 +2511,8 @@ export function projectCounts(
 	const lanes = placeOnBoard(lanesFor(board, mapping), tickets);
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
+	const relationsByKey = new Map<string, ReturnType<typeof ticketRelations>>();
+	const pullByKey = new Map<string, string>();
 	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
 	const cross = new Map<string, CrossProjectBlocker>();
@@ -2358,7 +2520,7 @@ export function projectCounts(
 	const linkedByTicket = new Map<string, PullRequest[]>();
 	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
-		const blockers = openBlockers(ticket, index, parsed);
+		const blockers = openBlockers(ticket, index, parsed, all);
 		const links = linked(ticket, pulls);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));
@@ -2395,6 +2557,16 @@ export function projectCounts(
 			counts[shown.state] += 1;
 		}
 		statusTypes[shown.lane.statusType] += 1;
+		if (ticket.key !== null) {
+			relationsByKey.set(
+				ticket.key.toLowerCase(),
+				ticketRelations(ticket, blockers, index, parsed, all),
+			);
+			const pull = links[0];
+			if (pull !== undefined) {
+				pullByKey.set(ticket.key.toLowerCase(), pullKey(pull));
+			}
+		}
 		views.push({
 			key: ticket.key,
 			title: ticket.title,
@@ -2488,6 +2660,8 @@ export function projectCounts(
 		project,
 		tickets,
 		lanes,
+		relationsByKey,
+		pullByKey,
 		needsYouItemsForProject,
 	);
 	return {
@@ -3276,6 +3450,8 @@ export function projectReport(
 	counts: ProjectCounts,
 	tickets: Ticket[],
 	lanes: Lane[],
+	relationsByKey: Map<string, ReturnType<typeof ticketRelations>> = new Map(),
+	pullByKey: Map<string, string> = new Map(),
 	needs: NeedsYouItem[] = [],
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
@@ -3332,10 +3508,34 @@ export function projectReport(
 		},
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
+	const needsKeys = new Set(needs.map((item) => item.key.toLowerCase()));
+	const boardTickets = counts.tickets.map((view) => {
+		const relations =
+			view.key === null
+				? undefined
+				: relationsByKey.get(view.key.toLowerCase());
+		const pull =
+			view.key === null ? undefined : pullByKey.get(view.key.toLowerCase());
+		return {
+			...view,
+			...(relations === undefined ? {} : { blockers: relations.blockers }),
+			...(relations === undefined || relations.outsideBlockers.length === 0
+				? {}
+				: { outsideBlockers: relations.outsideBlockers }),
+			...(relations === undefined || relations.blocks.length === 0
+				? {}
+				: { blocks: relations.blocks }),
+			...(pull === undefined ? {} : { pull }),
+			...(view.key !== null && needsKeys.has(view.key.toLowerCase())
+				? { needsYou: true as const }
+				: {}),
+		};
+	});
 	return {
 		name: counts.name,
 		tracker: counts.tracker,
 		lanes,
+		tickets: boardTickets,
 		sections,
 	};
 }
