@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import type { TicketSearchHit } from "./app.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { sameTicketKey } from "./domain.ts";
+import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import {
 	activeTicket,
@@ -38,7 +39,6 @@ export function JumpBox() {
 	const needsRef = useRef(needs);
 	needsRef.current = needs;
 	const pendingItem = useRef(false);
-	const lookup = useRef(0);
 	const ticket = useActiveTicket();
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
@@ -100,55 +100,46 @@ export function JumpBox() {
 		window.addEventListener("keydown", onEscape);
 		return () => window.removeEventListener("keydown", onEscape);
 	}, [open, closeSearch]);
-	useEffect(() => {
-		if (!open) {
+	const applyNeeds = useCallback((loaded: NeedsYouItem[]) => {
+		needsRef.current = loaded;
+		setNeeds(loaded);
+		if (!pendingItem.current) {
 			return;
 		}
-		const generation = lookup.current + 1;
-		lookup.current = generation;
-		let stopped = false;
-		const apply = (loaded: NeedsYouItem[]) => {
-			if (generation !== lookup.current) {
-				return;
-			}
-			needsRef.current = loaded;
-			setNeeds(loaded);
-			if (!pendingItem.current) {
-				return;
-			}
-			const selected = activeTicket();
-			const item = loaded.find(
-				(candidate) =>
-					selected !== null &&
-					candidate.tracker === selected.tracker &&
-					candidate.project === selected.project &&
-					sameTicketKey(candidate.key, selected.key),
-			);
-			if (item !== undefined) {
-				replaceActiveItem(item);
-				pendingItem.current = false;
-			}
-		};
+		const selected = activeTicket();
+		const item = loaded.find(
+			(candidate) =>
+				selected !== null &&
+				candidate.tracker === selected.tracker &&
+				candidate.project === selected.project &&
+				sameTicketKey(candidate.key, selected.key),
+		);
+		if (item !== undefined) {
+			replaceActiveItem(item);
+			pendingItem.current = false;
+		}
+	}, []);
+	const loadNeeds = useCallback(() => {
 		fetch("/api/needs-you")
 			.then(async (response) => {
 				if (!response.ok) {
 					return;
 				}
-				const loaded = (await response.json()) as NeedsYouItem[];
-				if (stopped && !pendingItem.current) {
-					return;
-				}
-				apply(loaded);
+				applyNeeds((await response.json()) as NeedsYouItem[]);
 			})
-			.catch(() => {
-				if (!stopped && generation === lookup.current) {
-					setNeeds([]);
-				}
-			});
-		return () => {
-			stopped = true;
-		};
-	}, [open]);
+			.catch(() => {});
+	}, [applyNeeds]);
+	useEffect(() => {
+		loadNeeds();
+		return onAppEvent("overview", () => {
+			loadNeeds();
+		});
+	}, [loadNeeds]);
+	useEffect(() => {
+		if (open) {
+			loadNeeds();
+		}
+	}, [open, loadNeeds]);
 	useEffect(() => {
 		if (!open) {
 			return;
@@ -253,7 +244,7 @@ export function JumpBox() {
 						tracker={ticket.tracker}
 						project={ticket.project}
 						ticketKey={ticket.key}
-						item={ticket.item ?? needsItem(ticket) ?? null}
+						item={needsItem(ticket) ?? null}
 						onClose={closeTicket}
 					/>
 				</div>

@@ -133,26 +133,26 @@ function InboxList({
 	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
 	const ticket = useActiveTicket();
 	useEffect(() => {
-		if (ticket === null) {
-			return;
-		}
 		let stopped = false;
-		fetch("/api/needs-you")
-			.then(async (response) => {
-				if (stopped || !response.ok) {
-					return;
-				}
-				setNeeds((await response.json()) as NeedsYouItem[]);
-			})
-			.catch(() => {
-				if (!stopped) {
-					setNeeds([]);
-				}
-			});
+		const load = () => {
+			fetch("/api/needs-you")
+				.then(async (response) => {
+					if (stopped || !response.ok) {
+						return;
+					}
+					setNeeds((await response.json()) as NeedsYouItem[]);
+				})
+				.catch(() => {});
+		};
+		load();
+		const stop = onAppEvent("overview", () => {
+			load();
+		});
 		return () => {
 			stopped = true;
+			stop();
 		};
-	}, [ticket]);
+	}, []);
 	const selected =
 		ticket === null
 			? null
@@ -161,9 +161,7 @@ function InboxList({
 						item.tracker === ticket.tracker &&
 						item.project === ticket.project &&
 						sameTicketKey(item.key, ticket.key),
-				) ??
-				ticket.item ??
-				null);
+				) ?? null);
 	const unread = entries.filter((entry) => !entry.read).length;
 	const shown = entries.filter(
 		(entry) =>

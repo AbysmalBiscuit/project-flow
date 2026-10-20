@@ -24,6 +24,9 @@
 		{ "assert_text": "WHY THIS NEEDS YOU" },
 		{ "assert_text": "Which bot should review this?" },
 		{ "assert_text": "Keep the current bot" },
-		{ "shot": "jump-project-why" }
+		{ "shot": "jump-project-why" },
+		{ "click": "button[data-ticket='acme/widget#7']" },
+		{ "assert_text": "WHY THIS NEEDS YOU" },
+		{ "assert_text": "Which bot should review this?" }
 	]
 }
