@@ -2931,21 +2931,15 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		return listed;
 	};
 	const autoMergeByRepo = new Map<string, Promise<boolean>>();
-	let pollReads = new Map<string, Promise<Date | null>>();
-	const beginPoll = () => {
-		const reads = new Map<string, Promise<Date | null>>();
-		pollReads = reads;
-		return reads;
-	};
-	let activeReads = beginPoll();
+	const pollReads = new Map<string, Promise<Date | null>>();
 	const repoSnapshots = new Map<string, ReturnType<typeof readRepo>>();
 	const repoReadFor = (repo: string, since: Date | null) => {
-		const pending = activeReads.get(repo);
+		const pending = pollReads.get(repo);
 		const cutoff = pending ?? Promise.resolve(since);
 		if (pending === undefined) {
-			activeReads.set(repo, cutoff);
+			pollReads.set(repo, cutoff);
 		} else {
-			activeReads.set(
+			pollReads.set(
 				repo,
 				Promise.all([pending, Promise.resolve(since)]).then(
 					([earlier, next]) => {
@@ -2965,7 +2959,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			readRepo(token, fetchImpl, repo, stamp).catch((error: unknown) => {
 				if (repoSnapshots.get(repo) === read) {
 					repoSnapshots.delete(repo);
-					activeReads.delete(repo);
+					pollReads.delete(repo);
 				}
 				throw error;
 			}),
@@ -2973,16 +2967,11 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		repoSnapshots.set(repo, read);
 		return read;
 	};
-	const finishPoll = () => {
-		if (pollReads === activeReads) {
-			activeReads = beginPoll();
-			repoSnapshots.clear();
-			autoMergeByRepo.clear();
-		}
-	};
 	return {
 		beginPoll() {
-			finishPoll();
+			pollReads.clear();
+			repoSnapshots.clear();
+			autoMergeByRepo.clear();
 		},
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
