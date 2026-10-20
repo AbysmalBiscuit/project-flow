@@ -127,10 +127,12 @@ function RelationList({
 function WhySection({
 	item,
 	pending,
+	picked,
 	onPick,
 }: {
 	item: NeedsYouItem;
 	pending: boolean;
+	picked: boolean;
 	onPick: (option: number) => void;
 }) {
 	const question = item.question;
@@ -159,7 +161,7 @@ function WhySection({
 								type="button"
 								className={clsx(panel.option, shell.buttonFocus)}
 								data-option={option.number}
-								disabled={pending || item.answered}
+								disabled={pending || picked || item.answered}
 								onClick={() => onPick(option.number)}
 							>
 								<span className={clsx(panel.number)}>{option.number}</span>
@@ -233,6 +235,12 @@ export function TicketPanel({
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [pending, setPending] = useState(false);
+	const [picked, setPicked] = useState(false);
+	useEffect(() => {
+		if (item?.answered === true) {
+			setPicked(false);
+		}
+	}, [item?.answered]);
 	const threadPath = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}`;
 	useEffect(() => {
 		let stopped = false;
@@ -259,7 +267,7 @@ export function TicketPanel({
 		};
 	}, [threadPath]);
 	async function pick(option: number): Promise<void> {
-		if (pending) {
+		if (pending || picked) {
 			return;
 		}
 		setPending(true);
@@ -275,6 +283,7 @@ export function TicketPanel({
 				setError(failed.error ?? "Reply failed");
 				return;
 			}
+			setPicked(true);
 			const loaded = await fetch(threadPath);
 			if (loaded.ok) {
 				setMissing(false);
@@ -389,6 +398,7 @@ export function TicketPanel({
 				<WhySection
 					item={item}
 					pending={pending}
+					picked={picked || item.answered}
 					onPick={(option) => {
 						void pick(option);
 					}}
