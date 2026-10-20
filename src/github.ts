@@ -284,18 +284,8 @@ function sameHeaders(
 	);
 }
 
-function requestUrl(input: string | URL | Request): string {
-	if (typeof input === "string") {
-		return input;
-	}
-	if (input instanceof URL) {
-		return input.href;
-	}
-	return input.url;
-}
-
 function isTrackerRequest(input: string | URL | Request): boolean {
-	const url = requestUrl(input);
+	const url = restUrl(input);
 	return (
 		url.startsWith("https://api.github.com/") ||
 		url.startsWith("https://api.linear.app/")
