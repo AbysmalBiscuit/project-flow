@@ -178,12 +178,7 @@ export function retainListWindows(
 	forget?: (url: string) => void,
 ): void {
 	retainWindow(cache, repo, (url) => listWindow(url, issueList), forget);
-	retainWindow(
-		cache,
-		repo,
-		(url) => listWindow(url, issueCommentList),
-		forget,
-	);
+	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList), forget);
 }
 
 function restUrl(input: string | URL | Request): string {
