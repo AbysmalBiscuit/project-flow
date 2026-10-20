@@ -9,7 +9,6 @@ import type {
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
-	StatusType,
 	Thread,
 	ThreadComment,
 	Ticket,
