@@ -1,19 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { TicketState } from "./domain.ts";
+import type { TicketSearchHit } from "./app.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
-
-export type TicketSearchHit = {
-	project: string;
-	tracker: "github" | "linear";
-	key: string;
-	title: string;
-	state: TicketState;
-};
 
 const listeners = new Set<() => void>();
 

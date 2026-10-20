@@ -217,7 +217,7 @@ function overview(
 	};
 }
 
-type TicketSearchHit = {
+export type TicketSearchHit = {
 	project: string;
 	tracker: "github" | "linear";
 	key: string;
