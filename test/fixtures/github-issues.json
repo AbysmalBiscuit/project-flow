@@ -1,0 +1,30 @@
+[
+	{
+		"assignee": {
+			"login": "AbysmalBiscuit"
+		},
+		"assignees": [
+			{
+				"login": "AbysmalBiscuit"
+			}
+		],
+		"body": "The StyleX plugin imports `@babel/parser`, but the package is only a transitive dependency. An isolated `bun install` in a new worktree does not hoist it, so typecheck and tests fail on main until a reinstall with `--linker hoisted`. Declare it as a direct dependency so a clean install works.",
+		"closed_at": null,
+		"comments": 2,
+		"created_at": "2026-10-20T20:47:18Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/205",
+		"labels": [
+			{
+				"name": "bug"
+			},
+			{
+				"name": "ready-for-agent"
+			}
+		],
+		"number": 205,
+		"state": "open",
+		"state_reason": null,
+		"title": "build: add @babel/parser as a direct dependency",
+		"updated_at": "2026-10-20T21:14:10Z"
+	}
+]
