@@ -280,6 +280,24 @@ function openEventStream(base: string): {
 	};
 }
 
+async function settledOverview(base: string): Promise<OverviewBody> {
+	const deadline = Date.now() + 3_000;
+	let body: OverviewBody | null = null;
+	while (Date.now() < deadline) {
+		body = (await (
+			await fetch(new URL("/api/overview", base))
+		).json()) as OverviewBody;
+		if (body.polling !== true) {
+			return body;
+		}
+		await Bun.sleep(20);
+	}
+	if (body === null) {
+		throw new Error("overview never answered");
+	}
+	return body;
+}
+
 function openEvents(base: string): {
 	event: Promise<ChangeEvent>;
 	ready: Promise<void>;
@@ -832,6 +850,158 @@ describe("live updates", () => {
 		}
 	}, 20_000);
 
+	test("a refresh during a poll longer than 10 seconds answers before that poll ends", async () => {
+		const waiting: (() => void)[] = [];
+		let released = false;
+		let releasePoll: (() => void) | null = null;
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				issueReads += 1;
+				if (issueReads > 1) {
+					await new Promise<void>((resolve) => {
+						if (released) {
+							resolve();
+							return;
+						}
+						waiting.push(resolve);
+						releasePoll = () => {
+							released = true;
+							for (const release of waiting.splice(0)) {
+								release();
+							}
+						};
+					});
+					return page([
+						ticket(1, "2026-04-02T00:00:00Z", "closed"),
+						ticket(2, "2026-04-02T00:00:00Z"),
+					]);
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(before.polling).toBeUndefined();
+			expect(before.fetchedAt).toBe(goodPoll);
+			const stream = openEventStream(base);
+			await stream.ready;
+			const started = Date.now();
+			const refresh = fetch(new URL("/api/refresh", base), { method: "POST" });
+			const answered = await Promise.race([
+				refresh.then((response) => response.status),
+				Bun.sleep(9_000).then(() => "still waiting" as const),
+			]);
+			expect(answered).toBe(204);
+			expect(Date.now() - started).toBeLessThan(9_000);
+			expect(releasePoll).not.toBeNull();
+			const joined = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+				body: "   ",
+			});
+			expect(joined.status).toBe(204);
+			expect(issueReads).toBe(2);
+			expect(releasePoll).not.toBeNull();
+			const running = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(running.polling).toBe(true);
+			expect(running.fetchedAt).toBe(before.fetchedAt);
+			const release = releasePoll;
+			if (release === null) {
+				throw new Error("the refresh poll never reached the tracker");
+			}
+			const events = stream.events[Symbol.asyncIterator]();
+			const runningEvent = await events.next();
+			expect(runningEvent.done).toBe(false);
+			if (!runningEvent.done && runningEvent.value !== undefined) {
+				const startedPoll = JSON.parse(runningEvent.value.data) as OverviewBody;
+				expect(startedPoll.polling).toBe(true);
+			}
+			release();
+			releasePoll = null;
+			let published: OverviewBody | null = null;
+			for (let seen = 0; seen < 4 && published === null; seen += 1) {
+				const finished = await events.next();
+				if (finished.done || finished.value === undefined) {
+					break;
+				}
+				if (finished.value.event !== "overview") {
+					continue;
+				}
+				const body = JSON.parse(finished.value.data) as OverviewBody;
+				if (body.polling !== true) {
+					published = body;
+				}
+			}
+			stream.close();
+			if (published === null) {
+				throw new Error("the event stream sent no overview after the poll");
+			}
+			expect(published.polling).toBeUndefined();
+			expect(published.projects[0]?.done).toBe(1);
+			expect(published.projects[0]?.backlog).toBe(1);
+			expect(published.fetchedAt).not.toBe(before.fetchedAt);
+			const after = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			expect(after.fetchedAt).not.toBe(before.fetchedAt);
+			expect(after.polling).toBeUndefined();
+		});
+	}, 20_000);
+
+	test("a refresh whose tracker fails still answers and ends the running poll", async () => {
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				issueReads += 1;
+				if (issueReads > 1) {
+					return new Response("recorded failure", { status: 500 });
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+				body: "",
+			});
+			expect(refresh.status).toBe(204);
+			const deadline = Date.now() + 3_000;
+			let body = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as OverviewBody;
+			while (body.polling === true && Date.now() < deadline) {
+				await Bun.sleep(20);
+				body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+			}
+			expect(body.polling).toBeUndefined();
+			expect(body.projects[0]?.error).toContain("HTTP 500");
+		});
+	});
+
 	test("each project reaches the event stream when its own poll ends", async () => {
 		const releases = new Map<string, () => void>();
 		const held = (name: string) =>
@@ -1335,15 +1505,13 @@ describe("live updates", () => {
 	test("a failed fetch keeps the stored overview and names the error", async () => {
 		const requests: string[] = [];
 		await withServer(failingAfterGoodPoll(requests), 3600, async (base) => {
-			const events = openEvents(base);
-			await events.ready;
+			const stream = openEventStream(base);
+			await stream.ready;
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base);
 			expect(body.projects).toEqual([
 				counts(
 					repo,
@@ -1359,8 +1527,23 @@ describe("live updates", () => {
 			expect(body.projects[0]?.error).toContain(`stale since ${goodPoll}`);
 			expect(body.fetchedAt).toBe(goodPoll);
 			expect(body.error).toBeNull();
-			const received = await events.event;
-			expect(JSON.parse(received.data)).toEqual(body);
+			const events = stream.events[Symbol.asyncIterator]();
+			let published: OverviewBody | null = null;
+			for (let seen = 0; seen < 4 && published === null; seen += 1) {
+				const received = await events.next();
+				if (received.done || received.value === undefined) {
+					break;
+				}
+				if (received.value.event !== "overview") {
+					continue;
+				}
+				const eventBody = JSON.parse(received.value.data) as OverviewBody;
+				if (eventBody.polling !== true) {
+					published = eventBody;
+				}
+			}
+			stream.close();
+			expect(published).toEqual(body);
 		});
 	});
 
@@ -1805,8 +1988,8 @@ describe("live updates", () => {
 	test("a recorded tracker change reaches a subscriber after one poll", async () => {
 		const requests: string[] = [];
 		await withServer(changingFetch(requests), 3600, async (base) => {
-			const events = openEvents(base);
-			await events.ready;
+			const stream = openEventStream(base);
+			await stream.ready;
 			const before = await fetch(new URL("/api/overview", base));
 			const beforeBody = (await before.json()) as OverviewBody;
 			expect(beforeBody.projects).toEqual([
@@ -1818,9 +2001,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const received = await events.event;
-			expect(received.event).toBe("overview");
-			const eventBody = JSON.parse(received.data) as OverviewBody;
+			const eventBody = await settledOverview(base);
 			expect(eventBody.projects).toEqual([
 				counts(
 					repo,
@@ -1846,8 +2027,23 @@ describe("live updates", () => {
 			]);
 			expect(eventBody.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
 			expect(eventBody.error).toBeNull();
-			const after = await fetch(new URL("/api/overview", base));
-			expect(await after.json()).toEqual(JSON.parse(received.data));
+			const events = stream.events[Symbol.asyncIterator]();
+			let published: OverviewBody | null = null;
+			for (let seen = 0; seen < 4 && published === null; seen += 1) {
+				const received = await events.next();
+				if (received.done || received.value === undefined) {
+					break;
+				}
+				if (received.value.event !== "overview") {
+					continue;
+				}
+				const body = JSON.parse(received.value.data) as OverviewBody;
+				if (body.polling !== true) {
+					published = body;
+				}
+			}
+			stream.close();
+			expect(published).toEqual(eventBody);
 		});
 	});
 

@@ -43,6 +43,7 @@ export async function serveRecorded(options: {
 	configPath?: string;
 	databasePath?: string;
 	fetch: Fetch;
+	now?: () => Date;
 }): Promise<never> {
 	const dir = options.dir ?? (await mkdtemp(join("/var/tmp", options.prefix)));
 	const configPath = options.configPath ?? join(dir, "config.json");
@@ -64,7 +65,7 @@ export async function serveRecorded(options: {
 			listTodos: async () => "",
 			listCheckouts: async () => [],
 			databasePath: options.databasePath ?? join(dir, "project-flow.sqlite"),
-			now: () => new Date("2026-10-18T12:00:00.000Z"),
+			now: options.now ?? (() => new Date("2026-10-18T12:00:00.000Z")),
 			stdout: (line) => console.log(line),
 			stderr: (line) => console.error(line),
 			waitForStop: waitForStop(),

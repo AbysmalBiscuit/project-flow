@@ -4835,9 +4835,22 @@ describe("review cycle", () => {
 							method: "POST",
 						});
 						expect(refresh.status).toBe(204);
-						const secondResponse = await fetch(new URL("/api/overview", base));
-						expect(secondResponse.status).toBe(200);
-						expect(await secondResponse.json()).toMatchObject({
+						const deadline = Date.now() + 3_000;
+						let second: {
+							projects?: { inReview?: number }[];
+						} = {};
+						while (Date.now() < deadline) {
+							const secondResponse = await fetch(
+								new URL("/api/overview", base),
+							);
+							expect(secondResponse.status).toBe(200);
+							second = (await secondResponse.json()) as typeof second;
+							if (second.projects?.[0]?.inReview === 1) {
+								break;
+							}
+							await Bun.sleep(20);
+						}
+						expect(second).toMatchObject({
 							projects: [
 								{
 									name: "Widget board",

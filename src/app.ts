@@ -1253,6 +1253,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	let polling: Promise<void> | null = null;
 	let stopped = false;
 	let firstPollDone = false;
+	let refreshQueued = false;
 	const pollAgain = (): Promise<void> => {
 		if (stopped) {
 			return Promise.resolve();
@@ -1281,10 +1282,27 @@ export async function start(options: StartOptions): Promise<Running> {
 				});
 			}
 		})().finally(() => {
-			pollOptions.polling = false;
 			polling = null;
+			if (refreshQueued && !stopped) {
+				refreshQueued = false;
+				void pollAgain();
+				return;
+			}
+			pollOptions.polling = false;
 		});
 		return polling;
+	};
+	const beginPoll = (): void => {
+		pollOptions.polling = true;
+		if (polling !== null) {
+			refreshQueued = true;
+		} else {
+			void pollAgain();
+		}
+		notifier.publish({
+			overview: runningOverview(pollOptions, configuration),
+			notifications: [],
+		});
 	};
 	const firstPoll = pollAgain().finally(() => {
 		firstPollDone = true;
@@ -1329,7 +1347,14 @@ export async function start(options: StartOptions): Promise<Running> {
 					const body = Response.json(
 						runningOverview(pollOptions, configuration),
 					);
-					setTimeout(releaseLists, 0);
+					setTimeout(() => {
+						if (!hadRows || firstPollDone) {
+							releaseLists();
+							return;
+						}
+						refreshQueued = false;
+						releaseLists();
+					}, 0);
 					return body;
 				},
 			},
@@ -1415,10 +1440,10 @@ export async function start(options: StartOptions): Promise<Running> {
 				},
 			},
 			"/api/refresh": {
-				POST: async () => {
+				POST: (request: Request) => {
+					server.timeout(request, 0);
 					releaseLists();
-					await (polling ?? Promise.resolve());
-					await pollAgain();
+					beginPoll();
 					return new Response(null, { status: 204 });
 				},
 			},

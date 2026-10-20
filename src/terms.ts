@@ -158,6 +158,8 @@ export const overviewControlLabel = {
 	sort: "Sort",
 	search: "Search projects",
 	needsYouFirst: "Needs you first",
+	refresh: "Refresh",
+	refreshing: "Refreshing",
 	polled: "polled",
 	projects: "projects",
 	tickets: "tickets",

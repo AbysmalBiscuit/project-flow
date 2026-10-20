@@ -182,7 +182,11 @@ function polledLine(fetchedAt: string | null, now: number): string | null {
 		return null;
 	}
 	const age = Math.max(0, Math.floor((now - at) / 1000));
-	return `${overviewControlLabel.polled} ${age} s ago`;
+	if (age < 60) {
+		return `${overviewControlLabel.polled} ${age} s ago`;
+	}
+	const clock = new Date(at).toISOString().slice(11, 16);
+	return `${overviewControlLabel.polled} ${clock} UTC`;
 }
 
 function slug(value: string): string {
@@ -566,10 +570,12 @@ function OverviewPage({
 	overview,
 	settings,
 	onSettings,
+	onRefresh,
 }: {
 	overview: Overview;
 	settings: Configuration;
 	onSettings: (next: Configuration) => void;
+	onRefresh: () => void;
 }) {
 	const [query, setQuery] = useState("");
 	const [menu, setMenu] = useState<"filter" | "sort" | null>(null);
@@ -747,11 +753,10 @@ function OverviewPage({
 						type="button"
 						id="overview-refresh"
 						className={clsx(frame.icon, shell.buttonFocus)}
-						aria-label="Refresh"
-						title="Refresh"
-						onClick={() => {
-							void fetch("/api/refresh", { method: "POST" });
-						}}
+						aria-label={overviewControlLabel.refresh}
+						aria-busy={overview.polling === true}
+						title={overviewControlLabel.refresh}
+						onClick={onRefresh}
 					>
 						<RefreshIcon />
 					</button>
@@ -830,7 +835,7 @@ function OverviewPage({
 				</div>
 			)}
 			{overview.polling === true ? (
-				<p className={clsx(cards.loading)}>{loadingLabel}</p>
+				<p className={clsx(cards.loading)}>{overviewControlLabel.refreshing}</p>
 			) : overview.error !== null ? (
 				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
@@ -914,6 +919,9 @@ function Page() {
 			overview={overview}
 			settings={settings}
 			onSettings={setSettings}
+			onRefresh={() => {
+				void fetch("/api/refresh", { method: "POST" });
+			}}
 		/>
 	);
 }
