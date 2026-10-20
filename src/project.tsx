@@ -27,8 +27,11 @@ import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
 import {
+	defaultGraphGroupBy,
+	defaultGroupBy,
 	type GroupBy,
 	groupByKeys,
+	groupByWasSaved,
 	laneAgeCap,
 	savedProjectView,
 	visibleLaneNames,
@@ -211,6 +214,13 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 
 function isGroupBy(value: string): value is GroupBy {
 	return (groupByKeys as readonly string[]).includes(value);
+}
+
+function graphGroupBy(settings: ProjectViewSettings, saved: boolean): GroupBy {
+	if (!saved && settings.groupBy === defaultGroupBy) {
+		return defaultGraphGroupBy;
+	}
+	return settings.groupBy;
 }
 
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
@@ -1010,6 +1020,7 @@ function Page() {
 		null,
 	);
 	const [view, setView] = useState<OpenView>("board");
+	const [groupBySaved, setGroupBySaved] = useState(false);
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
@@ -1057,9 +1068,11 @@ function Page() {
 				const body = (await response.json()) as {
 					projectViews?: Record<string, ProjectViewSettings>;
 				};
-				const saved = savedProjectView(body.projectViews ?? {}, loaded);
+				const views = body.projectViews ?? {};
+				const saved = savedProjectView(views, loaded);
 				setSettings(saved);
 				setView(saved.openView);
+				setGroupBySaved(groupByWasSaved(views, loaded));
 			})
 			.catch(() => {});
 		return () => {
@@ -1256,9 +1269,11 @@ function Page() {
 			if (generation !== saveGeneration.current) {
 				return;
 			}
-			const confirmed = savedProjectView(written.projectViews ?? {}, project);
+			const views = written.projectViews ?? {};
+			const confirmed = savedProjectView(views, project);
 			setSettings(confirmed);
 			setView(confirmed.openView);
+			setGroupBySaved(groupByWasSaved(views, project));
 		});
 		saveChain.current = write.catch(() => {});
 	};
@@ -1289,7 +1304,7 @@ function Page() {
 	};
 	return (
 		<AppShell>
-			<main className={clsx(frame.page, frame.wide)}>
+			<main className={clsx(frame.page, frame.wide, frame.fill)}>
 				<div className={clsx(board.head)}>
 					<div className={clsx(board.identity)}>
 						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
@@ -1328,13 +1343,18 @@ function Page() {
 					<Dropdown
 						id="project-group"
 						label="Group by"
-						value={settings.groupBy}
+						value={
+							view === "graph"
+								? graphGroupBy(settings, groupBySaved)
+								: settings.groupBy
+						}
 						choices={groupByKeys.map((id) => ({
 							id,
 							label: `Group by ${groupByLabel[id]}`,
 						}))}
 						onChange={(id) => {
 							if (isGroupBy(id)) {
+								setGroupBySaved(true);
 								saveView({ ...settings, groupBy: id });
 							}
 						}}
@@ -1370,7 +1390,11 @@ function Page() {
 				<div
 					data-project={report.name}
 					data-open-view={view}
-					data-group-by={settings.groupBy}
+					data-group-by={
+						view === "graph"
+							? graphGroupBy(settings, groupBySaved)
+							: settings.groupBy
+					}
 				/>
 				<div className={clsx(board.stage)}>
 					{view === "board" ? (
@@ -1394,7 +1418,7 @@ function Page() {
 							report={report}
 							reports={outsideReports}
 							direction={settings.graphDirection}
-							groupBy={settings.groupBy}
+							groupBy={graphGroupBy(settings, groupBySaved)}
 							assignees={settings.assignees}
 							openKey={open ? ticket : null}
 							onOpen={(node) => {

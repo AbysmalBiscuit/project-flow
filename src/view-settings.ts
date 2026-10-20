@@ -18,7 +18,9 @@ export const defaultOpenView = "board" as const;
 
 export const defaultGraphDirection = "left-to-right" as const;
 
-export const defaultGroupBy = "workstream" as const;
+export const defaultGroupBy = "none" as const;
+
+export const defaultGraphGroupBy = "workstream" as const;
 
 export function projectViewKey(
 	views: Record<string, unknown>,
@@ -55,6 +57,24 @@ export function savedProjectView(
 		...(star === undefined ? {} : star),
 		...(saved === undefined ? {} : saved),
 	};
+}
+
+export function groupByWasSaved(
+	views: Record<string, unknown>,
+	name: string,
+): boolean {
+	const starKey = projectViewKey(views, "*");
+	const key = projectViewKey(views, name);
+	const chosen = key !== undefined && key !== starKey ? key : starKey;
+	if (chosen === undefined) {
+		return false;
+	}
+	const stored = views[chosen];
+	return (
+		stored !== null &&
+		typeof stored === "object" &&
+		Object.hasOwn(stored, "groupBy")
+	);
 }
 
 type LaneRef = { name: string; statusType: string };
