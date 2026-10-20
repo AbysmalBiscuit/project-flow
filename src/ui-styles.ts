@@ -1065,15 +1065,6 @@ export const project = stylex.create({
 		outlineColor: colours.accent,
 		outlineOffset: space.twoXs,
 	},
-	diagram: {
-		margin: `${space.lg} 0`,
-		padding: space.md,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.line,
-		borderRadius: radius.md,
-		backgroundColor: colours.surface,
-	},
 	nodes: {
 		margin: `${space.md} 0 0`,
 		padding: 0,
