@@ -75,9 +75,7 @@ const linearTeam = {
 
 const linearStates = teamStates.data.team.states.nodes;
 
-function recordedStatusOptions(
-	body: typeof projectFields,
-): { id: string; name: string; color: string }[] {
+function recordedStatusOptions(body: typeof projectFields) {
 	for (const field of body.data.node.fields.nodes) {
 		if (!("name" in field) || field.name !== "Status") {
 			continue;
