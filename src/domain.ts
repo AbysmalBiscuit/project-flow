@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { AutoMerge, Configuration } from "./configuration.ts";
 
 export type WorkcellRun = {
@@ -143,10 +144,18 @@ export type BotComment = {
 	reactions?: number;
 };
 
+export const reviewStateValue = z.enum([
+	"APPROVED",
+	"CHANGES_REQUESTED",
+	"COMMENTED",
+	"DISMISSED",
+	"PENDING",
+]);
+
 export type BotReview = {
 	login: string;
 	commitId: string;
-	state?: string;
+	state?: z.infer<typeof reviewStateValue>;
 };
 
 export type BotReaction = {

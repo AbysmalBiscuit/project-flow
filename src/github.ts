@@ -5,6 +5,7 @@ import type {
 	BotComment,
 	BotReaction,
 	BotReview,
+	reviewStateValue,
 	Comment,
 	PostedReply,
 	PullRequest,
@@ -1597,7 +1598,7 @@ function fetchReviews(
 		"list reviews",
 		loginRow.extend({
 			commit_id: z.string(),
-			state: z.string().optional(),
+			state: reviewStateValue.optional(),
 		}),
 		(review) =>
 			review.user === null
