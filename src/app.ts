@@ -31,8 +31,7 @@ import {
 	filterProjectReport,
 	githubRepoForTodo,
 	inboxEntries,
-	type KnownBot,
-	knownBots,
+	knownRepos,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	mergeTickets,
@@ -45,6 +44,8 @@ import {
 	projectSnapshots,
 	projectViewFor,
 	reconcilePoll,
+	type SettingsProject,
+	settingsProjects,
 	staleView,
 	startedTodoKeys,
 	todoRows,
@@ -287,6 +288,8 @@ function overview(
 	};
 }
 
+export type { SettingsProject };
+
 export type TicketSearchHit = {
 	project: string;
 	tracker: "github" | "linear";
@@ -348,187 +351,6 @@ function reportFor(
 	return filtered
 		? filterProjectReport(match.report, view, options.clock.now())
 		: match.report;
-}
-
-export type SettingsProject = {
-	name: string;
-	key: string;
-	tracker: "github" | "linear";
-	source: "found" | "pinned" | "hidden";
-	pinned: boolean;
-	hidden: boolean;
-	pmBot: boolean;
-	repos: string[];
-	expectedBots: KnownBot[];
-	ref: Configuration["pinned"][number];
-};
-
-function refForFound(
-	project: FoundProject,
-	pinned: Configuration["pinned"],
-): Configuration["pinned"][number] {
-	const pin = pinned.find((ref) => matchesRef(project, ref));
-	if (pin !== undefined) {
-		return pin;
-	}
-	if (project.tracker === "linear") {
-		return { tracker: "linear", project: project.key };
-	}
-	if (
-		project.owner !== undefined &&
-		project.number !== undefined &&
-		!project.key.includes("/")
-	) {
-		return {
-			tracker: "github",
-			owner: project.owner,
-			project: project.number,
-		};
-	}
-	return { tracker: "github", repo: project.key };
-}
-
-function displayName(project: FoundProject): string {
-	if (project.name !== undefined && project.name !== project.key) {
-		return project.name;
-	}
-	const slash = project.key.lastIndexOf("/");
-	return slash === -1 ? project.key : project.key.slice(slash + 1);
-}
-
-function botsFor(
-	repos: readonly string[],
-	expectedBots: Configuration["expectedBots"],
-	pulls: Parameters<typeof expectedBotsByRepo>[0],
-): KnownBot[] {
-	const overrides = expectedBots ?? {};
-	const overridden = repos.filter((repo) => Object.hasOwn(overrides, repo));
-	if (overridden.length > 0) {
-		const listed = overridden.flatMap((repo) => overrides[repo] ?? []);
-		return knownBots.filter((bot) => listed.includes(bot));
-	}
-	const inferred = expectedBotsByRepo(pulls, {});
-	const found = repos.flatMap((repo) => inferred.get(repo) ?? []);
-	return knownBots.filter((bot) => found.includes(bot));
-}
-
-function pullsFor<Pull extends { repo: string }>(
-	repos: readonly string[],
-	snapshots: { pulls: Pull[] }[],
-): Pull[] {
-	return snapshots.flatMap((item) =>
-		item.pulls.filter((pull) => repos.includes(pull.repo)),
-	);
-}
-
-function reposFor(
-	project: FoundProject,
-	snapshots: { key: string; pulls: { repo: string }[] }[],
-	expectedBots: Configuration["expectedBots"],
-): string[] {
-	const row = snapshots.find((item) => item.key === project.key);
-	if (row !== undefined && row.pulls.length > 0) {
-		return [...new Set(row.pulls.map((pull) => pull.repo).filter(Boolean))];
-	}
-	if (
-		project.tracker === "github" &&
-		project.owner === undefined &&
-		project.number === undefined &&
-		project.key.includes("/")
-	) {
-		return [project.key];
-	}
-	const saved = expectedBots ?? {};
-	const own = Object.keys(saved).filter(
-		(repo) => repo.toLowerCase() === project.key.toLowerCase(),
-	);
-	return own;
-}
-
-function settingsProjects(
-	configuration: Configuration,
-	catalogue: FoundProject[],
-	snapshots: Parameters<typeof settingsResponse>[3],
-): SettingsProject[] {
-	const rows: SettingsProject[] = catalogue.map((project) => {
-		const repos = reposFor(project, snapshots, configuration.expectedBots);
-		const pulls = pullsFor(repos, snapshots);
-		return {
-			name: displayName(project),
-			key: project.key,
-			tracker: project.tracker,
-			source: project.configuredOnly === true ? "pinned" : "found",
-			pinned: configuration.pinned.some((ref) => matchesRef(project, ref)),
-			hidden: configuration.hidden.some((ref) => matchesRef(project, ref)),
-			pmBot: projectHasPmBot(configuration.pmBot, project.key, project.tracker),
-			repos,
-			expectedBots: botsFor(repos, configuration.expectedBots, pulls),
-			ref: refForFound(project, configuration.pinned),
-		};
-	});
-	for (const pin of configuration.pinned) {
-		const located = catalogue.find((project) => matchesRef(project, pin));
-		if (located !== undefined && rows.some((row) => row.key === located.key)) {
-			continue;
-		}
-		const key = located?.key ?? refKey(pin);
-		const absent = {
-			...(located ?? { key, tracker: pin.tracker, updatedAt: null }),
-			key,
-			tracker: pin.tracker,
-		};
-		const repos = reposFor(absent, snapshots, configuration.expectedBots);
-		rows.push({
-			name: displayName(absent),
-			key,
-			tracker: pin.tracker,
-			source: "pinned",
-			pinned: true,
-			hidden: configuration.hidden.some((ref) => sameRef(ref, pin)),
-			pmBot: projectHasPmBot(configuration.pmBot, key, pin.tracker),
-			repos,
-			expectedBots: botsFor(
-				repos,
-				configuration.expectedBots,
-				pullsFor(repos, snapshots),
-			),
-			ref: pin,
-		});
-	}
-	for (const pin of configuration.hidden) {
-		if (
-			catalogue.some((project) => matchesRef(project, pin)) ||
-			configuration.pinned.some((ref) => sameRef(ref, pin))
-		) {
-			continue;
-		}
-		const located = catalogue.find((project) => matchesRef(project, pin));
-		const key = located?.key ?? refKey(pin);
-		const absent = {
-			...(located ?? { key, tracker: pin.tracker, updatedAt: null }),
-			key,
-			tracker: pin.tracker,
-		};
-		const repos = reposFor(absent, snapshots, configuration.expectedBots);
-		rows.push({
-			name: displayName(absent),
-			key,
-			tracker: pin.tracker,
-			source: "hidden",
-			pinned: false,
-			hidden: true,
-			pmBot: projectHasPmBot(configuration.pmBot, key, pin.tracker),
-			repos,
-			expectedBots: botsFor(
-				repos,
-				configuration.expectedBots,
-				pullsFor(repos, snapshots),
-			),
-			ref: pin,
-		});
-	}
-	rows.sort((left, right) => left.name.localeCompare(right.name));
-	return rows;
 }
 
 function settingsResponse(
@@ -615,29 +437,6 @@ function refList(value: unknown): Configuration["pinned"] | undefined {
 		refs.push(parsed.data);
 	}
 	return refs;
-}
-
-function knownRepos(
-	snapshots: {
-		key: string;
-		pulls: { repo: string }[];
-	}[],
-	catalogue: FoundProject[],
-): Set<string> {
-	const repos = new Set<string>();
-	for (const project of catalogue) {
-		for (const repo of reposFor(project, snapshots, undefined)) {
-			repos.add(repo);
-		}
-	}
-	for (const row of snapshots) {
-		for (const pull of row.pulls) {
-			if (pull.repo !== "") {
-				repos.add(pull.repo);
-			}
-		}
-	}
-	return repos;
 }
 
 function rejectUnknownBotKeys(
