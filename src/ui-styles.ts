@@ -713,7 +713,6 @@ export const board = stylex.create({
 	},
 });
 
-
 export const jump = stylex.create({
 	shade: {
 		position: "fixed",
@@ -787,7 +786,6 @@ export const jump = stylex.create({
 		cursor: "pointer",
 	},
 });
-
 
 export const panel = stylex.create({
 	panel: {
