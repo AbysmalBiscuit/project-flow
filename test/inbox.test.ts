@@ -433,6 +433,18 @@ async function inboxOf(base: string): Promise<InboxEntry[]> {
 	return (await response.json()) as InboxEntry[];
 }
 
+async function markRead(base: string, id?: string): Promise<Response> {
+	const path =
+		id === undefined
+			? "/api/inbox"
+			: `/api/inbox/${encodeURIComponent(id)}`;
+	return fetch(new URL(path, base), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ read: true }),
+	});
+}
+
 describe("inbox", () => {
 	test("a new needs-you item produces an event and an inbox entry", async () => {
 		const headline = "Which bot should review this?";
@@ -2543,14 +2555,7 @@ describe("inbox", () => {
 			if (marked === undefined || other === undefined) {
 				throw new Error("expected two inbox entries");
 			}
-			const response = await fetch(
-				new URL(`/api/inbox/${encodeURIComponent(marked.id)}`, base),
-				{
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ read: true }),
-				},
-			);
+			const response = await markRead(base, marked.id);
 			expect(response.status).toBe(204);
 			stopFirst();
 			await started;
@@ -2639,44 +2644,21 @@ describe("inbox", () => {
 			expect(entries).toHaveLength(1);
 			expect(entries[0]?.read).toBe(false);
 			expect(entries[0]?.key).toBe("PF-2");
-			const marked = await fetch(
-				new URL(`/api/inbox/${encodeURIComponent(entries[0]?.id ?? "")}`, base),
-				{
-					method: "POST",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ read: true }),
-				},
-			);
+			const marked = await markRead(base, entries[0]?.id ?? "");
 			expect(marked.status).toBe(204);
 			const markedId = entries[0]?.id ?? "";
 			const oneRead = await inboxOf(base);
 			expect(
 				oneRead.filter((entry) => entry.read).map((entry) => entry.id),
 			).toEqual([markedId]);
-			const blank = await fetch(new URL("/api/inbox/%20", base), {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ read: true }),
-			});
+			const blank = await markRead(base, " ");
 			expect(blank.status).toBe(400);
-			const missing = await fetch(new URL("/api/inbox/missing-entry", base), {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ read: true }),
-			});
+			const missing = await markRead(base, "missing-entry");
 			expect(missing.status).toBe(404);
-			const repeated = await fetch(new URL("/api/inbox", base), {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ read: true }),
-			});
+			const repeated = await markRead(base);
 			expect(repeated.status).toBe(204);
 			expect((await inboxOf(base)).every((entry) => entry.read)).toBe(true);
-			const again = await fetch(new URL("/api/inbox", base), {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ read: true }),
-			});
+			const again = await markRead(base);
 			expect(again.status).toBe(204);
 			stopFirst();
 			await started;
