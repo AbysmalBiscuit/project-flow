@@ -797,22 +797,32 @@ function pullFromUrl(url: string): { repo: string; number: number } | null {
 
 type ListedIssue = z.infer<typeof issueNode>;
 
-function issueFilter(
-	project: string,
-	since: Date | null,
-): { project: { id: { eq: string } }; updatedAt?: { gte: string } } {
-	const filter = { project: { id: { eq: project } } };
+type IssueListFilter = {
+	project: { id: { eq: string } };
+	updatedAt?: { gte: string };
+	comments?: { updatedAt: { gte: string } };
+};
+
+function issueFilter(project: string, since: Date | null): IssueListFilter {
+	const filter: IssueListFilter = { project: { id: { eq: project } } };
 	if (since === null) {
 		return filter;
 	}
 	return { ...filter, updatedAt: { gte: since.toISOString() } };
 }
 
+function editedCommentFilter(project: string, since: Date): IssueListFilter {
+	return {
+		project: { id: { eq: project } },
+		comments: { updatedAt: { gte: since.toISOString() } },
+	};
+}
+
 async function issuePages(
 	key: string,
 	fetchImpl: Fetch,
 	project: string,
-	since: Date | null,
+	filter: IssueListFilter,
 ): Promise<ListedIssue[]> {
 	const nodes: ListedIssue[] = [];
 	let after: string | null = null;
@@ -823,7 +833,7 @@ async function issuePages(
 			body: JSON.stringify({
 				query,
 				variables: {
-					filter: issueFilter(project, since),
+					filter,
 					after,
 				},
 			}),
@@ -846,6 +856,40 @@ async function issuePages(
 	return nodes;
 }
 
+async function listedIssues(
+	key: string,
+	fetchImpl: Fetch,
+	project: string,
+	since: Date | null,
+): Promise<ListedIssue[]> {
+	const updated = await issuePages(
+		key,
+		fetchImpl,
+		project,
+		issueFilter(project, since),
+	);
+	if (since === null) {
+		return updated;
+	}
+	const edited = await issuePages(
+		key,
+		fetchImpl,
+		project,
+		editedCommentFilter(project, since),
+	);
+	const seen = new Set(
+		updated.flatMap((node) =>
+			node.identifier === undefined ? [] : [node.identifier],
+		),
+	);
+	return [
+		...updated,
+		...edited.filter(
+			(node) => node.identifier !== undefined && !seen.has(node.identifier),
+		),
+	];
+}
+
 export function linearTracker(
 	key: string,
 	fetchImpl: Fetch,
@@ -860,7 +904,7 @@ export function linearTracker(
 		if (cached !== undefined) {
 			return cached;
 		}
-		const listed = issuePages(key, fetchImpl, project, since);
+		const listed = listedIssues(key, fetchImpl, project, since);
 		issuesByProject.set(cacheKey, listed);
 		void listed.catch(() => {
 			if (issuesByProject.get(cacheKey) === listed) {
