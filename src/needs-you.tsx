@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
+import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { openTicket } from "./selection.ts";
@@ -13,42 +14,12 @@ import {
 	reasonOrder,
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { frame, needs, shell } from "./ui-styles.ts";
+import { needs, shell } from "./ui-styles.ts";
 
 const allReasons = "all";
 const allProjects = "all";
 
 type ReasonFilter = NeedsYouItem["reason"] | typeof allReasons;
-
-function ChoiceSelect({
-	id,
-	label,
-	value,
-	choices,
-	onChange,
-}: {
-	id: string;
-	label: string;
-	value: string;
-	choices: readonly { id: string; label: string }[];
-	onChange: (id: string) => void;
-}) {
-	return (
-		<select
-			id={id}
-			className={clsx(frame.select)}
-			aria-label={label}
-			value={value}
-			onChange={(event) => onChange(event.currentTarget.value)}
-		>
-			{choices.map((choice) => (
-				<option key={choice.id} value={choice.id}>
-					{choice.label}
-				</option>
-			))}
-		</select>
-	);
-}
 
 function PressedButton({
 	id,
@@ -93,7 +64,7 @@ function NeedsTabs({
 		...reasonOrder.map((id) => ({ id, label: reasonLabel[id] })),
 	];
 	return (
-		<div className={clsx(needs.tabs)}>
+		<div className={clsx(needs.tabList)}>
 			{tabs.map((tab) => {
 				const count =
 					tab.id === allReasons
@@ -169,14 +140,9 @@ function NeedsGroups({
 	);
 }
 
-function projectFromLocation(): string {
-	const named = new URLSearchParams(window.location.search).get("project");
-	return named === null || named === "" ? allProjects : named;
-}
-
 function NeedsList({ items }: { items: NeedsYouItem[] }) {
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
-	const [project, setProject] = useState(projectFromLocation);
+	const [project, setProject] = useState(allProjects);
 	const [group, setGroup] = useState<NeedsGroup>("none");
 	const projects = [...new Set(items.map((item) => item.project))];
 	const selected =
@@ -190,10 +156,10 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 		(item) => reason === allReasons || item.reason === reason,
 	);
 	return (
-		<PageFrame
-			title={navLabel.needsYou}
-			filter={
-				<ChoiceSelect
+		<PageFrame title={navLabel.needsYou}>
+			<div className={clsx(needs.tabs)}>
+				<NeedsTabs items={inProject} reason={reason} onReason={setReason} />
+				<Dropdown
 					id="needs-project"
 					label="Project"
 					value={selected}
@@ -203,27 +169,23 @@ function NeedsList({ items }: { items: NeedsYouItem[] }) {
 					]}
 					onChange={setProject}
 				/>
-			}
-			sort={
-				<ChoiceSelect
+				<Dropdown
 					id="needs-group"
 					label="Group by"
-					value={needsGroupLabel[group]}
-					choices={Object.values(needsGroupLabel).map((label) => ({
-						id: label,
-						label,
+					value={`Group by ${needsGroupLabel[group]}`}
+					choices={(["none", "project", "reason"] as const).map((id) => ({
+						id: `Group by ${needsGroupLabel[id]}`,
+						label: `Group by ${needsGroupLabel[id]}`,
 					}))}
 					onChange={(label) => {
 						for (const id of ["project", "reason", "none"] as const) {
-							if (needsGroupLabel[id] === label) {
+							if (`Group by ${needsGroupLabel[id]}` === label) {
 								setGroup(id);
 							}
 						}
 					}}
 				/>
-			}
-		>
-			<NeedsTabs items={inProject} reason={reason} onReason={setReason} />
+			</div>
 			<p data-needs-shown={shown.length}>Showing {shown.length}</p>
 			<NeedsGroups
 				items={shown}

@@ -2,7 +2,10 @@
 	"base_url": "http://127.0.0.1:4182",
 	"serve": ["bun", "proof/serve-needs-you.ts", "4182"],
 	"steps": [
-		{ "goto": "/needs-you?project=acme%2Fgate" },
+		{ "goto": "/needs-you" },
+		{ "assert_text": "All 5" },
+		{ "click": "#needs-project" },
+		{ "click": "#needs-project-choice-3" },
 		{ "assert_text": "All 2" },
 		{ "assert_text": "Ask 1" },
 		{ "assert_text": "Awaiting merge 0" },

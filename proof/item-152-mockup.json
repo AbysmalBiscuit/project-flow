@@ -1,0 +1,14 @@
+{
+	"base_url": "http://127.0.0.1:4185",
+	"serve": ["bun", "proof/serve-needs-you.ts", "4185"],
+	"steps": [
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "All projects" },
+		{ "assert_text": "Group by None" },
+		{ "shot": "needs-light" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "Theme dark" },
+		{ "shot": "needs-dark" }
+	]
+}
