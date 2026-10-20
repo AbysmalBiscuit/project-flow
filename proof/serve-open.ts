@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import { run } from "../src/main.ts";
 import { recordedDiscovery, urlOf } from "../test/support.ts";
+import { emptyLinear, serveRecorded, unrecorded } from "./recorded.ts";
 
 const board = "acme/board";
 const gate = "acme/gate";
@@ -194,18 +194,7 @@ const recorded: Fetch = async (input, init) => {
 	) {
 		return Response.json([]);
 	}
-	if (url === "https://api.linear.app/graphql") {
-		return Response.json({
-			data: {
-				viewer: { id: "lev" },
-				projects: {
-					nodes: [],
-					pageInfo: { hasNextPage: false, endCursor: null },
-				},
-			},
-		});
-	}
-	return new Response(`not recorded ${url}`, { status: 404 });
+	return emptyLinear(url) ?? unrecorded(input);
 };
 
 const shared = process.env.THEME_PROOF_DIR;
@@ -229,28 +218,10 @@ if (!existsSync(configPath)) {
 	);
 }
 
-const port = process.env.PORT ?? "4174";
-const result = await run(
-	["--config", configPath, "--host", "127.0.0.1", "--port", port],
-	{
-		env: {
-			GITHUB_TOKEN: "recorded-token",
-			LINEAR_API_KEY: "recorded-linear-key",
-			XDG_DATA_HOME: dir,
-		},
-		fetch: recorded,
-		readGhToken: async () => null,
-		listTodos: async () => "",
-		listCheckouts: async () => [],
-		databasePath: join(dir, "project-flow.sqlite"),
-		now: () => new Date("2026-10-18T12:00:00.000Z"),
-		stdout: (line) => console.log(line),
-		stderr: (line) => console.error(line),
-		waitForStop: new Promise<void>((resolve) => {
-			const stop = () => resolve();
-			process.once("SIGINT", stop);
-			process.once("SIGTERM", stop);
-		}),
-	},
-);
-process.exit(result.exitCode);
+await serveRecorded({
+	prefix: "project-flow-proof-",
+	port: process.env.PORT ?? "4174",
+	dir,
+	configPath,
+	fetch: recorded,
+});

@@ -5,11 +5,13 @@ import type {
 	Comment,
 	Overview,
 	PostedReply,
+	ProjectCounts,
 	ProjectPoll,
 	ProjectReport,
 	ReplyRequest,
 	Snapshot,
 	Thread,
+	TicketView,
 } from "./domain.ts";
 import {
 	type Attention,
@@ -213,6 +215,51 @@ function overview(
 			goodPolls.length === 0 ? null : (goodPolls.sort()[0] ?? null),
 		),
 	};
+}
+
+export type TicketSearchHit = {
+	project: string;
+	tracker: "github" | "linear";
+	key: string;
+	title: string;
+	state: TicketView["state"];
+};
+
+function searchTickets(
+	views: {
+		counts: Pick<ProjectCounts, "name" | "tracker" | "tickets">;
+	}[],
+	query: string,
+): TicketSearchHit[] {
+	const needle = query.trim().toLowerCase();
+	if (needle === "") {
+		return [];
+	}
+	const hits: TicketSearchHit[] = [];
+	for (const view of views) {
+		for (const ticket of view.counts.tickets) {
+			if (ticket.key === null) {
+				continue;
+			}
+			const key = ticket.key.toLowerCase();
+			const title = ticket.title.toLowerCase();
+			if (!key.includes(needle) && !title.includes(needle)) {
+				continue;
+			}
+			hits.push({
+				project: view.counts.name,
+				tracker: view.counts.tracker,
+				key: ticket.key,
+				title: ticket.title,
+				state: ticket.state,
+			});
+		}
+	}
+	hits.sort((left, right) => {
+		const byProject = left.project.localeCompare(right.project);
+		return byProject !== 0 ? byProject : left.key.localeCompare(right.key);
+	});
+	return hits;
 }
 
 function reportFor(
@@ -1055,6 +1102,14 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/api/inbox": {
 				GET: () => Response.json(opened.store.readNotifications()),
+			},
+			"/api/search": {
+				GET: (request: Request) => {
+					const query = new URL(request.url).searchParams.get("q") ?? "";
+					return Response.json(
+						searchTickets(projectViews(pollOptions, configuration), query),
+					);
+				},
 			},
 			"/api/projects/:name": {
 				GET: (request) => {

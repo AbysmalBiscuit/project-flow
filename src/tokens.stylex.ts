@@ -175,3 +175,8 @@ export const measure = stylex.defineVars({
 	search: "12rem",
 	lane: "16rem",
 });
+
+export const stack = stylex.defineVars({
+	panel: 1,
+	jump: 2,
+});

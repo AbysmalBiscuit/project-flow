@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import type { OutsideBlocker, ProjectReport, TicketView } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
+import { closeTicket, openTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import { blockedLabel, navLabel, stateLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
@@ -451,6 +452,11 @@ function Page() {
 							setPanelTracker(report.tracker);
 							setTicket(key);
 							setOpen(true);
+							openTicket({
+								tracker: report.tracker,
+								project: report.name,
+								key,
+							});
 						}}
 						onOpenOutside={(blocker) => {
 							setPanelReport(null);
@@ -488,6 +494,7 @@ function Page() {
 					}}
 					onClose={() => {
 						clearTicketQuery();
+						closeTicket();
 						setOpen(false);
 					}}
 				/>

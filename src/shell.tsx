@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { onAppEvent } from "./events.ts";
+import { openJumpBox } from "./jump.tsx";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
@@ -142,6 +143,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 					))}
 				</nav>
 				<span className={clsx(frame.spacer)} />
+				<button
+					type="button"
+					id="header-search"
+					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+					aria-label="Search"
+					title="Search"
+					onClick={() => openJumpBox()}
+				>
+					Search
+				</button>
 				<button
 					type="button"
 					className={clsx(frame.icon, shell.buttonFocus)}

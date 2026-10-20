@@ -434,6 +434,14 @@ async function openStore(path: string): Promise<void> {
 	await mkdir(dirname(path), { recursive: true });
 }
 
+export function waitForStop(): Promise<void> {
+	return new Promise((resolve) => {
+		const stop = () => resolve();
+		process.once("SIGINT", stop);
+		process.once("SIGTERM", stop);
+	});
+}
+
 export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	const stdoutLines: string[] = [];
 	const stderrLines: string[] = [];
@@ -582,11 +590,7 @@ if (import.meta.main) {
 		readGhToken: readGhAuthToken,
 		stdout: (line) => console.log(line),
 		stderr: (line) => console.error(line),
-		waitForStop: new Promise<void>((resolve) => {
-			const stop = () => resolve();
-			process.once("SIGINT", stop);
-			process.once("SIGTERM", stop);
-		}),
+		waitForStop: waitForStop(),
 	});
 	process.exit(result.exitCode);
 }
