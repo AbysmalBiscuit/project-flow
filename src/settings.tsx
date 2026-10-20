@@ -251,7 +251,9 @@ function Menu({
 		});
 	}
 
-	const shown = new Set(view.shownLanes ?? laneStates.map((state) => state));
+	const shown = new Set(
+		view.shownLanes ?? laneStates.map((state) => stateLabel[state]),
+	);
 
 	return (
 		<PageFrame title={navLabel.settings} scroll>
