@@ -162,6 +162,13 @@ export const overviewControlLabel = {
 	projects: "projects",
 	tickets: "tickets",
 	unlinked: "unlinked PR",
+	zoomIn: "Zoom in",
+	zoomOut: "Zoom out",
+	fit: "Fit",
+	needsYouOne: "1 needs you",
+	needsYouMany: "need you",
+	edgeCaption:
+		"An arrow runs from a blocking project to the project it blocks. Its label is the blocking ticket; click it to open that ticket. Projects with a dark border need you.",
 } as const;
 
 export function actionLabel(
