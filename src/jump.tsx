@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { TicketSearchHit } from "./app.ts";
 import { TicketPanel } from "./panel.tsx";
@@ -30,7 +30,7 @@ export function JumpBox() {
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const openRef = useRef(false);
-	const closeSearch = () => {
+	const closeSearch = useCallback(() => {
 		setOpen(false);
 		openRef.current = false;
 		const target = returnFocus.current;
@@ -40,7 +40,7 @@ export function JumpBox() {
 				target.focus();
 			}
 		});
-	};
+	}, []);
 	useEffect(
 		() =>
 			onOpenJumpBox(() => {
@@ -86,7 +86,7 @@ export function JumpBox() {
 		};
 		window.addEventListener("keydown", onEscape);
 		return () => window.removeEventListener("keydown", onEscape);
-	}, [open]);
+	}, [open, closeSearch]);
 	useEffect(() => {
 		if (!open) {
 			return;
