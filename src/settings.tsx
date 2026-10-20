@@ -391,7 +391,7 @@ function Menu({
 							<span />
 						</Row>
 						{laneStates.map((state) => {
-							const on = shown.has(state);
+							const on = shown.has(stateLabel[state]);
 							const days =
 								view.maxAgeDays[stateLabel[state]] ??
 								(state === "done" ? 2 : 0);
@@ -404,7 +404,7 @@ function Menu({
 											label={stateLabel[state]}
 											onChange={(next) => {
 												const names = laneStates.flatMap((item) =>
-													(item === state ? next : shown.has(item))
+													(item === state ? next : shown.has(stateLabel[item]))
 														? [stateLabel[item]]
 														: [],
 												);
