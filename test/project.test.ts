@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { savedProjectView } from "../src/view-settings.ts";
 import {
 	emptyProjectFields,
 	linearFake,
@@ -1745,8 +1747,16 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as ProjectReport & { openView: string };
-				expect(report.openView).toBe("graph");
+				).json()) as ProjectReport;
+				expect(report).not.toHaveProperty("openView");
+				const opened = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				expect(
+					savedProjectView(opened.projectViews ?? {}, githubRepo).openView,
+				).toBe("graph");
 				const own = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -1763,8 +1773,16 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as ProjectReport & { openView: string };
-				expect(won.openView).toBe("table");
+				).json()) as ProjectReport;
+				expect(won).not.toHaveProperty("openView");
+				const ownSettings = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				expect(
+					savedProjectView(ownSettings.projectViews ?? {}, githubRepo).openView,
+				).toBe("table");
 				const spaced = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -1780,8 +1798,17 @@ describe("GET /api/projects/:name", () => {
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 					)
-				).json()) as ProjectReport & { openView: string };
-				expect(kept.openView).toBe("graph");
+				).json()) as ProjectReport;
+				expect(kept).not.toHaveProperty("openView");
+				const keptSettings = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				expect(
+					savedProjectView(keptSettings.projectViews ?? {}, githubRepo)
+						.openView,
+				).toBe("graph");
 			},
 		);
 	});
