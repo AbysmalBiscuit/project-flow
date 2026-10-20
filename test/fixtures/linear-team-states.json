@@ -1,0 +1,76 @@
+{
+	"data": {
+		"team": {
+			"id": "70c92498-34f8-4848-b895-fd49a3ff7675",
+			"key": "SWE",
+			"name": "Software",
+			"states": {
+				"nodes": [
+					{
+						"id": "9c27b174-b9bb-4ffd-b978-abdc292bad82",
+						"name": "Duplicate",
+						"type": "duplicate",
+						"position": 5,
+						"color": "#95a2b3"
+					},
+					{
+						"id": "558ba933-745c-42e2-8969-b3757c54bd5c",
+						"name": "In Review",
+						"type": "started",
+						"position": 2036.64,
+						"color": "#4cb782"
+					},
+					{
+						"id": "4e2e8f92-069d-4c7c-98c6-68cd2ddcd4a4",
+						"name": "Waiting To Progress",
+						"type": "started",
+						"position": 1046.11,
+						"color": "#f2994a"
+					},
+					{
+						"id": "396087cd-556c-4d94-9d7a-a2e289a9cc14",
+						"name": "Triage",
+						"type": "triage",
+						"position": 0,
+						"color": "#FC7840"
+					},
+					{
+						"id": "cce36b04-d482-4233-b1d8-33eda76ca025",
+						"name": "In Progress",
+						"type": "started",
+						"position": 0,
+						"color": "#f2c94c"
+					},
+					{
+						"id": "b7a25ac4-725d-4b68-a34b-534a428c5162",
+						"name": "Canceled",
+						"type": "canceled",
+						"position": 4,
+						"color": "#95a2b3"
+					},
+					{
+						"id": "710a74b9-7f91-4b5d-ad74-cc0b4f47de6b",
+						"name": "Done",
+						"type": "completed",
+						"position": 3,
+						"color": "#5e6ad2"
+					},
+					{
+						"id": "48b815cc-6b89-42b0-85c6-bcd9078325d2",
+						"name": "Backlog",
+						"type": "backlog",
+						"position": 0,
+						"color": "#bec2c8"
+					},
+					{
+						"id": "364b3510-9325-4af6-9df1-8f2ff56f7a3d",
+						"name": "Todo",
+						"type": "unstarted",
+						"position": 1,
+						"color": "#e2e2e2"
+					}
+				]
+			}
+		}
+	}
+}
