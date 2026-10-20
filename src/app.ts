@@ -1271,7 +1271,6 @@ export async function start(options: StartOptions): Promise<Running> {
 	let polling: Promise<void> | null = null;
 	let stopped = false;
 	let firstPollDone = false;
-	let pollGeneration = 0;
 	const pollAgain = (): Promise<void> => {
 		if (stopped) {
 			return Promise.resolve();
@@ -1279,7 +1278,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (polling !== null) {
 			return polling;
 		}
-		pollGeneration += 1;
 		polling = (async () => {
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
@@ -1441,11 +1439,8 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/refresh": {
 				POST: async () => {
 					releaseLists();
-					const seen = pollGeneration;
 					await (polling ?? Promise.resolve());
-					if (pollGeneration === seen) {
-						await pollAgain();
-					}
+					await pollAgain();
 					return new Response(null, { status: 204 });
 				},
 			},
