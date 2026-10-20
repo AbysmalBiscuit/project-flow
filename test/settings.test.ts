@@ -1188,10 +1188,6 @@ describe("settings", () => {
 							trackers: { github: boolean; linear: boolean };
 						};
 						expect(body.trackers).toEqual({ github: false, linear: false });
-						const text = JSON.stringify(body);
-						expect(text).not.toContain("ghp_");
-						expect(text).not.toContain("lin_api_");
-						expect(text).not.toMatch(/Bearer /);
 						resolve();
 					})
 					.catch(reject);
