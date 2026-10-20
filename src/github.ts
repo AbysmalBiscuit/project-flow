@@ -2572,6 +2572,105 @@ async function pageNestedReviews(
 	}
 }
 
+async function pageIssueRelations(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	issue: z.infer<typeof graphqlIssueNode>,
+): Promise<void> {
+	const parts = splitRepo(repo);
+	if (parts === null) {
+		return;
+	}
+	const pending = {
+		blockedBy: nextCursor(issue.blockedBy),
+		blocking: nextCursor(issue.blocking),
+		labels: nextCursor(issue.labels),
+	};
+	while (
+		pending.blockedBy !== null ||
+		pending.blocking !== null ||
+		pending.labels !== null
+	) {
+		const response = await fetchImpl("https://api.github.com/graphql", {
+			method: "POST",
+			headers: githubHeaders(token),
+			body: JSON.stringify({
+				query: `query IssueRelations($owner: String!, $name: String!, $number: Int!, $afterBlockedBy: String, $afterBlocking: String, $afterLabels: String) {
+					repository(owner: $owner, name: $name) {
+						issue(number: $number) {
+							blockedBy(first: 20, after: $afterBlockedBy) {
+								nodes { number title state repository { nameWithOwner } }
+								${connectionPage}
+							}
+							blocking(first: 20, after: $afterBlocking) {
+								nodes { number title state repository { nameWithOwner } }
+								${connectionPage}
+							}
+							labels(first: ${pageSize}, after: $afterLabels) {
+								nodes { name color }
+								${connectionPage}
+							}
+						}
+					}
+				}`,
+				variables: {
+					owner: parts.owner,
+					name: parts.name,
+					number: issue.number,
+					afterBlockedBy: pending.blockedBy,
+					afterBlocking: pending.blocking,
+					afterLabels: pending.labels,
+				},
+			}),
+		});
+		if (!response.ok) {
+			throw new Error(
+				`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
+			);
+		}
+		const parsed = z
+			.object({
+				data: z.object({
+					repository: z
+						.object({
+							issue: z
+								.object({
+									blockedBy: graphqlIssueNode.shape.blockedBy,
+									blocking: graphqlIssueNode.shape.blocking,
+									labels: graphqlIssueNode.shape.labels,
+								})
+								.nullable(),
+						})
+						.nullable(),
+				}),
+				errors: z.array(z.object({ message: z.string() })).optional(),
+			})
+			.safeParse(await response.json());
+		const next = parsed.success ? parsed.data.data.repository?.issue : null;
+		if (
+			!parsed.success ||
+			parsed.data.errors?.[0] !== undefined ||
+			next === null ||
+			next === undefined
+		) {
+			throw new Error(`GitHub read repo failed: ${repo}`);
+		}
+		if (pending.blockedBy !== null) {
+			issue.blockedBy?.nodes.push(...(next.blockedBy?.nodes ?? []));
+			pending.blockedBy = nextCursor(next.blockedBy);
+		}
+		if (pending.blocking !== null) {
+			issue.blocking?.nodes.push(...(next.blocking?.nodes ?? []));
+			pending.blocking = nextCursor(next.blocking);
+		}
+		if (pending.labels !== null) {
+			issue.labels?.nodes.push(...(next.labels?.nodes ?? []));
+			pending.labels = nextCursor(next.labels);
+		}
+	}
+}
+
 async function pageIssueComments(
 	token: string,
 	fetchImpl: Fetch,
@@ -2767,6 +2866,7 @@ async function readRepo(
 		issue === undefined ? [] : [issue],
 	);
 	for (const issue of issueNodes) {
+		await pageIssueRelations(token, fetchImpl, repo, issue);
 		await pageIssueComments(token, fetchImpl, repo, issue);
 	}
 	const pullPages = [

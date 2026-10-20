@@ -176,6 +176,26 @@ function membership(
 				}
 				return json(body);
 			}
+			if (operation === "IssueRelations") {
+				const answered = read(
+					String(request.variables.owner ?? ""),
+					String(request.variables.name ?? ""),
+					request,
+				);
+				return json(
+					answered ?? {
+						data: {
+							repository: {
+								issue: {
+									blockedBy: emptyPage,
+									blocking: emptyPage,
+									labels: emptyPage,
+								},
+							},
+						},
+					},
+				);
+			}
 			if (operation === "NestedReview" || operation === "IssueComments") {
 				const answered = read(
 					String(request.variables.owner ?? ""),
@@ -974,6 +994,155 @@ describe("batched GitHub reads", () => {
 					?.tickets.map((ticket) => ticket.key)
 					.sort(),
 			).toEqual(["acme/widget#101", "acme/widget#102", "acme/widget#200"]);
+			stop();
+			await running;
+		} finally {
+			stop();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a later issue blocker, blocking link and label reach the overview", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		const queries: GraphqlRequest[] = [];
+		let releaseReady: () => void = () => {};
+		const ready = new Promise<void>((resolve) => {
+			releaseReady = resolve;
+		});
+		let stop = () => {};
+		const stopped = new Promise<void>((resolve) => {
+			stop = resolve;
+		});
+		const read = (
+			owner: string,
+			name: string,
+			request: GraphqlRequest,
+		): RepoBody | null => {
+			const body = renamed(owner, name);
+			const issue = body.data.repository.issues.nodes[0];
+			if (issue === undefined) {
+				return body;
+			}
+			issue.state = "OPEN";
+			const connection = (
+				nodes: Record<string, unknown>[],
+				cursor: string | null,
+			) => ({
+				nodes,
+				pageInfo: {
+					hasNextPage: cursor !== null,
+					endCursor: cursor,
+				},
+			});
+			if (operationName(request.query) === "RepoRead") {
+				const labels = body.data.repository.labels;
+				if (request.variables.afterLabels == null) {
+					labels.nodes = [];
+					labels.pageInfo = { hasNextPage: true, endCursor: "label-2" };
+				} else {
+					labels.nodes = [
+						{ name: "ready", color: "0E8A16" },
+						{ name: "factory: running", color: "1D76DB" },
+						{ name: "factory: in-review", color: "FBCA04" },
+					];
+					labels.pageInfo = { hasNextPage: false, endCursor: null };
+				}
+			}
+			if (operationName(request.query) === "IssueRelations") {
+				return {
+					data: {
+						repository: {
+							nameWithOwner: `${owner}/${name}`,
+							issue: {
+								blockedBy: connection(
+									[
+										{
+											number: 40,
+											title: "Later blocker",
+											state: "OPEN",
+											repository: { nameWithOwner: `${owner}/${name}` },
+										},
+									],
+									null,
+								),
+								blocking: connection(
+									[
+										{
+											number: 41,
+											title: "Later blocked",
+											state: "OPEN",
+											repository: { nameWithOwner: "acme/other" },
+										},
+									],
+									null,
+								),
+								labels: connection(
+									[{ name: "later-label", color: "ededed" }],
+									null,
+								),
+							},
+						},
+					},
+				} as unknown as RepoBody;
+			}
+			issue.blockedBy = connection([], "blocked-2");
+			issue.blocking = connection([], "blocking-2");
+			issue.labels = connection([], "labels-2");
+			body.data.repository.issues.nodes = [issue];
+			body.data.repository.openPullRequests.nodes = [];
+			body.data.repository.mergedPullRequests.nodes = [];
+			return body;
+		};
+		try {
+			let base = "";
+			const running = run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: membership([], (owner, name, request) => {
+						if (request.query !== "") {
+							queries.push(request);
+						}
+						return read(owner, name, request);
+					}),
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => {
+						base = line;
+						releaseReady();
+					},
+					waitForStop: stopped,
+				}),
+			);
+			await ready;
+			const report = (await (
+				await fetch(new URL("/api/projects/acme%2Fwidget", base))
+			).json()) as {
+				lanes: { name: string }[];
+				tickets: {
+					key: string | null;
+					blockers: string[];
+					blocked?: boolean;
+					lane?: string;
+				}[];
+			};
+			const ticket = report.tickets.find(
+				(item) => item.key === "acme/widget#101",
+			);
+			expect(ticket?.blockers).toEqual(["acme/widget#40"]);
+			expect(ticket?.blocked).toBe(true);
+			expect(report.lanes.map((lane) => lane.name)).toContain(
+				"factory: running",
+			);
+			expect(report.tickets[0]?.lane).toBe("factory: running");
+			expect(
+				queries.some((request) => request.query.includes("IssueRelations")),
+			).toBe(true);
 			stop();
 			await running;
 		} finally {
