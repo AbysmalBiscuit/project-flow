@@ -485,8 +485,8 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		checkoutBasenames(checkouts),
 	);
 	options.runs = checkouts.flatMap((checkout) => checkout.runs ?? []);
-	options.repoAutoMerge = {};
 	options.workcellAuto = {};
+	const readRepos = new Set<string>();
 	for (const checkout of checkouts) {
 		const repo = checkout.repo;
 		if (repo !== undefined && checkout.mergeAuto !== undefined) {
@@ -668,9 +668,10 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					...(project.tracker === "github" ? [project.key] : []),
 				]);
 				for (const repo of repos) {
-					if (options.repoAutoMerge[repo] !== undefined) {
+					if (readRepos.has(repo)) {
 						continue;
 					}
+					readRepos.add(repo);
 					options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
 				}
 			}
