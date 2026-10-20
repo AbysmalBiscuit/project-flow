@@ -263,6 +263,7 @@ export const measure = stylex.defineVars({
 	diagram: "48rem",
 	swatch: "0.9rem",
 	hairline: "1px",
+	none: "0",
 	focus: "2px",
 	shell: "3.5rem",
 	menu: "2.25rem",
@@ -279,9 +280,11 @@ export const measure = stylex.defineVars({
 	panelTop: "4.5rem",
 	toggle: "2.25rem",
 	mark: "1.15rem",
+	sortMark: "0.7rem",
 	keyCol: "5.5rem",
 	needsPanel: "22.5rem",
 	needsRow: "3.125rem",
+	bar: "4.5rem",
 });
 
 export const stack = stylex.defineVars({
