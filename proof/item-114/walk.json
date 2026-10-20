@@ -23,6 +23,12 @@
 		{ "click": "[data-inbox]" },
 		{ "assert_text": "Open on Linear" },
 		{ "assert_text": "PF-1" },
+		{ "shot": "inbox-light" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "Theme dark" },
+		{ "shot": "inbox-dark" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "Theme light" },
 		{ "shot": "inbox-panel" }
 	]
 }
