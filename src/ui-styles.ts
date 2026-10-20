@@ -488,7 +488,6 @@ export const cards = stylex.create({
 		width: "100%",
 	},
 
-
 	arrows: {
 		position: "absolute",
 		top: 0,
