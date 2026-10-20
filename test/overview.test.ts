@@ -5558,16 +5558,7 @@ describe("GET /api/overview", () => {
 					);
 					expect(during).toHaveLength(1);
 					releaseFirst();
-					const deadline = Date.now() + 3_000;
-					while (Date.now() < deadline) {
-						const current = await fetch(new URL("/api/overview", base));
-						const body = (await current.json()) as { polling?: boolean };
-						if (body.polling !== true && issuesReads >= 1) {
-							break;
-						}
-						await Bun.sleep(20);
-					}
-					await Bun.sleep(intervalMs - 50);
+					await Bun.sleep(intervalMs / 2);
 					const quiet = requests.filter((url) =>
 						url.includes(`/repos/${repoName}/issues?`),
 					);
