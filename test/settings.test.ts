@@ -1753,7 +1753,7 @@ describe("settings", () => {
 				});
 				expect(byKey.get(pinnedOnly)).toMatchObject({
 					tracker: "github",
-					source: "tracked",
+					source: "configured",
 					tracked: true,
 					ref: { tracker: "github", repo: pinnedOnly },
 				});

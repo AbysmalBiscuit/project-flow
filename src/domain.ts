@@ -3750,7 +3750,7 @@ export type SettingsProject = {
 	name: string;
 	key: string;
 	tracker: "github" | "linear";
-	source: "found" | "tracked";
+	source: "found" | "configured";
 	tracked: boolean;
 	pmBot: boolean;
 	repos: string[];
@@ -3932,7 +3932,7 @@ export function settingsProjects(
 			project,
 			configuration,
 			snapshots,
-			project.configuredOnly === true ? "tracked" : "found",
+			project.configuredOnly === true ? "configured" : "found",
 			refForFound(project, configuration.tracked),
 		),
 	);
@@ -3944,7 +3944,7 @@ export function settingsProjects(
 		const key = located?.key ?? refKey(pin);
 		const absent = located ?? absentProject(key, pin.tracker);
 		rows.push({
-			...catalogueRow(absent, configuration, snapshots, "tracked", pin),
+			...catalogueRow(absent, configuration, snapshots, "configured", pin),
 			key,
 			tracker: pin.tracker,
 			tracked: true,
