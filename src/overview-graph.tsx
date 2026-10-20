@@ -329,7 +329,8 @@ export function OverviewGraph({
 				nodesDraggable={false}
 				nodesConnectable={false}
 				elementsSelectable={false}
-				panOnDrag={false}
+				panOnDrag
+				zoomOnScroll
 				fitView
 				proOptions={{ hideAttribution: true }}
 			>
