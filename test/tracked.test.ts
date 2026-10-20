@@ -475,7 +475,9 @@ describe("tracked projects", () => {
 			const written = JSON.parse(await readFile(path, "utf8")) as {
 				tracked?: unknown;
 			};
-			expect(written.tracked).toEqual([repo1]);
+			expect(written.tracked).toEqual([
+				{ tracker: "github", repo: "acme/repo-1" },
+			]);
 			const restarted = await startFromFile(path, root);
 			expect(restarted.settings.tracked).toEqual([repo1]);
 			expect(
