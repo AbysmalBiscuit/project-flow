@@ -1,0 +1,11 @@
+{
+	"body": "**Workcell progress**\n\n- stage 1: implementing the rejoin race fix. Session: https://code.herdr.dev/session/01a15a23-90d2-7973-898f-b8cf1929aebf\n- stage 1: resumed after the pause. The branch has a diagnostic commit only. A fresh implementer continues the rejoin race fix. Session: https://code.herdr.dev/session/01a15a23-90d2-7973-898f-b8cf1929aebf\n- stage 2: pre-PR gate. Implementer reported done at eb770d2. Session: https://code.herdr.dev/session/01a15a23-90d2-7973-898f-b8cf1929aebf\n",
+	"created_at": "2026-10-20T16:28:36Z",
+	"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/192#issuecomment-6295811107",
+	"id": 6295811107,
+	"issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/192",
+	"updated_at": "2026-10-20T17:45:41Z",
+	"user": {
+		"login": "AbysmalBiscuit"
+	}
+}

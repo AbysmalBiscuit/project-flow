@@ -126,9 +126,14 @@ export type RestCache = Map<string, RestEntry>;
 
 const issueList =
 	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?(.*)$/;
+const issueCommentList =
+	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/comments\?(.*)$/;
 
-function issueWindow(url: string): { repo: string; since: string } | null {
-	const match = issueList.exec(url);
+function listWindow(
+	url: string,
+	pattern: RegExp,
+): { repo: string; since: string } | null {
+	const match = pattern.exec(url);
 	if (match?.[1] === undefined || match[2] === undefined) {
 		return null;
 	}
@@ -139,10 +144,14 @@ function issueWindow(url: string): { repo: string; since: string } | null {
 	return { repo: match[1], since };
 }
 
-export function retainIssueWindow(cache: RestCache, repo: string): void {
+function retainWindow(
+	cache: RestCache,
+	repo: string,
+	read: (url: string) => { repo: string; since: string } | null,
+): void {
 	let current: string | undefined;
 	for (const key of cache.keys()) {
-		const window = issueWindow(key);
+		const window = read(key);
 		if (window?.repo !== repo) {
 			continue;
 		}
@@ -154,11 +163,16 @@ export function retainIssueWindow(cache: RestCache, repo: string): void {
 		return;
 	}
 	for (const key of cache.keys()) {
-		const window = issueWindow(key);
+		const window = read(key);
 		if (window?.repo === repo && window.since < current) {
 			cache.delete(key);
 		}
 	}
+}
+
+export function retainListWindows(cache: RestCache, repo: string): void {
+	retainWindow(cache, repo, (url) => listWindow(url, issueList));
+	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList));
 }
 
 function restUrl(input: string | URL | Request): string {
@@ -815,17 +829,28 @@ function githubState(state: string): "open" | "closed" | null {
 	return null;
 }
 
+function issueRefFromUrl(url: string): { repo: string; number: number } | null {
+	const match = url.match(
+		/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/,
+	);
+	const repo = match?.[1];
+	const raw = match?.[2];
+	if (repo === undefined || raw === undefined) {
+		return null;
+	}
+	return { repo, number: Number(raw) };
+}
+
 function parentKey(url: string | null | undefined): string | null {
 	if (url === null || url === undefined) {
 		return null;
 	}
-	const match = url.match(/\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)/);
-	const repo = match?.[1];
-	const number = match?.[2];
-	if (repo === undefined || number === undefined) {
+	const query = url.indexOf("?");
+	const ref = issueRefFromUrl(query === -1 ? url : url.slice(0, query));
+	if (ref === null) {
 		return null;
 	}
-	return `${repo}#${number}`;
+	return `${ref.repo}#${ref.number}`;
 }
 
 function githubReason(reason: string | null): string | null {
@@ -1792,72 +1817,82 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				repo,
 				"list tickets",
 			);
-			for (const item of listed) {
-				const page = githubIssuePage.parse(item);
-				for (const issue of page) {
-					if (issue.pull_request !== undefined) {
-						continue;
-					}
-					if (issue.state !== "open" && issue.state !== "closed") {
-						continue;
-					}
-					const closedAt = issue.closed_at?.trim() ?? "";
-					const createdAt = issue.created_at?.trim() ?? "";
-					const summary = issue.issue_dependencies_summary;
-					const blockedBy =
-						summary !== undefined && summary.total_blocked_by > 0
-							? await listDependencies(
-									token,
-									fetchImpl,
-									repo,
-									issue.number,
-									"blocked_by",
-								)
-							: [];
-					const blocking =
-						summary !== undefined && (summary.total_blocking ?? 0) > 0
-							? await listDependencies(
-									token,
-									fetchImpl,
-									repo,
-									issue.number,
-									"blocking",
-								)
-							: [];
-					const comments =
-						issue.state !== "open" ||
-						issue.comments === undefined ||
-						issue.comments === 0
-							? []
-							: await listCommentBodies(token, fetchImpl, repo, issue.number);
-					tickets.push({
-						id: String(issue.number),
-						tracker: "github",
-						key: `${repo}#${issue.number}`,
-						title: issue.title,
-						state: issue.state,
-						stateReason: issue.state_reason,
-						updatedAt: issue.updated_at,
-						ref: `${repo}#${issue.number}`,
-						body: issue.body ?? "",
-						blockedBy,
-						...(blocking.length === 0 ? {} : { blocks: blocking }),
-						...(comments.length === 0 ? {} : { comments }),
-						milestone: issue.milestone?.title ?? null,
-						parent: parentKey(issue.parent_issue_url),
-						labels: issue.labels?.map((label) => label.name) ?? [],
-						...(closedAt === "" ? {} : { closedAt }),
-						...(createdAt === "" ? {} : { createdAt }),
-						...(issue.assignee === undefined && issue.assignees === undefined
-							? {}
-							: {
-									assignee: issue.assignee?.login ?? null,
-									assignees: (issue.assignees ?? []).map(
-										(person) => person.login,
-									),
-								}),
-					});
+			const issues = listed.flatMap((item) => githubIssuePage.parse(item));
+			const seen = new Set(issues.map((issue) => issue.number));
+			if (since !== null) {
+				issues.push(
+					...(await issuesWithEditedComments(
+						token,
+						fetchImpl,
+						repo,
+						since,
+						seen,
+					)),
+				);
+			}
+			for (const issue of issues) {
+				if (issue.pull_request !== undefined) {
+					continue;
 				}
+				if (issue.state !== "open" && issue.state !== "closed") {
+					continue;
+				}
+				const closedAt = issue.closed_at?.trim() ?? "";
+				const createdAt = issue.created_at?.trim() ?? "";
+				const summary = issue.issue_dependencies_summary;
+				const blockedBy =
+					summary !== undefined && summary.total_blocked_by > 0
+						? await listDependencies(
+								token,
+								fetchImpl,
+								repo,
+								issue.number,
+								"blocked_by",
+							)
+						: [];
+				const blocking =
+					summary !== undefined && (summary.total_blocking ?? 0) > 0
+						? await listDependencies(
+								token,
+								fetchImpl,
+								repo,
+								issue.number,
+								"blocking",
+							)
+						: [];
+				const comments =
+					issue.state !== "open" ||
+					issue.comments === undefined ||
+					issue.comments === 0
+						? []
+						: await listCommentBodies(token, fetchImpl, repo, issue.number);
+				tickets.push({
+					id: String(issue.number),
+					tracker: "github",
+					key: `${repo}#${issue.number}`,
+					title: issue.title,
+					state: issue.state,
+					stateReason: issue.state_reason,
+					updatedAt: issue.updated_at,
+					ref: `${repo}#${issue.number}`,
+					body: issue.body ?? "",
+					blockedBy,
+					...(blocking.length === 0 ? {} : { blocks: blocking }),
+					...(comments.length === 0 ? {} : { comments }),
+					milestone: issue.milestone?.title ?? null,
+					parent: parentKey(issue.parent_issue_url),
+					labels: issue.labels?.map((label) => label.name) ?? [],
+					...(closedAt === "" ? {} : { closedAt }),
+					...(createdAt === "" ? {} : { createdAt }),
+					...(issue.assignee === undefined && issue.assignees === undefined
+						? {}
+						: {
+								assignee: issue.assignee?.login ?? null,
+								assignees: (issue.assignees ?? []).map(
+									(person) => person.login,
+								),
+							}),
+				});
 			}
 			const labels = await listRepoLabels(token, fetchImpl, repo);
 			const board = factoryBoard(labels);
@@ -2041,6 +2076,72 @@ function commentFromGithub(
 			? {}
 			: { reactions: comment.reactions.total_count }),
 	};
+}
+
+const editedIssueComment = z.object({
+	issue_url: z.string().optional(),
+});
+
+function issueNumberFromCommentUrl(
+	issueUrl: string,
+	repo: string,
+): number | null {
+	const ref = issueRefFromUrl(issueUrl);
+	if (ref === null || ref.repo.toLowerCase() !== repo.toLowerCase()) {
+		return null;
+	}
+	return ref.number;
+}
+
+// Reads each issue the issue list did not return when a comment was edited in the window.
+async function issuesWithEditedComments(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	since: Date,
+	seen: Set<number>,
+): Promise<z.infer<typeof githubIssue>[]> {
+	const listed = await pages(
+		`https://api.github.com/repos/${repo}/issues/comments?since=${encodeURIComponent(since.toISOString())}&sort=updated&per_page=100&page=1`,
+		token,
+		fetchImpl,
+		repo,
+		"list edited comments",
+	);
+	const numbers: number[] = [];
+	for (const item of listed) {
+		for (const comment of z.array(editedIssueComment).parse(item)) {
+			if (comment.issue_url === undefined) {
+				continue;
+			}
+			const number = issueNumberFromCommentUrl(comment.issue_url, repo);
+			if (number === null || seen.has(number) || numbers.includes(number)) {
+				continue;
+			}
+			numbers.push(number);
+		}
+	}
+	const issues: z.infer<typeof githubIssue>[] = [];
+	for (const number of numbers) {
+		const response = await fetchImpl(
+			`https://api.github.com/repos/${repo}/issues/${number}`,
+			{ headers: githubHeaders(token) },
+		);
+		if (response.status === 404) {
+			continue;
+		}
+		if (!response.ok) {
+			throw new Error(
+				`GitHub read edited issue failed (HTTP ${response.status}): ${repo}#${number}`,
+			);
+		}
+		const issue = githubIssue.parse(await response.json());
+		if (issue.pull_request !== undefined || issue.number !== number) {
+			continue;
+		}
+		issues.push(issue);
+	}
+	return issues;
 }
 
 async function listCommentBodies(
