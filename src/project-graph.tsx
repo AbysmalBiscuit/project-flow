@@ -11,17 +11,15 @@ import {
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
-	useReactFlow,
-	type Viewport,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { GraphDirection } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 import type { ProjectReport, TicketView } from "./domain.ts";
+import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	graphDirectionLabel,
 	navLabel,
-	overviewControlLabel,
 	projectGraphLabel,
 	stateLabel,
 } from "./terms.ts";
@@ -209,37 +207,6 @@ function localTickets(report: ProjectReport): GraphTicket[] {
 	});
 }
 
-function depthOf(
-	tickets: GraphTicket[],
-	incoming: Map<string, string[]>,
-): Map<string, number> {
-	const depth = new Map<string, number>();
-	const visit = (id: string, seen: Set<string>): number => {
-		const known = depth.get(id);
-		if (known !== undefined) {
-			return known;
-		}
-		if (seen.has(id)) {
-			return 0;
-		}
-		seen.add(id);
-		const sources = incoming.get(id) ?? [];
-		const next =
-			sources.length === 0
-				? 0
-				: Math.max(...sources.map((source) => visit(source, seen))) + 1;
-		depth.set(id, next);
-		return next;
-	};
-	for (const ticket of tickets) {
-		const key = ticket.ticket.key;
-		if (key !== null) {
-			visit(nodeId(ticket.project, key), new Set());
-		}
-	}
-	return depth;
-}
-
 function layoutTickets(
 	tickets: GraphTicket[],
 	edges: { from: string; to: string }[],
@@ -251,7 +218,14 @@ function layoutTickets(
 		sources.push(edge.from);
 		incoming.set(edge.to, sources);
 	}
-	const depth = depthOf(tickets, incoming);
+	const depth = columnDepth(
+		tickets.flatMap((ticket) =>
+			ticket.ticket.key === null
+				? []
+				: [nodeId(ticket.project, ticket.ticket.key)],
+		),
+		incoming,
+	);
 	const columns = new Map<number, string[]>();
 	const ordered = [...tickets].sort((left, right) =>
 		`${left.ticket.key ?? left.ticket.title}`.localeCompare(
@@ -362,95 +336,6 @@ function graphModel(
 	return { nodes, edges };
 }
 
-function readViewport(): Viewport | null {
-	const pane = document.querySelector("#project-graph .react-flow__viewport");
-	if (!(pane instanceof HTMLElement)) {
-		return null;
-	}
-	const transform = pane.style.transform;
-	const shift = /translate\(([^,]+)px,\s*([^)]+)px\)/.exec(transform);
-	const scale = /scale\(([^)]+)\)/.exec(transform)?.[1];
-	const x = shift?.[1];
-	const y = shift?.[2];
-	if (scale === undefined || x === undefined || y === undefined) {
-		return null;
-	}
-	return {
-		x: Math.round(Number(x)),
-		y: Math.round(Number(y)),
-		zoom: Math.round(Number(scale) * 1000) / 1000,
-	};
-}
-
-function GraphTools() {
-	const flow = useReactFlow();
-	const [viewport, setViewport] = useState<Viewport | null>(null);
-	useEffect(() => {
-		let stopped = false;
-		let frames = 0;
-		const tick = () => {
-			if (stopped) {
-				return;
-			}
-			frames += 1;
-			const next = readViewport();
-			if (next === null && frames < 40) {
-				requestAnimationFrame(tick);
-				return;
-			}
-			setViewport(next);
-		};
-		const frame = requestAnimationFrame(tick);
-		return () => {
-			stopped = true;
-			cancelAnimationFrame(frame);
-		};
-	}, []);
-	const show = () => {
-		setViewport(readViewport());
-	};
-	return (
-		<div className={clsx(cards.graphTools)}>
-			<button
-				type="button"
-				className={clsx(cards.graphTool)}
-				aria-label={overviewControlLabel.zoomOut}
-				onClick={() => {
-					void flow.zoomOut().then(show);
-				}}
-			>
-				−
-			</button>
-			<button
-				type="button"
-				id="project-graph-fit"
-				className={clsx(cards.graphTool)}
-				aria-label={overviewControlLabel.fit}
-				onClick={() => {
-					void flow.fitView().then(show);
-				}}
-			>
-				{overviewControlLabel.fit}
-			</button>
-			<button
-				type="button"
-				className={clsx(cards.graphTool)}
-				aria-label={overviewControlLabel.zoomIn}
-				onClick={() => {
-					void flow.zoomIn().then(show);
-				}}
-			>
-				+
-			</button>
-			<p id="project-graph-viewport" className={clsx(cards.graphProbe)}>
-				{viewport === null
-					? ""
-					: `zoom ${viewport.zoom} at ${viewport.x},${viewport.y}`}
-			</p>
-		</div>
-	);
-}
-
 const legendTones = [
 	{ label: projectGraphLabel.ready, tone: board.ticketReady },
 	{ label: stateLabel.inProgress, tone: board.ticketProgress },
@@ -521,7 +406,11 @@ export function ProjectGraph({
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
 					<Legend />
-					<GraphTools />
+					<GraphTools
+						probeId="project-graph-viewport"
+						fitId="project-graph-fit"
+						scope="#project-graph"
+					/>
 				</ReactFlow>
 			</ReactFlowProvider>
 		</div>

@@ -11,11 +11,11 @@ import {
 	MarkerType,
 	Position,
 	ReactFlow,
-	useReactFlow,
-	useViewport,
+	ReactFlowProvider,
 } from "@xyflow/react";
 import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
+import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { overviewControlLabel } from "./terms.ts";
@@ -55,28 +55,10 @@ function depths(
 			incoming.set(project.name, sources);
 		}
 	}
-	const depth = new Map<string, number>();
-	const visit = (name: string, seen: Set<string>): number => {
-		const known = depth.get(name);
-		if (known !== undefined) {
-			return known;
-		}
-		if (seen.has(name)) {
-			return 0;
-		}
-		seen.add(name);
-		const sources = incoming.get(name) ?? [];
-		const next =
-			sources.length === 0
-				? 0
-				: Math.max(...sources.map((source) => visit(source, seen))) + 1;
-		depth.set(name, next);
-		return next;
-	};
-	for (const project of projects) {
-		visit(project.name, new Set());
-	}
-	return depth;
+	return columnDepth(
+		projects.map((project) => project.name),
+		incoming,
+	);
 }
 
 function layout(
@@ -248,60 +230,6 @@ function edgeFor(
 	];
 }
 
-function viewportText(x: number, y: number, zoom: number): string {
-	const shownX = Math.round(x);
-	const shownY = Math.round(y);
-	const shownZoom = Math.round(zoom * 1000) / 1000;
-	return `zoom ${shownZoom} at ${shownX},${shownY}`;
-}
-
-function GraphProbe() {
-	const viewport = useViewport();
-	return (
-		<p id="graph-viewport" className={clsx(cards.graphProbe)}>
-			{viewportText(viewport.x, viewport.y, viewport.zoom)}
-		</p>
-	);
-}
-
-export function GraphZoom() {
-	const flow = useReactFlow();
-	return (
-		<>
-			<button
-				type="button"
-				className={clsx(cards.control)}
-				aria-label={overviewControlLabel.zoomOut}
-				onClick={() => {
-					void flow.zoomOut();
-				}}
-			>
-				−
-			</button>
-			<button
-				type="button"
-				className={clsx(cards.control)}
-				aria-label={overviewControlLabel.fit}
-				onClick={() => {
-					void flow.fitView();
-				}}
-			>
-				{overviewControlLabel.fit}
-			</button>
-			<button
-				type="button"
-				className={clsx(cards.control)}
-				aria-label={overviewControlLabel.zoomIn}
-				onClick={() => {
-					void flow.zoomIn();
-				}}
-			>
-				+
-			</button>
-		</>
-	);
-}
-
 export function OverviewGraph({
 	projects,
 	catalogue,
@@ -335,7 +263,7 @@ export function OverviewGraph({
 				proOptions={{ hideAttribution: true }}
 			>
 				<Background variant={BackgroundVariant.Dots} gap={18} />
-				<GraphProbe />
+				<GraphTools />
 			</ReactFlow>
 		</div>
 	);
