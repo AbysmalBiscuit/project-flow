@@ -89,6 +89,17 @@ function recordedStatusOptions(
 
 const githubStatusOptions = recordedStatusOptions(projectFields);
 
+function collapsedStatusName(name: string): string {
+	return name.trim().replace(/\s+/g, " ");
+}
+
+function recordedOptionId(name: string): string | undefined {
+	const collapsed = collapsedStatusName(name);
+	return githubStatusOptions.find(
+		(option) => collapsedStatusName(option.name) === collapsed,
+	)?.id;
+}
+
 function linearIssue(
 	identifier: string,
 	title: string,
@@ -183,9 +194,7 @@ function projectItem(
 				? null
 				: {
 						name: status.name,
-						optionId:
-							githubStatusOptions.find((option) => option.name === status.name)
-								?.id ?? `opt-${status.name}`,
+						optionId: recordedOptionId(status.name) ?? `opt-${status.name}`,
 						color: status.color,
 					},
 		content: {
