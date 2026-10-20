@@ -619,7 +619,47 @@ describe("forward state", () => {
 		);
 	});
 
-	test("a finished progress comment and a blank progress line do not invent a live run", async () => {
+	test("an answered ask after the final report keeps the ticket a live run", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			recordedLinear([
+				linearIssue("WID-17", "Answer the ask", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c1",
+								body: progress(
+									"- stage 5: round 1 of 2\n- final report sent\n- ask-1 answered: ship it",
+								),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+							{
+								id: "c2",
+								body: "Final report. 1 row left.\n\n<!-- workcell:report -->\n\n<!-- workcell:ask 17-1 -->",
+								createdAt: "2026-08-18T13:05:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+			]),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(ticketOf(report, "WID-17")).toMatchObject({
+					state: "inProgress",
+					lane: "In Progress",
+					staleStatus: "Todo",
+					chips: ["Todo"],
+					run: { status: "running", stage: "stage 5" },
+				});
+			},
+		);
+	});
+
+	test("a finished progress comment shows its last stage and a blank progress line invents no run", async () => {
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: linearSlug }],
@@ -654,10 +694,12 @@ describe("forward state", () => {
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-11")).toMatchObject({
-					state: "backlog",
-					lane: "Todo",
+					state: "inProgress",
+					lane: "In Progress",
+					staleStatus: "Todo",
+					chips: ["Todo"],
+					run: { status: "running", stage: "stage 5" },
 				});
-				expect(ticketOf(report, "WID-11").run).toBeUndefined();
 				expect(ticketOf(report, "WID-12")).toMatchObject({
 					state: "backlog",
 					lane: "Todo",
@@ -701,7 +743,7 @@ describe("forward state", () => {
 		);
 	});
 
-	test("a failed stage line on a progress comment is a failed run with its stage", async () => {
+	test("a stage line that says failed or stalled stays a live run with its stage", async () => {
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "linear", project: linearSlug }],
@@ -719,23 +761,87 @@ describe("forward state", () => {
 						pageInfo: { hasNextPage: false, endCursor: null },
 					},
 				}),
+				linearIssue("WID-15", "The run stalled", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c2",
+								body: progress("- stage 3: stalled on the review"),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
 			]),
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-13")).toMatchObject({
-					state: "backlog",
-					lane: "Todo",
-					chips: ["Run failed"],
-					run: { status: "failed", stage: "stage 2" },
+					state: "inProgress",
+					lane: "In Progress",
+					staleStatus: "Todo",
+					chips: ["Todo"],
+					run: { status: "running", stage: "stage 2" },
 				});
 				expect(
-					needsYouOf(report)
-						.filter((row) => row.key === "WID-13")
-						.map((row) => row.reason),
-				).toEqual(["runFailed"]);
+					needsYouOf(report).filter((row) => row.key === "WID-13"),
+				).toEqual([]);
+				expect(ticketOf(report, "WID-15")).toMatchObject({
+					state: "inProgress",
+					lane: "In Progress",
+					chips: ["Todo"],
+					run: { status: "running", stage: "stage 3" },
+				});
+				expect(
+					needsYouOf(report).filter((row) => row.key === "WID-15"),
+				).toEqual([]);
 			},
 		);
+	});
+
+	test("a local failed run and a progress comment show one merged run", async () => {
+		const checkout = await devkitWorktree({ key: "WID-16", status: "failed" });
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([
+					linearIssue("WID-16", "Retry the list", todoState, {
+						comments: {
+							nodes: [
+								{
+									id: "c1",
+									body: progress("- stage 4: opening the PR"),
+									createdAt: "2026-08-18T13:00:00.000Z",
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					}),
+				]),
+				{ LINEAR_API_KEY: "recorded-linear-key" },
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-16")).toMatchObject({
+						state: "backlog",
+						lane: "Todo",
+						statusType: "backlog",
+						chips: ["Run failed"],
+						run: { status: "failed", stage: "stage 4" },
+					});
+					expect(
+						needsYouOf(report)
+							.filter((row) => row.key === "WID-16")
+							.map((row) => row.reason),
+					).toEqual(["runFailed"]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
 	});
 
 	test("a local live run keeps the stage from the progress comment", async () => {
@@ -1450,6 +1556,56 @@ describe("forward state", () => {
 			async (base) => {
 				const report = await projectOf(base, githubRepo);
 				expect(needsYouOf(report).map((row) => row.key)).toEqual([]);
+			},
+		);
+	});
+
+	test("a blank stage, repeated spaces and a failed word outside a stage line invent no failed run", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			recordedLinear([
+				linearIssue("WID-19", "Blank stage", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c1",
+								body: progress("- stage    \n-   "),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+				linearIssue("WID-20", "Failed outside the stage", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c2",
+								body: progress(
+									"- the fetch failed\n- stage 2:   opening the PR",
+								),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+			]),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(ticketOf(report, "WID-19").run).toBeUndefined();
+				expect(
+					needsYouOf(report).filter((row) => row.key === "WID-19"),
+				).toEqual([]);
+				expect(ticketOf(report, "WID-20")).toMatchObject({
+					state: "inProgress",
+					lane: "In Progress",
+					chips: ["Todo"],
+					run: { status: "running", stage: "stage 2" },
+				});
 			},
 		);
 	});

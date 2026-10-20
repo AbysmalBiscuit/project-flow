@@ -6,6 +6,11 @@ export type WorkcellRun = {
 	repo?: string;
 };
 
+export type LiveRun = {
+	status: "running" | "failed";
+	stage: string;
+};
+
 export function todoRows(listing: string): { project: string }[] {
 	const projects: { project: string }[] = [];
 	const seen = new Set<string>();
@@ -102,7 +107,7 @@ export type TicketView = {
 	pull?: string;
 	needsYou?: boolean;
 	enteredStateAt?: string;
-	run?: { status: "running" | "failed"; stage: string };
+	run?: LiveRun;
 };
 
 export type CrossProjectBlocker = {
@@ -2170,8 +2175,6 @@ function commentsAfter(comments: Comment[], progress: Comment): Comment[] {
 	return comments.slice(progressAt + 1);
 }
 
-const failedLine = /\b(?:failed|stalled)\b/i;
-
 function progressComment(comments: Comment[]):
 	| {
 			progress: Comment;
@@ -2203,36 +2206,47 @@ function progressComment(comments: Comment[]):
 	};
 }
 
-function progressRun(comments: Comment[]):
-	| {
-			status: "running" | "failed";
-			stage: string;
-	  }
-	| undefined {
+function resumedAfterReport(
+	found: NonNullable<ReturnType<typeof progressComment>>,
+	countsStage: (line: string) => boolean = (line) => stageLine.test(line),
+): boolean {
+	const { lines, reportAt, report } = found;
+	if (reportAt < 0 && report === undefined) {
+		return false;
+	}
+	const reportAsk = report === undefined ? null : askId(report.body);
+	return lines
+		.slice(reportAt < 0 ? lines.length : reportAt + 1)
+		.some(
+			(line) =>
+				countsStage(line) ||
+				(reportAsk !== null && askAnsweredLine(line, reportAsk)),
+		);
+}
+
+function progressRun(comments: Comment[]): LiveRun | undefined {
 	const found = progressComment(comments);
 	if (found === undefined) {
 		return undefined;
 	}
 	const { lines, reportAt, report } = found;
-	const afterReport = lines.slice(reportAt < 0 ? lines.length : reportAt + 1);
-	const resumed = afterReport.some((line) => stageLine.test(line));
-	if ((reportAt >= 0 || report !== undefined) && !resumed) {
+	const resumed = resumedAfterReport(found);
+	if ((reportAt >= 0 || report !== undefined) && !resumed && reportAt < 0) {
 		return undefined;
 	}
+	const counted = resumed || reportAt < 0 ? lines : lines.slice(0, reportAt);
 	let stage: string | undefined;
-	let failed = false;
-	for (const line of lines) {
+	for (const line of counted) {
 		const stageMatch = line.match(stageLine);
 		if (stageMatch?.[1] === undefined) {
 			continue;
 		}
 		stage = `stage ${stageMatch[1]}`;
-		failed = failedLine.test(line);
 	}
 	if (stage === undefined) {
 		return undefined;
 	}
-	return { status: failed ? "failed" : "running", stage };
+	return { status: "running", stage };
 }
 
 function workcellRun(
@@ -2246,14 +2260,12 @@ function workcellRun(
 	const { progress, lines, later, reportAt, report } = found;
 	const reportAsk = report === undefined ? null : askId(report.body);
 	if (reportAt >= 0 || report !== undefined) {
-		const resumed = lines
-			.slice(reportAt < 0 ? lines.length : reportAt + 1)
-			.some(
-				(line) =>
-					(stageLine.test(line) && !namesAnotherPull(line, pull)) ||
-					(reportAsk !== null && askAnsweredLine(line, reportAsk)),
-			);
-		if (resumed) {
+		if (
+			resumedAfterReport(
+				found,
+				(line) => stageLine.test(line) && !namesAnotherPull(line, pull),
+			)
+		) {
 			return { state: "inReview", tags: [] };
 		}
 		const marker =
@@ -2402,7 +2414,7 @@ export type ShownTicket = {
 	runFailed: boolean;
 	enteredStateAt: string;
 	blocked: boolean;
-	run?: { status: "running" | "failed"; stage: string };
+	run?: LiveRun;
 };
 
 function enteredStateAt(ticket: Ticket, lane: Lane): string {
@@ -2514,9 +2526,9 @@ function shownTicket(
 	if (runFailed) {
 		chips.push("Run failed");
 	}
-	const liveRun =
-		fromComment !== undefined && ticket.state === "open" && (live || failed)
-			? fromComment
+	const shownRun =
+		run !== undefined && ticket.state === "open" && (live || failed)
+			? run
 			: undefined;
 	return {
 		state: shownLane.statusType,
@@ -2526,7 +2538,7 @@ function shownTicket(
 		runFailed,
 		enteredStateAt: enteredStateAt(ticket, shownLane),
 		blocked: ticket.state === "open" && ticket.blockedBy.length > 0,
-		...(liveRun === undefined ? {} : { run: liveRun }),
+		...(shownRun === undefined ? {} : { run: shownRun }),
 	};
 }
 
@@ -2616,10 +2628,7 @@ export function projectCounts(
 	const pullByKey = new Map<string, string>();
 	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
-	const runByKey = new Map<
-		string,
-		{ status: "running" | "failed"; stage: string }
-	>();
+	const runByKey = new Map<string, LiveRun>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
 	const linkedByTicket = new Map<string, PullRequest[]>();
@@ -3562,10 +3571,7 @@ export function projectReport(
 	relationsByKey: Map<string, ReturnType<typeof ticketRelations>> = new Map(),
 	pullByKey: Map<string, string> = new Map(),
 	needs: NeedsYouItem[] = [],
-	runByKey: Map<
-		string,
-		{ status: "running" | "failed"; stage: string }
-	> = new Map(),
+	runByKey: Map<string, LiveRun> = new Map(),
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
 	const maps = featureDiagrams(
