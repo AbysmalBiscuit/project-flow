@@ -21,7 +21,7 @@ export function projectViewKey(
 	);
 }
 
-function viewDefaults(): ProjectViewSettings {
+export function viewDefaults(): ProjectViewSettings {
 	return {
 		maxAgeDays: {},
 		needsYouOnly: false,
