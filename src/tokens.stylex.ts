@@ -230,6 +230,8 @@ export const type = stylex.defineVars({
 	card: "0.92rem",
 	meta: "0.78rem",
 	count: "0.88rem",
+	kicker: "0.68rem",
+	nav: "0.875rem",
 });
 
 export const scheme = stylex.defineVars({
@@ -270,6 +272,10 @@ export const measure = stylex.defineVars({
 	searchBox: "16rem",
 	reply: "5.5rem",
 	panelTop: "4.5rem",
+	toggle: "2rem",
+	mark: "1.15rem",
+	keyCol: "5.5rem",
+	needsPanel: "22rem",
 });
 
 export const stack = stylex.defineVars({

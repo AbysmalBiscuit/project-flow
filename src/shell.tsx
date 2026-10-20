@@ -14,7 +14,7 @@ export type PageView = {
 
 export type PageHeaderProps = {
 	title: string;
-	subtitle?: ReactNode;
+	subtitle?: string;
 	filter?: ReactNode;
 	sort?: ReactNode;
 	search?: ReactNode;
@@ -37,6 +37,15 @@ function Glyph({ children }: { children: ReactNode }) {
 		>
 			{children}
 		</svg>
+	);
+}
+
+function SearchIcon() {
+	return (
+		<Glyph>
+			<circle cx="11" cy="11" r="6.5" />
+			<path d="M16 16l4 4" />
+		</Glyph>
 	);
 }
 
@@ -180,7 +189,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					title="Search tickets"
 					onClick={() => openJumpBox()}
 				>
-					<span aria-hidden="true">⌕</span>
+					<SearchIcon />
 					Search tickets
 				</button>
 				<button
@@ -201,13 +210,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}
-					<span className={clsx(frame.legend)}>
-						{navLabel.theme} {theme}
-					</span>
 				</button>
-				<a className={clsx(frame.legend)} href="/settings">
-					{navLabel.settings}
-				</a>
 			</header>
 			{children}
 		</div>
@@ -230,8 +233,8 @@ export function PageHeader({
 		search !== undefined ||
 		(views !== undefined && views.length > 0);
 	return (
-		<div className={clsx(frame.head)}>
-			<div>
+		<div className={clsx(frame.row)}>
+			<div className={clsx(frame.heading)}>
 				<h1 className={clsx(frame.title)}>{title}</h1>
 				{subtitle === undefined ? null : (
 					<p className={clsx(frame.subtitle)}>{subtitle}</p>

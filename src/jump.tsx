@@ -80,8 +80,11 @@ export function JumpBox() {
 		<>
 			{open ? (
 				<div className={clsx(jump.shade)}>
-					<div className={clsx(jump.box)} role="dialog" aria-label="Jump box">
-						<h2 className={clsx(jump.title)}>Jump box</h2>
+					<div
+						className={clsx(jump.box)}
+						role="dialog"
+						aria-label="Search tickets"
+					>
 						<input
 							className={clsx(jump.query)}
 							id="jump-query"
