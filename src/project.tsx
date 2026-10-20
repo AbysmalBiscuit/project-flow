@@ -114,6 +114,31 @@ function needsYouItem(
 	);
 }
 
+function panelItem(
+	report: ProjectReport | null,
+	tracker: "github" | "linear",
+	project: string,
+	key: string,
+	active: {
+		tracker: "github" | "linear";
+		project: string;
+		key: string;
+		item?: NeedsYouItem;
+	} | null,
+): NeedsYouItem | null {
+	if (report?.tracker === tracker && report.name === project) {
+		return needsYouItem(report, tracker, project, key);
+	}
+	if (
+		active?.tracker === tracker &&
+		active.project === project &&
+		sameTicketKey(active.key, key)
+	) {
+		return active.item ?? null;
+	}
+	return null;
+}
+
 function panelBlockers(
 	ticket: TicketView | undefined,
 	source: ProjectReport | null,
@@ -1310,15 +1335,13 @@ function Page() {
 							}
 							blockers={incoming}
 							blocks={outgoing}
-							item={
-								needsYouItem(source, panelTracker, panelProject, ticket) ??
-								(active !== null &&
-								active.tracker === panelTracker &&
-								active.project === panelProject &&
-								sameTicketKey(active.key, ticket)
-									? (active.item ?? null)
-									: null)
-							}
+							item={panelItem(
+								source,
+								panelTracker,
+								panelProject,
+								ticket,
+								active,
+							)}
 							onOpenBlocker={(blocker) => {
 								setPanelReport(null);
 								setPanelProject(blocker.project);
