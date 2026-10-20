@@ -10,6 +10,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -80,7 +81,7 @@ function githubFetch(
 			const number = Number(oneIssue[2]);
 			const found = options.issues.find((item) => item.number === number);
 			if (found === undefined) {
-				return new Response("not recorded", { status: 404 });
+				return unrecorded(input);
 			}
 			return json({
 				...found,
@@ -104,7 +105,7 @@ function githubFetch(
 		if (comments !== null && method === "POST") {
 			const number = Number(comments[1]);
 			if (options.issues.every((item) => item.number !== number)) {
-				return new Response("not recorded", { status: 404 });
+				return unrecorded(input);
 			}
 			if (options.failReply === true) {
 				return new Response("recorded failure", { status: 422 });
@@ -165,7 +166,7 @@ function githubFetch(
 				return answered;
 			}
 		}
-		if (url.includes("/pulls?")) {
+		if (url.includes("/pulls?") || url.includes("/labels?")) {
 			return json([]);
 		}
 		if (url.includes("/branches?")) {
@@ -174,7 +175,7 @@ function githubFetch(
 		if (url === "https://api.linear.app/graphql") {
 			return json({ data: { viewer: { id: "lev" } } });
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -1060,7 +1061,7 @@ describe("replies", () => {
 						).variables?.after ?? null;
 					const page = pages.get(after);
 					if (page === undefined) {
-						return new Response("not recorded", { status: 404 });
+						return unrecorded(input);
 					}
 					return new Response(
 						JSON.stringify({

@@ -6,10 +6,12 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import issue51Comments from "./fixtures/issue-51-comments.json";
 import {
+	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -54,8 +56,11 @@ function card(
 			title: string;
 			state: string;
 			blockers: [];
+			lane: string;
+			statusType: string;
 		}[];
 		crossProjectBlockers: [];
+		statusTypes: Record<string, number>;
 	}[];
 	fetchedAt: string;
 	error: null;
@@ -81,9 +86,19 @@ function card(
 						title,
 						state,
 						blockers: [],
+						lane: "Backlog",
+						statusType: "backlog",
 					},
 				],
 				crossProjectBlockers: [],
+				statusTypes: {
+					backlog: 1,
+					inProgress: 0,
+					inReview: 0,
+					awaitingMerge: 0,
+					done: 0,
+					dropped: 0,
+				},
 			},
 		],
 		fetchedAt: "2026-10-18T12:00:00.000Z",
@@ -211,6 +226,12 @@ function projectBoard(
 					},
 				},
 			});
+		}
+		if (
+			url === "https://api.github.com/graphql" &&
+			sent.includes("ProjectFields")
+		) {
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		}
 		if (url === "https://api.github.com/graphql" && sent.includes("node(id:")) {
 			const variables = JSON.parse(sent) as {
@@ -343,11 +364,12 @@ function projectBoard(
 			url.includes("/comments") ||
 			url.includes("/reviews") ||
 			url.includes("/reactions") ||
-			url.includes("/branches")
+			url.includes("/branches") ||
+			url.includes("/labels?")
 		) {
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return emptyProjectFields(input, init) ?? unrecorded(input);
 	};
 }
 
@@ -421,7 +443,7 @@ function githubFetch(recorded: {
 		if (commitMatch?.[1] !== undefined) {
 			const commit = recorded.commitsBySha?.[commitMatch[1]];
 			if (commit === undefined) {
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			return page(commit);
 		}
@@ -462,7 +484,10 @@ function githubFetch(recorded: {
 				},
 			});
 		}
-		return new Response("not recorded", { status: 404 });
+		if (url.includes("/labels?")) {
+			return page([]);
+		}
+		return emptyProjectFields(input, init) ?? unrecorded(input);
 	};
 }
 
@@ -1286,10 +1311,13 @@ describe("review cycle", () => {
 							if (url === "https://api.github.com/repos/acme/widget/pulls/99") {
 								return page(pull(99, 8, head, true));
 							}
-							if (url.includes("/pulls?state=closed")) {
+							if (
+								url.includes("/pulls?state=closed") ||
+								url.includes("/labels?")
+							) {
 								return page([]);
 							}
-							return new Response("not recorded", { status: 404 });
+							return emptyProjectFields(input, init) ?? unrecorded(input);
 						},
 					}),
 					readGhToken: async () => null,
@@ -1588,11 +1616,12 @@ describe("review cycle", () => {
 				if (
 					url.includes("/comments?") ||
 					url.includes("/reviews?") ||
-					url.includes("/reactions?")
+					url.includes("/reactions?") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		try {
@@ -1700,11 +1729,12 @@ describe("review cycle", () => {
 				if (
 					url.includes("/comments?") ||
 					url.includes("/reviews?") ||
-					url.includes("/reactions?")
+					url.includes("/reactions?") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		try {
@@ -1742,6 +1772,14 @@ describe("review cycle", () => {
 						progress: 0,
 						fetchedAt: "2026-10-18T12:00:00.000Z",
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 						tags: [],
 						unlinkedPrs: [],
 						tickets: [
@@ -1750,6 +1788,8 @@ describe("review cycle", () => {
 								title: "Linear ticket 8",
 								state: "awaitingMerge",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						crossProjectBlockers: [],
@@ -3228,11 +3268,12 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		const fetchImpl: Fetch = async (input, init) => {
@@ -3391,11 +3432,12 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		const commentCursors: string[] = [];
@@ -3574,11 +3616,12 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		const commentQueries: string[] = [];
@@ -3794,11 +3837,12 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		let startChecks: (base: string) => void = () => {};
@@ -3907,11 +3951,12 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		const fetchImpl: Fetch = async (input, init) => {
@@ -4244,7 +4289,8 @@ describe("review cycle", () => {
 			const sent = typeof init?.body === "string" ? init.body : "";
 			if (
 				urlOf(input) === "https://api.github.com/graphql" &&
-				sent.includes("node(id:")
+				sent.includes("node(id:") &&
+				!sent.includes("ProjectFields")
 			) {
 				projectReads += 1;
 				if (rejectNext) {
@@ -4652,11 +4698,12 @@ describe("review cycle", () => {
 					url.includes("/comments") ||
 					url.includes("/reviews") ||
 					url.includes("/reactions") ||
-					url.includes("/branches")
+					url.includes("/branches") ||
+					url.includes("/labels?")
 				) {
 					return page([]);
 				}
-				return new Response("not recorded", { status: 404 });
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			},
 		});
 		const commentQueries: string[] = [];

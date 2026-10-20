@@ -7,7 +7,7 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import { navLabel, stateLabel, viewLabel } from "./terms.ts";
+import { blockedLabel, navLabel, stateLabel, viewLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
 import { classToken, clsx } from "./ui.ts";
 import { cards, shell } from "./ui-styles.ts";
@@ -158,7 +158,7 @@ function CardsList({ overview }: { overview: Overview }) {
 						</span>
 						<span className={clsx(cards.count)}>
 							<span className={clsx(cards.swatch, cards.blocked)} />
-							{stateLabel.blocked} {project.blocked}
+							{blockedLabel} {project.blocked}
 						</span>
 						<span className={clsx(cards.count)}>
 							<span className={clsx(cards.swatch, cards.backlog)} />

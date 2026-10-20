@@ -40,6 +40,19 @@ const configurationSchema = z.strictObject({
 	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
 	expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
 	pmBot: z.record(z.string(), z.boolean()).default({}),
+	laneMappings: z
+		.record(
+			z.string(),
+			z.strictObject({
+				backlog: z.string().optional(),
+				inProgress: z.string().optional(),
+				inReview: z.string().optional(),
+				awaitingMerge: z.string().optional(),
+				done: z.string().optional(),
+				dropped: z.string().optional(),
+			}),
+		)
+		.default({}),
 	needsYouLabels: z
 		.array(z.string())
 		.default(["needs-human", "needs-engineer"]),

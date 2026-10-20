@@ -4,7 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	emptyProjectFields,
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	unrecorded,
+	urlOf,
+} from "./support.ts";
 
 const named = "lev/local-only";
 const strangerOrigin = "stranger/local-only";
@@ -55,7 +62,11 @@ function localFetch(requests: string[]): Fetch {
 			}
 			return page([]);
 		}
-		if (url.includes("/pulls?") || url.includes("/branches?")) {
+		if (
+			url.includes("/pulls?") ||
+			url.includes("/branches?") ||
+			url.includes("/labels?")
+		) {
 			return page([]);
 		}
 		if (url === "https://api.github.com/graphql") {
@@ -146,7 +157,7 @@ function localFetch(requests: string[]): Fetch {
 				{ status: 200, headers: { "content-type": "application/json" } },
 			);
 		}
-		return new Response("not recorded", { status: 404 });
+		return emptyProjectFields(input, init) ?? unrecorded(input);
 	};
 }
 
@@ -225,12 +236,22 @@ const card = {
 	unlinkedPrs: [],
 	fetchedAt: "2026-10-18T12:00:00.000Z",
 	error: null,
+	statusTypes: {
+		backlog: 1,
+		inProgress: 0,
+		inReview: 0,
+		awaitingMerge: 0,
+		done: 0,
+		dropped: 0,
+	},
 	tickets: [
 		{
 			key: `${named}#9`,
 			title: "Ticket 9",
 			state: "backlog",
 			blockers: [],
+			lane: "Backlog",
+			statusType: "backlog",
 		},
 	],
 	crossProjectBlockers: [],
@@ -291,6 +312,8 @@ describe("local projects", () => {
 					title: "Ticket 9",
 					state: "backlog",
 					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
 				},
 			],
 		};
@@ -411,6 +434,8 @@ describe("local projects", () => {
 							title: "Write the docs",
 							state: "backlog",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					],
 					crossProjectBlockers: [],
@@ -418,6 +443,14 @@ describe("local projects", () => {
 					progress: 0,
 					fetchedAt: "2026-10-18T12:00:00.000Z",
 					error: null,
+					statusTypes: {
+						backlog: 1,
+						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						done: 0,
+						dropped: 0,
+					},
 				},
 			],
 			fetchedAt: "2026-10-18T12:00:00.000Z",
@@ -527,6 +560,8 @@ describe("local projects", () => {
 							title: "Write the docs",
 							state: "backlog",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					],
 					crossProjectBlockers: [],
@@ -534,6 +569,14 @@ describe("local projects", () => {
 					progress: 0,
 					fetchedAt: "2026-10-18T12:00:00.000Z",
 					error: null,
+					statusTypes: {
+						backlog: 1,
+						inProgress: 0,
+						inReview: 0,
+						awaitingMerge: 0,
+						done: 0,
+						dropped: 0,
+					},
 				},
 			],
 			fetchedAt: "2026-10-18T12:00:00.000Z",
@@ -654,6 +697,8 @@ describe("local projects", () => {
 								title: "Write the docs",
 								state: "backlog",
 								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
 							},
 						],
 						crossProjectBlockers: [],
@@ -661,6 +706,14 @@ describe("local projects", () => {
 						progress: 0,
 						fetchedAt: "2026-10-18T12:00:00.000Z",
 						error: null,
+						statusTypes: {
+							backlog: 1,
+							inProgress: 0,
+							inReview: 0,
+							awaitingMerge: 0,
+							done: 0,
+							dropped: 0,
+						},
 					},
 				],
 				fetchedAt: "2026-10-18T12:00:00.000Z",
@@ -761,6 +814,12 @@ describe("local projects", () => {
 			if (url === "https://api.github.com/user") {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
 			if (url === "https://api.github.com/graphql" && body.includes("node(")) {
 				return new Response(
 					JSON.stringify({
@@ -788,7 +847,7 @@ describe("local projects", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		let base = "";
 		let onListen: (line: string) => void = () => {};
@@ -829,6 +888,8 @@ describe("local projects", () => {
 										title: "Ship the board",
 										state: "backlog",
 										blockers: [],
+										lane: "Backlog",
+										statusType: "backlog",
 									},
 								],
 								crossProjectBlockers: [],
@@ -836,6 +897,14 @@ describe("local projects", () => {
 								progress: 0,
 								fetchedAt: "2026-10-18T12:00:00.000Z",
 								error: null,
+								statusTypes: {
+									backlog: 1,
+									inProgress: 0,
+									inReview: 0,
+									awaitingMerge: 0,
+									done: 0,
+									dropped: 0,
+								},
 							},
 						],
 						fetchedAt: "2026-10-18T12:00:00.000Z",

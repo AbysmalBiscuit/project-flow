@@ -3,12 +3,13 @@ import type { NotificationTrigger, TicketState } from "./domain.ts";
 export const stateLabel: Record<TicketState, string> = {
 	done: "Done",
 	dropped: "Dropped",
-	blocked: "Blocked",
 	backlog: "Backlog",
 	inProgress: "In progress",
 	inReview: "In review",
 	awaitingMerge: "Awaiting merge",
 };
+
+export const blockedLabel = "Blocked";
 
 export const navLabel = {
 	projects: "Projects",

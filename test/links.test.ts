@@ -9,6 +9,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -112,7 +113,11 @@ function githubFetch(
 		if (url.includes("/reactions")) {
 			return page([]);
 		}
-		if (url.includes("/comments") || url.includes("/reviews")) {
+		if (
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/labels?")
+		) {
 			return page([]);
 		}
 		const pullMatch = url.match(/\/pulls\/(\d+)$/);
@@ -144,7 +149,7 @@ function githubFetch(
 				{ status: 200, headers: { "content-type": "application/json" } },
 			);
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -259,11 +264,12 @@ function linearFetch(): Fetch {
 			if (
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
-				url.includes("/reactions")
+				url.includes("/reactions") ||
+				url.includes("/labels?")
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		},
 	});
 }

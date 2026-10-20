@@ -13,7 +13,13 @@ import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import type { LocalCheckout } from "../src/ports.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	unrecorded,
+	urlOf,
+} from "./support.ts";
 
 const shown = "acme/shown";
 const quiet = "acme/quiet";
@@ -102,6 +108,7 @@ function recorded(
 	if (
 		url.includes("/pulls?") ||
 		url.includes("/branches?") ||
+		url.includes("/labels?") ||
 		url.includes("/comments") ||
 		url.includes("/reviews") ||
 		url.includes("/reactions") ||
@@ -165,7 +172,7 @@ function recorded(
 			{ status: 200, headers: { "content-type": "application/json" } },
 		);
 	}
-	return new Response("not recorded", { status: 404 });
+	return unrecorded(input);
 }
 
 function fetching(requests: string[]): Fetch {
