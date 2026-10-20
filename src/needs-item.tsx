@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { NeedsYouItem } from "./domain.ts";
-import { actionLabel, reasonLabel } from "./terms.ts";
+import { actionLabel, answeredReason, reasonLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { needs } from "./ui-styles.ts";
 
@@ -134,7 +134,9 @@ export function NeedsItem({
 				{item.answered ? (
 					<span className={clsx(needs.tag)}>Answered</span>
 				) : null}
-				<span className={clsx(needs.reason)}>{reasonLabel[item.reason]}</span>
+				<span className={clsx(needs.reason)}>
+					{item.answered ? answeredReason : reasonLabel[item.reason]}
+				</span>
 				{project === true ? (
 					<a
 						className={clsx(needs.project)}

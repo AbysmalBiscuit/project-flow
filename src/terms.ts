@@ -46,6 +46,8 @@ export const reasonLabel: Record<NeedsYouItem["reason"], string> = {
 	runFailed: "Run failed",
 };
 
+export const answeredReason = "Answered, clearing";
+
 export const reasonTab: Record<NeedsYouItem["reason"], string> = {
 	ask: "Questions",
 	awaitingMerge: "Merges",
