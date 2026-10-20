@@ -346,6 +346,7 @@ describe("local projects", () => {
 			projects: [],
 			fetchedAt: null,
 			error: null,
+			tracked: false,
 		});
 		expect(
 			withoutTodo.requests.some((request) =>
@@ -510,6 +511,7 @@ describe("local projects", () => {
 			projects: [],
 			fetchedAt: null,
 			error: null,
+			tracked: false,
 		});
 	});
 
@@ -540,6 +542,7 @@ describe("local projects", () => {
 			projects: [],
 			fetchedAt: null,
 			error: null,
+			tracked: false,
 		});
 		expect(requests.some((request) => request.includes("TicketProject"))).toBe(
 			false,
@@ -633,6 +636,7 @@ describe("local projects", () => {
 			projects: [],
 			fetchedAt: null,
 			error: null,
+			tracked: false,
 		});
 	});
 
@@ -664,6 +668,7 @@ describe("local projects", () => {
 			projects: [],
 			fetchedAt: null,
 			error: null,
+			tracked: false,
 		});
 	});
 
@@ -895,6 +900,7 @@ describe("local projects", () => {
 						projects: [],
 						fetchedAt: null,
 						error: null,
+						tracked: false,
 					});
 					const refresh = await fetch(new URL("/api/refresh", base), {
 						method: "POST",
@@ -1031,6 +1037,7 @@ describe("local projects", () => {
 			projects: [],
 			fetchedAt: null,
 			error: null,
+			tracked: false,
 		});
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [], checkoutRoots: [] }),
@@ -1072,6 +1079,7 @@ describe("local projects", () => {
 				projects: [],
 				fetchedAt: null,
 				error: null,
+				tracked: false,
 			});
 		} finally {
 			await cleanup();
@@ -1092,6 +1100,7 @@ describe("local projects", () => {
 			projects: [],
 			fetchedAt: null,
 			error: null,
+			tracked: false,
 		});
 		expect(
 			requests.some((request) => request.includes("stranger/upstream")),
