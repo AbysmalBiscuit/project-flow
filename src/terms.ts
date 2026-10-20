@@ -262,6 +262,7 @@ export const settingsCopy = {
 	labelsHint: "A ticket with one of these labels shows in Needs you.",
 	logins: "Your logins",
 	loginsHint: "Comments from these accounts never notify you.",
+	add: "Add",
 	addLabel: "Add label, press Enter",
 	addLogin: "Add login, press Enter",
 	laneState: "Lane state",

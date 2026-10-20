@@ -831,7 +831,7 @@ function AutoMergeEditor({
 				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
 				onClick={add}
 			>
-				Add
+				{settingsCopy.add}
 			</button>
 		</div>
 	);
