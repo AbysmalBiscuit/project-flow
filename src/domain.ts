@@ -309,7 +309,7 @@ function commentSources(
 ): Comment[] {
 	const ticket = tickets.get(ticketKey(item.tracker, item.key));
 	if (ticket !== undefined) {
-		const linkedPulls = linked(ticket, pulls, item.project);
+		const linkedPulls = linked(ticket, pulls);
 		return [...(ticket.comments ?? []), ...linkedPulls.flatMap(pullComments)];
 	}
 	const pull = pulls.find((candidate) => pullKey(candidate) === item.key);
@@ -1703,17 +1703,13 @@ function branchLinksTicket(branch: string, key: string): boolean {
 	return key.includes("#") && branch.toLowerCase().includes(key.toLowerCase());
 }
 
-function linked(
-	ticket: Ticket,
-	pulls: PullRequest[],
-	repo: string,
-): PullRequest[] {
+function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 	if (ticket.key === null) {
 		return [];
 	}
 	const key = ticket.key;
 	return pulls.filter((pull) => {
-		const keys = [...pull.closingKeys, ...closingKeys(pull.body, repo)];
+		const keys = [...pull.closingKeys, ...closingKeys(pull.body, pull.repo)];
 		return keys.includes(key) || branchLinksTicket(pull.branch, key);
 	});
 }
@@ -2152,44 +2148,28 @@ function laterState(current: TicketState, next: TicketState): TicketState {
 	return nextAt > currentAt ? next : current;
 }
 
-function runFor(
-	ticket: Ticket,
-	runs: WorkcellRun[],
-	repo: string,
-): WorkcellRun | undefined {
+function runFor(ticket: Ticket, runs: WorkcellRun[]): WorkcellRun | undefined {
 	const key = ticket.key;
 	if (key === null) {
 		return undefined;
 	}
-	const number = ticketNumber(key);
 	return runs.find((run) => {
 		if (run.key.toLowerCase() === key.toLowerCase()) {
 			return true;
 		}
-		if (
-			run.repo !== undefined &&
-			run.repo.toLowerCase() !== repo.toLowerCase()
-		) {
+		if (run.repo === undefined) {
 			return false;
 		}
-		return (
-			number !== null &&
-			run.key === number &&
-			key.toLowerCase() === `${repo}#${number}`.toLowerCase()
-		);
+		return `${run.repo}#${run.key}`.toLowerCase() === key.toLowerCase();
 	});
 }
 
-function closesTicket(
-	pull: PullRequest,
-	ticket: Ticket,
-	repo: string,
-): boolean {
+function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
 	const key = ticket.key;
 	if (key === null) {
 		return false;
 	}
-	const keys = [...pull.closingKeys, ...closingKeys(pull.body, repo)];
+	const keys = [...pull.closingKeys, ...closingKeys(pull.body, pull.repo)];
 	return keys.some((item) => item.toLowerCase() === key.toLowerCase());
 }
 
@@ -2223,7 +2203,6 @@ function shownTicket(
 	startedKeys: string[],
 	review: { state: "inReview" | "awaitingMerge" | null },
 	runs: WorkcellRun[],
-	repo: string,
 	autoMerge: boolean,
 	lanes: Lane[],
 ): ShownTicket {
@@ -2236,7 +2215,7 @@ function shownTicket(
 	const pushed =
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);
-	const run = runFor(ticket, runs, repo);
+	const run = runFor(ticket, runs);
 	const live = run?.status === "running";
 	const failed = run?.status === "failed";
 	const open = links.filter((pull) => !pull.merged);
@@ -2255,7 +2234,7 @@ function shownTicket(
 	if (
 		!failed &&
 		ticket.state === "open" &&
-		links.some((pull) => pull.merged && closesTicket(pull, ticket, repo))
+		links.some((pull) => pull.merged && closesTicket(pull, ticket))
 	) {
 		state = laterState(state, "done");
 	}
@@ -2380,7 +2359,7 @@ export function projectCounts(
 	const linkedKeys = new Set<string>();
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed);
-		const links = linked(ticket, pulls, name);
+		const links = linked(ticket, pulls);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));
 		}
@@ -2408,7 +2387,6 @@ export function projectCounts(
 			startedKeys,
 			review,
 			runs,
-			name,
 			autoMerge,
 			lanes,
 		);

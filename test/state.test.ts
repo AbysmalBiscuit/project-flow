@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import projectFields from "./fixtures/github-project-fields.json";
 import approvedState from "./fixtures/linear-approved-state.json";
 import historyNode from "./fixtures/linear-history-node.json";
 import teamStates from "./fixtures/linear-team-states.json";
@@ -18,6 +19,26 @@ import {
 const fixtureDir = join(import.meta.dir, "fixtures");
 const linearSlug = "widget-launch";
 const githubRepo = "acme/widget";
+const boardId = "PVT_widget";
+
+function recordedStatusOptions(body: typeof projectFields) {
+	for (const field of body.data.node.fields.nodes) {
+		if (!("name" in field) || field.name !== "Status") {
+			continue;
+		}
+		return field.options;
+	}
+	throw new Error("recorded project Status field is missing");
+}
+
+const githubStatusOptions = recordedStatusOptions(projectFields);
+
+function boardOptionId(name: string): string | undefined {
+	const collapsed = name.trim().replace(/\s+/g, " ");
+	return githubStatusOptions.find(
+		(option) => option.name.trim().replace(/\s+/g, " ") === collapsed,
+	)?.id;
+}
 const todoState = {
 	id: "364b3510-9325-4af6-9df1-8f2ff56f7a3d",
 	name: "Todo",
@@ -175,6 +196,132 @@ function recordedLinear(
 					}
 			: { github }),
 	});
+}
+
+function boardItem(
+	number: number,
+	title: string,
+	status: { name: string; color: string },
+): Record<string, unknown> {
+	return {
+		fieldValueByName: {
+			name: status.name,
+			optionId: boardOptionId(status.name) ?? `opt-${status.name}`,
+			color: status.color,
+		},
+		content: {
+			__typename: "Issue",
+			id: `I_${number}`,
+			number,
+			title,
+			state: "OPEN",
+			stateReason: null,
+			updatedAt: "2026-08-18T12:00:00Z",
+			body: "",
+			comments: { totalCount: 0 },
+			repository: { nameWithOwner: githubRepo },
+			milestone: null,
+			labels: { nodes: [] },
+			parent: null,
+			closedByPullRequestsReferences: {
+				nodes: [],
+				pageInfo: { hasNextPage: false, endCursor: null },
+			},
+			blockedBy: {
+				nodes: [],
+				pageInfo: { hasNextPage: false, endCursor: null },
+			},
+		},
+	};
+}
+
+function boardFetch(
+	items: Record<string, unknown>[],
+	closed: Record<string, unknown>[] = [],
+): Fetch {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
+		const url = urlOf(input);
+		const body = typeof init?.body === "string" ? init.body : "";
+		if (url === "https://api.github.com/user") {
+			return Response.json({ login: "lev" });
+		}
+		if (url === `https://api.github.com/repos/${githubRepo}`) {
+			return Response.json({ allow_auto_merge: false });
+		}
+		if (
+			url === "https://api.github.com/graphql" &&
+			body.includes("ProjectByNumber")
+		) {
+			return Response.json({
+				data: {
+					repositoryOwner: {
+						projectV2: {
+							id: boardId,
+							number: 4,
+							title: "Widget board",
+							closed: false,
+							updatedAt: "2026-08-18T12:00:00Z",
+						},
+					},
+				},
+			});
+		}
+		if (
+			url === "https://api.github.com/graphql" &&
+			body.includes("ProjectFields")
+		) {
+			return Response.json(projectFields);
+		}
+		if (
+			url === "https://api.github.com/graphql" &&
+			body.includes("ProjectItems")
+		) {
+			return Response.json({
+				data: {
+					node: {
+						items: {
+							nodes: items,
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			});
+		}
+		const pullMatch = url.match(
+			new RegExp(
+				`^https://api\\.github\\.com/repos/${githubRepo}/pulls/(\\d+)$`,
+			),
+		);
+		if (pullMatch !== null) {
+			const number = Number(pullMatch[1]);
+			const pull = closed.find((item) => item.number === number);
+			return pull === undefined ? unrecorded(input) : Response.json(pull);
+		}
+		if (
+			url ===
+			`https://api.github.com/repos/${githubRepo}/pulls?state=closed&per_page=10&page=1`
+		) {
+			return page(closed);
+		}
+		if (
+			url.includes("/pulls?") ||
+			url.includes("/labels?") ||
+			url.includes("/branches?") ||
+			url.includes("/comments") ||
+			url.includes("/reviews") ||
+			url.includes("/reactions")
+		) {
+			return page([]);
+		}
+		if (url.includes("/check-runs")) {
+			return Response.json({ check_runs: [] });
+		}
+		return unrecorded(input);
+	};
 }
 
 function recordedRepo(
@@ -961,6 +1108,62 @@ describe("forward state", () => {
 		} finally {
 			await checkout.cleanup();
 		}
+	});
+
+	test("a GitHub project board ticket with a live run on its repo is In progress", async () => {
+		const checkout = await devkitWorktree({ key: "8", status: "running" });
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+				}),
+				boardFetch([
+					boardItem(8, "Draw the nodes", { name: "Backlog", color: "GREEN" }),
+				]),
+				{ GITHUB_TOKEN: "recorded-token" },
+				async (base) => {
+					const report = await projectOf(base, "Widget board");
+					expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
+						state: "inProgress",
+						lane: "In progress",
+						statusType: "inProgress",
+						staleStatus: "Backlog",
+					});
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
+	test("a merged PR body Closes #N moves a GitHub project board ticket to Done", async () => {
+		const merged = (await recordedJson(
+			"github-pull-merged.json",
+		)) as RecordedPull;
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			boardFetch(
+				[
+					boardItem(8, "Draw the nodes", {
+						name: "In review",
+						color: "PURPLE",
+					}),
+				],
+				[pullAs(merged, { number: 40, body: "Closes #8", state: "closed" })],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
+					state: "done",
+					lane: "Done",
+					statusType: "done",
+				});
+			},
+		);
 	});
 
 	test("a GitHub ticket with no tracker history uses its last update", async () => {
