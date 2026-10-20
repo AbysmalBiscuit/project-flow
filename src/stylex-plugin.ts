@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PluginItem } from "@babel/core";
 import babel from "@babel/core";
+import parser from "@babel/parser";
 import stylexBabelPlugin from "@stylexjs/babel-plugin";
 import type { BunPlugin } from "bun";
 
@@ -65,38 +66,54 @@ export function pageThemeMeta(): PageThemeMeta {
 	return themeMeta;
 }
 
+function objectExport(source: string, name: string): Map<string, string> {
+	const parsed = parser.parse(source, {
+		sourceType: "module",
+		plugins: ["typescript"],
+	});
+	const values = new Map<string, string>();
+	for (const node of parsed.program.body) {
+		if (
+			node.type !== "ExportNamedDeclaration" ||
+			node.declaration?.type !== "VariableDeclaration"
+		) {
+			continue;
+		}
+		for (const declaration of node.declaration.declarations) {
+			if (
+				declaration.id.type !== "Identifier" ||
+				declaration.id.name !== name ||
+				declaration.init?.type !== "ObjectExpression"
+			) {
+				continue;
+			}
+			for (const property of declaration.init.properties) {
+				if (
+					property.type !== "ObjectProperty" ||
+					property.key.type !== "Identifier" ||
+					property.value.type !== "StringLiteral"
+				) {
+					continue;
+				}
+				values.set(property.key.name, property.value.value);
+			}
+		}
+	}
+	return values;
+}
+
 function compiledVariables(code: string): Map<string, string> {
 	const names = new Map<string, string>();
-	const body =
-		code.match(/export const colours = \{([\s\S]*?)\n\};/)?.[1] ?? "";
-	for (const match of body.matchAll(
-		/^\s*([A-Za-z][A-Za-z0-9]*): "var\((--[A-Za-z0-9_-]+)\)",/gm,
-	)) {
-		const key = match[1];
-		const name = match[2];
-		if (key !== undefined && name !== undefined) {
-			names.set(key, name);
+	for (const [key, value] of objectExport(code, "colours")) {
+		if (value.startsWith("var(--") && value.endsWith(")")) {
+			names.set(key, value.slice(4, -1));
 		}
 	}
 	return names;
 }
 
 function tokenValues(source: string, name: string): Record<string, string> {
-	const values: Record<string, string> = {};
-	const body =
-		source.match(
-			new RegExp(`export const ${name} = \\{([\\s\\S]*?)\\n\\};`),
-		)?.[1] ?? "";
-	for (const match of body.matchAll(
-		/^\t([A-Za-z][A-Za-z0-9]*): "([^"]+)",/gm,
-	)) {
-		const key = match[1];
-		const value = match[2];
-		if (key !== undefined && value !== undefined) {
-			values[key] = value;
-		}
-	}
-	return values;
+	return Object.fromEntries(objectExport(source, name));
 }
 
 function declarations(
