@@ -28,7 +28,18 @@ export function JumpBox() {
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
 	const ticket = useActiveTicket();
 	const queryRef = useRef<HTMLInputElement>(null);
-	useEffect(() => onOpenJumpBox(() => setOpen(true)), []);
+	const returnFocus = useRef<HTMLElement | null>(null);
+	useEffect(
+		() =>
+			onOpenJumpBox(() => {
+				returnFocus.current =
+					document.activeElement instanceof HTMLElement
+						? document.activeElement
+						: null;
+				setOpen(true);
+			}),
+		[],
+	);
 	useEffect(() => {
 		if (open) {
 			queryRef.current?.focus();
@@ -38,6 +49,10 @@ export function JumpBox() {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
 				event.preventDefault();
+				returnFocus.current =
+					document.activeElement instanceof HTMLElement
+						? document.activeElement
+						: null;
 				setOpen(true);
 			}
 		};
@@ -88,6 +103,15 @@ export function JumpBox() {
 						className={clsx(jump.box)}
 						role="dialog"
 						aria-label="Search tickets"
+						onKeyDown={(event) => {
+							if (event.key !== "Escape") {
+								return;
+							}
+							event.preventDefault();
+							event.stopPropagation();
+							setOpen(false);
+							returnFocus.current?.focus();
+						}}
 					>
 						<input
 							className={clsx(jump.query)}
@@ -98,11 +122,6 @@ export function JumpBox() {
 							value={query}
 							ref={queryRef}
 							onChange={(event) => setQuery(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Escape") {
-									setOpen(false);
-								}
-							}}
 						/>
 						{query.trim() !== "" && hits.length === 0 ? (
 							<p>No tickets</p>
