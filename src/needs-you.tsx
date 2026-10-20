@@ -5,29 +5,228 @@ import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
 import { openTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
-import { navLabel } from "./terms.ts";
+import {
+	type NeedsGroup,
+	navLabel,
+	needsGroupLabel,
+	reasonLabel,
+	reasonOrder,
+} from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { needs } from "./ui-styles.ts";
+import { frame, needs, shell } from "./ui-styles.ts";
+
+const allReasons = "all";
+const allProjects = "all";
+
+type ReasonFilter = NeedsYouItem["reason"] | typeof allReasons;
+
+function ChoiceSelect({
+	id,
+	label,
+	value,
+	choices,
+	onChange,
+}: {
+	id: string;
+	label: string;
+	value: string;
+	choices: readonly { id: string; label: string }[];
+	onChange: (id: string) => void;
+}) {
+	return (
+		<select
+			id={id}
+			className={clsx(frame.select)}
+			aria-label={label}
+			size={choices.length}
+			value={value}
+			onChange={(event) => onChange(event.currentTarget.value)}
+		>
+			{choices.map((choice) => (
+				<option key={choice.id} value={choice.id}>
+					{choice.label}
+				</option>
+			))}
+		</select>
+	);
+}
+
+function PressedButton({
+	id,
+	pressed,
+	onClick,
+	children,
+}: {
+	id: string;
+	pressed: boolean;
+	onClick: () => void;
+	children: string;
+}) {
+	return (
+		<button
+			type="button"
+			id={id}
+			className={clsx(
+				shell.button,
+				shell.buttonHover,
+				shell.buttonFocus,
+				pressed && shell.pressed,
+			)}
+			aria-pressed={pressed}
+			onClick={onClick}
+		>
+			{children}
+		</button>
+	);
+}
+
+function NeedsTabs({
+	items,
+	reason,
+	onReason,
+}: {
+	items: NeedsYouItem[];
+	reason: ReasonFilter;
+	onReason: (reason: ReasonFilter) => void;
+}) {
+	const tabs: readonly { id: ReasonFilter; label: string }[] = [
+		{ id: allReasons, label: "All" },
+		...reasonOrder.map((id) => ({ id, label: reasonLabel[id] })),
+	];
+	return (
+		<div className={clsx(needs.tabs)}>
+			{tabs.map((tab) => {
+				const count =
+					tab.id === allReasons
+						? items.length
+						: items.filter((item) => item.reason === tab.id).length;
+				return (
+					<PressedButton
+						key={tab.id}
+						id={`reason-${tab.id}`}
+						pressed={reason === tab.id}
+						onClick={() => onReason(tab.id)}
+					>
+						{`${tab.label} ${count}`}
+					</PressedButton>
+				);
+			})}
+		</div>
+	);
+}
+
+function groupName(group: NeedsGroup, item: NeedsYouItem): string {
+	if (group === "project") {
+		return item.project;
+	}
+	if (group === "reason") {
+		return reasonLabel[item.reason];
+	}
+	return "";
+}
+
+function NeedsGroups({
+	items,
+	group,
+	onOpen,
+}: {
+	items: NeedsYouItem[];
+	group: NeedsGroup;
+	onOpen: (item: NeedsYouItem) => void;
+}) {
+	if (items.length === 0) {
+		return <p>Nothing needs you</p>;
+	}
+	const names =
+		group === "none"
+			? [""]
+			: [...new Set(items.map((item) => groupName(group, item)))];
+	return (
+		<>
+			{names.map((name) => {
+				const grouped =
+					group === "none"
+						? items
+						: items.filter((item) => groupName(group, item) === name);
+				return (
+					<section key={name || "none"} className={clsx(needs.group)}>
+						{group === "none" ? null : (
+							<h2 className={clsx(needs.groupTitle)}>{name}</h2>
+						)}
+						<ul className={clsx(needs.list)}>
+							{grouped.map((item) => (
+								<NeedsItem
+									key={`${item.project} ${item.key}`}
+									item={item}
+									project
+									onOpen={() => onOpen(item)}
+								/>
+							))}
+						</ul>
+					</section>
+				);
+			})}
+		</>
+	);
+}
 
 function NeedsList({ items }: { items: NeedsYouItem[] }) {
+	const [reason, setReason] = useState<ReasonFilter>(allReasons);
+	const [project, setProject] = useState(allProjects);
+	const [group, setGroup] = useState<NeedsGroup>("none");
+	const projects = [...new Set(items.map((item) => item.project))];
+	const shown = items.filter(
+		(item) =>
+			(reason === allReasons || item.reason === reason) &&
+			(project === allProjects || item.project === project),
+	);
 	return (
-		<PageFrame title={navLabel.needsYou}>
-			<ul className={clsx(needs.list)}>
-				{items.map((item) => (
-					<NeedsItem
-						key={`${item.project} ${item.key}`}
-						item={item}
-						project
-						onOpen={() =>
-							openTicket({
-								tracker: item.tracker,
-								project: item.project,
-								key: item.key,
-							})
+		<PageFrame
+			title={navLabel.needsYou}
+			filter={
+				<ChoiceSelect
+					id="needs-project"
+					label="Project"
+					value={project}
+					choices={[
+						{ id: allProjects, label: "All projects" },
+						...projects.map((name) => ({ id: name, label: name })),
+					]}
+					onChange={setProject}
+				/>
+			}
+			sort={
+				<ChoiceSelect
+					id="needs-group"
+					label="Group by"
+					value={needsGroupLabel[group]}
+					choices={Object.values(needsGroupLabel).map((label) => ({
+						id: label,
+						label,
+					}))}
+					onChange={(label) => {
+						for (const id of ["project", "reason", "none"] as const) {
+							if (needsGroupLabel[id] === label) {
+								setGroup(id);
+							}
 						}
-					/>
-				))}
-			</ul>
+					}}
+				/>
+			}
+		>
+			<NeedsTabs items={items} reason={reason} onReason={setReason} />
+			<p data-needs-shown={shown.length}>Showing {shown.length}</p>
+			<NeedsGroups
+				items={shown}
+				group={group}
+				onOpen={(item) =>
+					openTicket({
+						tracker: item.tracker,
+						project: item.project,
+						key: item.key,
+					})
+				}
+			/>
 		</PageFrame>
 	);
 }
