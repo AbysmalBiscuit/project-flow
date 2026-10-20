@@ -462,6 +462,7 @@ function Page() {
 			</PageFrame>
 			{open && ticket !== null ? (
 				<TicketPanel
+					key={`${panelTracker}:${panelProject}:${ticket}`}
 					tracker={panelTracker}
 					project={panelProject}
 					ticketKey={ticket}

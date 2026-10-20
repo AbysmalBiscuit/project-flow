@@ -194,6 +194,7 @@ export function TicketPanel({
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 		>
+			<p>{threadPath}</p>
 			<button
 				type="button"
 				className={clsx(
