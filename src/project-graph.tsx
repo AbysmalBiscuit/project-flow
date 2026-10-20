@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import { useMemo } from "react";
 import {
-	groupKeyOf,
+	groupKeysOf,
 	outsideKey,
 	type ProjectReport,
 	type TicketState,
@@ -52,6 +52,22 @@ type TicketNodeData = {
 	tracker: "github" | "linear";
 	open: boolean;
 };
+
+type ClusterNodeData = {
+	name: string;
+};
+
+type ProjectNodeData = TicketNodeData | ClusterNodeData;
+
+type ProjectNode =
+	| FlowNode<TicketNodeData, "ticket">
+	| FlowNode<ClusterNodeData, "cluster">;
+
+function isClusterNode(
+	node: FlowNode<ProjectNodeData>,
+): node is FlowNode<ClusterNodeData, "cluster"> {
+	return node.type === "cluster";
+}
 
 export type OpenedNode = {
 	key: string;
@@ -97,10 +113,12 @@ const legendOrder = [
 	"dropped",
 ] as const satisfies ReadonlyArray<TicketState>;
 
-function ClusterNode({ data }: NodeProps<FlowNode<TicketNodeData>>) {
+function ClusterNode({
+	data,
+}: NodeProps<FlowNode<ClusterNodeData, "cluster">>) {
 	return (
-		<p className={clsx(board.cluster)} data-group={data.ticket.title}>
-			{data.ticket.title}
+		<p className={clsx(board.cluster)} data-group={data.name}>
+			{data.name}
 		</p>
 	);
 }
@@ -246,11 +264,37 @@ function localTickets(report: ProjectReport): GraphTicket[] {
 	});
 }
 
-function ticketGroup(ticket: GraphTicket, groupBy: GroupBy): string {
-	if (ticket.outside || groupBy === "none") {
-		return "";
+const outsideBand = "\u0000outside";
+
+function bandNames(ticket: GraphTicket, groupBy: GroupBy): string[] {
+	if (ticket.outside) {
+		return [outsideBand];
 	}
-	return groupKeyOf(ticket.ticket, groupBy);
+	if (groupBy === "none") {
+		return [""];
+	}
+	return groupKeysOf(ticket.ticket, groupBy);
+}
+
+function graphBand(
+	ticket: GraphTicket,
+	groupBy: GroupBy,
+	assignees: readonly string[],
+): string {
+	const names = bandNames(ticket, groupBy);
+	if (groupBy !== "assignee" || names.length < 2) {
+		return names[0] ?? "";
+	}
+	const wanted = new Set(
+		assignees.flatMap((name) => {
+			const trimmed = name.trim().toLowerCase();
+			return trimmed === "" ? [] : [trimmed];
+		}),
+	);
+	if (wanted.size === 0) {
+		return names[0] ?? "";
+	}
+	return names.find((name) => wanted.has(name.toLowerCase())) ?? names[0] ?? "";
 }
 
 function layoutTickets(
@@ -258,6 +302,7 @@ function layoutTickets(
 	edges: { from: string; to: string }[],
 	direction: GraphDirection,
 	groupBy: GroupBy,
+	assignees: readonly string[],
 ): Map<string, { x: number; y: number }> {
 	const incoming = new Map<string, string[]>();
 	for (const edge of edges) {
@@ -291,16 +336,36 @@ function layoutTickets(
 		columns.set(column, names);
 	}
 	const groups = [
-		...new Set(
-			tickets.flatMap((ticket) => {
-				const name = ticketGroup(ticket, groupBy);
-				return name === "" ? [] : [name];
-			}),
-		),
+		...new Set(tickets.flatMap((ticket) => bandNames(ticket, groupBy))),
 	].sort((left, right) => left.localeCompare(right));
-	const band = new Map(groups.map((name, index) => [name, index]));
+	const columnCounts = new Map<string, number>();
+	for (const ticket of ordered) {
+		const key = ticket.ticket.key;
+		if (key === null) {
+			continue;
+		}
+		const name = graphBand(ticket, groupBy, assignees);
+		const column = depth.get(nodeId(ticket.project, key)) ?? 0;
+		const slot = `${name}\n${column}`;
+		columnCounts.set(slot, (columnCounts.get(slot) ?? 0) + 1);
+	}
+	const bandSize = new Map<string, number>();
+	for (const name of groups) {
+		let largest = 1;
+		for (const [slot, count] of columnCounts) {
+			if (slot.startsWith(`${name}\n`)) {
+				largest = Math.max(largest, count);
+			}
+		}
+		bandSize.set(name, largest * rowGap);
+	}
+	const bandStart = new Map<string, number>();
+	let cursor = 0;
+	for (const name of groups) {
+		bandStart.set(name, cursor);
+		cursor += bandSize.get(name) ?? rowGap;
+	}
 	const positions = new Map<string, { x: number; y: number }>();
-	const bandSize = rowGap * 3;
 	for (const [column, names] of columns) {
 		const row = new Map<string, number>();
 		names.forEach((id) => {
@@ -309,10 +374,11 @@ function layoutTickets(
 					item.ticket.key !== null &&
 					nodeId(item.project, item.ticket.key) === id,
 			);
-			const name = ticket === undefined ? "" : ticketGroup(ticket, groupBy);
+			const name =
+				ticket === undefined ? "" : graphBand(ticket, groupBy, assignees);
 			const index = row.get(name) ?? 0;
 			row.set(name, index + 1);
-			const shift = (band.get(name) ?? 0) * bandSize;
+			const shift = bandStart.get(name) ?? 0;
 			positions.set(
 				id,
 				direction === "top-to-bottom"
@@ -357,8 +423,8 @@ function clusterNodes(
 	tickets: GraphTicket[],
 	positions: Map<string, { x: number; y: number }>,
 	groupBy: GroupBy,
-	direction: GraphDirection,
-): FlowNode<TicketNodeData>[] {
+	assignees: readonly string[],
+): FlowNode<ClusterNodeData, "cluster">[] {
 	if (groupBy === "none") {
 		return [];
 	}
@@ -368,9 +434,9 @@ function clusterNodes(
 		if (key === null || ticket.outside) {
 			continue;
 		}
-		const name = ticketGroup(ticket, groupBy);
+		const name = graphBand(ticket, groupBy, assignees);
 		const place = positions.get(nodeId(ticket.project, key));
-		if (place === undefined) {
+		if (place === undefined || name === "") {
 			continue;
 		}
 		const known = groups.get(name);
@@ -387,17 +453,8 @@ function clusterNodes(
 		.map(([name, place]) => ({
 			id: `group\n${name}`,
 			type: "cluster",
-			position:
-				direction === "top-to-bottom"
-					? { x: place.x, y: place.y - 28 }
-					: { x: place.x, y: place.y - 28 },
-			data: {
-				ticket: { key: null, title: name },
-				outside: false,
-				project: "",
-				tracker: "github" as const,
-				open: false,
-			},
+			position: { x: place.x, y: place.y - 28 },
+			data: { name },
 			draggable: false,
 			selectable: false,
 		}));
@@ -408,14 +465,21 @@ function graphModel(
 	reports: ProjectReport[],
 	direction: GraphDirection,
 	groupBy: GroupBy,
+	assignees: readonly string[],
 	openKey: string | null,
 ): {
-	nodes: FlowNode<TicketNodeData>[];
+	nodes: ProjectNode[];
 	edges: FlowEdge<TicketEdgeData>[];
 } {
 	const tickets = [...outsideTickets(report, reports), ...localTickets(report)];
 	const links = graphEdges(report);
-	const positions = layoutTickets(tickets, links, direction, groupBy);
+	const positions = layoutTickets(
+		tickets,
+		links,
+		direction,
+		groupBy,
+		assignees,
+	);
 	const horizontal = direction === "left-to-right";
 	const nodes = tickets.flatMap((item) => {
 		const key = item.ticket.key;
@@ -423,22 +487,21 @@ function graphModel(
 			return [];
 		}
 		const id = nodeId(item.project, key);
-		return [
-			{
-				id,
-				type: "ticket",
-				position: positions.get(id) ?? { x: 0, y: 0 },
-				sourcePosition: horizontal ? Position.Right : Position.Bottom,
-				targetPosition: horizontal ? Position.Left : Position.Top,
-				data: {
-					ticket: item.ticket,
-					outside: item.outside,
-					project: item.project,
-					tracker: item.tracker,
-					open: openKey === key,
-				},
+		const node: FlowNode<TicketNodeData, "ticket"> = {
+			id,
+			type: "ticket",
+			position: positions.get(id) ?? { x: 0, y: 0 },
+			sourcePosition: horizontal ? Position.Right : Position.Bottom,
+			targetPosition: horizontal ? Position.Left : Position.Top,
+			data: {
+				ticket: item.ticket,
+				outside: item.outside,
+				project: item.project,
+				tracker: item.tracker,
+				open: openKey === key,
 			},
-		];
+		};
+		return [node];
 	});
 	const edges = links.map((link) => ({
 		id: `${link.from}->${link.to}`,
@@ -451,7 +514,7 @@ function graphModel(
 		data: {},
 	}));
 	return {
-		nodes: [...clusterNodes(tickets, positions, groupBy, direction), ...nodes],
+		nodes: [...clusterNodes(tickets, positions, groupBy, assignees), ...nodes],
 		edges,
 	};
 }
@@ -481,6 +544,7 @@ export function ProjectGraph({
 	reports,
 	direction,
 	groupBy,
+	assignees,
 	openKey,
 	onOpen,
 }: {
@@ -488,12 +552,13 @@ export function ProjectGraph({
 	reports: ProjectReport[];
 	direction: GraphDirection;
 	groupBy: GroupBy;
+	assignees: readonly string[];
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
 }) {
 	const model = useMemo(
-		() => graphModel(report, reports, direction, groupBy, openKey),
-		[report, reports, direction, groupBy, openKey],
+		() => graphModel(report, reports, direction, groupBy, assignees, openKey),
+		[report, reports, direction, groupBy, assignees, openKey],
 	);
 	const places = model.nodes
 		.map(
@@ -502,9 +567,9 @@ export function ProjectGraph({
 		)
 		.join(" | ");
 	const outsideLabels = model.nodes.flatMap((node) =>
-		node.data.outside
-			? [nodeKey(node.data.ticket.key ?? "", node.data.project, true)]
-			: [],
+		isClusterNode(node) || !node.data.outside
+			? []
+			: [nodeKey(node.data.ticket.key ?? "", node.data.project, true)],
 	);
 	return (
 		<div
@@ -535,7 +600,7 @@ export function ProjectGraph({
 					fitView
 					proOptions={{ hideAttribution: true }}
 					onNodeClick={(_event, node) => {
-						if (node.type === "cluster") {
+						if (isClusterNode(node)) {
 							return;
 						}
 						onOpen({

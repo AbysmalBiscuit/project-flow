@@ -5,6 +5,7 @@ import type {
 	ProjectViewSettings,
 } from "./configuration.ts";
 import {
+	type GroupBy,
 	laneAgeCap,
 	savedProjectView,
 	visibleLaneNames,
@@ -3428,7 +3429,7 @@ export function needsYouItems(
 
 const noScope = "no scope";
 const noWorkstream = "no workstream";
-const noAssignee = "Unassigned";
+const noAssignee = "no assignee";
 
 const scopeInTitle = /^(?:[a-z]+)\(([^)]+)\)!?\s*:|^\[([^\]]+)\]/i;
 
@@ -3569,22 +3570,66 @@ function workstreamOf(
 	return ticket.milestone ?? noWorkstream;
 }
 
-export function groupKeyOf(
-	view: {
-		workstream?: string;
-		theme?: string;
-		assignees?: string[];
-	},
-	key: "workstream" | "theme" | "assignee",
-): string {
+export type GroupKey = Exclude<GroupBy, "none">;
+
+type GroupedTicket = {
+	key: string | null;
+	title: string;
+	workstream?: string;
+	theme?: string;
+	assignees?: string[];
+};
+
+function themeGroupKey(view: GroupedTicket): string {
+	const theme = view.theme ?? noScope;
+	const workstream = view.workstream ?? noWorkstream;
+	return `${workstream} / ${theme}`;
+}
+
+export function groupKeysOf(view: GroupedTicket, key: GroupKey): string[] {
 	if (key === "assignee") {
-		const name = view.assignees?.[0];
-		return name === undefined || name.trim() === "" ? noAssignee : name.trim();
+		const names = [
+			...new Set(
+				(view.assignees ?? []).flatMap((name) => {
+					const trimmed = name.trim();
+					return trimmed === "" ? [] : [trimmed];
+				}),
+			),
+		];
+		return names.length === 0 ? [noAssignee] : names;
 	}
 	if (key === "workstream") {
-		return view.workstream ?? noWorkstream;
+		return [view.workstream ?? noWorkstream];
 	}
-	return view.theme ?? noScope;
+	return [themeGroupKey(view)];
+}
+
+export function ticketGroups<T extends GroupedTicket>(
+	tickets: readonly T[],
+	key: GroupBy,
+): { name: string; tickets: T[] }[] {
+	if (key === "none") {
+		return [{ name: "", tickets: [...tickets] }];
+	}
+	const order: string[] = [];
+	const members = new Map<string, T[]>();
+	for (const ticket of tickets) {
+		for (const name of groupKeysOf(ticket, key)) {
+			const known = members.get(name);
+			if (known === undefined) {
+				order.push(name);
+				members.set(name, [ticket]);
+				continue;
+			}
+			known.push(ticket);
+		}
+	}
+	return order
+		.sort((left, right) => left.localeCompare(right))
+		.flatMap((name) => {
+			const grouped = members.get(name);
+			return grouped === undefined ? [] : [{ name, tickets: grouped }];
+		});
 }
 
 function placeTickets(

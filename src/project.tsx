@@ -9,7 +9,7 @@ import type {
 	ProjectReport,
 	TicketView,
 } from "./domain.ts";
-import { groupKeyOf, sameTicketKey } from "./domain.ts";
+import { sameTicketKey, ticketGroups } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
@@ -186,26 +186,6 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 
 function isGroupBy(value: string): value is GroupBy {
 	return (groupByKeys as readonly string[]).includes(value);
-}
-
-function groupNames(tickets: TicketView[], key: GroupBy): string[] {
-	if (key === "none") {
-		return [];
-	}
-	return [...new Set(tickets.map((ticket) => groupKeyOf(ticket, key)))].sort(
-		(left, right) => left.localeCompare(right),
-	);
-}
-
-function ticketsInGroup(
-	tickets: TicketView[],
-	key: GroupBy,
-	name: string,
-): TicketView[] {
-	if (key === "none") {
-		return tickets;
-	}
-	return tickets.filter((ticket) => groupKeyOf(ticket, key) === name);
 }
 
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
@@ -428,11 +408,11 @@ function Lane({
 						onOpenOutside={onOpenOutside}
 					/>
 				) : (
-					groupNames(visible, groupBy).map((group) => (
-						<div key={group} data-group={group}>
-							<h3 className={clsx(board.swimlane)}>{group}</h3>
+					ticketGroups(visible, groupBy).map((group) => (
+						<div key={group.name} data-group={group.name}>
+							<h3 className={clsx(board.swimlane)}>{group.name}</h3>
 							<LaneCards
-								tickets={ticketsInGroup(visible, groupBy, group)}
+								tickets={group.tickets}
 								onOpen={onOpen}
 								onOpenOutside={onOpenOutside}
 							/>
@@ -749,48 +729,42 @@ function TicketTable({
 						</tr>
 					</thead>
 					<tbody>
-						{(groupBy === "none" ? [""] : groupNames(rows, groupBy)).flatMap(
-							(group) => {
-								const grouped =
-									groupBy === "none"
-										? rows
-										: ticketsInGroup(rows, groupBy, group);
-								const heading: ReactNode[] =
-									groupBy === "none"
-										? []
-										: [
-												<tr key={`group-${group}`} data-group={group}>
-													<th
-														className={clsx(board.groupRow)}
-														colSpan={columns.length}
-														scope="rowgroup"
-													>
-														{group} {grouped.length}
-													</th>
-												</tr>,
-											];
-								return [
-									...heading,
-									...grouped.map((ticket) => (
-										<TableRow
-											key={`${ticket.key ?? ""} ${ticket.title}`}
-											ticket={ticket}
-											lanes={report.lanes}
-											order={
-												rows.findIndex(
-													(item) =>
-														item.key === ticket.key &&
-														item.title === ticket.title,
-												) + 1
-											}
-											selected={selected !== null && ticket.key === selected}
-											onOpen={onOpen}
-											onOpenOutside={onOpenOutside}
-										/>
-									)),
-								];
-							},
-						)}
+						{ticketGroups(rows, groupBy).flatMap((group) => {
+							const heading: ReactNode[] =
+								groupBy === "none"
+									? []
+									: [
+											<tr key={`group-${group.name}`} data-group={group.name}>
+												<th
+													className={clsx(board.groupRow)}
+													colSpan={columns.length}
+													scope="rowgroup"
+												>
+													{group.name} {group.tickets.length}
+												</th>
+											</tr>,
+										];
+							return [
+								...heading,
+								...group.tickets.map((ticket) => (
+									<TableRow
+										key={`${group.name}\n${ticket.key ?? ""}\n${ticket.title}`}
+										ticket={ticket}
+										lanes={report.lanes}
+										order={
+											rows.findIndex(
+												(item) =>
+													item.key === ticket.key &&
+													item.title === ticket.title,
+											) + 1
+										}
+										selected={selected !== null && ticket.key === selected}
+										onOpen={onOpen}
+										onOpenOutside={onOpenOutside}
+									/>
+								)),
+							];
+						})}
 					</tbody>
 				</table>
 			)}
@@ -1375,6 +1349,7 @@ function Page() {
 							reports={outsideReports}
 							direction={settings.graphDirection}
 							groupBy={settings.groupBy}
+							assignees={settings.assignees}
 							openKey={open ? ticket : null}
 							onOpen={(node) => {
 								if (node.outside) {

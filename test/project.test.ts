@@ -1395,6 +1395,10 @@ describe("GET /api/projects/:name", () => {
 			issue(3, "Write the copy", {
 				milestone: { title: "October" },
 			}),
+			issue(4, "Share the map", {
+				assignees: [{ login: "Ana" }, { login: "Ben" }],
+			}),
+			issue(5, "Leave the draft", {}),
 		];
 		const reportOf = async (base: string) =>
 			(await (
@@ -1444,6 +1448,16 @@ describe("GET /api/projects/:name", () => {
 				});
 				expect(
 					open.tickets.find((ticket) => ticket.key === `${githubRepo}#3`)
+						?.assignees,
+				).toBeUndefined();
+				const shared = open.tickets.find(
+					(ticket) => ticket.key === `${githubRepo}#4`,
+				)?.assignees;
+				expect(shared).toContain("Ana");
+				expect(shared).toContain("Ben");
+				expect(shared?.some((name) => name.trim() === "")).toBe(false);
+				expect(
+					open.tickets.find((ticket) => ticket.key === `${githubRepo}#5`)
 						?.assignees,
 				).toBeUndefined();
 				const current = (await (
