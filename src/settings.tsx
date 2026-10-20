@@ -49,8 +49,6 @@ const pollChoices = [30, 60, 300, 600] as const;
 
 const ageChoices = [0, 2, 7, 14, 30] as const;
 
-
-
 const evidenceStates = [
 	"backlog",
 	"inProgress",
