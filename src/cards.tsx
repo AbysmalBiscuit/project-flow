@@ -837,7 +837,7 @@ function OverviewPage({
 			) : overview.error !== null ? (
 				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
-			{overview.projects.length === 0 && overview.polling !== true ? (
+			{overview.tracked === false && overview.polling !== true ? (
 				<div id="overview-empty" className={clsx(cards.empty)}>
 					<p className={clsx(cards.emptyTitle)}>
 						{overviewControlLabel.noneTracked}

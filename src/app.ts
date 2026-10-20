@@ -266,6 +266,7 @@ function overview(
 			options.store.fetchStatus(),
 			goodPolls.length === 0 ? null : (goodPolls.sort()[0] ?? null),
 		),
+		...(configuration.tracked.length === 0 ? { tracked: false as const } : {}),
 	};
 }
 
