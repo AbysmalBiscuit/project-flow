@@ -1954,12 +1954,39 @@ describe("settings", () => {
 				expect(boardCard?.inReview).toBe(1);
 				expect(boardCard?.awaitingMerge).toBe(0);
 
-				await withAppFile(configPath, async (restarted) => {
-					const again = (await (
-						await fetch(new URL("/api/settings", restarted))
-					).json()) as Configuration;
-					expect(again.expectedBots).toEqual({ [shown]: ["codex"] });
-				});
+				await withAppFile(
+					configPath,
+					async (restarted) => {
+						const again = (await (
+							await fetch(new URL("/api/settings", restarted))
+						).json()) as Configuration & {
+							projects: { key: string; expectedBots: string[] }[];
+						};
+						expect(again.expectedBots).toEqual({ [shown]: ["codex"] });
+						expect(again.expectedBots).not.toHaveProperty(linear);
+						expect(again.expectedBots).not.toHaveProperty(board);
+						for (const key of [linear, board]) {
+							expect(
+								again.projects.find((row) => row.key === key)?.expectedBots,
+							).toEqual(["codex"]);
+						}
+						const overview = (await (
+							await fetch(new URL("/api/overview", restarted))
+						).json()) as Overview;
+						const card = overview.projects.find(
+							(project) => project.name === "Shown",
+						);
+						const boardAgain = overview.projects.find(
+							(project) => project.name === "Acme board",
+						);
+						expect(card?.inReview).toBe(1);
+						expect(card?.awaitingMerge).toBe(0);
+						expect(boardAgain?.inReview).toBe(1);
+						expect(boardAgain?.awaitingMerge).toBe(0);
+					},
+					async () => [],
+					fetchingBots,
+				);
 			},
 			async () => [],
 			fetchingBots,
