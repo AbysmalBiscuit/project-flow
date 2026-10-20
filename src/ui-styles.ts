@@ -1646,10 +1646,6 @@ export const board = stylex.create({
 		lineHeight: type.line,
 	},
 	menu: {
-		position: "absolute",
-		zIndex: stack.panel,
-		top: "100%",
-		left: 0,
 		display: "flex",
 		flexDirection: "column",
 		gap: space.sm,
@@ -1666,11 +1662,7 @@ export const board = stylex.create({
 		backgroundColor: colours.raised,
 		boxShadow: `0 ${space.xs} ${space.md} ${colours.shadow}`,
 	},
-	menuWrap: {
-		position: "static",
-	},
 	menuBelow: {
-		position: "static",
 		marginTop: space.md,
 	},
 	menuLabel: {
