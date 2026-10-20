@@ -1,4 +1,8 @@
-import type { NotificationTrigger, TicketState } from "./domain.ts";
+import type {
+	NeedsYouItem,
+	NotificationTrigger,
+	TicketState,
+} from "./domain.ts";
 
 export const stateLabel: Record<TicketState, string> = {
 	done: "Done",
@@ -34,3 +38,23 @@ export const viewLabel = {
 	graph: "Graph",
 	table: "Table",
 } as const;
+
+export const reasonLabel: Record<NeedsYouItem["reason"], string> = {
+	ask: "Ask",
+	awaitingMerge: "Awaiting merge",
+	label: "Label",
+};
+
+export const reasonOrder: readonly NeedsYouItem["reason"][] = [
+	"ask",
+	"awaitingMerge",
+	"label",
+];
+
+export const needsGroupLabel = {
+	project: "Project",
+	reason: "Reason",
+	none: "None",
+} as const;
+
+export type NeedsGroup = keyof typeof needsGroupLabel;
