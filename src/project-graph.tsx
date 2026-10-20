@@ -322,6 +322,7 @@ function layoutTickets(
 		incoming.set(edge.to, sources);
 	}
 	const depth = columnDepth(ticketIds(tickets), incoming);
+	const outgoing = new Set(edges.map((edge) => edge.from));
 	const ordered = [...tickets].sort((left, right) =>
 		`${left.ticket.key ?? left.ticket.title}`.localeCompare(
 			`${right.ticket.key ?? right.ticket.title}`,
@@ -366,8 +367,8 @@ function layoutTickets(
 	const groupSpan = new Map<string, { along: number; across: number }>();
 	for (const name of groups) {
 		const ids = members.get(name) ?? [];
-		const linked = ids.filter((id) => (depth.get(id) ?? 0) > 0);
-		const loose = ids.filter((id) => (depth.get(id) ?? 0) === 0);
+		const loose = ids.filter((id) => !incoming.has(id) && !outgoing.has(id));
+		const linked = ids.filter((id) => !loose.includes(id));
 		const byColumn = new Map<number, string[]>();
 		let minDepth = Number.POSITIVE_INFINITY;
 		for (const id of linked) {
@@ -381,25 +382,25 @@ function layoutTickets(
 			loose.length === 0 ? 1 : Math.ceil(Math.sqrt(loose.length));
 		const looseAlong =
 			loose.length === 0 ? 0 : Math.ceil(loose.length / looseAcross);
-		loose.forEach((id, index) => {
-			slots.set(id, {
-				along: Math.floor(index / looseAcross),
-				across: index % looseAcross,
-			});
-		});
+		const chainStart = Number.isFinite(minDepth) ? minDepth : 0;
 		let chainAcross = 1;
 		let chainAlong = 0;
-		const chainStart = Number.isFinite(minDepth) ? minDepth : 0;
 		for (const [column, names] of byColumn) {
-			const along = column - chainStart + looseAlong;
+			const along = column - chainStart;
 			names.forEach((id, index) => {
 				slots.set(id, { along, across: index });
 			});
 			chainAcross = Math.max(chainAcross, names.length);
 			chainAlong = Math.max(chainAlong, along + 1);
 		}
+		loose.forEach((id, index) => {
+			slots.set(id, {
+				along: chainAlong + Math.floor(index / looseAcross),
+				across: index % looseAcross,
+			});
+		});
 		groupSpan.set(name, {
-			along: Math.max(chainAlong, looseAlong, 1),
+			along: Math.max(chainAlong + looseAlong, 1),
 			across: Math.max(loose.length === 0 ? 1 : looseAcross, chainAcross),
 		});
 	}
