@@ -170,8 +170,7 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 		(ticket) => (ticket.outsideBlockers ?? []).length > 0,
 	).length;
 	const need = needs === 1 ? "needs" : "need";
-	const lanes = visible.map((lane) => lane.name).join(", ");
-	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects). Lanes: ${lanes}`;
+	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects).`;
 }
 
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
