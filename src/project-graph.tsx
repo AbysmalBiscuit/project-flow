@@ -401,6 +401,11 @@ export function ProjectGraph({
 				`${node.id.replaceAll("\n", " ")} ${node.position.x},${node.position.y}`,
 		)
 		.join(" | ");
+	const outsideLabels = model.nodes.flatMap((node) =>
+		node.data.outside
+			? [nodeKey(node.data.ticket.key ?? "", node.data.project, true)]
+			: [],
+	);
 	return (
 		<div id="project-graph" className={clsx(board.ticketGraph)}>
 			<p id="project-graph-places" className={clsx(cards.graphProbe)}>
@@ -408,6 +413,11 @@ export function ProjectGraph({
 			</p>
 			<p id="project-graph-direction" className={clsx(cards.graphProbe)}>
 				{direction}
+			</p>
+			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
+				{outsideLabels.length === 1 && outsideLabels[0] !== undefined
+					? `${outsideLabels[0]} once`
+					: outsideLabels.join(" | ")}
 			</p>
 			<ReactFlowProvider>
 				<ReactFlow

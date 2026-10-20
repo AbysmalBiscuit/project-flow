@@ -6,7 +6,8 @@
 		{ "assert_text": "acme/widget" },
 		{ "click": "#view-graph" },
 		{ "assert_text": "Platform gate" },
-		{ "click": "button[data-graph-node='acme/platform#9']" },
+		{ "click": "button[data-outside='true'][data-graph-node='acme/platform#9']" },
+		{ "assert_text": "acme/platform#9 once" },
 		{ "assert_text": "Open on GitHub" },
 		{ "shot": "outside-panel" }
 	]
