@@ -484,7 +484,7 @@ function Menu({
 							<Chips
 								id="viewer-logins"
 								values={draft.viewerLogins}
-								placeholder={settingsCopy.addLabel}
+								placeholder={settingsCopy.addLogin}
 								onChange={(viewerLogins) => patch({ viewerLogins })}
 							/>
 						</Row>
@@ -709,7 +709,7 @@ function MappingEditor({
 			<select
 				id="lane-mapping-state"
 				className={clsx(fields.select)}
-				aria-label={settingsCopy.statusName}
+				aria-label={settingsCopy.laneState}
 				value={state}
 				onChange={(event) =>
 					setState(event.target.value as (typeof evidenceStates)[number])
