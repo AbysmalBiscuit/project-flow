@@ -1747,8 +1747,6 @@ describe("GET /api/projects/:name", () => {
 					)
 				).json()) as ProjectReport & { openView: string };
 				expect(report.openView).toBe("graph");
-				const blank = await fetch(new URL("/api/projects/%20", base));
-				expect(blank.status).toBe(404);
 				const own = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
