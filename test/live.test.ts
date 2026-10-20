@@ -435,7 +435,6 @@ function linearPage(nodes: Record<string, unknown>[]): string {
 type IssueFilter = {
 	project?: { id?: { eq?: string } };
 	updatedAt?: { gte?: string };
-	comments?: { updatedAt?: { gte?: string } };
 	or?: {
 		updatedAt?: { gte?: string };
 		comments?: { updatedAt?: { gte?: string } };
