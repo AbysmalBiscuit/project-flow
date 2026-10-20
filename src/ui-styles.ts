@@ -40,8 +40,7 @@ export const frame = stylex.create({
 	shell: {
 		display: "flex",
 		flexDirection: "column",
-		height: "100vh",
-		overflow: "hidden",
+		minHeight: "100vh",
 		backgroundColor: colours.page,
 	},
 	bar: {

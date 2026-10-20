@@ -18,7 +18,7 @@ export const defaultOpenView = "board" as const;
 
 export const defaultGraphDirection = "left-to-right" as const;
 
-export const defaultGroupBy = "none" as const;
+export const defaultGroupBy = "workstream" as const;
 
 export function projectViewKey(
 	views: Record<string, unknown>,

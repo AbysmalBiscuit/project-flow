@@ -1289,7 +1289,7 @@ function Page() {
 	};
 	return (
 		<AppShell>
-			<main className={clsx(frame.page, frame.wide, frame.fill)}>
+			<main className={clsx(frame.page, frame.wide)}>
 				<div className={clsx(board.head)}>
 					<div className={clsx(board.identity)}>
 						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
