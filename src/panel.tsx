@@ -8,7 +8,7 @@ import type {
 import { stateLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, panel, shell } from "./ui-styles.ts";
+import { board, needs, panel, shell } from "./ui-styles.ts";
 
 const laneMarks: Record<string, typeof board.markBacklog> = {
 	[lightValues.done.toLowerCase()]: board.markDone,
@@ -135,6 +135,7 @@ export function TicketPanel({
 	blocks = [],
 	onOpenBlocker,
 	onClose,
+	why,
 }: {
 	tracker: "github" | "linear";
 	project: string;
@@ -148,6 +149,7 @@ export function TicketPanel({
 	blocks?: OutsideBlocker[];
 	onOpenBlocker?: (blocker: OutsideBlocker) => void;
 	onClose: () => void;
+	why?: string;
 }) {
 	const [thread, setThread] = useState<Thread | null>(null);
 	const [missing, setMissing] = useState(false);
@@ -249,8 +251,9 @@ export function TicketPanel({
 					</button>
 				</span>
 			</div>
-			{missing ? <p>Thread not found</p> : null}
-			{thread === null && !missing ? <p>Loading thread</p> : null}
+			{thread === null && !missing ? (
+				<p className={clsx(panel.label)}>Loading thread</p>
+			) : null}
 			{thread !== null || title !== undefined ? (
 				<h2 className={clsx(panel.heading)}>{thread?.title ?? title}</h2>
 			) : null}
@@ -264,6 +267,12 @@ export function TicketPanel({
 					/>
 					{laneName}
 				</p>
+			)}
+			{why === undefined ? null : (
+				<section className={clsx(needs.why)} aria-label="Why this needs you">
+					<h3 className={clsx(needs.whyLabel)}>Why this needs you</h3>
+					<p className={clsx(needs.whyBody)}>{why}</p>
+				</section>
 			)}
 			<RelationList
 				label="Blockers"

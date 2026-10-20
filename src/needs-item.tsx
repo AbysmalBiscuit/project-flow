@@ -1,67 +1,178 @@
+import type { ReactNode } from "react";
 import type { NeedsYouItem } from "./domain.ts";
 import { reasonLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { needs, shell } from "./ui-styles.ts";
+import { needs } from "./ui-styles.ts";
 
-const reasonMark: Record<NeedsYouItem["reason"], string> = {
-	ask: "?",
-	awaitingMerge: "⇄",
-	label: "#",
-	runFailed: "!",
-};
+function Mark({ children }: { children: ReactNode }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(needs.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			{children}
+		</svg>
+	);
+}
+
+function AskIcon() {
+	return (
+		<Mark>
+			<path d="M5 6.5h14v8H8l-3 3z" />
+		</Mark>
+	);
+}
+
+function MergeIcon() {
+	return (
+		<Mark>
+			<circle cx="12" cy="12" r="7" />
+			<path d="M9 12.2l2 2 4-4.4" />
+		</Mark>
+	);
+}
+
+function LabelIcon() {
+	return (
+		<Mark>
+			<path d="M4 8.5l8-4 8 4z" />
+			<path d="M4 12.5l8 4 8-4" />
+		</Mark>
+	);
+}
+
+function FailIcon() {
+	return (
+		<Mark>
+			<circle cx="12" cy="12" r="7" />
+			<path d="M12 8v5M12 16.5h.01" />
+		</Mark>
+	);
+}
+
+function CheckIcon() {
+	return (
+		<Mark>
+			<path d="M6 12.5l4 4 8-9" />
+		</Mark>
+	);
+}
+
+const reasonIcon = {
+	ask: AskIcon,
+	awaitingMerge: MergeIcon,
+	label: LabelIcon,
+	runFailed: FailIcon,
+} as const;
+
+export function actionLabel(item: NeedsYouItem): string {
+	if (item.reason === "ask") {
+		return item.answered ? "View" : "Answer";
+	}
+	if (item.reason === "awaitingMerge") {
+		const number = item.key.split("#").at(-1);
+		return number === undefined ? "Merge" : `Merge PR #${number}`;
+	}
+	if (item.reason === "label") {
+		return "Open ticket";
+	}
+	return "View";
+}
 
 export function NeedsItem({
 	item,
 	project,
+	selected = false,
 	onOpen,
+	onAction,
+	onQuiet,
 }: {
 	item: NeedsYouItem;
 	project?: boolean;
+	selected?: boolean;
 	onOpen?: (key: string) => void;
+	onAction?: (key: string) => void;
+	onQuiet?: (key: string) => void;
 }) {
-	const body = (
-		<>
-			<span className={clsx(needs.icon)} aria-hidden="true">
-				{reasonMark[item.reason]}
-			</span>
-			<span className={clsx(needs.tag)}>{reasonLabel[item.reason]}</span>
-			<span className={clsx(needs.key)}>{item.key}</span>
-			<span className={clsx(needs.headline)}>{item.headline}</span>
-			{item.tags.map((tag) => (
-				<span key={tag} className={clsx(needs.tag)}>
-					{tag}
-				</span>
-			))}
-			{item.answered ? <span className={clsx(needs.tag)}>Answered</span> : null}
-		</>
-	);
-	const projectLink =
-		project !== true ? null : (
-			<a
-				className={clsx(needs.project, shell.button, shell.linkFocus)}
-				href={`/projects/${encodeURIComponent(item.project)}`}
-				data-needs-project={item.key}
-			>
-				{item.project}
-			</a>
-		);
+	const Icon = reasonIcon[item.reason];
+	const action = actionLabel(item);
+	const disabled = item.reason === "awaitingMerge" || item.reason === "label";
 	return (
 		<li
-			className={clsx(needs.item, item.answered && needs.answered)}
+			className={clsx(
+				needs.item,
+				selected && needs.selected,
+				item.answered && needs.answered,
+			)}
 			data-needs={item.key}
 		>
 			{onOpen === undefined ? (
-				<div className={clsx(needs.row)}>{body}</div>
+				<div className={clsx(needs.row)}>
+					<span className={clsx(needs.icon)} aria-hidden="true">
+						<Icon />
+					</span>
+					<span className={clsx(needs.key)}>{item.key}</span>
+					<span className={clsx(needs.headline)}>{item.headline}</span>
+				</div>
 			) : (
 				<button
 					type="button"
 					className={clsx(needs.row)}
 					onClick={() => onOpen(item.key)}
 				>
-					{body}
+					<span className={clsx(needs.icon)} aria-hidden="true">
+						<Icon />
+					</span>
+					<span className={clsx(needs.key)}>{item.key}</span>
+					<span className={clsx(needs.headline)}>{item.headline}</span>
 				</button>
 			)}
-			{projectLink}
+			<span className={clsx(needs.aside)}>
+				{item.tags.map((tag) => (
+					<span key={tag} className={clsx(needs.tag)}>
+						{tag}
+					</span>
+				))}
+				{item.answered ? (
+					<span className={clsx(needs.tag)}>Answered</span>
+				) : null}
+				<span className={clsx(needs.reason)}>{reasonLabel[item.reason]}</span>
+				{project === true ? (
+					<a
+						className={clsx(needs.project)}
+						href={`/projects/${encodeURIComponent(item.project)}`}
+						data-needs-project={item.key}
+					>
+						{item.project}
+					</a>
+				) : null}
+				<button
+					type="button"
+					className={clsx(
+						needs.action,
+						item.reason === "ask" && !item.answered && needs.actionOn,
+						disabled && needs.actionOff,
+					)}
+					disabled={disabled}
+					onClick={() => (onAction ?? onOpen)?.(item.key)}
+				>
+					{action}
+				</button>
+				<button
+					type="button"
+					className={clsx(needs.quiet)}
+					aria-label={`Clear ${item.key}`}
+					onClick={() => onQuiet?.(item.key)}
+				>
+					<CheckIcon />
+				</button>
+			</span>
 		</li>
 	);
 }

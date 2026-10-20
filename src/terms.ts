@@ -40,10 +40,17 @@ export const viewLabel = {
 } as const;
 
 export const reasonLabel: Record<NeedsYouItem["reason"], string> = {
-	ask: "Ask",
-	awaitingMerge: "Awaiting merge",
-	label: "Label",
+	ask: "Question",
+	awaitingMerge: "Ready to merge",
+	label: "Labeled for you",
 	runFailed: "Run failed",
+};
+
+export const reasonTab: Record<NeedsYouItem["reason"], string> = {
+	ask: "Questions",
+	awaitingMerge: "Merges",
+	label: "Labels",
+	runFailed: "Runs",
 };
 
 export const reasonOrder: readonly NeedsYouItem["reason"][] = [
