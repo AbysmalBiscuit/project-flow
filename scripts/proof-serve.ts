@@ -81,6 +81,7 @@ const betaIssues = [
 	),
 	issue("acme/beta", 7, "Beta review", "factory: in-review", false),
 	issue("acme/beta", 8, "Beta review two", "factory: in-review", false),
+	issue("acme/beta", 13, "Beta needs you", "ready", true),
 ];
 
 const gammaIssues = [
