@@ -202,7 +202,7 @@ export const space = stylex.defineVars({
 	lg: "1rem",
 	xl: "1.5rem",
 	pageInset: "5rem",
-	navGap: "1.65rem",
+	navGap: "0.35rem",
 	twoXl: "2.65rem",
 	threeXl: "2.5rem",
 });
@@ -266,7 +266,7 @@ export const measure = stylex.defineVars({
 	menu: "2.25rem",
 	icon: "1.25rem",
 	glyph: "1rem",
-	badge: "1.15rem",
+	badge: "1.35rem",
 	search: "12rem",
 	lane: "16rem",
 	laneDone: "7.5rem",

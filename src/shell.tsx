@@ -250,7 +250,7 @@ export function PageHeader({
 		search !== undefined ||
 		(views !== undefined && views.length > 0);
 	return (
-		<div className={clsx(frame.row)}>
+		<div className={clsx(frame.row, views !== undefined && frame.rowTall)}>
 			<div className={clsx(frame.heading)}>
 				<h1 className={clsx(frame.title)}>{title}</h1>
 				{subtitle === undefined ? null : (
