@@ -6,6 +6,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import factoryLabels from "./fixtures/github-factory-labels.json";
 import projectFields from "./fixtures/github-project-fields.json";
+import recordedRepoRead from "./fixtures/github-repo-read.json";
 import teamStates from "./fixtures/linear-team-states.json";
 import {
 	linearFake,
@@ -1774,6 +1775,66 @@ describe("tracker lanes", () => {
 					?.tickets.find((item) => item.key === "WID-20");
 				expect(ticket?.lane).toBe("Released");
 				expect(ticket?.statusType).toBe("done");
+			},
+		);
+	});
+
+	test("an uppercase NOT_PLANNED reason from a recorded GraphQL payload sits in Dropped", async () => {
+		const recorded = structuredClone(recordedRepoRead) as {
+			data: {
+				repository: {
+					nameWithOwner: string;
+					issues: { nodes: Record<string, unknown>[] };
+					openPullRequests: { nodes: unknown[] };
+					mergedPullRequests: { nodes: unknown[] };
+				};
+			};
+		};
+		const issue = recorded.data.repository.issues.nodes[0];
+		if (issue !== undefined) {
+			issue.number = 12;
+			issue.title = "Not planned";
+			issue.state = "CLOSED";
+			issue.stateReason = "NOT_PLANNED";
+		}
+		recorded.data.repository.nameWithOwner = plainRepo;
+		recorded.data.repository.issues.nodes = issue === undefined ? [] : [issue];
+		recorded.data.repository.openPullRequests.nodes = [];
+		recorded.data.repository.mergedPullRequests.nodes = [];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: plainRepo }] }),
+			async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					urlOf(input) === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					return Response.json(recorded);
+				}
+				if (urlOf(input) === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return unrecorded(input, init);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const project = overview.projects.find(
+					(item) => item.name === plainRepo,
+				);
+				expect(
+					project?.tickets.find((item) => item.key === "acme/plain#12"),
+				).toEqual(
+					expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
+				);
+				expect(project?.statusTypes.dropped).toBe(1);
+				expect(project?.statusTypes.done).toBe(0);
 			},
 		);
 	});

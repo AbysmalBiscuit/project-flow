@@ -237,7 +237,11 @@ export function githubIssueNode(
 		number: item.number,
 		title: item.title ?? `Ticket ${item.number}`,
 		state: state === "CLOSED" || state === "OPEN" ? state : "OPEN",
-		stateReason: item.state_reason ?? item.stateReason ?? null,
+		stateReason:
+			item.stateReason ??
+			(typeof item.state_reason === "string"
+				? item.state_reason.toUpperCase()
+				: null),
 		updatedAt: updated,
 		createdAt: item.created_at ?? item.createdAt ?? updated,
 		closedAt: item.closed_at ?? item.closedAt ?? null,
