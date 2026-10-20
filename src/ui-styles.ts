@@ -905,7 +905,9 @@ export const cards = stylex.create({
 	},
 	bar: {
 		display: "flex",
-		flexGrow: 1,
+		flexGrow: 0,
+		flexShrink: 0,
+		alignSelf: "stretch",
 		height: space.xs,
 		margin: `${space.xs} 0 0`,
 		borderRadius: radius.pill,
