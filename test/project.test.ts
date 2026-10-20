@@ -274,6 +274,29 @@ describe("GET /api/projects/:name", () => {
 					"acme/widget#2",
 					"acme/widget#3",
 				]);
+				const groupOf = (key: string) => {
+					const ticket = first.tickets.find((item) => item.key === key);
+					return {
+						workstream: ticket?.workstream,
+						theme: ticket?.theme,
+					};
+				};
+				expect(groupOf("acme/widget#1")).toEqual({
+					workstream: "Ship the map",
+					theme: "Ship the map",
+				});
+				expect(groupOf("acme/widget#2")).toEqual({
+					workstream: "Ship the map",
+					theme: "ux",
+				});
+				expect(groupOf("acme/widget#3")).toEqual({
+					workstream: "October",
+					theme: "no scope",
+				});
+				expect(groupOf("acme/widget#4")).toEqual({
+					workstream: "no workstream",
+					theme: "no scope",
+				});
 			},
 		);
 		await withApp(
@@ -316,6 +339,391 @@ describe("GET /api/projects/:name", () => {
 					(ticket) => ticket.key === "WID-2",
 				);
 				expect(held?.blocked).toBe(true);
+				const groupOf = (key: string) => {
+					const ticket = linearReport.tickets.find((item) => item.key === key);
+					return {
+						workstream: ticket?.workstream,
+						theme: ticket?.theme,
+					};
+				};
+				expect(groupOf("WID-1")).toEqual({
+					workstream: "Beta",
+					theme: "Launch epic",
+				});
+				expect(groupOf("WID-4")).toEqual({
+					workstream: "Beta",
+					theme: "no scope",
+				});
+				expect(groupOf("WID-2")).toEqual({
+					workstream: "Later",
+					theme: "Ship the list",
+				});
+				expect(groupOf("WID-3")).toEqual({
+					workstream: "Beta",
+					theme: "no scope",
+				});
+			},
+		);
+	});
+
+	test("a Linear ticket with no milestone takes the first ancestor milestone", async () => {
+		const issues = [
+			{
+				id: "parent",
+				identifier: "WID-1",
+				title: "Launch epic",
+				description: "",
+				state: { type: "unstarted" },
+				updatedAt: "2026-08-18T12:00:00.000Z",
+				projectMilestone: { name: "Beta" },
+				labels: { nodes: [{ name: "epic" }] },
+				parent: null,
+			},
+			{
+				id: "story",
+				identifier: "WID-4",
+				title: "Ship the list",
+				description: "",
+				state: { type: "unstarted" },
+				updatedAt: "2026-08-18T12:00:00.000Z",
+				parent: { identifier: "WID-1" },
+				projectMilestone: null,
+				labels: { nodes: [] },
+			},
+			{
+				id: "child",
+				identifier: "WID-8",
+				title: "List the rows",
+				description: "",
+				state: { type: "unstarted" },
+				updatedAt: "2026-08-18T12:00:00.000Z",
+				parent: { identifier: "WID-4" },
+				projectMilestone: null,
+				labels: { nodes: [] },
+			},
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			linearFake({
+				project: {
+					id: "project-widget",
+					name: "Widget launch",
+					slugId: linearSlug,
+				},
+				issues,
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = (await (
+					await fetch(new URL("/api/projects/Widget%20launch", base))
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === "WID-8"),
+				).toMatchObject({ workstream: "Beta" });
+			},
+		);
+	});
+
+	test("a GitHub ticket under a non-epic root takes its own milestone", async () => {
+		const parent = issue(7, "Write the notes");
+		const child = issue(8, "feat(notes): add the heading", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([parent, child]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
+				).toMatchObject({ workstream: "October" });
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
+				).toMatchObject({ workstream: "no workstream" });
+			},
+		);
+	});
+
+	test("an Epic label makes the ticket the GitHub workstream", async () => {
+		const parent = issue(31, "Ship the board", {
+			labels: [{ name: "Epic" }],
+		});
+		const child = issue(32, "Draw the legend", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/31`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([parent, child]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#31`),
+				).toMatchObject({ workstream: "Ship the board" });
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#32`),
+				).toMatchObject({ workstream: "Ship the board" });
+			},
+		);
+	});
+
+	test("a breaking conventional title is grouped by its scope", async () => {
+		const breaking = issue(6, "feat(ux)!: redraw the nodes");
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([breaking]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#6`),
+				).toMatchObject({ theme: "ux" });
+			},
+		);
+	});
+
+	test("a mid-level parent takes the top parent's title as its theme", async () => {
+		const top = issue(10, "Ship the board", {
+			milestone: { title: "October" },
+		});
+		const mid = issue(11, "Draw the legend", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/10`,
+			milestone: { title: "October" },
+		});
+		const leaf = issue(12, "feat(legend): add the key", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/11`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([top, mid, leaf]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const groupOf = (number: number) =>
+					report.tickets.find(
+						(ticket) => ticket.key === `${githubRepo}#${number}`,
+					);
+				expect(groupOf(11)).toMatchObject({
+					workstream: "October",
+					theme: "Ship the board",
+				});
+				expect(groupOf(12)).toMatchObject({
+					workstream: "October",
+					theme: "Ship the board",
+				});
+				expect(groupOf(10)).toMatchObject({ theme: "Ship the board" });
+			},
+		);
+	});
+
+	test("a ticket that is the root of another ticket takes its own title as its theme", async () => {
+		const parent = issue(7, "Write the notes", {
+			milestone: { title: "October" },
+		});
+		const child = issue(8, "feat(notes): add the heading", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
+			milestone: { title: "October" },
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([parent, child]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
+				).toMatchObject({ theme: "Write the notes" });
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
+				).toMatchObject({ theme: "Write the notes" });
+			},
+		);
+	});
+
+	test("a Projects v2 pin groups by milestone, epic label and parent", async () => {
+		const projectId = "PVT_widget";
+		const board: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return Response.json({ login: "lev" });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				return Response.json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: projectId,
+								number: 3,
+								title: "Widget board",
+								closed: false,
+								updatedAt: "2026-08-18T12:00:00Z",
+							},
+						},
+					},
+				});
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("node(id:")
+			) {
+				return Response.json({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											number: 11,
+											title: "Ship the board",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											repository: { nameWithOwner: githubRepo },
+											milestone: { title: "October" },
+											labels: { nodes: [{ name: "epic" }] },
+											parent: null,
+										},
+									},
+									{
+										content: {
+											__typename: "Issue",
+											number: 12,
+											title: "Draw the legend",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-18T12:00:00Z",
+											repository: { nameWithOwner: githubRepo },
+											milestone: { title: "October" },
+											labels: { nodes: [] },
+											parent: {
+												number: 11,
+												repository: { nameWithOwner: githubRepo },
+											},
+										},
+									},
+									{
+										content: {
+											__typename: "DraftIssue",
+											title: "Not a ticket",
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+			return emptyProjectFields(input, init) ?? unrecorded(input);
+		};
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
+			}),
+			board,
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(new URL("/api/projects/Widget%20board", base))
+				).json()) as ProjectReport;
+				expect(report.name).toBe("Widget board");
+				expect(report.tracker).toBe("github");
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#11`),
+				).toMatchObject({
+					workstream: "Ship the board",
+					theme: "Ship the board",
+				});
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#12`),
+				).toMatchObject({
+					workstream: "Ship the board",
+					theme: "no scope",
+				});
+				const backlog = report.sections.find(
+					(section) => section.id === "backlog",
+				);
+				expect(backlog?.items?.map((item) => item.key)).toEqual([
+					"acme/widget#11",
+					"acme/widget#12",
+				]);
+			},
+		);
+	});
+
+	test("a root epic workstream themes the nearest parent below it", async () => {
+		const root = issue(40, "Ship the board", {
+			labels: [{ name: "Epic" }],
+		});
+		const mid = issue(41, "Draw the legend", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/40`,
+		});
+		const leaf = issue(42, "feat(legend): add the key", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/41`,
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([root, mid, leaf]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#42`),
+				).toMatchObject({
+					workstream: "Ship the board",
+					theme: "Draw the legend",
+				});
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#41`),
+				).toMatchObject({
+					workstream: "Ship the board",
+					theme: "no scope",
+				});
 			},
 		);
 	});
