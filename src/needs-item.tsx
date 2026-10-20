@@ -11,7 +11,7 @@ const reasonMark: Record<NeedsYouItem["reason"], string> = {
 
 export function NeedsItem({
 	item,
-	project = false,
+	project,
 	onOpen,
 }: {
 	item: NeedsYouItem;
@@ -35,7 +35,7 @@ export function NeedsItem({
 		</>
 	);
 	const projectButton =
-		project === false ? null : (
+		project !== true ? null : (
 			<a
 				className={clsx(needs.project, shell.button, shell.linkFocus)}
 				href={`/projects/${encodeURIComponent(item.project)}`}
