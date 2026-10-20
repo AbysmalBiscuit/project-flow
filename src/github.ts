@@ -5,7 +5,6 @@ import type {
 	BotComment,
 	BotReaction,
 	BotReview,
-	reviewStateValue,
 	Comment,
 	PostedReply,
 	PullRequest,
@@ -16,7 +15,12 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { backlogColour, factoryBoard, statusTypeOfName } from "./domain.ts";
+import {
+	backlogColour,
+	factoryBoard,
+	reviewStateValue,
+	statusTypeOfName,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
