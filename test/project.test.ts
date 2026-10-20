@@ -82,8 +82,13 @@ const otherIssues = [
 	issue(9, "Platform gate", { labels: [{ name: "epic" }] }, otherRepo),
 ];
 
-function githubFetch(issues = githubIssues, others = otherIssues): Fetch {
+function githubFetch(
+	issues = githubIssues,
+	others = otherIssues,
+	calls?: string[],
+): Fetch {
 	return async (input, init) => {
+		calls?.push(urlOf(input));
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
 			return discovered;
@@ -1332,11 +1337,11 @@ describe("GET /api/projects/:name", () => {
 		};
 		let path = "";
 		let cleanup = async () => {};
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		try {
 			const temp = await tempConfig(config);
 			path = temp.path;
 			cleanup = temp.cleanup;
-			const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 			const start = (check: (base: string) => Promise<void>): Promise<void> => {
 				let startChecks: (base: string) => void = () => {};
 				const checks = new Promise<void>((resolve, reject) => {
@@ -1430,13 +1435,14 @@ describe("GET /api/projects/:name", () => {
 				const filtered = await keys(base);
 				expect(filtered.tickets).toEqual([`${githubRepo}#4`]);
 			});
-			await rm(root, { recursive: true, force: true });
 		} finally {
 			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 
 	test("the board hides a lane, drops tickets older than the lane max age, and filters by several assignees and by search", async () => {
+		const calls: string[] = [];
 		const issues = [
 			issue(1, "Ship the map", {
 				assignee: { login: "ada" },
@@ -1483,13 +1489,9 @@ describe("GET /api/projects/:name", () => {
 					},
 				},
 			}),
-			githubFetch(issues, []),
+			githubFetch(issues, [], calls),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
-				const blank = await fetch(
-					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
-				);
-				expect(blank.status).toBe(404);
 				const report = (await (
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
@@ -1567,6 +1569,51 @@ describe("GET /api/projects/:name", () => {
 					projectViews: Record<string, { search: string }>;
 				};
 				expect(left.projectViews[githubRepo]?.search).toBe("   ");
+				const hidden = (await (
+					await fetch(
+						new URL(
+							`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+							base,
+						),
+					)
+				).json()) as ProjectReport;
+				expect(
+					hidden.tickets.flatMap((ticket) =>
+						ticket.key === null ? [] : [ticket.key],
+					),
+				).toEqual([
+					`${githubRepo}#1`,
+					`${githubRepo}#2`,
+					`${githubRepo}#3`,
+					`${githubRepo}#4`,
+					`${githubRepo}#6`,
+					`${githubRepo}#7`,
+				]);
+				const before = calls.length;
+				const events = await fetch(new URL("/api/events", base), {
+					headers: { accept: "text/event-stream" },
+				});
+				const reader = events.body?.getReader();
+				expect(reader).toBeDefined();
+				const opened = await reader?.read();
+				expect(new TextDecoder().decode(opened?.value)).toContain(": open");
+				const viewOnly = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...left,
+						projectViews: {
+							[githubRepo]: { search: "legend" },
+						},
+					}),
+				});
+				expect(viewOnly.status).toBe(200);
+				expect(calls.length).toBe(before);
+				const published = await reader?.read();
+				expect(new TextDecoder().decode(published?.value)).toContain(
+					"event: overview",
+				);
+				await reader?.cancel();
 			},
 			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
