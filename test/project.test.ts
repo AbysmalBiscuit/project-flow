@@ -289,6 +289,7 @@ describe("GET /api/projects/:name", () => {
 				const dashed = epicMap?.nodes.find((node) => node.dashed);
 				expect(dashed?.project).toBe("acme/platform");
 				expect(dashed?.ticket).toBe("acme/platform#9");
+				expect(dashed?.label).toBe("acme/platform#9");
 				const platform = (await (
 					await fetch(new URL("/api/projects/acme%2Fplatform", base))
 				).json()) as ProjectReport;

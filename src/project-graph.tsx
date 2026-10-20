@@ -13,7 +13,7 @@ import {
 	ReactFlowProvider,
 } from "@xyflow/react";
 import { useMemo } from "react";
-import type { ProjectReport, TicketState } from "./domain.ts";
+import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	graphDirectionLabel,
@@ -56,9 +56,12 @@ export type OpenedNode = {
 
 type TicketEdgeData = Record<string, never>;
 
-function shortKey(key: string): string {
-	const mark = key.lastIndexOf("#");
-	return mark === -1 ? key : key.slice(mark);
+function nodeKey(key: string, project: string, outside: boolean): string {
+	if (!outside) {
+		const mark = key.lastIndexOf("#");
+		return mark === -1 ? key : key.slice(mark);
+	}
+	return outsideKey(project, key);
 }
 
 function nodeId(project: string, key: string): string {
@@ -106,7 +109,9 @@ function TicketNode({ data }: NodeProps<FlowNode<TicketNodeData>>) {
 			<Handle type="target" position={Position.Left} id="left" />
 			<Handle type="target" position={Position.Top} id="top" />
 			<span className={clsx(board.meta)}>
-				<span className={clsx(board.key)}>{shortKey(key)}</span>
+				<span className={clsx(board.key)}>
+					{nodeKey(key, data.project, data.outside)}
+				</span>
 				{data.ticket.pull === undefined ? null : (
 					<span className={clsx(board.pull)}>{data.ticket.pull}</span>
 				)}

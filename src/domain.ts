@@ -3618,10 +3618,21 @@ function nodeOf(
 	};
 }
 
+export function outsideKey(project: string, key: string): string {
+	const number = key.slice(key.lastIndexOf("#") + 1);
+	if (
+		number === key ||
+		key.toLowerCase().startsWith(`${project.toLowerCase()}#`)
+	) {
+		return key;
+	}
+	return `${project}#${number}`;
+}
+
 function externalNode(blocker: CrossProjectBlocker): DiagramNode {
 	return {
 		id: diagramId(`${blocker.tracker}:${blocker.project}:${blocker.key}`),
-		label: `${blocker.project} ${blocker.key}`,
+		label: outsideKey(blocker.project, blocker.key),
 		state: "external",
 		dashed: true,
 		project: blocker.project,
