@@ -22,6 +22,7 @@ import {
 	commentTree,
 	departedNeedsYouIds,
 	expectedBotsByRepo,
+	filterProjectReport,
 	githubRepoForTodo,
 	inboxEntries,
 	linearKeysForNames,
@@ -34,6 +35,7 @@ import {
 	projectCounts,
 	projectHasPmBot,
 	projectSnapshots,
+	projectViewFor,
 	reconcilePoll,
 	staleView,
 	startedTodoKeys,
@@ -333,7 +335,11 @@ function reportFor(
 	if (match === undefined) {
 		return null;
 	}
-	return match.report;
+	return filterProjectReport(
+		match.report,
+		projectViewFor(configuration, match.counts.name),
+		options.clock.now(),
+	);
 }
 
 function mergeFound(

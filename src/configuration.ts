@@ -101,6 +101,19 @@ const overviewView = z
 		view,
 	}));
 
+const projectViewSettings = z.strictObject({
+	shownLanes: z.array(z.string()).optional(),
+	maxAgeDays: z.record(z.string(), z.number().int().nonnegative()).default({}),
+	needsYouOnly: z.boolean().default(false),
+	blockedOnly: z.boolean().default(false),
+	assignees: z.array(z.string()).default([]),
+	search: z.string().default(""),
+	openView: z.enum(["board", "graph", "table"]).default("board"),
+	graphDirection: z
+		.enum(["left-to-right", "top-to-bottom"])
+		.default("left-to-right"),
+});
+
 const configurationSchema = z.strictObject({
 	theme: z.enum(["light", "dark"]).default("light"),
 	overview: overviewView.default({
@@ -141,7 +154,10 @@ const configurationSchema = z.strictObject({
 			blockerCleared: z.boolean().default(true),
 		})
 		.default({ needsYou: true, comment: true, blockerCleared: true }),
+	projectViews: z.record(z.string(), projectViewSettings).default({}),
 });
+
+export type ProjectViewSettings = z.infer<typeof projectViewSettings>;
 
 export type Configuration = z.infer<typeof configurationSchema>;
 

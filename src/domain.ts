@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { AutoMerge, Configuration } from "./configuration.ts";
+import type {
+	AutoMerge,
+	Configuration,
+	ProjectViewSettings,
+} from "./configuration.ts";
 
 export type WorkcellRun = {
 	key: string;
@@ -109,6 +113,7 @@ export type TicketView = {
 	needsYou?: boolean;
 	enteredStateAt?: string;
 	run?: LiveRun;
+	assignees?: string[];
 };
 
 export type CrossProjectBlocker = {
@@ -2619,6 +2624,21 @@ function shownTicket(
 	};
 }
 
+function assigneesOf(
+	ticket: Ticket,
+): { assignees: string[] } | Record<string, never> {
+	const names = [
+		...(ticket.assignees ?? []),
+		...(ticket.assignee === undefined || ticket.assignee === null
+			? []
+			: [ticket.assignee]),
+	].flatMap((name) => {
+		const trimmed = name.trim();
+		return trimmed === "" ? [] : [trimmed];
+	});
+	return names.length === 0 ? {} : { assignees: [...new Set(names)] };
+}
+
 function chipsOf(
 	shown: ShownTicket,
 ): { chips: string[] } | Record<string, never> {
@@ -2778,6 +2798,7 @@ export function projectCounts(
 				: { staleStatus: shown.staleStatus }),
 			...chipsOf(shown),
 			enteredStateAt: shown.enteredStateAt,
+			...assigneesOf(ticket),
 		});
 		if (blockers.length === 0 || ticket.state !== "open") {
 			continue;
@@ -3876,4 +3897,98 @@ export function projectReport(
 		tickets: boardTickets,
 		sections,
 	};
+}
+
+const dayMs = 24 * 60 * 60 * 1000;
+const defaultDoneAgeDays = 2;
+
+function projectViewKey(
+	views: Configuration["projectViews"],
+	name: string,
+): string | undefined {
+	return Object.keys(views).find(
+		(key) => key.toLowerCase() === name.toLowerCase(),
+	);
+}
+
+export function projectViewFor(
+	configuration: Configuration,
+	name: string,
+): ProjectViewSettings {
+	const key = projectViewKey(configuration.projectViews, name);
+	const saved = key === undefined ? undefined : configuration.projectViews[key];
+	return {
+		maxAgeDays: {},
+		needsYouOnly: false,
+		blockedOnly: false,
+		assignees: [],
+		search: "",
+		openView: "board",
+		graphDirection: "left-to-right",
+		...saved,
+	};
+}
+
+function ageDays(entered: string | undefined, now: Date): number {
+	const at = Date.parse(entered ?? "");
+	if (Number.isNaN(at)) {
+		return 0;
+	}
+	return (now.getTime() - at) / dayMs;
+}
+
+export function filterProjectReport(
+	report: ProjectReport,
+	view: ProjectViewSettings,
+	now: Date,
+): ProjectReport {
+	const hidden =
+		view.shownLanes === undefined
+			? report.lanes.filter((lane) => lane.statusType === "dropped")
+			: report.lanes.filter(
+					(lane) =>
+						!view.shownLanes?.some(
+							(name) => name.toLowerCase() === lane.name.toLowerCase(),
+						),
+				);
+	const hiddenNames = new Set(hidden.map((lane) => lane.name.toLowerCase()));
+	const wanted = new Set(
+		view.assignees.flatMap((name) => {
+			const trimmed = name.trim().toLowerCase();
+			return trimmed === "" ? [] : [trimmed];
+		}),
+	);
+	const needle = view.search.trim().toLowerCase();
+	const kept = report.tickets.filter((item) => {
+		const lane = (item.lane ?? "").toLowerCase();
+		if (hiddenNames.has(lane)) {
+			return false;
+		}
+		const names = (item.assignees ?? []).map((name) => name.toLowerCase());
+		if (wanted.size > 0 && !names.some((name) => wanted.has(name))) {
+			return false;
+		}
+		if (view.needsYouOnly && item.needsYou !== true) {
+			return false;
+		}
+		if (view.blockedOnly && item.blocked !== true) {
+			return false;
+		}
+		const named = view.maxAgeDays[item.lane ?? ""];
+		const cap =
+			named === undefined
+				? item.statusType === "done"
+					? defaultDoneAgeDays
+					: 0
+				: named;
+		if (cap > 0 && ageDays(item.enteredStateAt, now) > cap) {
+			return false;
+		}
+		if (needle === "") {
+			return true;
+		}
+		const key = item.key?.toLowerCase() ?? "";
+		return key.includes(needle) || item.title.toLowerCase().includes(needle);
+	});
+	return { ...report, tickets: kept };
 }
