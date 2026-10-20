@@ -15,12 +15,7 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import {
-	backlogColour,
-	closingKeysFromBody,
-	factoryBoard,
-	statusTypeOfName,
-} from "./domain.ts";
+import { backlogColour, factoryBoard, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -1345,10 +1340,6 @@ async function loadOpenPull(
 	if (pull.state !== "open" && !merged) {
 		return null;
 	}
-	const closedByBody = closingKeysFromBody(body, repo);
-	if (merged && closedByBody.length === 0) {
-		return null;
-	}
 	const head = merged ? "" : (pull.head.sha ?? "");
 	const review =
 		head === ""
@@ -1373,7 +1364,7 @@ async function loadOpenPull(
 		draft: pull.draft === true,
 		branch: pull.head.ref,
 		body,
-		closingKeys: merged ? closedByBody : closingKeys,
+		closingKeys,
 		headSha: head,
 		headCommittedAt,
 		merged,

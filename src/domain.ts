@@ -2166,11 +2166,12 @@ function runFor(ticket: Ticket, runs: WorkcellRun[]): WorkcellRun | undefined {
 
 function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
 	const key = ticket.key;
-	if (key === null) {
+	if (key === null || !pull.merged) {
 		return false;
 	}
-	const keys = [...pull.closingKeys, ...closingKeys(pull.body, pull.repo)];
-	return keys.some((item) => item.toLowerCase() === key.toLowerCase());
+	return closingKeys(pull.body, pull.repo).some(
+		(item) => item.toLowerCase() === key.toLowerCase(),
+	);
 }
 
 export type ShownTicket = {

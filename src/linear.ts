@@ -11,7 +11,7 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { closingKeysFromBody, linearStatusType } from "./domain.ts";
+import { linearStatusType } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
@@ -740,10 +740,6 @@ async function pullsForIssues(
 			if (pull.state !== "open" && !merged) {
 				continue;
 			}
-			const closedByBody = closingKeysFromBody(body, target.repo);
-			if (merged && closedByBody.length === 0) {
-				continue;
-			}
 			const head = merged ? "" : (pull.head.sha ?? "");
 			const review =
 				head === ""
@@ -773,7 +769,7 @@ async function pullsForIssues(
 				draft: pull.draft === true,
 				branch: pull.head.ref,
 				body,
-				closingKeys: merged ? closedByBody : [identifier],
+				closingKeys: [identifier],
 				headSha: head,
 				headCommittedAt,
 				merged,
