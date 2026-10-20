@@ -239,12 +239,25 @@ export type ReplyRequest = {
 	kind?: "comment" | "review";
 };
 
+const htmlComment = /<!--[\s\S]*?-->/g;
+
+export function visibleCommentBody(body: string): string {
+	return body
+		.replace(htmlComment, "")
+		.replace(/[ \t]+\n/g, "\n")
+		.trim();
+}
+
+function visibleComment(comment: ThreadComment): ThreadComment {
+	return { ...comment, body: visibleCommentBody(comment.body), children: [] };
+}
+
 export function commentTree(comments: ThreadComment[]): ThreadComment[] {
 	const byParent = new Map<string | null, ThreadComment[]>();
 	for (const comment of comments) {
 		const parent = comment.parentId;
 		const list = byParent.get(parent) ?? [];
-		list.push({ ...comment, children: [] });
+		list.push(visibleComment(comment));
 		byParent.set(parent, list);
 	}
 	const attach = (comment: ThreadComment): ThreadComment => ({
