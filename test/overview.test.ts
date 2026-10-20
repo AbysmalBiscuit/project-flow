@@ -5696,6 +5696,10 @@ describe("GET /api/overview", () => {
 				void (async () => {
 					const opened = await fetch(new URL("/api/overview", base));
 					expect(opened.status).toBe(200);
+					const labelDeadline = Date.now() + 3_000;
+					while (labelReads < 2 && Date.now() < labelDeadline) {
+						await Bun.sleep(20);
+					}
 					const after = (await opened.json()) as Overview;
 					expect(after.projects[0]?.tickets).toEqual([
 						{
