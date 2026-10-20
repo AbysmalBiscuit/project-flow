@@ -81,5 +81,6 @@ export const overviewControlLabel = {
 	sort: "Sort",
 	search: "Search",
 	polled: "Polled",
+	showing: "Showing",
 	unlinked: "Unlinked PRs",
 } as const;

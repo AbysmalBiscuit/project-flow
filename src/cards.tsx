@@ -302,15 +302,21 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 }
 
 function CardsList({ projects }: { projects: ProjectCounts[] }) {
+	const shown = projects.map((project) => project.name).join(", ");
 	return (
-		<ul className={clsx(cards.list)}>
-			{projects.map((project) => (
-				<ProjectCard
-					key={`${project.tracker}:${project.name}`}
-					project={project}
-				/>
-			))}
-		</ul>
+		<>
+			<p>
+				{overviewControlLabel.showing} {shown}
+			</p>
+			<ul className={clsx(cards.list)}>
+				{projects.map((project) => (
+					<ProjectCard
+						key={`${project.tracker}:${project.name}`}
+						project={project}
+					/>
+				))}
+			</ul>
+		</>
 	);
 }
 
