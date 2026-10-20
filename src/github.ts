@@ -45,6 +45,8 @@ const githubIssue = z.object({
 	state: z.string(),
 	state_reason: z.string().nullable(),
 	updated_at: z.string(),
+	created_at: z.string().optional(),
+	closed_at: z.string().nullable().optional(),
 	body: z.string().nullable().optional(),
 	milestone: z.object({ title: z.string() }).nullable().optional(),
 	labels: z.array(z.object({ name: z.string() })).optional(),
@@ -1047,6 +1049,114 @@ async function labelPage(
 	return page.data;
 }
 
+const issueEvent = z
+	.object({
+		event: z.string(),
+		created_at: z.string(),
+		issue: z.object({ number: z.number() }),
+		label: z.object({ name: z.string() }).nullish(),
+	})
+	.passthrough();
+
+// One page is 100 events. Ten pages covers a busy repo without walking its history.
+const issueEventPageBound = 10;
+
+function oldestUpdate(tickets: Ticket[]): string | null {
+	let oldest: string | null = null;
+	for (const ticket of tickets) {
+		if (oldest === null || ticket.updatedAt < oldest) {
+			oldest = ticket.updatedAt;
+		}
+	}
+	return oldest;
+}
+
+function parseIssueEvents(
+	item: unknown,
+	repo: string,
+): z.infer<typeof issueEvent>[] {
+	const page = z.array(issueEvent).safeParse(item);
+	if (!page.success) {
+		throw new Error(`GitHub list issue events failed: ${repo}`);
+	}
+	return page.data;
+}
+
+// The feed is newest first. A page older than every listed ticket cannot name a later state entry.
+function reachedOldestUpdate(
+	events: z.infer<typeof issueEvent>[],
+	oldest: string | null,
+): boolean {
+	if (oldest === null || events.length === 0) {
+		return false;
+	}
+	const last = events.at(-1);
+	return last !== undefined && last.created_at < oldest;
+}
+
+async function listIssueEvents(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	oldest: string | null,
+): Promise<z.infer<typeof issueEvent>[]> {
+	const start = `https://api.github.com/repos/${repo}/issues/events?per_page=100&page=1`;
+	const first = await fetchImpl(start, { headers: githubHeaders(token) });
+	if (first.status === 404 || first.status === 410) {
+		return [];
+	}
+	if (!first.ok) {
+		throw new Error(
+			`GitHub list issue events failed (HTTP ${first.status}): ${repo}`,
+		);
+	}
+	const events = parseIssueEvents(await first.json(), repo);
+	if (reachedOldestUpdate(events, oldest)) {
+		return events;
+	}
+	let url = nextPage(first.headers.get("link"));
+	for (let page = 2; page <= issueEventPageBound && url !== null; page += 1) {
+		const response = await fetchImpl(url, { headers: githubHeaders(token) });
+		if (!response.ok) {
+			throw new Error(
+				`GitHub list issue events failed (HTTP ${response.status}): ${repo}`,
+			);
+		}
+		const next = parseIssueEvents(await response.json(), repo);
+		events.push(...next);
+		if (reachedOldestUpdate(next, oldest)) {
+			return events;
+		}
+		url = nextPage(response.headers.get("link"));
+	}
+	return events;
+}
+
+function labelHistory(
+	events: z.infer<typeof issueEvent>[],
+	number: number,
+	status: TicketStatus,
+) {
+	const history: NonNullable<Ticket["history"]> = [];
+	for (const event of events) {
+		if (event.issue.number !== number) {
+			continue;
+		}
+		const labelName = event.label?.name;
+		const named = event.event === "labeled" && labelName === status.name;
+		const reopened = event.event === "reopened";
+		if (!named && !reopened) {
+			continue;
+		}
+		history.push({
+			statusId: status.id,
+			at: event.created_at,
+			statusType: status.statusType,
+		});
+	}
+	return history;
+}
+
 async function listRepoLabels(
 	token: string,
 	fetchImpl: Fetch,
@@ -1679,6 +1789,8 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					if (issue.state !== "open" && issue.state !== "closed") {
 						continue;
 					}
+					const closedAt = issue.closed_at?.trim() ?? "";
+					const createdAt = issue.created_at?.trim() ?? "";
 					const summary = issue.issue_dependencies_summary;
 					const blockedBy =
 						summary !== undefined && summary.total_blocked_by > 0
@@ -1722,6 +1834,8 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						milestone: issue.milestone?.title ?? null,
 						parent: parentKey(issue.parent_issue_url),
 						labels: issue.labels?.map((label) => label.name) ?? [],
+						...(closedAt === "" ? {} : { closedAt }),
+						...(createdAt === "" ? {} : { createdAt }),
 						...(issue.assignee === undefined && issue.assignees === undefined
 							? {}
 							: {
@@ -1735,15 +1849,22 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			}
 			const labels = await listRepoLabels(token, fetchImpl, repo);
 			const board = factoryBoard(labels);
-			if (!board.factoryLabels) {
-				return { name: repo, tickets, board };
-			}
-			for (const ticket of tickets) {
-				const status = board.statuses.find((item) =>
-					ticket.labels.includes(item.name),
-				);
-				if (status !== undefined) {
-					ticket.status = status;
+			const events =
+				board.factoryLabels && tickets.length > 0
+					? await listIssueEvents(token, fetchImpl, repo, oldestUpdate(tickets))
+					: [];
+			if (board.factoryLabels) {
+				for (const ticket of tickets) {
+					const status = board.statuses.find((item) =>
+						ticket.labels.includes(item.name),
+					);
+					if (status !== undefined) {
+						ticket.status = status;
+						const history = labelHistory(events, Number(ticket.id), status);
+						if (history.length > 0) {
+							ticket.history = history;
+						}
+					}
 				}
 			}
 			return { name: repo, tickets, board };

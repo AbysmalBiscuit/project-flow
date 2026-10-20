@@ -76,6 +76,8 @@ export type Ticket = {
 	status?: TicketStatus;
 	emptyStatus?: boolean;
 	history?: { statusId: string; at: string; statusType?: StatusType }[];
+	closedAt?: string;
+	createdAt?: string;
 };
 
 export type OutsideBlocker = {
@@ -2358,7 +2360,27 @@ function enteredStateAt(ticket: Ticket, lane: Lane): string {
 				entered === undefined || change.at > entered ? change.at : entered;
 		}
 	}
-	return entered ?? ticket.updatedAt;
+	const closedType = closedLaneType(ticket);
+	const closedAt = ticket.closedAt;
+	if (
+		closedType !== undefined &&
+		closedType === lane.statusType &&
+		closedAt !== undefined &&
+		closedAt !== "" &&
+		(entered === undefined || closedAt > entered)
+	) {
+		entered = closedAt;
+	}
+	if (entered !== undefined) {
+		return entered;
+	}
+	if (lane.statusType === "backlog") {
+		const createdAt = ticket.createdAt?.trim() ?? "";
+		if (createdAt !== "") {
+			return createdAt;
+		}
+	}
+	return ticket.updatedAt;
 }
 
 function shownTicket(
