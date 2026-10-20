@@ -415,9 +415,7 @@ export function ProjectGraph({
 				{direction}
 			</p>
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
-				{outsideLabels.length === 1 && outsideLabels[0] !== undefined
-					? `${outsideLabels[0]} once`
-					: outsideLabels.join(" | ")}
+				{outsideLabels.join(" | ")}
 			</p>
 			<ReactFlowProvider>
 				<ReactFlow
