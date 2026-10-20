@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { type AutoMerge, type Configuration, sameRef } from "./configuration.ts";
+import {
+	type AutoMerge,
+	type Configuration,
+	sameRef,
+} from "./configuration.ts";
 import type { TicketState } from "./domain.ts";
 import { PageFrame } from "./shell.tsx";
 import {
@@ -874,8 +878,7 @@ function Page() {
 						? live.overview
 						: next.overview;
 				const pinned =
-					sameRefs(settings.pinned, next.pinned) &&
-					Array.isArray(live.pinned)
+					sameRefs(settings.pinned, next.pinned) && Array.isArray(live.pinned)
 						? live.pinned
 						: next.pinned;
 				const projectViews = { ...live.projectViews, ...next.projectViews };
