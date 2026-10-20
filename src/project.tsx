@@ -17,6 +17,11 @@ import { blockedLabel, navLabel, stateLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
+import {
+	laneAgeCap,
+	savedProjectView,
+	visibleLaneNames,
+} from "./view-settings.ts";
 
 const doneCap = 5;
 
@@ -28,28 +33,10 @@ const views = [
 
 type OpenView = ProjectViewSettings["openView"];
 
-const emptyView: ProjectViewSettings = {
-	maxAgeDays: {},
-	needsYouOnly: false,
-	blockedOnly: false,
-	assignees: [],
-	search: "",
-	openView: "board",
-	graphDirection: "left-to-right",
-};
+const emptyView = savedProjectView({}, "");
 
 function isOpenView(value: string): value is OpenView {
 	return views.some((item) => item.id === value);
-}
-
-function savedView(
-	viewsByProject: Record<string, ProjectViewSettings>,
-	name: string,
-): ProjectViewSettings {
-	const match = Object.entries(viewsByProject).find(
-		([key]) => key.toLowerCase() === name.toLowerCase(),
-	);
-	return { ...emptyView, ...match?.[1] };
 }
 
 function projectName(): string {
@@ -161,14 +148,12 @@ function visibleLanes(
 	report: ProjectReport,
 	view: ProjectViewSettings,
 ): ProjectReport["lanes"] {
-	if (view.shownLanes !== undefined) {
-		return report.lanes.filter((lane) =>
-			view.shownLanes?.some(
-				(name) => name.toLowerCase() === lane.name.toLowerCase(),
-			),
-		);
-	}
-	return report.lanes.filter((lane) => lane.statusType !== "dropped");
+	const names = new Set(
+		visibleLaneNames(report.lanes, view.shownLanes).map((name) =>
+			name.toLowerCase(),
+		),
+	);
+	return report.lanes.filter((lane) => names.has(lane.name.toLowerCase()));
 }
 
 function countLine(report: ProjectReport, view: ProjectViewSettings): string {
@@ -441,23 +426,9 @@ function FilterMenu({
 	open: boolean;
 	onOpen: (next: boolean) => void;
 }) {
-	const shown = new Set(
-		(
-			view.shownLanes ??
-			report.lanes
-				.filter((lane) => lane.statusType !== "dropped")
-				.map((lane) => lane.name)
-		).map((name) => name.toLowerCase()),
-	);
-	const active =
-		view.shownLanes !== undefined ||
-		Object.keys(view.maxAgeDays).length > 0 ||
-		view.needsYouOnly ||
-		view.blockedOnly ||
-		view.assignees.length > 0 ||
-		view.search.trim() !== "";
+	const shown = visibleLaneNames(report.lanes, view.shownLanes);
 	return (
-		<div className={clsx(board.menuWrap)}>
+		<div>
 			<button
 				type="button"
 				id="project-filter"
@@ -467,9 +438,7 @@ function FilterMenu({
 				onClick={() => onOpen(!open)}
 			>
 				Filter
-				<span className={clsx(board.filterCount)}>
-					{active ? shown.size : report.lanes.length}
-				</span>
+				<span className={clsx(board.filterCount)}>{shown.length}</span>
 			</button>
 		</div>
 	);
@@ -485,12 +454,9 @@ function FilterPanel({
 	onChange: (next: ProjectViewSettings) => void;
 }) {
 	const shown = new Set(
-		(
-			view.shownLanes ??
-			report.lanes
-				.filter((lane) => lane.statusType !== "dropped")
-				.map((lane) => lane.name)
-		).map((name) => name.toLowerCase()),
+		visibleLaneNames(report.lanes, view.shownLanes).map((name) =>
+			name.toLowerCase(),
+		),
 	);
 	const people = [
 		...new Set(
@@ -535,7 +501,14 @@ function FilterPanel({
 						className={clsx(board.age)}
 						aria-label={`${lane.name} max age`}
 						data-lane-age={lane.name}
-						value={view.maxAgeDays[lane.name] ?? ""}
+						value={String(
+							laneAgeCap(view.maxAgeDays, lane.name, lane.statusType),
+						)}
+						placeholder={
+							laneAgeCap(view.maxAgeDays, lane.name, lane.statusType) === 0
+								? "unlimited"
+								: undefined
+						}
 						onChange={(event) => {
 							const next = { ...view.maxAgeDays };
 							const days = Number(event.target.value);
@@ -609,6 +582,8 @@ function Page() {
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
+	const saveChain = useRef(Promise.resolve());
+	const saveGeneration = useRef(0);
 	useEffect(() => {
 		const onPop = () => {
 			const next = highlightKey();
@@ -623,6 +598,7 @@ function Page() {
 	}, []);
 	useEffect(() => {
 		let stopped = false;
+		const loaded = name;
 		fetch("/api/settings")
 			.then(async (response) => {
 				if (stopped || !response.ok) {
@@ -631,7 +607,7 @@ function Page() {
 				const body = (await response.json()) as {
 					projectViews?: Record<string, ProjectViewSettings>;
 				};
-				const saved = savedView(body.projectViews ?? {}, projectName());
+				const saved = savedProjectView(body.projectViews ?? {}, loaded);
 				setSettings(saved);
 				setView(saved.openView);
 			})
@@ -639,7 +615,7 @@ function Page() {
 		return () => {
 			stopped = true;
 		};
-	}, []);
+	}, [name]);
 	useEffect(() => {
 		const path = `/api/projects/${encodeURIComponent(name)}`;
 		let stopped = false;
@@ -682,12 +658,8 @@ function Page() {
 		if (!open || ticket === null) {
 			return;
 		}
-		if (panelProject === name) {
-			setPanelReport(report);
-			return;
-		}
 		let stopped = false;
-		fetch(`/api/projects/${encodeURIComponent(panelProject)}`)
+		fetch(`/api/projects/${encodeURIComponent(panelProject)}?view=all`)
 			.then(async (response) => {
 				if (stopped || !response.ok) {
 					return;
@@ -700,8 +672,8 @@ function Page() {
 		return () => {
 			stopped = true;
 		};
-	}, [open, ticket, panelProject, name, report]);
-	const source = panelProject === name ? report : panelReport;
+	}, [open, ticket, panelProject]);
+	const source = panelReport;
 	const selected =
 		source === null || ticket === null
 			? undefined
@@ -723,39 +695,55 @@ function Page() {
 		);
 	}
 	const saveView = (next: ProjectViewSettings) => {
+		const project = name;
+		const generation = saveGeneration.current + 1;
+		saveGeneration.current = generation;
 		setSettings(next);
 		setView(next.openView);
-		void fetch("/api/settings")
-			.then(async (response) => {
-				if (!response.ok) {
-					return;
-				}
-				const current: unknown = await response.json();
-				if (current === null || typeof current !== "object") {
-					return;
-				}
-				const body = current as {
-					projectViews?: Record<string, ProjectViewSettings>;
-				};
-				const projectViews = { ...(body.projectViews ?? {}) };
-				const key =
-					Object.keys(projectViews).find(
-						(item) => item.toLowerCase() === name.toLowerCase(),
-					) ?? name;
-				projectViews[key] = next;
-				const saved = await fetch("/api/settings", {
-					method: "PUT",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ ...body, projectViews }),
-				});
-				if (saved.ok) {
-					const written = (await saved.json()) as {
-						projectViews?: Record<string, ProjectViewSettings>;
-					};
-					setSettings(savedView(written.projectViews ?? {}, name));
-				}
-			})
-			.catch(() => {});
+		const write = saveChain.current.then(async () => {
+			if (generation !== saveGeneration.current) {
+				return;
+			}
+			const response = await fetch("/api/settings");
+			if (!response.ok || generation !== saveGeneration.current) {
+				return;
+			}
+			const current: unknown = await response.json();
+			if (
+				current === null ||
+				typeof current !== "object" ||
+				generation !== saveGeneration.current
+			) {
+				return;
+			}
+			const body = current as {
+				projectViews?: Record<string, ProjectViewSettings>;
+			};
+			const projectViews = { ...(body.projectViews ?? {}) };
+			const key =
+				Object.keys(projectViews).find(
+					(item) => item.toLowerCase() === project.toLowerCase(),
+				) ?? project;
+			projectViews[key] = next;
+			const saved = await fetch("/api/settings", {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...body, projectViews }),
+			});
+			if (!saved.ok || generation !== saveGeneration.current) {
+				return;
+			}
+			const written = (await saved.json()) as {
+				projectViews?: Record<string, ProjectViewSettings>;
+			};
+			if (generation !== saveGeneration.current) {
+				return;
+			}
+			const confirmed = savedProjectView(written.projectViews ?? {}, project);
+			setSettings(confirmed);
+			setView(confirmed.openView);
+		});
+		saveChain.current = write.catch(() => {});
 	};
 	const openTicketInPanel = (key: string) => {
 		setPanelProject(report.name);

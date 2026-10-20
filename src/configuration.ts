@@ -11,6 +11,13 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import { knownBots } from "./domain.ts";
+import {
+	defaultGraphDirection,
+	defaultOpenView,
+	emptyMaxAgeDays,
+	graphDirections,
+	openViews,
+} from "./view-settings.ts";
 
 const githubRepoPin = z.strictObject({
 	tracker: z.literal("github"),
@@ -103,15 +110,15 @@ const overviewView = z
 
 const projectViewSettings = z.strictObject({
 	shownLanes: z.array(z.string()).optional(),
-	maxAgeDays: z.record(z.string(), z.number().int().nonnegative()).default({}),
+	maxAgeDays: z
+		.record(z.string(), z.number().int().nonnegative())
+		.default(emptyMaxAgeDays),
 	needsYouOnly: z.boolean().default(false),
 	blockedOnly: z.boolean().default(false),
 	assignees: z.array(z.string()).default([]),
 	search: z.string().default(""),
-	openView: z.enum(["board", "graph", "table"]).default("board"),
-	graphDirection: z
-		.enum(["left-to-right", "top-to-bottom"])
-		.default("left-to-right"),
+	openView: z.enum(openViews).default(defaultOpenView),
+	graphDirection: z.enum(graphDirections).default(defaultGraphDirection),
 });
 
 const configurationSchema = z.strictObject({

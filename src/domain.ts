@@ -4,6 +4,11 @@ import type {
 	Configuration,
 	ProjectViewSettings,
 } from "./configuration.ts";
+import {
+	laneAgeCap,
+	savedProjectView,
+	visibleLaneNames,
+} from "./view-settings.ts";
 
 export type WorkcellRun = {
 	key: string;
@@ -3900,33 +3905,12 @@ export function projectReport(
 }
 
 const dayMs = 24 * 60 * 60 * 1000;
-const defaultDoneAgeDays = 2;
-
-function projectViewKey(
-	views: Configuration["projectViews"],
-	name: string,
-): string | undefined {
-	return Object.keys(views).find(
-		(key) => key.toLowerCase() === name.toLowerCase(),
-	);
-}
 
 export function projectViewFor(
 	configuration: Configuration,
 	name: string,
 ): ProjectViewSettings {
-	const key = projectViewKey(configuration.projectViews, name);
-	const saved = key === undefined ? undefined : configuration.projectViews[key];
-	return {
-		maxAgeDays: {},
-		needsYouOnly: false,
-		blockedOnly: false,
-		assignees: [],
-		search: "",
-		openView: "board",
-		graphDirection: "left-to-right",
-		...saved,
-	};
+	return savedProjectView(configuration.projectViews, name);
 }
 
 function ageDays(entered: string | undefined, now: Date): number {
@@ -3942,16 +3926,11 @@ export function filterProjectReport(
 	view: ProjectViewSettings,
 	now: Date,
 ): ProjectReport {
-	const hidden =
-		view.shownLanes === undefined
-			? report.lanes.filter((lane) => lane.statusType === "dropped")
-			: report.lanes.filter(
-					(lane) =>
-						!view.shownLanes?.some(
-							(name) => name.toLowerCase() === lane.name.toLowerCase(),
-						),
-				);
-	const hiddenNames = new Set(hidden.map((lane) => lane.name.toLowerCase()));
+	const shown = new Set(
+		visibleLaneNames(report.lanes, view.shownLanes).map((name) =>
+			name.toLowerCase(),
+		),
+	);
 	const wanted = new Set(
 		view.assignees.flatMap((name) => {
 			const trimmed = name.trim().toLowerCase();
@@ -3961,7 +3940,7 @@ export function filterProjectReport(
 	const needle = view.search.trim().toLowerCase();
 	const kept = report.tickets.filter((item) => {
 		const lane = (item.lane ?? "").toLowerCase();
-		if (hiddenNames.has(lane)) {
+		if (!shown.has(lane)) {
 			return false;
 		}
 		const names = (item.assignees ?? []).map((name) => name.toLowerCase());
@@ -3974,13 +3953,7 @@ export function filterProjectReport(
 		if (view.blockedOnly && item.blocked !== true) {
 			return false;
 		}
-		const named = view.maxAgeDays[item.lane ?? ""];
-		const cap =
-			named === undefined
-				? item.statusType === "done"
-					? defaultDoneAgeDays
-					: 0
-				: named;
+		const cap = laneAgeCap(view.maxAgeDays, item.lane ?? "", item.statusType);
 		if (cap > 0 && ageDays(item.enteredStateAt, now) > cap) {
 			return false;
 		}
