@@ -17,6 +17,7 @@ await writeFile(
 		pinned: [
 			{ tracker: "github", repo: widget },
 			{ tracker: "github", repo: platform },
+			{ tracker: "linear", project: "gate" },
 		],
 		pollIntervalSeconds: 3600,
 	}),
@@ -46,7 +47,7 @@ const widgetIssues = [
 		widget,
 		2,
 		"Draw the nodes",
-		`Blocked by: ${widget}#1\nBlocked by: ${platform}#9\nBlocks: ${platform}#10`,
+		`Blocked by: ${widget}#1\nBlocked by: ${platform}#9\nBlocked by: https://linear.app/acme/issue/PF-3\nBlocks: ${platform}#10`,
 	),
 	issue(widget, 3, "Write the copy"),
 	issue(widget, 4, "Read the review"),
@@ -67,12 +68,105 @@ function page(items: Record<string, unknown>[]): Response {
 	});
 }
 
+const emptyPage = {
+	nodes: [],
+	pageInfo: { hasNextPage: false, endCursor: null },
+};
+
+const gateIssue = {
+	identifier: "PF-3",
+	title: "Hold the gate",
+	description: "The launch waits on this gate.",
+	updatedAt: "2026-08-09T12:00:00Z",
+	state: { id: "backlog", name: "Backlog", type: "backlog", color: "#bec2c8" },
+	parent: null,
+	projectMilestone: null,
+	labels: { nodes: [] },
+	assignee: null,
+	attachments: { nodes: [] },
+	comments: {
+		nodes: [
+			{
+				id: "gate-note",
+				body: "The gate note is ready.",
+				createdAt: "2026-08-09T12:00:00Z",
+				user: { name: "Ada", displayName: "Ada" },
+				reactions: [],
+			},
+		],
+		pageInfo: { hasNextPage: false, endCursor: null },
+	},
+	history: { nodes: [] },
+	inverseRelations: { nodes: [] },
+};
+
+function linearResponse(body: string): Response {
+	if (body.includes("MemberProjects") || body.includes("viewer { id }")) {
+		return Response.json({
+			data: {
+				viewer: { id: "lev" },
+				projects: emptyPage,
+			},
+		});
+	}
+	if (body.includes("ProjectByPin")) {
+		return Response.json({
+			data: {
+				projects: {
+					nodes: [
+						{
+							id: "gate",
+							name: "Gate",
+							slugId: "gate",
+							teams: { nodes: [] },
+						},
+					],
+				},
+			},
+		});
+	}
+	if (body.includes("ProjectIssues")) {
+		return Response.json({
+			data: { issues: { nodes: [gateIssue], pageInfo: emptyPage.pageInfo } },
+		});
+	}
+	if (body.includes("IssueThread")) {
+		return Response.json({
+			data: {
+				issue: {
+					identifier: "PF-3",
+					title: "Hold the gate",
+					url: "https://linear.app/issue/PF-3",
+					comments: {
+						nodes: [
+							{
+								id: "gate-note",
+								body: "The gate note is ready.",
+								createdAt: "2026-08-09T12:00:00Z",
+								url: "https://linear.app/issue/PF-3#comment-gate-note",
+								parent: null,
+								user: { name: "Ada", displayName: "Ada" },
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			},
+		});
+	}
+	return Response.json({ data: {} });
+}
+
 const recorded: Fetch = async (input, init) => {
 	const known = recordedViewer(input, init);
 	if (known !== null) {
 		return known;
 	}
 	const url = urlOf(input);
+	const body = typeof init?.body === "string" ? init.body : "";
+	if (url === "https://api.linear.app/graphql") {
+		return linearResponse(body);
+	}
 	if (url.includes(`/repos/${widget}/issues?`)) {
 		return page(widgetIssues);
 	}
@@ -118,9 +212,13 @@ const recorded: Fetch = async (input, init) => {
 	return new Response("not recorded", { status: 404 });
 };
 
-const port = process.env.PORT ?? "4173";
-await run(["--config", configPath, "--host", "127.0.0.1", "--port", port], {
-	env: { GITHUB_TOKEN: "recorded-token" },
+const port = Number(process.env.PORT ?? "4173");
+let base = "";
+await run(["--config", configPath, "--host", "127.0.0.1", "--port", "0"], {
+	env: {
+		GITHUB_TOKEN: "recorded-token",
+		LINEAR_API_KEY: "recorded-linear-key",
+	},
 	fetch: recorded,
 	readGhToken: async () => null,
 	listTodos: async () => "",
@@ -128,35 +226,59 @@ await run(["--config", configPath, "--host", "127.0.0.1", "--port", port], {
 	databasePath: join(root, "project-flow.sqlite"),
 	now: () => new Date("2026-08-18T12:00:00.000Z"),
 	stdout: (line) => {
-		console.log(line);
-		void fetch(
-			new URL(`/api/projects/${encodeURIComponent(widget)}`, line.trim()),
-		)
-			.then(async (response) => {
-				if (!response.ok) {
-					console.error(`project load failed (HTTP ${response.status})`);
-					return;
-				}
-				const body = (await response.json()) as {
-					tickets?: { title?: string }[];
-				};
-				const titled = body.tickets?.some(
-					(ticket) => ticket.title === "Ship the board",
-				);
-				if (!titled) {
-					console.error("project load returned no board ticket");
-				}
-			})
-			.catch((error: unknown) => {
-				console.error(
-					error instanceof Error ? error.message : "project load failed",
-				);
-			});
+		base = line.trim();
 	},
 	stderr: (line) => console.error(line),
-	waitForStop: new Promise<void>((resolve) => {
-		const stop = () => resolve();
-		process.once("SIGINT", stop);
-		process.once("SIGTERM", stop);
-	}),
+	waitForStop: (async () => {
+		const deadline = Date.now() + 8_000;
+		while (Date.now() < deadline) {
+			if (base !== "") {
+				const loaded = await fetch(
+					new URL(`/api/projects/${encodeURIComponent(widget)}`, base),
+				).catch(() => null);
+				if (loaded?.ok) {
+					const body = (await loaded.json()) as {
+						tickets?: {
+							title?: string;
+							outsideBlockers?: { key?: string }[];
+						}[];
+					};
+					const titled = body.tickets?.some(
+						(ticket) => ticket.title === "Ship the board",
+					);
+					const outside = body.tickets?.some((ticket) =>
+						ticket.outsideBlockers?.some((blocker) => blocker.key === "PF-3"),
+					);
+					if (titled && outside) {
+						const internal = new URL(base);
+						Bun.serve({
+							hostname: "127.0.0.1",
+							port,
+							fetch(request) {
+								const url = new URL(request.url);
+								url.protocol = internal.protocol;
+								url.hostname = internal.hostname;
+								url.port = internal.port;
+								return fetch(
+									new Request(url, {
+										method: request.method,
+										headers: request.headers,
+										body: request.body,
+									}),
+								);
+							},
+						});
+						console.log(`http://127.0.0.1:${port}/`);
+						return new Promise<void>((resolve) => {
+							const stop = () => resolve();
+							process.once("SIGINT", stop);
+							process.once("SIGTERM", stop);
+						});
+					}
+				}
+			}
+			await new Promise((pause) => setTimeout(pause, 50));
+		}
+		throw new Error("project load returned no board ticket");
+	})(),
 });

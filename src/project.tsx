@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { OutsideBlocker, ProjectReport, TicketView } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
@@ -314,6 +314,8 @@ function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
 	const [panelProject, setPanelProject] = useState(projectName);
+	const panelProjectRef = useRef(panelProject);
+	panelProjectRef.current = panelProject;
 	const [panelTracker, setPanelTracker] = useState<"github" | "linear">(
 		"github",
 	);
@@ -349,7 +351,9 @@ function Page() {
 					setMissing(false);
 					const body = (await response.json()) as ProjectReport;
 					setReport(body);
-					setPanelTracker(body.tracker);
+					setPanelTracker((current) =>
+						panelProjectRef.current === name ? body.tracker : current,
+					);
 				})
 				.catch(() => {
 					if (!stopped) {
