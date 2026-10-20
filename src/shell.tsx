@@ -218,13 +218,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 					title={theme === "dark" ? navLabel.light : navLabel.dark}
 					onClick={() => {
 						const next = theme === "dark" ? "light" : "dark";
-						void saveTheme(next).then((saved) => {
-							if (!saved) {
-								return;
-							}
-							applyPageTheme(next);
-							setTheme(next);
-						});
+						applyPageTheme(next);
+						setTheme(next);
+						void saveTheme(next);
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}
