@@ -51,6 +51,9 @@ export const lightValues = {
 	needs: "#171717",
 	needsInk: "#ffffff",
 	segment: "#efeeeb",
+	controlLine: "#e7e7e4",
+	controlInk: "#18181b",
+	controlFill: "#ffffff",
 };
 
 export const darkValues = {
@@ -102,6 +105,9 @@ export const darkValues = {
 	needs: "#ededed",
 	needsInk: "#141414",
 	segment: "#2a2a2a",
+	controlLine: "#26262c",
+	controlInk: "#ededef",
+	controlFill: "#16161a",
 };
 
 export const colours = stylex.defineVars({
@@ -174,6 +180,18 @@ export const colours = stylex.defineVars({
 	needs: { default: lightValues.needs, [dark]: darkValues.needs },
 	needsInk: { default: lightValues.needsInk, [dark]: darkValues.needsInk },
 	segment: { default: lightValues.segment, [dark]: darkValues.segment },
+	controlLine: {
+		default: lightValues.controlLine,
+		[dark]: darkValues.controlLine,
+	},
+	controlInk: {
+		default: lightValues.controlInk,
+		[dark]: darkValues.controlInk,
+	},
+	controlFill: {
+		default: lightValues.controlFill,
+		[dark]: darkValues.controlFill,
+	},
 });
 
 export const space = stylex.defineVars({
@@ -190,6 +208,7 @@ export const space = stylex.defineVars({
 export const radius = stylex.defineVars({
 	sm: "0.35rem",
 	md: "0.6rem",
+	menu: "0.5rem",
 	pill: "999px",
 });
 
@@ -200,6 +219,7 @@ export const font = stylex.defineVars({
 
 export const type = stylex.defineVars({
 	body: "1rem",
+	menu: "0.875rem",
 	small: "0.85rem",
 	title: "1.7rem",
 	heading: "1.05rem",
@@ -238,6 +258,7 @@ export const measure = stylex.defineVars({
 	hairline: "1px",
 	focus: "2px",
 	shell: "3rem",
+	menu: "2.25rem",
 	icon: "1.25rem",
 	glyph: "1rem",
 	badge: "1.15rem",

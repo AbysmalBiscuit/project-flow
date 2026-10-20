@@ -153,6 +153,17 @@ const recorded: Fetch = async (input, init) => {
 				labels: [],
 				comments: 1,
 			},
+			{
+				number: 4,
+				title: "Hold the gate",
+				state: "open",
+				state_reason: null,
+				updated_at: "2026-10-02T00:00:00Z",
+				body: "",
+				assignee: { login: "lev" },
+				labels: [{ name: "needs-engineer" }],
+				comments: 0,
+			},
 		]);
 	}
 	if (url === `https://api.github.com/repos/${gate}/issues/3`) {
@@ -243,7 +254,7 @@ Bun.serve({
 			return new Response("not ready", { status: 503 });
 		}
 		const items: unknown = await listed.json();
-		if (!Array.isArray(items) || items.length < 4) {
+		if (!Array.isArray(items) || items.length < 5) {
 			return new Response("not ready", { status: 503 });
 		}
 		return new Response("ready");
