@@ -144,7 +144,7 @@ function proxy(request: Request): Promise<Response> {
 	return fetch(url, {
 		method: request.method,
 		headers,
-		body: hasBody ? request.body : undefined,
+		...(hasBody ? { body: request.body } : {}),
 	});
 }
 
