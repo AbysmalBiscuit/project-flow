@@ -636,10 +636,6 @@ export function staleView(
 const closing =
 	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b/gi;
 
-export function closingKeysFromBody(body: string, repo: string): string[] {
-	return closingKeys(body, repo);
-}
-
 function closingKeys(body: string, repo: string): string[] {
 	const keys: string[] = [];
 	for (const match of body.matchAll(closing)) {

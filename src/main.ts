@@ -171,10 +171,6 @@ async function worktreeList(path: string): Promise<{
 	return { paths, names };
 }
 
-async function worktreeNames(path: string): Promise<string[]> {
-	return (await worktreeList(path)).names;
-}
-
 const workcellState = z.object({
 	status: z.string(),
 });
@@ -258,7 +254,7 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 		return {
 			tracker: "linear",
 			path,
-			names: await worktreeNames(path),
+			names: (await worktreeList(path)).names,
 			...(run === null
 				? {}
 				: { runs: [repo === undefined ? run : { ...run, repo }] }),
