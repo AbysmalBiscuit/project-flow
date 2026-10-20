@@ -392,9 +392,8 @@ function Page() {
 	const [panelProject, setPanelProject] = useState(panelProjectName);
 	const panelProjectRef = useRef(panelProject);
 	panelProjectRef.current = panelProject;
-	const [panelTracker, setPanelTracker] = useState<
-		CrossProjectBlocker["tracker"]
-	>(panelTrackerName);
+	const [panelTracker, setPanelTracker] =
+		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [view, setView] = useState("board");
 	const [report, setReport] = useState<ProjectReport | null>(null);
