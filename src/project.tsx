@@ -182,6 +182,22 @@ function shortKey(key: string): string {
 	return mark === -1 ? key : key.slice(mark);
 }
 
+function relationSplit(ticket: TicketView): {
+	local: string[];
+	outside: OutsideBlocker[];
+} {
+	const outside = ticket.outsideBlockers ?? [];
+	const outsideKeys = new Set(
+		outside.map((blocker) => blocker.key.toLowerCase()),
+	);
+	return {
+		local: ticket.blockers.filter(
+			(blocker) => !outsideKeys.has(blocker.toLowerCase()),
+		),
+		outside,
+	};
+}
+
 function Chip({
 	label,
 	ticketKey,
@@ -226,13 +242,7 @@ function Card({
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
 	const key = ticket.key;
-	const outside = ticket.outsideBlockers ?? [];
-	const outsideKeys = new Set(
-		outside.map((blocker) => blocker.key.toLowerCase()),
-	);
-	const local = ticket.blockers.filter(
-		(blocker) => !outsideKeys.has(blocker.toLowerCase()),
-	);
+	const { local, outside } = relationSplit(ticket);
 	return (
 		<li>
 			<button
@@ -402,22 +412,6 @@ const columnLabel: Record<Column, string> = {
 	needsYou: "Needs you",
 	updated: "Updated",
 };
-
-function relationSplit(ticket: TicketView): {
-	local: string[];
-	outside: OutsideBlocker[];
-} {
-	const outside = ticket.outsideBlockers ?? [];
-	const outsideKeys = new Set(
-		outside.map((blocker) => blocker.key.toLowerCase()),
-	);
-	return {
-		local: ticket.blockers.filter(
-			(blocker) => !outsideKeys.has(blocker.toLowerCase()),
-		),
-		outside,
-	};
-}
 
 function relationKeys(
 	ticket: TicketView,
