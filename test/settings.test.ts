@@ -2112,6 +2112,60 @@ describe("settings", () => {
 		);
 	});
 
+	test("adding the first expected bot keeps the inferred bots for that repository", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: shown }],
+				expectedBots: {},
+			}),
+			async (base) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration & {
+					trackers: unknown;
+					projects: {
+						key: string;
+						repos: string[];
+						expectedBots: string[];
+						repoBots: Record<string, string[]>;
+					}[];
+				};
+				const row = current.projects.find((item) => item.key === shown);
+				expect(row?.repos).toEqual([shown]);
+				expect(row?.expectedBots).toEqual(["grok"]);
+				expect(row?.repoBots).toEqual({ [shown]: ["grok"] });
+				expect(current.expectedBots ?? {}).toEqual({});
+				const {
+					trackers: _trackers,
+					projects: _projects,
+					...configuration
+				} = current;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...configuration,
+						expectedBots: { [shown]: ["grok", "codex"] },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration & {
+					projects: {
+						key: string;
+						expectedBots: string[];
+						repoBots: Record<string, string[]>;
+					}[];
+				};
+				expect(written.expectedBots).toEqual({ [shown]: ["grok", "codex"] });
+				const shownRow = written.projects.find((item) => item.key === shown);
+				expect(shownRow?.expectedBots).toEqual(["grok", "codex"]);
+				expect(shownRow?.repoBots).toEqual({ [shown]: ["grok", "codex"] });
+			},
+			async () => [],
+			fetchingBots,
+		);
+	});
+
 	test("deleting an empty expected-bot override restores inferred bots", async () => {
 		await withApp(
 			JSON.stringify({

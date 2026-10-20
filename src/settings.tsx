@@ -1,10 +1,9 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { SettingsProject } from "./app.ts";
 import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
 import { sameRef } from "./configuration.ts";
-import type { KnownBot, TicketState } from "./domain.ts";
+import type { KnownBot, SettingsProject, TicketState } from "./domain.ts";
 import { knownBots, projectHasPmBot } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { PageFrame } from "./shell.tsx";
@@ -933,16 +932,31 @@ function withRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
 	return refs.some((item) => sameRef(item, ref)) ? refs : [...refs, ref];
 }
 
-function botsOf(draft: Configuration, repo: string): KnownBot[] {
-	return draft.expectedBots?.[repo] ?? [];
+function botsOf(
+	draft: Configuration,
+	project: SettingsProject,
+	repo: string,
+): KnownBot[] {
+	if (Object.hasOwn(draft.expectedBots ?? {}, repo)) {
+		return draft.expectedBots?.[repo] ?? [];
+	}
+	return project.repoBots[repo] ?? [];
 }
 
 function setBots(
 	draft: Configuration,
+	project: SettingsProject,
 	repo: string,
 	bots: KnownBot[],
 ): Configuration["expectedBots"] {
-	return { ...draft.expectedBots, [repo]: bots };
+	const seeded = Object.hasOwn(draft.expectedBots ?? {}, repo)
+		? {}
+		: Object.fromEntries(
+				project.repos
+					.filter((name) => !Object.hasOwn(draft.expectedBots ?? {}, name))
+					.map((name) => [name, project.repoBots[name] ?? []]),
+			);
+	return { ...draft.expectedBots, ...seeded, [repo]: bots };
 }
 
 function setPmBot(
@@ -1201,7 +1215,7 @@ function ProjectRow({
 					</span>
 				) : (
 					repos.map((repo) => {
-						const bots = botsOf(draft, repo);
+						const bots = botsOf(draft, project, repo);
 						const missing = knownBots.filter((bot) => !bots.includes(bot));
 						const repoId = repo.replace(/[^A-Za-z0-9]+/g, "-");
 						return (
@@ -1218,6 +1232,7 @@ function ProjectRow({
 												onChange({
 													expectedBots: setBots(
 														draft,
+														project,
 														repo,
 														bots.filter((item) => item !== bot),
 													),
@@ -1242,7 +1257,10 @@ function ProjectRow({
 												return;
 											}
 											onChange({
-												expectedBots: setBots(draft, repo, [...bots, bot]),
+												expectedBots: setBots(draft, project, repo, [
+													...bots,
+													bot,
+												]),
 											});
 										}}
 									>
