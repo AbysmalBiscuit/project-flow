@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { NeedsYouItem } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import issue51Comments from "./fixtures/issue-51-comments.json";
@@ -728,9 +729,10 @@ describe("review cycle", () => {
 	});
 
 	test("a finished Grok review on the head commit is awaiting merge", async () => {
-		const body = await overview({
+		const listed = (await overview({
 			issues: [issue(8)],
 			pulls: [pull(85)],
+			withNeedsYou: true,
 			checksBySha: {
 				[head]: [
 					{
@@ -754,8 +756,8 @@ describe("review cycle", () => {
 				85: [{ user: { login: grok }, commit_id: head, state: "COMMENTED" }],
 			},
 			mergedPulls: [mergedPull()],
-		});
-		expect(body).toEqual(
+		})) as { body: unknown; needsYou: NeedsYouItem[] };
+		expect(listed.body).toEqual(
 			card("awaitingMerge", {
 				backlog: 0,
 				inProgress: 0,
@@ -763,6 +765,14 @@ describe("review cycle", () => {
 				awaitingMerge: 1,
 			}),
 		);
+		expect(
+			listed.needsYou.find((item) => item.key === `${repo}#8`)?.pull,
+		).toMatchObject({
+			review: "completed",
+		});
+		expect(
+			listed.needsYou.find((item) => item.key === `${repo}#8`)?.pull?.review,
+		).not.toBe("approved");
 	});
 
 	test("a Grok usage-limit comment counts only when it is newer than the head commit", async () => {

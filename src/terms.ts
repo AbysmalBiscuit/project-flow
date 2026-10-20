@@ -72,6 +72,7 @@ export const pullStatusLabel = {
 	review: {
 		approved: "Review approved",
 		changes: "Review changes",
+		completed: "Review completed",
 		pending: "Review pending",
 		none: "Review none",
 	},

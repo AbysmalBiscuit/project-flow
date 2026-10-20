@@ -284,7 +284,7 @@ export type PullStatus = {
 	number: number;
 	title: string;
 	ci: "passing" | "failing" | "pending" | "none";
-	review: "approved" | "changes" | "pending" | "none";
+	review: "approved" | "changes" | "completed" | "pending" | "none";
 };
 
 export type NeedsYouItem = {
@@ -2854,6 +2854,20 @@ function reviewOf(pull: PullRequest): PullStatus["review"] {
 	}
 	if (onHead.some((review) => review.state === "APPROVED")) {
 		return "approved";
+	}
+	const completed = knownBots.some((bot) => {
+		if (!botPass(pull, bot).done) {
+			return false;
+		}
+		return onHead.some(
+			(review) =>
+				review.login === botLogin[bot] &&
+				review.state !== "APPROVED" &&
+				review.state !== "CHANGES_REQUESTED",
+		);
+	});
+	if (completed) {
+		return "completed";
 	}
 	if (onHead.length > 0) {
 		return "pending";
