@@ -9,7 +9,7 @@ import type {
 } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
-import { type OpenedTicket, openTicket } from "./selection.ts";
+import { closeTicket, type OpenedTicket, openTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
 import { stateLabel } from "./terms.ts";
 import { mermaidTheme, watchPageTheme } from "./theme.ts";
@@ -33,14 +33,64 @@ function openPath(project: string, ticket: string | null): string {
 		: `${path}?ticket=${encodeURIComponent(ticket)}`;
 }
 
-function openProject(project: string, ticket: string | null): void {
-	window.history.pushState({}, "", openPath(project, ticket));
+function openProject(
+	project: string,
+	ticket: string | null,
+	openPanel = false,
+): void {
+	window.history.pushState(
+		openPanel ? { panel: true } : {},
+		"",
+		openPath(project, ticket),
+	);
 	window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
 function openDrawnTicket(ticket: OpenedTicket): void {
-	openProject(ticket.project, ticket.key);
+	openProject(ticket.project, ticket.key, true);
 	openTicket(ticket);
+}
+
+function ticketFromUrl(report: ProjectReport): OpenedTicket | null {
+	const key = highlightKey();
+	if (key === null) {
+		return null;
+	}
+	for (const section of report.sections) {
+		for (const diagram of section.diagrams ?? []) {
+			for (const node of diagram.nodes) {
+				if (node.ticket === key) {
+					return {
+						tracker: node.tracker,
+						project: node.project,
+						key,
+					};
+				}
+			}
+		}
+		for (const item of section.items ?? []) {
+			if (item.key === key) {
+				return { tracker: report.tracker, project: report.name, key };
+			}
+		}
+	}
+	return { tracker: report.tracker, project: report.name, key };
+}
+
+function restorePanel(report: ProjectReport | null): void {
+	const panel = window.history.state?.panel === true;
+	const named = highlightKey();
+	if (!panel || named === null) {
+		closeTicket();
+		return;
+	}
+	if (report === null) {
+		return;
+	}
+	const ticket = ticketFromUrl(report);
+	if (ticket !== null) {
+		openTicket(ticket);
+	}
 }
 
 function TicketLine({
@@ -293,10 +343,16 @@ function Page() {
 		const onPop = () => {
 			setName(projectName());
 			setTicket(highlightKey());
+			restorePanel(report);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
-	}, []);
+	}, [report]);
+	useEffect(() => {
+		if (window.history.state?.panel === true && highlightKey() !== null) {
+			restorePanel(report);
+		}
+	}, [report]);
 	useEffect(() => {
 		const path = `/api/projects/${encodeURIComponent(name)}`;
 		let stopped = false;
