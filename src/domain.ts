@@ -2015,7 +2015,12 @@ const codexMarker = "<!-- codex-pull-request-review-summary -->";
 const greptileMarker = "<!-- greptile_summary -->";
 const codexRow = /^\|[^|\n]*\*\*([^*|\n]+)[^|\n]*\|([^|\n]*)\|/gm;
 
-function expectedBotsFromHistory(pulls: PullRequest[]): KnownBot[] {
+function expectedBotsFromHistory(
+	pulls: Pick<
+		PullRequest,
+		"merged" | "checks" | "comments" | "reviews" | "reactions"
+	>[],
+): KnownBot[] {
 	const found = new Set<KnownBot>();
 	for (const pull of pulls) {
 		if (!pull.merged) {
@@ -2031,7 +2036,10 @@ function expectedBotsFromHistory(pulls: PullRequest[]): KnownBot[] {
 }
 
 export function expectedBotsByRepo(
-	pulls: PullRequest[],
+	pulls: Pick<
+		PullRequest,
+		"repo" | "merged" | "checks" | "comments" | "reviews" | "reactions"
+	>[],
 	overrides: Record<string, KnownBot[]>,
 ): Map<string, KnownBot[]> {
 	const repos = new Set(pulls.map((pull) => pull.repo));
@@ -2050,7 +2058,10 @@ export function expectedBotsByRepo(
 	return bots;
 }
 
-function pullShowsBot(pull: PullRequest, bot: KnownBot): boolean {
+function pullShowsBot(
+	pull: Pick<PullRequest, "checks" | "comments" | "reviews" | "reactions">,
+	bot: KnownBot,
+): boolean {
 	const login = botLogin[bot];
 	if (pull.checks.some((check) => botCheck[bot].test(check.name))) {
 		return true;

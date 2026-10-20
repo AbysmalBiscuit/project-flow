@@ -14,6 +14,8 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import type { LocalCheckout } from "../src/ports.ts";
 import {
+	emptyProjectFields,
+	linearFake,
 	recordedDiscovery,
 	tempConfig,
 	testIo,
@@ -222,6 +224,284 @@ function fetching(requests: string[]): Fetch {
 	return async (input, init) => recorded(requests, input, init);
 }
 
+const reviewHead = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+function openReviewPull(repo: string): Record<string, unknown> {
+	return {
+		number: 2,
+		title: "Review me",
+		state: "open",
+		draft: false,
+		html_url: `https://github.com/${repo}/pull/2`,
+		head: { ref: "2-feat-review", sha: reviewHead },
+		body: "Closes #1",
+		merged_at: null,
+	};
+}
+
+function mergedBotPull(repo: string): Record<string, unknown> {
+	return {
+		number: 1,
+		title: "merged",
+		state: "closed",
+		draft: false,
+		html_url: `https://github.com/${repo}/pull/1`,
+		head: { ref: "1-merged", sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+		body: "",
+		merged_at: "2026-08-01T00:00:00Z",
+		user: { login: "lev" },
+	};
+}
+
+function fetchingBots(requests: string[], orphan = false): Fetch {
+	if (orphan) {
+		return async (input, init) => {
+			recordTracker(requests, input);
+			if (urlOf(input) !== "https://api.linear.app/graphql") {
+				return recordedBots(requests, input, init);
+			}
+			return new Response(
+				JSON.stringify({
+					data: {
+						viewer: { id: "lev" },
+						projects: {
+							nodes: [
+								{
+									id: "orphan",
+									name: "Orphan",
+									slugId: "ORPHAN",
+									updatedAt: "2026-08-01T12:00:00.000Z",
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+						issues: {
+							nodes: [],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				}),
+				{ status: 200 },
+			);
+		};
+	}
+	const linear = linearFake({
+		project: {
+			id: "plat",
+			name: "Shown",
+			slugId: "PLAT",
+		},
+		issues: [
+			{
+				identifier: "PLAT-1",
+				title: "Ticket 1",
+				updatedAt: "2026-08-01T12:00:00.000Z",
+				state: { type: "unstarted" },
+				attachments: {
+					nodes: [
+						{
+							url: `https://github.com/${shown}/pull/2`,
+							title: "Review me",
+							sourceType: "github",
+						},
+					],
+				},
+			},
+		],
+		github: async (input, init) => recordedBots(requests, input, init),
+		requests,
+	});
+	return linear;
+}
+
+function recordedBots(
+	requests: string[],
+	input: string | URL | Request,
+	init?: RequestInit,
+): Response {
+	recordTracker(requests, input);
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	const url = urlOf(input);
+	const sent = typeof init?.body === "string" ? init.body : "";
+	if (url === "https://api.github.com/user") {
+		return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+	}
+	if (url.startsWith("https://api.github.com/user/repos")) {
+		return page([
+			{
+				full_name: shown,
+				owner: { login: "lev" },
+				permissions: { push: true },
+				pushed_at: "2026-08-01T12:00:00.000Z",
+			},
+		]);
+	}
+	if (url === "https://api.github.com/graphql" && sent.includes("$owner")) {
+		return new Response(
+			JSON.stringify({
+				data: {
+					repositoryOwner: {
+						projectV2: {
+							id: "PVT_acme_7",
+							number: 7,
+							title: "Acme board",
+							closed: false,
+							updatedAt: "2026-08-01T12:00:00Z",
+						},
+					},
+				},
+			}),
+			{ status: 200 },
+		);
+	}
+	const fields = emptyProjectFields(input, init);
+	if (fields !== null) {
+		return fields;
+	}
+	if (url === "https://api.github.com/graphql" && sent.includes("node(id:")) {
+		if (sent.includes("ProjectV2") || sent.includes("items(first:")) {
+			return new Response(
+				JSON.stringify({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											id: "I_shown_1",
+											number: 1,
+											title: "Ticket 1",
+											state: "OPEN",
+											stateReason: null,
+											updatedAt: "2026-08-01T12:00:00.000Z",
+											repository: { nameWithOwner: shown },
+											comments: { totalCount: 0 },
+											closedByPullRequestsReferences: {
+												nodes: [
+													{
+														number: 2,
+														repository: { nameWithOwner: shown },
+													},
+												],
+												pageInfo: {
+													hasNextPage: false,
+													endCursor: null,
+												},
+											},
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				}),
+				{ status: 200 },
+			);
+		}
+		return new Response(
+			JSON.stringify({
+				data: {
+					node: {
+						closedByPullRequestsReferences: {
+							nodes: [
+								{
+									number: 2,
+									repository: { nameWithOwner: shown },
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					},
+				},
+			}),
+			{ status: 200 },
+		);
+	}
+	if (url === "https://api.github.com/graphql") {
+		return new Response(
+			JSON.stringify({
+				data: {
+					repository: {
+						pullRequest: {
+							closingIssuesReferences: { nodes: [{ number: 1 }] },
+						},
+					},
+				},
+			}),
+			{ status: 200 },
+		);
+	}
+	if (url.startsWith(`https://api.github.com/repos/${shown}/issues?`)) {
+		return page([
+			{
+				number: 1,
+				title: "Ticket 1",
+				state: "open",
+				state_reason: null,
+				html_url: `https://github.com/${shown}/issues/1`,
+				updated_at: "2026-08-01T12:00:00.000Z",
+				body: "",
+			},
+		]);
+	}
+	if (
+		url.startsWith(`https://api.github.com/repos/${shown}/pulls?state=open`)
+	) {
+		return page([openReviewPull(shown)]);
+	}
+	if (
+		url.startsWith(`https://api.github.com/repos/${shown}/pulls?state=closed`)
+	) {
+		return page([mergedBotPull(shown)]);
+	}
+	if (url === `https://api.github.com/repos/${shown}/pulls/2`) {
+		return new Response(JSON.stringify(openReviewPull(shown)), {
+			status: 200,
+		});
+	}
+	if (
+		url.includes(`/commits/${reviewHead}/check-runs`) ||
+		url.includes("/commits/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/check-runs")
+	) {
+		return new Response(
+			JSON.stringify({
+				check_runs: url.includes(reviewHead)
+					? []
+					: [
+							{
+								name: "Grok code review",
+								status: "completed",
+								conclusion: "success",
+								app: { slug: "grok-code-review" },
+							},
+						],
+			}),
+			{ status: 200 },
+		);
+	}
+	if (url.includes("/check-runs")) {
+		return new Response(JSON.stringify({ check_runs: [] }), { status: 200 });
+	}
+	if (
+		url.includes("/comments") ||
+		url.includes("/reviews") ||
+		url.includes("/reactions") ||
+		url.includes("/labels") ||
+		url.includes("/branches")
+	) {
+		return page([]);
+	}
+	if (url.includes("/repos/") && url.includes("/issues?")) {
+		return page([]);
+	}
+	return unrecorded(input);
+}
+
 const savedRoot = "/var/tmp/project-flow-saved-root";
 const savedRepo = "acme/from-saved-root";
 
@@ -244,6 +524,7 @@ async function withAppFile(
 		requests: string[],
 	) => Promise<void>,
 	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
+	makeFetch: (requests: string[]) => Fetch = fetching,
 ): Promise<void> {
 	const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
 	const requests: string[] = [];
@@ -261,7 +542,7 @@ async function withAppFile(
 					GITHUB_TOKEN: "recorded-token",
 					LINEAR_API_KEY: "recorded-linear-key",
 				},
-				fetch: fetching(requests),
+				fetch: makeFetch(requests),
 				readGhToken: async () => null,
 				databasePath: join(root, "project-flow.sqlite"),
 				now: () => new Date("2026-08-18T12:00:00.000Z"),
@@ -285,10 +566,11 @@ async function withApp(
 		requests: string[],
 	) => Promise<void>,
 	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
+	makeFetch: (requests: string[]) => Fetch = fetching,
 ): Promise<void> {
 	const { path, cleanup } = await tempConfig(body);
 	try {
-		await withAppFile(path, check, listCheckouts);
+		await withAppFile(path, check, listCheckouts, makeFetch);
 	} finally {
 		await cleanup();
 	}
@@ -1465,6 +1747,8 @@ describe("settings", () => {
 						...configuration,
 						pinned: [{ tracker: "github", repo: quiet }],
 						hidden: [{ tracker: "github", repo: shown }],
+						baselinePinned: configuration.pinned,
+						baselineHidden: configuration.hidden,
 						pmBot: { [quiet]: false, [shown]: true },
 						expectedBots: { [quiet]: ["codex"], [shown]: ["grok"] },
 					}),
@@ -1531,6 +1815,356 @@ describe("settings", () => {
 							expectedBots: ["grok"],
 						},
 					);
+				});
+			},
+		);
+	});
+
+	test("a settings save keeps a pin and a hide made after the draft loaded", async () => {
+		const overviewPin = { tracker: "github" as const, repo: quiet };
+		const overviewHide = { tracker: "github" as const, repo: savedRepo };
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: shown }],
+				hidden: [],
+			}),
+			async (base) => {
+				const loaded = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration & {
+					trackers: unknown;
+					projects: unknown;
+				};
+				const {
+					trackers: _trackers,
+					projects: _projects,
+					...baseline
+				} = loaded;
+				const overview = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...baseline,
+						pinned: [...baseline.pinned, overviewPin],
+						hidden: [overviewHide],
+					}),
+				});
+				expect(overview.status).toBe(200);
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...baseline,
+						pollIntervalSeconds: 60,
+						pinned: baseline.pinned,
+						hidden: baseline.hidden,
+						baselinePinned: baseline.pinned,
+						baselineHidden: baseline.hidden,
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const body = (await saved.json()) as Configuration;
+				expect(body.pinned).toEqual([
+					{ tracker: "github", repo: shown },
+					overviewPin,
+				]);
+				expect(body.pollIntervalSeconds).toBe(60);
+				expect(body.pinned).toEqual([
+					{ tracker: "github", repo: shown },
+					overviewPin,
+				]);
+				expect(body.hidden).toEqual([overviewHide]);
+			},
+			async () => [checkoutFor(savedRoot)],
+		);
+	});
+
+	test("expected bot controls save under the repository key and change review state after a restart", async () => {
+		const linear = "PLAT";
+		const board = "PVT_acme_7";
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "linear", project: linear },
+					{ tracker: "github", owner: "acme", project: 7 },
+				],
+				expectedBots: {},
+			}),
+			async (base, configPath) => {
+				const loaded = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projects: {
+						key: string;
+						repos: string[];
+						expectedBots: string[];
+					}[];
+				};
+				const linearRow = loaded.projects.find((row) => row.key === linear);
+				const boardRow = loaded.projects.find((row) => row.key === board);
+				expect(linearRow?.repos).toEqual([shown]);
+				expect(boardRow?.repos).toEqual([shown]);
+				expect(linearRow?.expectedBots).toEqual(["grok"]);
+				expect(boardRow?.expectedBots).toEqual(["grok"]);
+
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration & {
+					trackers: unknown;
+					projects: unknown;
+				};
+				const {
+					trackers: _trackers,
+					projects: _projects,
+					...configuration
+				} = current;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...configuration,
+						expectedBots: { [shown]: ["codex"] },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration & {
+					projects: { key: string; expectedBots: string[] }[];
+				};
+				expect(written.expectedBots).toEqual({ [shown]: ["codex"] });
+				expect(written.expectedBots).not.toHaveProperty(linear);
+				expect(written.expectedBots).not.toHaveProperty(board);
+				for (const key of [linear, board]) {
+					expect(
+						written.projects.find((row) => row.key === key)?.expectedBots,
+					).toEqual(["codex"]);
+				}
+
+				const before = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				const reviewed = before.projects.find(
+					(project) => project.name === "Shown",
+				);
+				const boardCard = before.projects.find(
+					(project) => project.name === "Acme board",
+				);
+				expect(reviewed?.inReview).toBe(1);
+				expect(reviewed?.awaitingMerge).toBe(0);
+				expect(boardCard?.name).toBe("Acme board");
+				expect(boardCard?.inReview).toBe(1);
+				expect(boardCard?.awaitingMerge).toBe(0);
+
+				await withAppFile(configPath, async (restarted) => {
+					const again = (await (
+						await fetch(new URL("/api/settings", restarted))
+					).json()) as Configuration;
+					expect(again.expectedBots).toEqual({ [shown]: ["codex"] });
+				});
+			},
+			async () => [],
+			fetchingBots,
+		);
+	});
+
+	test("an unknown repository leaves expected bots unavailable and unsaved", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "ORPHAN" }],
+				expectedBots: {},
+			}),
+			async (base) => {
+				const loaded = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projects: { key: string; repos: string[] }[];
+				};
+				expect(loaded.projects.map((row) => row.key)).toEqual(["ORPHAN"]);
+				const orphan = loaded.projects.find((row) => row.key === "ORPHAN");
+				expect(orphan?.repos ?? []).toEqual([]);
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration & {
+					trackers: unknown;
+					projects: unknown;
+				};
+				const {
+					trackers: _trackers,
+					projects: _projects,
+					...configuration
+				} = current;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...configuration,
+						expectedBots: { ORPHAN: ["grok"] },
+					}),
+				});
+				expect(saved.status).toBe(400);
+				const after = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(after.expectedBots ?? {}).toEqual({});
+			},
+			async () => [],
+			(requests) => fetchingBots(requests, true),
+		);
+	});
+
+	test("removing the last expected bot saves an empty override for that repository", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: shown }],
+				expectedBots: { [shown]: ["grok"] },
+			}),
+			async (base, configPath) => {
+				const before = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(
+					before.projects.find((project) => project.name === "Shown")?.inReview,
+				).toBe(1);
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration & {
+					trackers: unknown;
+					projects: { key: string; repos: string[]; expectedBots: string[] }[];
+				};
+				const row = current.projects.find((item) => item.key === shown);
+				expect(row?.repos).toEqual([shown]);
+				expect(row?.expectedBots).toEqual(["grok"]);
+				const {
+					trackers: _trackers,
+					projects: _projects,
+					...configuration
+				} = current;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...configuration,
+						expectedBots: { [shown]: [] },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration & {
+					projects: { key: string; expectedBots: string[] }[];
+				};
+				expect(written.expectedBots).toEqual({ [shown]: [] });
+				expect(
+					written.projects.find((item) => item.key === shown)?.expectedBots,
+				).toEqual([]);
+
+				await withAppFile(
+					configPath,
+					async (restarted) => {
+						const again = (await (
+							await fetch(new URL("/api/settings", restarted))
+						).json()) as Configuration & {
+							projects: { key: string; expectedBots: string[] }[];
+						};
+						expect(again.expectedBots).toEqual({ [shown]: [] });
+						expect(
+							again.projects.find((item) => item.key === shown)?.expectedBots,
+						).toEqual([]);
+						const overview = (await (
+							await fetch(new URL("/api/overview", restarted))
+						).json()) as Overview;
+						const card = overview.projects.find(
+							(project) => project.name === "Shown",
+						);
+						expect(card?.inReview).toBe(0);
+						expect(card?.awaitingMerge).toBe(1);
+					},
+					async () => [],
+					fetchingBots,
+				);
+			},
+			async () => [],
+			fetchingBots,
+		);
+	});
+
+	test("deleting an empty expected-bot override restores inferred bots", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: shown }],
+				expectedBots: { [shown]: [] },
+			}),
+			async (base) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration & {
+					trackers: unknown;
+					projects: unknown;
+				};
+				expect(
+					current.projects &&
+						Array.isArray(current.projects) &&
+						current.projects.some(
+							(row) =>
+								typeof row === "object" &&
+								row !== null &&
+								"key" in row &&
+								row.key === shown &&
+								"expectedBots" in row &&
+								Array.isArray(row.expectedBots) &&
+								row.expectedBots.length === 0,
+						),
+				).toBe(true);
+				const {
+					trackers: _trackers,
+					projects: _projects,
+					...configuration
+				} = current;
+				const { expectedBots: _bots, ...without } = configuration;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify(without),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration & {
+					projects: { key: string; expectedBots: string[] }[];
+				};
+				expect(written.expectedBots).toBeUndefined();
+				const shownRow = written.projects.find((row) => row.key === shown);
+				expect(shownRow?.expectedBots).toEqual(["grok"]);
+				expect(shownRow?.expectedBots).toEqual(["grok"]);
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(
+					overview.projects.find((project) => project.name === "Shown")
+						?.inReview,
+				).toBe(1);
+			},
+			async () => [],
+			fetchingBots,
+		);
+	});
+
+	test("a hidden-only project that discovery missed reports source hidden", async () => {
+		const hiddenOnly = "acme/hidden-only";
+		await withApp(
+			JSON.stringify({ hidden: [{ tracker: "github", repo: hiddenOnly }] }),
+			async (base) => {
+				const body = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projects: {
+						key: string;
+						source: string;
+						pinned: boolean;
+						hidden: boolean;
+					}[];
+				};
+				expect(
+					body.projects.find((row) => row.key === hiddenOnly),
+				).toMatchObject({
+					source: "hidden",
+					pinned: false,
+					hidden: true,
 				});
 			},
 		);

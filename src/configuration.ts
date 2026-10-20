@@ -35,7 +35,7 @@ const linearPin = z.strictObject({
 	project: z.string().regex(/^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/),
 });
 
-const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
+export const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
 
 export type ProjectPin = z.infer<typeof projectRef>;
 
