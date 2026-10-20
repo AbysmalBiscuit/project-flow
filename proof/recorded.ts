@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import { run } from "../src/main.ts";
+import { run, waitForStop } from "../src/main.ts";
 import { urlOf } from "../test/support.ts";
 
 export function emptyLinear(url: string): Response | null {
@@ -66,11 +66,7 @@ export async function serveRecorded(options: {
 			now: () => new Date("2026-10-18T12:00:00.000Z"),
 			stdout: (line) => console.log(line),
 			stderr: (line) => console.error(line),
-			waitForStop: new Promise<void>((resolve) => {
-				const stop = () => resolve();
-				process.once("SIGINT", stop);
-				process.once("SIGTERM", stop);
-			}),
+			waitForStop: waitForStop(),
 		},
 	);
 	process.exit(result.exitCode);
