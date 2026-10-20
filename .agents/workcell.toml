@@ -1,20 +1,20 @@
 [roles.code-reviewer]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
 [roles.pr-reviewer]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
 [roles.verifier]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
 [roles.receiver]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
 [roles.probe]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
 [roles.conceptual-reviewer]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "high" }]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
 [roles.senior]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "xhigh" }]
+prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
