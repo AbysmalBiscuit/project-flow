@@ -263,6 +263,8 @@ export const settingsCopy = {
 	logins: "Your logins",
 	loginsHint: "Comments from these accounts never notify you.",
 	addLabel: "Add label, press Enter",
+	addLogin: "Add login, press Enter",
+	laneState: "Lane state",
 	browserPermission: "Browser permission",
 	browserHint: "The browser decides if Project Flow may show notifications.",
 	allowed: "Allowed",
