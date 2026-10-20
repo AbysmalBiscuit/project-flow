@@ -185,7 +185,7 @@ async function quietPoll(base: string): Promise<void> {
 		if (raised !== undefined) {
 			throw new Error("inbox gained an entry on a quiet poll");
 		}
-		const events = eventsOf(await queuedText(stream.reader));
+		const events = eventsOf(await pollText(stream.reader));
 		for (const event of events) {
 			if (event.event === "notification") {
 				throw new Error("notification event arrived on a quiet poll");
@@ -199,7 +199,11 @@ async function quietPoll(base: string): Promise<void> {
 	}
 }
 
-async function queuedText(
+// The server writes the overview chunk, then each notification chunk.
+// A gap shorter than this still belongs to the same poll.
+const pollIdleMs = 50;
+
+async function pollText(
 	reader: ReadableStreamDefaultReader<Uint8Array>,
 ): Promise<string> {
 	const decoder = new TextDecoder();
@@ -207,21 +211,23 @@ async function queuedText(
 	const readOne = (): Promise<Uint8Array | null> => {
 		let settled = false;
 		return new Promise((resolve, reject) => {
+			const timer = setTimeout(() => {
+				if (!settled) {
+					resolve(null);
+				}
+			}, pollIdleMs);
 			reader.read().then(
 				(chunk) => {
 					settled = true;
+					clearTimeout(timer);
 					resolve(chunk.done ? null : (chunk.value?.slice() ?? null));
 				},
 				(error: unknown) => {
 					settled = true;
+					clearTimeout(timer);
 					reject(error);
 				},
 			);
-			queueMicrotask(() => {
-				if (!settled) {
-					resolve(null);
-				}
-			});
 		});
 	};
 	let bytes = await readOne();
