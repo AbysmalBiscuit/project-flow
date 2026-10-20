@@ -32,7 +32,7 @@ export function columnDepth(
 	return depth;
 }
 
-function viewportElement(root: ParentNode): Element | null {
+function viewportElement(root: ParentNode): HTMLElement | SVGElement | null {
 	const pane = root.querySelector(".react-flow__viewport");
 	if (!(pane instanceof SVGElement) && !(pane instanceof HTMLElement)) {
 		return null;
