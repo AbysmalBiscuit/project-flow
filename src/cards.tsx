@@ -22,6 +22,7 @@ import {
 	notificationPermission,
 } from "./notify.tsx";
 import { OverviewGraph } from "./overview-graph.tsx";
+import { openProject, projectPath } from "./paths.ts";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
 	actionLabel,
@@ -36,18 +37,6 @@ import {
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
-
-function projectPath(name: string, ticket?: string): string {
-	const path = `/projects/${encodeURIComponent(name)}`;
-	if (ticket === undefined) {
-		return path;
-	}
-	return `${path}?ticket=${encodeURIComponent(ticket)}`;
-}
-
-function openProject(name: string, ticket?: string): void {
-	window.location.assign(projectPath(name, ticket));
-}
 
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
@@ -695,7 +684,7 @@ function OverviewPage({
 	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
-		graph: <OverviewGraph projects={projects} />,
+		graph: <OverviewGraph projects={projects} catalogue={overview.projects} />,
 		table: (
 			<TableView
 				projects={projects}
@@ -919,7 +908,7 @@ function OverviewPage({
 					<div className={clsx(cards.controls)}>
 						{pinnedMenu}
 						{filterMenu}
-						{sortMenu}
+						{view.view === "graph" ? null : sortMenu}
 					</div>
 				</div>
 			)}
@@ -931,9 +920,7 @@ function OverviewPage({
 			{panes[view.view]}
 			{view.view === "graph" ? (
 				<p className={clsx(cards.caption)}>
-					An arrow runs from a blocking project to the project it blocks. Its
-					label is the blocking ticket; click it to open that ticket. Projects
-					with a dark border need you.
+					{overviewControlLabel.edgeCaption}
 				</p>
 			) : null}
 		</PageFrame>

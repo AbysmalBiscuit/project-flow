@@ -198,6 +198,7 @@ export const colours = stylex.defineVars({
 		default: lightValues.controlFill,
 		[dark]: darkValues.controlFill,
 	},
+	edgeLabel: { default: lightValues.warn, [dark]: darkValues.warnInk },
 });
 
 export const space = stylex.defineVars({
