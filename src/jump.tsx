@@ -4,7 +4,13 @@ import type { TicketSearchHit } from "./app.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { sameTicketKey } from "./domain.ts";
 import { TicketPanel } from "./panel.tsx";
-import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
+import {
+	activeTicket,
+	closeTicket,
+	openTicket,
+	replaceActiveItem,
+	useActiveTicket,
+} from "./selection.ts";
 import { stateLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
@@ -29,6 +35,10 @@ export function JumpBox() {
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
 	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
+	const needsRef = useRef(needs);
+	needsRef.current = needs;
+	const pendingItem = useRef(false);
+	const lookup = useRef(0);
 	const ticket = useActiveTicket();
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
@@ -94,16 +104,44 @@ export function JumpBox() {
 		if (!open) {
 			return;
 		}
+		const generation = lookup.current + 1;
+		lookup.current = generation;
 		let stopped = false;
+		const apply = (loaded: NeedsYouItem[]) => {
+			if (generation !== lookup.current) {
+				return;
+			}
+			needsRef.current = loaded;
+			setNeeds(loaded);
+			if (!pendingItem.current) {
+				return;
+			}
+			const selected = activeTicket();
+			const item = loaded.find(
+				(candidate) =>
+					selected !== null &&
+					candidate.tracker === selected.tracker &&
+					candidate.project === selected.project &&
+					sameTicketKey(candidate.key, selected.key),
+			);
+			if (item !== undefined) {
+				replaceActiveItem(item);
+				pendingItem.current = false;
+			}
+		};
 		fetch("/api/needs-you")
 			.then(async (response) => {
-				if (stopped || !response.ok) {
+				if (!response.ok) {
 					return;
 				}
-				setNeeds((await response.json()) as NeedsYouItem[]);
+				const loaded = (await response.json()) as NeedsYouItem[];
+				if (stopped && !pendingItem.current) {
+					return;
+				}
+				apply(loaded);
 			})
 			.catch(() => {
-				if (!stopped) {
+				if (!stopped && generation === lookup.current) {
 					setNeeds([]);
 				}
 			});
@@ -145,7 +183,7 @@ export function JumpBox() {
 		project: string;
 		key: string;
 	}): NeedsYouItem | undefined =>
-		needs.find(
+		needsRef.current.find(
 			(item) =>
 				item.tracker === hit.tracker &&
 				item.project === hit.project &&
@@ -189,6 +227,7 @@ export function JumpBox() {
 										data-ticket={hit.key}
 										onClick={() => {
 											const item = needsItem(hit);
+											pendingItem.current = item === undefined;
 											openTicket({
 												project: hit.project,
 												tracker: hit.tracker,

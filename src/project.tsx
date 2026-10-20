@@ -999,14 +999,15 @@ function Page() {
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	useEffect(() => {
-		if (active === null || active.project !== name) {
+		if (active === null) {
 			return;
 		}
+		setPanelReport(null);
 		setPanelProject(active.project);
 		setPanelTracker(active.tracker);
 		setTicket(active.key);
 		setOpen(true);
-	}, [active, name]);
+	}, [active]);
 	useEffect(() => {
 		const onPop = () => {
 			const next = highlightKey();
@@ -1384,15 +1385,7 @@ function Page() {
 							}
 							blockers={incoming}
 							blocks={outgoing}
-							item={
-								needsYouItem(source, panelTracker, panelProject, ticket) ??
-								(active !== null &&
-								active.tracker === panelTracker &&
-								active.project === panelProject &&
-								sameTicketKey(active.key, ticket)
-									? (active.item ?? null)
-									: null)
-							}
+							item={needsYouItem(source, panelTracker, panelProject, ticket)}
 							onOpenBlocker={(blocker) => {
 								setPanelReport(null);
 								setPanelProject(blocker.project);
