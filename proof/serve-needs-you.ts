@@ -230,7 +230,7 @@ await writeFile(
 	}),
 );
 
-const proofReady = Bun.serve({
+Bun.serve({
 	hostname: "127.0.0.1",
 	port: 4180,
 	fetch: async (request) => {
@@ -242,15 +242,13 @@ const proofReady = Bun.serve({
 		if (!listed.ok) {
 			return new Response("not ready", { status: 503 });
 		}
-		const items = (await listed.json()) as unknown[];
+		const items: unknown = await listed.json();
 		if (!Array.isArray(items) || items.length < 4) {
 			return new Response("not ready", { status: 503 });
 		}
 		return new Response("ready");
 	},
 });
-void proofReady;
-
 await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 	env: {
 		GITHUB_TOKEN: "recorded-token",
