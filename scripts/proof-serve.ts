@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 
-const root = await mkdtemp(join("/var/tmp", "project-flow-104-proof-"));
+const root = await mkdtemp(join("/var/tmp", "project-flow-proof-"));
 const configPath = join(root, "config.json");
 await writeFile(
 	configPath,
@@ -49,7 +49,7 @@ function json(body: unknown): Response {
 	});
 }
 
-const recorded: Fetch = async (input, init) => {
+const fakeTrackers: Fetch = async (input, init) => {
 	const url =
 		typeof input === "string"
 			? input
@@ -120,18 +120,22 @@ const recorded: Fetch = async (input, init) => {
 	return new Response("not recorded", { status: 404 });
 };
 
+const portFlag = process.argv.indexOf("--port");
+const portArg = portFlag === -1 ? undefined : process.argv[portFlag + 1];
+const port = portArg ?? "4763";
+
 try {
-	const result = await run(["--config", configPath, "--port", "4763"], {
+	const result = await run(["--config", configPath, "--port", port], {
 		env: {
 			...process.env,
 			XDG_DATA_HOME: root,
 			GITHUB_TOKEN: "recorded-token",
 			LINEAR_API_KEY: "recorded-linear-key",
 		},
-		fetch: recorded,
+		fetch: fakeTrackers,
 		readGhToken: async () => null,
 		databasePath: join(root, "project-flow.sqlite"),
-		now: () => new Date("2026-08-18T12:00:00.000Z"),
+		now: () => new Date(),
 		listTodos: async () => "",
 		listCheckouts: async () => [],
 		stdout: (line) => console.log(line),
