@@ -1,0 +1,70 @@
+[
+	{
+		"name": "205-build-add-babel-parser-as-a-direct",
+		"commit": {
+			"sha": "7a8bb0edabc992ca7ede4918c8ea4f892ca5aa5c",
+			"url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/commits/7a8bb0edabc992ca7ede4918c8ea4f892ca5aa5c"
+		},
+		"protected": false,
+		"protection": {
+			"enabled": false,
+			"required_status_checks": {
+				"enforcement_level": "off",
+				"contexts": [],
+				"checks": []
+			}
+		},
+		"protection_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/branches/205-build-add-babel-parser-as-a-direct/protection"
+	},
+	{
+		"name": "feat-live-project-page-with-the-report",
+		"commit": {
+			"sha": "6b530ad737b4ea1f2ddcbdac362eec7d39cb9eea",
+			"url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/commits/6b530ad737b4ea1f2ddcbdac362eec7d39cb9eea"
+		},
+		"protected": false,
+		"protection": {
+			"enabled": false,
+			"required_status_checks": {
+				"enforcement_level": "off",
+				"contexts": [],
+				"checks": []
+			}
+		},
+		"protection_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/branches/feat-live-project-page-with-the-report/protection"
+	},
+	{
+		"name": "main",
+		"commit": {
+			"sha": "9ed58df4b061806eb95059bca39f56843fc3fa4d",
+			"url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/commits/9ed58df4b061806eb95059bca39f56843fc3fa4d"
+		},
+		"protected": true,
+		"protection": {
+			"enabled": false,
+			"required_status_checks": {
+				"enforcement_level": "off",
+				"contexts": [],
+				"checks": []
+			}
+		},
+		"protection_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/branches/main/protection"
+	},
+	{
+		"name": "release-please--branches--main--components--project-flow",
+		"commit": {
+			"sha": "1fde7978b6c0fb12c83d5c5dd47c7ee76224c9ce",
+			"url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/commits/1fde7978b6c0fb12c83d5c5dd47c7ee76224c9ce"
+		},
+		"protected": false,
+		"protection": {
+			"enabled": false,
+			"required_status_checks": {
+				"enforcement_level": "off",
+				"contexts": [],
+				"checks": []
+			}
+		},
+		"protection_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/branches/release-please--branches--main--components--project-flow/protection"
+	}
+]

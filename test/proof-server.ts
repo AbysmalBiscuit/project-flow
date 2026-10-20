@@ -1,8 +1,14 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { trackerRequest, unrecorded } from "./support.ts";
+import {
+	emptyProjectFields,
+	recordedViewer,
+	trackerRequest,
+	unrecorded,
+} from "./support.ts";
 
 const port = process.argv.find((arg) => arg.startsWith("--port="))?.slice(7);
 const data = process.argv.find((arg) => arg.startsWith("--data="))?.slice(7);
@@ -16,7 +22,7 @@ if (
 	process.exit(1);
 }
 
-const repos = ["acme/repo-1", "acme/repo-3"];
+const fixtureDir = join(import.meta.dir, "fixtures");
 
 function json(body: unknown): Response {
 	return new Response(JSON.stringify(body), {
@@ -25,70 +31,125 @@ function json(body: unknown): Response {
 	});
 }
 
+async function fixture(name: string): Promise<unknown> {
+	return JSON.parse(await readFile(join(fixtureDir, name), "utf8"));
+}
+
+function recordedResponse(name: string): Promise<Response> {
+	return readFile(join(fixtureDir, name)).then(
+		(body) =>
+			new Response(body, {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			}),
+	);
+}
+
+const recordedRepoPages: { marker: string; file: string }[] = [
+	{
+		marker: "/pulls?state=open&per_page=100&page=1",
+		file: "github-open-pulls.json",
+	},
+	{ marker: "/branches?per_page=100&page=1", file: "github-branches.json" },
+	{
+		marker: "/issues/205/comments?",
+		file: "github-issue-comments-205.json",
+	},
+	{
+		marker:
+			"/commits/7a8bb0edabc992ca7ede4918c8ea4f892ca5aa5c/check-runs?per_page=100",
+		file: "github-check-runs-206.json",
+	},
+	{
+		marker:
+			"/commits/1fde7978b6c0fb12c83d5c5dd47c7ee76224c9ce/check-runs?per_page=100",
+		file: "github-check-runs-22.json",
+	},
+	{
+		marker: "/pulls/206/reviews?per_page=100&page=1",
+		file: "github-pull-reviews-206.json",
+	},
+	{
+		marker: "/pulls/22/reviews?per_page=100&page=1",
+		file: "github-pull-reviews-22.json",
+	},
+	{
+		marker: "/issues/206/comments?per_page=100&page=1",
+		file: "github-pull-comments-206.json",
+	},
+	{
+		marker: "/issues/22/comments?per_page=100&page=1",
+		file: "github-pull-comments-22.json",
+	},
+	{
+		marker: "/issues/206/reactions?per_page=100&page=1",
+		file: "github-pull-reactions-206.json",
+	},
+	{
+		marker: "/issues/22/reactions?per_page=100&page=1",
+		file: "github-pull-reactions-22.json",
+	},
+];
+
+function recordedRepoPage(
+	repo: string | undefined,
+	url: string,
+): string | null {
+	if (repo !== "AbysmalBiscuit/project-flow") {
+		return null;
+	}
+	return (
+		recordedRepoPages.find((page) => url.includes(page.marker))?.file ?? null
+	);
+}
+
 const recorded: Fetch = async (input, init) => {
 	const request = trackerRequest(input, init);
 	const url = request.url;
-	if (url === "https://api.github.com/user") {
-		return json({ login: "lev" });
-	}
 	if (url.startsWith("https://api.github.com/user/repos")) {
-		return json(
-			repos.map((repo) => ({
-				full_name: repo,
-				owner: { login: "lev" },
-				permissions: { admin: true, push: true, pull: true },
-				pushed_at: "2026-08-18T12:00:00.000Z",
-			})),
+		return recordedResponse("github-repo.json").then((page) =>
+			page.json().then((repo: unknown) => json([repo])),
 		);
 	}
-	const issues = url.match(
-		/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?/,
-	);
-	if (issues?.[1] !== undefined) {
-		return json([
-			{
-				number: 1,
-				title: "Ticket 1",
-				state: "open",
-				state_reason: null,
-				html_url: `https://github.com/${issues[1]}/issues/1`,
-				updated_at: "2026-08-18T12:00:00.000Z",
-			},
-		]);
+	const known = recordedViewer(input, init) ?? emptyProjectFields(input, init);
+	if (known !== null) {
+		return known;
+	}
+	const repo = url.match(
+		/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\//,
+	)?.[1];
+	const recordedPage = recordedRepoPage(repo, url);
+	if (recordedPage !== null) {
+		return recordedResponse(recordedPage);
+	}
+	if (repo !== undefined && url.includes("/issues?")) {
+		const issues = (await fixture("github-issues.json")) as {
+			html_url?: string;
+		}[];
+		return json(
+			issues.filter((issue) => issue.html_url?.includes(`/${repo}/`)),
+		);
+	}
+	if (repo !== undefined && url.includes("/labels?")) {
+		return recordedResponse("github-factory-labels.json");
 	}
 	if (
-		url.includes("/pulls?") ||
-		url.includes("/branches?") ||
-		url.includes("/labels?")
+		url === "https://api.github.com/graphql" &&
+		request.query.includes("ProjectFields")
 	) {
-		return json([]);
+		return recordedResponse("github-project-fields.json");
 	}
-	if (url === "https://api.github.com/graphql") {
-		const emptyPage = {
-			nodes: [],
-			pageInfo: { hasNextPage: false, endCursor: null },
-		};
-		return json({
-			data: {
-				viewer: {
-					login: "lev",
-					projectsV2: emptyPage,
-					organizations: emptyPage,
-				},
-				node: { fields: { nodes: [{}] } },
-			},
-		});
+	if (
+		url === "https://api.linear.app/graphql" &&
+		request.query.includes("TeamStates")
+	) {
+		return recordedResponse("linear-team-states.json");
 	}
-	if (url === "https://api.linear.app/graphql") {
-		return json({
-			data: {
-				viewer: { id: "lev" },
-				projects: {
-					nodes: [],
-					pageInfo: { hasNextPage: false, endCursor: null },
-				},
-			},
-		});
+	if (
+		url === "https://api.linear.app/graphql" &&
+		request.query.includes("viewer")
+	) {
+		return recordedResponse("linear-viewer.json");
 	}
 	return unrecorded(input);
 };
@@ -129,7 +190,7 @@ const gate = Bun.serve({
 });
 
 let appBase = "";
-void (async () => {
+const ready = (async () => {
 	const deadline = Date.now() + 9_000;
 	while (upstream === null && Date.now() < deadline) {
 		if (appBase !== "") {
@@ -137,7 +198,7 @@ void (async () => {
 				() => null,
 			);
 			if (loaded?.ok) {
-				const body = (await loaded.json()) as { polling?: boolean };
+				const body = (await loaded.json()) as Pick<Overview, "polling">;
 				if (body.polling !== true) {
 					upstream = new URL(appBase);
 					return;
@@ -145,6 +206,10 @@ void (async () => {
 			}
 		}
 		await Bun.sleep(50);
+	}
+	if (upstream === null) {
+		console.error("proof server was not ready within 9s");
+		process.exit(1);
 	}
 })();
 
@@ -166,16 +231,19 @@ const result = await run(
 			appBase = line.trim();
 		},
 		stderr: (line) => console.error(line),
-		waitForStop: new Promise((resolve) => {
-			const stop = () => {
-				gate.stop(true);
-				void rm(data, { recursive: true, force: true }).finally(() =>
-					resolve(),
-				);
-			};
-			process.once("SIGINT", stop);
-			process.once("SIGTERM", stop);
-		}),
+		waitForStop: Promise.race([
+			ready.then(() => new Promise<void>(() => {})),
+			new Promise<void>((resolve) => {
+				const stop = () => {
+					gate.stop(true);
+					void rm(data, { recursive: true, force: true }).finally(() =>
+						resolve(),
+					);
+				};
+				process.once("SIGINT", stop);
+				process.once("SIGTERM", stop);
+			}),
+		]),
 	},
 );
 process.exit(result.exitCode);
