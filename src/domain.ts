@@ -8,7 +8,7 @@ export type WorkcellRun = {
 
 export type LiveRun = {
 	status: "running" | "failed";
-	stage: string;
+	stage?: string;
 };
 
 export function todoRows(listing: string): { project: string }[] {
@@ -2471,12 +2471,13 @@ function shownTicket(
 	const draft = links.some((pull) => pull.draft);
 	const local = runFor(ticket, runs);
 	const fromComment = progressRun(ticket.comments ?? []);
+	const stage = fromComment?.stage;
 	const run =
 		local === undefined
 			? fromComment
 			: {
 					status: local.status,
-					stage: fromComment?.stage ?? "",
+					...(stage === undefined ? {} : { stage }),
 				};
 	const live = run?.status === "running";
 	const mergedClose = links.some(

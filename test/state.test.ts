@@ -926,6 +926,82 @@ describe("forward state", () => {
 		}
 	});
 
+	test("a local live run with no progress comment omits the stage", async () => {
+		const checkout = await devkitWorktree({ key: "WID-22", status: "running" });
+		const main = join(checkout.root, "acme", "widget");
+		const failedTree = join(
+			checkout.root,
+			"acme",
+			"widget_workspaces",
+			"WID-25-feat",
+		);
+		await git(["worktree", "add", "-b", "failed-run", failedTree], main);
+		const issue = await readFile(join(fixtureDir, "issue.toml"), "utf8");
+		await mkdir(join(failedTree, ".devkit", "workcell"), { recursive: true });
+		await writeFile(
+			join(failedTree, ".devkit", "issue.toml"),
+			issue.replace(/^issue = ".*"$/m, 'issue = "WID-25"'),
+		);
+		await writeFile(
+			join(failedTree, ".devkit", "workcell", "state.json"),
+			await readFile(join(fixtureDir, "state-failed.json")),
+		);
+		const blankTree = join(
+			checkout.root,
+			"acme",
+			"widget_workspaces",
+			"WID-26-feat",
+		);
+		await git(["worktree", "add", "-b", "blank-run", blankTree], main);
+		await mkdir(join(blankTree, ".devkit", "workcell"), { recursive: true });
+		await writeFile(
+			join(blankTree, ".devkit", "issue.toml"),
+			issue.replace(/^issue = ".*"$/m, 'issue = "WID-26"'),
+		);
+		await writeFile(
+			join(blankTree, ".devkit", "workcell", "state.json"),
+			"   \n",
+		);
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([
+					linearIssue("WID-22", "Ship the list", todoState),
+					linearIssue("WID-25", "The run failed", todoState),
+					linearIssue("WID-26", "Blank state file", todoState),
+				]),
+				{ LINEAR_API_KEY: "recorded-linear-key" },
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-22")).toMatchObject({
+						state: "inProgress",
+						lane: "In Progress",
+						staleStatus: "Todo",
+						run: { status: "running" },
+					});
+					expect(ticketOf(report, "WID-22").run).not.toHaveProperty("stage");
+					expect(ticketOf(report, "WID-25")).toMatchObject({
+						state: "backlog",
+						lane: "Todo",
+						chips: ["Run failed"],
+						run: { status: "failed" },
+					});
+					expect(ticketOf(report, "WID-25").run).not.toHaveProperty("stage");
+					expect(ticketOf(report, "WID-26")).toMatchObject({
+						state: "backlog",
+						lane: "Todo",
+					});
+					expect(ticketOf(report, "WID-26").run).toBeUndefined();
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
 	test("a local live run keeps the stage from the progress comment", async () => {
 		const checkout = await devkitWorktree({ key: "WID-14", status: "running" });
 		try {
