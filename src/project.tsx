@@ -990,35 +990,40 @@ function Page() {
 		.sort((left, right) => left.localeCompare(right))
 		.join("\n");
 	useEffect(() => {
-		if (outsideProjects === "") {
-			setOutsideReports([]);
-			return;
-		}
 		let stopped = false;
-		const names = outsideProjects.split("\n");
-		Promise.all(
-			names.map(async (project) => {
-				const response = await fetch(
-					`/api/projects/${encodeURIComponent(project)}?view=all`,
-				);
-				if (!response.ok) {
-					return null;
-				}
-				return (await response.json()) as ProjectReport;
-			}),
-		)
-			.then((loaded) => {
-				if (!stopped) {
-					setOutsideReports(loaded.flatMap((item) => item ?? []));
-				}
-			})
-			.catch(() => {
-				if (!stopped) {
-					setOutsideReports([]);
-				}
-			});
+		const load = () => {
+			if (outsideProjects === "") {
+				setOutsideReports([]);
+				return;
+			}
+			const names = outsideProjects.split("\n");
+			Promise.all(
+				names.map(async (project) => {
+					const response = await fetch(
+						`/api/projects/${encodeURIComponent(project)}?view=all`,
+					);
+					if (!response.ok) {
+						return null;
+					}
+					return (await response.json()) as ProjectReport;
+				}),
+			)
+				.then((loaded) => {
+					if (!stopped) {
+						setOutsideReports(loaded.flatMap((item) => item ?? []));
+					}
+				})
+				.catch(() => {
+					if (!stopped) {
+						setOutsideReports([]);
+					}
+				});
+		};
+		load();
+		const stop = onAppEvent("overview", load);
 		return () => {
 			stopped = true;
+			stop();
 		};
 	}, [outsideProjects]);
 	useEffect(() => {
