@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:4190",
+	"serve": ["bun", "proof/serve-graph.ts"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "acme/widget" },
+		{ "click": "#view-graph" },
+		{ "assert_text": "Platform gate" },
+		{ "click": "button[data-graph-node='acme/platform#9']" },
+		{ "assert_text": "Open on GitHub" },
+		{ "shot": "outside-panel" }
+	]
+}
