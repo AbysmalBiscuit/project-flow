@@ -9,12 +9,12 @@
 		{ "assert_text": "Draw the nodes" },
 		{ "assert_text": "Platform gate" },
 		{ "click": "#graph-direction-top-to-bottom" },
-		{ "assert_text": "Top to bottom" },
+		{ "assert_text": "top-to-bottom" },
 		{ "shot": "direction-down" },
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "acme/widget" },
 		{ "click": "#view-graph" },
-		{ "assert_text": "Top to bottom" },
+		{ "assert_text": "top-to-bottom" },
 		{ "shot": "direction-kept" }
 	]
 }
