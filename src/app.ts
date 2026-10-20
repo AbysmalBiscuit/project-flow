@@ -59,7 +59,7 @@ import {
 	githubTracker,
 	missingToken,
 	type RestCache,
-	retainIssueWindow,
+	retainListWindows,
 } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
@@ -1026,7 +1026,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			options.store.recordGoodPoll(project.key, polledAt);
 			options.store.clearProjectError(project.key);
 			if (project.tracker === "github" && project.key.includes("/")) {
-				retainIssueWindow(options.restCache, project.key);
+				retainListWindows(options.restCache, project.key);
 			}
 			const shown = projectSnapshots(
 				listed,

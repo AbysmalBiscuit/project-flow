@@ -170,7 +170,7 @@ function retainWindow(
 	}
 }
 
-export function retainIssueWindow(cache: RestCache, repo: string): void {
+export function retainListWindows(cache: RestCache, repo: string): void {
 	retainWindow(cache, repo, (url) => listWindow(url, issueList));
 	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList));
 }
@@ -829,17 +829,25 @@ function githubState(state: string): "open" | "closed" | null {
 	return null;
 }
 
+function issueRefFromUrl(url: string): { repo: string; number: number } | null {
+	const match = url.match(/\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)/);
+	const repo = match?.[1];
+	const raw = match?.[2];
+	if (repo === undefined || raw === undefined) {
+		return null;
+	}
+	return { repo, number: Number(raw) };
+}
+
 function parentKey(url: string | null | undefined): string | null {
 	if (url === null || url === undefined) {
 		return null;
 	}
-	const match = url.match(/\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)/);
-	const repo = match?.[1];
-	const number = match?.[2];
-	if (repo === undefined || number === undefined) {
+	const ref = issueRefFromUrl(url);
+	if (ref === null) {
 		return null;
 	}
-	return `${repo}#${number}`;
+	return `${ref.repo}#${ref.number}`;
 }
 
 function githubReason(reason: string | null): string | null {
@@ -2075,19 +2083,18 @@ function issueNumberFromCommentUrl(
 	issueUrl: string,
 	repo: string,
 ): number | null {
-	const match = issueUrl.match(
-		/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/,
-	);
-	const commentRepo = match?.[1];
-	const raw = match?.[2];
-	if (commentRepo !== repo || raw === undefined) {
+	const ref = issueRefFromUrl(issueUrl);
+	if (
+		ref === null ||
+		ref.repo !== repo ||
+		!issueUrl.endsWith(`/repos/${ref.repo}/issues/${ref.number}`)
+	) {
 		return null;
 	}
-	return Number(raw);
+	return ref.number;
 }
 
-// A comment edit leaves the issue updated_at unchanged, so the issue list's
-// since window misses it. The repository comment list's since uses the comment time.
+// Loads an issue whose updated_at did not move.
 async function issuesWithEditedComments(
 	token: string,
 	fetchImpl: Fetch,
@@ -2126,7 +2133,7 @@ async function issuesWithEditedComments(
 		}
 		if (!response.ok) {
 			throw new Error(
-				`GitHub list edited comments failed (HTTP ${response.status}): ${repo}`,
+				`GitHub read edited issue failed (HTTP ${response.status}): ${repo}#${number}`,
 			);
 		}
 		const issue = githubIssue.parse(await response.json());
