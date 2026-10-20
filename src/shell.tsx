@@ -14,15 +14,14 @@ export type PageView = {
 
 export type PageHeaderProps = {
 	title: string;
-	filter?: ReactNode;
-	sort?: ReactNode;
+	subtitle?: ReactNode;
 	search?: ReactNode;
 	views?: readonly PageView[];
 	view?: string;
 	onView?: (id: string) => void;
 };
 
-function ThemeIcon({ children }: { children: ReactNode }) {
+function Glyph({ children }: { children: ReactNode }) {
 	return (
 		<svg
 			viewBox="0 0 24 24"
@@ -57,20 +56,29 @@ function LogoMark() {
 	);
 }
 
+export function SearchGlyph() {
+	return (
+		<Glyph>
+			<circle cx="11" cy="11" r="6" />
+			<path d="M16 16l4 4" />
+		</Glyph>
+	);
+}
+
 function MoonIcon() {
 	return (
-		<ThemeIcon>
+		<Glyph>
 			<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 7 7 0 0 0 20 14.5z" />
-		</ThemeIcon>
+		</Glyph>
 	);
 }
 
 function SunIcon() {
 	return (
-		<ThemeIcon>
+		<Glyph>
 			<circle cx="12" cy="12" r="4" />
 			<path d="M12 2.5v2.5M12 19v2.5M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M2.5 12h2.5M19 12h2.5M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" />
-		</ThemeIcon>
+		</Glyph>
 	);
 }
 
@@ -105,7 +113,13 @@ async function saveTheme(theme: "light" | "dark"): Promise<boolean> {
 	}
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+	children,
+	search,
+}: {
+	children: ReactNode;
+	search?: ReactNode;
+}) {
 	const [count, setCount] = useState<number | null>(null);
 	const [theme, setTheme] = useState(pageTheme);
 	const path = window.location.pathname;
@@ -155,13 +169,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 							aria-current={current(link.href) ? "page" : undefined}
 						>
 							{link.label}
-							{"count" in link && count !== null ? (
+							{"count" in link && count !== null && count > 0 ? (
 								<span className={clsx(frame.count)}>{count}</span>
 							) : null}
 						</a>
 					))}
 				</nav>
 				<span className={clsx(frame.spacer)} />
+				{search}
 				<button
 					type="button"
 					id="header-search"
@@ -206,49 +221,40 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 export function PageHeader({
 	title,
-	filter,
-	sort,
-	search,
+	subtitle,
 	views,
 	view,
 	onView,
 }: PageHeaderProps) {
-	const showTools =
-		filter !== undefined ||
-		sort !== undefined ||
-		search !== undefined ||
-		(views !== undefined && views.length > 0);
+	const showTools = views !== undefined && views.length > 0;
 	return (
-		<div className={clsx(frame.row)}>
-			<h1 className={clsx(frame.title)}>{title}</h1>
+		<div className={clsx(frame.head)}>
+			<div>
+				<h1 className={clsx(frame.title)}>{title}</h1>
+				{subtitle === undefined ? null : (
+					<p className={clsx(frame.subtitle)}>{subtitle}</p>
+				)}
+			</div>
 			{showTools ? (
-				<div className={clsx(frame.tools)}>
-					{filter}
-					{sort}
-					{search}
-					{views === undefined || views.length === 0 ? null : (
-						<fieldset className={clsx(frame.views)}>
-							<legend className={clsx(frame.legend)}>Views</legend>
-							{views.map((item) => (
-								<button
-									key={item.id}
-									type="button"
-									id={`view-${item.id}`}
-									className={clsx(
-										shell.button,
-										shell.buttonHover,
-										shell.buttonFocus,
-										view === item.id && shell.pressed,
-									)}
-									aria-pressed={view === item.id}
-									onClick={() => onView?.(item.id)}
-								>
-									{item.label}
-								</button>
-							))}
-						</fieldset>
-					)}
-				</div>
+				<fieldset className={clsx(frame.views)}>
+					<legend className={clsx(frame.legend)}>Views</legend>
+					{views.map((item) => (
+						<button
+							key={item.id}
+							type="button"
+							id={`view-${item.id}`}
+							className={clsx(
+								frame.view,
+								shell.buttonFocus,
+								view === item.id && frame.viewOn,
+							)}
+							aria-pressed={view === item.id}
+							onClick={() => onView?.(item.id)}
+						>
+							{item.label}
+						</button>
+					))}
+				</fieldset>
 			) : null}
 		</div>
 	);
