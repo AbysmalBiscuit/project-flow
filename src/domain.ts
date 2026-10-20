@@ -6,6 +6,7 @@ import type {
 	ProjectViewSettings,
 } from "./configuration.ts";
 import {
+	type GroupBy,
 	laneAgeCap,
 	savedProjectView,
 	visibleLaneNames,
@@ -122,6 +123,8 @@ export type TicketView = {
 	run?: LiveRun;
 	updatedAt?: string;
 	assignees?: string[];
+	workstream?: string;
+	theme?: string;
 };
 
 export type CrossProjectBlocker = {
@@ -3460,6 +3463,7 @@ export function needsYouItems(
 
 const noScope = "no scope";
 const noWorkstream = "no workstream";
+const noAssignee = "no assignee";
 
 const scopeInTitle = /^(?:[a-z]+)\(([^)]+)\)!?\s*:|^\[([^\]]+)\]/i;
 
@@ -3598,6 +3602,68 @@ function workstreamOf(
 		return root.title;
 	}
 	return ticket.milestone ?? noWorkstream;
+}
+
+export type GroupKey = Exclude<GroupBy, "none">;
+
+type GroupedTicket = {
+	key: string | null;
+	title: string;
+	workstream?: string;
+	theme?: string;
+	assignees?: string[];
+};
+
+function themeGroupKey(view: GroupedTicket): string {
+	const theme = view.theme ?? noScope;
+	const workstream = view.workstream ?? noWorkstream;
+	return `${workstream} / ${theme}`;
+}
+
+export function groupKeysOf(view: GroupedTicket, key: GroupKey): string[] {
+	if (key === "assignee") {
+		const names = [
+			...new Set(
+				(view.assignees ?? []).flatMap((name) => {
+					const trimmed = name.trim();
+					return trimmed === "" ? [] : [trimmed];
+				}),
+			),
+		];
+		return names.length === 0 ? [noAssignee] : names;
+	}
+	if (key === "workstream") {
+		return [view.workstream ?? noWorkstream];
+	}
+	return [themeGroupKey(view)];
+}
+
+export function ticketGroups<T extends GroupedTicket>(
+	tickets: readonly T[],
+	key: GroupBy,
+): { name: string; tickets: T[] }[] {
+	if (key === "none") {
+		return [{ name: "", tickets: [...tickets] }];
+	}
+	const order: string[] = [];
+	const members = new Map<string, T[]>();
+	for (const ticket of tickets) {
+		for (const name of groupKeysOf(ticket, key)) {
+			const known = members.get(name);
+			if (known === undefined) {
+				order.push(name);
+				members.set(name, [ticket]);
+				continue;
+			}
+			known.push(ticket);
+		}
+	}
+	return order
+		.sort((left, right) => left.localeCompare(right))
+		.flatMap((name) => {
+			const grouped = members.get(name);
+			return grouped === undefined ? [] : [{ name, tickets: grouped }];
+		});
 }
 
 function placeTickets(
@@ -3883,6 +3949,13 @@ export function projectReport(
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
 	const needsKeys = new Set(needs.map((item) => item.key.toLowerCase()));
+	const placedByKey = new Map(
+		placed.flatMap((item) =>
+			item.ticket.key === null
+				? []
+				: [[item.ticket.key.toLowerCase(), item] as const],
+		),
+	);
 	const boardTickets = counts.tickets.map((view) => {
 		const relations =
 			view.key === null
@@ -3892,8 +3965,13 @@ export function projectReport(
 			view.key === null ? undefined : pullByKey.get(view.key.toLowerCase());
 		const commentRun =
 			view.key === null ? undefined : runByKey.get(view.key.toLowerCase());
+		const placedItem =
+			view.key === null ? undefined : placedByKey.get(view.key.toLowerCase());
 		return {
 			...view,
+			...(placedItem === undefined
+				? {}
+				: { workstream: placedItem.workstream, theme: placedItem.theme }),
 			...(commentRun === undefined ? {} : { run: commentRun }),
 			...(relations === undefined ? {} : { blockers: relations.blockers }),
 			...(relations === undefined || relations.outsideBlockers.length === 0

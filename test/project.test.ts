@@ -1377,6 +1377,155 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a group choice writes the project view settings and survives a restart", async () => {
+		const config = JSON.stringify({
+			pinned: [{ tracker: "github", repo: githubRepo }],
+		});
+		const issues = [
+			issue(1, "Ship the map", {
+				labels: [{ name: "epic" }],
+				assignee: { login: "ada" },
+				assignees: [{ login: "ada" }],
+			}),
+			issue(2, "feat(ux): draw the nodes", {
+				parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/1`,
+				assignee: { login: "bea" },
+				assignees: [{ login: "bea" }],
+			}),
+			issue(3, "Write the copy", {
+				milestone: { title: "October" },
+			}),
+			issue(4, "Share the map", {
+				assignees: [{ login: "Ana" }, { login: "Ben" }],
+			}),
+			issue(5, "Leave the draft", {}),
+		];
+		const reportOf = async (base: string) =>
+			(await (
+				await fetch(
+					new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+				)
+			).json()) as ProjectReport;
+		let path = "";
+		let cleanup = async () => {};
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		try {
+			const temp = await tempConfig(config);
+			path = temp.path;
+			cleanup = temp.cleanup;
+			const start = (check: (base: string) => Promise<void>): Promise<void> => {
+				let startChecks: (base: string) => void = () => {};
+				const checks = new Promise<void>((resolve, reject) => {
+					startChecks = (line) => {
+						check(line).then(resolve).catch(reject);
+					};
+				});
+				return run(
+					["--config", path, "--host", "127.0.0.1", "--port", "0"],
+					testIo({
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: githubFetch(issues, []),
+						readGhToken: async () => null,
+						databasePath: join(root, "store.sqlite"),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					}),
+				).then((result) => {
+					expect(result.stderr).toBe("");
+					expect(result.exitCode).toBe(0);
+				});
+			};
+			await start(async (base) => {
+				const open = await reportOf(base);
+				expect(
+					open.tickets.find((ticket) => ticket.key === `${githubRepo}#2`),
+				).toMatchObject({ workstream: "Ship the map", theme: "ux" });
+				expect(
+					open.tickets.find((ticket) => ticket.key === `${githubRepo}#3`),
+				).toMatchObject({
+					workstream: "October",
+					theme: "no scope",
+				});
+				expect(
+					open.tickets.find((ticket) => ticket.key === `${githubRepo}#3`)
+						?.assignees,
+				).toBeUndefined();
+				const shared = open.tickets.find(
+					(ticket) => ticket.key === `${githubRepo}#4`,
+				)?.assignees;
+				expect(shared).toContain("Ana");
+				expect(shared).toContain("Ben");
+				expect(shared?.some((name) => name.trim() === "")).toBe(false);
+				expect(
+					open.tickets.find((ticket) => ticket.key === `${githubRepo}#5`)
+						?.assignees,
+				).toBeUndefined();
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, { groupBy?: string }>;
+				};
+				expect(current.projectViews).toEqual({});
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							[githubRepo]: { groupBy: "workstream" },
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as {
+					projectViews: Record<string, { groupBy?: string }>;
+				};
+				expect(written.projectViews[githubRepo]?.groupBy).toBe("workstream");
+				const rejected = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							[githubRepo]: { groupBy: "lane" },
+						},
+					}),
+				});
+				expect(rejected.status).toBe(400);
+				const named = (await rejected.json()) as { error: string };
+				expect(named.error).toContain("groupBy");
+				const kept = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, { groupBy?: string }>;
+				};
+				expect(kept.projectViews[githubRepo]?.groupBy).toBe("workstream");
+			});
+			await start(async (base) => {
+				const again = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, { groupBy?: string }>;
+				};
+				expect(again.projectViews[githubRepo]?.groupBy).toBe("workstream");
+				const blank = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...again,
+						projectViews: {
+							[githubRepo]: { groupBy: "   " },
+						},
+					}),
+				});
+				expect(blank.status).toBe(400);
+			});
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a filter change writes the project view settings and survives a restart", async () => {
 		const config = JSON.stringify({
 			pinned: [{ tracker: "github", repo: githubRepo }],
@@ -1484,6 +1633,7 @@ describe("GET /api/projects/:name", () => {
 								search: "done",
 								openView: "table",
 								graphDirection: "top-to-bottom",
+								groupBy: "none",
 							},
 						},
 					}),
@@ -1501,6 +1651,7 @@ describe("GET /api/projects/:name", () => {
 					search: "done",
 					openView: "table",
 					graphDirection: "top-to-bottom",
+					groupBy: "none",
 				});
 				const filtered = await keys(base);
 				expect(filtered.tickets).toEqual([`${githubRepo}#4`]);
@@ -1520,6 +1671,7 @@ describe("GET /api/projects/:name", () => {
 					search: "done",
 					openView: "table",
 					graphDirection: "top-to-bottom",
+					groupBy: "none",
 				});
 				const filtered = await keys(base);
 				expect(filtered.tickets).toEqual([`${githubRepo}#4`]);
