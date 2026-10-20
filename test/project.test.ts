@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { savedProjectView } from "../src/view-settings.ts";
 import {
 	emptyProjectFields,
 	linearFake,
@@ -1717,6 +1719,96 @@ describe("GET /api/projects/:name", () => {
 					"2026-08-12T09:00:00.000Z",
 					"2026-08-18T15:00:00.000Z",
 				]);
+			},
+		);
+	});
+
+	test("a project with no own view uses the star view, and its own entry wins", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch(),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Record<string, unknown>;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							"*": { openView: "graph" },
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(report).not.toHaveProperty("openView");
+				const opened = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				expect(
+					savedProjectView(opened.projectViews ?? {}, githubRepo).openView,
+				).toBe("graph");
+				const own = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							"*": { openView: "graph" },
+							[githubRepo]: { openView: "table" },
+						},
+					}),
+				});
+				expect(own.status).toBe(200);
+				const won = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(won).not.toHaveProperty("openView");
+				const ownSettings = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				expect(
+					savedProjectView(ownSettings.projectViews ?? {}, githubRepo).openView,
+				).toBe("table");
+				const spaced = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							"*": { openView: "graph", search: "   " },
+						},
+					}),
+				});
+				expect(spaced.status).toBe(200);
+				const kept = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(kept).not.toHaveProperty("openView");
+				const keptSettings = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews?: Record<string, ProjectViewSettings>;
+				};
+				expect(
+					savedProjectView(keptSettings.projectViews ?? {}, githubRepo)
+						.openView,
+				).toBe("graph");
 			},
 		);
 	});

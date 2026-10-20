@@ -21,21 +21,30 @@ export function projectViewKey(
 	);
 }
 
-export function savedProjectView(
-	views: Record<string, ProjectViewSettings>,
-	name: string,
-): ProjectViewSettings {
-	const key = projectViewKey(views, name);
-	const saved = key === undefined ? undefined : views[key];
+export function viewDefaults(): ProjectViewSettings {
 	return {
-		maxAgeDays: emptyMaxAgeDays,
+		maxAgeDays: {},
 		needsYouOnly: false,
 		blockedOnly: false,
 		assignees: [],
 		search: "",
 		openView: defaultOpenView,
 		graphDirection: defaultGraphDirection,
-		...saved,
+	};
+}
+
+export function savedProjectView(
+	views: Record<string, ProjectViewSettings>,
+	name: string,
+): ProjectViewSettings {
+	const starKey = projectViewKey(views, "*");
+	const star = starKey === undefined ? undefined : views[starKey];
+	const key = projectViewKey(views, name);
+	const saved = key === undefined || key === starKey ? undefined : views[key];
+	return {
+		...viewDefaults(),
+		...(star === undefined ? {} : star),
+		...(saved === undefined ? {} : saved),
 	};
 }
 

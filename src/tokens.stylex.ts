@@ -294,6 +294,10 @@ export const measure = stylex.defineVars({
 	needsPanel: "22.5rem",
 	needsRow: "3.125rem",
 	bar: "4.5rem",
+	contents: "11rem",
+	narrow: "7rem",
+	switch: "2.1rem",
+	knob: "0.95rem",
 });
 
 export const stack = stylex.defineVars({
