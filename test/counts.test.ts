@@ -349,6 +349,145 @@ describe("done counts", () => {
 		);
 	});
 
+	test("search, assignee, needs-you and blocked filters apply to done tickets, and the age limit does not", async () => {
+		const ada = { assignee: { login: "ada" }, assignees: [{ login: "ada" }] };
+		const bea = { assignee: { login: "bea" }, assignees: [{ login: "bea" }] };
+		const issues = [
+			issue(1, "Ship the widget", ada),
+			issue(2, "Draw the legend", bea),
+			{ ...closed(11, "Close the widget", "2026-08-17T12:00:00.000Z"), ...ada },
+			{ ...closed(12, "Close the legend", "2026-08-17T12:00:00.000Z"), ...bea },
+			{
+				...closed(13, "Close the old widget", "2026-08-01T12:00:00.000Z"),
+				...ada,
+			},
+			closed(14, "Close the map", "2026-08-17T12:00:00.000Z"),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				projectViews: {
+					[repo]: {
+						search: "widget",
+						assignees: ["Ada"],
+						maxAgeDays: { Done: 2 },
+					},
+				},
+			}),
+			recorded(issues, []),
+			async (base) => {
+				const filtered = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(filtered.doneTickets.map((ticket) => ticket.key)).toEqual([
+					`${repo}#11`,
+					`${repo}#13`,
+				]);
+				expect(filtered.done).toBe(4);
+				expect(filtered.total).toBe(6);
+				const needs = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						pinned: [{ tracker: "github", repo }],
+						projectViews: {
+							[repo]: { needsYouOnly: true, blockedOnly: false, search: "" },
+						},
+					}),
+				});
+				expect(needs.status).toBe(200);
+				const needed = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(needed.doneTickets).toEqual([]);
+				expect(needed.done).toBe(4);
+				const blocked = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						pinned: [{ tracker: "github", repo }],
+						projectViews: {
+							[repo]: { blockedOnly: true, search: "   ", assignees: ["  "] },
+						},
+					}),
+				});
+				expect(blocked.status).toBe(200);
+				const held = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(held.doneTickets).toEqual([]);
+				expect(held.done).toBe(4);
+				expect(held.total).toBe(6);
+			},
+		);
+	});
+
+	test("a done ticket on the age boundary stays, an unlimited cap keeps every done ticket, and a blank date stays", async () => {
+		const issues = [
+			closed(11, "Close on the boundary", "2026-08-16T12:00:00.000Z"),
+			closed(12, "Close past the boundary", "2026-08-16T11:59:59.000Z"),
+			issue(13, "Close with a blank date", {
+				state: "closed",
+				state_reason: "completed",
+				closed_at: "   ",
+				updated_at: "   ",
+			}),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				projectViews: { [repo]: { maxAgeDays: { Done: 2 } } },
+			}),
+			recorded(issues, []),
+			async (base) => {
+				const bounded = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(bounded.tickets.map((ticket) => ticket.key)).toEqual([
+					`${repo}#11`,
+					`${repo}#13`,
+				]);
+				expect(bounded.doneTickets.map((ticket) => ticket.key)).toEqual([
+					`${repo}#11`,
+					`${repo}#12`,
+					`${repo}#13`,
+				]);
+				expect(bounded.done).toBe(3);
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Record<string, unknown>;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: { [repo]: { maxAgeDays: { Done: 0 } } },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const unlimited = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(unlimited.tickets.map((ticket) => ticket.key)).toEqual([
+					`${repo}#11`,
+					`${repo}#12`,
+					`${repo}#13`,
+				]);
+				expect(unlimited.done).toBe(3);
+			},
+		);
+	});
+
 	test("done tickets older than the max age stay on the unfiltered board", async () => {
 		await withApp(
 			JSON.stringify({

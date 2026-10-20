@@ -663,7 +663,7 @@ export type ProjectReport = {
 	done: number;
 	total: number;
 	doneTickets: TicketView[];
-	asOf: string;
+	freshDoneTickets: TicketView[];
 };
 
 export type Overview = {
@@ -2812,7 +2812,6 @@ export function projectCounts(
 		pullByKey,
 		needsYouItemsForProject,
 		runByKey,
-		now,
 	);
 	return {
 		counts: project,
@@ -3642,7 +3641,6 @@ export function projectReport(
 	pullByKey: Map<string, string> = new Map(),
 	needs: NeedsYouItem[] = [],
 	runByKey: Map<string, LiveRun> = new Map(),
-	asOf: Date = new Date(),
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
 	const ticketsByKey = new Map(
@@ -3735,7 +3733,7 @@ export function projectReport(
 		done: counts.done,
 		total: counts.tickets.length,
 		doneTickets: boardTickets.filter((ticket) => ticket.statusType === "done"),
-		asOf: asOf.toISOString(),
+		freshDoneTickets: [],
 	};
 }
 
@@ -3756,6 +3754,42 @@ function ageDays(entered: string | undefined, now: Date): number {
 	return (now.getTime() - at) / dayMs;
 }
 
+function matchesProjectView(
+	item: TicketView,
+	view: ProjectViewSettings,
+	shown: Set<string>,
+	wanted: Set<string>,
+	needle: string,
+	now: Date,
+	applyAge: boolean,
+): boolean {
+	const lane = (item.lane ?? "").toLowerCase();
+	if (!shown.has(lane)) {
+		return false;
+	}
+	const names = (item.assignees ?? []).map((name) => name.toLowerCase());
+	if (wanted.size > 0 && !names.some((name) => wanted.has(name))) {
+		return false;
+	}
+	if (view.needsYouOnly && item.needsYou !== true) {
+		return false;
+	}
+	if (view.blockedOnly && item.blocked !== true) {
+		return false;
+	}
+	if (applyAge) {
+		const cap = laneAgeCap(view.maxAgeDays, item.lane ?? "", item.statusType);
+		if (cap > 0 && ageDays(item.enteredStateAt, now) > cap) {
+			return false;
+		}
+	}
+	if (needle === "") {
+		return true;
+	}
+	const key = item.key?.toLowerCase() ?? "";
+	return key.includes(needle) || item.title.toLowerCase().includes(needle);
+}
+
 export function filterProjectReport(
 	report: ProjectReport,
 	view: ProjectViewSettings,
@@ -3773,32 +3807,21 @@ export function filterProjectReport(
 		}),
 	);
 	const needle = view.search.trim().toLowerCase();
-	const kept = report.tickets.filter((item) => {
-		const lane = (item.lane ?? "").toLowerCase();
-		if (!shown.has(lane)) {
-			return false;
-		}
-		const names = (item.assignees ?? []).map((name) => name.toLowerCase());
-		if (wanted.size > 0 && !names.some((name) => wanted.has(name))) {
-			return false;
-		}
-		if (view.needsYouOnly && item.needsYou !== true) {
-			return false;
-		}
-		if (view.blockedOnly && item.blocked !== true) {
-			return false;
-		}
-		const cap = laneAgeCap(view.maxAgeDays, item.lane ?? "", item.statusType);
-		if (cap > 0 && ageDays(item.enteredStateAt, now) > cap) {
-			return false;
-		}
-		if (needle === "") {
-			return true;
-		}
-		const key = item.key?.toLowerCase() ?? "";
-		return key.includes(needle) || item.title.toLowerCase().includes(needle);
-	});
-	return { ...report, tickets: kept };
+	const kept = report.tickets.filter((item) =>
+		matchesProjectView(item, view, shown, wanted, needle, now, true),
+	);
+	const done = report.doneTickets.filter((item) =>
+		matchesProjectView(item, view, shown, wanted, needle, now, false),
+	);
+	const fresh = done.filter((item) =>
+		matchesProjectView(item, view, shown, wanted, needle, now, true),
+	);
+	return {
+		...report,
+		tickets: kept,
+		doneTickets: done,
+		freshDoneTickets: fresh,
+	};
 }
 
 export type SettingsProject = {
