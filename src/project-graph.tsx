@@ -96,15 +96,6 @@ function TicketNode({ data }: NodeProps<FlowNode<TicketNodeData>>) {
 			data-graph-node={key}
 			data-outside={data.outside ? "true" : "false"}
 			aria-pressed={data.open}
-			onClick={() => {
-				data.onOpen({
-					key,
-					project: data.project,
-					tracker: data.tracker,
-					title: data.ticket.title,
-					outside: data.outside,
-				});
-			}}
 		>
 			<Handle type="target" position={Position.Left} id="left" />
 			<Handle type="target" position={Position.Top} id="top" />
@@ -400,6 +391,15 @@ export function ProjectGraph({
 					panOnDrag
 					fitView
 					proOptions={{ hideAttribution: true }}
+					onNodeClick={(_event, node) => {
+						node.data.onOpen({
+							key: node.data.ticket.key ?? node.data.ticket.title,
+							project: node.data.project,
+							tracker: node.data.tracker,
+							title: node.data.ticket.title,
+							outside: node.data.outside,
+						});
+					}}
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
 					<Legend />
