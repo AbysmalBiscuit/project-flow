@@ -106,14 +106,12 @@ export function NeedsItem({
 	selected = false,
 	onOpen,
 	onAction,
-	onQuiet,
 }: {
 	item: NeedsYouItem;
 	project?: boolean;
 	selected?: boolean;
 	onOpen?: (key: string) => void;
 	onAction?: (key: string) => void;
-	onQuiet?: (key: string) => void;
 }) {
 	const Icon = reasonIcon[item.reason];
 	const action = actionLabel(item);
@@ -180,9 +178,9 @@ export function NeedsItem({
 				</button>
 				<button
 					type="button"
-					className={clsx(needs.quiet)}
+					className={clsx(needs.quiet, needs.actionOff)}
 					aria-label={`Clear ${item.key}`}
-					onClick={() => onQuiet?.(item.key)}
+					disabled
 				>
 					<CheckIcon />
 				</button>
