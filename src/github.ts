@@ -2177,7 +2177,7 @@ function ticketFromGraphql(
 		key: `${repo}#${issue.number}`,
 		title: issue.title,
 		state: state === "closed" ? "closed" : "open",
-		stateReason: issue.stateReason ?? null,
+		stateReason: githubReason(issue.stateReason ?? null),
 		updatedAt: issue.updatedAt,
 		ref: `${repo}#${issue.number}`,
 		body: issue.body ?? "",

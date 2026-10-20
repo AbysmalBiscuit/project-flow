@@ -850,6 +850,37 @@ describe("batched GitHub reads", () => {
 		);
 	});
 
+	test("a GraphQL NOT_PLANNED issue sits in Dropped", async () => {
+		const { overview } = await startCounted(
+			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme/widget" }] }),
+			(owner, name) => {
+				const body = renamed(owner, name);
+				const closed = body.data.repository.issues.nodes[0];
+				if (closed !== undefined) {
+					closed.number = 12;
+					closed.title = "Not planned";
+					closed.state = "CLOSED";
+					closed.stateReason = "NOT_PLANNED";
+				}
+				body.data.repository.issues.nodes =
+					closed === undefined ? [] : [closed];
+				body.data.repository.openPullRequests.nodes = [];
+				body.data.repository.mergedPullRequests.nodes = [];
+				return body;
+			},
+		);
+		const project = overview.projects.find(
+			(item) => item.name === "acme/widget",
+		);
+		expect(
+			project?.tickets.find((ticket) => ticket.key === "acme/widget#12"),
+		).toEqual(
+			expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
+		);
+		expect(project?.statusTypes.dropped).toBe(1);
+		expect(project?.statusTypes.done).toBe(0);
+	});
+
 	test("a start with 10 tracked repos of 10 open PRs stays within 25 requests when nested pages are empty", async () => {
 		const tracked = repos.map((repo) => ({ tracker: "github", repo }));
 		const { github } = await startCounted(
