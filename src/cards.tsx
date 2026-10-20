@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import mermaid from "mermaid";
 import {
 	type ReactNode,
@@ -7,8 +8,19 @@ import {
 	useState,
 } from "react";
 import { createRoot } from "react-dom/client";
-import type { Configuration, OverviewView } from "./configuration.ts";
-import type { CrossProjectBlocker, Overview, ProjectCounts } from "./domain.ts";
+import {
+	type Configuration,
+	type OverviewView,
+	overviewFilters,
+	overviewSorts,
+	overviewViews,
+} from "./configuration.ts";
+import type {
+	CrossProjectBlocker,
+	NeedsYouItem,
+	Overview,
+	ProjectCounts,
+} from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import {
 	askNotificationPermission,
@@ -61,63 +73,29 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	);
 }
 
-const tabs = ["cards", "graph", "table"] as const;
 type FilterKey = OverviewView["filter"];
 type SortKey = OverviewView["sort"];
 
-const filters = ["all", "needs-you", "blocked", "pinned"] as const;
-const sorts = ["name", "progress", "needs-you", "blockers"] as const;
-
-const defaultView: OverviewView = {
-	filter: "all",
-	sort: "name",
-	view: "cards",
-};
-
-function isOverviewView(value: unknown): value is OverviewView {
-	if (value === null || typeof value !== "object") {
+function sameRef(
+	left: Configuration["pinned"][number],
+	right: Configuration["pinned"][number],
+): boolean {
+	if (left.tracker !== right.tracker) {
 		return false;
 	}
-	const view = value as Partial<OverviewView>;
-	return (
-		filters.some((item) => item === view.filter) &&
-		sorts.some((item) => item === view.sort) &&
-		tabs.some((item) => item === view.view)
-	);
-}
-
-function pinLine(ref: Configuration["pinned"][number]): string {
-	if (ref.tracker === "linear") {
-		return ref.project;
+	if (left.tracker === "linear" && right.tracker === "linear") {
+		return left.project === right.project;
 	}
-	if ("repo" in ref) {
-		return ref.repo;
+	if ("repo" in left && "repo" in right) {
+		return left.repo === right.repo;
 	}
-	return `${ref.owner}/${ref.project}`;
-}
-
-function samePin(
-	project: ProjectCounts,
-	ref: Configuration["pinned"][number],
-): boolean {
-	if (ref.tracker !== project.tracker) {
-		return false;
+	if ("owner" in left && "owner" in right) {
+		return left.owner === right.owner && left.project === right.project;
 	}
-	return pinLine(ref).toLowerCase() === project.name.toLowerCase();
+	return false;
 }
 
-function isPinned(
-	project: ProjectCounts,
-	pinned: Configuration["pinned"],
-): boolean {
-	return pinned.some((ref) => samePin(project, ref));
-}
-
-function matchesFilter(
-	project: ProjectCounts,
-	filter: FilterKey,
-	pinned: Configuration["pinned"],
-): boolean {
+function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
 	if (filter === "needs-you") {
 		return project.needsYou > 0;
 	}
@@ -125,7 +103,7 @@ function matchesFilter(
 		return project.blocked > 0 || project.crossProjectBlockers.length > 0;
 	}
 	if (filter === "pinned") {
-		return isPinned(project, pinned);
+		return project.pinned;
 	}
 	return true;
 }
@@ -183,14 +161,12 @@ function sortProjects(
 function shownProjects(
 	overview: Overview,
 	view: OverviewView,
-	pinned: Configuration["pinned"],
 	query: string,
 ): ProjectCounts[] {
 	return sortProjects(
 		overview.projects.filter(
 			(project) =>
-				matchesFilter(project, view.filter, pinned) &&
-				matchesSearch(project, query),
+				matchesFilter(project, view.filter) && matchesSearch(project, query),
 		),
 		view.sort,
 	);
@@ -283,8 +259,10 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 					aria-label={`${project.name} progress`}
 				>
 					<div
-						className={clsx(cards.fill)}
-						style={{ width: `${project.progress}%` }}
+						{...stylex.props(
+							cards.fill,
+							cards.progress(`${project.progress}%`),
+						)}
 					/>
 				</div>
 			</a>
@@ -349,8 +327,8 @@ function edgeId(from: string, blocker: CrossProjectBlocker): string {
 	return `edge-${slug(from)}-${slug(blocker.key)}`;
 }
 
-function graphEdges(overview: Overview): GraphEdge[] {
-	return overview.projects.flatMap((project) =>
+function graphEdges(projects: ProjectCounts[]): GraphEdge[] {
+	return projects.flatMap((project) =>
 		project.crossProjectBlockers.map((blocker) => ({
 			from: project.name,
 			blocker,
@@ -375,11 +353,11 @@ function mermaidSource(projects: ProjectCounts[], edges: GraphEdge[]): string {
 	return lines.join("\n");
 }
 
-async function renderGraph(overview: Overview): Promise<string> {
+async function renderGraph(projects: ProjectCounts[]): Promise<string> {
 	try {
 		const drawn = await mermaid.render(
 			"project-flow-graph",
-			mermaidSource(overview.projects, graphEdges(overview)),
+			mermaidSource(projects, graphEdges(projects)),
 		);
 		return drawn.svg;
 	} catch {
@@ -403,10 +381,10 @@ function nodeLabel(host: ParentNode, id: string): HTMLElement | null {
 
 function bindGraph(
 	host: HTMLElement,
-	overview: Overview,
+	projects: ProjectCounts[],
 	edges: GraphEdge[],
 ): void {
-	for (const project of overview.projects) {
+	for (const project of projects) {
 		const id = nodeId(project.name);
 		const label = nodeLabel(host, id);
 		if (label === null) {
@@ -432,11 +410,9 @@ function bindGraph(
 }
 
 function GraphView({
-	overview,
 	projects,
 	svg,
 }: {
-	overview: Overview;
 	projects: ProjectCounts[];
 	svg: string;
 }) {
@@ -456,12 +432,8 @@ function GraphView({
 			return;
 		}
 		node.appendChild(document.importNode(drawn, true));
-		bindGraph(
-			node,
-			{ ...overview, projects },
-			graphEdges({ ...overview, projects }),
-		);
-	}, [overview, projects, svg]);
+		bindGraph(node, projects, graphEdges(projects));
+	}, [projects, svg]);
 	return (
 		<div className={clsx(cards.graph)}>
 			<div ref={host} className={clsx(cards.mermaidHost)} />
@@ -509,7 +481,7 @@ function TableView({ projects }: { projects: ProjectCounts[] }) {
 	);
 }
 
-function CheckMenu({
+function MenuButton({
 	id,
 	label,
 	open,
@@ -567,12 +539,10 @@ async function writeSettings(next: Configuration): Promise<boolean> {
 function OverviewPage({
 	overview,
 	settings,
-	graphSvg,
 	onSettings,
 }: {
 	overview: Overview;
 	settings: Configuration;
-	graphSvg: string;
 	onSettings: (next: Configuration) => void;
 }) {
 	const [query, setQuery] = useState("");
@@ -581,36 +551,64 @@ function OverviewPage({
 	const [notifyPermission, setNotifyPermission] = useState(
 		notificationPermission,
 	);
-	const view = isOverviewView(settings.overview)
-		? settings.overview
-		: defaultView;
-	const projects = shownProjects(overview, view, settings.pinned, query);
+	const view = settings.overview;
+	const projects = shownProjects(overview, view, query);
 	const polled = polledLine(overview.fetchedAt, now);
-	const needs = overview.projects.flatMap((project) =>
-		project.needsYou === 0
-			? []
-			: project.tickets
-					.filter((ticket) => ticket.key !== null)
-					.slice(0, 1)
-					.map((ticket) => ({
-						project: project.name,
-						key: ticket.key ?? "",
-						title: ticket.title,
-					})),
-	);
+	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
+	const [graphSvg, setGraphSvg] = useState("");
 	useEffect(() => {
 		const timer = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(timer);
 	}, []);
+	useEffect(() => {
+		let stopped = false;
+		startMermaid();
+		void renderGraph(projects).then((svg) => {
+			if (!stopped) {
+				setGraphSvg(svg);
+			}
+		});
+		return () => {
+			stopped = true;
+		};
+	}, [projects]);
+	useEffect(() => {
+		let stopped = false;
+		const load = () => {
+			void fetch("/api/needs-you")
+				.then(async (response) => {
+					if (!stopped && response.ok) {
+						setNeeds((await response.json()) as NeedsYouItem[]);
+					}
+				})
+				.catch(() => {
+					if (!stopped) {
+						setNeeds([]);
+					}
+				});
+		};
+		load();
+		const stop = onAppEvent("overview", load);
+		return () => {
+			stopped = true;
+			stop();
+		};
+	}, []);
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
 		onSettings(patch(settings));
-		void readSettings().then((current) => {
+		void readSettings().then(async (current) => {
 			if (current === null) {
 				return;
 			}
 			const next = patch(current);
 			onSettings(next);
-			void writeSettings(next);
+			if (await writeSettings(next)) {
+				return;
+			}
+			const saved = await readSettings();
+			if (saved !== null) {
+				onSettings(saved);
+			}
 		});
 	};
 	const saveView = (next: OverviewView) => {
@@ -619,25 +617,23 @@ function OverviewPage({
 	};
 	const togglePin = (project: ProjectCounts) => {
 		savePatch((current) => {
-			const pinned = isPinned(project, current.pinned)
-				? current.pinned.filter((ref) => !samePin(project, ref))
-				: [
-						...current.pinned,
-						project.tracker === "linear"
-							? { tracker: "linear" as const, project: project.name }
-							: project.name.includes("/")
-								? { tracker: "github" as const, repo: project.name }
-								: null,
-					].filter((ref) => ref !== null);
+			const pinned = current.pinned.some((item) => sameRef(item, project.ref))
+				? current.pinned.filter((item) => !sameRef(item, project.ref))
+				: [...current.pinned, project.ref];
 			return { ...current, pinned };
 		});
 	};
 	const panes = {
-		cards: <CardsList projects={projects} />,
-		graph: <GraphView overview={overview} projects={projects} svg={graphSvg} />,
+		cards: (
+			<>
+				<p id="overview-hidden">{`hidden ${overview.projects.length - projects.length}`}</p>
+				<CardsList projects={projects} />
+			</>
+		),
+		graph: <GraphView projects={projects} svg={graphSvg} />,
 		table: <TableView projects={projects} />,
 	};
-	const views: PageView[] = tabs.map((name) => ({
+	const views: PageView[] = overviewViews.map((name) => ({
 		id: name,
 		label: viewLabel[name],
 	}));
@@ -645,13 +641,13 @@ function OverviewPage({
 		<PageFrame
 			title={navLabel.overview}
 			filter={
-				<CheckMenu
+				<MenuButton
 					id="overview-filter"
 					label={overviewControlLabel.filter}
 					open={menu === "filter"}
 					onToggle={() => setMenu(menu === "filter" ? null : "filter")}
 				>
-					{filters.map((item) => (
+					{overviewFilters.map((item) => (
 						<label key={item} className={clsx(cards.choice)}>
 							<input
 								type="radio"
@@ -663,16 +659,16 @@ function OverviewPage({
 							{overviewFilterLabel[item]}
 						</label>
 					))}
-				</CheckMenu>
+				</MenuButton>
 			}
 			sort={
-				<CheckMenu
+				<MenuButton
 					id="overview-sort"
 					label={overviewControlLabel.sort}
 					open={menu === "sort"}
 					onToggle={() => setMenu(menu === "sort" ? null : "sort")}
 				>
-					{sorts.map((item) => (
+					{overviewSorts.map((item) => (
 						<label key={item} className={clsx(cards.choice)}>
 							<input
 								type="radio"
@@ -684,7 +680,7 @@ function OverviewPage({
 							{overviewSortLabel[item]}
 						</label>
 					))}
-				</CheckMenu>
+				</MenuButton>
 			}
 			search={
 				<input
@@ -700,13 +696,13 @@ function OverviewPage({
 			views={views}
 			view={view.view}
 			onView={(id) => {
-				const next = tabs.find((name) => name === id);
+				const next = overviewViews.find((name) => name === id);
 				if (next !== undefined) {
 					saveView({ ...view, view: next });
 				}
 			}}
 		>
-			<CheckMenu
+			<MenuButton
 				id="overview-pinned"
 				label={overviewControlLabel.pinned}
 				open={menu === "pinned"}
@@ -719,13 +715,13 @@ function OverviewPage({
 					>
 						<input
 							type="checkbox"
-							checked={isPinned(project, settings.pinned)}
+							checked={project.pinned}
 							onChange={() => togglePin(project)}
 						/>
 						{project.name}
 					</label>
 				))}
-			</CheckMenu>
+			</MenuButton>
 			{needs.length === 0 ? null : (
 				<p className={clsx(cards.strip)}>
 					{navLabel.needsYou}
@@ -735,7 +731,7 @@ function OverviewPage({
 							className={clsx(cards.stripLink)}
 							href={projectPath(item.project, item.key)}
 						>
-							{item.key} {item.title}
+							{item.key} {item.headline}
 						</a>
 					))}
 				</p>
@@ -785,12 +781,9 @@ async function readOverview(): Promise<Overview> {
 function Page() {
 	const [overview, setOverview] = useState<Overview | null>(null);
 	const [settings, setSettings] = useState<Configuration | null>(null);
-	const [graphSvg, setGraphSvg] = useState("");
 	useEffect(() => {
 		const show = (next: Overview) => {
 			setOverview(next);
-			startMermaid();
-			void renderGraph(next).then(setGraphSvg);
 		};
 		const stopOverview = onAppEvent("overview", (event) => {
 			show(JSON.parse(event.data) as Overview);
@@ -798,15 +791,7 @@ function Page() {
 		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
 		});
-		const stopTheme = watchPageTheme(() => {
-			startMermaid();
-			setOverview((current) => {
-				if (current !== null) {
-					void renderGraph(current).then(setGraphSvg);
-				}
-				return current;
-			});
-		});
+		const stopTheme = watchPageTheme(startMermaid);
 		void readOverview().then(show);
 		void readSettings().then((loaded) => {
 			if (loaded !== null) {
@@ -826,7 +811,6 @@ function Page() {
 		<OverviewPage
 			overview={overview}
 			settings={settings}
-			graphSvg={graphSvg}
 			onSettings={setSettings}
 		/>
 	);

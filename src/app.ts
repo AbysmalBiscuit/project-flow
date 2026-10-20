@@ -149,6 +149,60 @@ function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
 	};
 }
 
+function boardPin(
+	row: Snapshot,
+): Extract<Configuration["pinned"][number], { owner: string }> | null {
+	const [laneOwner, numberText] = row.board?.laneKey?.split("/") ?? [];
+	const laneNumber = Number(numberText);
+	const owner = row.owner ?? laneOwner;
+	const number = row.number ?? laneNumber;
+	if (
+		row.tracker !== "github" ||
+		owner === undefined ||
+		owner === "" ||
+		!Number.isInteger(number) ||
+		number <= 0
+	) {
+		return null;
+	}
+	return { tracker: "github", owner, project: number };
+}
+
+function sameProjectRef(
+	row: Snapshot,
+	ref: Configuration["pinned"][number],
+): boolean {
+	if (refKey(ref) === row.key) {
+		return true;
+	}
+	const board = boardPin(row);
+	return (
+		board !== null &&
+		ref.tracker === "github" &&
+		"owner" in ref &&
+		ref.owner === board.owner &&
+		ref.project === board.project
+	);
+}
+
+function projectRef(
+	row: Snapshot,
+	pinned: Configuration["pinned"],
+): Configuration["pinned"][number] {
+	const pin = pinned.find((ref) => sameProjectRef(row, ref));
+	if (pin !== undefined) {
+		return pin;
+	}
+	const board = boardPin(row);
+	if (board !== null) {
+		return board;
+	}
+	if (row.tracker === "linear") {
+		return { tracker: "linear", project: row.key };
+	}
+	return { tracker: "github", repo: row.key };
+}
+
 function projectViews(options: PollOptions, configuration: Configuration) {
 	const rows = options.store.readTickets();
 	const all = rows.map((row) => ({
@@ -184,7 +238,11 @@ function projectViews(options: PollOptions, configuration: Configuration) {
 		return {
 			row,
 			items: counted.needsYou,
-			counts: counted.counts,
+			counts: {
+				...counted.counts,
+				pinned: configuration.pinned.some((ref) => sameProjectRef(row, ref)),
+				ref: projectRef(row, configuration.pinned),
+			},
 			report: counted.report,
 		};
 	});
@@ -796,7 +854,10 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				pulls: [],
 				branches: [],
 				startedKeys,
+				...(project.owner === undefined ? {} : { owner: project.owner }),
+				...(project.number === undefined ? {} : { number: project.number }),
 			};
+			const failedRow = stored ?? empty;
 			outcomes.set(project.key, {
 				key: project.key,
 				ok: false,
@@ -804,7 +865,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				full,
 				pinned,
 				hidden,
-				row: stored ?? empty,
+				row: {
+					...failedRow,
+					...(project.owner === undefined ? {} : { owner: project.owner }),
+					...(project.number === undefined ? {} : { number: project.number }),
+				},
 			});
 			if (fillAsPolled) {
 				publishPoll(options, configuration, outcomes, [], null);

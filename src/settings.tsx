@@ -11,9 +11,10 @@ type ProjectRef = Configuration["pinned"][number];
 function sameRefs(left: ProjectRef[], right: ProjectRef[]): boolean {
 	return (
 		left.length === right.length &&
-		left.every(
-			(ref, index) => refLine(ref) === refLine(right[index] as ProjectRef),
-		)
+		left.every((ref, index) => {
+			const other = right[index];
+			return other !== undefined && refLine(ref) === refLine(other);
+		})
 	);
 }
 

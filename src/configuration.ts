@@ -32,10 +32,26 @@ const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
 
 const knownBot = z.enum(knownBots);
 
+export const overviewFilters = [
+	"all",
+	"needs-you",
+	"blocked",
+	"pinned",
+] as const;
+
+export const overviewSorts = [
+	"name",
+	"progress",
+	"needs-you",
+	"blockers",
+] as const;
+
+export const overviewViews = ["cards", "graph", "table"] as const;
+
 const overviewView = z.strictObject({
-	filter: z.enum(["all", "needs-you", "blocked", "pinned"]).default("all"),
-	sort: z.enum(["name", "progress", "needs-you", "blockers"]).default("name"),
-	view: z.enum(["cards", "graph", "table"]).default("cards"),
+	filter: z.enum(overviewFilters).default("all"),
+	sort: z.enum(overviewSorts).default("name"),
+	view: z.enum(overviewViews).default("cards"),
 });
 
 const configurationSchema = z.strictObject({

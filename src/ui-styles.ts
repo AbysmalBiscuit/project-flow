@@ -491,6 +491,9 @@ export const cards = stylex.create({
 		height: "100%",
 		backgroundColor: colours.done,
 	},
+	progress: (width: string) => ({
+		width,
+	}),
 	badge: {
 		marginLeft: space.xs,
 		padding: `0 ${space.xs}`,

@@ -121,6 +121,49 @@ function recorded(
 	}
 	if (url === "https://api.github.com/graphql") {
 		const body = typeof init?.body === "string" ? init.body : "";
+		if (body.includes("ProjectByNumber")) {
+			return new Response(
+				JSON.stringify({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: "PVT_acme_7",
+								number: 7,
+								title: "Acme board",
+								closed: false,
+								updatedAt: "2026-01-01T12:00:00Z",
+							},
+						},
+					},
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		}
+		if (body.includes("node(id:")) {
+			return new Response(
+				JSON.stringify({
+					data: {
+						node: {
+							items: {
+								nodes: [
+									{
+										content: {
+											__typename: "Issue",
+											number: 1,
+											state: "OPEN",
+											stateReason: null,
+											repository: { nameWithOwner: "acme/other" },
+										},
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		}
 		if (body.includes("ViewerProjects") || body.includes("OrgProjects")) {
 			return new Response(
 				JSON.stringify({
@@ -808,6 +851,58 @@ describe("settings", () => {
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
 			expect(afterUnknown).toEqual(before);
+		});
+	});
+
+	test("a github owner/project pin is pinned on the overview and a Pinned menu write round-trips it", async () => {
+		const pin = { tracker: "github" as const, owner: "acme", project: 7 };
+		await withApp(JSON.stringify({ pinned: [pin] }), async (base) => {
+			const overview = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as Overview;
+			const project = overview.projects.find(
+				(item) =>
+					item.ref.tracker === "github" &&
+					"owner" in item.ref &&
+					item.ref.owner === pin.owner &&
+					item.ref.project === pin.project,
+			);
+			expect(project).toBeDefined();
+			expect(project?.pinned).toBe(true);
+			expect(project?.ref).toEqual(pin);
+
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const removed = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...before, pinned: [] }),
+			});
+			expect(removed.status).toBe(200);
+			expect(((await removed.json()) as Configuration).pinned).toEqual([]);
+
+			const current = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const restored = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...current, pinned: [pin] }),
+			});
+			expect(restored.status).toBe(200);
+			const written = (await restored.json()) as Configuration;
+			expect(written.pinned).toEqual([pin]);
+			const reread = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(reread.pinned).toEqual([pin]);
+			const after = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as Overview;
+			expect(
+				after.projects.find((item) => item.name === project?.name)?.pinned,
+			).toBe(true);
 		});
 	});
 
