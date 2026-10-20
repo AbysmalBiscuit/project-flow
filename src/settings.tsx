@@ -17,6 +17,7 @@ import {
 import { pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
+import { graphDirections, openViews, viewDefaults } from "./view-settings.ts";
 
 type ProjectRef = Configuration["pinned"][number];
 function sameRefs(left: ProjectRef[], right: ProjectRef[]): boolean {
@@ -64,22 +65,12 @@ const evidenceStates = [
 
 const autoMergeChoices = ["yes", "ask", "no"] as const;
 
-const defaultView: Configuration["projectViews"][string] = {
-	maxAgeDays: {},
-	needsYouOnly: false,
-	blockedOnly: false,
-	assignees: [],
-	search: "",
-	openView: "board",
-	graphDirection: "left-to-right",
-};
-
 function draftOf(settings: Configuration): Configuration {
 	return {
 		...settings,
 		projectViews: {
 			...settings.projectViews,
-			"*": { ...defaultView, ...settings.projectViews["*"] },
+			"*": { ...viewDefaults(), ...settings.projectViews["*"] },
 		},
 	};
 }
@@ -218,7 +209,7 @@ function Menu({
 	const [failed, setFailed] = useState(false);
 	const [permission, setPermission] = useState("default");
 	const dirty = !same(draft, saved);
-	const view = draft.projectViews["*"] ?? defaultView;
+	const view = draft.projectViews["*"] ?? viewDefaults();
 	const theme = pageTheme();
 
 	useEffect(() => {
@@ -331,9 +322,9 @@ function Menu({
 										{pollLabel(seconds)}
 									</option>
 								))}
-								{pollChoices.includes(
-									draft.pollIntervalSeconds as (typeof pollChoices)[number],
-								) ? null : (
+								{pollChoices.find(
+									(seconds) => seconds === draft.pollIntervalSeconds,
+								) !== undefined ? null : (
 									<option value={draft.pollIntervalSeconds}>
 										{pollLabel(draft.pollIntervalSeconds)}
 									</option>
@@ -350,15 +341,20 @@ function Menu({
 								id="open-view"
 								className={clsx(fields.select)}
 								value={view.openView}
-								onChange={(event) =>
-									patchView({
-										openView: event.target.value as typeof view.openView,
-									})
-								}
+								onChange={(event) => {
+									const openView = openViews.find(
+										(item) => item === event.target.value,
+									);
+									if (openView !== undefined) {
+										patchView({ openView });
+									}
+								}}
 							>
-								<option value="board">{settingsCopy.openBoard}</option>
-								<option value="graph">{settingsCopy.openGraph}</option>
-								<option value="table">{settingsCopy.openTable}</option>
+								{openViews.map((item) => (
+									<option key={item} value={item}>
+										{openViewLabel[item]}
+									</option>
+								))}
 							</select>
 						</Row>
 						<Row
@@ -369,19 +365,20 @@ function Menu({
 								id="graph-direction"
 								className={clsx(fields.select)}
 								value={view.graphDirection}
-								onChange={(event) =>
-									patchView({
-										graphDirection: event.target
-											.value as typeof view.graphDirection,
-									})
-								}
+								onChange={(event) => {
+									const graphDirection = graphDirections.find(
+										(item) => item === event.target.value,
+									);
+									if (graphDirection !== undefined) {
+										patchView({ graphDirection });
+									}
+								}}
 							>
-								<option value="left-to-right">
-									{settingsCopy.leftToRight}
-								</option>
-								<option value="top-to-bottom">
-									{settingsCopy.topToBottom}
-								</option>
+								{graphDirections.map((item) => (
+									<option key={item} value={item}>
+										{graphDirectionLabel[item]}
+									</option>
+								))}
 							</select>
 						</Row>
 						<Row
@@ -711,9 +708,14 @@ function MappingEditor({
 				className={clsx(fields.select)}
 				aria-label={settingsCopy.laneState}
 				value={state}
-				onChange={(event) =>
-					setState(event.target.value as (typeof evidenceStates)[number])
-				}
+				onChange={(event) => {
+					const next = evidenceStates.find(
+						(item) => item === event.target.value,
+					);
+					if (next !== undefined) {
+						setState(next);
+					}
+				}}
 			>
 				{evidenceStates.map((item) => (
 					<option key={item} value={item}>
@@ -753,6 +755,17 @@ const autoMergeLabel: Record<AutoMerge, string> = {
 	yes: settingsCopy.yes,
 	ask: settingsCopy.ask,
 	no: settingsCopy.no,
+};
+
+const openViewLabel: Record<(typeof openViews)[number], string> = {
+	board: settingsCopy.openBoard,
+	graph: settingsCopy.openGraph,
+	table: settingsCopy.openTable,
+};
+
+const graphDirectionLabel: Record<(typeof graphDirections)[number], string> = {
+	"left-to-right": settingsCopy.leftToRight,
+	"top-to-bottom": settingsCopy.topToBottom,
 };
 
 function AutoMergeEditor({
