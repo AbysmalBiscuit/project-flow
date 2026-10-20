@@ -6,6 +6,7 @@
       "name": "project-flow",
       "dependencies": {
         "@babel/core": "^7.29.7",
+        "@babel/parser": "7.29.9",
         "@babel/plugin-syntax-jsx": "^7.29.7",
         "@babel/plugin-syntax-typescript": "^7.29.7",
         "@stylexjs/babel-plugin": "0.19.1",
