@@ -247,10 +247,13 @@ function workcellRun(
 	if (!parsed.success) {
 		return null;
 	}
-	const manager = parsed.data.manager?.trim() ?? "";
+	const manager = parsed.data.manager;
 	const open = openRun.has(parsed.data.status);
 	const stalled =
-		open && agents !== null && manager !== "" && !agents.has(manager);
+		open &&
+		agents !== null &&
+		manager !== undefined &&
+		!agents.has(manager);
 	if (stalled || parsed.data.status === "failed") {
 		return { key, status: "failed" };
 	}
