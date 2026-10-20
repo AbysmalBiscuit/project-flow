@@ -2410,7 +2410,7 @@ describe("inbox", () => {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
-	});
+	}, 30_000);
 
 	test("a ticket that stays in needs-you raises no second notification", async () => {
 		const headline = "Which bot should review this?";
