@@ -1001,8 +1001,6 @@ export async function start(options: StartOptions): Promise<Running> {
 				resolve();
 			};
 		});
-		// The first overview read must finish before this poll lists tickets.
-		setTimeout(releaseLists, 1_000).unref?.();
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;
@@ -1182,6 +1180,9 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 		},
 	});
+	if (hadRows) {
+		setTimeout(releaseLists, 5_000).unref?.();
+	}
 	const cold = !hadRows;
 	let settle: (error: Error | null) => void = () => {};
 	const settled = new Promise<Error | null>((resolve) => {
