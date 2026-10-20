@@ -657,6 +657,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 							name
 							optionId
 							color
+							updatedAt
 						}
 					}
 					content {
@@ -722,6 +723,7 @@ const projectItem = z.object({
 			name: z.string().nullable().optional(),
 			optionId: z.string().nullable().optional(),
 			color: z.string().nullable().optional(),
+			updatedAt: z.string().nullable().optional(),
 		})
 		.nullable()
 		.optional(),
@@ -919,19 +921,22 @@ async function listProjectItems(
 
 function githubItemStatus(
 	value: z.infer<typeof projectItem>["fieldValueByName"],
-): { status: TicketStatus } | { emptyStatus: true } {
+) {
 	const name = value?.name?.trim() ?? "";
 	const optionId = value?.optionId ?? "";
 	if (name === "" || optionId === "") {
 		return { emptyStatus: true };
 	}
+	const statusType = statusTypeOfName(name);
+	const at = value?.updatedAt?.trim() ?? "";
 	return {
 		status: {
 			id: optionId,
 			name,
-			statusType: statusTypeOfName(name),
+			statusType,
 			colour: githubOptionColour(value?.color ?? ""),
 		},
+		...(at === "" ? {} : { history: [{ statusId: optionId, at, statusType }] }),
 	};
 }
 
