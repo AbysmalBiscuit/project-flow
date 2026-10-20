@@ -28,6 +28,9 @@ export const barSegments = [
 
 export function SegmentedBar({ project }: { project: ProjectCounts }) {
 	const total = ticketTotal(project);
+	if (total === 0) {
+		return null;
+	}
 	return (
 		<div
 			className={clsx(cards.bar)}
@@ -37,21 +40,19 @@ export function SegmentedBar({ project }: { project: ProjectCounts }) {
 			aria-valuemax={100}
 			aria-label={`${project.name} progress`}
 		>
-			{total === 0
-				? null
-				: barSegments.map((item) =>
-						project.statusTypes[item.key] === 0 ? null : (
-							<div
-								key={item.key}
-								{...stylex.props(
-									cards.segment(
-										`${(project.statusTypes[item.key] / total) * 100}%`,
-									),
-									item.tone,
-								)}
-							/>
-						),
-					)}
+			{barSegments.map((item) =>
+				project.statusTypes[item.key] === 0 ? null : (
+					<div
+						key={item.key}
+						{...stylex.props(
+							cards.segment(
+								`${(project.statusTypes[item.key] / total) * 100}%`,
+							),
+							item.tone,
+						)}
+					/>
+				),
+			)}
 		</div>
 	);
 }
