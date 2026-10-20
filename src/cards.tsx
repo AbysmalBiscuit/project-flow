@@ -609,20 +609,6 @@ function ticketKey(key: string): string {
 	return hash === -1 ? key : key.slice(hash + 1);
 }
 
-function actionLabel(item: NeedsYouItem): string {
-	const key = ticketKey(item.key);
-	if (item.reason === "awaitingMerge") {
-		return `Merge PR #${key}`;
-	}
-	if (item.reason === "ask") {
-		return "Answer question";
-	}
-	if (item.reason === "runFailed") {
-		return "Open run";
-	}
-	return `Review ${key}`;
-}
-
 function OverviewPage({
 	overview,
 	settings,
