@@ -1148,13 +1148,9 @@ function labelHistory(
 		if (!named && !reopened) {
 			continue;
 		}
-		const at = event.created_at.trim();
-		if (at === "") {
-			continue;
-		}
 		history.push({
 			statusId: status.id,
-			at,
+			at: event.created_at,
 			statusType: status.statusType,
 		});
 	}

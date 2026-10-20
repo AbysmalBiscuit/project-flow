@@ -1533,9 +1533,9 @@ describe("forward state", () => {
 	});
 
 	test("a repo-board ticket keeps the time it entered its state", async () => {
-		const enteredAt = "2026-08-17T09:00:00Z";
-		const editedAt = "2026-08-18T15:00:00Z";
-		const closedAt = "2026-08-16T08:00:00Z";
+		const enteredAt = "2026-10-19T17:05:53Z";
+		const editedAt = "2026-10-20T09:40:21Z";
+		const closedAt = "2026-10-20T09:36:26Z";
 		const requests: string[] = [];
 		const events = (await recordedJson("github-issue-events.json")) as Record<
 			string,
@@ -1568,13 +1568,6 @@ describe("forward state", () => {
 						updated_at: editedAt,
 						labels: [{ name: "factory: running" }],
 					}),
-					githubIssue(12, {
-						title: "Blank close time",
-						state: "closed",
-						state_reason: "completed",
-						updated_at: editedAt,
-						closed_at: "   ",
-					}),
 				],
 				[],
 				[],
@@ -1601,9 +1594,6 @@ describe("forward state", () => {
 					editedAt,
 				);
 				expect(ticketOf(report, `${githubRepo}#11`).enteredStateAt).toBe(
-					editedAt,
-				);
-				expect(ticketOf(report, `${githubRepo}#12`).enteredStateAt).toBe(
 					editedAt,
 				);
 				expect(
@@ -1653,48 +1643,10 @@ describe("forward state", () => {
 		);
 	});
 
-	test("a blank label time falls back to the issue edit time", async () => {
-		const editedAt = "2026-08-18T15:00:00Z";
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			recordedRepo(
-				[
-					githubIssue(8, {
-						title: "Blank label time",
-						updated_at: editedAt,
-						labels: [{ name: "factory: running" }],
-					}),
-				],
-				[],
-				[],
-				{ allow_auto_merge: false },
-				[],
-				[],
-				[
-					{
-						event: "labeled",
-						created_at: "   ",
-						issue: { number: 8 },
-						label: { name: "factory: running" },
-					},
-				],
-				factoryLabels,
-			),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = await projectOf(base, githubRepo);
-				expect(ticketOf(report, `${githubRepo}#8`).enteredStateAt).toBe(
-					editedAt,
-				);
-			},
-		);
-	});
-
 	test("a reopened ticket with its factory label still attached enters at the reopen", async () => {
-		const labeledAt = "2026-08-15T07:00:00Z";
-		const reopenedAt = "2026-08-17T11:00:00Z";
-		const laterLabelAt = "2026-08-17T10:00:00Z";
-		const editedAt = "2026-08-18T15:00:00Z";
+		const labeledAt = "2026-10-18T15:11:19Z";
+		const reopenedAt = "2026-10-19T02:52:21Z";
+		const editedAt = "2026-10-20T09:40:21Z";
 		const events = (await recordedJson("github-issue-reopened.json")) as Record<
 			string,
 			unknown
@@ -1705,13 +1657,6 @@ describe("forward state", () => {
 				[
 					githubIssue(13, {
 						title: "Reopened with the label still attached",
-						state: "open",
-						state_reason: "reopened",
-						updated_at: editedAt,
-						labels: [{ name: "factory: running" }],
-					}),
-					githubIssue(14, {
-						title: "Blank reopen time keeps the label time",
 						state: "open",
 						state_reason: "reopened",
 						updated_at: editedAt,
@@ -1737,16 +1682,13 @@ describe("forward state", () => {
 				});
 				expect(ticket.enteredStateAt).not.toBe(labeledAt);
 				expect(ticket.enteredStateAt).not.toBe(editedAt);
-				expect(ticketOf(report, `${githubRepo}#14`).enteredStateAt).toBe(
-					laterLabelAt,
-				);
 			},
 		);
 	});
 
 	test("a repo with no factory labels keeps its close time", async () => {
 		const createdAt = "2026-10-18T15:11:18Z";
-		const closedAt = "2026-08-16T08:00:00Z";
+		const closedAt = "2026-10-20T09:36:26Z";
 		const editedAt = "2026-08-18T15:00:00Z";
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
@@ -1756,17 +1698,9 @@ describe("forward state", () => {
 						title: "Closed after a later edit",
 						state: "closed",
 						state_reason: "completed",
-						created_at: createdAt,
-						updated_at: editedAt,
-						closed_at: closedAt,
-					}),
-					githubIssue(12, {
-						title: "Blank close time",
-						state: "closed",
-						state_reason: "not_planned",
-						created_at: createdAt,
-						updated_at: editedAt,
-						closed_at: "   ",
+						created_at: "2026-10-19T17:03:32Z",
+						updated_at: "2026-10-20T09:38:20Z",
+						closed_at: "2026-10-20T09:36:26Z",
 					}),
 					githubIssue(8, {
 						title: "Open with no lanes",
@@ -1788,10 +1722,6 @@ describe("forward state", () => {
 					lane: "Done",
 					statusType: "done",
 					enteredStateAt: closedAt,
-				});
-				expect(ticketOf(report, `${githubRepo}#12`)).toMatchObject({
-					lane: "Dropped",
-					enteredStateAt: editedAt,
 				});
 				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
 					lane: "Backlog",
