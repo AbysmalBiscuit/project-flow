@@ -619,6 +619,88 @@ describe("forward state", () => {
 		);
 	});
 
+	test("a stage line then a report comment with no final report line keeps the live run", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			recordedLinear([
+				linearIssue("WID-21", "Report without a resume", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c1",
+								body: progress("- stage 3: receive"),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+							{
+								id: "c2",
+								body: "Notes from the round.\n\n<!-- workcell:report -->",
+								createdAt: "2026-08-18T13:05:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+				linearIssue("WID-23", "Blank report comment", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c3",
+								body: progress("- stage 2: implementing"),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+							{
+								id: "c4",
+								body: "   \n\n<!-- workcell:report -->",
+								createdAt: "2026-08-18T13:05:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+				linearIssue("WID-24", "Report and no stage line", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c5",
+								body: progress("- waiting on the review"),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+							{
+								id: "c6",
+								body: "Notes.\n\n<!-- workcell:report -->",
+								createdAt: "2026-08-18T13:05:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+			]),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(ticketOf(report, "WID-21")).toMatchObject({
+					state: "inProgress",
+					lane: "In Progress",
+					staleStatus: "Todo",
+					chips: ["Todo"],
+					run: { status: "running", stage: "stage 3" },
+				});
+				expect(ticketOf(report, "WID-23")).toMatchObject({
+					state: "inProgress",
+					lane: "In Progress",
+					run: { status: "running", stage: "stage 2" },
+				});
+				expect(ticketOf(report, "WID-24")).toMatchObject({
+					state: "backlog",
+					lane: "Todo",
+				});
+				expect(ticketOf(report, "WID-24").run).toBeUndefined();
+			},
+		);
+	});
+
 	test("an answered ask after the final report keeps the ticket a live run", async () => {
 		await withApp(
 			JSON.stringify({

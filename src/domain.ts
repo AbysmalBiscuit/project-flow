@@ -2229,11 +2229,8 @@ function progressRun(comments: Comment[]): LiveRun | undefined {
 	if (found === undefined) {
 		return undefined;
 	}
-	const { lines, reportAt, report } = found;
+	const { lines, reportAt } = found;
 	const resumed = resumedAfterReport(found);
-	if ((reportAt >= 0 || report !== undefined) && !resumed && reportAt < 0) {
-		return undefined;
-	}
 	const counted = resumed || reportAt < 0 ? lines : lines.slice(0, reportAt);
 	let stage: string | undefined;
 	for (const line of counted) {
