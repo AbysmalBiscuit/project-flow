@@ -28,6 +28,8 @@ import {
 	overviewFilterLabel,
 	overviewSortLabel,
 	stateLabel,
+	tableColumnLabel,
+	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
@@ -484,50 +486,228 @@ function GraphView({ projects }: { projects: ProjectCounts[] }) {
 	);
 }
 
-function MiniBar({ project }: { project: ProjectCounts }) {
+type TableColumn =
+	| "project"
+	| "tracker"
+	| "progress"
+	| "ready"
+	| "inProgress"
+	| "inReview"
+	| "awaitingMerge"
+	| "needsYou"
+	| "blockedBy";
+
+const tableColumns: {
+	key: TableColumn;
+	label: string;
+	number: boolean;
+}[] = [
+	{ key: "project", label: tableColumnLabel.project, number: false },
+	{ key: "tracker", label: tableColumnLabel.tracker, number: false },
+	{ key: "progress", label: tableColumnLabel.progress, number: false },
+	{ key: "ready", label: tableColumnLabel.ready, number: true },
+	{ key: "inProgress", label: tableColumnLabel.inProgress, number: true },
+	{ key: "inReview", label: tableColumnLabel.inReview, number: true },
+	{
+		key: "awaitingMerge",
+		label: tableColumnLabel.awaitingMerge,
+		number: true,
+	},
+	{ key: "needsYou", label: tableColumnLabel.needsYou, number: true },
+	{ key: "blockedBy", label: tableColumnLabel.blockedBy, number: false },
+];
+
+function columnValue(
+	project: ProjectCounts,
+	key: TableColumn,
+): number | string {
+	if (key === "project") {
+		return project.name;
+	}
+	if (key === "tracker") {
+		return trackerLabel[project.tracker];
+	}
+	if (key === "progress") {
+		return project.progress;
+	}
+	if (key === "ready") {
+		return project.statusTypes.backlog;
+	}
+	if (key === "inProgress") {
+		return project.statusTypes.inProgress;
+	}
+	if (key === "inReview") {
+		return project.statusTypes.inReview;
+	}
+	if (key === "awaitingMerge") {
+		return project.statusTypes.awaitingMerge;
+	}
+	if (key === "needsYou") {
+		return project.needsYou;
+	}
+	return project.crossProjectBlockers
+		.map((blocker) => `${blocker.project}#${blocker.key}`)
+		.join(" ");
+}
+
+function compareColumn(
+	left: ProjectCounts,
+	right: ProjectCounts,
+	key: TableColumn,
+	direction: "asc" | "desc",
+): number {
+	const leftValue = columnValue(left, key);
+	const rightValue = columnValue(right, key);
+	const delta =
+		typeof leftValue === "string" || typeof rightValue === "string"
+			? String(leftValue).localeCompare(String(rightValue))
+			: leftValue - rightValue;
+	if (delta !== 0) {
+		return direction === "asc" ? delta : -delta;
+	}
+	return left.name.localeCompare(right.name);
+}
+
+function SortMark({ direction }: { direction: "asc" | "desc" | "none" }) {
+	const up = direction === "asc";
+	const down = direction === "desc";
 	return (
-		<span className={clsx(cards.mini)}>
-			<SegmentedBar project={project} />
-			<span>{project.progress}%</span>
-		</span>
+		<svg
+			viewBox="0 0 12 12"
+			aria-hidden="true"
+			className={clsx(cards.mark)}
+			fill="currentColor"
+		>
+			<path d="M6 1.5 9.2 5.2H2.8z" opacity={up ? 1 : 0.35} />
+			<path d="M6 10.5 2.8 6.8h6.4z" opacity={down ? 1 : 0.35} />
+		</svg>
 	);
 }
 
-function TableView({ projects }: { projects: ProjectCounts[] }) {
+function ProgressBar({ project }: { project: ProjectCounts }) {
+	const total = ticketTotal(project);
+	return (
+		<div className={clsx(cards.progressCell)}>
+			<div
+				className={clsx(cards.barThin)}
+				role="progressbar"
+				aria-valuenow={project.progress}
+				aria-valuemin={0}
+				aria-valuemax={100}
+				aria-label={`${project.name} progress`}
+			>
+				{barSegments.map((item) =>
+					project.statusTypes[item.key] === 0 || total === 0 ? null : (
+						<div
+							key={item.key}
+							{...stylex.props(
+								cards.segment(
+									`${(project.statusTypes[item.key] / total) * 100}%`,
+								),
+								item.tone,
+							)}
+						/>
+					),
+				)}
+			</div>
+			<span>{project.progress}%</span>
+		</div>
+	);
+}
+
+function Star({ filled }: { filled: boolean }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill={filled ? "currentColor" : "none"}
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinejoin="round"
+		>
+			<path d="M12 3.2 14.7 8.7 20.8 9.6 16.4 13.9 17.4 20 12 17.1 6.6 20 7.6 13.9 3.2 9.6 9.3 8.7 12 3.2z" />
+		</svg>
+	);
+}
+
+function TableView({
+	projects,
+	onPin,
+}: {
+	projects: ProjectCounts[];
+	onPin: (project: ProjectCounts) => void;
+}) {
+	const [column, setColumn] = useState<TableColumn>("project");
+	const [direction, setDirection] = useState<"asc" | "desc">("asc");
+	const rows = [...projects].sort((left, right) =>
+		compareColumn(left, right, column, direction),
+	);
+	const sortBy = (key: TableColumn) => {
+		if (column === key) {
+			setDirection(direction === "asc" ? "desc" : "asc");
+			return;
+		}
+		setColumn(key);
+		setDirection("asc");
+	};
 	return (
 		<div className={clsx(cards.tableWrap)}>
 			<table className={clsx(cards.table)}>
 				<thead>
 					<tr>
-						<th className={clsx(cards.cell, cards.headCell)} />
-						<th className={clsx(cards.cell, cards.headCell)}>Project</th>
-						<th className={clsx(cards.cell, cards.headCell)}>Tracker</th>
-						<th className={clsx(cards.cell, cards.headCell)}>
-							{overviewSortLabel.progress}
-						</th>
-						<th className={clsx(cards.cell, cards.headCell)}>
-							{stateLabel.backlog}
-						</th>
-						<th className={clsx(cards.cell, cards.headCell)}>
-							{stateLabel.inProgress}
-						</th>
-						<th className={clsx(cards.cell, cards.headCell)}>
-							{stateLabel.inReview}
-						</th>
-						<th className={clsx(cards.cell, cards.headCell)}>
-							{stateLabel.awaitingMerge}
-						</th>
-						<th className={clsx(cards.cell, cards.headCell)}>Needs you</th>
-						<th className={clsx(cards.cell, cards.headCell)}>Blocked by</th>
+						<th className={clsx(cards.cell, cards.head)} />
+						{tableColumns.map((item) => {
+							const active = column === item.key;
+							return (
+								<th
+									key={item.key}
+									className={clsx(
+										cards.cell,
+										cards.head,
+										item.number && cards.number,
+									)}
+									aria-sort={
+										active
+											? direction === "asc"
+												? "ascending"
+												: "descending"
+											: "none"
+									}
+								>
+									<button
+										type="button"
+										id={`sort-${item.key}`}
+										className={clsx(cards.sort)}
+										onClick={() => sortBy(item.key)}
+									>
+										{item.label}
+										<SortMark direction={active ? direction : "none"} />
+									</button>
+								</th>
+							);
+						})}
 					</tr>
 				</thead>
 				<tbody>
-					{projects.map((project) => (
-						<tr key={`${project.tracker}:${project.name}`}>
+					{rows.map((project) => (
+						<tr
+							key={`${project.tracker}:${project.name}`}
+							id={`overview-row-${slug(project.name)}`}
+						>
 							<td className={clsx(cards.cell)}>
-								<PinMark on={project.pinned} />
+								<button
+									type="button"
+									id={`pin-${slug(project.name)}`}
+									className={clsx(cards.star, project.pinned && cards.pinned)}
+									aria-pressed={project.pinned}
+									aria-label={`${overviewControlLabel.pinned} ${project.name}`}
+									onClick={() => onPin(project)}
+								>
+									<Star filled={project.pinned} />
+								</button>
 							</td>
-							<td className={clsx(cards.cell)}>
+							<td className={clsx(cards.cell, cards.name)}>
 								<a
 									className={clsx(cards.projectLink)}
 									href={projectPath(project.name)}
@@ -539,38 +719,49 @@ function TableView({ projects }: { projects: ProjectCounts[] }) {
 									{project.name}
 								</a>
 							</td>
-							<td className={clsx(cards.cell, cards.quiet)}>
-								{trackerName(project.tracker)}
+							<td className={clsx(cards.cell)}>
+								{trackerLabel[project.tracker]}
 							</td>
 							<td className={clsx(cards.cell)}>
-								<MiniBar project={project} />
+								<ProgressBar project={project} />
 							</td>
-							<td className={clsx(cards.cell)}>
+							<td className={clsx(cards.cell, cards.number)}>
 								{project.statusTypes.backlog}
 							</td>
-							<td className={clsx(cards.cell)}>
+							<td className={clsx(cards.cell, cards.number)}>
 								{project.statusTypes.inProgress}
 							</td>
-							<td className={clsx(cards.cell)}>
+							<td className={clsx(cards.cell, cards.number)}>
 								{project.statusTypes.inReview}
 							</td>
-							<td className={clsx(cards.cell)}>
+							<td className={clsx(cards.cell, cards.number)}>
 								{project.statusTypes.awaitingMerge}
 							</td>
-							<td className={clsx(cards.cell)}>
+							<td className={clsx(cards.cell, cards.number)}>
 								{project.needsYou === 0 ? (
-									<span className={clsx(cards.quiet)}>0</span>
+									"0"
 								) : (
 									<span className={clsx(cards.badge)}>{project.needsYou}</span>
 								)}
 							</td>
 							<td className={clsx(cards.cell)}>
-								{project.crossProjectBlockers.map((blocker) => (
-									<Chip
-										key={`${blocker.project} ${blocker.key}`}
-										blocker={blocker}
-									/>
-								))}
+								<div className={clsx(cards.chips)}>
+									{project.crossProjectBlockers.map((blocker) => (
+										<a
+											key={`${blocker.project} ${blocker.key}`}
+											className={clsx(
+												cards.chip,
+												cards.blockerChip,
+												cards.chipHover,
+											)}
+											href={projectPath(blocker.project, blocker.key)}
+										>
+											{blocker.key.includes("#")
+												? blocker.key
+												: `${blocker.project}#${blocker.key}`}
+										</a>
+									))}
+								</div>
 							</td>
 						</tr>
 					))}
@@ -757,7 +948,7 @@ function OverviewPage({
 	const panes = {
 		cards: <CardsList projects={projects} />,
 		graph: <GraphView projects={projects} />,
-		table: <TableView projects={projects} />,
+		table: <TableView projects={projects} onPin={togglePin} />,
 	};
 	const views: PageView[] = overviewViews.map((name) => ({
 		id: name,
@@ -767,22 +958,67 @@ function OverviewPage({
 		(sum, project) => sum + ticketTotal(project),
 		0,
 	);
+	const filterMenu = (
+		<MenuButton
+			id="overview-filter"
+			label={overviewControlLabel.filter}
+			open={menu === "filter"}
+			onToggle={() => setMenu(menu === "filter" ? null : "filter")}
+		>
+			{overviewFilters.map((item) => (
+				<label key={item} className={clsx(cards.choice)}>
+					<input
+						type="radio"
+						name="overview-filter"
+						value={item}
+						checked={view.filter === item}
+						onChange={() => saveView({ ...view, filter: item })}
+					/>
+					{overviewFilterLabel[item]}
+				</label>
+			))}
+		</MenuButton>
+	);
 	const pinnedCount = overview.projects.filter(
 		(project) => project.pinned,
 	).length;
 	const summary = [
-		`${overview.projects.length} projects`,
-		`${tickets} tickets`,
+		`${overview.projects.length} ${overviewControlLabel.projects}`,
+		`${tickets} ${overviewControlLabel.tickets}`,
 		polled,
 	]
 		.filter((part) => part !== null)
 		.join(", ");
 	const sectionTitle =
 		view.view === "graph" ? "Projects and their blockers" : navLabel.projects;
+	const pinnedMenu = (
+		<MenuButton
+			id="overview-pinned"
+			label={`${overviewControlLabel.pinned} ${pinnedCount}`}
+			open={menu === "pinned"}
+			onToggle={() => setMenu(menu === "pinned" ? null : "pinned")}
+		>
+			{overview.projects.map((project) => (
+				<label
+					key={`${project.tracker}:${project.name}`}
+					className={clsx(cards.choice)}
+				>
+					<input
+						type="checkbox"
+						checked={project.pinned}
+						onChange={() => togglePin(project)}
+					/>
+					{project.name}
+				</label>
+			))}
+		</MenuButton>
+	);
 	return (
 		<PageFrame
 			title={navLabel.overview}
 			subtitle={summary}
+			filter={undefined}
+			sort={undefined}
 			search={
 				<label className={clsx(frame.searchBox)} htmlFor="overview-search">
 					<SearchGlyph />
@@ -838,6 +1074,16 @@ function OverviewPage({
 				</div>
 			}
 		>
+			{view.view === "table" ? (
+				<div className={clsx(cards.toolbar)}>
+					<div>
+						<p className={clsx(cards.tableLabel)}>{navLabel.projects}</p>
+					</div>
+					<span className={clsx(cards.grow)} />
+					{pinnedMenu}
+					{filterMenu}
+				</div>
+			) : null}
 			{needs.length === 0 || view.view !== "cards" ? null : (
 				<section>
 					<div className={clsx(cards.section)}>
@@ -875,53 +1121,53 @@ function OverviewPage({
 					</ul>
 				</section>
 			)}
-			<div className={clsx(cards.section)}>
-				<h2 className={clsx(cards.sectionLabel)}>{sectionTitle}</h2>
-				<div className={clsx(cards.controls)}>
-					<MenuButton
-						id="overview-pinned"
-						label={
-							<>
-								<PinMark on /> {overviewControlLabel.pinned} {pinnedCount}
-							</>
-						}
-						open={menu === "pinned"}
-						onToggle={() => setMenu(menu === "pinned" ? null : "pinned")}
-					>
-						{overview.projects.map((project) => (
-							<label
-								key={`${project.tracker}:${project.name}`}
-								className={clsx(cards.choice)}
-							>
-								<input
-									type="checkbox"
-									checked={project.pinned}
-									onChange={() => togglePin(project)}
-								/>
-								{project.name}
-							</label>
-						))}
-					</MenuButton>
-					<MenuButton
-						id="overview-filter"
-						label={overviewControlLabel.filter}
-						open={menu === "filter"}
-						onToggle={() => setMenu(menu === "filter" ? null : "filter")}
-					>
-						{overviewFilters.map((item) => (
-							<label key={item} className={clsx(cards.choice)}>
-								<input
-									type="radio"
-									name="overview-filter"
-									value={item}
-									checked={view.filter === item}
-									onChange={() => saveView({ ...view, filter: item })}
-								/>
-								{overviewFilterLabel[item]}
-							</label>
-						))}
-					</MenuButton>
-					{view.view === "table" ? null : (
+			{view.view === "table" ? null : (
+				<div className={clsx(cards.section)}>
+					<h2 className={clsx(cards.sectionLabel)}>{sectionTitle}</h2>
+					<div className={clsx(cards.controls)}>
+						<MenuButton
+							id="overview-pinned"
+							label={
+								<>
+									<PinMark on /> {overviewControlLabel.pinned} {pinnedCount}
+								</>
+							}
+							open={menu === "pinned"}
+							onToggle={() => setMenu(menu === "pinned" ? null : "pinned")}
+						>
+							{overview.projects.map((project) => (
+								<label
+									key={`${project.tracker}:${project.name}`}
+									className={clsx(cards.choice)}
+								>
+									<input
+										type="checkbox"
+										checked={project.pinned}
+										onChange={() => togglePin(project)}
+									/>
+									{project.name}
+								</label>
+							))}
+						</MenuButton>
+						<MenuButton
+							id="overview-filter"
+							label={overviewControlLabel.filter}
+							open={menu === "filter"}
+							onToggle={() => setMenu(menu === "filter" ? null : "filter")}
+						>
+							{overviewFilters.map((item) => (
+								<label key={item} className={clsx(cards.choice)}>
+									<input
+										type="radio"
+										name="overview-filter"
+										value={item}
+										checked={view.filter === item}
+										onChange={() => saveView({ ...view, filter: item })}
+									/>
+									{overviewFilterLabel[item]}
+								</label>
+							))}
+						</MenuButton>
 						<MenuButton
 							id="overview-sort"
 							label={
@@ -945,9 +1191,9 @@ function OverviewPage({
 								</label>
 							))}
 						</MenuButton>
-					)}
+					</div>
 				</div>
-			</div>
+			)}
 			{overview.polling === true ? (
 				<p className={clsx(cards.loading)}>Loading projects</p>
 			) : overview.error !== null ? (

@@ -582,6 +582,11 @@ export const cards = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.small,
 	},
+	blockerChip: {
+		borderColor: colours.line,
+		backgroundColor: colours.stale,
+		color: colours.staleInk,
+	},
 	chipHover: {
 		outline: {
 			default: "none",
@@ -674,7 +679,95 @@ export const cards = stylex.create({
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.laneLine,
 		textAlign: "left",
+		verticalAlign: "middle",
 		fontSize: type.small,
+		fontWeight: type.weight,
+		whiteSpace: "nowrap",
+	},
+	number: {
+		textAlign: "right",
+		fontVariantNumeric: "tabular-nums",
+	},
+	head: {
+		backgroundColor: colours.surfaceMuted,
+		color: colours.inkMuted,
+		fontSize: type.small,
+		fontWeight: type.weight,
+		whiteSpace: "nowrap",
+	},
+	sort: {
+		display: "inline-flex",
+		gap: space.twoXs,
+		alignItems: "center",
+		padding: 0,
+		borderWidth: measure.none,
+		backgroundColor: "transparent",
+		color: "inherit",
+		font: "inherit",
+		cursor: "pointer",
+	},
+	mark: {
+		width: measure.sortMark,
+		height: measure.sortMark,
+	},
+	star: {
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		padding: 0,
+		borderWidth: measure.none,
+		backgroundColor: "transparent",
+		color: colours.inkMuted,
+		font: "inherit",
+		lineHeight: 1,
+		cursor: "pointer",
+	},
+	pinned: {
+		color: colours.ink,
+	},
+	name: {
+		fontWeight: type.weight,
+	},
+	progressCell: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "center",
+	},
+	barThin: {
+		display: "flex",
+		flexGrow: 1,
+		height: space.xs,
+		minWidth: measure.bar,
+		borderRadius: radius.pill,
+		backgroundColor: colours.surfaceMuted,
+		overflow: "hidden",
+	},
+	toolbar: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "center",
+		margin: `${space.md} 0 ${space.sm}`,
+	},
+	tableLabel: {
+		margin: 0,
+		color: colours.inkMuted,
+		fontSize: type.small,
+		fontWeight: type.weight,
+		letterSpacing: type.track,
+		textTransform: "uppercase",
+	},
+	grow: {
+		flexGrow: 1,
+	},
+	freshInline: {
+		margin: 0,
+		color: colours.inkMuted,
+		fontSize: type.small,
+	},
+	chips: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.xs,
 	},
 	headCell: {
 		color: colours.inkSoft,
@@ -683,6 +776,21 @@ export const cards = stylex.create({
 	loading: {
 		margin: `0 0 ${space.md}`,
 		color: colours.inkSoft,
+	},
+	strip: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.sm,
+		alignItems: "center",
+		margin: `0 0 ${space.md}`,
+		padding: `${space.sm} ${space.md}`,
+		borderRadius: radius.sm,
+		backgroundColor: colours.stale,
+		color: colours.staleInk,
+	},
+	stripLink: {
+		color: colours.staleInk,
+		fontWeight: type.weight,
 	},
 	section: {
 		display: "flex",
@@ -809,6 +917,8 @@ export const cards = stylex.create({
 	segment: (width: string) => ({
 		width,
 		height: "100%",
+		flexBasis: width,
+		flexShrink: 0,
 	}),
 	badge: {
 		padding: `${space.twoXs} ${space.sm}`,

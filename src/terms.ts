@@ -84,6 +84,23 @@ export const overviewSortLabel = {
 	blockers: "Cross-project blockers",
 } as const;
 
+export const trackerLabel = {
+	github: "GitHub",
+	linear: "Linear",
+} as const;
+
+export const tableColumnLabel = {
+	project: "Project",
+	tracker: "Tracker",
+	progress: "Progress",
+	ready: "Ready",
+	inProgress: stateLabel.inProgress,
+	inReview: stateLabel.inReview,
+	awaitingMerge: stateLabel.awaitingMerge,
+	needsYou: navLabel.needsYou,
+	blockedBy: "Blocked by",
+} as const;
+
 export const overviewControlLabel = {
 	pinned: "Pinned",
 	filter: "Filter",
@@ -91,6 +108,9 @@ export const overviewControlLabel = {
 	search: "Search projects",
 	needsYouFirst: "Needs you first",
 	polled: "polled",
+	projects: "projects",
+	tickets: "tickets",
+	showing: "Showing",
 	unlinked: "unlinked PR",
 } as const;
 
