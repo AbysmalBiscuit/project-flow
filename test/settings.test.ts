@@ -910,7 +910,8 @@ describe("settings", () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const overview = {
 			filter: "needs-you",
-			sort: "blockers",
+			sort: "blockedBy",
+			direction: "desc",
 			view: "table",
 		} as const;
 		try {
@@ -920,7 +921,8 @@ describe("settings", () => {
 				).json()) as Configuration;
 				expect(before.overview).toEqual({
 					filter: "all",
-					sort: "name",
+					sort: "project",
+					direction: "asc",
 					view: "cards",
 				});
 				const saved = await fetch(new URL("/api/settings", base), {
@@ -931,6 +933,64 @@ describe("settings", () => {
 				expect(saved.status).toBe(200);
 				const written = (await saved.json()) as Configuration;
 				expect(written.overview).toEqual(overview);
+			});
+			await withAppFile(path, async (base) => {
+				const restarted = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(restarted.overview).toEqual(overview);
+			});
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a saved table column and direction survive a restart", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [],
+				overview: { filter: "all", sort: "name", view: "cards" },
+			}),
+		);
+		const overview = {
+			filter: "all",
+			sort: "needsYou",
+			direction: "desc",
+			view: "table",
+		} as const;
+		try {
+			await withAppFile(path, async (base) => {
+				const loaded = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(loaded.overview).toEqual({
+					filter: "all",
+					sort: "project",
+					direction: "asc",
+					view: "cards",
+				});
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ ...loaded, overview }),
+				});
+				expect(saved.status).toBe(200);
+				expect(((await saved.json()) as Configuration).overview).toEqual(
+					overview,
+				);
+				const blank = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...loaded,
+						overview: { ...overview, direction: "   " },
+					}),
+				});
+				expect(blank.status).toBe(400);
+				const kept = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(kept.overview).toEqual(overview);
 			});
 			await withAppFile(path, async (base) => {
 				const restarted = (await (

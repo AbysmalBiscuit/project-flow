@@ -9,7 +9,12 @@ await writeFile(
 	configPath,
 	`${JSON.stringify({
 		theme: "light",
-		overview: { filter: "all", sort: "name", view: "table" },
+		overview: {
+			filter: "all",
+			sort: "project",
+			direction: "asc",
+			view: "table",
+		},
 		pinned: [
 			{ tracker: "github", repo: "acme/alpha" },
 			{ tracker: "github", repo: "acme/beta" },

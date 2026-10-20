@@ -759,38 +759,14 @@ export const cards = stylex.create({
 	grow: {
 		flexGrow: 1,
 	},
-	freshInline: {
-		margin: 0,
-		color: colours.inkMuted,
-		fontSize: type.small,
-	},
 	chips: {
 		display: "flex",
 		flexWrap: "wrap",
 		gap: space.xs,
 	},
-	headCell: {
-		color: colours.inkSoft,
-		fontWeight: type.weight,
-	},
 	loading: {
 		margin: `0 0 ${space.md}`,
 		color: colours.inkSoft,
-	},
-	strip: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.sm,
-		alignItems: "center",
-		margin: `0 0 ${space.md}`,
-		padding: `${space.sm} ${space.md}`,
-		borderRadius: radius.sm,
-		backgroundColor: colours.stale,
-		color: colours.staleInk,
-	},
-	stripLink: {
-		color: colours.staleInk,
-		fontWeight: type.weight,
 	},
 	section: {
 		display: "flex",
@@ -938,12 +914,6 @@ export const cards = stylex.create({
 	},
 	quiet: {
 		color: colours.inkSoft,
-	},
-	mini: {
-		display: "flex",
-		gap: space.sm,
-		alignItems: "center",
-		width: measure.progress,
 	},
 	caption: {
 		margin: `${space.sm} 0 0`,

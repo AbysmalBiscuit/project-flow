@@ -64,6 +64,7 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 
 type FilterKey = OverviewView["filter"];
 type SortKey = OverviewView["sort"];
+type SortDirection = OverviewView["direction"];
 
 function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
 	if (filter === "needs-you") {
@@ -97,23 +98,40 @@ function matchesSearch(project: ProjectCounts, query: string): boolean {
 }
 
 function sortValue(project: ProjectCounts, key: SortKey): number | string {
-	if (key === "name") {
+	if (key === "project") {
 		return project.name;
+	}
+	if (key === "tracker") {
+		return trackerLabel[project.tracker];
 	}
 	if (key === "progress") {
 		return project.progress;
 	}
-	if (key === "needs-you") {
+	if (key === "backlog") {
+		return project.statusTypes.backlog;
+	}
+	if (key === "inProgress") {
+		return project.statusTypes.inProgress;
+	}
+	if (key === "inReview") {
+		return project.statusTypes.inReview;
+	}
+	if (key === "awaitingMerge") {
+		return project.statusTypes.awaitingMerge;
+	}
+	if (key === "needsYou") {
 		return project.needsYou;
 	}
-	return project.crossProjectBlockers.length;
+	return project.crossProjectBlockers
+		.map((blocker) => `${blocker.project}#${blocker.key}`)
+		.join(" ");
 }
 
 function sortProjects(
 	projects: ProjectCounts[],
 	key: SortKey,
+	direction: SortDirection,
 ): ProjectCounts[] {
-	const leastFirst = key === "name" || key === "progress";
 	return [...projects].sort((left, right) => {
 		const leftValue = sortValue(left, key);
 		const rightValue = sortValue(right, key);
@@ -122,7 +140,7 @@ function sortProjects(
 				? String(leftValue).localeCompare(String(rightValue))
 				: leftValue - rightValue;
 		if (delta !== 0) {
-			return leastFirst ? delta : -delta;
+			return direction === "asc" ? delta : -delta;
 		}
 		return left.name.localeCompare(right.name);
 	});
@@ -139,6 +157,7 @@ function shownProjects(
 				matchesFilter(project, view.filter) && matchesSearch(project, query),
 		),
 		view.sort,
+		view.direction,
 	);
 }
 
@@ -486,26 +505,15 @@ function GraphView({ projects }: { projects: ProjectCounts[] }) {
 	);
 }
 
-type TableColumn =
-	| "project"
-	| "tracker"
-	| "progress"
-	| "ready"
-	| "inProgress"
-	| "inReview"
-	| "awaitingMerge"
-	| "needsYou"
-	| "blockedBy";
-
 const tableColumns: {
-	key: TableColumn;
+	key: SortKey;
 	label: string;
 	number: boolean;
 }[] = [
 	{ key: "project", label: tableColumnLabel.project, number: false },
 	{ key: "tracker", label: tableColumnLabel.tracker, number: false },
 	{ key: "progress", label: tableColumnLabel.progress, number: false },
-	{ key: "ready", label: tableColumnLabel.ready, number: true },
+	{ key: "backlog", label: tableColumnLabel.backlog, number: true },
 	{ key: "inProgress", label: tableColumnLabel.inProgress, number: true },
 	{ key: "inReview", label: tableColumnLabel.inReview, number: true },
 	{
@@ -516,57 +524,6 @@ const tableColumns: {
 	{ key: "needsYou", label: tableColumnLabel.needsYou, number: true },
 	{ key: "blockedBy", label: tableColumnLabel.blockedBy, number: false },
 ];
-
-function columnValue(
-	project: ProjectCounts,
-	key: TableColumn,
-): number | string {
-	if (key === "project") {
-		return project.name;
-	}
-	if (key === "tracker") {
-		return trackerLabel[project.tracker];
-	}
-	if (key === "progress") {
-		return project.progress;
-	}
-	if (key === "ready") {
-		return project.statusTypes.backlog;
-	}
-	if (key === "inProgress") {
-		return project.statusTypes.inProgress;
-	}
-	if (key === "inReview") {
-		return project.statusTypes.inReview;
-	}
-	if (key === "awaitingMerge") {
-		return project.statusTypes.awaitingMerge;
-	}
-	if (key === "needsYou") {
-		return project.needsYou;
-	}
-	return project.crossProjectBlockers
-		.map((blocker) => `${blocker.project}#${blocker.key}`)
-		.join(" ");
-}
-
-function compareColumn(
-	left: ProjectCounts,
-	right: ProjectCounts,
-	key: TableColumn,
-	direction: "asc" | "desc",
-): number {
-	const leftValue = columnValue(left, key);
-	const rightValue = columnValue(right, key);
-	const delta =
-		typeof leftValue === "string" || typeof rightValue === "string"
-			? String(leftValue).localeCompare(String(rightValue))
-			: leftValue - rightValue;
-	if (delta !== 0) {
-		return direction === "asc" ? delta : -delta;
-	}
-	return left.name.localeCompare(right.name);
-}
 
 function SortMark({ direction }: { direction: "asc" | "desc" | "none" }) {
 	const up = direction === "asc";
@@ -633,24 +590,17 @@ function Star({ filled }: { filled: boolean }) {
 
 function TableView({
 	projects,
+	sort,
+	direction,
 	onPin,
+	onSort,
 }: {
 	projects: ProjectCounts[];
+	sort: SortKey;
+	direction: SortDirection;
 	onPin: (project: ProjectCounts) => void;
+	onSort: (sort: SortKey, direction: SortDirection) => void;
 }) {
-	const [column, setColumn] = useState<TableColumn>("project");
-	const [direction, setDirection] = useState<"asc" | "desc">("asc");
-	const rows = [...projects].sort((left, right) =>
-		compareColumn(left, right, column, direction),
-	);
-	const sortBy = (key: TableColumn) => {
-		if (column === key) {
-			setDirection(direction === "asc" ? "desc" : "asc");
-			return;
-		}
-		setColumn(key);
-		setDirection("asc");
-	};
 	return (
 		<div className={clsx(cards.tableWrap)}>
 			<table className={clsx(cards.table)}>
@@ -658,7 +608,7 @@ function TableView({
 					<tr>
 						<th className={clsx(cards.cell, cards.head)} />
 						{tableColumns.map((item) => {
-							const active = column === item.key;
+							const active = sort === item.key;
 							return (
 								<th
 									key={item.key}
@@ -679,7 +629,12 @@ function TableView({
 										type="button"
 										id={`sort-${item.key}`}
 										className={clsx(cards.sort)}
-										onClick={() => sortBy(item.key)}
+										onClick={() =>
+											onSort(
+												item.key,
+												active && direction === "asc" ? "desc" : "asc",
+											)
+										}
 									>
 										{item.label}
 										<SortMark direction={active ? direction : "none"} />
@@ -690,7 +645,7 @@ function TableView({
 					</tr>
 				</thead>
 				<tbody>
-					{rows.map((project) => (
+					{projects.map((project) => (
 						<tr
 							key={`${project.tracker}:${project.name}`}
 							id={`overview-row-${slug(project.name)}`}
@@ -948,7 +903,15 @@ function OverviewPage({
 	const panes = {
 		cards: <CardsList projects={projects} />,
 		graph: <GraphView projects={projects} />,
-		table: <TableView projects={projects} onPin={togglePin} />,
+		table: (
+			<TableView
+				projects={projects}
+				sort={view.sort}
+				direction={view.direction}
+				onPin={togglePin}
+				onSort={(sort, direction) => saveView({ ...view, sort, direction })}
+			/>
+		),
 	};
 	const views: PageView[] = overviewViews.map((name) => ({
 		id: name,
@@ -957,6 +920,37 @@ function OverviewPage({
 	const tickets = overview.projects.reduce(
 		(sum, project) => sum + ticketTotal(project),
 		0,
+	);
+	const sortMenu = (
+		<MenuButton
+			id="overview-sort"
+			label={
+				view.sort === "needsYou"
+					? overviewControlLabel.needsYouFirst
+					: overviewSortLabel[view.sort]
+			}
+			open={menu === "sort"}
+			onToggle={() => setMenu(menu === "sort" ? null : "sort")}
+		>
+			{overviewSorts.map((item) => (
+				<label key={item} className={clsx(cards.choice)}>
+					<input
+						type="radio"
+						name="overview-sort"
+						value={item}
+						checked={view.sort === item}
+						onChange={() =>
+							saveView({
+								...view,
+								sort: item,
+								direction: view.sort === item ? view.direction : "asc",
+							})
+						}
+					/>
+					{overviewSortLabel[item]}
+				</label>
+			))}
+		</MenuButton>
 	);
 	const filterMenu = (
 		<MenuButton
@@ -994,7 +988,11 @@ function OverviewPage({
 	const pinnedMenu = (
 		<MenuButton
 			id="overview-pinned"
-			label={`${overviewControlLabel.pinned} ${pinnedCount}`}
+			label={
+				<>
+					<PinMark on /> {overviewControlLabel.pinned} {pinnedCount}
+				</>
+			}
 			open={menu === "pinned"}
 			onToggle={() => setMenu(menu === "pinned" ? null : "pinned")}
 		>
@@ -1125,72 +1123,9 @@ function OverviewPage({
 				<div className={clsx(cards.section)}>
 					<h2 className={clsx(cards.sectionLabel)}>{sectionTitle}</h2>
 					<div className={clsx(cards.controls)}>
-						<MenuButton
-							id="overview-pinned"
-							label={
-								<>
-									<PinMark on /> {overviewControlLabel.pinned} {pinnedCount}
-								</>
-							}
-							open={menu === "pinned"}
-							onToggle={() => setMenu(menu === "pinned" ? null : "pinned")}
-						>
-							{overview.projects.map((project) => (
-								<label
-									key={`${project.tracker}:${project.name}`}
-									className={clsx(cards.choice)}
-								>
-									<input
-										type="checkbox"
-										checked={project.pinned}
-										onChange={() => togglePin(project)}
-									/>
-									{project.name}
-								</label>
-							))}
-						</MenuButton>
-						<MenuButton
-							id="overview-filter"
-							label={overviewControlLabel.filter}
-							open={menu === "filter"}
-							onToggle={() => setMenu(menu === "filter" ? null : "filter")}
-						>
-							{overviewFilters.map((item) => (
-								<label key={item} className={clsx(cards.choice)}>
-									<input
-										type="radio"
-										name="overview-filter"
-										value={item}
-										checked={view.filter === item}
-										onChange={() => saveView({ ...view, filter: item })}
-									/>
-									{overviewFilterLabel[item]}
-								</label>
-							))}
-						</MenuButton>
-						<MenuButton
-							id="overview-sort"
-							label={
-								view.sort === "needs-you"
-									? overviewControlLabel.needsYouFirst
-									: overviewSortLabel[view.sort]
-							}
-							open={menu === "sort"}
-							onToggle={() => setMenu(menu === "sort" ? null : "sort")}
-						>
-							{overviewSorts.map((item) => (
-								<label key={item} className={clsx(cards.choice)}>
-									<input
-										type="radio"
-										name="overview-sort"
-										value={item}
-										checked={view.sort === item}
-										onChange={() => saveView({ ...view, sort: item })}
-									/>
-									{overviewSortLabel[item]}
-								</label>
-							))}
-						</MenuButton>
+						{pinnedMenu}
+						{filterMenu}
+						{sortMenu}
 					</div>
 				</div>
 			)}
