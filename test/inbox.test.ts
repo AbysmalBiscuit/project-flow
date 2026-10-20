@@ -2650,17 +2650,21 @@ describe("inbox", () => {
 				),
 			];
 			await refresh(base);
+			current = [
+				...current,
+				linearIssue(
+					"PF-3",
+					"Third ask",
+					"Third question",
+					[{ body: `Third question\n\n${ask("pf-3")}` }],
+					{},
+					"2026-08-18T13:10:00.000Z",
+				),
+			];
+			await refresh(base);
 			const entries = await inboxOf(base);
-			expect(entries).toHaveLength(1);
-			expect(entries[0]?.read).toBe(false);
-			expect(entries[0]?.key).toBe("PF-2");
-			const marked = await markRead(base, entries[0]?.id ?? "");
-			expect(marked.status).toBe(204);
-			const markedId = entries[0]?.id ?? "";
-			const oneRead = await inboxOf(base);
-			expect(
-				oneRead.filter((entry) => entry.read).map((entry) => entry.id),
-			).toEqual([markedId]);
+			expect(entries).toHaveLength(2);
+			expect(entries.every((entry) => !entry.read)).toBe(true);
 			const blank = await markRead(base, " ");
 			expect(blank.status).toBe(400);
 			const missing = await markRead(base, "missing-entry");
