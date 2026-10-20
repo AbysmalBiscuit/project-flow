@@ -1,5 +1,9 @@
 import { z } from "zod";
-import type { AutoMerge, Configuration } from "./configuration.ts";
+import type {
+	AutoMerge,
+	Configuration,
+	ProjectViewSettings,
+} from "./configuration.ts";
 import {
 	configurationWrite,
 	loadConfiguration,
@@ -333,21 +337,18 @@ function reportFor(
 	configuration: Configuration,
 	name: string,
 	filtered: boolean,
-): ProjectReport | null {
+): (ProjectReport & { openView: ProjectViewSettings["openView"] }) | null {
 	const match = projectViews(options, configuration).find(
 		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
 		return null;
 	}
-	if (!filtered) {
-		return match.report;
-	}
-	return filterProjectReport(
-		match.report,
-		projectViewFor(configuration, match.counts.name),
-		options.clock.now(),
-	);
+	const view = projectViewFor(configuration, match.counts.name);
+	const report = filtered
+		? filterProjectReport(match.report, view, options.clock.now())
+		: match.report;
+	return { ...report, openView: view.openView };
 }
 
 function settingsResponse(

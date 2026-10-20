@@ -1721,6 +1721,76 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a project with no own view uses the star view, and its own entry wins", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch(),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Record<string, unknown>;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							"*": { openView: "graph" },
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport & { openView: string };
+				expect(report.openView).toBe("graph");
+				const blank = await fetch(new URL("/api/projects/%20", base));
+				expect(blank.status).toBe(404);
+				const own = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							"*": { openView: "graph" },
+							[githubRepo]: { openView: "table" },
+						},
+					}),
+				});
+				expect(own.status).toBe(200);
+				const won = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport & { openView: string };
+				expect(won.openView).toBe("table");
+				const spaced = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							"*": { openView: "graph", search: "   " },
+						},
+					}),
+				});
+				expect(spaced.status).toBe(200);
+				const kept = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport & { openView: string };
+				expect(kept.openView).toBe("graph");
+			},
+		);
+	});
+			},
+		);
+	});
+
 	test("a missing project is not found, and a blank name is not found", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
