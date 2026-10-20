@@ -46,6 +46,8 @@ export const inboxCopy = {
 	markAll: "Mark all read",
 	banner:
 		"Browser notifications are off. The Inbox still collects every entry.",
+	denied:
+		"Browser notifications are blocked. Allow them in the browser settings. The Inbox still collects every entry.",
 	allow: "Allow notifications",
 	dismiss: "Dismiss",
 	today: "Today",

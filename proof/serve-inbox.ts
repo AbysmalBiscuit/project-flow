@@ -239,8 +239,6 @@ function seedInbox(databasePath: string): void {
 	seeded.close();
 }
 
-let proofStore = "";
-
 export function proofDatabase(root: string): string {
 	return join(root, "store.sqlite");
 }
@@ -253,7 +251,6 @@ export async function runLinearProof(
 ): Promise<void> {
 	const root = await mkdtemp(join(proofRoot, "project-flow-proof-"));
 	const databasePath = proofDatabase(root);
-	proofStore = databasePath;
 	seedInbox(databasePath);
 	const config = join(root, "config.json");
 	await writeFile(

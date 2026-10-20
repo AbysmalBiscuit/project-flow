@@ -97,7 +97,7 @@ function InboxList({
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
 	const [openId, setOpenId] = useState<string | null>(null);
-	const [banner, setBanner] = useState(notificationPermission() !== "granted");
+	const [permission, setPermission] = useState(notificationPermission);
 	const unread = entries.filter((entry) => !entry.read).length;
 	const shown = entries.filter(
 		(entry) =>
@@ -134,24 +134,30 @@ function InboxList({
 					{unread} {inboxCopy.unread}
 				</p>
 			</div>
-			{banner ? (
+			{permission === "default" || permission === "denied" ? (
 				<div className={clsx(inbox.banner)} data-notify-banner="">
-					<p className={clsx(inbox.bannerText)}>{inboxCopy.banner}</p>
+					<p className={clsx(inbox.bannerText)}>
+						{permission === "denied" ? inboxCopy.denied : inboxCopy.banner}
+					</p>
 					<div className={clsx(inbox.bannerActions)}>
-						<button
-							type="button"
-							className={clsx(inbox.allow, shell.buttonFocus)}
-							onClick={() => {
-								void askNotificationPermission();
-							}}
-						>
-							{inboxCopy.allow}
-						</button>
+						{permission === "default" ? (
+							<button
+								type="button"
+								className={clsx(inbox.allow, shell.buttonFocus)}
+								onClick={() => {
+									void askNotificationPermission().finally(() => {
+										setPermission(notificationPermission());
+									});
+								}}
+							>
+								{inboxCopy.allow}
+							</button>
+						) : null}
 						<button
 							type="button"
 							className={clsx(inbox.dismiss, shell.buttonFocus)}
 							aria-label={inboxCopy.dismiss}
-							onClick={() => setBanner(false)}
+							onClick={() => setPermission("granted")}
 						>
 							×
 						</button>
