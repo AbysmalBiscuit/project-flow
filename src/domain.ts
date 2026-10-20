@@ -76,6 +76,7 @@ export type Ticket = {
 	status?: TicketStatus;
 	emptyStatus?: boolean;
 	history?: { statusId: string; at: string; statusType?: StatusType }[];
+	closedAt?: string;
 };
 
 export type OutsideBlocker = {
@@ -2351,6 +2352,17 @@ function enteredStateAt(ticket: Ticket, lane: Lane): string {
 			entered =
 				entered === undefined || change.at > entered ? change.at : entered;
 		}
+	}
+	const closedType = closedLaneType(ticket);
+	const closedAt = ticket.closedAt;
+	if (
+		closedType !== undefined &&
+		closedType === lane.statusType &&
+		closedAt !== undefined &&
+		closedAt !== "" &&
+		(entered === undefined || closedAt > entered)
+	) {
+		entered = closedAt;
 	}
 	return entered ?? ticket.updatedAt;
 }

@@ -15,12 +15,7 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import {
-	backlogColour,
-	closedReasons,
-	factoryBoard,
-	statusTypeOfName,
-} from "./domain.ts";
+import { backlogColour, factoryBoard, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -1845,13 +1840,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				if (closedAt === "") {
 					continue;
 				}
-				const closedLane = closedReasons.has(ticket.stateReason ?? "")
-					? "dropped"
-					: "done";
-				ticket.history = [
-					...(ticket.history ?? []),
-					{ statusId: closedLane, at: closedAt, statusType: closedLane },
-				];
+				ticket.closedAt = closedAt;
 			}
 			return { name: repo, tickets, board };
 		},
