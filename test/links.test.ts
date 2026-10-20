@@ -9,6 +9,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -148,7 +149,7 @@ function githubFetch(
 				{ status: 200, headers: { "content-type": "application/json" } },
 			);
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -268,7 +269,7 @@ function linearFetch(): Fetch {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		},
 	});
 }

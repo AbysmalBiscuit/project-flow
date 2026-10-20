@@ -10,6 +10,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -259,7 +260,7 @@ describe("needs you", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -366,7 +367,7 @@ describe("needs you", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -676,7 +677,7 @@ describe("needs you", () => {
 					commit: { committer: { date: "2026-10-01T00:00:00Z" } },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -809,7 +810,7 @@ describe("needs you", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -975,7 +976,7 @@ describe("needs you", () => {
 			) {
 				return page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1158,7 +1159,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1287,7 +1288,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1447,7 +1448,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1579,7 +1580,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1764,7 +1765,7 @@ describe("needs you", () => {
 						})
 					: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -1942,7 +1943,7 @@ describe("needs you", () => {
 						})
 					: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
@@ -2064,7 +2065,7 @@ describe("needs you", () => {
 							})
 						: page([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),

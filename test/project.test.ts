@@ -11,6 +11,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -109,10 +110,7 @@ function githubFetch(issues = githubIssues): Fetch {
 		if (url.endsWith("/comments")) {
 			return page([]);
 		}
-		return (
-			emptyProjectFields(input, init) ??
-			new Response("not recorded", { status: 404 })
-		);
+		return emptyProjectFields(input, init) ?? unrecorded(input);
 	};
 }
 
@@ -760,10 +758,7 @@ describe("GET /api/projects/:name", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -818,10 +813,7 @@ describe("GET /api/projects/:name", () => {
 					},
 				});
 			}
-			return (
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
-			);
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		await withApp(
 			JSON.stringify({

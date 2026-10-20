@@ -52,6 +52,19 @@ export function recordedDiscovery(
 	return null;
 }
 
+export function unrecorded(input: string | URL | Request): Response {
+	const url = urlOf(input);
+	if (/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/labels\?/.test(url)) {
+		return new Response("[]", {
+			status: 200,
+			headers: { "content-type": "application/json" },
+		});
+	}
+	return (
+		recordedDiscovery(input) ?? new Response("not recorded", { status: 404 })
+	);
+}
+
 export function emptyProjectFields(
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -217,10 +230,10 @@ export function linearFake(options: LinearFake = {}): Fetch {
 					headers: { "content-type": "application/json" },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		}
 		if (url !== "https://api.linear.app/graphql") {
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		}
 		const body = typeof init?.body === "string" ? init.body : "";
 		const query = JSON.parse(body) as {

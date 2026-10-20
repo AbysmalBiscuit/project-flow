@@ -9,6 +9,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -200,7 +201,7 @@ function repoFetch(
 		) {
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -311,7 +312,7 @@ function projectFetch(
 		if (url.includes("/pulls?") || url.includes("/labels?")) {
 			return page([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -1253,7 +1254,7 @@ describe("tracker lanes", () => {
 				) {
 					fields += 1;
 					if (fields > 1) {
-						return new Response("not recorded", { status: 404 });
+						return unrecorded(input);
 					}
 				}
 				return projectFetch([

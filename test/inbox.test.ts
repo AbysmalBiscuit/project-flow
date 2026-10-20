@@ -13,6 +13,7 @@ import {
 	tempConfig,
 	testIo,
 	trackerRequest,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -848,7 +849,7 @@ describe("inbox", () => {
 			if (url.includes("/comments")) {
 				return Response.json([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -991,7 +992,7 @@ describe("inbox", () => {
 			if (url.includes("/comments")) {
 				return Response.json([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1078,7 +1079,7 @@ describe("inbox", () => {
 			}
 			if (url.includes(`/issues/${recorded.number}/dependencies/blocked_by`)) {
 				if (failed) {
-					return new Response("not recorded", { status: 404 });
+					return unrecorded(input);
 				}
 				return Response.json([dependency]);
 			}
@@ -1092,7 +1093,7 @@ describe("inbox", () => {
 			if (url.includes("/comments")) {
 				return Response.json([]);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -2873,7 +2874,7 @@ async function withGithubInbox(
 						})
 					: githubPage([]);
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({

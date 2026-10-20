@@ -4,7 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedDiscovery, tempConfig, testIo, urlOf } from "./support.ts";
+import {
+	recordedDiscovery,
+	tempConfig,
+	testIo,
+	unrecorded,
+	urlOf,
+} from "./support.ts";
 
 const repo = "acme/widget";
 const otherRepo = "acme/other";
@@ -80,9 +86,7 @@ function changingFetch(requests: string[]): Fetch {
 				ticket(2, "2026-04-02T00:00:00Z"),
 			]);
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -243,9 +247,7 @@ function failingAfterGoodPoll(requests: string[]): Fetch {
 			}
 			return new Response("recorded failure", { status: 500 });
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -263,9 +265,7 @@ function unchangedFetch(requests: string[]): Fetch {
 			requests.push(url);
 			return page([]);
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -288,9 +288,7 @@ function failingThenRecorded(requests: string[]): Fetch {
 			}
 			return page([ticket(1, "2026-04-01T00:00:00Z")]);
 		}
-		return (
-			recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-		);
+		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
 
@@ -491,7 +489,7 @@ function linearPinFetch(requests: string[]): Fetch {
 				headers: { "content-type": "application/json" },
 			});
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -572,9 +570,7 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -648,9 +644,7 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -731,9 +725,7 @@ describe("live updates", () => {
 				await heldFor;
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -854,9 +846,7 @@ describe("live updates", () => {
 				await pollHeld;
 				return page([ticket(9, "2026-04-03T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -884,10 +874,7 @@ describe("live updates", () => {
 					if (listUrl(url) !== null) {
 						return page([ticket(1, "2026-04-01T00:00:00Z")]);
 					}
-					return (
-						recordedOrEmpty(url) ??
-						new Response("not recorded", { status: 404 })
-					);
+					return recordedOrEmpty(url) ?? unrecorded(input);
 				},
 				readGhToken: async () => null,
 				databasePath,
@@ -1027,9 +1014,7 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -1159,9 +1144,7 @@ describe("live updates", () => {
 				polls += 1;
 				return page(polls === 1 ? [ticket(1, "2026-04-01T00:00:00Z")] : []);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(fetchImpl, 3600, async (base) => {
 			const refresh = await fetch(new URL("/api/refresh", base), {
@@ -1239,9 +1222,7 @@ describe("live updates", () => {
 				}
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1307,9 +1288,7 @@ describe("live updates", () => {
 				}
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1455,7 +1434,7 @@ describe("live updates", () => {
 					headers: { "content-type": "application/json" },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1727,9 +1706,7 @@ describe("live updates", () => {
 				}
 				return page([ticket(1, "2026-04-01T00:00:00Z")]);
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1832,9 +1809,7 @@ describe("live updates", () => {
 			if (discovered !== null) {
 				return discovered;
 			}
-			return (
-				recordedOrEmpty(url) ?? new Response("not recorded", { status: 404 })
-			);
+			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,
@@ -1970,7 +1945,7 @@ describe("live updates", () => {
 					headers: { "content-type": "application/json" },
 				});
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		await withServer(
 			fetchImpl,

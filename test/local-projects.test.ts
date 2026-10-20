@@ -9,6 +9,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -156,10 +157,7 @@ function localFetch(requests: string[]): Fetch {
 				{ status: 200, headers: { "content-type": "application/json" } },
 			);
 		}
-		return (
-			emptyProjectFields(input, init) ??
-			new Response("not recorded", { status: 404 })
-		);
+		return emptyProjectFields(input, init) ?? unrecorded(input);
 	};
 }
 
@@ -820,10 +818,7 @@ describe("local projects", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (url === "https://api.github.com/graphql" && body.includes("node(")) {
 				return new Response(
@@ -852,10 +847,7 @@ describe("local projects", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return (
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
-			);
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		let base = "";
 		let onListen: (line: string) => void = () => {};

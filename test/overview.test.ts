@@ -12,6 +12,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -133,9 +134,7 @@ function githubFetch(requests: string[] = []): Fetch {
 			});
 		}
 		return (
-			emptyList(url) ??
-			emptyProjectFields(input, init) ??
-			new Response("not recorded", { status: 404 })
+			emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 		);
 	};
 }
@@ -317,10 +316,7 @@ function linearFetch(requests: string[]): Fetch {
 					{ status: 200 },
 				);
 			}
-			return (
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
-			);
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		},
 	});
 }
@@ -402,9 +398,7 @@ describe("GET /api/overview", () => {
 					return page([], null);
 				}
 				return (
-					emptyList(url) ??
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
+					emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 				);
 			};
 		const store = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -1196,9 +1190,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -1394,9 +1386,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -1555,10 +1545,7 @@ describe("GET /api/overview", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -1671,9 +1658,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -1842,9 +1827,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -1999,10 +1982,7 @@ describe("GET /api/overview", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2055,9 +2035,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -2139,10 +2117,7 @@ describe("GET /api/overview", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2242,9 +2217,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -2427,10 +2400,7 @@ describe("GET /api/overview", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2488,9 +2458,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -2625,10 +2593,7 @@ describe("GET /api/overview", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2682,9 +2647,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -2826,10 +2789,7 @@ describe("GET /api/overview", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -2883,9 +2843,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -3023,10 +2981,7 @@ describe("GET /api/overview", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectFields")
 			) {
-				return (
-					emptyProjectFields(input, init) ??
-					new Response("not recorded", { status: 404 })
-				);
+				return emptyProjectFields(input, init) ?? unrecorded(input);
 			}
 			if (
 				url === "https://api.github.com/graphql" &&
@@ -3080,9 +3035,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -3271,9 +3224,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -3497,9 +3448,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -3652,9 +3601,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -3806,10 +3753,7 @@ describe("GET /api/overview", () => {
 			) {
 				return page([], null);
 			}
-			return (
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
-			);
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -3938,10 +3882,7 @@ describe("GET /api/overview", () => {
 			) {
 				return page([], null);
 			}
-			return (
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
-			);
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: listed }] }),
@@ -4034,9 +3975,7 @@ describe("GET /api/overview", () => {
 				);
 			}
 			return (
-				emptyList(url) ??
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
+				emptyList(url) ?? emptyProjectFields(input, init) ?? unrecorded(input)
 			);
 		};
 		let startChecks: (base: string) => void = () => {};
@@ -4086,10 +4025,7 @@ describe("GET /api/overview", () => {
 			if (url.startsWith("https://api.github.com/")) {
 				throw new Error("GitHub must not be called without a token");
 			}
-			return (
-				emptyProjectFields(input, init) ??
-				new Response("not recorded", { status: 404 })
-			);
+			return emptyProjectFields(input, init) ?? unrecorded(input);
 		};
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -4335,7 +4271,7 @@ describe("GET /api/overview", () => {
 				}
 				return page([], null, { etag: closedEtag });
 			}
-			if (url.includes("/branches?")) {
+			if (url.includes("/branches?") || url.includes("/labels?")) {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
@@ -4361,7 +4297,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4386,6 +4322,8 @@ describe("GET /api/overview", () => {
 							title: "Ticket 4",
 							state: "backlog",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					]);
 					expect(before.projects[0]?.unlinkedPrs).toEqual([
@@ -4485,6 +4423,7 @@ describe("GET /api/overview", () => {
 			if (
 				url.includes("/pulls?") ||
 				url.includes("/branches?") ||
+				url.includes("/labels?") ||
 				url.includes("/comments") ||
 				url.includes("/reviews") ||
 				url.includes("/reactions")
@@ -4511,7 +4450,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4531,6 +4470,8 @@ describe("GET /api/overview", () => {
 							title: "Ticket 4",
 							state: "backlog",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					]);
 					const refresh = await fetch(new URL("/api/refresh", base), {
@@ -4639,7 +4580,7 @@ describe("GET /api/overview", () => {
 					etag: laterEtag,
 				});
 			}
-			if (url.includes("/pulls?")) {
+			if (url.includes("/pulls?") || url.includes("/labels?")) {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
@@ -4662,7 +4603,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4684,6 +4625,8 @@ describe("GET /api/overview", () => {
 							title: "Ticket 21",
 							state: "inProgress",
 							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
 						},
 					]);
 					const refresh = await fetch(new URL("/api/refresh", base), {
@@ -4770,7 +4713,11 @@ describe("GET /api/overview", () => {
 				}
 				return page([ticket(8, "open", null)], null, { etag: windowEtag });
 			}
-			if (url.includes("/pulls?") || url.includes("/branches?")) {
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?")
+			) {
 				return page([], null);
 			}
 			if (url === "https://api.github.com/graphql") {
@@ -4793,7 +4740,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -4931,7 +4878,7 @@ describe("GET /api/overview", () => {
 				const etag = since.includes("T12:00:") ? firstEtag : secondEtag;
 				return page([ticket(8, "open", null)], null, { etag });
 			}
-			if (url.includes("/pulls?")) {
+			if (url.includes("/pulls?") || url.includes("/labels?")) {
 				return page([], null, { etag: stableEtag });
 			}
 			if (url.includes("/branches?")) {
@@ -4957,7 +4904,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -5104,7 +5051,7 @@ describe("GET /api/overview", () => {
 					page([ticket(8, "open", null)], null, { etag: windowEtag }),
 				);
 			}
-			if (url.includes("/pulls?")) {
+			if (url.includes("/pulls?") || url.includes("/labels?")) {
 				return note(200, page([], null));
 			}
 			if (url.includes("/branches?")) {
@@ -5130,7 +5077,7 @@ describe("GET /api/overview", () => {
 					{ status: 200, headers: { "content-type": "application/json" } },
 				);
 			}
-			return new Response("not recorded", { status: 404 });
+			return unrecorded(input);
 		};
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({

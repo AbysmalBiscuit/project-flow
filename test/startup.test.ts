@@ -15,6 +15,7 @@ import {
 	recordedDiscovery,
 	tempConfig,
 	testIo,
+	unrecorded,
 	urlOf,
 } from "./support.ts";
 
@@ -71,7 +72,7 @@ function recordedFetch(userStatus: number): Fetch {
 				headers: { "content-type": "application/json" },
 			});
 		}
-		return new Response("not recorded", { status: 404 });
+		return unrecorded(input);
 	};
 }
 
@@ -181,7 +182,7 @@ describe("startup", () => {
 						headers: { "content-type": "application/json" },
 					});
 				}
-				return new Response("not recorded", { status: 404 });
+				return unrecorded(input);
 			},
 		});
 		let startChecks: (base: string) => void = () => {};
