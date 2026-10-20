@@ -13,7 +13,7 @@ import {
 	ReactFlowProvider,
 } from "@xyflow/react";
 import { useMemo } from "react";
-import type { ProjectReport, TicketState, TicketView } from "./domain.ts";
+import type { ProjectReport, TicketState } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	graphDirectionLabel,
@@ -29,13 +29,20 @@ import { graphDirections } from "./view-settings.ts";
 const columnGap = 280;
 const rowGap = 120;
 
+type GraphTicketView = {
+	key: string | null;
+	title: string;
+	state?: TicketState;
+	pull?: string;
+	needsYou?: boolean;
+};
+
 type TicketNodeData = {
-	ticket: TicketView;
+	ticket: GraphTicketView;
 	outside: boolean;
 	project: string;
 	tracker: "github" | "linear";
 	open: boolean;
-	onOpen: (ticket: OpenedNode) => void;
 };
 
 export type OpenedNode = {
@@ -44,6 +51,7 @@ export type OpenedNode = {
 	tracker: "github" | "linear";
 	title: string;
 	outside: boolean;
+	state?: TicketState;
 };
 
 type TicketEdgeData = Record<string, never>;
@@ -78,23 +86,21 @@ const legendOrder = [
 	"dropped",
 ] as const satisfies ReadonlyArray<TicketState>;
 
-function tone(ticket: TicketView) {
-	return stateTone[ticket.state].tone;
-}
-
 function TicketNode({ data }: NodeProps<FlowNode<TicketNodeData>>) {
 	const key = data.ticket.key ?? data.ticket.title;
+	const known = data.ticket.state;
 	return (
 		<button
 			type="button"
 			className={clsx(
 				board.ticketNode,
-				tone(data.ticket),
+				known === undefined ? null : stateTone[known].tone,
 				data.outside && board.ticketOutside,
 				data.open && board.ticketNodeOpen,
 			)}
 			data-graph-node={key}
 			data-outside={data.outside ? "true" : "false"}
+			data-state={known ?? "unknown"}
 			aria-pressed={data.open}
 		>
 			<Handle type="target" position={Position.Left} id="left" />
@@ -150,13 +156,29 @@ const nodeTypes = { ticket: TicketNode };
 const edgeTypes = { ticket: TicketEdge };
 
 type GraphTicket = {
-	ticket: TicketView;
+	ticket: GraphTicketView;
 	project: string;
 	tracker: "github" | "linear";
 	outside: boolean;
 };
 
-function outsideTickets(report: ProjectReport): GraphTicket[] {
+function outsideState(
+	reports: ProjectReport[],
+	project: string,
+	key: string,
+): TicketState | undefined {
+	const home = reports.find(
+		(report) => report.name.toLowerCase() === project.toLowerCase(),
+	);
+	return home?.tickets.find(
+		(ticket) => ticket.key?.toLowerCase() === key.toLowerCase(),
+	)?.state;
+}
+
+function outsideTickets(
+	report: ProjectReport,
+	reports: ProjectReport[],
+): GraphTicket[] {
 	const seen = new Set<string>();
 	const found: GraphTicket[] = [];
 	for (const ticket of report.tickets) {
@@ -166,12 +188,12 @@ function outsideTickets(report: ProjectReport): GraphTicket[] {
 				continue;
 			}
 			seen.add(id);
+			const state = outsideState(reports, blocker.project, blocker.key);
 			found.push({
 				ticket: {
 					key: blocker.key,
 					title: blocker.title,
-					state: "backlog",
-					blockers: [],
+					...(state === undefined ? {} : { state }),
 				},
 				project: blocker.project,
 				tracker: blocker.tracker,
@@ -284,14 +306,14 @@ function graphEdges(report: ProjectReport): { from: string; to: string }[] {
 
 function graphModel(
 	report: ProjectReport,
+	reports: ProjectReport[],
 	direction: GraphDirection,
 	openKey: string | null,
-	onOpen: (ticket: OpenedNode) => void,
 ): {
 	nodes: FlowNode<TicketNodeData>[];
 	edges: FlowEdge<TicketEdgeData>[];
 } {
-	const tickets = [...outsideTickets(report), ...localTickets(report)];
+	const tickets = [...outsideTickets(report, reports), ...localTickets(report)];
 	const links = graphEdges(report);
 	const positions = layoutTickets(tickets, links, direction);
 	const horizontal = direction === "left-to-right";
@@ -314,7 +336,6 @@ function graphModel(
 					project: item.project,
 					tracker: item.tracker,
 					open: openKey === key,
-					onOpen,
 				},
 			},
 		];
@@ -354,22 +375,27 @@ function Legend() {
 
 export function ProjectGraph({
 	report,
+	reports,
 	direction,
 	openKey,
 	onOpen,
 }: {
 	report: ProjectReport;
+	reports: ProjectReport[];
 	direction: GraphDirection;
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
 }) {
 	const model = useMemo(
-		() => graphModel(report, direction, openKey, onOpen),
-		[report, direction, openKey, onOpen],
+		() => graphModel(report, reports, direction, openKey),
+		[report, reports, direction, openKey],
 	);
 	const places = model.nodes
-		.map((node) => `${node.id}:${node.position.x},${node.position.y}`)
-		.join(" ");
+		.map(
+			(node) =>
+				`${node.id.replaceAll("\n", " ")} ${node.position.x},${node.position.y}`,
+		)
+		.join(" | ");
 	return (
 		<div id="project-graph" className={clsx(board.ticketGraph)}>
 			<p id="project-graph-places" className={clsx(cards.graphProbe)}>
@@ -392,12 +418,15 @@ export function ProjectGraph({
 					fitView
 					proOptions={{ hideAttribution: true }}
 					onNodeClick={(_event, node) => {
-						node.data.onOpen({
+						onOpen({
 							key: node.data.ticket.key ?? node.data.ticket.title,
 							project: node.data.project,
 							tracker: node.data.tracker,
 							title: node.data.ticket.title,
 							outside: node.data.outside,
+							...(node.data.ticket.state === undefined
+								? {}
+								: { state: node.data.ticket.state }),
 						});
 					}}
 				>

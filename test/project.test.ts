@@ -268,21 +268,24 @@ describe("GET /api/projects/:name", () => {
 				const epicMap = map?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_Ship_20_the_20_map",
 				);
-				expect(epicMap?.definition).toContain(
-					'acme_2f_widget_23_2["feat(ux): draw the nodes"]:::backlog',
-				);
-				expect(epicMap?.definition).not.toContain("classDef blocked");
-				expect(epicMap?.definition).toContain(
-					"classDef inProgress fill:#f0c674",
-				);
-				expect(epicMap?.definition).toContain("classDef dropped fill:#9ca3af");
-				expect(epicMap?.definition).toContain("classDef backlog fill:#d0d7de");
-				expect(epicMap?.definition).toContain(
-					'Ship_20_the_20_map_3a_Ship_20_the_20_map["Ship the map"]:::theme',
-				);
-				expect(epicMap?.definition).toContain(
-					"github_3a_acme_2f_platform_3a_acme_2f_platform_23_9",
-				);
+				expect(
+					epicMap?.nodes.find((node) => node.ticket === "acme/widget#2"),
+				).toMatchObject({
+					id: "acme_2f_widget_23_2",
+					label: "feat(ux): draw the nodes",
+					state: "backlog",
+				});
+				expect(JSON.stringify(epicMap)).not.toContain("classDef");
+				expect(JSON.stringify(epicMap)).not.toContain("flowchart");
+				expect(
+					epicMap?.nodes.find((node) => node.state === "theme"),
+				).toMatchObject({
+					id: "Ship_20_the_20_map_3a_Ship_20_the_20_map",
+					label: "Ship the map",
+				});
+				expect(
+					epicMap?.nodes.find((node) => node.ticket === "acme/platform#9")?.id,
+				).toBe("github_3a_acme_2f_platform_3a_acme_2f_platform_23_9");
 				const dashed = epicMap?.nodes.find((node) => node.dashed);
 				expect(dashed?.project).toBe("acme/platform");
 				expect(dashed?.ticket).toBe("acme/platform#9");
@@ -299,7 +302,9 @@ describe("GET /api/projects/:name", () => {
 				const october = map?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_October",
 				);
-				expect(october?.definition).not.toContain("acme_2f_widget_23_2");
+				expect(
+					october?.nodes.some((node) => node.id === "acme_2f_widget_23_2"),
+				).toBe(false);
 				const flight = first.sections.find(
 					(section) => section.id === "inFlight",
 				);
@@ -348,12 +353,9 @@ describe("GET /api/projects/:name", () => {
 				const again = (await (
 					await fetch(new URL("/api/projects/Widget%20launch", base))
 				).json()) as ProjectReport;
-				const definitions = (report: ProjectReport) =>
-					report.sections.flatMap(
-						(section) =>
-							section.diagrams?.map((diagram) => diagram.definition) ?? [],
-					);
-				expect(definitions(again)).toEqual(definitions(linearReport));
+				const diagrams = (report: ProjectReport) =>
+					report.sections.flatMap((section) => section.diagrams ?? []);
+				expect(diagrams(again)).toEqual(diagrams(linearReport));
 				expect(linearReport.sections.map((section) => section.title)).toEqual([
 					"Summary",
 					"Feature map",
@@ -374,27 +376,34 @@ describe("GET /api/projects/:name", () => {
 					"map_3a_Beta",
 					"map_3a_Later",
 				]);
-				const beta = linearMap?.diagrams?.[0]?.definition ?? "";
-				expect(beta).not.toContain("WID_2d_2");
-				expect(beta).toContain("Launch epic");
-				expect(beta).toContain('Beta_3a_Launch_20_epic["Launch epic"]:::theme');
+				const beta = linearMap?.diagrams?.[0];
+				expect(beta?.nodes.some((node) => node.id === "WID_2d_2")).toBe(false);
+				expect(beta?.nodes.map((node) => node.label)).toContain("Launch epic");
+				expect(
+					beta?.nodes.find((node) => node.state === "theme"),
+				).toMatchObject({
+					id: "Beta_3a_Launch_20_epic",
+					label: "Launch epic",
+				});
 				const later = linearMap?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_Later",
 				);
-				expect(later?.definition).toContain("WID_2d_2");
-				expect(later?.definition).toContain(":::dashed");
+				expect(later?.nodes.some((node) => node.id === "WID_2d_2")).toBe(true);
+				expect(later?.nodes.some((node) => node.dashed)).toBe(true);
 				const chains = linearReport.sections.find(
 					(section) => section.id === "blockingChains",
 				);
-				expect(chains?.diagrams?.[0]?.definition).toContain("WID_2d_2");
+				expect(
+					chains?.diagrams?.[0]?.nodes.some((node) => node.id === "WID_2d_2"),
+				).toBe(true);
 			},
 		);
 	});
 
 	test("the same tickets in another order give the same diagram definitions", async () => {
 		const reversed = [...githubIssues].reverse();
-		const readMap = async (fetchImpl: Fetch): Promise<string[]> => {
-			let definitions: string[] = [];
+		const readMap = async (fetchImpl: Fetch): Promise<unknown[]> => {
+			let diagrams: unknown[] = [];
 			await withApp(
 				JSON.stringify({
 					pinned: [
@@ -410,13 +419,12 @@ describe("GET /api/projects/:name", () => {
 							new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
 						)
 					).json()) as ProjectReport;
-					definitions =
-						report.sections
-							.find((section) => section.id === "featureMap")
-							?.diagrams?.map((diagram) => diagram.definition) ?? [];
+					diagrams =
+						report.sections.find((section) => section.id === "featureMap")
+							?.diagrams ?? [];
 				},
 			);
-			return definitions;
+			return diagrams;
 		};
 		expect(await readMap(githubFetch(reversed))).toEqual(
 			await readMap(githubFetch()),
@@ -482,7 +490,9 @@ describe("GET /api/projects/:name", () => {
 				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
 					"map_3a_Beta",
 				]);
-				expect(map?.diagrams?.[0]?.definition).toContain("WID_2d_8");
+				expect(
+					map?.diagrams?.[0]?.nodes.some((node) => node.id === "WID_2d_8"),
+				).toBe(true);
 			},
 		);
 	});
@@ -513,8 +523,12 @@ describe("GET /api/projects/:name", () => {
 				const october = map?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_October",
 				);
-				expect(october?.definition).toContain("acme_2f_widget_23_8");
-				expect(october?.definition).not.toContain("acme_2f_widget_23_7");
+				expect(
+					october?.nodes.some((node) => node.id === "acme_2f_widget_23_8"),
+				).toBe(true);
+				expect(
+					october?.nodes.some((node) => node.id === "acme_2f_widget_23_7"),
+				).toBe(false);
 			},
 		);
 	});
@@ -588,9 +602,11 @@ describe("GET /api/projects/:name", () => {
 				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
 					"map_3a_Ship_20_the_20_board",
 				]);
-				expect(map?.diagrams?.[0]?.definition).toContain(
-					"acme_2f_widget_23_32",
-				);
+				expect(
+					map?.diagrams?.[0]?.nodes.some(
+						(node) => node.id === "acme_2f_widget_23_32",
+					),
+				).toBe(true);
 			},
 		);
 	});
@@ -618,16 +634,16 @@ describe("GET /api/projects/:name", () => {
 						?.diagrams?.map((diagram) => diagram.id) ?? [];
 				expect(new Set(ids).size).toBe(ids.length);
 				expect(ids).toHaveLength(2);
-				const definitions =
+				const nodes =
 					report.sections
 						.find((section) => section.id === "featureMap")
-						?.diagrams?.map((diagram) => diagram.definition) ?? [];
-				expect(
-					definitions.some((line) => line.includes("acme_2f_widget_23_21")),
-				).toBe(true);
-				expect(
-					definitions.some((line) => line.includes("acme_2f_widget_23_22")),
-				).toBe(true);
+						?.diagrams?.flatMap((diagram) => diagram.nodes) ?? [];
+				expect(nodes.some((node) => node.id === "acme_2f_widget_23_21")).toBe(
+					true,
+				);
+				expect(nodes.some((node) => node.id === "acme_2f_widget_23_22")).toBe(
+					true,
+				);
 			},
 		);
 	});
@@ -647,12 +663,19 @@ describe("GET /api/projects/:name", () => {
 				const map = report.sections.find(
 					(section) => section.id === "featureMap",
 				);
-				expect(map?.diagrams?.[0]?.definition).toContain(
-					'no_20_workstream_3a_ux["ux"]:::theme',
-				);
-				expect(map?.diagrams?.[0]?.definition).not.toContain(
-					'["feat(ux)!: redraw the nodes"]:::theme',
-				);
+				expect(
+					map?.diagrams?.[0]?.nodes.find((node) => node.state === "theme"),
+				).toMatchObject({
+					id: "no_20_workstream_3a_ux",
+					label: "ux",
+				});
+				expect(
+					map?.diagrams?.[0]?.nodes.some(
+						(node) =>
+							node.state === "theme" &&
+							node.label === "feat(ux)!: redraw the nodes",
+					),
+				).toBe(false);
 			},
 		);
 	});
@@ -694,15 +717,25 @@ describe("GET /api/projects/:name", () => {
 						.filter((node) => node.state === "theme")
 						.map((node) => node.label),
 				).toEqual(["Ship the board"]);
-				expect(october?.definition).toContain(
-					'October_3a_Ship_20_the_20_board["Ship the board"]:::theme',
-				);
-				expect(october?.definition).toContain(
-					"October_3a_Ship_20_the_20_board --> acme_2f_widget_23_11",
-				);
-				expect(october?.definition).not.toContain(
-					'["Draw the legend"]:::theme',
-				);
+				expect(
+					october?.nodes.find((node) => node.state === "theme"),
+				).toMatchObject({
+					id: "October_3a_Ship_20_the_20_board",
+					label: "Ship the board",
+				});
+				expect(
+					october?.edges.some(
+						(edge) =>
+							edge.from === "October_3a_Ship_20_the_20_board" &&
+							edge.to === "acme_2f_widget_23_11",
+					),
+				).toBe(true);
+				expect(
+					october?.nodes.some(
+						(node) =>
+							node.state === "theme" && node.label === "Draw the legend",
+					),
+				).toBe(false);
 			},
 		);
 	});
@@ -731,15 +764,26 @@ describe("GET /api/projects/:name", () => {
 				const october = map?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_October",
 				);
-				expect(october?.definition).toContain(
-					'October_3a_Write_20_the_20_notes["Write the notes"]:::theme',
-				);
-				expect(october?.definition).toContain(
-					"October_3a_Write_20_the_20_notes --> acme_2f_widget_23_7",
-				);
-				expect(october?.definition).toContain(
-					"October_3a_Write_20_the_20_notes --> acme_2f_widget_23_8",
-				);
+				expect(
+					october?.nodes.find((node) => node.state === "theme"),
+				).toMatchObject({
+					id: "October_3a_Write_20_the_20_notes",
+					label: "Write the notes",
+				});
+				expect(
+					october?.edges.filter(
+						(edge) => edge.from === "October_3a_Write_20_the_20_notes",
+					),
+				).toEqual([
+					{
+						from: "October_3a_Write_20_the_20_notes",
+						to: "acme_2f_widget_23_7",
+					},
+					{
+						from: "October_3a_Write_20_the_20_notes",
+						to: "acme_2f_widget_23_8",
+					},
+				]);
 				expect(
 					october?.nodes
 						.filter((node) => node.state === "theme")
@@ -858,16 +902,27 @@ describe("GET /api/projects/:name", () => {
 				expect(map?.diagrams?.map((diagram) => diagram.id)).toEqual([
 					"map_3a_Ship_20_the_20_board",
 				]);
-				const definition = map?.diagrams?.[0]?.definition ?? "";
-				expect(definition).toContain(
-					'Ship_20_the_20_board_3a_Ship_20_the_20_board["Ship the board"]:::theme',
-				);
-				expect(definition).toContain(
-					"Ship_20_the_20_board_3a_Ship_20_the_20_board -->",
-				);
-				expect(definition).toContain("acme_2f_widget_23_11");
-				expect(definition).toContain("acme_2f_widget_23_12");
-				expect(definition).not.toContain("map_3a_October");
+				const drawn = map?.diagrams?.[0];
+				expect(
+					drawn?.nodes.find((node) => node.state === "theme"),
+				).toMatchObject({
+					id: "Ship_20_the_20_board_3a_no_20_scope",
+					label: "no scope",
+				});
+				expect(
+					drawn?.edges.some(
+						(edge) => edge.from === "Ship_20_the_20_board_3a_no_20_scope",
+					),
+				).toBe(true);
+				expect(
+					drawn?.nodes.some((node) => node.id === "acme_2f_widget_23_11"),
+				).toBe(true);
+				expect(
+					drawn?.nodes.some((node) => node.id === "acme_2f_widget_23_12"),
+				).toBe(true);
+				expect(
+					map?.diagrams?.some((diagram) => diagram.id === "map_3a_October"),
+				).toBe(false);
 				const backlog = report.sections.find(
 					(section) => section.id === "backlog",
 				);
@@ -905,12 +960,19 @@ describe("GET /api/projects/:name", () => {
 				const board = map?.diagrams?.find(
 					(diagram) => diagram.id === "map_3a_Ship_20_the_20_board",
 				);
-				expect(board?.definition).toContain(
-					'Ship_20_the_20_board_3a_Draw_20_the_20_legend["Draw the legend"]:::theme',
-				);
-				expect(board?.definition).toContain(
-					"Ship_20_the_20_board_3a_Draw_20_the_20_legend --> acme_2f_widget_23_42",
-				);
+				expect(
+					board?.nodes.find((node) => node.state === "theme"),
+				).toMatchObject({
+					id: "Ship_20_the_20_board_3a_Draw_20_the_20_legend",
+					label: "Draw the legend",
+				});
+				expect(
+					board?.edges.some(
+						(edge) =>
+							edge.from === "Ship_20_the_20_board_3a_Draw_20_the_20_legend" &&
+							edge.to === "acme_2f_widget_23_42",
+					),
+				).toBe(true);
 				const leafEdge = board?.edges.find(
 					(edge) => edge.to === "acme_2f_widget_23_42",
 				);
@@ -957,6 +1019,11 @@ describe("GET /api/projects/:name", () => {
 					`${githubRepo}#8`,
 					`${otherRepo}#9`,
 				]);
+				expect(
+					report.sections
+						.find((section) => section.id === "featureMap")
+						?.diagrams?.some((diagram) => Object.hasOwn(diagram, "definition")),
+				).toBe(false);
 				expect(drawnView?.outsideBlockers).toEqual([
 					{
 						tracker: "github",

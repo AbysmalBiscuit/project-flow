@@ -234,7 +234,6 @@ export type Diagram = {
 	direction: "TD" | "LR";
 	nodes: DiagramNode[];
 	edges: DiagramEdge[];
-	definition: string;
 };
 
 export type ThreadComment = {
@@ -3452,10 +3451,6 @@ function diagramId(value: string): string {
 	return /^[A-Za-z]/.test(id) ? id : `n_${id}`;
 }
 
-function diagramLabel(value: string): string {
-	return value.replace(/"/g, "#quot;");
-}
-
 type Placed = {
 	ticket: Ticket;
 	view: TicketView;
@@ -3635,33 +3630,6 @@ function externalNode(blocker: CrossProjectBlocker): DiagramNode {
 	};
 }
 
-const stateFill: Record<TicketState, string> = {
-	done: "#8fbc8f",
-	dropped: "#9ca3af",
-	backlog: "#d0d7de",
-	inProgress: "#f0c674",
-	inReview: "#9ecbff",
-	awaitingMerge: "#b7e1cd",
-};
-
-function defineDiagram(diagram: Omit<Diagram, "definition">): Diagram {
-	const lines = [`flowchart ${diagram.direction}`];
-	for (const node of diagram.nodes) {
-		const shape = `["${diagramLabel(node.label)}"]`;
-		const klass = node.dashed ? ":::dashed" : `:::${node.state}`;
-		lines.push(`  ${node.id}${shape}${klass}`);
-	}
-	for (const edge of diagram.edges) {
-		lines.push(`  ${edge.from} --> ${edge.to}`);
-	}
-	for (const state of Object.keys(stateFill) as TicketState[]) {
-		lines.push(`  classDef ${state} fill:${stateFill[state]}`);
-	}
-	lines.push("  classDef theme fill:#e8eef7,stroke:#1a5fb4");
-	lines.push("  classDef dashed fill:#fff,stroke:#888,stroke-dasharray: 5 5");
-	return { ...diagram, definition: `${lines.join("\n")}\n` };
-}
-
 function crossNode(
 	key: string,
 	cross: CrossProjectBlocker[],
@@ -3734,15 +3702,13 @@ function featureDiagrams(
 				}
 			}
 		}
-		diagrams.push(
-			defineDiagram({
-				id: diagramId(`map:${workstream}`),
-				title: workstream,
-				direction: "TD",
-				nodes,
-				edges,
-			}),
-		);
+		diagrams.push({
+			id: diagramId(`map:${workstream}`),
+			title: workstream,
+			direction: "TD",
+			nodes,
+			edges,
+		});
 	}
 	return diagrams;
 }
@@ -3794,13 +3760,13 @@ function chainDiagrams(
 		`${left.from} ${left.to}`.localeCompare(`${right.from} ${right.to}`),
 	);
 	return [
-		defineDiagram({
+		{
 			id: "blocking_chains",
 			title: "Blocking chains",
 			direction: "LR",
 			nodes,
 			edges,
-		}),
+		},
 	];
 }
 

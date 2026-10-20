@@ -310,11 +310,13 @@ export function TicketPanel({
 	const trackerName = tracker === "linear" ? "Linear" : "GitHub";
 	const laneName =
 		lane ?? (state === undefined ? undefined : stateLabel[state]);
+	const stateName = state === undefined ? "unknown" : state;
 	return (
 		<aside
 			className={clsx(panel.panel, why === undefined ? null : panel.needs)}
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
+			data-state={stateName}
 		>
 			<div className={clsx(panel.head)}>
 				<span className={clsx(panel.key)}>{ticketKey}</span>

@@ -901,9 +901,13 @@ function Page() {
 	const [panelTracker, setPanelTracker] =
 		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
 	const [open, setOpen] = useState(highlightKey() !== null);
+	const [openedState, setOpenedState] = useState<TicketView["state"] | null>(
+		null,
+	);
 	const [view, setView] = useState<OpenView>("board");
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
+	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	const saveChain = useRef(Promise.resolve());
@@ -976,6 +980,47 @@ function Page() {
 			stop();
 		};
 	}, [name]);
+	const outsideProjects = [
+		...new Set(
+			(report?.tickets ?? []).flatMap((item) =>
+				(item.outsideBlockers ?? []).map((blocker) => blocker.project),
+			),
+		),
+	]
+		.sort((left, right) => left.localeCompare(right))
+		.join("\n");
+	useEffect(() => {
+		if (outsideProjects === "") {
+			setOutsideReports([]);
+			return;
+		}
+		let stopped = false;
+		const names = outsideProjects.split("\n");
+		Promise.all(
+			names.map(async (project) => {
+				const response = await fetch(
+					`/api/projects/${encodeURIComponent(project)}?view=all`,
+				);
+				if (!response.ok) {
+					return null;
+				}
+				return (await response.json()) as ProjectReport;
+			}),
+		)
+			.then((loaded) => {
+				if (!stopped) {
+					setOutsideReports(loaded.flatMap((item) => item ?? []));
+				}
+			})
+			.catch(() => {
+				if (!stopped) {
+					setOutsideReports([]);
+				}
+			});
+		return () => {
+			stopped = true;
+		};
+	}, [outsideProjects]);
 	useEffect(() => {
 		if (!open || ticket === null) {
 			return;
@@ -1076,6 +1121,7 @@ function Page() {
 		saveChain.current = write.catch(() => {});
 	};
 	const openTicketInPanel = (key: string) => {
+		setOpenedState(null);
 		setPanelProject(report.name);
 		setPanelTracker(report.tracker);
 		setTicket(key);
@@ -1086,7 +1132,11 @@ function Page() {
 			key,
 		});
 	};
-	const openOutsideInPanel = (blocker: OutsideBlocker) => {
+	const openOutsideInPanel = (
+		blocker: OutsideBlocker,
+		state?: TicketView["state"],
+	) => {
+		setOpenedState(state ?? null);
 		setPanelReport(null);
 		setPanelProject(blocker.project);
 		setPanelTracker(blocker.tracker);
@@ -1179,11 +1229,12 @@ function Page() {
 					) : view === "graph" ? (
 						<ProjectGraph
 							report={report}
+							reports={outsideReports}
 							direction={settings.graphDirection}
 							openKey={open ? ticket : null}
 							onOpen={(node) => {
 								if (node.outside) {
-									openOutsideInPanel(node);
+									openOutsideInPanel(node, node.state);
 									return;
 								}
 								openTicketInPanel(node.key);
@@ -1206,9 +1257,11 @@ function Page() {
 									? undefined
 									: trackerUrl(panelTracker, selected.key)
 							}
-							{...(selected?.state === undefined
-								? {}
-								: { state: selected.state })}
+							{...(selected?.state !== undefined
+								? { state: selected.state }
+								: openedState === null
+									? {}
+									: { state: openedState })}
 							lane={selected?.lane}
 							laneColour={
 								report.lanes.find((lane) => lane.name === selected?.lane)
