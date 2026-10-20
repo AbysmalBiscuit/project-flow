@@ -339,10 +339,22 @@ function Page() {
 		<Menu
 			settings={settings}
 			onSave={async (next) => {
+				const current = await fetch("/api/settings");
+				const live: unknown = current.ok ? await current.json() : null;
+				const theme =
+					live !== null &&
+					typeof live === "object" &&
+					"theme" in live &&
+					(live.theme === "light" || live.theme === "dark") &&
+					live.theme !== settings.theme
+						? live.theme
+						: next.theme;
 				const response = await fetch("/api/settings", {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify(next),
+					body: JSON.stringify(
+						theme === next.theme ? next : { ...next, theme },
+					),
 				});
 				const body: unknown = await response.json().catch(() => null);
 				if (!response.ok) {

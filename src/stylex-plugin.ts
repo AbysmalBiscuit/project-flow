@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PluginItem } from "@babel/core";
 import babel from "@babel/core";
+import parser from "@babel/parser";
 import stylexBabelPlugin from "@stylexjs/babel-plugin";
 import type { BunPlugin } from "bun";
 
@@ -41,7 +42,103 @@ async function compile(code: string, filename: string): Promise<string> {
 	} else {
 		rules.delete(filename);
 	}
+	if (filename.endsWith("/tokens.stylex.ts")) {
+		themeMeta = themeFromCompile(code, result?.code ?? "");
+	}
 	return result?.code ?? code;
+}
+
+export type PageThemeMeta = {
+	readonly light: string;
+	readonly dark: string;
+	readonly canvas: { readonly light: string; readonly dark: string };
+	readonly ink: { readonly light: string; readonly dark: string };
+};
+
+let themeMeta: PageThemeMeta = {
+	light: "",
+	dark: "",
+	canvas: { light: "", dark: "" },
+	ink: { light: "", dark: "" },
+};
+
+export function pageThemeMeta(): PageThemeMeta {
+	return themeMeta;
+}
+
+function objectExport(source: string, name: string): Map<string, string> {
+	const parsed = parser.parse(source, {
+		sourceType: "module",
+		plugins: ["typescript"],
+	});
+	const values = new Map<string, string>();
+	for (const node of parsed.program.body) {
+		if (
+			node.type !== "ExportNamedDeclaration" ||
+			node.declaration?.type !== "VariableDeclaration"
+		) {
+			continue;
+		}
+		for (const declaration of node.declaration.declarations) {
+			if (
+				declaration.id.type !== "Identifier" ||
+				declaration.id.name !== name ||
+				declaration.init?.type !== "ObjectExpression"
+			) {
+				continue;
+			}
+			for (const property of declaration.init.properties) {
+				if (
+					property.type !== "ObjectProperty" ||
+					property.key.type !== "Identifier" ||
+					property.value.type !== "StringLiteral"
+				) {
+					continue;
+				}
+				values.set(property.key.name, property.value.value);
+			}
+		}
+	}
+	return values;
+}
+
+function compiledVariables(code: string): Map<string, string> {
+	const names = new Map<string, string>();
+	for (const [key, value] of objectExport(code, "colours")) {
+		if (value.startsWith("var(--") && value.endsWith(")")) {
+			names.set(key, value.slice(4, -1));
+		}
+	}
+	return names;
+}
+
+function tokenValues(source: string, name: string): Record<string, string> {
+	return Object.fromEntries(objectExport(source, name));
+}
+
+function declarations(
+	values: Record<string, string>,
+	names: Map<string, string>,
+): string {
+	return Object.entries(values)
+		.map(([key, value]) => {
+			const name = names.get(key);
+			return name === undefined ? "" : `${name}:${value}`;
+		})
+		.filter((item) => item !== "")
+		.join(";");
+}
+
+function themeFromCompile(source: string, code: string): PageThemeMeta {
+	const light = tokenValues(source, "lightValues");
+	const dark = tokenValues(source, "darkValues");
+	const names = compiledVariables(code);
+	return {
+		light: declarations(light, names),
+		dark: declarations(dark, names),
+		canvas: { light: light.canvas ?? "", dark: dark.canvas ?? "" },
+		ink: { light: light.ink ?? "", dark: dark.ink ?? "" },
+	};
 }
 
 function collectedCss(): string {

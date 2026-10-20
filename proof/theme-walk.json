@@ -1,0 +1,23 @@
+{
+	"base_url": "http://127.0.0.1:4174",
+	"serve": ["bun", "proof/restart-theme.ts"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "goto": "/settings" },
+		{ "assert_text": "Poll interval" },
+		{ "fill": "#poll-interval", "text": "90" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "Theme dark" },
+		{ "click": "#save-settings" },
+		{ "assert_text": "Saved" },
+		{ "shot": "theme-chosen" },
+		{ "goto": "http://127.0.0.1:4176/restart" },
+		{ "assert_text": "restarted interval 90" },
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "shot": "theme-restart" },
+		{ "goto": "/settings" },
+		{ "assert_text": "Poll interval" }
+	]
+}
