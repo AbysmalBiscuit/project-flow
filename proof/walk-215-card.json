@@ -1,0 +1,14 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/serve-board.ts", "4173"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "6 of 11 done" },
+		{ "assert_text": "55%" },
+		{ "assert_text": "Backlog 2" },
+		{ "assert_text": "In progress 1" },
+		{ "assert_text": "In review 1" },
+		{ "assert_text": "Awaiting merge 1" },
+		{ "shot": "card-counts" }
+	]
+}
