@@ -5612,6 +5612,11 @@ describe("GET /api/overview", () => {
 	test("a repeated GitHub REST read sends If-None-Match and a 304 keeps the stored data", async () => {
 		const repoName = "acme/validator";
 		const labelsEtag = '"recorded-labels-etag"';
+		const factoryLabels = [
+			{ name: "ready", color: "0e8a16" },
+			{ name: "factory: running", color: "1d76db" },
+			{ name: "factory: in-review", color: "fbca04" },
+		];
 		const sent: { url: string; headers: Headers }[] = [];
 		let labelReads = 0;
 		const recordedFetch: Fetch = async (input, init) => {
@@ -5634,10 +5639,14 @@ describe("GET /api/overview", () => {
 							state_reason: null,
 							html_url: `https://github.com/${repoName}/issues/4`,
 							updated_at: "2026-10-18T12:00:00.000Z",
+							labels: [{ name: "factory: running" }],
 						},
 					],
 					null,
 				);
+			}
+			if (url.includes(`/repos/${repoName}/issues/events?`)) {
+				return page([], null);
 			}
 			if (url.includes(`/repos/${repoName}/labels?`)) {
 				labelReads += 1;
@@ -5647,7 +5656,7 @@ describe("GET /api/overview", () => {
 						headers: { etag: labelsEtag },
 					});
 				}
-				return page([{ name: "bug", color: "d73a4a" }], null, {
+				return page(factoryLabels, null, {
 					etag: labelsEtag,
 				});
 			}
@@ -5696,10 +5705,10 @@ describe("GET /api/overview", () => {
 						{
 							key: `${repoName}#4`,
 							title: "Ticket 4",
-							state: "backlog",
+							state: "inProgress",
 							blockers: [],
-							lane: "Backlog",
-							statusType: "backlog",
+							lane: "factory: running",
+							statusType: "inProgress",
 							enteredStateAt: "2026-10-18T12:00:00.000Z",
 							updatedAt: "2026-10-18T12:00:00.000Z",
 						},
