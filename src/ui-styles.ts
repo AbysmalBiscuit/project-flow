@@ -35,28 +35,6 @@ export const root = stylex.create({
 	},
 });
 
-export const scroll = stylex.create({
-	lane: {
-		position: "fixed",
-		top: 0,
-		right: 0,
-		zIndex: 2,
-		display: "flex",
-		justifyContent: "center",
-		width: space.lg,
-		height: "100%",
-		backgroundColor: colours.scrollbarTrack,
-		pointerEvents: "none",
-	},
-	thumb: {
-		width: space.md,
-		height: "100%",
-		transformOrigin: "top center",
-		borderRadius: radius.pill,
-		backgroundColor: colours.scrollbar,
-	},
-});
-
 export const frame = stylex.create({
 	bar: {
 		display: "flex",

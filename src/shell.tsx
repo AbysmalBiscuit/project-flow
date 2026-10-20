@@ -4,7 +4,7 @@ import { onAppEvent } from "./events.ts";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { frame, scroll, shell } from "./ui-styles.ts";
+import { frame, shell } from "./ui-styles.ts";
 
 export type PageView = {
 	id: string;
@@ -63,36 +63,6 @@ const links = [
 
 function openCount(body: unknown): number {
 	return Array.isArray(body) ? body.length : 0;
-}
-
-function Scrollbar() {
-	const [thumb, setThumb] = useState(0);
-	useEffect(() => {
-		const measure = () => {
-			const page = document.documentElement.scrollHeight;
-			const view = window.innerHeight;
-			setThumb(page <= view ? 0 : view / page);
-		};
-		measure();
-		const observer = new ResizeObserver(measure);
-		observer.observe(document.body);
-		window.addEventListener("resize", measure);
-		return () => {
-			observer.disconnect();
-			window.removeEventListener("resize", measure);
-		};
-	}, []);
-	if (thumb === 0) {
-		return null;
-	}
-	return (
-		<div className={clsx(scroll.lane)} data-scrollbar="" aria-hidden="true">
-			<div
-				className={clsx(scroll.thumb)}
-				style={{ transform: `scaleY(${thumb})` }}
-			/>
-		</div>
-	);
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -184,7 +154,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 					⚙
 				</a>
 			</header>
-			<Scrollbar />
 			{children}
 		</>
 	);
