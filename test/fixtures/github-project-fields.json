@@ -1,0 +1,108 @@
+{
+	"data": {
+		"node": {
+			"fields": {
+				"nodes": [
+					{},
+					{},
+					{
+						"id": "PVTSSF_lAHOAXki-s4BnnNWzhmK-oY",
+						"name": "Status",
+						"options": [
+							{
+								"id": "f75ad846",
+								"name": "Backlog",
+								"color": "GREEN"
+							},
+							{
+								"id": "61e4505c",
+								"name": "Ready",
+								"color": "BLUE"
+							},
+							{
+								"id": "47fc9ee4",
+								"name": "In progress",
+								"color": "YELLOW"
+							},
+							{
+								"id": "df73e18b",
+								"name": "In review",
+								"color": "PURPLE"
+							},
+							{
+								"id": "98236657",
+								"name": "Done",
+								"color": "ORANGE"
+							}
+						]
+					},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{},
+					{
+						"id": "PVTSSF_lAHOAXki-s4BnnNWzhmK-ww",
+						"name": "Priority",
+						"options": [
+							{
+								"id": "79628723",
+								"name": "P0",
+								"color": "RED"
+							},
+							{
+								"id": "0a877460",
+								"name": "P1",
+								"color": "ORANGE"
+							},
+							{
+								"id": "da944a9c",
+								"name": "P2",
+								"color": "YELLOW"
+							}
+						]
+					},
+					{
+						"id": "PVTSSF_lAHOAXki-s4BnnNWzhmK-w0",
+						"name": "Size",
+						"options": [
+							{
+								"id": "6c6483d2",
+								"name": "XS",
+								"color": "GREEN"
+							},
+							{
+								"id": "f784b110",
+								"name": "S",
+								"color": "PURPLE"
+							},
+							{
+								"id": "7515a9f1",
+								"name": "M",
+								"color": "RED"
+							},
+							{
+								"id": "817d0097",
+								"name": "L",
+								"color": "YELLOW"
+							},
+							{
+								"id": "db339eb2",
+								"name": "XL",
+								"color": "PINK"
+							}
+						]
+					},
+					{},
+					{},
+					{}
+				]
+			}
+		}
+	}
+}

@@ -1,0 +1,211 @@
+[
+	{
+		"id": 12750422741,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wC1Q",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/accessibility",
+		"name": "accessibility",
+		"color": "f143ab",
+		"default": true,
+		"description": "Barrier affecting people with disabilities",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422723,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wCww",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/bug",
+		"name": "bug",
+		"color": "d73a4a",
+		"default": true,
+		"description": "Something isn't working",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422756,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wC5A",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/documentation",
+		"name": "documentation",
+		"color": "0075ca",
+		"default": true,
+		"description": "Improvements or additions to documentation",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426236,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wQfA",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/done",
+		"name": "done",
+		"color": "5319e7",
+		"default": false,
+		"description": "Terminal",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422772,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wC9A",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/duplicate",
+		"name": "duplicate",
+		"color": "cfd3d7",
+		"default": true,
+		"description": "This issue or pull request already exists",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422785,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wDAQ",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/enhancement",
+		"name": "enhancement",
+		"color": "a2eeef",
+		"default": true,
+		"description": "New feature or request",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426407,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wRJw",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/factory:%20done",
+		"name": "factory: done",
+		"color": "0e8a16",
+		"default": false,
+		"description": "Terminal",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426352,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wQ8A",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/factory:%20in-review",
+		"name": "factory: in-review",
+		"color": "fbca04",
+		"default": false,
+		"description": "Sortie sets this after a successful run",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426593,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wR4Q",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/factory:%20need-engineer",
+		"name": "factory: need-engineer",
+		"color": "b60205",
+		"default": false,
+		"description": "The issue waits on an engineer",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426489,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wReQ",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/factory:%20need-human",
+		"name": "factory: need-human",
+		"color": "d93f0b",
+		"default": false,
+		"description": "The issue waits on a person",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426662,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wSJg",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/factory:%20on-behalf",
+		"name": "factory: on-behalf",
+		"color": "c5def5",
+		"default": false,
+		"description": "PR author is Lev; the agent is the co-author. #169 writes this label. This PR does not.",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426308,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wQxA",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/factory:%20running",
+		"name": "factory: running",
+		"color": "1d76db",
+		"default": false,
+		"description": "Sortie sets this when it dispatches",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422805,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wDFQ",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/good%20first%20issue",
+		"name": "good first issue",
+		"color": "7057ff",
+		"default": true,
+		"description": "Good for newcomers",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422794,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wDCg",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/help%20wanted",
+		"name": "help wanted",
+		"color": "008672",
+		"default": true,
+		"description": "Extra attention is needed",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422816,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wDIA",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/invalid",
+		"name": "invalid",
+		"color": "e4e669",
+		"default": true,
+		"description": "This doesn't seem right",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426138,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wQGg",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/no-dispatch",
+		"name": "no-dispatch",
+		"color": "b60205",
+		"default": false,
+		"description": "Sortie never claims an issue that carries this",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422825,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wDKQ",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/question",
+		"name": "question",
+		"color": "d876e3",
+		"default": true,
+		"description": "Further information is requested",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750426065,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wP0Q",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/ready",
+		"name": "ready",
+		"color": "0e8a16",
+		"default": false,
+		"description": "Sortie claims an open issue that carries this",
+		"archived_at": null,
+		"archived_by": null
+	},
+	{
+		"id": 12750422838,
+		"node_id": "LA_kwDOVPZCbc8AAAAC9_wDNg",
+		"url": "https://api.github.com/repos/adaptyvbio/workcell-github-sandbox/labels/wontfix",
+		"name": "wontfix",
+		"color": "ffffff",
+		"default": true,
+		"description": "This will not be worked on",
+		"archived_at": null,
+		"archived_by": null
+	}
+]
