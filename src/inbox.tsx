@@ -64,10 +64,8 @@ function trackerOf(key: string): "github" | "linear" {
 	return key.includes("#") ? "github" : "linear";
 }
 
-const seenFlag = "read" as const;
-
 function asRead(entry: Notification): Notification {
-	return { ...entry, [seenFlag]: true };
+	return { ...entry, read: true };
 }
 
 function marked(entries: Notification[]): Notification[] {
@@ -76,7 +74,7 @@ function marked(entries: Notification[]): Notification[] {
 
 const readBody = JSON.stringify({ read: true });
 
-async function saveSeen(id: string | null): Promise<boolean> {
+async function saveRead(id: string | null): Promise<boolean> {
 	const path =
 		id === null ? "/api/inbox" : `/api/inbox/${encodeURIComponent(id)}`;
 	const response = await fetch(path, {
@@ -120,7 +118,7 @@ function InboxList({
 			entry.id === id ? { ...entry, read: true } : entry,
 		);
 		onChange(next);
-		void saveSeen(id).then((saved) => {
+		void saveRead(id).then((saved) => {
 			if (!saved) {
 				onChange(entries);
 			}
@@ -201,7 +199,7 @@ function InboxList({
 						onClick={() => {
 							const previous = entries;
 							onChange(marked(previous));
-							void saveSeen(null).then((saved) => {
+							void saveRead(null).then((saved) => {
 								if (!saved) {
 									onChange(previous);
 								}
