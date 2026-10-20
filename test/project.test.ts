@@ -1614,6 +1614,39 @@ describe("GET /api/projects/:name", () => {
 					"event: overview",
 				);
 				await reader?.cancel();
+				const repeated = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...left,
+						projectViews: {
+							[githubRepo]: { search: "map  map", assignees: ["  ada  "] },
+						},
+					}),
+				});
+				expect(repeated.status).toBe(200);
+				const spaced = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					spaced.tickets.flatMap((ticket) =>
+						ticket.key === null ? [] : [ticket.key],
+					),
+				).toEqual([]);
+				const failed = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: "not json",
+				});
+				expect(failed.status).toBe(400);
+				const kept = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, { search: string }>;
+				};
+				expect(kept.projectViews[githubRepo]?.search).toBe("map  map");
 			},
 			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
