@@ -436,6 +436,10 @@ type IssueFilter = {
 	project?: { id?: { eq?: string } };
 	updatedAt?: { gte?: string };
 	comments?: { updatedAt?: { gte?: string } };
+	or?: {
+		updatedAt?: { gte?: string };
+		comments?: { updatedAt?: { gte?: string } };
+	}[];
 };
 
 function linearIssueFilter(body: string): IssueFilter | null {
@@ -450,7 +454,13 @@ function linearIssueFilter(body: string): IssueFilter | null {
 }
 
 function linearListSince(body: string): string | null {
-	return linearIssueFilter(body)?.updatedAt?.gte ?? null;
+	const filter = linearIssueFilter(body);
+	return (
+		filter?.updatedAt?.gte ??
+		filter?.or?.find((branch) => branch.updatedAt?.gte !== undefined)?.updatedAt
+			?.gte ??
+		null
+	);
 }
 
 function linearPinFetch(requests: string[]): Fetch {
@@ -503,7 +513,7 @@ function linearPinFetch(requests: string[]): Fetch {
 			}
 			if (
 				filter !== null &&
-				filter.updatedAt !== undefined &&
+				linearListSince(body) !== null &&
 				requests.filter((item) => linearListSince(item) !== null).length === 1
 			) {
 				return new Response("recorded failure", { status: 500 });
@@ -1525,7 +1535,10 @@ describe("live updates", () => {
 				expect(filters[0]?.updatedAt).toBeUndefined();
 				expect(filters[1]).toEqual({
 					project: { id: { eq: "project-1" } },
-					updatedAt: { gte: goodPoll },
+					or: [
+						{ updatedAt: { gte: goodPoll } },
+						{ comments: { updatedAt: { gte: goodPoll } } },
+					],
 				});
 			},
 			[{ tracker: "linear", project: linearProject }],
@@ -1568,7 +1581,7 @@ describe("live updates", () => {
 				});
 				expect(again.status).toBe(204);
 				const lists = requests.map(linearListSince);
-				expect(lists).toEqual([null, goodPoll, goodPoll, null]);
+				expect(lists).toEqual([null, goodPoll, goodPoll]);
 				const body = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
@@ -1869,7 +1882,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				expect(requests.map(linearListSince)).toEqual([null, goodPoll, null]);
+				expect(requests.map(linearListSince)).toEqual([null, goodPoll]);
 				const body = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
@@ -1905,8 +1918,7 @@ describe("live updates", () => {
 		const issue = (stage: string): Record<string, unknown> => ({
 			...linearIssue("1"),
 			title: "Live run",
-			// A comment edit does not move the issue time. Linear's filtering
-			// docs: https://linear.app/developers/filtering
+			// Assume a comment edit leaves the issue updatedAt.
 			updatedAt: createdAt,
 			comments: {
 				nodes: [progress(stage)],
@@ -1963,10 +1975,11 @@ describe("live updates", () => {
 					return new Response("not recorded", { status: 404 });
 				}
 				requests.push(body);
+				const since = linearListSince(body);
 				const nodes =
-					filter.comments !== undefined
+					filter.or?.some((branch) => branch.comments !== undefined) === true
 						? [issue("4")]
-						: filter.updatedAt === undefined
+						: since === null
 							? [issue("1")]
 							: [];
 				return new Response(linearPage(nodes), {
@@ -2000,15 +2013,6 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				expect(requests.map(linearListSince)).toEqual([null, goodPoll, null]);
-				const commentFilters = requests
-					.map(linearIssueFilter)
-					.filter((filter) => filter?.comments !== undefined);
-				expect(commentFilters).toHaveLength(1);
-				expect(commentFilters[0]?.updatedAt).toBeUndefined();
-				expect(commentFilters[0]?.comments).toEqual({
-					updatedAt: { gte: goodPoll },
-				});
 				const body = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
@@ -2030,6 +2034,18 @@ describe("live updates", () => {
 				).json()) as { key: string; reason: string }[];
 				expect(needsYou.filter((row) => row.key === "WID-1")).toEqual([]);
 				expect(body.error).toBeNull();
+				expect(requests.map(linearListSince)).toEqual([null, goodPoll]);
+				const commentFilters = requests
+					.map(linearIssueFilter)
+					.filter((filter) =>
+						filter?.or?.some((branch) => branch.comments !== undefined),
+					);
+				expect(commentFilters).toHaveLength(1);
+				expect(commentFilters[0]?.updatedAt).toBeUndefined();
+				expect(commentFilters[0]?.or).toEqual([
+					{ updatedAt: { gte: goodPoll } },
+					{ comments: { updatedAt: { gte: goodPoll } } },
+				]);
 			},
 			[{ tracker: "linear", project: linearProject }],
 			{
