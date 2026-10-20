@@ -160,6 +160,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}
+					<span className={clsx(frame.legend)}>
+						{navLabel.theme} {theme}
+					</span>
 				</button>
 				<a
 					className={clsx(

@@ -37,13 +37,18 @@ const server = Bun.serve({
 			return new Response(null, { status: 404 });
 		}
 		const deadline = Date.now() + 8_000;
+		let interval = "";
 		while (Date.now() < deadline) {
 			const settings = await fetch(new URL("/api/settings", page)).catch(
 				() => null,
 			);
 			if (settings?.ok) {
-				const body = (await settings.json()) as { theme?: string };
+				const body = (await settings.json()) as {
+					theme?: string;
+					pollIntervalSeconds?: number;
+				};
 				if (body.theme === "dark") {
+					interval = String(body.pollIntervalSeconds ?? "");
 					break;
 				}
 			}
@@ -65,8 +70,15 @@ const server = Bun.serve({
 			if (probe?.ok) {
 				const html = await probe.text();
 				if (html.includes('data-theme="dark"')) {
+					const settings = await fetch(new URL("/api/settings", page)).catch(
+						() => null,
+					);
+					const body = settings?.ok
+						? ((await settings.json()) as { pollIntervalSeconds?: number })
+						: null;
+					const saved = String(body?.pollIntervalSeconds ?? interval);
 					return new Response(
-						'<!doctype html><html style="background-color:#000000;color:#ededed"><body>restarted</body></html>',
+						`<!doctype html><html style="background-color:#000000;color:#ededed"><body>restarted interval ${saved}</body></html>`,
 						{ headers: { "content-type": "text/html;charset=utf-8" } },
 					);
 				}
