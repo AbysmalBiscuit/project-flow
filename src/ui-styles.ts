@@ -862,7 +862,7 @@ export const cards = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.kicker,
 		fontWeight: type.weight,
-		letterSpacing: "0.06em",
+		letterSpacing: type.kickerTrack,
 		textTransform: "uppercase",
 	},
 	more: {
@@ -1335,7 +1335,7 @@ export const needs = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.kicker,
 		fontWeight: type.weight,
-		letterSpacing: "0.06em",
+		letterSpacing: type.kickerTrack,
 		textTransform: "uppercase",
 	},
 	whyBody: {
@@ -1533,7 +1533,7 @@ export const board = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.lane,
 		fontWeight: type.weight,
-		letterSpacing: "0.06em",
+		letterSpacing: type.kickerTrack,
 		textTransform: "uppercase",
 	},
 	cards: {

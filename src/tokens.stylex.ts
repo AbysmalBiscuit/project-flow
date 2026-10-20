@@ -235,6 +235,7 @@ export const type = stylex.defineVars({
 	meta: "0.78rem",
 	count: "0.88rem",
 	kicker: "0.68rem",
+	kickerTrack: "0.06em",
 	nav: "0.875rem",
 });
 
