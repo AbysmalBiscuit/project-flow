@@ -203,7 +203,8 @@ export const space = stylex.defineVars({
 	xl: "1.5rem",
 	pageInset: "5rem",
 	navGap: "0.35rem",
-	twoXl: "2.65rem",
+	twoXl: "2rem",
+	pageTop: "2.65rem",
 	threeXl: "2.5rem",
 });
 

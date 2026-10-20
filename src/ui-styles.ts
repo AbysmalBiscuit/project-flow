@@ -199,7 +199,7 @@ export const frame = stylex.create({
 		maxWidth: "none",
 		width: "100%",
 		margin: 0,
-		padding: `${space.twoXl} ${space.pageInset} ${space.threeXl}`,
+		padding: `${space.pageTop} ${space.pageInset} ${space.threeXl}`,
 		backgroundColor: colours.page,
 	},
 	fill: {
