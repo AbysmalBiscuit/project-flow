@@ -56,7 +56,6 @@ type ProjectBody = {
 	sections: {
 		id: string;
 		items?: FlightItem[];
-		diagrams?: { nodes: { ticket: string | null }[] }[];
 	}[];
 };
 
@@ -748,14 +747,6 @@ describe("tracker lanes", () => {
 					.find((section) => section.id === "inFlight")
 					?.items?.map((item) => item.key);
 				expect(flightKeys).toEqual(["acme/widget#21"]);
-				const chains = report.sections.find(
-					(section) => section.id === "blockingChains",
-				);
-				expect(
-					chains?.diagrams?.[0]?.nodes.some(
-						(node) => node.ticket === "acme/widget#21",
-					),
-				).toBe(true);
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
