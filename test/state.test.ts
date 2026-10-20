@@ -532,7 +532,7 @@ async function git(args: string[], cwd: string): Promise<string> {
 
 async function devkitWorktree(options: {
 	key: string;
-	status: "running" | "failed";
+	status: "running" | "starting" | "failed";
 	mergeAuto?: "yes" | "ask" | "no";
 	repo?: string;
 	manager?: string;
@@ -569,20 +569,20 @@ async function devkitWorktree(options: {
 		await readFile(
 			join(
 				fixtureDir,
-				options.status === "running"
-					? "state-running.json"
-					: "state-failed.json",
+				options.status === "failed"
+					? "state-failed.json"
+					: "state-running.json",
 			),
 			"utf8",
 		),
 	) as { status: string };
 	await writeFile(
 		join(worktree, ".devkit", "workcell", "state.json"),
-		JSON.stringify(
-			options.manager === undefined
-				? recorded
-				: { ...recorded, manager: options.manager },
-		),
+		JSON.stringify({
+			...recorded,
+			status: options.status,
+			...(options.manager === undefined ? {} : { manager: options.manager }),
+		}),
 	);
 	if (options.mergeAuto !== undefined) {
 		const manifest = await readFile(join(fixtureDir, "workcell.toml"), "utf8");
@@ -979,12 +979,9 @@ describe("forward state", () => {
 			status: "running",
 			manager: "manager-144-unread",
 		});
-		const herdr = await fakeHerdr(
-			`#!/usr/bin/env bun
-const body = process.env.HERDR_BODY ?? '{"result":{"agents":[]}}';
-console.log(body);
-`,
-		);
+		const herdr = await fakeHerdr(`#!/usr/bin/env bun
+console.log("not json {");
+`);
 		try {
 			await withApp(
 				JSON.stringify({
@@ -994,7 +991,6 @@ console.log(body);
 				{
 					LINEAR_API_KEY: "recorded-linear-key",
 					PATH: `${herdr.path}:${process.env.PATH ?? ""}`,
-					HERDR_BODY: "not json {",
 				},
 				async (base) => {
 					const report = await projectOf(base, "Widget launch");
@@ -1017,25 +1013,9 @@ console.log(body);
 	test("a starting run whose manager agent is gone is stalled in needs-you", async () => {
 		const checkout = await devkitWorktree({
 			key: "WID-13",
-			status: "running",
-			manager: "  manager-144-starting  ",
+			status: "starting",
+			manager: "manager-144-starting",
 		});
-		const statePath = join(
-			checkout.root,
-			"acme",
-			"widget_workspaces",
-			"WID-13-feat",
-			".devkit",
-			"workcell",
-			"state.json",
-		);
-		const recorded = JSON.parse(await readFile(statePath, "utf8")) as {
-			manager: string;
-		};
-		await writeFile(
-			statePath,
-			JSON.stringify({ status: "starting", manager: recorded.manager }),
-		);
 		const herdr = await fakeHerdr(
 			`#!/usr/bin/env bun
 console.log(JSON.stringify({ result: { agents: [] } }));
