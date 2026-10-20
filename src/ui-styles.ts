@@ -458,6 +458,10 @@ export const shell = stylex.create({
 		},
 		outlineOffset: space.twoXs,
 	},
+	disabled: {
+		opacity: 0.5,
+		cursor: "not-allowed",
+	},
 	pressed: {
 		backgroundColor: colours.accent,
 		borderColor: colours.accent,
@@ -1260,6 +1264,12 @@ export const needs = stylex.create({
 		gap: space.sm,
 		alignItems: "center",
 	},
+	actions: {
+		display: "flex",
+		flexShrink: 0,
+		gap: space.sm,
+		marginLeft: "auto",
+	},
 });
 
 export const inbox = stylex.create({
@@ -1779,6 +1789,61 @@ export const panel = stylex.create({
 		margin: `0 ${space.md} ${space.md}`,
 		padding: 0,
 		listStyle: "none",
+	},
+	section: {
+		margin: `${space.lg} 0`,
+	},
+	label: {
+		margin: `0 0 ${space.xs}`,
+		color: colours.inkMuted,
+		fontSize: type.small,
+		fontWeight: type.weight,
+		letterSpacing: type.track,
+		textTransform: "uppercase",
+	},
+	question: {
+		margin: `0 0 ${space.sm}`,
+	},
+	options: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.sm,
+		margin: 0,
+		padding: 0,
+		listStyle: "none",
+	},
+	option: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "center",
+		width: "100%",
+		padding: space.sm,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.line,
+		borderRadius: radius.sm,
+		backgroundColor: colours.canvas,
+		color: colours.ink,
+		font: "inherit",
+		textAlign: "left",
+		cursor: "pointer",
+	},
+	number: {
+		display: "inline-flex",
+		flexShrink: 0,
+		alignItems: "center",
+		justifyContent: "center",
+		width: measure.icon,
+		height: measure.icon,
+		borderRadius: radius.sm,
+		backgroundColor: colours.surfaceMuted,
+		color: colours.inkMuted,
+		fontSize: type.small,
+	},
+	status: {
+		margin: `0 0 ${space.xs}`,
+		color: colours.inkMuted,
+		fontSize: type.small,
 	},
 });
 

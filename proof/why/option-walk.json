@@ -1,0 +1,18 @@
+{
+	"base_url": "http://127.0.0.1:4175",
+	"serve": [
+		"/bin/sh",
+		"/home/lev/git/github/AbysmalBiscuit/project-flow_workspaces/113-feat-show-why-an-item-needs-you/proof/serve-why.sh",
+		"4175"
+	],
+	"steps": [
+		{ "goto": "/needs-you" },
+		{ "click": "[data-needs='acme/widget#7'] button" },
+		{ "assert_text": "WHY THIS NEEDS YOU" },
+		{ "assert_text": "Which bot should review this?" },
+		{ "assert_text": "Keep the current bot" },
+		{ "click": "[data-option='1']" },
+		{ "assert_text": "Answered" },
+		{ "shot": "option-answered" }
+	]
+}
