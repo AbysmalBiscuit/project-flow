@@ -3044,6 +3044,7 @@ describe("GET /api/overview", () => {
 				projects: [],
 				fetchedAt: empty.fetchedAt,
 				error: null,
+				tracked: false,
 			});
 		} finally {
 			await cleanup();
@@ -3379,6 +3380,7 @@ describe("GET /api/overview", () => {
 				projects: [],
 				fetchedAt: empty.fetchedAt,
 				error: null,
+				tracked: false,
 			});
 		} finally {
 			await cleanup();

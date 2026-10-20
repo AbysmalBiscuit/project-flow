@@ -666,6 +666,7 @@ export type Overview = {
 	fetchedAt: string | null;
 	error: string | null;
 	polling?: true;
+	tracked?: false;
 };
 
 export type FetchStatus = {

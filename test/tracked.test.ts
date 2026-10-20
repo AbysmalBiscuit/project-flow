@@ -96,6 +96,33 @@ function membership(sent: string[]): Fetch {
 					},
 				});
 			}
+			if (operation === "ProjectByNumber") {
+				return json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: "PVT_closed",
+								number: 9,
+								title: "Closed board",
+								closed: true,
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+						},
+					},
+				});
+			}
+			if (operation === "ProjectItems") {
+				return json({
+					data: {
+						node: {
+							items: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
 			return json({ data: { node: { fields: { nodes: [{}] } } } });
 		}
 		if (url === "https://api.linear.app/graphql") {
@@ -153,12 +180,11 @@ type Started = {
 	sent: string[];
 };
 
-async function serve<T>(
-	body: string,
+async function serveFile<T>(
+	path: string,
 	root: string,
 	check: (base: string, sent: readonly string[]) => Promise<T>,
 ): Promise<{ checked: T; sent: string[] }> {
-	const { path, cleanup } = await tempConfig(body);
 	const sent: string[] = [];
 	let startChecks: (base: string) => void = () => {};
 	const checked = new Promise<T>((resolve, reject) => {
@@ -166,28 +192,48 @@ async function serve<T>(
 			check(base, sent).then(resolve, reject);
 		};
 	});
+	const result = await run(
+		["--config", path, "--host", "127.0.0.1", "--port", "0"],
+		testIo({
+			env: {
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
+			fetch: membership(sent),
+			readGhToken: async () => null,
+			databasePath: join(root, "project-flow.sqlite"),
+			now: () => new Date("2026-08-18T12:00:00.000Z"),
+			stdout: (line) => startChecks(line),
+			waitForStop: checked.then(() => undefined),
+		}),
+	);
+	expect(result.stderr).toBe("");
+	expect(result.exitCode).toBe(0);
+	return { checked: await checked, sent };
+}
+
+async function serve<T>(
+	body: string,
+	root: string,
+	check: (base: string, sent: readonly string[]) => Promise<T>,
+): Promise<{ checked: T; sent: string[] }> {
+	const { path, cleanup } = await tempConfig(body);
 	try {
-		const result = await run(
-			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			testIo({
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "recorded-linear-key",
-				},
-				fetch: membership(sent),
-				readGhToken: async () => null,
-				databasePath: join(root, "project-flow.sqlite"),
-				now: () => new Date("2026-08-18T12:00:00.000Z"),
-				stdout: (line) => startChecks(line),
-				waitForStop: checked.then(() => undefined),
-			}),
-		);
-		expect(result.stderr).toBe("");
-		expect(result.exitCode).toBe(0);
-		return { checked: await checked, sent };
+		return await serveFile(path, root, check);
 	} finally {
 		await cleanup();
 	}
+}
+
+async function startFromFile(path: string, root: string): Promise<Started> {
+	const { checked, sent } = await serveFile(path, root, (base) =>
+		Promise.all([
+			read<Overview>(base, "/api/overview"),
+			read<Started["settings"]>(base, "/api/settings"),
+		]),
+	);
+	const [overview, settings] = checked;
+	return { overview, settings, sent };
 }
 
 async function read<T>(base: string, path: string): Promise<T> {
@@ -333,6 +379,165 @@ describe("tracked projects", () => {
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
+	});
+
+	test("a switch turned on through the API adds the project to the next poll, and a switch turned off removes it", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const repo1 = { tracker: "github", repo: "acme/repo-1" };
+		const save = async (base: string, tracked: unknown[]) => {
+			const current = await read<Configuration>(base, "/api/settings");
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...current,
+					tracked,
+					baselineTracked: current.tracked,
+				}),
+			});
+			expect(saved.status).toBe(200);
+		};
+		try {
+			const { checked } = await serve("{}", root, async (base, sent) => {
+				const before = sent.length;
+				await save(base, [repo1]);
+				const added = sent.slice(before);
+				const on = await read<Overview>(base, "/api/overview");
+				const afterOn = sent.length;
+				await save(base, []);
+				return {
+					added,
+					removed: sent.slice(afterOn),
+					on,
+					off: await read<Overview>(base, "/api/overview"),
+				};
+			});
+			expect(checked.added).toContain(
+				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1",
+			);
+			expect(checked.on.projects.map((project) => project.name)).toContain(
+				"acme/repo-1",
+			);
+			expect(checked.on.tracked).toBeUndefined();
+			expect(
+				checked.removed.filter((request) =>
+					request.includes("/repo-1/issues?"),
+				),
+			).toEqual([]);
+			expect(
+				checked.removed.some((request) =>
+					request.includes("user/repos?affiliation="),
+				),
+			).toBe(true);
+			expect(checked.off.projects).toEqual([]);
+			expect(checked.off.tracked).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank switch write and a repeated off leave the next poll with no tracked project", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const repo1 = { tracker: "github", repo: "acme/repo-1" };
+		const save = async (base: string, tracked: unknown) => {
+			const current = await read<Configuration>(base, "/api/settings");
+			return fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...current,
+					tracked,
+					baselineTracked: current.tracked,
+				}),
+			});
+		};
+		try {
+			const { checked } = await serve(
+				JSON.stringify({ tracked: [repo1] }),
+				root,
+				async (base, sent) => {
+					const blank = await save(base, "   ");
+					const blankBody = (await blank.json()) as { error?: string };
+					const before = sent.length;
+					const off = await save(base, []);
+					const again = await save(base, []);
+					return {
+						blankStatus: blank.status,
+						blankError: blankBody.error ?? "",
+						offStatus: off.status,
+						againStatus: again.status,
+						removed: sent
+							.slice(before)
+							.filter((request) => request.includes("/repo-1/issues?")),
+						overview: await read<Overview>(base, "/api/overview"),
+					};
+				},
+			);
+			expect(checked.blankStatus).toBe(400);
+			expect(checked.blankError).toContain("tracked");
+			expect(checked.offStatus).toBe(200);
+			expect(checked.againStatus).toBe(200);
+			expect(checked.removed).toEqual([]);
+			expect(checked.overview.projects).toEqual([]);
+			expect(checked.overview.tracked).toBe(false);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("the switch state persists across a restart", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const repo1 = { tracker: "github", repo: "acme/repo-1" };
+		const { path, cleanup } = await tempConfig("{}");
+		try {
+			const turnedOn = await serveFile(path, root, async (base) => {
+				const current = await read<Configuration>(base, "/api/settings");
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						tracked: [repo1],
+						baselineTracked: current.tracked,
+					}),
+				});
+				expect(saved.status).toBe(200);
+				return read<Overview>(base, "/api/overview");
+			});
+			expect(
+				turnedOn.checked.projects.map((project) => project.name),
+			).toContain("acme/repo-1");
+			const restarted = await startFromFile(path, root);
+			expect(restarted.settings.tracked).toEqual([
+				{ tracker: "github" as const, repo: "acme/repo-1" },
+			]);
+			expect(
+				restarted.overview.projects.map((project) => project.name),
+			).toEqual(["acme/repo-1"]);
+			expect(
+				restarted.sent.filter((request) =>
+					request.includes("/repos/acme/repo-1/issues?"),
+				),
+			).toEqual([
+				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1&since=2026-08-18T12%3A00%3A00.000Z",
+			]);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a tracked closed project stays off the overview and does not count as untracked", async () => {
+		const { overview, settings } = await startWith(
+			JSON.stringify({
+				tracked: [{ tracker: "github", owner: "acme", project: 9 }],
+			}),
+		);
+		expect(overview.projects).toEqual([]);
+		expect(overview.tracked).toBeUndefined();
+		expect(
+			settings.projects.filter((project) => project.tracked).map((p) => p.key),
+		).toEqual(["PVT_closed"]);
 	});
 
 	test("a configuration file with pinned and hidden loads and its pinned projects are tracked", async () => {
