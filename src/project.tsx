@@ -984,6 +984,8 @@ function Page() {
 	panelProjectRef.current = panelProject;
 	const [panelTracker, setPanelTracker] =
 		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
+	const panelTrackerRef = useRef(panelTracker);
+	panelTrackerRef.current = panelTracker;
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [openedState, setOpenedState] = useState<TicketView["state"] | null>(
 		null,
@@ -1002,7 +1004,12 @@ function Page() {
 		if (active === null) {
 			return;
 		}
-		setPanelReport(null);
+		if (
+			active.project !== panelProjectRef.current ||
+			active.tracker !== panelTrackerRef.current
+		) {
+			setPanelReport(null);
+		}
 		setPanelProject(active.project);
 		setPanelTracker(active.tracker);
 		setTicket(active.key);
