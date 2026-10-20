@@ -580,6 +580,25 @@ function TableView({ projects }: { projects: ProjectCounts[] }) {
 	);
 }
 
+function NotifyIcon() {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5" />
+			<path d="M5 16.5h14" />
+			<path d="M10 19a2 2 0 0 0 4 0" />
+		</svg>
+	);
+}
+
 function RefreshIcon() {
 	return (
 		<svg
@@ -897,32 +916,36 @@ function OverviewPage({
 					)}
 				</div>
 			</div>
-			<button
-				type="button"
-				id="overview-refresh"
-				className={clsx(frame.icon, shell.buttonFocus)}
-				aria-label="Refresh"
-				title="Refresh"
-				onClick={() => {
-					void fetch("/api/refresh", { method: "POST" });
-				}}
-			>
-				<RefreshIcon />
-			</button>
-			{notifyPermission === "default" && typeof Notification !== "undefined" ? (
+			<div className={clsx(frame.actions)}>
 				<button
 					type="button"
-					id="notify-permission"
-					className={clsx(frame.legend)}
+					id="overview-refresh"
+					className={clsx(frame.icon, shell.buttonFocus)}
+					aria-label="Refresh"
+					title="Refresh"
 					onClick={() => {
-						void askNotificationPermission().finally(() => {
-							setNotifyPermission(notificationPermission());
-						});
+						void fetch("/api/refresh", { method: "POST" });
 					}}
 				>
-					Allow notifications
+					<RefreshIcon />
 				</button>
-			) : null}
+				{notifyPermission === "default" &&
+				typeof Notification !== "undefined" ? (
+					<button
+						type="button"
+						id="notify-permission"
+						className={clsx(frame.notify, shell.buttonFocus)}
+						onClick={() => {
+							void askNotificationPermission().finally(() => {
+								setNotifyPermission(notificationPermission());
+							});
+						}}
+					>
+						<NotifyIcon />
+						Allow notifications
+					</button>
+				) : null}
+			</div>
 			{overview.polling === true ? (
 				<p className={clsx(cards.loading)}>Loading projects</p>
 			) : overview.error !== null ? (
