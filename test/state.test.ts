@@ -977,24 +977,8 @@ describe("forward state", () => {
 		const checkout = await devkitWorktree({
 			key: "WID-13",
 			status: "running",
-			manager: "  manager-144-starting  ",
+			manager: "manager-144-unread",
 		});
-		const statePath = join(
-			checkout.root,
-			"acme",
-			"widget_workspaces",
-			"WID-13-feat",
-			".devkit",
-			"workcell",
-			"state.json",
-		);
-		const recorded = JSON.parse(await readFile(statePath, "utf8")) as {
-			manager: string;
-		};
-		await writeFile(
-			statePath,
-			JSON.stringify({ status: "starting", manager: recorded.manager }),
-		);
 		const herdr = await fakeHerdr(
 			`#!/usr/bin/env bun
 const body = process.env.HERDR_BODY ?? '{"result":{"agents":[]}}';
