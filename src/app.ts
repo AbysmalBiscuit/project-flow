@@ -164,9 +164,11 @@ function projectViews(options: PollOptions, configuration: Configuration) {
 			row.branches,
 			row.startedKeys,
 			options.runs,
-			configuration.autoMerge,
-			options.workcellAuto,
-			options.repoAutoMerge,
+			{
+				config: configuration.autoMerge,
+				workcell: options.workcellAuto,
+				repo: options.repoAutoMerge,
+			},
 			all,
 			expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 			{

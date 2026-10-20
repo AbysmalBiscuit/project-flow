@@ -2275,13 +2275,17 @@ function chipsOf(
 	return chips.length === 0 ? {} : { chips };
 }
 
+type AutoMergeSources = {
+	config: Record<string, AutoMerge>;
+	workcell: Record<string, AutoMerge>;
+	repo: Record<string, boolean>;
+};
+
 function mergesOnItsOwn(
 	links: PullRequest[],
 	project: string,
 	projectKey: string,
-	configAuto: Record<string, AutoMerge>,
-	workcellAuto: Record<string, AutoMerge>,
-	repoAuto: Record<string, boolean>,
+	auto: AutoMergeSources,
 ): boolean {
 	const open = links.filter((pull) => !pull.merged);
 	if (open.length === 0) {
@@ -2289,15 +2293,15 @@ function mergesOnItsOwn(
 	}
 	return open.every((pull) => {
 		const configured =
-			configAuto[pull.repo] ?? configAuto[projectKey] ?? configAuto[project];
+			auto.config[pull.repo] ?? auto.config[projectKey] ?? auto.config[project];
 		if (configured !== undefined) {
 			return configured === "yes";
 		}
-		const workcell = workcellAuto[pull.repo];
+		const workcell = auto.workcell[pull.repo];
 		if (workcell !== undefined) {
 			return workcell === "yes";
 		}
-		return pull.autoMerge === true || repoAuto[pull.repo] === true;
+		return pull.autoMerge === true || auto.repo[pull.repo] === true;
 	});
 }
 
@@ -2314,9 +2318,7 @@ export function projectCounts(
 	branches: string[],
 	startedKeys: string[],
 	runs: WorkcellRun[],
-	configAuto: Record<string, AutoMerge>,
-	workcellAuto: Record<string, AutoMerge>,
-	repoAutoMerge: Record<string, boolean>,
+	autoMerge: AutoMergeSources,
 	all: { project: string; tickets: Ticket[] }[],
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
@@ -2368,14 +2370,7 @@ export function projectCounts(
 			tags.add(tag);
 		}
 		const lane = laneForTicket(ticket, lanes);
-		const autoMerge = mergesOnItsOwn(
-			links,
-			name,
-			key,
-			configAuto,
-			workcellAuto,
-			repoAutoMerge,
-		);
+		const mergesAlone = mergesOnItsOwn(links, name, key, autoMerge);
 		const shown = shownTicket(
 			ticket,
 			lane,
@@ -2384,7 +2379,7 @@ export function projectCounts(
 			startedKeys,
 			review,
 			runs,
-			autoMerge,
+			mergesAlone,
 			lanes,
 		);
 		if (ticket.key !== null) {
@@ -2468,9 +2463,7 @@ export function projectCounts(
 			viewerLogins: rules.viewerLogins,
 			pmBot: projectHasPmBot(rules.pmBot, key, tracker),
 		},
-		configAuto,
-		workcellAuto,
-		repoAutoMerge,
+		autoMerge,
 		key,
 	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
@@ -2798,9 +2791,7 @@ export function needsYouItems(
 	shownByKey: Map<string, TicketState>,
 	failedKeys: Set<string>,
 	rules: NeedsYouRules,
-	configAuto: Record<string, AutoMerge>,
-	workcellAuto: Record<string, AutoMerge>,
-	repoAutoMerge: Record<string, boolean>,
+	autoMerge: AutoMergeSources,
 	projectKey: string,
 ): NeedsYouItem[] {
 	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
@@ -2878,16 +2869,7 @@ export function needsYouItems(
 		if (reviewState([pull], expectedBots, []).state !== "awaitingMerge") {
 			continue;
 		}
-		if (
-			mergesOnItsOwn(
-				[pull],
-				project,
-				projectKey,
-				configAuto,
-				workcellAuto,
-				repoAutoMerge,
-			)
-		) {
+		if (mergesOnItsOwn([pull], project, projectKey, autoMerge)) {
 			continue;
 		}
 		items.push(
