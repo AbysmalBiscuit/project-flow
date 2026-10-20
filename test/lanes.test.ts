@@ -39,6 +39,7 @@ type FlightItem = {
 	statusType: string;
 	blocked?: boolean;
 	enteredStateAt?: string;
+	updatedAt?: string;
 	needsYou?: boolean;
 	url?: string;
 	outsideBlockers?: unknown;

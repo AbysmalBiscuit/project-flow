@@ -315,6 +315,7 @@ type OverviewBody = {
 			lane?: string;
 			statusType?: string;
 			enteredStateAt?: string;
+			updatedAt?: string;
 		}[];
 		crossProjectBlockers: unknown[];
 		needsYou: number;
