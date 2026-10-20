@@ -1736,7 +1736,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				return { name: repo, tickets, board };
 			}
 			const tickets: Ticket[] = [];
-			const listedIssues: z.infer<typeof githubIssue>[] = [];
 			const sinceQuery =
 				since === null
 					? ""
@@ -1757,7 +1756,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 					if (issue.state !== "open" && issue.state !== "closed") {
 						continue;
 					}
-					listedIssues.push(issue);
+					const closedAt = issue.closed_at?.trim() ?? "";
 					const summary = issue.issue_dependencies_summary;
 					const blockedBy =
 						summary !== undefined && summary.total_blocked_by > 0
@@ -1801,6 +1800,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						milestone: issue.milestone?.title ?? null,
 						parent: parentKey(issue.parent_issue_url),
 						labels: issue.labels?.map((label) => label.name) ?? [],
+						...(closedAt === "" ? {} : { closedAt }),
 						...(issue.assignee === undefined && issue.assignees === undefined
 							? {}
 							: {
@@ -1830,19 +1830,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 						}
 					}
 				}
-			}
-			for (const ticket of tickets) {
-				if (ticket.state !== "closed") {
-					continue;
-				}
-				const issue = listedIssues.find(
-					(item) => String(item.number) === ticket.id,
-				);
-				const closedAt = issue?.closed_at?.trim() ?? "";
-				if (closedAt === "") {
-					continue;
-				}
-				ticket.closedAt = closedAt;
 			}
 			return { name: repo, tickets, board };
 		},
