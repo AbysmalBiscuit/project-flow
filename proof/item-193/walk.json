@@ -3,6 +3,7 @@
 	"serve": ["bun", "proof/serve-group-box.ts", "4193"],
 	"steps": [
 		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Alpha" },
 		{ "assert_text": "ALPHA" },
 		{ "assert_text": "BETA" },
 		{ "assert_text": "Ship the list" },
@@ -10,7 +11,6 @@
 		{ "assert_text": "Draft the page" },
 		{ "shot": "group-box-light" },
 		{ "click": "button[data-theme-toggle]" },
-		{ "assert_text": "Light" },
 		{ "assert_text": "ALPHA" },
 		{ "assert_text": "BETA" },
 		{ "shot": "group-box-dark" }
