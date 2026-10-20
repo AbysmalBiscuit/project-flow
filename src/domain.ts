@@ -218,29 +218,6 @@ export type ProjectCounts = {
 
 export type ProjectBody = Omit<ProjectCounts, "pinned" | "ref">;
 
-export type DiagramNode = {
-	id: string;
-	label: string;
-	state: TicketState | "external" | "theme";
-	dashed: boolean;
-	project: string;
-	tracker: "github" | "linear";
-	ticket: string | null;
-};
-
-export type DiagramEdge = {
-	from: string;
-	to: string;
-};
-
-export type Diagram = {
-	id: string;
-	title: string;
-	direction: "TD" | "LR";
-	nodes: DiagramNode[];
-	edges: DiagramEdge[];
-};
-
 export type ThreadComment = {
 	id: string;
 	body: string;
@@ -661,18 +638,11 @@ export function inboxEntries(entries: Notification[], now: Date): InboxEntry[] {
 }
 
 export type ReportSection = {
-	id:
-		| "summary"
-		| "featureMap"
-		| "inFlight"
-		| "blockingChains"
-		| "needsYou"
-		| "backlog";
+	id: "summary" | "inFlight" | "needsYou" | "backlog";
 	title: string;
 	text?: string;
 	items?: TicketView[];
 	needsYou?: NeedsYouItem[];
-	diagrams?: Diagram[];
 };
 
 export type Lane = {
@@ -3476,19 +3446,6 @@ function scopeOf(title: string): string {
 	return scope.trim().toLowerCase();
 }
 
-function diagramId(value: string): string {
-	const id = [...value]
-		.map((char) => {
-			if (/[A-Za-z0-9]/.test(char)) {
-				return char;
-			}
-			const code = char.codePointAt(0) ?? 0;
-			return `_${code.toString(16)}_`;
-		})
-		.join("");
-	return /^[A-Za-z]/.test(id) ? id : `n_${id}`;
-}
-
 type Placed = {
 	ticket: Ticket;
 	view: TicketView;
@@ -3701,23 +3658,6 @@ function placeTickets(
 	});
 }
 
-function nodeOf(
-	placed: Placed,
-	project: string,
-	tracker: ProjectCounts["tracker"],
-): DiagramNode {
-	const key = placed.ticket.key ?? placed.view.title;
-	return {
-		id: diagramId(key),
-		label: placed.view.title,
-		state: placed.view.state,
-		dashed: false,
-		project,
-		tracker,
-		ticket: placed.ticket.key,
-	};
-}
-
 export function outsideKey(project: string, key: string): string {
 	const number = key.slice(key.lastIndexOf("#") + 1);
 	if (
@@ -3727,158 +3667,6 @@ export function outsideKey(project: string, key: string): string {
 		return key;
 	}
 	return `${project}#${number}`;
-}
-
-function externalNode(blocker: CrossProjectBlocker): DiagramNode {
-	return {
-		id: diagramId(`${blocker.tracker}:${blocker.project}:${blocker.key}`),
-		label: outsideKey(blocker.project, blocker.key),
-		state: "external",
-		dashed: true,
-		project: blocker.project,
-		tracker: blocker.tracker,
-		ticket: blocker.key,
-	};
-}
-
-function crossNode(
-	key: string,
-	cross: CrossProjectBlocker[],
-): DiagramNode | undefined {
-	const outside = cross.find(
-		(blocker) => blocker.key.toLowerCase() === key.toLowerCase(),
-	);
-	return outside === undefined ? undefined : externalNode(outside);
-}
-
-function featureDiagrams(
-	placed: Placed[],
-	project: string,
-	tracker: ProjectCounts["tracker"],
-	cross: CrossProjectBlocker[],
-): Diagram[] {
-	const groups = new Map<string, Map<string, Placed[]>>();
-	for (const item of placed) {
-		const themes = groups.get(item.workstream) ?? new Map<string, Placed[]>();
-		const items = themes.get(item.theme) ?? [];
-		items.push(item);
-		themes.set(item.theme, items);
-		groups.set(item.workstream, themes);
-	}
-	const diagrams: Diagram[] = [];
-	const workstreams = [...groups.keys()].sort((left, right) =>
-		left.localeCompare(right),
-	);
-	for (const workstream of workstreams) {
-		const themes = groups.get(workstream);
-		if (themes === undefined) {
-			continue;
-		}
-		const nodes: DiagramNode[] = [];
-		const edges: DiagramEdge[] = [];
-		const seen = new Set<string>();
-		for (const theme of [...themes.keys()].sort((left, right) =>
-			left.localeCompare(right),
-		)) {
-			const themeId = diagramId(`${workstream}:${theme}`);
-			nodes.push({
-				id: themeId,
-				label: theme,
-				state: "theme",
-				dashed: false,
-				project,
-				tracker,
-				ticket: null,
-			});
-			seen.add(themeId);
-			const items = [...(themes.get(theme) ?? [])]
-				.map((item) => ({ item, node: nodeOf(item, project, tracker) }))
-				.sort((left, right) => left.node.id.localeCompare(right.node.id));
-			for (const { item, node } of items) {
-				if (!seen.has(node.id)) {
-					nodes.push(node);
-					seen.add(node.id);
-				}
-				edges.push({ from: themeId, to: node.id });
-				for (const key of item.view.blockers) {
-					const external = crossNode(key, cross);
-					if (external === undefined) {
-						continue;
-					}
-					if (!seen.has(external.id)) {
-						nodes.push(external);
-						seen.add(external.id);
-					}
-					edges.push({ from: external.id, to: node.id });
-				}
-			}
-		}
-		diagrams.push({
-			id: diagramId(`map:${workstream}`),
-			title: workstream,
-			direction: "TD",
-			nodes,
-			edges,
-		});
-	}
-	return diagrams;
-}
-
-function chainDiagrams(
-	placed: Placed[],
-	project: string,
-	tracker: ProjectCounts["tracker"],
-	cross: CrossProjectBlocker[],
-): Diagram[] {
-	const blocked = placed.filter((item) => item.view.blocked === true);
-	if (blocked.length === 0) {
-		return [];
-	}
-	const nodes: DiagramNode[] = [];
-	const edges: DiagramEdge[] = [];
-	const seen = new Set<string>();
-	const add = (node: DiagramNode) => {
-		if (seen.has(node.id)) {
-			return;
-		}
-		seen.add(node.id);
-		nodes.push(node);
-	};
-	for (const item of blocked) {
-		const node = nodeOf(item, project, tracker);
-		add(node);
-		for (const key of item.view.blockers) {
-			const local = placed.find(
-				(candidate) =>
-					candidate.ticket.key?.toLowerCase() === key.toLowerCase(),
-			);
-			if (local !== undefined) {
-				const blocker = nodeOf(local, project, tracker);
-				add(blocker);
-				edges.push({ from: blocker.id, to: node.id });
-				continue;
-			}
-			const external = crossNode(key, cross);
-			if (external === undefined) {
-				continue;
-			}
-			add(external);
-			edges.push({ from: external.id, to: node.id });
-		}
-	}
-	nodes.sort((left, right) => left.id.localeCompare(right.id));
-	edges.sort((left, right) =>
-		`${left.from} ${left.to}`.localeCompare(`${right.from} ${right.to}`),
-	);
-	return [
-		{
-			id: "blocking_chains",
-			title: "Blocking chains",
-			direction: "LR",
-			nodes,
-			edges,
-		},
-	];
 }
 
 function summaryLine(counts: ProjectBody): string {
@@ -3895,18 +3683,6 @@ export function projectReport(
 	runByKey: Map<string, LiveRun> = new Map(),
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
-	const maps = featureDiagrams(
-		placed,
-		counts.name,
-		counts.tracker,
-		counts.crossProjectBlockers,
-	);
-	const chains = chainDiagrams(
-		placed,
-		counts.name,
-		counts.tracker,
-		counts.crossProjectBlockers,
-	);
 	const ticketsByKey = new Map(
 		tickets.flatMap((ticket) =>
 			ticket.key === null ? [] : [[ticket.key, ticket]],
@@ -3938,9 +3714,7 @@ export function projectReport(
 	const backlog = counts.tickets.filter((ticket) => ticket.state === "backlog");
 	const sections: ReportSection[] = [
 		{ id: "summary", title: "Summary", text: summaryLine(counts) },
-		{ id: "featureMap", title: "Feature map", diagrams: maps },
 		{ id: "inFlight", title: "In flight", items: inFlight },
-		{ id: "blockingChains", title: "Blocking chains", diagrams: chains },
 		{
 			id: "needsYou",
 			title: "Needs you",
