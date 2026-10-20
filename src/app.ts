@@ -621,7 +621,7 @@ async function replyResponse(
 		const created: PostedReply = await tracker.postReply(reply);
 		recordPostedReply(options.store, reply, created);
 		notifier.publish({
-			overview: overview(options, configuration),
+			overview: runningOverview(options, configuration),
 			notifications: [],
 		});
 		return Response.json(created, { status: 201 });

@@ -298,48 +298,6 @@ async function settledOverview(base: string): Promise<OverviewBody> {
 	return body;
 }
 
-function openEvents(base: string): {
-	event: Promise<ChangeEvent>;
-	ready: Promise<void>;
-} {
-	let markReady = () => {};
-	const ready = new Promise<void>((resolve) => {
-		markReady = resolve;
-	});
-	const event = new Promise<ChangeEvent>((resolve, reject) => {
-		let buffer = "";
-		const socket = Bun.connect({
-			hostname: "127.0.0.1",
-			port: Number(new URL(base).port),
-			socket: {
-				data(_socket, data) {
-					markReady();
-					buffer += data.toString();
-					const parsed = readSseEvents(buffer);
-					buffer = parsed.rest;
-					const received = parsed.events[0];
-					if (received !== undefined) {
-						resolve(received);
-					}
-				},
-				error(_socket, error) {
-					reject(error);
-				},
-				open(socket) {
-					socket.write(
-						"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
-					);
-				},
-			},
-		});
-		setTimeout(() => {
-			void socket.then((open) => open.end());
-			reject(new Error("no event within 3000ms"));
-		}, 3_000);
-	});
-	return { event, ready };
-}
-
 function failingAfterGoodPoll(requests: string[]): Fetch {
 	let polls = 0;
 	return async (input, init) => {
@@ -958,6 +916,129 @@ describe("live updates", () => {
 			).json()) as OverviewBody;
 			expect(after.fetchedAt).not.toBe(before.fetchedAt);
 			expect(after.polling).toBeUndefined();
+		});
+	}, 20_000);
+
+	test("a reply during a held refresh keeps the running poll", async () => {
+		const waiting: (() => void)[] = [];
+		let released = false;
+		let releasePoll: (() => void) | null = null;
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			const method =
+				init?.method ?? (input instanceof Request ? input.method : "GET");
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const comments = url.match(
+				/\/repos\/acme\/widget\/issues\/(\d+)\/comments$/,
+			);
+			if (comments !== null && method === "POST") {
+				const posted = JSON.parse(
+					typeof init?.body === "string" ? init.body : "{}",
+				) as { body?: string };
+				return new Response(
+					JSON.stringify({
+						id: 900,
+						body: posted.body ?? "",
+						html_url:
+							"https://github.com/acme/widget/issues/1#issuecomment-900",
+						created_at: "2026-04-02T00:00:00.000Z",
+						user: { login: "lev" },
+					}),
+					{
+						status: 201,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			if (listUrl(url) !== null) {
+				issueReads += 1;
+				if (issueReads > 1) {
+					await new Promise<void>((resolve) => {
+						if (released) {
+							resolve();
+							return;
+						}
+						waiting.push(resolve);
+						releasePoll = () => {
+							released = true;
+							for (const release of waiting.splice(0)) {
+								release();
+							}
+						};
+					});
+					return page([ticket(1, "2026-04-02T00:00:00Z")]);
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const stream = openEventStream(base);
+			await stream.ready;
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			expect(releasePoll).not.toBeNull();
+			const events = stream.events[Symbol.asyncIterator]();
+			const started = await events.next();
+			expect(started.done).toBe(false);
+			if (!started.done && started.value !== undefined) {
+				expect(started.value.event).toBe("overview");
+				expect((JSON.parse(started.value.data) as OverviewBody).polling).toBe(
+					true,
+				);
+			}
+			const reply = await fetch(new URL("/api/replies", base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "github",
+					project: repo,
+					key: `${repo}#1`,
+					body: "Use the short name.",
+				}),
+			});
+			expect(reply.status).toBe(201);
+			const replied = await events.next();
+			expect(replied.done).toBe(false);
+			if (!replied.done && replied.value !== undefined) {
+				expect(replied.value.event).toBe("overview");
+				const body = JSON.parse(replied.value.data) as OverviewBody;
+				expect(body.polling).toBe(true);
+			}
+			const release = releasePoll;
+			if (release === null) {
+				throw new Error("the refresh poll never reached the tracker");
+			}
+			release();
+			releasePoll = null;
+			let published: OverviewBody | null = null;
+			for (let seen = 0; seen < 4 && published === null; seen += 1) {
+				const finished = await events.next();
+				if (finished.done || finished.value === undefined) {
+					break;
+				}
+				if (finished.value.event !== "overview") {
+					continue;
+				}
+				const body = JSON.parse(finished.value.data) as OverviewBody;
+				if (body.polling !== true) {
+					published = body;
+				}
+			}
+			stream.close();
+			if (published === null) {
+				throw new Error("the event stream sent no overview after the poll");
+			}
+			expect(published.polling).toBeUndefined();
 		});
 	}, 20_000);
 
