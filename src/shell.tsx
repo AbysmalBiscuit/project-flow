@@ -115,13 +115,7 @@ async function saveTheme(theme: "light" | "dark"): Promise<boolean> {
 	}
 }
 
-export function AppShell({
-	children,
-	search,
-}: {
-	children: ReactNode;
-	search?: ReactNode;
-}) {
+export function AppShell({ children }: { children: ReactNode }) {
 	const [count, setCount] = useState<number | null>(null);
 	const [theme, setTheme] = useState(pageTheme);
 	const path = window.location.pathname;
@@ -178,7 +172,6 @@ export function AppShell({
 					))}
 				</nav>
 				<span className={clsx(frame.spacer)} />
-				{search}
 				<button
 					type="button"
 					id="header-search"
