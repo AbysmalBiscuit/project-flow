@@ -29,13 +29,25 @@ export function JumpBox() {
 	const ticket = useActiveTicket();
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
+	const openRef = useRef(false);
+	const closeSearch = () => {
+		setOpen(false);
+		openRef.current = false;
+		const target = returnFocus.current;
+		returnFocus.current = null;
+		target?.focus();
+	};
 	useEffect(
 		() =>
 			onOpenJumpBox(() => {
+				if (openRef.current) {
+					return;
+				}
 				returnFocus.current =
 					document.activeElement instanceof HTMLElement
 						? document.activeElement
 						: null;
+				openRef.current = true;
 				setOpen(true);
 			}),
 		[],
@@ -49,11 +61,7 @@ export function JumpBox() {
 		const onKey = (event: KeyboardEvent) => {
 			if (event.key === "k" && (event.metaKey || event.ctrlKey)) {
 				event.preventDefault();
-				returnFocus.current =
-					document.activeElement instanceof HTMLElement
-						? document.activeElement
-						: null;
-				setOpen(true);
+				openJumpBox();
 			}
 		};
 		window.addEventListener("keydown", onKey);
@@ -109,8 +117,7 @@ export function JumpBox() {
 							}
 							event.preventDefault();
 							event.stopPropagation();
-							setOpen(false);
-							returnFocus.current?.focus();
+							closeSearch();
 						}}
 					>
 						<input
@@ -139,7 +146,7 @@ export function JumpBox() {
 												tracker: hit.tracker,
 												key: hit.key,
 											});
-											setOpen(false);
+											closeSearch();
 										}}
 									>
 										<span>{hit.key}</span> <span>{hit.title}</span>{" "}
