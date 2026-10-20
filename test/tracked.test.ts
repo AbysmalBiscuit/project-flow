@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview, SettingsProject } from "../src/domain.ts";
@@ -92,6 +92,33 @@ function membership(sent: string[]): Fetch {
 							login: "lev",
 							projectsV2: emptyPage,
 							organizations: emptyPage,
+						},
+					},
+				});
+			}
+			if (operation === "ProjectByNumber") {
+				return json({
+					data: {
+						repositoryOwner: {
+							projectV2: {
+								id: "PVT_closed",
+								number: 9,
+								title: "Closed board",
+								closed: true,
+								updatedAt: "2026-08-18T12:00:00.000Z",
+							},
+						},
+					},
+				});
+			}
+			if (operation === "ProjectItems") {
+				return json({
+					data: {
+						node: {
+							items: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
 						},
 					},
 				});
@@ -391,12 +418,19 @@ describe("tracked projects", () => {
 			expect(checked.on.projects.map((project) => project.name)).toContain(
 				"acme/repo-1",
 			);
+			expect(checked.on.tracked).toBeUndefined();
 			expect(
 				checked.removed.filter((request) =>
 					request.includes("/repo-1/issues?"),
 				),
 			).toEqual([]);
+			expect(
+				checked.removed.some((request) =>
+					request.includes("user/repos?affiliation="),
+				),
+			).toBe(true);
 			expect(checked.off.projects).toEqual([]);
+			expect(checked.off.tracked).toBe(false);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -445,6 +479,7 @@ describe("tracked projects", () => {
 			expect(checked.againStatus).toBe(200);
 			expect(checked.removed).toEqual([]);
 			expect(checked.overview.projects).toEqual([]);
+			expect(checked.overview.tracked).toBe(false);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -472,12 +507,6 @@ describe("tracked projects", () => {
 			expect(
 				turnedOn.checked.projects.map((project) => project.name),
 			).toContain("acme/repo-1");
-			const written = JSON.parse(await readFile(path, "utf8")) as {
-				tracked?: unknown;
-			};
-			expect(written.tracked).toEqual([
-				{ tracker: "github", repo: "acme/repo-1" },
-			]);
 			const restarted = await startFromFile(path, root);
 			expect(restarted.settings.tracked).toEqual([
 				{ tracker: "github" as const, repo: "acme/repo-1" },
@@ -496,6 +525,19 @@ describe("tracked projects", () => {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
+	});
+
+	test("a tracked closed project stays off the overview and does not count as untracked", async () => {
+		const { overview, settings } = await startWith(
+			JSON.stringify({
+				tracked: [{ tracker: "github", owner: "acme", project: 9 }],
+			}),
+		);
+		expect(overview.projects).toEqual([]);
+		expect(overview.tracked).toBeUndefined();
+		expect(
+			settings.projects.filter((project) => project.tracked).map((p) => p.key),
+		).toEqual(["PVT_closed"]);
 	});
 
 	test("a configuration file with pinned and hidden loads and its pinned projects are tracked", async () => {
