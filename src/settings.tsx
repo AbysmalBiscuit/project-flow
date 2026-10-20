@@ -1,10 +1,11 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import type { SettingsProject } from "./app.ts";
 import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
 import { sameRef } from "./configuration.ts";
 import type { KnownBot, TicketState } from "./domain.ts";
-import { knownBots } from "./domain.ts";
+import { knownBots, projectHasPmBot } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { PageFrame } from "./shell.tsx";
 import {
@@ -24,18 +25,6 @@ import {
 } from "./view-settings.ts";
 
 type Trackers = { github: boolean; linear: boolean };
-
-type SettingsProject = {
-	name: string;
-	key: string;
-	tracker: "github" | "linear";
-	source: "found" | "pinned";
-	pinned: boolean;
-	hidden: boolean;
-	pmBot: boolean;
-	expectedBots: KnownBot[];
-	ref: ProjectPin;
-};
 
 type SettingsBody = Configuration & {
 	trackers?: Trackers;
@@ -215,7 +204,10 @@ function Menu({
 	loaded: Configuration;
 	trackers: Trackers;
 	projects: SettingsProject[];
-	onSave: (next: Configuration) => Promise<string | null>;
+	onSave: (
+		next: Configuration,
+		baseline: Configuration,
+	) => Promise<string | null>;
 	onReload: () => void;
 }) {
 	const [saved, setSaved] = useState(draftOf(loaded));
@@ -671,7 +663,7 @@ function Menu({
 	);
 
 	async function onSaveClick(): Promise<void> {
-		const error = await onSave(draft);
+		const error = await onSave(draft, saved);
 		setFailed(error !== null);
 		setMessage(error ?? settingsCopy.saved);
 		if (error === null) {
@@ -941,36 +933,16 @@ function withRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
 	return refs.some((item) => sameRef(item, ref)) ? refs : [...refs, ref];
 }
 
-function botsOf(draft: Configuration, key: string): KnownBot[] {
-	const match = Object.entries(draft.expectedBots ?? {}).find(
-		([name]) => name.toLowerCase() === key.toLowerCase(),
-	);
-	return match?.[1] ?? [];
+function botsOf(draft: Configuration, repo: string): KnownBot[] {
+	return draft.expectedBots?.[repo] ?? [];
 }
 
 function setBots(
 	draft: Configuration,
-	key: string,
+	repo: string,
 	bots: KnownBot[],
 ): Configuration["expectedBots"] {
-	const next = { ...draft.expectedBots };
-	const match = Object.keys(next).find(
-		(name) => name.toLowerCase() === key.toLowerCase(),
-	);
-	if (match !== undefined) {
-		delete next[match];
-	}
-	if (bots.length > 0) {
-		next[key] = bots;
-	}
-	return next;
-}
-
-function pmBotOf(draft: Configuration, key: string): boolean | undefined {
-	const match = Object.entries(draft.pmBot).find(
-		([name]) => name.toLowerCase() === key.toLowerCase(),
-	);
-	return match?.[1];
+	return { ...draft.expectedBots, [repo]: bots };
 }
 
 function setPmBot(
@@ -998,17 +970,20 @@ function projectMatches(
 	query: string,
 	tracker: (typeof trackerFilters)[number],
 	state: (typeof stateFilters)[number],
+	draft: Configuration,
 ): boolean {
+	const pinned = draft.pinned.some((ref) => sameRef(ref, project.ref));
+	const hidden = draft.hidden.some((ref) => sameRef(ref, project.ref));
 	if (tracker !== "all" && project.tracker !== tracker) {
 		return false;
 	}
-	if (state === "pinned" && !project.pinned) {
+	if (state === "pinned" && !pinned) {
 		return false;
 	}
-	if (state === "hidden" && !project.hidden) {
+	if (state === "hidden" && !hidden) {
 		return false;
 	}
-	if (state === "shown" && project.hidden) {
+	if (state === "shown" && hidden) {
 		return false;
 	}
 	const needle = query.trim().toLowerCase();
@@ -1037,7 +1012,7 @@ function ProjectsTable({
 	const [filtersOpen, setFiltersOpen] = useState(false);
 
 	const shown = projects.filter((project) =>
-		projectMatches(project, query, tracker, state),
+		projectMatches(project, query, tracker, state, draft),
 	);
 
 	return (
@@ -1163,11 +1138,10 @@ function ProjectRow({
 	onChange: (next: Partial<Configuration>) => void;
 }) {
 	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
-	const bots = botsOf(draft, project.key);
-	const pmBot = pmBotOf(draft, project.key) ?? project.tracker === "github";
+	const repos = project.repos;
+	const pmBot = projectHasPmBot(draft.pmBot, project.key, project.tracker);
 	const pinned = draft.pinned.some((ref) => sameRef(ref, project.ref));
 	const hidden = draft.hidden.some((ref) => sameRef(ref, project.ref));
-	const missing = knownBots.filter((bot) => !bots.includes(bot));
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
@@ -1221,55 +1195,69 @@ function ProjectRow({
 				/>
 			</td>
 			<td className={clsx(fields.cell)}>
-				<div className={clsx(fields.bots)}>
-					{bots.map((bot) => (
-						<span key={bot} className={clsx(fields.chip)}>
-							{bot}
-							<button
-								type="button"
-								className={clsx(fields.chipRemove)}
-								aria-label={`Remove ${bot}`}
-								onClick={() =>
-									onChange({
-										expectedBots: setBots(
-											draft,
-											project.key,
-											bots.filter((item) => item !== bot),
-										),
-									})
-								}
-							>
-								×
-							</button>
-						</span>
-					))}
-					{missing.length === 0 ? null : (
-						<select
-							id={`add-bot-${id}`}
-							className={clsx(fields.addBot)}
-							aria-label={`${settingsCopy.addBot} ${project.name}`}
-							value=""
-							onChange={(event) => {
-								const bot = knownBots.find(
-									(item) => item === event.target.value,
-								);
-								if (bot === undefined) {
-									return;
-								}
-								onChange({
-									expectedBots: setBots(draft, project.key, [...bots, bot]),
-								});
-							}}
-						>
-							<option value="">{settingsCopy.addBot}</option>
-							{missing.map((bot) => (
-								<option key={bot} value={bot}>
-									{bot}
-								</option>
-							))}
-						</select>
-					)}
-				</div>
+				{repos.length === 0 ? (
+					<span id={`bots-unavailable-${id}`}>
+						{settingsCopy.botsUnavailable}
+					</span>
+				) : (
+					repos.map((repo) => {
+						const bots = botsOf(draft, repo);
+						const missing = knownBots.filter((bot) => !bots.includes(bot));
+						const repoId = repo.replace(/[^A-Za-z0-9]+/g, "-");
+						return (
+							<div key={repo} className={clsx(fields.bots)}>
+								<span className={clsx(fields.projectMeta)}>{repo}</span>
+								{bots.map((bot) => (
+									<span key={bot} className={clsx(fields.chip)}>
+										{bot}
+										<button
+											type="button"
+											className={clsx(fields.chipRemove)}
+											aria-label={`Remove ${bot} ${repo}`}
+											onClick={() =>
+												onChange({
+													expectedBots: setBots(
+														draft,
+														repo,
+														bots.filter((item) => item !== bot),
+													),
+												})
+											}
+										>
+											×
+										</button>
+									</span>
+								))}
+								{missing.length === 0 ? null : (
+									<select
+										id={`add-bot-${id}-${repoId}`}
+										className={clsx(fields.addBot)}
+										aria-label={`${settingsCopy.addBot} ${repo}`}
+										value=""
+										onChange={(event) => {
+											const bot = knownBots.find(
+												(item) => item === event.target.value,
+											);
+											if (bot === undefined) {
+												return;
+											}
+											onChange({
+												expectedBots: setBots(draft, repo, [...bots, bot]),
+											});
+										}}
+									>
+										<option value="">{settingsCopy.addBot}</option>
+										{missing.map((bot) => (
+											<option key={bot} value={bot}>
+												{bot}
+											</option>
+										))}
+									</select>
+								)}
+							</div>
+						);
+					})
+				)}
 			</td>
 		</tr>
 	);
@@ -1330,7 +1318,7 @@ function Page() {
 						}
 					});
 			}}
-			onSave={async (next) => {
+			onSave={async (next, baseline) => {
 				const current = await fetch("/api/settings");
 				if (!current.ok) {
 					return `settings failed (HTTP ${current.status})`;
@@ -1347,6 +1335,8 @@ function Page() {
 						overview: live.overview,
 						pinned: next.pinned,
 						hidden: next.hidden,
+						baselinePinned: baseline.pinned,
+						baselineHidden: baseline.hidden,
 						pmBot: next.pmBot,
 						expectedBots: next.expectedBots,
 						projectViews: {

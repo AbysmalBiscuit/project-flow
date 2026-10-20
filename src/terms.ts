@@ -302,6 +302,7 @@ export const settingsCopy = {
 	pmBot: "PM Bot",
 	expectedBots: "Expected review bots",
 	addBot: "Add bot",
+	botsUnavailable: "No repository known",
 	of: "of",
 	projects: "projects",
 } as const;
