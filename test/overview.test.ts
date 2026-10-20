@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -5223,6 +5224,116 @@ describe("GET /api/overview", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("an overview request returns 200 while another connection holds a write", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const seeded = new Database(databasePath);
+		seeded.run(`
+			create table snapshots (
+				snapshot_key text primary key,
+				name text not null,
+				tracker text not null,
+				payload text not null
+			)
+		`);
+		seeded
+			.query(
+				"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
+			)
+			.run(
+				"github:acme/widget",
+				"acme/widget",
+				"github",
+				JSON.stringify({
+					tickets: [],
+					pulls: [],
+					branches: [],
+					startedKeys: [],
+				}),
+			);
+		seeded.close();
+		let releaseTracker: () => void = () => {};
+		const trackerHeld = new Promise<void>((resolve) => {
+			releaseTracker = resolve;
+		});
+		const writer = new Database(databasePath);
+		let held = false;
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					writer.run("begin exclusive");
+					held = true;
+					const response = await fetch(new URL("/api/overview", base));
+					writer.run("rollback");
+					held = false;
+					expect(response.status).toBe(200);
+					const body = (await response.json()) as {
+						projects: { name: string }[];
+						error: string | null;
+					};
+					expect(body.error).toBeNull();
+					expect(body.projects.map((project) => project.name)).toEqual([
+						"acme/widget",
+					]);
+					releaseTracker();
+					resolve();
+				})().catch((error: unknown) => {
+					releaseTracker();
+					reject(error);
+				});
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: async (input, init) => {
+							const discovered = recordedDiscovery(input, init);
+							if (discovered !== null) {
+								return discovered;
+							}
+							const url = urlOf(input);
+							if (url === "https://api.github.com/user") {
+								return new Response(JSON.stringify({ login: "lev" }), {
+									status: 200,
+								});
+							}
+							await trackerHeld;
+							if (url.includes(`/repos/${repo}/issues?`)) {
+								return page([ticket(5, "open", null)], null);
+							}
+							return emptyList(url) ?? unrecorded(input);
+						},
+						readGhToken: async () => null,
+						databasePath,
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releaseTracker();
+			if (held) {
+				writer.run("rollback");
+			}
+			writer.close();
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}

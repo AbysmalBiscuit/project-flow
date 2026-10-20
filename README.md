@@ -124,7 +124,7 @@ The app reads `LINEAR_API_KEY` from the environment. A blank value does not coun
 
 The store is a Bun SQLite file. The path is `$XDG_DATA_HOME/project-flow/project-flow.sqlite`. When `XDG_DATA_HOME` is unset, the path is `~/.local/share/project-flow/project-flow.sqlite`.
 
-The store is a cache. Deleting the file is safe. The app fills the store again at the next start.
+The store is a cache. Stop the app, then delete `project-flow.sqlite` with `project-flow.sqlite-wal` and `project-flow.sqlite-shm`. The app fills the store again at the next start.
 
 `src/main.ts` builds that path:
 
