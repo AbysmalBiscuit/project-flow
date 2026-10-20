@@ -2776,33 +2776,52 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		projectItemsById.set(projectId, listed);
 		return listed;
 	};
-	let pollReads = new Map<string, ReturnType<typeof readRepo>>();
+	let pollReads = new Map<string, Promise<Date | null>>();
 	const beginPoll = () => {
-		const reads = new Map<string, ReturnType<typeof readRepo>>();
+		const reads = new Map<string, Promise<Date | null>>();
 		pollReads = reads;
 		return reads;
 	};
 	let activeReads = beginPoll();
+	const repoSnapshots = new Map<string, ReturnType<typeof readRepo>>();
 	const repoReadFor = (repo: string, since: Date | null) => {
-		const key = `${repo}\0${since?.getTime() ?? ""}`;
-		const cached = activeReads.get(key);
+		const pending = activeReads.get(repo);
+		const cutoff = pending ?? Promise.resolve(since);
+		if (pending === undefined) {
+			activeReads.set(repo, cutoff);
+		} else {
+			activeReads.set(
+				repo,
+				Promise.all([pending, Promise.resolve(since)]).then(
+					([earlier, next]) => {
+						if (earlier === null || next === null) {
+							return null;
+						}
+						return earlier < next ? earlier : next;
+					},
+				),
+			);
+		}
+		const cached = repoSnapshots.get(repo);
 		if (cached !== undefined) {
 			return cached;
 		}
-		const read = readRepo(token, fetchImpl, repo, since).catch(
-			(error: unknown) => {
-				if (activeReads.get(key) === read) {
-					activeReads.delete(key);
+		const read = cutoff.then((stamp) =>
+			readRepo(token, fetchImpl, repo, stamp).catch((error: unknown) => {
+				if (repoSnapshots.get(repo) === read) {
+					repoSnapshots.delete(repo);
+					activeReads.delete(repo);
 				}
 				throw error;
-			},
+			}),
 		);
-		activeReads.set(key, read);
+		repoSnapshots.set(repo, read);
 		return read;
 	};
 	const finishPoll = () => {
 		if (pollReads === activeReads) {
 			activeReads = beginPoll();
+			repoSnapshots.clear();
 		}
 	};
 	return {

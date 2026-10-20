@@ -881,6 +881,102 @@ describe("batched GitHub reads", () => {
 		expect(project?.statusTypes.done).toBe(0);
 	});
 
+	test("an incremental refresh shares one repository snapshot", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				tracked: [{ tracker: "github", repo: "acme/widget" }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const queries: GraphqlRequest[] = [];
+		let releaseReady: () => void = () => {};
+		const ready = new Promise<void>((resolve) => {
+			releaseReady = resolve;
+		});
+		let stop = () => {};
+		const stopped = new Promise<void>((resolve) => {
+			stop = resolve;
+		});
+		try {
+			let base = "";
+			const running = run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: membership([], (owner, name, request) => {
+						if (operationName(request.query) !== "RepoRead") {
+							return renamed(owner, name);
+						}
+						queries.push(request);
+						const body = renamed(owner, name);
+						const issues = body.data.repository.issues;
+						if (request.variables.since != null) {
+							const issue = issues.nodes[0];
+							issues.nodes = issue === undefined ? [] : [issue];
+							issues.pageInfo = { hasNextPage: false, endCursor: null };
+							return body;
+						}
+						if (request.variables.afterIssues != null) {
+							const issue = structuredClone(issues.nodes[0] ?? {});
+							issue.number = 200;
+							issue.updatedAt = "2026-01-01T00:00:00.000Z";
+							issues.nodes = [issue];
+							issues.pageInfo = { hasNextPage: false, endCursor: null };
+							return body;
+						}
+						issues.pageInfo = { hasNextPage: true, endCursor: "issue-2" };
+						return body;
+					}),
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => {
+						base = line;
+						releaseReady();
+					},
+					waitForStop: stopped,
+				}),
+			);
+			await ready;
+			const before = queries.length;
+			expect(
+				queries
+					.slice(0, before)
+					.some((request) => request.variables.afterIssues != null),
+			).toBe(true);
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const incremental = queries.slice(before);
+			expect(incremental.map((request) => request.variables.since)).toEqual([
+				"2026-08-18T12:00:00.000Z",
+			]);
+			expect(
+				incremental.map((request) => request.variables.afterIssues),
+			).toEqual([null]);
+			expect(
+				incremental.every((request) => request.query.includes("issues(")),
+			).toBe(true);
+			const overview = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as Overview;
+			expect(
+				overview.projects
+					.find((item) => item.name === "acme/widget")
+					?.tickets.map((ticket) => ticket.key)
+					.sort(),
+			).toEqual(["acme/widget#101", "acme/widget#102", "acme/widget#200"]);
+			stop();
+			await running;
+		} finally {
+			stop();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a start with 10 tracked repos of 10 open PRs stays within 25 requests when nested pages are empty", async () => {
 		const tracked = repos.map((repo) => ({ tracker: "github", repo }));
 		const { github } = await startCounted(
