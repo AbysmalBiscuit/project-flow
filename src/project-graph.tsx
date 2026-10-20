@@ -335,6 +335,20 @@ function layoutTickets(
 		names.push(id);
 		columns.set(column, names);
 	}
+	if (groupBy === "none") {
+		const positions = new Map<string, { x: number; y: number }>();
+		for (const [column, names] of columns) {
+			names.forEach((id, index) => {
+				positions.set(
+					id,
+					direction === "top-to-bottom"
+						? { x: index * columnGap, y: column * rowGap }
+						: { x: column * columnGap, y: index * rowGap },
+				);
+			});
+		}
+		return positions;
+	}
 	const groups = [
 		...new Set(tickets.flatMap((ticket) => bandNames(ticket, groupBy))),
 	].sort((left, right) => left.localeCompare(right));
@@ -349,6 +363,7 @@ function layoutTickets(
 		const slot = `${name}\n${column}`;
 		columnCounts.set(slot, (columnCounts.get(slot) ?? 0) + 1);
 	}
+	const bandGap = direction === "top-to-bottom" ? columnGap : rowGap;
 	const bandSize = new Map<string, number>();
 	for (const name of groups) {
 		let largest = 1;
@@ -357,13 +372,13 @@ function layoutTickets(
 				largest = Math.max(largest, count);
 			}
 		}
-		bandSize.set(name, largest * rowGap);
+		bandSize.set(name, largest * bandGap);
 	}
 	const bandStart = new Map<string, number>();
 	let cursor = 0;
 	for (const name of groups) {
 		bandStart.set(name, cursor);
-		cursor += bandSize.get(name) ?? rowGap;
+		cursor += bandSize.get(name) ?? bandGap;
 	}
 	const positions = new Map<string, { x: number; y: number }>();
 	for (const [column, names] of columns) {
