@@ -1,8 +1,34 @@
 import type { ReactNode } from "react";
 import type { NeedsYouItem } from "./domain.ts";
-import { actionLabel, answeredReason, reasonLabel } from "./terms.ts";
+import {
+	actionLabel,
+	answeredReason,
+	heldActionLabel,
+	reasonLabel,
+} from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { needs } from "./ui-styles.ts";
+import { needs, shell } from "./ui-styles.ts";
+
+export function HeldAction({ item }: { item: NeedsYouItem | null }) {
+	if (item === null) {
+		return null;
+	}
+	if (item.reason !== "awaitingMerge" && item.reason !== "label") {
+		return null;
+	}
+	return (
+		<button
+			type="button"
+			className={clsx(shell.button, shell.disabled)}
+			data-held-action={item.reason}
+			disabled
+		>
+			{item.reason === "awaitingMerge"
+				? heldActionLabel.merge
+				: heldActionLabel.removeLabel}
+		</button>
+	);
+}
 
 function Mark({ children }: { children: ReactNode }) {
 	return (
@@ -79,6 +105,27 @@ const reasonIcon = {
 	label: LabelIcon,
 	runFailed: FailIcon,
 } as const;
+
+export function HeldAction({ item }: { item: NeedsYouItem | null }) {
+	if (item === null) {
+		return null;
+	}
+	if (item.reason !== "awaitingMerge" && item.reason !== "label") {
+		return null;
+	}
+	return (
+		<button
+			type="button"
+			className={clsx(shell.button, shell.disabled)}
+			data-held-action={item.reason}
+			disabled
+		>
+			{item.reason === "awaitingMerge"
+				? actionLabel.merge
+				: actionLabel.removeLabel}
+		</button>
+	);
+}
 
 export function NeedsItem({
 	item,
@@ -166,6 +213,7 @@ export function NeedsItem({
 				>
 					<CheckIcon />
 				</button>
+				<HeldAction item={item} />
 			</span>
 		</li>
 	);

@@ -6,12 +6,8 @@ import type {
 	ThreadComment,
 	TicketState,
 } from "./domain.ts";
-import {
-	heldActionLabel,
-	pullStatusLabel,
-	stateLabel,
-	whyLabel,
-} from "./terms.ts";
+import { HeldAction } from "./needs-item.tsx";
+import { pullStatusLabel, stateLabel, whyLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, needs, panel, shell } from "./ui-styles.ts";
@@ -172,29 +168,6 @@ function WhySection({
 				</ul>
 			)}
 		</section>
-	);
-}
-
-function HeldActions({ item }: { item: NeedsYouItem | null }) {
-	if (item === null) {
-		return null;
-	}
-	if (item.reason !== "awaitingMerge" && item.reason !== "label") {
-		return null;
-	}
-	const label =
-		item.reason === "awaitingMerge"
-			? heldActionLabel.merge
-			: heldActionLabel.removeLabel;
-	return (
-		<button
-			type="button"
-			className={clsx(shell.button, shell.disabled)}
-			data-held-action={item.reason}
-			disabled
-		>
-			{label}
-		</button>
 	);
 }
 
@@ -386,7 +359,7 @@ export function TicketPanel({
 					{laneName}
 				</p>
 			)}
-			<HeldActions item={item} />
+			<HeldAction item={item ?? null} />
 			{item === null || item === undefined ? (
 				why === undefined ? null : (
 					<section className={clsx(needs.why)} aria-label={whyLabel}>
