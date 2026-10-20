@@ -715,6 +715,28 @@ export const cards = stylex.create({
 		overflow: "hidden",
 		clip: "rect(0 0 0 0)",
 	},
+	empty: {
+		margin: `${space.lg} 0 0`,
+		padding: space.lg,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.md,
+		backgroundColor: colours.raised,
+		color: colours.inkSoft,
+	},
+	emptyTitle: {
+		margin: `0 0 ${space.xs}`,
+		color: colours.ink,
+		fontSize: type.heading,
+		fontWeight: type.weight,
+	},
+	emptyHint: {
+		margin: 0,
+	},
+	emptyLink: {
+		color: colours.link,
+	},
 	tableWrap: {
 		overflow: "auto",
 		borderWidth: measure.hairline,

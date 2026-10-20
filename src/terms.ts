@@ -169,6 +169,8 @@ export const overviewControlLabel = {
 	needsYouMany: "need you",
 	edgeCaption:
 		"An arrow runs from a blocking project to the project it blocks. Its label is the blocking ticket; click it to open that ticket. Projects with a dark border need you.",
+	noneTracked: "No tracked project",
+	noneTrackedHint: "Turn a project on in",
 } as const;
 
 export const graphDirectionLabel = {

@@ -837,7 +837,26 @@ function OverviewPage({
 			) : overview.error !== null ? (
 				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
-			{panes[view.view]}
+			{overview.projects.length === 0 && overview.polling !== true ? (
+				<div id="overview-empty" className={clsx(cards.empty)}>
+					<p className={clsx(cards.emptyTitle)}>
+						{overviewControlLabel.noneTracked}
+					</p>
+					<p className={clsx(cards.emptyHint)}>
+						{overviewControlLabel.noneTrackedHint}{" "}
+						<a
+							id="overview-empty-settings"
+							className={clsx(cards.emptyLink, shell.linkFocus)}
+							href="/settings"
+						>
+							{navLabel.settings}
+						</a>
+						.
+					</p>
+				</div>
+			) : (
+				panes[view.view]
+			)}
 			{view.view === "graph" ? (
 				<p className={clsx(cards.caption)}>
 					{overviewControlLabel.edgeCaption}
