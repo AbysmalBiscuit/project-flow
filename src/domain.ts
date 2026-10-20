@@ -3776,7 +3776,7 @@ type CatalogueProject = {
 	configuredOnly?: boolean;
 };
 
-function refKey(ref: ProjectPin): string {
+export function refKey(ref: ProjectPin): string {
 	if (ref.tracker === "linear") {
 		return ref.project;
 	}
@@ -3786,7 +3786,10 @@ function refKey(ref: ProjectPin): string {
 	return `${ref.owner}/${ref.project}`;
 }
 
-function matchesRef(project: CatalogueProject, ref: ProjectPin): boolean {
+export function matchesRef(
+	project: CatalogueProject,
+	ref: ProjectPin,
+): boolean {
 	if (project.tracker !== ref.tracker) {
 		return false;
 	}

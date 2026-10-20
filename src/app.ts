@@ -34,6 +34,7 @@ import {
 	knownRepos,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
+	matchesRef,
 	needsYouSeenId,
 	notificationsFor,
 	optionReplyBody,
@@ -43,6 +44,7 @@ import {
 	projectSnapshots,
 	projectViewFor,
 	reconcilePoll,
+	refKey,
 	type SettingsProject,
 	settingsProjects,
 	staleView,
@@ -98,32 +100,6 @@ export type Running = {
 	stop: () => Promise<void>;
 	readonly settled: Promise<Error | null>;
 };
-
-function refKey(ref: Configuration["tracked"][number]): string {
-	if (ref.tracker === "linear") {
-		return ref.project;
-	}
-	if ("repo" in ref) {
-		return ref.repo;
-	}
-	return `${ref.owner}/${ref.project}`;
-}
-
-function matchesRef(
-	project: FoundProject,
-	ref: Configuration["tracked"][number],
-): boolean {
-	if (project.tracker !== ref.tracker) {
-		return false;
-	}
-	if (ref.tracker === "linear") {
-		return project.key === ref.project;
-	}
-	if ("repo" in ref) {
-		return project.key === ref.repo;
-	}
-	return project.owner === ref.owner && project.number === ref.project;
-}
 
 function seededForProjects(
 	attention: Attention,
