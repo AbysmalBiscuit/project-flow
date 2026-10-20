@@ -202,6 +202,27 @@ export function parseConfiguration(text: string): Configuration {
 	return result.data;
 }
 
+export function configurationWrite(text: string): string {
+	const trimmed = text.trim();
+	if (trimmed === "") {
+		return text;
+	}
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(trimmed);
+	} catch {
+		return text;
+	}
+	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+		return text;
+	}
+	const { trackers: _trackers, ...configuration } = parsed as Record<
+		string,
+		unknown
+	>;
+	return JSON.stringify(configuration);
+}
+
 export async function loadConfiguration(path: string): Promise<Configuration> {
 	let text: string;
 	try {

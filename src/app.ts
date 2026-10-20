@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { AutoMerge, Configuration } from "./configuration.ts";
-import { loadConfiguration, saveConfiguration } from "./configuration.ts";
+import {
+	configurationWrite,
+	loadConfiguration,
+	saveConfiguration,
+} from "./configuration.ts";
 import type {
 	Comment,
 	Overview,
@@ -344,6 +348,19 @@ function reportFor(
 		projectViewFor(configuration, match.counts.name),
 		options.clock.now(),
 	);
+}
+
+function settingsResponse(
+	configuration: Configuration,
+	credentials: { token: string | null; linearKey: string | null },
+): Configuration & { trackers: { github: boolean; linear: boolean } } {
+	return {
+		...configuration,
+		trackers: {
+			github: credentials.token !== null,
+			linear: credentials.linearKey !== null,
+		},
+	};
 }
 
 function viewOnlyChange(before: Configuration, after: Configuration): boolean {
@@ -1278,9 +1295,9 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/settings": pageResponse,
 			"/api/settings": {
-				GET: () => Response.json(configuration),
+				GET: () => Response.json(settingsResponse(configuration, options)),
 				PUT: async (request: Request) => {
-					const text = await request.text();
+					const text = configurationWrite(await request.text());
 					const previous = configuration;
 					try {
 						await (polling ?? Promise.resolve());
@@ -1302,10 +1319,10 @@ export async function start(options: StartOptions): Promise<Running> {
 							overview: runningOverview(pollOptions, configuration),
 							notifications: [],
 						});
-						return Response.json(configuration);
+						return Response.json(settingsResponse(configuration, options));
 					}
 					await pollAgain();
-					return Response.json(configuration);
+					return Response.json(settingsResponse(configuration, options));
 				},
 			},
 			"/api/threads/:tracker/:key": {

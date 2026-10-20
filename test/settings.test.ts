@@ -1035,6 +1035,139 @@ describe("settings", () => {
 		});
 	});
 
+	test("each settings section saves and survives a restart", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration & {
+				trackers: { github: boolean; linear: boolean };
+			};
+			expect(before.trackers).toEqual({ github: true, linear: true });
+			expect(JSON.stringify(before)).not.toContain("recorded-token");
+			expect(JSON.stringify(before)).not.toContain("recorded-linear-key");
+
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...before,
+					activityWindowDays: 14,
+					pollIntervalSeconds: 60,
+					projectViews: {
+						"*": {
+							openView: "graph",
+							graphDirection: "top-to-bottom",
+							shownLanes: ["In progress", "Done"],
+							maxAgeDays: { Done: 7 },
+							needsYouOnly: true,
+							blockedOnly: false,
+							assignees: [],
+							search: "",
+						},
+					},
+					laneMappings: {
+						"acme/4": { awaitingMerge: "Approved" },
+					},
+					autoMerge: { "acme/shown": "ask" },
+					needsYouLabels: ["needs-human"],
+					viewerLogins: ["AbysmalBiscuit"],
+					notificationTriggers: {
+						needsYou: false,
+						comment: true,
+						blockerCleared: false,
+					},
+				}),
+			});
+			expect(saved.status).toBe(200);
+			const body = (await saved.json()) as Configuration;
+			expect(body.activityWindowDays).toBe(14);
+			expect(body.pollIntervalSeconds).toBe(60);
+			expect(body.projectViews["*"]?.openView).toBe("graph");
+			expect(body.projectViews["*"]?.graphDirection).toBe("top-to-bottom");
+			expect(body.projectViews["*"]?.shownLanes).toEqual([
+				"In progress",
+				"Done",
+			]);
+			expect(body.projectViews["*"]?.maxAgeDays).toEqual({ Done: 7 });
+			expect(body.projectViews["*"]?.needsYouOnly).toBe(true);
+			expect(body.laneMappings["acme/4"]).toEqual({
+				awaitingMerge: "Approved",
+			});
+			expect(body.autoMerge).toEqual({ "acme/shown": "ask" });
+			expect(body.needsYouLabels).toEqual(["needs-human"]);
+			expect(body.viewerLogins).toEqual(["AbysmalBiscuit"]);
+			expect(body.notificationTriggers).toEqual({
+				needsYou: false,
+				comment: true,
+				blockerCleared: false,
+			});
+			expect(JSON.stringify(body)).not.toContain("recorded-token");
+
+			await withAppFile(configPath, async (restarted) => {
+				const again = (await (
+					await fetch(new URL("/api/settings", restarted))
+				).json()) as Configuration & {
+					trackers: { github: boolean; linear: boolean };
+				};
+				expect(again.activityWindowDays).toBe(14);
+				expect(again.pollIntervalSeconds).toBe(60);
+				expect(again.projectViews["*"]?.openView).toBe("graph");
+				expect(again.projectViews["*"]?.needsYouOnly).toBe(true);
+				expect(again.laneMappings["acme/4"]?.awaitingMerge).toBe("Approved");
+				expect(again.autoMerge["acme/shown"]).toBe("ask");
+				expect(again.needsYouLabels).toEqual(["needs-human"]);
+				expect(again.viewerLogins).toEqual(["AbysmalBiscuit"]);
+				expect(again.notificationTriggers.blockerCleared).toBe(false);
+				expect(again.trackers).toEqual({ github: true, linear: true });
+				expect(JSON.stringify(again)).not.toContain("recorded-linear-key");
+			});
+		});
+	});
+
+	test("settings names a missing tracker credential and keeps the token out", async () => {
+		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const requests: string[] = [];
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/settings", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const body = (await response.json()) as {
+							trackers: { github: boolean; linear: boolean };
+						};
+						expect(body.trackers).toEqual({ github: false, linear: false });
+						const text = JSON.stringify(body);
+						expect(text).not.toContain("ghp_");
+						expect(text).not.toContain("lin_api_");
+						expect(text).not.toMatch(/Bearer /);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: {},
+					fetch: fetching(requests),
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a blank settings body names the configuration and leaves the file", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
 			const before = (await (
