@@ -62,14 +62,10 @@ function CommentTree({
 					{nested || comment.kind === "review" ? (
 						<button
 							type="button"
-							className={clsx(
-								shell.button,
-								shell.buttonHover,
-								shell.buttonFocus,
-							)}
+							className={clsx(panel.answer, shell.buttonFocus)}
 							onClick={() => onReply(comment)}
 						>
-							Reply
+							Answer
 						</button>
 					) : null}
 					{comment.children.length === 0 ? null : (

@@ -58,9 +58,18 @@ function FailIcon() {
 
 function CheckIcon() {
 	return (
-		<Mark>
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(needs.check)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
 			<path d="M6 12.5l4 4 8-9" />
-		</Mark>
+		</svg>
 	);
 }
 
