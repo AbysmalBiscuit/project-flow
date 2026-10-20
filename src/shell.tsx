@@ -61,8 +61,8 @@ function LogoMark() {
 			strokeLinecap="round"
 			strokeLinejoin="round"
 		>
-			<rect x="4" y="4" width="16" height="16" rx="3" />
-			<path d="M8 12h8M12 8v8" />
+			<rect x="3.5" y="3.5" width="17" height="17" rx="4" />
+			<path d="M8 14.5l2.4-3.2 2.1 2.2L16.2 9" />
 		</svg>
 	);
 }
@@ -72,6 +72,15 @@ export function SearchGlyph() {
 		<Glyph>
 			<circle cx="11" cy="11" r="6" />
 			<path d="M16 16l4 4" />
+		</Glyph>
+	);
+}
+
+function SettingsIcon() {
+	return (
+		<Glyph>
+			<circle cx="12" cy="12" r="3" />
+			<path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M5.8 5.8l1.4 1.4M16.8 16.8l1.4 1.4M18.2 5.8l-1.4 1.4M7.2 16.8l-1.4 1.4" />
 		</Glyph>
 	);
 }
@@ -192,6 +201,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 					<SearchIcon />
 					Search tickets
 				</button>
+				<a
+					className={clsx(frame.icon, shell.linkFocus)}
+					href="/settings"
+					aria-label={navLabel.settings}
+					title={navLabel.settings}
+				>
+					<SettingsIcon />
+				</a>
 				<button
 					type="button"
 					className={clsx(frame.icon, shell.buttonFocus)}
