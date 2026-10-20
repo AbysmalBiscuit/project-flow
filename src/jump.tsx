@@ -35,7 +35,11 @@ export function JumpBox() {
 		openRef.current = false;
 		const target = returnFocus.current;
 		returnFocus.current = null;
-		target?.focus();
+		queueMicrotask(() => {
+			if (target?.isConnected === true) {
+				target.focus();
+			}
+		});
 	};
 	useEffect(
 		() =>
@@ -43,10 +47,12 @@ export function JumpBox() {
 				if (openRef.current) {
 					return;
 				}
+				const active = document.activeElement;
+				const insideSearch =
+					active instanceof HTMLElement &&
+					active.closest("[role='dialog']") !== null;
 				returnFocus.current =
-					document.activeElement instanceof HTMLElement
-						? document.activeElement
-						: null;
+					active instanceof HTMLElement && !insideSearch ? active : null;
 				openRef.current = true;
 				setOpen(true);
 			}),
@@ -67,6 +73,20 @@ export function JumpBox() {
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onEscape = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") {
+				return;
+			}
+			event.preventDefault();
+			closeSearch();
+		};
+		window.addEventListener("keydown", onEscape);
+		return () => window.removeEventListener("keydown", onEscape);
+	}, [open]);
 	useEffect(() => {
 		if (!open) {
 			return;
@@ -111,14 +131,6 @@ export function JumpBox() {
 						className={clsx(jump.box)}
 						role="dialog"
 						aria-label="Search tickets"
-						onKeyDown={(event) => {
-							if (event.key !== "Escape") {
-								return;
-							}
-							event.preventDefault();
-							event.stopPropagation();
-							closeSearch();
-						}}
 					>
 						<input
 							className={clsx(jump.query)}
