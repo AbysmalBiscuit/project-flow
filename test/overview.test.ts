@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -5187,6 +5187,127 @@ describe("GET /api/overview", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("an overview request returns 200 while another connection holds a write", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let releaseTracker: () => void = () => {};
+		const trackerHeld = new Promise<void>((resolve) => {
+			releaseTracker = resolve;
+		});
+		let releaseWrite: () => void = () => {};
+		const writeHeld = new Promise<void>((resolve) => {
+			releaseWrite = resolve;
+		});
+		const holderPath = join(root, "hold-write.ts");
+		writeFileSync(
+			holderPath,
+			[
+				'import { Database } from "bun:sqlite";',
+				"const path = process.argv[2];",
+				'if (path === undefined) throw new Error("missing store path");',
+				"let release = () => {};",
+				"const listening = new Promise((resolve) => {",
+				"  release = resolve;",
+				"});",
+				"process.stdin.on('data', (chunk) => {",
+				"  if (String(chunk).includes('http')) release();",
+				"});",
+				"await listening;",
+				"const writer = new Database(path);",
+				'writer.run("pragma busy_timeout = 5000");',
+				'writer.run("begin exclusive");',
+				'console.log("held");',
+				"await new Promise((resolve) => {",
+				'  process.stdin.once("end", () => resolve(undefined));',
+				"});",
+				'writer.run("rollback");',
+				"writer.close();",
+				"",
+			].join("\n"),
+		);
+		const holder = Bun.spawn(["bun", holderPath, databasePath], {
+			stdin: "pipe",
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					await holder.stdin.write(`${base}\n`);
+					const reader = holder.stdout.getReader();
+					const chunk = await reader.read();
+					expect(new TextDecoder().decode(chunk.value)).toContain("held");
+					const response = await fetch(new URL("/api/overview", base));
+					expect(response.status).toBe(200);
+					const body = (await response.json()) as {
+						projects: unknown[];
+						error: string | null;
+					};
+					expect(body.error).toBeNull();
+					expect(body.projects).toEqual([]);
+					releaseWrite();
+					await holder.stdin.end();
+					releaseTracker();
+					resolve();
+				})().catch((error: unknown) => {
+					releaseWrite();
+					releaseTracker();
+					reject(error);
+				});
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: async (input, init) => {
+							const discovered = recordedDiscovery(input, init);
+							if (discovered !== null) {
+								return discovered;
+							}
+							const url = urlOf(input);
+							if (url === "https://api.github.com/user") {
+								return new Response(JSON.stringify({ login: "lev" }), {
+									status: 200,
+								});
+							}
+							await trackerHeld;
+							await writeHeld;
+							if (url.includes(`/repos/${repo}/issues?`)) {
+								return page([ticket(5, "open", null)], null);
+							}
+							return emptyList(url) ?? unrecorded(input);
+						},
+						readGhToken: async () => null,
+						databasePath,
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releaseWrite();
+			releaseTracker();
+			await holder.stdin.end();
+			holder.kill();
+			await holder.exited;
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
