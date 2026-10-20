@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import factoryLabels from "./fixtures/github-factory-labels.json";
+import projectFields from "./fixtures/github-project-fields.json";
+import teamStates from "./fixtures/linear-team-states.json";
 import {
 	linearFake,
 	recordedDiscovery,
@@ -70,65 +73,30 @@ const linearTeam = {
 	name: "Widget",
 };
 
-const linearStates = [
-	{
-		id: "st-triage",
-		name: "Triage",
-		type: "triage",
-		position: 0,
-		color: "#FC7840",
-	},
-	{
-		id: "st-backlog",
-		name: "Backlog",
-		type: "backlog",
-		position: 1,
-		color: "#BEC2C8",
-	},
-	{
-		id: "st-todo",
-		name: "Todo",
-		type: "unstarted",
-		position: 2,
-		color: "#E2E2E2",
-	},
-	{
-		id: "st-progress",
-		name: "In Progress",
-		type: "started",
-		position: 3,
-		color: "#F2C94C",
-	},
-	{
-		id: "st-review",
-		name: "In Review",
-		type: "started",
-		position: 4,
-		color: "#5E6AD2",
-	},
-	{
-		id: "st-done",
-		name: "Done",
-		type: "completed",
-		position: 5,
-		color: "#4CB782",
-	},
-	{
-		id: "st-canceled",
-		name: "Canceled",
-		type: "canceled",
-		position: 6,
-		color: "#95A2B3",
-	},
-];
+const linearStates = teamStates.data.team.states.nodes;
 
-const githubStatusOptions = [
-	{ id: "opt-backlog", name: "Backlog", color: "GRAY" },
-	{ id: "opt-ready", name: "Ready", color: "PURPLE" },
-	{ id: "opt-progress", name: "In Progress", color: "YELLOW" },
-	{ id: "opt-review", name: "In Review", color: "BLUE" },
-	{ id: "opt-done", name: "Done", color: "GREEN" },
-];
+function recordedStatusOptions(body: typeof projectFields) {
+	for (const field of body.data.node.fields.nodes) {
+		if (!("name" in field) || field.name !== "Status") {
+			continue;
+		}
+		return field.options;
+	}
+	throw new Error("recorded project Status field is missing");
+}
+
+const githubStatusOptions = recordedStatusOptions(projectFields);
+
+function collapsedStatusName(name: string): string {
+	return name.trim().replace(/\s+/g, " ");
+}
+
+function recordedOptionId(name: string): string | undefined {
+	const collapsed = collapsedStatusName(name);
+	return githubStatusOptions.find(
+		(option) => collapsedStatusName(option.name) === collapsed,
+	)?.id;
+}
 
 function linearIssue(
 	identifier: string,
@@ -168,6 +136,13 @@ function githubIssue(
 
 function page(items: Record<string, unknown>[]): Response {
 	return new Response(JSON.stringify(items), {
+		status: 200,
+		headers: { "content-type": "application/json" },
+	});
+}
+
+function recordedFactoryLabelPage(): Response {
+	return new Response(JSON.stringify(factoryLabels), {
 		status: 200,
 		headers: { "content-type": "application/json" },
 	});
@@ -217,7 +192,7 @@ function projectItem(
 				? null
 				: {
 						name: status.name,
-						optionId: `opt-${status.name}`,
+						optionId: recordedOptionId(status.name) ?? `opt-${status.name}`,
 						color: status.color,
 					},
 		content: {
@@ -275,6 +250,9 @@ function projectFetch(
 			url === "https://api.github.com/graphql" &&
 			body.includes("ProjectFields")
 		) {
+			if (options === githubStatusOptions) {
+				return Response.json(projectFields);
+			}
 			return Response.json({
 				data: {
 					node: {
@@ -282,7 +260,6 @@ function projectFetch(
 							nodes: [
 								{},
 								{
-									__typename: "ProjectV2SingleSelectField",
 									id: "PVTSSF_status",
 									name: "Status",
 									options,
@@ -432,16 +409,16 @@ describe("tracker lanes", () => {
 				},
 				issues: [
 					linearIssue("WID-1", "Ship the list", {
-						id: "st-progress",
+						id: "cce36b04-d482-4233-b1d8-33eda76ca025",
 						name: "In Progress",
 						type: "started",
-						color: "#F2C94C",
+						color: "#f2c94c",
 					}),
 					linearIssue("WID-2", "Write the notes", {
-						id: "st-todo",
+						id: "364b3510-9325-4af6-9df1-8f2ff56f7a3d",
 						name: "Todo",
 						type: "unstarted",
-						color: "#E2E2E2",
+						color: "#e2e2e2",
 					}),
 				],
 				states: linearStates,
@@ -451,18 +428,20 @@ describe("tracker lanes", () => {
 				const report = await projectOf(base, "Widget launch");
 				expect(report.lanes.map((lane) => lane.name)).toEqual([
 					"Triage",
+					"In Progress",
 					"Backlog",
 					"Todo",
-					"In Progress",
-					"In Review",
-					"Awaiting merge",
 					"Done",
 					"Canceled",
+					"Duplicate",
+					"Waiting To Progress",
+					"In Review",
+					"Awaiting merge",
 				]);
 				expect(report.lanes.find((lane) => lane.name === "In Review")).toEqual({
-					id: "st-review",
+					id: "558ba933-745c-42e2-8969-b3757c54bd5c",
 					name: "In Review",
-					colour: "#5E6AD2",
+					colour: "#4cb782",
 					statusType: "inReview",
 				});
 				expect(
@@ -470,6 +449,9 @@ describe("tracker lanes", () => {
 				).toBe("done");
 				expect(
 					report.lanes.find((lane) => lane.name === "Canceled")?.statusType,
+				).toBe("dropped");
+				expect(
+					report.lanes.find((lane) => lane.name === "Duplicate")?.statusType,
 				).toBe("dropped");
 				expect(
 					report.lanes.find((lane) => lane.name === "Triage")?.colour,
@@ -488,18 +470,14 @@ describe("tracker lanes", () => {
 
 	test("a Linear started Ready to merge status is awaiting merge", async () => {
 		const states = [
-			...linearStates.slice(0, 5),
+			...linearStates,
 			{
 				id: "st-merge",
 				name: "Ready to merge",
 				type: "started",
-				position: 5,
+				position: 2037,
 				color: "#4CB782",
 			},
-			...linearStates.slice(5).map((state) => ({
-				...state,
-				position: state.position + 1,
-			})),
 		];
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
@@ -533,13 +511,15 @@ describe("tracker lanes", () => {
 				});
 				expect(report.lanes.map((lane) => lane.name)).toEqual([
 					"Triage",
+					"In Progress",
 					"Backlog",
 					"Todo",
-					"In Progress",
-					"In Review",
-					"Ready to merge",
 					"Done",
 					"Canceled",
+					"Duplicate",
+					"Waiting To Progress",
+					"In Review",
+					"Ready to merge",
 				]);
 				expect(flight(report)).toEqual([
 					placed("WID-3", "Land the branch", "Ready to merge", "awaitingMerge"),
@@ -555,10 +535,10 @@ describe("tracker lanes", () => {
 			}),
 			projectFetch([
 				projectItem(7, "Draw the nodes", {
-					name: "In Progress",
+					name: "In progress",
 					color: "YELLOW",
 				}),
-				projectItem(8, "Write the copy", { name: "Backlog", color: "GRAY" }),
+				projectItem(8, "Write the copy", { name: "Backlog", color: "GREEN" }),
 			]),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
@@ -566,18 +546,18 @@ describe("tracker lanes", () => {
 				expect(
 					report.lanes.map((lane) => [lane.name, lane.colour, lane.statusType]),
 				).toEqual([
-					["Backlog", "#BEC2C8", "backlog"],
-					["Ready", "#5E6AD2", "backlog"],
-					["In Progress", "#F2C94C", "inProgress"],
-					["In Review", "#4C9AFF", "inReview"],
+					["Backlog", "#4CB782", "backlog"],
+					["Ready", "#4C9AFF", "backlog"],
+					["In progress", "#F2C94C", "inProgress"],
+					["In review", "#5E6AD2", "inReview"],
 					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
-					["Done", "#4CB782", "done"],
+					["Done", "#F2994A", "done"],
 				]);
 				expect(flight(report)).toEqual([
 					placed(
 						"acme/widget#7",
 						"Draw the nodes",
-						"In Progress",
+						"In progress",
 						"inProgress",
 					),
 					placed("acme/widget#8", "Write the copy", "Backlog", "backlog"),
@@ -593,8 +573,14 @@ describe("tracker lanes", () => {
 	test("a repo with factory labels uses those labels as lanes", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			repoFetch(
-				{
+			async (input, init) => {
+				const url = urlOf(input);
+				if (
+					url.startsWith(`https://api.github.com/repos/${githubRepo}/labels?`)
+				) {
+					return recordedFactoryLabelPage();
+				}
+				return repoFetch({
 					[githubRepo]: [
 						githubIssue(1, "Queue the job", githubRepo, {
 							labels: [{ name: "ready" }],
@@ -615,25 +601,17 @@ describe("tracker lanes", () => {
 							state_reason: "not_planned",
 						}),
 					],
-				},
-				{
-					[githubRepo]: [
-						{ name: "ready", color: "5319e7" },
-						{ name: "factory: running", color: "fbca04" },
-						{ name: "factory: in-review", color: "1d76db" },
-						{ name: "bug", color: "d73a4a" },
-					],
-				},
-			),
+				})(input, init);
+			},
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, githubRepo);
 				expect(
 					report.lanes.map((lane) => [lane.name, lane.colour, lane.statusType]),
 				).toEqual([
-					["ready", "#5319E7", "backlog"],
-					["factory: running", "#FBCA04", "inProgress"],
-					["factory: in-review", "#1D76DB", "inReview"],
+					["ready", "#0E8A16", "backlog"],
+					["factory: running", "#1D76DB", "inProgress"],
+					["factory: in-review", "#FBCA04", "inReview"],
 					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
 					["Done", "#8FBC8F", "done"],
 					["Dropped", "#9CA3AF", "dropped"],
@@ -723,25 +701,25 @@ describe("tracker lanes", () => {
 			projectFetch([
 				{
 					...projectItem(21, "Wait on the gate", {
-						name: "In Progress",
+						name: "In progress",
 						color: "YELLOW",
 					}),
 					content: {
 						...(projectItem(21, "Wait on the gate", {
-							name: "In Progress",
+							name: "In progress",
 							color: "YELLOW",
 						}).content as Record<string, unknown>),
 						body: "Blocked by: acme/widget#8",
 					},
 				},
-				projectItem(8, "The gate", { name: "Backlog", color: "GRAY" }),
+				projectItem(8, "The gate", { name: "Backlog", color: "GREEN" }),
 			]),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const waiting = items.find((item) => item.key === "acme/widget#21");
-				expect(waiting?.lane).toBe("In Progress");
+				expect(waiting?.lane).toBe("In progress");
 				expect(waiting?.statusType).toBe("inProgress");
 				expect(waiting?.state).toBe("inProgress");
 				expect(waiting?.blocked).toBe(true);
@@ -777,7 +755,7 @@ describe("tracker lanes", () => {
 			}),
 			projectFetch([
 				projectItem(7, "Draw the nodes", {
-					name: "In Progress",
+					name: "In progress",
 					color: "YELLOW",
 				}),
 				projectItem(9, "No status yet", null),
@@ -788,8 +766,8 @@ describe("tracker lanes", () => {
 				expect(report.lanes.map((lane) => lane.name)).toEqual([
 					"Backlog",
 					"Ready",
-					"In Progress",
-					"In Review",
+					"In progress",
+					"In review",
 					"Awaiting merge",
 					"Done",
 				]);
@@ -804,7 +782,7 @@ describe("tracker lanes", () => {
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const placedItem = items.find((item) => item.key === "acme/widget#7");
 				const empty = items.find((item) => item.key === "acme/widget#9");
-				expect(placedItem?.lane).toBe("In Progress");
+				expect(placedItem?.lane).toBe("In progress");
 				expect(placedItem?.statusType).toBe("inProgress");
 				expect(empty?.lane).toBe("Backlog");
 				expect(empty?.statusType).toBe("backlog");
@@ -1049,7 +1027,7 @@ describe("tracker lanes", () => {
 						id: "st-approved",
 						name: "Approved",
 						type: "started",
-						position: 4.5,
+						position: 2037,
 						color: "#BB87FC",
 					},
 				],
@@ -1095,9 +1073,9 @@ describe("tracker lanes", () => {
 					"Awaiting merge",
 				);
 				expect(report.lanes.find((lane) => lane.name === "Ready")).toEqual({
-					id: "opt-ready",
+					id: "61e4505c",
 					name: "Ready",
-					colour: "#5E6AD2",
+					colour: "#4C9AFF",
 					statusType: "backlog",
 					evidence: "awaitingMerge",
 				});
@@ -1259,7 +1237,7 @@ describe("tracker lanes", () => {
 				}
 				return projectFetch([
 					projectItem(7, "Draw the nodes", {
-						name: "In Progress",
+						name: "In progress",
 						color: "YELLOW",
 					}),
 				])(input, init);
@@ -1267,7 +1245,7 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toContain("In Progress");
+				expect(report.lanes.map((lane) => lane.name)).toContain("In progress");
 				const refreshed = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
 				});
@@ -1504,14 +1482,14 @@ describe("tracker lanes", () => {
 			}),
 			projectFetch([
 				projectItem(13, "Spaced status", {
-					name: "In  Review",
-					color: "BLUE",
+					name: "In  review",
+					color: "PURPLE",
 				}),
 			]),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(flight(report)[0]?.lane).toBe("In Review");
+				expect(flight(report)[0]?.lane).toBe("In review");
 				expect(flight(report)[0]?.statusType).toBe("inReview");
 			},
 		);
@@ -1520,8 +1498,14 @@ describe("tracker lanes", () => {
 	test("a closed factory ticket sits in Done", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			repoFetch(
-				{
+			async (input, init) => {
+				const url = urlOf(input);
+				if (
+					url.startsWith(`https://api.github.com/repos/${githubRepo}/labels?`)
+				) {
+					return recordedFactoryLabelPage();
+				}
+				return repoFetch({
 					[githubRepo]: [
 						githubIssue(4, "Ship the job", githubRepo, {
 							state: "closed",
@@ -1529,15 +1513,8 @@ describe("tracker lanes", () => {
 							labels: [{ name: "ready" }],
 						}),
 					],
-				},
-				{
-					[githubRepo]: [
-						{ name: "ready", color: "5319e7" },
-						{ name: "factory: running", color: "fbca04" },
-						{ name: "factory: in-review", color: "1d76db" },
-					],
-				},
-			),
+				})(input, init);
+			},
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const overview = (await (
@@ -1560,23 +1537,22 @@ describe("tracker lanes", () => {
 	test("a closed ticket with no matching status sits in Done", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			repoFetch(
-				{
+			async (input, init) => {
+				const url = urlOf(input);
+				if (
+					url.startsWith(`https://api.github.com/repos/${githubRepo}/labels?`)
+				) {
+					return recordedFactoryLabelPage();
+				}
+				return repoFetch({
 					[githubRepo]: [
 						githubIssue(5, "Closed without a done label", githubRepo, {
 							state: "closed",
 							state_reason: "completed",
 						}),
 					],
-				},
-				{
-					[githubRepo]: [
-						{ name: "ready", color: "5319e7" },
-						{ name: "factory: running", color: "fbca04" },
-						{ name: "factory: in-review", color: "1d76db" },
-					],
-				},
-			),
+				})(input, init);
+			},
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const overview = (await (
@@ -1757,40 +1733,40 @@ describe("tracker lanes", () => {
 				},
 				issues: [
 					linearIssue("WID-1", "First", {
-						id: "st-todo",
+						id: "364b3510-9325-4af6-9df1-8f2ff56f7a3d",
 						name: "Todo",
 						type: "unstarted",
-						color: "#E2E2E2",
+						color: "#e2e2e2",
 					}),
 					linearIssue("WID-2", "Second", {
-						id: "st-backlog",
+						id: "48b815cc-6b89-42b0-85c6-bcd9078325d2",
 						name: "Backlog",
 						type: "backlog",
-						color: "#BEC2C8",
+						color: "#bec2c8",
 					}),
 					linearIssue("WID-3", "Third", {
-						id: "st-progress",
+						id: "cce36b04-d482-4233-b1d8-33eda76ca025",
 						name: "In Progress",
 						type: "started",
-						color: "#F2C94C",
+						color: "#f2c94c",
 					}),
 					linearIssue("WID-4", "Fourth", {
-						id: "st-review",
+						id: "558ba933-745c-42e2-8969-b3757c54bd5c",
 						name: "In Review",
 						type: "started",
-						color: "#5E6AD2",
+						color: "#4cb782",
 					}),
 					linearIssue("WID-5", "Fifth", {
-						id: "st-done",
+						id: "710a74b9-7f91-4b5d-ad74-cc0b4f47de6b",
 						name: "Done",
 						type: "completed",
-						color: "#4CB782",
+						color: "#5e6ad2",
 					}),
 					linearIssue("WID-6", "Sixth", {
-						id: "st-canceled",
+						id: "b7a25ac4-725d-4b68-a34b-534a428c5162",
 						name: "Canceled",
 						type: "canceled",
-						color: "#95A2B3",
+						color: "#95a2b3",
 					}),
 				],
 				states: linearStates,
