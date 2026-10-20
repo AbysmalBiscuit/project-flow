@@ -173,6 +173,17 @@ export const overviewControlLabel = {
 		"An arrow runs from a blocking project to the project it blocks. Its label is the blocking ticket; click it to open that ticket. Projects with a dark border need you.",
 } as const;
 
+export const graphDirectionLabel = {
+	"left-to-right": "Left to right",
+	"top-to-bottom": "Top to bottom",
+} as const;
+
+export const projectGraphLabel = {
+	legend: "Graph legend",
+	arrow: "Arrow: blocker to blocked",
+	dashed: "Dashed: ticket in another project",
+} as const;
+
 export function actionLabel(
 	item: NeedsYouItem,
 	surface: "row" | "strip" = "row",

@@ -1030,6 +1030,68 @@ describe("settings", () => {
 		});
 	});
 
+	test("a project graph direction survives a restart", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		try {
+			await withAppFile(path, async (base) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(before.projectViews).toEqual({});
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...before,
+						projectViews: {
+							"acme/widget": { graphDirection: "top-to-bottom" },
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as Configuration;
+				expect(written.projectViews["acme/widget"]?.graphDirection).toBe(
+					"top-to-bottom",
+				);
+			});
+			await withAppFile(path, async (base) => {
+				const restarted = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(restarted.projectViews["acme/widget"]?.graphDirection).toBe(
+					"top-to-bottom",
+				);
+			});
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("an unknown project graph direction names the field and leaves the file", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const rejected = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...before,
+					projectViews: {
+						"acme/widget": { graphDirection: "sideways" },
+					},
+				}),
+			});
+			expect(rejected.status).toBe(400);
+			const body = (await rejected.json()) as { error: string };
+			expect(body.error).toContain("projectViews");
+			const after = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(after).toEqual(before);
+		});
+	});
+
 	test("overview filter, sort and view mode survive a restart", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const overview = {

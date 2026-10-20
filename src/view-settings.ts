@@ -6,6 +6,8 @@ export const openViews = ["board", "graph", "table"] as const;
 
 export const graphDirections = ["left-to-right", "top-to-bottom"] as const;
 
+export type GraphDirection = (typeof graphDirections)[number];
+
 export const emptyMaxAgeDays: Record<string, number> = {};
 
 export const defaultOpenView = "board" as const;
