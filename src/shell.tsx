@@ -296,15 +296,31 @@ export function PageHeader({
 export function PageFrame({
 	children,
 	wide = false,
+	scroll = false,
 	...header
-}: PageHeaderProps & { children: ReactNode; wide?: boolean }) {
+}: PageHeaderProps & {
+	children: ReactNode;
+	wide?: boolean;
+	scroll?: boolean;
+}) {
 	return (
 		<AppShell>
 			<main
-				className={clsx(frame.page, wide && frame.wide, wide && frame.fill)}
+				id={scroll ? "page-scroll" : undefined}
+				className={clsx(
+					frame.page,
+					wide && frame.wide,
+					(wide || scroll) && frame.fill,
+				)}
 			>
 				<PageHeader {...header} />
-				{children}
+				{scroll ? (
+					<div id="settings-scroll" className={clsx(frame.scroll)}>
+						{children}
+					</div>
+				) : (
+					children
+				)}
 			</main>
 		</AppShell>
 	);

@@ -1,9 +1,16 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { type Configuration, sameRef } from "./configuration.ts";
-import { type KnownBot, knownBots } from "./domain.ts";
+import { type AutoMerge, type Configuration, sameRef } from "./configuration.ts";
+import type { TicketState } from "./domain.ts";
 import { PageFrame } from "./shell.tsx";
-import { navLabel } from "./terms.ts";
+import {
+	navLabel,
+	settingsCopy,
+	settingsSection,
+	stateLabel,
+} from "./terms.ts";
+import { pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
 
@@ -18,303 +25,804 @@ function sameRefs(left: ProjectRef[], right: ProjectRef[]): boolean {
 	);
 }
 
-function refLine(ref: ProjectRef): string {
-	if (ref.tracker === "linear") {
-		return `linear ${ref.project}`;
+type Trackers = { github: boolean; linear: boolean };
+
+type SettingsBody = Configuration & { trackers?: Trackers };
+
+const sections = [
+	{ id: "general", label: settingsSection.general },
+	{ id: "project-views", label: settingsSection.views },
+	{ id: "review", label: settingsSection.review },
+	{ id: "notifications", label: settingsSection.notifications },
+	{ id: "trackers", label: settingsSection.trackers },
+] as const;
+
+const laneStates = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+] as const satisfies readonly TicketState[];
+
+const pollChoices = [30, 60, 300, 600] as const;
+
+const ageChoices = [0, 2, 7, 14, 30] as const;
+
+
+
+const evidenceStates = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+] as const satisfies readonly TicketState[];
+
+const autoMergeChoices = ["yes", "ask", "no"] as const;
+
+const defaultView: Configuration["projectViews"][string] = {
+	maxAgeDays: {},
+	needsYouOnly: false,
+	blockedOnly: false,
+	assignees: [],
+	search: "",
+	openView: "board",
+	graphDirection: "left-to-right",
+};
+
+function draftOf(settings: Configuration): Configuration {
+	return {
+		...settings,
+		projectViews: {
+			...settings.projectViews,
+			"*": { ...defaultView, ...settings.projectViews["*"] },
+		},
+	};
+}
+
+function same(left: Configuration, right: Configuration): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function pollLabel(seconds: number): string {
+	if (seconds % 60 === 0) {
+		const minutes = seconds / 60;
+		return minutes === 1 ? "1 minute" : `${minutes} minutes`;
 	}
-	if ("repo" in ref) {
-		return `github ${ref.repo}`;
+	return `${seconds} seconds`;
+}
+
+function ageLabel(days: number): string {
+	if (days === 0) {
+		return settingsCopy.anyAge;
 	}
-	return `github-project ${ref.owner} ${ref.project}`;
+	return days === 1 ? "1 day" : `${days} days`;
 }
 
-function parseRefs(text: string): ProjectRef[] {
-	return lines(text).map((line) => {
-		const [kind, first, second] = line.split(/\s+/);
-		if (kind === "linear" && first !== undefined) {
-			return { tracker: "linear", project: first };
-		}
-		if (kind === "github" && first !== undefined) {
-			return { tracker: "github", repo: first };
-		}
-		if (
-			kind === "github-project" &&
-			first !== undefined &&
-			second !== undefined
-		) {
-			return { tracker: "github", owner: first, project: Number(second) };
-		}
-		throw new Error(`project line: ${line}`);
-	});
+function Switch({
+	id,
+	checked,
+	label,
+	onChange,
+}: {
+	id: string;
+	checked: boolean;
+	label: string;
+	onChange: (next: boolean) => void;
+}) {
+	return (
+		<button
+			id={id}
+			type="button"
+			role="switch"
+			aria-checked={checked}
+			aria-label={label}
+			className={clsx(fields.switch, checked && fields.switchOn)}
+			onClick={() => onChange(!checked)}
+		>
+			<span className={clsx(fields.knob, checked && fields.knobOn)} />
+		</button>
+	);
 }
 
-function lines(text: string): string[] {
-	return text
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line !== "");
+function Row({
+	title,
+	hint,
+	children,
+}: {
+	title: string;
+	hint?: string;
+	children: ReactNode;
+}) {
+	return (
+		<div className={clsx(fields.row)}>
+			<div className={clsx(fields.rowText)}>
+				<span className={clsx(fields.rowTitle)}>{title}</span>
+				{hint === undefined ? null : (
+					<span className={clsx(fields.hint)}>{hint}</span>
+				)}
+			</div>
+			{children}
+		</div>
+	);
 }
 
-function botLines(bots: Record<string, string[]> | undefined): string {
-	return Object.entries(bots ?? {})
-		.map(([repo, names]) => `${repo} ${names.join(" ")}`)
-		.join("\n");
-}
-
-function knownBot(name: string): name is KnownBot {
-	return knownBots.some((bot) => bot === name);
-}
-
-function parseBots(text: string): Record<string, KnownBot[]> {
-	const bots: Record<string, KnownBot[]> = {};
-	for (const line of lines(text)) {
-		const [repo, ...names] = line.split(/\s+/);
-		if (repo === undefined) {
-			continue;
-		}
-		const parsed: KnownBot[] = [];
-		for (const name of names) {
-			if (!knownBot(name)) {
-				throw new Error(`bot: ${name}`);
-			}
-			parsed.push(name);
-		}
-		bots[repo] = parsed;
-	}
-	return bots;
-}
-
-function pmBotLines(pmBot: Record<string, boolean>): string {
-	return Object.entries(pmBot)
-		.map(([name, value]) => `${name} ${value ? "true" : "false"}`)
-		.join("\n");
-}
-
-function parsePmBot(text: string): Record<string, boolean> {
-	const pmBot: Record<string, boolean> = {};
-	for (const line of lines(text)) {
-		const [name, value] = line.split(/\s+/);
-		if (name === undefined || (value !== "true" && value !== "false")) {
-			throw new Error(`pm bot: ${line}`);
-		}
-		pmBot[name] = value === "true";
-	}
-	return pmBot;
+function Chips({
+	id,
+	values,
+	placeholder,
+	onChange,
+}: {
+	id: string;
+	values: string[];
+	placeholder: string;
+	onChange: (next: string[]) => void;
+}) {
+	const [text, setText] = useState("");
+	return (
+		<div className={clsx(fields.chips)}>
+			{values.map((value) => (
+				<span key={value} className={clsx(fields.chip)}>
+					{value}
+					<button
+						type="button"
+						className={clsx(fields.chipRemove)}
+						aria-label={`Remove ${value}`}
+						onClick={() => onChange(values.filter((item) => item !== value))}
+					>
+						×
+					</button>
+				</span>
+			))}
+			<input
+				id={id}
+				className={clsx(fields.chipInput)}
+				placeholder={placeholder}
+				value={text}
+				onChange={(event) => setText(event.target.value)}
+				onKeyDown={(event) => {
+					if (event.key !== "Enter") {
+						return;
+					}
+					event.preventDefault();
+					const next = text.trim();
+					if (next === "" || values.includes(next)) {
+						setText("");
+						return;
+					}
+					onChange([...values, next]);
+					setText("");
+				}}
+			/>
+		</div>
+	);
 }
 
 function Menu({
-	settings,
+	loaded,
+	trackers,
 	onSave,
 }: {
-	settings: Configuration;
+	loaded: Configuration;
+	trackers: Trackers;
 	onSave: (next: Configuration) => Promise<string | null>;
 }) {
-	const [pinned, setPinned] = useState(settings.pinned.map(refLine).join("\n"));
-	const [hidden, setHidden] = useState(settings.hidden.map(refLine).join("\n"));
-	const [activityWindowDays, setActivityWindowDays] = useState(
-		String(settings.activityWindowDays),
-	);
-	const [pollIntervalSeconds, setPollIntervalSeconds] = useState(
-		String(settings.pollIntervalSeconds),
-	);
-	const [expectedBots, setExpectedBots] = useState(
-		botLines(settings.expectedBots),
-	);
-	const [pmBot, setPmBot] = useState(pmBotLines(settings.pmBot));
-	const [needsYouLabels, setNeedsYouLabels] = useState(
-		settings.needsYouLabels.join("\n"),
-	);
-	const [checkoutRoots, setCheckoutRoots] = useState(
-		settings.checkoutRoots.join("\n"),
-	);
-	const [viewerLogins, setViewerLogins] = useState(
-		settings.viewerLogins.join("\n"),
-	);
-	const [needsYou, setNeedsYou] = useState(
-		settings.notificationTriggers.needsYou,
-	);
-	const [comment, setComment] = useState(settings.notificationTriggers.comment);
-	const [blockerCleared, setBlockerCleared] = useState(
-		settings.notificationTriggers.blockerCleared,
-	);
+	const [saved, setSaved] = useState(draftOf(loaded));
+	const [draft, setDraft] = useState(draftOf(loaded));
+	const [current, setCurrent] = useState<string>(sections[0].id);
 	const [message, setMessage] = useState<string | null>(null);
 	const [failed, setFailed] = useState(false);
+	const [permission, setPermission] = useState("default");
+	const dirty = !same(draft, saved);
+	const view = draft.projectViews["*"] ?? defaultView;
+	const theme = pageTheme();
+
+	useEffect(() => {
+		const notify = navigator.permissions?.query({
+			name: "notifications",
+		});
+		if (notify === undefined) {
+			return;
+		}
+		let stopped = false;
+		void notify.then((status) => {
+			if (!stopped) {
+				setPermission(status.state);
+			}
+		});
+		return () => {
+			stopped = true;
+		};
+	}, []);
+
+	function patch(next: Partial<Configuration>): void {
+		setDraft((currentDraft) => ({ ...currentDraft, ...next }));
+		setMessage(null);
+	}
+
+	function patchView(
+		next: Partial<NonNullable<Configuration["projectViews"][string]>>,
+	): void {
+		patch({
+			projectViews: {
+				...draft.projectViews,
+				"*": { ...view, ...next },
+			},
+		});
+	}
+
+	const shown = new Set(view.shownLanes ?? laneStates.map((state) => state));
 
 	return (
-		<PageFrame title={navLabel.settings}>
-			<label className={clsx(fields.field)}>
-				Pinned projects
-				<textarea
-					id="pinned"
-					className={clsx(fields.refs)}
-					value={pinned}
-					onChange={(event) => setPinned(event.target.value)}
-				/>
-			</label>
-			<label className={clsx(fields.field)}>
-				Hidden projects
-				<textarea
-					id="hidden"
-					className={clsx(fields.refs)}
-					value={hidden}
-					onChange={(event) => setHidden(event.target.value)}
-				/>
-			</label>
-			<label className={clsx(fields.field)}>
-				Activity window
-				<input
-					id="activity-window"
-					className={clsx(fields.control)}
-					inputMode="numeric"
-					value={activityWindowDays}
-					onChange={(event) => setActivityWindowDays(event.target.value)}
-				/>
-			</label>
-			<label className={clsx(fields.field)}>
-				Poll interval
-				<input
-					id="poll-interval"
-					className={clsx(fields.control)}
-					inputMode="numeric"
-					value={pollIntervalSeconds}
-					onChange={(event) => setPollIntervalSeconds(event.target.value)}
-				/>
-			</label>
-			<label className={clsx(fields.field)}>
-				Checkout roots
-				<textarea
-					id="checkout-roots"
-					className={clsx(fields.refs)}
-					value={checkoutRoots}
-					onChange={(event) => setCheckoutRoots(event.target.value)}
-				/>
-			</label>
-			<label className={clsx(fields.field)}>
-				Expected bots
-				<textarea
-					id="expected-bots"
-					className={clsx(fields.refs)}
-					value={expectedBots}
-					onChange={(event) => setExpectedBots(event.target.value)}
-				/>
-			</label>
-			<p className={clsx(fields.note)}>Known bots: {knownBots.join(", ")}</p>
-			<label className={clsx(fields.field)}>
-				PM Bot
-				<textarea
-					id="pm-bot"
-					className={clsx(fields.refs)}
-					value={pmBot}
-					onChange={(event) => setPmBot(event.target.value)}
-				/>
-			</label>
-			<label className={clsx(fields.field)}>
-				Viewer logins
-				<textarea
-					id="viewer-logins"
-					className={clsx(fields.refs)}
-					value={viewerLogins}
-					onChange={(event) => setViewerLogins(event.target.value)}
-				/>
-			</label>
-			<label className={clsx(fields.field)}>
-				Need-human and need-engineer labels
-				<textarea
-					id="needs-you-labels"
-					className={clsx(fields.refs)}
-					value={needsYouLabels}
-					onChange={(event) => setNeedsYouLabels(event.target.value)}
-				/>
-			</label>
-			<fieldset className={clsx(fields.field)}>
-				<legend>Notification triggers</legend>
-				<label className={clsx(fields.choice)}>
-					<input
-						id="trigger-needs-you"
-						type="checkbox"
-						checked={needsYou}
-						onChange={(event) => setNeedsYou(event.target.checked)}
-					/>{" "}
-					New needs-you item
-				</label>
-				<label className={clsx(fields.choice)}>
-					<input
-						id="trigger-comment"
-						type="checkbox"
-						checked={comment}
-						onChange={(event) => setComment(event.target.checked)}
-					/>{" "}
-					New comment
-				</label>
-				<label className={clsx(fields.choice)}>
-					<input
-						id="trigger-blocker"
-						type="checkbox"
-						checked={blockerCleared}
-						onChange={(event) => setBlockerCleared(event.target.checked)}
-					/>{" "}
-					Cleared cross-project blocker
-				</label>
-			</fieldset>
-			<p>
-				<button
-					id="save-settings"
-					type="button"
-					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
-					onClick={() => {
-						void onSaveClick();
-					}}
-				>
-					Save
-				</button>
+		<PageFrame title={navLabel.settings} scroll>
+			<p id="settings-lead" className={clsx(fields.lead)}>
+				{settingsCopy.savedTo}
 			</p>
-			{message === null ? null : (
-				<p
-					id="settings-message"
-					className={clsx(failed ? fields.error : fields.saved)}
+			<div className={clsx(fields.layout)}>
+				<nav
+					id="settings-contents"
+					className={clsx(fields.contents)}
+					aria-label="Contents"
 				>
-					{message}
-				</p>
-			)}
+					{sections.map((section) => (
+						<a
+							key={section.id}
+							id={`contents-${section.id}`}
+							href={`#${section.id}`}
+							className={clsx(
+								fields.contentsLink,
+								shell.linkFocus,
+								current === section.id && fields.contentsCurrent,
+							)}
+							aria-current={current === section.id ? "true" : undefined}
+							onClick={() => setCurrent(section.id)}
+						>
+							{section.label}
+						</a>
+					))}
+				</nav>
+				<div>
+					<section id="general" className={clsx(fields.card)}>
+						<h2 className={clsx(fields.cardTitle)}>
+							{settingsSection.general}
+						</h2>
+						<Row title={settingsCopy.theme} hint={settingsCopy.themeHint}>
+							<span id="theme-value">
+								{theme === "dark" ? navLabel.dark : navLabel.light}
+							</span>
+						</Row>
+						<Row
+							title={settingsCopy.activityWindow}
+							hint={settingsCopy.activityHint}
+						>
+							<label className={clsx(fields.number)}>
+								<input
+									id="activity-window"
+									className={clsx(fields.numberInput)}
+									inputMode="numeric"
+									value={String(draft.activityWindowDays)}
+									onChange={(event) => {
+										const days = Number(event.target.value);
+										if (Number.isInteger(days) && days > 0) {
+											patch({ activityWindowDays: days });
+										}
+									}}
+								/>
+								{settingsCopy.days}
+							</label>
+						</Row>
+						<Row title={settingsCopy.pollInterval} hint={settingsCopy.pollHint}>
+							<select
+								id="poll-interval"
+								className={clsx(fields.select)}
+								value={String(draft.pollIntervalSeconds)}
+								onChange={(event) =>
+									patch({ pollIntervalSeconds: Number(event.target.value) })
+								}
+							>
+								{pollChoices.map((seconds) => (
+									<option key={seconds} value={seconds}>
+										{pollLabel(seconds)}
+									</option>
+								))}
+								{pollChoices.includes(
+									draft.pollIntervalSeconds as (typeof pollChoices)[number],
+								) ? null : (
+									<option value={draft.pollIntervalSeconds}>
+										{pollLabel(draft.pollIntervalSeconds)}
+									</option>
+								)}
+							</select>
+						</Row>
+					</section>
+
+					<section id="project-views" className={clsx(fields.card)}>
+						<h2 className={clsx(fields.cardTitle)}>{settingsSection.views}</h2>
+						<p className={clsx(fields.hint)}>{settingsCopy.viewsLead}</p>
+						<Row title={settingsCopy.openIn} hint={settingsCopy.openHint}>
+							<select
+								id="open-view"
+								className={clsx(fields.select)}
+								value={view.openView}
+								onChange={(event) =>
+									patchView({
+										openView: event.target.value as typeof view.openView,
+									})
+								}
+							>
+								<option value="board">{settingsCopy.openBoard}</option>
+								<option value="graph">{settingsCopy.openGraph}</option>
+								<option value="table">{settingsCopy.openTable}</option>
+							</select>
+						</Row>
+						<Row
+							title={settingsCopy.graphDirection}
+							hint={settingsCopy.graphHint}
+						>
+							<select
+								id="graph-direction"
+								className={clsx(fields.select)}
+								value={view.graphDirection}
+								onChange={(event) =>
+									patchView({
+										graphDirection: event.target
+											.value as typeof view.graphDirection,
+									})
+								}
+							>
+								<option value="left-to-right">
+									{settingsCopy.leftToRight}
+								</option>
+								<option value="top-to-bottom">
+									{settingsCopy.topToBottom}
+								</option>
+							</select>
+						</Row>
+						<Row
+							title={settingsCopy.ticketFilter}
+							hint={settingsCopy.ticketHint}
+						>
+							<span />
+						</Row>
+						{laneStates.map((state) => {
+							const on = shown.has(state);
+							const days =
+								view.maxAgeDays[stateLabel[state]] ??
+								(state === "done" ? 2 : 0);
+							return (
+								<div key={state} className={clsx(fields.row)}>
+									<span className={clsx(fields.lane)}>
+										<Switch
+											id={`lane-${state}`}
+											checked={on}
+											label={stateLabel[state]}
+											onChange={(next) => {
+												const names = laneStates.flatMap((item) =>
+													(item === state ? next : shown.has(item))
+														? [stateLabel[item]]
+														: [],
+												);
+												patchView({ shownLanes: names });
+											}}
+										/>
+										<span
+											className={clsx(
+												fields.dot,
+												state === "backlog" && fields.dotBacklog,
+												state === "inProgress" && fields.dotProgress,
+												state === "inReview" && fields.dotReview,
+												state === "awaitingMerge" && fields.dotMerge,
+												state === "done" && fields.dotDone,
+											)}
+										/>
+										{stateLabel[state]}
+									</span>
+									<select
+										id={`age-${state}`}
+										className={clsx(fields.select)}
+										aria-label={`${stateLabel[state]} age`}
+										value={String(days)}
+										onChange={(event) =>
+											patchView({
+												maxAgeDays: {
+													...view.maxAgeDays,
+													[stateLabel[state]]: Number(event.target.value),
+												},
+											})
+										}
+									>
+										{ageChoices.map((choice) => (
+											<option key={choice} value={choice}>
+												{ageLabel(choice)}
+											</option>
+										))}
+									</select>
+								</div>
+							);
+						})}
+						<Row
+							title={settingsCopy.needsYouOnly}
+							hint={settingsCopy.needsYouOnlyHint}
+						>
+							<Switch
+								id="needs-you-only"
+								checked={view.needsYouOnly}
+								label={settingsCopy.needsYouOnly}
+								onChange={(next) => patchView({ needsYouOnly: next })}
+							/>
+						</Row>
+						<Row
+							title={settingsCopy.blockedOnly}
+							hint={settingsCopy.blockedOnlyHint}
+						>
+							<Switch
+								id="blocked-only"
+								checked={view.blockedOnly}
+								label={settingsCopy.blockedOnly}
+								onChange={(next) => patchView({ blockedOnly: next })}
+							/>
+						</Row>
+					</section>
+
+					<section id="review" className={clsx(fields.card)}>
+						<h2 className={clsx(fields.cardTitle)}>{settingsSection.review}</h2>
+						<Row title={settingsCopy.labels} hint={settingsCopy.labelsHint}>
+							<Chips
+								id="needs-you-labels"
+								values={draft.needsYouLabels}
+								placeholder={settingsCopy.addLabel}
+								onChange={(needsYouLabels) => patch({ needsYouLabels })}
+							/>
+						</Row>
+						<Row title={settingsCopy.logins} hint={settingsCopy.loginsHint}>
+							<Chips
+								id="viewer-logins"
+								values={draft.viewerLogins}
+								placeholder={settingsCopy.addLabel}
+								onChange={(viewerLogins) => patch({ viewerLogins })}
+							/>
+						</Row>
+						<Row title={settingsCopy.laneMappings} hint={settingsCopy.laneHint}>
+							<MappingEditor
+								mappings={draft.laneMappings}
+								onChange={(laneMappings) => patch({ laneMappings })}
+							/>
+						</Row>
+						<Row
+							title={settingsCopy.autoMerge}
+							hint={settingsCopy.autoMergeHint}
+						>
+							<AutoMergeEditor
+								overrides={draft.autoMerge}
+								onChange={(autoMerge) => patch({ autoMerge })}
+							/>
+						</Row>
+					</section>
+
+					<section id="notifications" className={clsx(fields.card)}>
+						<h2 className={clsx(fields.cardTitle)}>
+							{settingsSection.notifications}
+						</h2>
+						<Row title={navLabel.needsYou} hint={settingsCopy.needsYouHint}>
+							<Switch
+								id="trigger-needs-you"
+								checked={draft.notificationTriggers.needsYou}
+								label={navLabel.needsYou}
+								onChange={(needsYou) =>
+									patch({
+										notificationTriggers: {
+											...draft.notificationTriggers,
+											needsYou,
+										},
+									})
+								}
+							/>
+						</Row>
+						<Row
+							title={settingsCopy.newComment}
+							hint={settingsCopy.newCommentHint}
+						>
+							<Switch
+								id="trigger-comment"
+								checked={draft.notificationTriggers.comment}
+								label={settingsCopy.newComment}
+								onChange={(comment) =>
+									patch({
+										notificationTriggers: {
+											...draft.notificationTriggers,
+											comment,
+										},
+									})
+								}
+							/>
+						</Row>
+						<Row
+							title={settingsCopy.blockerCleared}
+							hint={settingsCopy.blockerClearedHint}
+						>
+							<Switch
+								id="trigger-blocker"
+								checked={draft.notificationTriggers.blockerCleared}
+								label={settingsCopy.blockerCleared}
+								onChange={(blockerCleared) =>
+									patch({
+										notificationTriggers: {
+											...draft.notificationTriggers,
+											blockerCleared,
+										},
+									})
+								}
+							/>
+						</Row>
+						<Row
+							title={settingsCopy.browserPermission}
+							hint={settingsCopy.browserHint}
+						>
+							<span
+								id="browser-permission"
+								className={clsx(
+									fields.status,
+									permission === "granted" && fields.statusOn,
+								)}
+							>
+								{permission === "granted"
+									? settingsCopy.allowed
+									: permission === "denied"
+										? settingsCopy.blocked
+										: settingsCopy.asking}
+							</span>
+						</Row>
+					</section>
+
+					<section id="trackers" className={clsx(fields.card)}>
+						<h2 className={clsx(fields.cardTitle)}>
+							{settingsSection.trackers}
+						</h2>
+						<p className={clsx(fields.hint)}>{settingsCopy.trackersLead}</p>
+						<Row title={settingsCopy.github} hint={settingsCopy.githubHint}>
+							<Credential id="github-status" present={trackers.github} />
+						</Row>
+						<Row title={settingsCopy.linear} hint={settingsCopy.linearHint}>
+							<Credential id="linear-status" present={trackers.linear} />
+						</Row>
+					</section>
+
+					<div className={clsx(fields.bar)}>
+						{message === null ? null : (
+							<p
+								id="settings-message"
+								className={clsx(failed ? fields.error : fields.saved)}
+							>
+								{message}
+							</p>
+						)}
+						<button
+							id="discard-settings"
+							type="button"
+							className={clsx(
+								shell.button,
+								shell.buttonHover,
+								shell.buttonFocus,
+							)}
+							disabled={!dirty}
+							onClick={() => {
+								setDraft(saved);
+								setFailed(false);
+								setMessage(null);
+							}}
+						>
+							{settingsCopy.discard}
+						</button>
+						<button
+							id="save-settings"
+							type="button"
+							className={clsx(fields.save, shell.buttonFocus)}
+							disabled={!dirty}
+							onClick={() => {
+								void onSaveClick();
+							}}
+						>
+							{settingsCopy.save}
+						</button>
+					</div>
+				</div>
+			</div>
 		</PageFrame>
 	);
 
 	async function onSaveClick(): Promise<void> {
-		try {
-			const next: Configuration = {
-				...settings,
-				pinned: parseRefs(pinned),
-				hidden: parseRefs(hidden),
-				activityWindowDays: Number(activityWindowDays),
-				pollIntervalSeconds: Number(pollIntervalSeconds),
-				checkoutRoots: lines(checkoutRoots),
-				expectedBots: parseBots(expectedBots),
-				viewerLogins: lines(viewerLogins),
-				pmBot: parsePmBot(pmBot),
-				needsYouLabels: lines(needsYouLabels),
-				notificationTriggers: {
-					needsYou,
-					comment,
-					blockerCleared,
-				},
-			};
-			const error = await onSave(next);
-			setFailed(error !== null);
-			setMessage(error ?? "Saved");
-		} catch (error) {
-			setFailed(true);
-			setMessage(error instanceof Error ? error.message : "save failed");
+		const error = await onSave(draft);
+		setFailed(error !== null);
+		setMessage(error ?? settingsCopy.saved);
+		if (error === null) {
+			setSaved(draft);
 		}
-		requestAnimationFrame(() => {
-			document
-				.getElementById("settings-message")
-				?.scrollIntoView({ block: "end" });
-		});
 	}
+}
+
+function Credential({ id, present }: { id: string; present: boolean }) {
+	return (
+		<span id={id} className={clsx(fields.status, present && fields.statusOn)}>
+			{present ? settingsCopy.connected : settingsCopy.missing}
+		</span>
+	);
+}
+
+function MappingEditor({
+	mappings,
+	onChange,
+}: {
+	mappings: Configuration["laneMappings"];
+	onChange: (next: Configuration["laneMappings"]) => void;
+}) {
+	const [key, setKey] = useState("");
+	const [state, setState] =
+		useState<(typeof evidenceStates)[number]>("awaitingMerge");
+	const [status, setStatus] = useState("");
+	const rows = Object.entries(mappings);
+	return (
+		<div className={clsx(fields.chips)}>
+			{rows.map(([name, mapping]) =>
+				evidenceStates.flatMap((item) => {
+					const value = mapping[item];
+					return value === undefined
+						? []
+						: [
+								<span key={`${name}-${item}`} className={clsx(fields.chip)}>
+									{name} {stateLabel[item]} {value}
+									<button
+										type="button"
+										className={clsx(fields.chipRemove)}
+										aria-label={`Remove ${name} ${stateLabel[item]}`}
+										onClick={() => {
+											const next = { ...mapping };
+											delete next[item];
+											const kept = { ...mappings };
+											if (Object.keys(next).length === 0) {
+												delete kept[name];
+											} else {
+												kept[name] = next;
+											}
+											onChange(kept);
+										}}
+									>
+										×
+									</button>
+								</span>,
+							];
+				}),
+			)}
+			<input
+				id="lane-mapping-key"
+				className={clsx(fields.chipInput)}
+				aria-label={settingsCopy.mappingKey}
+				placeholder={settingsCopy.mappingKey}
+				value={key}
+				onChange={(event) => setKey(event.target.value)}
+			/>
+			<select
+				id="lane-mapping-state"
+				className={clsx(fields.select)}
+				aria-label={settingsCopy.statusName}
+				value={state}
+				onChange={(event) =>
+					setState(event.target.value as (typeof evidenceStates)[number])
+				}
+			>
+				{evidenceStates.map((item) => (
+					<option key={item} value={item}>
+						{stateLabel[item]}
+					</option>
+				))}
+			</select>
+			<input
+				id="lane-mapping-status"
+				className={clsx(fields.chipInput)}
+				aria-label={settingsCopy.statusName}
+				placeholder={settingsCopy.statusName}
+				value={status}
+				onKeyDown={(event) => {
+					if (event.key !== "Enter") {
+						return;
+					}
+					event.preventDefault();
+					const name = key.trim();
+					const named = status.trim();
+					if (name === "" || named === "") {
+						return;
+					}
+					onChange({
+						...mappings,
+						[name]: { ...mappings[name], [state]: named },
+					});
+					setStatus("");
+				}}
+				onChange={(event) => setStatus(event.target.value)}
+			/>
+		</div>
+	);
+}
+
+function AutoMergeEditor({
+	overrides,
+	onChange,
+}: {
+	overrides: Configuration["autoMerge"];
+	onChange: (next: Configuration["autoMerge"]) => void;
+}) {
+	const [repo, setRepo] = useState("");
+	const rows = Object.entries(overrides);
+	return (
+		<div className={clsx(fields.chips)}>
+			{rows.map(([name, value]) => (
+				<span key={name} className={clsx(fields.chip)}>
+					{name} {value}
+					<button
+						type="button"
+						className={clsx(fields.chipRemove)}
+						aria-label={`Remove ${name}`}
+						onClick={() => {
+							const next = { ...overrides };
+							delete next[name];
+							onChange(next);
+						}}
+					>
+						×
+					</button>
+				</span>
+			))}
+			<input
+				id="auto-merge-repo"
+				className={clsx(fields.chipInput)}
+				aria-label={settingsCopy.repo}
+				placeholder={settingsCopy.repo}
+				value={repo}
+				onChange={(event) => setRepo(event.target.value)}
+			/>
+			<select
+				id="auto-merge-value"
+				className={clsx(fields.select)}
+				aria-label={settingsCopy.autoMerge}
+				defaultValue="ask"
+				onChange={(event) => {
+					const name = repo.trim();
+					if (name === "") {
+						return;
+					}
+					onChange({
+						...overrides,
+						[name]: event.target.value as AutoMerge,
+					});
+					setRepo("");
+				}}
+			>
+				{autoMergeChoices.map((choice) => (
+					<option key={choice} value={choice}>
+						{choice === "yes"
+							? settingsCopy.yes
+							: choice === "ask"
+								? settingsCopy.ask
+								: settingsCopy.no}
+					</option>
+				))}
+			</select>
+		</div>
+	);
+}
+
+function configurationOf(body: SettingsBody): Configuration {
+	const { trackers: _trackers, ...configuration } = body;
+	return configuration;
 }
 
 function Page() {
 	const [settings, setSettings] = useState<Configuration | null>(null);
+	const [trackers, setTrackers] = useState<Trackers>({
+		github: false,
+		linear: false,
+	});
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		let stopped = false;
@@ -323,11 +831,12 @@ function Page() {
 				if (!response.ok) {
 					throw new Error(`settings failed (HTTP ${response.status})`);
 				}
-				return (await response.json()) as Configuration;
+				return (await response.json()) as SettingsBody;
 			})
 			.then((body) => {
 				if (!stopped) {
-					setSettings(body);
+					setTrackers(body.trackers ?? { github: false, linear: false });
+					setSettings(configurationOf(body));
 				}
 			})
 			.catch((cause: unknown) => {
@@ -347,48 +856,34 @@ function Page() {
 	}
 	return (
 		<Menu
-			settings={settings}
+			loaded={settings}
+			trackers={trackers}
 			onSave={async (next) => {
 				const current = await fetch("/api/settings");
 				if (!current.ok) {
 					return `settings failed (HTTP ${current.status})`;
 				}
-				const live: unknown = await current.json();
-				if (live === null || typeof live !== "object") {
-					return "settings failed";
-				}
+				const live = (await current.json()) as SettingsBody;
 				const theme =
-					"theme" in live &&
 					(live.theme === "light" || live.theme === "dark") &&
 					live.theme !== settings.theme
 						? live.theme
 						: next.theme;
 				const overview =
-					live !== null &&
-					typeof live === "object" &&
-					"overview" in live &&
-					live.overview !== null &&
-					typeof live.overview === "object"
+					live.overview !== null && typeof live.overview === "object"
 						? live.overview
 						: next.overview;
 				const pinned =
 					sameRefs(settings.pinned, next.pinned) &&
-					live !== null &&
-					typeof live === "object" &&
-					"pinned" in live &&
 					Array.isArray(live.pinned)
-						? (live.pinned as Configuration["pinned"])
+						? live.pinned
 						: next.pinned;
-				const projectViews =
-					"projectViews" in live &&
-					live.projectViews !== null &&
-					typeof live.projectViews === "object"
-						? live.projectViews
-						: {};
+				const projectViews = { ...live.projectViews, ...next.projectViews };
 				const response = await fetch("/api/settings", {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
+						...configurationOf(live),
 						...next,
 						theme,
 						overview,
@@ -396,21 +891,17 @@ function Page() {
 						projectViews,
 					}),
 				});
-				const body: unknown = await response.json().catch(() => null);
+				const body = (await response.json().catch(() => null)) as
+					| (SettingsBody & { error?: string })
+					| null;
 				if (!response.ok) {
-					const message =
-						body !== null &&
-						typeof body === "object" &&
-						"error" in body &&
-						typeof body.error === "string"
-							? body.error
-							: `save failed (HTTP ${response.status})`;
-					return message;
+					return body?.error ?? `save failed (HTTP ${response.status})`;
 				}
 				if (body === null) {
 					throw new Error("save failed");
 				}
-				setSettings(body as Configuration);
+				setTrackers(body.trackers ?? trackers);
+				setSettings(configurationOf(body));
 				return null;
 			}}
 		/>
