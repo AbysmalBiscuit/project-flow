@@ -127,6 +127,20 @@ function sortValue(project: ProjectCounts, key: SortKey): number | string {
 		.join(" ");
 }
 
+function sortDirectionFor(
+	current: SortKey,
+	next: SortKey,
+	direction: SortDirection,
+): SortDirection {
+	if (current === next) {
+		return direction;
+	}
+	if (next === "needsYou" || next === "blockedBy") {
+		return "desc";
+	}
+	return "asc";
+}
+
 function sortProjects(
 	projects: ProjectCounts[],
 	key: SortKey,
@@ -936,6 +950,7 @@ function OverviewPage({
 				<label key={item} className={clsx(cards.choice)}>
 					<input
 						type="radio"
+						id={`overview-sort-${item}`}
 						name="overview-sort"
 						value={item}
 						checked={view.sort === item}
@@ -943,7 +958,7 @@ function OverviewPage({
 							saveView({
 								...view,
 								sort: item,
-								direction: view.sort === item ? view.direction : "asc",
+								direction: sortDirectionFor(view.sort, item, view.direction),
 							})
 						}
 					/>
