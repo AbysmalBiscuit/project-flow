@@ -2065,10 +2065,12 @@ describe("live updates", () => {
 			comments: 1,
 			body: "",
 		};
+		const storedCommentAt = "2026-04-01T10:04:00.000Z";
 		const recorded = {
 			...recordedProgressComment,
 			issue_url: `https://api.github.com/repos/${repo}/issues/192`,
 			html_url: `https://github.com/${repo}/issues/192#issuecomment-${recordedProgressComment.id}`,
+			updated_at: storedCommentAt,
 		};
 		const edited = {
 			...recorded,
@@ -2121,7 +2123,7 @@ describe("live updates", () => {
 			});
 			expect(first.tickets[0]?.chips ?? []).not.toContain("Run failed");
 			expect(firstOverview.error).toBeNull();
-			advance(5 * 60 * 1000);
+			advance(2 * 60 * 60 * 1000);
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
@@ -2192,7 +2194,7 @@ describe("live updates", () => {
 					},
 				]);
 			}
-			if (url === `https://api.github.com/repos/${repo}/issues/1`) {
+			if (/\/repos\/[^/]+\/[^/]+\/issues\/\d+$/.test(url)) {
 				requests.push(url);
 				return new Response("recorded failure", { status: 500 });
 			}
@@ -2208,7 +2210,7 @@ describe("live updates", () => {
 			).json()) as OverviewBody;
 			expect(body.projects[0]?.tickets).toEqual([githubTicket(1, "backlog")]);
 			expect(body.error).toBeNull();
-			expect(requests.some((url) => url.endsWith("/issues/1"))).toBe(false);
+			expect(requests.filter((url) => /\/issues\/\d+$/.test(url))).toEqual([]);
 		});
 	});
 
