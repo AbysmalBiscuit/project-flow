@@ -523,7 +523,6 @@ export const needs = stylex.create({
 	},
 	item: {
 		display: "flex",
-		gap: space.sm,
 		alignItems: "center",
 		borderBottomWidth: measure.hairline,
 		borderBottomStyle: "solid",
