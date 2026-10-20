@@ -1,13 +1,16 @@
 import { Database } from "bun:sqlite";
 import type { Board, Notification, Ticket } from "./domain.ts";
 import { mergeTickets } from "./domain.ts";
-import type { Snapshot, Store } from "./ports.ts";
+import type { Snapshot, Store, WorkcellRun } from "./ports.ts";
 
 type StoredPayload = {
 	tickets: Ticket[];
 	pulls: Snapshot["pulls"];
 	branches: string[];
 	startedKeys: string[];
+	runs?: WorkcellRun[];
+	workcellAuto?: Record<string, "yes" | "ask" | "no">;
+	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 };
 
@@ -30,6 +33,13 @@ function readRows(db: Database): Snapshot[] {
 			pulls: payload.pulls,
 			branches: payload.branches,
 			startedKeys: payload.startedKeys,
+			...(payload.runs === undefined ? {} : { runs: payload.runs }),
+			...(payload.workcellAuto === undefined
+				? {}
+				: { workcellAuto: payload.workcellAuto }),
+			...(payload.repoAutoMerge === undefined
+				? {}
+				: { repoAutoMerge: payload.repoAutoMerge }),
 			...(payload.board === undefined ? {} : { board: payload.board }),
 		};
 	});
@@ -47,6 +57,13 @@ function writeRow(db: Database, row: Snapshot): void {
 			pulls: row.pulls,
 			branches: row.branches,
 			startedKeys: row.startedKeys,
+			...(row.runs === undefined ? {} : { runs: row.runs }),
+			...(row.workcellAuto === undefined
+				? {}
+				: { workcellAuto: row.workcellAuto }),
+			...(row.repoAutoMerge === undefined
+				? {}
+				: { repoAutoMerge: row.repoAutoMerge }),
 			...(row.board === undefined ? {} : { board: row.board }),
 		}),
 	);

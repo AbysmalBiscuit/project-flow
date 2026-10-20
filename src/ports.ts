@@ -23,8 +23,15 @@ type CheckoutNames = {
 	names: string[];
 };
 
-export type LocalCheckout = CheckoutNames &
-	(
+export type WorkcellRun = {
+	key: string;
+	status: "running" | "failed";
+};
+
+export type LocalCheckout = CheckoutNames & {
+	runs?: WorkcellRun[];
+	mergeAuto?: "yes" | "ask" | "no";
+} & (
 		| {
 				tracker: "github";
 				repo: string;
@@ -64,6 +71,7 @@ export type Tracker = {
 	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
 	listPulls: (project: string, since?: Date | null) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
+	repoAutoMerge?: (project: string) => Promise<boolean>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
 		viewer: Viewer | null;

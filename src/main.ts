@@ -11,7 +11,12 @@ import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
 import { checkLinearKey } from "./linear.ts";
-import type { CheckoutSource, LocalCheckout, TodoSource } from "./ports.ts";
+import type {
+	CheckoutSource,
+	LocalCheckout,
+	TodoSource,
+	WorkcellRun,
+} from "./ports.ts";
 
 export { missingToken };
 export const rejectedToken =
@@ -143,6 +148,36 @@ async function worktreeNames(path: string): Promise<string[]> {
 	return names;
 }
 
+function workcellRun(text: string, key: string): WorkcellRun | null {
+	let status: unknown;
+	try {
+		status = (JSON.parse(text) as { status?: unknown }).status;
+	} catch {
+		return null;
+	}
+	if (status === "running" || status === "starting") {
+		return { key, status: "running" };
+	}
+	if (status === "failed") {
+		return { key, status: "failed" };
+	}
+	return null;
+}
+
+function mergeAuto(text: string): "yes" | "ask" | "no" | undefined {
+	const section = text.match(/\[merge\]([\s\S]*?)(?:\n\[|$)/)?.[1] ?? "";
+	const value = section.match(/^\s*auto\s*=\s*"?(yes|ask|no)"?\s*$/m)?.[1];
+	if (value === "yes" || value === "ask" || value === "no") {
+		return value;
+	}
+	return undefined;
+}
+
+function issueKey(text: string): string | null {
+	const id = text.match(/^\s*id\s*=\s*"([^"]+)"\s*$/m)?.[1]?.trim() ?? "";
+	return id === "" ? null : id;
+}
+
 async function readCheckout(path: string): Promise<LocalCheckout | null> {
 	const configText = await readText(join(path, ".git", "config"));
 	const devkitText = await readText(join(path, "devkit.toml"));
@@ -155,11 +190,22 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 	const configured = parsed?.github?.issues_repo?.trim() ?? "";
 	const hasTrackerConfig =
 		kind === "linear" || (kind === "github" && ownerRepo.test(configured));
+	const issue = await readText(join(path, ".devkit", "issue.toml"));
+	const key = issue === null ? null : issueKey(issue);
+	const state = await readText(join(path, ".devkit", "workcell", "state.json"));
+	const run = key === null || state === null ? null : workcellRun(state, key);
+	const manifest = await readText(join(path, ".agents", "workcell.toml"));
+	const auto = manifest === null ? undefined : mergeAuto(manifest);
+	const evidence = {
+		...(run === null ? {} : { runs: [run] }),
+		...(auto === undefined ? {} : { mergeAuto: auto }),
+	};
 	if (kind === "linear") {
 		return {
 			tracker: "linear",
 			path,
 			names: await worktreeNames(path),
+			...evidence,
 		};
 	}
 	if (!hasTrackerConfig && origin === null) {
@@ -176,6 +222,7 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 		originOwner: origin?.owner ?? "",
 		hasTrackerConfig,
 		names: [],
+		...evidence,
 	};
 }
 

@@ -168,6 +168,7 @@ async function assertCard(base: string): Promise<void> {
 					blockers: [],
 					lane: "Done",
 					statusType: "done",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
 				},
 				{
 					key: `${repo}#2`,
@@ -176,6 +177,7 @@ async function assertCard(base: string): Promise<void> {
 					blockers: [],
 					lane: "Dropped",
 					statusType: "dropped",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
 				},
 				{
 					key: `${repo}#3`,
@@ -184,6 +186,7 @@ async function assertCard(base: string): Promise<void> {
 					blockers: [],
 					lane: "Dropped",
 					statusType: "dropped",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
 				},
 				{
 					key: `${repo}#4`,
@@ -192,6 +195,7 @@ async function assertCard(base: string): Promise<void> {
 					blockers: [],
 					lane: "Done",
 					statusType: "done",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
 				},
 				{
 					key: `${repo}#5`,
@@ -200,6 +204,7 @@ async function assertCard(base: string): Promise<void> {
 					blockers: [],
 					lane: "Backlog",
 					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
 				},
 				{
 					key: `${repo}#6`,
@@ -208,6 +213,7 @@ async function assertCard(base: string): Promise<void> {
 					blockers: [],
 					lane: "Backlog",
 					statusType: "backlog",
+					enteredStateAt: "2026-10-18T12:00:00.000Z",
 				},
 			],
 			crossProjectBlockers: [],
@@ -474,6 +480,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						crossProjectBlockers: [],
@@ -519,6 +526,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						crossProjectBlockers: [],
@@ -719,6 +727,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Done",
 								statusType: "done",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
 							},
 						],
 						crossProjectBlockers: [],
@@ -941,6 +950,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Done",
 									statusType: "done",
+									enteredStateAt: "2026-10-18T12:00:00.000Z",
 								},
 								{
 									key: `${repo}#2`,
@@ -949,6 +959,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Dropped",
 									statusType: "dropped",
+									enteredStateAt: "2026-10-18T12:00:00.000Z",
 								},
 								{
 									key: `${repo}#3`,
@@ -957,6 +968,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Dropped",
 									statusType: "dropped",
+									enteredStateAt: "2026-10-18T12:00:00.000Z",
 								},
 								{
 									key: `${repo}#4`,
@@ -965,6 +977,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Done",
 									statusType: "done",
+									enteredStateAt: "2026-10-18T12:00:00.000Z",
 								},
 								{
 									key: `${repo}#5`,
@@ -973,6 +986,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Backlog",
 									statusType: "backlog",
+									enteredStateAt: "2026-10-18T12:00:00.000Z",
 								},
 								{
 									key: `${repo}#6`,
@@ -981,6 +995,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Backlog",
 									statusType: "backlog",
+									enteredStateAt: "2026-10-18T12:00:00.000Z",
 								},
 							],
 							crossProjectBlockers: [],
@@ -1020,6 +1035,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Done",
 									statusType: "done",
+									enteredStateAt: "2026-08-18T12:00:00.000Z",
 								},
 								{
 									key: "WID-2",
@@ -1028,6 +1044,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Dropped",
 									statusType: "dropped",
+									enteredStateAt: "2026-08-18T12:00:00.000Z",
 								},
 								{
 									key: "WID-3",
@@ -1036,6 +1053,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Dropped",
 									statusType: "dropped",
+									enteredStateAt: "2026-08-18T12:00:00.000Z",
 								},
 								{
 									key: "WID-4",
@@ -1044,6 +1062,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Done",
 									statusType: "done",
+									enteredStateAt: "2026-08-18T12:00:00.000Z",
 								},
 								{
 									key: "WID-5",
@@ -1052,6 +1071,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Backlog",
 									statusType: "backlog",
+									enteredStateAt: "2026-08-18T12:00:00.000Z",
 								},
 								{
 									key: "WID-6",
@@ -1060,6 +1080,7 @@ describe("GET /api/overview", () => {
 									blockers: [],
 									lane: "Backlog",
 									statusType: "backlog",
+									enteredStateAt: "2026-08-18T12:00:00.000Z",
 								},
 							],
 							crossProjectBlockers: [],
@@ -1244,6 +1265,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -1443,6 +1465,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 							{
 								key: `${repo}#2`,
@@ -1451,6 +1474,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Done",
 								statusType: "done",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -1487,6 +1511,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
 							},
 							{
 								key: "WID-2",
@@ -1495,6 +1520,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Done",
 								statusType: "done",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -1712,6 +1738,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "",
 							},
 						],
 						unlinkedPrs: [],
@@ -1881,6 +1908,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-08-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -2271,6 +2299,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "",
 							},
 							{
 								key: "acme/widget#8",
@@ -2279,6 +2308,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Done",
 								statusType: "done",
+								enteredStateAt: "",
 							},
 						],
 						unlinkedPrs: [],
@@ -2315,6 +2345,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -2509,6 +2540,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "",
 							},
 						],
 						unlinkedPrs: [],
@@ -2701,6 +2733,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -2897,6 +2930,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -3089,6 +3123,7 @@ describe("GET /api/overview", () => {
 								blockers: [],
 								lane: "Backlog",
 								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
 							},
 						],
 						unlinkedPrs: [],
@@ -4324,6 +4359,7 @@ describe("GET /api/overview", () => {
 							blockers: [],
 							lane: "Backlog",
 							statusType: "backlog",
+							enteredStateAt: "2026-10-18T12:00:00.000Z",
 						},
 					]);
 					expect(before.projects[0]?.unlinkedPrs).toEqual([
@@ -4472,6 +4508,7 @@ describe("GET /api/overview", () => {
 							blockers: [],
 							lane: "Backlog",
 							statusType: "backlog",
+							enteredStateAt: "2026-10-18T12:00:00.000Z",
 						},
 					]);
 					const refresh = await fetch(new URL("/api/refresh", base), {
@@ -4625,8 +4662,9 @@ describe("GET /api/overview", () => {
 							title: "Ticket 21",
 							state: "inProgress",
 							blockers: [],
-							lane: "Backlog",
-							statusType: "backlog",
+							lane: "In progress",
+							statusType: "inProgress",
+							enteredStateAt: "2026-10-18T12:00:00.000Z",
 						},
 					]);
 					const refresh = await fetch(new URL("/api/refresh", base), {
@@ -4878,8 +4916,14 @@ describe("GET /api/overview", () => {
 				const etag = since.includes("T12:00:") ? firstEtag : secondEtag;
 				return page([ticket(8, "open", null)], null, { etag });
 			}
-			if (url.includes("/pulls?") || url.includes("/labels?")) {
+			if (url.includes("/pulls?")) {
+				if (url.includes("state=closed")) {
+					return page([], null);
+				}
 				return page([], null, { etag: stableEtag });
+			}
+			if (url.includes("/labels?")) {
+				return page([], null);
 			}
 			if (url.includes("/branches?")) {
 				return page([], null);
@@ -4970,7 +5014,7 @@ describe("GET /api/overview", () => {
 					expect(otherWindows[1]?.headers.get("if-none-match")).toBe(otherEtag);
 					expect(otherWindows[2]?.headers.get("if-none-match")).toBeNull();
 					const pullReads = sent.filter((item) =>
-						item.url.includes(`/repos/${repoName}/pulls?`),
+						item.url.includes(`/repos/${repoName}/pulls?state=open`),
 					);
 					expect(pullReads.length).toBeGreaterThan(1);
 					expect(pullReads[1]?.headers.get("if-none-match")).toBe(stableEtag);

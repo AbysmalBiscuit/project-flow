@@ -41,6 +41,7 @@ const configurationSchema = z.strictObject({
 	checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
 	expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
 	pmBot: z.record(z.string(), z.boolean()).default({}),
+	autoMerge: z.record(z.string(), z.enum(["yes", "ask", "no"])).default({}),
 	laneMappings: z
 		.record(
 			z.string(),

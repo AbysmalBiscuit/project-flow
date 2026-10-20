@@ -166,6 +166,9 @@ function projectViews(
 			row.pulls,
 			row.branches,
 			row.startedKeys,
+			row.runs ?? [],
+			{ ...row.workcellAuto, ...configuration.autoMerge },
+			row.repoAutoMerge ?? {},
 			all,
 			expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 			{
@@ -487,6 +490,14 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		todoListing,
 		checkoutBasenames(checkouts),
 	);
+	const runs = checkouts.flatMap((checkout) => checkout.runs ?? []);
+	const repoAutoMerge: Record<string, boolean> = {};
+	const workcellAuto: Record<string, "yes" | "ask" | "no"> = {};
+	for (const checkout of checkouts) {
+		if (checkout.tracker === "github" && checkout.mergeAuto !== undefined) {
+			workcellAuto[checkout.repo] = checkout.mergeAuto;
+		}
+	}
 	const linear = options.linear;
 	const github = options.github;
 	let githubPage: {
@@ -628,6 +639,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					pulls: [],
 					branches: [],
 					startedKeys,
+					runs,
+					workcellAuto,
+					repoAutoMerge,
 				},
 			});
 			continue;
@@ -656,6 +670,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				project.tracker === "github" && github !== null
 					? await github.listBranches(project.key)
 					: [];
+			if (
+				project.tracker === "github" &&
+				github?.repoAutoMerge !== undefined &&
+				project.key.includes("/")
+			) {
+				repoAutoMerge[project.key] = await github.repoAutoMerge(project.key);
+			}
 			const stored = options.store
 				.readTickets()
 				.find((row) => row.key === project.key);
@@ -669,6 +690,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				pulls,
 				branches,
 				startedKeys,
+				runs,
+				workcellAuto,
+				repoAutoMerge,
 				pinned,
 				hidden,
 				...(listedTickets.board === undefined
@@ -728,6 +752,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				pulls: [],
 				branches: [],
 				startedKeys,
+				runs,
+				workcellAuto,
+				repoAutoMerge,
 			};
 			outcomes.set(project.key, {
 				key: project.key,

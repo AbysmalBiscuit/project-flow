@@ -60,6 +60,12 @@ export function unrecorded(input: string | URL | Request): Response {
 			headers: { "content-type": "application/json" },
 		});
 	}
+	if (/^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+$/.test(url)) {
+		return new Response("{}", {
+			status: 200,
+			headers: { "content-type": "application/json" },
+		});
+	}
 	return (
 		recordedDiscovery(input) ?? new Response("not recorded", { status: 404 })
 	);

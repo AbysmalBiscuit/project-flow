@@ -106,6 +106,9 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 				nodes { id body createdAt user { name displayName } reactions { id } }
 				pageInfo { hasNextPage endCursor }
 			}
+			history(first: 50) {
+				nodes { createdAt toState { id } }
+			}
 			inverseRelations(first: 30) {
 				nodes {
 					type
@@ -233,6 +236,16 @@ const issueNode = z.object({
 			pageInfo: pageInfo.optional(),
 		})
 		.optional(),
+	history: z
+		.object({
+			nodes: z.array(
+				z.object({
+					createdAt: z.string(),
+					toState: z.object({ id: z.string() }).nullable(),
+				}),
+			),
+		})
+		.optional(),
 	inverseRelations: z
 		.object({
 			nodes: z.array(
@@ -337,6 +350,11 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 	if (mapped === null) {
 		return null;
 	}
+	const history = (node.history?.nodes ?? []).flatMap((change) =>
+		change.toState === null
+			? []
+			: [{ statusId: change.toState.id, at: change.createdAt }],
+	);
 	const comments = (node.comments?.nodes ?? []).flatMap((comment) => {
 		const listed = listedComment(comment);
 		return listed === null ? [] : [listed];
@@ -368,6 +386,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 		...(node.assignee === undefined ? {} : { assignee }),
 		...(status === undefined ? {} : { status }),
+		...(history.length === 0 ? {} : { history }),
 	};
 }
 
@@ -752,11 +771,20 @@ async function pullsForIssues(
 				headSha: head,
 				headCommittedAt,
 				merged: false,
+				autoMerge: pull.auto_merge != null,
 				...review,
 			});
 		}
 	}
-	const repos = [...new Set(pulls.map((pull) => pull.repo))];
+	const repos = new Set(pulls.map((pull) => pull.repo));
+	for (const node of nodes) {
+		for (const attachment of node.attachments?.nodes ?? []) {
+			const target = pullFromUrl(attachment.url);
+			if (target !== null) {
+				repos.add(target.repo);
+			}
+		}
+	}
 	for (const repo of repos) {
 		pulls.push(
 			...(await mergedPullHistory(repo, githubToken, fetchGithub, seenReviews)),

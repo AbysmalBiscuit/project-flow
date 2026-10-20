@@ -39,13 +39,51 @@ function view(
 		| "awaitingMerge"
 		| "done"
 		| "dropped",
-): { key: string; title: string; state: string; blockers: string[] } {
+): {
+	key: string;
+	title: string;
+	state: string;
+	blockers: string[];
+	lane: string;
+	statusType: string;
+	enteredStateAt: string;
+} {
 	return {
 		key: `${repo}#${number}`,
 		title: `Ticket ${number}`,
 		state,
 		blockers: [],
+		lane: laneOf(state),
+		statusType: state,
+		enteredStateAt: "2026-04-01T00:00:00Z",
 	};
+}
+
+function laneOf(
+	state:
+		| "backlog"
+		| "inProgress"
+		| "inReview"
+		| "awaitingMerge"
+		| "done"
+		| "dropped",
+): string {
+	if (state === "inProgress") {
+		return "In progress";
+	}
+	if (state === "inReview") {
+		return "In review";
+	}
+	if (state === "awaitingMerge") {
+		return "Awaiting merge";
+	}
+	if (state === "done") {
+		return "Done";
+	}
+	if (state === "dropped") {
+		return "Dropped";
+	}
+	return "Backlog";
 }
 
 function pull(
