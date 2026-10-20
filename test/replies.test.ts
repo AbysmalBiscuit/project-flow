@@ -2118,15 +2118,18 @@ describe("replies", () => {
 				},
 			],
 		});
-		const app = await serve(async (input, init) => {
-			const method =
-				init?.method ?? (input instanceof Request ? input.method : "GET");
-			calls.push({ method, host: new URL(urlOf(input)).host });
-			return recorded(input, init);
-		}, JSON.stringify({
-			pinned: [{ tracker: "linear", project: "widget-launch" }],
-			needsYouLabels: ["needs-human"],
-		}));
+		const app = await serve(
+			async (input, init) => {
+				const method =
+					init?.method ?? (input instanceof Request ? input.method : "GET");
+				calls.push({ method, host: new URL(urlOf(input)).host });
+				return recorded(input, init);
+			},
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				needsYouLabels: ["needs-human"],
+			}),
+		);
 		try {
 			const listed = (await (
 				await fetch(new URL("/api/needs-you", app.base))
@@ -2147,10 +2150,12 @@ describe("replies", () => {
 					}),
 				});
 			}
-			const write = calls.slice(before).find(
-				(call) =>
-					writes.includes(call.method) && trackerHosts.includes(call.host),
-			);
+			const write = calls
+				.slice(before)
+				.find(
+					(call) =>
+						writes.includes(call.method) && trackerHosts.includes(call.host),
+				);
 			expect(write).toBeUndefined();
 		} finally {
 			await app.stop();
