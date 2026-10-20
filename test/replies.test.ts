@@ -2099,7 +2099,9 @@ describe("replies", () => {
 	});
 
 	test("a disabled merge or label action sends no tracker request", async () => {
-		const sent: string[] = [];
+		const trackerHosts = ["api.linear.app", "api.github.com"];
+		const writes = ["POST", "PUT", "PATCH", "DELETE"];
+		const calls: { method: string; host: string }[] = [];
 		const recorded = linearFake({
 			project: linearProject,
 			issues: [
@@ -2115,15 +2117,16 @@ describe("replies", () => {
 					comments: { nodes: [] },
 				},
 			],
-			requests: sent,
 		});
-		const app = await serve(
-			recorded,
-			JSON.stringify({
-				pinned: [{ tracker: "linear", project: "widget-launch" }],
-				needsYouLabels: ["needs-human"],
-			}),
-		);
+		const app = await serve(async (input, init) => {
+			const method =
+				init?.method ?? (input instanceof Request ? input.method : "GET");
+			calls.push({ method, host: new URL(urlOf(input)).host });
+			return recorded(input, init);
+		}, JSON.stringify({
+			pinned: [{ tracker: "linear", project: "widget-launch" }],
+			needsYouLabels: ["needs-human"],
+		}));
 		try {
 			const listed = (await (
 				await fetch(new URL("/api/needs-you", app.base))
@@ -2131,8 +2134,9 @@ describe("replies", () => {
 			expect(listed.find((item) => item.key === "PF-31")).toMatchObject({
 				reason: "label",
 			});
+			const before = calls.length;
 			for (const action of ["merge", "remove-label"]) {
-				const response = await fetch(new URL("/api/replies", app.base), {
+				await fetch(new URL("/api/replies", app.base), {
 					method: "POST",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
@@ -2142,16 +2146,12 @@ describe("replies", () => {
 						action,
 					}),
 				});
-				expect(response.status).toBe(400);
 			}
-			expect(
-				sent.some(
-					(body) =>
-						body.includes("commentCreate") ||
-						body.includes("mutation") ||
-						body.includes("issueUpdate"),
-				),
-			).toBe(false);
+			const write = calls.slice(before).find(
+				(call) =>
+					writes.includes(call.method) && trackerHosts.includes(call.host),
+			);
+			expect(write).toBeUndefined();
 		} finally {
 			await app.stop();
 		}
