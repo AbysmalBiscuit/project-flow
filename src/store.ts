@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import type { AutoMerge } from "./configuration.ts";
 import type { Board, Notification, Ticket } from "./domain.ts";
 import { mergeTickets } from "./domain.ts";
 import type { Snapshot, Store, WorkcellRun } from "./ports.ts";
@@ -9,7 +10,7 @@ type StoredPayload = {
 	branches: string[];
 	startedKeys: string[];
 	runs?: WorkcellRun[];
-	workcellAuto?: Record<string, "yes" | "ask" | "no">;
+	workcellAuto?: Record<string, AutoMerge>;
 	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 };

@@ -70,6 +70,8 @@ const configurationSchema = z.strictObject({
 
 export type Configuration = z.infer<typeof configurationSchema>;
 
+export type AutoMerge = Configuration["autoMerge"][string];
+
 function fieldPath(issue: z.core.$ZodIssue): string {
 	const path = issue.path.map(String).join(".");
 	if (issue.code === "unrecognized_keys") {

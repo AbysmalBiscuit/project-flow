@@ -1,4 +1,4 @@
-import type { Configuration } from "./configuration.ts";
+import type { AutoMerge, Configuration } from "./configuration.ts";
 import type {
 	Notification,
 	Overview,
@@ -8,9 +8,10 @@ import type {
 	Snapshot,
 	Thread,
 	Ticket,
+	WorkcellRun,
 } from "./domain.ts";
 
-export type { Snapshot };
+export type { Snapshot, WorkcellRun };
 
 export type Clock = {
 	now: () => Date;
@@ -23,14 +24,10 @@ type CheckoutNames = {
 	names: string[];
 };
 
-export type WorkcellRun = {
-	key: string;
-	status: "running" | "failed";
-};
-
 export type LocalCheckout = CheckoutNames & {
 	runs?: WorkcellRun[];
-	mergeAuto?: "yes" | "ask" | "no";
+	mergeAuto?: AutoMerge;
+	repo?: string;
 } & (
 		| {
 				tracker: "github";
@@ -71,7 +68,7 @@ export type Tracker = {
 	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
 	listPulls: (project: string, since?: Date | null) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
-	repoAutoMerge?: (project: string) => Promise<boolean>;
+	repoAutoMerge: (project: string) => Promise<boolean>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
 		viewer: Viewer | null;

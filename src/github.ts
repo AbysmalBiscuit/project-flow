@@ -15,7 +15,12 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { backlogColour, factoryBoard, statusTypeOfName } from "./domain.ts";
+import {
+	backlogColour,
+	closingKeysFromBody,
+	factoryBoard,
+	statusTypeOfName,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 
@@ -1335,10 +1340,16 @@ async function loadOpenPull(
 		);
 	}
 	const pull = githubPull.parse(await response.json());
-	if (pull.state !== "open") {
+	const body = pull.body ?? "";
+	const merged = (pull.merged_at ?? null) !== null;
+	if (pull.state !== "open" && !merged) {
 		return null;
 	}
-	const head = pull.head.sha ?? "";
+	const closedByBody = closingKeysFromBody(body, repo);
+	if (merged && closedByBody.length === 0) {
+		return null;
+	}
+	const head = merged ? "" : (pull.head.sha ?? "");
 	const review =
 		head === ""
 			? { checks: [], comments: [], reviews: [], reactions: [] }
@@ -1351,7 +1362,7 @@ async function loadOpenPull(
 					fetchImpl,
 				);
 	const headCommittedAt =
-		pull.draft === true || head === ""
+		merged || pull.draft === true || head === ""
 			? null
 			: await fetchHeadCommittedAt(repo, head, token, fetchImpl);
 	return {
@@ -1361,11 +1372,11 @@ async function loadOpenPull(
 		title: pull.title,
 		draft: pull.draft === true,
 		branch: pull.head.ref,
-		body: pull.body ?? "",
-		closingKeys,
+		body,
+		closingKeys: merged ? closedByBody : closingKeys,
 		headSha: head,
 		headCommittedAt,
-		merged: false,
+		merged,
 		autoMerge: pull.auto_merge != null,
 		...review,
 	};

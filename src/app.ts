@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Configuration } from "./configuration.ts";
+import type { AutoMerge, Configuration } from "./configuration.ts";
 import { loadConfiguration, saveConfiguration } from "./configuration.ts";
 import type {
 	Comment,
@@ -167,7 +167,8 @@ function projectViews(
 			row.branches,
 			row.startedKeys,
 			row.runs ?? [],
-			{ ...row.workcellAuto, ...configuration.autoMerge },
+			configuration.autoMerge,
+			row.workcellAuto ?? {},
 			row.repoAutoMerge ?? {},
 			all,
 			expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
@@ -492,10 +493,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	);
 	const runs = checkouts.flatMap((checkout) => checkout.runs ?? []);
 	const repoAutoMerge: Record<string, boolean> = {};
-	const workcellAuto: Record<string, "yes" | "ask" | "no"> = {};
+	const workcellAuto: Record<string, AutoMerge> = {};
 	for (const checkout of checkouts) {
-		if (checkout.tracker === "github" && checkout.mergeAuto !== undefined) {
-			workcellAuto[checkout.repo] = checkout.mergeAuto;
+		const repo = checkout.repo;
+		if (repo !== undefined && checkout.mergeAuto !== undefined) {
+			workcellAuto[repo] = checkout.mergeAuto;
 		}
 	}
 	const linear = options.linear;
@@ -670,12 +672,17 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				project.tracker === "github" && github !== null
 					? await github.listBranches(project.key)
 					: [];
-			if (
-				project.tracker === "github" &&
-				github?.repoAutoMerge !== undefined &&
-				project.key.includes("/")
-			) {
-				repoAutoMerge[project.key] = await github.repoAutoMerge(project.key);
+			if (github !== null) {
+				const repos = new Set([
+					...pulls.map((pull) => pull.repo),
+					...(project.tracker === "github" ? [project.key] : []),
+				]);
+				for (const repo of repos) {
+					if (repoAutoMerge[repo] !== undefined) {
+						continue;
+					}
+					repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+				}
 			}
 			const stored = options.store
 				.readTickets()

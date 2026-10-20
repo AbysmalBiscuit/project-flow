@@ -11,7 +11,7 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { linearStatusType } from "./domain.ts";
+import { closingKeysFromBody, linearStatusType } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
@@ -735,10 +735,16 @@ async function pullsForIssues(
 				continue;
 			}
 			const pull = githubPull.parse(await pullResponse.json());
-			if (pull.state !== "open") {
+			const body = pull.body ?? "";
+			const merged = (pull.merged_at ?? null) !== null;
+			if (pull.state !== "open" && !merged) {
 				continue;
 			}
-			const head = pull.head.sha ?? "";
+			const closedByBody = closingKeysFromBody(body, target.repo);
+			if (merged && closedByBody.length === 0) {
+				continue;
+			}
+			const head = merged ? "" : (pull.head.sha ?? "");
 			const review =
 				head === ""
 					? { checks: [], comments: [], reviews: [], reactions: [] }
@@ -751,7 +757,7 @@ async function pullsForIssues(
 							fetchGithub,
 						);
 			const headCommittedAt =
-				pull.draft === true || head === ""
+				merged || pull.draft === true || head === ""
 					? null
 					: await fetchHeadCommittedAt(
 							target.repo,
@@ -766,11 +772,11 @@ async function pullsForIssues(
 				title: pull.title,
 				draft: pull.draft === true,
 				branch: pull.head.ref,
-				body: pull.body ?? "",
-				closingKeys: [identifier],
+				body,
+				closingKeys: merged ? closedByBody : [identifier],
 				headSha: head,
 				headCommittedAt,
-				merged: false,
+				merged,
 				autoMerge: pull.auto_merge != null,
 				...review,
 			});
@@ -982,6 +988,9 @@ export function linearTracker(
 		},
 		async listBranches(_project) {
 			return [];
+		},
+		async repoAutoMerge(_project) {
+			return false;
 		},
 		fetchThread(project, ticketKey) {
 			return fetchLinearThread(key, fetchImpl, project, ticketKey);

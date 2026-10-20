@@ -6,6 +6,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { z } from "zod";
 import { version } from "../package.json";
 import { start } from "./app.ts";
+import type { AutoMerge } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
 import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
@@ -116,7 +117,26 @@ async function readText(path: string): Promise<string | null> {
 	}
 }
 
-async function worktreeNames(path: string): Promise<string[]> {
+async function gitConfigText(path: string): Promise<string | null> {
+	const direct = await readText(join(path, ".git", "config"));
+	if (direct !== null) {
+		return direct;
+	}
+	const pointer = await readText(join(path, ".git"));
+	const gitdir = pointer?.match(/^gitdir:\s*(\S+)/)?.[1];
+	if (gitdir === undefined) {
+		return null;
+	}
+	const root = isAbsolute(gitdir) ? gitdir : resolve(path, gitdir);
+	const common = await readText(join(root, "commondir"));
+	const configDir = common === null ? root : resolve(root, common.trim());
+	return readText(join(configDir, "config"));
+}
+
+async function worktreeList(path: string): Promise<{
+	paths: string[];
+	names: string[];
+}> {
 	const proc = Bun.spawn(
 		["git", "-C", path, "worktree", "list", "--porcelain"],
 		{
@@ -128,58 +148,95 @@ async function worktreeNames(path: string): Promise<string[]> {
 	const stdout = proc.stdout;
 	if (typeof stdout === "number" || stdout === undefined) {
 		proc.kill();
-		return [];
+		return { paths: [], names: [] };
 	}
 	const [out, code] = await Promise.all([
 		new Response(stdout).text(),
 		proc.exited,
 	]);
 	if (code !== 0) {
-		return [];
+		return { paths: [], names: [] };
 	}
+	const paths: string[] = [];
 	const names: string[] = [];
 	for (const line of out.split("\n")) {
 		if (line.startsWith("worktree ")) {
-			names.push(basename(line.slice("worktree ".length).trim()));
+			const listed = line.slice("worktree ".length).trim();
+			paths.push(listed);
+			names.push(basename(listed));
 		} else if (line.startsWith("branch ")) {
 			names.push(line.slice("branch refs/heads/".length).trim());
 		}
 	}
-	return names;
+	return { paths, names };
 }
 
+async function worktreeNames(path: string): Promise<string[]> {
+	return (await worktreeList(path)).names;
+}
+
+const workcellState = z.object({
+	status: z.string(),
+});
+
+const issueToml = z.object({
+	issue: z.string(),
+});
+
+const workcellToml = z
+	.object({
+		merge: z
+			.object({
+				auto: z.enum(["yes", "ask", "no"]),
+			})
+			.optional(),
+	})
+	.passthrough();
+
 function workcellRun(text: string, key: string): WorkcellRun | null {
-	let status: unknown;
+	let parsed: ReturnType<typeof workcellState.safeParse>;
 	try {
-		status = (JSON.parse(text) as { status?: unknown }).status;
+		parsed = workcellState.safeParse(JSON.parse(text));
 	} catch {
 		return null;
 	}
-	if (status === "running" || status === "starting") {
+	if (!parsed.success) {
+		return null;
+	}
+	if (parsed.data.status === "running" || parsed.data.status === "starting") {
 		return { key, status: "running" };
 	}
-	if (status === "failed") {
+	if (parsed.data.status === "failed") {
 		return { key, status: "failed" };
 	}
 	return null;
 }
 
-function mergeAuto(text: string): "yes" | "ask" | "no" | undefined {
-	const section = text.match(/\[merge\]([\s\S]*?)(?:\n\[|$)/)?.[1] ?? "";
-	const value = section.match(/^\s*auto\s*=\s*"?(yes|ask|no)"?\s*$/m)?.[1];
-	if (value === "yes" || value === "ask" || value === "no") {
-		return value;
+function mergeAuto(text: string): AutoMerge | undefined {
+	try {
+		const parsed = workcellToml.safeParse(Bun.TOML.parse(text));
+		return parsed.success ? parsed.data.merge?.auto : undefined;
+	} catch {
+		return undefined;
 	}
-	return undefined;
 }
 
 function issueKey(text: string): string | null {
-	const id = text.match(/^\s*id\s*=\s*"([^"]+)"\s*$/m)?.[1]?.trim() ?? "";
-	return id === "" ? null : id;
+	let parsed: ReturnType<typeof issueToml.safeParse>;
+	try {
+		parsed = issueToml.safeParse(Bun.TOML.parse(text));
+	} catch {
+		return null;
+	}
+	if (!parsed.success) {
+		return null;
+	}
+	const key = parsed.data.issue.trim();
+	return key === "" ? null : key;
 }
 
 async function readCheckout(path: string): Promise<LocalCheckout | null> {
-	const configText = await readText(join(path, ".git", "config"));
+	const configText = await gitConfigText(path);
 	const devkitText = await readText(join(path, "devkit.toml"));
 	if (configText === null && devkitText === null) {
 		return null;
@@ -193,19 +250,20 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 	const issue = await readText(join(path, ".devkit", "issue.toml"));
 	const key = issue === null ? null : issueKey(issue);
 	const state = await readText(join(path, ".devkit", "workcell", "state.json"));
-	const run = key === null || state === null ? null : workcellRun(state, key);
 	const manifest = await readText(join(path, ".agents", "workcell.toml"));
 	const auto = manifest === null ? undefined : mergeAuto(manifest);
-	const evidence = {
-		...(run === null ? {} : { runs: [run] }),
-		...(auto === undefined ? {} : { mergeAuto: auto }),
-	};
+	const run = key === null || state === null ? null : workcellRun(state, key);
 	if (kind === "linear") {
+		const repo = origin?.repo;
 		return {
 			tracker: "linear",
 			path,
 			names: await worktreeNames(path),
-			...evidence,
+			...(run === null
+				? {}
+				: { runs: [repo === undefined ? run : { ...run, repo }] }),
+			...(auto === undefined ? {} : { mergeAuto: auto }),
+			...(repo === undefined ? {} : { repo }),
 		};
 	}
 	if (!hasTrackerConfig && origin === null) {
@@ -222,7 +280,8 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 		originOwner: origin?.owner ?? "",
 		hasTrackerConfig,
 		names: [],
-		...evidence,
+		...(run === null ? {} : { runs: [{ ...run, repo }] }),
+		...(auto === undefined ? {} : { mergeAuto: auto }),
 	};
 }
 
@@ -258,19 +317,41 @@ export async function listDevkitCheckouts(
 					continue;
 				}
 				const checkout = await readCheckout(path);
-				if (checkout === null) {
-					continue;
+				if (checkout !== null) {
+					const id = `${checkout.tracker}:${checkout.path}`;
+					if (!seen.has(id)) {
+						seen.add(id);
+						found.push(checkout);
+					}
 				}
-				const id = `${checkout.tracker}:${checkout.path}`;
-				if (seen.has(id)) {
-					continue;
-				}
-				seen.add(id);
-				found.push(checkout);
+				await readWorktrees(path, seen, found);
 			}
 		}
 	}
 	return found;
+}
+
+async function readWorktrees(
+	path: string,
+	seen: Set<string>,
+	found: LocalCheckout[],
+): Promise<void> {
+	const listed = await worktreeList(path);
+	for (const worktree of listed.paths) {
+		if (worktree === path) {
+			continue;
+		}
+		const checkout = await readCheckout(worktree);
+		if (checkout === null) {
+			continue;
+		}
+		const id = `${checkout.tracker}:${checkout.path}`;
+		if (seen.has(id)) {
+			continue;
+		}
+		seen.add(id);
+		found.push(checkout);
+	}
 }
 
 export async function listDevkitTodos(): Promise<string> {

@@ -1,5 +1,10 @@
-import type { Configuration } from "./configuration.ts";
-import type { WorkcellRun } from "./ports.ts";
+import type { AutoMerge, Configuration } from "./configuration.ts";
+
+export type WorkcellRun = {
+	key: string;
+	status: "running" | "failed";
+	repo?: string;
+};
 
 export function todoRows(listing: string): { project: string }[] {
 	const projects: { project: string }[] = [];
@@ -600,7 +605,7 @@ export type Snapshot = {
 	branches: string[];
 	startedKeys: string[];
 	runs?: WorkcellRun[];
-	workcellAuto?: Record<string, "yes" | "ask" | "no">;
+	workcellAuto?: Record<string, AutoMerge>;
 	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 };
@@ -632,17 +637,29 @@ export function staleView(
 }
 
 const closing =
-	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)?#(\d+)/gi;
+	/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*(?:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]*)-(\d+))\b/gi;
+
+export function closingKeysFromBody(body: string, repo: string): string[] {
+	return closingKeys(body, repo);
+}
 
 function closingKeys(body: string, repo: string): string[] {
 	const keys: string[] = [];
 	for (const match of body.matchAll(closing)) {
-		const number = match[2];
-		if (number === undefined) {
-			continue;
-		}
-		const key = `${match[1] ?? repo}#${number}`;
-		if (!keys.includes(key)) {
+		const namedRepo = match[1];
+		const namedNumber = match[2];
+		const bareNumber = match[3];
+		const team = match[4];
+		const linearNumber = match[5];
+		const key =
+			namedRepo !== undefined && namedNumber !== undefined
+				? `${namedRepo}#${namedNumber}`
+				: bareNumber !== undefined
+					? `${repo}#${bareNumber}`
+					: team !== undefined && linearNumber !== undefined
+						? `${team.toUpperCase()}-${linearNumber}`
+						: null;
+		if (key !== null && !keys.includes(key)) {
 			keys.push(key);
 		}
 	}
@@ -1409,7 +1426,7 @@ export type ListedProject = {
 	branches: string[];
 	startedKeys: string[];
 	runs?: WorkcellRun[];
-	workcellAuto?: Record<string, "yes" | "ask" | "no">;
+	workcellAuto?: Record<string, AutoMerge>;
 	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 	pinned: boolean;
@@ -1431,7 +1448,7 @@ export function projectSnapshots(
 	branches: string[];
 	startedKeys: string[];
 	runs?: WorkcellRun[];
-	workcellAuto?: Record<string, "yes" | "ask" | "no">;
+	workcellAuto?: Record<string, AutoMerge>;
 	repoAutoMerge?: Record<string, boolean>;
 	board?: Board;
 }[] {
@@ -2145,25 +2162,17 @@ function progressAnswered(body: string, id: string): boolean {
 		.some((line) => askAnsweredLine(line.trim().replace(/^-\s*/, ""), id));
 }
 
-const stateOrder: TicketState[] = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-];
-
 function laterState(current: TicketState, next: TicketState): TicketState {
-	if (current === "dropped" || next === "dropped") {
-		return current === "dropped" ? current : next;
-	}
-	const currentAt = stateOrder.indexOf(current);
-	const nextAt = stateOrder.indexOf(next);
+	const currentAt = statusTypeOrder.indexOf(current);
+	const nextAt = statusTypeOrder.indexOf(next);
 	return nextAt > currentAt ? next : current;
 }
 
-function runFor(ticket: Ticket, runs: WorkcellRun[]): WorkcellRun | undefined {
+function runFor(
+	ticket: Ticket,
+	runs: WorkcellRun[],
+	repo: string,
+): WorkcellRun | undefined {
 	const key = ticket.key;
 	if (key === null) {
 		return undefined;
@@ -2173,7 +2182,17 @@ function runFor(ticket: Ticket, runs: WorkcellRun[]): WorkcellRun | undefined {
 		if (run.key.toLowerCase() === key.toLowerCase()) {
 			return true;
 		}
-		return number !== null && run.key === number;
+		if (
+			run.repo !== undefined &&
+			run.repo.toLowerCase() !== repo.toLowerCase()
+		) {
+			return false;
+		}
+		return (
+			number !== null &&
+			run.key === number &&
+			key.toLowerCase() === `${repo}#${number}`.toLowerCase()
+		);
 	});
 }
 
@@ -2197,6 +2216,7 @@ export type ShownTicket = {
 	chips: string[];
 	runFailed: boolean;
 	enteredStateAt: string;
+	blocked: boolean;
 };
 
 function enteredStateAt(ticket: Ticket, lane: Lane): string {
@@ -2232,27 +2252,29 @@ function shownTicket(
 	const pushed =
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);
-	const run = runFor(ticket, runs);
+	const run = runFor(ticket, runs, repo);
 	const live = run?.status === "running";
+	const failed = run?.status === "failed";
 	const open = links.filter((pull) => !pull.merged);
 	if (
+		!failed &&
 		ticket.state === "open" &&
 		(draft || pushed || started || (live && open.length === 0))
 	) {
 		state = laterState(state, "inProgress");
 	}
-	if (ticket.state === "open" && review.state !== null) {
+	if (!failed && ticket.state === "open" && review.state !== null) {
 		const reviewed =
 			review.state === "awaitingMerge" && autoMerge ? "inReview" : review.state;
 		state = laterState(state, reviewed);
 	}
 	if (
+		!failed &&
 		ticket.state === "open" &&
 		links.some((pull) => pull.merged && closesTicket(pull, ticket, repo))
 	) {
 		state = laterState(state, "done");
 	}
-	const failed = run?.status === "failed" && state === trackerState;
 	const shownLane =
 		failed || state === trackerState
 			? lane
@@ -2282,14 +2304,23 @@ function shownTicket(
 		chips,
 		runFailed: failed,
 		enteredStateAt: enteredStateAt(ticket, shownLane),
+		blocked: ticket.state === "open" && ticket.blockedBy.length > 0,
 	};
+}
+
+function chipsOf(
+	shown: ShownTicket,
+): { chips: string[] } | Record<string, never> {
+	const chips = shown.blocked ? [...shown.chips, "Blocked"] : shown.chips;
+	return chips.length === 0 ? {} : { chips };
 }
 
 function mergesOnItsOwn(
 	links: PullRequest[],
 	project: string,
 	projectKey: string,
-	overrides: Record<string, "yes" | "ask" | "no">,
+	configAuto: Record<string, AutoMerge>,
+	workcellAuto: Record<string, AutoMerge>,
 	repoAuto: Record<string, boolean> = {},
 ): boolean {
 	const open = links.filter((pull) => !pull.merged);
@@ -2297,15 +2328,16 @@ function mergesOnItsOwn(
 		return false;
 	}
 	return open.every((pull) => {
-		const override =
-			overrides[pull.repo] ?? overrides[projectKey] ?? overrides[project];
-		if (override !== undefined) {
-			return override === "yes";
+		const configured =
+			configAuto[pull.repo] ?? configAuto[projectKey] ?? configAuto[project];
+		if (configured !== undefined) {
+			return configured === "yes";
 		}
-		if (pull.autoMerge === true) {
-			return true;
+		const workcell = workcellAuto[pull.repo];
+		if (workcell !== undefined) {
+			return workcell === "yes";
 		}
-		return repoAuto[pull.repo] === true;
+		return pull.autoMerge === true || repoAuto[pull.repo] === true;
 	});
 }
 
@@ -2322,7 +2354,8 @@ export function projectCounts(
 	branches: string[],
 	startedKeys: string[],
 	runs: WorkcellRun[],
-	mergeAuto: Record<string, "yes" | "ask" | "no">,
+	configAuto: Record<string, AutoMerge>,
+	workcellAuto: Record<string, AutoMerge>,
 	repoAutoMerge: Record<string, boolean>,
 	all: { project: string; tickets: Ticket[] }[],
 	expectedBots: Map<string, KnownBot[]>,
@@ -2379,7 +2412,8 @@ export function projectCounts(
 			links,
 			name,
 			key,
-			mergeAuto,
+			configAuto,
+			workcellAuto,
 			repoAutoMerge,
 		);
 		const shown = shownTicket(
@@ -2421,7 +2455,7 @@ export function projectCounts(
 			...(shown.staleStatus === undefined
 				? {}
 				: { staleStatus: shown.staleStatus }),
-			...(shown.chips.length === 0 ? {} : { chips: shown.chips }),
+			...chipsOf(shown),
 			enteredStateAt: shown.enteredStateAt,
 		});
 		if (blockers.length === 0 || ticket.state !== "open") {
@@ -2475,6 +2509,10 @@ export function projectCounts(
 			viewerLogins: rules.viewerLogins,
 			pmBot: projectHasPmBot(rules.pmBot, key, tracker),
 		},
+		configAuto,
+		workcellAuto,
+		repoAutoMerge,
+		key,
 	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
@@ -2801,6 +2839,10 @@ export function needsYouItems(
 	shownByKey: Map<string, TicketState>,
 	failedKeys: Set<string>,
 	rules: NeedsYouRules,
+	configAuto: Record<string, AutoMerge> = {},
+	workcellAuto: Record<string, AutoMerge> = {},
+	repoAutoMerge: Record<string, boolean> = {},
+	projectKey = project,
 ): NeedsYouItem[] {
 	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
 	const viewers = new Set(
@@ -2875,6 +2917,18 @@ export function needsYouItems(
 			continue;
 		}
 		if (reviewState([pull], expectedBots, []).state !== "awaitingMerge") {
+			continue;
+		}
+		if (
+			mergesOnItsOwn(
+				[pull],
+				project,
+				projectKey,
+				configAuto,
+				workcellAuto,
+				repoAutoMerge,
+			)
+		) {
 			continue;
 		}
 		items.push(
@@ -3295,6 +3349,11 @@ export function projectReport(
 		counts.tracker,
 		counts.crossProjectBlockers,
 	);
+	const ticketsByKey = new Map(
+		tickets.flatMap((ticket) =>
+			ticket.key === null ? [] : [[ticket.key, ticket]],
+		),
+	);
 	const inFlight = [
 		...counts.tickets.filter((ticket) => {
 			if (
@@ -3304,7 +3363,8 @@ export function projectReport(
 			) {
 				return true;
 			}
-			const source = tickets.find((item) => item.key === ticket.key);
+			const source =
+				ticket.key === null ? undefined : ticketsByKey.get(ticket.key);
 			return (
 				source?.state === "open" &&
 				(ticket.state === "done" || ticket.state === "dropped")

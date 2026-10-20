@@ -1,0 +1,15 @@
+{
+	"id": "02570cac-3d79-45fc-ba1b-e67d05174bb3",
+	"createdAt": "2026-10-19T18:47:36.609Z",
+	"updatedAt": "2026-10-19T18:47:36.609Z",
+	"toState": {
+		"id": "cce36b04-d482-4233-b1d8-33eda76ca025",
+		"name": "In Progress",
+		"type": "started"
+	},
+	"fromState": {
+		"id": "364b3510-9325-4af6-9df1-8f2ff56f7a3d",
+		"name": "Todo",
+		"type": "unstarted"
+	}
+}
