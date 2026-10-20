@@ -150,7 +150,11 @@ export function TicketPanel({
 		}
 	}
 	return (
-		<aside className={clsx(panel.panel)} aria-label="Ticket thread">
+		<aside
+			className={clsx(panel.panel)}
+			aria-label="Ticket thread"
+			data-panel={ticketKey}
+		>
 			<button
 				type="button"
 				className={clsx(

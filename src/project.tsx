@@ -23,7 +23,21 @@ function projectName(): string {
 }
 
 function highlightKey(): string | null {
-	return new URLSearchParams(window.location.search).get("ticket");
+	const ticket = new URLSearchParams(window.location.search).get("ticket");
+	if (ticket === null || ticket.trim() === "") {
+		return null;
+	}
+	return ticket;
+}
+
+function clearTicketQuery(): void {
+	const url = new URL(window.location.href);
+	if (!url.searchParams.has("ticket")) {
+		return;
+	}
+	url.searchParams.delete("ticket");
+	const next = `${url.pathname}${url.search}${url.hash}`;
+	window.history.replaceState(window.history.state, "", next);
 }
 
 function trackerUrl(
@@ -152,6 +166,7 @@ function Lane({
 	tickets,
 	capped,
 	shown,
+	reveal,
 	onShowAll,
 	onOpen,
 	onOpenOutside,
@@ -160,11 +175,19 @@ function Lane({
 	tickets: TicketView[];
 	capped: boolean;
 	shown: boolean;
+	reveal: string | null;
 	onShowAll: () => void;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
-	const visible = capped && !shown ? tickets.slice(0, doneCap) : tickets;
+	const selectedHidden =
+		capped && !shown && reveal !== null
+			? tickets.slice(doneCap).filter((ticket) => ticket.key === reveal)
+			: [];
+	const visible =
+		capped && !shown
+			? [...tickets.slice(0, doneCap), ...selectedHidden]
+			: tickets;
 	return (
 		<section className={clsx(board.lane)} data-lane={name} aria-label={name}>
 			<h2 className={clsx(board.laneTitle)}>
@@ -201,10 +224,12 @@ function Lane({
 
 function Board({
 	report,
+	selected,
 	onOpen,
 	onOpenOutside,
 }: {
 	report: ProjectReport;
+	selected: string | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
@@ -220,6 +245,7 @@ function Board({
 						tickets={laneTickets(report, lane.name)}
 						capped={lane.statusType === "done"}
 						shown={shownDone}
+						reveal={selected}
 						onShowAll={() => setShownDone(true)}
 						onOpen={onOpen}
 						onOpenOutside={onOpenOutside}
@@ -237,16 +263,17 @@ function Page() {
 	const [panelTracker, setPanelTracker] = useState<"github" | "linear">(
 		"github",
 	);
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(highlightKey() !== null);
 	const [view, setView] = useState("board");
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
 	useEffect(() => {
 		const onPop = () => {
+			const next = highlightKey();
 			setName(projectName());
-			setTicket(highlightKey());
-			setOpen(window.history.state?.panel === true);
+			setTicket(next);
+			setOpen(next !== null || window.history.state?.panel === true);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
@@ -362,6 +389,7 @@ function Page() {
 				{view === "board" ? (
 					<Board
 						report={report}
+						selected={open ? ticket : null}
 						onOpen={(key) => {
 							setPanelProject(report.name);
 							setPanelTracker(report.tracker);
@@ -400,7 +428,10 @@ function Page() {
 						setTicket(blocker.key);
 						setOpen(true);
 					}}
-					onClose={() => setOpen(false)}
+					onClose={() => {
+						clearTicketQuery();
+						setOpen(false);
+					}}
 				/>
 			) : null}
 		</>
