@@ -202,12 +202,16 @@ function boardItem(
 	number: number,
 	title: string,
 	status: { name: string; color: string },
+	field: { updatedAt?: string; optionId?: string } = {},
+	contentFields: Record<string, unknown> = {},
 ): Record<string, unknown> {
 	return {
 		fieldValueByName: {
 			name: status.name,
-			optionId: boardOptionId(status.name) ?? `opt-${status.name}`,
+			optionId:
+				field.optionId ?? boardOptionId(status.name) ?? `opt-${status.name}`,
 			color: status.color,
+			...(field.updatedAt === undefined ? {} : { updatedAt: field.updatedAt }),
 		},
 		content: {
 			__typename: "Issue",
@@ -217,6 +221,7 @@ function boardItem(
 			state: "OPEN",
 			stateReason: null,
 			updatedAt: "2026-08-18T12:00:00Z",
+			...contentFields,
 			body: "",
 			comments: { totalCount: 0 },
 			repository: { nameWithOwner: githubRepo },
@@ -238,6 +243,7 @@ function boardItem(
 function boardFetch(
 	items: Record<string, unknown>[],
 	closed: Record<string, unknown>[] = [],
+	requests: string[] = [],
 ): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
@@ -246,6 +252,7 @@ function boardFetch(
 		}
 		const url = urlOf(input);
 		const body = typeof init?.body === "string" ? init.body : "";
+		requests.push(body === "" ? url : `${url} ${body}`);
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
 		}
@@ -1342,6 +1349,123 @@ describe("forward state", () => {
 				expect(ticketOf(report, `${githubRepo}#8`).enteredStateAt).toBe(
 					"2026-08-18T12:00:00.000Z",
 				);
+			},
+		);
+	});
+
+	test("a GitHub ticket edited after its last status change keeps that change time", async () => {
+		const statusChangedAt = "2026-08-17T09:00:00Z";
+		const editedAt = "2026-08-18T15:00:00Z";
+		const requests: string[] = [];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			boardFetch(
+				[
+					boardItem(
+						8,
+						"Draw the nodes",
+						{ name: "In progress", color: "YELLOW" },
+						{ updatedAt: statusChangedAt },
+						{ updatedAt: editedAt },
+					),
+					boardItem(
+						9,
+						"Blank status time",
+						{ name: "In progress", color: "YELLOW" },
+						{ updatedAt: "   " },
+						{ updatedAt: editedAt },
+					),
+					boardItem(
+						10,
+						"Missing status time",
+						{ name: "Backlog", color: "GREEN" },
+						{},
+						{ updatedAt: editedAt },
+					),
+				],
+				[],
+				requests,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(ticketOf(report, `${githubRepo}#8`).enteredStateAt).toBe(
+					statusChangedAt,
+				);
+				expect(ticketOf(report, `${githubRepo}#9`).enteredStateAt).toBe(
+					editedAt,
+				);
+				expect(ticketOf(report, `${githubRepo}#10`).enteredStateAt).toBe(
+					editedAt,
+				);
+				expect(
+					requests.filter((body) => body.includes("/issues/8/timeline")),
+				).toEqual([]);
+				expect(
+					requests.filter((body) => body.includes("timelineItems")),
+				).toEqual([]);
+			},
+		);
+	});
+
+	test("a retired status option keeps the field time as enteredStateAt", async () => {
+		const fieldUpdatedAt = "2026-08-17T09:00:00Z";
+		const editedAt = "2026-08-18T15:00:00Z";
+		const requests: string[] = [];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			boardFetch(
+				[
+					boardItem(
+						11,
+						"Retired progress name",
+						{ name: "Doing", color: "YELLOW" },
+						{ updatedAt: fieldUpdatedAt, optionId: "opt-retired-progress" },
+						{ updatedAt: editedAt },
+					),
+					boardItem(
+						12,
+						"Blank option id",
+						{ name: "Doing", color: "YELLOW" },
+						{ updatedAt: fieldUpdatedAt, optionId: "" },
+						{ updatedAt: editedAt },
+					),
+					boardItem(
+						13,
+						"Spaced field time",
+						{ name: "Doing", color: "YELLOW" },
+						{
+							updatedAt: "   ",
+							optionId: "opt-retired-progress",
+						},
+						{ updatedAt: editedAt },
+					),
+				],
+				[],
+				requests,
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(ticketOf(report, `${githubRepo}#11`)).toMatchObject({
+					lane: "In progress",
+					statusType: "inProgress",
+					enteredStateAt: fieldUpdatedAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#12`)).toMatchObject({
+					lane: "Backlog",
+					enteredStateAt: editedAt,
+				});
+				expect(ticketOf(report, `${githubRepo}#13`).enteredStateAt).toBe(
+					editedAt,
+				);
+				expect(
+					requests.filter((body) => body.includes("/issues/11/timeline")),
+				).toEqual([]);
 			},
 		);
 	});
