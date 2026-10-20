@@ -643,6 +643,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-overview-"));
 		const rejected = linearFake({ fail: "key" });
 		try {
 			const result = await run(
@@ -654,6 +655,7 @@ describe("GET /api/overview", () => {
 					},
 					fetch: rejected,
 					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
 				}),
 			);
 			expect(result.exitCode).toBe(1);
@@ -662,6 +664,7 @@ describe("GET /api/overview", () => {
 			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 
@@ -5258,6 +5261,506 @@ describe("GET /api/overview", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a stop during a poll ends the process within 5 seconds and the next start serves the stored data", async () => {
+		const repoName = "acme/stop";
+		const never = new Promise<Response>(() => {});
+		const hung: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (
+				url.startsWith("http://127.0.0.1") ||
+				url.startsWith("http://localhost")
+			) {
+				return fetch(input, init);
+			}
+			const signal = init?.signal ?? null;
+			if (signal?.aborted === true) {
+				throw new DOMException("The operation was aborted.", "AbortError");
+			}
+			return new Promise<Response>((_resolve, reject) => {
+				signal?.addEventListener(
+					"abort",
+					() => {
+						reject(
+							new DOMException("The operation was aborted.", "AbortError"),
+						);
+					},
+					{ once: true },
+				);
+				void never;
+			});
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-stop-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const seeded = new Database(databasePath);
+		seeded.run(`
+			create table snapshots (
+				snapshot_key text primary key,
+				name text not null,
+				tracker text not null,
+				payload text not null
+			)
+		`);
+		seeded
+			.query(
+				"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
+			)
+			.run(
+				`github:${repoName}`,
+				repoName,
+				"github",
+				JSON.stringify({
+					tickets: [
+						{
+							id: "4",
+							tracker: "github",
+							key: `${repoName}#4`,
+							title: "Ticket 4",
+							state: "open",
+							stateReason: null,
+							updatedAt: "2026-10-18T12:00:00.000Z",
+							ref: `${repoName}#4`,
+							body: "",
+							blockedBy: [],
+							milestone: null,
+							parent: null,
+							labels: [],
+						},
+					],
+					pulls: [],
+					branches: [],
+					startedKeys: [],
+				}),
+			);
+		seeded.close();
+		let stopRestart: () => void = () => {};
+		let stopRun: () => void = () => {};
+		const stopped = new Promise<void>((resolve) => {
+			stopRun = resolve;
+		});
+		let listening: (base: string) => void = () => {};
+		const ready = new Promise<string>((resolve) => {
+			listening = resolve;
+		});
+		const first = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo(
+				{
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: hung,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => listening(line),
+					waitForStop: stopped,
+				},
+				{ first: true },
+			),
+		);
+		try {
+			const base = await ready;
+			const opened = await fetch(new URL("/api/overview", base));
+			expect(opened.status).toBe(200);
+			const before = (await opened.json()) as Overview;
+			expect(before.projects[0]?.tickets[0]?.key).toBe(`${repoName}#4`);
+			const started = Date.now();
+			stopRun();
+			const result = await Promise.race([
+				first.then((ended) => ({ ended, timedOut: false })),
+				Bun.sleep(5_000).then(() => ({ ended: null, timedOut: true })),
+			]);
+			expect(result.timedOut).toBe(false);
+			expect(Date.now() - started).toBeLessThan(5_000);
+			expect(result.ended?.exitCode).toBe(0);
+			const restartStopped = new Promise<void>((resolve) => {
+				stopRestart = resolve;
+			});
+			let restartChecks: (line: string) => void = () => {};
+			const restartDone = new Promise<void>((resolve, reject) => {
+				restartChecks = (line) => {
+					void (async () => {
+						const response = await fetch(new URL("/api/overview", line));
+						expect(response.status).toBe(200);
+						const body = (await response.json()) as Overview;
+						expect(body.error).toBeNull();
+						expect(body.projects[0]?.error).toBeNull();
+						expect(body.projects[0]?.tickets).toEqual([
+							{
+								key: `${repoName}#4`,
+								title: "Ticket 4",
+								state: "backlog",
+								blockers: [],
+								lane: "Backlog",
+								statusType: "backlog",
+								enteredStateAt: "2026-10-18T12:00:00.000Z",
+								updatedAt: "2026-10-18T12:00:00.000Z",
+							},
+						]);
+						resolve();
+					})().catch(reject);
+				};
+			});
+			const restartRun = run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: hung,
+						readGhToken: async () => null,
+						databasePath,
+						stdout: (line) => restartChecks(line),
+						waitForStop: restartStopped,
+					},
+					{ first: true },
+				),
+			);
+			await Promise.race([
+				restartDone,
+				Bun.sleep(3_000).then(() => {
+					throw new Error("restart overview did not answer");
+				}),
+			]);
+			stopRestart();
+			const restart = await restartRun;
+			expect(restart.stderr).toBe("");
+			expect(restart.exitCode).toBe(0);
+		} finally {
+			stopRun();
+			stopRestart();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 15_000);
+
+	test("a warm start runs one poll until the poll interval passes", async () => {
+		const repoName = "acme/warm";
+		const intervalMs = 1_000;
+		const requests: string[] = [];
+		let releaseFirst: () => void = () => {};
+		const firstHeld = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		let issuesReads = 0;
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const local =
+				url.startsWith("http://127.0.0.1") ||
+				url.startsWith("http://localhost");
+			if (!local) {
+				requests.push(url);
+			}
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				issuesReads += 1;
+				if (issuesReads === 1) {
+					await firstHeld;
+				}
+				return page(
+					[
+						{
+							number: 4,
+							title: "Ticket 4",
+							state: "open",
+							state_reason: null,
+							html_url: `https://github.com/${repoName}/issues/4`,
+							updated_at: "2026-10-18T12:00:00.000Z",
+						},
+					],
+					null,
+					{ etag: '"warm-issues"' },
+				);
+			}
+			return emptyList(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: intervalMs / 1_000,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-warm-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const seeded = new Database(databasePath);
+		seeded.run(`
+			create table snapshots (
+				snapshot_key text primary key,
+				name text not null,
+				tracker text not null,
+				payload text not null
+			)
+		`);
+		seeded
+			.query(
+				"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
+			)
+			.run(
+				`github:${repoName}`,
+				repoName,
+				"github",
+				JSON.stringify({
+					tickets: [
+						{
+							id: "4",
+							tracker: "github",
+							key: `${repoName}#4`,
+							title: "Ticket 4",
+							state: "open",
+							stateReason: null,
+							updatedAt: "2026-10-18T12:00:00.000Z",
+							ref: `${repoName}#4`,
+							body: "",
+							blockedBy: [],
+							milestone: null,
+							parent: null,
+							labels: [],
+						},
+					],
+					pulls: [],
+					branches: [],
+					startedKeys: [],
+				}),
+			);
+		seeded.run(`
+			create table project_polls (
+				project text primary key,
+				fetched_at text not null
+			)
+		`);
+		seeded
+			.query("insert into project_polls (project, fetched_at) values (?, ?)")
+			.run(repoName, "2026-10-18T12:00:00.000Z");
+		seeded.close();
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const opened = await fetch(new URL("/api/overview", base));
+					expect(opened.status).toBe(200);
+					const before = (await opened.json()) as Overview;
+					expect(before.projects.map((project) => project.name)).toEqual([
+						repoName,
+					]);
+					await Bun.sleep(intervalMs + 250);
+					const during = requests.filter((url) =>
+						url.includes(`/repos/${repoName}/issues?`),
+					);
+					expect(during).toHaveLength(1);
+					releaseFirst();
+					await Bun.sleep(intervalMs / 2);
+					const quiet = requests.filter((url) =>
+						url.includes(`/repos/${repoName}/issues?`),
+					);
+					expect(quiet).toHaveLength(1);
+					const after = await fetch(new URL("/api/overview", base));
+					expect(after.status).toBe(200);
+					const kept = (await after.json()) as Overview;
+					expect(kept.projects[0]?.tickets).toEqual([
+						{
+							key: `${repoName}#4`,
+							title: "Ticket 4",
+							state: "backlog",
+							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
+							enteredStateAt: "2026-10-18T12:00:00.000Z",
+							updatedAt: "2026-10-18T12:00:00.000Z",
+						},
+					]);
+					resolve();
+				})().catch((error: unknown) => {
+					releaseFirst();
+					reject(error);
+				});
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: recordedFetch,
+						readGhToken: async () => null,
+						databasePath,
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releaseFirst();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a repeated GitHub REST read sends If-None-Match and a 304 keeps the stored data", async () => {
+		const repoName = "acme/validator";
+		const labelsEtag = '"recorded-labels-etag"';
+		const factoryLabels = [
+			{ name: "ready", color: "0e8a16" },
+			{ name: "factory: running", color: "1d76db" },
+			{ name: "factory: in-review", color: "fbca04" },
+		];
+		const sent: { url: string; headers: Headers }[] = [];
+		let labelReads = 0;
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			sent.push({ url, headers: new Headers(init?.headers) });
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				return page(
+					[
+						{
+							number: 4,
+							title: "Ticket 4",
+							state: "open",
+							state_reason: null,
+							html_url: `https://github.com/${repoName}/issues/4`,
+							updated_at: "2026-10-18T12:00:00.000Z",
+							labels: [{ name: "factory: running" }],
+						},
+					],
+					null,
+				);
+			}
+			if (url.includes(`/repos/${repoName}/issues/events?`)) {
+				return page([], null);
+			}
+			if (url.includes(`/repos/${repoName}/labels?`)) {
+				labelReads += 1;
+				if (labelReads > 1) {
+					return new Response(null, {
+						status: 304,
+						headers: { etag: labelsEtag },
+					});
+				}
+				return page(factoryLabels, null, {
+					etag: labelsEtag,
+				});
+			}
+			return emptyList(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-validator-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let stopFirst: () => void = () => {};
+		const firstStopped = new Promise<void>((resolve) => {
+			stopFirst = resolve;
+		});
+		let firstReady: () => void = () => {};
+		const firstListening = new Promise<void>((resolve) => {
+			firstReady = resolve;
+		});
+		const firstRun = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch,
+				readGhToken: async () => null,
+				databasePath,
+				now: () => new Date("2026-10-18T12:00:00.000Z"),
+				stdout: firstReady,
+				waitForStop: firstStopped,
+			}),
+		);
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const opened = await fetch(new URL("/api/overview", base));
+					expect(opened.status).toBe(200);
+					const labelDeadline = Date.now() + 3_000;
+					while (labelReads < 2 && Date.now() < labelDeadline) {
+						await Bun.sleep(20);
+					}
+					const after = (await opened.json()) as Overview;
+					expect(after.projects[0]?.tickets).toEqual([
+						{
+							key: `${repoName}#4`,
+							title: "Ticket 4",
+							state: "inProgress",
+							blockers: [],
+							lane: "factory: running",
+							statusType: "inProgress",
+							enteredStateAt: "2026-10-18T12:00:00.000Z",
+							updatedAt: "2026-10-18T12:00:00.000Z",
+						},
+					]);
+					const labelReadsSent = sent.filter((item) =>
+						item.url.includes(`/repos/${repoName}/labels?`),
+					);
+					expect(labelReadsSent).toHaveLength(2);
+					expect(labelReadsSent[1]?.url).toBe(labelReadsSent[0]?.url);
+					expect(labelReadsSent[1]?.headers.get("if-none-match")).toBe(
+						labelsEtag,
+					);
+					expect(after.projects[0]?.error).toBeNull();
+					const again = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(again.status).toBe(204);
+					const kept = await fetch(new URL("/api/overview", base));
+					const keptBody = (await kept.json()) as Overview;
+					expect(keptBody.projects[0]?.tickets).toEqual(
+						after.projects[0]?.tickets,
+					);
+					const failed = await fetch(new URL("/api/projects/%20", base));
+					expect(failed.status).toBe(404);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			await firstListening;
+			stopFirst();
+			const first = await firstRun;
+			expect(first.exitCode).toBe(0);
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			stopFirst();
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
