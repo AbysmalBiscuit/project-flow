@@ -92,8 +92,8 @@ export type Store = {
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
 	readNotifications: () => Notification[];
 	appendNotifications: (entries: Notification[]) => void;
-	/** Persist a read flag. A blank id marks every entry. */
-	markNotificationsRead: (id: string) => boolean;
+	markNotificationRead: (id: string) => boolean;
+	markAllNotificationsRead: () => void;
 	/** Ids that must not notify again. */
 	readSeededIds: () => string[];
 	/** Record ids that must not notify again. */

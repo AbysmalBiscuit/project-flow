@@ -224,15 +224,14 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					}
 				})();
 			},
-			markNotificationsRead(id) {
-				if (id === "") {
-					db.run("update notifications set read = 1");
-					return true;
-				}
+			markNotificationRead(id) {
 				const changed = db
 					.query("update notifications set read = 1 where id = ?")
 					.run(id);
 				return changed.changes > 0;
+			},
+			markAllNotificationsRead() {
+				db.run("update notifications set read = 1");
 			},
 			readSeededIds() {
 				const rows = db.query("select id from seeded_ids").all() as {

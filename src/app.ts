@@ -1182,7 +1182,7 @@ export async function start(options: StartOptions): Promise<Running> {
 							{ status: 400 },
 						);
 					}
-					opened.store.markNotificationsRead("");
+					opened.store.markAllNotificationsRead();
 					return new Response(null, { status: 204 });
 				},
 			},
@@ -1202,7 +1202,7 @@ export async function start(options: StartOptions): Promise<Running> {
 							{ status: 400 },
 						);
 					}
-					if (!opened.store.markNotificationsRead(id)) {
+					if (!opened.store.markNotificationRead(id)) {
 						return Response.json(
 							{ error: "notification not found" },
 							{ status: 404 },
