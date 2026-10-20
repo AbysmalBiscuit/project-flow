@@ -39,6 +39,7 @@ type FlightItem = {
 	statusType: string;
 	blocked?: boolean;
 	enteredStateAt?: string;
+	updatedAt?: string;
 	needsYou?: boolean;
 	url?: string;
 	outsideBlockers?: unknown;
@@ -385,6 +386,7 @@ function flight(report: ProjectBody): FlightItem[] {
 				}
 				const {
 					enteredStateAt: _enteredStateAt,
+					updatedAt: _updatedAt,
 					needsYou: _needsYou,
 					url: _url,
 					outsideBlockers: _outsideBlockers,

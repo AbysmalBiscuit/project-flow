@@ -62,6 +62,7 @@ function card(
 			lane: string;
 			statusType: string;
 			enteredStateAt: string;
+			updatedAt: string;
 		}[];
 		crossProjectBlockers: [];
 		statusTypes: Record<string, number>;
@@ -95,6 +96,7 @@ function card(
 						lane: laneName(state),
 						statusType: state,
 						enteredStateAt: "2026-10-01T00:00:00Z",
+						updatedAt: "2026-10-01T00:00:00Z",
 					},
 				],
 				crossProjectBlockers: [],
@@ -1641,6 +1643,7 @@ describe("review cycle", () => {
 							lane: "Done",
 							statusType: "done",
 							enteredStateAt: "2026-10-01T00:00:00Z",
+							updatedAt: "2026-10-01T00:00:00Z",
 						},
 					],
 					crossProjectBlockers: [],
@@ -1949,6 +1952,7 @@ describe("review cycle", () => {
 								lane: "Awaiting merge",
 								statusType: "awaitingMerge",
 								enteredStateAt: "2026-10-01T00:00:00.000Z",
+								updatedAt: "2026-10-01T00:00:00.000Z",
 							},
 						],
 						crossProjectBlockers: [],

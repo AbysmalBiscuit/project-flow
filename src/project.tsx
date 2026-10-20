@@ -174,14 +174,28 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 }
 
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
-	return report.tickets.filter(
-		(ticket) => (ticket.lane ?? stateLabel[ticket.state]) === lane,
-	);
+	return report.tickets.filter((ticket) => displayedLaneName(ticket) === lane);
 }
 
 function shortKey(key: string): string {
 	const mark = key.lastIndexOf("#");
 	return mark === -1 ? key : key.slice(mark);
+}
+
+function relationSplit(ticket: TicketView): {
+	local: string[];
+	outside: OutsideBlocker[];
+} {
+	const outside = ticket.outsideBlockers ?? [];
+	const outsideKeys = new Set(
+		outside.map((blocker) => blocker.key.toLowerCase()),
+	);
+	return {
+		local: ticket.blockers.filter(
+			(blocker) => !outsideKeys.has(blocker.toLowerCase()),
+		),
+		outside,
+	};
 }
 
 function Chip({
@@ -228,13 +242,7 @@ function Card({
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
 	const key = ticket.key;
-	const outside = ticket.outsideBlockers ?? [];
-	const outsideKeys = new Set(
-		outside.map((blocker) => blocker.key.toLowerCase()),
-	);
-	const local = ticket.blockers.filter(
-		(blocker) => !outsideKeys.has(blocker.toLowerCase()),
-	);
+	const { local, outside } = relationSplit(ticket);
 	return (
 		<li>
 			<button
@@ -378,6 +386,311 @@ function Lane({
 				</button>
 			) : null}
 		</section>
+	);
+}
+
+const columns = [
+	"key",
+	"title",
+	"state",
+	"pr",
+	"blockedBy",
+	"blocks",
+	"needsYou",
+	"updated",
+] as const;
+
+type Column = (typeof columns)[number];
+
+const columnLabel: Record<Column, string> = {
+	key: "Key",
+	title: "Title",
+	state: "State",
+	pr: "PR",
+	blockedBy: "Blocked by",
+	blocks: "Blocks",
+	needsYou: "Needs you",
+	updated: "Updated",
+};
+
+function relationKeys(
+	ticket: TicketView,
+	column: "blockedBy" | "blocks",
+): string[] {
+	if (column === "blocks") {
+		return (ticket.blocks ?? []).map((blocker) => blocker.key);
+	}
+	const { local, outside } = relationSplit(ticket);
+	return [...local, ...outside.map((blocker) => blocker.key)];
+}
+
+function displayedLaneName(ticket: TicketView): string {
+	return ticket.lane ?? stateLabel[ticket.state];
+}
+
+function displayedLane(
+	ticket: TicketView,
+	lanes: ProjectReport["lanes"],
+): ProjectReport["lanes"][number] | undefined {
+	const name = displayedLaneName(ticket);
+	return lanes.find((lane) => lane.name === name);
+}
+
+const unknownLane = Number.MAX_SAFE_INTEGER;
+
+function laneRank(ticket: TicketView, lanes: ProjectReport["lanes"]): number {
+	const index = lanes.findIndex(
+		(lane) => lane.name === displayedLaneName(ticket),
+	);
+	return index === -1 ? unknownLane : index;
+}
+
+function sortValue(
+	ticket: TicketView,
+	column: Column,
+	lanes: ProjectReport["lanes"],
+): string | number {
+	if (column === "key") {
+		return ticket.key?.toLowerCase() ?? "";
+	}
+	if (column === "title") {
+		return ticket.title.toLowerCase();
+	}
+	if (column === "state") {
+		return laneRank(ticket, lanes);
+	}
+	if (column === "pr") {
+		return ticket.pull?.toLowerCase() ?? "";
+	}
+	if (column === "needsYou") {
+		return ticket.needsYou === true ? 1 : 0;
+	}
+	if (column === "updated") {
+		const at = Date.parse(ticket.updatedAt ?? "");
+		return Number.isNaN(at) ? 0 : at;
+	}
+	return relationKeys(ticket, column).join(" ").toLowerCase();
+}
+
+function compareTickets(
+	left: TicketView,
+	right: TicketView,
+	column: Column,
+	direction: "asc" | "desc",
+	lanes: ProjectReport["lanes"],
+): number {
+	const leftValue = sortValue(left, column, lanes);
+	const rightValue = sortValue(right, column, lanes);
+	const order =
+		typeof leftValue === "number" && typeof rightValue === "number"
+			? leftValue - rightValue
+			: String(leftValue).localeCompare(String(rightValue));
+	if (order !== 0) {
+		return direction === "asc" ? order : -order;
+	}
+	return (left.key ?? left.title).localeCompare(right.key ?? right.title);
+}
+
+function SortMark({ direction }: { direction: "asc" | "desc" }) {
+	return (
+		<svg
+			viewBox="0 0 8 8"
+			aria-hidden="true"
+			className={clsx(board.sortMark, direction === "desc" && board.sortDown)}
+		>
+			<path d="M1 5.5 4 2.5 7 5.5" fill="none" stroke="currentColor" />
+		</svg>
+	);
+}
+
+function updatedLabel(value: string | undefined): string {
+	const at = Date.parse(value ?? "");
+	if (Number.isNaN(at)) {
+		return "";
+	}
+	return new Intl.DateTimeFormat("en", {
+		month: "short",
+		day: "numeric",
+	}).format(new Date(at));
+}
+
+function TableRow({
+	ticket,
+	lanes,
+	order,
+	selected,
+	onOpen,
+	onOpenOutside,
+}: {
+	ticket: TicketView;
+	lanes: ProjectReport["lanes"];
+	order: number;
+	selected: boolean;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
+}) {
+	const key = ticket.key;
+	const { local, outside } = relationSplit(ticket);
+	const lane = displayedLane(ticket, lanes);
+	return (
+		<tr
+			className={clsx(board.row, selected && board.rowOn)}
+			data-ticket={key ?? ""}
+			data-order={order}
+			data-selected={selected ? "true" : "false"}
+			onClick={() => {
+				if (key !== null) {
+					onOpen(key);
+				}
+			}}
+		>
+			<td className={clsx(board.rowCell, board.rowKey)}>
+				{key === null ? "" : shortKey(key)}
+			</td>
+			<td className={clsx(board.rowCell, board.rowTitle)}>{ticket.title}</td>
+			<td className={clsx(board.rowCell)}>
+				<span
+					className={clsx(
+						board.stateMark,
+						lane === undefined ? board.markBacklog : laneMark(lane.colour),
+					)}
+				/>
+				{displayedLaneName(ticket)}
+			</td>
+			<td className={clsx(board.rowCell)}>{ticket.pull ?? ""}</td>
+			<td className={clsx(board.rowCell)}>
+				<span className={clsx(board.links)}>
+					{local.map((blocker) => (
+						<Chip
+							key={blocker}
+							label={shortKey(blocker)}
+							ticketKey={blocker}
+							onOpen={onOpen}
+						/>
+					))}
+					{outside.map((blocker) => (
+						<Chip
+							key={blocker.key}
+							label={blocker.key}
+							ticketKey={blocker.key}
+							outside
+							onOpen={() => onOpenOutside(blocker)}
+						/>
+					))}
+				</span>
+			</td>
+			<td className={clsx(board.rowCell)}>
+				<span className={clsx(board.links)}>
+					{(ticket.blocks ?? []).map((blocker) => (
+						<Chip
+							key={blocker.key}
+							label={shortKey(blocker.key)}
+							ticketKey={blocker.key}
+							onOpen={onOpen}
+						/>
+					))}
+				</span>
+			</td>
+			<td className={clsx(board.rowCell)}>
+				{ticket.needsYou ? (
+					<span className={clsx(board.needs)}>{navLabel.needsYou}</span>
+				) : (
+					""
+				)}
+			</td>
+			<td className={clsx(board.rowCell)} data-updated={ticket.updatedAt ?? ""}>
+				{updatedLabel(ticket.updatedAt)}
+			</td>
+		</tr>
+	);
+}
+
+function TicketTable({
+	report,
+	selected,
+	onOpen,
+	onOpenOutside,
+}: {
+	report: ProjectReport;
+	selected: string | null;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
+}) {
+	const [column, setColumn] = useState<Column>("state");
+	const [direction, setDirection] = useState<"asc" | "desc">("asc");
+	const rows = [...report.tickets].sort((left, right) =>
+		compareTickets(left, right, column, direction, report.lanes),
+	);
+	return (
+		<div
+			className={clsx(board.grid)}
+			data-sort={column}
+			data-direction={direction}
+		>
+			{rows.length === 0 ? (
+				<p className={clsx(board.empty)}>No tickets</p>
+			) : (
+				<table className={clsx(board.rows)}>
+					<thead>
+						<tr>
+							{columns.map((item) => (
+								<th
+									key={item}
+									className={clsx(board.headerCell)}
+									scope="col"
+									aria-sort={
+										column === item
+											? direction === "asc"
+												? "ascending"
+												: "descending"
+											: "none"
+									}
+								>
+									<button
+										type="button"
+										className={clsx(board.sort, shell.buttonFocus)}
+										data-column={item}
+										aria-label={
+											column === item
+												? `Sort by ${columnLabel[item]}, ${direction === "asc" ? "ascending" : "descending"}`
+												: `Sort by ${columnLabel[item]}`
+										}
+										onClick={() => {
+											if (column === item) {
+												setDirection((current) =>
+													current === "asc" ? "desc" : "asc",
+												);
+												return;
+											}
+											setColumn(item);
+											setDirection("asc");
+										}}
+									>
+										{columnLabel[item]}
+										{column === item ? (
+											<SortMark direction={direction} />
+										) : null}
+									</button>
+								</th>
+							))}
+						</tr>
+					</thead>
+					<tbody>
+						{rows.map((ticket, index) => (
+							<TableRow
+								key={`${ticket.key ?? ""} ${ticket.title}`}
+								ticket={ticket}
+								lanes={report.lanes}
+								order={index + 1}
+								selected={selected !== null && ticket.key === selected}
+								onOpen={onOpen}
+								onOpenOutside={onOpenOutside}
+							/>
+						))}
+					</tbody>
+				</table>
+			)}
+		</div>
 	);
 }
 
@@ -655,9 +968,7 @@ function Page() {
 		};
 		setMissing(false);
 		load();
-		const stop = onAppEvent("overview", () => {
-			load();
-		});
+		const stop = onAppEvent("overview", load);
 		return () => {
 			stopped = true;
 			stop();
@@ -773,6 +1084,13 @@ function Page() {
 			key,
 		});
 	};
+	const openOutsideInPanel = (blocker: OutsideBlocker) => {
+		setPanelReport(null);
+		setPanelProject(blocker.project);
+		setPanelTracker(blocker.tracker);
+		setTicket(blocker.key);
+		setOpen(true);
+	};
 	return (
 		<AppShell>
 			<main className={clsx(frame.page, frame.wide, frame.fill)}>
@@ -839,13 +1157,14 @@ function Page() {
 							settings={settings}
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
-							onOpenOutside={(blocker) => {
-								setPanelReport(null);
-								setPanelProject(blocker.project);
-								setPanelTracker(blocker.tracker);
-								setTicket(blocker.key);
-								setOpen(true);
-							}}
+							onOpenOutside={openOutsideInPanel}
+						/>
+					) : view === "table" ? (
+						<TicketTable
+							report={report}
+							selected={open ? ticket : null}
+							onOpen={openTicketInPanel}
+							onOpenOutside={openOutsideInPanel}
 						/>
 					) : (
 						<p className={clsx(board.placeholder)}>{view}</p>
