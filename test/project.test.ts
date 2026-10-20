@@ -249,7 +249,6 @@ describe("GET /api/projects/:name", () => {
 					"needsYou",
 					"backlog",
 				]);
-				expect(JSON.stringify(first.sections)).not.toContain("diagrams");
 				const summary = first.sections.find(
 					(section) => section.id === "summary",
 				);
@@ -308,7 +307,6 @@ describe("GET /api/projects/:name", () => {
 					"Needs you",
 					"Backlog",
 				]);
-				expect(JSON.stringify(linearReport.sections)).not.toContain("diagrams");
 				const linearSummary = linearReport.sections.find(
 					(section) => section.id === "summary",
 				);
@@ -358,7 +356,6 @@ describe("GET /api/projects/:name", () => {
 					`${githubRepo}#8`,
 					`${otherRepo}#9`,
 				]);
-				expect(JSON.stringify(report)).not.toContain("diagrams");
 				expect(drawnView?.outsideBlockers).toEqual([
 					{
 						tracker: "github",

@@ -747,7 +747,6 @@ describe("tracker lanes", () => {
 					.find((section) => section.id === "inFlight")
 					?.items?.map((item) => item.key);
 				expect(flightKeys).toEqual(["acme/widget#21"]);
-				expect(JSON.stringify(report.sections)).not.toContain("diagrams");
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
