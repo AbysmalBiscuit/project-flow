@@ -548,33 +548,10 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		const envToken =
 			fromEnv !== undefined && fromEnv.trim() !== "" ? fromEnv : null;
 		const token = await resolveToken(io, envToken);
-		if (token !== null) {
-			const user = await checkToken(token, io.fetch);
-			if (user.status === 401) {
-				writeErr(rejectedToken);
-				return result(1);
-			}
-			if (!user.ok) {
-				writeErr(`GitHub token check failed (HTTP ${user.status}).`);
-				return result(1);
-			}
-		}
 		const linearKey = io.env.LINEAR_API_KEY?.trim() ?? "";
 		const needsLinear = configuration.pinned.some(
 			(pin) => pin.tracker === "linear",
 		);
-		if (needsLinear && linearKey !== "") {
-			const viewer = await checkLinearKey(linearKey, io.fetch);
-			if (viewer.status === 401) {
-				writeErr(rejectedLinearKey);
-				return result(1);
-			}
-			if (!viewer.ok) {
-				writeErr(`Linear key check failed (HTTP ${viewer.status}).`);
-				return result(1);
-			}
-		}
-
 		const databasePath = io.databasePath ?? defaultStorePath(io.env);
 		await openStore(databasePath);
 		const running = await start({
@@ -592,12 +569,53 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		});
 		listened = true;
 		writeOut(running.url.href);
+		const credential = (async (): Promise<string | null> => {
+			const warn = (message: string) => {
+				writeErr(message);
+				return null;
+			};
+			try {
+				if (token !== null) {
+					const user = await checkToken(token, io.fetch);
+					if (user.status === 401) {
+						return rejectedToken;
+					}
+					if (!user.ok) {
+						return warn(`GitHub token check failed (HTTP ${user.status}).`);
+					}
+				}
+				if (needsLinear && linearKey !== "") {
+					const viewer = await checkLinearKey(linearKey, io.fetch);
+					if (viewer.status === 401) {
+						return rejectedLinearKey;
+					}
+					if (!viewer.ok) {
+						return warn(`Linear key check failed (HTTP ${viewer.status}).`);
+					}
+				}
+				return null;
+			} catch (error) {
+				return warn(
+					error instanceof Error ? error.message : "credential check failed",
+				);
+			}
+		})();
+		const stop = io.waitForStop ?? new Promise<void>(() => {});
+		const outcome = await Promise.race([
+			credential.then((message) => ({ kind: "credential" as const, message })),
+			stop.then(() => ({ kind: "stop" as const })),
+		]);
+		if (outcome.kind === "credential" && outcome.message !== null) {
+			writeErr(outcome.message);
+			await running.stop();
+			return result(1);
+		}
 		const coldStart = await running.settled;
 		if (coldStart instanceof Error) {
 			await running.stop();
 			throw coldStart;
 		}
-		await (io.waitForStop ?? Promise.resolve());
+		await stop;
 		await running.stop();
 		return result(0);
 	} catch (error) {
