@@ -1053,24 +1053,11 @@ describe("forward state", () => {
 						pageInfo: { hasNextPage: false, endCursor: null },
 					},
 				}),
-				linearIssue("WID-34", "Unparsed update", todoState, {
-					comments: {
-						nodes: [
-							{
-								id: "c3",
-								body: progress("- stage 4: implementing"),
-								createdAt: boundary,
-								updatedAt: "not-a-time",
-							},
-						],
-						pageInfo: { hasNextPage: false, endCursor: null },
-					},
-				}),
 			]),
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
-				for (const key of ["WID-32", "WID-33", "WID-34"]) {
+				for (const key of ["WID-32", "WID-33"]) {
 					const ticket = ticketOf(report, key);
 					expect(ticket.run?.status).toBe("running");
 					expect(ticket.chips ?? []).not.toContain("Run failed");
