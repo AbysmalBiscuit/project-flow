@@ -2,6 +2,8 @@ import * as stylex from "@stylexjs/stylex";
 
 const dark = "@media (prefers-color-scheme: dark)";
 
+export const phone = "@media (max-width: 64rem)";
+
 export const lightValues = {
 	canvas: "#ffffff",
 	surface: "#fafafa",
@@ -272,7 +274,6 @@ export const measure = stylex.defineVars({
 	card: "22rem",
 	node: "12.25rem",
 	form: "32rem",
-	progress: "9rem",
 	field: "28rem",
 	fieldMin: "4rem",
 	diagram: "48rem",
@@ -296,7 +297,6 @@ export const measure = stylex.defineVars({
 	toggle: "2.25rem",
 	mark: "1.15rem",
 	sortMark: "0.7rem",
-	keyCol: "5.5rem",
 	needsPanel: "22.5rem",
 	needsRow: "3.125rem",
 	bar: "4.5rem",

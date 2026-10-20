@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PluginItem } from "@babel/core";
 import babel from "@babel/core";
@@ -15,7 +15,25 @@ const loadedPlugin = (name: string): PluginItem => {
 const rootDir = realpathSync(resolve(import.meta.dir, ".."));
 const rules = new Map<string, ReadonlyArray<readonly unknown[]>>();
 
+function foldImportedMedia(code: string, filename: string): string {
+	if (filename.endsWith("/tokens.stylex.ts") || !code.includes("\tphone,")) {
+		return code;
+	}
+	const source = readFileSync(
+		resolve(import.meta.dir, "tokens.stylex.ts"),
+		"utf8",
+	);
+	const query = source.match(
+		/export const phone = ("@media \(max-width: [^"]+\)")/,
+	)?.[1];
+	if (query === undefined) {
+		return code;
+	}
+	return code.replace("\tphone,\n", "").replaceAll("[phone]:", `[${query}]:`);
+}
+
 async function compile(code: string, filename: string): Promise<string> {
+	code = foldImportedMedia(code, filename);
 	const result = await babel.transformAsync(code, {
 		babelrc: false,
 		configFile: false,
