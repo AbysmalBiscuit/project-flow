@@ -35,7 +35,7 @@ export function NeedsItem({
 			{item.answered ? <span className={clsx(needs.tag)}>Answered</span> : null}
 		</>
 	);
-	const projectButton =
+	const projectLink =
 		project !== true ? null : (
 			<a
 				className={clsx(needs.project, shell.button, shell.linkFocus)}
@@ -61,7 +61,7 @@ export function NeedsItem({
 					{body}
 				</button>
 			)}
-			{projectButton}
+			{projectLink}
 		</li>
 	);
 }
