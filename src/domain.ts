@@ -118,6 +118,7 @@ export type TicketView = {
 	needsYou?: boolean;
 	enteredStateAt?: string;
 	run?: LiveRun;
+	updatedAt?: string;
 	assignees?: string[];
 };
 
@@ -2803,6 +2804,7 @@ export function projectCounts(
 				: { staleStatus: shown.staleStatus }),
 			...chipsOf(shown),
 			enteredStateAt: shown.enteredStateAt,
+			...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
 			...assigneesOf(ticket),
 		});
 		if (blockers.length === 0 || ticket.state !== "open") {

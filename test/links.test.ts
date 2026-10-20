@@ -47,6 +47,7 @@ function view(
 	lane: string;
 	statusType: string;
 	enteredStateAt: string;
+	updatedAt: string;
 } {
 	return {
 		key: `${repo}#${number}`,
@@ -56,6 +57,7 @@ function view(
 		lane: laneOf(state),
 		statusType: state,
 		enteredStateAt: "2026-04-01T00:00:00Z",
+		updatedAt: "2026-04-01T00:00:00Z",
 	};
 }
 

@@ -315,6 +315,7 @@ type OverviewBody = {
 			lane?: string;
 			statusType?: string;
 			enteredStateAt?: string;
+			updatedAt?: string;
 		}[];
 		crossProjectBlockers: unknown[];
 		needsYou: number;
@@ -380,6 +381,7 @@ function githubTicket(
 	number: number,
 	state: "backlog" | "done",
 	enteredStateAt = "2026-04-01T00:00:00Z",
+	updatedAt = "2026-04-01T00:00:00Z",
 ): OverviewBody["projects"][number]["tickets"][number] {
 	return {
 		key: `${repo}#${number}`,
@@ -389,6 +391,7 @@ function githubTicket(
 		lane: state === "done" ? "Done" : "Backlog",
 		statusType: state,
 		enteredStateAt,
+		updatedAt,
 	};
 }
 
@@ -403,6 +406,7 @@ function linearTicket(
 		lane: "Backlog",
 		statusType: "backlog",
 		enteredStateAt: "2026-04-01T00:00:00.000Z",
+		updatedAt: "2026-04-01T00:00:00.000Z",
 	};
 }
 
@@ -1374,6 +1378,7 @@ describe("live updates", () => {
 								lane: "Backlog",
 								statusType: "backlog",
 								enteredStateAt: "2026-04-01T00:00:00Z",
+								updatedAt: "2026-04-01T00:00:00Z",
 							},
 						],
 						"2026-04-01T12:00:01.000Z",
@@ -1660,8 +1665,18 @@ describe("live updates", () => {
 					1,
 					"github",
 					[
-						githubTicket(1, "done", "2026-04-02T00:00:00Z"),
-						githubTicket(2, "backlog", "2026-04-02T00:00:00Z"),
+						githubTicket(
+							1,
+							"done",
+							"2026-04-02T00:00:00Z",
+							"2026-04-02T00:00:00Z",
+						),
+						githubTicket(
+							2,
+							"backlog",
+							"2026-04-02T00:00:00Z",
+							"2026-04-02T00:00:00Z",
+						),
 					],
 					"2026-04-01T12:00:01.000Z",
 				),
