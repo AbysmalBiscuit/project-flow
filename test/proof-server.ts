@@ -163,6 +163,7 @@ await writeFile(
 );
 
 let upstream: URL | null = null;
+const stopped = new AbortController();
 
 function proxy(request: Request): Promise<Response> {
 	const target = upstream;
@@ -209,7 +210,9 @@ const ready = (async () => {
 	}
 	if (upstream === null) {
 		console.error("proof server was not ready within 9s");
-		process.exit(1);
+		gate.stop(true);
+		process.exitCode = 1;
+		stopped.abort();
 	}
 })();
 
@@ -222,7 +225,12 @@ const result = await run(
 			LINEAR_API_KEY: "recorded-linear-key",
 			XDG_DATA_HOME: data,
 		},
-		fetch: recorded,
+		fetch: async (input, init) => {
+			if (stopped.signal.aborted) {
+				throw new Error("proof server was not ready within 9s");
+			}
+			return recorded(input, init);
+		},
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],
@@ -234,6 +242,9 @@ const result = await run(
 		waitForStop: Promise.race([
 			ready.then(() => new Promise<void>(() => {})),
 			new Promise<void>((resolve) => {
+				stopped.signal.addEventListener("abort", () => resolve(), {
+					once: true,
+				});
 				const stop = () => {
 					gate.stop(true);
 					void rm(data, { recursive: true, force: true }).finally(() =>
@@ -246,4 +257,4 @@ const result = await run(
 		]),
 	},
 );
-process.exit(result.exitCode);
+process.exit(process.exitCode ?? result.exitCode);
