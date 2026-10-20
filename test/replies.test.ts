@@ -1966,6 +1966,61 @@ describe("replies", () => {
 		}
 	});
 
+	test("a reply that quotes the old headline stays answered", async () => {
+		const named = "This waits on Lev for the signing key.";
+		const question = "Which key should the panel use?";
+		const askBody = `Senior, ${named}\n${question}\n\n1. the current key\n2. a new key\n\n${ask("pf-40")}`;
+		const recorded = linearFake({
+			project: linearProject,
+			issues: [
+				{
+					id: "issue-pf-40",
+					identifier: "PF-40",
+					title: "Needs a key",
+					description: "Body",
+					state: { type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: {
+						nodes: [
+							{
+								id: "comment-ask-40",
+								body: askBody,
+								createdAt: "2026-08-18T12:00:00.000Z",
+								user: { name: "Ada" },
+							},
+							{
+								id: "comment-quoted-40",
+								body: `> ${named}\n\nUse the current key.`,
+								createdAt: "2026-08-18T13:00:00.000Z",
+								user: { name: "Lev" },
+							},
+						],
+					},
+				},
+			],
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				pmBot: { "widget-launch": false },
+			}),
+		);
+		try {
+			const listed = (await (
+				await fetch(new URL("/api/needs-you", app.base))
+			).json()) as NeedsYouItem[];
+			expect(listed.find((item) => item.key === "PF-40")).toMatchObject({
+				headline: named,
+				question,
+				answered: true,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("picking an option posts a reply that names the pick", async () => {
 		const sent: string[] = [];
 		const question = "Which name should the gate use?";

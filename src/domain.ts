@@ -2875,19 +2875,15 @@ function askHeadline(body: string): string {
 	const named = text
 		.split(/(?<=[.!?])\s+|\n+/)
 		.map((part) => part.trim())
-		.find((part) => namesLev(part) && !numberedOption.test(part));
+		.find((part) => namesLev(part));
 	if (named !== undefined) {
 		return named.replace(/^senior,\s*/i, "");
 	}
 	const lines = text
 		.split("\n")
 		.map((line) => line.trim())
-		.filter(
-			(line) =>
-				line !== "" && !line.startsWith("<!--") && !numberedOption.test(line),
-		);
-	const asked = lines.find((line) => line.endsWith("?"));
-	return asked ?? lines.at(-1) ?? text;
+		.filter((line) => line !== "" && !line.startsWith("<!--"));
+	return lines.at(-1) ?? text;
 }
 
 function quotesAskText(body: string, askBody: string): boolean {
