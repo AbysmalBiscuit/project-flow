@@ -11,6 +11,13 @@ import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import { knownBots } from "./domain.ts";
+import {
+	defaultGraphDirection,
+	defaultOpenView,
+	emptyMaxAgeDays,
+	graphDirections,
+	openViews,
+} from "./view-settings.ts";
 
 const githubRepoPin = z.strictObject({
 	tracker: z.literal("github"),
@@ -101,6 +108,19 @@ const overviewView = z
 		view,
 	}));
 
+const projectViewSettings = z.strictObject({
+	shownLanes: z.array(z.string()).optional(),
+	maxAgeDays: z
+		.record(z.string(), z.number().int().nonnegative())
+		.default(emptyMaxAgeDays),
+	needsYouOnly: z.boolean().default(false),
+	blockedOnly: z.boolean().default(false),
+	assignees: z.array(z.string()).default([]),
+	search: z.string().default(""),
+	openView: z.enum(openViews).default(defaultOpenView),
+	graphDirection: z.enum(graphDirections).default(defaultGraphDirection),
+});
+
 const configurationSchema = z.strictObject({
 	theme: z.enum(["light", "dark"]).default("light"),
 	overview: overviewView.default({
@@ -141,7 +161,10 @@ const configurationSchema = z.strictObject({
 			blockerCleared: z.boolean().default(true),
 		})
 		.default({ needsYou: true, comment: true, blockerCleared: true }),
+	projectViews: z.record(z.string(), projectViewSettings).default({}),
 });
+
+export type ProjectViewSettings = z.infer<typeof projectViewSettings>;
 
 export type Configuration = z.infer<typeof configurationSchema>;
 

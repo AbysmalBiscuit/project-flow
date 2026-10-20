@@ -350,10 +350,14 @@ function Page() {
 			settings={settings}
 			onSave={async (next) => {
 				const current = await fetch("/api/settings");
-				const live: unknown = current.ok ? await current.json() : null;
+				if (!current.ok) {
+					return `settings failed (HTTP ${current.status})`;
+				}
+				const live: unknown = await current.json();
+				if (live === null || typeof live !== "object") {
+					return "settings failed";
+				}
 				const theme =
-					live !== null &&
-					typeof live === "object" &&
 					"theme" in live &&
 					(live.theme === "light" || live.theme === "dark") &&
 					live.theme !== settings.theme
@@ -375,10 +379,22 @@ function Page() {
 					Array.isArray(live.pinned)
 						? (live.pinned as Configuration["pinned"])
 						: next.pinned;
+				const projectViews =
+					"projectViews" in live &&
+					live.projectViews !== null &&
+					typeof live.projectViews === "object"
+						? live.projectViews
+						: {};
 				const response = await fetch("/api/settings", {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify({ ...next, theme, overview, pinned }),
+					body: JSON.stringify({
+						...next,
+						theme,
+						overview,
+						pinned,
+						projectViews,
+					}),
 				});
 				const body: unknown = await response.json().catch(() => null);
 				if (!response.ok) {
