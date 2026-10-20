@@ -15,6 +15,8 @@ export type PageView = {
 export type PageHeaderProps = {
 	title: string;
 	subtitle?: ReactNode;
+	filter?: ReactNode;
+	sort?: ReactNode;
 	search?: ReactNode;
 	views?: readonly PageView[];
 	view?: string;
@@ -222,11 +224,18 @@ export function AppShell({
 export function PageHeader({
 	title,
 	subtitle,
+	filter,
+	sort,
+	search,
 	views,
 	view,
 	onView,
 }: PageHeaderProps) {
-	const showTools = views !== undefined && views.length > 0;
+	const showTools =
+		filter !== undefined ||
+		sort !== undefined ||
+		search !== undefined ||
+		(views !== undefined && views.length > 0);
 	return (
 		<div className={clsx(frame.head)}>
 			<div>
@@ -236,25 +245,32 @@ export function PageHeader({
 				)}
 			</div>
 			{showTools ? (
-				<fieldset className={clsx(frame.views)}>
-					<legend className={clsx(frame.legend)}>Views</legend>
-					{views.map((item) => (
-						<button
-							key={item.id}
-							type="button"
-							id={`view-${item.id}`}
-							className={clsx(
-								frame.view,
-								shell.buttonFocus,
-								view === item.id && frame.viewOn,
-							)}
-							aria-pressed={view === item.id}
-							onClick={() => onView?.(item.id)}
-						>
-							{item.label}
-						</button>
-					))}
-				</fieldset>
+				<div className={clsx(frame.tools)}>
+					{filter}
+					{sort}
+					{search}
+					{views === undefined || views.length === 0 ? null : (
+						<fieldset className={clsx(frame.views)}>
+							<legend className={clsx(frame.legend)}>Views</legend>
+							{views.map((item) => (
+								<button
+									key={item.id}
+									type="button"
+									id={`view-${item.id}`}
+									className={clsx(
+										frame.view,
+										shell.buttonFocus,
+										view === item.id && frame.viewOn,
+									)}
+									aria-pressed={view === item.id}
+									onClick={() => onView?.(item.id)}
+								>
+									{item.label}
+								</button>
+							))}
+						</fieldset>
+					)}
+				</div>
 			) : null}
 		</div>
 	);
