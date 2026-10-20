@@ -126,24 +126,14 @@ export type RestCache = Map<string, RestEntry>;
 
 const issueList =
 	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?(.*)$/;
-
-function issueWindow(url: string): { repo: string; since: string } | null {
-	const match = issueList.exec(url);
-	if (match?.[1] === undefined || match[2] === undefined) {
-		return null;
-	}
-	const since = new URLSearchParams(match[2]).get("since");
-	if (since === null) {
-		return null;
-	}
-	return { repo: match[1], since };
-}
-
 const issueCommentList =
 	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/comments\?(.*)$/;
 
-function commentWindow(url: string): { repo: string; since: string } | null {
-	const match = issueCommentList.exec(url);
+function listWindow(
+	url: string,
+	pattern: RegExp,
+): { repo: string; since: string } | null {
+	const match = pattern.exec(url);
 	if (match?.[1] === undefined || match[2] === undefined) {
 		return null;
 	}
@@ -181,8 +171,8 @@ function retainWindow(
 }
 
 export function retainIssueWindow(cache: RestCache, repo: string): void {
-	retainWindow(cache, repo, issueWindow);
-	retainWindow(cache, repo, commentWindow);
+	retainWindow(cache, repo, (url) => listWindow(url, issueList));
+	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList));
 }
 
 function restUrl(input: string | URL | Request): string {
