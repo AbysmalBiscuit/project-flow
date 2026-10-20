@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { NeedsYouItem } from "./domain.ts";
-import { reasonLabel } from "./terms.ts";
+import { actionLabel, reasonLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { needs } from "./ui-styles.ts";
 
@@ -79,26 +79,6 @@ const reasonIcon = {
 	label: LabelIcon,
 	runFailed: FailIcon,
 } as const;
-
-export function actionLabel(
-	item: NeedsYouItem,
-	surface: "row" | "strip" = "row",
-): string {
-	if (item.reason === "ask") {
-		if (surface === "strip") {
-			return "Answer question";
-		}
-		return item.answered ? "View" : "Answer";
-	}
-	if (item.reason === "awaitingMerge") {
-		const number = item.key.split("#").at(-1);
-		return number === undefined ? "Merge" : `Merge PR #${number}`;
-	}
-	if (item.reason === "label") {
-		return "Open ticket";
-	}
-	return "View";
-}
 
 export function NeedsItem({
 	item,

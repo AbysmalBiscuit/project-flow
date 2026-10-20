@@ -16,13 +16,13 @@ import type {
 	ProjectCounts,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import { actionLabel } from "./needs-item.tsx";
 import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
+	actionLabel,
 	navLabel,
 	overviewControlLabel,
 	overviewFilterLabel,

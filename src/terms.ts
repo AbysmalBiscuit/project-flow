@@ -92,6 +92,26 @@ export const overviewControlLabel = {
 	unlinked: "unlinked PR",
 } as const;
 
+export function actionLabel(
+	item: NeedsYouItem,
+	surface: "row" | "strip" = "row",
+): string {
+	if (item.reason === "ask") {
+		if (surface === "strip") {
+			return "Answer question";
+		}
+		return item.answered ? "View" : "Answer";
+	}
+	if (item.reason === "awaitingMerge") {
+		const number = item.key.split("#").at(-1);
+		return number === undefined ? "Merge" : `Merge PR #${number}`;
+	}
+	if (item.reason === "label") {
+		return "Open ticket";
+	}
+	return "View";
+}
+
 export function polledAgo(fetchedAt: string | null): string | null {
 	if (fetchedAt === null) {
 		return null;
