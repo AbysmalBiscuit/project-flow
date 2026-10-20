@@ -1,20 +1,20 @@
-import mermaid from "mermaid";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type {
-	Diagram,
-	ProjectReport,
-	TicketState,
-	TicketView,
-} from "./domain.ts";
+import type { OutsideBlocker, ProjectReport, TicketView } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
-import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
 import { PageFrame } from "./shell.tsx";
-import { stateLabel } from "./terms.ts";
-import { mermaidTheme, watchPageTheme } from "./theme.ts";
+import { blockedLabel, navLabel, stateLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { frame, project as page, shell } from "./ui-styles.ts";
+import { board, frame, shell } from "./ui-styles.ts";
+
+const doneCap = 5;
+
+const views = [
+	{ id: "board", label: "Board" },
+	{ id: "graph", label: "Graph" },
+	{ id: "table", label: "Table" },
+] as const;
 
 function projectName(): string {
 	return decodeURIComponent(
@@ -26,273 +26,222 @@ function highlightKey(): string | null {
 	return new URLSearchParams(window.location.search).get("ticket");
 }
 
-function openPath(project: string, ticket: string | null): string {
-	const path = `/projects/${encodeURIComponent(project)}`;
-	return ticket === null
-		? path
-		: `${path}?ticket=${encodeURIComponent(ticket)}`;
+function trackerUrl(
+	tracker: "github" | "linear",
+	key: string,
+): string | undefined {
+	if (tracker === "github" && key.includes("#")) {
+		return `https://github.com/${key.replace("#", "/issues/")}`;
+	}
+	if (tracker === "linear") {
+		return `https://linear.app/issue/${key}`;
+	}
+	return undefined;
 }
 
-function openProject(
-	project: string,
-	ticket: string | null,
-	openPanel = false,
-): void {
-	window.history.pushState(
-		openPanel ? { panel: true } : {},
-		"",
-		openPath(project, ticket),
+function countLine(report: ProjectReport): string {
+	const counts = new Map<string, number>();
+	for (const ticket of report.tickets) {
+		const lane = ticket.lane ?? stateLabel[ticket.state];
+		counts.set(lane, (counts.get(lane) ?? 0) + 1);
+	}
+	const blocked = report.tickets.filter((ticket) => ticket.blocked).length;
+	const needs = report.tickets.filter((ticket) => ticket.needsYou).length;
+	const parts = report.lanes.map(
+		(lane) => `${counts.get(lane.name) ?? 0} ${lane.name}`,
 	);
-	window.dispatchEvent(new PopStateEvent("popstate"));
+	parts.push(`${blocked} ${blockedLabel.toLowerCase()}`);
+	parts.push(`${needs} ${navLabel.needsYou.toLowerCase()}`);
+	return parts.join(", ");
 }
 
-function TicketLine({
-	ticket,
-	highlight,
+function laneTickets(report: ProjectReport, lane: string): TicketView[] {
+	return report.tickets.filter(
+		(ticket) => (ticket.lane ?? stateLabel[ticket.state]) === lane,
+	);
+}
+
+function Chip({
+	label,
+	ticketKey,
 	onOpen,
 }: {
-	ticket: TicketView;
-	highlight: string | null;
-	onOpen: (key: string) => void;
+	label: string;
+	ticketKey?: string;
+	onOpen?: (key: string) => void;
 }) {
-	const marked = highlight !== null && highlight === ticket.key;
-	const key = ticket.key;
-	return (
-		<li
-			className={clsx(page.ticket, marked && page.highlighted)}
-			data-ticket={key ?? ""}
-		>
-			{key === null ? (
-				<>
-					{ticket.title} {ticket.state}
-				</>
-			) : (
-				<button
-					type="button"
-					className={clsx(page.ticketOpen, page.ticketHover)}
-					onClick={() => onOpen(key)}
-				>
-					{key} {ticket.title} {ticket.state}
-				</button>
-			)}
-		</li>
-	);
-}
-
-function NodeLine({
-	node,
-	ticket,
-}: {
-	node: Diagram["nodes"][number];
-	ticket: string | null;
-}) {
-	const marked = ticket !== null && ticket === node.ticket;
-	if (node.dashed) {
-		return (
-			<li>
-				<a
-					className={clsx(page.dashedNode, marked && page.highlighted)}
-					data-node={node.id}
-					href={openPath(node.project, node.ticket)}
-					onClick={(event) => {
-						event.preventDefault();
-						openProject(node.project, node.ticket);
-					}}
-				>
-					{node.label}
-				</a>
-			</li>
-		);
+	if (ticketKey === undefined || onOpen === undefined) {
+		return <span className={clsx(board.chip, board.chipStatic)}>{label}</span>;
 	}
 	return (
-		<li
-			className={marked ? clsx(page.highlighted) : undefined}
-			data-node={node.id}
-			data-ticket={node.ticket ?? ""}
+		<button
+			type="button"
+			className={clsx(board.chip, shell.buttonFocus)}
+			data-chip={ticketKey}
+			onClick={(event) => {
+				event.stopPropagation();
+				onOpen(ticketKey);
+			}}
 		>
-			{node.label}
+			{label}
+		</button>
+	);
+}
+
+function Card({
+	ticket,
+	onOpen,
+	onOpenOutside,
+}: {
+	ticket: TicketView;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
+}) {
+	const key = ticket.key;
+	const outside = ticket.outsideBlockers ?? [];
+	const chips = [
+		...(ticket.pull === undefined ? [] : [ticket.pull]),
+		...(ticket.needsYou ? [navLabel.needsYou] : []),
+		...(ticket.blocked ? [blockedLabel] : []),
+		...(ticket.staleStatus === undefined ? [] : [ticket.staleStatus]),
+		...(ticket.chips ?? []).filter(
+			(chip) => chip !== ticket.staleStatus && chip !== blockedLabel,
+		),
+	];
+	return (
+		<li>
+			<button
+				type="button"
+				className={clsx(
+					board.card,
+					board.cardHover,
+					board.cardFocus,
+					ticket.blocked && board.cardBlocked,
+				)}
+				data-ticket={key ?? ""}
+				onClick={() => {
+					if (key !== null) {
+						onOpen(key);
+					}
+				}}
+			>
+				{key === null ? null : <span className={clsx(board.key)}>{key}</span>}
+				<p className={clsx(board.title)}>{ticket.title}</p>
+				{chips.length === 0 && outside.length === 0 ? null : (
+					<span className={clsx(board.chips)}>
+						{chips.map((chip) => (
+							<Chip key={chip} label={chip} />
+						))}
+						{outside.map((blocker) => (
+							<Chip
+								key={blocker.key}
+								label={blocker.key}
+								ticketKey={blocker.key}
+								onOpen={() => onOpenOutside(blocker)}
+							/>
+						))}
+					</span>
+				)}
+			</button>
 		</li>
 	);
 }
 
-const stateSwatches: {
-	kind: TicketState;
-	swatch: typeof page.done;
-}[] = [
-	{ kind: "done", swatch: page.done },
-	{ kind: "dropped", swatch: page.dropped },
-	{ kind: "inProgress", swatch: page.inProgress },
-	{ kind: "inReview", swatch: page.inReview },
-	{ kind: "awaitingMerge", swatch: page.awaitingMerge },
-	{ kind: "backlog", swatch: page.backlog },
-];
-
-function StateLegend({ theme }: { theme: boolean }) {
-	return (
-		<ul className={clsx(page.legend)} aria-label="Diagram key">
-			{stateSwatches.map((item) => (
-				<li key={item.kind} className={clsx(page.legendItem)}>
-					<span className={clsx(page.swatch, item.swatch)} />
-					{stateLabel[item.kind]}
-				</li>
-			))}
-			{theme ? (
-				<li className={clsx(page.legendItem)}>
-					<span className={clsx(page.swatch, page.theme)} />
-					Theme
-				</li>
-			) : null}
-			<li className={clsx(page.legendItem)}>
-				<span className={clsx(page.swatch, page.dashed)} />
-				Cross-project blocker
-			</li>
-		</ul>
-	);
-}
-
-function DiagramView({
-	diagram,
-	ticket,
+function Lane({
+	name,
+	tickets,
+	capped,
+	shown,
+	onShowAll,
+	onOpen,
+	onOpenOutside,
 }: {
-	diagram: Diagram;
-	ticket: string | null;
+	name: string;
+	tickets: TicketView[];
+	capped: boolean;
+	shown: boolean;
+	onShowAll: () => void;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
+	const visible = capped && !shown ? tickets.slice(0, doneCap) : tickets;
 	return (
-		<figure className={clsx(page.diagram)} data-diagram={diagram.id}>
-			<figcaption>{diagram.title}</figcaption>
-			<pre
-				key={diagram.definition}
-				className="mermaid"
-				data-definition={diagram.definition}
-			>
-				{diagram.definition}
-			</pre>
-			<ul className={clsx(page.nodes)}>
-				{diagram.nodes.map((node) => (
-					<NodeLine key={node.id} node={node} ticket={ticket} />
+		<section className={clsx(board.lane)} data-lane={name} aria-label={name}>
+			<h2 className={clsx(board.laneTitle)}>
+				{name} {tickets.length}
+			</h2>
+			<ul className={clsx(board.cards)}>
+				{visible.map((ticket) => (
+					<Card
+						key={`${ticket.key ?? ""} ${ticket.title}`}
+						ticket={ticket}
+						onOpen={onOpen}
+						onOpenOutside={onOpenOutside}
+					/>
 				))}
 			</ul>
-		</figure>
+			{capped && !shown && tickets.length > doneCap ? (
+				<button
+					type="button"
+					className={clsx(
+						shell.button,
+						shell.buttonHover,
+						shell.buttonFocus,
+						board.showAll,
+					)}
+					data-show-all={name}
+					onClick={onShowAll}
+				>
+					Show all
+				</button>
+			) : null}
+		</section>
 	);
 }
 
-function Report({
+function Board({
 	report,
-	ticket,
 	onOpen,
+	onOpenOutside,
 }: {
 	report: ProjectReport;
-	ticket: string | null;
 	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
+	const [shownDone, setShownDone] = useState(false);
 	return (
-		<PageFrame
-			title={report.name}
-			filter={
-				<select
-					className={clsx(frame.select)}
-					aria-label="Filter"
-					defaultValue="all"
-				>
-					<option value="all">All lanes</option>
-				</select>
-			}
-			sort={
-				<select
-					className={clsx(frame.select)}
-					aria-label="Sort"
-					defaultValue="updated"
-				>
-					<option value="updated">Updated</option>
-				</select>
-			}
-			search={
-				<input
-					className={clsx(frame.search)}
-					type="search"
-					aria-label="Search"
-					placeholder="Search"
-				/>
-			}
-			views={[
-				{ id: "board", label: "Board" },
-				{ id: "graph", label: "Graph" },
-				{ id: "table", label: "Table" },
-			]}
-			view="board"
-		>
-			<div data-project={report.name} />
-			<nav className={clsx(page.reportNav)} aria-label="Report sections">
-				{report.sections.map((section) => (
-					<a
-						key={section.id}
-						className={clsx(page.reportLink)}
-						href={`#${section.id}`}
-					>
-						{section.title}
-					</a>
+		<>
+			<p className={clsx(board.counts)}>{countLine(report)}</p>
+			<div className={clsx(board.lanes)}>
+				{report.lanes.map((lane) => (
+					<Lane
+						key={lane.id}
+						name={lane.name}
+						tickets={laneTickets(report, lane.name)}
+						capped={lane.statusType === "done"}
+						shown={shownDone}
+						onShowAll={() => setShownDone(true)}
+						onOpen={onOpen}
+						onOpenOutside={onOpenOutside}
+					/>
 				))}
-			</nav>
-			{report.sections.map((section) => (
-				<section
-					key={section.id}
-					className={clsx(page.section)}
-					id={section.id}
-				>
-					<h2 className={clsx(shell.heading)}>{section.title}</h2>
-					{section.id === "featureMap" ? (
-						<StateLegend
-							theme={
-								section.diagrams?.some((diagram) =>
-									diagram.nodes.some((node) => node.state === "theme"),
-								) ?? false
-							}
-						/>
-					) : null}
-					{section.text === undefined ? null : (
-						<p className={clsx(page.summary)}>{section.text}</p>
-					)}
-					{section.items === undefined ? null : (
-						<ul className={clsx(page.tickets)}>
-							{section.items.map((item) => (
-								<TicketLine
-									key={`${item.key ?? ""} ${item.title}`}
-									ticket={item}
-									highlight={ticket}
-									onOpen={onOpen}
-								/>
-							))}
-						</ul>
-					)}
-					{section.needsYou === undefined ? null : (
-						<ul>
-							{section.needsYou.map((item) => (
-								<NeedsItem key={item.key} item={item} onOpen={onOpen} />
-							))}
-						</ul>
-					)}
-					{section.diagrams === undefined
-						? null
-						: section.diagrams.map((diagram) => (
-								<DiagramView
-									key={diagram.id}
-									diagram={diagram}
-									ticket={ticket}
-								/>
-							))}
-				</section>
-			))}
-		</PageFrame>
+			</div>
+		</>
 	);
 }
 
 function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
+	const [panelProject, setPanelProject] = useState(projectName);
+	const [panelTracker, setPanelTracker] = useState<"github" | "linear">(
+		"github",
+	);
 	const [open, setOpen] = useState(false);
+	const [view, setView] = useState("board");
 	const [report, setReport] = useState<ProjectReport | null>(null);
+	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
-	const [diagramTheme, setDiagramTheme] = useState(mermaidTheme);
 	useEffect(() => {
 		const onPop = () => {
 			setName(projectName());
@@ -317,7 +266,9 @@ function Page() {
 						return;
 					}
 					setMissing(false);
-					setReport((await response.json()) as ProjectReport);
+					const body = (await response.json()) as ProjectReport;
+					setReport(body);
+					setPanelTracker(body.tracker);
 				})
 				.catch(() => {
 					if (!stopped) {
@@ -337,76 +288,35 @@ function Page() {
 		};
 	}, [name]);
 	useEffect(() => {
-		if (report === null) {
+		if (!open || ticket === null) {
 			return;
 		}
-		mermaid.initialize({
-			startOnLoad: false,
-			securityLevel: "strict",
-			theme: diagramTheme,
-		});
-		const nodes = document.querySelectorAll<HTMLElement>(".mermaid");
-		if (nodes.length === 0) {
+		if (panelProject === name) {
+			setPanelReport(report);
 			return;
-		}
-		for (const node of nodes) {
-			const definition = node.dataset.definition;
-			if (definition !== undefined) {
-				node.textContent = definition;
-			}
-			node.removeAttribute("data-processed");
 		}
 		let stopped = false;
-		const bound: { drawn: SVGGElement; open: () => void }[] = [];
-		const bind = () => {
-			if (stopped) {
-				return;
-			}
-			for (const section of report.sections) {
-				for (const diagram of section.diagrams ?? []) {
-					const figure = document.querySelector(
-						`figure[data-diagram="${diagram.id}"]`,
-					);
-					if (figure === null) {
-						continue;
-					}
-					for (const node of diagram.nodes) {
-						if (node.ticket === null) {
-							continue;
-						}
-						const drawn = [...figure.querySelectorAll("g.node")].find((item) =>
-							item.id.includes(`flowchart-${node.id}-`),
-						);
-						if (!(drawn instanceof SVGGElement)) {
-							continue;
-						}
-						const ticket = node.ticket;
-						const project = node.project;
-						const open = () => {
-							openProject(project, ticket, true);
-						};
-						drawn.style.cursor = "pointer";
-						drawn.addEventListener("click", open);
-						bound.push({ drawn, open });
-					}
+		fetch(`/api/projects/${encodeURIComponent(panelProject)}`)
+			.then(async (response) => {
+				if (stopped || !response.ok) {
+					return;
 				}
-			}
-		};
-		void mermaid.run({ nodes }).then(bind);
+				setPanelReport((await response.json()) as ProjectReport);
+			})
+			.catch(() => {});
 		return () => {
 			stopped = true;
-			for (const { drawn, open } of bound) {
-				drawn.removeEventListener("click", open);
-			}
 		};
-	}, [diagramTheme, report]);
-	useEffect(
-		() =>
-			watchPageTheme((theme) => {
-				setDiagramTheme(theme === "dark" ? "dark" : "default");
-			}),
-		[],
-	);
+	}, [open, ticket, panelProject, name, report]);
+	const source = panelProject === name ? report : panelReport;
+	const selected =
+		source === null || ticket === null
+			? undefined
+			: source.tickets.find((item) => item.key === ticket);
+	const outside = [
+		...(selected?.outsideBlockers ?? []),
+		...(selected?.blocks ?? []),
+	];
 	if (missing) {
 		return <PageFrame title={name}>Project not found</PageFrame>;
 	}
@@ -415,19 +325,81 @@ function Page() {
 	}
 	return (
 		<>
-			<Report
-				report={report}
-				ticket={ticket}
-				onOpen={(key) => {
-					setTicket(key);
-					setOpen(true);
-				}}
-			/>
+			<PageFrame
+				wide
+				title={report.name}
+				filter={
+					<select
+						className={clsx(frame.select)}
+						aria-label="Filter"
+						defaultValue="all"
+					>
+						<option value="all">All lanes</option>
+					</select>
+				}
+				sort={
+					<select
+						className={clsx(frame.select)}
+						aria-label="Sort"
+						defaultValue="updated"
+					>
+						<option value="updated">Updated</option>
+					</select>
+				}
+				search={
+					<input
+						className={clsx(frame.search)}
+						type="search"
+						aria-label="Search"
+						placeholder="Search"
+					/>
+				}
+				views={views}
+				view={view}
+				onView={setView}
+			>
+				<div data-project={report.name} />
+				{view === "board" ? (
+					<Board
+						report={report}
+						onOpen={(key) => {
+							setPanelProject(report.name);
+							setPanelTracker(report.tracker);
+							setTicket(key);
+							setOpen(true);
+						}}
+						onOpenOutside={(blocker) => {
+							setPanelReport(null);
+							setPanelProject(blocker.project);
+							setPanelTracker(blocker.tracker);
+							setTicket(blocker.key);
+							setOpen(true);
+						}}
+					/>
+				) : (
+					<p className={clsx(board.placeholder)}>{view}</p>
+				)}
+			</PageFrame>
 			{open && ticket !== null ? (
 				<TicketPanel
-					tracker={report.tracker}
-					project={report.name}
+					tracker={panelTracker}
+					project={panelProject}
 					ticketKey={ticket}
+					{...(selected?.title === undefined ? {} : { title: selected.title })}
+					url={
+						selected?.key === undefined || selected.key === null
+							? undefined
+							: trackerUrl(panelTracker, selected.key)
+					}
+					{...(selected?.state === undefined ? {} : { state: selected.state })}
+					blockers={outside}
+					onOpenBlocker={(blocker) => {
+						setPanelReport(null);
+						setPanelProject(blocker.project);
+						setPanelTracker(blocker.tracker);
+						setTicket(blocker.key);
+						setOpen(true);
+					}}
 					onClose={() => setOpen(false)}
 				/>
 			) : null}

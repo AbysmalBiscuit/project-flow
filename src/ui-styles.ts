@@ -122,6 +122,9 @@ export const frame = stylex.create({
 		margin: "0 auto",
 		padding: `${space.lg} ${space.lg} ${space.threeXl}`,
 	},
+	wide: {
+		maxWidth: "none",
+	},
 	row: {
 		display: "flex",
 		flexWrap: "wrap",
@@ -588,6 +591,108 @@ export const inbox = stylex.create({
 	},
 	text: {
 		color: colours.ink,
+	},
+});
+
+export const board = stylex.create({
+	counts: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: `${space.xs} ${space.md}`,
+		margin: `0 0 ${space.lg}`,
+		color: colours.inkMuted,
+		fontSize: type.small,
+	},
+	lanes: {
+		display: "flex",
+		gap: space.md,
+		alignItems: "flex-start",
+		overflow: "auto",
+	},
+	lane: {
+		flex: "0 0 auto",
+		width: measure.lane,
+		padding: space.sm,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.line,
+		borderRadius: radius.md,
+		backgroundColor: colours.surface,
+	},
+	laneTitle: {
+		margin: `0 0 ${space.sm}`,
+		fontSize: type.heading,
+	},
+	cards: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.sm,
+		margin: 0,
+		padding: 0,
+		listStyle: "none",
+	},
+	card: {
+		padding: space.sm,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.line,
+		borderRadius: radius.sm,
+		backgroundColor: colours.canvas,
+		color: colours.ink,
+		font: "inherit",
+		textAlign: "left",
+		cursor: "pointer",
+	},
+	cardBlocked: {
+		borderColor: colours.blocked,
+	},
+	cardHover: {
+		backgroundColor: {
+			default: colours.canvas,
+			":hover": colours.surfaceMuted,
+		},
+	},
+	cardFocus: {
+		outline: {
+			default: "none",
+			":focus-visible": focusRing,
+		},
+		outlineOffset: space.twoXs,
+	},
+	key: {
+		color: colours.inkMuted,
+		fontSize: type.small,
+	},
+	title: {
+		margin: `${space.twoXs} 0 0`,
+		fontWeight: type.weight,
+	},
+	chips: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.xs,
+		marginTop: space.sm,
+	},
+	chip: {
+		padding: `${space.twoXs} ${space.sm}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.line,
+		borderRadius: radius.pill,
+		backgroundColor: colours.chip,
+		color: colours.chipInk,
+		fontSize: type.small,
+		cursor: "pointer",
+	},
+	chipStatic: {
+		cursor: "default",
+	},
+	showAll: {
+		marginTop: space.sm,
+	},
+	placeholder: {
+		margin: 0,
+		color: colours.inkMuted,
 	},
 });
 

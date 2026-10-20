@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/serve-board.ts"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Backlog" },
+		{ "assert_text": "Ship the board" },
+		{ "assert_text": "acme/widget#1" },
+		{
+			"click": "button[data-ticket='acme/widget#1'], button[data-ticket=\"acme/widget#1\"]"
+		},
+		{ "assert_text": "Ship the board" },
+		{ "assert_text": "Open on tracker" },
+		{ "assert_text": "X" },
+		{ "shot": "panel-open" },
+		{ "click": "aside button[aria-label='Close']" },
+		{ "assert_text": "Ship the board" },
+		{ "shot": "panel-closed" }
+	]
+}

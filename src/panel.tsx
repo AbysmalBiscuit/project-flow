@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import type { Thread, ThreadComment } from "./domain.ts";
+import type {
+	OutsideBlocker,
+	Thread,
+	ThreadComment,
+	TicketState,
+} from "./domain.ts";
+import { stateLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { panel, shell } from "./ui-styles.ts";
 
@@ -56,11 +62,21 @@ export function TicketPanel({
 	tracker,
 	project,
 	ticketKey,
+	title,
+	url,
+	state,
+	blockers = [],
+	onOpenBlocker,
 	onClose,
 }: {
 	tracker: "github" | "linear";
 	project: string;
 	ticketKey: string;
+	title?: string;
+	url?: string | undefined;
+	state?: TicketState;
+	blockers?: OutsideBlocker[];
+	onOpenBlocker?: (blocker: OutsideBlocker) => void;
 	onClose: () => void;
 }) {
 	const [thread, setThread] = useState<Thread | null>(null);
@@ -143,30 +159,56 @@ export function TicketPanel({
 					shell.buttonFocus,
 					panel.close,
 				)}
+				aria-label="Close"
 				onClick={onClose}
 			>
-				Close
+				X
 			</button>
 			{missing ? <p>Thread not found</p> : null}
 			{thread === null && !missing ? <p>Loading thread</p> : null}
-			{thread === null ? null : (
+			{thread !== null || title !== undefined ? (
 				<>
-					<h2>{thread.title}</h2>
-					<p>
-						<a className={clsx(panel.tracker)} href={thread.url}>
-							Open in tracker
-						</a>
-					</p>
-					<CommentTree
-						comments={thread.comments}
-						nested={tracker === "linear"}
-						onReply={(comment) =>
-							setReplyTo({
-								parentId: comment.parentId ?? comment.id,
-								kind: comment.kind,
-							})
-						}
-					/>
+					<h2>{thread?.title ?? title}</h2>
+					{state === undefined ? null : <p>{stateLabel[state]}</p>}
+					{blockers.length === 0 ? null : (
+						<ul className={clsx(panel.thread)} aria-label="Blockers">
+							{blockers.map((blocker) => (
+								<li key={`${blocker.project} ${blocker.key}`}>
+									<button
+										type="button"
+										className={clsx(
+											shell.button,
+											shell.buttonHover,
+											shell.buttonFocus,
+										)}
+										data-blocker={blocker.key}
+										onClick={() => onOpenBlocker?.(blocker)}
+									>
+										{blocker.key}
+									</button>
+								</li>
+							))}
+						</ul>
+					)}
+					{thread === null && url === undefined ? null : (
+						<p>
+							<a className={clsx(panel.tracker)} href={thread?.url ?? url}>
+								Open on tracker
+							</a>
+						</p>
+					)}
+					{thread === null ? null : (
+						<CommentTree
+							comments={thread.comments}
+							nested={tracker === "linear"}
+							onReply={(comment) =>
+								setReplyTo({
+									parentId: comment.parentId ?? comment.id,
+									kind: comment.kind,
+								})
+							}
+						/>
+					)}
 					{tracker === "linear" ? (
 						<button
 							type="button"
@@ -192,7 +234,7 @@ export function TicketPanel({
 							Reply
 						</button>
 					)}
-					{replyTo === null ? null : (
+					{thread === null || replyTo === null ? null : (
 						<form
 							className={clsx(panel.reply)}
 							onSubmit={(event) => {
@@ -223,7 +265,7 @@ export function TicketPanel({
 						</form>
 					)}
 				</>
-			)}
+			) : null}
 		</aside>
 	);
 }

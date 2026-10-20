@@ -173,4 +173,5 @@ export const measure = stylex.defineVars({
 	glyph: "1rem",
 	badge: "1.15rem",
 	search: "12rem",
+	lane: "16rem",
 });
