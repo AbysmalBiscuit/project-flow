@@ -1035,6 +1035,50 @@ describe("settings", () => {
 		});
 	});
 
+	test("an overview view save skips the tracker poll and any other save polls", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [] }),
+			async (base, _path, requests) => {
+				const before = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				const seen = requests.length;
+				const viewOnly = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...before,
+						overview: { filter: "needs-you", sort: "progress", view: "table" },
+					}),
+				});
+				expect(viewOnly.status).toBe(200);
+				const saved = (await viewOnly.json()) as Configuration;
+				expect(saved.overview).toEqual({
+					filter: "needs-you",
+					sort: "progress",
+					view: "table",
+				});
+				expect(requests.length).toBe(seen);
+
+				const other = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...saved,
+						activityWindowDays: 14,
+					}),
+				});
+				expect(other.status).toBe(200);
+				expect(requests.length).toBeGreaterThan(seen);
+				const after = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				expect(after.activityWindowDays).toBe(14);
+				expect(after.overview.view).toBe("table");
+			},
+		);
+	});
+
 	test("each settings section saves and survives a restart", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
 			const before = (await (

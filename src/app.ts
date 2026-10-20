@@ -364,12 +364,18 @@ function settingsResponse(
 }
 
 function viewOnlyChange(before: Configuration, after: Configuration): boolean {
-	const { projectViews: previous, ...rest } = before;
-	const { projectViews: next, ...kept } = after;
-	return (
-		JSON.stringify(rest) === JSON.stringify(kept) &&
-		JSON.stringify(previous) !== JSON.stringify(next)
-	);
+	const {
+		projectViews: previousViews,
+		overview: previousOverview,
+		...rest
+	} = before;
+	const { projectViews: nextViews, overview: nextOverview, ...kept } = after;
+	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
+	const viewsChanged =
+		JSON.stringify(previousViews) !== JSON.stringify(nextViews);
+	const overviewChanged =
+		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
+	return restSame && (viewsChanged || overviewChanged);
 }
 
 function mergeFound(
