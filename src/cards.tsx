@@ -580,6 +580,24 @@ function TableView({ projects }: { projects: ProjectCounts[] }) {
 	);
 }
 
+function RefreshIcon() {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M20 12a8 8 0 1 1-2.3-5.6" />
+			<path d="M20 4v5h-5" />
+		</svg>
+	);
+}
+
 function MenuButton({
 	id,
 	label,
@@ -879,7 +897,19 @@ function OverviewPage({
 					)}
 				</div>
 			</div>
-			{notifyPermission === "default" ? (
+			<button
+				type="button"
+				id="overview-refresh"
+				className={clsx(frame.icon, shell.buttonFocus)}
+				aria-label="Refresh"
+				title="Refresh"
+				onClick={() => {
+					void fetch("/api/refresh", { method: "POST" });
+				}}
+			>
+				<RefreshIcon />
+			</button>
+			{notifyPermission === "default" && typeof Notification !== "undefined" ? (
 				<button
 					type="button"
 					id="notify-permission"
