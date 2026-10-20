@@ -2126,14 +2126,6 @@ export const board = stylex.create({
 	legendNote: {
 		margin: 0,
 	},
-	band: {
-		margin: 0,
-		color: colours.inkSoft,
-		fontSize: type.lane,
-		fontWeight: type.weight,
-		letterSpacing: "0.06em",
-		textTransform: "uppercase",
-	},
 	ticketNode: {
 		display: "flex",
 		flexDirection: "column",

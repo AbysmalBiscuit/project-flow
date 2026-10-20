@@ -1017,7 +1017,7 @@ function Page() {
 			</AppShell>
 		);
 	}
-	if (report === null || settings === null) {
+	if (report === null) {
 		return (
 			<AppShell>
 				<main className={clsx(frame.page, frame.wide)}>Loading {name}</main>
