@@ -102,6 +102,7 @@ export type TicketView = {
 	pull?: string;
 	needsYou?: boolean;
 	enteredStateAt?: string;
+	run?: { status: "running" | "failed"; stage: string };
 };
 
 export type CrossProjectBlocker = {
@@ -2169,6 +2170,48 @@ function commentsAfter(comments: Comment[], progress: Comment): Comment[] {
 	return comments.slice(progressAt + 1);
 }
 
+const failedLine = /\b(?:failed|stalled)\b/i;
+
+function progressRun(comments: Comment[]):
+	| {
+			status: "running" | "failed";
+			stage: string;
+	  }
+	| undefined {
+	const progress = comments.find(
+		(comment) => comment.body.split("\n")[0]?.trim() === progressHeading,
+	);
+	if (progress === undefined) {
+		return undefined;
+	}
+	const lines = progress.body
+		.split("\n")
+		.map((line) => line.trim().replace(/^-\s*/, ""))
+		.filter((line) => line !== "" && line !== progressHeading);
+	const later = commentsAfter(comments, progress);
+	const reportAt = lines.findLastIndex((line) => finalReportLine.test(line));
+	const report = later.findLast((comment) => isReportComment(comment.body));
+	const afterReport = lines.slice(reportAt < 0 ? lines.length : reportAt + 1);
+	const resumed = afterReport.some((line) => stageLine.test(line));
+	if ((reportAt >= 0 || report !== undefined) && !resumed) {
+		return undefined;
+	}
+	let stage: string | undefined;
+	let failed = false;
+	for (const line of lines) {
+		const stageMatch = line.match(stageLine);
+		if (stageMatch?.[1] === undefined) {
+			continue;
+		}
+		stage = `stage ${stageMatch[1]}`;
+		failed = failedLine.test(line);
+	}
+	if (stage === undefined) {
+		return undefined;
+	}
+	return { status: failed ? "failed" : "running", stage };
+}
+
 function workcellRun(
 	comments: Comment[],
 	pull: PullRequest,
@@ -2346,6 +2389,7 @@ export type ShownTicket = {
 	runFailed: boolean;
 	enteredStateAt: string;
 	blocked: boolean;
+	run?: { status: "running" | "failed"; stage: string };
 };
 
 function enteredStateAt(ticket: Ticket, lane: Lane): string {
@@ -2403,7 +2447,15 @@ function shownTicket(
 	const pushed =
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);
-	const run = runFor(ticket, runs);
+	const local = runFor(ticket, runs);
+	const fromComment = progressRun(ticket.comments ?? []);
+	const run =
+		local === undefined
+			? fromComment
+			: {
+					status: local.status,
+					stage: fromComment?.stage ?? "",
+				};
 	const live = run?.status === "running";
 	const mergedClose = links.some(
 		(pull) => pull.merged && closesTicket(pull, ticket),
@@ -2449,6 +2501,10 @@ function shownTicket(
 	if (runFailed) {
 		chips.push("Run failed");
 	}
+	const liveRun =
+		fromComment !== undefined && ticket.state === "open" && (live || failed)
+			? fromComment
+			: undefined;
 	return {
 		state: shownLane.statusType,
 		lane: shownLane,
@@ -2457,6 +2513,7 @@ function shownTicket(
 		runFailed,
 		enteredStateAt: enteredStateAt(ticket, shownLane),
 		blocked: ticket.state === "open" && ticket.blockedBy.length > 0,
+		...(liveRun === undefined ? {} : { run: liveRun }),
 	};
 }
 
@@ -2546,6 +2603,10 @@ export function projectCounts(
 	const pullByKey = new Map<string, string>();
 	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
+	const runByKey = new Map<
+		string,
+		{ status: "running" | "failed"; stage: string }
+	>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
 	const linkedByTicket = new Map<string, PullRequest[]>();
@@ -2580,6 +2641,9 @@ export function projectCounts(
 			shownByKey.set(ticket.key, shown.state);
 			if (shown.runFailed) {
 				failedKeys.add(ticket.key);
+			}
+			if (shown.run !== undefined) {
+				runByKey.set(ticket.key.toLowerCase(), shown.run);
 			}
 		}
 		if (blockers.length > 0 && ticket.state === "open") {
@@ -2694,6 +2758,7 @@ export function projectCounts(
 		relationsByKey,
 		pullByKey,
 		needsYouItemsForProject,
+		runByKey,
 	);
 	return {
 		counts: project,
@@ -3484,6 +3549,10 @@ export function projectReport(
 	relationsByKey: Map<string, ReturnType<typeof ticketRelations>> = new Map(),
 	pullByKey: Map<string, string> = new Map(),
 	needs: NeedsYouItem[] = [],
+	runByKey: Map<
+		string,
+		{ status: "running" | "failed"; stage: string }
+	> = new Map(),
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
 	const maps = featureDiagrams(
@@ -3547,8 +3616,11 @@ export function projectReport(
 				: relationsByKey.get(view.key.toLowerCase());
 		const pull =
 			view.key === null ? undefined : pullByKey.get(view.key.toLowerCase());
+		const commentRun =
+			view.key === null ? undefined : runByKey.get(view.key.toLowerCase());
 		return {
 			...view,
+			...(commentRun === undefined ? {} : { run: commentRun }),
 			...(relations === undefined ? {} : { blockers: relations.blockers }),
 			...(relations === undefined || relations.outsideBlockers.length === 0
 				? {}

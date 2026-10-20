@@ -80,6 +80,7 @@ type FlightItem = {
 	staleStatus?: string;
 	chips?: string[];
 	enteredStateAt?: string;
+	run?: { status: string; stage: string };
 };
 
 type NeedsYouItem = {
@@ -342,6 +343,7 @@ function recordedRepo(
 	requests: string[] = [],
 	events: Record<string, unknown>[] = [],
 	labels: Record<string, unknown>[] = [],
+	comments: Record<string, unknown>[] = [],
 ): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
@@ -394,11 +396,10 @@ function recordedRepo(
 		if (url.includes("/branches?")) {
 			return page(branches);
 		}
-		if (
-			url.includes("/comments") ||
-			url.includes("/reviews") ||
-			url.includes("/reactions")
-		) {
+		if (url.includes("/issues/") && url.includes("/comments")) {
+			return page(comments);
+		}
+		if (url.includes("/reviews") || url.includes("/reactions")) {
 			return page([]);
 		}
 		if (url.includes("/check-runs")) {
@@ -584,6 +585,197 @@ async function devkitWorktree(options: {
 }
 
 describe("forward state", () => {
+	test("a ticket whose only run evidence is a workcell progress comment shows as a live run with its stage", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			recordedLinear([
+				linearIssue("WID-1", "Ship the list", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c1",
+								body: progress("- stage 1: implementing the live-run read"),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+			]),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(ticketOf(report, "WID-1")).toMatchObject({
+					state: "inProgress",
+					lane: "In Progress",
+					statusType: "inProgress",
+					staleStatus: "Todo",
+					chips: ["Todo"],
+					run: { status: "running", stage: "stage 1" },
+				});
+			},
+		);
+	});
+
+	test("a finished progress comment and a blank progress line do not invent a live run", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			recordedLinear([
+				linearIssue("WID-11", "Already reported", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c1",
+								body: progress("- stage 5: round 1 of 2\n- final report sent"),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+				linearIssue("WID-12", "Blank progress", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c2",
+								body: progress("- \n-   "),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+			]),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(ticketOf(report, "WID-11")).toMatchObject({
+					state: "backlog",
+					lane: "Todo",
+				});
+				expect(ticketOf(report, "WID-11").run).toBeUndefined();
+				expect(ticketOf(report, "WID-12")).toMatchObject({
+					state: "backlog",
+					lane: "Todo",
+				});
+				expect(ticketOf(report, "WID-12").run).toBeUndefined();
+			},
+		);
+	});
+
+	test("a GitHub ticket whose only run evidence is a workcell progress comment shows as a live run with its stage", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recordedRepo(
+				[githubIssue(14, { title: "Ship the list", comments: 1 })],
+				[],
+				[],
+				{ allow_auto_merge: false },
+				[],
+				[],
+				[],
+				[],
+				[
+					{
+						id: 14,
+						body: progress("- stage 3: receive"),
+						user: { login: "lev" },
+						created_at: "2026-08-18T13:00:00Z",
+					},
+				],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, githubRepo);
+				expect(ticketOf(report, `${githubRepo}#14`)).toMatchObject({
+					state: "inProgress",
+					lane: "In progress",
+					statusType: "inProgress",
+					run: { status: "running", stage: "stage 3" },
+				});
+			},
+		);
+	});
+
+	test("a failed stage line on a progress comment is a failed run with its stage", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearSlug }],
+			}),
+			recordedLinear([
+				linearIssue("WID-13", "The run failed", todoState, {
+					comments: {
+						nodes: [
+							{
+								id: "c1",
+								body: progress("- stage 2: the run failed"),
+								createdAt: "2026-08-18T13:00:00.000Z",
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				}),
+			]),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await projectOf(base, "Widget launch");
+				expect(ticketOf(report, "WID-13")).toMatchObject({
+					state: "backlog",
+					lane: "Todo",
+					chips: ["Run failed"],
+					run: { status: "failed", stage: "stage 2" },
+				});
+				expect(
+					needsYouOf(report)
+						.filter((row) => row.key === "WID-13")
+						.map((row) => row.reason),
+				).toEqual(["runFailed"]);
+			},
+		);
+	});
+
+	test("a local live run keeps the stage from the progress comment", async () => {
+		const checkout = await devkitWorktree({ key: "WID-14", status: "running" });
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([
+					linearIssue("WID-14", "Ship the list", todoState, {
+						comments: {
+							nodes: [
+								{
+									id: "c1",
+									body: progress("- stage 4: opening the PR"),
+									createdAt: "2026-08-18T13:00:00.000Z",
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					}),
+				]),
+				{ LINEAR_API_KEY: "recorded-linear-key" },
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-14")).toMatchObject({
+						state: "inProgress",
+						lane: "In Progress",
+						staleStatus: "Todo",
+						run: { status: "running", stage: "stage 4" },
+					});
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
 	test("a Linear ticket in Todo with a live workcell run is In progress with a Stale status of Todo", async () => {
 		const checkout = await devkitWorktree({ key: "WID-1", status: "running" });
 		try {
