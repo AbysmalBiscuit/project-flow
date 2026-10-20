@@ -797,22 +797,31 @@ function pullFromUrl(url: string): { repo: string; number: number } | null {
 
 type ListedIssue = z.infer<typeof issueNode>;
 
-function issueFilter(
-	project: string,
-	since: Date | null,
-): { project: { id: { eq: string } }; updatedAt?: { gte: string } } {
-	const filter = { project: { id: { eq: project } } };
+type IssueListFilter = {
+	project: { id: { eq: string } };
+	or?: (
+		| { updatedAt: { gte: string } }
+		| { comments: { updatedAt: { gte: string } } }
+	)[];
+};
+
+function issueFilter(project: string, since: Date | null): IssueListFilter {
+	const filter: IssueListFilter = { project: { id: { eq: project } } };
 	if (since === null) {
 		return filter;
 	}
-	return { ...filter, updatedAt: { gte: since.toISOString() } };
+	const gte = since.toISOString();
+	return {
+		...filter,
+		or: [{ updatedAt: { gte } }, { comments: { updatedAt: { gte } } }],
+	};
 }
 
 async function issuePages(
 	key: string,
 	fetchImpl: Fetch,
 	project: string,
-	since: Date | null,
+	filter: IssueListFilter,
 ): Promise<ListedIssue[]> {
 	const nodes: ListedIssue[] = [];
 	let after: string | null = null;
@@ -823,7 +832,7 @@ async function issuePages(
 			body: JSON.stringify({
 				query,
 				variables: {
-					filter: issueFilter(project, since),
+					filter,
 					after,
 				},
 			}),
@@ -860,7 +869,12 @@ export function linearTracker(
 		if (cached !== undefined) {
 			return cached;
 		}
-		const listed = issuePages(key, fetchImpl, project, since);
+		const listed = issuePages(
+			key,
+			fetchImpl,
+			project,
+			issueFilter(project, since),
+		);
 		issuesByProject.set(cacheKey, listed);
 		void listed.catch(() => {
 			if (issuesByProject.get(cacheKey) === listed) {
