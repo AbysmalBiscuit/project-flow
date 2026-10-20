@@ -479,7 +479,9 @@ describe("tracked projects", () => {
 				{ tracker: "github", repo: "acme/repo-1" },
 			]);
 			const restarted = await startFromFile(path, root);
-			expect(restarted.settings.tracked).toEqual([repo1]);
+			expect(restarted.settings.tracked).toEqual([
+				{ tracker: "github" as const, repo: "acme/repo-1" },
+			]);
 			expect(
 				restarted.overview.projects.map((project) => project.name),
 			).toEqual(["acme/repo-1"]);
