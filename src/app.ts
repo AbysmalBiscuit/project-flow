@@ -219,6 +219,7 @@ function projectViews(options: PollOptions, configuration: Configuration) {
 	}));
 	return rows.map((row) => {
 		const goodPoll = options.store.lastGoodPollAt(row.key);
+		const viewedAt = goodPoll ?? new Date(0);
 		const counted = projectCounts(
 			row.name,
 			row.key,
@@ -241,6 +242,7 @@ function projectViews(options: PollOptions, configuration: Configuration) {
 			},
 			needsYouRules(configuration, options.viewers),
 			configuration.laneMappings,
+			viewedAt,
 			row.board,
 		);
 		return {

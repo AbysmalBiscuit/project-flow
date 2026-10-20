@@ -59,6 +59,7 @@ export type Comment = {
 	id?: string;
 	body: string;
 	createdAt?: string;
+	updatedAt?: string;
 	author?: string;
 	reactions?: number;
 };
@@ -2231,6 +2232,7 @@ function botCycle(
 
 const progressHeading = "**Workcell progress**";
 const stageLine = /^stage\s+(\d+)\b/i;
+const progressStallLimitMs = 2 * 60 * 60 * 1000;
 const mergeAskLine = /^Merge PR #(\d+)\b/i;
 const finalReportLine = /^(?:ask-\d+:\s+\S+\s+)?final report\b/i;
 const reportMarker = "<!-- workcell:report -->";
@@ -2314,12 +2316,12 @@ function resumedAfterReport(
 		);
 }
 
-function progressRun(comments: Comment[]): LiveRun | undefined {
+function progressRun(comments: Comment[], now: Date): LiveRun | undefined {
 	const found = progressComment(comments);
 	if (found === undefined) {
 		return undefined;
 	}
-	const { lines, reportAt } = found;
+	const { lines, reportAt, progress } = found;
 	const resumed = resumedAfterReport(found);
 	const counted = resumed || reportAt < 0 ? lines : lines.slice(0, reportAt);
 	let stage: string | undefined;
@@ -2333,7 +2335,24 @@ function progressRun(comments: Comment[]): LiveRun | undefined {
 	if (stage === undefined) {
 		return undefined;
 	}
-	return { status: "running", stage };
+	const open = resumed || reportAt < 0;
+	const stalled = open && progressOlderThanStallLimit(progress, now);
+	return {
+		status: stalled ? "failed" : "running",
+		stage,
+	};
+}
+
+function progressOlderThanStallLimit(progress: Comment, now: Date): boolean {
+	const updatedAt = progress.updatedAt;
+	if (updatedAt === undefined) {
+		return false;
+	}
+	const updated = Date.parse(updatedAt);
+	if (Number.isNaN(updated)) {
+		return false;
+	}
+	return now.getTime() - updated > progressStallLimitMs;
 }
 
 function workcellRun(
@@ -2549,6 +2568,7 @@ function shownTicket(
 	runs: WorkcellRun[],
 	autoMerge: boolean,
 	lanes: Lane[],
+	now: Date,
 ): ShownTicket {
 	const trackerState = lane.statusType;
 	let state = trackerState;
@@ -2560,7 +2580,7 @@ function shownTicket(
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);
 	const local = runFor(ticket, runs);
-	const fromComment = progressRun(ticket.comments ?? []);
+	const fromComment = progressRun(ticket.comments ?? [], now);
 	const stage = fromComment?.stage;
 	const run =
 		local === undefined
@@ -2703,6 +2723,7 @@ export function projectCounts(
 		pmBot: Record<string, boolean>;
 	},
 	laneMappings: Configuration["laneMappings"],
+	now: Date,
 	board?: Board,
 ): {
 	counts: ProjectBody;
@@ -2761,6 +2782,7 @@ export function projectCounts(
 			runs,
 			mergesAlone,
 			lanes,
+			now,
 		);
 		if (ticket.key !== null) {
 			shownByKey.set(ticket.key, shown.state);
