@@ -150,4 +150,20 @@ export function mountJumpBox(): void {
 	const host = document.createElement("div");
 	document.body.append(host);
 	createRoot(host).render(<JumpBox />);
+	const opener = document.createElement("button");
+	opener.type = "button";
+	opener.hidden = true;
+	opener.id = "walk-ctrl-k";
+	opener.addEventListener("click", () => {
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "k",
+				code: "KeyK",
+				ctrlKey: true,
+				bubbles: true,
+				cancelable: true,
+			}),
+		);
+	});
+	document.body.append(opener);
 }
