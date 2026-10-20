@@ -31,7 +31,7 @@ type ProjectNodeData = {
 	done: number;
 	total: number;
 	needsYou: number;
-	segments: { key: string; share: number }[];
+	segments: { key: (typeof segmentKeys)[number]; share: number }[];
 };
 
 type BlockerEdgeData = {
@@ -41,7 +41,7 @@ type BlockerEdgeData = {
 	tracker: "github" | "linear";
 };
 
-function ticketTotal(project: ProjectCounts): number {
+export function ticketTotal(project: ProjectCounts): number {
 	return (
 		project.done +
 		project.dropped +
@@ -52,7 +52,7 @@ function ticketTotal(project: ProjectCounts): number {
 	);
 }
 
-function trackerName(tracker: ProjectCounts["tracker"]): string {
+export function trackerName(tracker: ProjectCounts["tracker"]): string {
 	return tracker === "linear" ? "Linear" : "GitHub";
 }
 
@@ -119,6 +119,14 @@ function layout(
 	return positions;
 }
 
+const segmentKeys = [
+	"done",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"backlog",
+] as const;
+
 const segmentTone = {
 	done: cards.done,
 	inProgress: cards.inProgress,
@@ -159,10 +167,7 @@ function ProjectNode({ data }: { data: ProjectNodeData }) {
 				{data.segments.map((segment) => (
 					<div
 						key={segment.key}
-						className={clsx(
-							cards.graphFill,
-							segmentTone[segment.key as keyof typeof segmentTone],
-						)}
+						className={clsx(cards.graphFill, segmentTone[segment.key])}
 						style={{ width: `${segment.share}%` }}
 					/>
 				))}
@@ -223,14 +228,6 @@ function BlockerEdge({
 const nodeTypes = { project: ProjectNode };
 const edgeTypes = { blocker: BlockerEdge };
 
-const segmentKeys = [
-	"done",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"backlog",
-] as const;
-
 function nodeData(project: ProjectCounts): ProjectNodeData {
 	const total = ticketTotal(project);
 	return {
@@ -249,7 +246,7 @@ function nodeData(project: ProjectCounts): ProjectNodeData {
 	};
 }
 
-export function graphModel(
+function graphModel(
 	shown: ProjectCounts[],
 	catalogue: ProjectCounts[],
 ): {

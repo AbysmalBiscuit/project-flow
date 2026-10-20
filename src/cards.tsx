@@ -21,7 +21,7 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import { OverviewGraph } from "./overview-graph.tsx";
+import { OverviewGraph, ticketTotal, trackerName } from "./overview-graph.tsx";
 import { openProject, projectPath } from "./paths.ts";
 import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import {
@@ -186,10 +186,6 @@ function slug(value: string): string {
 	return cleaned === "" ? "item" : cleaned;
 }
 
-function trackerName(tracker: ProjectCounts["tracker"]): string {
-	return tracker === "linear" ? "Linear" : "GitHub";
-}
-
 function subtitle(project: ProjectCounts): string {
 	if (project.ref.tracker === "linear") {
 		return `${trackerName(project.tracker)}, ${project.ref.project}`;
@@ -198,17 +194,6 @@ function subtitle(project: ProjectCounts): string {
 		return `${trackerName(project.tracker)}, ${project.ref.repo}`;
 	}
 	return `${trackerName(project.tracker)}, ${project.ref.owner}/${project.ref.project}`;
-}
-
-function ticketTotal(project: ProjectCounts): number {
-	return (
-		project.done +
-		project.dropped +
-		project.backlog +
-		project.inProgress +
-		project.inReview +
-		project.awaitingMerge
-	);
 }
 
 const barSegments = [
