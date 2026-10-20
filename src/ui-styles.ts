@@ -40,7 +40,8 @@ export const frame = stylex.create({
 	shell: {
 		display: "flex",
 		flexDirection: "column",
-		minHeight: "100vh",
+		height: "100vh",
+		overflow: "hidden",
 		backgroundColor: colours.page,
 	},
 	bar: {
@@ -1994,8 +1995,10 @@ export const board = stylex.create({
 	ticketGraph: {
 		position: "relative",
 		flex: "1 1 auto",
+		alignSelf: "stretch",
 		minWidth: 0,
-		minHeight: measure.boardMin,
+		height: measure.boardMin,
+		minHeight: 0,
 		overflow: "hidden",
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
