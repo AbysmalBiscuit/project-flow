@@ -133,10 +133,14 @@ A needs-you item that Lev replied to after its latest ask.
 
 **Acknowledged**:
 An answered item where an agent reacted to Lev's reply.
-_Avoid_: Seen, read
+_Avoid_: Seen, read (when the acknowledged state is meant)
 
 **Notification**:
 An event the browser shows when a configured trigger fires: a new needs-you item, a new comment, or a cleared cross-project blocker.
 
 **Inbox**:
 The list of every notification Project Flow has raised.
+
+**Read**:
+A notification that Lev opened or marked read.
+_Avoid_: Seen, acknowledged

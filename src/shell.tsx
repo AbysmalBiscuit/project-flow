@@ -300,7 +300,9 @@ export function PageFrame({
 }: PageHeaderProps & { children: ReactNode; wide?: boolean }) {
 	return (
 		<AppShell>
-			<main className={clsx(frame.page, wide && frame.wide)}>
+			<main
+				className={clsx(frame.page, wide && frame.wide, wide && frame.fill)}
+			>
 				<PageHeader {...header} />
 				{children}
 			</main>
