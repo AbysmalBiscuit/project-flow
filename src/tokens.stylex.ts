@@ -202,7 +202,7 @@ export const type = stylex.defineVars({
 	body: "1rem",
 	small: "0.85rem",
 	title: "1.7rem",
-	heading: "1.15rem",
+	heading: "1.05rem",
 	line: "1.45",
 	weight: "600",
 	track: "0.01em",
@@ -225,10 +225,12 @@ export const lightScheme = stylex.createTheme(scheme, { page: "light" });
 export const darkScheme = stylex.createTheme(scheme, { page: "dark" });
 
 export const measure = stylex.defineVars({
-	page: "72rem",
+	page: "84rem",
 	panel: "24rem",
-	card: "24rem",
+	card: "22rem",
+	node: "12.25rem",
 	form: "32rem",
+	progress: "9rem",
 	field: "28rem",
 	fieldMin: "4rem",
 	diagram: "48rem",

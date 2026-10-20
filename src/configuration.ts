@@ -30,10 +30,55 @@ const linearPin = z.strictObject({
 
 const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
 
+export type ProjectPin = z.infer<typeof projectRef>;
+
+export function sameRef(left: ProjectPin, right: ProjectPin): boolean {
+	if (left.tracker !== right.tracker) {
+		return false;
+	}
+	if (left.tracker === "linear" && right.tracker === "linear") {
+		return left.project === right.project;
+	}
+	if ("repo" in left && "repo" in right) {
+		return left.repo === right.repo;
+	}
+	if ("owner" in left && "owner" in right) {
+		return left.owner === right.owner && left.project === right.project;
+	}
+	return false;
+}
+
 const knownBot = z.enum(knownBots);
+
+export const overviewFilters = [
+	"all",
+	"needs-you",
+	"blocked",
+	"pinned",
+] as const;
+
+export const overviewSorts = [
+	"name",
+	"progress",
+	"needs-you",
+	"blockers",
+] as const;
+
+export const overviewViews = ["cards", "graph", "table"] as const;
+
+const overviewView = z.strictObject({
+	filter: z.enum(overviewFilters).default("all"),
+	sort: z.enum(overviewSorts).default("name"),
+	view: z.enum(overviewViews).default("cards"),
+});
 
 const configurationSchema = z.strictObject({
 	theme: z.enum(["light", "dark"]).default("light"),
+	overview: overviewView.default({
+		filter: "all",
+		sort: "name",
+		view: "cards",
+	}),
 	pinned: z.array(projectRef).default([]),
 	hidden: z.array(projectRef).default([]),
 	activityWindowDays: z.number().int().positive().default(30),
@@ -69,6 +114,8 @@ const configurationSchema = z.strictObject({
 });
 
 export type Configuration = z.infer<typeof configurationSchema>;
+
+export type OverviewView = Configuration["overview"];
 
 export type AutoMerge = Configuration["autoMerge"][string];
 

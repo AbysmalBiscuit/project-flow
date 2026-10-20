@@ -9,6 +9,8 @@ type StoredPayload = {
 	branches: string[];
 	startedKeys: string[];
 	board?: Board;
+	owner?: string;
+	number?: number;
 };
 
 function readRows(db: Database): Snapshot[] {
@@ -31,6 +33,8 @@ function readRows(db: Database): Snapshot[] {
 			branches: payload.branches,
 			startedKeys: payload.startedKeys,
 			...(payload.board === undefined ? {} : { board: payload.board }),
+			...(payload.owner === undefined ? {} : { owner: payload.owner }),
+			...(payload.number === undefined ? {} : { number: payload.number }),
 		};
 	});
 }
@@ -48,6 +52,8 @@ function writeRow(db: Database, row: Snapshot): void {
 			branches: row.branches,
 			startedKeys: row.startedKeys,
 			...(row.board === undefined ? {} : { board: row.board }),
+			...(row.owner === undefined ? {} : { owner: row.owner }),
+			...(row.number === undefined ? {} : { number: row.number }),
 		}),
 	);
 }
