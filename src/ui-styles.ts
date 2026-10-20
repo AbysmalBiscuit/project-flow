@@ -75,8 +75,9 @@ export const frame = stylex.create({
 	nav: {
 		display: "flex",
 		flexWrap: "nowrap",
-		gap: space.twoXs,
+		gap: space.navGap,
 		alignItems: "center",
+		marginLeft: space.sm,
 	},
 	item: {
 		display: "inline-flex",
@@ -197,7 +198,7 @@ export const frame = stylex.create({
 		gap: space.sm,
 		alignItems: "flex-start",
 		justifyContent: "space-between",
-		marginBottom: space.xl,
+		marginBottom: space.md,
 	},
 	heading: {
 		minWidth: 0,
@@ -1138,6 +1139,8 @@ export const needs = stylex.create({
 	item: {
 		display: "flex",
 		alignItems: "center",
+		boxSizing: "border-box",
+		height: measure.needsRow,
 		borderTopWidth: measure.hairline,
 		borderTopStyle: "solid",
 		borderTopColor: colours.laneLine,
@@ -1154,7 +1157,7 @@ export const needs = stylex.create({
 		overflow: "hidden",
 		color: colours.ink,
 		fontSize: type.meta,
-		fontWeight: type.weight,
+		fontWeight: type.regular,
 		textOverflow: "ellipsis",
 		whiteSpace: "nowrap",
 	},
@@ -1190,7 +1193,8 @@ export const needs = stylex.create({
 		gap: space.sm,
 		alignItems: "center",
 		minWidth: 0,
-		padding: `${space.sm} ${space.md}`,
+		height: "100%",
+		padding: `0 ${space.md}`,
 		borderWidth: 0,
 		backgroundColor: "transparent",
 		color: "inherit",
@@ -1664,6 +1668,10 @@ export const jump = stylex.create({
 });
 
 export const panel = stylex.create({
+	needs: {
+		flexBasis: measure.needsPanel,
+		width: measure.needsPanel,
+	},
 	panel: {
 		display: "flex",
 		flex: `0 0 ${measure.panel}`,

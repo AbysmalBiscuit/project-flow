@@ -226,7 +226,7 @@ export function TicketPanel({
 		lane ?? (state === undefined ? undefined : stateLabel[state]);
 	return (
 		<aside
-			className={clsx(panel.panel)}
+			className={clsx(panel.panel, why === undefined ? null : panel.needs)}
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 		>

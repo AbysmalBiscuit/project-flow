@@ -202,7 +202,8 @@ export const space = stylex.defineVars({
 	lg: "1rem",
 	xl: "1.5rem",
 	pageInset: "5rem",
-	twoXl: "2rem",
+	navGap: "1.65rem",
+	twoXl: "2.65rem",
 	threeXl: "2.5rem",
 });
 
@@ -226,6 +227,7 @@ export const type = stylex.defineVars({
 	heading: "1.05rem",
 	line: "1.45",
 	weight: "600",
+	regular: "400",
 	track: "0.01em",
 	lane: "0.72rem",
 	card: "0.92rem",
@@ -276,7 +278,8 @@ export const measure = stylex.defineVars({
 	toggle: "2.25rem",
 	mark: "1.15rem",
 	keyCol: "5.5rem",
-	needsPanel: "22rem",
+	needsPanel: "22.5rem",
+	needsRow: "3.125rem",
 });
 
 export const stack = stylex.defineVars({
