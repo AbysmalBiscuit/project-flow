@@ -2460,6 +2460,124 @@ describe("inbox", () => {
 		);
 	});
 
+	test("marking one entry read survives a restart while another stays unread", async () => {
+		let current = [
+			linearIssue(
+				"PF-1",
+				"Open ask",
+				"Which bot should review this?",
+				[
+					{
+						body: `Which bot should review this?\n\n${ask("pf-1")}`,
+					},
+				],
+				{},
+				"2026-08-18T13:00:00.000Z",
+			),
+		];
+		const recorded = linearFake({ project: linearProject });
+		const fetchImpl: Fetch = async (input, init) => {
+			if (isIssueQuery(input, init)) {
+				return recordedIssues(current);
+			}
+			return recorded(input, init);
+		};
+		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		const io = {
+			env: { LINEAR_API_KEY: "recorded-linear-key" },
+			fetch: fetchImpl,
+			readGhToken: async () => null,
+			databasePath,
+		};
+		const start = (checks: Promise<void>, stdout: (line: string) => void) =>
+			run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({ ...io, stdout, waitForStop: checks }),
+			);
+		try {
+			let stopFirst: () => void = () => {};
+			const firstStop = new Promise<void>((resolve) => {
+				stopFirst = resolve;
+			});
+			let ready: (base: string) => void = () => {};
+			const opened = new Promise<string>((resolve) => {
+				ready = resolve;
+			});
+			const started = start(firstStop, ready);
+			const base = await opened;
+			expect(await inboxOf(base)).toEqual([]);
+			current = [
+				...current,
+				linearIssue(
+					"PF-2",
+					"Second ask",
+					"Second question",
+					[{ body: `Second question\n\n${ask("pf-2")}` }],
+					{},
+					"2026-08-18T13:05:00.000Z",
+				),
+			];
+			await refresh(base);
+			const first = await inboxOf(base);
+			expect(first).toHaveLength(1);
+			expect(first[0]?.key).toBe("PF-2");
+			current = [
+				...current,
+				linearIssue(
+					"PF-3",
+					"Third ask",
+					"Third question",
+					[{ body: `Third question\n\n${ask("pf-3")}` }],
+					{},
+					"2026-08-18T13:10:00.000Z",
+				),
+			];
+			await refresh(base);
+			const entries = await inboxOf(base);
+			expect(entries).toHaveLength(2);
+			expect(entries.every((entry) => !entry.read)).toBe(true);
+			const marked = entries[0];
+			const other = entries[1];
+			if (marked === undefined || other === undefined) {
+				throw new Error("expected two inbox entries");
+			}
+			const response = await fetch(
+				new URL(`/api/inbox/${encodeURIComponent(marked.id)}`, base),
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ read: true }),
+				},
+			);
+			expect(response.status).toBe(204);
+			stopFirst();
+			await started;
+			let stopSecond: () => void = () => {};
+			const secondStop = new Promise<void>((resolve) => {
+				stopSecond = resolve;
+			});
+			let againReady: (base: string) => void = () => {};
+			const restarted = new Promise<string>((resolve) => {
+				againReady = resolve;
+			});
+			const resumed = start(secondStop, againReady);
+			const next = await restarted;
+			const kept = await inboxOf(next);
+			expect(kept.map((entry) => entry.id)).toEqual(
+				entries.map((entry) => entry.id),
+			);
+			expect(kept.find((entry) => entry.id === marked.id)?.read).toBe(true);
+			expect(kept.find((entry) => entry.id === other.id)?.read).toBe(false);
+			stopSecond();
+			await resumed;
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("marking one entry or every entry read survives a restart", async () => {
 		const headline = "Which bot should review this?";
 		let current = [
