@@ -1132,24 +1132,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
-	if (process.env.REJOIN_TRACE === "1" && notifications.length > 0) {
-		console.error(
-			"APP notifications",
-			JSON.stringify(
-				notifications.map((entry) => [entry.trigger, entry.id]),
-			),
-			"primed",
-			options.primed,
-			"beforeNeeds",
-			before.needsYou.map((item) => item.key),
-			"afterNeeds",
-			after.needsYou.map((item) => item.key),
-			"beforeComment",
-			[...before.comments].map(([id, comment]) => [id, comment.stamp]),
-			"afterComment",
-			[...after.comments].map(([id, comment]) => [id, comment.stamp]),
-		);
-	}
 	const current = await options.configuration.read();
 	options.fallback = current;
 	options.notifier.publish({
@@ -1289,6 +1271,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	let polling: Promise<void> | null = null;
 	let stopped = false;
 	let firstPollDone = false;
+	let pollGeneration = 0;
 	const pollAgain = (): Promise<void> => {
 		if (stopped) {
 			return Promise.resolve();
@@ -1296,6 +1279,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (polling !== null) {
 			return polling;
 		}
+		pollGeneration += 1;
 		polling = (async () => {
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
@@ -1457,7 +1441,11 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/refresh": {
 				POST: async () => {
 					releaseLists();
-					await pollAgain();
+					const seen = pollGeneration;
+					await (polling ?? Promise.resolve());
+					if (pollGeneration === seen) {
+						await pollAgain();
+					}
 					return new Response(null, { status: 204 });
 				},
 			},
