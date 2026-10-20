@@ -18,6 +18,8 @@ import { frame, needs, shell } from "./ui-styles.ts";
 const allReasons = "all";
 const allProjects = "all";
 
+type ReasonFilter = NeedsYouItem["reason"] | typeof allReasons;
+
 function ChoiceSelect({
 	id,
 	label,
@@ -84,8 +86,8 @@ function NeedsTabs({
 	onReason,
 }: {
 	items: NeedsYouItem[];
-	reason: string;
-	onReason: (reason: string) => void;
+	reason: ReasonFilter;
+	onReason: (reason: ReasonFilter) => void;
 }) {
 	const tabs = [
 		{ id: allReasons, label: "All" },
@@ -169,7 +171,7 @@ function NeedsGroups({
 }
 
 function NeedsList({ items }: { items: NeedsYouItem[] }) {
-	const [reason, setReason] = useState(allReasons);
+	const [reason, setReason] = useState<ReasonFilter>(allReasons);
 	const [project, setProject] = useState(allProjects);
 	const [group, setGroup] = useState<NeedsGroup>("none");
 	const projects = [...new Set(items.map((item) => item.project))];
