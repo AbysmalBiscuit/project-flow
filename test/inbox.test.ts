@@ -135,7 +135,7 @@ async function openEvents(base: string) {
 		throw new Error("event stream did not open");
 	}
 	return {
-		reader,
+		cancel: () => reader.cancel(),
 		read: async () => {
 			const chunk = await reader.read();
 			if (chunk.done) {
@@ -146,32 +146,40 @@ async function openEvents(base: string) {
 	};
 }
 
-async function drivenPoll(base: string): Promise<InboxEntry | null> {
+type EventStream = Awaited<ReturnType<typeof openEvents>>;
+
+async function drivenPoll(
+	base: string,
+	releasePoll?: () => void,
+): Promise<InboxEntry | null> {
 	const stream = await openEvents(base);
-	const before = await inboxOf(base);
-	await refresh(base);
-	const after = await inboxOf(base);
-	const raised = after.find(
-		(entry) => !before.some((earlier) => earlier.id === entry.id),
-	);
-	if (raised === undefined) {
-		await stream.reader.cancel();
-		return null;
-	}
-	let buffered = "";
-	while (streamedNotification(buffered, raised.id) === undefined) {
-		const chunk = await stream.read();
-		if (chunk === null) {
-			break;
+	try {
+		const before = await inboxOf(base);
+		releasePoll?.();
+		await refresh(base);
+		const after = await inboxOf(base);
+		const raised = after.find(
+			(entry) => !before.some((earlier) => earlier.id === entry.id),
+		);
+		if (raised === undefined) {
+			return null;
 		}
-		buffered += chunk;
+		let buffered = "";
+		while (streamedNotification(buffered, raised.id) === undefined) {
+			const chunk = await stream.read();
+			if (chunk === null) {
+				break;
+			}
+			buffered += chunk;
+		}
+		const streamed = streamedNotification(buffered, raised.id);
+		if (streamed === undefined) {
+			throw new Error("notification event missing for the raised inbox entry");
+		}
+		return streamed;
+	} finally {
+		await stream.cancel();
 	}
-	await stream.reader.cancel();
-	const streamed = streamedNotification(buffered, raised.id);
-	if (streamed === undefined) {
-		throw new Error("notification event missing for the raised inbox entry");
-	}
-	return streamed;
 }
 
 async function quietPoll(base: string): Promise<void> {
@@ -186,7 +194,7 @@ async function quietPoll(base: string): Promise<void> {
 		if (raised !== undefined) {
 			throw new Error("inbox gained an entry on a quiet poll");
 		}
-		const events = eventsOf(await pollText(stream.reader));
+		const events = eventsOf(await pollText(stream));
 		for (const event of events) {
 			if (event.event === "notification") {
 				throw new Error("notification event arrived on a quiet poll");
@@ -196,7 +204,7 @@ async function quietPoll(base: string): Promise<void> {
 			throw new Error("quiet poll ended before its overview event");
 		}
 	} finally {
-		await stream.reader.cancel();
+		await stream.cancel();
 	}
 }
 
@@ -204,12 +212,9 @@ async function quietPoll(base: string): Promise<void> {
 // A gap shorter than this still belongs to the same poll.
 const pollIdleMs = 50;
 
-async function pollText(
-	reader: ReadableStreamDefaultReader<Uint8Array>,
-): Promise<string> {
-	const decoder = new TextDecoder();
+async function pollText(stream: EventStream): Promise<string> {
 	let buffered = "";
-	const readOne = (): Promise<Uint8Array | null> => {
+	const readOne = (): Promise<string | null> => {
 		let settled = false;
 		return new Promise((resolve, reject) => {
 			const timer = setTimeout(() => {
@@ -217,11 +222,11 @@ async function pollText(
 					resolve(null);
 				}
 			}, pollIdleMs);
-			reader.read().then(
+			stream.read().then(
 				(chunk) => {
 					settled = true;
 					clearTimeout(timer);
-					resolve(chunk.done ? null : (chunk.value?.slice() ?? null));
+					resolve(chunk);
 				},
 				(error: unknown) => {
 					settled = true;
@@ -231,10 +236,10 @@ async function pollText(
 			);
 		});
 	};
-	let bytes = await readOne();
-	while (bytes !== null) {
-		buffered += decoder.decode(bytes, { stream: true });
-		bytes = await readOne();
+	let chunk = await readOne();
+	while (chunk !== null) {
+		buffered += chunk;
+		chunk = await readOne();
 	}
 	return buffered;
 }
@@ -385,8 +390,11 @@ const twoProjects = {
 	pollIntervalSeconds: 3600,
 };
 
-async function notificationAfterRefresh(base: string): Promise<InboxEntry> {
-	const polled = await drivenPoll(base);
+async function notificationAfterRefresh(
+	base: string,
+	releasePoll?: () => void,
+): Promise<InboxEntry> {
+	const polled = await drivenPoll(base, releasePoll);
 	if (polled === null) {
 		throw new Error("no notification event on the driven poll");
 	}
@@ -409,23 +417,6 @@ async function quietUntil(
 		}
 	}
 	throw new Error("driven poll did not apply");
-}
-
-async function notificationForPoll(
-	base: string,
-	releasePoll: () => void,
-): Promise<InboxEntry> {
-	const before = await inboxOf(base);
-	releasePoll();
-	await refresh(base);
-	const after = await inboxOf(base);
-	const raised = after.find(
-		(entry) => !before.some((earlier) => earlier.id === entry.id),
-	);
-	if (raised === undefined) {
-		throw new Error("no new inbox entry after the poll");
-	}
-	return raised;
 }
 
 async function refresh(base: string): Promise<void> {
@@ -2125,7 +2116,7 @@ describe("inbox", () => {
 			});
 			const restarted = start(secondStop, againReady);
 			const next = await second;
-			const event = await notificationForPoll(next, releaseIssues);
+			const event = await notificationAfterRefresh(next, releaseIssues);
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
@@ -2252,7 +2243,7 @@ describe("inbox", () => {
 			});
 			const restarted = start(secondStop, againReady);
 			const next = await second;
-			const event = await notificationForPoll(next, releaseIssues);
+			const event = await notificationAfterRefresh(next, releaseIssues);
 			expect(event).toMatchObject({
 				trigger: "needsYou",
 				project: "Project Flow",
