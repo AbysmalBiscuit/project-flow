@@ -734,6 +734,7 @@ type PollOptions = {
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
+	options.github?.beginPoll?.();
 	const polledAt = options.clock.now();
 	const before = options.attention;
 	let configuration: Configuration;

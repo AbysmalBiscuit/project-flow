@@ -66,6 +66,8 @@ export type TicketList = {
 };
 
 export type Tracker = {
+	/** Drop repo reads from the previous poll, including a poll that failed. */
+	beginPoll?: () => void;
 	listTickets: (project: string, since: Date | null) => Promise<TicketList>;
 	listPulls: (project: string, since?: Date | null) => Promise<PullRequest[]>;
 	listBranches: (project: string) => Promise<string[]>;
