@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -5201,68 +5202,58 @@ describe("GET /api/overview", () => {
 		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
+		const seeded = new Database(databasePath);
+		seeded.run(`
+			create table snapshots (
+				snapshot_key text primary key,
+				name text not null,
+				tracker text not null,
+				payload text not null
+			)
+		`);
+		seeded
+			.query(
+				"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
+			)
+			.run(
+				"github:acme/widget",
+				"acme/widget",
+				"github",
+				JSON.stringify({
+					tickets: [],
+					pulls: [],
+					branches: [],
+					startedKeys: [],
+				}),
+			);
+		seeded.close();
 		let releaseTracker: () => void = () => {};
 		const trackerHeld = new Promise<void>((resolve) => {
 			releaseTracker = resolve;
 		});
-		let releaseWrite: () => void = () => {};
-		const writeHeld = new Promise<void>((resolve) => {
-			releaseWrite = resolve;
-		});
-		const holderPath = join(root, "hold-write.ts");
-		writeFileSync(
-			holderPath,
-			[
-				'import { Database } from "bun:sqlite";',
-				"const path = process.argv[2];",
-				'if (path === undefined) throw new Error("missing store path");',
-				"let release = () => {};",
-				"const listening = new Promise((resolve) => {",
-				"  release = resolve;",
-				"});",
-				"process.stdin.on('data', (chunk) => {",
-				"  if (String(chunk).includes('http')) release();",
-				"});",
-				"await listening;",
-				"const writer = new Database(path);",
-				'writer.run("pragma busy_timeout = 5000");',
-				'writer.run("begin exclusive");',
-				'console.log("held");',
-				"await new Promise((resolve) => {",
-				'  process.stdin.once("end", () => resolve(undefined));',
-				"});",
-				'writer.run("rollback");',
-				"writer.close();",
-				"",
-			].join("\n"),
-		);
-		const holder = Bun.spawn(["bun", holderPath, databasePath], {
-			stdin: "pipe",
-			stdout: "pipe",
-			stderr: "pipe",
-		});
+		const writer = new Database(databasePath);
+		let held = false;
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
 				void (async () => {
-					await holder.stdin.write(`${base}\n`);
-					const reader = holder.stdout.getReader();
-					const chunk = await reader.read();
-					expect(new TextDecoder().decode(chunk.value)).toContain("held");
+					writer.run("begin exclusive");
+					held = true;
 					const response = await fetch(new URL("/api/overview", base));
+					writer.run("rollback");
+					held = false;
 					expect(response.status).toBe(200);
 					const body = (await response.json()) as {
-						projects: unknown[];
+						projects: { name: string }[];
 						error: string | null;
 					};
 					expect(body.error).toBeNull();
-					expect(body.projects).toEqual([]);
-					releaseWrite();
-					await holder.stdin.end();
+					expect(body.projects.map((project) => project.name)).toEqual([
+						"acme/widget",
+					]);
 					releaseTracker();
 					resolve();
 				})().catch((error: unknown) => {
-					releaseWrite();
 					releaseTracker();
 					reject(error);
 				});
@@ -5286,7 +5277,6 @@ describe("GET /api/overview", () => {
 								});
 							}
 							await trackerHeld;
-							await writeHeld;
 							if (url.includes(`/repos/${repo}/issues?`)) {
 								return page([ticket(5, "open", null)], null);
 							}
@@ -5303,11 +5293,11 @@ describe("GET /api/overview", () => {
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 		} finally {
-			releaseWrite();
 			releaseTracker();
-			await holder.stdin.end();
-			holder.kill();
-			await holder.exited;
+			if (held) {
+				writer.run("rollback");
+			}
+			writer.close();
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
