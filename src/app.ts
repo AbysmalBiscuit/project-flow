@@ -857,7 +857,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				...(project.owner === undefined ? {} : { owner: project.owner }),
 				...(project.number === undefined ? {} : { number: project.number }),
 			};
-			const failedRow = stored ?? empty;
 			outcomes.set(project.key, {
 				key: project.key,
 				ok: false,
@@ -865,11 +864,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				full,
 				pinned,
 				hidden,
-				row: {
-					...failedRow,
-					...(project.owner === undefined ? {} : { owner: project.owner }),
-					...(project.number === undefined ? {} : { number: project.number }),
-				},
+				row: stored ?? empty,
 			});
 			if (fillAsPolled) {
 				publishPoll(options, configuration, outcomes, [], null);
