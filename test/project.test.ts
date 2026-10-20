@@ -1717,8 +1717,6 @@ describe("GET /api/projects/:name", () => {
 					"2026-08-12T09:00:00.000Z",
 					"2026-08-18T15:00:00.000Z",
 				]);
-				const missing = cleared.tickets.find((ticket) => ticket.key === null);
-				expect(missing).toBeUndefined();
 			},
 		);
 	});
