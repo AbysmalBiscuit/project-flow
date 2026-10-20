@@ -60,3 +60,26 @@ export const needsGroupLabel = {
 } as const;
 
 export type NeedsGroup = keyof typeof needsGroupLabel;
+
+export const overviewFilterLabel = {
+	all: "All projects",
+	"needs-you": "Needs you",
+	blocked: "Blocked",
+	pinned: "Pinned",
+} as const;
+
+export const overviewSortLabel = {
+	name: "Name",
+	progress: "Progress",
+	"needs-you": "Needs you",
+	blockers: "Cross-project blockers",
+} as const;
+
+export const overviewControlLabel = {
+	pinned: "Pinned",
+	filter: "Filter",
+	sort: "Sort",
+	search: "Search",
+	polled: "Polled",
+	unlinked: "Unlinked PRs",
+} as const;

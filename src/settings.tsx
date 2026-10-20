@@ -8,6 +8,15 @@ import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
 
 type ProjectRef = Configuration["pinned"][number];
+function sameRefs(left: ProjectRef[], right: ProjectRef[]): boolean {
+	return (
+		left.length === right.length &&
+		left.every(
+			(ref, index) => refLine(ref) === refLine(right[index] as ProjectRef),
+		)
+	);
+}
+
 function refLine(ref: ProjectRef): string {
 	if (ref.tracker === "linear") {
 		return `linear ${ref.project}`;
@@ -349,12 +358,26 @@ function Page() {
 					live.theme !== settings.theme
 						? live.theme
 						: next.theme;
+				const overview =
+					live !== null &&
+					typeof live === "object" &&
+					"overview" in live &&
+					live.overview !== null &&
+					typeof live.overview === "object"
+						? live.overview
+						: next.overview;
+				const pinned =
+					sameRefs(settings.pinned, next.pinned) &&
+					live !== null &&
+					typeof live === "object" &&
+					"pinned" in live &&
+					Array.isArray(live.pinned)
+						? (live.pinned as Configuration["pinned"])
+						: next.pinned;
 				const response = await fetch("/api/settings", {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
-					body: JSON.stringify(
-						theme === next.theme ? next : { ...next, theme },
-					),
+					body: JSON.stringify({ ...next, theme, overview, pinned }),
 				});
 				const body: unknown = await response.json().catch(() => null);
 				if (!response.ok) {
