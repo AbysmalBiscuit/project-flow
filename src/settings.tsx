@@ -655,6 +655,18 @@ function MappingEditor({
 		useState<(typeof evidenceStates)[number]>("awaitingMerge");
 	const [status, setStatus] = useState("");
 	const rows = Object.entries(mappings);
+	function add(): void {
+		const name = key.trim();
+		const named = status.trim();
+		if (name === "" || named === "") {
+			return;
+		}
+		onChange({
+			...mappings,
+			[name]: { ...mappings[name], [state]: named },
+		});
+		setStatus("");
+	}
 	return (
 		<div className={clsx(fields.chips)}>
 			{rows.map(([name, mapping]) =>
@@ -726,19 +738,18 @@ function MappingEditor({
 						return;
 					}
 					event.preventDefault();
-					const name = key.trim();
-					const named = status.trim();
-					if (name === "" || named === "") {
-						return;
-					}
-					onChange({
-						...mappings,
-						[name]: { ...mappings[name], [state]: named },
-					});
-					setStatus("");
+					add();
 				}}
 				onChange={(event) => setStatus(event.target.value)}
 			/>
+			<button
+				id="lane-mapping-add"
+				type="button"
+				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+				onClick={add}
+			>
+				{settingsCopy.add}
+			</button>
 		</div>
 	);
 }
