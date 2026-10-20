@@ -148,6 +148,7 @@ function retainWindow(
 	cache: RestCache,
 	repo: string,
 	read: (url: string) => { repo: string; since: string } | null,
+	forget?: (url: string) => void,
 ): void {
 	let current: string | undefined;
 	for (const key of cache.keys()) {
@@ -166,13 +167,23 @@ function retainWindow(
 		const window = read(key);
 		if (window?.repo === repo && window.since < current) {
 			cache.delete(key);
+			forget?.(key);
 		}
 	}
 }
 
-export function retainListWindows(cache: RestCache, repo: string): void {
-	retainWindow(cache, repo, (url) => listWindow(url, issueList));
-	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList));
+export function retainListWindows(
+	cache: RestCache,
+	repo: string,
+	forget?: (url: string) => void,
+): void {
+	retainWindow(cache, repo, (url) => listWindow(url, issueList), forget);
+	retainWindow(
+		cache,
+		repo,
+		(url) => listWindow(url, issueCommentList),
+		forget,
+	);
 }
 
 function restUrl(input: string | URL | Request): string {

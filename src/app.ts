@@ -1029,7 +1029,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			options.store.recordGoodPoll(project.key, polledAt);
 			options.store.clearProjectError(project.key);
 			if (project.tracker === "github" && project.key.includes("/")) {
-				retainListWindows(options.restCache, project.key);
+				retainListWindows(
+					options.restCache,
+					project.key,
+					options.store.forgetValidator,
+				);
 			}
 			const shown = projectSnapshots(
 				listed,

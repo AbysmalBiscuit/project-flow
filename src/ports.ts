@@ -105,6 +105,8 @@ export type Store = {
 	readValidators: () => { url: string; etag: string; body: string }[];
 	/** Keep the last GitHub REST response for a URL. */
 	recordValidator: (url: string, etag: string, body: string) => void;
+	/** Drop the last GitHub REST response for a URL. */
+	forgetValidator: (url: string) => void;
 };
 
 export type Change = {

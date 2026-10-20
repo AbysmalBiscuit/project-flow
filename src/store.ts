@@ -292,6 +292,9 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					"insert into validators (url, etag, body) values (?, ?, ?) on conflict(url) do update set etag = excluded.etag, body = excluded.body",
 				).run(url, etag, body);
 			},
+			forgetValidator(url) {
+				db.query("delete from validators where url = ?").run(url);
+			},
 		},
 		close: () => db.close(),
 	};
