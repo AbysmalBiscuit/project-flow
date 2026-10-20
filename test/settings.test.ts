@@ -562,10 +562,7 @@ describe("settings", () => {
 		const dir = await mkdtemp(join("/var/tmp", "project-flow-settings-link-"));
 		const target = join(dir, "target.json");
 		const link = join(dir, "config.json");
-		await writeFile(
-			target,
-			JSON.stringify({ pinned: [], checkoutRoots: [] }),
-		);
+		await writeFile(target, JSON.stringify({ pinned: [], checkoutRoots: [] }));
 		await chmod(target, 0o600);
 		await symlink(target, link);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
