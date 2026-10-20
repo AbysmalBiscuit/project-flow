@@ -13,7 +13,12 @@ import {
 import { pageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
-import { graphDirections, openViews, viewDefaults } from "./view-settings.ts";
+import {
+	graphDirections,
+	laneAgeCap,
+	openViews,
+	viewDefaults,
+} from "./view-settings.ts";
 
 type Trackers = { github: boolean; linear: boolean };
 
@@ -374,9 +379,11 @@ function Menu({
 						</Row>
 						{laneStates.map((state) => {
 							const on = shown.has(stateLabel[state]);
-							const days =
-								view.maxAgeDays[stateLabel[state]] ??
-								(state === "done" ? 2 : 0);
+							const days = laneAgeCap(
+								view.maxAgeDays,
+								stateLabel[state],
+								state,
+							);
 							return (
 								<div key={state} className={clsx(fields.row)}>
 									<span className={clsx(fields.lane)}>
