@@ -799,8 +799,10 @@ type ListedIssue = z.infer<typeof issueNode>;
 
 type IssueListFilter = {
 	project: { id: { eq: string } };
-	updatedAt?: { gte: string };
-	comments?: { updatedAt: { gte: string } };
+	or?: (
+		| { updatedAt: { gte: string } }
+		| { comments: { updatedAt: { gte: string } } }
+	)[];
 };
 
 function issueFilter(project: string, since: Date | null): IssueListFilter {
@@ -808,13 +810,10 @@ function issueFilter(project: string, since: Date | null): IssueListFilter {
 	if (since === null) {
 		return filter;
 	}
-	return { ...filter, updatedAt: { gte: since.toISOString() } };
-}
-
-function editedCommentFilter(project: string, since: Date): IssueListFilter {
+	const gte = since.toISOString();
 	return {
-		project: { id: { eq: project } },
-		comments: { updatedAt: { gte: since.toISOString() } },
+		...filter,
+		or: [{ updatedAt: { gte } }, { comments: { updatedAt: { gte } } }],
 	};
 }
 
@@ -856,40 +855,6 @@ async function issuePages(
 	return nodes;
 }
 
-async function listedIssues(
-	key: string,
-	fetchImpl: Fetch,
-	project: string,
-	since: Date | null,
-): Promise<ListedIssue[]> {
-	const updated = await issuePages(
-		key,
-		fetchImpl,
-		project,
-		issueFilter(project, since),
-	);
-	if (since === null) {
-		return updated;
-	}
-	const edited = await issuePages(
-		key,
-		fetchImpl,
-		project,
-		editedCommentFilter(project, since),
-	);
-	const seen = new Set(
-		updated.flatMap((node) =>
-			node.identifier === undefined ? [] : [node.identifier],
-		),
-	);
-	return [
-		...updated,
-		...edited.filter(
-			(node) => node.identifier !== undefined && !seen.has(node.identifier),
-		),
-	];
-}
-
 export function linearTracker(
 	key: string,
 	fetchImpl: Fetch,
@@ -904,7 +869,12 @@ export function linearTracker(
 		if (cached !== undefined) {
 			return cached;
 		}
-		const listed = listedIssues(key, fetchImpl, project, since);
+		const listed = issuePages(
+			key,
+			fetchImpl,
+			project,
+			issueFilter(project, since),
+		);
 		issuesByProject.set(cacheKey, listed);
 		void listed.catch(() => {
 			if (issuesByProject.get(cacheKey) === listed) {
