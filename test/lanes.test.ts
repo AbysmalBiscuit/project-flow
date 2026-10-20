@@ -385,6 +385,7 @@ function flight(report: ProjectBody): FlightItem[] {
 				}
 				const {
 					enteredStateAt: _enteredStateAt,
+					updatedAt: _updatedAt,
 					needsYou: _needsYou,
 					url: _url,
 					outsideBlockers: _outsideBlockers,
