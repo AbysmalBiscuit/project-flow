@@ -10,6 +10,7 @@
 		{ "assert_text": "Cards" },
 		{ "assert_text": "Graph" },
 		{ "assert_text": "Table" },
+		{ "assert_text": "Allow notifications" },
 		{ "shot": "overview-light" },
 		{ "click": "[data-theme-toggle]" },
 		{ "assert_text": "Overview" },

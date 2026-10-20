@@ -11,6 +11,7 @@
 		{ "assert_text": "Group by Project" },
 		{ "click": "[data-needs='PF-1'] button" },
 		{ "assert_text": "WHY THIS NEEDS YOU" },
+		{ "assert_text": "Which bot should review this?" },
 		{ "assert_text": "Comment" },
 		{ "shot": "needs-you-light" },
 		{ "click": "[data-theme-toggle]" },
