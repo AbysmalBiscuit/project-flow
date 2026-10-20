@@ -1439,6 +1439,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/refresh": {
 				POST: async () => {
 					releaseLists();
+					await (polling ?? Promise.resolve());
 					await pollAgain();
 					return new Response(null, { status: 204 });
 				},
