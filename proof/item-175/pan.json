@@ -1,0 +1,24 @@
+{
+	"base_url": "http://127.0.0.1:47923",
+	"serve": [
+		"bun",
+		"test/fixture-server.ts",
+		"--port=47923",
+		"--data=/var/tmp/pf-175-walk"
+	],
+	"why": "walk_replay.py accepts goto, click, fill, assert_text and shot. It has no drag step and no wheel step. This walk drives agent-browser mouse the way proof/pointer-hover.mjs does.",
+	"replay": "bun proof/item-175/pan.mjs",
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "PROJECTS AND THEIR BLOCKERS" },
+		{ "drag": ".react-flow__node" },
+		{ "assert_text": "node position unchanged" },
+		{ "drag": ".react-flow__pane" },
+		{ "assert_text": "viewport moved" },
+		{ "assert_text": "node position unchanged" },
+		{ "wheel": ".react-flow__pane" },
+		{ "assert_text": "zoom changed" },
+		{ "assert_text": "node position unchanged" },
+		{ "shot": "overview-graph-panned" }
+	]
+}

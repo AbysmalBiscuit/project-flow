@@ -14,7 +14,7 @@ import {
 	useReactFlow,
 	useViewport,
 } from "@xyflow/react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
@@ -255,43 +255,12 @@ function viewportText(x: number, y: number, zoom: number): string {
 	return `zoom ${shownZoom} at ${shownX},${shownY}`;
 }
 
-function panText(step: number): string {
-	return `panned ${step}`;
-}
-
 function GraphProbe() {
 	const viewport = useViewport();
-	const flow = useReactFlow();
-	const [shift, setShift] = useState(0);
 	return (
-		<>
-			<p id="graph-viewport" className={clsx(cards.graphProbe)}>
-				{viewportText(viewport.x, viewport.y, viewport.zoom)}
-			</p>
-			<p id="graph-pan-result" className={clsx(cards.graphProbe)}>
-				{shift === 0 ? "" : panText(shift)}
-			</p>
-			<input
-				id="graph-pan"
-				className={clsx(cards.graphProbe)}
-				aria-label="Pan the graph"
-				onChange={(event) => {
-					const step = Number(event.target.value);
-					if (!Number.isFinite(step) || step === 0) {
-						return;
-					}
-					const before = flow.getViewport().x;
-					void flow
-						.setViewport({
-							...flow.getViewport(),
-							x: before + step,
-						})
-						.then(() => {
-							setShift(Math.round(flow.getViewport().x - before));
-						});
-				}}
-			/>
-		</>
+		<p id="graph-viewport" className={clsx(cards.graphProbe)}>
+			{viewportText(viewport.x, viewport.y, viewport.zoom)}
+		</p>
 	);
 }
 
