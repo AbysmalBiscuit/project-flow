@@ -13,8 +13,6 @@ import {
 	ReactFlowProvider,
 } from "@xyflow/react";
 import { useMemo } from "react";
-import type { GraphDirection } from "./view-settings.ts";
-import { graphDirections } from "./view-settings.ts";
 import type { ProjectReport, TicketView } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
@@ -25,6 +23,8 @@ import {
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { board, cards } from "./ui-styles.ts";
+import type { GraphDirection } from "./view-settings.ts";
+import { graphDirections } from "./view-settings.ts";
 
 const columnGap = 280;
 const rowGap = 120;

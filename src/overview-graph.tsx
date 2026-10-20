@@ -11,7 +11,6 @@ import {
 	MarkerType,
 	Position,
 	ReactFlow,
-	ReactFlowProvider,
 } from "@xyflow/react";
 import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
