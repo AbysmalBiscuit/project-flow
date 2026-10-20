@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+	chmod,
+	mkdir,
+	mkdtemp,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
@@ -528,6 +535,7 @@ async function devkitWorktree(options: {
 	status: "running" | "failed";
 	mergeAuto?: "yes" | "ask" | "no";
 	repo?: string;
+	manager?: string;
 }): Promise<{ root: string; cleanup: () => Promise<void> }> {
 	const root = await mkdtemp(join("/var/tmp", "project-flow-checkout-"));
 	const main = join(root, "acme", "widget");
@@ -557,8 +565,7 @@ async function devkitWorktree(options: {
 		join(worktree, ".devkit", "issue.toml"),
 		issue.replace(/^issue = ".*"$/m, `issue = "${options.key}"`),
 	);
-	await writeFile(
-		join(worktree, ".devkit", "workcell", "state.json"),
+	const recorded = JSON.parse(
 		await readFile(
 			join(
 				fixtureDir,
@@ -566,6 +573,15 @@ async function devkitWorktree(options: {
 					? "state-running.json"
 					: "state-failed.json",
 			),
+			"utf8",
+		),
+	) as { status: string };
+	await writeFile(
+		join(worktree, ".devkit", "workcell", "state.json"),
+		JSON.stringify(
+			options.manager === undefined
+				? recorded
+				: { ...recorded, manager: options.manager },
 		),
 	);
 	if (options.mergeAuto !== undefined) {
@@ -896,6 +912,336 @@ describe("forward state", () => {
 			);
 		} finally {
 			await checkout.cleanup();
+		}
+	});
+
+	test("a blank manager name on an open run does not invent a stalled run", async () => {
+		const checkout = await devkitWorktree({
+			key: "WID-11",
+			status: "running",
+			manager: "   ",
+		});
+		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+		const herdr = join(bin, "herdr");
+		await writeFile(
+			herdr,
+			`#!/usr/bin/env bun
+console.log(JSON.stringify({ result: { agents: [] } }));
+`,
+		);
+		await chmod(herdr, 0o755);
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([
+					linearIssue("WID-11", "Ship the list", todoState, {
+						comments: {
+							nodes: [
+								{
+									id: "c1",
+									body: progress("- stage 1: implementing"),
+									createdAt: "2026-08-18T13:00:00.000Z",
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					}),
+				]),
+				{
+					LINEAR_API_KEY: "recorded-linear-key",
+					PATH: `${bin}:${process.env.PATH ?? ""}`,
+				},
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-11")).toMatchObject({
+						state: "inProgress",
+						lane: "In Progress",
+					});
+					expect(ticketOf(report, "WID-11").chips ?? []).not.toContain(
+						"Run failed",
+					);
+					const needs = await fetch(new URL("/api/needs-you", base));
+					expect(needs.status).toBe(200);
+					const items = (await needs.json()) as NeedsYouItem[];
+					expect(items.filter((row) => row.key === "WID-11")).toEqual([]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+			await rm(bin, { recursive: true, force: true });
+		}
+	});
+
+	test("a herdr list that exits nonzero does not stall an open run", async () => {
+		const checkout = await devkitWorktree({
+			key: "WID-12",
+			status: "running",
+			manager: "manager-144-unread",
+		});
+		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+		const herdr = join(bin, "herdr");
+		await writeFile(herdr, "#!/bin/sh\nexit 1\n");
+		await chmod(herdr, 0o755);
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([
+					linearIssue("WID-12", "Ship the list", todoState, {
+						comments: {
+							nodes: [
+								{
+									id: "c1",
+									body: progress("- stage 1: implementing"),
+									createdAt: "2026-08-18T13:00:00.000Z",
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					}),
+				]),
+				{
+					LINEAR_API_KEY: "recorded-linear-key",
+					PATH: `${bin}:${process.env.PATH ?? ""}`,
+				},
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-12")).toMatchObject({
+						state: "inProgress",
+						lane: "In Progress",
+					});
+					expect(ticketOf(report, "WID-12").chips ?? []).not.toContain(
+						"Run failed",
+					);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+			await rm(bin, { recursive: true, force: true });
+		}
+	});
+
+	test("a starting run whose manager agent is gone is stalled in needs-you", async () => {
+		const checkout = await devkitWorktree({
+			key: "WID-13",
+			status: "running",
+			manager: "  manager-144-starting  ",
+		});
+		const statePath = join(
+			checkout.root,
+			"acme",
+			"widget_workspaces",
+			"WID-13-feat",
+			".devkit",
+			"workcell",
+			"state.json",
+		);
+		const recorded = JSON.parse(await readFile(statePath, "utf8")) as {
+			manager: string;
+		};
+		await writeFile(
+			statePath,
+			JSON.stringify({ status: "starting", manager: recorded.manager }),
+		);
+		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+		const herdr = join(bin, "herdr");
+		await writeFile(
+			herdr,
+			`#!/usr/bin/env bun
+const body = process.env.HERDR_BODY ?? '{"result":{"agents":[]}}';
+console.log(body);
+`,
+		);
+		await chmod(herdr, 0o755);
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([linearIssue("WID-13", "Ship the list", todoState)]),
+				{
+					LINEAR_API_KEY: "recorded-linear-key",
+					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					HERDR_BODY: "not json {",
+				},
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-13")).toMatchObject({
+						state: "inProgress",
+						lane: "In Progress",
+					});
+					expect(ticketOf(report, "WID-13").chips ?? []).not.toContain(
+						"Run failed",
+					);
+				},
+				checkout.root,
+			);
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([linearIssue("WID-13", "Ship the list", todoState)]),
+				{
+					LINEAR_API_KEY: "recorded-linear-key",
+					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					HERDR_BODY: JSON.stringify({ result: { agents: [] } }),
+				},
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-13")).toMatchObject({
+						state: "backlog",
+						lane: "Todo",
+						chips: ["Run failed"],
+					});
+					const needs = await fetch(new URL("/api/needs-you", base));
+					expect(needs.status).toBe(200);
+					const items = (await needs.json()) as NeedsYouItem[];
+					expect(
+						items
+							.filter((row) => row.key === "WID-13")
+							.map((row) => row.reason),
+					).toEqual(["runFailed"]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+			await rm(bin, { recursive: true, force: true });
+		}
+	});
+
+	test("an open run whose manager agent is gone is stalled in needs-you", async () => {
+		const checkout = await devkitWorktree({
+			key: "WID-9",
+			status: "running",
+			manager: "manager-144-gone",
+		});
+		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+		const herdr = join(bin, "herdr");
+		await writeFile(
+			herdr,
+			`#!/usr/bin/env bun
+const agents = process.env.HERDR_AGENTS ?? "[]";
+console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
+`,
+		);
+		await chmod(herdr, 0o755);
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([
+					linearIssue("WID-9", "Ship the list", todoState, {
+						comments: {
+							nodes: [
+								{
+									id: "c1",
+									body: progress("- stage 1: implementing"),
+									createdAt: "2026-08-18T13:00:00.000Z",
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					}),
+				]),
+				{
+					LINEAR_API_KEY: "recorded-linear-key",
+					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					HERDR_AGENTS: "[]",
+				},
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-9")).toMatchObject({
+						state: "backlog",
+						lane: "Todo",
+						chips: ["Run failed"],
+					});
+					const needs = await fetch(new URL("/api/needs-you", base));
+					expect(needs.status).toBe(200);
+					const items = (await needs.json()) as NeedsYouItem[];
+					expect(
+						items.filter((row) => row.key === "WID-9").map((row) => row.reason),
+					).toEqual(["runFailed"]);
+					expect(
+						needsYouOf(report)
+							.filter((row) => row.key === "WID-9")
+							.map((row) => row.reason),
+					).toEqual(["runFailed"]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+			await rm(bin, { recursive: true, force: true });
+		}
+	});
+
+	test("an open run whose manager agent is listed stays live", async () => {
+		const checkout = await devkitWorktree({
+			key: "WID-10",
+			status: "running",
+			manager: "manager-144-live",
+		});
+		const bin = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+		const herdr = join(bin, "herdr");
+		await writeFile(
+			herdr,
+			`#!/usr/bin/env bun
+const agents = process.env.HERDR_AGENTS ?? "[]";
+console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
+`,
+		);
+		await chmod(herdr, 0o755);
+		try {
+			await withApp(
+				JSON.stringify({
+					pinned: [{ tracker: "linear", project: linearSlug }],
+				}),
+				recordedLinear([
+					linearIssue("WID-10", "Ship the list", todoState, {
+						comments: {
+							nodes: [
+								{
+									id: "c1",
+									body: progress("- stage 1: implementing"),
+									createdAt: "2026-08-18T13:00:00.000Z",
+								},
+							],
+							pageInfo: { hasNextPage: false, endCursor: null },
+						},
+					}),
+				]),
+				{
+					LINEAR_API_KEY: "recorded-linear-key",
+					PATH: `${bin}:${process.env.PATH ?? ""}`,
+					HERDR_AGENTS: JSON.stringify([{ name: "manager-144-live" }]),
+				},
+				async (base) => {
+					const report = await projectOf(base, "Widget launch");
+					expect(ticketOf(report, "WID-10")).toMatchObject({
+						state: "inProgress",
+						lane: "In Progress",
+						staleStatus: "Todo",
+					});
+					expect(ticketOf(report, "WID-10").chips ?? []).not.toContain(
+						"Run failed",
+					);
+					const needs = await fetch(new URL("/api/needs-you", base));
+					expect(needs.status).toBe(200);
+					const items = (await needs.json()) as NeedsYouItem[];
+					expect(items.filter((row) => row.key === "WID-10")).toEqual([]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+			await rm(bin, { recursive: true, force: true });
 		}
 	});
 

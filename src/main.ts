@@ -95,8 +95,11 @@ function parseDevkitConfig(text: string): z.infer<typeof devkitConfig> | null {
 	}
 }
 
-async function command(args: string[]): Promise<string | null> {
-	const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
+async function command(
+	args: string[],
+	env: Record<string, string | undefined> = process.env,
+): Promise<string | null> {
+	const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", env });
 	const stdout = proc.stdout;
 	if (typeof stdout === "number" || stdout === undefined) {
 		proc.kill();
@@ -171,9 +174,50 @@ async function worktreeList(path: string): Promise<{
 	return { paths, names };
 }
 
-const workcellState = z.object({
-	status: z.string(),
+const workcellState = z
+	.object({
+		status: z.string(),
+		manager: z.string().optional(),
+	})
+	.passthrough();
+
+const agentList = z.object({
+	result: z
+		.object({
+			agents: z.array(z.object({ name: z.string().optional() }).passthrough()),
+		})
+		.optional(),
 });
+
+const openRun = new Set(["running", "starting"]);
+
+async function managerNames(
+	env: Record<string, string | undefined>,
+): Promise<Set<string> | null> {
+	const herdr = Bun.which("herdr", { PATH: env.PATH ?? "" });
+	if (herdr === null) {
+		return null;
+	}
+	const listed = await command([herdr, "agent", "list"], env);
+	if (listed === null) {
+		return null;
+	}
+	let body: unknown;
+	try {
+		body = JSON.parse(listed);
+	} catch {
+		return null;
+	}
+	const parsed = agentList.safeParse(body);
+	if (!parsed.success || parsed.data.result === undefined) {
+		return null;
+	}
+	return new Set(
+		parsed.data.result.agents.flatMap((agent) =>
+			agent.name === undefined ? [] : [agent.name],
+		),
+	);
+}
 
 const issueToml = z.object({
 	issue: z.string(),
@@ -189,7 +233,11 @@ const workcellToml = z
 	})
 	.passthrough();
 
-function workcellRun(text: string, key: string): WorkcellRun | null {
+function workcellRun(
+	text: string,
+	key: string,
+	agents: Set<string> | null,
+): WorkcellRun | null {
 	let parsed: ReturnType<typeof workcellState.safeParse>;
 	try {
 		parsed = workcellState.safeParse(JSON.parse(text));
@@ -199,11 +247,15 @@ function workcellRun(text: string, key: string): WorkcellRun | null {
 	if (!parsed.success) {
 		return null;
 	}
-	if (parsed.data.status === "running" || parsed.data.status === "starting") {
-		return { key, status: "running" };
-	}
-	if (parsed.data.status === "failed") {
+	const manager = parsed.data.manager?.trim() ?? "";
+	const open = openRun.has(parsed.data.status);
+	const stalled =
+		open && agents !== null && manager !== "" && !agents.has(manager);
+	if (stalled || parsed.data.status === "failed") {
 		return { key, status: "failed" };
+	}
+	if (open) {
+		return { key, status: "running" };
 	}
 	return null;
 }
@@ -231,7 +283,10 @@ function issueKey(text: string): string | null {
 	return key === "" ? null : key;
 }
 
-async function readCheckout(path: string): Promise<LocalCheckout | null> {
+async function readCheckout(
+	path: string,
+	agents: Set<string> | null,
+): Promise<LocalCheckout | null> {
 	const configText = await gitConfigText(path);
 	const devkitText = await readText(join(path, "devkit.toml"));
 	if (configText === null && devkitText === null) {
@@ -248,7 +303,8 @@ async function readCheckout(path: string): Promise<LocalCheckout | null> {
 	const state = await readText(join(path, ".devkit", "workcell", "state.json"));
 	const manifest = await readText(join(path, ".agents", "workcell.toml"));
 	const auto = manifest === null ? undefined : mergeAuto(manifest);
-	const run = key === null || state === null ? null : workcellRun(state, key);
+	const run =
+		key === null || state === null ? null : workcellRun(state, key, agents);
 	if (kind === "linear") {
 		const repo = origin?.repo;
 		return {
@@ -296,7 +352,9 @@ function addCheckout(
 
 export async function listDevkitCheckouts(
 	roots: string[],
+	env: Record<string, string | undefined> = process.env,
 ): Promise<LocalCheckout[]> {
+	const agents = await managerNames(env);
 	const found: LocalCheckout[] = [];
 	const seen = new Set<string>();
 	for (const root of roots) {
@@ -325,11 +383,11 @@ export async function listDevkitCheckouts(
 				) {
 					continue;
 				}
-				const checkout = await readCheckout(path);
+				const checkout = await readCheckout(path, agents);
 				if (checkout !== null) {
 					addCheckout(checkout, seen, found);
 				}
-				await readWorktrees(path, seen, found);
+				await readWorktrees(path, seen, found, agents);
 			}
 		}
 	}
@@ -340,13 +398,14 @@ async function readWorktrees(
 	path: string,
 	seen: Set<string>,
 	found: LocalCheckout[],
+	agents: Set<string> | null,
 ): Promise<void> {
 	const listed = await worktreeList(path);
 	for (const worktree of listed.paths) {
 		if (worktree === path) {
 			continue;
 		}
-		const checkout = await readCheckout(worktree);
+		const checkout = await readCheckout(worktree, agents);
 		if (checkout === null) {
 			continue;
 		}
@@ -529,7 +588,8 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			hostname: hostFlag ?? io.hostname ?? "127.0.0.1",
 			port: portFlag !== undefined ? Number(portFlag) : (io.port ?? 0),
 			listTodos: io.listTodos ?? listDevkitTodos,
-			listCheckouts: io.listCheckouts ?? listDevkitCheckouts,
+			listCheckouts:
+				io.listCheckouts ?? ((roots) => listDevkitCheckouts(roots, io.env)),
 			...(io.now === undefined ? {} : { now: io.now }),
 		});
 		listened = true;
