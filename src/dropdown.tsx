@@ -52,7 +52,16 @@ export function Dropdown({
 			>
 				{current?.label}
 				<span className={clsx(frame.caret)} aria-hidden="true">
-					▾
+					<svg
+						viewBox="0 0 12 12"
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="1.5"
+						strokeLinecap="round"
+						strokeLinejoin="round"
+					>
+						<path d="M2.5 4.5 6 8l3.5-3.5" />
+					</svg>
 				</span>
 			</button>
 			{open ? (

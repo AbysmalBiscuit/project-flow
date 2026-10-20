@@ -278,9 +278,10 @@ export const frame = stylex.create({
 		cursor: "pointer",
 	},
 	caret: {
+		display: "inline-flex",
+		width: measure.glyph,
+		height: measure.glyph,
 		color: colours.controlInk,
-		fontSize: type.small,
-		lineHeight: 1,
 	},
 	menu: {
 		position: "relative",
