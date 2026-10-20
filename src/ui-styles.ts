@@ -1443,10 +1443,21 @@ export const inbox = stylex.create({
 		gap: space.sm,
 		alignItems: "center",
 	},
+	markAll: {
+		display: "inline-flex",
+		gap: space.xs,
+		alignItems: "center",
+	},
 	check: {
 		display: "inline-flex",
 		gap: space.xs,
 		alignItems: "center",
+		padding: `${space.twoXs} ${space.md}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.line,
+		borderRadius: radius.sm,
+		backgroundColor: colours.surface,
 		color: colours.ink,
 		fontSize: type.small,
 	},
@@ -1472,7 +1483,7 @@ export const inbox = stylex.create({
 	row: {
 		display: "flex",
 		gap: space.sm,
-		alignItems: "flex-start",
+		alignItems: "center",
 		width: "100%",
 		padding: `${space.md} ${space.lg}`,
 		borderWidth: 0,
@@ -1507,8 +1518,14 @@ export const inbox = stylex.create({
 		minWidth: 0,
 	},
 	meta: {
+		display: "inline-flex",
+		gap: space.xs,
+		alignItems: "center",
 		color: colours.inkMuted,
 		fontSize: type.small,
+	},
+	project: {
+		color: colours.ink,
 	},
 	text: {
 		color: colours.ink,

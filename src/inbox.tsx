@@ -1,6 +1,7 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Notification } from "./domain.ts";
+import type { Notification, NotificationTrigger } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import {
 	askNotificationPermission,
@@ -58,6 +59,65 @@ function clock(at: string): string {
 		return "";
 	}
 	return stamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function Glyph({ children }: { children: ReactNode }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			{children}
+		</svg>
+	);
+}
+
+function BellIcon() {
+	return (
+		<Glyph>
+			<path d="M6 9a6 6 0 0 1 12 0c0 7 3 7 3 7H3s3 0 3-7" />
+			<path d="M10 20a2 2 0 0 0 4 0" />
+		</Glyph>
+	);
+}
+
+function CheckIcon() {
+	return (
+		<Glyph>
+			<path d="M5 12.5l4.5 4.5L19 7.5" />
+		</Glyph>
+	);
+}
+
+function TriggerIcon({ trigger }: { trigger: NotificationTrigger }) {
+	if (trigger === "comment") {
+		return (
+			<Glyph>
+				<path d="M5 6.5h14v8H8l-3 3z" />
+			</Glyph>
+		);
+	}
+	if (trigger === "blockerCleared") {
+		return (
+			<Glyph>
+				<rect x="6" y="11" width="12" height="8" rx="1.5" />
+				<path d="M8.5 11V8.5a3.5 3.5 0 0 1 7 0" />
+			</Glyph>
+		);
+	}
+	return (
+		<Glyph>
+			<circle cx="12" cy="12" r="8" />
+			<path d="M12 11v5" />
+			<path d="M12 8h.01" />
+		</Glyph>
+	);
 }
 
 function trackerOf(key: string): "github" | "linear" {
@@ -135,6 +195,7 @@ function InboxList({
 			{permission === "default" || permission === "denied" ? (
 				<div className={clsx(inbox.banner)} data-notify-banner="">
 					<p className={clsx(inbox.bannerText)}>
+						<BellIcon />
 						{permission === "denied" ? inboxCopy.denied : inboxCopy.banner}
 					</p>
 					<div className={clsx(inbox.bannerActions)}>
@@ -195,7 +256,12 @@ function InboxList({
 					<button
 						type="button"
 						id="inbox-mark-all"
-						className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+						className={clsx(
+							shell.button,
+							shell.buttonHover,
+							shell.buttonFocus,
+							inbox.markAll,
+						)}
 						onClick={() => {
 							const previous = entries;
 							onChange(marked(previous));
@@ -206,6 +272,7 @@ function InboxList({
 							});
 						}}
 					>
+						<CheckIcon />
 						{inboxCopy.markAll}
 					</button>
 				</div>
@@ -238,9 +305,14 @@ function InboxList({
 												className={clsx(inbox.dot, entry.read && inbox.dotRead)}
 												aria-hidden="true"
 											/>
+											<TriggerIcon trigger={entry.trigger} />
 											<span className={clsx(inbox.body)}>
 												<span className={clsx(inbox.meta)}>
-													{triggerLabel[entry.trigger]} / {entry.project}
+													{triggerLabel[entry.trigger]}
+													{" / "}
+													<span className={clsx(inbox.project)}>
+														{entry.project}
+													</span>
 												</span>
 												<span
 													className={clsx(
