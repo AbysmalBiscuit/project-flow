@@ -127,9 +127,7 @@ function sortValue(project: ProjectCounts, key: SortKey): number | string {
 	if (key === "needsYou") {
 		return project.needsYou;
 	}
-	return project.crossProjectBlockers
-		.map((blocker) => `${blocker.project}#${blocker.key}`)
-		.join(" ");
+	return project.crossProjectBlockers.map(blockerTicket).join(" ");
 }
 
 function sortDirectionFor(
