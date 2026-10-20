@@ -881,7 +881,7 @@ function Page() {
 					sameRefs(settings.pinned, next.pinned) && Array.isArray(live.pinned)
 						? live.pinned
 						: next.pinned;
-				const projectViews = { ...live.projectViews, ...next.projectViews };
+				const star = next.projectViews["*"] ?? live.projectViews["*"];
 				const response = await fetch("/api/settings", {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -891,7 +891,10 @@ function Page() {
 						theme,
 						overview,
 						pinned,
-						projectViews,
+						projectViews: {
+							...live.projectViews,
+							...(star === undefined ? {} : { "*": star }),
+						},
 					}),
 				});
 				const body = (await response.json().catch(() => null)) as
