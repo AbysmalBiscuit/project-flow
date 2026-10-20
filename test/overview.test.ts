@@ -643,6 +643,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-overview-"));
 		const rejected = linearFake({ fail: "key" });
 		try {
 			const result = await run(
@@ -654,6 +655,7 @@ describe("GET /api/overview", () => {
 					},
 					fetch: rejected,
 					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
 				}),
 			);
 			expect(result.exitCode).toBe(1);
@@ -662,6 +664,7 @@ describe("GET /api/overview", () => {
 			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 
