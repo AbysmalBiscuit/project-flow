@@ -160,7 +160,11 @@ function DiagramView({
 	return (
 		<figure className={clsx(page.diagram)} data-diagram={diagram.id}>
 			<figcaption>{diagram.title}</figcaption>
-			<pre key={diagram.definition} className="mermaid">
+			<pre
+				key={diagram.definition}
+				className="mermaid"
+				data-definition={diagram.definition}
+			>
 				{diagram.definition}
 			</pre>
 			<ul className={clsx(page.nodes)}>
@@ -345,6 +349,13 @@ function Page() {
 		if (nodes.length === 0) {
 			return;
 		}
+		for (const node of nodes) {
+			const definition = node.dataset.definition;
+			if (definition !== undefined) {
+				node.textContent = definition;
+			}
+			node.removeAttribute("data-processed");
+		}
 		let stopped = false;
 		const bound: { drawn: SVGGElement; open: () => void }[] = [];
 		const bind = () => {
@@ -389,7 +400,13 @@ function Page() {
 			}
 		};
 	}, [diagramTheme, report]);
-	useEffect(() => watchPageTheme(() => setDiagramTheme(mermaidTheme())), []);
+	useEffect(
+		() =>
+			watchPageTheme((theme) => {
+				setDiagramTheme(theme === "dark" ? "dark" : "default");
+			}),
+		[],
+	);
 	if (missing) {
 		return <PageFrame title={name}>Project not found</PageFrame>;
 	}

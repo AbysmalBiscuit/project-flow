@@ -487,9 +487,10 @@ function Page() {
 			void readOverview().then(show);
 		});
 		const stopTheme = watchPageTheme(() => {
+			startMermaid();
 			setOverview((current) => {
 				if (current !== null) {
-					show(current);
+					void renderGraph(current).then(setGraphSvg);
 				}
 				return current;
 			});

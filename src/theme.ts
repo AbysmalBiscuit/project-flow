@@ -39,6 +39,9 @@ export function applyPageTheme(theme: PageTheme): void {
 	for (const token of classTokens(selected)) {
 		element.classList.add(token);
 	}
+	element.dispatchEvent(
+		new CustomEvent("project-flow-theme", { detail: theme }),
+	);
 }
 
 /** Dark when the page has applied dark, else the mermaid light theme. */
@@ -46,18 +49,14 @@ export function mermaidTheme(): "dark" | "default" {
 	return document.documentElement.dataset.theme === "dark" ? "dark" : "default";
 }
 
-export function watchPageTheme(onChange: () => void): () => void {
-	const onClick = (event: Event) => {
-		const target = event.target;
-		if (!(target instanceof Element)) {
-			return;
-		}
-		const button = target.closest("button");
-		if (button?.dataset.themeToggle === undefined) {
-			return;
-		}
-		queueMicrotask(onChange);
+export function watchPageTheme(
+	onChange: (theme: PageTheme) => void,
+): () => void {
+	const element = document.documentElement;
+	const onTheme = (event: Event) => {
+		const theme = event instanceof CustomEvent ? event.detail : undefined;
+		onChange(theme === "dark" ? "dark" : "light");
 	};
-	document.addEventListener("click", onClick);
-	return () => document.removeEventListener("click", onClick);
+	element.addEventListener("project-flow-theme", onTheme);
+	return () => element.removeEventListener("project-flow-theme", onTheme);
 }
