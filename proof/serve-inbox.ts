@@ -254,6 +254,7 @@ export async function runLinearProof(
 	const root = await mkdtemp(join(proofRoot, "project-flow-proof-"));
 	const databasePath = proofDatabase(root);
 	proofStore = databasePath;
+	seedInbox(databasePath);
 	const config = join(root, "config.json");
 	await writeFile(
 		config,
@@ -290,28 +291,12 @@ export async function runLinearProof(
 if (import.meta.main) {
 	const port = process.argv[2] ?? "4174";
 	const rootDir = process.argv[3] ?? "/var/tmp";
-	let timer: ReturnType<typeof setTimeout> | undefined;
 	await runLinearProof(
 		port,
 		rootDir,
 		(line) => {
 			console.log(line);
-			const arm = async () => {
-				const inbox = await fetch(new URL("/api/inbox", line));
-				if (!inbox.ok) {
-					timer = setTimeout(() => {
-						void arm();
-					}, 200);
-					return;
-				}
-				seedInbox(proofStore);
-			};
-			timer = setTimeout(() => {
-				void arm();
-			}, 200);
 		},
-		async () => {
-			clearTimeout(timer);
-		},
+		async () => {},
 	);
 }
