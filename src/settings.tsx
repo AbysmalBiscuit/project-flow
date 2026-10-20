@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { Configuration } from "./configuration.ts";
+import { type Configuration, sameRef } from "./configuration.ts";
 import { type KnownBot, knownBots } from "./domain.ts";
 import { PageFrame } from "./shell.tsx";
 import { navLabel } from "./terms.ts";
@@ -13,7 +13,7 @@ function sameRefs(left: ProjectRef[], right: ProjectRef[]): boolean {
 		left.length === right.length &&
 		left.every((ref, index) => {
 			const other = right[index];
-			return other !== undefined && refLine(ref) === refLine(other);
+			return other !== undefined && sameRef(ref, other);
 		})
 	);
 }
