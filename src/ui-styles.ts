@@ -2293,9 +2293,9 @@ export const board = stylex.create({
 		color: colours.ink,
 		"--xy-background-color": colours.raised,
 		"--xy-background-pattern-color": colours.inkSoft,
-		"--xy-edge-stroke": colours.lineStrong,
+		"--xy-edge-stroke": colours.graphEdge,
 		"--xy-edge-stroke-width": measure.hairline,
-		"--xy-edge-stroke-selected": colours.lineStrong,
+		"--xy-edge-stroke-selected": colours.graphEdge,
 		"--xy-node-color": colours.ink,
 		"--xy-node-border": `${measure.hairline} solid ${colours.lineStrong}`,
 		"--xy-node-background-color": colours.raised,
@@ -2459,13 +2459,34 @@ export const board = stylex.create({
 		display: "inline-block",
 		width: measure.swatch,
 		height: measure.hairline,
-		backgroundColor: colours.lineStrong,
+		backgroundColor: colours.graphEdge,
 	},
 	legendSwatchDone: {
-		backgroundImage: `repeating-linear-gradient(to right, ${colours.lineStrong} 0, ${colours.lineStrong} ${measure.edgeDash}, transparent ${measure.edgeDash}, transparent calc(${measure.edgeDash} * 2))`,
+		backgroundColor: "transparent",
+		backgroundImage: `repeating-linear-gradient(to right, ${colours.graphEdgeDone} 0, ${colours.graphEdgeDone} ${measure.edgeDash}, transparent ${measure.edgeDash}, transparent calc(${measure.edgeDash} * 2))`,
 	},
 	graphEdgeDash: {
 		strokeDasharray: `${measure.edgeDash} ${measure.edgeDash}`,
+	},
+	graphEdgeDone: {
+		"--xy-edge-stroke": colours.graphEdgeDone,
+		"--xy-edge-stroke-selected": colours.graphEdgeDone,
+	},
+
+	graphMarkerProbe: {
+		width: measure.marker,
+		height: measure.marker,
+		backgroundColor: colours.graphMarker,
+	},
+	graphEdgeProbe: {
+		width: measure.marker,
+		height: measure.marker,
+		backgroundColor: colours.graphEdge,
+	},
+	graphEdgeDoneProbe: {
+		width: measure.marker,
+		height: measure.marker,
+		backgroundColor: colours.graphEdgeDone,
 	},
 	ticketNode: {
 		display: "flex",

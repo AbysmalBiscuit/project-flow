@@ -67,6 +67,9 @@ export const lightValues = {
 	rowOn: "#eef2fd",
 	groupFill: "#f7f7f6",
 	groupLine: "#e2e2df",
+	graphEdge: "#595959",
+	graphEdgeDone: "#1f6f8a",
+	graphMarker: "#595959",
 };
 
 export const darkValues = {
@@ -126,6 +129,9 @@ export const darkValues = {
 	rowOn: "#1a2236",
 	groupFill: "#1c1c21",
 	groupLine: "#3a3a42",
+	graphEdge: "#c7c7c7",
+	graphEdgeDone: "#7ec8e3",
+	graphMarker: "#c7c7c7",
 };
 
 export const colours = stylex.defineVars({
@@ -215,6 +221,15 @@ export const colours = stylex.defineVars({
 	rowOn: { default: lightValues.rowOn, [dark]: darkValues.rowOn },
 	groupFill: { default: lightValues.groupFill, [dark]: darkValues.groupFill },
 	groupLine: { default: lightValues.groupLine, [dark]: darkValues.groupLine },
+	graphEdge: { default: lightValues.graphEdge, [dark]: darkValues.graphEdge },
+	graphEdgeDone: {
+		default: lightValues.graphEdgeDone,
+		[dark]: darkValues.graphEdgeDone,
+	},
+	graphMarker: {
+		default: lightValues.graphMarker,
+		[dark]: darkValues.graphMarker,
+	},
 });
 
 export const space = stylex.defineVars({
