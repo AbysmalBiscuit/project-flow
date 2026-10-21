@@ -20,10 +20,11 @@ repos:
         stages: [pre-push]
       - id: test
         name: bun test
-        entry: sh scripts/test-slot.sh
+        entry: sh scripts/test-slot.sh --affected
         language: system
         pass_filenames: false
         always_run: true
+        verbose: true
         stages: [pre-push]
 
   - repo: https://github.com/compilerla/conventional-pre-commit

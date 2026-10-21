@@ -6,6 +6,32 @@ set -eu
 # bunfig.toml lives at the checkout. A caller outside it still loads the preload.
 root=$(CDPATH= git -C "$(dirname "$0")" rev-parse --show-toplevel)
 
+# The pre-push hook runs only the tests that the change affects.
+# The rules come from origin/main, so a branch follows them without a rebase.
+if [ "${1-}" = --affected ]; then
+	shift
+	set +e
+	tests=$(
+		cd "$root" &&
+			{ git show origin/main:scripts/affected-tests.ts 2>/dev/null || cat scripts/affected-tests.ts; } |
+			bun run -
+	)
+	status=$?
+	set -e
+	case "$status" in
+	0)
+		if [ -z "$tests" ]; then
+			exit 0
+		fi
+		set -f
+		# shellcheck disable=SC2086
+		exec bun test --cwd "$root" $tests "$@"
+		;;
+	10) ;;
+	*) echo "full suite: the test selection exited $status" >&2 ;;
+	esac
+fi
+
 full=1
 expect=
 for arg in "$@"; do
