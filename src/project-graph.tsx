@@ -236,7 +236,7 @@ function TicketEdge({
 		<BaseEdge
 			id={id}
 			path={drawn.path}
-			className={done ? classToken(board.edgeDone) : undefined}
+			className={done ? classToken(board.graphEdgeDash) : undefined}
 			{...(markerEnd === undefined ? {} : { markerEnd })}
 		/>
 	);
@@ -596,7 +596,7 @@ function Legend() {
 				{projectGraphLabel.arrow}
 			</p>
 			<p className={clsx(board.legendNote, board.legendEdge)}>
-				<span className={clsx(board.legendSwatch, board.legendSwatchMuted)} />
+				<span className={clsx(board.legendSwatch, board.legendSwatchDone)} />
 				{projectGraphLabel.done}
 			</p>
 			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
