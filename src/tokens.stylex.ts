@@ -318,7 +318,7 @@ export const measure = stylex.defineVars({
 	fact: "4.5rem",
 	marker: "1.375rem",
 	switch: "2.1rem",
-	headerControl: "2rem",
+	headerControl: "2.25rem",
 	knob: "0.95rem",
 	switchCol: "5.5rem",
 });
