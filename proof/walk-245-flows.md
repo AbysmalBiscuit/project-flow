@@ -8,7 +8,7 @@ Item 1, left to right at 1440. Replay `proof/walk-245-item-1.json`.
 
 Capture each walk with agent-browser on the recorded server. Set the viewport to 1440 by 900. Each walk names that viewport. Do not run `walk_replay.py`. Do not call a live tracker.
 
-`#11`, `#12` and `#13` share one row. `#1`, `#2` and `#3` share a later row. No arrow inside either chain crosses another. `#21` and `#22` sit on two rows, and `#20` sits on one of those rows. `#90` sits after every flow.
+`#1`, `#2` and `#3` share one row. `#11`, `#12` and `#13` share a later row. No arrow inside either chain crosses another. `#21` and `#22` sit on two rows, and `#20` sits on one of those rows. `#90` sits after every flow.
 
 Item 2, top to bottom at 1440. Replay `proof/walk-245-item-2.json`.
 
