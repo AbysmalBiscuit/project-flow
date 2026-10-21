@@ -20,8 +20,7 @@ let permissionGranted = false;
 let proxy: ReturnType<typeof Bun.serve> | undefined;
 let armTimer: ReturnType<typeof setTimeout> | undefined;
 
-proofStops();
-
+void proofStops();
 await runLinearProof(
 	"0",
 	rootDir,

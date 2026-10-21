@@ -5,32 +5,24 @@ export const proofServerLifetimeMs = 30 * 60 * 1000;
 
 const parentPollMs = 1_000;
 
+/** Caller cleanup after a stop; a stall still ends the process. */
+const shutdownGraceMs = 5_000;
+
 function lifetimeMs(): number {
 	const override = process.env.PROJECT_FLOW_PROOF_LIFETIME_MS;
 	if (override === undefined || override.trim() === "") {
 		return proofServerLifetimeMs;
 	}
-	if (override !== override.trim()) {
+	if (!/^\d+(\.\d+)?$/.test(override.trim())) {
 		throw new Error(
 			"PROJECT_FLOW_PROOF_LIFETIME_MS needs a non-negative number of milliseconds",
 		);
 	}
-	const parsed = Number(override);
-	if (!Number.isFinite(parsed) || parsed < 0) {
-		throw new Error(
-			"PROJECT_FLOW_PROOF_LIFETIME_MS needs a non-negative number of milliseconds",
-		);
-	}
-	return parsed;
+	return Number(override);
 }
 
-function parentStillRuns(): boolean {
-	try {
-		process.kill(process.ppid, 0);
-		return true;
-	} catch {
-		return false;
-	}
+function parentStillRuns(parent: number): boolean {
+	return process.ppid === parent;
 }
 
 let stops: Promise<void> | undefined;
@@ -42,23 +34,27 @@ export function proofStops(): Promise<void> {
 
 function watchProof(): Promise<void> {
 	const lifetime = lifetimeMs();
+	const parent = process.ppid;
 	const stopsHere = new Promise<void>((resolve) => {
 		const stop = () => resolve();
 		void waitForStop().then(stop);
 		const timer = setTimeout(stop, lifetime);
-		timer.unref?.();
+		timer.unref();
 		const watch = setInterval(() => {
-			if (parentStillRuns()) {
+			if (parentStillRuns(parent)) {
 				return;
 			}
 			clearInterval(watch);
 			clearTimeout(timer);
 			stop();
 		}, parentPollMs);
-		watch.unref?.();
+		watch.unref();
 	});
 	void stopsHere.then(() => {
-		process.exit(0);
+		const force = setTimeout(() => {
+			process.exit(0);
+		}, shutdownGraceMs);
+		force.unref();
 	});
 	return stopsHere;
 }

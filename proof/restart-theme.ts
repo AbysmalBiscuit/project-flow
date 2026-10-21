@@ -29,7 +29,6 @@ function stopChild(): void {
 
 process.once("SIGINT", stopChild);
 process.once("SIGTERM", stopChild);
-proofStops();
 
 const server = Bun.serve({
 	hostname: "127.0.0.1",
@@ -91,10 +90,31 @@ const server = Bun.serve({
 	},
 });
 
+await proofStops();
+stopChild();
 await new Promise<void>((resolve) => {
-	child.once("exit", () => {
-		next?.once("exit", () => resolve());
-	});
+	const giveUp = setTimeout(resolve, 4_000);
+	let settled = false;
+	const finish = () => {
+		if (settled) {
+			return;
+		}
+		settled = true;
+		clearTimeout(giveUp);
+		resolve();
+	};
+	const onChildExit = () => {
+		if (next === null || next.exitCode !== null) {
+			finish();
+			return;
+		}
+		next.once("exit", finish);
+	};
+	if (child.exitCode !== null) {
+		onChildExit();
+		return;
+	}
+	child.once("exit", onChildExit);
 });
 await server.stop(true);
 await rm(dir, { recursive: true, force: true });
