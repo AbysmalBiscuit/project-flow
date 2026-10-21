@@ -206,6 +206,7 @@ export const groupByLabel = {
 export const projectGraphLabel = {
 	legend: "Graph legend",
 	arrow: "Arrow: blocker to blocked",
+	done: "Muted: done blocker",
 	dashed: "Dashed: ticket in another project",
 } as const;
 

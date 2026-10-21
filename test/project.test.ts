@@ -934,6 +934,108 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a closed blocker stays on the graph and off the blocked count", async () => {
+		const done = issue(
+			8,
+			"Open the gate",
+			{ state: "closed", state_reason: "completed" },
+			githubRepo,
+		);
+		const waiting = issue(2, "feat(ux): draw the nodes", {
+			body: `Blocked by: #8\nBlocked by: #8\nBlocked by: ${otherRepo}#9\nBlocked by:   `,
+		});
+		const openGate = issue(1, "Ship the map", {
+			body: `Blocked by: ${otherRepo}#9`,
+		});
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+			githubFetch(
+				[openGate, waiting, done],
+				[issue(9, "Platform gate", {}, otherRepo)],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(
+							`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+							base,
+						),
+					)
+				).json()) as ProjectReport;
+				const drawn = report.tickets.find(
+					(item) => item.key === `${githubRepo}#2`,
+				);
+				expect(drawn?.links).toEqual([
+					{
+						key: `${githubRepo}#8`,
+						done: true,
+					},
+					{
+						key: `${otherRepo}#9`,
+						done: false,
+						outside: {
+							tracker: "github",
+							project: otherRepo,
+							key: `${otherRepo}#9`,
+							title: "Platform gate",
+						},
+					},
+				]);
+				expect(drawn?.blockers).toEqual([`${otherRepo}#9`]);
+				expect(drawn?.blocked).toBe(true);
+				const summary = report.sections.find(
+					(section) => section.id === "summary",
+				);
+				expect(summary?.text).toContain("2 blocked");
+				const closedOnly = report.tickets.find(
+					(item) => item.key === `${githubRepo}#8`,
+				);
+				expect(closedOnly?.blocked).toBeUndefined();
+				expect(closedOnly?.blockers).toEqual([]);
+				const filtered = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						pinned: [
+							{ tracker: "github", repo: githubRepo },
+							{ tracker: "github", repo: otherRepo },
+						],
+						projectViews: {
+							[githubRepo]: { blockedOnly: true },
+						},
+					}),
+				});
+				expect(filtered.status).toBe(200);
+				const held = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(held.tickets.map((item) => item.key)).toEqual([
+					`${githubRepo}#1`,
+					`${githubRepo}#2`,
+				]);
+				const onlyClosed = held.tickets.find(
+					(item) => item.key === `${githubRepo}#2`,
+				);
+				expect(onlyClosed?.links?.map((link) => link.key)).toEqual([
+					`${githubRepo}#8`,
+					`${otherRepo}#9`,
+				]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+		);
+	});
+
 	test("A Blocks B yields A.blocks and B.blockers across projects", async () => {
 		const otherSlug = "platform-gate";
 		const gate = {

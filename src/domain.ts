@@ -118,11 +118,18 @@ export type TicketRelation = {
 	title: string;
 };
 
+export type GraphLink = {
+	key: string;
+	done: boolean;
+	outside?: TicketRelation;
+};
+
 export type TicketView = {
 	key: string | null;
 	title: string;
 	state: TicketState;
 	blockers: string[];
+	links?: GraphLink[];
 	outsideBlockers?: TicketRelation[];
 	blocks?: TicketRelation[];
 	lane?: string;
@@ -1830,6 +1837,96 @@ function outsideOf(
 	};
 }
 
+function ticketFromRef(ref: TicketRef, done: boolean): Ticket {
+	return {
+		id: ref.key,
+		tracker: ref.tracker,
+		key: ref.key,
+		title: ref.title?.trim() || ref.key,
+		state: done ? "closed" : "open",
+		stateReason: null,
+		updatedAt: "",
+		body: "",
+		blockedBy: [],
+		milestone: null,
+		parent: null,
+		labels: [],
+	};
+}
+
+function graphLinks(
+	ticket: Ticket,
+	index: TicketIndex,
+	parsed: ParsedBodies,
+	groups: { project: string; tickets: Ticket[] }[],
+): GraphLink[] {
+	const self = asRef(ticket);
+	const home = groups.find((group) => group.tickets.includes(ticket))?.project;
+	const merged = self === null ? undefined : known(index, self);
+	const incoming = mergeBlockedBy([
+		merged?.blockedBy ?? ticket.blockedBy,
+		parsed.get(parseKey(ticket))?.blockedBy ?? [],
+	]);
+	const links: GraphLink[] = [];
+	const push = (ref: TicketRef, source: Ticket | undefined) => {
+		if (
+			links.some((item) => item.key.toLowerCase() === ref.key.toLowerCase()) ||
+			(self !== null && sameRef(self, ref))
+		) {
+			return;
+		}
+		const other = source ?? known(index, ref);
+		const done =
+			other !== undefined
+				? other.state !== "open"
+				: ref.state !== undefined && ref.state !== "open";
+		const holder = other ?? ticketFromRef(ref, done);
+		const project = blockerProject(holder, ref, groups);
+		const outside =
+			project === "" ||
+			home === undefined ||
+			project.toLowerCase() === home.toLowerCase()
+				? undefined
+				: outsideOf(holder, ref, groups);
+		links.push({
+			key: ref.key,
+			done,
+			...(outside === null || outside === undefined ? {} : { outside }),
+		});
+	};
+	for (const ref of incoming) {
+		push(ref, known(index, ref));
+	}
+	if (self !== null) {
+		for (const [otherKey, lines] of parsed) {
+			if (!lines.blocks.some((ref) => sameRef(ref, self))) {
+				continue;
+			}
+			const other = index.get(otherKey);
+			const ref = other === undefined ? null : asRef(other);
+			if (ref !== null) {
+				push(ref, other);
+			}
+		}
+		for (const group of groups) {
+			for (const other of group.tickets) {
+				if (other === ticket) {
+					continue;
+				}
+				const native = other.blocks ?? [];
+				if (!native.some((ref) => sameRef(ref, self))) {
+					continue;
+				}
+				const ref = asRef(other);
+				if (ref !== null) {
+					push(ref, other);
+				}
+			}
+		}
+	}
+	return links;
+}
+
 function ticketRelations(
 	ticket: Ticket,
 	blockers: Ticket[],
@@ -1838,6 +1935,7 @@ function ticketRelations(
 	groups: { project: string; tickets: Ticket[] }[],
 ): {
 	blockers: string[];
+	links: GraphLink[];
 	outsideBlockers: TicketRelation[];
 	blocks: TicketRelation[];
 } {
@@ -1929,7 +2027,12 @@ function ticketRelations(
 			}
 		}
 	}
-	return { blockers: keys, outsideBlockers, blocks };
+	return {
+		blockers: keys,
+		links: graphLinks(ticket, index, parsed, groups),
+		outsideBlockers,
+		blocks,
+	};
 }
 
 export function samePin(left: ProjectPin, right: ProjectPin): boolean {
@@ -3773,6 +3876,9 @@ export function projectReport(
 					}),
 			...(commentRun === undefined ? {} : { run: commentRun }),
 			...(relations === undefined ? {} : { blockers: relations.blockers }),
+			...(relations === undefined || relations.links.length === 0
+				? {}
+				: { links: relations.links }),
 			...(relations === undefined || relations.outsideBlockers.length === 0
 				? {}
 				: { outsideBlockers: relations.outsideBlockers }),

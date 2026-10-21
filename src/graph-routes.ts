@@ -29,6 +29,7 @@ export type MarkerEnd = {
 	width: number;
 	height: number;
 	markerUnits: "userSpaceOnUse";
+	color?: string;
 };
 
 export function measureMarker(className: string): number {
@@ -42,12 +43,13 @@ export function measureMarker(className: string): number {
 	return size;
 }
 
-export function markerEnd(size: number): MarkerEnd {
+export function markerEnd(size: number, color?: string): MarkerEnd {
 	return {
 		type: MarkerType.ArrowClosed,
 		width: size,
 		height: size,
 		markerUnits: "userSpaceOnUse",
+		...(color === undefined ? {} : { color }),
 	};
 }
 

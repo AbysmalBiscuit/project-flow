@@ -2449,6 +2449,25 @@ export const board = stylex.create({
 	legendNote: {
 		margin: 0,
 	},
+	legendEdge: {
+		display: "inline-flex",
+		gap: space.xs,
+		alignItems: "center",
+	},
+	legendSwatch: {
+		display: "inline-block",
+		width: measure.swatch,
+		height: measure.hairline,
+		backgroundColor: colours.lineStrong,
+	},
+	legendSwatchMuted: {
+		backgroundColor: colours.inkMuted,
+	},
+	markerMuted: {
+		width: measure.marker,
+		height: measure.marker,
+		color: colours.inkMuted,
+	},
 	ticketNode: {
 		display: "flex",
 		flexDirection: "column",

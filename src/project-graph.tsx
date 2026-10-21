@@ -109,6 +109,7 @@ type TicketEdgeData = {
 	nodes: NodeBound[];
 	label: { x: number; y: number };
 	side: number;
+	done: boolean;
 };
 
 function shortTicket(key: string, project: string, outside: boolean): string {
@@ -200,6 +201,17 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 	);
 }
 
+function markerColor(className: string): string {
+	const probe = document.createElement("span");
+	probe.className = className;
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	document.body.append(probe);
+	const color = getComputedStyle(probe).color;
+	probe.remove();
+	return color;
+}
+
 function TicketEdge({
 	id,
 	sourceX,
@@ -229,10 +241,13 @@ function TicketEdge({
 		data?.entries ?? 1,
 		data?.side,
 	);
+	const muted = data?.done === true;
+	const stroke = muted ? markerColor(classToken(board.markerMuted)) : undefined;
 	return (
 		<BaseEdge
 			id={id}
 			path={drawn.path}
+			{...(stroke === undefined ? {} : { style: { stroke } })}
 			{...(markerEnd === undefined ? {} : { markerEnd })}
 		/>
 	);
@@ -508,6 +523,10 @@ export function graphModel(
 	const fromHandle = horizontal ? "right" : "bottom";
 	const toHandle = horizontal ? "left" : "top";
 	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
+	const mutedMarker = markerEnd(
+		measureMarker(classToken(board.markerMuted)),
+		markerColor(classToken(board.markerMuted)),
+	);
 	const pending = links.map((link) => ({
 		id: `${link.from}->${link.to}`,
 		source: link.from,
@@ -515,7 +534,8 @@ export function graphModel(
 		sourceHandle: fromHandle,
 		targetHandle: toHandle,
 		type: "ticket" as const,
-		markerEnd: marker,
+		markerEnd: link.done ? mutedMarker : marker,
+		data: { done: link.done },
 	}));
 	const bounds = new Map(
 		nodes.flatMap((node) => {
@@ -585,7 +605,14 @@ function Legend() {
 					</li>
 				))}
 			</ul>
-			<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
+			<p className={clsx(board.legendNote, board.legendEdge)}>
+				<span className={clsx(board.legendSwatch)} />
+				{projectGraphLabel.arrow}
+			</p>
+			<p className={clsx(board.legendNote, board.legendEdge)}>
+				<span className={clsx(board.legendSwatch, board.legendSwatchMuted)} />
+				{projectGraphLabel.done}
+			</p>
 			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
 		</section>
 	);
