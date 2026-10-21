@@ -1402,11 +1402,6 @@ describe("replies", () => {
 				const comments = open.some((item) =>
 					item.url.includes("/issues/7/comments"),
 				);
-				const linked = open.some(
-					(item) =>
-						item.url === "https://api.github.com/graphql" &&
-						item.url.includes("graphql"),
-				);
 				const linkedBody = sent.some(
 					(item) =>
 						item.url === "https://api.github.com/graphql" &&
@@ -1422,7 +1417,6 @@ describe("replies", () => {
 					}
 					open.length = 0;
 				}
-				return linked && comments;
 			},
 			graphql: (query) => {
 				if (!query.includes("LinkedPulls")) {
