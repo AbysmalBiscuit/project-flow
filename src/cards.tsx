@@ -50,7 +50,7 @@ import {
 	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
-import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
+import { measure, phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
 
@@ -583,8 +583,12 @@ function MenuButton({
 			{open ? (
 				<div
 					id={`${id}-panel`}
-					className={clsx(cards.panel)}
-					style={maxHeight === null ? undefined : { maxHeight }}
+					{...stylex.props(
+						cards.panel,
+						maxHeight === null
+							? null
+							: cards.fit(`calc(${maxHeight} * ${measure.hairline})`),
+					)}
 				>
 					{children}
 				</div>

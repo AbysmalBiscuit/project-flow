@@ -989,6 +989,9 @@ export const cards = stylex.create({
 		borderRadius: radius.menu,
 		backgroundColor: colours.controlFill,
 	},
+	fit: (room: string) => ({
+		maxHeight: room,
+	}),
 	choiceMark: {
 		boxSizing: "border-box",
 		width: measure.dot,
