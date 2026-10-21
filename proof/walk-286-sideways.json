@@ -1,0 +1,11 @@
+{
+	"base_url": "http://127.0.0.1:47388",
+	"serve": ["bun", "proof/serve-lane-scroll.ts", "47388"],
+	"steps": [
+		{ "goto": "/proof/lane-700" },
+		{ "assert_text": "board wider" },
+		{ "assert_text": "board moved" },
+		{ "assert_text": "page scrollWidth 700 clientWidth 700 equal" },
+		{ "shot": "lane-board-sideways" }
+	]
+}

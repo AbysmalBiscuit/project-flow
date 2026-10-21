@@ -1,0 +1,18 @@
+{
+	"base_url": "http://127.0.0.1:47386",
+	"serve": ["bun", "proof/serve-lane-scroll.ts", "47386"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Backlog card 1 fills the lane" },
+		{ "assert_text": "Last backlog card sits below the fold" },
+		{ "assert_text": "last card outside" },
+		{ "click": "[data-lane-proof='scroll-lane']" },
+		{ "assert_text": "last card inside" },
+		{ "assert_text": "title held" },
+		{ "assert_text": "reached" },
+		{ "shot": "lane-last-card" },
+		{ "click": "[data-lane-proof='scroll-board']" },
+		{ "assert_text": "board scrollLeft 0" },
+		{ "shot": "lane-scrolled-sideways" }
+	]
+}
