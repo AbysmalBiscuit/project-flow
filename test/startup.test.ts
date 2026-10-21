@@ -705,7 +705,7 @@ describe("startup", () => {
 	test("--open with a failing browser command warns and the API still answers", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const bin = await mkdtemp(join("/var/tmp", "project-flow-bad-browser-"));
-		for (const name of ["powershell.exe", "wslview", "xdg-open"]) {
+		for (const name of ["powershell.exe", "wslview", "xdg-open", "open"]) {
 			const program = join(bin, name);
 			await writeFile(program, "#!/bin/sh\nexit 1\n");
 			await chmod(program, 0o755);
@@ -857,7 +857,7 @@ describe("startup", () => {
 	test("--open warns when the browser command exits after the API answers", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const bin = await mkdtemp(join("/var/tmp", "project-flow-slow-browser-"));
-		for (const name of ["powershell.exe", "wslview", "xdg-open"]) {
+		for (const name of ["powershell.exe", "wslview", "xdg-open", "open"]) {
 			const program = join(bin, name);
 			await writeFile(program, "#!/bin/sh\n/bin/sleep 0.3\nexit 1\n");
 			await chmod(program, 0o755);
