@@ -23,14 +23,21 @@ function isTrackerRequest(input: string | URL | Request): boolean {
 
 export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
 	return (input, init) => {
-		if (init?.signal !== undefined || !isTrackerRequest(input)) {
+		if (!isTrackerRequest(input)) {
 			return fetchImpl(input, init);
 		}
-		return fetchImpl(input, { ...init, signal });
+		const caller = init?.signal;
+		if (caller === undefined || caller === null) {
+			return fetchImpl(input, { ...init, signal });
+		}
+		return fetchImpl(input, {
+			...init,
+			signal: AbortSignal.any([caller, signal]),
+		});
 	};
 }
 
-const threadReadLimitMs = 5_000;
+export const defaultThreadReadLimitMs = 5_000;
 
 export const threadReadTimedOut = "thread read timed out";
 
@@ -43,6 +50,7 @@ export class ThreadReadTimeout extends Error {
 
 export async function withThreadLimit<T>(
 	read: (signal: AbortSignal) => Promise<T>,
+	limitMs: number = defaultThreadReadLimitMs,
 ): Promise<T> {
 	const deadline = new AbortController();
 	let timer: ReturnType<typeof setTimeout> | undefined;
@@ -50,7 +58,7 @@ export async function withThreadLimit<T>(
 		timer = setTimeout(() => {
 			deadline.abort();
 			reject(new ThreadReadTimeout());
-		}, threadReadLimitMs);
+		}, limitMs);
 	});
 	const reading = read(deadline.signal);
 	reading.catch(() => undefined);

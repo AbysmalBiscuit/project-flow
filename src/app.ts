@@ -56,6 +56,7 @@ import {
 } from "./domain.ts";
 import {
 	abortableFetch,
+	defaultThreadReadLimitMs,
 	type Fetch,
 	ThreadReadTimeout,
 	withThreadLimit,
@@ -105,6 +106,7 @@ export type StartOptions = {
 	listTodos?: TodoSource;
 	listCheckouts?: CheckoutSource;
 	now?: () => Date;
+	threadReadLimitMs?: number;
 };
 
 export type Running = {
@@ -575,6 +577,7 @@ async function threadResponse(
 	trackerName: string,
 	key: string,
 	request: Request,
+	threadReadLimitMs: number,
 ): Promise<Response> {
 	const tracker = trackerFor(trackers, trackerName);
 	const project = new URL(request.url).searchParams.get("project") ?? "";
@@ -583,8 +586,9 @@ async function threadResponse(
 		return Response.json({ missing: true }, { status: 404 });
 	}
 	try {
-		const thread: Thread | null = await withThreadLimit((signal) =>
-			fetchThread(project, key.trim(), signal),
+		const thread: Thread | null = await withThreadLimit(
+			(signal) => fetchThread(project, key.trim(), signal),
+			threadReadLimitMs,
 		);
 		if (thread === null) {
 			return Response.json({ missing: true }, { status: 404 });
@@ -1765,6 +1769,7 @@ export async function start(options: StartOptions): Promise<Running> {
 						request.params.tracker,
 						request.params.key,
 						request,
+						options.threadReadLimitMs ?? defaultThreadReadLimitMs,
 					),
 			},
 			"/api/replies": {

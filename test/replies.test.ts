@@ -102,6 +102,9 @@ function githubFetch(
 			/\/repos\/acme\/widget\/issues\/(\d+)\/comments(?:\?([^#]*))?$/,
 		);
 		if (comments !== null && method === "GET") {
+			if (options.hangThread === true) {
+				return new Promise<Response>(() => {});
+			}
 			if (options.holdUntilPeer !== undefined) {
 				await new Promise<void>((resolve) => {
 					options.holdUntilPeer?.(url, resolve);
@@ -211,6 +214,7 @@ function githubFetch(
 async function serve(
 	fetchImpl: Fetch,
 	config: string,
+	options?: { threadReadLimitMs?: number },
 ): Promise<{ base: string; stop: () => Promise<void> }> {
 	const { path, cleanup } = await tempConfig(config);
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -237,6 +241,9 @@ async function serve(
 				LINEAR_API_KEY: "recorded-linear-key",
 			},
 			fetch: fetchImpl,
+			...(options?.threadReadLimitMs === undefined
+				? {}
+				: { threadReadLimitMs: options.threadReadLimitMs }),
 			readGhToken: async () => null,
 			databasePath: join(root, "store.sqlite"),
 			stdout: (line) => startChecks(line),
@@ -1259,6 +1266,7 @@ describe("replies", () => {
 		const app = await serve(
 			recorded,
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+			{ threadReadLimitMs: 200 },
 		);
 		try {
 			const started = Date.now();
@@ -1276,7 +1284,7 @@ describe("replies", () => {
 			};
 			expect(failed.missing).toBeUndefined();
 			expect(failed.error).toBe("thread read timed out");
-			expect(elapsed).toBeLessThan(8_000);
+			expect(elapsed).toBeLessThan(2_000);
 			expect(sent.some((item) => item.url.endsWith("/issues/7"))).toBe(true);
 		} finally {
 			await app.stop();
@@ -1304,6 +1312,29 @@ describe("replies", () => {
 		}
 	});
 
+	test("a missing issue returns missing while the comment page is in flight", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, { issues: [issue(8)] });
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%2399?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(404);
+			expect(((await response.json()) as { missing?: boolean }).missing).toBe(
+				true,
+			);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a failed tracker call still returns an error inside the time limit", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {
@@ -1313,6 +1344,7 @@ describe("replies", () => {
 		const app = await serve(
 			recorded,
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+			{ threadReadLimitMs: 200 },
 		);
 		try {
 			const started = Date.now();
@@ -1323,7 +1355,7 @@ describe("replies", () => {
 				),
 			);
 			expect(response.status).toBe(502);
-			expect(Date.now() - started).toBeLessThan(8_000);
+			expect(Date.now() - started).toBeLessThan(2_000);
 			expect(((await response.json()) as { error?: string }).error).toBe(
 				"GitHub fetch thread failed (HTTP 502)",
 			);
@@ -1341,6 +1373,7 @@ describe("replies", () => {
 		const app = await serve(
 			recorded,
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+			{ threadReadLimitMs: 200 },
 		);
 		try {
 			const path = new URL(
@@ -1440,7 +1473,10 @@ describe("replies", () => {
 			);
 			expect(commentAt).toBeGreaterThanOrEqual(0);
 			expect(linkedAt).toBeGreaterThanOrEqual(0);
-			expect(Math.abs(commentAt - linkedAt)).toBe(1);
+			const between = sent
+				.slice(Math.min(commentAt, linkedAt) + 1, Math.max(commentAt, linkedAt))
+				.filter((item) => !item.url.endsWith("/issues/7"));
+			expect(between).toEqual([]);
 			expect(reviewAt).toBeGreaterThan(Math.max(commentAt, linkedAt));
 		} finally {
 			await app.stop();

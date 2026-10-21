@@ -3168,6 +3168,15 @@ export async function fetchGithubThread(
 	}
 	const { repo, number } = parsed;
 	const issueUrl = `https://api.github.com/repos/${repo}/issues/${number}`;
+	const commentPages = pages(
+		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+		token,
+		fetchImpl,
+		repo,
+		"fetch thread",
+		signal,
+	);
+	void commentPages.catch(() => undefined);
 	const issueResponse = await fetchWithSignal(
 		fetchImpl,
 		issueUrl,
@@ -3192,14 +3201,6 @@ export async function fetchGithubThread(
 			pull_request: z.unknown().optional(),
 		})
 		.parse(await issueResponse.json());
-	const commentPages = pages(
-		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
-		token,
-		fetchImpl,
-		repo,
-		"fetch thread",
-		signal,
-	);
 	const linked =
 		issue.pull_request === undefined
 			? linkedReviewTargets(token, fetchImpl, repo, number, signal)
