@@ -130,7 +130,11 @@ await serveRecorded({
 		theme: "light",
 		overview: { view: "graph" },
 		projectViews: {
-			[widget]: { openView: "graph", groupBy: "none" },
+			[widget]: {
+				openView: "graph",
+				groupBy: process.env.GRAPH_GROUP ?? "none",
+				graphDirection: process.env.GRAPH_DIRECTION ?? "left-to-right",
+			},
 		},
 	},
 	fetch: recorded,

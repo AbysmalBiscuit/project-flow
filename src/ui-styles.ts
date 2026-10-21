@@ -748,7 +748,7 @@ export const cards = stylex.create({
 		width: measure.hairline,
 		height: measure.hairline,
 		overflow: "hidden",
-		clip: "rect(0 0 0 0)",
+		clipPath: "inset(50%)",
 	},
 	empty: {
 		margin: `${space.lg} 0 0`,

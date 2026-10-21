@@ -1,5 +1,4 @@
 {
-	"viewport": "1440 900",
 	"base_url": "http://127.0.0.1:4245",
 	"serve": ["bun", "proof/serve-graph-flows.ts", "4245"],
 	"steps": [
@@ -7,8 +6,9 @@
 		{ "assert_text": "Group by None" },
 		{ "click": "#project-group" },
 		{ "click": "#project-group-choice-0" },
-		{ "assert_text": "Alpha" },
-		{ "assert_text": "Beta" },
+		{ "assert_text": "Group by Workstream" },
+		{ "assert_text": "Chain b start" },
+		{ "assert_text": "Chain a start" },
 		{ "shot": "flows-grouped" },
 		{ "goto": "/" },
 		{ "assert_text": "acme/alpha" },
