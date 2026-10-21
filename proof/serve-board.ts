@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { recordedViewer, repoReadFromHandler, urlOf } from "../test/support.ts";
-import { proofStops } from "./lifetime.ts";
+import { proofStops, proofTheme } from "./lifetime.ts";
 
 const root = await mkdtemp(join("/var/tmp", "project-flow-board-"));
 process.env.XDG_DATA_HOME = root;
@@ -371,8 +371,7 @@ try {
 		},
 		stderr: (line) => console.error(line),
 		waitForStop: (async () => {
-			const stops = proofStops();
-			const deadline = Date.now() + 8_000;
+			const deadline = Date.now() + 20_000;
 			while (Date.now() < deadline) {
 				if (base !== "") {
 					const loaded = await fetch(
@@ -392,26 +391,27 @@ try {
 							ticket.outsideBlockers?.some((blocker) => blocker.key === "PF-3"),
 						);
 						if (titled && outside) {
-							const internal = new URL(base);
 							Bun.serve({
 								hostname: "127.0.0.1",
 								port,
-								fetch(request) {
+								async fetch(request) {
 									const url = new URL(request.url);
+									const internal = new URL(base);
 									url.protocol = internal.protocol;
 									url.hostname = internal.hostname;
 									url.port = internal.port;
-									return fetch(
+									const response = await fetch(
 										new Request(url, {
 											method: request.method,
 											headers: request.headers,
 											body: request.body,
 										}),
 									);
+									return proofTheme(response);
 								},
 							});
 							console.log(`http://127.0.0.1:${port}/`);
-							await stops;
+							await proofStops();
 							return;
 						}
 					}

@@ -61,6 +61,75 @@ function watchProof(): Promise<void> {
 	return stopsHere;
 }
 
+const walkMarker = "data-walk-theme";
+
+const walkScript = `<script id="walk-theme">(function () {
+	var name = "Theme";
+	function paint() {
+		var root = document.documentElement;
+		var theme = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+		var line = document.getElementById("walk-theme-name");
+		if (line === null) {
+			line = document.createElement("p");
+			line.id = "walk-theme-name";
+			document.body.prepend(line);
+		}
+		line.textContent = name + " " + theme;
+		line.style.position = "fixed";
+		line.style.top = "0";
+		line.style.left = "0";
+		line.style.zIndex = "2147483647";
+	}
+	new MutationObserver(paint).observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ["data-theme"],
+	});
+	function markFocus() {
+		var active = document.activeElement;
+		var nodes = document.querySelectorAll("[data-walk-focus]");
+		for (var i = 0; i < nodes.length; i++) {
+			nodes[i].removeAttribute("data-walk-focus");
+		}
+		if (active && active !== document.body && active.id !== "walk-esc") {
+			var card = active.closest("li") || active.closest("tr") || active;
+			card.setAttribute("data-walk-focus", "");
+			card.scrollIntoView({ block: "center", inline: "nearest" });
+		}
+	}
+	document.addEventListener("focusin", markFocus, true);
+	document.addEventListener("keyup", markFocus, true);
+	document.addEventListener("keydown", function () {
+		setTimeout(markFocus, 50);
+	}, true);
+	if (document.body) {
+		paint();
+		markFocus();
+	} else {
+		document.addEventListener("DOMContentLoaded", function () {
+			paint();
+			markFocus();
+		});
+	}
+})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style>`;
+
+/** Publish the root data-theme value as text a walk can assert. */
+export async function proofTheme(response: Response): Promise<Response> {
+	const type = response.headers.get("content-type") ?? "";
+	if (!type.includes("text/html")) {
+		return response;
+	}
+	const html = await response.text();
+	if (html.includes(walkMarker)) {
+		return new Response(html, response);
+	}
+	const stamped = html.includes("</body>")
+		? html.replace("</body>", `${walkScript}</body>`)
+		: `${html}${walkScript}`;
+	const headers = new Headers(response.headers);
+	headers.delete("content-length");
+	return new Response(stamped, { status: response.status, headers });
+}
+
 export async function serveProof(args: string[], io: RunIo): Promise<never> {
 	const result = await run(args, { ...io, waitForStop: proofStops() });
 	process.exit(result.exitCode);
