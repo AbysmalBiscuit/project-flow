@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "4173";
 const repo = "acme/widget";
@@ -136,5 +137,5 @@ await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 	stdout: (line) => {
 		console.log(line);
 	},
-	waitForStop: new Promise(() => {}),
+	waitForStop: proofStops(),
 });

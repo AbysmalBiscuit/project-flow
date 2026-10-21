@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:47263",
+	"serve": ["bun", "proof/serve-header.ts", "47263", "graph"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "click": "[data-theme-toggle]" },
+		{ "assert_text": "acme/widget" },
+		{ "assert_text": "Filter" },
+		{ "assert_text": "Left to right" },
+		{ "assert_text": "Fit" },
+		{ "shot": "header-dark-1440" }
+	]
+}

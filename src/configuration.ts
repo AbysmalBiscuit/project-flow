@@ -10,7 +10,7 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { z } from "zod";
-import { knownBots } from "./domain.ts";
+import { knownBots } from "./known-bots.ts";
 import {
 	overviewDirections,
 	overviewFilters,

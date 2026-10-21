@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { repoReadFromLists } from "../test/support.ts";
+import { proofStops } from "./lifetime.ts";
 
 const repo = "acme/widget";
 const gate = "acme/gate";
@@ -412,5 +413,5 @@ await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 	stdout: (line) => {
 		console.log(line);
 	},
-	waitForStop: new Promise(() => {}),
+	waitForStop: proofStops(),
 });

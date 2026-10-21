@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { proofStops } from "../proof/lifetime.ts";
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
@@ -153,6 +154,8 @@ const recorded: Fetch = async (input, init) => {
 	return unrecorded(input);
 };
 
+const stops = proofStops();
+
 const data = await mkdtemp(join(tmpdir(), "project-flow-proof-"));
 const configPath = join(data, "config.json");
 await writeFile(
@@ -214,6 +217,7 @@ const ready = (async () => {
 		stopped.abort();
 	}
 })();
+void ready;
 
 const result = await run(
 	["--config", configPath, "--host", "127.0.0.1", "--port", "0"],
@@ -238,22 +242,18 @@ const result = await run(
 			appBase = line.trim();
 		},
 		stderr: (line) => console.error(line),
-		waitForStop: Promise.race([
-			ready.then(() => new Promise<void>(() => {})),
-			new Promise<void>((resolve) => {
-				stopped.signal.addEventListener("abort", () => resolve(), {
-					once: true,
-				});
-				const stop = () => {
-					gate.stop(true);
-					void rm(data, { recursive: true, force: true }).finally(() =>
-						resolve(),
-					);
-				};
-				process.once("SIGINT", stop);
-				process.once("SIGTERM", stop);
-			}),
-		]),
+		waitForStop: (async () => {
+			await Promise.race([
+				stops,
+				new Promise<void>((resolve) => {
+					stopped.signal.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+				}),
+			]);
+			gate.stop(true);
+			await rm(data, { recursive: true, force: true });
+		})(),
 	},
 );
 process.exit(process.exitCode ?? result.exitCode);
