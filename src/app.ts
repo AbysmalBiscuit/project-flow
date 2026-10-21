@@ -40,12 +40,12 @@ import {
 	notificationsFor,
 	optionReplyBody,
 	panelReplyBody,
+	pendingProjects,
 	projectCounts,
 	projectHasPmBot,
 	projectSnapshots,
 	projectViewFor,
 	reconcilePoll,
-	refForFound,
 	refKey,
 	type SettingsProject,
 	settingsProjects,
@@ -255,42 +255,6 @@ function attentionFor(
 	return attentionOf(projectViews(options, configuration), configuration.pmBot);
 }
 
-function pendingCard(
-	project: FoundProject,
-	configuration: Configuration,
-): ProjectCounts {
-	const ref = refForFound(project, configuration.tracked);
-	return {
-		name: project.name ?? project.key,
-		tracker: project.tracker,
-		ref,
-		done: 0,
-		dropped: 0,
-		blocked: 0,
-		backlog: 0,
-		inProgress: 0,
-		inReview: 0,
-		awaitingMerge: 0,
-		unlinkedPrs: [],
-		tickets: [],
-		crossProjectBlockers: [],
-		needsYou: 0,
-		progress: 0,
-		fetchedAt: null,
-		error: null,
-		tags: [],
-		statusTypes: {
-			backlog: 0,
-			inProgress: 0,
-			inReview: 0,
-			awaitingMerge: 0,
-			done: 0,
-			dropped: 0,
-		},
-		pending: true,
-	};
-}
-
 function overview(
 	options: PollOptions,
 	configuration: Configuration,
@@ -299,21 +263,18 @@ function overview(
 		(item) => item.counts,
 	);
 	const pending = options.polling
-		? options.catalogue.flatMap((project) => {
-				const pin = configuration.tracked.find((ref) =>
-					matchesRef(project, ref),
-				);
-				if (
-					pin === undefined ||
-					options.store.lastGoodPollAt(project.key) !== null
-				) {
-					return [];
-				}
-				if (counted.some((item) => sameRef(item.ref, pin))) {
-					return [];
-				}
-				return [pendingCard(project, configuration)];
-			})
+		? pendingProjects(
+				options.catalogue,
+				configuration.tracked,
+				counted,
+				new Set(
+					options.catalogue.flatMap((project) =>
+						options.store.lastGoodPollAt(project.key) === null
+							? []
+							: [project.key],
+					),
+				),
+			)
 		: [];
 	const projects = [...counted, ...pending];
 	const goodPolls = projects.flatMap((project) => {
@@ -737,6 +698,35 @@ function recordPostedReply(
 	]);
 }
 
+function encodeChange(
+	encoder: TextEncoder,
+	change: Change,
+	notifications: boolean,
+): Uint8Array[] {
+	const frames = [
+		encoder.encode(
+			`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
+		),
+	];
+	if (change.progress !== undefined) {
+		frames.push(
+			encoder.encode(
+				`event: progress\ndata: ${JSON.stringify(change.progress)}\n\n`,
+			),
+		);
+	}
+	if (notifications) {
+		for (const notification of change.notifications) {
+			frames.push(
+				encoder.encode(
+					`event: notification\ndata: ${JSON.stringify(notification)}\n\n`,
+				),
+			);
+		}
+	}
+	return frames;
+}
+
 function eventStream(
 	notifier: Notifier,
 	current: () => Change | null,
@@ -748,38 +738,13 @@ function eventStream(
 			controller.enqueue(encoder.encode(": open\n\n"));
 			const open = current();
 			if (open !== null) {
-				controller.enqueue(
-					encoder.encode(
-						`event: overview\ndata: ${JSON.stringify(open.overview)}\n\n`,
-					),
-				);
-				if (open.progress !== undefined) {
-					controller.enqueue(
-						encoder.encode(
-							`event: progress\ndata: ${JSON.stringify(open.progress)}\n\n`,
-						),
-					);
+				for (const frame of encodeChange(encoder, open, false)) {
+					controller.enqueue(frame);
 				}
 			}
 			unsubscribe = notifier.subscribe((change) => {
-				controller.enqueue(
-					encoder.encode(
-						`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
-					),
-				);
-				if (change.progress !== undefined) {
-					controller.enqueue(
-						encoder.encode(
-							`event: progress\ndata: ${JSON.stringify(change.progress)}\n\n`,
-						),
-					);
-				}
-				for (const notification of change.notifications) {
-					controller.enqueue(
-						encoder.encode(
-							`event: notification\ndata: ${JSON.stringify(notification)}\n\n`,
-						),
-					);
+				for (const frame of encodeChange(encoder, change, true)) {
+					controller.enqueue(frame);
 				}
 			});
 		},
@@ -962,12 +927,20 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}));
 	const tracked = found.filter((project) => trackedProjects.has(project));
 	const trackedKeys = new Set(tracked.map((project) => project.key));
-	options.progress = {
+	const started: PollProgress = {
 		done: 0,
 		total: tracked.length,
 		project: tracked[0]?.key ?? null,
 		ended: false,
 	};
+	options.progress = started;
+	if (options.polling && !options.stopped) {
+		options.notifier.publish({
+			overview: runningOverview(options, configuration),
+			notifications: [],
+			progress: started,
+		});
+	}
 	const outcomes = new Map<string, ProjectPoll>();
 	const awaitingFirstPoll = new Set(
 		tracked.flatMap((project) =>
@@ -1206,7 +1179,14 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
-	const current = await options.configuration.read();
+	let current: Configuration;
+	try {
+		current = await options.configuration.read();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "poll failed";
+		options.store.recordFetchError(message);
+		throw error;
+	}
 	options.fallback = current;
 	options.notifier.publish({
 		overview: runningOverview(options, current),
@@ -1233,7 +1213,7 @@ function notePollProgress(
 	const progress: PollProgress = {
 		done: outcomes.size,
 		total: tracked.length,
-		project: next?.key ?? null,
+		project: next.key,
 		ended: false,
 	};
 	options.progress = progress;
