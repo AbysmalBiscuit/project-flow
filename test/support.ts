@@ -647,7 +647,9 @@ export function repoReadFromHandler(
 				}
 				if (!response.ok) {
 					if (required) {
-						throw new Error(`recorded page failed HTTP ${response.status}`);
+						throw new Error(
+							`GitHub read repo failed (HTTP ${response.status})`,
+						);
 					}
 					return [];
 				}
