@@ -33,7 +33,11 @@ import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame, PollStatus } from "./shell.tsx";
 import {
 	blockedLabel,
+	filterEmptyLabel,
 	groupByLabel,
+	type HidingFilter,
+	hidingFilterIds,
+	hidingFilterLabel,
 	loadingLabel,
 	navLabel,
 	viewLabel,
@@ -216,6 +220,69 @@ function visibleLanes(
 		),
 	);
 	return report.lanes.filter((lane) => names.has(lane.name.toLowerCase()));
+}
+
+function filterCount(
+	view: ProjectViewSettings,
+	lanes: ProjectReport["lanes"],
+): number {
+	const hidden =
+		view.shownLanes === undefined
+			? 0
+			: lanes.length - visibleLaneNames(lanes, view.shownLanes).length;
+	return (
+		hidden +
+		(view.needsYouOnly ? 1 : 0) +
+		(view.blockedOnly ? 1 : 0) +
+		view.assignees.filter((name) => name.trim() !== "").length
+	);
+}
+
+function clearedView(
+	view: ProjectViewSettings,
+	lanes: ProjectReport["lanes"],
+): ProjectViewSettings {
+	return {
+		...view,
+		shownLanes: lanes.map((lane) => lane.name),
+		maxAgeDays: emptyMaxAgeDays,
+		needsYouOnly: false,
+		blockedOnly: false,
+		assignees: [],
+		search: "",
+	};
+}
+
+function hidingFiltersOf(report: ProjectReport): HidingFilter[] {
+	return (report.hiddenBy ?? []).filter((id) =>
+		hidingFilterIds.some((known) => known === id),
+	);
+}
+
+function FilteredEmpty({
+	names,
+	onClear,
+}: {
+	names: readonly HidingFilter[];
+	onClear: () => void;
+}) {
+	return (
+		<div id="filters-hide-all" className={clsx(board.filteredEmpty)}>
+			<p>
+				{names.map((name) => hidingFilterLabel[name]).join(", ")}{" "}
+				{names.length === 1 ? filterEmptyLabel.one : filterEmptyLabel.many}{" "}
+				{filterEmptyLabel.every}
+			</p>
+			<button
+				type="button"
+				id="clear-filters"
+				className={clsx(board.clearFilters, shell.buttonFocus)}
+				onClick={onClear}
+			>
+				{filterEmptyLabel.clear}
+			</button>
+		</div>
+	);
 }
 
 function countLine(report: ProjectReport): string {
@@ -898,7 +965,6 @@ function FilterMenu({
 	onOpen: (next: boolean) => void;
 	onChange: (next: ProjectViewSettings) => void;
 }) {
-	const shown = visibleLaneNames(report.lanes, view.shownLanes);
 	const root = useRef<HTMLDivElement>(null);
 	const gutter = useRef<HTMLSpanElement>(null);
 	const [shift, setShift] = useState(0);
@@ -988,7 +1054,9 @@ function FilterMenu({
 					<path d="M2 3.5h12M4.5 8h7M7 12.5h2" />
 				</svg>
 				Filter
-				<span className={clsx(headerControlStyle.count)}>{shown.length}</span>
+				<span className={clsx(headerControlStyle.count)}>
+					{filterCount(view, report.lanes)}
+				</span>
 			</button>
 			{open ? (
 				<FilterPanel
@@ -1572,7 +1640,12 @@ function Page() {
 						}
 					/>
 					<div className={clsx(board.stage)}>
-						{view === "board" ? (
+						{hidingFiltersOf(report).length > 0 ? (
+							<FilteredEmpty
+								names={hidingFiltersOf(report)}
+								onClear={() => saveView(clearedView(settings, report.lanes))}
+							/>
+						) : view === "board" ? (
 							<Board
 								report={report}
 								settings={settings}

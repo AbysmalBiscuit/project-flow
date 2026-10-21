@@ -203,6 +203,33 @@ export const groupByLabel = {
 	none: "None",
 } as const;
 
+export const hidingFilterIds = [
+	"lanes",
+	"maxAge",
+	"needsYouOnly",
+	"blockedOnly",
+	"assignees",
+	"search",
+] as const;
+
+export type HidingFilter = (typeof hidingFilterIds)[number];
+
+export const hidingFilterLabel: Record<HidingFilter, string> = {
+	lanes: "Lanes",
+	maxAge: "Max age",
+	needsYouOnly: "Needs you only",
+	blockedOnly: "Blocked only",
+	assignees: "Assignees",
+	search: "Search",
+};
+
+export const filterEmptyLabel = {
+	clear: "Clear filters",
+	one: "hides",
+	many: "hide",
+	every: "every ticket.",
+} as const;
+
 export const projectGraphLabel = {
 	legend: "Graph legend",
 	arrow: "Arrow: blocker to blocked",
