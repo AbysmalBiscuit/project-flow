@@ -23,7 +23,6 @@ src/main.ts:readCheckout
 src/main.ts:run
 src/needs-you.tsx:NeedsList
 src/overview-graph.tsx:graphModel
-src/project-graph.tsx:graphEdges
 src/settings.tsx:Page
 src/view-settings.ts:savedProjectView
 test/blockers.test.ts:(anonymous)
