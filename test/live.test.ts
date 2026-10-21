@@ -225,6 +225,37 @@ function readSseEvents(buffer: string): {
 	return { events, rest };
 }
 
+type ProgressEvent = {
+	done: number;
+	total: number;
+	project: string | null;
+	ended: boolean;
+};
+
+async function nextProgress(
+	events: AsyncIterator<{ event: string; data: string } | undefined>,
+	endedOnly = false,
+): Promise<ProgressEvent> {
+	const deadline = Date.now() + 4_000;
+	while (Date.now() < deadline) {
+		const received = await Promise.race([
+			events.next(),
+			Bun.sleep(4_000).then(() => "quiet" as const),
+		]);
+		if (received === "quiet" || received.done) {
+			break;
+		}
+		if (received.value?.event !== "progress") {
+			continue;
+		}
+		const progress = JSON.parse(received.value.data) as ProgressEvent;
+		if (!endedOnly || progress.ended) {
+			return progress;
+		}
+	}
+	throw new Error("the held poll sent no progress");
+}
+
 function openEventStream(base: string): {
 	events: AsyncIterable<ChangeEvent>;
 	close: () => void;
@@ -784,52 +815,39 @@ describe("live updates", () => {
 					const stream = openEventStream(base);
 					await stream.ready;
 					const events = stream.events[Symbol.asyncIterator]();
-					const nextProgress = async () => {
-						const deadline = Date.now() + 4_000;
-						while (Date.now() < deadline) {
-							const received = await Promise.race([
-								events.next(),
-								Bun.sleep(4_000).then(() => "quiet" as const),
-							]);
-							if (received === "quiet" || received.done) {
-								break;
-							}
-							if (received.value?.event === "progress") {
-								return received.value;
-							}
-						}
-						throw new Error("the held poll sent no progress");
-					};
-					const started = await nextProgress();
-					const running = JSON.parse(started.data) as {
-						done: number;
-						total: number;
-						project: string | null;
-						ended: boolean;
-					};
-					expect(running).toEqual({
+					expect(await nextProgress(events)).toEqual({
 						done: 0,
 						total: 2,
 						project: repo,
 						ended: false,
 					});
+					const joined = openEventStream(base);
+					await joined.ready;
+					expect(
+						await nextProgress(joined.events[Symbol.asyncIterator]()),
+					).toEqual({
+						done: 0,
+						total: 2,
+						project: repo,
+						ended: false,
+					});
+					joined.close();
 					releaseFirst();
-					const advanced = await nextProgress();
-					expect(JSON.parse(advanced.data)).toEqual({
+					expect(await nextProgress(events)).toEqual({
 						done: 1,
 						total: 2,
 						project: second,
 						ended: false,
 					});
 					releaseSecond();
-					const finished = await nextProgress();
-					expect(JSON.parse(finished.data)).toEqual({
+					expect(await nextProgress(events)).toEqual({
 						done: 2,
 						total: 2,
 						project: null,
 						ended: true,
 					});
 					stream.close();
+					joined.close();
 					resolve();
 				})().catch(reject);
 			};
@@ -890,33 +908,13 @@ describe("live updates", () => {
 					await stream.ready;
 					const events = stream.events[Symbol.asyncIterator]();
 					releaseDiscovery();
-					const deadline = Date.now() + 4_000;
-					let finished: unknown = null;
-					while (Date.now() < deadline && finished === null) {
-						const received = await Promise.race([
-							events.next(),
-							Bun.sleep(4_000).then(() => "quiet" as const),
-						]);
-						if (received === "quiet" || received.done) {
-							break;
-						}
-						if (received.value?.event !== "progress") {
-							continue;
-						}
-						const progress = JSON.parse(received.value.data) as {
-							ended: boolean;
-						};
-						if (progress.ended) {
-							finished = progress;
-						}
-					}
-					stream.close();
-					expect(finished).toEqual({
+					expect(await nextProgress(events, true)).toEqual({
 						done: 0,
 						total: 0,
 						project: null,
 						ended: true,
 					});
+					stream.close();
 					resolve();
 				})().catch(reject);
 			};
@@ -946,7 +944,7 @@ describe("live updates", () => {
 		}
 	});
 
-	test("a poll whose tracker rejects still sends a final progress event", async () => {
+	test("a poll that rejects still sends a final progress event", async () => {
 		let releaseRead: () => void = () => {};
 		const readHeld = new Promise<void>((resolve) => {
 			releaseRead = resolve;
@@ -963,7 +961,8 @@ describe("live updates", () => {
 			const listed = listedRead(input, init);
 			if (listed?.repo === repo) {
 				await readHeld;
-				return new Response("recorded failure", { status: 500 });
+				await Bun.write(path, "{\n");
+				return new Response("poll rejected", { status: 500 });
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
@@ -975,6 +974,10 @@ describe("live updates", () => {
 		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
+		let releaseStop: () => void = () => {};
+		const stop = new Promise<void>((resolve) => {
+			releaseStop = resolve;
+		});
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -982,57 +985,52 @@ describe("live updates", () => {
 					const stream = openEventStream(base);
 					await stream.ready;
 					const events = stream.events[Symbol.asyncIterator]();
+					const started = await nextProgress(events);
+					expect(started.ended).toBe(false);
 					releaseRead();
-					const deadline = Date.now() + 4_000;
-					let finished: unknown = null;
-					while (Date.now() < deadline && finished === null) {
-						const received = await Promise.race([
-							events.next(),
-							Bun.sleep(4_000).then(() => "quiet" as const),
-						]);
-						if (received === "quiet" || received.done) {
-							break;
-						}
-						if (received.value?.event !== "progress") {
-							continue;
-						}
-						const progress = JSON.parse(received.value.data) as {
-							ended: boolean;
-						};
-						if (progress.ended) {
-							finished = progress;
-						}
-					}
-					stream.close();
-					expect(finished).toEqual({
+					expect(await nextProgress(events, true)).toEqual({
 						done: 1,
 						total: 1,
 						project: null,
 						ended: true,
 					});
+					stream.close();
 					resolve();
 				})().catch(reject);
 			};
 		});
+		const running = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo(
+				{
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date(goodPoll),
+					stdout: (line) => startChecks(line),
+					waitForStop: stop,
+				},
+				{ first: true },
+			),
+		);
 		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo(
-					{
-						env: { GITHUB_TOKEN: "recorded-token" },
-						fetch: fetchImpl,
-						readGhToken: async () => null,
-						databasePath,
-						now: () => new Date(goodPoll),
-						stdout: (line) => startChecks(line),
-						waitForStop: checks,
-					},
-					{ first: true },
-				),
+			await checks;
+			const failed = await Promise.race([
+				running,
+				Bun.sleep(4_000).then(() => "quiet" as const),
+			]);
+			if (failed === "quiet") {
+				throw new Error("the rejected poll did not exit");
+			}
+			expect(failed.exitCode).toBe(1);
+			expect(failed.stderr).toContain(
+				"invalid configuration: configuration is not JSON",
 			);
-			void result;
 		} finally {
 			releaseRead();
+			releaseStop();
+			await running.catch(() => {});
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}

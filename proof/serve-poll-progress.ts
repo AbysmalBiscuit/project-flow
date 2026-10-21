@@ -10,12 +10,7 @@ if (port === undefined || !/^\d+$/.test(port)) {
 	process.exit(1);
 }
 
-const dataHome = process.env.XDG_DATA_HOME;
-if (dataHome === undefined || dataHome.trim() === "") {
-	console.error("XDG_DATA_HOME must be a temporary folder");
-	process.exit(1);
-}
-
+const dataHome = await mkdtemp(join("/var/tmp", "project-flow-211-data-"));
 const root = await mkdtemp(join("/var/tmp", "project-flow-211-proof-"));
 const configPath = join(root, "config.json");
 await Bun.write(
@@ -23,6 +18,12 @@ await Bun.write(
 	`${JSON.stringify(
 		{
 			theme: "light",
+			overview: {
+				filter: "all",
+				sort: "project",
+				direction: "asc",
+				view: "table",
+			},
 			tracked: [
 				{ tracker: "github", repo: "acme/alpha" },
 				{ tracker: "github", repo: "acme/beta" },
@@ -117,4 +118,5 @@ for (const end of release) {
 	end();
 }
 await rm(root, { recursive: true, force: true });
+await rm(dataHome, { recursive: true, force: true });
 process.exit(result.exitCode);
