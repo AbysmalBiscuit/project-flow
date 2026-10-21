@@ -1,0 +1,9 @@
+{
+	"base_url": "http://127.0.0.1:47257",
+	"serve": ["bun", "proof/serve-graph-edges.ts", "47257"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "graph-1440x800" }
+	]
+}
