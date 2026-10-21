@@ -5,6 +5,7 @@ import type {
 	ProjectPin,
 	ProjectViewSettings,
 } from "./configuration.ts";
+import { lightTokenValues } from "./token-data.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -894,42 +895,14 @@ export function reconcilePoll(
 	return { rows, projectErrors, globalError };
 }
 
-const statusColourNames = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-] as const satisfies readonly StatusType[];
-
-type StatusColourRead = () => Partial<Record<StatusType, string>>;
-
-const colourReaders = globalThis as {
-	__projectFlowReadColours?: StatusColourRead;
-};
-
-export function installStatusColours(read: StatusColourRead): void {
-	colourReaders.__projectFlowReadColours = read;
-}
-
-function statusColours(): Record<StatusType, string> {
-	const painted =
-		(
-			globalThis as {
-				__projectFlowColours?: Partial<Record<StatusType, string>>;
-			}
-		).__projectFlowColours ?? colourReaders.__projectFlowReadColours?.();
-	const colours = {} as Record<StatusType, string>;
-	for (const name of statusColourNames) {
-		const colour = painted?.[name];
-		if (colour === undefined || !colour.startsWith("#")) {
-			throw new Error(`missing token colour ${name}`);
-		}
-		colours[name] = colour;
-	}
-	return colours;
-}
+const statusColours = {
+	backlog: lightTokenValues.backlog,
+	inProgress: lightTokenValues.inProgress,
+	inReview: lightTokenValues.inReview,
+	awaitingMerge: lightTokenValues.awaitingMerge,
+	done: lightTokenValues.done,
+	dropped: lightTokenValues.dropped,
+} as const satisfies Record<StatusType, string>;
 
 const appLaneNames: Record<StatusType, string> = {
 	backlog: "Backlog",
@@ -996,7 +969,7 @@ function appLane(statusType: StatusType): Lane {
 	return {
 		id: statusType,
 		name: appLaneNames[statusType],
-		colour: statusColours()[statusType],
+		colour: statusColours[statusType],
 		statusType,
 	};
 }
@@ -1043,7 +1016,7 @@ export function linearStatusType(type: string, name: string): StatusType {
 }
 
 export function backlogColour(): string {
-	return statusColours().backlog;
+	return statusColours.backlog;
 }
 
 function namesMatch(left: string, right: string): boolean {
@@ -1080,7 +1053,7 @@ function insertAwaitingMerge(lanes: Lane[]): Lane[] {
 	const added: Lane = {
 		id: "awaiting-merge",
 		name: appLaneNames.awaitingMerge,
-		colour: statusColours().awaitingMerge,
+		colour: statusColours.awaitingMerge,
 		statusType: "awaitingMerge",
 		added: true,
 	};

@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-import "./status-colours.ts";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
