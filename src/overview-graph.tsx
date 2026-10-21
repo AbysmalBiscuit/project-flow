@@ -228,6 +228,7 @@ export function graphModel(
 		type: "project",
 		position: positions.get(project.name) ?? { x: 0, y: 0 },
 		data: nodeData(project),
+		// React Flow gives a node pointer events only when it is selectable, draggable, or has a pointer handler.
 		selectable: true,
 	}));
 	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
