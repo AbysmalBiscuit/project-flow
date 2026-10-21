@@ -1322,9 +1322,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			polling = null;
 			if (
 				!stopped &&
-				firstPublished &&
 				(refreshQueued ||
-					(savingTracked && activeGeneration !== trackedGeneration))
+					(firstPublished &&
+						savingTracked &&
+						activeGeneration !== trackedGeneration))
 			) {
 				refreshQueued = false;
 				await pollAgain().catch(() => {});
