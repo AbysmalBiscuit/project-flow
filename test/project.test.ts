@@ -847,7 +847,7 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
-	test("each ticket lists its blockers, outside blockers and the tickets it blocks in other projects", async () => {
+	test("each ticket lists its blockers, outside blockers and the open tickets it blocks", async () => {
 		const gate = issue(8, "Open the gate", { body: "Blocks: #2" }, githubRepo);
 		const drawn = issue(2, "feat(ux): draw the nodes", {
 			body: `Blocked by: #8\nBlocked by: ${otherRepo}#9`,
@@ -903,7 +903,14 @@ describe("GET /api/projects/:name", () => {
 					(item) => item.key === `${githubRepo}#8`,
 				);
 				expect(local?.outsideBlockers ?? []).toEqual([]);
-				expect(local?.blocks ?? []).toEqual([]);
+				expect(local?.blocks).toEqual([
+					{
+						tracker: "github",
+						project: githubRepo,
+						key: `${githubRepo}#2`,
+						title: "feat(ux): draw the nodes",
+					},
+				]);
 				const empty = report.tickets.find(
 					(item) => item.key === `${githubRepo}#1`,
 				);
@@ -1213,6 +1220,62 @@ describe("GET /api/projects/:name", () => {
 						title: "Open the gate",
 					},
 				]);
+			},
+		);
+	});
+
+	test("the Blocks field lists each open ticket the row blocks, in this project and in others", async () => {
+		const gate = issue(8, "Open the gate", { body: "Blocks: #2" }, githubRepo);
+		const drawn = issue(2, "feat(ux): draw the nodes");
+		const closed = issue(3, "Already shipped", {
+			state: "closed",
+			state_reason: "completed",
+		});
+		const held = issue(
+			11,
+			"Hold the platform",
+			{ body: `Blocked by: ${githubRepo}#8` },
+			otherRepo,
+		);
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+			githubFetch([gate, drawn, closed], [held]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(
+					report.tickets.find((item) => item.key === `${githubRepo}#8`)?.blocks,
+				).toEqual([
+					{
+						tracker: "github",
+						project: githubRepo,
+						key: `${githubRepo}#2`,
+						title: "feat(ux): draw the nodes",
+					},
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#11`,
+						title: "Hold the platform",
+					},
+				]);
+				expect(
+					report.tickets.find((item) => item.key === `${githubRepo}#2`)
+						?.blocks ?? [],
+				).toEqual([]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
 			},
 		);
 	});

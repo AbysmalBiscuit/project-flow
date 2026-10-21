@@ -593,6 +593,7 @@ function updatedLabel(value: string | undefined): string {
 
 function TableRow({
 	ticket,
+	project,
 	lanes,
 	order,
 	selected,
@@ -600,6 +601,7 @@ function TableRow({
 	onOpenOutside,
 }: {
 	ticket: TicketView;
+	project: string;
 	lanes: ProjectReport["lanes"];
 	order: number;
 	selected: boolean;
@@ -658,15 +660,19 @@ function TableRow({
 			</td>
 			<td className={clsx(board.rowCell)}>
 				<span className={clsx(board.links)}>
-					{(ticket.blocks ?? []).map((blocker) => (
-						<Chip
-							key={blocker.key}
-							label={blocker.key}
-							ticketKey={blocker.key}
-							outside
-							onOpen={() => onOpenOutside(blocker)}
-						/>
-					))}
+					{(ticket.blocks ?? []).map((blocker) => {
+						const sameProject =
+							blocker.project.toLowerCase() === project.toLowerCase();
+						return (
+							<Chip
+								key={blocker.key}
+								label={sameProject ? shortKey(blocker.key) : blocker.key}
+								ticketKey={blocker.key}
+								{...(sameProject ? {} : { outside: true })}
+								onOpen={sameProject ? onOpen : () => onOpenOutside(blocker)}
+							/>
+						);
+					})}
 				</span>
 			</td>
 			<td className={clsx(board.rowCell)}>
@@ -778,6 +784,7 @@ function TicketTable({
 									<TableRow
 										key={`${group.name}\n${ticket.key ?? ""}\n${ticket.title}`}
 										ticket={ticket}
+										project={report.name}
 										lanes={report.lanes}
 										order={
 											rows.findIndex(

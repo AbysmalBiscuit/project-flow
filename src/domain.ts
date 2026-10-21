@@ -1853,6 +1853,21 @@ function ticketRelations(
 		parsed.get(parseKey(ticket))?.blocks ?? [],
 		merged?.blocks ?? ticket.blocks ?? [],
 	]);
+	const pushBlock = (ref: TicketRef, project: string, title: string) => {
+		if (
+			project === "" ||
+			home === undefined ||
+			blocks.some((item) => sameRef(item, ref))
+		) {
+			return;
+		}
+		blocks.push({
+			tracker: ref.tracker,
+			project,
+			key: ref.key,
+			title: title || ref.key,
+		});
+	};
 	if (self !== null && ticket.state === "open") {
 		for (const ref of ownBlocks) {
 			if (!stillOpen(ref, index)) {
@@ -1864,30 +1879,15 @@ function ticketRelations(
 					? undefined
 					: groups.find((group) => group.tickets.includes(other))?.project;
 			const project = otherHome ?? ref.project;
-			if (
-				project === "" ||
-				home === undefined ||
-				project.toLowerCase() === home.toLowerCase() ||
-				blocks.some((item) => sameRef(item, ref))
-			) {
-				continue;
-			}
 			const title = other?.title.trim() || ref.title?.trim() || ref.key;
-			blocks.push({
-				tracker: ref.tracker,
-				project,
-				key: ref.key,
-				title: title || ref.key,
-			});
+			pushBlock(ref, project, title);
 		}
 		for (const group of groups) {
-			if (group.project.toLowerCase() === home?.toLowerCase()) {
-				continue;
-			}
 			for (const other of group.tickets) {
 				if (
 					other.state !== "open" ||
 					other.key === null ||
+					other === ticket ||
 					blocks.some((item) => sameRef(item, asRef(other) ?? self))
 				) {
 					continue;
@@ -1899,12 +1899,11 @@ function ticketRelations(
 				if (!refs.some((ref) => sameRef(ref, self) && stillOpen(self, index))) {
 					continue;
 				}
-				blocks.push({
-					tracker: other.tracker,
-					project: group.project,
-					key: other.key,
-					title: other.title.trim() || other.key,
-				});
+				pushBlock(
+					asRef(other) ?? self,
+					group.project,
+					other.title.trim() || other.key,
+				);
 			}
 		}
 	}
