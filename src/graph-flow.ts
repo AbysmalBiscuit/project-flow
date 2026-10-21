@@ -84,13 +84,7 @@ export function flowPlaces(
 	const bandRow = new Map<string, number>();
 	const assign = (idsInSet: string[], cursor: { row: number }): void => {
 		const rows = flowRows(idsInSet, incoming, depth);
-		const columns = new Map<number, string[]>();
-		for (const id of orderInSet(idsInSet)) {
-			const column = depth.get(id) ?? 0;
-			const names = columns.get(column) ?? [];
-			names.push(id);
-			columns.set(column, names);
-		}
+		const columns = byColumn(orderInSet(idsInSet), depth);
 		const columnsInOrder = [...columns.keys()].sort(
 			(left, right) => left - right,
 		);
@@ -233,6 +227,20 @@ function columnDepth(
 	return depth;
 }
 
+function byColumn(
+	ids: readonly string[],
+	depth: Map<string, number>,
+): Map<number, string[]> {
+	const columns = new Map<number, string[]>();
+	for (const id of ids) {
+		const column = depth.get(id) ?? 0;
+		const names = columns.get(column) ?? [];
+		names.push(id);
+		columns.set(column, names);
+	}
+	return columns;
+}
+
 function sourceRows(
 	id: string,
 	incoming: Map<string, string[]>,
@@ -250,13 +258,7 @@ function flowRows(
 	incoming: Map<string, string[]>,
 	depth: Map<string, number>,
 ): Map<string, number> {
-	const byDepth = new Map<number, string[]>();
-	for (const id of ids) {
-		const column = depth.get(id) ?? 0;
-		const names = byDepth.get(column) ?? [];
-		names.push(id);
-		byDepth.set(column, names);
-	}
+	const byDepth = byColumn(ids, depth);
 	const assigned = new Map<string, number>();
 	let next = 0;
 	const columns = [...byDepth.keys()].sort((left, right) => left - right);
