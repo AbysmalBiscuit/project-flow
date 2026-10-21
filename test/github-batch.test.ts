@@ -529,8 +529,7 @@ describe("batched GitHub reads", () => {
 					stdout: (line) => {
 						base = line;
 						const wait = async () => {
-							const deadline = Date.now() + 3_000;
-							while (Date.now() < deadline) {
+							while (true) {
 								const response = await fetch(
 									new URL("/api/overview", line),
 								).catch(() => null);
@@ -538,8 +537,8 @@ describe("batched GitHub reads", () => {
 									releaseReady();
 									return;
 								}
+								await Bun.sleep(20);
 							}
-							releaseReady();
 						};
 						void wait();
 					},

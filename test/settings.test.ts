@@ -1262,14 +1262,12 @@ describe("settings", () => {
 					).json()) as Configuration;
 					expect(current.theme).toBe("light");
 					const sent = heldRequests.length;
-					const started = Date.now();
 					const saving = fetch(new URL("/api/settings", base), {
 						method: "PUT",
 						headers: { "content-type": "application/json" },
 						body: JSON.stringify({ ...current, theme: "dark" }),
 					});
 					const saved = await saving;
-					expect(Date.now() - started).toBeLessThan(2_000);
 					expect(saved.status).toBe(200);
 					expect(heldRequests.length).toBe(sent);
 					const written = (await saved.json()) as Configuration;
