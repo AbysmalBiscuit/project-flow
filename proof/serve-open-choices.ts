@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "47122";
 const root = await mkdtemp(join("/var/tmp", "project-flow-open-choices-"));
@@ -77,11 +78,6 @@ const recorded: Fetch = async (input) => {
 	});
 };
 
-const stop = new Promise<void>((resolve) => {
-	process.on("SIGTERM", () => resolve());
-	process.on("SIGINT", () => resolve());
-});
-
 try {
 	await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 		env: {
@@ -97,7 +93,7 @@ try {
 		now: () => new Date("2026-08-18T12:00:00.000Z"),
 		stdout: (line) => console.log(line),
 		stderr: (line) => console.error(line),
-		waitForStop: stop,
+		waitForStop: proofStops(),
 	});
 } finally {
 	await rm(root, { recursive: true, force: true });

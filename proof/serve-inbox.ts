@@ -2,6 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { proofStops } from "./lifetime.ts";
 
 const ask = "<!-- workcell:ask pf-1 -->";
 const question = "Which bot should review this?";
@@ -104,11 +105,6 @@ export async function runLinearProof(
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const stop = new Promise<void>((resolve) => {
-		const done = () => resolve();
-		process.once("SIGINT", done);
-		process.once("SIGTERM", done);
-	});
 	try {
 		await run(
 			["--config", config, "--host", "127.0.0.1", "--port", proofPort],
@@ -119,7 +115,7 @@ export async function runLinearProof(
 				databasePath: join(root, "store.sqlite"),
 				now: () => new Date("2026-10-18T12:00:00.000Z"),
 				stdout: onListen,
-				waitForStop: stop,
+				waitForStop: proofStops(),
 			},
 		);
 	} finally {

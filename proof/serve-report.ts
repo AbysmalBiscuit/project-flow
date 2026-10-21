@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { run } from "../src/main.ts";
+import { proofStops } from "./lifetime.ts";
 
 const githubRepo = "acme/widget";
 const otherRepo = "acme/platform";
@@ -240,7 +241,7 @@ const result = await run(
 		now: () => new Date("2026-10-18T12:00:00.000Z"),
 		stdout: (line) => console.log(line),
 		stderr: (line) => console.error(line),
-		waitForStop: new Promise(() => {}),
+		waitForStop: proofStops(),
 	},
 );
 process.exit(result.exitCode);
