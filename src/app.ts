@@ -1282,24 +1282,30 @@ export async function start(options: StartOptions): Promise<Running> {
 					notifications: [],
 				});
 			}
-		})().finally(async () => {
-			polling = null;
-			if (refreshQueued && !stopped) {
-				refreshQueued = false;
-				void pollAgain().catch(() => {});
-				return;
-			}
-			pollOptions.polling = false;
-			if (!stopped) {
-				notifier.publish({
-					overview: overview(pollOptions, configuration),
-					notifications: [],
-				});
-				// The cold-start rejection stops the process on the next turn.
-				// Yield so the settled overview leaves the event stream first.
-				await Bun.sleep(0);
-			}
-		});
+		})()
+			.catch((error: unknown) => {
+				if (!hadRows) {
+					throw error;
+				}
+			})
+			.finally(async () => {
+				polling = null;
+				if (refreshQueued && !stopped) {
+					refreshQueued = false;
+					void pollAgain().catch(() => {});
+					return;
+				}
+				pollOptions.polling = false;
+				if (!stopped) {
+					notifier.publish({
+						overview: overview(pollOptions, configuration),
+						notifications: [],
+					});
+					// The cold-start rejection stops the process on the next turn.
+					// Yield so the settled overview leaves the event stream first.
+					await Bun.sleep(0);
+				}
+			});
 		return polling;
 	};
 	const beginPoll = (): void => {
