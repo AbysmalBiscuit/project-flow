@@ -30,6 +30,7 @@ import {
 	projectNodeId,
 } from "./graph-flow.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
+import { GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
@@ -569,6 +570,58 @@ export function graphModel(
 	};
 }
 
+function publishLayout(): void {
+	const root = document.getElementById("project-graph");
+	const probe = document.getElementById("project-graph-layout");
+	if (root === null || probe === null) {
+		return;
+	}
+	const pane = document.getElementById("project-graph-pane");
+	const legend = root.querySelector(
+		`[aria-label="${projectGraphLabel.legend}"]`,
+	);
+	const chrome = document.getElementById("project-graph-controls");
+	const page = document.documentElement;
+	if (
+		!(pane instanceof HTMLElement) ||
+		!(legend instanceof HTMLElement) ||
+		!(chrome instanceof HTMLElement)
+	) {
+		return;
+	}
+	const paneBox = pane.getBoundingClientRect();
+	const legendBox = legend.getBoundingClientRect();
+	const chromeBox = chrome.getBoundingClientRect();
+	const rootBox = root.getBoundingClientRect();
+	const apart =
+		Math.round(legendBox.right) <= Math.round(chromeBox.left) ||
+		Math.round(legendBox.bottom) <= Math.round(chromeBox.top) ||
+		Math.round(chromeBox.bottom) <= Math.round(legendBox.top);
+	const border = Number.parseFloat(getComputedStyle(root).borderTopWidth);
+	const edge = Number.isFinite(border) ? border : 0;
+	const flush =
+		Math.round(paneBox.top - edge) === Math.round(rootBox.top) &&
+		Math.round(paneBox.bottom + edge) === Math.round(rootBox.bottom);
+	const fits = page.scrollWidth === page.clientWidth;
+	probe.textContent = [
+		flush ? "canvas-flush" : "canvas-offset",
+		apart ? "floats-apart" : "floats-cover",
+		fits ? "page-fits" : "page-scrolls",
+	].join(" ");
+}
+
+function watchLayout(): () => void {
+	const root = document.getElementById("project-graph");
+	if (root === null) {
+		return () => {};
+	}
+	publishLayout();
+	const observer = new ResizeObserver(publishLayout);
+	observer.observe(root);
+	observer.observe(document.documentElement);
+	return () => observer.disconnect();
+}
+
 function Legend() {
 	return (
 		<section
@@ -618,6 +671,7 @@ export function ProjectGraph({
 	assignees,
 	openKey,
 	onOpen,
+	onDirection,
 }: {
 	report: ProjectReport;
 	reports: ProjectReport[];
@@ -626,6 +680,7 @@ export function ProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
+	onDirection: (direction: GraphDirection) => void;
 }) {
 	return (
 		<ReactFlowProvider>
@@ -637,6 +692,7 @@ export function ProjectGraph({
 				assignees={assignees}
 				openKey={openKey}
 				onOpen={onOpen}
+				onDirection={onDirection}
 			/>
 		</ReactFlowProvider>
 	);
@@ -650,6 +706,7 @@ function SizedProjectGraph({
 	assignees,
 	openKey,
 	onOpen,
+	onDirection,
 }: {
 	report: ProjectReport;
 	reports: ProjectReport[];
@@ -658,10 +715,12 @@ function SizedProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
+	onDirection: (direction: GraphDirection) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
+	useEffect(watchLayout, []);
 	const model = useMemo(() => {
 		if (span === null) {
 			return null;
@@ -709,6 +768,7 @@ function SizedProjectGraph({
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
 			</p>
+			<p id="project-graph-layout" className={clsx(board.graphLayout)} />
 			<p id="graph-states" className={clsx(cards.graphProbe)}>
 				{model.nodes
 					.flatMap((node) =>
@@ -720,8 +780,7 @@ function SizedProjectGraph({
 					)
 					.join(" | ")}
 			</p>
-			<Legend />
-			<div className={clsx(board.graphPane)}>
+			<div id="project-graph-pane" className={clsx(board.graphPane)}>
 				<ReactFlow
 					key={direction}
 					nodes={model.nodes}
@@ -758,6 +817,18 @@ function SizedProjectGraph({
 					<Background variant={BackgroundVariant.Dots} gap={18} />
 					<FitDirection key={direction} />
 				</ReactFlow>
+				<Legend />
+				<div id="project-graph-controls" className={clsx(board.graphChrome)}>
+					<div className={clsx(board.graphFloat)}>
+						<DirectionSwitch direction={direction} onChange={onDirection} />
+						<GraphTools
+							probeId="project-graph-viewport"
+							fitId="project-graph-fit"
+							scope="#project-graph"
+							styles="header"
+						/>
+					</div>
+				</div>
 			</div>
 		</div>
 	);

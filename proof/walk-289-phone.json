@@ -1,0 +1,9 @@
+{
+	"base_url": "http://127.0.0.1:4301",
+	"serve": ["bun", "proof/serve-graph-status.ts", "4301"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "canvas-flush floats-apart page-fits" },
+		{ "shot": "phone-floats" }
+	]
+}

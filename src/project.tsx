@@ -26,10 +26,9 @@ import {
 	ticketGroups,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { GraphTools } from "./graph-pane.tsx";
 import { TicketPanel } from "./panel.tsx";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
-import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
+import { ProjectGraph } from "./project-graph.tsx";
 import {
 	pageQuery,
 	pageQueryClient,
@@ -1481,22 +1480,6 @@ export function Page() {
 								refreshing={polling || reportQuery.isFetching}
 								onRefresh={() => postRefresh(pageQuery.project(name).queryKey)}
 							/>
-							{view === "graph" ? (
-								<>
-									<DirectionSwitch
-										direction={settings.graphDirection}
-										onChange={(next) =>
-											saveView({ ...settings, graphDirection: next })
-										}
-									/>
-									<GraphTools
-										probeId="project-graph-viewport"
-										fitId="project-graph-fit"
-										scope="#project-graph"
-										styles="header"
-									/>
-								</>
-							) : null}
 							<FilterMenu
 								report={report}
 								view={settings}
@@ -1598,6 +1581,9 @@ export function Page() {
 								groupBy={graphGroupBy(settings)}
 								assignees={settings.assignees}
 								openKey={open ? ticket : null}
+								onDirection={(next) =>
+									saveView({ ...settings, graphDirection: next })
+								}
 								onOpen={(node) => {
 									if (node.outside) {
 										openOutsideInPanel(node, node.state);

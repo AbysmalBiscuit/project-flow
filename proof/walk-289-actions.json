@@ -1,0 +1,14 @@
+{
+	"base_url": "http://127.0.0.1:4301",
+	"serve": ["bun", "proof/serve-graph-status.ts", "4301"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "left-to-right" },
+		{ "click": "#graph-direction-top-to-bottom" },
+		{ "assert_text": "top-to-bottom" },
+		{ "click": "[aria-label='Zoom in']" },
+		{ "click": "#project-graph-fit" },
+		{ "assert_text": "zoom" },
+		{ "shot": "controls-work" }
+	]
+}
