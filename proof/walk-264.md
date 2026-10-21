@@ -10,7 +10,7 @@ Item 4, one QueryClient across client navigation. Replay `proof/walk-264-nav.jso
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-264-nav.json --proof .devkit/proof --item 4
 ```
 
-The walk clears the request log, opens Overview, opens Needs you, and returns to Overview. The request page shows `overview fetches 0`. The seeded query stays fresh, so the return sends no second `/api/overview` request.
+The walk clears the request log, opens Overview, opens Needs you, and returns to Overview. The request page shows `overview fetches 1`. The first EventSource open invalidates the seeded overview, so the load sends one `GET /api/overview`. The return sends no second fetch.
 
 Item 6, stored data seeds the query. Replay `proof/walk-264-seed.json`:
 
@@ -28,7 +28,7 @@ python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/script
 
 The first paint shows the project name `acme/flow` and `0 of 1 done` from the stored poll. The walk clicks Refresh on the same page. The page shows `1 of 1 done` from the later poll, with no reload. The overview card paints the project name and the done line. It does not paint the ticket title. A closed ticket stays in its tracker lane, so the card does not paint a Dropped count.
 
-Item 8, the refresh icon. Replay `proof/walk-264-refresh.json`. The walk opens Overview, holds the next overview response, returns to Overview, and clicks Refresh:
+Item 8, the refresh icon. Replay `proof/walk-264-refresh.json`. The walk opens Overview. `/proof/hold` holds every later `GET /api/overview` after that first page load. The walk returns to Overview and clicks Refresh:
 
 ```
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-264-refresh.json --proof .devkit/proof --item 8

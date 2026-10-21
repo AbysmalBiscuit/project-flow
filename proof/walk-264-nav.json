@@ -10,7 +10,7 @@
 		{ "click": "a[href='/']" },
 		{ "assert_text": "Overview" },
 		{ "goto": "/proof/requests" },
-		{ "assert_text": "overview fetches 0" },
+		{ "assert_text": "overview fetches 1" },
 		{ "shot": "nav-one-overview-fetch" }
 	]
 }
