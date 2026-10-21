@@ -10,13 +10,7 @@ import {
 	useState,
 } from "react";
 import { readSettings, writeSettings } from "./client-settings.ts";
-import {
-	type Configuration,
-	type OverviewView,
-	overviewFilters,
-	overviewSorts,
-	overviewViews,
-} from "./configuration.ts";
+import type { Configuration } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
 	NeedsYouItem,
@@ -30,6 +24,12 @@ import {
 	notificationPermission,
 } from "./notify.tsx";
 import { OverviewGraph } from "./overview-graph.tsx";
+import {
+	type OverviewView,
+	overviewFilters,
+	overviewSorts,
+	overviewViews,
+} from "./overview-view.ts";
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { openProject, projectPath } from "./paths.ts";
 import {
@@ -1033,6 +1033,6 @@ function mount(): void {
 }
 
 if (typeof document !== "undefined") {
-	mount();
 	window.addEventListener("project-flow-page", mount);
+	mount();
 }

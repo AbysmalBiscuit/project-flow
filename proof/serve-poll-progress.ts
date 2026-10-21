@@ -106,6 +106,8 @@ const result = await run(
 		},
 		fetch: fetchImpl,
 		readGhToken: async () => null,
+		listTodos: async () => "",
+		listCheckouts: async () => [],
 		databasePath: join(dataHome, "project-flow.sqlite"),
 		now: () => new Date("2026-10-21T12:00:00.000Z"),
 		stdout: (line) => console.log(line),

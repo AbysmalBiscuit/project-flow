@@ -18,7 +18,6 @@ import type {
 	ReplyRequest,
 	Snapshot,
 	Thread,
-	TicketView,
 } from "./domain.ts";
 import {
 	type Attention,
@@ -291,15 +290,8 @@ function overview(
 	};
 }
 
+export type { TicketSearchHit } from "./ticket-key.ts";
 export type { SettingsProject };
-
-export type TicketSearchHit = {
-	project: string;
-	tracker: "github" | "linear";
-	key: string;
-	title: string;
-	state: TicketView["state"];
-};
 
 function searchTickets(
 	views: {
