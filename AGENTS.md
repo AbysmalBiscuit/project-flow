@@ -8,6 +8,8 @@ Run `bun install`, then `prek install`. The hooks run the CI checks before a com
 
 The checks are `bun run typecheck`, `bun run test` and `bun run lint`. `bun run typecheck` runs `bun check`, the Bun type checker. `bun run format` fixes format and import order.
 
+The pre-push hook runs only the tests that the change affects. The copy of `scripts/affected-tests.ts` on `origin/main` selects them and prints the reason for each choice. A change to shared test setup, the lockfile, the package files or the hook scripts runs the full suite. Set `PROJECT_FLOW_FULL_SUITE=1` to force the full suite. `bun run test`, the `check` task and CI always run the full suite.
+
 ## Coding standards
 
 Issue #1 holds the v1 rules. Issue #97 overrides #1 where they differ. Use the terms in `GLOSSARY.md`.
@@ -37,6 +39,7 @@ The code is hexagonal.
 ### Tests
 
 - The one test seam is the HTTP API. Tests start the real app with a temporary store, a temporary configuration file and a fake `fetch`.
+- A test of a repo script runs the script itself on a temporary git repository.
 - The fake `fetch` serves tracker responses recorded from real tickets and PRs. It also records each request that the app sends.
 - Tests assert only on API responses, server-sent events and the requests sent to the trackers.
 - Do not write unit tests below the seam. Test a domain rule through the HTTP API.
