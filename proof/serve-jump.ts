@@ -1,5 +1,9 @@
 import type { Fetch } from "../src/fetch.ts";
-import { recordedDiscovery, urlOf } from "../test/support.ts";
+import {
+	recordedDiscovery,
+	repoReadFromLists,
+	urlOf,
+} from "../test/support.ts";
 import {
 	emptyLinear,
 	emptyLists,
@@ -29,6 +33,11 @@ function issue(
 const boardIssues = [
 	issue(12, "Ship the widget", board),
 	issue(3, "Hold the launch", board),
+	issue(
+		44,
+		"project-flow ticket search keeps a very long title inside the box without a sideways scroll bar",
+		board,
+	),
 ];
 const gateIssues = [issue(9, "Open the gate", gate)];
 
@@ -36,6 +45,13 @@ const recorded: Fetch = async (input, init) => {
 	const discovered = recordedDiscovery(input, init);
 	if (discovered !== null) {
 		return discovered;
+	}
+	const listed = repoReadFromLists(input, init, {
+		[board]: boardIssues,
+		[gate]: gateIssues,
+	});
+	if (listed !== null) {
+		return listed;
 	}
 	const url = urlOf(input);
 	if (url === "https://api.github.com/user") {
@@ -71,7 +87,7 @@ const recorded: Fetch = async (input, init) => {
 
 await serveRecorded({
 	prefix: "project-flow-jump-",
-	port: process.env.PORT ?? "4188",
+	port: process.env.PORT ?? process.argv[2] ?? "4188",
 	config: {
 		pinned: [
 			{ tracker: "github", repo: board },

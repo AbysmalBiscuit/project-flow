@@ -48,6 +48,7 @@ function onOpenJumpBox(listener: () => void): () => void {
 
 export function JumpBox() {
 	const [open, setOpen] = useState(false);
+	const [closed, setClosed] = useState(false);
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
 	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
@@ -62,10 +63,12 @@ export function JumpBox() {
 	);
 	const opened = useRef<OpenedTicket | null>(null);
 	const queryRef = useRef<HTMLInputElement>(null);
+	const boxRef = useRef<HTMLDivElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const openRef = useRef(false);
 	const closeSearch = useCallback(() => {
 		setOpen(false);
+		setClosed(true);
 		openRef.current = false;
 		const target = returnFocus.current;
 		returnFocus.current = null;
@@ -88,6 +91,7 @@ export function JumpBox() {
 				returnFocus.current =
 					active instanceof HTMLElement && !insideSearch ? active : null;
 				openRef.current = true;
+				setClosed(false);
 				setOpen(true);
 			}),
 		[],
@@ -120,6 +124,20 @@ export function JumpBox() {
 		};
 		window.addEventListener("keydown", onEscape);
 		return () => window.removeEventListener("keydown", onEscape);
+	}, [open, closeSearch]);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onPointerDown = (event: PointerEvent) => {
+			const target = event.target;
+			if (!(target instanceof Node) || boxRef.current?.contains(target)) {
+				return;
+			}
+			closeSearch();
+		};
+		document.addEventListener("pointerdown", onPointerDown);
+		return () => document.removeEventListener("pointerdown", onPointerDown);
 	}, [open, closeSearch]);
 	const applyNeeds = useCallback((loaded: NeedsYouItem[]) => {
 		needsRef.current = loaded;
@@ -234,17 +252,26 @@ export function JumpBox() {
 	const pageRendersPanel =
 		path === "/needs-you" || path === "/inbox" || path.startsWith("/projects/");
 	if (!open && (ticket === null || pageRendersPanel)) {
-		return null;
+		return closed ? <p className={clsx(jump.status)}>Search closed</p> : null;
 	}
 	return (
 		<>
 			{open ? (
-				<div className={clsx(jump.shade)}>
+				<div className={clsx(jump.shade)} id="jump-shade">
 					<div
 						className={clsx(jump.box)}
 						role="dialog"
 						aria-label="Search tickets"
+						ref={boxRef}
 					>
+						<button
+							type="button"
+							id="walk-escape"
+							className={clsx(jump.escape)}
+							onClick={() => closeSearch()}
+						>
+							Close search
+						</button>
 						<input
 							className={clsx(jump.query)}
 							id="jump-query"
@@ -256,7 +283,7 @@ export function JumpBox() {
 							onChange={(event) => setQuery(event.target.value)}
 						/>
 						{query.trim() !== "" && hits.length === 0 ? (
-							<p>No tickets</p>
+							<p className={clsx(jump.empty)}>No tickets</p>
 						) : null}
 						<ul className={clsx(jump.list)}>
 							{hits.map((hit) => (
