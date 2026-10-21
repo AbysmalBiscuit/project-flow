@@ -11,6 +11,7 @@ import {
 	linearFake,
 	recordedDiscovery,
 	repoReadFromLists,
+	settledOverview,
 	type TrackerRequest,
 	tempConfig,
 	testIo,
@@ -429,6 +430,11 @@ async function refresh(base: string): Promise<void> {
 		method: "POST",
 	});
 	expect(response.status).toBe(204);
+	await settledOverview(base, async (url) => {
+		return (await (await fetch(new URL("/api/overview", url))).json()) as {
+			polling?: true;
+		};
+	});
 }
 
 async function inboxOf(base: string): Promise<InboxEntry[]> {
@@ -2244,13 +2250,21 @@ describe("inbox", () => {
 			releaseIssues();
 			const refreshed = await refreshing;
 			expect(refreshed.status).toBe(204);
-			const project = await fetch(
-				new URL("/api/projects/Project%20Flow?view=all", base),
-			);
-			expect(project.status).toBe(200);
-			const report = (await project.json()) as {
-				tickets: { key: string | null; title: string }[];
+			const settled = Date.now() + 3_000;
+			let report: { tickets: { key: string | null; title: string }[] } = {
+				tickets: [],
 			};
+			while (Date.now() < settled) {
+				const project = await fetch(
+					new URL("/api/projects/Project%20Flow?view=all", base),
+				);
+				expect(project.status).toBe(200);
+				report = (await project.json()) as typeof report;
+				if (report.tickets[0]?.title === "Review bot chosen") {
+					break;
+				}
+				await Bun.sleep(20);
+			}
 			expect(report.tickets).toEqual([
 				expect.objectContaining({
 					key: "PF-1",

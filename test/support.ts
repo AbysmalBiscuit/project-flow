@@ -527,7 +527,17 @@ export function repoReadFromHandler(
 				) {
 					return new Response("[]", { status: 404 });
 				}
-				const response = await handler(restInput, restInit);
+				let response: Response;
+				try {
+					response = await handler(restInput, restInit);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : "recorded page failed";
+					return new Response(JSON.stringify({ errors: [{ message }] }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
 				if (response.status === 304) {
 					return response;
 				}
@@ -539,6 +549,12 @@ export function repoReadFromHandler(
 				return response;
 			};
 			const issuesResponse = await issueList(handler, repo);
+			if (!issuesResponse.ok && issuesResponse.status !== 304) {
+				return new Response(await issuesResponse.text(), {
+					status: issuesResponse.status,
+					headers: issuesResponse.headers,
+				});
+			}
 			if (issuesResponse.status === 304) {
 				const etag = issuesResponse.headers.get("etag");
 				return new Response(null, {
@@ -631,7 +647,9 @@ export function repoReadFromHandler(
 				}
 				if (!response.ok) {
 					if (required) {
-						throw new Error(`recorded page failed HTTP ${response.status}`);
+						throw new Error(
+							`GitHub read repo failed (HTTP ${response.status})`,
+						);
 					}
 					return [];
 				}
@@ -752,8 +770,10 @@ export function repoReadFromHandler(
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "recorded page failed";
-			const status = Number(message.match(/HTTP (\d+)/)?.[1] ?? 500);
-			return new Response(message, { status });
+			return new Response(JSON.stringify({ errors: [{ message }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
 		}
 	})();
 }
@@ -930,6 +950,51 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 			return answered;
 		}
 	};
+}
+
+export type ChangeEvent = {
+	event: string;
+	data: string;
+};
+
+export async function settledOverview<Body extends { polling?: true }>(
+	base: string,
+	read: (base: string) => Promise<Body>,
+): Promise<Body> {
+	const deadline = Date.now() + 3_000;
+	let body: Body | null = null;
+	while (Date.now() < deadline) {
+		body = await read(base);
+		if (body.polling !== true) {
+			return body;
+		}
+		await Bun.sleep(20);
+	}
+	if (body === null) {
+		throw new Error("overview never answered");
+	}
+	return body;
+}
+
+export async function settledOverviewEvent<Body extends { polling?: true }>(
+	events: AsyncIterator<ChangeEvent>,
+	parse: (data: string) => Body,
+	limit = 4,
+): Promise<Body> {
+	for (let seen = 0; seen < limit; seen += 1) {
+		const received = await events.next();
+		if (received.done || received.value === undefined) {
+			break;
+		}
+		if (received.value.event !== "overview") {
+			continue;
+		}
+		const body = parse(received.value.data);
+		if (body.polling !== true) {
+			return body;
+		}
+	}
+	throw new Error("the event stream sent no overview after the poll");
 }
 
 export function urlOf(input: string | URL | Request): string {

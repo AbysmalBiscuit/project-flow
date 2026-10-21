@@ -628,7 +628,7 @@ async function replyResponse(
 		const created: PostedReply = await tracker.postReply(reply);
 		recordPostedReply(options.store, reply, created);
 		notifier.publish({
-			overview: overview(options, configuration),
+			overview: runningOverview(options, configuration),
 			notifications: [],
 		});
 		return Response.json(created, { status: 201 });
@@ -1243,15 +1243,16 @@ export async function start(options: StartOptions): Promise<Running> {
 		}
 		opened.store.recordSeededIds(kept);
 	}
+	let listsHeld = false;
 	let releaseLists = () => {};
 	if (hadRows) {
-		let released = false;
+		listsHeld = true;
 		pollOptions.holdLists = new Promise<void>((resolve) => {
 			releaseLists = () => {
-				if (released) {
+				if (!listsHeld) {
 					return;
 				}
-				released = true;
+				listsHeld = false;
 				resolve();
 			};
 		});
@@ -1260,6 +1261,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	let polling: Promise<void> | null = null;
 	let stopped = false;
 	let firstPollDone = false;
+	let refreshQueued = false;
 	const pollAgain = (): Promise<void> => {
 		if (stopped) {
 			return Promise.resolve();
@@ -1267,6 +1269,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (polling !== null) {
 			return polling;
 		}
+		let rejected = false;
 		polling = (async () => {
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
@@ -1274,6 +1277,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			try {
 				configuration = await poll(pollOptions);
 			} catch (error) {
+				rejected = true;
 				if (stopped) {
 					return;
 				}
@@ -1282,16 +1286,49 @@ export async function start(options: StartOptions): Promise<Running> {
 				if (opened.store.readTickets().length === 0) {
 					throw error;
 				}
+			}
+		})().finally(async () => {
+			polling = null;
+			if (refreshQueued && !stopped) {
+				refreshQueued = false;
+				void pollAgain().catch(() => {});
+				return;
+			}
+			pollOptions.polling = false;
+			if (stopped) {
+				return;
+			}
+			// A successful poll already published. Publish here only after a
+			// rejection, so an empty store still ends the running state.
+			if (rejected) {
 				notifier.publish({
 					overview: overview(pollOptions, configuration),
 					notifications: [],
 				});
 			}
-		})().finally(() => {
-			pollOptions.polling = false;
-			polling = null;
+			// A cold failure stops the process on the next turn. Yield so the
+			// settled overview leaves the event stream first.
+			if (rejected && !firstPollDone) {
+				await Bun.sleep(0);
+			}
 		});
 		return polling;
+	};
+	const beginPoll = (): void => {
+		pollOptions.polling = true;
+		const releasedHeldLists = listsHeld;
+		releaseLists();
+		if (polling !== null) {
+			if (releasedHeldLists || !firstPollDone) {
+				refreshQueued = true;
+			}
+		} else {
+			void pollAgain().catch(() => {});
+		}
+		notifier.publish({
+			overview: runningOverview(pollOptions, configuration),
+			notifications: [],
+		});
 	};
 	const firstPoll = pollAgain().finally(() => {
 		firstPollDone = true;
@@ -1305,14 +1342,14 @@ export async function start(options: StartOptions): Promise<Running> {
 			clearInterval(timer);
 		}
 		timer = setInterval(() => {
-			void pollAgain();
+			void pollAgain().catch(() => {});
 		}, seconds * 1_000);
 		timer.unref?.();
 	};
 	const armTimer = () => {
 		schedule(configuration.pollIntervalSeconds);
 	};
-	void firstPoll.then(armTimer, armTimer);
+	void firstPoll.then(armTimer, armTimer).catch(() => {});
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
@@ -1422,10 +1459,8 @@ export async function start(options: StartOptions): Promise<Running> {
 				},
 			},
 			"/api/refresh": {
-				POST: async () => {
-					releaseLists();
-					await (polling ?? Promise.resolve());
-					await pollAgain();
+				POST: () => {
+					beginPoll();
 					return new Response(null, { status: 204 });
 				},
 			},
