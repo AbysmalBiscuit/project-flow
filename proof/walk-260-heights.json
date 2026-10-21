@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4794",
+	"serve": ["bun", "proof/serve-cards.ts", "4794"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "acme/short" },
+		{ "assert_text": "acme/tall" },
+		{ "assert_text": "acme/empty" },
+		{ "assert_text": "+5 more" },
+		{ "shot": "cards-heights" }
+	]
+}

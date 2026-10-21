@@ -1,11 +1,16 @@
 import type { Fetch } from "../src/fetch.ts";
-import { recordedDiscovery, urlOf } from "../test/support.ts";
+import {
+	recordedDiscovery,
+	repoReadFromHandler,
+	urlOf,
+} from "../test/support.ts";
 import { serveRecorded, unrecorded } from "./recorded.ts";
 
 const tall = "acme/tall";
 const short = "acme/short";
 const empty = "acme/empty";
 const port = process.argv[2] ?? "4794";
+const blockerCount = 6;
 
 function issue(
 	repo: string,
@@ -26,14 +31,20 @@ function issue(
 	};
 }
 
-const tallIssues = [issue(tall, 1, "Keep the card short")];
+const tallIssues = Array.from({ length: blockerCount }, (_, index) =>
+	issue(tall, index + 1, `Blocker ${index + 1}`),
+);
 
 const shortIssues = [
-	issue(short, 1, "First open ticket"),
-	issue(short, 2, "Second open ticket"),
-	issue(short, 3, "Blocked across projects", `Blocked by: ${tall}#1`),
-	issue(short, 4, "Fourth open ticket"),
-	issue(short, 5, "Fifth open ticket so the neighbour grows"),
+	issue(
+		short,
+		1,
+		"Wait on six tickets",
+		Array.from(
+			{ length: blockerCount },
+			(_, index) => `Blocked by: ${tall}#${index + 1}`,
+		).join("\n"),
+	),
 ];
 
 const recorded: Fetch = async (input, init) => {
@@ -68,9 +79,18 @@ const recorded: Fetch = async (input, init) => {
 		return Response.json([]);
 	}
 	if (url === "https://api.github.com/graphql") {
+		const body = typeof init?.body === "string" ? init.body : "";
+		if (body.includes("query RepoRead")) {
+			const read = await repoReadFromHandler(input, init, recorded);
+			if (read !== null) {
+				return read;
+			}
+		}
 		return Response.json({
 			data: {
 				repository: {
+					nameWithOwner: "acme/tall",
+					autoMergeAllowed: false,
 					issue: { closedByPullRequestsReferences: { nodes: [] } },
 					pullRequest: { closingIssuesReferences: { nodes: [] } },
 				},
