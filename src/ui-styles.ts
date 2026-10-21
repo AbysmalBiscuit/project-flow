@@ -673,7 +673,6 @@ export const cards = stylex.create({
 	},
 	graphCard: {
 		display: "block",
-		color: colours.ink,
 		textDecoration: "none",
 		cursor: "pointer",
 	},
