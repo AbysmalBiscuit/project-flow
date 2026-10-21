@@ -15,6 +15,7 @@ const mode = process.argv[3] ?? "filled";
 const repo = "acme/widget";
 const title = "Ship the board";
 const postedBodies: string[] = [];
+let holdThreadRead = false;
 
 let holdSettingsRead = false;
 let releaseHold: () => void = () => {};
@@ -215,6 +216,12 @@ const result = await run(
 								headers: { "content-type": "text/plain" },
 							});
 						}
+						if (url.pathname === "/proof/hold-thread") {
+							holdThreadRead = true;
+							return new Response("thread read held", {
+								headers: { "content-type": "text/plain" },
+							});
+						}
 						const pageRead =
 							request.method === "GET" &&
 							(url.pathname.startsWith("/api/projects/") ||
@@ -228,6 +235,13 @@ const result = await run(
 							holdSettingsRead &&
 							request.method === "GET" &&
 							url.pathname === "/api/settings"
+						) {
+							await new Promise(() => {});
+						}
+						if (
+							holdThreadRead &&
+							request.method === "GET" &&
+							url.pathname.startsWith("/api/threads/")
 						) {
 							await new Promise(() => {});
 						}

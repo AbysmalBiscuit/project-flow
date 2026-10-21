@@ -1,0 +1,17 @@
+{
+	"base_url": "http://127.0.0.1:4769",
+	"serve": ["bun", "proof/serve-265.ts", "4769", "live"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Ship the board" },
+		{ "click": "[data-ticket='acme/widget#7']" },
+		{ "assert_text": "Which name should the board use?" },
+		{ "goto": "/proof/hold-thread" },
+		{ "assert_text": "thread read held" },
+		{ "goto": "/projects/acme%2Fwidget?ticket=acme%2Fwidget%237" },
+		{ "assert_text": "This thread did not load." },
+		{ "click": "[data-retry='thread']" },
+		{ "assert_text": "Loading thread" },
+		{ "shot": "thread-loading" }
+	]
+}

@@ -254,6 +254,7 @@ export function TicketPanel({
 	const thread = read?.status === "ready" ? read.thread : null;
 	const missing = read?.status === "missing";
 	const failed = read?.status === "failed";
+	const loadingThread = threadQuery.isFetching;
 	async function pick(option: number): Promise<void> {
 		if (pending || picked) {
 			return;
@@ -328,6 +329,7 @@ export function TicketPanel({
 						type="button"
 						className={clsx(panel.retry, shell.buttonFocus)}
 						data-retry="thread"
+						disabled={loadingThread}
 						onClick={() => {
 							void threadQuery.refetch();
 						}}
@@ -336,7 +338,7 @@ export function TicketPanel({
 					</button>
 				</p>
 			) : null}
-			{thread === null && !missing && !failed ? (
+			{loadingThread || (thread === null && !missing && !failed) ? (
 				<p className={clsx(panel.label)}>Loading thread</p>
 			) : null}
 			{thread !== null || title !== undefined ? (

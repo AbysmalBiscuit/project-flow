@@ -29,3 +29,10 @@ python3 /home/lev/.grok/installed-plugins/workcell-a8292766/src/workcell/walk_re
 
 The walk opens Overview, then Settings. Settings shows `acme/widget` and `Connected`. The walk opens `/proof/hold-settings`. That route holds every later settings read. The walk returns to Overview, opens Table, and sorts by the Needs you column. It opens Settings again, then Projects and Trackers. Settings still shows `acme/widget` and `Connected`.
 
+Item 6, a thread retry shows Loading thread. Replay `proof/walk-265-retry.json`:
+
+```
+python3 /home/lev/.grok/installed-plugins/workcell-a8292766/src/workcell/walk_replay.py --walk-file proof/walk-265-retry.json --proof .devkit/proof --item 6
+```
+
+The walk opens the project page, opens ticket `acme/widget#7`, and waits until the thread shows the comment. It opens `/proof/hold-thread`. That route holds every later thread read. The walk reopens the ticket and clicks Retry. The page shows `Loading thread` while that read stays held.

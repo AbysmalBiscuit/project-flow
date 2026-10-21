@@ -69,6 +69,7 @@ export const pageQuery = {
 		queryOptions({
 			queryKey: ["thread", tracker, project, key],
 			queryFn: () => readThread(tracker, project, key),
+			placeholderData: (previous: ThreadRead | undefined) => previous,
 		}),
 };
 
