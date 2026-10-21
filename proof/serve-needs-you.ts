@@ -285,6 +285,12 @@ const recorded: Fetch = async (input, init) => {
 	}
 	if (
 		url === `https://api.github.com/repos/${repo}/issues/8` &&
+		process.env.NEEDS_THREAD === "failed"
+	) {
+		return new Response("upstream down", { status: 502 });
+	}
+	if (
+		url === `https://api.github.com/repos/${repo}/issues/8` &&
 		process.env.NEEDS_THREAD !== "missing"
 	) {
 		return Response.json({

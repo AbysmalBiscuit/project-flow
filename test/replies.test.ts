@@ -56,6 +56,7 @@ function githubFetch(
 		comments?: Record<number, Record<string, unknown>[]>;
 		reviewComments?: Record<number, Record<string, unknown>[]>;
 		failReply?: boolean;
+		failThread?: boolean;
 		graphql?: (query: string) => Response | null;
 	},
 ): Fetch {
@@ -79,6 +80,9 @@ function githubFetch(
 		}
 		const oneIssue = url.match(/\/repos\/(acme\/widget)\/issues\/(\d+)$/);
 		if (oneIssue !== null && method === "GET") {
+			if (options.failThread === true) {
+				return new Response("upstream down", { status: 502 });
+			}
 			const number = Number(oneIssue[2]);
 			const found = options.issues.find((item) => item.number === number);
 			if (found === undefined) {
@@ -720,6 +724,36 @@ describe("replies", () => {
 			};
 			expect(failed.error).toBeUndefined();
 			expect(failed.missing).toBe(true);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a tracker failure stays an error, not a missing thread", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, {
+			issues: [issue(7)],
+			failThread: true,
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(502);
+			const failed = (await response.json()) as {
+				error?: string;
+				missing?: boolean;
+			};
+			expect(failed.missing).toBeUndefined();
+			expect(failed.error).toBe("GitHub fetch thread failed (HTTP 502)");
+			expect(sent.some((item) => item.url.endsWith("/issues/7"))).toBe(true);
 		} finally {
 			await app.stop();
 		}
