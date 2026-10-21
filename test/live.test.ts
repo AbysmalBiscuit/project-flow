@@ -1564,9 +1564,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.projects).toEqual([
 				counts(
 					repo,
@@ -1660,9 +1658,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
-				const repeated = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const repeated = await settledOverview(base, readOverview);
 				const stillFresh = repeated.projects.find(
 					(project) => project.name === repo,
 				);
@@ -1877,15 +1873,13 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				const body = await settledOverview(base, readOverview);
 				expect(requests).toHaveLength(2);
 				expect(requests.map(linearListSince)).toEqual([null, null]);
 				const filters = requests
 					.map(linearIssueFilter)
 					.filter((filter) => filter !== null);
 				expect(filters[1]?.updatedAt).toBeUndefined();
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
 				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
 					"WID-2",
 				]);
@@ -1948,9 +1942,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(failed.status).toBe(204);
-				const failedBody = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const failedBody = await settledOverview(base, readOverview);
 				expect(failedBody.projects).toEqual([
 					counts(
 						linearProject,
@@ -1969,11 +1961,9 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				const body = await settledOverview(base, readOverview);
 				const lists = requests.map(linearListSince);
 				expect(lists).toEqual([null, goodPoll, goodPoll]);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
 				expect(body.projects).toEqual([
 					counts(
 						linearProject,
@@ -2011,9 +2001,7 @@ describe("live updates", () => {
 			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
 				goodPoll,
 			);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
 			expect(body.error).toBeNull();
 		});
@@ -2278,10 +2266,8 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
+				const body = await settledOverview(base, readOverview);
 				expect(requests.map(linearListSince)).toEqual([null, goodPoll]);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
 				expect(body.projects.map((project) => project.name)).toEqual([
 					"Widget launch",
 				]);
@@ -2409,9 +2395,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const body = await settledOverview(base, readOverview);
 				const report = (await (
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(linearProject)}`, base),
@@ -2567,9 +2551,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			const report = (await (
 				await fetch(new URL(`/api/projects/${encodeURIComponent(repo)}`, base))
 			).json()) as { tickets: ShownTicket[] };
@@ -2650,9 +2632,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.projects[0]?.tickets).toEqual([githubTicket(1, "backlog")]);
 			expect(body.error).toBeNull();
 			expect(requests.filter((url) => /\/issues\/\d+$/.test(url))).toEqual([]);
@@ -2705,9 +2685,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.projects[0]?.tickets.map((item) => item.key)).toEqual([
 				`${repo}#1`,
 			]);
@@ -2873,9 +2851,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const body = await settledOverview(base, readOverview);
 				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
 					"WID-1",
 					"WID-2",
@@ -2915,9 +2891,7 @@ describe("live updates", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const body = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as OverviewBody;
+					const body = await settledOverview(base, readOverview);
 					expect(body.error).toContain("not JSON");
 					expect(body.projects).toEqual([
 						counts(repo, 0, 0, "github", [], goodPoll),
