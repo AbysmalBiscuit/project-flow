@@ -452,14 +452,12 @@ describe("GET /api/projects/:name", () => {
 				expect(workstreamOf(22)).toBe("Ship the list");
 				expect(workstreamOf(23)).toBe("Draw the rows");
 				expect(
-					report.tickets.find(
-						(ticket) => ticket.key === `${githubRepo}#22`,
-					)?.workstreamKey,
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#22`)
+						?.workstreamKey,
 				).toBe(`${githubRepo}#21`);
 				expect(
-					report.tickets.find(
-						(ticket) => ticket.key === `${githubRepo}#23`,
-					)?.workstreamKey,
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#23`)
+						?.workstreamKey,
 				).toBe(`${githubRepo}#22`);
 			},
 		);

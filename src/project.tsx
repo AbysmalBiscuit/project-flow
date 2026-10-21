@@ -1348,9 +1348,7 @@ function Page() {
 						id="project-group"
 						label="Group by"
 						value={
-							view === "graph"
-								? graphGroupBy(settings)
-								: boardGroupBy(settings)
+							view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
 						}
 						choices={groupByKeys.map((id) => ({
 							id,
@@ -1395,9 +1393,7 @@ function Page() {
 					data-project={report.name}
 					data-open-view={view}
 					data-group-by={
-						view === "graph"
-							? graphGroupBy(settings)
-							: boardGroupBy(settings)
+						view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
 					}
 				/>
 				<div className={clsx(board.stage)}>
