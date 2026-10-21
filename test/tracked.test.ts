@@ -7,6 +7,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
 	emptyRepoRead,
+	settledOverview,
 	tempConfig,
 	testIo,
 	trackerRequest,
@@ -276,13 +277,21 @@ async function serve<T>(
 	}
 }
 
-async function startFromFile(path: string, root: string): Promise<Started> {
-	const { checked, sent } = await serveFile(path, root, (base) =>
-		Promise.all([
-			read<Overview>(base, "/api/overview"),
-			read<Started["settings"]>(base, "/api/settings"),
-		]),
-	);
+async function startFromFile(
+	path: string,
+	root: string,
+	ready?: (sent: readonly string[]) => boolean,
+): Promise<Started> {
+	const { checked, sent } = await serveFile(path, root, async (base, seen) => {
+		while (ready !== undefined && !ready(seen)) {
+			await Bun.sleep(20);
+		}
+		const overview = await settledOverview(base, (url) =>
+			read<Overview & { polling?: true }>(url, "/api/overview"),
+		);
+		const settings = await read<Started["settings"]>(base, "/api/settings");
+		return [overview, settings] as const;
+	});
 	const [overview, settings] = checked;
 	return { overview, settings, sent };
 }
@@ -553,7 +562,9 @@ describe("tracked projects", () => {
 			expect(
 				turnedOn.checked.projects.map((project) => project.name),
 			).toContain("acme/repo-1");
-			const restarted = await startFromFile(path, root);
+			const restarted = await startFromFile(path, root, (sent) =>
+				sent.some((request) => request.includes("RepoRead acme/repo-1")),
+			);
 			expect(restarted.settings.tracked).toEqual([
 				{ tracker: "github" as const, repo: "acme/repo-1" },
 			]);

@@ -942,6 +942,8 @@ describe("local projects", () => {
 						expect(response.status).toBe(200);
 						return (await response.json()) as {
 							projects: unknown[];
+							fetchedAt: string | null;
+							error: string | null;
 							polling?: true;
 						};
 					});
