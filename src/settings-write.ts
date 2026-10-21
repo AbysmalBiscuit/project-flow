@@ -32,7 +32,7 @@ export function settingsResponse(
 	};
 }
 
-export function withoutTrackers(text: string): string {
+function withoutTrackers(text: string): string {
 	const trimmed = text.trim();
 	if (trimmed === "") {
 		return text;

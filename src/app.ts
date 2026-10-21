@@ -638,8 +638,6 @@ type PollOptions = {
 	progress: PollProgress | null;
 	stopped: boolean;
 	catalogue: FoundProject[];
-	/** True after this poll's discovery has filled the catalogue. */
-	discovered: boolean;
 	/** False when a tracked-list write landed after this poll started. */
 	mayPublish: () => boolean;
 };
@@ -1231,7 +1229,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		progress: null,
 		stopped: false,
 		catalogue: [],
-		discovered: false,
 	};
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(pollOptions, configuration);
@@ -1265,13 +1262,12 @@ export async function start(options: StartOptions): Promise<Running> {
 	let noteDiscovery: () => void = () => {};
 	let stopped = false;
 	let firstPollDone = false;
-	let firstPublished = false;
 	let refreshQueued = false;
 	// A poll that started before the last tracked-list write cannot answer for it.
 	let trackedGeneration = 0;
 	let activeGeneration = 0;
 	let savingTracked = false;
-	let publishedGeneration = 0;
+	let freshPoll: Promise<void> | null = null;
 	const pollAgain = (): Promise<void> => {
 		if (stopped || pollOptions.stopped) {
 			return Promise.resolve();
@@ -1291,23 +1287,21 @@ export async function start(options: StartOptions): Promise<Running> {
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
 			}
-			pollOptions.discovered = false;
 			discovery = new Promise<void>((resolve) => {
-				noteDiscovery = () => {
-					pollOptions.discovered = true;
-					resolve();
-				};
+				noteDiscovery = resolve;
 			});
 			pollOptions.releaseDiscovery = noteDiscovery;
 			try {
 				configuration = await poll(pollOptions);
-				if (generation === trackedGeneration) {
-					publishedGeneration = generation;
-				} else {
+				if (generation !== trackedGeneration) {
 					refreshQueued = true;
 				}
 			} catch (error) {
-				if (stopped || pollOptions.stopped) {
+				if (
+					stopped ||
+					pollOptions.stopped ||
+					generation !== trackedGeneration
+				) {
 					return;
 				}
 				rejected = true;
@@ -1322,11 +1316,15 @@ export async function start(options: StartOptions): Promise<Running> {
 			polling = null;
 			if (
 				!stopped &&
-				(refreshQueued ||
-					(firstPublished &&
-						savingTracked &&
-						activeGeneration !== trackedGeneration))
+				savingTracked &&
+				activeGeneration !== trackedGeneration &&
+				freshPoll === null
 			) {
+				const next = pollAgain().catch(() => {});
+				freshPoll = next;
+				return;
+			}
+			if (!stopped && refreshQueued && !savingTracked) {
 				refreshQueued = false;
 				await pollAgain().catch(() => {});
 				return;
@@ -1365,7 +1363,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			overview: runningOverview(pollOptions, configuration),
 			notifications: [],
 		});
-		if (savingTracked || polling !== null || !firstPublished) {
+		if (savingTracked || polling !== null || !firstPollDone) {
 			refreshQueued = true;
 			return;
 		}
@@ -1373,7 +1371,6 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	const firstPoll = pollAgain().finally(() => {
 		firstPollDone = true;
-		firstPublished = true;
 	});
 	let timer: ReturnType<typeof setInterval> | null = null;
 	const schedule = (seconds: number) => {
@@ -1567,9 +1564,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/settings": {
 				GET: async () => {
 					// A read during discovery waits, so a tracked-list write sees this poll's catalogue.
-					if (!pollOptions.discovered) {
-						await discovery;
-					}
+					await discovery;
 					return Response.json(
 						settingsResponse(
 							configuration,
@@ -1631,8 +1626,8 @@ export async function start(options: StartOptions): Promise<Running> {
 					if (trackedChanged) {
 						savingTracked = true;
 					}
+					const stale = polling;
 					try {
-						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(mergedText);
 						if (trackedChanged) {
 							trackedGeneration += 1;
@@ -1645,23 +1640,21 @@ export async function start(options: StartOptions): Promise<Running> {
 								: "invalid configuration: configuration";
 						return Response.json({ error: message }, { status: 400 });
 					}
-					await (polling ?? Promise.resolve());
 					configuration = await configurationPort.read();
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
-					const answered = pollAgain();
-					if (trackedChanged) {
-						while (!stopped && publishedGeneration !== trackedGeneration) {
-							await (polling ?? pollAgain());
+					try {
+						if (freshPoll !== null) {
+							await freshPoll;
+							freshPoll = null;
+						} else {
+							await (stale ?? pollAgain());
 						}
-						savingTracked = false;
-						if (refreshQueued && !stopped) {
-							refreshQueued = false;
-							await pollAgain();
+					} finally {
+						if (trackedChanged) {
+							savingTracked = false;
 						}
-					} else {
-						await answered;
 					}
 					return Response.json(
 						settingsResponse(
@@ -1751,6 +1744,8 @@ export async function start(options: StartOptions): Promise<Running> {
 			stopped = true;
 			pollOptions.stopped = true;
 			refreshQueued = false;
+			savingTracked = false;
+			trackedGeneration = activeGeneration;
 			requests.abort();
 			releaseLists();
 			if (timer !== null) {
