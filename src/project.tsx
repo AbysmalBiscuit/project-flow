@@ -1,6 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import {
 	type ReactNode,
@@ -28,7 +28,12 @@ import { Dropdown } from "./dropdown.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
-import { pageQuery } from "./queries.ts";
+import {
+	pageQuery,
+	pageQueryClient,
+	settingsPageOf,
+	useSaveSettings,
+} from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame, PollStatus } from "./shell.tsx";
 import {
@@ -1236,18 +1241,19 @@ export function Page() {
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
-	const queries = useQueryClient();
 	const reportQuery = useQuery(pageQuery.project(name));
 	const overviewQuery = useQuery(pageQuery.overview);
 	const settingsQuery = useQuery(pageQuery.settings);
 	const report = reportQuery.data === undefined ? null : reportQuery.data;
-	const missing = reportQuery.isError || report === null;
+	const missing = reportQuery.isError || reportQuery.data === null;
 	const polling =
 		overviewQuery.data?.polling === true ||
 		(overviewQuery.data === undefined && !reportQuery.isFetched);
 	const active = useActiveTicket();
+	const save = useSaveSettings();
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
+	const settingsData = settingsQuery.data;
 	useEffect(() => {
 		if (active === null) {
 			return;
@@ -1274,15 +1280,15 @@ export function Page() {
 	}, []);
 	useEffect(() => {
 		const loaded = name;
-		const views = settingsQuery.data?.projectViews;
-		if (views === undefined) {
+		const views = settingsData?.projectViews;
+		if (views === undefined || saveGeneration.current !== 0) {
 			return;
 		}
 		const saved = savedProjectView(views, loaded);
 		setSettings(saved);
 		setView(openedView(saved));
 		groupBySavedRef.current = groupByWasSaved(views, loaded);
-	}, [name, settingsQuery.data]);
+	}, [name, settingsData]);
 	useEffect(() => {
 		if (report === null || report === undefined) {
 			return;
@@ -1298,18 +1304,10 @@ export function Page() {
 			),
 		),
 	].sort((left, right) => left.localeCompare(right));
-	const outsideQuery = useQuery({
-		queryKey: ["outside-projects", outsideNames],
-		queryFn: async () => {
-			const loaded = await Promise.all(
-				outsideNames.map((project) =>
-					queries.fetchQuery(pageQuery.project(project, "all")),
-				),
-			);
-			return loaded.flatMap((item) => item ?? []);
-		},
+	const outsideQueries = useQueries({
+		queries: outsideNames.map((project) => pageQuery.project(project, "all")),
 	});
-	const outsideReports = outsideQuery.data ?? [];
+	const outsideReports = outsideQueries.flatMap((item) => item.data ?? []);
 	const panelSourceQuery = useQuery({
 		...pageQuery.project(panelProject, "all"),
 		enabled: open && ticket !== null,
@@ -1355,22 +1353,21 @@ export function Page() {
 			if (generation !== saveGeneration.current) {
 				return;
 			}
-			const response = await fetch("/api/settings");
-			if (!response.ok || generation !== saveGeneration.current) {
-				return;
-			}
-			const current: unknown = await response.json();
+			const loaded = await pageQueryClient.fetchQuery(pageQuery.settings);
 			if (
-				current === null ||
-				typeof current !== "object" ||
+				loaded === null ||
+				loaded === undefined ||
 				generation !== saveGeneration.current
 			) {
 				return;
 			}
-			const body = current as {
-				projectViews?: Record<string, ProjectViewSettings>;
+			const current = settingsPageOf(loaded);
+			if (generation !== saveGeneration.current) {
+				return;
+			}
+			const projectViews: Record<string, ProjectViewSettings> = {
+				...current.settings.projectViews,
 			};
-			const projectViews = { ...(body.projectViews ?? {}) };
 			const key =
 				Object.keys(projectViews).find(
 					(item) => item.toLowerCase() === project.toLowerCase(),
@@ -1388,21 +1385,15 @@ export function Page() {
 				};
 				projectViews[key] = { ...previous, lastView: kept.lastView };
 			}
-			const saved = await fetch("/api/settings", {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ ...body, projectViews }),
+			const written = await save.mutateAsync({
+				...loaded,
+				...current.settings,
+				projectViews,
 			});
-			if (!saved.ok || generation !== saveGeneration.current) {
-				return;
-			}
-			const written = (await saved.json()) as {
-				projectViews?: Record<string, ProjectViewSettings>;
-			};
 			if (generation !== saveGeneration.current) {
 				return;
 			}
-			const views = written.projectViews ?? {};
+			const views = written.settings.projectViews;
 			const confirmed = savedProjectView(views, project);
 			groupBySavedRef.current = groupByWasSaved(views, project);
 			setSettings(confirmed);
