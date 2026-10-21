@@ -325,7 +325,16 @@ const recorded: Fetch = async (input, init) => {
 	return new Response("not recorded", { status: 404 });
 };
 
-const port = Number(process.argv[2] ?? process.env.PORT ?? "4173");
+const portText = process.argv[2] ?? process.env.PORT ?? "4173";
+if (!/^\d+$/.test(portText)) {
+	console.error("invalid port: the port must be an integer");
+	process.exit(1);
+}
+const port = Number(portText);
+if (port < 1 || port > 65535) {
+	console.error("invalid port: the port must be from 1 to 65535");
+	process.exit(1);
+}
 let base = "";
 try {
 	await run(["--config", configPath, "--host", "127.0.0.1", "--port", "0"], {
