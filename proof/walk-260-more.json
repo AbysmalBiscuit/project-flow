@@ -1,0 +1,11 @@
+{
+	"base_url": "http://127.0.0.1:4794",
+	"serve": ["bun", "proof/serve-cards.ts", "4794"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "+5 more" },
+		{ "click": "[data-more]" },
+		{ "assert_text": "Wait on six tickets" },
+		{ "shot": "cards-more" }
+	]
+}

@@ -3399,4 +3399,120 @@ describe("GET /api/overview blockers", () => {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
+
+	test("one project lists six cross-project blockers and a neighbour lists none", async () => {
+		const tall = "acme/tall";
+		const short = "acme/short";
+		const keys = [1, 2, 3, 4, 5, 6];
+		const tallIssues = keys.map((number) => ({
+			number,
+			title: `Blocker ${number}`,
+			state: "open",
+			state_reason: null,
+			updated_at: "2026-04-01T00:00:00Z",
+			html_url: `https://github.com/${tall}/issues/${number}`,
+			body: "",
+		}));
+		const shortIssues = [
+			{
+				number: 1,
+				title: "Wait on six tickets",
+				state: "open",
+				state_reason: null,
+				updated_at: "2026-04-01T00:00:00Z",
+				html_url: `https://github.com/${short}/issues/1`,
+				body: keys.map((number) => `Blocked by: ${tall}#${number}`).join("\n"),
+			},
+		];
+		const recordedFetch: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (url.startsWith(`https://api.github.com/repos/${tall}/issues?`)) {
+				return page(tallIssues);
+			}
+			if (url.startsWith(`https://api.github.com/repos/${short}/issues?`)) {
+				return page(shortIssues);
+			}
+			if (
+				url.includes("/pulls?") ||
+				url.includes("/branches?") ||
+				url.includes("/labels?") ||
+				url.includes("/comments")
+			) {
+				return page([]);
+			}
+			return emptyProjectFields(input, init ?? undefined) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: tall },
+					{ tracker: "github", repo: short },
+				],
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then(async (response) => {
+						expect(response.status).toBe(200);
+						const overview = (await response.json()) as {
+							projects: {
+								name: string;
+								crossProjectBlockers: {
+									project: string;
+									tracker: string;
+									key: string;
+									title: string;
+								}[];
+							}[];
+						};
+						const card = overview.projects.find(
+							(project) => project.name === short,
+						);
+						const neighbour = overview.projects.find(
+							(project) => project.name === tall,
+						);
+						expect(card?.crossProjectBlockers).toEqual(
+							keys.map((number) => ({
+								project: tall,
+								tracker: "github",
+								key: `${tall}#${number}`,
+								title: `Blocker ${number}`,
+							})),
+						);
+						expect(neighbour?.crossProjectBlockers).toEqual([]);
+						resolve();
+					})
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
 });
