@@ -1,4 +1,5 @@
 import "@xyflow/react/dist/style.css";
+import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
 import {
 	type ReactNode,
@@ -900,6 +901,7 @@ function FilterMenu({
 	const shown = visibleLaneNames(report.lanes, view.shownLanes);
 	const root = useRef<HTMLDivElement>(null);
 	const gutter = useRef<HTMLSpanElement>(null);
+	const [shift, setShift] = useState(0);
 	useLayoutEffect(() => {
 		const node = root.current;
 		if (!open || node === null) {
@@ -911,17 +913,22 @@ function FilterMenu({
 				return;
 			}
 			const inset = gutter.current?.offsetWidth ?? 0;
-			panel.style.marginLeft = "";
 			const box = panel.getBoundingClientRect();
-			const overflowRight = Math.ceil(box.right - (window.innerWidth - inset));
-			const overflowLeft = Math.ceil(inset - box.left);
-			const shift =
+			const applied = Number.parseFloat(getComputedStyle(panel).marginLeft);
+			const unshiftedLeft = box.left - (Number.isFinite(applied) ? applied : 0);
+			const unshiftedRight =
+				box.right - (Number.isFinite(applied) ? applied : 0);
+			const overflowRight = Math.ceil(
+				unshiftedRight - (window.innerWidth - inset),
+			);
+			const overflowLeft = Math.ceil(inset - unshiftedLeft);
+			setShift(
 				overflowRight > 0
 					? -overflowRight
 					: overflowLeft > 0
 						? overflowLeft
-						: 0;
-			panel.style.marginLeft = shift === 0 ? "" : `${shift}px`;
+						: 0,
+			);
 		};
 		place();
 		window.addEventListener("resize", place);
@@ -984,7 +991,12 @@ function FilterMenu({
 				<span className={clsx(headerControlStyle.count)}>{shown.length}</span>
 			</button>
 			{open ? (
-				<FilterPanel report={report} view={view} onChange={onChange} />
+				<FilterPanel
+					report={report}
+					view={view}
+					onChange={onChange}
+					shift={shift}
+				/>
 			) : null}
 		</div>
 	);
@@ -994,10 +1006,12 @@ function FilterPanel({
 	report,
 	view,
 	onChange,
+	shift,
 }: {
 	report: ProjectReport;
 	view: ProjectViewSettings;
 	onChange: (next: ProjectViewSettings) => void;
+	shift: number;
 }) {
 	const shown = new Set(
 		visibleLaneNames(report.lanes, view.shownLanes).map((name) =>
@@ -1014,7 +1028,10 @@ function FilterPanel({
 	const picked = new Set(view.assignees.map((name) => name.toLowerCase()));
 	const [ageDraft, setAgeDraft] = useState<Record<string, string>>({});
 	return (
-		<div className={clsx(board.menu)} id="project-filter-menu">
+		<div
+			id="project-filter-menu"
+			{...stylex.props(board.menu, shift === 0 ? null : board.shift(shift))}
+		>
 			<p className={clsx(board.menuLabel)}>Lanes</p>
 			{report.lanes.map((lane) => (
 				<label key={lane.id} className={clsx(board.menuRow)}>

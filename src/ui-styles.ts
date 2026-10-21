@@ -1960,6 +1960,9 @@ export const board = stylex.create({
 		top: "100%",
 		left: measure.none,
 	},
+	shift: (left: number) => ({
+		marginLeft: left,
+	}),
 	filterInset: {
 		position: "absolute",
 		width: space.phoneInset,
