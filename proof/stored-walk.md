@@ -4,7 +4,7 @@ DECIDED: an empty store still shows the Settings form. Settings reads the config
 
 DECIDED: Inbox and Needs you assert the first paint, then Loading in the live page after the API answers. The walk runner waits for text, so that second assert lands once the page shows Loading. The shot follows that assert.
 
-The filled server delays each `/api` response. `#project-flow-first-paint` records the path and the first text in `#root` on one line. A walk asserts that line without its leading slash. A later API response cannot hide a Loading first paint.
+The filled server delays each `/api` response. The proof server inserts `#project-flow-first-paint` and its observer into each HTML response, before the application script. That node records the path and the first text in `#root` on one line. A walk asserts that line without its leading slash. A later API response cannot hide a Loading first paint. The shipped page does not carry the node or the observer.
 
 Item 2, a filled store. Replay `proof/stored-filled-walk.json`:
 

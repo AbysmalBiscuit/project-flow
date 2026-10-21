@@ -25,6 +25,36 @@ if (mode === "empty") {
 	setTimeout(releaseHold, 20_000);
 }
 
+const firstPaint = [
+	'<pre id="project-flow-first-paint" aria-hidden="true"></pre>',
+	"<script>",
+	"new MutationObserver(() => {",
+	'const log = document.getElementById("project-flow-first-paint");',
+	'const root = document.getElementById("root");',
+	'if (log === null || root === null || log.textContent !== "") {',
+	"return;",
+	"}",
+	'if (root.innerText.trim() === "") {',
+	"return;",
+	"}",
+	'log.textContent = location.pathname + " " + root.innerText.replaceAll("\\n", " | ");',
+	'}).observe(document.getElementById("root"), {',
+	"childList: true,",
+	"subtree: true,",
+	"characterData: true,",
+	"});",
+	"</script>",
+].join("\n");
+
+function withFirstPaint(html: string): string {
+	const marker = '<script type="module"';
+	const at = html.indexOf(marker);
+	if (at === -1) {
+		return html;
+	}
+	return `${html.slice(0, at)}${firstPaint}${html.slice(at)}`;
+}
+
 function page(items: unknown[]): Response {
 	return new Response(JSON.stringify(items), {
 		status: 200,
@@ -170,7 +200,7 @@ const result = await run(
 						headers.delete("host");
 						const hasBody =
 							request.method !== "GET" && request.method !== "HEAD";
-						return fetch(
+						const upstream = await fetch(
 							`http://127.0.0.1:${appPort}${url.pathname}${url.search}`,
 							{
 								method: request.method,
@@ -178,6 +208,17 @@ const result = await run(
 								...(hasBody ? { body: request.body } : {}),
 							},
 						);
+						const type = upstream.headers.get("content-type") ?? "";
+						if (!type.includes("text/html")) {
+							return upstream;
+						}
+						const html = withFirstPaint(await upstream.text());
+						const next = new Headers(upstream.headers);
+						next.delete("content-length");
+						return new Response(html, {
+							status: upstream.status,
+							headers: next,
+						});
 					},
 				});
 				console.log(`http://127.0.0.1:${port}/`);
