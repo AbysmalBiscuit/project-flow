@@ -10,7 +10,7 @@ import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { needs } from "./ui-styles.ts";
 
-export function heldAction(item: NeedsYouItem): string | null {
+function heldAction(item: NeedsYouItem): string | null {
 	if (item.reason === "awaitingMerge") {
 		return heldActionLabel.merge;
 	}
