@@ -1,7 +1,7 @@
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import type { Configuration } from "./configuration.ts";
 import type { InboxEntry, NeedsYouItem, Overview } from "./domain.ts";
-import { onAppEvent } from "./events.ts";
+import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import { pollingPageId, storedPageId } from "./stored-page.ts";
 
 /** A query stays fresh across a client navigation inside one poll interval. */
@@ -97,11 +97,7 @@ export function seedPageQueries(pathname: string): void {
 		return;
 	}
 	if (pathname === "/") {
-		if (overviewFromEvent !== null) {
-			applyOverviewEvent(overviewFromEvent);
-		} else {
-			seedOverview(stored, polling);
-		}
+		seedOverview(stored, polling);
 		return;
 	}
 	if (pathname === "/needs-you" && Array.isArray(stored)) {
@@ -114,19 +110,17 @@ export function seedPageQueries(pathname: string): void {
 }
 
 let eventsWired = false;
-let overviewFromEvent: Overview | null = null;
 
 function applyOverviewEvent(body: Overview): void {
-	overviewFromEvent = body;
 	client.setQueryData(pageQuery.overview, body);
 	void client.invalidateQueries({ queryKey: pageQuery.needsYou });
 	void client.invalidateQueries({ queryKey: pageQuery.inbox });
 }
 
-export function applyStoredOverviewEvent(): void {
-	if (overviewFromEvent !== null) {
-		applyOverviewEvent(overviewFromEvent);
-	}
+function invalidatePageQueries(): void {
+	void client.invalidateQueries({ queryKey: pageQuery.overview });
+	void client.invalidateQueries({ queryKey: pageQuery.needsYou });
+	void client.invalidateQueries({ queryKey: pageQuery.inbox });
 }
 
 export function wirePageQueryEvents(): void {
@@ -134,6 +128,7 @@ export function wirePageQueryEvents(): void {
 		return;
 	}
 	eventsWired = true;
+	onEventStreamOpen(invalidatePageQueries);
 	onAppEvent("overview", (event) => {
 		applyOverviewEvent(JSON.parse(event.data) as Overview);
 	});

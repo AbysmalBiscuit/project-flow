@@ -38,7 +38,7 @@ import {
 	ticketTotal,
 	trackerName,
 } from "./progress-bar.tsx";
-import { applyStoredOverviewEvent, fetchJson, pageQuery } from "./queries.ts";
+import { fetchJson, pageQuery } from "./queries.ts";
 import {
 	PageFrame,
 	type PageView,
@@ -1060,7 +1060,6 @@ function OverviewPage({
 }
 
 export function Page() {
-	applyStoredOverviewEvent();
 	const queries = useQueryClient();
 	const overviewQuery = useQuery({
 		queryKey: pageQuery.overview,
@@ -1071,11 +1070,6 @@ export function Page() {
 		queryFn: () => fetchJson<Configuration>("/api/settings"),
 	});
 	const [progress, setProgress] = useState<PollProgress | null>(null);
-	useEffect(() => {
-		return onAppEvent("overview", () => {
-			applyStoredOverviewEvent();
-		});
-	}, []);
 	useEffect(() => {
 		return onAppEvent("progress", (event) => {
 			const next = JSON.parse(event.data) as PollProgress;
