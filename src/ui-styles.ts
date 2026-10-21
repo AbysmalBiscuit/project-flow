@@ -27,6 +27,14 @@ const headerGroup = {
 	backgroundColor: colours.controlFill,
 } as const;
 
+const controlText = {
+	fontFamily: font.sans,
+	fontSize: type.meta,
+	fontWeight: type.regular,
+	lineHeight: 1,
+	cursor: "pointer",
+} as const;
+
 const headerControl = {
 	display: "inline-flex",
 	gap: space.xs,
@@ -40,12 +48,8 @@ const headerControl = {
 	borderRadius: radius.md,
 	backgroundColor: colours.controlFill,
 	color: colours.controlInk,
-	fontFamily: font.sans,
-	fontSize: type.meta,
-	fontWeight: type.regular,
-	lineHeight: 1,
+	...controlText,
 	whiteSpace: "nowrap",
-	cursor: "pointer",
 } as const;
 
 export const headerControlStyle = stylex.create({
@@ -61,12 +65,8 @@ export const headerControlStyle = stylex.create({
 		borderRadius: radius.sm,
 		backgroundColor: "transparent",
 		color: colours.inkSoft,
-		fontFamily: font.sans,
-		fontSize: type.meta,
-		fontWeight: type.regular,
-		lineHeight: 1,
+		...controlText,
 		whiteSpace: "nowrap",
-		cursor: "pointer",
 	},
 	segmentOn: {
 		backgroundColor: colours.segment,
@@ -92,11 +92,7 @@ export const headerControlStyle = stylex.create({
 		borderRadius: radius.sm,
 		backgroundColor: "transparent",
 		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.meta,
-		fontWeight: type.regular,
-		lineHeight: 1,
-		cursor: "pointer",
+		...controlText,
 	},
 	count: {
 		display: "inline-flex",
