@@ -31,6 +31,8 @@ const denied = [
 	"HUSKY=0 git commit -m x",
 	"SKIP=pre-push git push",
 	'bash -c "git push --no-verify"',
+	"export HUSKY=0; git commit -m x",
+	"export SKIP=lint && git push",
 ];
 
 const silent = [

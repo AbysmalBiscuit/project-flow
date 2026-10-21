@@ -180,6 +180,8 @@ def skip_assignment(assignments):
 
 
 def bypass(segment):
+    if segment.name == "export":
+        return skip_assignment(segment.args) or skip_assignment(segment.assignments)
     if segment.name != "git":
         return skip_assignment(segment.assignments)
     words = git_words(segment.args)
