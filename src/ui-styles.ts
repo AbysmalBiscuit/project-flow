@@ -355,6 +355,9 @@ export const frame = stylex.create({
 	},
 	spinning: {
 		display: "inline-flex",
+		width: measure.glyph,
+		height: measure.glyph,
+		verticalAlign: "text-bottom",
 		animationName: stylex.keyframes({
 			from: { transform: "rotate(0deg)" },
 			to: { transform: "rotate(360deg)" },
