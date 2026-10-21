@@ -403,7 +403,12 @@ const heldPoll = new Promise<void>((resolve) => {
 });
 const recordedFetch = fakeTrackers;
 const fetchImpl: Fetch = async (input, init) => {
-	const target = typeof input === "string" ? input : input.url;
+	const target =
+		typeof input === "string"
+			? input
+			: input instanceof URL
+				? input.href
+				: input.url;
 	if (
 		holdRefresh &&
 		/^https:\/\/api\.github\.com\/repos\/acme\/(?:alpha|beta|gamma)\/issues\?/.test(
