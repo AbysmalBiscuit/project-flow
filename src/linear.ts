@@ -1137,9 +1137,6 @@ export async function fetchLinearThread(
 			? issue.comments.pageInfo.endCursor
 			: null;
 	} while (after !== null);
-	if (issue === null) {
-		return null;
-	}
 	const comments: ThreadComment[] = nodes
 		.map((comment) => ({
 			id: comment.id,
