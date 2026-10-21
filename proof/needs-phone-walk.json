@@ -1,0 +1,27 @@
+{
+	"base_url": "http://127.0.0.1:4765",
+	"viewport": { "width": 800, "height": 900 },
+	"serve": ["bun", "scripts/proof-209.ts", "--port", "4765"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "AbysmalBiscuit/factory#407" },
+		{
+			"assert_text": "Lev answers on the factory handoff before the next run starts"
+		},
+		{ "shot": "phone-light" },
+		{ "click": "[data-theme-toggle]" },
+		{ "assert_text": "AbysmalBiscuit/factory#407" },
+		{ "shot": "phone-dark" },
+		{ "goto": "/needs-you" },
+		{ "assert_text": "AbysmalBiscuit/factory#407" },
+		{
+			"assert_text": "Lev answers on the factory handoff before the next run starts"
+		},
+		{ "click": "[data-needs='AbysmalBiscuit/factory#407'] button" },
+		{ "assert_text": "Open on GitHub" },
+		{ "shot": "needs-phone-dark" },
+		{ "click": "[data-theme-toggle]" },
+		{ "assert_text": "AbysmalBiscuit/factory#407" },
+		{ "shot": "needs-phone-light" }
+	]
+}
