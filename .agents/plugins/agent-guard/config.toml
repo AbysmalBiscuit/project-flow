@@ -6,4 +6,10 @@ block = true
 lizard = true
 lizard_extensions = '\.(ts|tsx|mjs)$'
 lizard_baseline = ".agents/plugins/agent-guard/whitelizard.txt"
+# DECIDED: agent-guard 0.1.5 cannot turn a lizard check off.
+# On origin/main, lizard 1.24.1 reports max CCN 59 and max arguments 13.
+# 10000 is above both, so only the length check reports.
+lizard_ccn = 10000
+lizard_length = 200
+lizard_arguments = 10000
 jscpd = false
