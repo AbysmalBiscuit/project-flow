@@ -1,0 +1,21 @@
+{
+	"base_url": "http://127.0.0.1:4312",
+	"serve": ["bun", "proof/serve-board.ts", "4312"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Ship the board" },
+		{ "click": "button[data-ticket='acme/widget#1']" },
+		{ "assert_text": "Open on GitHub" },
+		{ "assert_text": "Comment" },
+		{ "shot": "board-panel-light" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "Theme dark" },
+		{ "shot": "board-panel-dark" },
+		{ "click": "#project-filter" },
+		{ "assert_text": "Needs you only" },
+		{ "shot": "board-menu-open" },
+		{ "click": "button[data-ticket='acme/widget#1']" },
+		{ "assert_text": "Ship the board" },
+		{ "shot": "board-esc-closed" }
+	]
+}

@@ -1,3 +1,4 @@
+import { Database } from "bun:sqlite";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
@@ -367,6 +368,31 @@ const recorded: Fetch = async (input, init) => {
 
 const root = await mkdtemp(join("/var/tmp", "project-flow-proof-"));
 const config = join(root, "config.json");
+const store = new Database(join(root, "store.sqlite"));
+store.run(`
+	create table if not exists notifications (
+		id text primary key,
+		trigger text not null,
+		project text not null,
+		item_key text not null,
+		text text not null,
+		at text not null,
+		read integer not null default 0
+	)
+`);
+store.run(
+	"insert into notifications (id, trigger, project, item_key, text, at, read) values (?, ?, ?, ?, ?, ?, ?)",
+	[
+		"needsYou\nacme/widget\nacme/widget#8\n2026-10-18T12:00:00.000Z",
+		"needsYou",
+		"acme/widget",
+		"acme/widget#8",
+		"Ready to merge",
+		"2026-10-18T12:00:00.000Z",
+		0,
+	],
+);
+store.close();
 await writeFile(
 	config,
 	JSON.stringify({

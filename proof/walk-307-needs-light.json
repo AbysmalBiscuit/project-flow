@@ -1,0 +1,22 @@
+{
+	"base_url": "http://127.0.0.1:4311",
+	"serve": ["bun", "proof/serve-needs-you.ts", "4311"],
+	"steps": [
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Ready to merge" },
+		{ "click": "[data-needs='acme/widget#8'] button" },
+		{ "assert_text": "Why this needs you" },
+		{ "assert_text": "Comment" },
+		{ "shot": "needs-panel-light" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "assert_text": "Theme dark" },
+		{ "assert_text": "Comment" },
+		{ "shot": "needs-panel-dark" },
+		{ "click": "#needs-project" },
+		{ "assert_text": "All projects" },
+		{ "shot": "needs-menu-open" },
+		{ "click": "[data-needs='acme/widget#8'] button" },
+		{ "assert_text": "Why this needs you" },
+		{ "shot": "needs-esc-closed" }
+	]
+}
