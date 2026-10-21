@@ -5475,11 +5475,11 @@ describe("GET /api/overview", () => {
 		}
 	});
 
-	test("a start with a good-poll time and no stored tickets reads the issue list without since", async () => {
+	test("a restart with a good-poll time and an empty snapshot reads the issue list without since", async () => {
 		const repoName = "acme/empty-poll";
-		const goodPoll = "2026-10-18T12:00:00.000Z";
 		const issueUpdatedAt = "2026-09-01T12:00:00.000Z";
 		const repoReads: { since: string | null }[] = [];
+		let issuePhase: "empty" | "recovered" = "empty";
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			const body = typeof init?.body === "string" ? init.body : "";
@@ -5505,6 +5505,9 @@ describe("GET /api/overview", () => {
 				return listed ?? unrecorded(input);
 			}
 			if (url.includes(`/repos/${repoName}/issues?`)) {
+				if (issuePhase === "empty") {
+					return page([], null);
+				}
 				return page(
 					[
 						{
@@ -5529,69 +5532,113 @@ describe("GET /api/overview", () => {
 		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-empty-poll-"));
 		const databasePath = join(root, "project-flow.sqlite");
-		const seeded = new Database(databasePath);
-		seeded.run(`
-			create table project_polls (
-				project text primary key,
-				fetched_at text not null
-			)
-		`);
-		seeded
-			.query("insert into project_polls (project, fetched_at) values (?, ?)")
-			.run(repoName, goodPoll);
-		seeded.close();
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<void>((resolve, reject) => {
-			startChecks = (base: string) => {
-				void (async () => {
-					const opened = await fetch(new URL("/api/overview", base));
-					expect(opened.status).toBe(200);
-					const overviewBody = (await opened.json()) as Overview;
-					expect(overviewBody.error).toBeNull();
-					expect(overviewBody.projects[0]?.tickets).toEqual([
-						{
-							key: `${repoName}#9`,
-							title: "Ticket 9",
-							state: "backlog",
-							blockers: [],
-							lane: "Backlog",
-							statusType: "backlog",
-							enteredStateAt: issueUpdatedAt,
-							updatedAt: issueUpdatedAt,
-						},
-					]);
-					const project = await fetch(
-						new URL(`/api/projects/${encodeURIComponent(repoName)}`, base),
-					);
-					expect(project.status).toBe(200);
-					const report = (await project.json()) as ProjectReport;
-					expect(report.tickets.map((ticket) => ticket.key)).toEqual([
-						`${repoName}#9`,
-					]);
-					expect(report.total).toBe(1);
-					expect(repoReads).toEqual([{ since: null }]);
-					resolve();
-				})().catch(reject);
-			};
+		let stopFill: () => void = () => {};
+		const fillStopped = new Promise<void>((resolve) => {
+			stopFill = resolve;
 		});
+		let filled: (base: string) => void = () => {};
+		const fill = new Promise<string>((resolve) => {
+			filled = resolve;
+		});
+		const fillRun = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch,
+				readGhToken: async () => null,
+				databasePath,
+				stdout: filled,
+				waitForStop: fillStopped,
+			}),
+		);
+		let stopRestart: () => void = () => {};
+		const restartStopped = new Promise<void>((resolve) => {
+			stopRestart = resolve;
+		});
+		let restartRun: Promise<unknown> = Promise.resolve();
 		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo(
-					{
-						env: { GITHUB_TOKEN: "recorded-token" },
-						fetch: recordedFetch,
-						readGhToken: async () => null,
-						databasePath,
-						stdout: (line) => startChecks(line),
-						waitForStop: checks,
-					},
-					{ first: true },
-				),
-			);
-			expect(result.stderr).toBe("");
-			expect(result.exitCode).toBe(0);
+			const base = await fill;
+			const emptyOverview = await fetch(new URL("/api/overview", base));
+			expect(emptyOverview.status).toBe(200);
+			const emptyBody = (await emptyOverview.json()) as Overview;
+			expect(emptyBody.projects[0]?.tickets).toEqual([]);
+			expect(emptyBody.error).toBeNull();
+			expect(repoReads).toEqual([{ since: null }]);
+			stopFill();
+			await fillRun;
+			repoReads.length = 0;
+			issuePhase = "recovered";
+			const recovered = new Promise<void>((resolve, reject) => {
+				restartRun = run(
+					["--config", path, "--host", "127.0.0.1", "--port", "0"],
+					testIo(
+						{
+							env: { GITHUB_TOKEN: "recorded-token" },
+							fetch: recordedFetch,
+							readGhToken: async () => null,
+							databasePath,
+							stdout: (line) => {
+								void (async () => {
+									const deadline = Date.now() + 3_000;
+									let overviewBody = await readOverview(line);
+									while (
+										overviewBody.polling === true ||
+										(repoReads.length === 0 && Date.now() < deadline)
+									) {
+										await Bun.sleep(20);
+										overviewBody = await readOverview(line);
+									}
+									expect(repoReads).toEqual([{ since: null }]);
+									expect(overviewBody.error).toBeNull();
+									expect(overviewBody.projects[0]?.tickets).toEqual([
+										{
+											key: `${repoName}#9`,
+											title: "Ticket 9",
+											state: "backlog",
+											blockers: [],
+											lane: "Backlog",
+											statusType: "backlog",
+											enteredStateAt: issueUpdatedAt,
+											updatedAt: issueUpdatedAt,
+										},
+									]);
+									const project = await fetch(
+										new URL(
+											`/api/projects/${encodeURIComponent(repoName)}`,
+											line,
+										),
+									);
+									expect(project.status).toBe(200);
+									const report = (await project.json()) as ProjectReport;
+									expect(report.tickets.map((ticket) => ticket.key)).toEqual([
+										`${repoName}#9`,
+									]);
+									expect(report.total).toBe(1);
+									resolve();
+								})().catch(reject);
+							},
+							waitForStop: restartStopped,
+						},
+						{ first: true },
+					),
+				).then((result) => {
+					reject(
+						new Error(
+							`app exited ${result.exitCode} before the recovered overview: ${result.stderr}`,
+						),
+					);
+					return result;
+				}, reject);
+			});
+			await recovered;
+			stopRestart();
+			const result = await restartRun;
+			expect(result).toMatchObject({ exitCode: 0, stderr: "" });
 		} finally {
+			stopFill();
+			stopRestart();
+			await fillRun;
+			await restartRun;
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}

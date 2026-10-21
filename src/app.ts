@@ -884,7 +884,8 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		),
 	);
 	const listed = [];
-	const fillAsPolled = options.store.readTickets().length === 0;
+	const storedRows = options.store.readTickets();
+	const fillAsPolled = storedRows.length === 0;
 	for (const project of tracked) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
@@ -907,16 +908,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 		const lastGood = options.store.lastGoodPollAt(project.key);
 		const lastFull = options.lastFullPollAt.get(project.key) ?? null;
-		const stored = options.store
-			.readTickets()
-			.find((row) => row.key === project.key);
-		const confirmedEmpty =
-			stored !== undefined &&
-			stored.tickets.length === 0 &&
-			options.store.projectError(project.key) === null;
+		const stored = storedRows.find((row) => row.key === project.key);
+		const emptyStored = stored !== undefined && stored.tickets.length === 0;
+		const missingRow = stored === undefined && lastFull === null;
 		const full =
 			lastGood === null ||
-			((stored?.tickets.length ?? 0) === 0 && !confirmedEmpty) ||
+			emptyStored ||
+			missingRow ||
 			(project.tracker === "linear" &&
 				(lastFull === null ||
 					polledAt.getTime() - lastFull >= fullPollPeriodMs));
@@ -1005,9 +1003,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				continue;
 			}
 			const message = error instanceof Error ? error.message : "poll failed";
-			const stored = options.store
-				.readTickets()
-				.find((row) => row.key === project.key);
 			const empty: Snapshot = {
 				key: project.key,
 				name: project.name ?? stored?.name ?? project.key,
@@ -1033,10 +1028,12 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	const fullKeys = [...options.fullPoll];
 	for (const key of fullKeys) {
-		if (outcomes.get(key)?.ok === true) {
-			options.fullPoll.delete(key);
-			options.lastFullPollAt.set(key, polledAt.getTime());
+		const outcome = outcomes.get(key);
+		if (outcome?.ok !== true) {
+			continue;
 		}
+		options.fullPoll.delete(key);
+		options.lastFullPollAt.set(key, polledAt.getTime());
 	}
 	options.polling = false;
 	if (options.stopped) {
