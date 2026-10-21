@@ -1332,7 +1332,9 @@ function Page() {
 							id="project-group"
 							label="Group by"
 							value={
-								view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
+								view === "graph"
+									? graphGroupBy(settings)
+									: boardGroupBy(settings)
 							}
 							choices={groupByKeys.map((id) => ({
 								id,
