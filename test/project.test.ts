@@ -2179,6 +2179,115 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a project report names the filters that hide every ticket", async () => {
+		const issues = [
+			issue(1, "Ship the map"),
+			issue(2, "Draw the legend", { body: `Blocked by: ${githubRepo}#1` }),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+				projectViews: {
+					[githubRepo]: { needsYouOnly: true, blockedOnly: false, search: "" },
+				},
+			}),
+			githubFetch(issues, []),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const hidden = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(hidden.total).toBe(2);
+				expect(hidden.tickets).toEqual([]);
+				expect(hidden.hiddenBy).toEqual(["Needs you only"]);
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Record<string, unknown>;
+				const both = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							[githubRepo]: {
+								needsYouOnly: true,
+								blockedOnly: true,
+								search: "missing",
+								assignees: ["nobody"],
+								shownLanes: ["Backlog"],
+								maxAgeDays: { Backlog: 1 },
+							},
+						},
+					}),
+				});
+				expect(both.status).toBe(200);
+				const named = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(named.tickets).toEqual([]);
+				expect(named.hiddenBy).toEqual([
+					"Lanes",
+					"Max age",
+					"Needs you only",
+					"Blocked only",
+					"Assignees",
+					"Search",
+				]);
+				const shown = (await (
+					await fetch(
+						new URL(
+							`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+							base,
+						),
+					)
+				).json()) as ProjectReport;
+				expect(shown.hiddenBy).toBeUndefined();
+				expect(shown.tickets.length).toBe(2);
+				const cleared = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							[githubRepo]: {
+								needsYouOnly: false,
+								blockedOnly: false,
+								search: "",
+								assignees: [],
+							},
+						},
+					}),
+				});
+				expect(cleared.status).toBe(200);
+				const open = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(open.hiddenBy).toBeUndefined();
+				expect(open.tickets.map((ticket) => ticket.key)).toEqual([
+					`${githubRepo}#1`,
+					`${githubRepo}#2`,
+				]);
+				const saved = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<
+						string,
+						{ needsYouOnly: boolean; blockedOnly: boolean; search: string }
+					>;
+				};
+				expect(saved.projectViews[githubRepo]?.needsYouOnly).toBe(false);
+				expect(saved.projectViews[githubRepo]?.blockedOnly).toBe(false);
+				expect(saved.projectViews[githubRepo]?.search).toBe("");
+			},
+		);
+	});
+
 	test("a saved filter keeps each ticket's update time", async () => {
 		const calls: string[] = [];
 		const issues = [

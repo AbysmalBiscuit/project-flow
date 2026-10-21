@@ -203,6 +203,10 @@ export const groupByLabel = {
 	none: "None",
 } as const;
 
+export const filterEmptyLabel = {
+	clear: "Clear filters",
+} as const;
+
 export const projectGraphLabel = {
 	legend: "Graph legend",
 	arrow: "Arrow: blocker to blocked",

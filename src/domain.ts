@@ -701,6 +701,8 @@ export type ProjectReport = {
 	doneTickets: TicketView[];
 	graphTickets: TicketView[];
 	graphLinks: ShownGraphLink[];
+	/** Filter names that leave no ticket on the board, graph or table. */
+	hiddenBy?: string[];
 };
 
 export function displayedLaneName(ticket: TicketView): string {
@@ -4112,13 +4114,56 @@ export function filterProjectReport(
 		const key = ticket.key?.toLowerCase();
 		return key !== undefined && (keptKeys.has(key) || doneKeys.has(key));
 	});
+	const hiddenBy =
+		kept.length === 0 && done.length === 0
+			? hidingFilters(report, view, shown)
+			: [];
 	return {
 		...report,
 		tickets: kept,
 		doneTickets: done,
 		graphTickets,
 		graphLinks,
+		...(hiddenBy.length === 0 ? {} : { hiddenBy }),
 	};
+}
+
+function hidingFilters(
+	report: ProjectReport,
+	view: ProjectViewSettings,
+	shown: Set<string>,
+): string[] {
+	if (report.tickets.length === 0 && report.doneTickets.length === 0) {
+		return [];
+	}
+	const open: string[] = [];
+	if (view.shownLanes !== undefined && shown.size < report.lanes.length) {
+		open.push("Lanes");
+	}
+	const aged = Object.entries(view.maxAgeDays).some(([lane, days]) => {
+		if (days <= 0) {
+			return false;
+		}
+		return [...report.tickets, ...report.doneTickets].some(
+			(item) => (item.lane ?? "").toLowerCase() === lane.toLowerCase(),
+		);
+	});
+	if (aged) {
+		open.push("Max age");
+	}
+	if (view.needsYouOnly) {
+		open.push("Needs you only");
+	}
+	if (view.blockedOnly) {
+		open.push("Blocked only");
+	}
+	if (view.assignees.some((name) => name.trim() !== "")) {
+		open.push("Assignees");
+	}
+	if (view.search.trim() !== "") {
+		open.push("Search");
+	}
+	return open;
 }
 
 export type SettingsProject = {
