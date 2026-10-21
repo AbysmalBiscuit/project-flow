@@ -2138,8 +2138,9 @@ async function readRepoPage(
 		const failed = z
 			.object({ errors: z.array(z.object({ message: z.string() })).min(1) })
 			.safeParse(body);
-		if (failed.success) {
-			throw new Error(failed.data.errors[0].message);
+		const failure = failed.success ? failed.data.errors[0] : undefined;
+		if (failure !== undefined) {
+			throw new Error(failure.message);
 		}
 		throw new Error(`GitHub read repo failed: ${repo}`);
 	}
