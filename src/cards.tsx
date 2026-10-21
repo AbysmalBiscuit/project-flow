@@ -73,6 +73,127 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	);
 }
 
+function fitsInRow(node: HTMLElement, row: HTMLElement): boolean {
+	const rowBox = row.getBoundingClientRect();
+	const box = node.getBoundingClientRect();
+	return box.bottom <= rowBox.bottom + 1 && box.right <= rowBox.right + 1;
+}
+
+function moreLabel(hidden: number): string {
+	return `+${hidden} ${overviewControlLabel.moreBlockers}`;
+}
+
+function hidePast(items: HTMLElement[], visible: number): void {
+	for (const [index, item] of items.entries()) {
+		item.hidden = index >= visible;
+	}
+}
+
+function visibleChipCount(row: HTMLElement, items: HTMLElement[]): number {
+	const reserve = row.querySelector<HTMLElement>("[data-more]");
+	hidePast(items, items.length);
+	if (reserve !== null) {
+		reserve.hidden = true;
+	}
+	let visible = items.length;
+	while (visible > 0 && !fitsInRow(items[visible - 1] as HTMLElement, row)) {
+		visible -= 1;
+	}
+	hidePast(items, visible);
+	if (visible === items.length || reserve === null) {
+		return visible;
+	}
+	let hidden = items.length - visible;
+	for (let pass = 0; pass < items.length; pass += 1) {
+		reserve.textContent = moreLabel(hidden);
+		reserve.hidden = false;
+		while (visible > 0 && !fitsInRow(reserve, row)) {
+			visible -= 1;
+			hidePast(items, visible);
+		}
+		const next = items.length - visible;
+		if (next === hidden) {
+			return visible;
+		}
+		hidden = next;
+	}
+	return visible;
+}
+
+function BlockerRow({ project }: { project: ProjectCounts }) {
+	const row = useRef<HTMLParagraphElement>(null);
+	const [hidden, setHidden] = useState(0);
+	const chips = project.crossProjectBlockers.length;
+	const tags = project.tags.length;
+	const unlinked = project.unlinkedPrs.length;
+	const rowKey = [
+		...project.crossProjectBlockers.map(
+			(blocker) => `${blocker.project} ${blocker.key}`,
+		),
+		...project.tags,
+		String(unlinked),
+	].join("\n");
+
+	useLayoutEffect(() => {
+		const node = row.current;
+		if (node === null || rowKey === "") {
+			return;
+		}
+		const measure = () => {
+			const items = [...node.querySelectorAll<HTMLElement>("[data-chip]")];
+			const visible = visibleChipCount(node, items);
+			setHidden(items.length - visible);
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, [rowKey]);
+
+	if (chips === 0 && tags === 0 && unlinked === 0) {
+		return null;
+	}
+	return (
+		<p ref={row} className={clsx(cards.blockers)}>
+			{project.crossProjectBlockers.map((blocker) => (
+				<span key={`${blocker.project} ${blocker.key}`} data-chip="">
+					<Chip blocker={blocker} />
+				</span>
+			))}
+			{project.tags.map((tag) => (
+				<span key={tag} data-chip="" className={clsx(cards.tagChip)}>
+					{tag}
+				</span>
+			))}
+			{unlinked === 0 ? null : (
+				<span data-chip="" className={clsx(cards.quiet)}>
+					{unlinked} {overviewControlLabel.unlinked}
+				</span>
+			)}
+			<MoreChip project={project.name} hidden={hidden} />
+		</p>
+	);
+}
+
+function MoreChip({ project, hidden }: { project: string; hidden: number }) {
+	const label = moreLabel(hidden);
+	return (
+		<a
+			hidden={hidden === 0}
+			data-more=""
+			className={clsx(cards.chip, cards.chipHover)}
+			href={projectPath(project)}
+			aria-label={label}
+			onClick={(event) => {
+				event.preventDefault();
+				openProject(project);
+			}}
+		>
+			{label}
+		</a>
+	);
+}
+
 type FilterKey = OverviewView["filter"];
 type SortKey = OverviewView["sort"];
 type SortDirection = OverviewView["direction"];
@@ -279,28 +400,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 					</p>
 					<SegmentedBar project={project} />
 					<Legend project={project} />
-					{project.crossProjectBlockers.length === 0 &&
-					project.tags.length === 0 &&
-					project.unlinkedPrs.length === 0 ? null : (
-						<p className={clsx(cards.blockers)}>
-							{project.crossProjectBlockers.map((blocker) => (
-								<Chip
-									key={`${blocker.project} ${blocker.key}`}
-									blocker={blocker}
-								/>
-							))}
-							{project.tags.map((tag) => (
-								<span key={tag} className={clsx(cards.tagChip)}>
-									{tag}
-								</span>
-							))}
-							{project.unlinkedPrs.length === 0 ? null : (
-								<span className={clsx(cards.quiet)}>
-									{project.unlinkedPrs.length} {overviewControlLabel.unlinked}
-								</span>
-							)}
-						</p>
-					)}
+					<BlockerRow project={project} />
 				</>
 			)}
 		</li>
