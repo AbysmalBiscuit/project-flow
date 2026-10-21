@@ -1400,6 +1400,22 @@ function Page() {
 							<p className={clsx(board.counts)}>{countLine(report)}</p>
 						</div>
 						<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
+							{view === "graph" ? (
+								<>
+									<DirectionSwitch
+										direction={settings.graphDirection}
+										onChange={(next) =>
+											saveView({ ...settings, graphDirection: next })
+										}
+									/>
+									<GraphTools
+										probeId="project-graph-viewport"
+										fitId="project-graph-fit"
+										scope="#project-graph"
+										styles="header"
+									/>
+								</>
+							) : null}
 							<FilterMenu
 								report={report}
 								view={settings}
@@ -1461,22 +1477,6 @@ function Page() {
 									</button>
 								))}
 							</fieldset>
-							{view === "graph" ? (
-								<>
-									<DirectionSwitch
-										direction={settings.graphDirection}
-										onChange={(next) =>
-											saveView({ ...settings, graphDirection: next })
-										}
-									/>
-									<GraphTools
-										probeId="project-graph-viewport"
-										fitId="project-graph-fit"
-										scope="#project-graph"
-										styles="header"
-									/>
-								</>
-							) : null}
 						</div>
 					</div>
 					{filterOpen ? (
