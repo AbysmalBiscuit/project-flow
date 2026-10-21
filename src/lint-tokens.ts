@@ -159,7 +159,7 @@ for await (const name of files) {
 			}
 			continue;
 		}
-		if (colourLiteral.test(line) && !line.includes("${")) {
+		if (colourLiteral.test(line)) {
 			failures.push(`${name}:${index + 1}: colour or size literal`);
 		}
 		colourLiteral.lastIndex = 0;
