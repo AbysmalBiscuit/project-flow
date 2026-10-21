@@ -771,6 +771,7 @@ type PollOptions = {
 	restCache: RestCache;
 	listTodos?: TodoSource | undefined;
 	listCheckouts?: CheckoutSource | undefined;
+	releaseDiscovery: () => void;
 	fallback: Configuration;
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
@@ -786,6 +787,8 @@ type PollOptions = {
 	progress: PollProgress | null;
 	stopped: boolean;
 	catalogue: FoundProject[];
+	/** True after this poll's discovery has filled the catalogue. */
+	discovered: boolean;
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
@@ -933,6 +936,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			? {}
 			: { configuredOnly: true }),
 	}));
+	options.releaseDiscovery();
 	const tracked = found.filter((project) => trackedProjects.has(project));
 	const trackedKeys = new Set(tracked.map((project) => project.key));
 	const started: PollProgress = {
@@ -1342,6 +1346,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		restCache,
 		listTodos: options.listTodos,
 		listCheckouts: options.listCheckouts,
+		releaseDiscovery: () => {},
 		fallback: configuration,
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
@@ -1369,6 +1374,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		progress: null,
 		stopped: false,
 		catalogue: [],
+		discovered: false,
 	};
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(pollOptions, configuration);
@@ -1398,11 +1404,13 @@ export async function start(options: StartOptions): Promise<Running> {
 		pollOptions.github?.holdLists?.(pollOptions.holdLists);
 	}
 	let polling: Promise<void> | null = null;
+	let discovery: Promise<void> = Promise.resolve();
+	let noteDiscovery: () => void = () => {};
 	let stopped = false;
 	let firstPollDone = false;
 	let refreshQueued = false;
 	const pollAgain = (): Promise<void> => {
-		if (stopped) {
+		if (stopped || pollOptions.stopped) {
 			return Promise.resolve();
 		}
 		if (polling !== null) {
@@ -1413,6 +1421,14 @@ export async function start(options: StartOptions): Promise<Running> {
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
 			}
+			pollOptions.discovered = false;
+			discovery = new Promise<void>((resolve) => {
+				noteDiscovery = () => {
+					pollOptions.discovered = true;
+					resolve();
+				};
+			});
+			pollOptions.releaseDiscovery = noteDiscovery;
 			try {
 				configuration = await poll(pollOptions);
 			} catch (error) {
@@ -1427,6 +1443,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				}
 			}
 		})().finally(async () => {
+			noteDiscovery();
 			polling = null;
 			if (refreshQueued && !stopped) {
 				refreshQueued = false;
@@ -1666,15 +1683,20 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/settings": pageResponse,
 			"/api/settings": {
-				GET: () =>
-					Response.json(
+				GET: async () => {
+					// A read during discovery waits, so a tracked-list write sees this poll's catalogue.
+					if (!pollOptions.discovered) {
+						await discovery;
+					}
+					return Response.json(
 						settingsResponse(
 							configuration,
 							options,
 							pollOptions.catalogue,
 							opened.store.readTickets(),
 						),
-					),
+					);
+				},
 				PUT: async (request: Request) => {
 					const rawText = await request.text();
 					const text = withoutTrackers(rawText);
@@ -1827,6 +1849,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		stop: async () => {
 			stopped = true;
 			pollOptions.stopped = true;
+			refreshQueued = false;
 			requests.abort();
 			releaseLists();
 			if (timer !== null) {
