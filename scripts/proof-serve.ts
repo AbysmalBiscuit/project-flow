@@ -396,11 +396,11 @@ const portFlag = process.argv.indexOf("--port");
 const portArg = portFlag === -1 ? undefined : process.argv[portFlag + 1];
 const port = portArg ?? process.env.PORT ?? "4763";
 const holdRefresh = process.argv.includes("--hold-refresh");
-let issueReads = 0;
 let releaseHeld: (() => void) | null = null;
 const heldPoll = new Promise<void>((resolve) => {
 	releaseHeld = resolve;
 });
+let issueReads = 0;
 const recordedFetch = fakeTrackers;
 const fetchImpl: Fetch = async (input, init) => {
 	const target =
@@ -409,11 +409,12 @@ const fetchImpl: Fetch = async (input, init) => {
 			: input instanceof URL
 				? input.href
 				: input.url;
+	const body = typeof init?.body === "string" ? init.body : "";
 	if (
 		holdRefresh &&
-		/^https:\/\/api\.github\.com\/repos\/acme\/(?:alpha|beta|gamma)\/issues\?/.test(
-			target,
-		)
+		target === "https://api.github.com/graphql" &&
+		body.includes("query RepoRead") &&
+		body.includes("issues(")
 	) {
 		issueReads += 1;
 		if (issueReads > 3) {
