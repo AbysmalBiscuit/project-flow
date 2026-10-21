@@ -1,6 +1,12 @@
 import "@xyflow/react/dist/style.css";
 import { ReactFlowProvider } from "@xyflow/react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -883,21 +889,83 @@ function FilterMenu({
 	view,
 	open,
 	onOpen,
+	onChange,
 }: {
 	report: ProjectReport;
 	view: ProjectViewSettings;
 	open: boolean;
 	onOpen: (next: boolean) => void;
+	onChange: (next: ProjectViewSettings) => void;
 }) {
 	const shown = visibleLaneNames(report.lanes, view.shownLanes);
+	const root = useRef<HTMLDivElement>(null);
+	const gutter = useRef<HTMLSpanElement>(null);
+	useLayoutEffect(() => {
+		const node = root.current;
+		if (!open || node === null) {
+			return;
+		}
+		const place = () => {
+			const panel = node.querySelector("#project-filter-menu");
+			if (!(panel instanceof HTMLElement)) {
+				return;
+			}
+			const inset = gutter.current?.offsetWidth ?? 0;
+			const room = window.innerWidth - inset * 2;
+			panel.style.maxWidth = `${Math.max(0, room)}px`;
+			panel.style.marginLeft = "";
+			const box = panel.getBoundingClientRect();
+			const overflowRight = Math.ceil(box.right - (window.innerWidth - inset));
+			const overflowLeft = Math.ceil(inset - box.left);
+			const shift =
+				overflowRight > 0
+					? -overflowRight
+					: overflowLeft > 0
+						? overflowLeft
+						: 0;
+			panel.style.marginLeft = shift === 0 ? "" : `${shift}px`;
+		};
+		place();
+		window.addEventListener("resize", place);
+		return () => {
+			window.removeEventListener("resize", place);
+		};
+	}, [open]);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onPointer = (event: PointerEvent) => {
+			if (!root.current?.contains(event.target as Node)) {
+				onOpen(false);
+			}
+		};
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				onOpen(false);
+			}
+		};
+		document.addEventListener("pointerdown", onPointer);
+		document.addEventListener("keydown", onKey);
+		return () => {
+			document.removeEventListener("pointerdown", onPointer);
+			document.removeEventListener("keydown", onKey);
+		};
+	}, [open, onOpen]);
 	return (
-		<div>
+		<div className={clsx(frame.menu)} ref={root}>
+			<span
+				ref={gutter}
+				className={clsx(board.filterInset)}
+				aria-hidden="true"
+			/>
 			<button
 				type="button"
 				id="project-filter"
 				className={clsx(headerControlStyle.control, shell.buttonFocus)}
 				aria-label="Filter"
 				aria-expanded={open}
+				aria-controls="project-filter-menu"
 				onClick={() => onOpen(!open)}
 			>
 				<svg
@@ -914,6 +982,9 @@ function FilterMenu({
 				Filter
 				<span className={clsx(headerControlStyle.count)}>{shown.length}</span>
 			</button>
+			{open ? (
+				<FilterPanel report={report} view={view} onChange={onChange} />
+			) : null}
 		</div>
 	);
 }
@@ -942,7 +1013,7 @@ function FilterPanel({
 	const picked = new Set(view.assignees.map((name) => name.toLowerCase()));
 	const [ageDraft, setAgeDraft] = useState<Record<string, string>>({});
 	return (
-		<div className={clsx(board.menu, board.menuBelow)} id="project-filter-menu">
+		<div className={clsx(board.menu)} id="project-filter-menu">
 			<p className={clsx(board.menuLabel)}>Lanes</p>
 			{report.lanes.map((lane) => (
 				<label key={lane.id} className={clsx(board.menuRow)}>
@@ -1414,6 +1485,7 @@ function Page() {
 								view={settings}
 								open={filterOpen}
 								onOpen={setFilterOpen}
+								onChange={saveView}
 							/>
 							<input
 								id="project-search"
@@ -1472,9 +1544,6 @@ function Page() {
 							</fieldset>
 						</div>
 					</div>
-					{filterOpen ? (
-						<FilterPanel report={report} view={settings} onChange={saveView} />
-					) : null}
 					<div
 						data-project={report.name}
 						data-open-view={view}
@@ -1482,7 +1551,7 @@ function Page() {
 							view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
 						}
 					/>
-					<div className={clsx(board.stage)}>
+					<div className={clsx(board.stage, !filterOpen && board.stageOn)}>
 						{view === "board" ? (
 							<Board
 								report={report}
