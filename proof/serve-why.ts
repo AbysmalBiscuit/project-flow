@@ -233,3 +233,4 @@ const running = await start({
 });
 console.log(running.url.href);
 await proofStops();
+await running.stop();

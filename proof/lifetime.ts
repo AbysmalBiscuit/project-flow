@@ -36,7 +36,11 @@ function watchProof(): Promise<void> {
 	const lifetime = lifetimeMs();
 	const parent = process.ppid;
 	const stopsHere = new Promise<void>((resolve) => {
-		const stop = () => resolve();
+		const stop = () => {
+			clearInterval(watch);
+			clearTimeout(timer);
+			resolve();
+		};
 		void waitForStop().then(stop);
 		const timer = setTimeout(stop, lifetime);
 		timer.unref();
@@ -44,15 +48,13 @@ function watchProof(): Promise<void> {
 			if (parentStillRuns(parent)) {
 				return;
 			}
-			clearInterval(watch);
-			clearTimeout(timer);
 			stop();
 		}, parentPollMs);
 		watch.unref();
 	});
 	void stopsHere.then(() => {
 		const force = setTimeout(() => {
-			process.exit(0);
+			process.exit(1);
 		}, shutdownGraceMs);
 		force.unref();
 	});
