@@ -784,6 +784,7 @@ type PollOptions = {
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
+	options.github?.holdLists?.(options.holdLists);
 	options.github?.beginPoll?.();
 	const polledAt = options.clock.now();
 	const before = options.attention;
@@ -1366,7 +1367,11 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	let listsHeld = false;
 	let releaseLists = () => {};
-	if (hadRows) {
+	const testHold = options.fetch.holdLists;
+	if (hadRows && testHold !== undefined) {
+		pollOptions.holdLists = testHold();
+		pollOptions.github?.holdLists?.(pollOptions.holdLists);
+	} else if (hadRows) {
 		listsHeld = true;
 		pollOptions.holdLists = new Promise<void>((resolve) => {
 			releaseLists = () => {
@@ -1593,7 +1598,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/api/refresh": {
 				POST: () => {
-					beginPoll();
+					queueMicrotask(beginPoll);
 					return new Response(null, { status: 204 });
 				},
 			},

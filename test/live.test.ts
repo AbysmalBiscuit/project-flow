@@ -1671,6 +1671,158 @@ describe("live updates", () => {
 		}
 	});
 
+	test("a refresh joining a poll held on the list gate publishes polling", async () => {
+		let releasePoll: () => void = () => {};
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		let listReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listedRead(input, init)?.repo === repo) {
+				listReads += 1;
+				return (
+					issuesResponse(input, init, [ticket(9, "2026-04-03T00:00:00Z")]) ??
+					page([])
+				);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const filler = await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			{
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: async (input, init) => {
+					const discovered = recordedDiscovery(input, init);
+					if (discovered !== null) {
+						return discovered;
+					}
+					const url = urlOf(input);
+					if (url === "https://api.github.com/user") {
+						return new Response(JSON.stringify({ login: "lev" }), {
+							status: 200,
+						});
+					}
+					if (listedRead(input, init)?.repo === repo) {
+						return (
+							issuesResponse(input, init, [
+								ticket(1, "2026-04-01T00:00:00Z"),
+							]) ?? page([])
+						);
+					}
+					return recordedOrEmpty(url) ?? unrecorded(input);
+				},
+				readGhToken: async () => null,
+				databasePath,
+				now: () => new Date(goodPoll),
+				listTodos: async () => "",
+				waitForStop: Promise.resolve(),
+			},
+		);
+		expect(filler.exitCode).toBe(0);
+		let startChecks: (base: string) => void = () => {};
+		let listened = false;
+		const checks = new Promise<void>((resolve, reject) => {
+			const timer = setTimeout(() => {
+				if (!listened) {
+					reject(
+						new Error("server did not listen before the first poll ended"),
+					);
+				}
+			}, 1_000);
+			startChecks = (base: string) => {
+				listened = true;
+				clearTimeout(timer);
+				void (async () => {
+					const before = await readOverview(base);
+					expect(before.polling).toBeUndefined();
+					expect(before.projects[0]?.done).toBe(0);
+					expect(before.projects[0]?.backlog).toBe(1);
+					expect(listReads).toBe(0);
+					const stream = openEventStream(base);
+					await stream.ready;
+					const events = stream.events[Symbol.asyncIterator]();
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+						body: "   ",
+					});
+					expect(refresh.status).toBe(204);
+					const deadline = Date.now() + 2_000;
+					let published: OverviewBody | null = null;
+					while (published === null && Date.now() < deadline) {
+						const received = await Promise.race([
+							events.next(),
+							Bun.sleep(Math.max(1, deadline - Date.now())).then(
+								() => "quiet" as const,
+							),
+						]);
+						if (received === "quiet" || received.done) {
+							break;
+						}
+						if (received.value?.event !== "overview") {
+							continue;
+						}
+						const body = overviewOf(received.value.data);
+						if (body.polling === true) {
+							published = body;
+						}
+					}
+					expect(listReads).toBe(0);
+					expect(published?.polling).toBe(true);
+					expect(published?.projects[0]?.backlog).toBe(1);
+					releasePoll();
+					const settled = await settledOverviewEvent(events, overviewOf);
+					stream.close();
+					expect(settled.polling).toBeUndefined();
+					expect(settled.projects[0]?.done).toBe(0);
+					expect(settled.projects[0]?.backlog).toBe(2);
+					resolve();
+				})().catch((error: unknown) => {
+					releasePoll();
+					reject(error instanceof Error ? error : new Error("checks failed"));
+				});
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				{
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: Object.assign(fetchImpl, {
+						holdLists: () => pollHeld,
+					}),
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date("2026-04-03T12:00:00.000Z"),
+					listTodos: async () => "",
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				},
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releasePoll();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	}, 20_000);
+
 	test("an empty store ends the running poll on the event stream when every poll fails", async () => {
 		let releasePoll: () => void = () => {};
 		const pollHeld = new Promise<void>((resolve) => {
