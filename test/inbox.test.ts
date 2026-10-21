@@ -11,6 +11,7 @@ import {
 	linearFake,
 	recordedDiscovery,
 	repoReadFromLists,
+	settledOverview,
 	type TrackerRequest,
 	tempConfig,
 	testIo,
@@ -429,17 +430,11 @@ async function refresh(base: string): Promise<void> {
 		method: "POST",
 	});
 	expect(response.status).toBe(204);
-	const deadline = Date.now() + 3_000;
-	while (Date.now() < deadline) {
-		const body = (await (
-			await fetch(new URL("/api/overview", base))
-		).json()) as { polling?: true };
-		if (body.polling !== true) {
-			return;
-		}
-		await Bun.sleep(20);
-	}
-	throw new Error("refresh poll did not finish");
+	await settledOverview(base, async (url) => {
+		return (await (await fetch(new URL("/api/overview", url))).json()) as {
+			polling?: true;
+		};
+	});
 }
 
 async function inboxOf(base: string): Promise<InboxEntry[]> {
