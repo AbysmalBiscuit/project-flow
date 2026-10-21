@@ -31,16 +31,12 @@ export type MarkerEnd = {
 	markerUnits: "userSpaceOnUse";
 };
 
-export function measureMarker(
-	root: ParentNode,
-	className: string,
-	create: (tag: "span") => HTMLElement = (tag) => document.createElement(tag),
-): number {
-	const probe = create("span");
+export function measureMarker(className: string): number {
+	const probe = document.createElement("span");
 	probe.className = className;
 	probe.style.position = "absolute";
 	probe.style.visibility = "hidden";
-	root.append(probe);
+	document.body.append(probe);
 	const size = probe.getBoundingClientRect().width;
 	probe.remove();
 	return size;

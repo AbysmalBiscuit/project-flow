@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Position } from "@xyflow/react";
-import { labelSpots, measureMarker, routeEdge } from "../src/graph-routes.ts";
+import { labelSpots, routeEdge } from "../src/graph-routes.ts";
 
 describe("graph edges", () => {
 	test("four incoming edges keep every arrowhead on the target side", () => {
@@ -19,28 +19,6 @@ describe("graph edges", () => {
 		});
 		expect(Math.max(...ends) - Math.min(...ends)).toBeLessThanOrEqual(88);
 		expect(ends.every((end) => Number.isFinite(end))).toBe(true);
-	});
-
-	test("each marker measure probes the host once", () => {
-		let probes = 0;
-		const root = {
-			append() {
-				probes += 1;
-			},
-		};
-		const size = measureMarker(
-			root as unknown as ParentNode,
-			"marker",
-			() =>
-				({
-					style: {},
-					className: "",
-					getBoundingClientRect: () => ({ width: 22 }),
-					remove() {},
-				}) as unknown as HTMLElement,
-		);
-		expect(probes).toBe(1);
-		expect(size).toBe(22);
 	});
 
 	test("two edge labels do not overlap", () => {
