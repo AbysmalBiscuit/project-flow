@@ -5,6 +5,8 @@ const dark = "@media (prefers-color-scheme: dark)";
 export const media = stylex.defineConsts({
 	phone: "@media (max-width: 64rem)",
 	projectBar: "@media (max-width: 480px)",
+	// The one-line shell overflows below this width.
+	shellWrap: "@media (max-width: 24rem)",
 });
 
 export const lightValues = {
@@ -222,6 +224,8 @@ export const space = stylex.defineVars({
 	lg: "1rem",
 	xl: "1.5rem",
 	pageInset: "5rem",
+	// 16px at the browser default root size. The phone gutter cap.
+	phoneInset: "1rem",
 	navGap: "0.35rem",
 	twoXl: "2rem",
 	pageTop: "2.65rem",
@@ -291,6 +295,8 @@ export const measure = stylex.defineVars({
 	badge: "1.35rem",
 	search: "12rem",
 	lane: "16rem",
+	// Phone lane floor. Lanes scroll inside the page, not the page itself.
+	lanePhone: "11rem",
 	laneDone: "7.5rem",
 	boardMin: "36rem",
 	dot: "0.45rem",
@@ -328,6 +334,56 @@ export const projectBarLayout = stylex.create({
 			paddingBottom: space.sm,
 			paddingLeft: space.sm,
 			paddingRight: space.sm,
+		},
+	},
+});
+
+export const phoneGutter = stylex.create({
+	bar: {
+		[media.phone]: {
+			paddingLeft: space.phoneInset,
+			paddingRight: space.phoneInset,
+		},
+		[media.shellWrap]: {
+			height: "auto",
+			minHeight: measure.shell,
+			flexWrap: "wrap",
+			rowGap: space.sm,
+			paddingTop: space.sm,
+			paddingBottom: space.sm,
+			paddingLeft: space.phoneInset,
+			paddingRight: space.phoneInset,
+		},
+	},
+	page: {
+		[media.phone]: {
+			paddingLeft: space.phoneInset,
+			paddingRight: space.phoneInset,
+		},
+	},
+	alert: {
+		[media.phone]: {
+			paddingLeft: space.phoneInset,
+			paddingRight: space.phoneInset,
+		},
+	},
+	cards: {
+		[media.phone]: {
+			gridTemplateColumns: "minmax(0, 1fr)",
+		},
+	},
+	lanes: {
+		[media.phone]: {
+			overflowX: "auto",
+		},
+	},
+	lane: {
+		[media.phone]: {
+			flexBasis: measure.lanePhone,
+			flexGrow: 0,
+			flexShrink: 0,
+			minWidth: measure.lanePhone,
+			overflow: "visible",
 		},
 	},
 });

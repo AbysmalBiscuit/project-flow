@@ -4,7 +4,7 @@ import { onAppEvent } from "./events.ts";
 import { openJumpBox } from "./jump.tsx";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
-import { projectBarLayout } from "./tokens.stylex.ts";
+import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { frame, shell } from "./ui-styles.ts";
 
@@ -176,7 +176,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const projectPage = path.startsWith("/projects/");
 	return (
 		<div className={clsx(frame.shell)}>
-			<header className={clsx(frame.bar, projectPage && projectBarLayout.fit)}>
+			<header
+				className={clsx(
+					frame.bar,
+					phoneGutter.bar,
+					projectPage && projectBarLayout.fit,
+				)}
+			>
 				<a className={clsx(frame.logo, shell.linkFocus)} href="/">
 					<LogoMark />
 					{navLabel.logo}
@@ -242,7 +248,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				</button>
 			</header>
 			{themeSaveFailed ? (
-				<p className={clsx(frame.themeSave)} role="alert">
+				<p className={clsx(frame.themeSave, phoneGutter.alert)} role="alert">
 					Theme not saved. This choice will not survive a reload.
 				</p>
 			) : null}
@@ -324,6 +330,7 @@ export function PageFrame({
 			<main
 				className={clsx(
 					frame.page,
+					phoneGutter.page,
 					wide && frame.wide,
 					(wide || scroll) && frame.fill,
 				)}

@@ -43,7 +43,7 @@ import {
 	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
-import { phoneLayout } from "./tokens.stylex.ts";
+import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
 
@@ -287,7 +287,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 
 function CardsList({ projects }: { projects: ProjectCounts[] }) {
 	return (
-		<ul className={clsx(cards.list)}>
+		<ul className={clsx(cards.list, phoneGutter.cards)}>
 			{projects.map((project) => (
 				<ProjectCard
 					key={`${project.tracker}:${project.name}`}
