@@ -372,7 +372,6 @@ export const phoneGutter = stylex.create({
 			flexGrow: 0,
 			flexShrink: 0,
 			minWidth: measure.lanePhone,
-			overflow: "visible",
 		},
 	},
 });
