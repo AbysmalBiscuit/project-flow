@@ -20,7 +20,7 @@ bun start
 
 `bun run dev` starts the app with hot reload. `devkit run task start` installs the dependencies, then serves the app on its devkit port.
 
-The process prints a URL on localhost. Open that URL in a browser. `--open` opens that URL in the default browser after the server listens.
+The process prints a URL on localhost. Open that URL in a browser.
 
 When the configuration file is missing, the app creates it as `{}`, with its parent folder. The process prints the path.
 
