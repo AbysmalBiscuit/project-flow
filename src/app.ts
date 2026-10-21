@@ -734,6 +734,7 @@ type PollOptions = {
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
+	options.github?.beginPoll?.();
 	const polledAt = options.clock.now();
 	const before = options.attention;
 	let configuration: Configuration;
@@ -929,7 +930,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 						continue;
 					}
 					readRepos.add(repo);
-					options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+					try {
+						options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+					} catch {
+						options.repoAutoMerge[repo] = false;
+					}
 				}
 			}
 			listed.push({
@@ -1243,6 +1248,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				resolve();
 			};
 		});
+		pollOptions.github?.holdLists?.(pollOptions.holdLists);
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;

@@ -6,10 +6,12 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import factoryLabels from "./fixtures/github-factory-labels.json";
 import projectFields from "./fixtures/github-project-fields.json";
+import recordedRepoRead from "./fixtures/github-repo-read.json";
 import teamStates from "./fixtures/linear-team-states.json";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromHandler,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -168,6 +170,42 @@ function repoFetch(
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
+		}
+		const listed = await repoReadFromHandler(
+			input,
+			init,
+			async (restInput, _restInit) => {
+				const restUrl = urlOf(restInput);
+				for (const [repo, issues] of Object.entries(repos)) {
+					if (
+						restUrl.startsWith(`https://api.github.com/repos/${repo}/labels?`)
+					) {
+						return page(labels[repo] ?? []);
+					}
+					if (
+						restUrl.startsWith(`https://api.github.com/repos/${repo}/issues?`)
+					) {
+						return page(issues);
+					}
+					if (
+						restUrl.includes(`/repos/${repo}/issues/`) &&
+						restUrl.includes("/comments")
+					) {
+						return page([]);
+					}
+				}
+				if (restUrl.includes("/labels?")) {
+					const named = restUrl.match(/\/repos\/([^/]+\/[^/]+)\/labels/)?.[1];
+					return page(named === undefined ? [] : (labels[named] ?? []));
+				}
+				if (restUrl.includes("/pulls?") || restUrl.includes("/branches?")) {
+					return page([]);
+				}
+				return page([]);
+			},
+		);
+		if (listed !== null) {
+			return listed;
 		}
 		for (const [repo, issues] of Object.entries(repos)) {
 			if (url.startsWith(`https://api.github.com/repos/${repo}/labels?`)) {
@@ -595,6 +633,46 @@ describe("tracker lanes", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
 			async (input, init) => {
 				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const answered = await repoReadFromHandler(
+						input,
+						init,
+						async (restInput) => {
+							const restUrl = urlOf(restInput);
+							if (restUrl.includes("/labels?")) {
+								return recordedFactoryLabelPage();
+							}
+							if (restUrl.includes("/issues?")) {
+								return page([
+									githubIssue(1, "Queue the job", githubRepo, {
+										labels: [{ name: "ready" }],
+									}),
+									githubIssue(2, "Run the job", githubRepo, {
+										labels: [{ name: "factory: running" }],
+									}),
+									githubIssue(3, "Review the job", githubRepo, {
+										labels: [{ name: "factory: in-review" }],
+									}),
+									githubIssue(4, "Ship the job", githubRepo, {
+										state: "closed",
+										state_reason: "completed",
+										labels: [{ name: "ready" }],
+									}),
+									githubIssue(5, "Drop the job", githubRepo, {
+										state: "closed",
+										state_reason: "not_planned",
+									}),
+								]);
+							}
+							return page([]);
+						},
+					);
+					return answered ?? recordedFactoryLabelPage();
+				}
 				if (
 					url.startsWith(`https://api.github.com/repos/${githubRepo}/labels?`)
 				) {
@@ -1697,6 +1775,66 @@ describe("tracker lanes", () => {
 					?.tickets.find((item) => item.key === "WID-20");
 				expect(ticket?.lane).toBe("Released");
 				expect(ticket?.statusType).toBe("done");
+			},
+		);
+	});
+
+	test("an uppercase NOT_PLANNED reason from a recorded GraphQL payload sits in Dropped", async () => {
+		const recorded = structuredClone(recordedRepoRead) as {
+			data: {
+				repository: {
+					nameWithOwner: string;
+					issues: { nodes: Record<string, unknown>[] };
+					openPullRequests: { nodes: unknown[] };
+					mergedPullRequests: { nodes: unknown[] };
+				};
+			};
+		};
+		const issue = recorded.data.repository.issues.nodes[0];
+		if (issue !== undefined) {
+			issue.number = 12;
+			issue.title = "Not planned";
+			issue.state = "CLOSED";
+			issue.stateReason = "NOT_PLANNED";
+		}
+		recorded.data.repository.nameWithOwner = plainRepo;
+		recorded.data.repository.issues.nodes = issue === undefined ? [] : [issue];
+		recorded.data.repository.openPullRequests.nodes = [];
+		recorded.data.repository.mergedPullRequests.nodes = [];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: plainRepo }] }),
+			async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					urlOf(input) === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					return Response.json(recorded);
+				}
+				if (urlOf(input) === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return unrecorded(input, init);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as OverviewBody;
+				const project = overview.projects.find(
+					(item) => item.name === plainRepo,
+				);
+				expect(
+					project?.tickets.find((item) => item.key === "acme/plain#12"),
+				).toEqual(
+					expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
+				);
+				expect(project?.statusTypes?.dropped).toBe(1);
+				expect(project?.statusTypes?.done).toBe(0);
 			},
 		);
 	});

@@ -1,0 +1,425 @@
+{
+	"data": {
+		"repository": {
+			"nameWithOwner": "acme/widget",
+			"autoMergeAllowed": false,
+			"refs": {
+				"nodes": [
+					{
+						"name": "101-feat"
+					},
+					{
+						"name": "main"
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			},
+			"labels": {
+				"nodes": [
+					{
+						"name": "bug",
+						"color": "d73a4a"
+					},
+					{
+						"name": "unused",
+						"color": "FFFFFF"
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			},
+			"issues": {
+				"nodes": [
+					{
+						"number": 101,
+						"title": "Ticket 101",
+						"state": "OPEN",
+						"stateReason": null,
+						"updatedAt": "2026-08-18T12:00:00Z",
+						"createdAt": "2026-08-01T12:00:00Z",
+						"closedAt": null,
+						"body": "",
+						"comments": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"labels": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"assignees": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"milestone": null,
+						"parent": null,
+						"blockedBy": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"blocking": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						}
+					},
+					{
+						"number": 102,
+						"title": "Ticket 102",
+						"state": "OPEN",
+						"stateReason": null,
+						"updatedAt": "2026-08-18T12:00:00Z",
+						"createdAt": "2026-08-01T12:00:00Z",
+						"closedAt": null,
+						"body": "",
+						"comments": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"labels": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"assignees": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"milestone": null,
+						"parent": null,
+						"blockedBy": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"blocking": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						}
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			},
+			"openPullRequests": {
+				"nodes": [
+					{
+						"number": 1,
+						"title": "PR 1",
+						"url": "https://github.com/acme/widget/pull/1",
+						"isDraft": false,
+						"body": "Closes #101",
+						"state": "OPEN",
+						"mergedAt": null,
+						"headRefName": "1-feat",
+						"headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						"autoMergeRequest": null,
+						"commits": {
+							"nodes": [
+								{
+									"commit": {
+										"committedDate": "2026-10-20T21:09:45Z"
+									}
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"closingIssuesReferences": {
+							"nodes": [
+								{
+									"number": 101
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"reviews": {
+							"nodes": [
+								{
+									"author": {
+										"login": "grok-code-review[bot]"
+									},
+									"commit": {
+										"oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									},
+									"state": "COMMENTED"
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"comments": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"reactions": {
+							"nodes": [
+								{
+									"user": {
+										"login": "chatgpt-codex-connector[bot]"
+									},
+									"content": "THUMBS_UP",
+									"createdAt": "2026-08-18T11:00:00Z"
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"statusCheckRollup": {
+							"contexts": {
+								"nodes": [
+									{
+										"__typename": "CheckRun",
+										"name": "Grok review",
+										"status": "COMPLETED",
+										"conclusion": "SUCCESS"
+									}
+								],
+								"pageInfo": {
+									"hasNextPage": false,
+									"endCursor": null
+								}
+							}
+						}
+					},
+					{
+						"number": 2,
+						"title": "PR 2",
+						"url": "https://github.com/acme/widget/pull/2",
+						"isDraft": false,
+						"body": "Closes #102",
+						"state": "OPEN",
+						"mergedAt": null,
+						"headRefName": "2-feat",
+						"headRefOid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						"autoMergeRequest": null,
+						"commits": {
+							"nodes": [
+								{
+									"commit": {
+										"committedDate": "2026-10-20T21:09:45Z"
+									}
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"closingIssuesReferences": {
+							"nodes": [
+								{
+									"number": 102
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"reviews": {
+							"nodes": [
+								{
+									"author": {
+										"login": "grok-code-review[bot]"
+									},
+									"commit": {
+										"oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+									},
+									"state": "COMMENTED"
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"comments": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"reactions": {
+							"nodes": [
+								{
+									"user": {
+										"login": "chatgpt-codex-connector[bot]"
+									},
+									"content": "EYES",
+									"createdAt": "2026-08-18T11:00:00Z"
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"statusCheckRollup": {
+							"contexts": {
+								"nodes": [
+									{
+										"__typename": "CheckRun",
+										"name": "Grok review",
+										"status": "COMPLETED",
+										"conclusion": "SUCCESS"
+									}
+								],
+								"pageInfo": {
+									"hasNextPage": false,
+									"endCursor": null
+								}
+							}
+						}
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			},
+			"mergedPullRequests": {
+				"nodes": [
+					{
+						"number": 90,
+						"title": "PR 90",
+						"url": "https://github.com/acme/widget/pull/90",
+						"isDraft": false,
+						"body": "",
+						"state": "MERGED",
+						"mergedAt": "2026-08-01T12:00:00Z",
+						"headRefName": "90-feat",
+						"headRefOid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+						"autoMergeRequest": null,
+						"commits": {
+							"nodes": [
+								{
+									"commit": {
+										"committedDate": "2026-10-20T20:17:35Z"
+									}
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"closingIssuesReferences": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"reviews": {
+							"nodes": [
+								{
+									"author": {
+										"login": "grok-code-review[bot]"
+									},
+									"commit": {
+										"oid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+									},
+									"state": "COMMENTED"
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"comments": {
+							"nodes": [],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"reactions": {
+							"nodes": [
+								{
+									"user": {
+										"login": "chatgpt-codex-connector[bot]"
+									},
+									"content": "THUMBS_UP",
+									"createdAt": "2026-08-18T11:00:00Z"
+								}
+							],
+							"pageInfo": {
+								"hasNextPage": false,
+								"endCursor": null
+							}
+						},
+						"statusCheckRollup": {
+							"contexts": {
+								"nodes": [
+									{
+										"__typename": "CheckRun",
+										"name": "Grok review",
+										"status": "COMPLETED",
+										"conclusion": "SUCCESS"
+									}
+								],
+								"pageInfo": {
+									"hasNextPage": false,
+									"endCursor": null
+								}
+							}
+						}
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			}
+		}
+	}
+}

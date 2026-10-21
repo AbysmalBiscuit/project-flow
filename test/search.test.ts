@@ -7,6 +7,7 @@ import { run } from "../src/main.ts";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromLists,
 	tempConfig,
 	testIo,
 	urlOf,
@@ -72,6 +73,11 @@ function recorded(requests: string[]): Fetch {
 		requests.push(url);
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
+		}
+		const listed = repoReadFromLists(input, init, { [board]: githubIssues });
+		if (listed !== null) {
+			requests.push(`https://api.github.com/repos/${board}/issues?`);
+			return listed;
 		}
 		if (url.startsWith(`https://api.github.com/repos/${board}/issues?`)) {
 			return Response.json(githubIssues);

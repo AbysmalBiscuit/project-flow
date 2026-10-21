@@ -6,7 +6,10 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
 	emptyProjectFields,
+	githubIssueNode,
 	recordedDiscovery,
+	repoReadIssues,
+	repoReadResponse,
 	tempConfig,
 	testIo,
 	trackFound,
@@ -70,7 +73,33 @@ function localFetch(requests: string[]): Fetch {
 		) {
 			return page([]);
 		}
+		if (
+			url === "https://api.github.com/graphql" &&
+			body.includes("query RepoRead")
+		) {
+			const parsed = JSON.parse(body) as {
+				variables?: { owner?: string; name?: string };
+			};
+			const owner = parsed.variables?.owner ?? "";
+			const name = parsed.variables?.name ?? "";
+			const repo = `${owner}/${name}`;
+			requests.push(`https://api.github.com/repos/${repo}/issues?state=all`);
+			const issues =
+				repo === named ||
+				repo === strangerOrigin ||
+				repo === "stranger/stranger-repo"
+					? [githubIssueNode(issue(9, repo))]
+					: [];
+			return new Response(JSON.stringify(repoReadIssues(owner, name, issues)), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		}
 		if (url === "https://api.github.com/graphql") {
+			const read = repoReadResponse(input, init);
+			if (read !== null) {
+				return read;
+			}
 			return new Response(
 				JSON.stringify({
 					data: {

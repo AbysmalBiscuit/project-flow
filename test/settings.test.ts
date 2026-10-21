@@ -15,8 +15,11 @@ import { run } from "../src/main.ts";
 import type { LocalCheckout } from "../src/ports.ts";
 import {
 	emptyProjectFields,
+	githubIssueNode,
 	linearFake,
 	recordedDiscovery,
+	repoReadIssues,
+	repoReadResponse,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -52,8 +55,22 @@ function page(items: Record<string, unknown>[]): Response {
 function recordTracker(
 	requests: string[],
 	input: string | URL | Request,
+	init?: RequestInit,
 ): void {
 	const url = urlOf(input);
+	const body = typeof init?.body === "string" ? init.body : "";
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("query RepoRead")
+	) {
+		const parsed = JSON.parse(body) as {
+			variables?: { owner?: string; name?: string };
+		};
+		requests.push(
+			`https://api.github.com/repos/${parsed.variables?.owner}/${parsed.variables?.name}/issues?state=all`,
+		);
+		return;
+	}
 	if (
 		url.startsWith("https://api.github.com/") ||
 		url.startsWith("https://api.linear.app/")
@@ -67,7 +84,7 @@ function recorded(
 	input: string | URL | Request,
 	init?: RequestInit,
 ): Response {
-	recordTracker(requests, input);
+	recordTracker(requests, input, init);
 	const url = urlOf(input);
 	if (url.startsWith("https://api.github.com/user/repos")) {
 		return new Response(
@@ -192,6 +209,10 @@ function recorded(
 				{ status: 200 },
 			);
 		}
+		const read = repoReadResponse(input, init);
+		if (read !== null) {
+			return read;
+		}
 		return new Response(
 			JSON.stringify({
 				data: {
@@ -256,7 +277,7 @@ function mergedBotPull(repo: string): Record<string, unknown> {
 function fetchingBots(requests: string[], orphan = false): Fetch {
 	if (orphan) {
 		return async (input, init) => {
-			recordTracker(requests, input);
+			recordTracker(requests, input, init);
 			if (urlOf(input) !== "https://api.linear.app/graphql") {
 				return recordedBots(requests, input, init);
 			}
@@ -319,7 +340,7 @@ function recordedBots(
 	input: string | URL | Request,
 	init?: RequestInit,
 ): Response {
-	recordTracker(requests, input);
+	recordTracker(requests, input, init);
 	const discovered = recordedDiscovery(input, init);
 	if (discovered !== null) {
 		return discovered;
@@ -339,7 +360,10 @@ function recordedBots(
 			},
 		]);
 	}
-	if (url === "https://api.github.com/graphql" && sent.includes("$owner")) {
+	if (
+		url === "https://api.github.com/graphql" &&
+		sent.includes("ProjectByNumber")
+	) {
 		return new Response(
 			JSON.stringify({
 				data: {
@@ -422,7 +446,92 @@ function recordedBots(
 			{ status: 200 },
 		);
 	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		sent.includes("query RepoRead")
+	) {
+		const parsed = JSON.parse(sent) as {
+			variables?: { owner?: string; name?: string };
+		};
+		const owner = parsed.variables?.owner ?? "acme";
+		const name = parsed.variables?.name ?? "shown";
+		const repo = `${owner}/${name}`;
+		if (repo !== shown) {
+			return new Response(JSON.stringify(repoReadIssues(owner, name, [])), {
+				status: 200,
+			});
+		}
+		const pull = (item: Record<string, unknown>, merged: boolean) => {
+			const head = item.head as { ref?: string; sha?: string };
+			return {
+				number: item.number,
+				title: item.title,
+				url: item.html_url,
+				isDraft: item.draft === true,
+				body: item.body,
+				state: merged ? "MERGED" : "OPEN",
+				mergedAt: merged ? item.merged_at : null,
+				headRefName: head.ref,
+				headRefOid: head.sha,
+				closingIssuesReferences: {
+					nodes: merged ? [] : [{ number: 1 }],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				},
+				reviews: {
+					nodes: [],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				},
+				comments: {
+					nodes: [],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				},
+				reactions: {
+					nodes: [],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				},
+				statusCheckRollup: {
+					contexts: {
+						nodes: merged
+							? [
+									{
+										name: "Grok code review",
+										status: "COMPLETED",
+										conclusion: "SUCCESS",
+									},
+								]
+							: [],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			};
+		};
+		const body = repoReadIssues(
+			owner,
+			name,
+			[
+				githubIssueNode({
+					number: 1,
+					title: "Ticket 1",
+					state: "open",
+					updated_at: "2026-08-01T12:00:00.000Z",
+				}),
+			],
+			{
+				pulls: [pull(openReviewPull(repo), false)],
+			},
+		) as {
+			data: { repository: { mergedPullRequests: { nodes: unknown[] } } };
+		};
+		body.data.repository.mergedPullRequests.nodes = [
+			pull(mergedBotPull(repo), true),
+		];
+		return new Response(JSON.stringify(body), { status: 200 });
+	}
 	if (url === "https://api.github.com/graphql") {
+		const read = repoReadResponse(input, init);
+		if (read !== null) {
+			return read;
+		}
 		return new Response(
 			JSON.stringify({
 				data: {
@@ -730,7 +839,12 @@ describe("settings", () => {
 		const heldRequests: string[] = [];
 		const held: Fetch = async (input, init) => {
 			const url = urlOf(input);
-			if (holdIssues && url.includes("/repos/") && url.includes("/issues?")) {
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (
+				holdIssues &&
+				url === "https://api.github.com/graphql" &&
+				body.includes("query RepoRead")
+			) {
 				enteredHold();
 				await issuesHeld;
 			}
@@ -1113,7 +1227,12 @@ describe("settings", () => {
 		const heldRequests: string[] = [];
 		const held: Fetch = async (input, init) => {
 			const url = urlOf(input);
-			if (holdIssues && url.includes("/repos/") && url.includes("/issues?")) {
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (
+				holdIssues &&
+				url === "https://api.github.com/graphql" &&
+				body.includes("query RepoRead")
+			) {
 				enteredHold();
 				await issuesHeld;
 			}
