@@ -47,6 +47,8 @@ const shortIssues = [
 	),
 ];
 
+let issueLists = 0;
+
 const recorded: Fetch = async (input, init) => {
 	const discovered = recordedDiscovery(input, init);
 	if (discovered !== null) {
@@ -55,6 +57,15 @@ const recorded: Fetch = async (input, init) => {
 	const url = urlOf(input);
 	if (url === "https://api.github.com/user") {
 		return Response.json({ login: "lev" });
+	}
+	if (
+		url.startsWith("https://api.github.com/repos/") &&
+		url.includes("/issues?")
+	) {
+		issueLists += 1;
+		if (issueLists > 3) {
+			return new Response("recorded poll failed", { status: 503 });
+		}
 	}
 	if (url.startsWith(`https://api.github.com/repos/${tall}/issues?`)) {
 		return Response.json(tallIssues);

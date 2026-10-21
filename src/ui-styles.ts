@@ -610,10 +610,6 @@ export const shell = stylex.create({
 	cardError: {
 		margin: 0,
 		overflow: "hidden",
-		padding: `${space.xs} ${space.sm}`,
-		borderRadius: radius.sm,
-		backgroundColor: colours.stale,
-		color: colours.staleInk,
 		textOverflow: "ellipsis",
 		whiteSpace: "nowrap",
 	},
@@ -716,6 +712,7 @@ export const cards = stylex.create({
 	},
 	blockers: {
 		display: "flex",
+		flexShrink: 0,
 		flexWrap: "wrap",
 		gap: space.xs,
 		maxHeight: measure.chipRow,

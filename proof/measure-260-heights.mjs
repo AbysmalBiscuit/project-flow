@@ -60,6 +60,33 @@ try {
 	browser(["open", base]);
 	browser(["wait", "--text", "acme/short"]);
 	browser(["wait", "--text", "+5 more"]);
+	const refreshed = spawnSync(
+		"curl",
+		["-sf", "-o", "/dev/null", "-X", "POST", `${base}/api/refresh`],
+		{ encoding: "utf8" },
+	);
+	if (refreshed.status !== 0) {
+		throw new Error(`refresh failed: ${refreshed.stderr ?? ""}`);
+	}
+	const errorShown = Date.now();
+	let overviewBody = "";
+	while (Date.now() - errorShown < 20_000) {
+		const overview = spawnSync("curl", ["-sf", `${base}/api/overview`], {
+			encoding: "utf8",
+		});
+		overviewBody = overview.stdout ?? "";
+		if (overviewBody.includes("GitHub read repo failed")) {
+			break;
+		}
+		spawnSync("sleep", ["0.3"]);
+	}
+	if (!overviewBody.includes("GitHub read repo failed")) {
+		throw new Error(
+			`overview has no project error: ${overviewBody.slice(0, 400)}`,
+		);
+	}
+	browser(["wait", "--text", "GitHub read repo failed"]);
+	browser(["wait", "--text", "+5 more"]);
 	const raw = browser([
 		"eval",
 		`(() => {
@@ -67,6 +94,8 @@ try {
 			return JSON.stringify(cards.map((card) => ({
 				id: card.id,
 				height: card.getBoundingClientRect().height,
+				more: card.querySelector("[data-more]")?.textContent ?? "",
+				error: card.querySelector("p[title]")?.textContent ?? "",
 			})));
 		})()`,
 	]);
@@ -76,15 +105,24 @@ try {
 		throw new Error(`no overview cards: ${raw}`);
 	}
 	const heights = cards.map((card) => card.height);
+	const short = cards.find((card) => card.id === "project-card-acme-short");
 	const lines = [
 		`base ${base}`,
-		...cards.map((card) => `${card.id} ${card.height}`),
+		...cards.map(
+			(card) =>
+				`${card.id} ${card.height} more=${card.more} error=${card.error}`,
+		),
 		`equal ${heights.every((height) => height === heights[0])}`,
 		`count ${cards.length}`,
+		`short-more ${short?.more ?? ""}`,
 	];
 	writeFileSync(logPath, `${lines.join("\n")}\n`);
 	console.log(lines.join("\n"));
-	if (!heights.every((height) => height === heights[0])) {
+	if (
+		!heights.every((height) => height === heights[0]) ||
+		short?.more !== "+5 more" ||
+		!String(short?.error ?? "").includes("GitHub read repo failed")
+	) {
 		process.exitCode = 1;
 	}
 } finally {

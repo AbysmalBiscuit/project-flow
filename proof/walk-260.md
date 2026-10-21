@@ -20,6 +20,8 @@ bun proof/measure-260-heights.mjs
 
 The three heights are equal. `acme/short` shows `+5 more`.
 
+The measure also posts `/api/refresh`. Each later issue list returns HTTP 503. Each card shows `GitHub read repo failed` and keeps its stored tickets. `acme/short` still lists six blockers and shows `+5 more`. The log line for that card names the error and the chip.
+
 Item 2, the overflow chip. Replay `proof/walk-260-more.json`:
 
 ```
