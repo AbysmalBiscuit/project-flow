@@ -308,6 +308,10 @@ function layoutTickets(
 ): Map<string, { x: number; y: number }> {
 	const placed = projectFlowPlaces(report, groupBy, assignees);
 	const positions = new Map<string, { x: number; y: number }>();
+	const local = (place: { x: number; row: number }) => ({
+		x: place.x,
+		y: place.row * flowGap.across,
+	});
 	const turned = (place: { x: number; y: number }) =>
 		direction === "top-to-bottom"
 			? {
@@ -324,7 +328,8 @@ function layoutTickets(
 	const byBand = new Map<string, { id: string; x: number; y: number }[]>();
 	for (const [id, place] of placed) {
 		const members = byBand.get(place.band) ?? [];
-		members.push({ id, x: place.x, y: place.y });
+		const home = local(place);
+		members.push({ id, x: home.x, y: home.y });
 		byBand.set(place.band, members);
 	}
 	const bands = [...byBand.keys()].sort((left, right) =>
@@ -340,17 +345,12 @@ function layoutTickets(
 		);
 		for (const [index, member] of members.entries()) {
 			const place = shifted[index] ?? { x: 0, y: 0 };
-			positions.set(
-				member.id,
-				direction === "top-to-bottom"
-					? { x: place.x, y: place.y + origin }
-					: { x: place.x + origin, y: place.y },
-			);
+			positions.set(member.id, {
+				x: place.x + origin,
+				y: place.y,
+			});
 		}
-		const span =
-			direction === "top-to-bottom"
-				? Math.max(...shifted.map((place) => place.y))
-				: Math.max(...shifted.map((place) => place.x));
+		const span = Math.max(...shifted.map((place) => place.x));
 		origin += span + columnGap + groupPad * 2;
 	}
 	return positions;

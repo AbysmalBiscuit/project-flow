@@ -25,6 +25,7 @@ export type FlowPlace = {
 	x: number;
 	y: number;
 	band: string;
+	row: number;
 };
 
 /** Each connected set sits on its own band, and a straight chain keeps one row. */
@@ -85,6 +86,7 @@ export function flowPlaces(
 	loose.sort((left, right) => setRank(left).localeCompare(setRank(right)));
 
 	const across = new Map<string, number>();
+	const bandRow = new Map<string, number>();
 	const assign = (idsInSet: string[], cursor: { row: number }): void => {
 		const rows = flowRows(idsInSet, incoming, depth);
 		const columns = new Map<number, string[]>();
@@ -99,18 +101,22 @@ export function flowPlaces(
 		);
 		const neighboursOf = (id: string, sweep: "back" | "forward"): string[] =>
 			sweep === "back" ? (outgoing.get(id) ?? []) : (incoming.get(id) ?? []);
-		const placeColumn = (names: string[], sweep: "back" | "forward") => {
+		const placeColumn = (
+			names: string[],
+			sweep: "back" | "forward",
+			placed: Map<string, number>,
+		) => {
 			const open = [...names].sort((left, right) => left.localeCompare(right));
 			const taken = new Set<number>();
 			const claim = (id: string, row: number) => {
-				across.set(id, row);
+				placed.set(id, row);
 				taken.add(row);
 			};
 			while (open.length > 0) {
 				let best: { id: string; row: number; index: number } | null = null;
 				for (const [index, id] of open.entries()) {
 					for (const neighbour of neighboursOf(id, sweep)) {
-						const row = across.get(neighbour);
+						const row = placed.get(neighbour);
 						if (row === undefined || taken.has(row)) {
 							continue;
 						}
@@ -139,25 +145,44 @@ export function flowPlaces(
 				claim(id, row);
 			}
 		};
-		for (let pass = 0; pass < 8; pass += 1) {
-			for (const column of [...columnsInOrder].reverse()) {
-				placeColumn(columns.get(column) ?? [], "back");
-			}
-			for (const column of columnsInOrder) {
-				placeColumn(columns.get(column) ?? [], "forward");
-			}
-		}
-		const minRow = Math.min(...idsInSet.map((id) => across.get(id) ?? 0));
-		const local = new Map<string, number>();
-		for (const id of idsInSet) {
-			local.set(id, (across.get(id) ?? 0) - minRow);
-		}
-		const packed = packRows(local, rows);
+		const bandsInSet = [...new Set(idsInSet.map((id) => bandOf.get(id) ?? ""))];
+		bandsInSet.sort((left, right) => left.localeCompare(right));
 		let span = 0;
+		for (const band of bandsInSet) {
+			const inBand = idsInSet.filter((id) => (bandOf.get(id) ?? "") === band);
+			const placed = new Map<string, number>();
+			for (let pass = 0; pass < 8; pass += 1) {
+				for (const column of [...columnsInOrder].reverse()) {
+					placeColumn(
+						(columns.get(column) ?? []).filter((id) => inBand.includes(id)),
+						"back",
+						placed,
+					);
+				}
+				for (const column of columnsInOrder) {
+					placeColumn(
+						(columns.get(column) ?? []).filter((id) => inBand.includes(id)),
+						"forward",
+						placed,
+					);
+				}
+			}
+			const minRow = Math.min(...inBand.map((id) => placed.get(id) ?? 0));
+			const local = new Map<string, number>();
+			for (const id of inBand) {
+				local.set(id, (placed.get(id) ?? 0) - minRow);
+			}
+			const packed = packRows(local, rows);
+			let bandSpan = 0;
+			for (const id of inBand) {
+				const row = packed.get(id) ?? 0;
+				bandRow.set(id, row);
+				bandSpan = Math.max(bandSpan, row + 1);
+			}
+			span = Math.max(span, bandSpan);
+		}
 		for (const id of idsInSet) {
-			const row = packed.get(id) ?? 0;
-			across.set(id, row + cursor.row);
-			span = Math.max(span, row + 1);
+			across.set(id, (bandRow.get(id) ?? 0) + cursor.row);
 		}
 		cursor.row += Math.max(span, 1);
 	};
@@ -179,6 +204,7 @@ export function flowPlaces(
 			x: (depth.get(id) ?? 0) * gaps.along,
 			y: (across.get(id) ?? 0) * gaps.across,
 			band: bandOf.get(id) ?? "",
+			row: bandRow.get(id) ?? 0,
 		});
 	}
 	return places;
