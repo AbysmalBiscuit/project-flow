@@ -477,7 +477,7 @@ export const board = stylex.create({
 		flex: "1 1 auto",
 		alignSelf: "stretch",
 		minWidth: 0,
-		minHeight: 0,
+		minHeight: measure.boardMin,
 		overflow: "hidden",
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -513,13 +513,6 @@ export const board = stylex.create({
 		justifyContent: "flex-end",
 		minWidth: 0,
 		pointerEvents: "none",
-	},
-	graphLayout: {
-		position: "absolute",
-		width: measure.hairline,
-		height: measure.hairline,
-		overflow: "hidden",
-		clipPath: "inset(50%)",
 	},
 	graphFloat: {
 		display: "flex",

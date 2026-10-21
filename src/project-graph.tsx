@@ -615,10 +615,20 @@ function watchLayout(): () => void {
 	if (root === null) {
 		return () => {};
 	}
+	const legend = root.querySelector(
+		`[aria-label="${projectGraphLabel.legend}"]`,
+	);
+	const chrome = document.getElementById("project-graph-controls");
 	publishLayout();
 	const observer = new ResizeObserver(publishLayout);
 	observer.observe(root);
 	observer.observe(document.documentElement);
+	if (legend instanceof HTMLElement) {
+		observer.observe(legend);
+	}
+	if (chrome instanceof HTMLElement) {
+		observer.observe(chrome);
+	}
 	return () => observer.disconnect();
 }
 
@@ -768,7 +778,7 @@ function SizedProjectGraph({
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
 			</p>
-			<p id="project-graph-layout" className={clsx(board.graphLayout)} />
+			<p id="project-graph-layout" className={clsx(cards.graphProbe)} />
 			<p id="graph-states" className={clsx(cards.graphProbe)}>
 				{model.nodes
 					.flatMap((node) =>

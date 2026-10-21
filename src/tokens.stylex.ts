@@ -352,8 +352,8 @@ export const measure = stylex.defineVars({
 	switchCol: "5.5rem",
 	// Title, progress, legend and one chip row. Extra chips clip.
 	overviewCard: "13.5rem",
-	// Legend and controls share the canvas top. The legend keeps the left side.
-	legendCap: "calc(100% - 13rem)",
+	// Legend and controls split the pane at the controls' left edge.
+	legendCap: `calc(50% - 2 * ${space.sm})`,
 	// chipRow holds one type.small chip line with space.twoXs padding.
 	chipRow: "1.7rem",
 });
