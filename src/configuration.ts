@@ -46,22 +46,6 @@ export const projectRef = z.union([githubRepoPin, githubProjectPin, linearPin]);
 
 export type ProjectPin = z.infer<typeof projectRef>;
 
-export function sameRef(left: ProjectPin, right: ProjectPin): boolean {
-	if (left.tracker !== right.tracker) {
-		return false;
-	}
-	if (left.tracker === "linear" && right.tracker === "linear") {
-		return left.project === right.project;
-	}
-	if ("repo" in left && "repo" in right) {
-		return left.repo === right.repo;
-	}
-	if ("owner" in left && "owner" in right) {
-		return left.owner === right.owner && left.project === right.project;
-	}
-	return false;
-}
-
 const knownBot = z.enum(knownBots);
 
 const storedSorts = [
