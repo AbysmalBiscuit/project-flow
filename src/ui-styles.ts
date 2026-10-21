@@ -607,6 +607,12 @@ export const shell = stylex.create({
 		backgroundColor: colours.stale,
 		color: colours.staleInk,
 	},
+	cardError: {
+		margin: 0,
+		overflow: "hidden",
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
+	},
 	theme: {
 		marginLeft: "auto",
 	},
@@ -625,7 +631,10 @@ export const cards = stylex.create({
 		display: "flex",
 		flexDirection: "column",
 		gap: space.sm,
+		boxSizing: "border-box",
+		height: measure.overviewCard,
 		minWidth: 0,
+		overflow: "hidden",
 		padding: space.lg,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -638,19 +647,23 @@ export const cards = stylex.create({
 		gap: space.sm,
 		alignItems: "flex-start",
 		justifyContent: "space-between",
+		minWidth: 0,
 	},
 	nameRow: {
-		display: "flex",
-		gap: space.xs,
-		alignItems: "center",
 		margin: 0,
+		overflow: "hidden",
 		fontSize: type.heading,
 		fontWeight: type.weight,
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 	},
 	meta: {
 		margin: `${space.twoXs} 0 0`,
+		overflow: "hidden",
 		color: colours.inkSoft,
 		fontSize: type.small,
+		textOverflow: "ellipsis",
+		whiteSpace: "nowrap",
 	},
 	doneLine: {
 		display: "flex",
@@ -660,6 +673,7 @@ export const cards = stylex.create({
 		fontSize: type.small,
 	},
 	projectLink: {
+		minWidth: 0,
 		color: {
 			default: "inherit",
 			":hover": colours.link,
@@ -698,9 +712,12 @@ export const cards = stylex.create({
 	},
 	blockers: {
 		display: "flex",
+		flexShrink: 0,
 		flexWrap: "wrap",
 		gap: space.xs,
+		maxHeight: measure.chipRow,
 		margin: `${space.sm} 0 0`,
+		overflow: "hidden",
 	},
 	chip: {
 		display: "inline-block",
