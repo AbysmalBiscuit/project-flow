@@ -2,7 +2,9 @@ import * as stylex from "@stylexjs/stylex";
 
 const dark = "@media (prefers-color-scheme: dark)";
 
-export const phone = "@media (max-width: 64rem)";
+export const media = stylex.defineConsts({
+	phone: "@media (max-width: 64rem)",
+});
 
 export const lightValues = {
 	canvas: "#ffffff",
@@ -310,4 +312,41 @@ export const measure = stylex.defineVars({
 export const stack = stylex.defineVars({
 	panel: 1,
 	jump: 2,
+});
+
+export const phoneLayout = stylex.create({
+	cardNeed: {
+		[media.phone]: {
+			gridTemplateColumns: "minmax(0, 1fr) auto",
+		},
+	},
+	cardNeedKey: {
+		[media.phone]: {
+			gridColumn: "1 / -1",
+		},
+	},
+	needsItem: {
+		[media.phone]: {
+			height: "auto",
+			alignItems: "stretch",
+			flexDirection: "column",
+		},
+	},
+	needsAside: {
+		[media.phone]: {
+			marginLeft: 0,
+			padding: `0 ${space.md} ${space.sm}`,
+		},
+	},
+	needsRow: {
+		[media.phone]: {
+			height: "auto",
+			padding: `${space.sm} ${space.md}`,
+		},
+	},
+	needsKey: {
+		[media.phone]: {
+			flexBasis: "100%",
+		},
+	},
 });

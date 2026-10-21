@@ -3,7 +3,6 @@ import {
 	colours,
 	font,
 	measure,
-	phone,
 	radius,
 	scheme,
 	space,
@@ -850,9 +849,6 @@ export const cards = stylex.create({
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.laneLine,
 		fontSize: type.small,
-		[phone]: {
-			gridTemplateColumns: "minmax(0, 1fr) auto",
-		},
 	},
 	needKey: {
 		maxWidth: "100%",
@@ -862,9 +858,6 @@ export const cards = stylex.create({
 		textOverflow: "ellipsis",
 		whiteSpace: "nowrap",
 		textDecoration: "none",
-		[phone]: {
-			gridColumn: "1 / -1",
-		},
 	},
 	needTitle: {
 		overflow: "hidden",
@@ -1198,11 +1191,6 @@ export const needs = stylex.create({
 		borderTopWidth: measure.hairline,
 		borderTopStyle: "solid",
 		borderTopColor: colours.laneLine,
-		[phone]: {
-			height: "auto",
-			alignItems: "stretch",
-			flexDirection: "column",
-		},
 	},
 	selected: {
 		backgroundColor: colours.progressWash,
@@ -1226,10 +1214,6 @@ export const needs = stylex.create({
 		gap: space.sm,
 		alignItems: "center",
 		marginLeft: "auto",
-		[phone]: {
-			marginLeft: 0,
-			padding: `0 ${space.md} ${space.sm}`,
-		},
 	},
 	reason: {
 		color: colours.inkSoft,
@@ -1265,10 +1249,6 @@ export const needs = stylex.create({
 		font: "inherit",
 		textAlign: "left",
 		cursor: "pointer",
-		[phone]: {
-			height: "auto",
-			padding: `${space.sm} ${space.md}`,
-		},
 	},
 	icon: {
 		display: "inline-flex",
@@ -1296,9 +1276,6 @@ export const needs = stylex.create({
 		fontSize: type.meta,
 		textOverflow: "ellipsis",
 		whiteSpace: "nowrap",
-		[phone]: {
-			flexBasis: "100%",
-		},
 	},
 	action: {
 		padding: `${space.twoXs} ${space.md}`,
@@ -1359,15 +1336,8 @@ export const needs = stylex.create({
 		flexDirection: "column",
 		boxSizing: "border-box",
 		width: measure.needsPanel,
-		maxWidth: "100%",
 		maxHeight: "100%",
 		overflow: "auto",
-		[phone]: {
-			position: "static",
-			flexBasis: "auto",
-			width: "100%",
-		},
-
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
