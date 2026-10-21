@@ -103,21 +103,6 @@ function recordedRepoPage(
 	);
 }
 
-let holdNext = false;
-let releaseHold = () => {};
-let holding: Promise<void> | null = null;
-
-function armHold(): void {
-	holdNext = true;
-	holding = new Promise((resolve) => {
-		releaseHold = () => {
-			holdNext = false;
-			holding = null;
-			resolve();
-		};
-	});
-}
-
 const recorded: Fetch = async (input, init) => {
 	const request = trackerRequest(input, init);
 	const url = request.url;
@@ -180,57 +165,20 @@ await writeFile(
 
 let upstream: URL | null = null;
 const stopped = new AbortController();
-const pageRequests: string[] = [];
 
-function upstreamUrl(request: Request, target: URL): URL {
+function proxy(request: Request): Promise<Response> {
+	const target = upstream;
+	if (target === null) {
+		return Promise.resolve(new Response("loading", { status: 503 }));
+	}
 	const url = new URL(request.url);
 	url.protocol = target.protocol;
 	url.hostname = target.hostname;
 	url.port = target.port;
-	return url;
-}
-
-async function proxy(request: Request): Promise<Response> {
-	const url = new URL(request.url);
-	if (url.pathname === "/proof/hold") {
-		armHold();
-		return new Response("held", { status: 200 });
-	}
-	if (url.pathname === "/proof/release") {
-		releaseHold();
-		return new Response("released", { status: 200 });
-	}
-	if (url.pathname === "/proof/requests") {
-		if (request.method === "DELETE" || url.searchParams.get("clear") === "1") {
-			pageRequests.length = 0;
-		}
-		if (request.method === "DELETE") {
-			return new Response(null, { status: 204 });
-		}
-		const overview = pageRequests.filter(
-			(line) => line === "GET /api/overview",
-		).length;
-		const lines = pageRequests.map((line) => `<li>${line}</li>`).join("");
-		return new Response(
-			`<!doctype html><title>requests</title><p id="proof-overview-fetches">overview fetches ${overview}</p><ul>${lines}</ul>`,
-			{ headers: { "content-type": "text/html; charset=utf-8" } },
-		);
-	}
-	const target = upstream;
-	if (target === null) {
-		return new Response("loading", { status: 503 });
-	}
-	if (url.pathname.startsWith("/api/")) {
-		pageRequests.push(`${request.method} ${url.pathname}`);
-	}
-	if (holdNext && url.pathname === "/api/overview") {
-		await (holding ?? Promise.resolve());
-	}
-	const next = upstreamUrl(request, target);
 	const headers = new Headers(request.headers);
 	headers.delete("host");
 	const hasBody = request.method !== "GET" && request.method !== "HEAD";
-	return fetch(next, {
+	return fetch(url, {
 		method: request.method,
 		headers,
 		...(hasBody ? { body: request.body } : {}),
