@@ -1,7 +1,14 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { readSettings, writeSettings } from "./client-settings.ts";
 import {
 	type Configuration,
@@ -540,8 +547,29 @@ function MenuButton({
 	onToggle: () => void;
 	children: ReactNode;
 }) {
+	const root = useRef<HTMLDivElement>(null);
+	const [maxHeight, setMaxHeight] = useState<number | null>(null);
+	useLayoutEffect(() => {
+		const node = root.current;
+		if (!open || node === null) {
+			return;
+		}
+		const fit = () => {
+			const panel = node.querySelector("[id$='-panel']");
+			if (!(panel instanceof HTMLElement)) {
+				return;
+			}
+			const top = panel.getBoundingClientRect().top;
+			setMaxHeight(Math.max(0, Math.floor(window.innerHeight - top)));
+		};
+		fit();
+		window.addEventListener("resize", fit);
+		return () => {
+			window.removeEventListener("resize", fit);
+		};
+	}, [open]);
 	return (
-		<div className={clsx(cards.menu)}>
+		<div className={clsx(cards.menu)} ref={root}>
 			<button
 				type="button"
 				id={id}
@@ -553,7 +581,11 @@ function MenuButton({
 				{label}
 			</button>
 			{open ? (
-				<div id={`${id}-panel`} className={clsx(cards.panel)}>
+				<div
+					id={`${id}-panel`}
+					className={clsx(cards.panel)}
+					style={maxHeight === null ? undefined : { maxHeight }}
+				>
 					{children}
 				</div>
 			) : null}

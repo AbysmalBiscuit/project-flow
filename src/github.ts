@@ -15,14 +15,10 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import {
-	backlogColour,
-	factoryBoard,
-	reviewStateValue,
-	statusTypeOfName,
-} from "./domain.ts";
+import { factoryBoard, reviewStateValue, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
+import { statusColours } from "./token-palette.ts";
 
 export class TrackerError extends Error {
 	readonly status: number;
@@ -855,13 +851,13 @@ const githubOptionColours: Record<string, string> = {
 };
 
 function githubOptionColour(color: string): string {
-	return githubOptionColours[color] ?? backlogColour();
+	return githubOptionColours[color] ?? statusColours.backlog;
 }
 
 function labelColour(color: string): string {
 	const hex = color.replace(/^#/, "");
 	if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
-		return backlogColour();
+		return statusColours.backlog;
 	}
 	return `#${hex.toUpperCase()}`;
 }
