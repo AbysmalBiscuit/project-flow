@@ -39,7 +39,7 @@ export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
 
 export const defaultThreadReadLimitMs = 5_000;
 
-export const threadReadTimedOut = "thread read timed out";
+const threadReadTimedOut = "thread read timed out";
 
 export class ThreadReadTimeout extends Error {
 	constructor() {
@@ -50,7 +50,7 @@ export class ThreadReadTimeout extends Error {
 
 export async function withThreadLimit<T>(
 	read: (signal: AbortSignal) => Promise<T>,
-	limitMs: number = defaultThreadReadLimitMs,
+	limitMs: number,
 ): Promise<T> {
 	const deadline = new AbortController();
 	let timer: ReturnType<typeof setTimeout> | undefined;
