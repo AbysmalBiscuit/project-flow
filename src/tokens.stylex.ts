@@ -333,7 +333,7 @@ const shellWrap = {
 } as const;
 
 export const projectBarLayout = stylex.create({
-	// The project page adds this class. Other pages keep the one-line bar.
+	// The project page adds this class.
 	fit: {
 		[media.projectBar]: shellWrap,
 	},
