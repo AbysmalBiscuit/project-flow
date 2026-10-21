@@ -1,0 +1,17 @@
+{
+	"base_url": "http://127.0.0.1:4175",
+	"serve": [
+		"env",
+		"NEEDS_THREAD=missing",
+		"bun",
+		"proof/serve-needs-you.ts",
+		"4175"
+	],
+	"steps": [
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Ready to merge" },
+		{ "click": "[data-needs='acme/widget#8'] button" },
+		{ "assert_text": "This thread could not be read." },
+		{ "shot": "thread-missing" }
+	]
+}

@@ -2509,6 +2509,40 @@ export const panel = stylex.create({
 		color: colours.inkMuted,
 		fontSize: type.small,
 	},
+	facts: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.sm,
+		margin: `0 0 ${space.sm}`,
+	},
+	fact: {
+		display: "grid",
+		gridTemplateColumns: `${measure.fact} minmax(0, 1fr)`,
+		gap: space.sm,
+		alignItems: "baseline",
+		margin: 0,
+	},
+	factLabel: {
+		color: colours.inkSoft,
+		fontSize: type.meta,
+		fontWeight: type.weight,
+	},
+	factValue: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.sm,
+		margin: 0,
+		color: colours.ink,
+		fontSize: type.meta,
+	},
+	factLink: {
+		color: colours.link,
+	},
+	note: {
+		margin: `0 ${space.md} ${space.sm}`,
+		color: colours.inkSoft,
+		fontSize: type.meta,
+	},
 });
 
 export const settings = stylex.create({

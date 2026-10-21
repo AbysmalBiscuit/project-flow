@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { repoReadFromLists } from "../test/support.ts";
 
 const repo = "acme/widget";
 const gate = "acme/gate";
@@ -29,6 +30,82 @@ const recorded: Fetch = async (input, init) => {
 		return page([]);
 	}
 	if (url === "https://api.github.com/graphql") {
+		const repoRead = repoReadFromLists(
+			input,
+			init,
+			{
+				[repo]: [
+					{
+						number: 8,
+						title: "Ready to merge",
+						state: "open",
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						assignee: { login: "someone" },
+						labels: [],
+					},
+					{
+						number: 9,
+						title: "Needs an engineer",
+						state: "open",
+						updated_at: "2026-10-01T00:00:00Z",
+						body: "",
+						assignee: { login: "lev" },
+						labels: [{ name: "needs-engineer" }],
+					},
+				],
+				[gate]: [
+					{
+						number: 3,
+						title: "Name the gate",
+						state: "open",
+						updated_at: "2026-10-02T00:00:00Z",
+						body: "",
+						assignee: { login: "lev" },
+						labels: [],
+						commentRows: [
+							{
+								id: 30,
+								body: `${gateQuestion} This waits on the signing key.\n\n${gateAsk}`,
+								user: { login: "factory" },
+								created_at: "2026-10-02T00:00:00Z",
+							},
+						],
+					},
+					{
+						number: 4,
+						title: "Hold the gate",
+						state: "open",
+						updated_at: "2026-10-02T00:00:00Z",
+						body: "",
+						assignee: { login: "lev" },
+						labels: [{ name: "needs-engineer" }],
+					},
+				],
+			},
+			{
+				[repo]: [
+					{
+						number: 40,
+						title: "Ship it",
+						state: "open",
+						draft: false,
+						html_url: `https://github.com/${repo}/pull/40`,
+						head: {
+							ref: "8-ready-to-merge",
+							sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						},
+						body: "Closes #8",
+						closing: [{ number: 8 }],
+						merged_at: null,
+						committedAt: "2026-10-01T00:00:00Z",
+					},
+				],
+			},
+		);
+		if (repoRead !== null) {
+			return repoRead;
+		}
 		if (body.includes("ViewerProjects") || body.includes("OrgProjects")) {
 			return Response.json({
 				data: {
@@ -47,11 +124,21 @@ const recorded: Fetch = async (input, init) => {
 			});
 		}
 		if (body.includes("closedByPullRequestsReferences")) {
+			const linked = body.includes('"number":8');
 			return Response.json({
 				data: {
 					repository: {
 						issue: {
-							closedByPullRequestsReferences: { nodes: [] },
+							closedByPullRequestsReferences: {
+								nodes: linked
+									? [
+											{
+												number: 40,
+												repository: { nameWithOwner: repo },
+											},
+										]
+									: [],
+							},
 						},
 					},
 				},
@@ -196,6 +283,27 @@ const recorded: Fetch = async (input, init) => {
 			html_url: `https://github.com/${gate}/issues/3`,
 		});
 	}
+	if (
+		url === `https://api.github.com/repos/${repo}/issues/8` &&
+		process.env.NEEDS_THREAD !== "missing"
+	) {
+		return Response.json({
+			title: "Ready to merge",
+			html_url: `https://github.com/${repo}/issues/8`,
+		});
+	}
+	if (url === `https://api.github.com/repos/${repo}/issues/9`) {
+		return Response.json({
+			title: "Needs an engineer",
+			html_url: `https://github.com/${repo}/issues/9`,
+		});
+	}
+	if (url === `https://api.github.com/repos/${gate}/issues/4`) {
+		return Response.json({
+			title: "Hold the gate",
+			html_url: `https://github.com/${gate}/issues/4`,
+		});
+	}
 	if (url.includes(`/repos/${gate}/issues/3/comments`)) {
 		return page([
 			{
@@ -262,6 +370,7 @@ await writeFile(
 		],
 		checkoutRoots: [],
 		needsYouLabels: ["needs-human", "needs-engineer"],
+		theme: process.env.NEEDS_THEME === "dark" ? "dark" : "light",
 	}),
 );
 

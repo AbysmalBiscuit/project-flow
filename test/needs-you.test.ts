@@ -2371,6 +2371,7 @@ describe("needs you", () => {
 				pull: {
 					number: 40,
 					title: "Ship the widget",
+					url: `https://github.com/${repo}/pull/40`,
 					ci: "passing",
 					review: "approved",
 				},

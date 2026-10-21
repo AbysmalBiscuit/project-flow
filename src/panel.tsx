@@ -6,8 +6,14 @@ import type {
 	ThreadComment,
 	TicketState,
 } from "./domain.ts";
-import { HeldAction } from "./needs-item.tsx";
-import { pullStatusLabel, stateLabel, whyLabel } from "./terms.ts";
+import {
+	mergeFactLabel,
+	openOnGitHubLabel,
+	pullStatusLabel,
+	stateLabel,
+	threadMissingLabel,
+	whyLabel,
+} from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, needs, panel, shell } from "./ui-styles.ts";
@@ -144,10 +150,31 @@ function WhySection({
 				<p className={clsx(panel.question)}>{question}</p>
 			)}
 			{pull === undefined ? null : (
-				<p className={clsx(panel.status)}>
-					PR #{pull.number} {pull.title}. {pullStatusLabel.ci[pull.ci]}.{" "}
-					{pullStatusLabel.review[pull.review]}.
-				</p>
+				<dl className={clsx(panel.facts)}>
+					<div className={clsx(panel.fact)}>
+						<dt className={clsx(panel.factLabel)}>{mergeFactLabel.pr}</dt>
+						<dd className={clsx(panel.factValue)}>
+							<a className={clsx(panel.factLink)} href={pull.url}>
+								{openOnGitHubLabel}
+							</a>
+							<span>
+								#{pull.number} {pull.title}
+							</span>
+						</dd>
+					</div>
+					<div className={clsx(panel.fact)}>
+						<dt className={clsx(panel.factLabel)}>{mergeFactLabel.ci}</dt>
+						<dd className={clsx(panel.factValue)}>
+							{pullStatusLabel.ci[pull.ci]}
+						</dd>
+					</div>
+					<div className={clsx(panel.fact)}>
+						<dt className={clsx(panel.factLabel)}>{mergeFactLabel.review}</dt>
+						<dd className={clsx(panel.factValue)}>
+							{pullStatusLabel.review[pull.review]}
+						</dd>
+					</div>
+				</dl>
 			)}
 			{options.length === 0 ? null : (
 				<ul className={clsx(panel.options)}>
@@ -224,7 +251,10 @@ export function TicketPanel({
 				}
 				if (!response.ok) {
 					setThread(null);
-					setMissing(true);
+					const failed = (await response.json().catch(() => null)) as {
+						missing?: boolean;
+					} | null;
+					setMissing(failed?.missing === true);
 					return;
 				}
 				setMissing(false);
@@ -340,9 +370,7 @@ export function TicketPanel({
 				</span>
 			</div>
 			{missing ? (
-				<p className={clsx(panel.error)} role="alert">
-					Thread not found
-				</p>
+				<p className={clsx(panel.note)}>{threadMissingLabel}</p>
 			) : null}
 			{thread === null && !missing ? (
 				<p className={clsx(panel.label)}>Loading thread</p>
@@ -361,7 +389,6 @@ export function TicketPanel({
 					{laneName}
 				</p>
 			)}
-			<HeldAction item={item ?? null} />
 			{item === null || item === undefined ? (
 				why === undefined ? null : (
 					<section className={clsx(needs.why)} aria-label={whyLabel}>
