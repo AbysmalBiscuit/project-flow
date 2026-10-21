@@ -6,6 +6,7 @@ import type { NeedsYouItem, Thread } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
+	eventsOf,
 	linearFake,
 	recordedDiscovery,
 	repoReadFromLists,
@@ -211,30 +212,8 @@ function githubFetch(
 	};
 }
 
-type StreamEvent = { event: string; data: string };
-
-function eventsOf(text: string): StreamEvent[] {
-	const events: StreamEvent[] = [];
-	for (const block of text.split("\n\n")) {
-		const event = block
-			.split("\n")
-			.find((line) => line.startsWith("event:"))
-			?.slice("event:".length)
-			.trim();
-		const payload = block
-			.split("\n")
-			.filter((line) => line.startsWith("data:"))
-			.map((line) => line.slice("data:".length).trim())
-			.join("\n");
-		if (event !== undefined && payload !== "") {
-			events.push({ event, data: payload });
-		}
-	}
-	return events;
-}
-
-// /api/refresh returns before the poll reads the tracker. The ended progress
-// event is the poll that read comments after this call.
+// Wait for a progress start after the stream opens, then that poll's end.
+// A replayed or in-flight poll's ended event is not this refresh.
 async function refreshSettled(base: string): Promise<void> {
 	const stream = await fetch(new URL("/api/events", base), {
 		headers: { accept: "text/event-stream" },
@@ -251,20 +230,36 @@ async function refreshSettled(base: string): Promise<void> {
 		if (!buffered.includes(": open")) {
 			throw new Error("event stream did not open");
 		}
+		const openEvents = eventsOf(buffered);
 		const refreshed = await fetch(new URL("/api/refresh", base), {
 			method: "POST",
 		});
 		if (refreshed.status !== 204) {
 			throw new Error(`refresh returned ${refreshed.status}`);
 		}
-		const pollEnded = (text: string): boolean =>
-			eventsOf(text).some((event) => {
-				if (event.event !== "progress") {
-					return false;
-				}
-				return (JSON.parse(event.data) as { ended?: boolean }).ended === true;
-			});
-		while (!pollEnded(buffered)) {
+		const progressOf = (event: {
+			event: string;
+			data: string;
+		}): { done?: number; ended?: boolean } | null => {
+			if (event.event !== "progress") {
+				return null;
+			}
+			return JSON.parse(event.data) as { done?: number; ended?: boolean };
+		};
+		const ownPollSettled = (text: string): boolean => {
+			const progress = eventsOf(text)
+				.slice(openEvents.length)
+				.map(progressOf)
+				.filter((item) => item !== null);
+			const started = progress.findIndex(
+				(item) => item.done === 0 && item.ended === false,
+			);
+			return (
+				started >= 0 &&
+				progress.slice(started).some((item) => item.ended === true)
+			);
+		};
+		while (!ownPollSettled(buffered)) {
 			const chunk = await reader.read();
 			if (chunk.done) {
 				throw new Error("event stream closed before the poll ended");
