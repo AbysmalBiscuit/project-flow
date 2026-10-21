@@ -5,6 +5,7 @@ import type {
 	InboxEntry,
 	NeedsYouItem,
 	Overview,
+	PollProgress,
 	ProjectReport,
 	SettingsProject,
 } from "./domain.ts";
@@ -22,6 +23,7 @@ type PageCache = {
 	"needs-you": NeedsYouItem[];
 	"fetched-at": string | null;
 	polling: boolean;
+	progress: PollProgress;
 	"settings-page": SettingsPage;
 };
 
