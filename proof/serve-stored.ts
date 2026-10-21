@@ -43,15 +43,22 @@ function issue(): Record<string, unknown> {
 	};
 }
 
-const recorded: Fetch = async (input, init) => {
-	if (holdReads) {
-		trackerEntered = true;
-		await hold;
-	}
-	const discovered = recordedDiscovery(input, init);
-	if (discovered !== null) {
-		return discovered;
-	}
+function emptyList(url: string): boolean {
+	return (
+		url.includes("/pulls?") ||
+		url.includes("/branches?") ||
+		url.includes("/labels?") ||
+		url.includes("/comments") ||
+		url.includes("/reviews") ||
+		url.includes("/reactions") ||
+		url.includes("/check-runs")
+	);
+}
+
+function recordedBody(
+	input: Parameters<Fetch>[0],
+	init: Parameters<Fetch>[1],
+): Response {
 	const url = urlOf(input);
 	if (url === "https://api.github.com/user") {
 		return Response.json({ login: "lev" });
@@ -70,18 +77,22 @@ const recorded: Fetch = async (input, init) => {
 	if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
 		return page([issue()]);
 	}
-	if (
-		url.includes("/pulls?") ||
-		url.includes("/branches?") ||
-		url.includes("/labels?") ||
-		url.includes("/comments") ||
-		url.includes("/reviews") ||
-		url.includes("/reactions") ||
-		url.includes("/check-runs")
-	) {
+	if (emptyList(url)) {
 		return page([]);
 	}
 	return emptyLinear(url) ?? unrecorded(input);
+}
+
+const recorded: Fetch = async (input, init) => {
+	if (holdReads) {
+		trackerEntered = true;
+		await hold;
+	}
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	return recordedBody(input, init);
 };
 
 const dir = await mkdtemp(join(tmpdir(), "project-flow-263-"));

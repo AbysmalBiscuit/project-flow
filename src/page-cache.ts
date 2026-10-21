@@ -84,6 +84,70 @@ export { storeHoldsRead } from "./stored-page.ts";
 
 let storedSeeded = false;
 
+function seedOverview(stored: unknown, polling: boolean | undefined): void {
+	const embedded = storedObject(stored);
+	if (embedded === null) {
+		return;
+	}
+	const overview = storedObject(embedded.overview) ?? embedded;
+	const projects = Array.isArray(overview.projects)
+		? overview.projects.flatMap((project) => {
+				const row = storedObject(project);
+				return row === null ? [] : [row];
+			})
+		: [];
+	if (
+		!storeHoldsRead({
+			projects,
+			tracked: overview.tracked === false ? false : undefined,
+		})
+	) {
+		return;
+	}
+	writePageCache("overview", overview as Overview);
+	writePageCache("polling", overview.polling === true || polling === true);
+	const fetchedAt =
+		typeof overview.fetchedAt === "string" ? overview.fetchedAt : null;
+	writePageCache("fetched-at", fetchedAt);
+	const settings = storedObject(embedded.settings);
+	if (settings !== null) {
+		writePageCache("settings", settings as Configuration);
+	}
+}
+
+function seedSettingsPage(stored: unknown): void {
+	const body = storedObject(stored);
+	if (body === null) {
+		return;
+	}
+	const trackers = storedObject(body.trackers);
+	const projects = Array.isArray(body.projects) ? body.projects : [];
+	const { trackers: _trackers, projects: _projects, ...settings } = body;
+	writePageCache("settings-page", {
+		settings: settings as Configuration,
+		projects: projects as SettingsProject[],
+		trackers: {
+			github: trackers?.github === true,
+			linear: trackers?.linear === true,
+		},
+	});
+	writePageCache("settings", settings as Configuration);
+}
+
+function seedProject(pathname: string, stored: unknown): void {
+	const report = storedObject(stored);
+	if (report === null || report.pending === true) {
+		return;
+	}
+	let name: string;
+	try {
+		name = decodeURIComponent(pathname.slice("/projects/".length));
+	} catch {
+		return;
+	}
+	writePageCache(`project:${name}`, report as ProjectReport);
+}
+
 export function seedStoredPage(pathname: string): void {
 	if (storedSeeded) {
 		return;
@@ -98,34 +162,7 @@ export function seedStoredPage(pathname: string): void {
 		return;
 	}
 	if (pathname === "/") {
-		const embedded = storedObject(stored);
-		if (embedded === null) {
-			return;
-		}
-		const overview = storedObject(embedded.overview) ?? embedded;
-		const projects = Array.isArray(overview.projects)
-			? overview.projects.flatMap((project) => {
-					const row = storedObject(project);
-					return row === null ? [] : [row];
-				})
-			: [];
-		if (
-			!storeHoldsRead({
-				projects,
-				tracked: overview.tracked === false ? false : undefined,
-			})
-		) {
-			return;
-		}
-		writePageCache("overview", overview as Overview);
-		writePageCache("polling", overview.polling === true || polling === true);
-		const fetchedAt =
-			typeof overview.fetchedAt === "string" ? overview.fetchedAt : null;
-		writePageCache("fetched-at", fetchedAt);
-		const settings = storedObject(embedded.settings);
-		if (settings !== null) {
-			writePageCache("settings", settings as Configuration);
-		}
+		seedOverview(stored, polling);
 		return;
 	}
 	if (pathname === "/needs-you" && Array.isArray(stored)) {
@@ -137,37 +174,11 @@ export function seedStoredPage(pathname: string): void {
 		return;
 	}
 	if (pathname === "/settings") {
-		const body = storedObject(stored);
-		if (body === null) {
-			return;
-		}
-		const trackers = storedObject(body.trackers);
-		const projects = Array.isArray(body.projects) ? body.projects : [];
-		const { trackers: _trackers, projects: _projects, ...settings } = body;
-		writePageCache("settings-page", {
-			settings: settings as Configuration,
-			projects: projects as SettingsProject[],
-			trackers: {
-				github: trackers?.github === true,
-				linear: trackers?.linear === true,
-			},
-		});
-		writePageCache("settings", settings as Configuration);
+		seedSettingsPage(stored);
 		return;
 	}
-	const prefix = "/projects/";
-	if (pathname.startsWith(prefix)) {
-		const report = storedObject(stored);
-		if (report === null || report.pending === true) {
-			return;
-		}
-		let name: string;
-		try {
-			name = decodeURIComponent(pathname.slice(prefix.length));
-		} catch {
-			return;
-		}
-		writePageCache(`project:${name}`, report as ProjectReport);
+	if (pathname.startsWith("/projects/")) {
+		seedProject(pathname, stored);
 	}
 }
 
