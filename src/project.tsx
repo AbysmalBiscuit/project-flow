@@ -30,7 +30,7 @@ import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
-import { AppShell, PageFrame } from "./shell.tsx";
+import { AppShell, PageFrame, PollStatus } from "./shell.tsx";
 import {
 	blockedLabel,
 	groupByLabel,
@@ -1479,7 +1479,9 @@ function Page() {
 						<div className={clsx(board.identity)}>
 							<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 							<h1 className={clsx(board.name)}>{report.name}</h1>
-							<p className={clsx(board.counts)}>{countLine(report)}</p>
+							<p className={clsx(board.counts)}>
+								{countLine(report)} <PollStatus text={null} polling={polling} />
+							</p>
 						</div>
 						<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
 							{view === "graph" ? (

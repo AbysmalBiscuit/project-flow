@@ -1,0 +1,33 @@
+{
+	"base_url": "http://127.0.0.1:4771",
+	"serve": [
+		"bun",
+		"/home/lev/git/github/AbysmalBiscuit/project-flow_workspaces/263-fix-web-paint-stored-data-on-the-first/proof/serve-stored.ts",
+		"4771",
+		"hold"
+	],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Project Flow" },
+		{ "assert_text": "acme/widget" },
+		{ "click": "#overview-refresh" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "refresh-overview" },
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-needs-you" },
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "acme/widget" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-project" },
+		{ "goto": "/inbox" },
+		{ "assert_text": "Inbox" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-inbox" },
+		{ "goto": "/settings" },
+		{ "assert_text": "Settings" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-settings" }
+	]
+}

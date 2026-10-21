@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { NeedsYouItem } from "./domain.ts";
+import type { NeedsYouItem, Overview } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
@@ -13,7 +13,8 @@ import {
 	replaceActiveItem,
 	useActiveTicket,
 } from "./selection.ts";
-import { PageFrame } from "./shell.tsx";
+import { PageFrame, PollStatus } from "./shell.tsx";
+import { storeHoldsRead } from "./stored-page.ts";
 import {
 	loadingLabel,
 	type NeedsGroup,
@@ -175,7 +176,7 @@ function NeedsPanel({
 	);
 }
 
-function summaryLine(items: NeedsYouItem[], polled: string): string {
+function summaryLine(items: NeedsYouItem[]): string {
 	const tickets =
 		items.length === 1
 			? "1 ticket needs you"
@@ -187,15 +188,17 @@ function summaryLine(items: NeedsYouItem[], polled: string): string {
 			: answered === 1
 				? ", 1 answered question is clearing"
 				: `, ${answered} answered questions are clearing`;
-	return `${tickets}${clearing}${polled}`;
+	return `${tickets}${clearing}`;
 }
 
 function NeedsList({
 	items,
 	fetchedAt,
+	polling,
 }: {
 	items: NeedsYouItem[];
 	fetchedAt: string | null;
+	polling: boolean;
 }) {
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
 	const [project, setProject] = useState(allProjects);
@@ -237,7 +240,16 @@ function NeedsList({
 	return (
 		<PageFrame
 			title={navLabel.needsYou}
-			subtitle={summaryLine(items, ageLine(fetchedAt))}
+			subtitle={
+				<>
+					{summaryLine(items)}
+					{polling || fetchedAt !== null ? ", " : null}
+					<PollStatus
+						text={polling ? null : polledAgo(fetchedAt)}
+						polling={polling}
+					/>
+				</>
+			}
 			wide
 		>
 			<div className={clsx(needs.layout)}>
@@ -289,14 +301,12 @@ function NeedsList({
 	);
 }
 
-function ageLine(fetchedAt: string | null): string {
-	const age = polledAgo(fetchedAt);
-	return age === null ? "" : `, ${age}`;
-}
-
 function Page() {
 	const [items, setItems] = useState<NeedsYouItem[] | null>(
 		() => readPageCache("needs-you") ?? null,
+	);
+	const [holdsRead, setHoldsRead] = useState(
+		() => readPageCache("overview") !== undefined,
 	);
 	const [fetchedAt, setFetchedAt] = useState<string | null>(
 		() => readPageCache("fetched-at") ?? null,
@@ -328,6 +338,8 @@ function Page() {
 					if (!stopped && response.ok) {
 						const body = (await response.json()) as {
 							fetchedAt: string | null;
+							projects?: { pending?: boolean }[];
+							tracked?: false;
 							polling?: true;
 						};
 						const next = body.polling === true;
@@ -335,6 +347,11 @@ function Page() {
 						setPolling(next);
 						writePageCache("fetched-at", body.fetchedAt);
 						setFetchedAt(body.fetchedAt);
+						const read = storeHoldsRead(body);
+						if (read) {
+							writePageCache("overview", body as Overview);
+						}
+						setHoldsRead(read);
 					}
 				})
 				.catch(() => {
@@ -354,10 +371,10 @@ function Page() {
 			stop();
 		};
 	}, []);
-	if (items === null || (polling && items.length === 0)) {
+	if (items === null || (polling && items.length === 0 && !holdsRead)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
-	return <NeedsList items={items} fetchedAt={fetchedAt} />;
+	return <NeedsList items={items} fetchedAt={fetchedAt} polling={polling} />;
 }
 
 function mount(): void {
