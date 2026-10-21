@@ -53,7 +53,7 @@ const widgetIssues = [
 	issue(widget, 3, "Write the copy"),
 	issue(widget, 4, "Read the review"),
 	issue(widget, 5, "Merge the board"),
-	...[11, 12, 13, 14, 15, 16].map((number) => {
+	...[11, 12, 13, 14, 15, 16].map((number): Record<string, unknown> => {
 		const closed = issue(widget, number, `Close item ${number}`, "", "closed");
 		return {
 			...closed,
