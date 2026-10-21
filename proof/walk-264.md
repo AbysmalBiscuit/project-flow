@@ -23,7 +23,7 @@ Each page seeds from its own embedded payload before the first render. The walk 
 1. `GET /proof/hold?lists=1` holds `GET /api/needs-you` and `GET /api/inbox` at once. It does not hold `GET /api/overview`.
 2. Open `/needs-you`. The page shows `Nothing needs you` while those fetches stay held.
 3. Open `/inbox`. The page shows `No notifications` while those fetches stay held.
-4. `GET /proof/hold` holds `GET /api/overview`. This hold runs after a page load, so it holds the overview fetch only for the next step. The list hold from step 1 stays on.
+4. `GET /proof/hold` holds `GET /api/overview`. The overview hold stays on from step 5 to the end of the walk. The list hold from step 1 stays on.
 5. Open `/`. The page shows project counts and `acme/flow` while `GET /api/overview` stays held.
 
 The asserted text cannot come from the held fetches. The overview fetch is not held on the Needs you and Inbox steps, so the refresh icon on those pages can stop. The replay runner has no absent-text action. Those settled lines are the lists the seed writes, so the pages do not show `Loading`.
