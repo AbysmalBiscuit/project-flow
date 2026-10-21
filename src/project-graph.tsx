@@ -2,26 +2,27 @@ import {
 	Background,
 	BackgroundVariant,
 	BaseEdge,
+	type EdgeProps,
 	type Edge as FlowEdge,
 	type Node as FlowNode,
-	getSmoothStepPath,
 	Handle,
 	MarkerType,
 	type NodeProps,
+	Panel,
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
-	useStore,
+	useReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
 	groupKeysOf,
 	groupLabelOf,
-	outsideKey,
 	type ProjectReport,
 	type TicketState,
 } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
+import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
@@ -84,14 +85,24 @@ export type OpenedNode = {
 	state?: TicketState;
 };
 
-type TicketEdgeData = Record<string, never>;
+type TicketEdgeData = {
+	lane: number;
+	lanes: number;
+};
 
-function nodeKey(key: string, project: string, outside: boolean): string {
+function shortTicket(key: string, project: string, outside: boolean): string {
 	if (!outside) {
 		const mark = key.lastIndexOf("#");
 		return mark === -1 ? key : key.slice(mark);
 	}
-	return outsideKey(project, key);
+	const number = key.slice(key.lastIndexOf("#") + 1);
+	if (
+		number === key ||
+		key.toLowerCase().startsWith(`${project.toLowerCase()}#`)
+	) {
+		return key;
+	}
+	return `${project}#${number}`;
 }
 
 function nodeId(project: string, key: string): string {
@@ -159,7 +170,7 @@ function TicketNode({ data }: NodeProps<FlowNode<TicketNodeData>>) {
 			<Handle type="target" position={Position.Top} id="top" />
 			<span className={clsx(board.meta)}>
 				<span className={clsx(board.key)}>
-					{nodeKey(key, data.project, data.outside)}
+					{shortTicket(key, data.project, data.outside)}
 				</span>
 				{data.ticket.pull === undefined ? null : (
 					<span className={clsx(board.pull)}>{data.ticket.pull}</span>
@@ -185,25 +196,25 @@ function TicketEdge({
 	targetY,
 	sourcePosition,
 	targetPosition,
-}: {
-	id: string;
-	sourceX: number;
-	sourceY: number;
-	targetX: number;
-	targetY: number;
-	sourcePosition: Position;
-	targetPosition: Position;
-}) {
-	const [path] = getSmoothStepPath({
+	markerEnd,
+	data,
+}: EdgeProps<FlowEdge<TicketEdgeData>>) {
+	const route: GraphRoute = {
 		sourceX,
 		sourceY,
 		targetX,
 		targetY,
 		sourcePosition,
 		targetPosition,
-		borderRadius: 0,
-	});
-	return <BaseEdge id={id} path={path} />;
+	};
+	const drawn = routeEdge(route, data?.lane ?? 0, data?.lanes ?? 1);
+	return (
+		<BaseEdge
+			id={id}
+			path={drawn.path}
+			{...(markerEnd === undefined ? {} : { markerEnd })}
+		/>
+	);
 }
 
 const nodeTypes = { ticket: TicketNode, cluster: ClusterNode };
@@ -229,6 +240,28 @@ function outsideState(
 	)?.state;
 }
 
+function outsideNode(
+	blocker: {
+		project: string;
+		key: string;
+		title: string;
+		tracker: "github" | "linear";
+	},
+	reports: ProjectReport[],
+): GraphTicket {
+	const state = outsideState(reports, blocker.project, blocker.key);
+	return {
+		ticket: {
+			key: blocker.key,
+			title: blocker.title,
+			...(state === undefined ? {} : { state }),
+		},
+		project: blocker.project,
+		tracker: blocker.tracker,
+		outside: true,
+	};
+}
+
 function outsideTickets(
 	report: ProjectReport,
 	reports: ProjectReport[],
@@ -236,23 +269,16 @@ function outsideTickets(
 	const seen = new Set<string>();
 	const found: GraphTicket[] = [];
 	for (const ticket of report.tickets) {
-		for (const blocker of ticket.outsideBlockers ?? []) {
+		for (const blocker of [
+			...(ticket.outsideBlockers ?? []),
+			...(ticket.blocks ?? []),
+		]) {
 			const id = nodeId(blocker.project, blocker.key);
 			if (seen.has(id)) {
 				continue;
 			}
 			seen.add(id);
-			const state = outsideState(reports, blocker.project, blocker.key);
-			found.push({
-				ticket: {
-					key: blocker.key,
-					title: blocker.title,
-					...(state === undefined ? {} : { state }),
-				},
-				project: blocker.project,
-				tracker: blocker.tracker,
-				outside: true,
-			});
+			found.push(outsideNode(blocker, reports));
 		}
 	}
 	found.sort((left, right) =>
@@ -474,6 +500,12 @@ function graphEdges(report: ProjectReport): { from: string; to: string }[] {
 				to: target,
 			});
 		}
+		for (const blocked of ticket.blocks ?? []) {
+			edges.push({
+				from: target,
+				to: nodeId(blocked.project, blocked.key),
+			});
+		}
 	}
 	return edges;
 }
@@ -543,28 +575,6 @@ function clusterNodes(
 		});
 }
 
-function ticketSizes(
-	nodes: {
-		id: string;
-		type?: string | undefined;
-		measured?: { width?: number | undefined; height?: number | undefined };
-	}[],
-): Map<string, TicketSize> | null {
-	const sizes = new Map<string, TicketSize>();
-	for (const node of nodes) {
-		if (node.type !== "ticket") {
-			continue;
-		}
-		const width = node.measured?.width;
-		const height = node.measured?.height;
-		if (width === undefined || height === undefined) {
-			return null;
-		}
-		sizes.set(node.id, { width, height });
-	}
-	return sizes.size === 0 ? null : sizes;
-}
-
 function graphModel(
 	report: ProjectReport,
 	reports: ProjectReport[],
@@ -622,16 +632,38 @@ function graphModel(
 		};
 		return [node];
 	});
-	const edges = links.map((link) => ({
+	const fromHandle = horizontal ? "right" : "bottom";
+	const toHandle = horizontal ? "left" : "top";
+	const pending = links.map((link) => ({
 		id: `${link.from}->${link.to}`,
 		source: link.from,
 		target: link.to,
-		sourceHandle: horizontal ? "right" : "bottom",
-		targetHandle: horizontal ? "left" : "top",
-		type: "ticket",
-		markerEnd: { type: MarkerType.ArrowClosed },
-		data: {},
+		sourceHandle: fromHandle,
+		targetHandle: toHandle,
+		type: "ticket" as const,
+		markerEnd: {
+			type: MarkerType.ArrowClosed,
+			width: 22,
+			height: 22,
+			markerUnits: "userSpaceOnUse" as const,
+		},
+		data: { lane: 0, lanes: 1 },
 	}));
+	const laneCount = new Map<string, number>();
+	for (const edge of pending) {
+		const pair = `${edge.source}\0${edge.target}`;
+		laneCount.set(pair, (laneCount.get(pair) ?? 0) + 1);
+	}
+	const used = new Map<string, number>();
+	const edges = pending.map((edge) => {
+		const pair = `${edge.source}\0${edge.target}`;
+		const lane = used.get(pair) ?? 0;
+		used.set(pair, lane + 1);
+		return {
+			...edge,
+			data: { lane, lanes: laneCount.get(pair) ?? 1 },
+		};
+	});
 	return {
 		nodes: [...groups, ...nodes],
 		edges,
@@ -640,22 +672,35 @@ function graphModel(
 
 function Legend() {
 	return (
-		<section
-			className={clsx(board.legendBox)}
-			aria-label={projectGraphLabel.legend}
-		>
-			<ul className={clsx(board.legendRow)}>
-				{legendOrder.map((state) => (
-					<li key={state} className={clsx(board.legendItem)}>
-						<span className={clsx(board.legendDot, legendTone[state])} />
-						{stateTone[state].label}
-					</li>
-				))}
-			</ul>
-			<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
-			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
-		</section>
+		<Panel position="top-left">
+			<section
+				className={clsx(board.legendBox)}
+				aria-label={projectGraphLabel.legend}
+			>
+				<ul className={clsx(board.legendRow)}>
+					{legendOrder.map((state) => (
+						<li key={state} className={clsx(board.legendItem)}>
+							<span className={clsx(board.legendDot, legendTone[state])} />
+							{stateTone[state].label}
+						</li>
+					))}
+				</ul>
+				<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
+				<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
+			</section>
+		</Panel>
 	);
+}
+
+function FitDirection() {
+	const flow = useReactFlow();
+	useEffect(() => {
+		const frame = requestAnimationFrame(() => {
+			void flow.fitView({ padding: 0.28 });
+		});
+		return () => cancelAnimationFrame(frame);
+	}, [flow]);
+	return null;
 }
 
 export function ProjectGraph({
@@ -707,7 +752,7 @@ function MeasuredProjectGraph({
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
 }) {
-	const placed = useMemo(
+	const model = useMemo(
 		() =>
 			graphModel(
 				report,
@@ -720,47 +765,6 @@ function MeasuredProjectGraph({
 			),
 		[report, reports, direction, groupBy, assignees, openKey],
 	);
-	const snapshot = useStore((state) =>
-		ticketSizes([...state.nodeLookup.values()]),
-	);
-	// React Flow clears measured on each new nodes array.
-	const [held, setHeld] = useState<Map<string, TicketSize>>(new Map());
-	useEffect(() => {
-		if (snapshot === null) {
-			return;
-		}
-		setHeld((previous) => {
-			let changed = false;
-			const next = new Map(previous);
-			for (const [id, size] of snapshot) {
-				const known = next.get(id);
-				if (
-					known !== undefined &&
-					known.width === size.width &&
-					known.height === size.height
-				) {
-					continue;
-				}
-				next.set(id, size);
-				changed = true;
-			}
-			return changed ? next : previous;
-		});
-	}, [snapshot]);
-	const model = useMemo(() => {
-		if (held.size === 0) {
-			return placed;
-		}
-		return graphModel(
-			report,
-			reports,
-			direction,
-			groupBy,
-			assignees,
-			openKey,
-			held,
-		);
-	}, [held, placed, report, reports, direction, groupBy, assignees, openKey]);
 	const places = model.nodes
 		.map((node) => {
 			const parent = model.nodes.find((item) => item.id === node.parentId);
@@ -772,7 +776,7 @@ function MeasuredProjectGraph({
 	const outsideLabels = model.nodes.flatMap((node) =>
 		isClusterNode(node) || !node.data.outside
 			? []
-			: [nodeKey(node.data.ticket.key ?? "", node.data.project, true)],
+			: [shortTicket(node.data.ticket.key ?? "", node.data.project, true)],
 	);
 	return (
 		<div
@@ -800,6 +804,7 @@ function MeasuredProjectGraph({
 				elementsSelectable={false}
 				panOnDrag
 				fitView
+				fitViewOptions={{ padding: 0.28 }}
 				proOptions={{ hideAttribution: true }}
 				onNodeClick={(_event, node) => {
 					if (isClusterNode(node)) {
@@ -818,6 +823,7 @@ function MeasuredProjectGraph({
 				}}
 			>
 				<Background variant={BackgroundVariant.Dots} gap={18} />
+				<FitDirection key={direction} />
 				<Legend />
 				<GraphTools
 					probeId="project-graph-viewport"

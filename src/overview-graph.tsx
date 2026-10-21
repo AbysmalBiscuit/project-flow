@@ -6,7 +6,6 @@ import {
 	type EdgeProps,
 	type Edge as FlowEdge,
 	type Node as FlowNode,
-	getSmoothStepPath,
 	Handle,
 	MarkerType,
 	Position,
@@ -15,14 +14,15 @@ import {
 import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
+import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 
-const columnGap = 320;
-const rowGap = 150;
+const columnGap = 360;
+const rowGap = 168;
 
 type ProjectNodeData = {
 	project: ProjectCounts;
@@ -36,7 +36,8 @@ type BlockerEdgeData = {
 	blocked: string;
 	blocker: string;
 	tracker: CrossProjectBlocker["tracker"];
-	labelOffset: number;
+	lane: number;
+	lanes: number;
 };
 
 function depths(
@@ -128,31 +129,35 @@ function BlockerEdge({
 	targetY,
 	sourcePosition,
 	targetPosition,
+	markerEnd,
 	data,
 }: EdgeProps<FlowEdge<BlockerEdgeData>>) {
-	const [path, labelX, labelY] = getSmoothStepPath({
+	const route: GraphRoute = {
 		sourceX,
 		sourceY,
 		targetX,
 		targetY,
 		sourcePosition,
 		targetPosition,
-		borderRadius: 0,
-	});
+	};
+	const drawn = routeEdge(route, data?.lane ?? 0, data?.lanes ?? 1);
 	const ticket = data?.ticket ?? "";
 	const blocked = data?.blocked ?? "";
 	const blocker = data?.blocker ?? "";
 	const tracker = data?.tracker ?? "github";
-	const labelOffset = data?.labelOffset ?? 0;
 	return (
 		<>
-			<BaseEdge id={id} path={path} />
+			<BaseEdge
+				id={id}
+				path={drawn.path}
+				{...(markerEnd === undefined ? {} : { markerEnd })}
+			/>
 			<EdgeLabelRenderer>
 				<button
 					type="button"
 					className={`nopan ${clsx(cards.graphEdge, cards.graphLabel)}`}
 					style={{
-						transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + labelOffset}px)`,
+						transform: `translate(-50%, -50%) translate(${drawn.labelX}px, ${drawn.labelY}px)`,
 					}}
 					aria-label={`${ticket} ${blocked}`}
 					onClick={() => {
@@ -194,25 +199,42 @@ function graphModel(
 		position: positions.get(project.name) ?? { x: 0, y: 0 },
 		data: nodeData(project),
 	}));
-	const pairIndex = new Map<string, number>();
-	const edges = shown.flatMap((project) =>
-		project.crossProjectBlockers.flatMap((blocker) => {
-			const pair = `${blocker.project}\0${project.name}`;
-			const index = pairIndex.get(pair) ?? 0;
-			pairIndex.set(pair, index + 1);
-			return edgeFor(project.name, blocker, shownNames, index);
-		}),
+	const pending = shown.flatMap((project) =>
+		project.crossProjectBlockers.flatMap((blocker) =>
+			edgeFor(project.name, blocker, shownNames),
+		),
 	);
+	const lanes = new Map<string, number>();
+	for (const edge of pending) {
+		const pair = `${edge.source}\0${edge.target}`;
+		lanes.set(pair, (lanes.get(pair) ?? 0) + 1);
+	}
+	const used = new Map<string, number>();
+	const edges = pending.flatMap((edge) => {
+		if (edge.data === undefined) {
+			return [];
+		}
+		const pair = `${edge.source}\0${edge.target}`;
+		const lane = used.get(pair) ?? 0;
+		used.set(pair, lane + 1);
+		return [
+			{
+				...edge,
+				data: {
+					...edge.data,
+					lane,
+					lanes: lanes.get(pair) ?? 1,
+				},
+			},
+		];
+	});
 	return { nodes, edges };
 }
-
-const labelStep = 18;
 
 function edgeFor(
 	blocked: string,
 	blocker: CrossProjectBlocker,
 	shownNames: Set<string>,
-	index: number,
 ): FlowEdge<BlockerEdgeData>[] {
 	if (!shownNames.has(blocker.project) || blocker.project === blocked) {
 		return [];
@@ -223,13 +245,19 @@ function edgeFor(
 			source: blocker.project,
 			target: blocked,
 			type: "blocker",
-			markerEnd: { type: MarkerType.ArrowClosed },
+			markerEnd: {
+				type: MarkerType.ArrowClosed,
+				width: 22,
+				height: 22,
+				markerUnits: "userSpaceOnUse",
+			},
 			data: {
 				ticket: blocker.key,
 				blocked,
 				blocker: blocker.project,
 				tracker: blocker.tracker,
-				labelOffset: index * labelStep,
+				lane: 0,
+				lanes: 1,
 			},
 		},
 	];
