@@ -533,7 +533,10 @@ function Lane({
 				/>
 				{name} {listed.length}
 			</h2>
-			<div className={clsx(capped && !shown && board.cardsClip)}>
+			<div
+				className={clsx(board.laneBody, capped && !shown && board.cardsClip)}
+				data-lane-cards={name}
+			>
 				{groupBy === "none" ? (
 					<LaneCards
 						tickets={visible}
@@ -926,7 +929,11 @@ function Board({
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
-		<div className={clsx(board.lanes)} data-group-by={boardGroupBy(settings)}>
+		<div
+			className={clsx(board.lanes)}
+			data-lanes=""
+			data-group-by={boardGroupBy(settings)}
+		>
 			{visibleLanes(report, settings).map((lane) => (
 				<Lane
 					key={lane.id}
