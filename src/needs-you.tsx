@@ -307,7 +307,7 @@ function NeedsList({
 export function Page() {
 	const needs = useQuery(pageQuery.needsYou);
 	const overview = useQuery(pageQuery.overview);
-	const items = needs.data;
+	const items = needs.isError ? [] : needs.data;
 	const body = overview.data;
 	useEffect(() => {
 		if (items === undefined) {
@@ -319,16 +319,6 @@ export function Page() {
 	}, [items]);
 	const holdsRead = body !== undefined && storeHoldsRead(body);
 	const polling = body?.polling === true;
-	if (needs.isError && items === undefined) {
-		return (
-			<NeedsList
-				items={[]}
-				fetchedAt={body?.fetchedAt ?? null}
-				polling={polling}
-				fetching={needs.isFetching || overview.isFetching}
-			/>
-		);
-	}
 	if (items === undefined || (polling && items.length === 0 && !holdsRead)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
