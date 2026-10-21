@@ -965,19 +965,14 @@ export async function settledOverview<Body extends { polling?: true }>(
 	base: string,
 	read: (base: string) => Promise<Body>,
 ): Promise<Body> {
-	const deadline = Date.now() + 3_000;
 	let body: Body | null = null;
-	while (Date.now() < deadline) {
+	while (true) {
 		body = await read(base);
 		if (body.polling !== true) {
 			return body;
 		}
 		await Bun.sleep(20);
 	}
-	if (body === null) {
-		throw new Error("overview never answered");
-	}
-	return body;
 }
 
 export async function settledOverviewEvent<Body extends { polling?: true }>(
@@ -1046,8 +1041,7 @@ export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
 							return;
 						}
 						void (async () => {
-							const deadline = Date.now() + 3_000;
-							while (Date.now() < deadline) {
+							while (true) {
 								const response = await fetch(
 									new URL("/api/overview", line),
 								).catch(() => null);

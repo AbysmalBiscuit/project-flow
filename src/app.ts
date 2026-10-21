@@ -787,6 +787,15 @@ type PollOptions = {
 async function poll(options: PollOptions): Promise<Configuration> {
 	options.github?.holdLists?.(options.holdLists);
 	options.github?.beginPoll?.();
+	await options.holdLists;
+	if (options.stopped) {
+		options.polling = false;
+		options.notifier.publish({
+			overview: overview(options, options.fallback),
+			notifications: [],
+		});
+		return options.fallback;
+	}
 	const polledAt = options.clock.now();
 	const before = options.attention;
 	let configuration: Configuration;
@@ -986,7 +995,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 		const since = full ? null : lastGood;
 		try {
-			await options.holdLists;
 			const listedTickets = await tracker.listTickets(project.key, since);
 			const pulls = await tracker.listPulls(
 				project.key,
@@ -1404,10 +1412,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			try {
 				configuration = await poll(pollOptions);
 			} catch (error) {
-				rejected = true;
-				if (stopped) {
+				if (stopped || pollOptions.stopped) {
 					return;
 				}
+				rejected = true;
 				const message = error instanceof Error ? error.message : "poll failed";
 				opened.store.recordFetchError(message);
 				if (opened.store.readTickets().length === 0) {
