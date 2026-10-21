@@ -3,6 +3,7 @@ import {
 	colours,
 	font,
 	measure,
+	media,
 	radius,
 	scheme,
 	space,
@@ -60,7 +61,7 @@ export const frame = stylex.create({
 	},
 	// The project page adds this class. Other pages keep the one-line bar.
 	barFit: {
-		"@media (max-width: 0)": {
+		[media.projectBar]: {
 			height: "auto",
 			minHeight: measure.shell,
 			flexWrap: "wrap",

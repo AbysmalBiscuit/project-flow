@@ -1,4 +1,3 @@
-import * as stylex from "@stylexjs/stylex";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { onAppEvent } from "./events.ts";
@@ -176,11 +175,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const projectPage = path.startsWith("/projects/");
 	return (
 		<div className={clsx(frame.shell)}>
-			<header
-				className={
-					stylex.props(frame.bar, projectPage && frame.barFit).className
-				}
-			>
+			<header className={clsx(frame.bar, projectPage && frame.barFit)}>
 				<a className={clsx(frame.logo, shell.linkFocus)} href="/">
 					<LogoMark />
 					{navLabel.logo}

@@ -1,4 +1,4 @@
-import { readFileSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PluginItem } from "@babel/core";
 import babel from "@babel/core";
@@ -141,64 +141,14 @@ function themeFromCompile(source: string, code: string): PageThemeMeta {
 	};
 }
 
-const shellQuery = "@media (max-width: 0)";
-
-function shellNarrowWidth(source: string): string {
-	const parsed = parser.parse(source, {
-		sourceType: "module",
-		plugins: ["typescript"],
-	});
-	for (const node of parsed.program.body) {
-		if (
-			node.type !== "ExportNamedDeclaration" ||
-			node.declaration?.type !== "VariableDeclaration"
-		) {
-			continue;
-		}
-		for (const declaration of node.declaration.declarations) {
-			if (
-				declaration.id.type !== "Identifier" ||
-				declaration.id.name !== "layout" ||
-				declaration.init?.type !== "CallExpression"
-			) {
-				continue;
-			}
-			const group = declaration.init.arguments[0];
-			if (group?.type !== "ObjectExpression") {
-				continue;
-			}
-			for (const property of group.properties) {
-				if (
-					property.type === "ObjectProperty" &&
-					property.key.type === "Identifier" &&
-					property.key.name === "shellNarrow" &&
-					property.value.type === "StringLiteral"
-				) {
-					return property.value.value;
-				}
-			}
-		}
-	}
-	throw new Error("layout.shellNarrow is missing");
-}
-
-function shellNarrowCss(css: string): string {
-	const width = shellNarrowWidth(
-		readFileSync(`${rootDir}/src/tokens.stylex.ts`, "utf8"),
-	);
-	return css.replaceAll(shellQuery, `@media (max-width: ${width})`);
-}
-
 function collectedCss(): string {
 	const flat = [...rules.values()].flat();
 	if (flat.length === 0) {
 		return "";
 	}
-	return shellNarrowCss(
-		stylexBabelPlugin.processStylexRules(
-			flat as Parameters<typeof stylexBabelPlugin.processStylexRules>[0],
-			{ useLayers: true },
-		),
+	return stylexBabelPlugin.processStylexRules(
+		flat as Parameters<typeof stylexBabelPlugin.processStylexRules>[0],
+		{ useLayers: true },
 	);
 }
 

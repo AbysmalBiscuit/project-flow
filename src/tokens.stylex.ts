@@ -4,6 +4,7 @@ const dark = "@media (prefers-color-scheme: dark)";
 
 export const media = stylex.defineConsts({
 	phone: "@media (max-width: 64rem)",
+	projectBar: "@media (max-width: 480px)",
 });
 
 export const lightValues = {
@@ -269,10 +270,6 @@ export const darkTheme = stylex.createTheme(colours, darkValues);
 export const lightScheme = stylex.createTheme(scheme, { page: "light" });
 
 export const darkScheme = stylex.createTheme(scheme, { page: "dark" });
-
-export const layout = stylex.defineVars({
-	shellNarrow: "480px",
-});
 
 export const measure = stylex.defineVars({
 	page: "84rem",
