@@ -2,7 +2,7 @@
 
 Each walk serves recorded tracker responses. The walk starts its own server. That server sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker.
 
-Each walk uses `proof/serve-264.ts`. That server tracks `acme/flow` and answers tracker calls from recorded responses. `GET /proof/requests` shows how many `GET /api/overview` requests the browser sent. `GET /proof/hold` holds the next `GET /api/overview` until a later `POST /api/refresh`.
+Each walk uses `proof/serve-264.ts`. That server tracks `acme/flow` and answers tracker calls from recorded responses. `GET /proof/requests` shows how many `GET /api/overview` requests the browser sent. `GET /proof/hold` holds every later `GET /api/overview` after the first page load. A later `POST /api/refresh` releases a held poll.
 
 Item 4, one QueryClient across client navigation. Replay `proof/walk-264-nav.json`:
 
