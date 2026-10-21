@@ -10,7 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { readSettings, writeSettings } from "./client-settings.ts";
+import { persistPatch } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -781,22 +781,7 @@ function OverviewPage({
 	const needs = needsQuery.data ?? [];
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
 		onSettings(patch(settings));
-		void readSettings()
-			.then(async (current) => {
-				if (current === null) {
-					return;
-				}
-				const next = patch(current);
-				onSettings(next);
-				if (await writeSettings(next)) {
-					return;
-				}
-				const saved = await readSettings();
-				if (saved !== null) {
-					onSettings(saved);
-				}
-			})
-			.catch(() => undefined);
+		void persistPatch(patch, onSettings);
 	};
 	const saveView = (next: OverviewView) => {
 		savePatch((current) => ({ ...current, overview: next }));

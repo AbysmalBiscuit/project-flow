@@ -27,3 +27,25 @@ export async function writeSettings(next: Configuration): Promise<boolean> {
 	});
 	return response.ok;
 }
+
+export function persistPatch(
+	patch: (current: Configuration) => Configuration,
+	onSettings: (settings: Configuration) => void,
+): Promise<void> {
+	return readSettings()
+		.then(async (current) => {
+			if (current === null) {
+				return;
+			}
+			const next = patch(current);
+			onSettings(next);
+			if (await writeSettings(next)) {
+				return;
+			}
+			const saved = await readSettings();
+			if (saved !== null) {
+				onSettings(saved);
+			}
+		})
+		.catch(() => undefined);
+}
