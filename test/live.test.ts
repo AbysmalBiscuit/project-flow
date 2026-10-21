@@ -368,7 +368,10 @@ function unchangedFetch(
 	};
 }
 
-function failingThenRecorded(requests: string[]): Fetch {
+function failingThenRecorded(
+	requests: string[],
+	holdFailure?: Promise<void>,
+): Fetch {
 	let polls = 0;
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
@@ -384,6 +387,7 @@ function failingThenRecorded(requests: string[]): Fetch {
 			pushListed(requests, recovered);
 			polls += 1;
 			if (polls === 2) {
+				await holdFailure;
 				return new Response("recorded failure", { status: 500 });
 			}
 			return (
@@ -2392,24 +2396,41 @@ describe("live updates", () => {
 
 	test("a poll after a failed fetch keeps the last good since", async () => {
 		const requests: string[] = [];
-		await withServer(failingThenRecorded(requests), 3600, async (base) => {
-			const failed = await fetch(new URL("/api/refresh", base), {
-				method: "POST",
-			});
-			expect(failed.status).toBe(204);
-			const again = await fetch(new URL("/api/refresh", base), {
-				method: "POST",
-			});
-			expect(again.status).toBe(204);
-			const body = await settledOverview(base, readOverview);
-			const lists = requests.filter((url) => listUrl(url) !== null);
-			expect(lists.length).toBeGreaterThan(1);
-			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
-				goodPoll,
-			);
-			expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
-			expect(body.error).toBeNull();
+		let releaseFailure: () => void = () => {};
+		const failureHeld = new Promise<void>((resolve) => {
+			releaseFailure = resolve;
 		});
+		try {
+			await withServer(
+				failingThenRecorded(requests, failureHeld),
+				3600,
+				async (base) => {
+					const failed = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(failed.status).toBe(204);
+					const deadline = Date.now() + 3_000;
+					while (requests.length < 2 && Date.now() < deadline) {
+						await Bun.sleep(20);
+					}
+					releaseFailure();
+					const again = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(again.status).toBe(204);
+					const body = await settledOverview(base, readOverview);
+					const lists = requests.filter((url) => listUrl(url) !== null);
+					expect(lists.length).toBeGreaterThan(1);
+					expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
+						goodPoll,
+					);
+					expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
+					expect(body.error).toBeNull();
+				},
+			);
+		} finally {
+			releaseFailure();
+		}
 	});
 
 	test("a poll at the interval requests items updated since the last good poll", async () => {

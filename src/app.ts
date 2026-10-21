@@ -1038,7 +1038,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				full,
 				row: null,
 			});
-			options.store.recordGoodPoll(project.key, polledAt);
 			options.store.clearProjectError(project.key);
 			if (project.tracker === "github" && project.key.includes("/")) {
 				retainListWindows(
@@ -1101,6 +1100,11 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		if (outcomes.get(key)?.ok === true) {
 			options.fullPoll.delete(key);
 			options.lastFullPollAt.set(key, polledAt.getTime());
+		}
+	}
+	for (const outcome of outcomes.values()) {
+		if (outcome.ok) {
+			options.store.recordGoodPoll(outcome.key, polledAt);
 		}
 	}
 	options.polling = false;
@@ -1408,7 +1412,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			polling = null;
 			if (refreshQueued && !stopped) {
 				refreshQueued = false;
-				void pollAgain().catch(() => {});
+				await pollAgain().catch(() => {});
 				return;
 			}
 			pollOptions.polling = false;
@@ -1440,15 +1444,12 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	const beginPoll = (): void => {
 		pollOptions.polling = true;
-		const releasedHeldLists = listsHeld;
 		releaseLists();
 		if (polling !== null) {
-			if (releasedHeldLists || !firstPollDone) {
-				refreshQueued = true;
-			}
-		} else {
-			void pollAgain().catch(() => {});
+			refreshQueued = true;
+			return;
 		}
+		void pollAgain().catch(() => {});
 		notifier.publish({
 			overview: runningOverview(pollOptions, configuration),
 			notifications: [],
