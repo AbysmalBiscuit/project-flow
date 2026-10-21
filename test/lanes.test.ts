@@ -608,7 +608,7 @@ describe("tracker lanes", () => {
 					["Ready", "#4C9AFF", "backlog"],
 					["In progress", "#F2C94C", "inProgress"],
 					["In review", "#5E6AD2", "inReview"],
-					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
+					["Awaiting merge", "#b7e1cd", "awaitingMerge"],
 					["Done", "#F2994A", "done"],
 				]);
 				expect(flight(report)).toEqual([
@@ -710,9 +710,9 @@ describe("tracker lanes", () => {
 					["ready", "#0E8A16", "backlog"],
 					["factory: running", "#1D76DB", "inProgress"],
 					["factory: in-review", "#FBCA04", "inReview"],
-					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
-					["Done", "#8FBC8F", "done"],
-					["Dropped", "#9CA3AF", "dropped"],
+					["Awaiting merge", "#b7e1cd", "awaitingMerge"],
+					["Done", "#7c5cbf", "done"],
+					["Dropped", "#9ca3af", "dropped"],
 				]);
 				expect(report.lanes.find((lane) => lane.name === "Done")?.added).toBe(
 					true,
@@ -751,12 +751,12 @@ describe("tracker lanes", () => {
 				expect(
 					report.lanes.map((lane) => [lane.name, lane.colour, lane.statusType]),
 				).toEqual([
-					["Backlog", "#D0D7DE", "backlog"],
-					["In progress", "#F0C674", "inProgress"],
-					["In review", "#9ECBFF", "inReview"],
-					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
-					["Done", "#8FBC8F", "done"],
-					["Dropped", "#9CA3AF", "dropped"],
+					["Backlog", "#d0d7de", "backlog"],
+					["In progress", "#f0c674", "inProgress"],
+					["In review", "#9ecbff", "inReview"],
+					["Awaiting merge", "#b7e1cd", "awaitingMerge"],
+					["Done", "#7c5cbf", "done"],
+					["Dropped", "#9ca3af", "dropped"],
 				]);
 				expect(flight(report)).toEqual([
 					placed("acme/plain#1", "Write the notes", "Backlog", "backlog"),
@@ -1005,7 +1005,7 @@ describe("tracker lanes", () => {
 				});
 				const added = report.lanes.find((lane) => lane.name === "Backlog");
 				expect(added?.statusType).toBe("backlog");
-				expect(added?.colour).toBe("#D0D7DE");
+				expect(added?.colour).toBe("#d0d7de");
 				expect(added?.added).toBe(true);
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const empty = items.find((item) => item.key === "acme/widget#9");
@@ -1050,7 +1050,7 @@ describe("tracker lanes", () => {
 					(lane) => lane.name === "Awaiting merge",
 				);
 				expect(added?.statusType).toBe("awaitingMerge");
-				expect(added?.colour).toBe("#B7E1CD");
+				expect(added?.colour).toBe("#b7e1cd");
 				expect(added?.added).toBe(true);
 			},
 		);
@@ -1551,7 +1551,7 @@ describe("tracker lanes", () => {
 				]);
 				const added = report.lanes.find((lane) => lane.name === "In progress");
 				expect(added?.statusType).toBe("inProgress");
-				expect(added?.colour).toBe("#F0C674");
+				expect(added?.colour).toBe("#f0c674");
 				expect(added?.added).toBe(true);
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const building = items.find((item) => item.key === "acme/widget#20");

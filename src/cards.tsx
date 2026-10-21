@@ -1,7 +1,14 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { readSettings, writeSettings } from "./client-settings.ts";
 import {
 	type Configuration,
@@ -540,8 +547,38 @@ function MenuButton({
 	onToggle: () => void;
 	children: ReactNode;
 }) {
+	const root = useRef<HTMLDivElement>(null);
+	const gutter = useRef<HTMLSpanElement>(null);
+	const [maxHeight, setMaxHeight] = useState<number | null>(null);
+	const [shift, setShift] = useState(0);
+	useLayoutEffect(() => {
+		const node = root.current;
+		if (!open || node === null) {
+			return;
+		}
+		const fit = () => {
+			const panel = node.querySelector("[id$='-panel']");
+			if (!(panel instanceof HTMLElement)) {
+				return;
+			}
+			const box = panel.getBoundingClientRect();
+			const inset = gutter.current?.offsetWidth ?? 0;
+			const applied = Number.parseFloat(getComputedStyle(panel).left);
+			const unshiftedRight =
+				box.right - (Number.isFinite(applied) ? applied : 0);
+			const overflow = Math.ceil(unshiftedRight - (window.innerWidth - inset));
+			setMaxHeight(Math.max(0, Math.floor(window.innerHeight - box.top)));
+			setShift(overflow > 0 ? -overflow : 0);
+		};
+		fit();
+		window.addEventListener("resize", fit);
+		return () => {
+			window.removeEventListener("resize", fit);
+		};
+	}, [open]);
 	return (
-		<div className={clsx(cards.menu)}>
+		<div className={clsx(cards.menu)} ref={root}>
+			<span ref={gutter} className={clsx(cards.gutter)} aria-hidden="true" />
 			<button
 				type="button"
 				id={id}
@@ -553,7 +590,14 @@ function MenuButton({
 				{label}
 			</button>
 			{open ? (
-				<div id={`${id}-panel`} className={clsx(cards.panel)}>
+				<div
+					id={`${id}-panel`}
+					{...stylex.props(
+						cards.panel,
+						maxHeight === null ? null : cards.fit(maxHeight),
+						shift === 0 ? null : cards.shift(shift),
+					)}
+				>
 					{children}
 				</div>
 			) : null}
@@ -669,23 +713,29 @@ function OverviewPage({
 			onToggle={() => setMenu(menu === "sort" ? null : "sort")}
 		>
 			{overviewSorts.map((item) => (
-				<label key={item} className={clsx(cards.choice)}>
-					<input
-						type="radio"
-						id={`overview-sort-${item}`}
-						name="overview-sort"
-						value={item}
-						checked={view.sort === item}
-						onChange={() =>
-							saveView({
-								...view,
-								sort: item,
-								direction: sortDirectionFor(view.sort, item, view.direction),
-							})
-						}
+				<button
+					key={item}
+					type="button"
+					id={`overview-sort-${item}`}
+					aria-pressed={view.sort === item}
+					className={clsx(cards.choice, shell.buttonFocus)}
+					onClick={() =>
+						saveView({
+							...view,
+							sort: item,
+							direction: sortDirectionFor(view.sort, item, view.direction),
+						})
+					}
+				>
+					<span
+						className={clsx(
+							cards.choiceMark,
+							view.sort === item && cards.markOn,
+						)}
+						aria-hidden="true"
 					/>
 					{overviewSortLabel[item]}
-				</label>
+				</button>
 			))}
 		</MenuButton>
 	);
@@ -697,16 +747,23 @@ function OverviewPage({
 			onToggle={() => setMenu(menu === "filter" ? null : "filter")}
 		>
 			{overviewFilters.map((item) => (
-				<label key={item} className={clsx(cards.choice)}>
-					<input
-						type="radio"
-						name="overview-filter"
-						value={item}
-						checked={view.filter === item}
-						onChange={() => saveView({ ...view, filter: item })}
+				<button
+					key={item}
+					type="button"
+					id={`overview-filter-${item}`}
+					aria-pressed={view.filter === item}
+					className={clsx(cards.choice, shell.buttonFocus)}
+					onClick={() => saveView({ ...view, filter: item })}
+				>
+					<span
+						className={clsx(
+							cards.choiceMark,
+							view.filter === item && cards.markOn,
+						)}
+						aria-hidden="true"
 					/>
 					{overviewFilterLabel[item]}
-				</label>
+				</button>
 			))}
 		</MenuButton>
 	);

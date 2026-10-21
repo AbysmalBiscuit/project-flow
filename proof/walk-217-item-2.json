@@ -1,0 +1,25 @@
+{
+	"base_url": "http://127.0.0.1:4177",
+	"serve": ["bun", "proof/serve-controls.ts", "4177"],
+	"steps": [
+		{ "goto": "/" },
+		{ "viewport": "1440 900" },
+		{ "assert_text": "Overview" },
+		{ "click": "#overview-sort" },
+		{ "assert_text": "Blocked by" },
+		{ "shot": "sort-1440" },
+		{ "click": "#overview-sort-project" },
+		{ "click": "#overview-filter" },
+		{ "assert_text": "Blocked" },
+		{ "shot": "filter-1440" },
+		{ "click": "#overview-filter-all" },
+		{ "viewport": "390 800" },
+		{ "click": "#overview-sort" },
+		{ "assert_text": "Blocked by" },
+		{ "shot": "sort-390" },
+		{ "click": "#overview-sort-project" },
+		{ "click": "#overview-filter" },
+		{ "assert_text": "Blocked" },
+		{ "shot": "filter-390" }
+	]
+}

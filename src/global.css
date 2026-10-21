@@ -6,6 +6,19 @@ body,
 	background: Canvas;
 }
 
+button,
+input,
+select,
+textarea {
+	font-family: inherit;
+	color: inherit;
+}
+
+button,
+input {
+	appearance: none;
+}
+
 *,
 *::before,
 *::after {

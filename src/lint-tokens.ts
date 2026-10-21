@@ -30,14 +30,17 @@ for (const [index, line] of tokenFile.split("\n").entries()) {
 
 const namedColour =
 	"aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen";
-const colour = new RegExp(
-	`#[0-9a-fA-F]{3,8}\\b|\\b(?:rgba|hsla|rgb|hsl|hwb|lab|lch|oklab|oklch|color)\\(|\\b(?:${namedColour})\\b`,
+const colourLiteral =
+	/#[0-9a-fA-F]{3,8}\b|\b(?:rgba|hsla|rgb|hsl|hwb|lab|lch|oklab|oklch|color)\(/i;
+const namedColourLiteral = new RegExp(
+	`(?::\\s*|\\(\\s*)(?:${namedColour})\\b`,
 	"i",
 );
 const size = /\b\d*\.?\d+(?:px|rem)\b/;
 const customProperty = /(?<![\w-])--[A-Za-z][A-Za-z0-9-]*\b/g;
-const tokenDefinition = /\b(?:defineVars|createTheme)\s*\(/;
-const styleCall = /\bstylex\s*\.\s*create(?:Theme)?\s*\(/;
+const tokenDefinition = /\b(?:defineVars|defineConsts|createTheme)\s*\(/;
+const styleCall =
+	/\bstylex\s*\.\s*(?:create(?:Theme)?|defineVars|defineConsts)\s*\(/;
 const styleFile = /(?:\.stylex\.ts|\.css)$/;
 const graphFile = /(?:^|\/)graph(?:\.|-)/;
 
@@ -73,8 +76,9 @@ function styleRegion(lines: string[]): boolean[] {
 	let depth = 0;
 	let open = false;
 	for (const [index, line] of lines.entries()) {
-		if (styleCall.test(line)) {
+		if (!open && styleCall.test(line)) {
 			open = true;
+			depth = 0;
 		}
 		if (open) {
 			region[index] = true;
@@ -84,19 +88,81 @@ function styleRegion(lines: string[]): boolean[] {
 				depth += 1;
 			} else if (char === "}") {
 				depth -= 1;
-				if (open && depth <= 0) {
-					open = false;
-					depth = 0;
-				}
 			}
+		}
+		if (open && depth <= 0 && line.includes("}")) {
+			open = false;
+			depth = 0;
 		}
 	}
 	return region;
 }
 
 for await (const name of files) {
-	if (name === "src/tokens.stylex.ts" || name === "src/lint-tokens.ts") {
+	if (name === "src/lint-tokens.ts") {
 		continue;
+	}
+	if (name === "src/tokens.stylex.ts") {
+		const text = await Bun.file(`${root}/${name}`).text();
+		const lines = text.split("\n");
+		let depth = 0;
+		let inPalette = false;
+		for (const [index, line] of lines.entries()) {
+			if (/^export const (?:light|dark)Values = \{/.test(line)) {
+				inPalette = true;
+				depth = 1;
+				continue;
+			}
+			if (inPalette) {
+				for (const char of line) {
+					if (char === "{") {
+						depth += 1;
+					} else if (char === "}") {
+						depth -= 1;
+					}
+				}
+				if (depth <= 0) {
+					inPalette = false;
+				}
+				continue;
+			}
+			if (colourLiteral.test(line) || namedColourLiteral.test(line)) {
+				failures.push(`${name}:${index + 1}: colour or size literal`);
+			}
+			colourLiteral.lastIndex = 0;
+			namedColourLiteral.lastIndex = 0;
+		}
+		continue;
+	}
+	const source = await Bun.file(`${root}/${name}`).text();
+	const sourceLines = source.split("\n");
+	let trackerMap = false;
+	let trackerDepth = 0;
+	for (const [index, line] of sourceLines.entries()) {
+		if (
+			name === "src/github.ts" &&
+			line.includes("const githubOptionColours")
+		) {
+			trackerMap = true;
+			trackerDepth = 0;
+		}
+		if (trackerMap) {
+			for (const char of line) {
+				if (char === "{") {
+					trackerDepth += 1;
+				} else if (char === "}") {
+					trackerDepth -= 1;
+				}
+			}
+			if (trackerDepth <= 0 && line.includes("}")) {
+				trackerMap = false;
+			}
+			continue;
+		}
+		if (colourLiteral.test(line)) {
+			failures.push(`${name}:${index + 1}: colour or size literal`);
+		}
+		colourLiteral.lastIndex = 0;
 	}
 	const text = await Bun.file(`${root}/${name}`).text();
 	const lines = text.split("\n");
@@ -104,7 +170,10 @@ for await (const name of files) {
 		if (!tokenDefinition.test(line)) {
 			continue;
 		}
-		if (line.includes("defineVars") || !name.endsWith(".stylex.ts")) {
+		if (
+			name !== "src/tokens.stylex.ts" &&
+			(line.includes("defineVars") || !name.endsWith(".stylex.ts"))
+		) {
 			failures.push(`${name}:${index + 1}: token definition`);
 		}
 	}
@@ -123,11 +192,14 @@ for await (const name of files) {
 			styled &&
 			!tokenValues(name) &&
 			!inGraph(name, lines, index) &&
-			(colour.test(line) || size.test(line))
+			(colourLiteral.test(line) ||
+				namedColourLiteral.test(line) ||
+				size.test(line))
 		) {
 			failures.push(`${name}:${index + 1}: colour or size literal`);
 		}
-		colour.lastIndex = 0;
+		colourLiteral.lastIndex = 0;
+		namedColourLiteral.lastIndex = 0;
 		if (!styled) {
 			continue;
 		}

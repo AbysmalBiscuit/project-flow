@@ -46,6 +46,8 @@ export type StatusType =
 	| "done"
 	| "dropped";
 
+export type StatusColours = Record<StatusType, string>;
+
 export type TicketState = StatusType;
 
 const laneFallback: Record<TicketState, string> = {
@@ -899,15 +901,6 @@ export function reconcilePoll(
 	return { rows, projectErrors, globalError };
 }
 
-const appColours: Record<StatusType, string> = {
-	backlog: "#D0D7DE",
-	inProgress: "#F0C674",
-	inReview: "#9ECBFF",
-	awaitingMerge: "#B7E1CD",
-	done: "#8FBC8F",
-	dropped: "#9CA3AF",
-};
-
 const appLaneNames: Record<StatusType, string> = {
 	backlog: "Backlog",
 	inProgress: "In progress",
@@ -969,17 +962,17 @@ function laneName(name: string): string {
 	return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-function appLane(statusType: StatusType): Lane {
+function appLane(statusType: StatusType, colours: StatusColours): Lane {
 	return {
 		id: statusType,
 		name: appLaneNames[statusType],
-		colour: appColours[statusType],
+		colour: colours[statusType],
 		statusType,
 	};
 }
 
-export function appLanes(): Lane[] {
-	return statusTypeOrder.map(appLane);
+export function appLanes(colours: StatusColours): Lane[] {
+	return statusTypeOrder.map((statusType) => appLane(statusType, colours));
 }
 
 export function statusTypeOfName(name: string): StatusType {
@@ -1019,7 +1012,9 @@ export function linearStatusType(type: string, name: string): StatusType {
 	return "backlog";
 }
 
-export const backlogColour = appColours.backlog;
+export function backlogColour(colours: StatusColours): string {
+	return colours.backlog;
+}
 
 function namesMatch(left: string, right: string): boolean {
 	return laneName(left) === laneName(right);
@@ -1038,7 +1033,7 @@ function mappedEvidence(
 	return undefined;
 }
 
-function insertAwaitingMerge(lanes: Lane[]): Lane[] {
+function insertAwaitingMerge(lanes: Lane[], colours: StatusColours): Lane[] {
 	if (
 		lanes.some(
 			(lane) =>
@@ -1055,7 +1050,7 @@ function insertAwaitingMerge(lanes: Lane[]): Lane[] {
 	const added: Lane = {
 		id: "awaiting-merge",
 		name: appLaneNames.awaitingMerge,
-		colour: appColours.awaitingMerge,
+		colour: colours.awaitingMerge,
 		statusType: "awaitingMerge",
 		added: true,
 	};
@@ -1078,9 +1073,10 @@ function trackerLanes(board: Board | undefined): boolean {
 export function lanesFor(
 	board: Board | undefined,
 	mapping: LaneMapping,
+	colours: StatusColours,
 ): Lane[] {
 	if (!trackerLanes(board) || board === undefined) {
-		return appLanes();
+		return appLanes(colours);
 	}
 	const lanes = board.statuses.map((status) => {
 		const evidence = mappedEvidence(mapping, status.name);
@@ -1095,12 +1091,16 @@ export function lanesFor(
 		}
 		return lane;
 	});
-	return insertAwaitingMerge(lanes);
+	return insertAwaitingMerge(lanes, colours);
 }
 
-export function laneForTicket(ticket: Ticket, lanes: Lane[]): Lane {
+export function laneForTicket(
+	ticket: Ticket,
+	lanes: Lane[],
+	colours: StatusColours,
+): Lane {
 	if (ticket.emptyStatus === true) {
-		return laneOfType(lanes, closedLaneType(ticket) ?? "backlog");
+		return laneOfType(lanes, closedLaneType(ticket) ?? "backlog", colours);
 	}
 	const matched =
 		ticket.status === undefined ? undefined : laneOfStatus(ticket, lanes);
@@ -1109,32 +1109,41 @@ export function laneForTicket(ticket: Ticket, lanes: Lane[]): Lane {
 		if (matched?.statusType === closedType) {
 			return matched;
 		}
-		return laneOfType(lanes, closedType);
+		return laneOfType(lanes, closedType, colours);
 	}
 	if (matched !== undefined) {
 		return matched;
 	}
 	if (ticket.status === undefined) {
-		return laneOfType(lanes, "backlog");
+		return laneOfType(lanes, "backlog", colours);
 	}
-	return laneOfType(lanes, ticket.status.statusType);
+	return laneOfType(lanes, ticket.status.statusType, colours);
 }
 
-function laneOfType(lanes: Lane[], statusType: StatusType): Lane {
+function laneOfType(
+	lanes: Lane[],
+	statusType: StatusType,
+	colours: StatusColours,
+): Lane {
 	return (
-		lanes.find((lane) => lane.statusType === statusType) ?? appLane(statusType)
+		lanes.find((lane) => lane.statusType === statusType) ??
+		appLane(statusType, colours)
 	);
 }
 
-function placeOnBoard(lanes: Lane[], tickets: Ticket[]): Lane[] {
+function placeOnBoard(
+	lanes: Lane[],
+	tickets: Ticket[],
+	colours: StatusColours,
+): Lane[] {
 	const placed = [...lanes];
 	for (const ticket of tickets) {
-		const statusType = laneForTicket(ticket, placed).statusType;
+		const statusType = laneForTicket(ticket, placed, colours).statusType;
 		if (placed.some((lane) => lane.statusType === statusType)) {
 			continue;
 		}
 		placed.splice(laneInsertAt(placed, statusType), 0, {
-			...appLane(statusType),
+			...appLane(statusType, colours),
 			added: true,
 		});
 	}
@@ -2652,6 +2661,7 @@ export function projectCounts(
 	},
 	laneMappings: Configuration["laneMappings"],
 	now: Date,
+	colours: StatusColours,
 	board?: Board,
 ): {
 	counts: ProjectBody;
@@ -2673,7 +2683,11 @@ export function projectCounts(
 	const mappingKey = board?.laneKey;
 	const mapping =
 		mappingKey === undefined ? {} : (laneMappings[mappingKey] ?? {});
-	const lanes = placeOnBoard(lanesFor(board, mapping), tickets);
+	const lanes = placeOnBoard(
+		lanesFor(board, mapping, colours),
+		tickets,
+		colours,
+	);
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
 	const relationsByKey = new Map<string, ReturnType<typeof ticketRelations>>();
@@ -2698,7 +2712,7 @@ export function projectCounts(
 		for (const tag of review.tags) {
 			tags.add(tag);
 		}
-		const lane = laneForTicket(ticket, lanes);
+		const lane = laneForTicket(ticket, lanes, colours);
 		const mergesAlone = mergesOnItsOwn(links, name, key, autoMerge);
 		const shown = shownTicket(
 			ticket,
