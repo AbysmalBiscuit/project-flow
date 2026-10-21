@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
 	groupKeysOf,
+	groupLabelOf,
 	outsideKey,
 	type ProjectReport,
 	type TicketState,
@@ -44,6 +45,7 @@ type GraphTicketView = {
 	pull?: string;
 	needsYou?: boolean;
 	workstream?: string;
+	workstreamKey?: string;
 	theme?: string;
 	assignees?: string[];
 };
@@ -58,6 +60,7 @@ type TicketNodeData = {
 
 type ClusterNodeData = {
 	name: string;
+	label: string;
 };
 
 type ProjectNodeData = TicketNodeData | ClusterNodeData;
@@ -120,8 +123,8 @@ function ClusterNode({
 	data,
 }: NodeProps<FlowNode<ClusterNodeData, "cluster">>) {
 	return (
-		<div className={clsx(board.cluster)} data-group={data.name}>
-			{data.name}
+		<div className={clsx(board.cluster)} data-group={data.label}>
+			{data.label}
 		</div>
 	);
 }
@@ -367,8 +370,8 @@ function layoutTickets(
 	const groupSpan = new Map<string, { along: number; across: number }>();
 	for (const name of groups) {
 		const ids = members.get(name) ?? [];
+		const linked = ids.filter((id) => incoming.has(id) || outgoing.has(id));
 		const loose = ids.filter((id) => !incoming.has(id) && !outgoing.has(id));
-		const linked = ids.filter((id) => !loose.includes(id));
 		const byColumn = new Map<number, string[]>();
 		let minDepth = Number.POSITIVE_INFINITY;
 		for (const id of linked) {
@@ -484,7 +487,7 @@ function clusterNodes(
 	}
 	const groups = new Map<
 		string,
-		{ x: number; y: number; size: TicketSize }[]
+		{ label: string; places: { x: number; y: number; size: TicketSize }[] }
 	>();
 	for (const ticket of tickets) {
 		const key = ticket.ticket.key;
@@ -498,13 +501,15 @@ function clusterNodes(
 		if (place === undefined || size === undefined || name === "") {
 			continue;
 		}
-		const known = groups.get(name) ?? [];
-		known.push({ x: place.x, y: place.y, size });
+		const label = groupLabelOf(ticket.ticket, groupBy, name);
+		const known = groups.get(name) ?? { label, places: [] };
+		known.places.push({ x: place.x, y: place.y, size });
 		groups.set(name, known);
 	}
 	return [...groups.entries()]
-		.sort((left, right) => left[0].localeCompare(right[0]))
-		.map(([name, places]) => {
+		.sort((left, right) => left[1].label.localeCompare(right[1].label))
+		.map(([name, group]) => {
+			const places = group.places;
 			const left = Math.min(...places.map((place) => place.x));
 			const top = Math.min(...places.map((place) => place.y));
 			const right = Math.max(
@@ -521,7 +526,7 @@ function clusterNodes(
 				position: { x: left - groupPad, y: top - groupHead },
 				width,
 				height,
-				data: { name },
+				data: { name, label: group.label },
 				zIndex: 0,
 				draggable: false,
 				selectable: false,
