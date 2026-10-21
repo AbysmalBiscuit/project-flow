@@ -32,8 +32,10 @@ import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
 import {
+	defaultGraphDirection,
 	defaultGraphGroupBy,
 	defaultGroupBy,
+	emptyMaxAgeDays,
 	type GroupBy,
 	groupByKeys,
 	groupByWasSaved,
@@ -1274,14 +1276,19 @@ function Page() {
 				Object.keys(projectViews).find(
 					(item) => item.toLowerCase() === project.toLowerCase(),
 				) ?? project;
-			const previous = projectViews[key];
-			projectViews[key] =
-				shown === undefined
-					? kept
-					: {
-							...(previous ?? {}),
-							lastView: kept.lastView,
-						};
+			if (shown === undefined) {
+				projectViews[key] = kept;
+			} else if (kept.lastView !== undefined) {
+				const previous = projectViews[key] ?? {
+					maxAgeDays: emptyMaxAgeDays,
+					needsYouOnly: false,
+					blockedOnly: false,
+					assignees: [],
+					search: "",
+					graphDirection: defaultGraphDirection,
+				};
+				projectViews[key] = { ...previous, lastView: kept.lastView };
+			}
 			const saved = await fetch("/api/settings", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
