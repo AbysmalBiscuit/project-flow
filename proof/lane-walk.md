@@ -4,7 +4,7 @@ Each walk serves recorded tracker responses through `proof/serve-lane-width.ts`.
 
 The board is `acme/widget`. It has five lanes: ready, factory: running, factory: in-review, Awaiting merge and Done. Awaiting merge is empty. Done holds one card, "Merge the board after the last review round".
 
-The replay opens the board at its own viewport, 1280 wide. Five lanes of `measure.lane` are wider than that frame, so the board scrolls inside the frame and the last lane is cut by the frame edge. The page does not scroll sideways. An empty lane matches a full one. The same token holds at 1440, at 2000 and at 390.
+`walk_replay` pins 1280x800. A walk file name is a label. It is not a viewport the walk runs at. The widths in the Done when are proved by a separate measurement the verifier records.
 
 Item 1, equal lanes, including the empty lane. Replay `proof/lane-walk-1440.json`:
 
