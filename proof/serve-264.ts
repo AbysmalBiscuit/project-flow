@@ -123,6 +123,8 @@ await writeFile(
 
 let upstream: URL | null = null;
 const pageRequests: string[] = [];
+let holdOverview = false;
+let pageLoads = 0;
 
 function upstreamUrl(request: Request, target: URL): URL {
 	const url = new URL(request.url);
@@ -137,6 +139,14 @@ const gate = Bun.serve({
 	port: Number(port),
 	async fetch(request) {
 		const url = new URL(request.url);
+		if (url.pathname === "/proof/hold") {
+			if (pageLoads > 0) {
+				holdOverview = true;
+			}
+			return new Response("held", {
+				headers: { "content-type": "text/plain; charset=utf-8" },
+			});
+		}
 		if (url.pathname === "/proof/requests") {
 			if (
 				request.method === "DELETE" ||
@@ -163,8 +173,23 @@ const gate = Bun.serve({
 		if (url.pathname.startsWith("/api/")) {
 			pageRequests.push(`${request.method} ${url.pathname}`);
 		}
+		if (
+			request.headers.get("accept")?.includes("text/html") &&
+			(url.pathname === "/" ||
+				url.pathname === "/needs-you" ||
+				url.pathname === "/inbox")
+		) {
+			pageLoads += 1;
+		}
 		if (url.pathname === "/api/refresh" && request.method === "POST") {
 			setTimeout(releaseNext, 400);
+		}
+		if (
+			holdOverview &&
+			request.method === "GET" &&
+			url.pathname === "/api/overview"
+		) {
+			await new Promise(() => {});
 		}
 		const next = upstreamUrl(request, target);
 		const headers = new Headers(request.headers);
