@@ -15,6 +15,7 @@ import {
 	repoReadFromHandler,
 	repoReadFromLists,
 	repoReadResponse,
+	settledOverview,
 	tempConfig,
 	testIo,
 	trackFound,
@@ -23,6 +24,12 @@ import {
 } from "./support.ts";
 
 const repo = "acme/widget";
+
+async function readOverview(base: string): Promise<Overview> {
+	const response = await fetch(new URL("/api/overview", base));
+	expect(response.status).toBe(200);
+	return (await response.json()) as Overview;
+}
 
 function ticket(
 	number: number,
@@ -4120,9 +4127,7 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const second = await fetch(new URL("/api/overview", base));
-					expect(second.status).toBe(200);
-					const after = (await second.json()) as Overview;
+					const after = await settledOverview(base, readOverview);
 					expect(after.projects).toEqual(before.projects);
 					const repoReads = sent.filter((item) =>
 						item.body.includes("query RepoRead"),
@@ -4256,8 +4261,7 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const second = await fetch(new URL("/api/overview", base));
-					const after = (await second.json()) as Overview;
+					const after = await settledOverview(base, readOverview);
 					expect(after.projects).toEqual(before.projects);
 					expect(after.error).toBeNull();
 					const issueReads = sent.filter((item) =>
@@ -4402,8 +4406,7 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const second = await fetch(new URL("/api/overview", base));
-					const after = (await second.json()) as Overview;
+					const after = await settledOverview(base, readOverview);
 					expect(after.projects).toEqual(before.projects);
 					expect(after.error).toBeNull();
 					expect(
@@ -4564,8 +4567,7 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const second = await fetch(new URL("/api/overview", base));
-					const after = (await second.json()) as Overview;
+					const after = await settledOverview(base, readOverview);
 					expect(after.projects[0]?.tickets.map((item) => item.key)).toEqual([
 						`${repoName}#4`,
 						`${repoName}#8`,
@@ -4574,8 +4576,7 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(again.status).toBe(204);
-					const third = await fetch(new URL("/api/overview", base));
-					const kept = (await third.json()) as Overview;
+					const kept = await settledOverview(base, readOverview);
 					expect(kept.projects[0]?.tickets).toEqual(after.projects[0]?.tickets);
 					expect(kept.error).toBeNull();
 					const repoReads = sent.filter((item) =>
@@ -4749,19 +4750,18 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const second = await fetch(new URL("/api/overview", base));
-					expect(second.status).toBe(200);
+					await settledOverview(base, readOverview);
 					await writeFile(clockPath, "2026-10-18T12:01:00.000Z");
 					const sameWindow = await fetch(new URL("/api/refresh", base), {
 						method: "POST",
 					});
 					expect(sameWindow.status).toBe(204);
+					await settledOverview(base, readOverview);
 					const moved = await fetch(new URL("/api/refresh", base), {
 						method: "POST",
 					});
 					expect(moved.status).toBe(204);
-					const third = await fetch(new URL("/api/overview", base));
-					expect(third.status).toBe(200);
+					await settledOverview(base, readOverview);
 					const windows = sent.filter(
 						(item) =>
 							item.body.includes("query RepoRead") &&
@@ -4941,9 +4941,8 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(failed.status).toBe(204);
+					const failedBody = await settledOverview(base, readOverview);
 					expect(repoReads).toBeGreaterThan(seen);
-					const during = await fetch(new URL("/api/overview", base));
-					const failedBody = (await during.json()) as Overview;
 					expect(
 						`${failedBody.error ?? ""} ${failedBody.projects[0]?.error ?? ""} ${sent.map((item) => item.status).join(",")}`,
 					).toContain("503");
@@ -4951,8 +4950,7 @@ describe("GET /api/overview", () => {
 						method: "POST",
 					});
 					expect(retry.status).toBe(204);
-					const after = await fetch(new URL("/api/overview", base));
-					const recovered = (await after.json()) as Overview;
+					const recovered = await settledOverview(base, readOverview);
 					expect(recovered.projects[0]?.error).toBeNull();
 					const windows = sent.filter((item) =>
 						item.body.includes("query RepoRead"),

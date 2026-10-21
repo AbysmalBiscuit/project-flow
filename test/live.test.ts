@@ -1811,6 +1811,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				await settledOverview(base, readOverview);
 				const firstLists = requests.filter(
 					(url) => listUrl(url, repo) !== null,
 				);
@@ -1988,6 +1989,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				await settledOverview(base, readOverview);
 				const filters = requests
 					.map(linearIssueFilter)
 					.filter((filter) => filter !== null);
@@ -2075,12 +2077,12 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(again.status).toBe(204);
+			const body = await settledOverview(base, readOverview);
 			const lists = requests.filter((url) => listUrl(url) !== null);
 			expect(lists.length).toBeGreaterThan(1);
 			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
 				goodPoll,
 			);
-			const body = await settledOverview(base, readOverview);
 			expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
 			expect(body.error).toBeNull();
 		});
@@ -2111,6 +2113,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
+			await settledOverview(base, readOverview);
 			const lists = requests.filter((url) => listUrl(url) !== null);
 			expect(lists.length).toBeGreaterThan(1);
 			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBeNull();
