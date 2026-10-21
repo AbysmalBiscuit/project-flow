@@ -1,6 +1,4 @@
 import { MarkerType, type Position } from "@xyflow/react";
-import { classToken } from "./ui.ts";
-import { cards } from "./ui-styles.ts";
 
 export type GraphRoute = {
 	sourceX: number;
@@ -26,19 +24,29 @@ export type RoutedEdge = {
 
 export type LabelSpot = NodeBound;
 
-export function markerEnd(): {
+export type MarkerEnd = {
 	type: MarkerType;
 	width: number;
 	height: number;
 	markerUnits: "userSpaceOnUse";
-} {
-	const probe = document.createElement("span");
-	probe.className = classToken(cards.graphMarker);
+};
+
+export function measureMarker(
+	root: ParentNode,
+	className: string,
+	create: (tag: "span") => HTMLElement = (tag) => document.createElement(tag),
+): number {
+	const probe = create("span");
+	probe.className = className;
 	probe.style.position = "absolute";
 	probe.style.visibility = "hidden";
-	document.body.append(probe);
+	root.append(probe);
 	const size = probe.getBoundingClientRect().width;
 	probe.remove();
+	return size;
+}
+
+export function markerEnd(size: number): MarkerEnd {
 	return {
 		type: MarkerType.ArrowClosed,
 		width: size,
@@ -230,8 +238,11 @@ function targetEntry(
 	route: GraphRoute,
 	index: number,
 	count: number,
+	side: number,
 ): { x: number; y: number } {
-	const spread = laneOf(index, count);
+	const room = Math.max(side - laneGap, 0);
+	const step = count <= 1 ? 0 : Math.min(laneGap, room / (count - 1));
+	const spread = (index - (count - 1) / 2) * step;
 	if (route.targetPosition === "left" || route.targetPosition === "right") {
 		return { x: route.targetX, y: route.targetY + spread };
 	}
@@ -251,6 +262,7 @@ function routePoints(
 	entryIndex: number,
 	entries: number,
 	nodes: NodeBound[],
+	side: number,
 ): { x: number; y: number }[] {
 	const horizontal = horizontalRoute(route);
 	const sourceSign =
@@ -262,7 +274,7 @@ function routePoints(
 			? 1
 			: -1;
 	const exit = sourceExit(route, lane);
-	const entry = targetEntry(route, entryIndex, entries);
+	const entry = targetEntry(route, entryIndex, entries, side);
 	const straight =
 		horizontal && forward(route) && sameAxis(route)
 			? [
@@ -328,11 +340,9 @@ function routePoints(
 	];
 }
 
-function labelOn(
+function labelCandidates(
 	points: { x: number; y: number }[],
-	nodes: NodeBound[],
-	occupied: NodeBound[],
-): { x: number; y: number } {
+): { x: number; y: number }[] {
 	const candidates: { x: number; y: number }[] = [];
 	for (let index = 0; index < points.length - 1; index += 1) {
 		const from = points[index];
@@ -351,20 +361,66 @@ function labelOn(
 	}
 	const fallback = points[Math.floor(points.length / 2)] ??
 		points[0] ?? { x: 0, y: 0 };
-	const ranked = candidates.length === 0 ? [fallback] : candidates;
-	for (const candidate of ranked) {
-		const box = labelBox(candidate);
-		if (
-			!occupied.some((taken) => overlaps(box, taken)) &&
-			!nodes.some((node) => overlaps(box, node))
-		) {
+	if (candidates.length === 0) {
+		candidates.push(fallback);
+	}
+	for (let step = 1; step <= 8; step += 1) {
+		candidates.push({
+			x: fallback.x,
+			y: fallback.y + step * labelClearance * 2 * (step % 2 === 0 ? 1 : -1),
+		});
+	}
+	return candidates;
+}
+
+export function labelSpots(
+	routes: {
+		route: GraphRoute;
+		lane: number;
+		lanes: number;
+		entry: number;
+		entries: number;
+		nodes: NodeBound[];
+		side: number;
+	}[],
+): { x: number; y: number }[] {
+	const occupied: NodeBound[] = [];
+	return routes.map((item) => {
+		const points = routePoints(
+			item.route,
+			item.lane,
+			item.entry,
+			item.entries,
+			item.nodes,
+			item.side,
+		);
+		for (const candidate of labelCandidates(points)) {
+			const box = labelBox(candidate);
+			if (
+				occupied.some((taken) => overlaps(box, taken)) ||
+				item.nodes.some((node) => overlaps(box, node))
+			) {
+				continue;
+			}
 			occupied.push(box);
 			return candidate;
 		}
-	}
-	const shifted = { x: fallback.x, y: fallback.y - labelClearance * 2 };
-	occupied.push(labelBox(shifted));
-	return shifted;
+		const fallback = labelCandidates(points).at(-1) ?? { x: 0, y: 0 };
+		for (let step = 1; step <= 24; step += 1) {
+			const shifted = {
+				x: fallback.x + step * labelClearance * 2,
+				y: fallback.y,
+			};
+			const box = labelBox(shifted);
+			if (occupied.some((taken) => overlaps(box, taken))) {
+				continue;
+			}
+			occupied.push(box);
+			return shifted;
+		}
+		occupied.push(labelBox(fallback));
+		return fallback;
+	});
 }
 
 function labelBox(at: { x: number; y: number }): NodeBound {
@@ -390,9 +446,10 @@ export function routeEdge(
 	index: number,
 	count: number,
 	nodes: NodeBound[] = [],
-	occupied: LabelSpot[] = [],
+	label: { x: number; y: number } = { x: 0, y: 0 },
 	entry = index,
 	entries = count,
+	side = laneGap * 4,
 ): RoutedEdge {
 	const points = routePoints(
 		route,
@@ -400,8 +457,8 @@ export function routeEdge(
 		entry,
 		entries,
 		nodes,
+		side,
 	);
-	const label = labelOn(points, nodes, occupied);
 	return {
 		path: pathThrough(points),
 		labelX: label.x,

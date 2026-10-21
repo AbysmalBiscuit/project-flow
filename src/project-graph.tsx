@@ -26,8 +26,9 @@ import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
-	type LabelSpot,
+	labelSpots,
 	markerEnd,
+	measureMarker,
 	type NodeBound,
 	routeEdge,
 } from "./graph-routes.ts";
@@ -37,7 +38,7 @@ import {
 	projectGraphLabel,
 	stateLabel,
 } from "./terms.ts";
-import { clsx } from "./ui.ts";
+import { classToken, clsx } from "./ui.ts";
 import { board, cards } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
@@ -46,7 +47,6 @@ const columnGap = 280;
 const rowGap = 148;
 const groupPad = 16;
 const groupHead = 28;
-const ticketSpan = { width: 196, height: 88 };
 
 type GraphTicketView = {
 	key: string | null;
@@ -100,7 +100,8 @@ type TicketEdgeData = {
 	entry: number;
 	entries: number;
 	nodes: NodeBound[];
-	labels: LabelSpot[];
+	label: { x: number; y: number };
+	side: number;
 };
 
 function shortTicket(key: string, project: string, outside: boolean): string {
@@ -218,9 +219,10 @@ function TicketEdge({
 		data?.lane ?? 0,
 		data?.lanes ?? 1,
 		data?.nodes ?? [],
-		data?.labels ?? [],
+		data?.label ?? { x: 0, y: 0 },
 		data?.entry ?? 0,
 		data?.entries ?? 1,
+		data?.side,
 	);
 	return (
 		<BaseEdge
@@ -282,6 +284,9 @@ function outsideTickets(
 			...(ticket.outsideBlockers ?? []),
 			...(ticket.blocks ?? []),
 		]) {
+			if (blocker.project.toLowerCase() === report.name.toLowerCase()) {
+				continue;
+			}
 			const id = nodeId(blocker.project, blocker.key);
 			if (seen.has(id)) {
 				continue;
@@ -510,6 +515,9 @@ function graphEdges(report: ProjectReport): { from: string; to: string }[] {
 			});
 		}
 		for (const blocked of ticket.blocks ?? []) {
+			if (blocked.project.toLowerCase() === report.name.toLowerCase()) {
+				continue;
+			}
 			edges.push({
 				from: target,
 				to: nodeId(blocked.project, blocked.key),
@@ -524,6 +532,44 @@ function groupId(name: string): string {
 }
 
 type TicketSize = { width: number; height: number };
+
+function nodeSpan(): TicketSize {
+	const probe = document.createElement("span");
+	probe.className = classToken(board.ticketNode);
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	document.body.append(probe);
+	const box = probe.getBoundingClientRect();
+	probe.remove();
+	return { width: box.width, height: box.height };
+}
+
+function edgeRoute(
+	edge: { source: string; target: string },
+	bounds: Map<string, NodeBound>,
+	horizontal: boolean,
+): GraphRoute {
+	const source = bounds.get(edge.source);
+	const target = bounds.get(edge.target);
+	if (horizontal) {
+		return {
+			sourceX: source?.right ?? 0,
+			sourceY: source === undefined ? 0 : (source.top + source.bottom) / 2,
+			targetX: target?.left ?? 0,
+			targetY: target === undefined ? 0 : (target.top + target.bottom) / 2,
+			sourcePosition: Position.Right,
+			targetPosition: Position.Left,
+		};
+	}
+	return {
+		sourceX: source === undefined ? 0 : (source.left + source.right) / 2,
+		sourceY: source?.bottom ?? 0,
+		targetX: target === undefined ? 0 : (target.left + target.right) / 2,
+		targetY: target?.top ?? 0,
+		sourcePosition: Position.Bottom,
+		targetPosition: Position.Top,
+	};
+}
 
 function clusterNodes(
 	tickets: GraphTicket[],
@@ -547,7 +593,7 @@ function clusterNodes(
 		const name = graphBand(ticket, groupBy, assignees);
 		const id = nodeId(ticket.project, key);
 		const place = positions.get(id);
-		const size = ticketSizes.get(id) ?? ticketSpan;
+		const size = ticketSizes.get(id) ?? nodeSpan();
 		if (place === undefined || name === "") {
 			continue;
 		}
@@ -585,7 +631,7 @@ function clusterNodes(
 		});
 }
 
-function graphModel(
+export function graphModel(
 	report: ProjectReport,
 	reports: ProjectReport[],
 	direction: GraphDirection,
@@ -639,6 +685,9 @@ function graphModel(
 	});
 	const fromHandle = horizontal ? "right" : "bottom";
 	const toHandle = horizontal ? "left" : "top";
+	const marker = markerEnd(
+		measureMarker(document, classToken(cards.graphMarker)),
+	);
 	const pending = links.map((link) => ({
 		id: `${link.from}->${link.to}`,
 		source: link.from,
@@ -646,14 +695,15 @@ function graphModel(
 		sourceHandle: fromHandle,
 		targetHandle: toHandle,
 		type: "ticket" as const,
-		markerEnd: markerEnd(),
+		markerEnd: marker,
 	}));
-	const labels: LabelSpot[] = [];
+	const span = nodeSpan();
 	const bounds = new Map(
 		nodes.flatMap((node) => {
 			if (isClusterNode(node)) {
 				return [];
 			}
+			const size = ticketSizes.get(node.id) ?? span;
 			const x = node.position.x;
 			const y = node.position.y;
 			return [
@@ -662,21 +712,38 @@ function graphModel(
 					{
 						left: x,
 						top: y,
-						right: x + ticketSpan.width,
-						bottom: y + ticketSpan.height,
+						right: x + size.width,
+						bottom: y + size.height,
 					},
 				] as const,
 			];
 		}),
 	);
-	const edges = assignLanes(pending).map((edge) => ({
+	const laned = assignLanes(pending).map((edge) => {
+		const nodesForEdge = [...bounds.entries()].flatMap(([id, bound]) =>
+			id === edge.source || id === edge.target ? [] : [bound],
+		);
+		return { edge, nodesForEdge };
+	});
+	const side = horizontal ? span.height : span.width;
+	const spots = labelSpots(
+		laned.map(({ edge, nodesForEdge }) => ({
+			route: edgeRoute(edge, bounds, horizontal),
+			lane: edge.data.lane,
+			lanes: edge.data.lanes,
+			entry: edge.data.entry,
+			entries: edge.data.entries,
+			nodes: nodesForEdge,
+			side,
+		})),
+	);
+	const edges = laned.map(({ edge, nodesForEdge }, index) => ({
 		...edge,
 		data: {
 			...edge.data,
-			nodes: [...bounds.entries()].flatMap(([id, bound]) =>
-				id === edge.source || id === edge.target ? [] : [bound],
-			),
-			labels,
+			nodes: nodesForEdge,
+			label: spots[index] ?? { x: 0, y: 0 },
+			side,
 		},
 	}));
 	return {
@@ -787,6 +854,7 @@ function SizedProjectGraph({
 			return `${node.id.replaceAll("\n", " ")} ${x},${y}`;
 		})
 		.join(" | ");
+
 	const outsideLabels = model.nodes.flatMap((node) =>
 		isClusterNode(node) || !node.data.outside
 			? []
@@ -807,6 +875,7 @@ function SizedProjectGraph({
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
 			</p>
+
 			<ReactFlow
 				key={direction}
 				nodes={model.nodes}

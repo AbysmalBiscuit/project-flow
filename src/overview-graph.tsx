@@ -2,6 +2,7 @@ import {
 	Background,
 	BackgroundVariant,
 	BaseEdge,
+	type Edge,
 	EdgeLabelRenderer,
 	type EdgeProps,
 	type Edge as FlowEdge,
@@ -16,15 +17,16 @@ import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
-	type LabelSpot,
+	labelSpots,
 	markerEnd,
+	measureMarker,
 	type NodeBound,
 	routeEdge,
 } from "./graph-routes.ts";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
-import { clsx } from "./ui.ts";
+import { classToken, clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 
 const columnGap = 360;
@@ -47,7 +49,8 @@ type BlockerEdgeData = {
 	entry: number;
 	entries: number;
 	nodes: NodeBound[];
-	labels: LabelSpot[];
+	label: { x: number; y: number };
+	side: number;
 };
 
 function depths(
@@ -155,9 +158,10 @@ function BlockerEdge({
 		data?.lane ?? 0,
 		data?.lanes ?? 1,
 		data?.nodes ?? [],
-		data?.labels ?? [],
+		data?.label ?? { x: 0, y: 0 },
 		data?.entry ?? 0,
 		data?.entries ?? 1,
+		data?.side,
 	);
 	const ticket = data?.ticket ?? "";
 	const blocked = data?.blocked ?? "";
@@ -201,7 +205,7 @@ function nodeData(project: ProjectCounts): ProjectNodeData {
 	};
 }
 
-function graphModel(
+export function graphModel(
 	shown: ProjectCounts[],
 	catalogue: ProjectCounts[],
 ): {
@@ -217,15 +221,18 @@ function graphModel(
 		position: positions.get(project.name) ?? { x: 0, y: 0 },
 		data: nodeData(project),
 	}));
+	const marker = markerEnd(
+		measureMarker(document, classToken(cards.graphMarker)),
+	);
 	const pending = shown.flatMap((project) =>
 		project.crossProjectBlockers.flatMap((blocker) =>
-			edgeFor(project.name, blocker, shownNames),
+			edgeFor(project.name, blocker, shownNames, marker),
 		),
 	);
-	const labels: LabelSpot[] = [];
+	const span = projectSpan();
 	const bounds = new Map(
 		nodes.flatMap((node) => {
-			const bound = nodeBound(node);
+			const bound = nodeBound(node, span);
 			if (bound === undefined) {
 				return [];
 			}
@@ -233,29 +240,55 @@ function graphModel(
 			return [spot];
 		}),
 	);
-	const edges = assignLanes(pending).map((edge) => ({
+	const laned = assignLanes(pending).map((edge) => {
+		const nodesForEdge = [...bounds.entries()].flatMap(([id, bound]) =>
+			id === edge.source || id === edge.target ? [] : [bound],
+		);
+		return { edge, nodesForEdge };
+	});
+	const spots = labelSpots(
+		laned.map(({ edge, nodesForEdge }) => ({
+			route: edgeRoute(edge, bounds),
+			lane: edge.data.lane,
+			lanes: edge.data.lanes,
+			entry: edge.data.entry,
+			entries: edge.data.entries,
+			nodes: nodesForEdge,
+			side: span.height,
+		})),
+	);
+	const edges = laned.map(({ edge, nodesForEdge }, index) => ({
 		...edge,
 		data: {
 			...edge.data,
-			nodes: [...bounds.entries()].flatMap(([id, bound]) =>
-				id === edge.source || id === edge.target ? [] : [bound],
-			),
-			labels,
+			nodes: nodesForEdge,
+			label: spots[index] ?? { x: 0, y: 0 },
+			side: span.height,
 		},
 	}));
 	return { nodes, edges };
 }
 
-const projectSpan = { width: 220, height: 132 };
+function projectSpan(): { width: number; height: number } {
+	const probe = document.createElement("span");
+	probe.className = classToken(cards.graphNode);
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	document.body.append(probe);
+	const box = probe.getBoundingClientRect();
+	probe.remove();
+	return { width: box.width, height: box.height };
+}
 
 function nodeBound(
 	node: FlowNode<ProjectNodeData> | undefined,
+	span: { width: number; height: number },
 ): NodeBound | undefined {
 	if (node === undefined) {
 		return undefined;
 	}
-	const width = node.measured?.width ?? node.width ?? projectSpan.width;
-	const height = node.measured?.height ?? node.height ?? projectSpan.height;
+	const width = node.measured?.width ?? node.width ?? span.width;
+	const height = node.measured?.height ?? node.height ?? span.height;
 	return {
 		left: node.position.x,
 		top: node.position.y,
@@ -264,11 +297,33 @@ function nodeBound(
 	};
 }
 
+function edgeRoute(
+	edge: { source: string; target: string },
+	bounds: Map<string, NodeBound>,
+): GraphRoute {
+	const source = bounds.get(edge.source);
+	const target = bounds.get(edge.target);
+	return {
+		sourceX: source?.right ?? 0,
+		sourceY: source === undefined ? 0 : (source.top + source.bottom) / 2,
+		targetX: target?.left ?? 0,
+		targetY: target === undefined ? 0 : (target.top + target.bottom) / 2,
+		sourcePosition: Position.Right,
+		targetPosition: Position.Left,
+	};
+}
+
 function edgeFor(
 	blocked: string,
 	blocker: CrossProjectBlocker,
 	shownNames: Set<string>,
-): FlowEdge<BlockerEdgeData>[] {
+	marker: ReturnType<typeof markerEnd>,
+): Edge<{
+	ticket: string;
+	blocked: string;
+	blocker: string;
+	tracker: CrossProjectBlocker["tracker"];
+}>[] {
 	if (!shownNames.has(blocker.project) || blocker.project === blocked) {
 		return [];
 	}
@@ -278,18 +333,12 @@ function edgeFor(
 			source: blocker.project,
 			target: blocked,
 			type: "blocker",
-			markerEnd: markerEnd(),
+			markerEnd: marker,
 			data: {
 				ticket: blocker.key,
 				blocked,
 				blocker: blocker.project,
 				tracker: blocker.tracker,
-				lane: 0,
-				lanes: 1,
-				entry: 0,
-				entries: 1,
-				nodes: [],
-				labels: [],
 			},
 		},
 	];
@@ -309,11 +358,13 @@ export function OverviewGraph({
 	const places = model.nodes
 		.map((node) => `${node.id}:${node.position.x},${node.position.y}`)
 		.join(" ");
+
 	return (
 		<div id="overview-graph" className={clsx(cards.graph)}>
 			<p id="graph-places" className={clsx(cards.graphProbe)}>
 				{places}
 			</p>
+
 			<ReactFlow
 				nodes={model.nodes}
 				edges={model.edges}
