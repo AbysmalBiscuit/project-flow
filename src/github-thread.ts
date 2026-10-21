@@ -44,6 +44,7 @@ function toThreadComment(
 	return {
 		id: String(comment.id),
 		body: comment.body ?? "",
+		html: "",
 		author: comment.user?.login ?? "",
 		createdAt: comment.created_at ?? "",
 		url: comment.html_url ?? "",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { commentHtml } from "./comment-html.ts";
 import type {
 	AutoMerge,
 	Configuration,
@@ -258,6 +259,7 @@ export type ProjectBody = Omit<ProjectCounts, "ref">;
 export type ThreadComment = {
 	id: string;
 	body: string;
+	html: string;
 	author: string;
 	createdAt: string;
 	url: string;
@@ -294,7 +296,8 @@ function visibleCommentBody(body: string): string {
 }
 
 function visibleComment(comment: ThreadComment): ThreadComment {
-	return { ...comment, body: visibleCommentBody(comment.body), children: [] };
+	const body = visibleCommentBody(comment.body);
+	return { ...comment, body, html: commentHtml(body), children: [] };
 }
 
 export function commentTree(comments: ThreadComment[]): ThreadComment[] {

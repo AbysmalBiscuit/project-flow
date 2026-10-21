@@ -1149,6 +1149,7 @@ export async function fetchLinearThread(
 		.map((comment) => ({
 			id: comment.id,
 			body: comment.body ?? "",
+			html: "",
 			author: linearAuthor(comment.user),
 			createdAt: comment.createdAt ?? "",
 			url: comment.url ?? "",
