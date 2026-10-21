@@ -583,7 +583,7 @@ function layoutParts(): {
 		`[aria-label="${projectGraphLabel.legend}"]`,
 	);
 	const chrome = document.getElementById("project-graph-controls");
-	const floats = [...(chrome?.querySelectorAll(":scope > *") ?? [])].filter(
+	const floats = [...(chrome?.querySelectorAll(":scope > * > *") ?? [])].filter(
 		(node): node is HTMLElement => node instanceof HTMLElement,
 	);
 	if (!(legend instanceof HTMLElement) || floats.length === 0) {
