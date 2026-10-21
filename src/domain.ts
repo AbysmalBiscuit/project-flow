@@ -894,14 +894,42 @@ export function reconcilePoll(
 	return { rows, projectErrors, globalError };
 }
 
-const appColours: Record<StatusType, string> = {
-	backlog: "#D0D7DE",
-	inProgress: "#F0C674",
-	inReview: "#9ECBFF",
-	awaitingMerge: "#B7E1CD",
-	done: "#7c5cbf",
-	dropped: "#9CA3AF",
+const statusColourNames = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+] as const satisfies readonly StatusType[];
+
+type StatusColourRead = () => Partial<Record<StatusType, string>>;
+
+const colourReaders = globalThis as {
+	__projectFlowReadColours?: StatusColourRead;
 };
+
+export function installStatusColours(read: StatusColourRead): void {
+	colourReaders.__projectFlowReadColours = read;
+}
+
+function statusColours(): Record<StatusType, string> {
+	const painted =
+		(
+			globalThis as {
+				__projectFlowColours?: Partial<Record<StatusType, string>>;
+			}
+		).__projectFlowColours ?? colourReaders.__projectFlowReadColours?.();
+	const colours = {} as Record<StatusType, string>;
+	for (const name of statusColourNames) {
+		const colour = painted?.[name];
+		if (colour === undefined || !colour.startsWith("#")) {
+			throw new Error(`missing token colour ${name}`);
+		}
+		colours[name] = colour;
+	}
+	return colours;
+}
 
 const appLaneNames: Record<StatusType, string> = {
 	backlog: "Backlog",
@@ -968,7 +996,7 @@ function appLane(statusType: StatusType): Lane {
 	return {
 		id: statusType,
 		name: appLaneNames[statusType],
-		colour: appColours[statusType],
+		colour: statusColours()[statusType],
 		statusType,
 	};
 }
@@ -1014,7 +1042,9 @@ export function linearStatusType(type: string, name: string): StatusType {
 	return "backlog";
 }
 
-export const backlogColour = appColours.backlog;
+export function backlogColour(): string {
+	return statusColours().backlog;
+}
 
 function namesMatch(left: string, right: string): boolean {
 	return laneName(left) === laneName(right);
@@ -1050,7 +1080,7 @@ function insertAwaitingMerge(lanes: Lane[]): Lane[] {
 	const added: Lane = {
 		id: "awaiting-merge",
 		name: appLaneNames.awaitingMerge,
-		colour: appColours.awaitingMerge,
+		colour: statusColours().awaitingMerge,
 		statusType: "awaitingMerge",
 		added: true,
 	};

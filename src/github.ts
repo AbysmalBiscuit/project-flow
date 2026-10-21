@@ -855,13 +855,13 @@ const githubOptionColours: Record<string, string> = {
 };
 
 function githubOptionColour(color: string): string {
-	return githubOptionColours[color] ?? backlogColour;
+	return githubOptionColours[color] ?? backlogColour();
 }
 
 function labelColour(color: string): string {
 	const hex = color.replace(/^#/, "");
 	if (!/^[0-9a-fA-F]{6}$/.test(hex)) {
-		return backlogColour;
+		return backlogColour();
 	}
 	return `#${hex.toUpperCase()}`;
 }

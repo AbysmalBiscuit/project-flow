@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PluginItem } from "@babel/core";
 import babel from "@babel/core";
@@ -64,6 +64,26 @@ let themeMeta: PageThemeMeta = {
 
 export function pageThemeMeta(): PageThemeMeta {
 	return themeMeta;
+}
+
+const statusColourNames = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+] as const;
+
+export function tokenColour(name: (typeof statusColourNames)[number]): string {
+	const colour = objectExport(
+		readFileSync(resolve(rootDir, "src/tokens.stylex.ts"), "utf8"),
+		"lightValues",
+	).get(name);
+	if (colour === undefined || !colour.startsWith("#")) {
+		throw new Error(`missing token colour ${name}`);
+	}
+	return colour;
 }
 
 function objectExport(source: string, name: string): Map<string, string> {
