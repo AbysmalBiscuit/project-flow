@@ -2447,16 +2447,6 @@ export const board = stylex.create({
 });
 
 export const jump = stylex.create({
-	walk: {
-		position: "fixed",
-		left: measure.offscreen,
-		top: 0,
-		width: measure.icon,
-		height: measure.icon,
-		overflow: "hidden",
-		padding: 0,
-		borderWidth: 0,
-	},
 	shade: {
 		position: "fixed",
 		zIndex: stack.jump,

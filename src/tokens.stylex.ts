@@ -288,7 +288,6 @@ export const measure = stylex.defineVars({
 	swatch: "0.9rem",
 	hairline: "1px",
 	none: "0",
-	offscreen: "-100vw",
 	focus: "2px",
 	shell: "3.5rem",
 	menu: "2.25rem",

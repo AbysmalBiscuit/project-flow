@@ -346,21 +346,4 @@ export function mountJumpBox(): void {
 		);
 	});
 	document.body.append(opener);
-	const escapeWalk = document.createElement("button");
-	escapeWalk.type = "button";
-	escapeWalk.id = "walk-escape";
-	escapeWalk.tabIndex = -1;
-	escapeWalk.setAttribute("aria-hidden", "true");
-	escapeWalk.className = clsx(jump.walk);
-	escapeWalk.addEventListener("click", () => {
-		window.dispatchEvent(
-			new KeyboardEvent("keydown", {
-				key: "Escape",
-				code: "Escape",
-				bubbles: true,
-				cancelable: true,
-			}),
-		);
-	});
-	document.body.append(escapeWalk);
 }
