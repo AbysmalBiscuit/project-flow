@@ -711,7 +711,7 @@ describe("tracker lanes", () => {
 					["factory: running", "#1D76DB", "inProgress"],
 					["factory: in-review", "#FBCA04", "inReview"],
 					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
-					["Done", "#8FBC8F", "done"],
+					["Done", "#7c5cbf", "done"],
 					["Dropped", "#9CA3AF", "dropped"],
 				]);
 				expect(report.lanes.find((lane) => lane.name === "Done")?.added).toBe(
@@ -755,7 +755,7 @@ describe("tracker lanes", () => {
 					["In progress", "#F0C674", "inProgress"],
 					["In review", "#9ECBFF", "inReview"],
 					["Awaiting merge", "#B7E1CD", "awaitingMerge"],
-					["Done", "#8FBC8F", "done"],
+					["Done", "#7c5cbf", "done"],
 					["Dropped", "#9CA3AF", "dropped"],
 				]);
 				expect(flight(report)).toEqual([

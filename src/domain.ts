@@ -899,7 +899,7 @@ const appColours: Record<StatusType, string> = {
 	inProgress: "#F0C674",
 	inReview: "#9ECBFF",
 	awaitingMerge: "#B7E1CD",
-	done: "#8FBC8F",
+	done: "#7c5cbf",
 	dropped: "#9CA3AF",
 };
 
