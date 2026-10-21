@@ -2,27 +2,35 @@ import {
 	Background,
 	BackgroundVariant,
 	BaseEdge,
+	type Edge,
 	EdgeLabelRenderer,
 	type EdgeProps,
 	type Edge as FlowEdge,
 	type Node as FlowNode,
-	getSmoothStepPath,
 	Handle,
-	MarkerType,
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
 import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
+import {
+	assignLanes,
+	type GraphRoute,
+	labelSpots,
+	markerEnd,
+	measureMarker,
+	type NodeBound,
+	routeEdge,
+} from "./graph-routes.ts";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
-import { clsx } from "./ui.ts";
+import { classToken, clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 
-const columnGap = 320;
-const rowGap = 150;
+const columnGap = 360;
+const rowGap = 168;
 
 type ProjectNodeData = {
 	project: ProjectCounts;
@@ -36,7 +44,13 @@ type BlockerEdgeData = {
 	blocked: string;
 	blocker: string;
 	tracker: CrossProjectBlocker["tracker"];
-	labelOffset: number;
+	lane: number;
+	lanes: number;
+	entry: number;
+	entries: number;
+	nodes: NodeBound[];
+	label: { x: number; y: number };
+	side: number;
 };
 
 function depths(
@@ -128,31 +142,44 @@ function BlockerEdge({
 	targetY,
 	sourcePosition,
 	targetPosition,
+	markerEnd,
 	data,
 }: EdgeProps<FlowEdge<BlockerEdgeData>>) {
-	const [path, labelX, labelY] = getSmoothStepPath({
+	const route: GraphRoute = {
 		sourceX,
 		sourceY,
 		targetX,
 		targetY,
 		sourcePosition,
 		targetPosition,
-		borderRadius: 0,
-	});
+	};
+	const drawn = routeEdge(
+		route,
+		data?.lane ?? 0,
+		data?.lanes ?? 1,
+		data?.nodes ?? [],
+		data?.label ?? { x: 0, y: 0 },
+		data?.entry ?? 0,
+		data?.entries ?? 1,
+		data?.side,
+	);
 	const ticket = data?.ticket ?? "";
 	const blocked = data?.blocked ?? "";
 	const blocker = data?.blocker ?? "";
 	const tracker = data?.tracker ?? "github";
-	const labelOffset = data?.labelOffset ?? 0;
 	return (
 		<>
-			<BaseEdge id={id} path={path} />
+			<BaseEdge
+				id={id}
+				path={drawn.path}
+				{...(markerEnd === undefined ? {} : { markerEnd })}
+			/>
 			<EdgeLabelRenderer>
 				<button
 					type="button"
 					className={`nopan ${clsx(cards.graphEdge, cards.graphLabel)}`}
 					style={{
-						transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY + labelOffset}px)`,
+						transform: `translate(-50%, -50%) translate(${drawn.labelX}px, ${drawn.labelY}px)`,
 					}}
 					aria-label={`${ticket} ${blocked}`}
 					onClick={() => {
@@ -178,7 +205,7 @@ function nodeData(project: ProjectCounts): ProjectNodeData {
 	};
 }
 
-function graphModel(
+export function graphModel(
 	shown: ProjectCounts[],
 	catalogue: ProjectCounts[],
 ): {
@@ -194,26 +221,109 @@ function graphModel(
 		position: positions.get(project.name) ?? { x: 0, y: 0 },
 		data: nodeData(project),
 	}));
-	const pairIndex = new Map<string, number>();
-	const edges = shown.flatMap((project) =>
-		project.crossProjectBlockers.flatMap((blocker) => {
-			const pair = `${blocker.project}\0${project.name}`;
-			const index = pairIndex.get(pair) ?? 0;
-			pairIndex.set(pair, index + 1);
-			return edgeFor(project.name, blocker, shownNames, index);
+	const marker = markerEnd(
+		measureMarker(document, classToken(cards.graphMarker)),
+	);
+	const pending = shown.flatMap((project) =>
+		project.crossProjectBlockers.flatMap((blocker) =>
+			edgeFor(project.name, blocker, shownNames, marker),
+		),
+	);
+	const span = projectSpan();
+	const bounds = new Map(
+		nodes.flatMap((node) => {
+			const bound = nodeBound(node, span);
+			if (bound === undefined) {
+				return [];
+			}
+			const spot: [string, NodeBound] = [node.id, bound];
+			return [spot];
 		}),
 	);
+	const laned = assignLanes(pending).map((edge) => {
+		const nodesForEdge = [...bounds.entries()].flatMap(([id, bound]) =>
+			id === edge.source || id === edge.target ? [] : [bound],
+		);
+		return { edge, nodesForEdge };
+	});
+	const spots = labelSpots(
+		laned.map(({ edge, nodesForEdge }) => ({
+			route: edgeRoute(edge, bounds),
+			lane: edge.data.lane,
+			lanes: edge.data.lanes,
+			entry: edge.data.entry,
+			entries: edge.data.entries,
+			nodes: nodesForEdge,
+			side: span.height,
+		})),
+	);
+	const edges = laned.map(({ edge, nodesForEdge }, index) => ({
+		...edge,
+		data: {
+			...edge.data,
+			nodes: nodesForEdge,
+			label: spots[index] ?? { x: 0, y: 0 },
+			side: span.height,
+		},
+	}));
 	return { nodes, edges };
 }
 
-const labelStep = 18;
+function projectSpan(): { width: number; height: number } {
+	const probe = document.createElement("span");
+	probe.className = classToken(cards.graphNode);
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	document.body.append(probe);
+	const box = probe.getBoundingClientRect();
+	probe.remove();
+	return { width: box.width, height: box.height };
+}
+
+function nodeBound(
+	node: FlowNode<ProjectNodeData> | undefined,
+	span: { width: number; height: number },
+): NodeBound | undefined {
+	if (node === undefined) {
+		return undefined;
+	}
+	const width = node.measured?.width ?? node.width ?? span.width;
+	const height = node.measured?.height ?? node.height ?? span.height;
+	return {
+		left: node.position.x,
+		top: node.position.y,
+		right: node.position.x + width,
+		bottom: node.position.y + height,
+	};
+}
+
+function edgeRoute(
+	edge: { source: string; target: string },
+	bounds: Map<string, NodeBound>,
+): GraphRoute {
+	const source = bounds.get(edge.source);
+	const target = bounds.get(edge.target);
+	return {
+		sourceX: source?.right ?? 0,
+		sourceY: source === undefined ? 0 : (source.top + source.bottom) / 2,
+		targetX: target?.left ?? 0,
+		targetY: target === undefined ? 0 : (target.top + target.bottom) / 2,
+		sourcePosition: Position.Right,
+		targetPosition: Position.Left,
+	};
+}
 
 function edgeFor(
 	blocked: string,
 	blocker: CrossProjectBlocker,
 	shownNames: Set<string>,
-	index: number,
-): FlowEdge<BlockerEdgeData>[] {
+	marker: ReturnType<typeof markerEnd>,
+): Edge<{
+	ticket: string;
+	blocked: string;
+	blocker: string;
+	tracker: CrossProjectBlocker["tracker"];
+}>[] {
 	if (!shownNames.has(blocker.project) || blocker.project === blocked) {
 		return [];
 	}
@@ -223,13 +333,12 @@ function edgeFor(
 			source: blocker.project,
 			target: blocked,
 			type: "blocker",
-			markerEnd: { type: MarkerType.ArrowClosed },
+			markerEnd: marker,
 			data: {
 				ticket: blocker.key,
 				blocked,
 				blocker: blocker.project,
 				tracker: blocker.tracker,
-				labelOffset: index * labelStep,
 			},
 		},
 	];
@@ -249,11 +358,13 @@ export function OverviewGraph({
 	const places = model.nodes
 		.map((node) => `${node.id}:${node.position.x},${node.position.y}`)
 		.join(" ");
+
 	return (
 		<div id="overview-graph" className={clsx(cards.graph)}>
 			<p id="graph-places" className={clsx(cards.graphProbe)}>
 				{places}
 			</p>
+
 			<ReactFlow
 				nodes={model.nodes}
 				edges={model.edges}
