@@ -293,6 +293,7 @@ export const measure = stylex.defineVars({
 	menu: "2.25rem",
 	menuWide: "min(16rem, calc(100vw - 1rem))",
 	menuTall: "min(22rem, calc(100dvh - 6rem))",
+	filterPanel: "20rem",
 	icon: "1.25rem",
 	glyph: "1rem",
 	badge: "1.35rem",
