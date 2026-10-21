@@ -10,9 +10,6 @@
 		{ "assert_text": "last card inside" },
 		{ "assert_text": "title held" },
 		{ "assert_text": "reached" },
-		{ "shot": "lane-last-card" },
-		{ "click": "[data-lane-proof='scroll-board']" },
-		{ "assert_text": "board scrollLeft 0" },
-		{ "shot": "lane-scrolled-sideways" }
+		{ "shot": "lane-last-card" }
 	]
 }

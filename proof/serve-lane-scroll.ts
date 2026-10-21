@@ -288,16 +288,12 @@ document.addEventListener("click", (event) => {
   if (name === "scroll-board") {
     scrollBoard(200);
   }
-  if (name === "scroll-board-phone") {
-    scrollBoard(120);
-  }
 });
 const bar = document.createElement("div");
 bar.setAttribute("style", "position:fixed;right:8px;top:8px;z-index:2147483647;display:flex;gap:8px");
 for (const item of [
   ["scroll-lane", "Scroll lane"],
   ["scroll-board", "Scroll board"],
-  ["scroll-board-phone", "Scroll board phone"],
 ]) {
   const button = document.createElement("button");
   button.type = "button";
@@ -348,10 +344,6 @@ document.body.append(frame);
 </script>`;
 }
 
-function phonePage(): string {
-	return framedBoard(390, 120);
-}
-
 function copyHeaders(source: Headers): Headers {
 	const headers = new Headers();
 	for (const [name, value] of source) {
@@ -371,6 +363,16 @@ Bun.serve({
 	port: publicPort,
 	async fetch(request) {
 		const url = new URL(request.url);
+		if (url.pathname === "/proof/lane-390") {
+			return new Response(framedBoard(390, 120), {
+				headers: { "content-type": "text/html; charset=utf-8" },
+			});
+		}
+		if (url.pathname === "/proof/lane-700") {
+			return new Response(framedBoard(700, 200), {
+				headers: { "content-type": "text/html; charset=utf-8" },
+			});
+		}
 		const init: RequestInit = {
 			method: request.method,
 			headers: copyHeaders(request.headers),
@@ -383,16 +385,6 @@ Bun.serve({
 			init,
 		);
 		const type = upstream.headers.get("content-type") ?? "";
-		if (url.pathname === "/proof/lane-390") {
-			return new Response(phonePage(), {
-				headers: { "content-type": "text/html; charset=utf-8" },
-			});
-		}
-		if (url.pathname === "/proof/lane-700") {
-			return new Response(framedBoard(700, 200), {
-				headers: { "content-type": "text/html; charset=utf-8" },
-			});
-		}
 		if (!type.includes("text/html")) {
 			return upstream;
 		}

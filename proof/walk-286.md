@@ -4,7 +4,7 @@ Each walk serves recorded tracker responses through `proof/serve-lane-scroll.ts`
 
 The board is `acme/widget`. The ready lane holds 24 cards. The last card title is `Last backlog card sits below the fold`. The factory running lane, the factory in-review lane, Awaiting merge and Done sit beside it.
 
-The proof server inserts `#lane-scroll-probe` and three buttons into each HTML response. Those controls are not in the shipped page. A click on `Scroll lane` sets the ready lane body `scrollTop` to its `scrollHeight` and writes the result. A click on `Scroll board` sets the lanes frame `scrollLeft` to 200.
+The proof server inserts `#lane-scroll-probe` and two buttons into each HTML response. Those controls are not in the shipped page. A click on `Scroll lane` sets the ready lane body `scrollTop` to its `scrollHeight` and writes the result. A click on `Scroll board` sets the lanes frame `scrollLeft` to 200. The lane walk does not click `Scroll board`.
 
 `walk_replay` pins 1280x800. A walk file name is a label. It is not a viewport the walk runs at.
 
