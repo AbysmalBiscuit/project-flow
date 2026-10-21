@@ -6,8 +6,6 @@ import {
 import type { GroupBy } from "./view-settings.ts";
 
 export const flowGap = { along: 280, across: 148 };
-const columnGap = flowGap.along;
-const rowGap = flowGap.across;
 const projectColumnGap = 360;
 const projectRowGap = 168;
 
@@ -32,10 +30,7 @@ export type FlowPlace = {
 export function flowPlaces(
 	nodes: readonly FlowNode[],
 	edges: readonly FlowEdge[],
-	gaps: { along: number; across: number } = {
-		along: columnGap,
-		across: rowGap,
-	},
+	gaps: { along: number; across: number } = flowGap,
 ): Map<string, FlowPlace> {
 	const ids = nodes.map((node) => node.id);
 	const known = new Set(ids);
