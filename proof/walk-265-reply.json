@@ -1,0 +1,14 @@
+{
+	"base_url": "http://127.0.0.1:4766",
+	"serve": ["bun", "proof/serve-265.ts", "4766", "live"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Ship the board" },
+		{ "click": "[data-ticket='acme/widget#7']" },
+		{ "assert_text": "Reply" },
+		{ "fill": "#ticket-reply", "text": "Use the lane name" },
+		{ "click": "form button[type='submit']" },
+		{ "assert_text": "Use the lane name" },
+		{ "shot": "reply-shown" }
+	]
+}
