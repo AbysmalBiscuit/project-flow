@@ -2,7 +2,14 @@ import { useReactFlow, type Viewport } from "@xyflow/react";
 import { useEffect, useState } from "react";
 import { overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { cards } from "./ui-styles.ts";
+import { cards, headerControlStyle } from "./ui-styles.ts";
+
+const graphToolStyles = {
+	card: cards,
+	header: headerControlStyle,
+} as const;
+
+export type GraphToolStyle = keyof typeof graphToolStyles;
 
 function viewportElement(root: ParentNode): HTMLElement | SVGElement | null {
 	const pane = root.querySelector(".react-flow__viewport");
@@ -89,10 +96,12 @@ export function GraphTools({
 	probeId = "graph-viewport",
 	fitId,
 	scope = "",
+	styles = "card",
 }: {
 	probeId?: string;
 	fitId?: string;
 	scope?: string;
+	styles?: GraphToolStyle;
 }) {
 	const flow = useReactFlow();
 	const [viewport, setViewport] = useState<Viewport | null>(null);
@@ -109,11 +118,12 @@ export function GraphTools({
 			scope === "" ? document : (document.querySelector(scope) ?? document);
 		setViewport(readViewport(root));
 	};
+	const tools = graphToolStyles[styles];
 	return (
-		<div className={clsx(cards.graphTools)}>
+		<div className={clsx(tools.graphTools)}>
 			<button
 				type="button"
-				className={clsx(cards.graphTool)}
+				className={clsx(tools.graphTool)}
 				aria-label={overviewControlLabel.zoomOut}
 				onClick={() => {
 					void flow.zoomOut().then(show);
@@ -124,7 +134,7 @@ export function GraphTools({
 			<button
 				type="button"
 				id={fitId}
-				className={clsx(cards.graphTool)}
+				className={clsx(tools.graphTool)}
 				aria-label={overviewControlLabel.fit}
 				onClick={() => {
 					void flow.fitView().then(show);
@@ -134,7 +144,7 @@ export function GraphTools({
 			</button>
 			<button
 				type="button"
-				className={clsx(cards.graphTool)}
+				className={clsx(tools.graphTool)}
 				aria-label={overviewControlLabel.zoomIn}
 				onClick={() => {
 					void flow.zoomIn().then(show);

@@ -80,7 +80,7 @@ function issue(number: number, title: string): Record<string, unknown> {
 	};
 }
 
-const recorded: Fetch = async (input, init) => {
+export const recorded: Fetch = async (input, init) => {
 	const discovered = recordedDiscovery(input, init);
 	if (discovered !== null) {
 		return discovered;

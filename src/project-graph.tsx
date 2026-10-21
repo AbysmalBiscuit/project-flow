@@ -45,7 +45,7 @@ import {
 	stateLabel,
 } from "./terms.ts";
 import { classToken, clsx } from "./ui.ts";
-import { board, cards } from "./ui-styles.ts";
+import { board, cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
@@ -774,7 +774,7 @@ export function DirectionSwitch({
 	onChange: (direction: GraphDirection) => void;
 }) {
 	return (
-		<fieldset className={clsx(board.direction)}>
+		<fieldset className={clsx(headerControlStyle.group)}>
 			<legend className={clsx(cards.graphProbe)}>Graph direction</legend>
 			{graphDirections.map((item) => (
 				<button
@@ -782,8 +782,8 @@ export function DirectionSwitch({
 					type="button"
 					id={`graph-direction-${item}`}
 					className={clsx(
-						board.directionButton,
-						direction === item && board.directionOn,
+						headerControlStyle.segment,
+						direction === item && headerControlStyle.segmentOn,
 					)}
 					aria-pressed={direction === item}
 					onClick={() => onChange(item)}

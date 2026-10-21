@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
-import type { KnownBot, SettingsProject, TicketState } from "./domain.ts";
-import { knownBots, projectHasPmBot, samePin } from "./domain.ts";
+import type { SettingsProject, TicketState } from "./domain.ts";
+import { projectHasPmBot, samePin } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
+import type { KnownBot } from "./known-bots.ts";
+import { knownBots } from "./known-bots.ts";
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { PageFrame } from "./shell.tsx";
 import {

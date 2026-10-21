@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:47260",
+	"serve": ["bun", "proof/serve-graph-edges.ts", "47260"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "acme/alpha" },
+		{ "click": "#overview-graph .react-flow__pane" },
+		{ "assert_text": "Overview" },
+		{ "assert_text": "acme/alpha" },
+		{ "shot": "pan-stays-overview" }
+	]
+}

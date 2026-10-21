@@ -5,6 +5,7 @@ const dark = "@media (prefers-color-scheme: dark)";
 export const media = stylex.defineConsts({
 	phone: "@media (max-width: 64rem)",
 	projectBar: "@media (max-width: 480px)",
+	headerStack: "@media (max-width: 40rem)",
 	// The one-line shell overflows below 32rem (512px).
 	shellWrap: "@media (max-width: 32rem)",
 });
@@ -296,10 +297,8 @@ export const measure = stylex.defineVars({
 	glyph: "1rem",
 	badge: "1.35rem",
 	search: "12rem",
+	headerSearch: "9.5rem",
 	lane: "16rem",
-	// Phone lane floor. Lanes scroll inside the page, not the page itself.
-	lanePhone: "11rem",
-	laneDone: "7.5rem",
 	boardMin: "36rem",
 	dot: "0.45rem",
 	searchBox: "14.5rem",
@@ -316,6 +315,7 @@ export const measure = stylex.defineVars({
 	fact: "4.5rem",
 	marker: "1.375rem",
 	switch: "2.1rem",
+	headerControl: "2.25rem",
 	knob: "0.95rem",
 	switchCol: "5.5rem",
 });
@@ -334,6 +334,20 @@ const shellWrap = {
 	paddingTop: space.sm,
 	paddingBottom: space.sm,
 } as const;
+
+export const projectHeaderLayout = stylex.create({
+	head: {
+		[media.headerStack]: {
+			alignItems: "stretch",
+		},
+	},
+	toolbar: {
+		[media.headerStack]: {
+			flexBasis: "100%",
+			justifyContent: "flex-start",
+		},
+	},
+});
 
 export const projectBarLayout = stylex.create({
 	// The project page adds this class.
@@ -362,19 +376,6 @@ export const phoneGutter = stylex.create({
 	cards: {
 		[media.phone]: {
 			gridTemplateColumns: "minmax(0, 1fr)",
-		},
-	},
-	lanes: {
-		[media.phone]: {
-			overflowX: "auto",
-		},
-	},
-	lane: {
-		[media.phone]: {
-			flexBasis: measure.lanePhone,
-			flexGrow: 0,
-			flexShrink: 0,
-			minWidth: measure.lanePhone,
 		},
 	},
 });

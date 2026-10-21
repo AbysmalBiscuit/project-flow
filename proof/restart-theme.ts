@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { proofStops } from "./lifetime.ts";
 
 const port = process.env.PORT ?? "4174";
 const page = `http://127.0.0.1:${port}/`;
@@ -89,10 +90,31 @@ const server = Bun.serve({
 	},
 });
 
+await proofStops();
+stopChild();
 await new Promise<void>((resolve) => {
-	child.once("exit", () => {
-		next?.once("exit", () => resolve());
-	});
+	const giveUp = setTimeout(resolve, 4_000);
+	let settled = false;
+	const finish = () => {
+		if (settled) {
+			return;
+		}
+		settled = true;
+		clearTimeout(giveUp);
+		resolve();
+	};
+	const onChildExit = () => {
+		if (next === null || next.exitCode !== null) {
+			finish();
+			return;
+		}
+		next.once("exit", finish);
+	};
+	if (child.exitCode !== null) {
+		onChildExit();
+		return;
+	}
+	child.once("exit", onChildExit);
 });
 await server.stop(true);
 await rm(dir, { recursive: true, force: true });

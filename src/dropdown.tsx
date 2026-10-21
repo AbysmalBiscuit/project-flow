@@ -1,3 +1,4 @@
+import type * as stylex from "@stylexjs/stylex";
 import { useEffect, useId, useRef, useState } from "react";
 import { clsx } from "./ui.ts";
 import { frame, shell } from "./ui-styles.ts";
@@ -13,12 +14,14 @@ export function Dropdown({
 	value,
 	choices,
 	onChange,
+	style,
 }: {
 	id: string;
 	label: string;
 	value: string;
 	choices: readonly DropdownChoice[];
 	onChange: (id: string) => void;
+	style?: stylex.StyleXStyles;
 }) {
 	const [open, setOpen] = useState(false);
 	const listId = useId();
@@ -43,7 +46,7 @@ export function Dropdown({
 			<button
 				type="button"
 				id={id}
-				className={clsx(frame.menuButton, shell.buttonFocus)}
+				className={clsx(frame.menuButton, style, shell.buttonFocus)}
 				aria-label={label}
 				aria-haspopup="listbox"
 				aria-expanded={open}

@@ -1,5 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { proofStops } from "../proof/lifetime.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 
@@ -25,12 +26,6 @@ await writeFile(
 		viewerLogins: ["lev"],
 	})}\n`,
 );
-
-const stop = new Promise<void>((resolve) => {
-	const done = () => resolve();
-	process.once("SIGINT", done);
-	process.once("SIGTERM", done);
-});
 
 const factoryLabels = [
 	{ name: "ready", color: "d0d7de" },
@@ -469,7 +464,7 @@ try {
 			})();
 		},
 		stderr: (line) => console.error(line),
-		waitForStop: stop,
+		waitForStop: proofStops(),
 	});
 	if (result.exitCode !== 0) {
 		process.exitCode = result.exitCode;

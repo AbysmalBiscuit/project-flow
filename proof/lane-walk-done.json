@@ -1,0 +1,10 @@
+{
+	"base_url": "http://127.0.0.1:4719",
+	"serve": ["bun", "proof/serve-lane-width.ts", "4719"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Board" },
+		{ "assert_text": "Merge the board after the last review round" },
+		{ "shot": "done-title" }
+	]
+}

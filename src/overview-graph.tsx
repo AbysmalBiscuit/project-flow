@@ -24,11 +24,11 @@ import {
 	type NodeBound,
 	routeEdge,
 } from "./graph-routes.ts";
-import { openProject } from "./paths.ts";
+import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
 import { classToken, clsx } from "./ui.ts";
-import { cards } from "./ui-styles.ts";
+import { cards, shell } from "./ui-styles.ts";
 
 type ProjectNodeData = {
 	project: ProjectCounts;
@@ -64,12 +64,20 @@ function layout(
 
 function ProjectNode({ data }: { data: ProjectNodeData }) {
 	return (
-		<div
+		<a
 			className={clsx(
 				cards.graphNode,
+				cards.graphCard,
+				shell.linkFocus,
 				data.project.needsYou > 0 && cards.graphNeedsYou,
 			)}
+			href={projectPath(data.project.name)}
+			aria-label={data.project.name}
 			data-project={data.project.name}
+			onClick={(event) => {
+				event.preventDefault();
+				openProject(data.project.name);
+			}}
 		>
 			<Handle type="target" position={Position.Left} />
 			<div className={clsx(cards.graphHead)}>
@@ -94,7 +102,7 @@ function ProjectNode({ data }: { data: ProjectNodeData }) {
 				</>
 			)}
 			<Handle type="source" position={Position.Right} />
-		</div>
+		</a>
 	);
 }
 
@@ -183,6 +191,8 @@ export function graphModel(
 		type: "project",
 		position: positions.get(project.name) ?? { x: 0, y: 0 },
 		data: nodeData(project),
+		// React Flow gives a node pointer events only when it is selectable, draggable, or has a pointer handler.
+		selectable: true,
 	}));
 	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
 	const pending = shown.flatMap((project) =>
@@ -333,6 +343,7 @@ export function OverviewGraph({
 				edgeTypes={edgeTypes}
 				nodesDraggable={false}
 				nodesConnectable={false}
+				nodesFocusable={false}
 				elementsSelectable={false}
 				panOnDrag
 				zoomOnScroll
