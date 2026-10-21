@@ -1,3 +1,9 @@
 # Opts project-flow into the agent-guard rules layer and the fallow changeset audit.
 # Stop and SubagentStop refuse to finish while the audit has findings.
 block = true
+
+[python]
+lizard = true
+lizard_extensions = '\.(ts|tsx)$'
+jscpd = true
+jscpd_extensions = '\.(ts|tsx)$'
