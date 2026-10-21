@@ -133,7 +133,7 @@ for await (const name of files) {
 		}
 		for (const match of line.matchAll(customProperty)) {
 			const property = match[0];
-			if (property.startsWith("--xy-")) {
+			if (property.startsWith("--xy-") || property === "--menu-room") {
 				continue;
 			}
 			const key = property.slice(2);

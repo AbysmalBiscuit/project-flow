@@ -1,7 +1,13 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+	type CSSProperties,
+	type ReactNode,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { readSettings, writeSettings } from "./client-settings.ts";
 import {
 	type Configuration,
@@ -540,6 +546,7 @@ function MenuButton({
 	onToggle: () => void;
 	children: ReactNode;
 }) {
+	const [room, setRoom] = useState<number | null>(null);
 	return (
 		<div className={clsx(cards.menu)}>
 			<button
@@ -548,12 +555,27 @@ function MenuButton({
 				className={clsx(cards.control, shell.buttonFocus)}
 				aria-expanded={open}
 				aria-controls={`${id}-panel`}
-				onClick={onToggle}
+				onClick={(event) => {
+					const box = event.currentTarget.getBoundingClientRect();
+					setRoom(window.innerHeight - box.bottom - box.height);
+					onToggle();
+				}}
 			>
 				{label}
 			</button>
 			{open ? (
-				<div id={`${id}-panel`} className={clsx(cards.panel)}>
+				<div
+					id={`${id}-panel`}
+					className={clsx(cards.panel)}
+					role="menu"
+					style={
+						room === null
+							? undefined
+							: ({
+									"--menu-room": `${room}px`,
+								} as CSSProperties)
+					}
+				>
 					{children}
 				</div>
 			) : null}
@@ -669,23 +691,30 @@ function OverviewPage({
 			onToggle={() => setMenu(menu === "sort" ? null : "sort")}
 		>
 			{overviewSorts.map((item) => (
-				<label key={item} className={clsx(cards.choice)}>
-					<input
-						type="radio"
-						id={`overview-sort-${item}`}
-						name="overview-sort"
-						value={item}
-						checked={view.sort === item}
-						onChange={() =>
-							saveView({
-								...view,
-								sort: item,
-								direction: sortDirectionFor(view.sort, item, view.direction),
-							})
-						}
+				<button
+					key={item}
+					type="button"
+					id={`overview-sort-${item}`}
+					role="menuitemradio"
+					aria-checked={view.sort === item}
+					className={clsx(cards.choice, shell.buttonFocus)}
+					onClick={() =>
+						saveView({
+							...view,
+							sort: item,
+							direction: sortDirectionFor(view.sort, item, view.direction),
+						})
+					}
+				>
+					<span
+						className={clsx(
+							cards.choiceMark,
+							view.sort === item && cards.markOn,
+						)}
+						aria-hidden="true"
 					/>
 					{overviewSortLabel[item]}
-				</label>
+				</button>
 			))}
 		</MenuButton>
 	);
@@ -697,16 +726,24 @@ function OverviewPage({
 			onToggle={() => setMenu(menu === "filter" ? null : "filter")}
 		>
 			{overviewFilters.map((item) => (
-				<label key={item} className={clsx(cards.choice)}>
-					<input
-						type="radio"
-						name="overview-filter"
-						value={item}
-						checked={view.filter === item}
-						onChange={() => saveView({ ...view, filter: item })}
+				<button
+					key={item}
+					type="button"
+					id={`overview-filter-${item}`}
+					role="menuitemradio"
+					aria-checked={view.filter === item}
+					className={clsx(cards.choice, shell.buttonFocus)}
+					onClick={() => saveView({ ...view, filter: item })}
+				>
+					<span
+						className={clsx(
+							cards.choiceMark,
+							view.filter === item && cards.markOn,
+						)}
+						aria-hidden="true"
 					/>
 					{overviewFilterLabel[item]}
-				</label>
+				</button>
 			))}
 		</MenuButton>
 	);

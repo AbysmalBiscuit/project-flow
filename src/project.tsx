@@ -920,6 +920,7 @@ function FilterPanel({
 					<span>{lane.name}</span>
 					<input
 						type="checkbox"
+						className={clsx(board.check)}
 						data-lane-toggle={lane.name}
 						checked={shown.has(lane.name.toLowerCase())}
 						onChange={(event) => {
@@ -980,6 +981,7 @@ function FilterPanel({
 				<span>Needs you only</span>
 				<input
 					type="checkbox"
+					className={clsx(board.check)}
 					data-needs-you-only=""
 					checked={view.needsYouOnly}
 					onChange={(event) =>
@@ -991,6 +993,7 @@ function FilterPanel({
 				<span>Blocked only</span>
 				<input
 					type="checkbox"
+					className={clsx(board.check)}
 					data-blocked-only=""
 					checked={view.blockedOnly}
 					onChange={(event) =>
@@ -1004,6 +1007,7 @@ function FilterPanel({
 					<span>{person}</span>
 					<input
 						type="checkbox"
+						className={clsx(board.check)}
 						data-assignee={person}
 						checked={picked.has(person.toLowerCase())}
 						onChange={(event) => {
