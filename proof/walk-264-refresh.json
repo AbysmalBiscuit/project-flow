@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:4799",
+	"serve": ["bun", "test/proof-server.ts", "--port=4799"],
+	"steps": [
+		{ "goto": "/proof/hold" },
+		{ "goto": "/" },
+		{ "assert_text": "No tracked project" },
+		{ "click": "#overview-refresh" },
+		{ "assert_text": "Refreshing" },
+		{ "assert_text": "No tracked project" },
+		{ "shot": "refresh-spinning" }
+	]
+}

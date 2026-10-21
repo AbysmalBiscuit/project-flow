@@ -1,0 +1,9 @@
+{
+	"base_url": "http://127.0.0.1:4799",
+	"serve": ["bun", "proof/serve-264.ts", "4799"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "projects" },
+		{ "shot": "seed-no-loading" }
+	]
+}
