@@ -4,6 +4,7 @@ import type {
 	InboxEntry,
 	NeedsYouItem,
 	NotificationTrigger,
+	Overview,
 } from "./domain.ts";
 import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
@@ -14,7 +15,8 @@ import {
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
-import { PageFrame } from "./shell.tsx";
+import { PageFrame, PollStatus } from "./shell.tsx";
+import { storeHoldsRead } from "./stored-page.ts";
 import {
 	inboxCopy,
 	inboxFilterLabel,
@@ -123,9 +125,11 @@ async function saveRead(path: string, body: string): Promise<boolean> {
 function InboxList({
 	entries,
 	onChange,
+	polling,
 }: {
 	entries: InboxEntry[];
 	onChange: (entries: InboxEntry[]) => void;
+	polling: boolean;
 }) {
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
@@ -204,7 +208,11 @@ function InboxList({
 		);
 	};
 	return (
-		<PageFrame title={navLabel.inbox} wide>
+		<PageFrame
+			title={navLabel.inbox}
+			subtitle={<PollStatus text={null} polling={polling} />}
+			wide
+		>
 			<div className={clsx(inbox.lead)}>
 				<p>{inboxCopy.lead}</p>
 				<p data-unread-count={unread}>
@@ -361,6 +369,9 @@ function Page() {
 	const [entries, setEntries] = useState<InboxEntry[] | null>(
 		() => readPageCache("inbox") ?? null,
 	);
+	const [holdsRead, setHoldsRead] = useState(
+		() => readPageCache("overview") !== undefined,
+	);
 	const [polling, setPolling] = useState(
 		() => readPageCache("polling") !== false,
 	);
@@ -383,10 +394,19 @@ function Page() {
 			fetch("/api/overview")
 				.then(async (response) => {
 					if (!stopped && response.ok) {
-						const body = (await response.json()) as { polling?: true };
+						const body = (await response.json()) as {
+							projects?: { pending?: boolean }[];
+							tracked?: false;
+							polling?: true;
+						};
 						const next = body.polling === true;
 						writePageCache("polling", next);
 						setPolling(next);
+						const read = storeHoldsRead(body);
+						if (read) {
+							writePageCache("overview", body as Overview);
+						}
+						setHoldsRead(read);
 					}
 				})
 				.catch(() => {
@@ -404,10 +424,12 @@ function Page() {
 			stopOverview();
 		};
 	}, []);
-	if (entries === null || (polling && entries.length === 0)) {
+	if (entries === null || (polling && entries.length === 0 && !holdsRead)) {
 		return <PageFrame title={navLabel.inbox}>{loadingLabel}</PageFrame>;
 	}
-	return <InboxList entries={entries} onChange={setEntries} />;
+	return (
+		<InboxList entries={entries} onChange={setEntries} polling={polling} />
+	);
 }
 
 function mount(): void {

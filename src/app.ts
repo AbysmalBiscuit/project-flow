@@ -82,6 +82,7 @@ import type {
 	Viewer,
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
+import { storeHoldsRead } from "./stored-page.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -1489,12 +1490,61 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	void firstPoll.then(armTimer, armTimer).catch(() => {});
 	let server: ReturnType<typeof Bun.serve>;
-	const pageResponse = async (): Promise<Response> => {
+	const pageResponse = async (request: Request): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
-		const html = paintPage(await bundled.text(), configuration.theme);
+		const html = paintPage(
+			await bundled.text(),
+			configuration.theme,
+			storedForPage(new URL(request.url).pathname),
+			pollOptions.polling,
+		);
 		const headers = new Headers(bundled.headers);
 		headers.delete("content-length");
 		return new Response(html, { status: bundled.status, headers });
+	};
+	const storedForPage = (pathname: string): unknown => {
+		const projectPrefix = "/projects/";
+		if (pathname.startsWith(projectPrefix)) {
+			let name: string;
+			try {
+				name = decodeURIComponent(pathname.slice(projectPrefix.length));
+			} catch {
+				return undefined;
+			}
+			return reportFor(pollOptions, configuration, name, true) ?? undefined;
+		}
+		if (pathname === "/needs-you") {
+			const body = runningOverview(pollOptions, configuration);
+			if (!storeHoldsRead(body)) {
+				return undefined;
+			}
+			return projectViews(pollOptions, configuration).flatMap(
+				(item) => item.items,
+			);
+		}
+		if (pathname === "/inbox") {
+			const body = runningOverview(pollOptions, configuration);
+			if (!storeHoldsRead(body)) {
+				return undefined;
+			}
+			return inboxEntries(opened.store.readNotifications(), clock.now());
+		}
+		if (pathname === "/settings") {
+			return settingsResponse(
+				configuration,
+				options,
+				pollOptions.catalogue,
+				opened.store.readTickets(),
+			);
+		}
+		const body = runningOverview(pollOptions, configuration);
+		if (!storeHoldsRead(body)) {
+			return undefined;
+		}
+		return {
+			overview: body,
+			settings: configuration,
+		};
 	};
 	server = Bun.serve({
 		hostname: options.hostname,

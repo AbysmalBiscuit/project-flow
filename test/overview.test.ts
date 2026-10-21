@@ -35,10 +35,11 @@ function ticket(
 	number: number,
 	state: "open" | "closed",
 	stateReason: string | null,
+	title = `Ticket ${number}`,
 ): Record<string, unknown> {
 	return {
 		number,
-		title: `Ticket ${number}`,
+		title,
 		state,
 		state_reason: stateReason,
 		html_url: `https://github.com/${repo}/issues/${number}`,
@@ -267,10 +268,8 @@ async function assertCard(base: string): Promise<void> {
 	expect(pageResponse.headers.get("content-type")).toContain("text/html");
 	const html = await pageResponse.text();
 	expect(html).toContain('<div id="root"></div>');
-	expect(html).not.toContain(repo);
-	expect(html).not.toContain("Done ");
-	expect(html).not.toContain("Dropped ");
-	expect(html).not.toContain("Backlog ");
+	expect(html).toContain(`id="${storedPageId}"`);
+	expect(embeddedForRoute(html, "/")).toEqual(body);
 }
 
 const linearProject = "widget-launch-0d42ae5d46d0";
@@ -6288,6 +6287,250 @@ describe("GET /api/overview", () => {
 				writer.run("rollback");
 			}
 			writer.close();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+});
+
+const storedPageId = "project-flow-stored";
+
+function embeddedStored(html: string): unknown {
+	const match = html.match(
+		new RegExp(
+			`<script id="${storedPageId}" type="application/json">([\\s\\S]*?)</script>`,
+		),
+	);
+	expect(match?.[1]).toBeString();
+	return JSON.parse(match?.[1] ?? "");
+}
+
+function embeddedForRoute(html: string, page: string): unknown {
+	const stored = embeddedStored(html);
+	if (page !== "/") {
+		return stored;
+	}
+	expect(stored).toHaveProperty("overview");
+	expect(stored).toHaveProperty("settings");
+	return (stored as { overview: unknown }).overview;
+}
+
+describe("page responses", () => {
+	test("each page carries the stored data its API returns", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		let finish: (error?: unknown) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			finish = (error) => {
+				if (error === undefined) {
+					resolve();
+					return;
+				}
+				reject(error);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: githubFetch(),
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => {
+						void (async () => {
+							const base = line;
+							const overview = await readOverview(base);
+							const projectName = overview.projects[0]?.name ?? repo;
+							const routes = [
+								{ page: "/", api: "/api/overview" },
+								{
+									page: `/projects/${encodeURIComponent(projectName)}`,
+									api: `/api/projects/${encodeURIComponent(projectName)}`,
+								},
+								{ page: "/needs-you", api: "/api/needs-you" },
+								{ page: "/inbox", api: "/api/inbox" },
+								{ page: "/settings", api: "/api/settings" },
+							];
+							for (const route of routes) {
+								const api = await fetch(new URL(route.api, base));
+								expect(api.status).toBe(200);
+								const pageResponse = await fetch(new URL(route.page, base));
+								expect(pageResponse.status).toBe(200);
+								const html = await pageResponse.text();
+								expect(embeddedForRoute(html, route.page)).toEqual(
+									await api.json(),
+								);
+							}
+							finish();
+						})().catch((error: unknown) => finish(error));
+					},
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			await checks;
+		} finally {
+			finish();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a ticket title that holds a script end cannot break the page", async () => {
+		const hostile = `</script><script>window.__broken=1</script> & <img>`;
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		let finish: (error?: unknown) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			finish = (error) => {
+				if (error === undefined) {
+					resolve();
+					return;
+				}
+				reject(error);
+			};
+		});
+		const hostileFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/graphql") {
+				const read = repoReadFromLists(input, init, {
+					[repo]: [ticket(5, "open", null, hostile)],
+				});
+				if (read !== null) {
+					return read;
+				}
+			}
+			return githubFetch()(input, init);
+		};
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: hostileFetch,
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => {
+						void (async () => {
+							const base = line;
+							const overview = await readOverview(base);
+							const titles = overview.projects.flatMap((project) =>
+								project.tickets.map((item) => item.title),
+							);
+							expect(titles).toContain(hostile);
+							const pageResponse = await fetch(new URL("/", base));
+							expect(pageResponse.status).toBe(200);
+							const html = await pageResponse.text();
+							expect(html).not.toContain("</script><script>");
+							expect(html).not.toContain("<img>");
+							expect(embeddedForRoute(html, "/")).toEqual(overview);
+							const projectName = overview.projects[0]?.name ?? repo;
+							const projectPage = await fetch(
+								new URL(`/projects/${encodeURIComponent(projectName)}`, base),
+							);
+							expect(projectPage.status).toBe(200);
+							const projectHtml = await projectPage.text();
+							expect(projectHtml).not.toContain("</script><script>");
+							expect(embeddedStored(projectHtml)).toEqual(
+								await (
+									await fetch(
+										new URL(
+											`/api/projects/${encodeURIComponent(projectName)}`,
+											base,
+										),
+									)
+								).json(),
+							);
+							finish();
+						})().catch((error: unknown) => finish(error));
+					},
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			await checks;
+		} finally {
+			finish();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a blank, spaced or missing project page stays a page", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const databasePath = join(root, "store.sqlite");
+		let finish: (error?: unknown) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			finish = (error) => {
+				if (error === undefined) {
+					resolve();
+					return;
+				}
+				reject(error);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: githubFetch(),
+					readGhToken: async () => null,
+					databasePath,
+					stdout: (line) => {
+						void (async () => {
+							const base = line;
+							await readOverview(base);
+							for (const pagePath of [
+								"/projects/%20",
+								"/projects/missing",
+								`/projects/${encodeURIComponent("  acme/widget  ")}`,
+							]) {
+								const pageResponse = await fetch(new URL(pagePath, base));
+								expect(pageResponse.status).toBe(200);
+								const html = await pageResponse.text();
+								expect(html).toContain('id="root"');
+								expect(html).not.toContain('id="project-flow-stored"');
+							}
+							const overviewPage = await fetch(new URL("/", base));
+							expect(overviewPage.status).toBe(200);
+							const overviewHtml = await overviewPage.text();
+							expect(overviewHtml).toContain('id="root"');
+							expect(embeddedForRoute(overviewHtml, "/")).toEqual(
+								await readOverview(base),
+							);
+							const malformed = await fetch(new URL("/projects/%E0", base));
+							expect(malformed.status).toBe(200);
+							const malformedHtml = await malformed.text();
+							expect(malformedHtml).toContain('id="root"');
+							expect(malformedHtml).not.toContain('id="project-flow-stored"');
+							const missing = await fetch(
+								new URL("/api/projects/missing", base),
+							);
+							expect(missing.status).toBe(404);
+							finish();
+						})().catch((error: unknown) => finish(error));
+					},
+					waitForStop: checks,
+				}),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+			await checks;
+		} finally {
+			finish();
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
