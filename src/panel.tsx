@@ -6,8 +6,14 @@ import type {
 	ThreadComment,
 	TicketState,
 } from "./domain.ts";
-import { HeldAction } from "./needs-item.tsx";
-import { pullStatusLabel, stateLabel, whyLabel } from "./terms.ts";
+import {
+	mergeFactLabel,
+	openOnGitHubLabel,
+	pullStatusLabel,
+	stateLabel,
+	threadMissingLabel,
+	whyLabel,
+} from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, needs, panel, shell } from "./ui-styles.ts";
@@ -144,10 +150,35 @@ function WhySection({
 				<p className={clsx(panel.question)}>{question}</p>
 			)}
 			{pull === undefined ? null : (
-				<p className={clsx(panel.status)}>
-					PR #{pull.number} {pull.title}. {pullStatusLabel.ci[pull.ci]}.{" "}
-					{pullStatusLabel.review[pull.review]}.
-				</p>
+				<dl className={clsx(panel.facts)}>
+					<div className={clsx(panel.fact)}>
+						<dt className={clsx(panel.factLabel)}>{mergeFactLabel.pr}</dt>
+						<dd className={clsx(panel.factValue)}>
+							<a
+								className={clsx(panel.factLink)}
+								href={pull.url}
+								aria-label={`${openOnGitHubLabel}, PR #${pull.number}`}
+							>
+								{openOnGitHubLabel}
+							</a>
+							<span>
+								#{pull.number} {pull.title}
+							</span>
+						</dd>
+					</div>
+					<div className={clsx(panel.fact)}>
+						<dt className={clsx(panel.factLabel)}>{mergeFactLabel.ci}</dt>
+						<dd className={clsx(panel.factValue)}>
+							{pullStatusLabel.ci[pull.ci]}
+						</dd>
+					</div>
+					<div className={clsx(panel.fact)}>
+						<dt className={clsx(panel.factLabel)}>{mergeFactLabel.review}</dt>
+						<dd className={clsx(panel.factValue)}>
+							{pullStatusLabel.review[pull.review]}
+						</dd>
+					</div>
+				</dl>
 			)}
 			{options.length === 0 ? null : (
 				<ul className={clsx(panel.options)}>
@@ -204,6 +235,7 @@ export function TicketPanel({
 }) {
 	const [thread, setThread] = useState<Thread | null>(null);
 	const [missing, setMissing] = useState(false);
+	const [failed, setFailed] = useState(false);
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -224,15 +256,23 @@ export function TicketPanel({
 				}
 				if (!response.ok) {
 					setThread(null);
-					setMissing(true);
+					const body = (await response.json().catch(() => null)) as {
+						missing?: boolean;
+					} | null;
+					const gone = body?.missing === true;
+					setMissing(gone);
+					setFailed(!gone);
 					return;
 				}
 				setMissing(false);
+				setFailed(false);
 				setThread((await response.json()) as Thread);
 			})
 			.catch(() => {
 				if (!stopped) {
-					setMissing(true);
+					setThread(null);
+					setMissing(false);
+					setFailed(true);
 				}
 			});
 		return () => {
@@ -260,6 +300,7 @@ export function TicketPanel({
 			const loaded = await fetch(threadPath);
 			if (loaded.ok) {
 				setMissing(false);
+				setFailed(false);
 				setThread((await loaded.json()) as Thread);
 			}
 		} catch {
@@ -299,6 +340,7 @@ export function TicketPanel({
 			const loaded = await fetch(threadPath);
 			if (loaded.ok) {
 				setMissing(false);
+				setFailed(false);
 				setThread((await loaded.json()) as Thread);
 			}
 		} catch {
@@ -339,12 +381,10 @@ export function TicketPanel({
 					</button>
 				</span>
 			</div>
-			{missing ? (
-				<p className={clsx(panel.error)} role="alert">
-					Thread not found
-				</p>
+			{missing || failed ? (
+				<p className={clsx(panel.note)}>{threadMissingLabel}</p>
 			) : null}
-			{thread === null && !missing ? (
+			{thread === null && !missing && !failed ? (
 				<p className={clsx(panel.label)}>Loading thread</p>
 			) : null}
 			{thread !== null || title !== undefined ? (
@@ -361,7 +401,6 @@ export function TicketPanel({
 					{laneName}
 				</p>
 			)}
-			<HeldAction item={item ?? null} />
 			{item === null || item === undefined ? (
 				why === undefined ? null : (
 					<section className={clsx(needs.why)} aria-label={whyLabel}>
@@ -401,7 +440,7 @@ export function TicketPanel({
 					}
 				/>
 			)}
-			{missing ? null : (
+			{missing || failed ? null : (
 				<form
 					className={clsx(panel.reply)}
 					onSubmit={(event) => {

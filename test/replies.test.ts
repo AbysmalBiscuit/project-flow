@@ -56,6 +56,7 @@ function githubFetch(
 		comments?: Record<number, Record<string, unknown>[]>;
 		reviewComments?: Record<number, Record<string, unknown>[]>;
 		failReply?: boolean;
+		failThread?: boolean;
 		graphql?: (query: string) => Response | null;
 	},
 ): Fetch {
@@ -79,6 +80,9 @@ function githubFetch(
 		}
 		const oneIssue = url.match(/\/repos\/(acme\/widget)\/issues\/(\d+)$/);
 		if (oneIssue !== null && method === "GET") {
+			if (options.failThread === true) {
+				return new Response("upstream down", { status: 502 });
+			}
 			const number = Number(oneIssue[2]);
 			const found = options.issues.find((item) => item.number === number);
 			if (found === undefined) {
@@ -699,7 +703,94 @@ describe("replies", () => {
 		}
 	});
 
-	test("a missing Linear issue shows thread not found", async () => {
+	test("an unread PR thread is missing, not a tracker error", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, { issues: [issue(7)] });
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%2340?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(404);
+			const failed = (await response.json()) as {
+				error?: string;
+				missing?: boolean;
+			};
+			expect(failed.error).toBeUndefined();
+			expect(failed.missing).toBe(true);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a tracker failure stays an error, not a missing thread", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, {
+			issues: [issue(7)],
+			failThread: true,
+		});
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const response = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
+					app.base,
+				),
+			);
+			expect(response.status).toBe(502);
+			const failed = (await response.json()) as {
+				error?: string;
+				missing?: boolean;
+			};
+			expect(failed.missing).toBeUndefined();
+			expect(failed.error).toBe("GitHub fetch thread failed (HTTP 502)");
+			expect(sent.some((item) => item.url.endsWith("/issues/7"))).toBe(true);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a blank project marks the thread missing", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, { issues: [issue(7)] });
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const blank = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%237?project=%20%20",
+					app.base,
+				),
+			);
+			const empty = await fetch(
+				new URL("/api/threads/github/acme%2Fwidget%237", app.base),
+			);
+			expect(blank.status).toBe(404);
+			expect(empty.status).toBe(404);
+			expect(((await blank.json()) as { missing?: boolean }).missing).toBe(
+				true,
+			);
+			expect(((await empty.json()) as { missing?: boolean }).missing).toBe(
+				true,
+			);
+			expect(sent.some((item) => item.url.includes("/issues/7"))).toBe(false);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a missing Linear issue marks the thread missing", async () => {
 		const recorded = linearFake({
 			project: linearProject,
 			issues: [],
@@ -715,8 +806,8 @@ describe("replies", () => {
 				new URL("/api/threads/linear/PF-404?project=widget-launch", app.base),
 			);
 			expect(response.status).toBe(404);
-			const failed = (await response.json()) as { error: string };
-			expect(failed.error).toBe("thread not found");
+			const failed = (await response.json()) as { missing?: boolean };
+			expect(failed.missing).toBe(true);
 		} finally {
 			await app.stop();
 		}

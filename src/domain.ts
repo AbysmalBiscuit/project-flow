@@ -299,6 +299,7 @@ export type AskOption = {
 export type PullStatus = {
 	number: number;
 	title: string;
+	url: string;
 	ci: "passing" | "failing" | "pending" | "none";
 	review: "approved" | "changes" | "completed" | "pending" | "none";
 };
@@ -3005,6 +3006,7 @@ function pullStatus(pull: PullRequest): PullStatus {
 	return {
 		number: pull.number,
 		title: pull.title,
+		url: pull.url,
 		ci: ciOf(pull),
 		review: reviewOf(pull),
 	};
