@@ -297,9 +297,6 @@ export const measure = stylex.defineVars({
 	badge: "1.35rem",
 	search: "12rem",
 	lane: "16rem",
-	// Phone lane floor. Lanes scroll inside the page, not the page itself.
-	lanePhone: "11rem",
-	laneDone: "7.5rem",
 	boardMin: "36rem",
 	dot: "0.45rem",
 	searchBox: "14.5rem",
@@ -361,19 +358,6 @@ export const phoneGutter = stylex.create({
 	cards: {
 		[media.phone]: {
 			gridTemplateColumns: "minmax(0, 1fr)",
-		},
-	},
-	lanes: {
-		[media.phone]: {
-			overflowX: "auto",
-		},
-	},
-	lane: {
-		[media.phone]: {
-			flexBasis: measure.lanePhone,
-			flexGrow: 0,
-			flexShrink: 0,
-			minWidth: measure.lanePhone,
 		},
 	},
 });
