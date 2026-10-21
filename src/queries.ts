@@ -318,6 +318,7 @@ function applyOverviewEvent(body: Overview): void {
 	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body);
 	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
+	void pageQueryClient.invalidateQueries(pageQuery.settings);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 }
 
