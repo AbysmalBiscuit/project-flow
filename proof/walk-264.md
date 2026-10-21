@@ -18,7 +18,7 @@ Item 6, stored data seeds the query. Replay `proof/walk-264-seed.json`:
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-264-seed.json --proof .devkit/proof --item 6
 ```
 
-The first paint shows project counts. The page does not show `Loading`.
+The seed runs before the first render. The first paint shows project counts and `acme/flow`. The walk opens Needs you and asserts the seeded item text `Nothing needs you`. The walk opens Inbox and asserts the seeded item text `No notifications`. The replay runner has no absent-text action. Those settled lines are the lists the seed writes, so the pages do not show `Loading`.
 
 Item 7, a server-sent event updates the page. Replay `proof/walk-264-sse.json`:
 
@@ -34,4 +34,4 @@ Item 8, the refresh icon. Replay `proof/walk-264-refresh.json`. The walk opens O
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-264-refresh.json --proof .devkit/proof --item 8
 ```
 
-The page shows `Refreshing` and the project name `acme/flow` while the overview response stays held. The spinning refresh icon comes from the query fetch state. The old project data stays on screen.
+The page shows `Refreshing` and the project name `acme/flow` while the overview response stays held. The icon shows while the overview fetch or the poll runs. The old project data stays on screen. The walk reads the hidden word `Refreshing`.
