@@ -108,6 +108,10 @@ export function installationTokenFetch(
 ): Fetch {
 	const cached = new Map<string, { token: string; expiresAt: number }>();
 	return async (input, init) => {
+		const settings = await read().catch(() => null);
+		if (settings === null || !settings.enabled) {
+			return fetchImpl(input, init);
+		}
 		const url =
 			typeof input === "string"
 				? input
@@ -122,10 +126,6 @@ export function installationTokenFetch(
 			method !== "HEAD" &&
 			!url.startsWith("https://api.github.com/graphql");
 		if (owner === null || write || owner === "user") {
-			return fetchImpl(input, init);
-		}
-		const settings = await read().catch(() => null);
-		if (settings === null || !settings.enabled) {
 			return fetchImpl(input, init);
 		}
 		const current = now();
