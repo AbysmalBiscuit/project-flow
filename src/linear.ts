@@ -1020,30 +1020,32 @@ const threadQuery = `query IssueThread($id: String!, $after: String) {
 
 const threadPage = z.object({
 	data: z.object({
-		issue: z.object({
-			identifier: z.string(),
-			title: z.string(),
-			url: z.string(),
-			comments: z.object({
-				nodes: z.array(
-					z.object({
-						id: z.string(),
-						body: z.string().nullable().optional(),
-						createdAt: z.string().optional(),
-						url: z.string().optional(),
-						parent: z.object({ id: z.string() }).nullable().optional(),
-						user: z
-							.object({
-								name: z.string().nullable().optional(),
-								displayName: z.string().nullable().optional(),
-							})
-							.nullable()
-							.optional(),
-					}),
-				),
-				pageInfo,
-			}),
-		}),
+		issue: z
+			.object({
+				identifier: z.string(),
+				title: z.string(),
+				url: z.string(),
+				comments: z.object({
+					nodes: z.array(
+						z.object({
+							id: z.string(),
+							body: z.string().nullable().optional(),
+							createdAt: z.string().optional(),
+							url: z.string().optional(),
+							parent: z.object({ id: z.string() }).nullable().optional(),
+							user: z
+								.object({
+									name: z.string().nullable().optional(),
+									displayName: z.string().nullable().optional(),
+								})
+								.nullable()
+								.optional(),
+						}),
+					),
+					pageInfo,
+				}),
+			})
+			.nullable(),
 	}),
 });
 
@@ -1109,9 +1111,9 @@ export async function fetchLinearThread(
 	project: string,
 	ticketKey: string,
 ): Promise<Thread | null> {
-	const nodes: z.infer<
-		typeof threadPage
-	>["data"]["issue"]["comments"]["nodes"] = [];
+	const nodes: NonNullable<
+		z.infer<typeof threadPage>["data"]["issue"]
+	>["comments"]["nodes"] = [];
 	let issue: z.infer<typeof threadPage>["data"]["issue"] | null = null;
 	let after: string | null = null;
 	do {
@@ -1125,19 +1127,11 @@ export async function fetchLinearThread(
 		if (linearError(body, "fetch thread") !== null) {
 			return null;
 		}
-		if (body !== null && typeof body === "object" && "data" in body) {
-			const data = body.data;
-			if (
-				data !== null &&
-				typeof data === "object" &&
-				"issue" in data &&
-				data.issue === null
-			) {
-				return null;
-			}
-		}
 		const page = threadPage.parse(body);
 		issue = page.data.issue;
+		if (issue === null) {
+			return null;
+		}
 		nodes.push(...issue.comments.nodes);
 		after = issue.comments.pageInfo.hasNextPage
 			? issue.comments.pageInfo.endCursor
