@@ -158,7 +158,7 @@ function upstreamUrl(request: Request, target: URL): URL {
 }
 
 function proofHold(url: URL): Response {
-	if (pageLoads > 0) {
+	if (pageLoads > 0 || url.searchParams.get("lists") === "1") {
 		holdOverview = true;
 	}
 	if (url.searchParams.get("lists") === "1") {
@@ -167,6 +167,15 @@ function proofHold(url: URL): Response {
 	return new Response("held", {
 		headers: { "content-type": "text/plain; charset=utf-8" },
 	});
+}
+
+function heldPath(pathname: string): boolean {
+	if (holdOverview && pathname === "/api/overview") {
+		return true;
+	}
+	return (
+		holdLists && (pathname === "/api/needs-you" || pathname === "/api/inbox")
+	);
 }
 
 function proofRequests(request: Request, url: URL): Response {
@@ -223,12 +232,7 @@ const gate = Bun.serve({
 		if (url.pathname === "/api/refresh" && request.method === "POST") {
 			setTimeout(releaseNext, 400);
 		}
-		if (
-			request.method === "GET" &&
-			((holdOverview && url.pathname === "/api/overview") ||
-				(holdLists &&
-					(url.pathname === "/api/needs-you" || url.pathname === "/api/inbox")))
-		) {
+		if (request.method === "GET" && heldPath(url.pathname)) {
 			await new Promise(() => {});
 		}
 		const next = upstreamUrl(request, target);

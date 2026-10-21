@@ -2,7 +2,7 @@
 
 Each walk serves recorded tracker responses. The walk starts its own server. That server sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker.
 
-Each walk uses `proof/serve-264.ts`. That server tracks `acme/flow` and answers tracker calls from recorded responses. `GET /proof/requests` shows how many `GET /api/overview` requests the browser sent. `GET /proof/hold` holds every later `GET /api/overview` after the first page load. `GET /proof/hold?lists=1` also holds `GET /api/needs-you` and `GET /api/inbox`. A later `POST /api/refresh` releases a held poll.
+Each walk uses `proof/serve-264.ts`. That server tracks `acme/flow` and answers tracker calls from recorded responses. `GET /proof/requests` shows how many `GET /api/overview` requests the browser sent. `GET /proof/hold` holds every later `GET /api/overview` after the first page load. `GET /proof/hold?lists=1` holds `GET /api/overview`, `GET /api/needs-you` and `GET /api/inbox` before the first page load. A later `POST /api/refresh` releases a held poll.
 
 Item 4, one QueryClient across client navigation. Replay `proof/walk-264-nav.json`:
 
@@ -18,7 +18,7 @@ Item 6, stored data seeds the query. Replay `proof/walk-264-seed.json`:
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-264-seed.json --proof .devkit/proof --item 6
 ```
 
-Each page seeds from its own embedded payload before the first render. `GET /proof/hold?lists=1` holds `GET /api/needs-you` and `GET /api/inbox`, so the asserted text cannot come from those fetches. A direct load of `/` seeds the overview query and shows project counts and `acme/flow`. A direct load of `/needs-you` seeds the needs-you query and shows `Nothing needs you`. A direct load of `/inbox` seeds the inbox query and shows `No notifications`. The replay runner has no absent-text action. Those settled lines are the lists the seed writes, so the pages do not show `Loading`.
+Each page seeds from its own embedded payload before the first render. `GET /proof/hold?lists=1` holds `GET /api/overview`, `GET /api/needs-you` and `GET /api/inbox`, so the asserted text cannot come from those fetches. A direct load of `/` seeds the overview query and shows project counts and `acme/flow` while `GET /api/overview` stays held. A direct load of `/needs-you` seeds the needs-you query and shows `Nothing needs you`. A direct load of `/inbox` seeds the inbox query and shows `No notifications`. The replay runner has no absent-text action. Those settled lines are the lists the seed writes, so the pages do not show `Loading`.
 
 Item 7, a server-sent event updates the page. Replay `proof/walk-264-sse.json`:
 
