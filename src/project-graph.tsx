@@ -28,7 +28,6 @@ import {
 	projectFlowPlaces,
 	projectNodeId,
 } from "./graph-flow.ts";
-import { GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
@@ -755,11 +754,6 @@ function SizedProjectGraph({
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
 					<FitDirection key={direction} />
-					<GraphTools
-						probeId="project-graph-viewport"
-						fitId="project-graph-fit"
-						scope="#project-graph"
-					/>
 				</ReactFlow>
 			</div>
 		</div>
