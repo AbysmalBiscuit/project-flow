@@ -5,7 +5,6 @@ import type {
 	ProjectPin,
 	ProjectViewSettings,
 } from "./configuration.ts";
-import { sameRef as samePin } from "./configuration.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -1929,6 +1928,22 @@ function ticketRelations(
 		}
 	}
 	return { blockers: keys, outsideBlockers, blocks };
+}
+
+export function samePin(left: ProjectPin, right: ProjectPin): boolean {
+	if (left.tracker !== right.tracker) {
+		return false;
+	}
+	if (left.tracker === "linear" && right.tracker === "linear") {
+		return left.project === right.project;
+	}
+	if ("repo" in left && "repo" in right) {
+		return left.repo === right.repo;
+	}
+	if ("owner" in left && "owner" in right) {
+		return left.owner === right.owner && left.project === right.project;
+	}
+	return false;
 }
 
 export const knownBots = ["grok", "codex", "greptile"] as const;

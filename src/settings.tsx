@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
-import { sameRef } from "./configuration.ts";
 import type { KnownBot, SettingsProject, TicketState } from "./domain.ts";
-import { knownBots, projectHasPmBot } from "./domain.ts";
+import { knownBots, projectHasPmBot, samePin } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
@@ -965,11 +964,11 @@ function FilterGlyph() {
 }
 
 function withoutRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
-	return refs.filter((item) => !sameRef(item, ref));
+	return refs.filter((item) => !samePin(item, ref));
 }
 
 function withRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
-	return refs.some((item) => sameRef(item, ref)) ? refs : [...refs, ref];
+	return refs.some((item) => samePin(item, ref)) ? refs : [...refs, ref];
 }
 
 function botsOf(
@@ -1031,7 +1030,7 @@ function projectMatches(
 	}
 	if (
 		state === "tracked" &&
-		!draft.tracked.some((ref) => sameRef(ref, project.ref))
+		!draft.tracked.some((ref) => samePin(ref, project.ref))
 	) {
 		return false;
 	}
@@ -1186,7 +1185,7 @@ function ProjectRow({
 	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
 	const repos = project.repos;
 	const pmBot = projectHasPmBot(draft.pmBot, project.key, project.tracker);
-	const tracked = draft.tracked.some((ref) => sameRef(ref, project.ref));
+	const tracked = draft.tracked.some((ref) => samePin(ref, project.ref));
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
