@@ -5,6 +5,7 @@
 		{ "goto": "/settings" },
 		{ "assert_text": "Factory GitHub tokens" },
 		{ "click": "#factory-github-tokens" },
+		{ "shot": "factory-tokens-on" },
 		{ "click": "#save-settings" },
 		{ "assert_text": "Settings saved" },
 		{ "shot": "factory-tokens" }
