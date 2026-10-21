@@ -226,7 +226,11 @@ function graphModel(
 	const bounds = new Map(
 		nodes.flatMap((node) => {
 			const bound = nodeBound(node);
-			return bound === undefined ? [] : [[node.id, bound] as const];
+			if (bound === undefined) {
+				return [];
+			}
+			const spot: [string, NodeBound] = [node.id, bound];
+			return [spot];
 		}),
 	);
 	const edges = assignLanes(pending).map((edge) => ({
