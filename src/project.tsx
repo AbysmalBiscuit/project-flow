@@ -219,14 +219,14 @@ function visibleLanes(
 	return report.lanes.filter((lane) => names.has(lane.name.toLowerCase()));
 }
 
-function filterCount(view: ProjectViewSettings, lanes: number): number {
+function filterCount(
+	view: ProjectViewSettings,
+	lanes: ProjectReport["lanes"],
+): number {
 	const hidden =
 		view.shownLanes === undefined
 			? 0
-			: Math.max(
-					0,
-					lanes - view.shownLanes.filter((name) => name.trim() !== "").length,
-				);
+			: lanes.length - visibleLaneNames(lanes, view.shownLanes).length;
 	return (
 		hidden +
 		(view.needsYouOnly ? 1 : 0) +
@@ -235,11 +235,14 @@ function filterCount(view: ProjectViewSettings, lanes: number): number {
 	);
 }
 
-function clearedView(view: ProjectViewSettings): ProjectViewSettings {
+function clearedView(
+	view: ProjectViewSettings,
+	lanes: ProjectReport["lanes"],
+): ProjectViewSettings {
 	return {
 		...view,
-		shownLanes: undefined,
-		maxAgeDays: { Done: 0 },
+		shownLanes: lanes.map((lane) => lane.name),
+		maxAgeDays: emptyMaxAgeDays,
 		needsYouOnly: false,
 		blockedOnly: false,
 		assignees: [],
@@ -256,7 +259,11 @@ function FilteredEmpty({
 }) {
 	return (
 		<div id="filters-hide-all" className={clsx(board.filteredEmpty)}>
-			<p>{names.join(", ")} hide every ticket.</p>
+			<p>
+				{names.join(", ")}{" "}
+				{names.length === 1 ? filterEmptyLabel.one : filterEmptyLabel.many}{" "}
+				every ticket.
+			</p>
 			<button
 				type="button"
 				id="clear-filters"
@@ -783,14 +790,12 @@ function TicketTable({
 	selected,
 	onOpen,
 	onOpenOutside,
-	onClearFilters,
 }: {
 	report: ProjectReport;
 	groupBy: GroupBy;
 	selected: string | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
-	onClearFilters: () => void;
 }) {
 	const [column, setColumn] = useState<Column>("state");
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
@@ -805,11 +810,7 @@ function TicketTable({
 			data-group-by={groupBy}
 		>
 			{rows.length === 0 ? (
-				report.hiddenBy === undefined ? (
-					<p className={clsx(board.empty)}>No tickets</p>
-				) : (
-					<FilteredEmpty names={report.hiddenBy} onClear={onClearFilters} />
-				)
+				<p className={clsx(board.empty)}>No tickets</p>
 			) : (
 				<table className={clsx(board.rows)}>
 					<thead>
@@ -907,19 +908,14 @@ function Board({
 	selected,
 	onOpen,
 	onOpenOutside,
-	onClearFilters,
 }: {
 	report: ProjectReport;
 	settings: ProjectViewSettings;
 	selected: string | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
-	onClearFilters: () => void;
 }) {
 	const [shownDone, setShownDone] = useState(false);
-	if (report.hiddenBy !== undefined) {
-		return <FilteredEmpty names={report.hiddenBy} onClear={onClearFilters} />;
-	}
 	return (
 		<div className={clsx(board.lanes)} data-group-by={boardGroupBy(settings)}>
 			{visibleLanes(report, settings).map((lane) => (
@@ -960,7 +956,6 @@ function FilterMenu({
 	onOpen: (next: boolean) => void;
 	onChange: (next: ProjectViewSettings) => void;
 }) {
-	const shown = visibleLaneNames(report.lanes, view.shownLanes);
 	const root = useRef<HTMLDivElement>(null);
 	const gutter = useRef<HTMLSpanElement>(null);
 	const [shift, setShift] = useState(0);
@@ -1051,7 +1046,7 @@ function FilterMenu({
 				</svg>
 				Filter
 				<span className={clsx(headerControlStyle.count)}>
-					{filterCount(view, shown.length)}
+					{filterCount(view, report.lanes)}
 				</span>
 			</button>
 			{open ? (
@@ -1636,10 +1631,10 @@ function Page() {
 						}
 					/>
 					<div className={clsx(board.stage)}>
-						{report.hiddenBy !== undefined && view === "graph" ? (
+						{report.hiddenBy !== undefined ? (
 							<FilteredEmpty
 								names={report.hiddenBy}
-								onClear={() => saveView(clearedView(settings))}
+								onClear={() => saveView(clearedView(settings, report.lanes))}
 							/>
 						) : view === "board" ? (
 							<Board
@@ -1648,7 +1643,6 @@ function Page() {
 								selected={open ? ticket : null}
 								onOpen={openTicketInPanel}
 								onOpenOutside={openOutsideInPanel}
-								onClearFilters={() => saveView(clearedView(settings))}
 							/>
 						) : view === "table" ? (
 							<TicketTable
@@ -1657,7 +1651,6 @@ function Page() {
 								selected={open ? ticket : null}
 								onOpen={openTicketInPanel}
 								onOpenOutside={openOutsideInPanel}
-								onClearFilters={() => saveView(clearedView(settings))}
 							/>
 						) : view === "graph" ? (
 							<ProjectGraph

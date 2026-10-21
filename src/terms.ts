@@ -205,6 +205,8 @@ export const groupByLabel = {
 
 export const filterEmptyLabel = {
 	clear: "Clear filters",
+	one: "hides",
+	many: "hide",
 } as const;
 
 export const projectGraphLabel = {
