@@ -315,6 +315,21 @@ export const stack = stylex.defineVars({
 	jump: 2,
 });
 
+export const projectBarLayout = stylex.create({
+	// The project page adds this class. Other pages keep the one-line bar.
+	fit: {
+		[media.projectBar]: {
+			height: "auto",
+			minHeight: measure.shell,
+			flexWrap: "wrap",
+			paddingTop: space.sm,
+			paddingBottom: space.sm,
+			paddingLeft: space.sm,
+			paddingRight: space.sm,
+		},
+	},
+});
+
 export const phoneLayout = stylex.create({
 	cardNeed: {
 		[media.phone]: {

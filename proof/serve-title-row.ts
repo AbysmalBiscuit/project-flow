@@ -16,6 +16,50 @@ function page(items: unknown[]): Response {
 	});
 }
 
+const end = { hasNextPage: false, endCursor: null };
+
+function recordedIssue(number: number, title: string): Record<string, unknown> {
+	return {
+		number,
+		title,
+		state: "OPEN",
+		stateReason: null,
+		updatedAt: "2026-10-01T00:00:00Z",
+		createdAt: "2026-10-01T00:00:00Z",
+		closedAt: null,
+		body: "",
+		comments: { nodes: [], pageInfo: end },
+		labels: { nodes: [], pageInfo: end },
+		assignees: { nodes: [] },
+		milestone: { title: "Alpha" },
+		parent: null,
+		blockedBy: { nodes: [], pageInfo: end },
+		blocking: { nodes: [], pageInfo: end },
+	};
+}
+
+function recordedRepo(): Response {
+	return Response.json({
+		data: {
+			repository: {
+				nameWithOwner: repo,
+				autoMergeAllowed: false,
+				refs: { nodes: [], pageInfo: end },
+				labels: { nodes: [], pageInfo: end },
+				issues: {
+					nodes: [
+						recordedIssue(7, "Ship the list"),
+						recordedIssue(8, "Hold the launch"),
+					],
+					pageInfo: end,
+				},
+				openPullRequests: { nodes: [], pageInfo: end },
+				mergedPullRequests: { nodes: [], pageInfo: end },
+			},
+		},
+	});
+}
+
 function issue(number: number, title: string): Record<string, unknown> {
 	return {
 		number,
@@ -56,7 +100,18 @@ const recorded: Fetch = async (input, init) => {
 		return page([]);
 	}
 	if (url === "https://api.github.com/graphql") {
-		return Response.json({ data: {} });
+		const body = typeof init?.body === "string" ? init.body : "";
+		if (body.includes("RepoRead")) {
+			return recordedRepo();
+		}
+		return Response.json({
+			data: {
+				repository: {
+					nameWithOwner: repo,
+					autoMergeAllowed: false,
+				},
+			},
+		});
 	}
 	return unrecorded(input);
 };

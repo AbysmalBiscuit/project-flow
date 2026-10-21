@@ -3,7 +3,6 @@ import {
 	colours,
 	font,
 	measure,
-	media,
 	radius,
 	scheme,
 	space,
@@ -58,18 +57,6 @@ export const frame = stylex.create({
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.laneLine,
 		backgroundColor: colours.raised,
-	},
-	// The project page adds this class. Other pages keep the one-line bar.
-	barFit: {
-		[media.projectBar]: {
-			height: "auto",
-			minHeight: measure.shell,
-			flexWrap: "wrap",
-			paddingTop: space.sm,
-			paddingBottom: space.sm,
-			paddingLeft: space.sm,
-			paddingRight: space.sm,
-		},
 	},
 	logo: {
 		display: "inline-flex",
