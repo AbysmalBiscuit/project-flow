@@ -5938,10 +5938,13 @@ describe("GET /api/overview", () => {
 			}
 			const second = await settledOverview(base, readOverview);
 			expect(second.error).toBeNull();
-			expect(repoReads[1]).toEqual({
-				since: first.projects.find((project) => project.name === repoName)
-					?.fetchedAt,
-			});
+			const fetchedAt = first.projects.find(
+				(project) => project.name === repoName,
+			)?.fetchedAt;
+			if (fetchedAt == null) {
+				throw new Error("missing fetchedAt");
+			}
+			expect(repoReads[1]).toEqual({ since: fetchedAt });
 			expect(repoReads[1]?.since).not.toBeNull();
 		} finally {
 			stop();
