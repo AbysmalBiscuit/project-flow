@@ -11,10 +11,9 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
-import { nodeSize, sizedNode, subscribeNodeSizes } from "./graph-measure.ts";
-import { MeasuredNode, useProbedSize } from "./graph-measure.tsx";
+import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
@@ -25,6 +24,7 @@ import {
 	type NodeBound,
 	routeEdge,
 } from "./graph-routes.ts";
+import { sizedNode } from "./graph-sizes.ts";
 import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
@@ -110,6 +110,7 @@ function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 				data.project.needsYou > 0 && cards.graphNeedsYou,
 			)}
 			href={projectPath(data.project.name)}
+			id={`graph-card-${id}`}
 			aria-label={data.project.name}
 			data-project={data.project.name}
 			onClick={(event) => {
@@ -354,14 +355,7 @@ export function OverviewGraph({
 	projects: ProjectCounts[];
 	catalogue: ProjectCounts[];
 }) {
-	const probed = useProbedSize(cards.graphNode, "Project");
-	const [, setMeasured] = useState(0);
-	useEffect(
-		() => subscribeNodeSizes(() => setMeasured((count) => count + 1)),
-		[],
-	);
-	const drawn = nodeSize("project", probed ?? { width: 0, height: 0 });
-	const span = drawn.width > 0 ? drawn : probed;
+	const span = useNodeSpan(cards.graphNode, "project", "Project");
 	const model = useMemo(
 		() => (span === null ? null : graphModel(projects, catalogue, span)),
 		[projects, catalogue, span],

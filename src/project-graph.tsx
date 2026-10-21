@@ -13,7 +13,7 @@ import {
 	ReactFlowProvider,
 	useReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
 	groupKeysOf,
 	groupLabelOf,
@@ -22,8 +22,7 @@ import {
 	type TicketRelation,
 	type TicketState,
 } from "./domain.ts";
-import { nodeSize, sizedNode, subscribeNodeSizes } from "./graph-measure.ts";
-import { MeasuredNode, useProbedSize } from "./graph-measure.tsx";
+import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { columnDepth } from "./graph-pane.tsx";
 import {
 	assignLanes,
@@ -34,6 +33,7 @@ import {
 	type NodeBound,
 	routeEdge,
 } from "./graph-routes.ts";
+import { sizedNode } from "./graph-sizes.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
@@ -171,6 +171,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 				data.open && board.ticketNodeOpen,
 			)}
 			data-graph-node={key}
+			id={`graph-card-${id}`}
 			data-outside={data.outside ? "true" : "false"}
 			data-state={known ?? "unknown"}
 			aria-pressed={data.open}
@@ -829,14 +830,7 @@ function SizedProjectGraph({
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
 }) {
-	const probed = useProbedSize(board.ticketNode, "Ticket");
-	const [, setMeasured] = useState(0);
-	useEffect(
-		() => subscribeNodeSizes(() => setMeasured((count) => count + 1)),
-		[],
-	);
-	const drawn = nodeSize("ticket", probed ?? { width: 0, height: 0 });
-	const span = drawn.width > 0 ? drawn : probed;
+	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const model = useMemo(() => {
 		if (span === null) {
 			return null;
