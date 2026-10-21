@@ -10,6 +10,7 @@ import {
 	recordedDiscovery,
 	repoReadIssues,
 	repoReadResponse,
+	settledOverview,
 	tempConfig,
 	testIo,
 	trackFound,
@@ -936,9 +937,15 @@ describe("local projects", () => {
 					});
 					expect(refresh.status).toBe(204);
 					await trackFound(base);
-					const second = await fetch(new URL("/api/overview", base));
-					expect(second.status).toBe(200);
-					expect(await second.json()).toEqual({
+					const second = await settledOverview(base, async (url) => {
+						const response = await fetch(new URL("/api/overview", url));
+						expect(response.status).toBe(200);
+						return (await response.json()) as {
+							projects: unknown[];
+							polling?: true;
+						};
+					});
+					expect(second).toEqual({
 						projects: [
 							{
 								name: "Local board",

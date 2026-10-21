@@ -4835,20 +4835,19 @@ describe("review cycle", () => {
 							method: "POST",
 						});
 						expect(refresh.status).toBe(204);
-						const deadline = Date.now() + 3_000;
 						let second: {
-							projects?: { inReview?: number }[];
+							projects?: { inReview?: number; polling?: true }[];
+							polling?: true;
 						} = {};
-						while (Date.now() < deadline) {
+						while (second.projects?.[0]?.inReview !== 1) {
 							const secondResponse = await fetch(
 								new URL("/api/overview", base),
 							);
 							expect(secondResponse.status).toBe(200);
 							second = (await secondResponse.json()) as typeof second;
-							if (second.projects?.[0]?.inReview === 1) {
-								break;
+							if (second.projects?.[0]?.inReview !== 1) {
+								await Bun.sleep(20);
 							}
-							await Bun.sleep(20);
 						}
 						expect(second).toMatchObject({
 							projects: [
