@@ -315,7 +315,10 @@ function failingAfterGoodPoll(requests: string[]): Fetch {
 	};
 }
 
-function unchangedFetch(requests: string[]): Fetch {
+function unchangedFetch(
+	requests: string[],
+	issues: Record<string, unknown>[] = [],
+): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
@@ -328,7 +331,7 @@ function unchangedFetch(requests: string[]): Fetch {
 		const steady = listedRead(input, init);
 		if (steady !== null && steady.repo === repo) {
 			pushListed(requests, steady);
-			return issuesResponse(input, init, []) ?? page([]);
+			return issuesResponse(input, init, issues) ?? page([]);
 		}
 		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
@@ -2090,20 +2093,24 @@ describe("live updates", () => {
 
 	test("a poll at the interval requests items updated since the last good poll", async () => {
 		const requests: string[] = [];
-		await withServer(unchangedFetch(requests), 1, async () => {
-			const deadline = Date.now() + 3_000;
-			while (
-				requests.filter((url) => listUrl(url) !== null).length < 2 &&
-				Date.now() < deadline
-			) {
-				await Bun.sleep(50);
-			}
-			const lists = requests.filter((url) => listUrl(url) !== null);
-			expect(lists.length).toBeGreaterThan(1);
-			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
-				goodPoll,
-			);
-		});
+		await withServer(
+			unchangedFetch(requests, [ticket(1, "2026-04-01T00:00:00Z")]),
+			1,
+			async () => {
+				const deadline = Date.now() + 3_000;
+				while (
+					requests.filter((url) => listUrl(url) !== null).length < 2 &&
+					Date.now() < deadline
+				) {
+					await Bun.sleep(50);
+				}
+				const lists = requests.filter((url) => listUrl(url) !== null);
+				expect(lists.length).toBeGreaterThan(1);
+				expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
+					goodPoll,
+				);
+			},
+		);
 	});
 
 	test("an incremental poll requests only items updated since the last good poll", async () => {

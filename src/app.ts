@@ -884,7 +884,8 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		),
 	);
 	const listed = [];
-	const fillAsPolled = options.store.readTickets().length === 0;
+	const storedRows = options.store.readTickets();
+	const fillAsPolled = storedRows.length === 0;
 	for (const project of tracked) {
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
@@ -907,8 +908,16 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 		const lastGood = options.store.lastGoodPollAt(project.key);
 		const lastFull = options.lastFullPollAt.get(project.key) ?? null;
+		const stored = storedRows.find((row) => row.key === project.key);
+		const emptyStored =
+			stored !== undefined &&
+			stored.tickets.length === 0 &&
+			stored.listedEmpty !== false;
+		const missingRow = stored === undefined && lastFull === null;
 		const full =
 			lastGood === null ||
+			emptyStored ||
+			missingRow ||
 			(project.tracker === "linear" &&
 				(lastFull === null ||
 					polledAt.getTime() - lastFull >= fullPollPeriodMs));
@@ -982,12 +991,19 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			}
 			const shown = projectSnapshots(listed);
 			const visible = new Set(shown.map((item) => item.key));
+			const sourceEmpty = new Map(
+				listed.map((item) => [item.key, item.tickets.length === 0]),
+			);
 			for (const item of listed) {
 				const outcome = outcomes.get(item.key);
 				if (outcome?.ok !== true) {
 					continue;
 				}
-				outcome.row = shown.find((row) => row.key === item.key) ?? null;
+				const row = shown.find((candidate) => candidate.key === item.key);
+				outcome.row =
+					row === undefined
+						? null
+						: { ...row, listedEmpty: sourceEmpty.get(item.key) === true };
 			}
 			if (fillAsPolled && visible.has(project.key)) {
 				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
@@ -997,9 +1013,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				continue;
 			}
 			const message = error instanceof Error ? error.message : "poll failed";
-			const stored = options.store
-				.readTickets()
-				.find((row) => row.key === project.key);
 			const empty: Snapshot = {
 				key: project.key,
 				name: project.name ?? stored?.name ?? project.key,
