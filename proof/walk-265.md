@@ -20,3 +20,12 @@ python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/script
 ```
 
 The server fills the store before it listens. It then holds the page reads. The walk opens the project page and Settings. The project page shows `Ship the board`. Settings shows `60 minutes`. Those lines come from the stored payload. The walk has no absent-text step. `Loading` is the only other full-page state for those routes, so a page that shows the stored lines does not show `Loading`.
+
+Item 5, an overview save keeps Settings filled after a failed read. Replay `proof/walk-265-cache.json`:
+
+```
+python3 /home/lev/.grok/installed-plugins/workcell-a8292766/src/workcell/walk_replay.py --walk-file proof/walk-265-cache.json --proof .devkit/proof --item 5
+```
+
+The walk opens Overview, then Settings. Settings shows `acme/widget` and `Connected`. The walk opens `/proof/hold-settings`. That route holds every later settings read. The walk returns to Overview, opens Table, and sorts by the Needs you column. It opens Settings again, then Projects and Trackers. Settings still shows `acme/widget` and `Connected`.
+

@@ -16,6 +16,7 @@ const repo = "acme/widget";
 const title = "Ship the board";
 const postedBodies: string[] = [];
 
+let holdSettingsRead = false;
 let releaseHold: () => void = () => {};
 const hold = new Promise<void>((resolve) => {
 	releaseHold = resolve;
@@ -208,6 +209,12 @@ const result = await run(
 					port: Number(port),
 					async fetch(request) {
 						const url = new URL(request.url);
+						if (url.pathname === "/proof/hold-settings") {
+							holdSettingsRead = true;
+							return new Response("settings read held", {
+								headers: { "content-type": "text/plain" },
+							});
+						}
 						const pageRead =
 							request.method === "GET" &&
 							(url.pathname.startsWith("/api/projects/") ||
@@ -215,6 +222,13 @@ const result = await run(
 								url.pathname === "/api/overview" ||
 								url.pathname.startsWith("/api/threads/"));
 						if (mode === "filled" && pageRead) {
+							await new Promise(() => {});
+						}
+						if (
+							holdSettingsRead &&
+							request.method === "GET" &&
+							url.pathname === "/api/settings"
+						) {
 							await new Promise(() => {});
 						}
 						const headers = new Headers(request.headers);

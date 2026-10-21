@@ -1,6 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import {
 	type ReactNode,
@@ -10,7 +10,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { persistPatch } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -37,7 +36,13 @@ import {
 	ticketTotal,
 	trackerName,
 } from "./progress-bar.tsx";
-import { configurationOf, pageQuery } from "./queries.ts";
+import {
+	configurationOf,
+	pageQuery,
+	pageQueryClient,
+	settingsCacheWrite,
+	useSaveSettings,
+} from "./queries.ts";
 import {
 	PageFrame,
 	type PageView,
@@ -750,14 +755,12 @@ function OverviewPage({
 	settings,
 	progress,
 	fetching,
-	onSettings,
 	onRefresh,
 }: {
 	overview: Overview;
 	settings: Configuration;
 	progress: PollProgress | null;
 	fetching: boolean;
-	onSettings: (next: Configuration) => void;
 	onRefresh: () => void;
 }) {
 	const [query, setQuery] = useState("");
@@ -779,9 +782,17 @@ function OverviewPage({
 	}, []);
 	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
+	const save = useSaveSettings();
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
-		onSettings(patch(settings));
-		void persistPatch(patch, onSettings);
+		const next = patch(settings);
+		const written = settingsCacheWrite(
+			pageQueryClient.getQueryData(pageQuery.settings.queryKey),
+			next,
+		);
+		if (written !== null) {
+			pageQueryClient.setQueryData(pageQuery.settings.queryKey, written);
+		}
+		void save.mutateAsync(next);
 	};
 	const saveView = (next: OverviewView) => {
 		savePatch((current) => ({ ...current, overview: next }));
@@ -1042,7 +1053,6 @@ function OverviewPage({
 }
 
 export function Page() {
-	const queries = useQueryClient();
 	const overviewQuery = useQuery(pageQuery.overview);
 	const settingsQuery = useQuery({
 		...pageQuery.settings,
@@ -1071,9 +1081,6 @@ export function Page() {
 			settings={settings}
 			progress={progress}
 			fetching={overviewQuery.isFetching || settingsQuery.isFetching}
-			onSettings={(next) => {
-				queries.setQueryData(pageQuery.settings.queryKey, next);
-			}}
 			onRefresh={() => {
 				void overviewQuery.refetch();
 				void fetch("/api/refresh", { method: "POST" });

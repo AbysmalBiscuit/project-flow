@@ -162,6 +162,26 @@ type SettingsWrite = Configuration & {
 	baselineTracked?: Configuration["tracked"];
 };
 
+export function settingsCacheWrite(
+	cached: SettingsRead | null | undefined,
+	next: Configuration,
+): SettingsRead | null {
+	if (
+		cached === null ||
+		cached === undefined ||
+		cached.projects === undefined ||
+		cached.trackers === undefined
+	) {
+		return null;
+	}
+	return {
+		...cached,
+		...next,
+		projects: cached.projects,
+		trackers: cached.trackers,
+	};
+}
+
 export function useSaveSettings() {
 	const queries = useQueryClient();
 	return useMutation({
