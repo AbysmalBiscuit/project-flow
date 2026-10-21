@@ -13,8 +13,9 @@ import {
 } from "@xyflow/react";
 import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
+import { overviewFlowPlaces } from "./graph-flow.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
-import { columnDepth, GraphTools } from "./graph-pane.tsx";
+import { GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
@@ -30,9 +31,6 @@ import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
 import { classToken, clsx } from "./ui.ts";
 import { cards, shell } from "./ui-styles.ts";
-
-const columnGap = 360;
-const rowGap = 168;
 
 type ProjectNodeData = {
 	project: ProjectCounts;
@@ -54,51 +52,6 @@ type BlockerEdgeData = {
 	label: { x: number; y: number };
 	side: number;
 };
-
-function depths(
-	projects: ProjectCounts[],
-	names: Set<string>,
-): Map<string, number> {
-	const incoming = new Map<string, string[]>();
-	for (const project of projects) {
-		for (const blocker of project.crossProjectBlockers) {
-			if (!names.has(blocker.project) || blocker.project === project.name) {
-				continue;
-			}
-			const sources = incoming.get(project.name) ?? [];
-			sources.push(blocker.project);
-			incoming.set(project.name, sources);
-		}
-	}
-	return columnDepth(
-		projects.map((project) => project.name),
-		incoming,
-	);
-}
-
-function layout(
-	projects: ProjectCounts[],
-	names: Set<string>,
-): Map<string, { x: number; y: number }> {
-	const depth = depths(projects, names);
-	const columns = new Map<number, string[]>();
-	const ordered = [...projects].sort((left, right) =>
-		left.name.localeCompare(right.name),
-	);
-	for (const project of ordered) {
-		const column = depth.get(project.name) ?? 0;
-		const namesInColumn = columns.get(column) ?? [];
-		namesInColumn.push(project.name);
-		columns.set(column, namesInColumn);
-	}
-	const positions = new Map<string, { x: number; y: number }>();
-	for (const [column, namesInColumn] of columns) {
-		namesInColumn.forEach((name, index) => {
-			positions.set(name, { x: column * columnGap, y: index * rowGap });
-		});
-	}
-	return positions;
-}
 
 function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 	return (
@@ -225,9 +178,8 @@ export function graphModel(
 	nodes: FlowNode<ProjectNodeData>[];
 	edges: FlowEdge<BlockerEdgeData>[];
 } {
-	const catalogueNames = new Set(catalogue.map((project) => project.name));
 	const shownNames = new Set(shown.map((project) => project.name));
-	const positions = layout(catalogue, catalogueNames);
+	const positions = overviewFlowPlaces(catalogue);
 	const nodes = shown.map((project) => {
 		const node = {
 			id: project.name,

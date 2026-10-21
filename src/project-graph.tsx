@@ -7,7 +7,6 @@ import {
 	type Node as FlowNode,
 	Handle,
 	type NodeProps,
-	Panel,
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
@@ -15,15 +14,21 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo } from "react";
 import {
-	groupKeysOf,
 	groupLabelOf,
 	outsideKey,
 	type ProjectReport,
-	type TicketRelation,
 	type TicketState,
 } from "./domain.ts";
+import {
+	type FlowTicket,
+	flowGap,
+	graphBand,
+	graphEdges,
+	graphTickets,
+	projectFlowPlaces,
+	projectNodeId,
+} from "./graph-flow.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
-import { columnDepth } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
@@ -45,10 +50,10 @@ import { board, cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
-const columnGap = 280;
-const rowGap = 148;
+const columnGap = flowGap.along;
 const groupPad = 16;
 const groupHead = 28;
+const fitPadding = 0.28;
 
 type GraphTicketView = {
 	key: string | null;
@@ -112,10 +117,6 @@ function shortTicket(key: string, project: string, outside: boolean): string {
 		return mark === -1 ? key : key.slice(mark);
 	}
 	return outsideKey(project, key);
-}
-
-function nodeId(project: string, key: string): string {
-	return `${project}\n${key.toLowerCase()}`;
 }
 
 const stateTone: Record<
@@ -241,6 +242,7 @@ const nodeTypes = { ticket: TicketNode, cluster: ClusterNode };
 const edgeTypes = { ticket: TicketEdge };
 
 type GraphTicket = {
+	flow: FlowTicket;
 	ticket: GraphTicketView;
 	project: string;
 	tracker: "github" | "linear";
@@ -260,275 +262,102 @@ function outsideState(
 	)?.state;
 }
 
-function outsideNode(
-	blocker: TicketRelation,
-	reports: ProjectReport[],
-): GraphTicket {
-	const state = outsideState(reports, blocker.project, blocker.key);
+function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
+	const home = reports.find(
+		(report) => report.name.toLowerCase() === ticket.project.toLowerCase(),
+	);
+	const known = home?.tickets.find(
+		(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
+	);
+	const state = ticket.outside
+		? outsideState(reports, ticket.project, ticket.key)
+		: known?.state;
 	return {
+		flow: ticket,
 		ticket: {
-			key: blocker.key,
-			title: blocker.title,
+			key: ticket.key,
+			title: ticket.title,
 			...(state === undefined ? {} : { state }),
+			...(known?.pull === undefined ? {} : { pull: known.pull }),
+			...(known?.needsYou === undefined ? {} : { needsYou: known.needsYou }),
+			...(ticket.workstream === undefined
+				? {}
+				: { workstream: ticket.workstream }),
+			...(ticket.workstreamKey === undefined
+				? {}
+				: { workstreamKey: ticket.workstreamKey }),
+			...(ticket.theme === undefined ? {} : { theme: ticket.theme }),
+			...(ticket.assignees === undefined
+				? {}
+				: { assignees: ticket.assignees }),
 		},
-		project: blocker.project,
-		tracker: blocker.tracker,
-		outside: true,
+		project: ticket.project,
+		tracker: ticket.tracker ?? home?.tracker ?? "github",
+		outside: ticket.outside,
 	};
 }
 
-function outsideTickets(
+function shownTickets(
 	report: ProjectReport,
 	reports: ProjectReport[],
 ): GraphTicket[] {
-	const seen = new Set<string>();
-	const found: GraphTicket[] = [];
-	for (const ticket of report.tickets) {
-		for (const blocker of [
-			...(ticket.outsideBlockers ?? []),
-			...(ticket.blocks ?? []),
-		]) {
-			if (blocker.project.toLowerCase() === report.name.toLowerCase()) {
-				continue;
-			}
-			const id = nodeId(blocker.project, blocker.key);
-			if (seen.has(id)) {
-				continue;
-			}
-			seen.add(id);
-			found.push(outsideNode(blocker, reports));
-		}
-	}
-	found.sort((left, right) =>
-		`${left.project} ${left.ticket.key ?? ""}`.localeCompare(
-			`${right.project} ${right.ticket.key ?? ""}`,
-		),
-	);
-	return found;
-}
-
-function localTickets(report: ProjectReport): GraphTicket[] {
-	return report.tickets.flatMap((ticket) => {
-		if (ticket.key === null) {
-			return [];
-		}
-		return [
-			{
-				ticket,
-				project: report.name,
-				tracker: report.tracker,
-				outside: false,
-			},
-		];
-	});
-}
-
-const outsideBand = "\u0000outside";
-
-function bandNames(ticket: GraphTicket, groupBy: GroupBy): string[] {
-	if (ticket.outside) {
-		return [outsideBand];
-	}
-	if (groupBy === "none") {
-		return [""];
-	}
-	return groupKeysOf(ticket.ticket, groupBy);
-}
-
-function graphBand(
-	ticket: GraphTicket,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-): string {
-	const names = bandNames(ticket, groupBy);
-	if (groupBy !== "assignee" || names.length < 2) {
-		return names[0] ?? "";
-	}
-	const wanted = new Set(
-		assignees.flatMap((name) => {
-			const trimmed = name.trim().toLowerCase();
-			return trimmed === "" ? [] : [trimmed];
-		}),
-	);
-	if (wanted.size === 0) {
-		return names[0] ?? "";
-	}
-	return names.find((name) => wanted.has(name.toLowerCase())) ?? names[0] ?? "";
-}
-
-function ticketIds(tickets: GraphTicket[]): string[] {
-	return tickets.flatMap((ticket) =>
-		ticket.ticket.key === null
-			? []
-			: [nodeId(ticket.project, ticket.ticket.key)],
-	);
+	return graphTickets(report).map((ticket) => ticketView(ticket, reports));
 }
 
 function layoutTickets(
-	tickets: GraphTicket[],
-	edges: { from: string; to: string }[],
+	report: ProjectReport,
 	direction: GraphDirection,
 	groupBy: GroupBy,
 	assignees: readonly string[],
 ): Map<string, { x: number; y: number }> {
-	const incoming = new Map<string, string[]>();
-	for (const edge of edges) {
-		const sources = incoming.get(edge.to) ?? [];
-		sources.push(edge.from);
-		incoming.set(edge.to, sources);
-	}
-	const depth = columnDepth(ticketIds(tickets), incoming);
-	const outgoing = new Set(edges.map((edge) => edge.from));
-	const ordered = [...tickets].sort((left, right) =>
-		`${left.ticket.key ?? left.ticket.title}`.localeCompare(
-			`${right.ticket.key ?? right.ticket.title}`,
-		),
-	);
+	const placed = projectFlowPlaces(report, groupBy, assignees);
+	const positions = new Map<string, { x: number; y: number }>();
+	const local = (place: { x: number; row: number }) => ({
+		x: place.x,
+		y: place.row * flowGap.across,
+	});
+	const turned = (place: { x: number; y: number }) =>
+		direction === "top-to-bottom"
+			? {
+					x: (place.y / flowGap.across) * flowGap.along,
+					y: (place.x / flowGap.along) * flowGap.across,
+				}
+			: place;
 	if (groupBy === "none") {
-		const columns = new Map<number, string[]>();
-		for (const id of ticketIds(ordered)) {
-			const column = depth.get(id) ?? 0;
-			const names = columns.get(column) ?? [];
-			names.push(id);
-			columns.set(column, names);
-		}
-		const positions = new Map<string, { x: number; y: number }>();
-		for (const [column, names] of columns) {
-			names.forEach((id, index) => {
-				positions.set(
-					id,
-					direction === "top-to-bottom"
-						? { x: index * columnGap, y: column * rowGap }
-						: { x: column * columnGap, y: index * rowGap },
-				);
-			});
+		for (const [id, place] of placed) {
+			positions.set(id, turned(place));
 		}
 		return positions;
 	}
-	const groups = [
-		...new Set(tickets.flatMap((ticket) => bandNames(ticket, groupBy))),
-	].sort((left, right) => left.localeCompare(right));
-	const members = new Map<string, string[]>();
-	for (const ticket of ordered) {
-		const key = ticket.ticket.key;
-		if (key === null) {
-			continue;
-		}
-		const name = graphBand(ticket, groupBy, assignees);
-		const known = members.get(name) ?? [];
-		known.push(nodeId(ticket.project, key));
-		members.set(name, known);
+	const byBand = new Map<string, { id: string; x: number; y: number }[]>();
+	for (const [id, place] of placed) {
+		const members = byBand.get(place.band) ?? [];
+		const home = local(place);
+		members.push({ id, x: home.x, y: home.y });
+		byBand.set(place.band, members);
 	}
-	const slots = new Map<string, { along: number; across: number }>();
-	const groupSpan = new Map<string, { along: number; across: number }>();
-	for (const name of groups) {
-		const ids = members.get(name) ?? [];
-		const linked = ids.filter((id) => incoming.has(id) || outgoing.has(id));
-		const loose = ids.filter((id) => !incoming.has(id) && !outgoing.has(id));
-		const byColumn = new Map<number, string[]>();
-		let minDepth = Number.POSITIVE_INFINITY;
-		for (const id of linked) {
-			const column = depth.get(id) ?? 0;
-			minDepth = Math.min(minDepth, column);
-			const names = byColumn.get(column) ?? [];
-			names.push(id);
-			byColumn.set(column, names);
-		}
-		const looseAcross =
-			loose.length === 0 ? 1 : Math.ceil(Math.sqrt(loose.length));
-		const looseAlong =
-			loose.length === 0 ? 0 : Math.ceil(loose.length / looseAcross);
-		const chainStart = Number.isFinite(minDepth) ? minDepth : 0;
-		let chainAcross = 1;
-		let chainAlong = 0;
-		for (const [column, names] of byColumn) {
-			const along = column - chainStart;
-			names.forEach((id, index) => {
-				slots.set(id, { along, across: index });
+	const bands = [...byBand.keys()].sort((left, right) =>
+		left.localeCompare(right),
+	);
+	let origin = 0;
+	for (const band of bands) {
+		const members = byBand.get(band) ?? [];
+		const minX = Math.min(...members.map((member) => member.x));
+		const minY = Math.min(...members.map((member) => member.y));
+		const shifted = members.map((member) =>
+			turned({ x: member.x - minX, y: member.y - minY }),
+		);
+		for (const [index, member] of members.entries()) {
+			const place = shifted[index] ?? { x: 0, y: 0 };
+			positions.set(member.id, {
+				x: place.x + origin,
+				y: place.y,
 			});
-			chainAcross = Math.max(chainAcross, names.length);
-			chainAlong = Math.max(chainAlong, along + 1);
 		}
-		loose.forEach((id, index) => {
-			slots.set(id, {
-				along: chainAlong + Math.floor(index / looseAcross),
-				across: index % looseAcross,
-			});
-		});
-		groupSpan.set(name, {
-			along: Math.max(chainAlong + looseAlong, 1),
-			across: Math.max(loose.length === 0 ? 1 : looseAcross, chainAcross),
-		});
-	}
-	const groupStart = new Map<string, number>();
-	let cursor = 0;
-	for (const name of groups) {
-		groupStart.set(name, cursor);
-		const span = groupSpan.get(name) ?? { along: 1, across: 1 };
-		const width =
-			direction === "top-to-bottom"
-				? span.across * columnGap
-				: span.along * columnGap;
-		cursor += width + groupPad * 2;
-	}
-	const positions = new Map<string, { x: number; y: number }>();
-	for (const [name, ids] of members) {
-		const origin = groupStart.get(name) ?? 0;
-		for (const id of ids) {
-			const slot = slots.get(id) ?? { along: 0, across: 0 };
-			positions.set(
-				id,
-				direction === "top-to-bottom"
-					? {
-							x: slot.across * columnGap + origin,
-							y: slot.along * rowGap,
-						}
-					: {
-							x: slot.along * columnGap + origin,
-							y: slot.across * rowGap,
-						},
-			);
-		}
+		const span = Math.max(...shifted.map((place) => place.x));
+		origin += span + columnGap + groupPad * 2;
 	}
 	return positions;
-}
-
-function graphEdges(report: ProjectReport): { from: string; to: string }[] {
-	const local = new Map<string, string>();
-	for (const ticket of report.tickets) {
-		if (ticket.key !== null) {
-			local.set(ticket.key.toLowerCase(), nodeId(report.name, ticket.key));
-		}
-	}
-	const edges: { from: string; to: string }[] = [];
-	for (const ticket of report.tickets) {
-		if (ticket.key === null) {
-			continue;
-		}
-		const target = nodeId(report.name, ticket.key);
-		for (const key of ticket.blockers) {
-			const source = local.get(key.toLowerCase());
-			if (source !== undefined && source !== target) {
-				edges.push({ from: source, to: target });
-			}
-		}
-		for (const blocker of ticket.outsideBlockers ?? []) {
-			edges.push({
-				from: nodeId(blocker.project, blocker.key),
-				to: target,
-			});
-		}
-		for (const blocked of ticket.blocks ?? []) {
-			if (blocked.project.toLowerCase() === report.name.toLowerCase()) {
-				continue;
-			}
-			edges.push({
-				from: target,
-				to: nodeId(blocked.project, blocked.key),
-			});
-		}
-	}
-	return edges;
 }
 
 function groupId(name: string): string {
@@ -584,8 +413,8 @@ function clusterNodes(
 		if (key === null || ticket.outside) {
 			continue;
 		}
-		const name = graphBand(ticket, groupBy, assignees);
-		const id = nodeId(ticket.project, key);
+		const name = graphBand(ticket.flow, groupBy, assignees);
+		const id = projectNodeId(ticket.project, key);
 		const place = positions.get(id);
 		const size = ticketSizes.get(id) ?? fallback;
 		if (place === undefined || name === "") {
@@ -638,15 +467,9 @@ export function graphModel(
 	nodes: ProjectNode[];
 	edges: FlowEdge<TicketEdgeData>[];
 } {
-	const tickets = [...outsideTickets(report, reports), ...localTickets(report)];
+	const tickets = shownTickets(report, reports);
 	const links = graphEdges(report);
-	const positions = layoutTickets(
-		tickets,
-		links,
-		direction,
-		groupBy,
-		assignees,
-	);
+	const positions = layoutTickets(report, direction, groupBy, assignees);
 	const horizontal = direction === "left-to-right";
 	const groups = clusterNodes(
 		tickets,
@@ -661,7 +484,7 @@ export function graphModel(
 		if (key === null) {
 			return [];
 		}
-		const id = nodeId(item.project, key);
+		const id = projectNodeId(item.project, key);
 		const place = positions.get(id) ?? { x: 0, y: 0 };
 		const node: FlowNode<TicketNodeData, "ticket"> = sizedNode(
 			{
@@ -750,23 +573,21 @@ export function graphModel(
 
 function Legend() {
 	return (
-		<Panel position="top-left">
-			<section
-				className={clsx(board.legendBox)}
-				aria-label={projectGraphLabel.legend}
-			>
-				<ul className={clsx(board.legendRow)}>
-					{legendOrder.map((state) => (
-						<li key={state} className={clsx(board.legendItem)}>
-							<span className={clsx(board.legendDot, legendTone[state])} />
-							{stateTone[state].label}
-						</li>
-					))}
-				</ul>
-				<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
-				<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
-			</section>
-		</Panel>
+		<section
+			className={clsx(board.legendBox)}
+			aria-label={projectGraphLabel.legend}
+		>
+			<ul className={clsx(board.legendRow)}>
+				{legendOrder.map((state) => (
+					<li key={state} className={clsx(board.legendItem)}>
+						<span className={clsx(board.legendDot, legendTone[state])} />
+						{stateTone[state].label}
+					</li>
+				))}
+			</ul>
+			<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
+			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
+		</section>
 	);
 }
 
@@ -774,7 +595,10 @@ function FitDirection() {
 	const flow = useReactFlow();
 	useEffect(() => {
 		const frame = requestAnimationFrame(() => {
-			void flow.fitView({ padding: 0.28 });
+			void flow.fitView({
+				padding: fitPadding,
+				maxZoom: 1,
+			});
 		});
 		return () => cancelAnimationFrame(frame);
 	}, [flow]);
@@ -877,40 +701,45 @@ function SizedProjectGraph({
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
 			</p>
-
-			<ReactFlow
-				key={direction}
-				nodes={model.nodes}
-				edges={model.edges}
-				nodeTypes={nodeTypes}
-				edgeTypes={edgeTypes}
-				nodesDraggable={false}
-				nodesConnectable={false}
-				elementsSelectable={false}
-				panOnDrag
-				fitView
-				fitViewOptions={{ padding: 0.28 }}
-				proOptions={{ hideAttribution: true }}
-				onNodeClick={(_event, node) => {
-					if (isClusterNode(node)) {
-						return;
-					}
-					onOpen({
-						key: node.data.ticket.key ?? node.data.ticket.title,
-						project: node.data.project,
-						tracker: node.data.tracker,
-						title: node.data.ticket.title,
-						outside: node.data.outside,
-						...(node.data.ticket.state === undefined
-							? {}
-							: { state: node.data.ticket.state }),
-					});
-				}}
-			>
-				<Background variant={BackgroundVariant.Dots} gap={18} />
-				<FitDirection key={direction} />
-				<Legend />
-			</ReactFlow>
+			<Legend />
+			<div className={clsx(board.graphPane)}>
+				<ReactFlow
+					key={direction}
+					nodes={model.nodes}
+					edges={model.edges}
+					nodeTypes={nodeTypes}
+					edgeTypes={edgeTypes}
+					nodesDraggable={false}
+					nodesConnectable={false}
+					elementsSelectable={false}
+					panOnDrag
+					fitView
+					minZoom={0.1}
+					fitViewOptions={{
+						padding: fitPadding,
+						maxZoom: 1,
+					}}
+					proOptions={{ hideAttribution: true }}
+					onNodeClick={(_event, node) => {
+						if (isClusterNode(node)) {
+							return;
+						}
+						onOpen({
+							key: node.data.ticket.key ?? node.data.ticket.title,
+							project: node.data.project,
+							tracker: node.data.tracker,
+							title: node.data.ticket.title,
+							outside: node.data.outside,
+							...(node.data.ticket.state === undefined
+								? {}
+								: { state: node.data.ticket.state }),
+						});
+					}}
+				>
+					<Background variant={BackgroundVariant.Dots} gap={18} />
+					<FitDirection key={direction} />
+				</ReactFlow>
+			</div>
 		</div>
 	);
 }

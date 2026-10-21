@@ -11,34 +11,6 @@ const graphToolStyles = {
 
 export type GraphToolStyle = keyof typeof graphToolStyles;
 
-export function columnDepth(
-	ids: Iterable<string>,
-	incoming: Map<string, string[]>,
-): Map<string, number> {
-	const depth = new Map<string, number>();
-	const visit = (name: string, seen: Set<string>): number => {
-		const known = depth.get(name);
-		if (known !== undefined) {
-			return known;
-		}
-		if (seen.has(name)) {
-			return 0;
-		}
-		seen.add(name);
-		const sources = incoming.get(name) ?? [];
-		const next =
-			sources.length === 0
-				? 0
-				: Math.max(...sources.map((source) => visit(source, seen))) + 1;
-		depth.set(name, next);
-		return next;
-	};
-	for (const id of ids) {
-		visit(id, new Set());
-	}
-	return depth;
-}
-
 function viewportElement(root: ParentNode): HTMLElement | SVGElement | null {
 	const pane = root.querySelector(".react-flow__viewport");
 	if (!(pane instanceof SVGElement) && !(pane instanceof HTMLElement)) {

@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4245",
+	"viewport": { "width": 1440, "height": 900 },
+	"serve": ["bun", "proof/serve-graph-flows.ts", "4245"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Chain a start" },
+		{ "click": "#graph-direction-top-to-bottom" },
+		{ "assert_text": "Chain a end" },
+		{ "shot": "flows-top-to-bottom" }
+	]
+}
