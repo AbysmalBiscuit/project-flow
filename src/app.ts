@@ -1445,15 +1445,15 @@ export async function start(options: StartOptions): Promise<Running> {
 	const beginPoll = (): void => {
 		pollOptions.polling = true;
 		releaseLists();
+		notifier.publish({
+			overview: runningOverview(pollOptions, configuration),
+			notifications: [],
+		});
 		if (polling !== null) {
 			refreshQueued = true;
 			return;
 		}
 		void pollAgain().catch(() => {});
-		notifier.publish({
-			overview: runningOverview(pollOptions, configuration),
-			notifications: [],
-		});
 	};
 	const firstPoll = pollAgain().finally(() => {
 		firstPollDone = true;
