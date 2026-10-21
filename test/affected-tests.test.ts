@@ -38,7 +38,7 @@ const baseTree: Record<string, string> = {
 	"test/tool.test.ts": `const tool = "src/tool.ts";\n${testBody("tool")}`,
 };
 
-// The fake records each slot that a full suite takes, then runs the command.
+// The fake records each slot that a run takes, then runs the command.
 const fakeFlock = `#!/bin/sh\necho "$4" >> "$SLOT_LOG"\nshift 4\nexec "$@"\n`;
 
 const cleanEnv = Object.fromEntries(
@@ -152,7 +152,7 @@ describe("the pre-push hook runs only the affected tests", () => {
 				exitCode: 0,
 				selection: ["run test/b.test.ts: reaches src/a.ts"],
 				ran: ["b"],
-				slots: 0,
+				slots: 1,
 			});
 		},
 		timeout,
@@ -168,7 +168,7 @@ describe("the pre-push hook runs only the affected tests", () => {
 				exitCode: 0,
 				selection: ["run test/tool.test.ts: reaches src/tool.ts"],
 				ran: ["tool"],
-				slots: 0,
+				slots: 1,
 			});
 		},
 		timeout,
@@ -184,7 +184,7 @@ describe("the pre-push hook runs only the affected tests", () => {
 				exitCode: 0,
 				selection: ["run test/c.test.ts: changed"],
 				ran: ["c"],
-				slots: 0,
+				slots: 1,
 			});
 		},
 		timeout,
@@ -244,7 +244,7 @@ describe("the pre-push hook runs only the affected tests", () => {
 			"a full-suite trigger",
 		],
 	])(
-		"a change to %s runs the full suite in a slot",
+		"a change to %s runs the full suite",
 		async (path, text, reason) => {
 			const repo = await makeRepo();
 			await repo.write(path, text);
