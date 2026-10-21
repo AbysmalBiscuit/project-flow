@@ -146,6 +146,7 @@ await writeFile(
 let upstream: URL | null = null;
 const pageRequests: string[] = [];
 let holdOverview = false;
+let holdLists = false;
 let pageLoads = 0;
 
 function upstreamUrl(request: Request, target: URL): URL {
@@ -156,9 +157,12 @@ function upstreamUrl(request: Request, target: URL): URL {
 	return url;
 }
 
-function proofHold(): Response {
+function proofHold(url: URL): Response {
 	if (pageLoads > 0) {
 		holdOverview = true;
+	}
+	if (url.searchParams.get("lists") === "1") {
+		holdLists = true;
 	}
 	return new Response("held", {
 		headers: { "content-type": "text/plain; charset=utf-8" },
@@ -184,7 +188,7 @@ function proofRequests(request: Request, url: URL): Response {
 
 function proofRoute(request: Request, url: URL): Response | null {
 	if (url.pathname === "/proof/hold") {
-		return proofHold();
+		return proofHold(url);
 	}
 	if (url.pathname === "/proof/requests") {
 		return proofRequests(request, url);
@@ -220,9 +224,10 @@ const gate = Bun.serve({
 			setTimeout(releaseNext, 400);
 		}
 		if (
-			holdOverview &&
 			request.method === "GET" &&
-			url.pathname === "/api/overview"
+			((holdOverview && url.pathname === "/api/overview") ||
+				(holdLists &&
+					(url.pathname === "/api/needs-you" || url.pathname === "/api/inbox")))
 		) {
 			await new Promise(() => {});
 		}

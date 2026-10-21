@@ -2,13 +2,16 @@
 	"base_url": "http://127.0.0.1:4799",
 	"serve": ["bun", "proof/serve-264.ts", "4799"],
 	"steps": [
+		{ "goto": "/proof/hold?lists=1" },
 		{ "goto": "/" },
 		{ "assert_text": "projects" },
 		{ "assert_text": "acme/flow" },
-		{ "click": "a[href='/needs-you']" },
+		{ "shot": "seed-overview" },
+		{ "goto": "/needs-you" },
 		{ "assert_text": "Nothing needs you" },
-		{ "click": "a[href='/inbox']" },
+		{ "shot": "seed-needs-you" },
+		{ "goto": "/inbox" },
 		{ "assert_text": "No notifications" },
-		{ "shot": "seed-no-loading" }
+		{ "shot": "seed-inbox" }
 	]
 }
