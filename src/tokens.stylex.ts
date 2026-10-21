@@ -310,4 +310,5 @@ export const measure = stylex.defineVars({
 export const stack = stylex.defineVars({
 	panel: 1,
 	jump: 2,
+	toast: 3,
 });

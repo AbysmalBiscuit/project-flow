@@ -299,6 +299,7 @@ export const settingsCopy = {
 	discard: "Discard",
 	save: "Save",
 	saved: "Saved",
+	savedToast: "Settings saved",
 	ask: "Ask",
 	yes: "Yes",
 	no: "No",
