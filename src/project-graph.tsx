@@ -12,7 +12,7 @@ import {
 	ReactFlowProvider,
 	useReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	groupLabelOf,
 	outsideKey,
@@ -45,6 +45,7 @@ import {
 	projectGraphLabel,
 	stateLabel,
 } from "./terms.ts";
+import { pageTheme, watchPageTheme } from "./theme.ts";
 import { classToken, clsx } from "./ui.ts";
 import { board, cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
@@ -664,10 +665,13 @@ function SizedProjectGraph({
 	onOpen: (ticket: OpenedNode) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
+	const [theme, setTheme] = useState(pageTheme);
+	useEffect(() => watchPageTheme(setTheme), []);
 	const model = useMemo(() => {
 		if (span === null) {
 			return null;
 		}
+		void theme;
 		return graphModel(
 			report,
 			reports,
@@ -678,7 +682,7 @@ function SizedProjectGraph({
 			new Map(),
 			span,
 		);
-	}, [report, reports, direction, groupBy, assignees, openKey, span]);
+	}, [report, reports, direction, groupBy, assignees, openKey, span, theme]);
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
