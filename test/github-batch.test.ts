@@ -556,18 +556,14 @@ describe("batched GitHub reads", () => {
 				method: "POST",
 			});
 			expect(failedRefresh.status).toBe(204);
-			const failed = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
+			const failed = await settledOverview(base, readOverview);
 			expect(failed.projects[0]?.error).toContain("GitHub read repo failed");
 			expect(failed.projects[0]?.tickets).toHaveLength(2);
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const recovered = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
+			const recovered = await settledOverview(base, readOverview);
 			expect(recovered.error).toBeNull();
 			expect(recovered.projects[0]?.tickets).toHaveLength(2);
 			const again = await fetch(new URL("/api/refresh", base), {
