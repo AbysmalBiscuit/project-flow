@@ -1285,7 +1285,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			polling = null;
 			if (refreshQueued && !stopped) {
 				refreshQueued = false;
-				void pollAgain();
+				void pollAgain().catch(() => {});
 				return;
 			}
 			pollOptions.polling = false;
@@ -1297,7 +1297,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (polling !== null) {
 			refreshQueued = true;
 		} else {
-			void pollAgain();
+			void pollAgain().catch(() => {});
 		}
 		notifier.publish({
 			overview: runningOverview(pollOptions, configuration),
@@ -1316,14 +1316,14 @@ export async function start(options: StartOptions): Promise<Running> {
 			clearInterval(timer);
 		}
 		timer = setInterval(() => {
-			void pollAgain();
+			void pollAgain().catch(() => {});
 		}, seconds * 1_000);
 		timer.unref?.();
 	};
 	const armTimer = () => {
 		schedule(configuration.pollIntervalSeconds);
 	};
-	void firstPoll.then(armTimer, armTimer);
+	void firstPoll.then(armTimer, armTimer).catch(() => {});
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
@@ -1350,10 +1350,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					setTimeout(() => {
 						if (!hadRows || firstPollDone) {
 							releaseLists();
-							return;
 						}
-						refreshQueued = false;
-						releaseLists();
 					}, 0);
 					return body;
 				},
@@ -1440,8 +1437,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				},
 			},
 			"/api/refresh": {
-				POST: (request: Request) => {
-					server.timeout(request, 0);
+				POST: () => {
 					releaseLists();
 					beginPoll();
 					return new Response(null, { status: 204 });
