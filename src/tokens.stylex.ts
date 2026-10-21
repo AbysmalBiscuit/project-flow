@@ -340,14 +340,11 @@ const shellWrap = {
 
 export const projectHeaderLayout = stylex.create({
 	head: {
-		alignItems: "flex-end",
 		[media.headerStack]: {
 			alignItems: "stretch",
 		},
 	},
 	toolbar: {
-		flex: "1 1 auto",
-		alignSelf: "flex-end",
 		[media.headerStack]: {
 			flexBasis: "100%",
 			justifyContent: "flex-start",
