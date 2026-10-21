@@ -2793,6 +2793,7 @@ export const panel = stylex.create({
 		height: measure.mark,
 		margin: `0 ${space.twoXs} 0 0`,
 		accentColor: colours.link,
+		appearance: "auto",
 		verticalAlign: "text-bottom",
 	},
 	mdChecked: {
