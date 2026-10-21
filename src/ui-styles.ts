@@ -536,6 +536,13 @@ export const frame = stylex.create({
 		overflow: "hidden",
 		clip: "rect(0 0 0 0)",
 	},
+	statusWord: {
+		position: "absolute",
+		width: measure.hairline,
+		overflow: "hidden",
+		color: "transparent",
+		fontSize: type.menu,
+	},
 });
 
 export const shell = stylex.create({

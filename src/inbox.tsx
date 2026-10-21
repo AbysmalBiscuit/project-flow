@@ -1,5 +1,6 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type {
 	InboxEntry,
 	NeedsYouItem,
@@ -7,13 +8,12 @@ import type {
 	Overview,
 } from "./domain.ts";
 import { sameTicketKey } from "./domain.ts";
-import { onAppEvent } from "./events.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
+import { fetchJson, pageQuery } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
@@ -126,37 +126,23 @@ function InboxList({
 	entries,
 	onChange,
 	polling,
+	fetching,
 }: {
 	entries: InboxEntry[];
 	onChange: (entries: InboxEntry[]) => void;
 	polling: boolean;
+	fetching: boolean;
 }) {
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
 	const [permission, setPermission] = useState(notificationPermission);
-	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
+	const needsQuery = useQuery({
+		queryKey: pageQuery.needsYou,
+		queryFn: () => fetchJson<NeedsYouItem[]>("/api/needs-you"),
+	});
+	const needs = needsQuery.data ?? [];
 	const ticket = useActiveTicket();
-	useEffect(() => {
-		let stopped = false;
-		const load = () => {
-			fetch("/api/needs-you")
-				.then(async (response) => {
-					if (stopped || !response.ok) {
-						return;
-					}
-					setNeeds((await response.json()) as NeedsYouItem[]);
-				})
-				.catch(() => {});
-		};
-		load();
-		const stop = onAppEvent("overview", () => {
-			load();
-		});
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, []);
+	const refreshing = fetching || polling;
 	const selected =
 		ticket === null
 			? null
@@ -210,7 +196,7 @@ function InboxList({
 	return (
 		<PageFrame
 			title={navLabel.inbox}
-			subtitle={<PollStatus text={null} polling={polling} />}
+			subtitle={<PollStatus text={null} polling={refreshing} />}
 			wide
 		>
 			<div className={clsx(inbox.lead)}>
@@ -365,83 +351,34 @@ function InboxList({
 	);
 }
 
-function Page() {
-	const [entries, setEntries] = useState<InboxEntry[] | null>(
-		() => readPageCache("inbox") ?? null,
-	);
-	const [holdsRead, setHoldsRead] = useState(
-		() => readPageCache("overview") !== undefined,
-	);
-	const [polling, setPolling] = useState(
-		() => readPageCache("polling") !== false,
-	);
-	useEffect(() => {
-		let stopped = false;
-		const load = () => {
-			fetch("/api/inbox")
-				.then(async (response) => {
-					if (!stopped && response.ok) {
-						const loaded = (await response.json()) as InboxEntry[];
-						writePageCache("inbox", loaded);
-						setEntries(loaded);
-					}
-				})
-				.catch(() => {
-					if (!stopped) {
-						setEntries([]);
-					}
-				});
-			fetch("/api/overview")
-				.then(async (response) => {
-					if (!stopped && response.ok) {
-						const body = (await response.json()) as {
-							projects?: { pending?: boolean }[];
-							tracked?: false;
-							polling?: true;
-						};
-						const next = body.polling === true;
-						writePageCache("polling", next);
-						setPolling(next);
-						const read = storeHoldsRead(body);
-						if (read) {
-							writePageCache("overview", body as Overview);
-						}
-						setHoldsRead(read);
-					}
-				})
-				.catch(() => {
-					if (!stopped) {
-						setPolling(false);
-					}
-				});
-		};
-		load();
-		const stopOverview = onAppEvent("overview", () => {
-			load();
-		});
-		return () => {
-			stopped = true;
-			stopOverview();
-		};
-	}, []);
-	if (entries === null || (polling && entries.length === 0 && !holdsRead)) {
+export function Page() {
+	const queries = useQueryClient();
+	const inbox = useQuery({
+		queryKey: pageQuery.inbox,
+		queryFn: () => fetchJson<InboxEntry[]>("/api/inbox"),
+	});
+	const overview = useQuery({
+		queryKey: pageQuery.overview,
+		queryFn: () => fetchJson<Overview>("/api/overview"),
+	});
+	const entries = inbox.data;
+	const body = overview.data;
+	const holdsRead = body !== undefined && storeHoldsRead(body);
+	const polling = body?.polling === true;
+	if (
+		entries === undefined ||
+		(polling && entries.length === 0 && !holdsRead)
+	) {
 		return <PageFrame title={navLabel.inbox}>{loadingLabel}</PageFrame>;
 	}
 	return (
-		<InboxList entries={entries} onChange={setEntries} polling={polling} />
+		<InboxList
+			entries={entries}
+			onChange={(next) => {
+				queries.setQueryData(pageQuery.inbox, next);
+			}}
+			polling={polling}
+			fetching={inbox.isFetching || overview.isFetching}
+		/>
 	);
-}
-
-function mount(): void {
-	if (window.location.pathname !== "/inbox") {
-		return;
-	}
-	mountPage((root) => {
-		root.render(<Page />);
-	});
-}
-
-if (typeof document !== "undefined") {
-	window.addEventListener("project-flow-page", mount);
-	mount();
 }

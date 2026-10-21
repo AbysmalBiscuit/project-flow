@@ -26,7 +26,7 @@ import {
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { GraphTools } from "./graph-pane.tsx";
-import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
+import { readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
@@ -1218,7 +1218,7 @@ function FilterPanel({
 	);
 }
 
-function Page() {
+export function Page() {
 	const [name, setName] = useState(projectName);
 	const [ticket, setTicket] = useState(highlightKey);
 	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
@@ -1739,18 +1739,4 @@ function Page() {
 			</AppShell>
 		</ReactFlowProvider>
 	);
-}
-
-function mount(): void {
-	if (!window.location.pathname.startsWith("/projects/")) {
-		return;
-	}
-	mountPage((root) => {
-		root.render(<Page key={projectName()} />);
-	});
-}
-
-if (typeof document !== "undefined") {
-	window.addEventListener("project-flow-page", mount);
-	mount();
 }

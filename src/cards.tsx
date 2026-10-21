@@ -1,5 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import {
 	type ReactNode,
@@ -18,7 +19,7 @@ import type {
 	PollProgress,
 	ProjectCounts,
 } from "./domain.ts";
-import { onAppEvent, onEventStreamOpen } from "./events.ts";
+import { onAppEvent } from "./events.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -30,7 +31,6 @@ import {
 	overviewSorts,
 	overviewViews,
 } from "./overview-view.ts";
-import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { openProject, projectPath } from "./paths.ts";
 import {
 	barSegments,
@@ -38,7 +38,14 @@ import {
 	ticketTotal,
 	trackerName,
 } from "./progress-bar.tsx";
-import { PageFrame, type PageView, PollStatus, SearchGlyph } from "./shell.tsx";
+import { applyStoredOverviewEvent, fetchJson, pageQuery } from "./queries.ts";
+import {
+	PageFrame,
+	type PageView,
+	PollStatus,
+	RefreshGlyph,
+	SearchGlyph,
+} from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
@@ -655,24 +662,6 @@ function NotifyIcon() {
 	);
 }
 
-function RefreshIcon() {
-	return (
-		<svg
-			viewBox="0 0 24 24"
-			aria-hidden="true"
-			className={clsx(frame.glyph)}
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="1.75"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M20 12a8 8 0 1 1-2.3-5.6" />
-			<path d="M20 4v5h-5" />
-		</svg>
-	);
-}
-
 function MenuButton({
 	id,
 	label,
@@ -761,12 +750,14 @@ function OverviewPage({
 	overview,
 	settings,
 	progress,
+	fetching,
 	onSettings,
 	onRefresh,
 }: {
 	overview: Overview;
 	settings: Configuration;
 	progress: PollProgress | null;
+	fetching: boolean;
 	onSettings: (next: Configuration) => void;
 	onRefresh: () => void;
 }) {
@@ -782,33 +773,16 @@ function OverviewPage({
 		[overview, view, query],
 	);
 	const polled = polledLine(overview.fetchedAt, now);
-	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
+	const refreshing = fetching || overview.polling === true;
 	useEffect(() => {
 		const timer = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(timer);
 	}, []);
-	useEffect(() => {
-		let stopped = false;
-		const load = () => {
-			void fetch("/api/needs-you")
-				.then(async (response) => {
-					if (!stopped && response.ok) {
-						setNeeds((await response.json()) as NeedsYouItem[]);
-					}
-				})
-				.catch(() => {
-					if (!stopped) {
-						setNeeds([]);
-					}
-				});
-		};
-		load();
-		const stop = onAppEvent("overview", load);
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, []);
+	const needsQuery = useQuery({
+		queryKey: pageQuery.needsYou,
+		queryFn: () => fetchJson<NeedsYouItem[]>("/api/needs-you"),
+	});
+	const needs = needsQuery.data ?? [];
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
 		onSettings(patch(settings));
 		void readSettings().then(async (current) => {
@@ -928,11 +902,8 @@ function OverviewPage({
 			subtitle={
 				<>
 					{summary}
-					{polled !== null || overview.polling === true ? ", " : null}
-					<PollStatus
-						text={overview.polling === true ? null : polled}
-						polling={overview.polling === true}
-					/>
+					{polled !== null || refreshing ? ", " : null}
+					<PollStatus text={refreshing ? null : polled} polling={refreshing} />
 				</>
 			}
 			filter={undefined}
@@ -964,13 +935,14 @@ function OverviewPage({
 					<button
 						type="button"
 						id="overview-refresh"
+						data-fetching={refreshing ? "true" : "false"}
 						className={clsx(frame.icon, shell.buttonFocus)}
 						aria-label={overviewControlLabel.refresh}
-						aria-busy={overview.polling === true}
+						aria-busy={refreshing}
 						title={overviewControlLabel.refresh}
 						onClick={onRefresh}
 					>
-						<RefreshIcon />
+						<RefreshGlyph spinning={refreshing} />
 					</button>
 					{notifyPermission === "default" &&
 					typeof Notification !== "undefined" ? (
@@ -1087,57 +1059,31 @@ function OverviewPage({
 	);
 }
 
-async function readOverview(): Promise<Overview> {
-	const response = await fetch("/api/overview");
-	if (!response.ok) {
-		throw new Error(`overview failed (HTTP ${response.status})`);
-	}
-	return (await response.json()) as Overview;
-}
-
-function Page() {
-	const [overview, setOverview] = useState<Overview | null>(() => {
-		const cached = readPageCache("overview") ?? null;
-		if (cached === null) {
-			return null;
-		}
-		return readPageCache("polling") === true
-			? { ...cached, polling: true }
-			: cached;
+export function Page() {
+	applyStoredOverviewEvent();
+	const queries = useQueryClient();
+	const overviewQuery = useQuery({
+		queryKey: pageQuery.overview,
+		queryFn: () => fetchJson<Overview>("/api/overview"),
 	});
-	const [settings, setSettings] = useState<Configuration | null>(
-		() => readPageCache("settings") ?? null,
-	);
+	const settingsQuery = useQuery({
+		queryKey: pageQuery.settings,
+		queryFn: () => fetchJson<Configuration>("/api/settings"),
+	});
 	const [progress, setProgress] = useState<PollProgress | null>(null);
 	useEffect(() => {
-		const show = (next: Overview) => {
-			writePageCache("overview", next);
-			writePageCache("polling", next.polling === true);
-			setOverview(next);
-		};
-		const stopOverview = onAppEvent("overview", (event) => {
-			show(JSON.parse(event.data) as Overview);
+		return onAppEvent("overview", () => {
+			applyStoredOverviewEvent();
 		});
-		const stopProgress = onAppEvent("progress", (event) => {
+	}, []);
+	useEffect(() => {
+		return onAppEvent("progress", (event) => {
 			const next = JSON.parse(event.data) as PollProgress;
 			setProgress(next.ended ? null : next);
 		});
-		const stopOpen = onEventStreamOpen(() => {
-			void readOverview().then(show);
-		});
-		void readOverview().then(show);
-		void readSettings().then((loaded) => {
-			if (loaded !== null) {
-				writePageCache("settings", loaded);
-				setSettings(loaded);
-			}
-		});
-		return () => {
-			stopOverview();
-			stopProgress();
-			stopOpen();
-		};
 	}, []);
+	const overview = overviewQuery.data ?? null;
+	const settings = settingsQuery.data ?? null;
 	const stored = overview !== null && storeHoldsRead(overview);
 	if (
 		overview === null ||
@@ -1151,24 +1097,14 @@ function Page() {
 			overview={overview}
 			settings={settings}
 			progress={progress}
-			onSettings={setSettings}
+			fetching={overviewQuery.isFetching || settingsQuery.isFetching}
+			onSettings={(next) => {
+				queries.setQueryData(pageQuery.settings, next);
+			}}
 			onRefresh={() => {
+				void overviewQuery.refetch();
 				void fetch("/api/refresh", { method: "POST" });
 			}}
 		/>
 	);
-}
-
-function mount(): void {
-	if (window.location.pathname !== "/") {
-		return;
-	}
-	mountPage((root) => {
-		root.render(<Page />);
-	});
-}
-
-if (typeof document !== "undefined") {
-	window.addEventListener("project-flow-page", mount);
-	mount();
 }

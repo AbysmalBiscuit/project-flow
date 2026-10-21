@@ -1,7 +1,10 @@
+import type { ReactNode } from "react";
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
-import { seedStoredPage } from "./page-cache.ts";
+import { mountPage, seedStoredPage } from "./page-cache.ts";
 import { installPageLinks } from "./page-links.ts";
+import { PageQueryRoot } from "./page-query.tsx";
+import { seedPageQueries, wirePageQueryEvents } from "./queries.ts";
 import { clearTicketOnPageChange } from "./selection.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
@@ -9,9 +12,11 @@ import "./global.css";
 watchNotifications();
 mountJumpBox();
 installPageLinks();
+wirePageQueryEvents();
 
 applyPageTheme(pageTheme());
 seedStoredPage(window.location.pathname);
+seedPageQueries(window.location.pathname);
 
 const pages = [
 	{ path: "/needs-you", load: () => import("./needs-you.tsx") },
@@ -31,13 +36,33 @@ function pageLoad(path: string): () => Promise<unknown> {
 }
 
 let shown = 0;
+let currentPage: (() => ReactNode) | null = null;
+
+function paint(path: string): void {
+	const Page = currentPage;
+	if (Page === null) {
+		return;
+	}
+	const key = path.startsWith("/projects/") ? path : undefined;
+	mountPage((root) => {
+		root.render(
+			<PageQueryRoot>
+				<Page {...(key === undefined ? {} : { key })} />
+			</PageQueryRoot>,
+		);
+	});
+}
 
 async function showPage(): Promise<void> {
 	const turn = ++shown;
 	const path = window.location.pathname;
-	await pageLoad(path)();
-	if (turn === shown && window.location.pathname === path) {
-		window.dispatchEvent(new Event("project-flow-page"));
+	const loaded = (await pageLoad(path)()) as { Page?: () => ReactNode };
+	if (turn !== shown || window.location.pathname !== path) {
+		return;
+	}
+	if (loaded.Page !== undefined) {
+		currentPage = loaded.Page;
+		paint(path);
 	}
 }
 
