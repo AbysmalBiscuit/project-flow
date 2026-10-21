@@ -2413,6 +2413,9 @@ describe("live updates", () => {
 					while (requests.length < 2 && Date.now() < deadline) {
 						await Bun.sleep(20);
 					}
+					expect(requests.filter((url) => listUrl(url) !== null).length).toBe(
+						2,
+					);
 					releaseFailure();
 					const again = await fetch(new URL("/api/refresh", base), {
 						method: "POST",
