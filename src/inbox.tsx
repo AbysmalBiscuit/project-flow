@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
 import type {
 	InboxEntry,
 	NeedsYouItem,
@@ -12,6 +11,7 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
+import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
@@ -357,15 +357,21 @@ function InboxList({
 }
 
 function Page() {
-	const [entries, setEntries] = useState<InboxEntry[] | null>(null);
-	const [polling, setPolling] = useState(true);
+	const [entries, setEntries] = useState<InboxEntry[] | null>(
+		() => readPageCache("inbox") ?? null,
+	);
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
 			fetch("/api/inbox")
 				.then(async (response) => {
 					if (!stopped && response.ok) {
-						setEntries((await response.json()) as InboxEntry[]);
+						const loaded = (await response.json()) as InboxEntry[];
+						writePageCache("inbox", loaded);
+						setEntries(loaded);
 					}
 				})
 				.catch(() => {
@@ -377,7 +383,9 @@ function Page() {
 				.then(async (response) => {
 					if (!stopped && response.ok) {
 						const body = (await response.json()) as { polling?: true };
-						setPolling(body.polling === true);
+						const next = body.polling === true;
+						writePageCache("polling", next);
+						setPolling(next);
 					}
 				})
 				.catch(() => {
@@ -401,7 +409,16 @@ function Page() {
 	return <InboxList entries={entries} onChange={setEntries} />;
 }
 
-const root = document.getElementById("root");
-if (root !== null) {
-	createRoot(root).render(<Page />);
+function mount(): void {
+	if (window.location.pathname !== "/inbox") {
+		return;
+	}
+	mountPage((root) => {
+		root.render(<Page />);
+	});
+}
+
+if (typeof document !== "undefined") {
+	mount();
+	window.addEventListener("project-flow-page", mount);
 }

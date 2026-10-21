@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { createRoot } from "react-dom/client";
 import type { TicketSearchHit } from "./app.ts";
 import type { NeedsYouItem } from "./domain.ts";
@@ -18,6 +24,15 @@ import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
 
 const listeners = new Set<() => void>();
+
+function currentRoute(): string {
+	return `${window.location.pathname}${window.location.search}`;
+}
+
+function subscribeRoute(listener: () => void): () => void {
+	window.addEventListener("popstate", listener);
+	return () => window.removeEventListener("popstate", listener);
+}
 
 export function openJumpBox(): void {
 	for (const listener of listeners) {
@@ -41,6 +56,11 @@ export function JumpBox() {
 	needsRef.current = needs;
 	const pendingItem = useRef<OpenedTicket | null>(null);
 	const ticket = useActiveTicket();
+	const route = useSyncExternalStore(
+		subscribeRoute,
+		currentRoute,
+		currentRoute,
+	);
 	const opened = useRef<OpenedTicket | null>(null);
 	const queryRef = useRef<HTMLInputElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
@@ -211,10 +231,9 @@ export function JumpBox() {
 				item.project === hit.project &&
 				sameTicketKey(item.key, hit.key),
 		);
+	const path = new URL(route, window.location.href).pathname;
 	const pageRendersPanel =
-		window.location.pathname === "/needs-you" ||
-		window.location.pathname === "/inbox" ||
-		window.location.pathname.startsWith("/projects/");
+		path === "/needs-you" || path === "/inbox" || path.startsWith("/projects/");
 	if (!open && (ticket === null || pageRendersPanel)) {
 		return null;
 	}

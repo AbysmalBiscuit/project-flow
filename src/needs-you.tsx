@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
+import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import {
 	activeTicket,
@@ -192,10 +192,10 @@ function summaryLine(items: NeedsYouItem[], polled: string): string {
 
 function NeedsList({
 	items,
-	polled,
+	fetchedAt,
 }: {
 	items: NeedsYouItem[];
-	polled: string;
+	fetchedAt: string | null;
 }) {
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
 	const [project, setProject] = useState(allProjects);
@@ -237,7 +237,7 @@ function NeedsList({
 	return (
 		<PageFrame
 			title={navLabel.needsYou}
-			subtitle={summaryLine(items, polled)}
+			subtitle={summaryLine(items, ageLine(fetchedAt))}
 			wide
 		>
 			<div className={clsx(needs.layout)}>
@@ -295,9 +295,15 @@ function ageLine(fetchedAt: string | null): string {
 }
 
 function Page() {
-	const [items, setItems] = useState<NeedsYouItem[] | null>(null);
-	const [polled, setPolled] = useState("");
-	const [polling, setPolling] = useState(true);
+	const [items, setItems] = useState<NeedsYouItem[] | null>(
+		() => readPageCache("needs-you") ?? null,
+	);
+	const [fetchedAt, setFetchedAt] = useState<string | null>(
+		() => readPageCache("fetched-at") ?? null,
+	);
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -305,6 +311,7 @@ function Page() {
 				.then(async (response) => {
 					if (!stopped && response.ok) {
 						const loaded = (await response.json()) as NeedsYouItem[];
+						writePageCache("needs-you", loaded);
 						setItems(loaded);
 						for (const item of loaded) {
 							replaceActiveItem(item);
@@ -323,14 +330,18 @@ function Page() {
 							fetchedAt: string | null;
 							polling?: true;
 						};
-						setPolling(body.polling === true);
-						setPolled(ageLine(body.fetchedAt));
+						const next = body.polling === true;
+						writePageCache("polling", next);
+						setPolling(next);
+						writePageCache("fetched-at", body.fetchedAt);
+						setFetchedAt(body.fetchedAt);
 					}
 				})
 				.catch(() => {
 					if (!stopped) {
 						setPolling(false);
-						setPolled("");
+						writePageCache("fetched-at", null);
+						setFetchedAt(null);
 					}
 				});
 		};
@@ -346,10 +357,19 @@ function Page() {
 	if (items === null || (polling && items.length === 0)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
-	return <NeedsList items={items} polled={polled} />;
+	return <NeedsList items={items} fetchedAt={fetchedAt} />;
 }
 
-const root = document.getElementById("root");
-if (root !== null) {
-	createRoot(root).render(<Page />);
+function mount(): void {
+	if (window.location.pathname !== "/needs-you") {
+		return;
+	}
+	mountPage((root) => {
+		root.render(<Page />);
+	});
+}
+
+if (typeof document !== "undefined") {
+	mount();
+	window.addEventListener("project-flow-page", mount);
 }
