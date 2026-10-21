@@ -105,10 +105,8 @@ export const headerControlStyle = stylex.create({
 		borderWidth: 0,
 		backgroundColor: "transparent",
 		color: colours.ink,
-		fontFamily: font.sans,
-		fontSize: type.meta,
-		fontWeight: type.regular,
-		lineHeight: 1,
+		...controlText,
+		cursor: "text",
 		outline: {
 			default: "none",
 			":focus": "none",
