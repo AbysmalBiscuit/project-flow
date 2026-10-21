@@ -5162,6 +5162,149 @@ describe("GET /api/overview", () => {
 		}
 	}, 15_000);
 
+	test("a warm start releases the first poll when the overview is read", async () => {
+		const repoName = "acme/warm-release";
+		let repoReads = 0;
+		let releaseRead: () => void = () => {};
+		const readHeld = new Promise<void>((resolve) => {
+			releaseRead = resolve;
+		});
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("query RepoRead")
+			) {
+				repoReads += 1;
+				await readHeld;
+				const listed = await repoReadFromHandler(input, init, recordedFetch);
+				return listed ?? unrecorded(input);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				return page(
+					[
+						{
+							number: 4,
+							title: "Ticket 4",
+							state: "open",
+							state_reason: null,
+							html_url: `https://github.com/${repoName}/issues/4`,
+							updated_at: "2026-10-18T12:00:00.000Z",
+						},
+					],
+					null,
+				);
+			}
+			return emptyList(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-warm-release-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const seeded = new Database(databasePath);
+		seeded.run(`
+			create table snapshots (
+				snapshot_key text primary key,
+				name text not null,
+				tracker text not null,
+				payload text not null
+			)
+		`);
+		seeded
+			.query(
+				"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?)",
+			)
+			.run(
+				`github:${repoName}`,
+				repoName,
+				"github",
+				JSON.stringify({
+					tickets: [
+						{
+							id: "4",
+							tracker: "github",
+							key: `${repoName}#4`,
+							title: "Ticket 4",
+							state: "open",
+							stateReason: null,
+							updatedAt: "2026-10-18T12:00:00.000Z",
+							ref: `${repoName}#4`,
+							body: "",
+							blockedBy: [],
+							milestone: null,
+							parent: null,
+							labels: [],
+						},
+					],
+					pulls: [],
+					branches: [],
+					startedKeys: [],
+				}),
+			);
+		seeded.close();
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					await Bun.sleep(100);
+					expect(repoReads).toBe(0);
+					const opened = await fetch(new URL("/api/overview", base));
+					expect(opened.status).toBe(200);
+					const released = await Promise.race([
+						(async () => {
+							while (repoReads === 0) {
+								await Bun.sleep(20);
+							}
+							return true;
+						})(),
+						Bun.sleep(1_000).then(() => false),
+					]);
+					expect(released).toBe(true);
+					expect(repoReads).toBe(1);
+					releaseRead();
+					resolve();
+				})().catch((error: unknown) => {
+					releaseRead();
+					reject(error);
+				});
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: recordedFetch,
+						readGhToken: async () => null,
+						databasePath,
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releaseRead();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a warm start runs one poll until the poll interval passes", async () => {
 		const repoName = "acme/warm";
 		const intervalMs = 1_000;

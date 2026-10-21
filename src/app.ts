@@ -1352,11 +1352,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					const body = Response.json(
 						runningOverview(pollOptions, configuration),
 					);
-					setTimeout(() => {
-						if (!hadRows || firstPollDone) {
-							releaseLists();
-						}
-					}, 0);
+					setTimeout(releaseLists, 0);
 					return body;
 				},
 			},
