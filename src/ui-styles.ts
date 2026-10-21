@@ -1972,7 +1972,7 @@ export const board = stylex.create({
 	},
 	lanes: {
 		display: "flex",
-		flex: "0 0 auto",
+		flex: "0 1 auto",
 		gap: 0,
 		alignItems: "stretch",
 		width: "max-content",
