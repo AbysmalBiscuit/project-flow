@@ -2044,10 +2044,6 @@ export const board = stylex.create({
 		maxWidth: "100%",
 		position: "relative",
 		zIndex: 0,
-		pointerEvents: "none",
-	},
-	stageOn: {
-		pointerEvents: "auto",
 	},
 	lanes: {
 		display: "flex",
