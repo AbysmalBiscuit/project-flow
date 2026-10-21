@@ -4,6 +4,11 @@
 	"steps": [
 		{ "goto": "/" },
 		{ "assert_text": "projects" },
+		{ "assert_text": "acme/flow" },
+		{ "click": "a[href='/needs-you']" },
+		{ "assert_text": "Nothing needs you" },
+		{ "click": "a[href='/inbox']" },
+		{ "assert_text": "No notifications" },
 		{ "shot": "seed-no-loading" }
 	]
 }
