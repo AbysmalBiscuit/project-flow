@@ -175,7 +175,7 @@ function NeedsPanel({
 	);
 }
 
-function summaryLine(items: NeedsYouItem[], polled: string): string {
+function summaryLine(items: NeedsYouItem[]): string {
 	const tickets =
 		items.length === 1
 			? "1 ticket needs you"
@@ -187,7 +187,7 @@ function summaryLine(items: NeedsYouItem[], polled: string): string {
 			: answered === 1
 				? ", 1 answered question is clearing"
 				: `, ${answered} answered questions are clearing`;
-	return `${tickets}${clearing}${polled}`;
+	return `${tickets}${clearing}`;
 }
 
 function NeedsList({
@@ -241,7 +241,7 @@ function NeedsList({
 			title={navLabel.needsYou}
 			subtitle={
 				<>
-					{summaryLine(items, "")}
+					{summaryLine(items)}
 					{polling || fetchedAt !== null ? ", " : null}
 					<PollStatus
 						text={polling ? null : polledAgo(fetchedAt)}
@@ -307,10 +307,9 @@ function Page() {
 	const [fetchedAt, setFetchedAt] = useState<string | null>(
 		() => readPageCache("fetched-at") ?? null,
 	);
-	const [polling, setPolling] = useState(() => {
-		const cached = readPageCache("polling");
-		return cached === undefined ? true : cached;
-	});
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -361,7 +360,7 @@ function Page() {
 			stop();
 		};
 	}, []);
-	if (items === null || (polling && items.length === 0)) {
+	if (items === null) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
 	return <NeedsList items={items} fetchedAt={fetchedAt} polling={polling} />;

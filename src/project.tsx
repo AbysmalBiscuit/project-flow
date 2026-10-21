@@ -1079,10 +1079,9 @@ function Page() {
 	const active = useActiveTicket();
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
-	const [polling, setPolling] = useState(() => {
-		const cached = readPageCache("polling");
-		return cached === undefined ? true : cached;
-	});
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	useEffect(() => {

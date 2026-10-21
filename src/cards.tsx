@@ -39,6 +39,7 @@ import {
 	trackerName,
 } from "./progress-bar.tsx";
 import { PageFrame, type PageView, PollStatus, SearchGlyph } from "./shell.tsx";
+import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
 	loadingLabel,
@@ -1018,9 +1019,7 @@ function Page() {
 			stopOpen();
 		};
 	}, []);
-	const stored =
-		overview?.projects.some((project) => project.pending !== true) === true ||
-		overview?.tracked === false;
+	const stored = overview !== null && storeHoldsRead(overview);
 	if (
 		overview === null ||
 		settings === null ||

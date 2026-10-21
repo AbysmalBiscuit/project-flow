@@ -8,7 +8,7 @@ import type {
 	ProjectReport,
 	SettingsProject,
 } from "./domain.ts";
-import { pollingPageId, storedPageId } from "./stored-page.ts";
+import { pollingPageId, storedPageId, storeHoldsRead } from "./stored-page.ts";
 
 type SettingsPage = {
 	settings: Configuration;
@@ -80,6 +80,8 @@ function storedObject(body: unknown): Record<string, unknown> | null {
 	return body as Record<string, unknown>;
 }
 
+export { storeHoldsRead } from "./stored-page.ts";
+
 let storedSeeded = false;
 
 export function seedStoredPage(pathname: string): void {
@@ -96,26 +98,34 @@ export function seedStoredPage(pathname: string): void {
 		return;
 	}
 	if (pathname === "/") {
-		const overview = storedObject(stored);
-		if (overview === null) {
+		const embedded = storedObject(stored);
+		if (embedded === null) {
 			return;
 		}
-		const projects = Array.isArray(overview.projects) ? overview.projects : [];
-		const storedRead = projects.some((project) => {
-			const row = storedObject(project);
-			return row !== null && row.pending !== true;
-		});
-		if (!storedRead && overview.tracked !== false) {
+		const overview = storedObject(embedded.overview) ?? embedded;
+		const projects = Array.isArray(overview.projects)
+			? overview.projects.flatMap((project) => {
+					const row = storedObject(project);
+					return row === null ? [] : [row];
+				})
+			: [];
+		if (
+			!storeHoldsRead({
+				projects,
+				tracked: overview.tracked === false ? false : undefined,
+			})
+		) {
 			return;
 		}
 		writePageCache("overview", overview as Overview);
-		writePageCache(
-			"polling",
-			overview.polling === true || readStoredPolling() === true,
-		);
+		writePageCache("polling", overview.polling === true || polling === true);
 		const fetchedAt =
 			typeof overview.fetchedAt === "string" ? overview.fetchedAt : null;
 		writePageCache("fetched-at", fetchedAt);
+		const settings = storedObject(embedded.settings);
+		if (settings !== null) {
+			writePageCache("settings", settings as Configuration);
+		}
 		return;
 	}
 	if (pathname === "/needs-you" && Array.isArray(stored)) {
@@ -151,7 +161,12 @@ export function seedStoredPage(pathname: string): void {
 		if (report === null || report.pending === true) {
 			return;
 		}
-		const name = decodeURIComponent(pathname.slice(prefix.length));
+		let name: string;
+		try {
+			name = decodeURIComponent(pathname.slice(prefix.length));
+		} catch {
+			return;
+		}
 		writePageCache(`project:${name}`, report as ProjectReport);
 	}
 }

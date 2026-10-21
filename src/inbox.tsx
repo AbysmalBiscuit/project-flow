@@ -367,10 +367,9 @@ function Page() {
 	const [entries, setEntries] = useState<InboxEntry[] | null>(
 		() => readPageCache("inbox") ?? null,
 	);
-	const [polling, setPolling] = useState(() => {
-		const cached = readPageCache("polling");
-		return cached === undefined ? true : cached;
-	});
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -411,7 +410,7 @@ function Page() {
 			stopOverview();
 		};
 	}, []);
-	if (entries === null || (polling && entries.length === 0)) {
+	if (entries === null) {
 		return <PageFrame title={navLabel.inbox}>{loadingLabel}</PageFrame>;
 	}
 	return (

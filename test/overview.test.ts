@@ -6326,6 +6326,16 @@ function embeddedStored(html: string): unknown {
 	return JSON.parse(match?.[1] ?? "");
 }
 
+function embeddedForRoute(html: string, page: string): unknown {
+	const stored = embeddedStored(html);
+	if (page !== "/") {
+		return stored;
+	}
+	expect(stored).toHaveProperty("overview");
+	expect(stored).toHaveProperty("settings");
+	return (stored as { overview: unknown }).overview;
+}
+
 describe("page responses", () => {
 	test("each page carries the stored data its API returns", async () => {
 		const { path, cleanup } = await tempConfig(
@@ -6372,7 +6382,9 @@ describe("page responses", () => {
 								const pageResponse = await fetch(new URL(route.page, base));
 								expect(pageResponse.status).toBe(200);
 								const html = await pageResponse.text();
-								expect(embeddedStored(html)).toEqual(await api.json());
+								expect(embeddedForRoute(html, route.page)).toEqual(
+									await api.json(),
+								);
 							}
 							finish();
 						})().catch((error: unknown) => finish(error));
@@ -6440,7 +6452,7 @@ describe("page responses", () => {
 							const html = await pageResponse.text();
 							expect(html).not.toContain("</script><script>");
 							expect(html).not.toContain("<img>");
-							expect(embeddedStored(html)).toEqual(overview);
+							expect(embeddedForRoute(html, "/")).toEqual(overview);
 							const projectName = overview.projects[0]?.name ?? repo;
 							const projectPage = await fetch(
 								new URL(`/projects/${encodeURIComponent(projectName)}`, base),
@@ -6506,15 +6518,25 @@ describe("page responses", () => {
 								"/projects/%20",
 								"/projects/missing",
 								`/projects/${encodeURIComponent("  acme/widget  ")}`,
-								"/",
 							]) {
 								const pageResponse = await fetch(new URL(pagePath, base));
 								expect(pageResponse.status).toBe(200);
 								const html = await pageResponse.text();
 								expect(html).toContain('id="root"');
-								expect(html).toContain('id="project-flow-stored"');
-								embeddedStored(html);
+								expect(html).not.toContain('id="project-flow-stored"');
 							}
+							const overviewPage = await fetch(new URL("/", base));
+							expect(overviewPage.status).toBe(200);
+							const overviewHtml = await overviewPage.text();
+							expect(overviewHtml).toContain('id="root"');
+							expect(embeddedForRoute(overviewHtml, "/")).toEqual(
+								await readOverview(base),
+							);
+							const malformed = await fetch(new URL("/projects/%E0", base));
+							expect(malformed.status).toBe(200);
+							const malformedHtml = await malformed.text();
+							expect(malformedHtml).toContain('id="root"');
+							expect(malformedHtml).not.toContain('id="project-flow-stored"');
 							const missing = await fetch(
 								new URL("/api/projects/missing", base),
 							);

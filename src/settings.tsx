@@ -1317,10 +1317,9 @@ function Page() {
 		() => cached?.trackers ?? { github: false, linear: false },
 	);
 	const [error, setError] = useState<string | null>(null);
-	const [polling, setPolling] = useState(() => {
-		const cached = readPageCache("polling");
-		return cached === undefined ? true : cached;
-	});
+	const [polling, setPolling] = useState(
+		() => readPageCache("polling") !== false,
+	);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {

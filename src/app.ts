@@ -82,6 +82,7 @@ import type {
 	Viewer,
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
+import { storeHoldsRead } from "./stored-page.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -1496,15 +1497,37 @@ export async function start(options: StartOptions): Promise<Running> {
 	const storedForPage = (pathname: string): unknown => {
 		const projectPrefix = "/projects/";
 		if (pathname.startsWith(projectPrefix)) {
-			const name = decodeURIComponent(pathname.slice(projectPrefix.length));
+			let name: string;
+			try {
+				name = decodeURIComponent(pathname.slice(projectPrefix.length));
+			} catch {
+				return undefined;
+			}
+			const body = runningOverview(pollOptions, configuration);
+			const stored = body.projects.some(
+				(project) =>
+					project.name.toLowerCase() === name.toLowerCase() &&
+					project.pending !== true,
+			);
+			if (!stored) {
+				return undefined;
+			}
 			return reportFor(pollOptions, configuration, name, true);
 		}
 		if (pathname === "/needs-you") {
+			const body = runningOverview(pollOptions, configuration);
+			if (!storeHoldsRead(body)) {
+				return undefined;
+			}
 			return projectViews(pollOptions, configuration).flatMap(
 				(item) => item.items,
 			);
 		}
 		if (pathname === "/inbox") {
+			const body = runningOverview(pollOptions, configuration);
+			if (!storeHoldsRead(body)) {
+				return undefined;
+			}
 			return inboxEntries(opened.store.readNotifications(), clock.now());
 		}
 		if (pathname === "/settings") {
@@ -1515,7 +1538,14 @@ export async function start(options: StartOptions): Promise<Running> {
 				opened.store.readTickets(),
 			);
 		}
-		return runningOverview(pollOptions, configuration);
+		const body = runningOverview(pollOptions, configuration);
+		if (!storeHoldsRead(body)) {
+			return undefined;
+		}
+		return {
+			overview: body,
+			settings: configuration,
+		};
 	};
 	server = Bun.serve({
 		hostname: options.hostname,
