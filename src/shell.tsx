@@ -146,6 +146,16 @@ export function AppShell({ children }: { children: ReactNode }) {
 	themeRef.current = theme;
 	const [themeSaveFailed, setThemeSaveFailed] = useState(false);
 	const path = window.location.pathname;
+	const [narrow, setNarrow] = useState(
+		() => window.matchMedia("(max-width: 480px)").matches,
+	);
+	useEffect(() => {
+		const media = window.matchMedia("(max-width: 480px)");
+		const apply = () => setNarrow(media.matches);
+		apply();
+		media.addEventListener("change", apply);
+		return () => media.removeEventListener("change", apply);
+	}, []);
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -172,9 +182,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 	}, []);
 	const current = (href: string) =>
 		href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
+	const narrowProject = path.startsWith("/projects/") && narrow;
 	return (
 		<div className={clsx(frame.shell)}>
-			<header className={clsx(frame.bar)}>
+			<header className={clsx(frame.bar, narrowProject && frame.barFit)}>
 				<a className={clsx(frame.logo, shell.linkFocus)} href="/">
 					<LogoMark />
 					{navLabel.logo}

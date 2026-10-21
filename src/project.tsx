@@ -1309,7 +1309,6 @@ function Page() {
 					<div className={clsx(board.identity)}>
 						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 						<h1 className={clsx(board.name)}>{report.name}</h1>
-						<p className={clsx(board.counts)}>{countLine(report)}</p>
 					</div>
 					<div className={clsx(board.toolbar)}>
 						<FilterMenu
@@ -1379,6 +1378,7 @@ function Page() {
 							/>
 						) : null}
 					</div>
+					<p className={clsx(board.counts)}>{countLine(report)}</p>
 				</div>
 				{filterOpen ? (
 					<FilterPanel report={report} view={settings} onChange={saveView} />
