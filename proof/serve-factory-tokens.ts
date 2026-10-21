@@ -99,7 +99,31 @@ const result = await run(
 				throw new Error("proof server was not ready within 9s");
 			}
 			const recorded = recordedViewer(input, init);
-			return recorded ?? unrecorded(input);
+			if (recorded !== null) {
+				return recorded;
+			}
+			const url = String(input instanceof Request ? input.url : input);
+			if (url === "https://api.linear.app/graphql") {
+				return new Response(
+					JSON.stringify({
+						data: {
+							viewer: { id: "lev" },
+							projects: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (url.startsWith("https://api.github.com/")) {
+				return new Response("[]", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+			return unrecorded(input);
 		},
 		readGhToken: async () => null,
 		listTodos: async () => "",
