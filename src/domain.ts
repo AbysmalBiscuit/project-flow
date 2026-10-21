@@ -1884,11 +1884,12 @@ function ticketRelations(
 		}
 		for (const group of groups) {
 			for (const other of group.tickets) {
+				const otherRef = asRef(other);
 				if (
 					other.state !== "open" ||
-					other.key === null ||
+					otherRef === null ||
 					other === ticket ||
-					blocks.some((item) => sameRef(item, asRef(other) ?? self))
+					blocks.some((item) => sameRef(item, otherRef))
 				) {
 					continue;
 				}
@@ -1899,11 +1900,7 @@ function ticketRelations(
 				if (!refs.some((ref) => sameRef(ref, self) && stillOpen(self, index))) {
 					continue;
 				}
-				pushBlock(
-					asRef(other) ?? self,
-					group.project,
-					other.title.trim() || other.key,
-				);
+				pushBlock(otherRef, group.project, other.title.trim() || otherRef.key);
 			}
 		}
 	}
