@@ -404,7 +404,10 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 			) : (
 				<>
 					{project.error === null ? null : (
-						<p className={clsx(shell.cardError)} title={project.error}>
+						<p
+							className={clsx(shell.stale, shell.cardError)}
+							title={project.error}
+						>
 							{project.error}
 						</p>
 					)}
