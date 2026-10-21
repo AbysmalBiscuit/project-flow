@@ -19,6 +19,7 @@ import {
 } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
 import { sameTicketKey, type TicketSearchHit } from "./ticket-key.ts";
+import { phoneGutter } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
 
@@ -62,6 +63,7 @@ export function JumpBox() {
 	);
 	const opened = useRef<OpenedTicket | null>(null);
 	const queryRef = useRef<HTMLInputElement>(null);
+	const boxRef = useRef<HTMLDivElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const openRef = useRef(false);
 	const closeSearch = useCallback(() => {
@@ -120,6 +122,20 @@ export function JumpBox() {
 		};
 		window.addEventListener("keydown", onEscape);
 		return () => window.removeEventListener("keydown", onEscape);
+	}, [open, closeSearch]);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onPointerDown = (event: PointerEvent) => {
+			const target = event.target;
+			if (!(target instanceof Node) || boxRef.current?.contains(target)) {
+				return;
+			}
+			closeSearch();
+		};
+		document.addEventListener("pointerdown", onPointerDown);
+		return () => document.removeEventListener("pointerdown", onPointerDown);
 	}, [open, closeSearch]);
 	const applyNeeds = useCallback((loaded: NeedsYouItem[]) => {
 		needsRef.current = loaded;
@@ -239,11 +255,12 @@ export function JumpBox() {
 	return (
 		<>
 			{open ? (
-				<div className={clsx(jump.shade)}>
+				<div className={clsx(jump.shade, phoneGutter.shade)} id="jump-shade">
 					<div
 						className={clsx(jump.box)}
 						role="dialog"
 						aria-label="Search tickets"
+						ref={boxRef}
 					>
 						<input
 							className={clsx(jump.query)}
@@ -256,7 +273,7 @@ export function JumpBox() {
 							onChange={(event) => setQuery(event.target.value)}
 						/>
 						{query.trim() !== "" && hits.length === 0 ? (
-							<p>No tickets</p>
+							<p className={clsx(jump.empty)}>No tickets</p>
 						) : null}
 						<ul className={clsx(jump.list)}>
 							{hits.map((hit) => (
