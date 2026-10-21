@@ -25,7 +25,7 @@ const testBody = (name: string) =>
 const baseTree: Record<string, string> = {
 	"package.json": `{ "name": "fixture", "private": true }\n`,
 	"bunfig.toml": "[test]\n",
-	"README.md": "# fixture\n",
+	"notes.md": "# fixture\n",
 	"src/a.ts": "export const a = 1;\n",
 	"src/b.ts": `#!/usr/bin/env bun\nimport { a } from "./a.ts";\nexport const b = a + 1;\n`,
 	"src/tool.ts": "export {};\n",
@@ -194,7 +194,7 @@ describe("the pre-push hook runs only the affected tests", () => {
 		"docs and proof files run no tests",
 		async () => {
 			const repo = await makeRepo();
-			await repo.write("README.md", "# fixture, edited\n");
+			await repo.write("notes.md", "# fixture, edited\n");
 			await repo.write("scripts/proof-1.ts", "console.log('proof');\n");
 			repo.commit();
 
@@ -264,7 +264,7 @@ describe("the pre-push hook runs only the affected tests", () => {
 		"PROJECT_FLOW_FULL_SUITE=1 forces the full suite",
 		async () => {
 			const repo = await makeRepo();
-			await repo.write("README.md", "# fixture, edited\n");
+			await repo.write("notes.md", "# fixture, edited\n");
 
 			expect(await repo.prePush({ PROJECT_FLOW_FULL_SUITE: "1" })).toEqual({
 				exitCode: 0,
