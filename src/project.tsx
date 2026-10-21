@@ -4,8 +4,8 @@ import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
 	NeedsYouItem,
-	OutsideBlocker,
 	ProjectReport,
+	TicketRelation,
 	TicketView,
 } from "./domain.ts";
 import {
@@ -155,12 +155,12 @@ function panelBlockers(
 	source: ProjectReport | null,
 	project: string,
 	tracker: "github" | "linear",
-): OutsideBlocker[] {
+): TicketRelation[] {
 	if (ticket === undefined) {
 		return [];
 	}
 	const outside = ticket.outsideBlockers ?? [];
-	const resolved: OutsideBlocker[] = [];
+	const resolved: TicketRelation[] = [];
 	for (const key of ticket.blockers) {
 		const known = outside.find(
 			(blocker) => blocker.key.toLowerCase() === key.toLowerCase(),
@@ -229,7 +229,7 @@ function shortKey(key: string): string {
 
 function relationSplit(ticket: TicketView): {
 	local: string[];
-	outside: OutsideBlocker[];
+	outside: TicketRelation[];
 } {
 	const outside = ticket.outsideBlockers ?? [];
 	const outsideKeys = new Set(
@@ -284,7 +284,7 @@ function Card({
 }: {
 	ticket: TicketView;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const key = ticket.key;
 	const { local, outside } = relationSplit(ticket);
@@ -370,7 +370,7 @@ function LaneCards({
 }: {
 	tickets: TicketView[];
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	return (
 		<ul className={clsx(board.cards)}>
@@ -409,7 +409,7 @@ function Lane({
 	reveal: string | null;
 	onShowAll: () => void;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const pool = capped && !shown ? fresh : tickets;
 	const listed = pool.slice(0, capped && !shown ? doneCap : pool.length);
@@ -606,7 +606,7 @@ function TableRow({
 	order: number;
 	selected: boolean;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const key = ticket.key;
 	const { local, outside } = relationSplit(ticket);
@@ -700,7 +700,7 @@ function TicketTable({
 	groupBy: GroupBy;
 	selected: string | null;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [column, setColumn] = useState<Column>("state");
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
@@ -818,7 +818,7 @@ function Board({
 	settings: ProjectViewSettings;
 	selected: string | null;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
@@ -1309,7 +1309,7 @@ function Page() {
 		});
 	};
 	const openOutsideInPanel = (
-		blocker: OutsideBlocker,
+		blocker: TicketRelation,
 		state?: TicketView["state"],
 	) => {
 		setOpenedState(state ?? null);

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import type {
 	NeedsYouItem,
-	OutsideBlocker,
 	Thread,
 	ThreadComment,
+	TicketRelation,
 	TicketState,
 } from "./domain.ts";
 import { HeldAction } from "./needs-item.tsx";
@@ -89,8 +89,8 @@ function RelationList({
 	onOpen,
 }: {
 	label: string;
-	relations: OutsideBlocker[];
-	onOpen?: (blocker: OutsideBlocker) => void;
+	relations: TicketRelation[];
+	onOpen?: (blocker: TicketRelation) => void;
 }) {
 	if (relations.length === 0) {
 		return null;
@@ -195,9 +195,9 @@ export function TicketPanel({
 	state?: TicketState;
 	lane?: string | undefined;
 	laneColour?: string | undefined;
-	blockers?: OutsideBlocker[];
-	blocks?: OutsideBlocker[];
-	onOpenBlocker?: (blocker: OutsideBlocker) => void;
+	blockers?: TicketRelation[];
+	blocks?: TicketRelation[];
+	onOpenBlocker?: (blocker: TicketRelation) => void;
 	item?: NeedsYouItem | null;
 	onClose: () => void;
 	why?: string;

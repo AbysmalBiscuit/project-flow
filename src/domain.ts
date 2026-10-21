@@ -107,7 +107,7 @@ export type Ticket = {
 	createdAt?: string;
 };
 
-export type OutsideBlocker = {
+export type TicketRelation = {
 	tracker: "github" | "linear";
 	project: string;
 	key: string;
@@ -119,8 +119,8 @@ export type TicketView = {
 	title: string;
 	state: TicketState;
 	blockers: string[];
-	outsideBlockers?: OutsideBlocker[];
-	blocks?: OutsideBlocker[];
+	outsideBlockers?: TicketRelation[];
+	blocks?: TicketRelation[];
 	lane?: string;
 	statusType?: StatusType;
 	blocked?: boolean;
@@ -1789,7 +1789,7 @@ function outsideOf(
 	blocker: Ticket,
 	ref: TicketRef | undefined,
 	groups: { project: string; tickets: Ticket[] }[],
-): OutsideBlocker | null {
+): TicketRelation | null {
 	if (blocker.key === null) {
 		return null;
 	}
@@ -1813,8 +1813,8 @@ function ticketRelations(
 	groups: { project: string; tickets: Ticket[] }[],
 ): {
 	blockers: string[];
-	outsideBlockers: OutsideBlocker[];
-	blocks: OutsideBlocker[];
+	outsideBlockers: TicketRelation[];
+	blocks: TicketRelation[];
 } {
 	const self = asRef(ticket);
 	const home = groups.find((group) => group.tickets.includes(ticket))?.project;
@@ -1824,7 +1824,7 @@ function ticketRelations(
 		...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
 	];
 	const keys: string[] = [];
-	const outsideBlockers: OutsideBlocker[] = [];
+	const outsideBlockers: TicketRelation[] = [];
 	for (const blocker of blockers) {
 		if (blocker.key === null) {
 			continue;
@@ -1848,7 +1848,7 @@ function ticketRelations(
 			outsideBlockers.push(outside);
 		}
 	}
-	const blocks: OutsideBlocker[] = [];
+	const blocks: TicketRelation[] = [];
 	const ownBlocks = mergeBlockedBy([
 		parsed.get(parseKey(ticket))?.blocks ?? [],
 		merged?.blocks ?? ticket.blocks ?? [],
