@@ -241,19 +241,10 @@ function Legend({ project }: { project: ProjectCounts }) {
 	);
 }
 
-function waitingForFirstRead(project: ProjectCounts): boolean {
-	return project.pending === true;
-}
-
-function ProjectCard({
-	project,
-	loading,
-}: {
-	project: ProjectCounts;
-	loading: boolean;
-}) {
+function ProjectCard({ project }: { project: ProjectCounts }) {
 	const id = `project-card-${slug(project.name)}`;
 	const total = ticketTotal(project);
+	const loading = project.pending === true;
 	return (
 		<li id={id} className={clsx(cards.card)} aria-busy={loading}>
 			<div className={clsx(cards.cardTop)}>
@@ -316,20 +307,13 @@ function ProjectCard({
 	);
 }
 
-function CardsList({
-	projects,
-	loading,
-}: {
-	projects: ProjectCounts[];
-	loading: (project: ProjectCounts) => boolean;
-}) {
+function CardsList({ projects }: { projects: ProjectCounts[] }) {
 	return (
 		<ul className={clsx(cards.list, phoneGutter.cards)}>
 			{projects.map((project) => (
 				<ProjectCard
 					key={`${project.tracker}:${project.name}`}
 					project={project}
-					loading={loading(project)}
 				/>
 			))}
 		</ul>
@@ -457,67 +441,75 @@ function TableView({
 					</tr>
 				</thead>
 				<tbody>
-					{projects.map((project) => (
-						<tr
-							key={`${project.tracker}:${project.name}`}
-							id={`overview-row-${slug(project.name)}`}
-						>
-							<td className={clsx(cards.cell, cards.name)}>
-								<a
-									className={clsx(cards.projectLink)}
-									href={projectPath(project.name)}
-									onClick={(event) => {
-										event.preventDefault();
-										openProject(project.name);
-									}}
-								>
-									{project.name}
-								</a>
-							</td>
-							<td className={clsx(cards.cell)}>
-								{trackerLabel[project.tracker]}
-							</td>
-							<td className={clsx(cards.cell)}>
-								<ProgressBar project={project} />
-							</td>
-							<td className={clsx(cards.cell, cards.number)}>
-								{project.statusTypes.backlog}
-							</td>
-							<td className={clsx(cards.cell, cards.number)}>
-								{project.statusTypes.inProgress}
-							</td>
-							<td className={clsx(cards.cell, cards.number)}>
-								{project.statusTypes.inReview}
-							</td>
-							<td className={clsx(cards.cell, cards.number)}>
-								{project.statusTypes.awaitingMerge}
-							</td>
-							<td className={clsx(cards.cell, cards.number)}>
-								{project.needsYou === 0 ? (
-									"0"
-								) : (
-									<span className={clsx(cards.badge)}>{project.needsYou}</span>
-								)}
-							</td>
-							<td className={clsx(cards.cell)}>
-								<div className={clsx(cards.chips)}>
-									{project.crossProjectBlockers.map((blocker) => (
-										<a
-											key={`${blocker.project} ${blocker.key}`}
-											className={clsx(
-												cards.chip,
-												cards.blockerChip,
-												cards.chipHover,
-											)}
-											href={projectPath(blocker.project, blocker.key)}
-										>
-											{blockerTicket(blocker)}
-										</a>
-									))}
-								</div>
-							</td>
-						</tr>
-					))}
+					{projects.map((project) => {
+						const loading = project.pending === true;
+						return (
+							<tr
+								key={`${project.tracker}:${project.name}`}
+								id={`overview-row-${slug(project.name)}`}
+								aria-busy={loading}
+							>
+								<td className={clsx(cards.cell, cards.name)}>
+									<a
+										className={clsx(cards.projectLink)}
+										href={projectPath(project.name)}
+										onClick={(event) => {
+											event.preventDefault();
+											openProject(project.name);
+										}}
+									>
+										{project.name}
+									</a>
+								</td>
+								<td className={clsx(cards.cell)}>
+									{trackerLabel[project.tracker]}
+								</td>
+								<td className={clsx(cards.cell)}>
+									{loading ? loadingLabel : <ProgressBar project={project} />}
+								</td>
+								<td className={clsx(cards.cell, cards.number)}>
+									{loading ? null : project.statusTypes.backlog}
+								</td>
+								<td className={clsx(cards.cell, cards.number)}>
+									{loading ? null : project.statusTypes.inProgress}
+								</td>
+								<td className={clsx(cards.cell, cards.number)}>
+									{loading ? null : project.statusTypes.inReview}
+								</td>
+								<td className={clsx(cards.cell, cards.number)}>
+									{loading ? null : project.statusTypes.awaitingMerge}
+								</td>
+								<td className={clsx(cards.cell, cards.number)}>
+									{loading ? null : project.needsYou === 0 ? (
+										"0"
+									) : (
+										<span className={clsx(cards.badge)}>
+											{project.needsYou}
+										</span>
+									)}
+								</td>
+								<td className={clsx(cards.cell)}>
+									{loading ? null : (
+										<div className={clsx(cards.chips)}>
+											{project.crossProjectBlockers.map((blocker) => (
+												<a
+													key={`${blocker.project} ${blocker.key}`}
+													className={clsx(
+														cards.chip,
+														cards.blockerChip,
+														cards.chipHover,
+													)}
+													href={projectPath(blocker.project, blocker.key)}
+												>
+													{blockerTicket(blocker)}
+												</a>
+											))}
+										</div>
+									)}
+								</td>
+							</tr>
+						);
+					})}
 				</tbody>
 			</table>
 		</div>
@@ -718,9 +710,8 @@ function OverviewPage({
 		savePatch((current) => ({ ...current, overview: next }));
 		setMenu(null);
 	};
-	const cardLoading = (project: ProjectCounts) => waitingForFirstRead(project);
 	const panes = {
-		cards: <CardsList projects={projects} loading={cardLoading} />,
+		cards: <CardsList projects={projects} />,
 		graph: <OverviewGraph projects={projects} catalogue={overview.projects} />,
 		table: (
 			<TableView
@@ -987,9 +978,7 @@ function Page() {
 	const [settings, setSettings] = useState<Configuration | null>(
 		() => readPageCache("settings") ?? null,
 	);
-	const [progress, setProgress] = useState<PollProgress | null>(
-		() => readPageCache("progress") ?? null,
-	);
+	const [progress, setProgress] = useState<PollProgress | null>(null);
 	useEffect(() => {
 		const show = (next: Overview) => {
 			writePageCache("overview", next);
@@ -1000,13 +989,7 @@ function Page() {
 		});
 		const stopProgress = onAppEvent("progress", (event) => {
 			const next = JSON.parse(event.data) as PollProgress;
-			if (next.ended) {
-				writePageCache("progress", next);
-				setProgress(null);
-				return;
-			}
-			writePageCache("progress", next);
-			setProgress(next);
+			setProgress(next.ended ? null : next);
 		});
 		const stopOpen = onEventStreamOpen(() => {
 			void readOverview().then(show);
