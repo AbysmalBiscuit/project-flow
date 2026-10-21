@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:4265",
+	"serve": ["bun", "proof/serve-graph-status.ts", "4265"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "solid rgb(89, 89, 89) 7.00" },
+		{ "assert_text": "dashed rgb(31, 111, 138) 5.68" },
+		{ "assert_text": "marker rgb(89, 89, 89) 7.00" },
+		{ "assert_text": "Arrow: blocker to blocked" },
+		{ "assert_text": "Dashed: done blocker" },
+		{ "shot": "contrast-light" }
+	]
+}

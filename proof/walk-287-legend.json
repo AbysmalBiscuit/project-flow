@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4267",
+	"serve": ["bun", "proof/serve-graph-status.ts", "4267"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Arrow: blocker to blocked" },
+		{ "assert_text": "Dashed: done blocker" },
+		{ "assert_text": "Dashed: ticket in another project" },
+		{ "assert_text": "solid rgb(89, 89, 89) 7.00" },
+		{ "shot": "legend-edges" }
+	]
+}

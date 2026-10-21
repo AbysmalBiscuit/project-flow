@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import {
 	Background,
 	BackgroundVariant,
@@ -253,19 +254,6 @@ type GraphTicket = {
 	outside: boolean;
 };
 
-function outsideState(
-	reports: ProjectReport[],
-	project: string,
-	key: string,
-): TicketState | undefined {
-	const home = reports.find(
-		(report) => report.name.toLowerCase() === project.toLowerCase(),
-	);
-	return home?.tickets.find(
-		(ticket) => ticket.key?.toLowerCase() === key.toLowerCase(),
-	)?.state;
-}
-
 function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
 	const home = reports.find(
 		(report) => report.name.toLowerCase() === ticket.project.toLowerCase(),
@@ -273,9 +261,7 @@ function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
 	const known = home?.tickets.find(
 		(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
 	);
-	const state = ticket.outside
-		? outsideState(reports, ticket.project, ticket.key)
-		: known?.state;
+	const state = ticket.state ?? known?.state;
 	return {
 		flow: ticket,
 		ticket: {
@@ -511,7 +497,7 @@ export function graphModel(
 	});
 	const fromHandle = horizontal ? "right" : "bottom";
 	const toHandle = horizontal ? "left" : "top";
-	const openMarker = measureMarker(classToken(cards.graphMarker));
+	const openMarker = measureMarker(classToken(board.graphMarkerProbe));
 	const marker = markerEnd(openMarker.size, openMarker.color);
 	const pending = links.map((link) => ({
 		id: `${link.from}->${link.to}`,
@@ -521,6 +507,9 @@ export function graphModel(
 		targetHandle: toHandle,
 		type: "ticket" as const,
 		markerEnd: marker,
+		...(link.done === true
+			? { className: stylex.props(board.graphEdgeDone).className ?? "" }
+			: {}),
 		data: { done: link.done === true },
 	}));
 	const bounds = new Map(
@@ -575,6 +564,44 @@ export function graphModel(
 		nodes: [...groups, ...nodes],
 		edges,
 	};
+}
+
+function channel(value: string): number {
+	const parsed = Number.parseInt(value, 10);
+	const linear = parsed / 255;
+	return linear <= 0.04045 ? linear / 12.92 : ((linear + 0.055) / 1.055) ** 2.4;
+}
+
+function contrastRatio(foreground: string, background: string): string {
+	const parts = (colour: string) =>
+		colour.match(/\d+(?:\.\d+)?/g)?.slice(0, 3) ?? [];
+	const luminance = (colour: string) => {
+		const [red, green, blue] = parts(colour);
+		if (red === undefined || green === undefined || blue === undefined) {
+			return 0;
+		}
+		return (
+			0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+		);
+	};
+	const lighter = Math.max(luminance(foreground), luminance(background));
+	const darker = Math.min(luminance(foreground), luminance(background));
+	return ((lighter + 0.05) / (darker + 0.05)).toFixed(2);
+}
+
+function edgeContrastLine(): string {
+	const pane = document.querySelector("#project-graph");
+	const canvas =
+		pane instanceof HTMLElement ? getComputedStyle(pane).backgroundColor : "";
+	const stroke = measureMarker(classToken(board.graphEdgeProbe)).color;
+	const dashed = measureMarker(classToken(board.graphEdgeDoneProbe)).color;
+	const marker = measureMarker(classToken(board.graphMarkerProbe)).color;
+	return [
+		`canvas ${canvas}`,
+		`solid ${stroke} ${contrastRatio(stroke, canvas)}`,
+		`dashed ${dashed} ${contrastRatio(dashed, canvas)}`,
+		`marker ${marker} ${contrastRatio(marker, canvas)}`,
+	].join(" | ");
 }
 
 function Legend() {
@@ -716,6 +743,20 @@ function SizedProjectGraph({
 			</p>
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
+			</p>
+			<p id="graph-states" className={clsx(cards.graphProbe)}>
+				{model.nodes
+					.flatMap((node) =>
+						isClusterNode(node)
+							? []
+							: [
+									`${node.data.ticket.key ?? node.id} ${node.data.ticket.state ?? "unknown"}`,
+								],
+					)
+					.join(" | ")}
+			</p>
+			<p id="edge-contrast" className={clsx(cards.graphProbe)}>
+				{edgeContrastLine()}
 			</p>
 			<Legend />
 			<div className={clsx(board.graphPane)}>

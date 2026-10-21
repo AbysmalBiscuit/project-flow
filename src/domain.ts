@@ -129,6 +129,7 @@ export type GraphEnd = {
 	key: string;
 	tracker: "github" | "linear";
 	title: string;
+	state?: TicketState;
 };
 
 export type ShownGraphLink = {
@@ -2059,6 +2060,37 @@ function linkedDoneKeys(
 	return linked;
 }
 
+function stateByKey(reports: ProjectReport[]): Map<string, TicketState> {
+	const states = new Map<string, TicketState>();
+	for (const report of reports) {
+		for (const ticket of report.tickets) {
+			if (ticket.key === null) {
+				continue;
+			}
+			states.set(`${report.name}\0${ticket.key}`.toLowerCase(), ticket.state);
+		}
+	}
+	return states;
+}
+
+function withEndStates(
+	links: ShownGraphLink[],
+	states: Map<string, TicketState>,
+): ShownGraphLink[] {
+	const end = (item: GraphEnd): GraphEnd => {
+		if (item.state !== undefined) {
+			return item;
+		}
+		const state = states.get(`${item.project}\0${item.key}`.toLowerCase());
+		return state === undefined ? item : { ...item, state };
+	};
+	return links.map((link) => ({
+		...link,
+		from: end(link.from),
+		to: end(link.to),
+	}));
+}
+
 function shownGraph(
 	name: string,
 	tracker: "github" | "linear",
@@ -2088,7 +2120,14 @@ function shownGraph(
 		key: string,
 		title: string,
 		tracker: "github" | "linear",
-	): GraphEnd => ({ project, key, tracker, title });
+		state?: TicketState,
+	): GraphEnd => ({
+		project,
+		key,
+		tracker,
+		title,
+		...(state === undefined ? {} : { state }),
+	});
 	const push = (from: GraphEnd, to: GraphEnd, done: boolean) => {
 		if (
 			from.project.toLowerCase() === to.project.toLowerCase() &&
@@ -2109,13 +2148,19 @@ function shownGraph(
 		if (relations === undefined) {
 			continue;
 		}
-		const target = endOf(name, view.key, view.title, tracker);
+		const target = endOf(name, view.key, view.title, tracker, view.state);
 		for (const link of relations.links) {
 			const outside = link.outside;
 			const holder = local.get(link.key.toLowerCase());
 			const source =
 				outside === undefined
-					? endOf(name, link.key, holder?.title ?? link.key, tracker)
+					? endOf(
+							name,
+							link.key,
+							holder?.title ?? link.key,
+							tracker,
+							holder?.state,
+						)
 					: endOf(outside.project, outside.key, outside.title, outside.tracker);
 			const onGraph = outside !== undefined || holder !== undefined;
 			if (onGraph) {
@@ -4066,6 +4111,14 @@ function matchesProjectView(
 	}
 	const key = item.key?.toLowerCase() ?? "";
 	return key.includes(needle) || item.title.toLowerCase().includes(needle);
+}
+
+export function attachGraphStates(reports: ProjectReport[]): ProjectReport[] {
+	const states = stateByKey(reports);
+	return reports.map((report) => ({
+		...report,
+		graphLinks: withEndStates(report.graphLinks, states),
+	}));
 }
 
 export function filterProjectReport(
