@@ -126,7 +126,7 @@ function BlockerRow({ project }: { project: ProjectCounts }) {
 	const chips = project.crossProjectBlockers.length;
 	const tags = project.tags.length;
 	const unlinked = project.unlinkedPrs.length;
-	const rowKey = [
+	const chipList = [
 		...project.crossProjectBlockers.map(
 			(blocker) => `${blocker.project} ${blocker.key}`,
 		),
@@ -136,9 +136,10 @@ function BlockerRow({ project }: { project: ProjectCounts }) {
 
 	useLayoutEffect(() => {
 		const node = row.current;
-		if (node === null || rowKey === "") {
+		if (node === null) {
 			return;
 		}
+		void chipList;
 		const measure = () => {
 			const items = [...node.querySelectorAll<HTMLElement>("[data-chip]")];
 			const visible = visibleChipCount(node, items);
@@ -147,8 +148,17 @@ function BlockerRow({ project }: { project: ProjectCounts }) {
 		measure();
 		const observer = new ResizeObserver(measure);
 		observer.observe(node);
-		return () => observer.disconnect();
-	}, [rowKey]);
+		let cancelled = false;
+		void document.fonts.ready.then(() => {
+			if (!cancelled) {
+				measure();
+			}
+		});
+		return () => {
+			cancelled = true;
+			observer.disconnect();
+		};
+	}, [chipList]);
 
 	if (chips === 0 && tags === 0 && unlinked === 0) {
 		return null;
@@ -390,7 +400,9 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 			) : (
 				<>
 					{project.error === null ? null : (
-						<p className={clsx(shell.stale)}>{project.error}</p>
+						<p className={clsx(shell.cardError)} title={project.error}>
+							{project.error}
+						</p>
 					)}
 					<p className={clsx(cards.doneLine)}>
 						<span>
