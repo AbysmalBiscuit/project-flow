@@ -12,7 +12,7 @@ function pageHref(anchor: HTMLAnchorElement): string | null {
 	if (url.origin !== window.location.origin) {
 		return null;
 	}
-	if (!url.pathname.startsWith("/") || url.pathname.startsWith("/api/")) {
+	if (url.pathname.startsWith("/api/")) {
 		return null;
 	}
 	return `${url.pathname}${url.search}${url.hash}`;
