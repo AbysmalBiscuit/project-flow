@@ -36,8 +36,9 @@ const colour = new RegExp(
 );
 const size = /\b\d*\.?\d+(?:px|rem)\b/;
 const customProperty = /(?<![\w-])--[A-Za-z][A-Za-z0-9-]*\b/g;
-const tokenDefinition = /\b(?:defineVars|createTheme)\s*\(/;
-const styleCall = /\bstylex\s*\.\s*create(?:Theme)?\s*\(/;
+const tokenDefinition = /\b(?:defineVars|defineConsts|createTheme)\s*\(/;
+const styleCall =
+	/\bstylex\s*\.\s*(?:create(?:Theme)?|defineVars|defineConsts)\s*\(/;
 const styleFile = /(?:\.stylex\.ts|\.css)$/;
 const graphFile = /(?:^|\/)graph(?:\.|-)/;
 
@@ -73,8 +74,9 @@ function styleRegion(lines: string[]): boolean[] {
 	let depth = 0;
 	let open = false;
 	for (const [index, line] of lines.entries()) {
-		if (styleCall.test(line)) {
+		if (!open && styleCall.test(line)) {
 			open = true;
+			depth = 0;
 		}
 		if (open) {
 			region[index] = true;
@@ -84,19 +86,80 @@ function styleRegion(lines: string[]): boolean[] {
 				depth += 1;
 			} else if (char === "}") {
 				depth -= 1;
-				if (open && depth <= 0) {
-					open = false;
-					depth = 0;
-				}
 			}
+		}
+		if (open && depth <= 0 && line.includes("}")) {
+			open = false;
+			depth = 0;
 		}
 	}
 	return region;
 }
 
 for await (const name of files) {
-	if (name === "src/tokens.stylex.ts" || name === "src/lint-tokens.ts") {
+	if (name === "src/lint-tokens.ts") {
 		continue;
+	}
+	if (name === "src/tokens.stylex.ts") {
+		const text = await Bun.file(`${root}/${name}`).text();
+		const lines = text.split("\n");
+		let depth = 0;
+		let inPalette = false;
+		for (const [index, line] of lines.entries()) {
+			if (/^export const (?:light|dark)Values = \{/.test(line)) {
+				inPalette = true;
+				depth = 1;
+				continue;
+			}
+			if (inPalette) {
+				for (const char of line) {
+					if (char === "{") {
+						depth += 1;
+					} else if (char === "}") {
+						depth -= 1;
+					}
+				}
+				if (depth <= 0) {
+					inPalette = false;
+				}
+				continue;
+			}
+			if (colour.test(line)) {
+				failures.push(`${name}:${index + 1}: colour or size literal`);
+			}
+			colour.lastIndex = 0;
+		}
+		continue;
+	}
+	const source = await Bun.file(`${root}/${name}`).text();
+	const sourceLines = source.split("\n");
+	let trackerMap = false;
+	let trackerDepth = 0;
+	for (const [index, line] of sourceLines.entries()) {
+		if (
+			name === "src/github.ts" &&
+			line.includes("const githubOptionColours")
+		) {
+			trackerMap = true;
+			trackerDepth = 0;
+		}
+		if (trackerMap) {
+			for (const char of line) {
+				if (char === "{") {
+					trackerDepth += 1;
+				} else if (char === "}") {
+					trackerDepth -= 1;
+				}
+			}
+			if (trackerDepth <= 0 && line.includes("}")) {
+				trackerMap = false;
+			}
+			continue;
+		}
+		if (colour.test(line)) {
+			failures.push(`${name}:${index + 1}: colour or size literal`);
+		}
+		colour.lastIndex = 0;
 	}
 	const text = await Bun.file(`${root}/${name}`).text();
 	const lines = text.split("\n");
@@ -104,7 +167,10 @@ for await (const name of files) {
 		if (!tokenDefinition.test(line)) {
 			continue;
 		}
-		if (line.includes("defineVars") || !name.endsWith(".stylex.ts")) {
+		if (
+			name !== "src/tokens.stylex.ts" &&
+			(line.includes("defineVars") || !name.endsWith(".stylex.ts"))
+		) {
 			failures.push(`${name}:${index + 1}: token definition`);
 		}
 	}

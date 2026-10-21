@@ -112,15 +112,15 @@ function compiledVariables(code: string): Map<string, string> {
 	return names;
 }
 
-const tokenDataSource = readFileSync(
-	resolve(rootDir, "src/token-data.ts"),
+const tokenSource = readFileSync(
+	resolve(rootDir, "src/tokens.stylex.ts"),
 	"utf8",
 );
 const lightTokenData = Object.fromEntries(
-	objectExport(tokenDataSource, "lightTokenValues"),
+	objectExport(tokenSource, "lightValues"),
 );
 const darkTokenData = Object.fromEntries(
-	objectExport(tokenDataSource, "darkTokenValues"),
+	objectExport(tokenSource, "darkValues"),
 );
 
 function declarations(
