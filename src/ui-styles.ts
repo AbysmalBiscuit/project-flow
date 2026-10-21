@@ -2772,6 +2772,13 @@ export const settings = stylex.create({
 	toastError: {
 		color: colours.danger,
 	},
+	toastHidden: {
+		position: "absolute",
+		width: measure.hairline,
+		height: measure.hairline,
+		overflow: "hidden",
+		clip: "rect(0 0 0 0)",
+	},
 	projectsLead: {
 		margin: `0 0 ${space.md}`,
 		color: colours.inkSoft,

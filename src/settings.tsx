@@ -218,6 +218,7 @@ function Menu({
 	const [message, setMessage] = useState<string | null>(null);
 	const [failed, setFailed] = useState(false);
 	const [toast, setToast] = useState(0);
+	const [settled, setSettled] = useState(false);
 	const [permission, setPermission] = useState("default");
 	const dirty = !same(draft, saved);
 	const view = draft.projectViews["*"] ?? viewDefaults();
@@ -250,6 +251,7 @@ function Menu({
 		const hide = window.setTimeout(() => {
 			setMessage(null);
 			setToast(0);
+			setSettled(true);
 		}, toastHideMs);
 		return () => {
 			window.clearTimeout(hide);
@@ -261,6 +263,7 @@ function Menu({
 		setMessage(null);
 		setFailed(false);
 		setToast(0);
+		setSettled(false);
 	}
 
 	function patchView(
@@ -635,6 +638,15 @@ function Menu({
 					</div>
 				</div>
 			</div>
+			{settled && message === null ? (
+				<span
+					id="settings-toast-hidden"
+					className={clsx(fields.toastHidden)}
+					aria-hidden="true"
+				>
+					Confirmation ended
+				</span>
+			) : null}
 			{message === null ? null : (
 				<p
 					id="settings-toast"
