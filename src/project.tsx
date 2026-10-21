@@ -911,8 +911,6 @@ function FilterMenu({
 				return;
 			}
 			const inset = gutter.current?.offsetWidth ?? 0;
-			const room = window.innerWidth - inset * 2;
-			panel.style.maxWidth = `${Math.max(0, room)}px`;
 			panel.style.marginLeft = "";
 			const box = panel.getBoundingClientRect();
 			const overflowRight = Math.ceil(box.right - (window.innerWidth - inset));
