@@ -156,37 +156,50 @@ function upstreamUrl(request: Request, target: URL): URL {
 	return url;
 }
 
+function proofHold(): Response {
+	if (pageLoads > 0) {
+		holdOverview = true;
+	}
+	return new Response("held", {
+		headers: { "content-type": "text/plain; charset=utf-8" },
+	});
+}
+
+function proofRequests(request: Request, url: URL): Response {
+	if (request.method === "DELETE" || url.searchParams.get("clear") === "1") {
+		pageRequests.length = 0;
+	}
+	if (request.method === "DELETE") {
+		return new Response(null, { status: 204 });
+	}
+	const overview = pageRequests.filter(
+		(line) => line === "GET /api/overview",
+	).length;
+	const lines = pageRequests.map((line) => `<li>${line}</li>`).join("");
+	return new Response(
+		`<!doctype html><title>requests</title><p id="proof-overview-fetches">overview fetches ${overview}</p><ul>${lines}</ul>`,
+		{ headers: { "content-type": "text/html; charset=utf-8" } },
+	);
+}
+
+function proofRoute(request: Request, url: URL): Response | null {
+	if (url.pathname === "/proof/hold") {
+		return proofHold();
+	}
+	if (url.pathname === "/proof/requests") {
+		return proofRequests(request, url);
+	}
+	return null;
+}
+
 const gate = Bun.serve({
 	hostname: "127.0.0.1",
 	port: Number(port),
 	async fetch(request) {
 		const url = new URL(request.url);
-		if (url.pathname === "/proof/hold") {
-			if (pageLoads > 0) {
-				holdOverview = true;
-			}
-			return new Response("held", {
-				headers: { "content-type": "text/plain; charset=utf-8" },
-			});
-		}
-		if (url.pathname === "/proof/requests") {
-			if (
-				request.method === "DELETE" ||
-				url.searchParams.get("clear") === "1"
-			) {
-				pageRequests.length = 0;
-			}
-			if (request.method === "DELETE") {
-				return new Response(null, { status: 204 });
-			}
-			const overview = pageRequests.filter(
-				(line) => line === "GET /api/overview",
-			).length;
-			const lines = pageRequests.map((line) => `<li>${line}</li>`).join("");
-			return new Response(
-				`<!doctype html><title>requests</title><p id="proof-overview-fetches">overview fetches ${overview}</p><ul>${lines}</ul>`,
-				{ headers: { "content-type": "text/html; charset=utf-8" } },
-			);
+		const proof = proofRoute(request, url);
+		if (proof !== null) {
+			return proof;
 		}
 		const target = upstream;
 		if (target === null) {
