@@ -10,7 +10,7 @@ export type SettingsRead = Configuration & {
 export async function readSettings(): Promise<SettingsRead | null> {
 	const response = await fetch("/api/settings");
 	if (!response.ok) {
-		return null;
+		throw new Error(`settings unavailable (HTTP ${response.status})`);
 	}
 	const body: unknown = await response.json();
 	if (body === null || typeof body !== "object") {

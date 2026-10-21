@@ -781,20 +781,22 @@ function OverviewPage({
 	const needs = needsQuery.data ?? [];
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
 		onSettings(patch(settings));
-		void readSettings().then(async (current) => {
-			if (current === null) {
-				return;
-			}
-			const next = patch(current);
-			onSettings(next);
-			if (await writeSettings(next)) {
-				return;
-			}
-			const saved = await readSettings();
-			if (saved !== null) {
-				onSettings(saved);
-			}
-		});
+		void readSettings()
+			.then(async (current) => {
+				if (current === null) {
+					return;
+				}
+				const next = patch(current);
+				onSettings(next);
+				if (await writeSettings(next)) {
+					return;
+				}
+				const saved = await readSettings();
+				if (saved !== null) {
+					onSettings(saved);
+				}
+			})
+			.catch(() => undefined);
 	};
 	const saveView = (next: OverviewView) => {
 		savePatch((current) => ({ ...current, overview: next }));

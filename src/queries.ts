@@ -52,11 +52,13 @@ export const pageQuery = {
 	settings: queryOptions({
 		queryKey: ["settings"],
 		queryFn: readSettings,
+		placeholderData: (previous: SettingsRead | null | undefined) => previous,
 	}),
 	settingsPage: queryOptions({
 		queryKey: ["settings"],
 		queryFn: readSettings,
 		select: settingsPageOf,
+		placeholderData: (previous: SettingsRead | null | undefined) => previous,
 	}),
 	project: (name: string, view?: "all") =>
 		queryOptions({
