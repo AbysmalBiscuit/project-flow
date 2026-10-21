@@ -50,7 +50,7 @@ import {
 	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
-import { measure, phoneGutter, phoneLayout } from "./tokens.stylex.ts";
+import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
 
@@ -548,7 +548,9 @@ function MenuButton({
 	children: ReactNode;
 }) {
 	const root = useRef<HTMLDivElement>(null);
+	const gutter = useRef<HTMLSpanElement>(null);
 	const [maxHeight, setMaxHeight] = useState<number | null>(null);
+	const [shift, setShift] = useState(0);
 	useLayoutEffect(() => {
 		const node = root.current;
 		if (!open || node === null) {
@@ -559,8 +561,14 @@ function MenuButton({
 			if (!(panel instanceof HTMLElement)) {
 				return;
 			}
-			const top = panel.getBoundingClientRect().top;
-			setMaxHeight(Math.max(0, Math.floor(window.innerHeight - top)));
+			const box = panel.getBoundingClientRect();
+			const inset = gutter.current?.offsetWidth ?? 0;
+			const applied = Number.parseFloat(getComputedStyle(panel).left);
+			const unshiftedRight =
+				box.right - (Number.isFinite(applied) ? applied : 0);
+			const overflow = Math.ceil(unshiftedRight - (window.innerWidth - inset));
+			setMaxHeight(Math.max(0, Math.floor(window.innerHeight - box.top)));
+			setShift(overflow > 0 ? -overflow : 0);
 		};
 		fit();
 		window.addEventListener("resize", fit);
@@ -570,6 +578,7 @@ function MenuButton({
 	}, [open]);
 	return (
 		<div className={clsx(cards.menu)} ref={root}>
+			<span ref={gutter} className={clsx(cards.gutter)} aria-hidden="true" />
 			<button
 				type="button"
 				id={id}
@@ -585,9 +594,8 @@ function MenuButton({
 					id={`${id}-panel`}
 					{...stylex.props(
 						cards.panel,
-						maxHeight === null
-							? null
-							: cards.fit(`calc(${maxHeight} * ${measure.hairline})`),
+						maxHeight === null ? null : cards.fit(maxHeight),
+						shift === 0 ? null : cards.shift(shift),
 					)}
 				>
 					{children}

@@ -972,7 +972,7 @@ export const cards = stylex.create({
 		zIndex: stack.jump,
 		top: "100%",
 		right: "auto",
-		left: `min(${measure.none}, calc(100vw - 100% - ${space.lg}))`,
+		left: measure.none,
 		display: "flex",
 		flexDirection: "column",
 		gap: space.xs,
@@ -989,9 +989,19 @@ export const cards = stylex.create({
 		borderRadius: radius.menu,
 		backgroundColor: colours.controlFill,
 	},
-	fit: (room: string) => ({
+	fit: (room: number) => ({
 		maxHeight: room,
 	}),
+	shift: (left: number) => ({
+		left,
+	}),
+	gutter: {
+		position: "absolute",
+		width: space.lg,
+		height: measure.none,
+		overflow: "hidden",
+		pointerEvents: "none",
+	},
 	choiceMark: {
 		boxSizing: "border-box",
 		width: measure.dot,
