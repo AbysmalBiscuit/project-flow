@@ -2806,13 +2806,29 @@ export const settings = stylex.create({
 		display: "block",
 		margin: `${space.xs} 0`,
 	},
-	error: {
-		margin: `${space.md} 0 0`,
-		color: colours.danger,
+	toast: {
+		position: "fixed",
+		zIndex: stack.toast,
+		top: measure.shell,
+		left: space.lg,
+		boxSizing: "border-box",
+		width: "auto",
+		maxWidth: measure.panel,
+		margin: 0,
+		padding: `${space.sm} ${space.md}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.md,
+		backgroundColor: colours.raised,
+		boxShadow: `0 0 ${space.md} ${colours.shadow}`,
+		fontSize: type.meta,
 	},
-	saved: {
-		margin: `${space.md} 0 0`,
+	toastSaved: {
 		color: colours.saved,
+	},
+	toastError: {
+		color: colours.danger,
 	},
 	projectsLead: {
 		margin: `0 0 ${space.md}`,
