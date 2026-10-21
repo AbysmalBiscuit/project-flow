@@ -13,7 +13,6 @@ import { z } from "zod";
 import { knownBots } from "./domain.ts";
 import {
 	defaultGraphDirection,
-	defaultGroupBy,
 	defaultOpenView,
 	emptyMaxAgeDays,
 	graphDirections,
@@ -116,7 +115,7 @@ const projectViewSettings = z.strictObject({
 	search: z.string().default(""),
 	openView: z.enum(openViews).default(defaultOpenView),
 	graphDirection: z.enum(graphDirections).default(defaultGraphDirection),
-	groupBy: z.enum(groupByKeys).default(defaultGroupBy),
+	groupBy: z.enum(groupByKeys).optional(),
 });
 
 const configurationSchema = z
