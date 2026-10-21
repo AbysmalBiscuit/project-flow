@@ -506,25 +506,22 @@ function whichOn(
 function windowsBrowser(
 	url: string,
 	env: Record<string, string | undefined>,
-): { program: string; args: string[] } | null {
+): string[] | null {
 	const powershell = whichOn("powershell.exe", env);
 	if (powershell === null) {
 		return null;
 	}
 	const quoted = `'${url.replaceAll("'", "''")}'`;
-	return {
-		program: powershell,
-		args: ["-NoProfile", "-Command", `Start-Process ${quoted}`],
-	};
+	return [powershell, "-NoProfile", "-Command", `Start-Process ${quoted}`];
 }
 
 function browserLaunch(
 	url: string,
 	env: Record<string, string | undefined>,
-): { program: string; args: string[] } | null {
+): string[] | null {
 	if (process.platform === "darwin") {
 		const open = whichOn("open", env);
-		return open === null ? null : { program: open, args: [url] };
+		return open === null ? null : [open, url];
 	}
 	if (process.platform === "win32") {
 		return windowsBrowser(url, env);
@@ -536,7 +533,7 @@ function browserLaunch(
 		}
 		const wslview = whichOn("wslview", env);
 		if (wslview !== null) {
-			return { program: wslview, args: [url] };
+			return [wslview, url];
 		}
 		return null;
 	}
@@ -544,7 +541,7 @@ function browserLaunch(
 	if (xdgOpen === null) {
 		return null;
 	}
-	return { program: xdgOpen, args: [url] };
+	return [xdgOpen, url];
 }
 
 async function openBrowser(
@@ -555,7 +552,7 @@ async function openBrowser(
 	if (launch === null) {
 		throw new Error("no browser opener");
 	}
-	const proc = Bun.spawn([launch.program, ...launch.args], {
+	const proc = Bun.spawn(launch, {
 		stdout: "ignore",
 		stderr: "ignore",
 		env,
