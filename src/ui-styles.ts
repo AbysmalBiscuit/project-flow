@@ -1987,7 +1987,21 @@ export const board = stylex.create({
 		width: measure.headerSearch,
 		minWidth: 0,
 		maxWidth: "100%",
+		minHeight: measure.headerControl,
+		maxHeight: measure.headerControl,
 		cursor: "text",
+		"::-webkit-search-decoration": {
+			appearance: "none",
+		},
+		"::-webkit-search-cancel-button": {
+			appearance: "none",
+		},
+		"::-webkit-search-results-button": {
+			appearance: "none",
+		},
+		"::-webkit-search-results-decoration": {
+			appearance: "none",
+		},
 	},
 	stage: {
 		display: "flex",
