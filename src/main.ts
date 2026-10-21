@@ -640,13 +640,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		writeOut(running.url.href);
 		if (args.includes("--open")) {
 			const open = io.open ?? ((url) => openBrowser(url, io.env));
-			try {
-				void open(running.url.href).catch(() => {
-					writeErr("warning: could not open the browser");
-				});
-			} catch {
-				writeErr("warning: could not open the browser");
-			}
+			void open(running.url.href).catch(() =>
+				writeErr("warning: could not open the browser"),
+			);
 		}
 		const credential = (async (): Promise<string | null> => {
 			const warn = (message: string) => {
