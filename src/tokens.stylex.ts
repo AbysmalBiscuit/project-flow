@@ -4,6 +4,7 @@ const dark = "@media (prefers-color-scheme: dark)";
 
 export const media = stylex.defineConsts({
 	phone: "@media (max-width: 64rem)",
+	projectBar: "@media (max-width: 480px)",
 });
 
 export const lightValues = {
@@ -312,6 +313,21 @@ export const measure = stylex.defineVars({
 export const stack = stylex.defineVars({
 	panel: 1,
 	jump: 2,
+});
+
+export const projectBarLayout = stylex.create({
+	// The project page adds this class. Other pages keep the one-line bar.
+	fit: {
+		[media.projectBar]: {
+			height: "auto",
+			minHeight: measure.shell,
+			flexWrap: "wrap",
+			paddingTop: space.sm,
+			paddingBottom: space.sm,
+			paddingLeft: space.sm,
+			paddingRight: space.sm,
+		},
+	},
 });
 
 export const phoneLayout = stylex.create({
