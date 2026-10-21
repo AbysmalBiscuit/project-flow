@@ -6,10 +6,6 @@ body,
 	background: Canvas;
 }
 
-body {
-	overflow-y: auto;
-}
-
 button,
 input,
 select,
