@@ -523,9 +523,6 @@ function browserLaunch(
 		const open = whichOn("open", env);
 		return open === null ? null : [open, url];
 	}
-	if (process.platform === "win32") {
-		return windowsBrowser(url, env);
-	}
 	if (wslInterop()) {
 		const windows = windowsBrowser(url, env);
 		if (windows !== null) {
