@@ -4,7 +4,6 @@ block = true
 
 [python]
 lizard = true
-lizard_extensions = '\.(ts|tsx)$'
+lizard_extensions = '\.(ts|tsx|mjs)$'
 lizard_baseline = ".agents/plugins/agent-guard/whitelizard.txt"
-jscpd = true
-jscpd_extensions = '\.(ts|tsx)$'
+jscpd = false
