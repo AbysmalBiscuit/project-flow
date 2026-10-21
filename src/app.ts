@@ -1236,15 +1236,16 @@ export async function start(options: StartOptions): Promise<Running> {
 		}
 		opened.store.recordSeededIds(kept);
 	}
+	let listsHeld = false;
 	let releaseLists = () => {};
 	if (hadRows) {
-		let released = false;
+		listsHeld = true;
 		pollOptions.holdLists = new Promise<void>((resolve) => {
 			releaseLists = () => {
-				if (released) {
+				if (!listsHeld) {
 					return;
 				}
-				released = true;
+				listsHeld = false;
 				resolve();
 			};
 		});
@@ -1294,8 +1295,12 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	const beginPoll = (): void => {
 		pollOptions.polling = true;
+		const releasedHeldLists = listsHeld;
+		releaseLists();
 		if (polling !== null) {
-			refreshQueued = true;
+			if (releasedHeldLists) {
+				refreshQueued = true;
+			}
 		} else {
 			void pollAgain().catch(() => {});
 		}
@@ -1438,7 +1443,6 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/api/refresh": {
 				POST: () => {
-					releaseLists();
 					beginPoll();
 					return new Response(null, { status: 204 });
 				},
