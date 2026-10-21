@@ -2460,7 +2460,6 @@ export const jump = stylex.create({
 		backgroundColor: colours.shadow,
 	},
 	box: {
-		position: "relative",
 		boxSizing: "border-box",
 		display: "flex",
 		flexDirection: "column",
@@ -2483,10 +2482,6 @@ export const jump = stylex.create({
 	},
 	query: {
 		boxSizing: "border-box",
-		alignSelf: "stretch",
-		width: "auto",
-		maxWidth: "100%",
-		minWidth: 0,
 		marginBottom: 0,
 		padding: space.md,
 		borderWidth: measure.hairline,
@@ -2518,7 +2513,6 @@ export const jump = stylex.create({
 		padding: 0,
 		minWidth: 0,
 		maxWidth: "100%",
-		overflowX: "hidden",
 		listStyle: "none",
 	},
 	hit: {
@@ -2526,10 +2520,6 @@ export const jump = stylex.create({
 		flexWrap: "wrap",
 		gap: `${space.xs} ${space.sm}`,
 		boxSizing: "border-box",
-		alignSelf: "stretch",
-		width: "auto",
-		maxWidth: "100%",
-		minWidth: 0,
 		padding: space.md,
 		overflowWrap: "anywhere",
 		borderWidth: 0,

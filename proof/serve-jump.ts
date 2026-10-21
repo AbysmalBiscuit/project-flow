@@ -141,16 +141,28 @@ for (const width of widths) {
 
 const openScript = `<script>
 const longQuery = "project-flow ticket search keeps a very long title inside the box";
-window.setTimeout(() => {
-  document.querySelector("#header-search")?.click();
-  window.setTimeout(() => {
-    const query = document.querySelector("#jump-query");
-    if (!(query instanceof HTMLInputElement)) return;
-    const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-    set?.call(query, longQuery);
-    query.dispatchEvent(new Event("input", { bubbles: true }));
-  }, 50);
-}, 50);
+const started = Date.now();
+const fillQuery = () => {
+  const query = document.querySelector("#jump-query");
+  if (!(query instanceof HTMLInputElement)) {
+    return false;
+  }
+  const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  set?.call(query, longQuery);
+  query.dispatchEvent(new Event("input", { bubbles: true }));
+  return true;
+};
+const openSearch = () => {
+  const button = document.querySelector("#header-search");
+  if (button !== null && document.querySelector("#jump-query") === null) {
+    button.click();
+  }
+  if (fillQuery() || Date.now() - started >= 8000) {
+    return;
+  }
+  window.setTimeout(openSearch, 50);
+};
+window.setTimeout(openSearch, 50);
 </script>`;
 
 void serveRecorded({

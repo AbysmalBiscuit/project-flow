@@ -19,6 +19,7 @@ import {
 } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
 import { sameTicketKey, type TicketSearchHit } from "./ticket-key.ts";
+import { phoneGutter } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
 
@@ -254,7 +255,7 @@ export function JumpBox() {
 	return (
 		<>
 			{open ? (
-				<div className={clsx(jump.shade)} id="jump-shade">
+				<div className={clsx(jump.shade, phoneGutter.shade)} id="jump-shade">
 					<div
 						className={clsx(jump.box)}
 						role="dialog"
