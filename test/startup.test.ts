@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Overview } from "../src/domain.ts";
@@ -564,6 +564,187 @@ describe("startup", () => {
 			expect(result.exitCode).toBe(1);
 			expect(result.stderr).toBe(rejectedToken);
 			expect(result.listened).toBe(true);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("without --open the injected opener is not called", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const opened: string[] = [];
+		try {
+			const result = await run(
+				["--config", path],
+				testIo({
+					env: {},
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+					open: async (url) => {
+						opened.push(url);
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			expect(result.stdout).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+			expect(opened).toEqual([]);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("--open opens the printed URL once after the server listens", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const opened: string[] = [];
+		try {
+			const result = await run(
+				["--config", path, "--open"],
+				testIo({
+					env: {},
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+					open: async (url) => {
+						opened.push(url);
+						const page = await fetch(url);
+						expect(page.ok).toBe(true);
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			expect(result.stdout).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+			expect(opened).toEqual([result.stdout]);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("a failed opener prints one warning and the API still answers", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const opened: string[] = [];
+		try {
+			const result = await run(
+				["--config", path, "--open"],
+				testIo({
+					env: {},
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+					open: async (url) => {
+						opened.push(url);
+						const page = await fetch(new URL("/api/overview", url));
+						expect(page.ok).toBe(true);
+						throw new Error("browser missing");
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			expect(result.stderr).toBe("warning: could not open the browser");
+			expect(opened).toEqual([result.stdout]);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("--open=false does not open the browser", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const opened: string[] = [];
+		try {
+			const result = await run(
+				["--config", path, "--open=false"],
+				testIo({
+					env: {},
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+					open: async (url) => {
+						opened.push(url);
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(opened).toEqual([]);
+		} finally {
+			await cleanup();
+		}
+	});
+
+	test("--open with a failing browser command warns and the API still answers", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const bin = await mkdtemp(join("/var/tmp", "project-flow-bad-browser-"));
+		for (const name of ["powershell.exe", "wslview", "xdg-open"]) {
+			const program = join(bin, name);
+			await writeFile(program, "#!/bin/sh\nexit 1\n");
+			await chmod(program, 0o755);
+		}
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<boolean>((resolve, reject) => {
+			startChecks = (base: string) => {
+				fetch(new URL("/api/overview", base))
+					.then((page) => resolve(page.ok))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--open"],
+				testIo({
+					env: { PATH: bin },
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(result.listened).toBe(true);
+			expect(result.stderr).toBe("warning: could not open the browser");
+			expect(await checks).toBe(true);
+		} finally {
+			await cleanup();
+			await rm(bin, { recursive: true, force: true });
+		}
+	});
+
+	test("repeated --open opens the printed URL once", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const opened: string[] = [];
+		try {
+			const result = await run(
+				["--config", path, "--open", "--open"],
+				testIo({
+					env: {},
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					waitForStop: Promise.resolve(),
+					open: async (url) => {
+						opened.push(url);
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(opened).toEqual([result.stdout]);
 		} finally {
 			await cleanup();
 		}
