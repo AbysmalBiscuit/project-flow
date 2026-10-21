@@ -2,6 +2,7 @@ import type { AutoMerge, Configuration } from "./configuration.ts";
 import type {
 	Notification,
 	Overview,
+	PollProgress,
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
@@ -126,6 +127,7 @@ export type Store = {
 export type Change = {
 	overview: Overview;
 	notifications: Notification[];
+	progress?: PollProgress;
 };
 
 export type Notifier = {

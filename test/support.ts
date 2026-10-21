@@ -921,7 +921,7 @@ function repositoryBody(body: unknown): boolean {
 }
 
 export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
-	return async (input, init) => {
+	const wrapped: Fetch = async (input, init) => {
 		const body = typeof init?.body === "string" ? init.body : "";
 		const answered = await fetchImpl(input, init);
 		if (
@@ -950,6 +950,10 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 			return answered;
 		}
 	};
+	if (fetchImpl.holdLists !== undefined) {
+		wrapped.holdLists = () => fetchImpl.holdLists?.() ?? Promise.resolve();
+	}
+	return wrapped;
 }
 
 export type ChangeEvent = {

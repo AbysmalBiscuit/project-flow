@@ -17,7 +17,7 @@ import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
-import { overviewControlLabel } from "./terms.ts";
+import { loadingLabel, overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 
@@ -105,10 +105,16 @@ function ProjectNode({ data }: { data: ProjectNodeData }) {
 				) : null}
 			</div>
 			<p className={clsx(cards.graphMeta)}>{data.tracker}</p>
-			<SegmentedBar project={data.project} />
-			<p className={clsx(cards.graphCount)}>
-				{data.done} of {data.total} done
-			</p>
+			{data.project.pending === true ? (
+				<p className={clsx(cards.loading)}>{loadingLabel}</p>
+			) : (
+				<>
+					<SegmentedBar project={data.project} />
+					<p className={clsx(cards.graphCount)}>
+						{data.done} of {data.total} done
+					</p>
+				</>
+			)}
 			<Handle type="source" position={Position.Right} />
 		</div>
 	);

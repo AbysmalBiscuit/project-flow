@@ -370,6 +370,6 @@ function mount(): void {
 }
 
 if (typeof document !== "undefined") {
-	mount();
 	window.addEventListener("project-flow-page", mount);
+	mount();
 }

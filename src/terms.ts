@@ -172,6 +172,8 @@ export const overviewControlLabel = {
 	needsYouFirst: "Needs you first",
 	refresh: "Refresh",
 	refreshing: "Refreshing",
+	reading: "Reading",
+	pollProgress: "of",
 	polled: "polled",
 	projects: "projects",
 	tickets: "tickets",

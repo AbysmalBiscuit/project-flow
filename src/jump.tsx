@@ -6,9 +6,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { createRoot } from "react-dom/client";
-import type { TicketSearchHit } from "./app.ts";
 import type { NeedsYouItem } from "./domain.ts";
-import { sameTicketKey } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import {
@@ -20,6 +18,7 @@ import {
 	useActiveTicket,
 } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
+import { sameTicketKey, type TicketSearchHit } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
 
