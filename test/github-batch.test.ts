@@ -7,11 +7,18 @@ import { run } from "../src/main.ts";
 import recordedRepoRead from "./fixtures/github-repo-read.json";
 import {
 	linearFake,
+	settledOverview,
 	tempConfig,
 	testIo,
 	trackerRequest,
 	unrecorded,
 } from "./support.ts";
+
+async function readOverview(base: string): Promise<Overview> {
+	return (await (
+		await fetch(new URL("/api/overview", base))
+	).json()) as Overview;
+}
 
 const repoCount = 10;
 const pullCount = 10;
@@ -549,27 +556,21 @@ describe("batched GitHub reads", () => {
 				method: "POST",
 			});
 			expect(failedRefresh.status).toBe(204);
-			const failed = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
+			const failed = await settledOverview(base, readOverview);
 			expect(failed.projects[0]?.error).toContain("GitHub read repo failed");
 			expect(failed.projects[0]?.tickets).toHaveLength(2);
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const recovered = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
+			const recovered = await settledOverview(base, readOverview);
 			expect(recovered.error).toBeNull();
 			expect(recovered.projects[0]?.tickets).toHaveLength(2);
 			const again = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(again.status).toBe(204);
-			const updated = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
+			const updated = await settledOverview(base, readOverview);
 			expect(updated.projects[0]?.tickets[0]?.title).toBe("Recovered ticket");
 			expect(queries.length).toBeGreaterThanOrEqual(3);
 			stop();
@@ -801,6 +802,7 @@ describe("batched GitHub reads", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
+			await settledOverview(base, readOverview);
 			const second = (await (
 				await fetch(new URL("/api/projects/acme%2Fwidget", base))
 			).json()) as { tickets: { run?: { stage?: string } }[] };
@@ -975,6 +977,7 @@ describe("batched GitHub reads", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
+			await settledOverview(base, readOverview);
 			const incremental = queries.slice(before);
 			expect(incremental.map((request) => request.variables.since)).toEqual([
 				"2026-08-18T12:00:00.000Z",
@@ -1337,9 +1340,7 @@ describe("batched GitHub reads", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const overview = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
+			const overview = await settledOverview(base, readOverview);
 			const project = overview.projects.find(
 				(item) => item.name === "acme/widget",
 			);

@@ -20,6 +20,7 @@ import {
 	recordedDiscovery,
 	repoReadIssues,
 	repoReadResponse,
+	settledOverview,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -745,9 +746,11 @@ describe("settings", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				const after = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as Overview;
+				const after = await settledOverview(base, async (url) => {
+					return (await (
+						await fetch(new URL("/api/overview", url))
+					).json()) as Overview;
+				});
 				expect(after.projects.map((project) => project.name)).toEqual([quiet]);
 				expect(
 					requests.some((url) => url.includes(`/repos/${quiet}/issues?`)),

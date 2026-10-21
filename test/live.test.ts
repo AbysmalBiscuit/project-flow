@@ -6,9 +6,12 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedProgressComment from "./fixtures/github-progress-comment.json";
 import {
+	type ChangeEvent,
 	githubIssueNode,
 	recordedDiscovery,
 	repoReadIssues,
+	settledOverview,
+	settledOverviewEvent,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -187,10 +190,15 @@ function changingFetch(requests: string[]): Fetch {
 	};
 }
 
-type ChangeEvent = {
-	event: string;
-	data: string;
-};
+function overviewOf(data: string): OverviewBody {
+	return JSON.parse(data) as OverviewBody;
+}
+
+async function readOverview(base: string): Promise<OverviewBody> {
+	return (await (
+		await fetch(new URL("/api/overview", base))
+	).json()) as OverviewBody;
+}
 
 function readSseEvents(buffer: string): {
 	events: ChangeEvent[];
@@ -278,48 +286,6 @@ function openEventStream(base: string): {
 		},
 		ready,
 	};
-}
-
-function openEvents(base: string): {
-	event: Promise<ChangeEvent>;
-	ready: Promise<void>;
-} {
-	let markReady = () => {};
-	const ready = new Promise<void>((resolve) => {
-		markReady = resolve;
-	});
-	const event = new Promise<ChangeEvent>((resolve, reject) => {
-		let buffer = "";
-		const socket = Bun.connect({
-			hostname: "127.0.0.1",
-			port: Number(new URL(base).port),
-			socket: {
-				data(_socket, data) {
-					markReady();
-					buffer += data.toString();
-					const parsed = readSseEvents(buffer);
-					buffer = parsed.rest;
-					const received = parsed.events[0];
-					if (received !== undefined) {
-						resolve(received);
-					}
-				},
-				error(_socket, error) {
-					reject(error);
-				},
-				open(socket) {
-					socket.write(
-						"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
-					);
-				},
-			},
-		});
-		setTimeout(() => {
-			void socket.then((open) => open.end());
-			reject(new Error("no event within 3000ms"));
-		}, 3_000);
-	});
-	return { event, ready };
 }
 
 function failingAfterGoodPoll(requests: string[]): Fetch {
@@ -832,6 +798,287 @@ describe("live updates", () => {
 		}
 	}, 20_000);
 
+	test("a refresh during a poll longer than 10 seconds answers before that poll ends", async () => {
+		const waiting: (() => void)[] = [];
+		let released = false;
+		let releasePoll: (() => void) | null = null;
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				issueReads += 1;
+				if (issueReads > 1) {
+					await new Promise<void>((resolve) => {
+						if (released) {
+							resolve();
+							return;
+						}
+						waiting.push(resolve);
+						releasePoll = () => {
+							released = true;
+							for (const release of waiting.splice(0)) {
+								release();
+							}
+						};
+					});
+					return page([
+						ticket(1, "2026-04-02T00:00:00Z", "closed"),
+						ticket(2, "2026-04-02T00:00:00Z"),
+					]);
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const before = await readOverview(base);
+			expect(before.polling).toBeUndefined();
+			expect(before.fetchedAt).toBe(goodPoll);
+			const stream = openEventStream(base);
+			await stream.ready;
+			const started = Date.now();
+			const refresh = fetch(new URL("/api/refresh", base), { method: "POST" });
+			const answered = await Promise.race([
+				refresh.then((response) => response.status),
+				Bun.sleep(2_000).then(() => "still waiting" as const),
+			]);
+			expect(answered).toBe(204);
+			expect(Date.now() - started).toBeLessThan(2_000);
+			expect(releasePoll).not.toBeNull();
+			const joined = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+				body: "   ",
+			});
+			expect(joined.status).toBe(204);
+			expect(issueReads).toBe(2);
+			expect(releasePoll).not.toBeNull();
+			const running = await readOverview(base);
+			expect(running.polling).toBe(true);
+			expect(running.fetchedAt).toBe(before.fetchedAt);
+			const release = releasePoll;
+			if (release === null) {
+				throw new Error("the refresh poll never reached the tracker");
+			}
+			const events = stream.events[Symbol.asyncIterator]();
+			const runningEvent = await events.next();
+			expect(runningEvent.done).toBe(false);
+			if (!runningEvent.done && runningEvent.value !== undefined) {
+				const startedPoll = overviewOf(runningEvent.value.data);
+				expect(startedPoll.polling).toBe(true);
+			}
+			await Bun.sleep(11_000);
+			expect(issueReads).toBe(2);
+			expect(Date.now() - started).toBeGreaterThan(10_000);
+			release();
+			releasePoll = null;
+			const published = await settledOverviewEvent(events, overviewOf);
+			stream.close();
+			expect(published.polling).toBeUndefined();
+			expect(published.projects[0]?.done).toBe(1);
+			expect(published.projects[0]?.backlog).toBe(1);
+			expect(published.fetchedAt).not.toBe(before.fetchedAt);
+			const after = await settledOverview(base, readOverview);
+			expect(after.fetchedAt).not.toBe(before.fetchedAt);
+			expect(after.polling).toBeUndefined();
+		});
+	}, 30_000);
+
+	test("a reply during a held refresh keeps the running poll", async () => {
+		const waiting: (() => void)[] = [];
+		let released = false;
+		let releasePoll: (() => void) | null = null;
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			const method =
+				init?.method ?? (input instanceof Request ? input.method : "GET");
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const comments = url.match(
+				/\/repos\/acme\/widget\/issues\/(\d+)\/comments$/,
+			);
+			if (comments !== null && method === "POST") {
+				const posted = JSON.parse(
+					typeof init?.body === "string" ? init.body : "{}",
+				) as { body?: string };
+				return new Response(
+					JSON.stringify({
+						id: 900,
+						body: posted.body ?? "",
+						html_url:
+							"https://github.com/acme/widget/issues/1#issuecomment-900",
+						created_at: "2026-04-02T00:00:00.000Z",
+						user: { login: "lev" },
+					}),
+					{
+						status: 201,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			if (listUrl(url) !== null) {
+				issueReads += 1;
+				if (issueReads > 1) {
+					await new Promise<void>((resolve) => {
+						if (released) {
+							resolve();
+							return;
+						}
+						waiting.push(resolve);
+						releasePoll = () => {
+							released = true;
+							for (const release of waiting.splice(0)) {
+								release();
+							}
+						};
+					});
+					return page([ticket(1, "2026-04-02T00:00:00Z")]);
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const stream = openEventStream(base);
+			await stream.ready;
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			expect(releasePoll).not.toBeNull();
+			const events = stream.events[Symbol.asyncIterator]();
+			const started = await events.next();
+			expect(started.done).toBe(false);
+			if (!started.done && started.value !== undefined) {
+				expect(started.value.event).toBe("overview");
+				expect((JSON.parse(started.value.data) as OverviewBody).polling).toBe(
+					true,
+				);
+			}
+			const reply = await fetch(new URL("/api/replies", base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "github",
+					project: repo,
+					key: `${repo}#1`,
+					body: "Use the short name.",
+				}),
+			});
+			expect(reply.status).toBe(201);
+			const replied = await events.next();
+			expect(replied.done).toBe(false);
+			if (!replied.done && replied.value !== undefined) {
+				expect(replied.value.event).toBe("overview");
+				const body = JSON.parse(replied.value.data) as OverviewBody;
+				expect(body.polling).toBe(true);
+			}
+			const release = releasePoll;
+			if (release === null) {
+				throw new Error("the refresh poll never reached the tracker");
+			}
+			release();
+			releasePoll = null;
+			const published = await settledOverviewEvent(events, overviewOf);
+			stream.close();
+			expect(published.polling).toBeUndefined();
+		});
+	}, 20_000);
+
+	test("a refresh whose tracker fails still answers and ends the running poll", async () => {
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				issueReads += 1;
+				if (issueReads > 1) {
+					return new Response("recorded failure", { status: 500 });
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		await withServer(fetchImpl, 3600, async (base) => {
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+				body: "",
+			});
+			expect(refresh.status).toBe(204);
+			const body = await settledOverview(base, readOverview);
+			expect(body.polling).toBeUndefined();
+			expect(body.projects[0]?.error).toContain("HTTP 500");
+		});
+	});
+
+	test("a refresh whose tracker rejects still answers and ends the running poll", async () => {
+		let issueReads = 0;
+		const fetchImpl: Fetch = async (input, init) => {
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (listUrl(url) !== null) {
+				issueReads += 1;
+				if (issueReads > 1) {
+					throw new Error("recorded rejection");
+				}
+				return page([ticket(1, "2026-04-01T00:00:00Z")]);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		const crashes: unknown[] = [];
+		const onRejection = (reason: unknown) => {
+			crashes.push(reason);
+		};
+		process.on("unhandledRejection", onRejection);
+		try {
+			await withServer(fetchImpl, 3600, async (base) => {
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+					body: "   ",
+				});
+				expect(refresh.status).toBe(204);
+				const body = await settledOverview(base, readOverview);
+				expect(body.polling).toBeUndefined();
+				expect(body.projects[0]?.error).toContain("recorded rejection");
+				const again = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+					body: "",
+				});
+				expect(again.status).toBe(204);
+				const after = await settledOverview(base, readOverview);
+				expect(after.polling).toBeUndefined();
+			});
+			await Bun.sleep(50);
+			expect(crashes).toEqual([]);
+		} finally {
+			process.off("unhandledRejection", onRejection);
+		}
+	});
+
 	test("each project reaches the event stream when its own poll ends", async () => {
 		const releases = new Map<string, () => void>();
 		const held = (name: string) =>
@@ -1096,6 +1343,89 @@ describe("live updates", () => {
 		}
 	});
 
+	test("an empty store ends the running poll on the event stream when every poll fails", async () => {
+		let releasePoll: () => void = () => {};
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				await pollHeld;
+				return discovered;
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let releaseChecks: () => void = () => {};
+		const checks = new Promise<void>((resolve) => {
+			releaseChecks = resolve;
+		});
+		let readFailure: (base: string) => Promise<void> = async () => {};
+		const failed = new Promise<void>((resolve, reject) => {
+			readFailure = async (base: string) => {
+				try {
+					const stream = openEventStream(base);
+					await stream.ready;
+					const events = stream.events[Symbol.asyncIterator]();
+					const running = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as OverviewBody;
+					expect(running.polling).toBe(true);
+					expect(running.projects).toEqual([]);
+					await Bun.write(path, "{\n");
+					releasePoll();
+					const published = await settledOverviewEvent(events, overviewOf, 8);
+					stream.close();
+					expect(published.polling).toBeUndefined();
+					expect(published.error).toContain("invalid configuration");
+					resolve();
+				} catch (error) {
+					reject(error instanceof Error ? error : new Error("checks failed"));
+				}
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => {
+							void readFailure(line);
+						},
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			await failed;
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("invalid configuration");
+			expect(result.listened).toBe(true);
+		} finally {
+			releasePoll();
+			releaseChecks();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("an empty store exits 1 when every project poll fails", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
@@ -1313,9 +1643,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.projects).toEqual([
 				counts(
 					repo,
@@ -1335,15 +1663,13 @@ describe("live updates", () => {
 	test("a failed fetch keeps the stored overview and names the error", async () => {
 		const requests: string[] = [];
 		await withServer(failingAfterGoodPoll(requests), 3600, async (base) => {
-			const events = openEvents(base);
-			await events.ready;
+			const stream = openEventStream(base);
+			await stream.ready;
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.projects).toEqual([
 				counts(
 					repo,
@@ -1359,8 +1685,10 @@ describe("live updates", () => {
 			expect(body.projects[0]?.error).toContain(`stale since ${goodPoll}`);
 			expect(body.fetchedAt).toBe(goodPoll);
 			expect(body.error).toBeNull();
-			const received = await events.event;
-			expect(JSON.parse(received.data)).toEqual(body);
+			const events = stream.events[Symbol.asyncIterator]();
+			const published = await settledOverviewEvent(events, overviewOf);
+			stream.close();
+			expect(published).toEqual(body);
 		});
 	});
 
@@ -1409,9 +1737,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
-				const repeated = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const repeated = await settledOverview(base, readOverview);
 				const stillFresh = repeated.projects.find(
 					(project) => project.name === repo,
 				);
@@ -1485,6 +1811,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				await settledOverview(base, readOverview);
 				const firstLists = requests.filter(
 					(url) => listUrl(url, repo) !== null,
 				);
@@ -1626,15 +1953,13 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				const body = await settledOverview(base, readOverview);
 				expect(requests).toHaveLength(2);
 				expect(requests.map(linearListSince)).toEqual([null, null]);
 				const filters = requests
 					.map(linearIssueFilter)
 					.filter((filter) => filter !== null);
 				expect(filters[1]?.updatedAt).toBeUndefined();
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
 				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
 					"WID-2",
 				]);
@@ -1664,6 +1989,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				await settledOverview(base, readOverview);
 				const filters = requests
 					.map(linearIssueFilter)
 					.filter((filter) => filter !== null);
@@ -1697,9 +2023,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(failed.status).toBe(204);
-				const failedBody = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const failedBody = await settledOverview(base, readOverview);
 				expect(failedBody.projects).toEqual([
 					counts(
 						linearProject,
@@ -1718,11 +2042,9 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(again.status).toBe(204);
+				const body = await settledOverview(base, readOverview);
 				const lists = requests.map(linearListSince);
 				expect(lists).toEqual([null, goodPoll, goodPoll]);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
 				expect(body.projects).toEqual([
 					counts(
 						linearProject,
@@ -1755,14 +2077,12 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(again.status).toBe(204);
+			const body = await settledOverview(base, readOverview);
 			const lists = requests.filter((url) => listUrl(url) !== null);
 			expect(lists.length).toBeGreaterThan(1);
 			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
 				goodPoll,
 			);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
 			expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
 			expect(body.error).toBeNull();
 		});
@@ -1793,6 +2113,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
+			await settledOverview(base, readOverview);
 			const lists = requests.filter((url) => listUrl(url) !== null);
 			expect(lists.length).toBeGreaterThan(1);
 			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBeNull();
@@ -1805,8 +2126,8 @@ describe("live updates", () => {
 	test("a recorded tracker change reaches a subscriber after one poll", async () => {
 		const requests: string[] = [];
 		await withServer(changingFetch(requests), 3600, async (base) => {
-			const events = openEvents(base);
-			await events.ready;
+			const stream = openEventStream(base);
+			await stream.ready;
 			const before = await fetch(new URL("/api/overview", base));
 			const beforeBody = (await before.json()) as OverviewBody;
 			expect(beforeBody.projects).toEqual([
@@ -1818,9 +2139,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const received = await events.event;
-			expect(received.event).toBe("overview");
-			const eventBody = JSON.parse(received.data) as OverviewBody;
+			const eventBody = await settledOverview(base, readOverview);
 			expect(eventBody.projects).toEqual([
 				counts(
 					repo,
@@ -1846,8 +2165,10 @@ describe("live updates", () => {
 			]);
 			expect(eventBody.fetchedAt).toBe("2026-04-01T12:00:01.000Z");
 			expect(eventBody.error).toBeNull();
-			const after = await fetch(new URL("/api/overview", base));
-			expect(await after.json()).toEqual(JSON.parse(received.data));
+			const events = stream.events[Symbol.asyncIterator]();
+			const published = await settledOverviewEvent(events, overviewOf);
+			stream.close();
+			expect(published).toEqual(eventBody);
 		});
 	});
 
@@ -2027,10 +2348,8 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
+				const body = await settledOverview(base, readOverview);
 				expect(requests.map(linearListSince)).toEqual([null, goodPoll]);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
 				expect(body.projects.map((project) => project.name)).toEqual([
 					"Widget launch",
 				]);
@@ -2158,9 +2477,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const body = await settledOverview(base, readOverview);
 				const report = (await (
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(linearProject)}`, base),
@@ -2316,9 +2633,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			const report = (await (
 				await fetch(new URL(`/api/projects/${encodeURIComponent(repo)}`, base))
 			).json()) as { tickets: ShownTicket[] };
@@ -2399,9 +2714,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.projects[0]?.tickets).toEqual([githubTicket(1, "backlog")]);
 			expect(body.error).toBeNull();
 			expect(requests.filter((url) => /\/issues\/\d+$/.test(url))).toEqual([]);
@@ -2454,9 +2767,7 @@ describe("live updates", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const body = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as OverviewBody;
+			const body = await settledOverview(base, readOverview);
 			expect(body.projects[0]?.tickets.map((item) => item.key)).toEqual([
 				`${repo}#1`,
 			]);
@@ -2622,9 +2933,7 @@ describe("live updates", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				const body = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const body = await settledOverview(base, readOverview);
 				expect(body.projects[0]?.tickets.map((ticket) => ticket.key)).toEqual([
 					"WID-1",
 					"WID-2",
@@ -2664,9 +2973,7 @@ describe("live updates", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const body = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as OverviewBody;
+					const body = await settledOverview(base, readOverview);
 					expect(body.error).toContain("not JSON");
 					expect(body.projects).toEqual([
 						counts(repo, 0, 0, "github", [], goodPoll),

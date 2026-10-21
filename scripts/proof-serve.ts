@@ -395,6 +395,34 @@ const fakeTrackers: Fetch = async (input, init) => {
 const portFlag = process.argv.indexOf("--port");
 const portArg = portFlag === -1 ? undefined : process.argv[portFlag + 1];
 const port = portArg ?? process.env.PORT ?? "4763";
+const holdRefresh = process.argv.includes("--hold-refresh");
+let releaseHeld: (() => void) | null = null;
+const heldPoll = new Promise<void>((resolve) => {
+	releaseHeld = resolve;
+});
+let issueReads = 0;
+const recordedFetch = fakeTrackers;
+const fetchImpl: Fetch = async (input, init) => {
+	const target =
+		typeof input === "string"
+			? input
+			: input instanceof URL
+				? input.href
+				: input.url;
+	const body = typeof init?.body === "string" ? init.body : "";
+	if (
+		holdRefresh &&
+		target === "https://api.github.com/graphql" &&
+		body.includes("query RepoRead") &&
+		body.includes("issues(")
+	) {
+		issueReads += 1;
+		if (issueReads > 3) {
+			await heldPoll;
+		}
+	}
+	return recordedFetch(input, init);
+};
 
 try {
 	const result = await run(["--config", configPath, "--port", port], {
@@ -404,13 +432,42 @@ try {
 			GITHUB_TOKEN: "recorded-token",
 			LINEAR_API_KEY: "recorded-linear-key",
 		},
-		fetch: fakeTrackers,
+		fetch: fetchImpl,
 		readGhToken: async () => null,
 		databasePath: join(root, "project-flow.sqlite"),
 		now: () => new Date(),
 		listTodos: async () => "",
 		listCheckouts: async () => [],
-		stdout: (line) => console.log(line),
+		stdout: (line) => {
+			console.log(line);
+			if (!holdRefresh) {
+				return;
+			}
+			const events = new URL("/api/events", line);
+			void (async () => {
+				const stream = await fetch(events);
+				const reader = stream.body?.getReader();
+				if (reader === undefined) {
+					return;
+				}
+				const decoder = new TextDecoder();
+				let buffer = "";
+				let sawRunning = false;
+				while (true) {
+					const chunk = await reader.read();
+					if (chunk.done) {
+						return;
+					}
+					buffer += decoder.decode(chunk.value, { stream: true });
+					if (!sawRunning && buffer.includes('"polling":true')) {
+						sawRunning = true;
+						setTimeout(() => {
+							releaseHeld?.();
+						}, 1_500).unref();
+					}
+				}
+			})();
+		},
 		stderr: (line) => console.error(line),
 		waitForStop: stop,
 	});

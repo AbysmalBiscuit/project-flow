@@ -12,6 +12,7 @@ import {
 	recordedDiscovery,
 	repoReadFromLists,
 	repoReadIssues,
+	settledOverview,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -1900,9 +1901,11 @@ describe("GET /api/overview blockers", () => {
 							method: "POST",
 						});
 						expect(refresh.status).toBe(204);
-						const second = (await (
-							await fetch(new URL("/api/overview", base))
-						).json()) as typeof first;
+						const second = await settledOverview(base, async (url) => {
+							return (await (
+								await fetch(new URL("/api/overview", url))
+							).json()) as typeof first & { polling?: true };
+						});
 						expect(listReads).toBeGreaterThan(1);
 						expect(blockersOf(second.projects[0]?.tickets ?? [], key)).toEqual({
 							state: "backlog",
