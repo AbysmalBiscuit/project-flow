@@ -13,11 +13,11 @@ import { z } from "zod";
 import { knownBots } from "./domain.ts";
 import {
 	defaultGraphDirection,
-	defaultOpenView,
 	emptyMaxAgeDays,
 	graphDirections,
 	groupByKeys,
 	openViews,
+	pageViews,
 } from "./view-settings.ts";
 
 const githubRepoPin = z.strictObject({
@@ -113,7 +113,8 @@ const projectViewSettings = z.strictObject({
 	blockedOnly: z.boolean().default(false),
 	assignees: z.array(z.string()).default([]),
 	search: z.string().default(""),
-	openView: z.enum(openViews).default(defaultOpenView),
+	openView: z.enum(openViews).optional(),
+	lastView: z.enum(pageViews).optional(),
 	graphDirection: z.enum(graphDirections).default(defaultGraphDirection),
 	groupBy: z.enum(groupByKeys).optional(),
 });

@@ -2,7 +2,9 @@ import type { ProjectViewSettings } from "./configuration.ts";
 
 export const defaultDoneAgeDays = 2;
 
-export const openViews = ["board", "graph", "table"] as const;
+export const pageViews = ["board", "graph", "table"] as const;
+
+export const openViews = ["board", "graph", "table", "last"] as const;
 
 export const graphDirections = ["left-to-right", "top-to-bottom"] as const;
 
@@ -14,7 +16,7 @@ export type GroupBy = (typeof groupByKeys)[number];
 
 export const emptyMaxAgeDays: Record<string, number> = {};
 
-export const defaultOpenView = "board" as const;
+export const defaultOpenView = "last" as const;
 
 export const defaultGraphDirection = "left-to-right" as const;
 
@@ -43,6 +45,15 @@ export function viewDefaults(): ProjectViewSettings {
 	};
 }
 
+export function openedView(
+	settings: ProjectViewSettings,
+): (typeof pageViews)[number] {
+	if (settings.openView !== undefined && settings.openView !== "last") {
+		return settings.openView;
+	}
+	return settings.lastView ?? "board";
+}
+
 export function savedProjectView(
 	views: Record<string, ProjectViewSettings>,
 	name: string,
@@ -51,13 +62,27 @@ export function savedProjectView(
 	const star = starKey === undefined ? undefined : views[starKey];
 	const key = projectViewKey(views, name);
 	const saved = key === undefined || key === starKey ? undefined : views[key];
-	const { groupBy: starGroupBy, ...starRest } = star ?? {};
-	const { groupBy: savedGroupBy, ...savedRest } = saved ?? {};
+	const {
+		groupBy: starGroupBy,
+		openView: starOpenView,
+		lastView: starLastView,
+		...starRest
+	} = star ?? {};
+	const {
+		groupBy: savedGroupBy,
+		openView: savedOpenView,
+		lastView: savedLastView,
+		...savedRest
+	} = saved ?? {};
 	const groupBy = savedGroupBy ?? starGroupBy;
+	const openView = savedOpenView ?? starOpenView ?? defaultOpenView;
+	const lastView = savedLastView ?? starLastView;
 	return {
 		...viewDefaults(),
 		...starRest,
 		...savedRest,
+		openView,
+		...(lastView === undefined ? {} : { lastView }),
 		...(groupBy === undefined ? {} : { groupBy }),
 	};
 }

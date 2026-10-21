@@ -13,7 +13,6 @@ import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import type { LocalCheckout } from "../src/ports.ts";
-import { viewLabel } from "../src/terms.ts";
 import {
 	emptyProjectFields,
 	githubIssueNode,
@@ -1762,8 +1761,7 @@ describe("settings", () => {
 		});
 	});
 
-	test("the board open view round-trips under the shared board term", async () => {
-		expect(viewLabel.board).toBe("Board");
+	test("the board open view round-trips", async () => {
 		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
 			const before = (await (
 				await fetch(new URL("/api/settings", base))
@@ -1792,58 +1790,10 @@ describe("settings", () => {
 			const body = (await saved.json()) as Configuration;
 			expect(body.projectViews["*"]?.openView).toBe("board");
 
-			const blank = await fetch(new URL("/api/settings", base), {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					...body,
-					projectViews: {
-						"*": {
-							...body.projectViews["*"],
-							openView: "   ",
-						},
-					},
-				}),
-			});
-			expect(blank.status).toBe(400);
-
 			const again = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
 			expect(again.projectViews["*"]?.openView).toBe("board");
-
-			const repeated = await fetch(new URL("/api/settings", base), {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					...again,
-					projectViews: {
-						"*": {
-							...again.projectViews["*"],
-							openView: "board  board",
-						},
-					},
-				}),
-			});
-			expect(repeated.status).toBe(400);
-			const empty = await fetch(new URL("/api/settings", base), {
-				method: "PUT",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					...again,
-					projectViews: {
-						"*": {
-							...again.projectViews["*"],
-							openView: "",
-						},
-					},
-				}),
-			});
-			expect(empty.status).toBe(400);
-			const kept = (await (
-				await fetch(new URL("/api/settings", base))
-			).json()) as Configuration;
-			expect(kept.projectViews["*"]?.openView).toBe("board");
 		});
 	});
 

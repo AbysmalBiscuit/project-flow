@@ -20,6 +20,7 @@ import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
 import {
+	defaultOpenView,
 	graphDirections,
 	laneAgeCap,
 	openViews,
@@ -399,7 +400,7 @@ function Menu({
 							<Dropdown
 								id="open-view"
 								label={settingsCopy.openIn}
-								value={view.openView}
+								value={view.openView ?? defaultOpenView}
 								choices={openViews.map((item) => ({
 									id: item,
 									label: openViewLabel[item],
@@ -835,9 +836,10 @@ const autoMergeLabel: Record<AutoMerge, string> = {
 };
 
 const openViewLabel: Record<(typeof openViews)[number], string> = {
-	board: `${viewLabel.board}, ${viewLabel.lastUsed}`,
+	board: viewLabel.board,
 	graph: viewLabel.graph,
 	table: viewLabel.table,
+	last: viewLabel.lastUsed,
 };
 
 const graphDirectionLabel: Record<(typeof graphDirections)[number], string> = {
