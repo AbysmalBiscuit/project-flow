@@ -29,3 +29,41 @@ export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
 		return fetchImpl(input, { ...init, signal });
 	};
 }
+
+const threadReadLimitMs = 5_000;
+
+export const threadReadTimedOut = "thread read timed out";
+
+export class ThreadReadTimeout extends Error {
+	constructor() {
+		super(threadReadTimedOut);
+		this.name = "ThreadReadTimeout";
+	}
+}
+
+export async function withThreadLimit<T>(
+	read: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+	const deadline = new AbortController();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const limited = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(() => {
+			deadline.abort();
+			reject(new ThreadReadTimeout());
+		}, threadReadLimitMs);
+	});
+	const reading = read(deadline.signal);
+	reading.catch(() => undefined);
+	try {
+		return await Promise.race([reading, limited]);
+	} catch (error) {
+		if (deadline.signal.aborted) {
+			throw new ThreadReadTimeout();
+		}
+		throw error;
+	} finally {
+		if (timer !== undefined) {
+			clearTimeout(timer);
+		}
+	}
+}

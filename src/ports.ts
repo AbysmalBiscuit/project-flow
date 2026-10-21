@@ -80,7 +80,11 @@ export type Tracker = {
 		error?: string;
 	}>;
 	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
-	fetchThread?: (project: string, key: string) => Promise<Thread | null>;
+	fetchThread?: (
+		project: string,
+		key: string,
+		signal?: AbortSignal,
+	) => Promise<Thread | null>;
 	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
 };
 

@@ -994,8 +994,8 @@ export function linearTracker(
 		async repoAutoMerge(_project) {
 			return false;
 		},
-		fetchThread(project, ticketKey) {
-			return fetchLinearThread(key, fetchImpl, project, ticketKey);
+		fetchThread(project, ticketKey, signal) {
+			return fetchLinearThread(key, fetchImpl, project, ticketKey, signal);
 		},
 		postReply(reply) {
 			return postLinearReply(key, fetchImpl, reply);
@@ -1082,11 +1082,13 @@ async function linearPost(
 	queryText: string,
 	variables: Record<string, unknown>,
 	label: string,
+	signal?: AbortSignal,
 ): Promise<unknown> {
 	const response = await fetchImpl(endpoint, {
 		method: "POST",
 		headers: linearHeaders(key),
 		body: JSON.stringify({ query: queryText, variables }),
+		...(signal === undefined ? {} : { signal }),
 	});
 	if (!response.ok) {
 		throw new TrackerError(
@@ -1114,6 +1116,7 @@ export async function fetchLinearThread(
 	fetchImpl: Fetch,
 	project: string,
 	ticketKey: string,
+	signal?: AbortSignal,
 ): Promise<Thread | null> {
 	const nodes: NonNullable<
 		z.infer<typeof threadPage>["data"]["issue"]
@@ -1127,6 +1130,7 @@ export async function fetchLinearThread(
 			threadQuery,
 			{ id: ticketKey, after },
 			"fetch thread",
+			signal,
 		);
 		if (linearError(body, "fetch thread") !== null) {
 			return null;

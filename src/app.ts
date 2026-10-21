@@ -54,7 +54,12 @@ import {
 	todoRows,
 	type WorkcellRun,
 } from "./domain.ts";
-import { abortableFetch, type Fetch } from "./fetch.ts";
+import {
+	abortableFetch,
+	type Fetch,
+	ThreadReadTimeout,
+	withThreadLimit,
+} from "./fetch.ts";
 import {
 	conditionalFetch,
 	githubProjectByNumber,
@@ -573,13 +578,13 @@ async function threadResponse(
 ): Promise<Response> {
 	const tracker = trackerFor(trackers, trackerName);
 	const project = new URL(request.url).searchParams.get("project") ?? "";
-	if (tracker?.fetchThread === undefined || project.trim() === "") {
+	const fetchThread = tracker?.fetchThread;
+	if (fetchThread === undefined || project.trim() === "") {
 		return Response.json({ missing: true }, { status: 404 });
 	}
 	try {
-		const thread: Thread | null = await tracker.fetchThread(
-			project,
-			key.trim(),
+		const thread: Thread | null = await withThreadLimit((signal) =>
+			fetchThread(project, key.trim(), signal),
 		);
 		if (thread === null) {
 			return Response.json({ missing: true }, { status: 404 });
@@ -589,6 +594,9 @@ async function threadResponse(
 			comments: commentTree(thread.comments),
 		});
 	} catch (error) {
+		if (error instanceof ThreadReadTimeout) {
+			return Response.json({ error: error.message }, { status: 504 });
+		}
 		if (
 			error instanceof TrackerError &&
 			(error.status === 404 || error.status === 410)
