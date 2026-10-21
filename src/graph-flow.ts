@@ -183,9 +183,7 @@ export function flowPlaces(
 	if (linked.length > 0 && loose.length > 0) {
 		cursor.row += 1;
 	}
-	for (const idsInSet of loose) {
-		assign(idsInSet, cursor);
-	}
+	placeLoose(loose, bandOf, depth, across, bandRow, cursor);
 
 	const places = new Map<string, FlowPlace>();
 	for (const id of ids) {
@@ -197,6 +195,59 @@ export function flowPlaces(
 		});
 	}
 	return places;
+}
+
+/** Loose tickets sit after the flows, wrapped in a square-root grid. */
+function placeLoose(
+	sets: readonly string[][],
+	bandOf: Map<string, string>,
+	depth: Map<string, number>,
+	across: Map<string, number>,
+	bandRow: Map<string, number>,
+	cursor: { row: number },
+): void {
+	const byBand = new Map<string, string[]>();
+	for (const idsInSet of sets) {
+		for (const id of [...idsInSet].sort()) {
+			const band = bandOf.get(id) ?? "";
+			const ids = byBand.get(band) ?? [];
+			ids.push(id);
+			byBand.set(band, ids);
+		}
+	}
+	const bands = [...byBand.keys()].sort((left, right) =>
+		left.localeCompare(right),
+	);
+	let row = cursor.row;
+	for (const band of bands) {
+		const ids = byBand.get(band) ?? [];
+		const columns = Math.ceil(Math.sqrt(ids.length));
+		const afterFlows = looseStart(band, bandOf, bandRow);
+		let span = 0;
+		for (const [index, id] of ids.entries()) {
+			const local = index % columns;
+			depth.set(id, Math.floor(index / columns));
+			bandRow.set(id, afterFlows + local);
+			across.set(id, row + local);
+			span = Math.max(span, local + 1);
+		}
+		row += span;
+	}
+	cursor.row = row;
+}
+
+function looseStart(
+	band: string,
+	bandOf: Map<string, string>,
+	bandRow: Map<string, number>,
+): number {
+	let span = 0;
+	for (const [id, placed] of bandRow) {
+		if ((bandOf.get(id) ?? "") === band) {
+			span = Math.max(span, placed + 1);
+		}
+	}
+	return span === 0 ? 0 : span + 1;
 }
 
 function columnDepth(

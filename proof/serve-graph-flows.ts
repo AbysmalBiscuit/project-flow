@@ -49,6 +49,8 @@ function issue(
 const issues: Record<string, Record<string, unknown>[]> = {
 	[widget]: [
 		issue(widget, 90, "Zed the loose"),
+		issue(widget, 91, "Yed the loose", "", "Beta"),
+		issue(widget, 92, "Xed the loose"),
 		issue(widget, 3, "Chain b end", `Blocked by: ${widget}#2`),
 		issue(widget, 2, "Chain b mid", `Blocked by: ${widget}#1`),
 		issue(widget, 1, "Chain b start"),

@@ -7,6 +7,8 @@
 		{ "assert_text": "Chain a start" },
 		{ "assert_text": "Chain b end" },
 		{ "assert_text": "Zed the loose" },
+		{ "assert_text": "Yed the loose" },
+		{ "assert_text": "Xed the loose" },
 		{ "assert_text": "Fork tip" },
 		{ "shot": "flows-left-to-right" }
 	]
