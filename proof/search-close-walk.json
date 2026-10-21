@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4188",
+	"serve": ["bun", "proof/serve-jump.ts", "4188"],
+	"steps": [
+		{ "goto": "/" },
+		{ "click": "#header-search" },
+		{ "fill": "#jump-query", "text": "widget" },
+		{ "assert_text": "Ship the widget" },
+		{ "click": "#jump-shade" },
+		{ "shot": "closed-outside" }
+	]
+}

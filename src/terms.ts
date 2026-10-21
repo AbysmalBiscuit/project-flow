@@ -179,6 +179,7 @@ export const overviewControlLabel = {
 	projects: "projects",
 	tickets: "tickets",
 	unlinked: "unlinked PR",
+	moreBlockers: "more",
 	zoomIn: "Zoom in",
 	zoomOut: "Zoom out",
 	fit: "Fit",

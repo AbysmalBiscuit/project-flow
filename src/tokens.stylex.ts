@@ -319,6 +319,10 @@ export const measure = stylex.defineVars({
 	headerControl: "2.25rem",
 	knob: "0.95rem",
 	switchCol: "5.5rem",
+	// Title, progress, legend and one chip row. Extra chips clip.
+	overviewCard: "13.5rem",
+	// chipRow holds one type.small chip line with space.twoXs padding.
+	chipRow: "1.7rem",
 });
 
 export const stack = stylex.defineVars({
@@ -369,6 +373,12 @@ export const phoneGutter = stylex.create({
 		},
 	},
 	page: {
+		[media.phone]: {
+			paddingLeft: space.phoneInset,
+			paddingRight: space.phoneInset,
+		},
+	},
+	shade: {
 		[media.phone]: {
 			paddingLeft: space.phoneInset,
 			paddingRight: space.phoneInset,
