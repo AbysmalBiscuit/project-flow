@@ -24,12 +24,7 @@ function holdNextPoll(): void {
 	});
 }
 
-const recorded = async (input: string | URL | Request, init?: RequestInit) => {
-	const discovered = recordedDiscovery(input, init);
-	if (discovered !== null) {
-		return discovered;
-	}
-	const url = urlOf(input);
+function githubRest(url: string): Response | null {
 	if (url === "https://api.github.com/user") {
 		return Response.json({ login: "lev" });
 	}
@@ -69,41 +64,68 @@ const recorded = async (input: string | URL | Request, init?: RequestInit) => {
 	) {
 		return Response.json([]);
 	}
-	if (url === "https://api.github.com/graphql") {
-		const body = typeof init?.body === "string" ? init.body : "";
-		if (body.includes("query RepoRead")) {
-			polls += 1;
-			if (polls === 1) {
-				holdNextPoll();
-			} else {
-				await nextPoll;
-			}
-			const read = await repoReadFromHandler(input, init, recorded);
-			if (read !== null) {
-				return read;
-			}
+	return null;
+}
+
+const githubGraphqlBody = Response.json({
+	data: {
+		repository: {
+			nameWithOwner: repo,
+			autoMergeAllowed: false,
+			issue: { closedByPullRequestsReferences: { nodes: [] } },
+			pullRequest: { closingIssuesReferences: { nodes: [] } },
+		},
+	},
+});
+
+async function githubGraphql(
+	input: string | URL | Request,
+	init: RequestInit | undefined,
+	fetchRecorded: typeof recorded,
+): Promise<Response> {
+	const body = typeof init?.body === "string" ? init.body : "";
+	if (body.includes("query RepoRead")) {
+		polls += 1;
+		if (polls === 1) {
+			holdNextPoll();
+		} else {
+			await nextPoll;
 		}
-		return Response.json({
-			data: {
-				repository: {
-					nameWithOwner: repo,
-					autoMergeAllowed: false,
-					issue: { closedByPullRequestsReferences: { nodes: [] } },
-					pullRequest: { closingIssuesReferences: { nodes: [] } },
-				},
+		const read = await repoReadFromHandler(input, init, fetchRecorded);
+		if (read !== null) {
+			return read;
+		}
+	}
+	return githubGraphqlBody.clone();
+}
+
+function linearGraphql(): Response {
+	return Response.json({
+		data: {
+			viewer: { id: "lev" },
+			projects: {
+				nodes: [],
+				pageInfo: { hasNextPage: false, endCursor: null },
 			},
-		});
+		},
+	});
+}
+
+const recorded = async (input: string | URL | Request, init?: RequestInit) => {
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	const url = urlOf(input);
+	const rest = githubRest(url);
+	if (rest !== null) {
+		return rest;
+	}
+	if (url === "https://api.github.com/graphql") {
+		return githubGraphql(input, init, recorded);
 	}
 	if (url === "https://api.linear.app/graphql") {
-		return Response.json({
-			data: {
-				viewer: { id: "lev" },
-				projects: {
-					nodes: [],
-					pageInfo: { hasNextPage: false, endCursor: null },
-				},
-			},
-		});
+		return linearGraphql();
 	}
 	return unrecorded(input);
 };
