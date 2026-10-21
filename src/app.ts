@@ -907,8 +907,16 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 		const lastGood = options.store.lastGoodPollAt(project.key);
 		const lastFull = options.lastFullPollAt.get(project.key) ?? null;
+		const stored = options.store
+			.readTickets()
+			.find((row) => row.key === project.key);
+		const confirmedEmpty =
+			stored !== undefined &&
+			stored.tickets.length === 0 &&
+			options.store.projectError(project.key) === null;
 		const full =
 			lastGood === null ||
+			((stored?.tickets.length ?? 0) === 0 && !confirmedEmpty) ||
 			(project.tracker === "linear" &&
 				(lastFull === null ||
 					polledAt.getTime() - lastFull >= fullPollPeriodMs));

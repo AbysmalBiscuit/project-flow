@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Overview, ProjectCounts } from "../src/domain.ts";
+import type { Overview, ProjectCounts, ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { readGhAuthToken, run } from "../src/main.ts";
 import {
@@ -5470,6 +5470,128 @@ describe("GET /api/overview", () => {
 			expect(result.exitCode).toBe(0);
 		} finally {
 			releaseFirst();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a start with a good-poll time and no stored tickets reads the issue list without since", async () => {
+		const repoName = "acme/empty-poll";
+		const goodPoll = "2026-10-18T12:00:00.000Z";
+		const issueUpdatedAt = "2026-09-01T12:00:00.000Z";
+		const repoReads: { since: string | null }[] = [];
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("query RepoRead")
+			) {
+				const parsed = JSON.parse(body) as {
+					variables?: { since?: string | null };
+				};
+				const since = parsed.variables?.since;
+				repoReads.push({
+					since: since === undefined || since === null ? null : String(since),
+				});
+				const listed = await repoReadFromHandler(input, init, recordedFetch);
+				return listed ?? unrecorded(input);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				return page(
+					[
+						{
+							number: 9,
+							title: "Ticket 9",
+							state: "open",
+							state_reason: null,
+							html_url: `https://github.com/${repoName}/issues/9`,
+							updated_at: issueUpdatedAt,
+						},
+					],
+					null,
+				);
+			}
+			return emptyList(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-empty-poll-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		const seeded = new Database(databasePath);
+		seeded.run(`
+			create table project_polls (
+				project text primary key,
+				fetched_at text not null
+			)
+		`);
+		seeded
+			.query("insert into project_polls (project, fetched_at) values (?, ?)")
+			.run(repoName, goodPoll);
+		seeded.close();
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const opened = await fetch(new URL("/api/overview", base));
+					expect(opened.status).toBe(200);
+					const overviewBody = (await opened.json()) as Overview;
+					expect(overviewBody.error).toBeNull();
+					expect(overviewBody.projects[0]?.tickets).toEqual([
+						{
+							key: `${repoName}#9`,
+							title: "Ticket 9",
+							state: "backlog",
+							blockers: [],
+							lane: "Backlog",
+							statusType: "backlog",
+							enteredStateAt: issueUpdatedAt,
+							updatedAt: issueUpdatedAt,
+						},
+					]);
+					const project = await fetch(
+						new URL(`/api/projects/${encodeURIComponent(repoName)}`, base),
+					);
+					expect(project.status).toBe(200);
+					const report = (await project.json()) as ProjectReport;
+					expect(report.tickets.map((ticket) => ticket.key)).toEqual([
+						`${repoName}#9`,
+					]);
+					expect(report.total).toBe(1);
+					expect(repoReads).toEqual([{ since: null }]);
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: recordedFetch,
+						readGhToken: async () => null,
+						databasePath,
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
