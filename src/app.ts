@@ -1293,9 +1293,11 @@ export async function start(options: StartOptions): Promise<Running> {
 				overview: overview(pollOptions, configuration),
 				notifications: [],
 			});
-			// The cold-start rejection stops the process on the next turn.
-			// Yield so the settled overview leaves the event stream first.
-			await Bun.sleep(0);
+			// A cold failure stops the process on the next turn. Yield so the
+			// settled overview leaves the event stream first.
+			if (!hadRows) {
+				await Bun.sleep(0);
+			}
 		});
 		return polling;
 	};
