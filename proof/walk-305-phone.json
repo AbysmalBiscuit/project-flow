@@ -3,9 +3,9 @@
 	"serve": ["bun", "proof/serve-header-height.ts", "4319", "4320", "390"],
 	"steps": [
 		{ "goto": "/" },
-		{ "assert_text": "Allow notifications" },
-		{ "assert_text": "Search projects" },
-		{ "assert_text": "Cards" },
+		{
+			"assert_text": "phone overview search 36@237.59375 overview view 36@281.59375 overview refresh 36@281.59375 overview notify 36@281.59375 scrollWidth 390"
+		},
 		{ "shot": "overview-phone" }
 	]
 }

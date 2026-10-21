@@ -2,20 +2,22 @@
 
 The walks serve recorded tracker responses through `proof/serve-header-height.ts`. That script sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker. The script stubs `Notification.permission` as `default`, so the Overview header shows Allow notifications.
 
+`proof/serve-header-height.ts` writes each control's `getBoundingClientRect` height and top as visible page text. The desktop page writes the overview line, then the project page line. The phone walk serves a same-origin wrapper. The wrapper loads the app in an iframe 390px wide, so the phone media queries run inside the iframe. The wrapper copies the iframe's measured heights and `scrollWidth` into its own visible text. The iframe width is a proof harness length.
+
 Item 1, desktop height. Replay `proof/walk-305-desktop.json`:
 
 ```bash
 workcell walk-replay --walk-file proof/walk-305-desktop.json --proof .devkit/proof --item 1
 ```
 
-The overview shot shows the project search, the Cards/Graph/Table switch, the refresh button and Allow notifications in one row. Each control is 36px tall and shares one top. The project shot shows the project search, the filter, Group by and the Board/Graph/Table switch. Each of those controls is 36px tall. 36px is `measure.headerControl`.
+The overview shot shows the project search, the Cards/Graph/Table switch, the refresh button and Allow notifications. The asserted line names each control's height and top. The project shot shows the filter, the project search, Group by and the Board/Graph/Table switch. That asserted line names those heights and tops. The shared height is `measure.headerControl`.
 
-Item 3, phone width. The walk replay pins the browser at 1280 by 800. The server sets the page width to 390px and applies the phone gutter, so the header lays out as it does at 390px. Replay `proof/walk-305-phone.json`:
+Item 3, phone width. Replay `proof/walk-305-phone.json`:
 
 ```bash
 workcell walk-replay --walk-file proof/walk-305-phone.json --proof .devkit/proof --item 3
 ```
 
-At 390px the search sits on its own line. The view switch, the refresh button and Allow notifications share the next line. Each control is 36px tall. The page does not scroll sideways. The glyphs stay 16px. A focused control keeps a 2px focus ring.
+The shot shows the 390px iframe. The search sits on its own line. The view switch, the refresh button and Allow notifications share the next line. The asserted line names each height, each top and `scrollWidth`. The glyphs stay at `measure.glyph`. A focused control keeps the shared focus ring.
 
-DECIDED: the shared height is `measure.headerControl` (2.25rem, 36px). `measure.toggle` is the same value, so the refresh button keeps its touch target and the focus ring stays outside the border.
+DECIDED: the shared height is `measure.headerControl`. `measure.toggle` is the same value, so the refresh button keeps its touch target and the focus ring stays outside the border.
