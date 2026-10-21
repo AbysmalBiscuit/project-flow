@@ -45,6 +45,10 @@ const silent = [
 	"git -c user.name=fixture commit -m x",
 	"HUSKY=1 git commit -m x",
 	"FOO=SKIP git status",
+	'git commit -m "subject" -m "- bullet one"',
+	'git commit -m "subject" -m "-n now means dry run"',
+	'git commit -m "-x and n"',
+	"git commit --message=-n",
 ];
 
 describe("no_hook_bypass", () => {

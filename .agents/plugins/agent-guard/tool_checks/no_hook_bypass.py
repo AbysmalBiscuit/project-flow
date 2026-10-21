@@ -120,19 +120,51 @@ def hooks_path(args):
     return False
 
 
+# A commit option that takes the next word, so that word is a message, not a flag.
+COMMIT_TAKES_NEXT = {
+    "-c",
+    "-C",
+    "-F",
+    "-m",
+    "--author",
+    "--cleanup",
+    "--date",
+    "--file",
+    "--fixup",
+    "--message",
+    "--pathspec-from-file",
+    "--reedit-message",
+    "--reuse-message",
+    "--squash",
+    "--template",
+}
+# The first of these letters in a short cluster consumes the rest of the cluster.
+COMMIT_TAKES_VALUE = set("cCFmt")
+
+
 def commit_no_verify(words):
     """-n on commit, alone or inside a short-flag cluster. -n on push is a dry run."""
     if not words or words[0] != "commit":
         return False
+    skip = False
     for word in words[1:]:
+        if skip:
+            skip = False
+            continue
         if word in ("--no-verify", "--no-verify=true"):
             return True
         if word.startswith("--"):
+            if word.split("=", 1)[0] in COMMIT_TAKES_NEXT and "=" not in word:
+                skip = True
             continue
-        # -n is --no-verify on commit, including inside -nm. A long option
-        # such as --no-edit starts with -- and never reaches this test.
-        if len(word) > 1 and word[0] == "-" and "n" in word[1:]:
-            return True
+        if len(word) > 1 and word[0] == "-":
+            for letter in word[1:]:
+                if letter == "n":
+                    return True
+                if letter in COMMIT_TAKES_VALUE:
+                    break
+            if word[1] in COMMIT_TAKES_VALUE and len(word) == 2:
+                skip = True
     return False
 
 
