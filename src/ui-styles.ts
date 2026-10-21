@@ -2165,9 +2165,14 @@ export const board = stylex.create({
 		padding: 0,
 		listStyle: "none",
 	},
+	laneBody: {
+		flex: "1 1 auto",
+		minHeight: 0,
+		overflowX: "hidden",
+		overflowY: "auto",
+	},
 	cardsClip: {
 		maxHeight: measure.boardMin,
-		overflow: "hidden",
 	},
 	card: {
 		display: "flex",
