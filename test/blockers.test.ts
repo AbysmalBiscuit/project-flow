@@ -3228,9 +3228,13 @@ describe("GET /api/overview blockers", () => {
 							method: "POST",
 						});
 						expect(refresh.status).toBe(204);
-						const after = (await (
-							await fetch(new URL("/api/overview", base))
-						).json()) as typeof before;
+						const after = await settledOverview(base, async (url) => {
+							const response = await fetch(new URL("/api/overview", url));
+							expect(response.status).toBe(200);
+							return (await response.json()) as typeof before & {
+								polling?: true;
+							};
+						});
 						const card = after.projects.find(
 							(project) => project.name === githubRepo,
 						);

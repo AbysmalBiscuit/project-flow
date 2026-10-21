@@ -481,9 +481,12 @@ describe("GET /api/overview", () => {
 							});
 							expect(posted.status).toBe(204);
 						}
-						const response = await fetch(new URL("/api/overview", base));
-						expect(response.status).toBe(200);
-						resolve(await response.json());
+						const body = await settledOverview(base, async (url) => {
+							const response = await fetch(new URL("/api/overview", url));
+							expect(response.status).toBe(200);
+							return (await response.json()) as Overview;
+						});
+						resolve(body);
 					})().catch(reject);
 				};
 			});
@@ -4933,8 +4936,8 @@ describe("GET /api/overview", () => {
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
 				void (async () => {
-					const first = await fetch(new URL("/api/overview", base));
-					expect(first.status).toBe(200);
+					const first = await settledOverview(base, readOverview);
+					expect(first.projects.length).toBeGreaterThan(0);
 					const seen = repoReads;
 					failWindow = true;
 					const failed = await fetch(new URL("/api/refresh", base), {
@@ -5093,13 +5096,9 @@ describe("GET /api/overview", () => {
 			expect(before.projects[0]?.tickets[0]?.key).toBe(`${repoName}#4`);
 			const started = Date.now();
 			stopRun();
-			const result = await Promise.race([
-				first.then((ended) => ({ ended, timedOut: false })),
-				Bun.sleep(5_000).then(() => ({ ended: null, timedOut: true })),
-			]);
-			expect(result.timedOut).toBe(false);
+			const ended = await first;
+			expect(ended.exitCode).toBe(0);
 			expect(Date.now() - started).toBeLessThan(5_000);
-			expect(result.ended?.exitCode).toBe(0);
 			const restartStopped = new Promise<void>((resolve) => {
 				stopRestart = resolve;
 			});
@@ -5142,12 +5141,7 @@ describe("GET /api/overview", () => {
 					{ first: true },
 				),
 			);
-			await Promise.race([
-				restartDone,
-				Bun.sleep(3_000).then(() => {
-					throw new Error("restart overview did not answer");
-				}),
-			]);
+			await restartDone;
 			stopRestart();
 			const restart = await restartRun;
 			expect(restart.stderr).toBe("");
@@ -5158,7 +5152,7 @@ describe("GET /api/overview", () => {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
-	}, 15_000);
+	});
 
 	test("a warm start releases the first poll when the overview is read", async () => {
 		const repoName = "acme/warm-release";
@@ -5260,16 +5254,9 @@ describe("GET /api/overview", () => {
 					expect(repoReads).toBe(0);
 					const opened = await fetch(new URL("/api/overview", base));
 					expect(opened.status).toBe(200);
-					const released = await Promise.race([
-						(async () => {
-							while (repoReads === 0) {
-								await Bun.sleep(20);
-							}
-							return true;
-						})(),
-						Bun.sleep(1_000).then(() => false),
-					]);
-					expect(released).toBe(true);
+					while (repoReads === 0) {
+						await Bun.sleep(20);
+					}
 					expect(repoReads).toBe(1);
 					releaseRead();
 					resolve();
@@ -5579,11 +5566,10 @@ describe("GET /api/overview", () => {
 							databasePath,
 							stdout: (line) => {
 								void (async () => {
-									const deadline = Date.now() + 3_000;
 									let overviewBody = await readOverview(line);
 									while (
 										overviewBody.polling === true ||
-										(repoReads.length === 0 && Date.now() < deadline)
+										repoReads.length === 0
 									) {
 										await Bun.sleep(20);
 										overviewBody = await readOverview(line);
@@ -5713,12 +5699,8 @@ describe("GET /api/overview", () => {
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
 				void (async () => {
-					const deadline = Date.now() + 3_000;
 					let overviewBody = await readOverview(base);
-					while (
-						overviewBody.polling === true ||
-						(repoReads.length === 0 && Date.now() < deadline)
-					) {
+					while (overviewBody.polling === true || repoReads.length === 0) {
 						await Bun.sleep(20);
 						overviewBody = await readOverview(base);
 					}
@@ -5932,8 +5914,7 @@ describe("GET /api/overview", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const deadline = Date.now() + 3_000;
-			while (repoReads.length < 2 && Date.now() < deadline) {
+			while (repoReads.length < 2) {
 				await Bun.sleep(20);
 			}
 			const second = await settledOverview(base, readOverview);
@@ -6023,8 +6004,7 @@ describe("GET /api/overview", () => {
 				method: "POST",
 			});
 			expect(refresh.status).toBe(204);
-			const deadline = Date.now() + 3_000;
-			while (repoReads.length < 2 && Date.now() < deadline) {
+			while (repoReads.length < 2) {
 				await Bun.sleep(20);
 			}
 			const second = await settledOverview(base, readOverview);
@@ -6139,8 +6119,7 @@ describe("GET /api/overview", () => {
 				void (async () => {
 					const opened = await fetch(new URL("/api/overview", base));
 					expect(opened.status).toBe(200);
-					const labelDeadline = Date.now() + 3_000;
-					while (labelReads < 2 && Date.now() < labelDeadline) {
+					while (labelReads < 2) {
 						await Bun.sleep(20);
 					}
 					const after = (await opened.json()) as Overview;
