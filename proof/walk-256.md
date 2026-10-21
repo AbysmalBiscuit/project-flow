@@ -1,29 +1,23 @@
-# Project graph height walks
+# Project graph height
 
-Each walk serves recorded tracker responses through `proof/serve-graph-edges.ts`. That script sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker. `acme/widget` opens in the graph view.
+`proof/graph-height.mjs` is the proof. The verifier runs that script. A walk names the script and the viewport. `workcell walk-replay` pins 1280 by 800, so a walk cannot set these sizes.
 
-The replay pins one viewport in `proofshot.config.json` before `workcell walk-replay`. The implementer shots under `.devkit/proof/` are not the proof.
-
-Item 1, tall window. Set the viewport to 1440 by 1300. Replay `proof/walk-256-tall.json`:
+The script starts `proof/serve-graph-edges.ts`. That server sets `XDG_DATA_HOME` to a temporary folder and serves recorded tracker responses. It never calls a live tracker. Shots go under `.devkit/proof/` and stay uncommitted.
 
 ```
-python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-256-tall.json --proof .devkit/proof --item 1
+bun proof/graph-height.mjs
 ```
 
-The `#project-graph` pane ends at the bottom of the window less the page gutter (`space.threeXl`, 16px at the default root size).
+The script opens `/projects/acme%2Fwidget` at three viewports and writes one shot each.
 
-Item 1, short window. Set the viewport to 1440 by 800. Replay `proof/walk-256-short.json`:
+Item 1, tall window. Viewport 1440 by 1300. Walk `proof/walk-256-tall.json`. Shot `.devkit/proof/graph-1440x1300.png`.
 
-```
-python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-256-short.json --proof .devkit/proof --item 1
-```
+The `#project-graph` pane ends at the window bottom less the page gutter. The gutter is the page `paddingBottom`, `space.threeXl`.
 
-The same pane ends on the same gutter.
+Item 1, short window. Viewport 1440 by 800. Walk `proof/walk-256-short.json`. Shot `.devkit/proof/graph-1440x800.png`.
 
-Item 2, phone width. Set the viewport to 390 by 844. Replay `proof/walk-256-phone.json`:
+The pane ends on the same gutter. `minHeight` stays `boardMin` (36rem). The floor does not push the pane past that edge.
 
-```
-python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-256-phone.json --proof .devkit/proof --item 2
-```
+Item 2, phone width. Viewport 390 wide by 1200. Walk `proof/walk-256-phone.json`. Shot `.devkit/proof/graph-390.png`.
 
-`#project-graph` keeps the `boardMin` height (36rem). The page does not scroll sideways. When the header wraps, the page scrolls down to the pane.
+The pane keeps the `boardMin` height. `documentElement.scrollWidth` stays at the viewport width.
