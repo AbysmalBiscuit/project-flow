@@ -1100,7 +1100,6 @@ describe("live updates", () => {
 	}, 20_000);
 
 	test("a refresh during a poll longer than 10 seconds answers before that poll ends", async () => {
-		// The fake fetch holds the refresh poll until the test releases it.
 		// The poll span runs on the clock port, not wall time.
 		const pollSpanMs = 11_000;
 		let releasePoll: () => void = () => {};
