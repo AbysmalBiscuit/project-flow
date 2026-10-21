@@ -2,7 +2,7 @@ import { useReactFlow, type Viewport } from "@xyflow/react";
 import { useEffect, useState } from "react";
 import { overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { cards } from "./ui-styles.ts";
+import { cards, headerControlStyle } from "./ui-styles.ts";
 
 export function columnDepth(
 	ids: Iterable<string>,
@@ -137,11 +137,12 @@ export function GraphTools({
 			scope === "" ? document : (document.querySelector(scope) ?? document);
 		setViewport(readViewport(root));
 	};
+	const tools = scope === "#project-graph" ? headerControlStyle : cards;
 	return (
-		<div className={clsx(cards.graphTools)}>
+		<div className={clsx(tools.graphTools)}>
 			<button
 				type="button"
-				className={clsx(cards.graphTool)}
+				className={clsx(tools.graphTool)}
 				aria-label={overviewControlLabel.zoomOut}
 				onClick={() => {
 					void flow.zoomOut().then(show);
@@ -152,7 +153,7 @@ export function GraphTools({
 			<button
 				type="button"
 				id={fitId}
-				className={clsx(cards.graphTool)}
+				className={clsx(tools.graphTool)}
 				aria-label={overviewControlLabel.fit}
 				onClick={() => {
 					void flow.fitView().then(show);
@@ -162,7 +163,7 @@ export function GraphTools({
 			</button>
 			<button
 				type="button"
-				className={clsx(cards.graphTool)}
+				className={clsx(tools.graphTool)}
 				aria-label={overviewControlLabel.zoomIn}
 				onClick={() => {
 					void flow.zoomIn().then(show);

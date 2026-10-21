@@ -1,4 +1,5 @@
 import "@xyflow/react/dist/style.css";
+import { ReactFlowProvider } from "@xyflow/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
@@ -17,6 +18,7 @@ import {
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
+import { GraphTools } from "./graph-pane.tsx";
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
@@ -29,9 +31,13 @@ import {
 	navLabel,
 	viewLabel,
 } from "./terms.ts";
-import { lightValues, phoneGutter } from "./tokens.stylex.ts";
+import {
+	lightValues,
+	phoneGutter,
+	projectHeaderLayout,
+} from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, frame, shell } from "./ui-styles.ts";
+import { board, frame, headerControlStyle, shell } from "./ui-styles.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphGroupBy,
@@ -896,13 +902,24 @@ function FilterMenu({
 			<button
 				type="button"
 				id="project-filter"
-				className={clsx(board.filter, shell.buttonFocus)}
+				className={clsx(headerControlStyle.control, shell.buttonFocus)}
 				aria-label="Filter"
 				aria-expanded={open}
 				onClick={() => onOpen(!open)}
 			>
+				<svg
+					viewBox="0 0 16 16"
+					aria-hidden="true"
+					className={clsx(headerControlStyle.icon)}
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="1.5"
+					strokeLinecap="round"
+				>
+					<path d="M2 3.5h12M4.5 8h7M7 12.5h2" />
+				</svg>
 				Filter
-				<span className={clsx(board.filterCount)}>{shown.length}</span>
+				<span className={clsx(headerControlStyle.count)}>{shown.length}</span>
 			</button>
 		</div>
 	);
@@ -1371,183 +1388,192 @@ function Page() {
 		setOpen(true);
 	};
 	return (
-		<AppShell>
-			<main
-				className={clsx(frame.page, phoneGutter.page, frame.wide, frame.fill)}
-			>
-				<div className={clsx(board.head)}>
-					<div className={clsx(board.identity)}>
-						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
-						<h1 className={clsx(board.name)}>{report.name}</h1>
-					</div>
-					<div className={clsx(board.toolbar)}>
-						<FilterMenu
-							report={report}
-							view={settings}
-							open={filterOpen}
-							onOpen={setFilterOpen}
-						/>
-						<input
-							id="project-search"
-							className={clsx(board.find)}
-							type="search"
-							aria-label="Search"
-							placeholder="Search"
-							value={settings.search}
-							onChange={(event) =>
-								saveView({ ...settings, search: event.target.value })
-							}
-						/>
-						<Dropdown
-							id="project-group"
-							label="Group by"
-							value={
-								view === "graph"
-									? graphGroupBy(settings)
-									: boardGroupBy(settings)
-							}
-							choices={groupByKeys.map((id) => ({
-								id,
-								label: `Group by ${groupByLabel[id]}`,
-							}))}
-							onChange={(id) => {
-								if (isGroupBy(id)) {
-									groupBySavedRef.current = true;
-									saveView({ ...settings, groupBy: id });
+		<ReactFlowProvider>
+			<AppShell>
+				<main
+					className={clsx(frame.page, phoneGutter.page, frame.wide, frame.fill)}
+				>
+					<div className={clsx(board.head, projectHeaderLayout.head)}>
+						<div className={clsx(board.identity)}>
+							<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
+							<h1 className={clsx(board.name)}>{report.name}</h1>
+							<p className={clsx(board.counts)}>{countLine(report)}</p>
+						</div>
+						<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
+							<FilterMenu
+								report={report}
+								view={settings}
+								open={filterOpen}
+								onOpen={setFilterOpen}
+							/>
+							<input
+								id="project-search"
+								className={clsx(headerControlStyle.control, board.find)}
+								type="search"
+								aria-label="Search"
+								placeholder="Search"
+								value={settings.search}
+								onChange={(event) =>
+									saveView({ ...settings, search: event.target.value })
 								}
-							}}
-						/>
-						<fieldset className={clsx(board.views)}>
-							<legend className={clsx(frame.legend)}>Views</legend>
-							{views.map((item) => (
-								<button
-									key={item.id}
-									type="button"
-									id={`view-${item.id}`}
-									className={clsx(
-										board.view,
-										shell.buttonFocus,
-										view === item.id && board.viewOn,
-									)}
-									aria-pressed={view === item.id}
-									onClick={() => {
-										if (!isPageView(item.id)) {
-											return;
+							/>
+							<Dropdown
+								id="project-group"
+								label="Group by"
+								value={
+									view === "graph"
+										? graphGroupBy(settings)
+										: boardGroupBy(settings)
+								}
+								choices={groupByKeys.map((id) => ({
+									id,
+									label: `Group by ${groupByLabel[id]}`,
+								}))}
+								onChange={(id) => {
+									if (isGroupBy(id)) {
+										groupBySavedRef.current = true;
+										saveView({ ...settings, groupBy: id });
+									}
+								}}
+							/>
+							<fieldset className={clsx(headerControlStyle.group)}>
+								<legend className={clsx(frame.legend)}>Views</legend>
+								{views.map((item) => (
+									<button
+										key={item.id}
+										type="button"
+										id={`view-${item.id}`}
+										className={clsx(
+											headerControlStyle.segment,
+											shell.buttonFocus,
+											view === item.id && headerControlStyle.segmentOn,
+										)}
+										aria-pressed={view === item.id}
+										onClick={() => {
+											if (!isPageView(item.id)) {
+												return;
+											}
+											saveView({ ...settings, lastView: item.id }, item.id);
+										}}
+									>
+										{item.label}
+									</button>
+								))}
+							</fieldset>
+							{view === "graph" ? (
+								<>
+									<DirectionSwitch
+										direction={settings.graphDirection}
+										onChange={(next) =>
+											saveView({ ...settings, graphDirection: next })
 										}
-										saveView({ ...settings, lastView: item.id }, item.id);
-									}}
-								>
-									{item.label}
-								</button>
-							))}
-						</fieldset>
-						{view === "graph" ? (
-							<DirectionSwitch
+									/>
+									<GraphTools
+										probeId="project-graph-viewport"
+										fitId="project-graph-fit"
+										scope="#project-graph"
+									/>
+								</>
+							) : null}
+						</div>
+					</div>
+					{filterOpen ? (
+						<FilterPanel report={report} view={settings} onChange={saveView} />
+					) : null}
+					<div
+						data-project={report.name}
+						data-open-view={view}
+						data-group-by={
+							view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
+						}
+					/>
+					<div className={clsx(board.stage)}>
+						{view === "board" ? (
+							<Board
+								report={report}
+								settings={settings}
+								selected={open ? ticket : null}
+								onOpen={openTicketInPanel}
+								onOpenOutside={openOutsideInPanel}
+							/>
+						) : view === "table" ? (
+							<TicketTable
+								report={report}
+								groupBy={boardGroupBy(settings)}
+								selected={open ? ticket : null}
+								onOpen={openTicketInPanel}
+								onOpenOutside={openOutsideInPanel}
+							/>
+						) : view === "graph" ? (
+							<ProjectGraph
+								report={report}
+								reports={outsideReports}
 								direction={settings.graphDirection}
-								onChange={(next) =>
-									saveView({ ...settings, graphDirection: next })
+								groupBy={graphGroupBy(settings)}
+								assignees={settings.assignees}
+								openKey={open ? ticket : null}
+								onOpen={(node) => {
+									if (node.outside) {
+										openOutsideInPanel(node, node.state);
+										return;
+									}
+									openTicketInPanel(node.key);
+								}}
+							/>
+						) : (
+							<p className={clsx(board.placeholder)}>{view}</p>
+						)}
+						{open && ticket !== null ? (
+							<TicketPanel
+								key={`${panelTracker}:${panelProject}:${ticket}`}
+								tracker={panelTracker}
+								project={panelProject}
+								ticketKey={ticket}
+								{...(selected?.title === undefined
+									? {}
+									: { title: selected.title })}
+								url={
+									selected?.key === undefined || selected.key === null
+										? undefined
+										: trackerUrl(panelTracker, selected.key)
 								}
+								{...(selected?.state !== undefined
+									? { state: selected.state }
+									: openedState === null
+										? {}
+										: { state: openedState })}
+								lane={selected?.lane}
+								laneColour={
+									report.lanes.find((lane) => lane.name === selected?.lane)
+										?.colour
+								}
+								blockers={incoming}
+								blocks={outgoing}
+								item={panelItem(
+									source,
+									panelTracker,
+									panelProject,
+									ticket,
+									active,
+								)}
+								onOpenBlocker={(blocker) => {
+									setPanelReport(null);
+									setPanelProject(blocker.project);
+									setPanelTracker(blocker.tracker);
+									setTicket(blocker.key);
+									setOpen(true);
+								}}
+								onClose={() => {
+									clearTicketQuery();
+									closeTicket();
+									setOpen(false);
+								}}
 							/>
 						) : null}
 					</div>
-					<p className={clsx(board.counts)}>{countLine(report)}</p>
-				</div>
-				{filterOpen ? (
-					<FilterPanel report={report} view={settings} onChange={saveView} />
-				) : null}
-				<div
-					data-project={report.name}
-					data-open-view={view}
-					data-group-by={
-						view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
-					}
-				/>
-				<div className={clsx(board.stage)}>
-					{view === "board" ? (
-						<Board
-							report={report}
-							settings={settings}
-							selected={open ? ticket : null}
-							onOpen={openTicketInPanel}
-							onOpenOutside={openOutsideInPanel}
-						/>
-					) : view === "table" ? (
-						<TicketTable
-							report={report}
-							groupBy={boardGroupBy(settings)}
-							selected={open ? ticket : null}
-							onOpen={openTicketInPanel}
-							onOpenOutside={openOutsideInPanel}
-						/>
-					) : view === "graph" ? (
-						<ProjectGraph
-							report={report}
-							reports={outsideReports}
-							direction={settings.graphDirection}
-							groupBy={graphGroupBy(settings)}
-							assignees={settings.assignees}
-							openKey={open ? ticket : null}
-							onOpen={(node) => {
-								if (node.outside) {
-									openOutsideInPanel(node, node.state);
-									return;
-								}
-								openTicketInPanel(node.key);
-							}}
-						/>
-					) : (
-						<p className={clsx(board.placeholder)}>{view}</p>
-					)}
-					{open && ticket !== null ? (
-						<TicketPanel
-							key={`${panelTracker}:${panelProject}:${ticket}`}
-							tracker={panelTracker}
-							project={panelProject}
-							ticketKey={ticket}
-							{...(selected?.title === undefined
-								? {}
-								: { title: selected.title })}
-							url={
-								selected?.key === undefined || selected.key === null
-									? undefined
-									: trackerUrl(panelTracker, selected.key)
-							}
-							{...(selected?.state !== undefined
-								? { state: selected.state }
-								: openedState === null
-									? {}
-									: { state: openedState })}
-							lane={selected?.lane}
-							laneColour={
-								report.lanes.find((lane) => lane.name === selected?.lane)
-									?.colour
-							}
-							blockers={incoming}
-							blocks={outgoing}
-							item={panelItem(
-								source,
-								panelTracker,
-								panelProject,
-								ticket,
-								active,
-							)}
-							onOpenBlocker={(blocker) => {
-								setPanelReport(null);
-								setPanelProject(blocker.project);
-								setPanelTracker(blocker.tracker);
-								setTicket(blocker.key);
-								setOpen(true);
-							}}
-							onClose={() => {
-								clearTicketQuery();
-								closeTicket();
-								setOpen(false);
-							}}
-						/>
-					) : null}
-				</div>
-			</main>
-		</AppShell>
+				</main>
+			</AppShell>
+		</ReactFlowProvider>
 	);
 }
 
