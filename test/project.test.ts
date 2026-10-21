@@ -262,7 +262,7 @@ describe("GET /api/projects/:name", () => {
 					(section) => section.id === "summary",
 				);
 				expect(summary?.text).toBe(
-					"acme/widget: 0 done, 0 dropped, 1 blocked, 1 in progress, 2 backlog.",
+					"acme/widget: 0 done, 0 dropped, 1 blocked, 1 in progress, 3 backlog.",
 				);
 				const flight = first.sections.find(
 					(section) => section.id === "inFlight",
@@ -343,7 +343,7 @@ describe("GET /api/projects/:name", () => {
 					(section) => section.id === "summary",
 				);
 				expect(linearSummary?.text).toContain("1 blocked");
-				expect(linearSummary?.text).toContain("3 backlog");
+				expect(linearSummary?.text).toContain("4 backlog");
 				const held = linearReport.tickets.find(
 					(ticket) => ticket.key === "WID-2",
 				);

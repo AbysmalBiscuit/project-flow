@@ -9,20 +9,19 @@ import type {
 	ProjectReport,
 	TicketView,
 } from "./domain.ts";
-import { sameTicketKey, ticketGroups } from "./domain.ts";
+import {
+	displayedLaneName,
+	doneTicketsForLane,
+	sameTicketKey,
+	ticketGroups,
+} from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
-import {
-	blockedLabel,
-	groupByLabel,
-	loadingLabel,
-	navLabel,
-	stateLabel,
-} from "./terms.ts";
+import { blockedLabel, groupByLabel, loadingLabel, navLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
@@ -195,14 +194,9 @@ function visibleLanes(
 	return report.lanes.filter((lane) => names.has(lane.name.toLowerCase()));
 }
 
-function countLine(report: ProjectReport, view: ProjectViewSettings): string {
-	const total = report.tickets.length;
-	const visible = visibleLanes(report, view);
-	const doneLane = visible.find((lane) => lane.statusType === "done");
-	const done =
-		doneLane === undefined
-			? report.tickets.filter((ticket) => ticket.state === "done").length
-			: laneTickets(report, doneLane.name).length;
+function countLine(report: ProjectReport): string {
+	const total = report.total;
+	const done = report.done;
 	const needs = report.tickets.filter((ticket) => ticket.needsYou).length;
 	const blocked = report.tickets.filter((ticket) => ticket.blocked).length;
 	const outside = report.tickets.filter(
@@ -396,6 +390,7 @@ function Lane({
 	name,
 	colour,
 	tickets,
+	fresh,
 	groupBy,
 	capped,
 	shown,
@@ -407,6 +402,7 @@ function Lane({
 	name: string;
 	colour: string;
 	tickets: TicketView[];
+	fresh: TicketView[];
 	groupBy: GroupBy;
 	capped: boolean;
 	shown: boolean;
@@ -415,14 +411,13 @@ function Lane({
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: OutsideBlocker) => void;
 }) {
-	const selectedHidden =
+	const pool = capped && !shown ? fresh : tickets;
+	const listed = pool.slice(0, capped && !shown ? doneCap : pool.length);
+	const selected =
 		capped && !shown && reveal !== null
-			? tickets.slice(doneCap).filter((ticket) => ticket.key === reveal)
+			? pool.slice(doneCap).filter((ticket) => ticket.key === reveal)
 			: [];
-	const visible =
-		capped && !shown
-			? [...tickets.slice(0, doneCap), ...selectedHidden]
-			: tickets;
+	const visible = [...listed, ...selected];
 	return (
 		<section
 			className={clsx(board.lane, capped && board.laneDone)}
@@ -434,7 +429,7 @@ function Lane({
 					className={clsx(board.laneMark, laneMark(colour))}
 					data-lane-colour={colour}
 				/>
-				{name} {tickets.length}
+				{name} {listed.length}
 			</h2>
 			<div className={clsx(capped && !shown && board.cardsClip)}>
 				{groupBy === "none" ? (
@@ -456,7 +451,7 @@ function Lane({
 					))
 				)}
 			</div>
-			{capped && !shown && tickets.length > doneCap ? (
+			{capped && !shown && listed.length < tickets.length ? (
 				<button
 					type="button"
 					className={clsx(
@@ -508,10 +503,6 @@ function relationKeys(
 	}
 	const { local, outside } = relationSplit(ticket);
 	return [...local, ...outside.map((blocker) => blocker.key)];
-}
-
-function displayedLaneName(ticket: TicketView): string {
-	return ticket.lane ?? stateLabel[ticket.state];
 }
 
 function displayedLane(
@@ -831,7 +822,12 @@ function Board({
 					name={lane.name}
 					colour={lane.colour}
 					groupBy={boardGroupBy(settings)}
-					tickets={laneTickets(report, lane.name)}
+					tickets={
+						lane.statusType === "done"
+							? doneTicketsForLane(report, lane.name)
+							: laneTickets(report, lane.name)
+					}
+					fresh={laneTickets(report, lane.name)}
 					capped={lane.statusType === "done"}
 					shown={shownDone}
 					reveal={selected}
@@ -1313,7 +1309,7 @@ function Page() {
 					<div className={clsx(board.identity)}>
 						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 						<h1 className={clsx(board.name)}>{report.name}</h1>
-						<p className={clsx(board.counts)}>{countLine(report, settings)}</p>
+						<p className={clsx(board.counts)}>{countLine(report)}</p>
 					</div>
 					{view === "graph" ? (
 						<DirectionSwitch
