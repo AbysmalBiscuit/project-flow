@@ -24,7 +24,15 @@ Item 3, edge contrast in the light theme. Replay `proof/walk-287-contrast-light.
 workcell walk-replay --walk-file proof/walk-287-contrast-light.json --proof .devkit/proof --item 3
 ```
 
-`#edge-contrast` names the canvas colour and the solid, dashed and marker colours with each ratio. Each ratio is at least 3.
+The page does not carry a contrast calculator. After the walk shows the legend, run `proof/graph-contrast.mjs` in the page:
+
+```bash
+agent-browser eval --stdin < proof/graph-contrast.mjs
+```
+
+The script reads the computed colour of `#project-graph` and the computed colours of the legend swatches. It computes each ratio itself. Each ratio is at least 3. It also reads each drawn arrowhead fill. A missing swatch, a ratio under 3, or an arrowhead of the other edge colour throws. Replay the same script after the dark walk.
+
+Light canvas `rgb(255, 255, 255)`. Solid edge and solid arrowhead `rgb(89, 89, 89)`, ratio 7.00. Dashed edge and dashed arrowhead `rgb(31, 111, 138)`, ratio 5.68.
 
 Item 3, the same edges in the dark theme. Replay `proof/walk-287-contrast-dark.json`:
 
@@ -32,14 +40,20 @@ Item 3, the same edges in the dark theme. Replay `proof/walk-287-contrast-dark.j
 workcell walk-replay --walk-file proof/walk-287-contrast-dark.json --proof .devkit/proof --item 3
 ```
 
+Dark canvas `rgb(22, 22, 26)`. Solid edge and solid arrowhead `rgb(199, 199, 199)`, ratio 10.67. Dashed edge and dashed arrowhead `rgb(126, 200, 227)`, ratio 9.67.
+
+The overview graph uses the same edge tokens. Its canvas is `colours.surface`. Light surface `rgb(255, 255, 255)` gives the same solid ratio, 7.00. Dark surface `rgb(17, 17, 17)` gives solid `rgb(199, 199, 199)` at 11.48. The overview draws no done edge.
+
 Item 4, legend swatches. Replay `proof/walk-287-legend.json`:
 
 ```bash
 workcell walk-replay --walk-file proof/walk-287-legend.json --proof .devkit/proof --item 4
 ```
 
-The solid swatch uses the solid edge colour. The dashed swatch uses the dashed edge colour and the same dash length.
+The solid swatch uses the solid edge colour. The dashed swatch uses the dashed edge colour and the same dash length. A done edge ends in an arrowhead of the done-edge colour. The legend swatch for that edge uses the same colour.
 
-DECIDED: the solid edge and the arrowhead share one graph token. The dashed edge uses a second graph token, so the two edges stay distinct. Both tokens are graph-only.
+DECIDED: the solid edge and the arrowhead share the `graphEdge` token. The dashed edge and its arrowhead share the `graphEdgeDone` token. Both tokens are graph-only.
+
+DECIDED: overview graph edges and arrowheads use the project graph edge tokens. The overview edge stroke and marker use `graphEdge`. A done overview edge uses `graphEdgeDone`. The change stays inside both graphs.
 
 DECIDED: a done ticket in another project takes its state from that project's report when the report is loaded. The recorded walk includes that ticket.

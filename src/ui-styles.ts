@@ -778,9 +778,9 @@ export const cards = stylex.create({
 		color: colours.ink,
 		"--xy-background-color": colours.surface,
 		"--xy-background-pattern-color": colours.inkSoft,
-		"--xy-edge-stroke": colours.lineStrong,
+		"--xy-edge-stroke": colours.graphEdge,
 		"--xy-edge-stroke-width": measure.hairline,
-		"--xy-edge-stroke-selected": colours.lineStrong,
+		"--xy-edge-stroke-selected": colours.graphEdge,
 		"--xy-node-color": colours.ink,
 		"--xy-node-border": `${measure.hairline} solid ${colours.lineStrong}`,
 		"--xy-node-background-color": colours.surface,
@@ -852,7 +852,7 @@ export const cards = stylex.create({
 	graphMarker: {
 		width: measure.marker,
 		height: measure.marker,
-		backgroundColor: colours.lineStrong,
+		backgroundColor: colours.graphEdge,
 	},
 	graphTools: {
 		position: "absolute",
@@ -2471,19 +2471,9 @@ export const board = stylex.create({
 	graphEdgeDone: {
 		"--xy-edge-stroke": colours.graphEdgeDone,
 		"--xy-edge-stroke-selected": colours.graphEdgeDone,
+		stroke: colours.graphEdgeDone,
 	},
-
-	graphMarkerProbe: {
-		width: measure.marker,
-		height: measure.marker,
-		backgroundColor: colours.graphMarker,
-	},
-	graphEdgeProbe: {
-		width: measure.marker,
-		height: measure.marker,
-		backgroundColor: colours.graphEdge,
-	},
-	graphEdgeDoneProbe: {
+	graphDoneMarker: {
 		width: measure.marker,
 		height: measure.marker,
 		backgroundColor: colours.graphEdgeDone,

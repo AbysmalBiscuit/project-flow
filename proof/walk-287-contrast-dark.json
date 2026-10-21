@@ -5,9 +5,7 @@
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "acme/widget#8 done" },
 		{ "click": "button[data-theme-toggle]" },
-		{ "assert_text": "solid rgb(199, 199, 199) 10.67" },
-		{ "assert_text": "dashed rgb(126, 200, 227) 9.67" },
-		{ "assert_text": "marker rgb(199, 199, 199) 10.67" },
+		{ "assert_text": "Arrow: blocker to blocked" },
 		{ "shot": "contrast-dark" }
 	]
 }
