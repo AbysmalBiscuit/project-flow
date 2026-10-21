@@ -22,7 +22,7 @@ import {
 	type TicketRelation,
 	type TicketState,
 } from "./domain.ts";
-import { columnDepth, GraphTools } from "./graph-pane.tsx";
+import { columnDepth } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
@@ -39,7 +39,7 @@ import {
 	stateLabel,
 } from "./terms.ts";
 import { classToken, clsx } from "./ui.ts";
-import { board, cards } from "./ui-styles.ts";
+import { board, cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
@@ -906,11 +906,6 @@ function SizedProjectGraph({
 				<Background variant={BackgroundVariant.Dots} gap={18} />
 				<FitDirection key={direction} />
 				<Legend />
-				<GraphTools
-					probeId="project-graph-viewport"
-					fitId="project-graph-fit"
-					scope="#project-graph"
-				/>
 			</ReactFlow>
 		</div>
 	);
@@ -924,7 +919,7 @@ export function DirectionSwitch({
 	onChange: (direction: GraphDirection) => void;
 }) {
 	return (
-		<fieldset className={clsx(board.direction)}>
+		<fieldset className={clsx(headerControlStyle.group)}>
 			<legend className={clsx(cards.graphProbe)}>Graph direction</legend>
 			{graphDirections.map((item) => (
 				<button
@@ -932,8 +927,8 @@ export function DirectionSwitch({
 					type="button"
 					id={`graph-direction-${item}`}
 					className={clsx(
-						board.directionButton,
-						direction === item && board.directionOn,
+						headerControlStyle.segment,
+						direction === item && headerControlStyle.segmentOn,
 					)}
 					aria-pressed={direction === item}
 					onClick={() => onChange(item)}
