@@ -1614,7 +1614,7 @@ export function Page() {
 								}}
 							/>
 							<fieldset className={clsx(headerControlStyle.group)}>
-								<legend className={clsx(frame.legend)}>Views</legend>
+								<legend className={clsx(frame.visuallyHidden)}>Views</legend>
 								{views.map((item) => (
 									<button
 										key={item.id}

@@ -529,7 +529,7 @@ export const frame = stylex.create({
 		color: colours.ink,
 		fontWeight: type.weight,
 	},
-	legend: {
+	visuallyHidden: {
 		position: "absolute",
 		width: measure.hairline,
 		height: measure.hairline,

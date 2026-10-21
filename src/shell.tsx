@@ -108,7 +108,9 @@ export function PollStatus({
 		return (
 			<span id="poll-status" role="status" aria-busy="true">
 				<RefreshGlyph spinning />
-				<span className={clsx(frame.legend)}>{navLabel.refreshing}</span>
+				<span className={clsx(frame.visuallyHidden)}>
+					{navLabel.refreshing}
+				</span>
 			</span>
 		);
 	}
@@ -302,7 +304,7 @@ export function PageHeader({
 					{search}
 					{views === undefined || views.length === 0 ? null : (
 						<fieldset className={clsx(frame.views)}>
-							<legend className={clsx(frame.legend)}>Views</legend>
+							<legend className={clsx(frame.visuallyHidden)}>Views</legend>
 							{views.map((item) => (
 								<button
 									key={item.id}
