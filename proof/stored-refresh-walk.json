@@ -12,6 +12,22 @@
 		{ "assert_text": "acme/widget" },
 		{ "click": "#overview-refresh" },
 		{ "assert_text": "acme/widget" },
-		{ "shot": "refresh-overview" }
+		{ "shot": "refresh-overview" },
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Needs you" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-needs-you" },
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "acme/widget" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-project" },
+		{ "goto": "/inbox" },
+		{ "assert_text": "Inbox" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-inbox" },
+		{ "goto": "/settings" },
+		{ "assert_text": "Settings" },
+		{ "assert_text": "Refreshing" },
+		{ "shot": "refresh-settings" }
 	]
 }
