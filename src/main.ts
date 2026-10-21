@@ -752,7 +752,6 @@ if (import.meta.main) {
 		stdout: (line) => console.log(line),
 		stderr: (line) => console.error(line),
 		waitForStop: waitForStop(),
-		open: (url) => openBrowser(url, process.env),
 	});
 	process.exit(result.exitCode);
 }
