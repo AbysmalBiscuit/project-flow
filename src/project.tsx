@@ -35,6 +35,9 @@ import {
 	blockedLabel,
 	filterEmptyLabel,
 	groupByLabel,
+	type HidingFilter,
+	hidingFilterIds,
+	hidingFilterLabel,
 	loadingLabel,
 	navLabel,
 	viewLabel,
@@ -250,19 +253,25 @@ function clearedView(
 	};
 }
 
+function hidingFiltersOf(report: ProjectReport): HidingFilter[] {
+	return (report.hiddenBy ?? []).filter((id) =>
+		hidingFilterIds.some((known) => known === id),
+	);
+}
+
 function FilteredEmpty({
 	names,
 	onClear,
 }: {
-	names: readonly string[];
+	names: readonly HidingFilter[];
 	onClear: () => void;
 }) {
 	return (
 		<div id="filters-hide-all" className={clsx(board.filteredEmpty)}>
 			<p>
-				{names.join(", ")}{" "}
+				{names.map((id) => hidingFilterLabel[id]).join(", ")}{" "}
 				{names.length === 1 ? filterEmptyLabel.one : filterEmptyLabel.many}{" "}
-				every ticket.
+				{filterEmptyLabel.every}
 			</p>
 			<button
 				type="button"
@@ -1631,9 +1640,9 @@ function Page() {
 						}
 					/>
 					<div className={clsx(board.stage)}>
-						{report.hiddenBy !== undefined ? (
+						{hidingFiltersOf(report).length > 0 ? (
 							<FilteredEmpty
-								names={report.hiddenBy}
+								names={hidingFiltersOf(report)}
 								onClear={() => saveView(clearedView(settings, report.lanes))}
 							/>
 						) : view === "board" ? (

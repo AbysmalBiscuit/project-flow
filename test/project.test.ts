@@ -2201,7 +2201,7 @@ describe("GET /api/projects/:name", () => {
 				).json()) as ProjectReport;
 				expect(hidden.total).toBe(2);
 				expect(hidden.tickets).toEqual([]);
-				expect(hidden.hiddenBy).toEqual(["Needs you only"]);
+				expect(hidden.hiddenBy).toEqual(["needsYouOnly"]);
 				const current = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Record<string, unknown>;
@@ -2230,12 +2230,12 @@ describe("GET /api/projects/:name", () => {
 				).json()) as ProjectReport;
 				expect(named.tickets).toEqual([]);
 				expect(named.hiddenBy).toEqual([
-					"Lanes",
-					"Max age",
-					"Needs you only",
-					"Blocked only",
-					"Assignees",
-					"Search",
+					"lanes",
+					"maxAge",
+					"needsYouOnly",
+					"blockedOnly",
+					"assignees",
+					"search",
 				]);
 				const shown = (await (
 					await fetch(
@@ -2285,6 +2285,38 @@ describe("GET /api/projects/:name", () => {
 				expect(saved.projectViews[githubRepo]?.blockedOnly).toBe(false);
 				expect(saved.projectViews[githubRepo]?.search).toBe("");
 			},
+		);
+	});
+
+	test("a project report names the default Done age cap when it hides every ticket", async () => {
+		const issues = [
+			issue(1, "Old done work", {
+				state: "closed",
+				state_reason: "completed",
+				updated_at: "2026-08-01T12:00:00.000Z",
+				closed_at: "2026-08-01T12:00:00.000Z",
+			}),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			githubFetch(issues, []),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const hidden = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(hidden.total).toBe(1);
+				expect(hidden.tickets).toEqual([]);
+				expect(hidden.doneTickets.map((ticket) => ticket.key)).toEqual([
+					`${githubRepo}#1`,
+				]);
+				expect(hidden.hiddenBy).toEqual(["maxAge"]);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
 	});
 

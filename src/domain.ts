@@ -7,6 +7,7 @@ import type {
 } from "./configuration.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
+import type { HidingFilter } from "./terms.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -701,8 +702,8 @@ export type ProjectReport = {
 	doneTickets: TicketView[];
 	graphTickets: TicketView[];
 	graphLinks: ShownGraphLink[];
-	/** Filter names that leave no ticket on the board, graph or table. */
-	hiddenBy?: string[];
+	/** Filters that leave no ticket on the board, graph or table. */
+	hiddenBy?: HidingFilter[];
 };
 
 export function displayedLaneName(ticket: TicketView): string {
@@ -4114,10 +4115,7 @@ export function filterProjectReport(
 		const key = ticket.key?.toLowerCase();
 		return key !== undefined && (keptKeys.has(key) || doneKeys.has(key));
 	});
-	const hiddenBy =
-		kept.length === 0 && done.length === 0
-			? hidingFilters(report, view, shown)
-			: [];
+	const hiddenBy = kept.length === 0 ? hidingFilters(report, view, shown) : [];
 	return {
 		...report,
 		tickets: kept,
@@ -4132,36 +4130,32 @@ function hidingFilters(
 	report: ProjectReport,
 	view: ProjectViewSettings,
 	shown: Set<string>,
-): string[] {
-	if (report.tickets.length === 0 && report.doneTickets.length === 0) {
+): HidingFilter[] {
+	if (report.tickets.length === 0) {
 		return [];
 	}
-	const open: string[] = [];
+	const open: HidingFilter[] = [];
 	if (view.shownLanes !== undefined && shown.size < report.lanes.length) {
-		open.push("Lanes");
+		open.push("lanes");
 	}
-	const aged = Object.entries(view.maxAgeDays).some(([lane, days]) => {
-		if (days <= 0) {
-			return false;
-		}
-		return [...report.tickets, ...report.doneTickets].some(
-			(item) => (item.lane ?? "").toLowerCase() === lane.toLowerCase(),
-		);
+	const aged = report.tickets.some((item) => {
+		const cap = laneAgeCap(view.maxAgeDays, item.lane ?? "", item.statusType);
+		return cap > 0;
 	});
 	if (aged) {
-		open.push("Max age");
+		open.push("maxAge");
 	}
 	if (view.needsYouOnly) {
-		open.push("Needs you only");
+		open.push("needsYouOnly");
 	}
 	if (view.blockedOnly) {
-		open.push("Blocked only");
+		open.push("blockedOnly");
 	}
 	if (view.assignees.some((name) => name.trim() !== "")) {
-		open.push("Assignees");
+		open.push("assignees");
 	}
 	if (view.search.trim() !== "") {
-		open.push("Search");
+		open.push("search");
 	}
 	return open;
 }
