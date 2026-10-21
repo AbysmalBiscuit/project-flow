@@ -527,7 +527,17 @@ export function repoReadFromHandler(
 				) {
 					return new Response("[]", { status: 404 });
 				}
-				const response = await handler(restInput, restInit);
+				let response: Response;
+				try {
+					response = await handler(restInput, restInit);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : "recorded page failed";
+					return new Response(JSON.stringify({ errors: [{ message }] }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
 				if (response.status === 304) {
 					return response;
 				}
@@ -539,6 +549,12 @@ export function repoReadFromHandler(
 				return response;
 			};
 			const issuesResponse = await issueList(handler, repo);
+			if (!issuesResponse.ok && issuesResponse.status !== 304) {
+				return new Response(await issuesResponse.text(), {
+					status: issuesResponse.status,
+					headers: issuesResponse.headers,
+				});
+			}
 			if (issuesResponse.status === 304) {
 				const etag = issuesResponse.headers.get("etag");
 				return new Response(null, {
@@ -752,8 +768,10 @@ export function repoReadFromHandler(
 		} catch (error) {
 			const message =
 				error instanceof Error ? error.message : "recorded page failed";
-			const status = Number(message.match(/HTTP (\d+)/)?.[1] ?? 500);
-			return new Response(message, { status });
+			return new Response(JSON.stringify({ errors: [{ message }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
 		}
 	})();
 }

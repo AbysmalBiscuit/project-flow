@@ -2135,6 +2135,12 @@ async function readRepoPage(
 	const body: unknown = await response.json();
 	const parsed = repoReadPage.safeParse(body);
 	if (!parsed.success) {
+		const failed = z
+			.object({ errors: z.array(z.object({ message: z.string() })).min(1) })
+			.safeParse(body);
+		if (failed.success) {
+			throw new Error(failed.data.errors[0].message);
+		}
 		throw new Error(`GitHub read repo failed: ${repo}`);
 	}
 	const error = parsed.data.errors?.[0];
