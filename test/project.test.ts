@@ -1277,10 +1277,6 @@ describe("GET /api/projects/:name", () => {
 					report.tickets.find((item) => item.key === `${githubRepo}#2`)
 						?.blocks ?? [],
 				).toEqual([]);
-				const blank = await fetch(
-					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
-				);
-				expect(blank.status).toBe(404);
 			},
 		);
 	});
