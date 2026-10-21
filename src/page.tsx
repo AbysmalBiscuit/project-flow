@@ -24,7 +24,7 @@ const pages = [
 	{ path: "/settings", load: () => import("./settings.tsx") },
 ] as const;
 
-function pageLoad(path: string): () => Promise<unknown> {
+function pageLoad(path: string): () => Promise<{ Page: () => ReactNode }> {
 	const match = pages.find((item) => item.path === path);
 	if (match !== undefined) {
 		return match.load;
@@ -56,14 +56,12 @@ function paint(path: string): void {
 async function showPage(): Promise<void> {
 	const turn = ++shown;
 	const path = window.location.pathname;
-	const loaded = (await pageLoad(path)()) as { Page?: () => ReactNode };
+	const loaded = await pageLoad(path)();
 	if (turn !== shown || window.location.pathname !== path) {
 		return;
 	}
-	if (loaded.Page !== undefined) {
-		currentPage = loaded.Page;
-		paint(path);
-	}
+	currentPage = loaded.Page;
+	paint(path);
 }
 
 await showPage();

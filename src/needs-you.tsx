@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import type { NeedsYouItem, Overview } from "./domain.ts";
+import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
-import { fetchJson, pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries.ts";
 import {
 	activeTicket,
 	closeTicket,
@@ -305,14 +305,8 @@ function NeedsList({
 }
 
 export function Page() {
-	const needs = useQuery({
-		queryKey: pageQuery.needsYou,
-		queryFn: () => fetchJson<NeedsYouItem[]>("/api/needs-you"),
-	});
-	const overview = useQuery({
-		queryKey: pageQuery.overview,
-		queryFn: () => fetchJson<Overview>("/api/overview"),
-	});
+	const needs = useQuery(pageQuery.needsYou);
+	const overview = useQuery(pageQuery.overview);
 	const items = needs.data;
 	const body = overview.data;
 	useEffect(() => {

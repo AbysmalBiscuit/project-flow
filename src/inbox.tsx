@@ -1,19 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import type {
-	InboxEntry,
-	NeedsYouItem,
-	NotificationTrigger,
-	Overview,
-} from "./domain.ts";
+import type { InboxEntry, NotificationTrigger } from "./domain.ts";
 import { sameTicketKey } from "./domain.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
 import { TicketPanel } from "./panel.tsx";
-import { fetchJson, pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
@@ -136,10 +131,7 @@ function InboxList({
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
 	const [permission, setPermission] = useState(notificationPermission);
-	const needsQuery = useQuery({
-		queryKey: pageQuery.needsYou,
-		queryFn: () => fetchJson<NeedsYouItem[]>("/api/needs-you"),
-	});
+	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
 	const ticket = useActiveTicket();
 	const refreshing = fetching || polling;
@@ -353,14 +345,8 @@ function InboxList({
 
 export function Page() {
 	const queries = useQueryClient();
-	const inbox = useQuery({
-		queryKey: pageQuery.inbox,
-		queryFn: () => fetchJson<InboxEntry[]>("/api/inbox"),
-	});
-	const overview = useQuery({
-		queryKey: pageQuery.overview,
-		queryFn: () => fetchJson<Overview>("/api/overview"),
-	});
+	const inbox = useQuery(pageQuery.inbox);
+	const overview = useQuery(pageQuery.overview);
 	const entries = inbox.data;
 	const body = overview.data;
 	const holdsRead = body !== undefined && storeHoldsRead(body);
@@ -370,7 +356,7 @@ export function Page() {
 			<InboxList
 				entries={[]}
 				onChange={(next) => {
-					queries.setQueryData(pageQuery.inbox, next);
+					queries.setQueryData(pageQuery.inbox.queryKey, next);
 				}}
 				polling={polling}
 				fetching={inbox.isFetching || overview.isFetching}
@@ -387,7 +373,7 @@ export function Page() {
 		<InboxList
 			entries={entries}
 			onChange={(next) => {
-				queries.setQueryData(pageQuery.inbox, next);
+				queries.setQueryData(pageQuery.inbox.queryKey, next);
 			}}
 			polling={polling}
 			fetching={inbox.isFetching || overview.isFetching}

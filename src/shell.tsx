@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
-import type { NeedsYouItem } from "./domain.ts";
 import { openJumpBox } from "./jump.tsx";
-import { fetchJson, pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries.ts";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
@@ -151,10 +150,6 @@ const links = [
 	{ href: "/inbox", label: navLabel.inbox },
 ] as const;
 
-function openCount(items: NeedsYouItem[]): number {
-	return items.length;
-}
-
 let themeSave = Promise.resolve();
 
 function saveTheme(theme: "light" | "dark"): Promise<boolean> {
@@ -182,11 +177,8 @@ function saveTheme(theme: "light" | "dark"): Promise<boolean> {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-	const needs = useQuery({
-		queryKey: pageQuery.needsYou,
-		queryFn: () => fetchJson<NeedsYouItem[]>("/api/needs-you"),
-	});
-	const count = needs.data === undefined ? null : openCount(needs.data);
+	const needs = useQuery(pageQuery.needsYou);
+	const count = needs.data === undefined ? null : needs.data.length;
 	const [theme, setTheme] = useState(pageTheme);
 	const themeRef = useRef(theme);
 	themeRef.current = theme;

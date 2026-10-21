@@ -14,7 +14,6 @@ import { readSettings, writeSettings } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
-	NeedsYouItem,
 	Overview,
 	PollProgress,
 	ProjectCounts,
@@ -38,7 +37,7 @@ import {
 	ticketTotal,
 	trackerName,
 } from "./progress-bar.tsx";
-import { fetchJson, pageQuery } from "./queries.ts";
+import { pageQuery } from "./queries.ts";
 import {
 	PageFrame,
 	type PageView,
@@ -778,10 +777,7 @@ function OverviewPage({
 		const timer = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(timer);
 	}, []);
-	const needsQuery = useQuery({
-		queryKey: pageQuery.needsYou,
-		queryFn: () => fetchJson<NeedsYouItem[]>("/api/needs-you"),
-	});
+	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
 		onSettings(patch(settings));
@@ -1060,14 +1056,8 @@ function OverviewPage({
 
 export function Page() {
 	const queries = useQueryClient();
-	const overviewQuery = useQuery({
-		queryKey: pageQuery.overview,
-		queryFn: () => fetchJson<Overview>("/api/overview"),
-	});
-	const settingsQuery = useQuery({
-		queryKey: pageQuery.settings,
-		queryFn: () => fetchJson<Configuration>("/api/settings"),
-	});
+	const overviewQuery = useQuery(pageQuery.overview);
+	const settingsQuery = useQuery(pageQuery.settings);
 	const [progress, setProgress] = useState<PollProgress | null>(null);
 	useEffect(() => {
 		return onAppEvent("progress", (event) => {
@@ -1092,7 +1082,7 @@ export function Page() {
 			progress={progress}
 			fetching={overviewQuery.isFetching || settingsQuery.isFetching}
 			onSettings={(next) => {
-				queries.setQueryData(pageQuery.settings, next);
+				queries.setQueryData(pageQuery.settings.queryKey, next);
 			}}
 			onRefresh={() => {
 				void overviewQuery.refetch();

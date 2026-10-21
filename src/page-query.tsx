@@ -4,7 +4,7 @@ import { pageQueryClient } from "./queries.ts";
 
 export function PageQueryRoot({ children }: { children: ReactNode }) {
 	return (
-		<QueryClientProvider client={pageQueryClient()}>
+		<QueryClientProvider client={pageQueryClient}>
 			{children}
 		</QueryClientProvider>
 	);

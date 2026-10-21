@@ -1,4 +1,5 @@
-import { QueryClient, type QueryKey } from "@tanstack/react-query";
+import { QueryClient, queryOptions } from "@tanstack/react-query";
+import { readSettings } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
 import type { InboxEntry, NeedsYouItem, Overview } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
@@ -13,10 +14,22 @@ import {
 export const pageStaleTimeMs = 60_000;
 
 export const pageQuery = {
-	overview: ["overview"] as const,
-	needsYou: ["needs-you"] as const,
-	inbox: ["inbox"] as const,
-	settings: ["settings"] as const,
+	overview: queryOptions({
+		queryKey: ["overview"],
+		queryFn: () => fetchJson<Overview>("/api/overview"),
+	}),
+	needsYou: queryOptions({
+		queryKey: ["needs-you"],
+		queryFn: () => fetchJson<NeedsYouItem[]>("/api/needs-you"),
+	}),
+	inbox: queryOptions({
+		queryKey: ["inbox"],
+		queryFn: () => fetchJson<InboxEntry[]>("/api/inbox"),
+	}),
+	settings: queryOptions({
+		queryKey: ["settings"],
+		queryFn: readSettings,
+	}),
 };
 
 const client = new QueryClient({
@@ -30,9 +43,7 @@ const client = new QueryClient({
 	},
 });
 
-export function pageQueryClient(): QueryClient {
-	return client;
-}
+export const pageQueryClient = client;
 
 export async function fetchJson<T>(path: string): Promise<T> {
 	const response = await fetch(path);
@@ -40,10 +51,6 @@ export async function fetchJson<T>(path: string): Promise<T> {
 		throw new Error(`${path} failed (HTTP ${response.status})`);
 	}
 	return (await response.json()) as T;
-}
-
-function seed<T>(key: QueryKey, data: T): void {
-	client.setQueryData(key, data, { updatedAt: Date.now() });
 }
 
 let storedSeeded = false;
@@ -58,13 +65,13 @@ function seedOverview(stored: unknown, polling: boolean | undefined): void {
 		return;
 	}
 	const body = overview as Overview;
-	seed(pageQuery.overview, {
+	client.setQueryData(pageQuery.overview.queryKey, {
 		...body,
 		...(body.polling === true || polling === true ? { polling: true } : {}),
 	});
 	const settings = storedObject(embedded.settings);
 	if (settings !== null) {
-		seed(pageQuery.settings, settings as Configuration);
+		client.setQueryData(pageQuery.settings.queryKey, settings as Configuration);
 	}
 }
 
@@ -83,27 +90,27 @@ export function seedPageQueries(pathname: string): void {
 		return;
 	}
 	if (pathname === "/needs-you" && Array.isArray(stored)) {
-		seed(pageQuery.needsYou, stored as NeedsYouItem[]);
+		client.setQueryData(pageQuery.needsYou.queryKey, stored as NeedsYouItem[]);
 		return;
 	}
 	if (pathname === "/inbox" && Array.isArray(stored)) {
-		seed(pageQuery.inbox, stored as InboxEntry[]);
+		client.setQueryData(pageQuery.inbox.queryKey, stored as InboxEntry[]);
 	}
 }
 
 let eventsWired = false;
 
 function applyOverviewEvent(body: Overview): void {
-	client.setQueryData(pageQuery.overview, body);
+	client.setQueryData(pageQuery.overview.queryKey, body);
 	writePageCache("polling", body.polling === true);
-	void client.invalidateQueries({ queryKey: pageQuery.needsYou });
-	void client.invalidateQueries({ queryKey: pageQuery.inbox });
+	void client.invalidateQueries(pageQuery.needsYou);
+	void client.invalidateQueries(pageQuery.inbox);
 }
 
 function invalidatePageQueries(): void {
-	void client.invalidateQueries({ queryKey: pageQuery.overview });
-	void client.invalidateQueries({ queryKey: pageQuery.needsYou });
-	void client.invalidateQueries({ queryKey: pageQuery.inbox });
+	void client.invalidateQueries(pageQuery.overview);
+	void client.invalidateQueries(pageQuery.needsYou);
+	void client.invalidateQueries(pageQuery.inbox);
 }
 
 export function wirePageQueryEvents(): void {
@@ -116,6 +123,6 @@ export function wirePageQueryEvents(): void {
 		applyOverviewEvent(JSON.parse(event.data) as Overview);
 	});
 	onAppEvent("notification", () => {
-		void client.invalidateQueries({ queryKey: pageQuery.inbox });
+		void client.invalidateQueries(pageQuery.inbox);
 	});
 }
