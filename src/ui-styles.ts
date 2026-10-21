@@ -2085,7 +2085,6 @@ export const board = stylex.create({
 		gap: space.sm,
 		boxSizing: "border-box",
 		width: measure.lane,
-		minHeight: 0,
 		overflow: "hidden",
 		padding: space.sm,
 		overflowWrap: "break-word",
@@ -2113,7 +2112,6 @@ export const board = stylex.create({
 	markInReview: { backgroundColor: colours.review },
 	markAwaitingMerge: { backgroundColor: colours.merge },
 	laneTitle: {
-		flex: "0 0 auto",
 		margin: 0,
 		color: colours.inkSoft,
 		fontSize: type.lane,
