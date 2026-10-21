@@ -319,8 +319,6 @@ export function mountJumpBox(): void {
 	opener.type = "button";
 	opener.hidden = true;
 	opener.id = "walk-ctrl-k";
-	opener.style.border = "0";
-	opener.style.font = "inherit";
 	opener.addEventListener("click", () => {
 		window.dispatchEvent(
 			new KeyboardEvent("keydown", {

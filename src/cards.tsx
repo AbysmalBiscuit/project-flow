@@ -1,13 +1,7 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
 import { ReactFlowProvider } from "@xyflow/react";
-import {
-	type CSSProperties,
-	type ReactNode,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { readSettings, writeSettings } from "./client-settings.ts";
 import {
 	type Configuration,
@@ -546,7 +540,6 @@ function MenuButton({
 	onToggle: () => void;
 	children: ReactNode;
 }) {
-	const [room, setRoom] = useState<number | null>(null);
 	return (
 		<div className={clsx(cards.menu)}>
 			<button
@@ -555,27 +548,12 @@ function MenuButton({
 				className={clsx(cards.control, shell.buttonFocus)}
 				aria-expanded={open}
 				aria-controls={`${id}-panel`}
-				onClick={(event) => {
-					const box = event.currentTarget.getBoundingClientRect();
-					setRoom(window.innerHeight - box.bottom - box.height);
-					onToggle();
-				}}
+				onClick={onToggle}
 			>
 				{label}
 			</button>
 			{open ? (
-				<div
-					id={`${id}-panel`}
-					className={clsx(cards.panel)}
-					role="menu"
-					style={
-						room === null
-							? undefined
-							: ({
-									"--menu-room": `${room}px`,
-								} as CSSProperties)
-					}
-				>
+				<div id={`${id}-panel`} className={clsx(cards.panel)}>
 					{children}
 				</div>
 			) : null}
@@ -695,8 +673,7 @@ function OverviewPage({
 					key={item}
 					type="button"
 					id={`overview-sort-${item}`}
-					role="menuitemradio"
-					aria-checked={view.sort === item}
+					aria-pressed={view.sort === item}
 					className={clsx(cards.choice, shell.buttonFocus)}
 					onClick={() =>
 						saveView({
@@ -730,8 +707,7 @@ function OverviewPage({
 					key={item}
 					type="button"
 					id={`overview-filter-${item}`}
-					role="menuitemradio"
-					aria-checked={view.filter === item}
+					aria-pressed={view.filter === item}
 					className={clsx(cards.choice, shell.buttonFocus)}
 					onClick={() => saveView({ ...view, filter: item })}
 				>

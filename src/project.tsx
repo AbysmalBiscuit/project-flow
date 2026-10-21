@@ -359,6 +359,15 @@ function Card({
 	);
 }
 
+const statusMarks: Record<string, typeof board.markBacklog> = {
+	done: board.markDone,
+	dropped: board.markDropped,
+	backlog: board.markBacklog,
+	inProgress: board.markInProgress,
+	inReview: board.markInReview,
+	awaitingMerge: board.markAwaitingMerge,
+};
+
 const laneMarks: Record<string, typeof board.markBacklog> = {
 	[lightValues.done.toLowerCase()]: board.markDone,
 	[lightValues.dropped.toLowerCase()]: board.markDropped,
@@ -369,8 +378,12 @@ const laneMarks: Record<string, typeof board.markBacklog> = {
 	[lightValues.awaitingMerge.toLowerCase()]: board.markAwaitingMerge,
 };
 
-function laneMark(colour: string) {
-	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
+function laneMark(colour: string, statusType?: string) {
+	return (
+		(statusType === undefined ? undefined : statusMarks[statusType]) ??
+		laneMarks[colour.trim().toLowerCase()] ??
+		board.markBacklog
+	);
 }
 
 function LaneCards({
@@ -399,6 +412,7 @@ function LaneCards({
 function Lane({
 	name,
 	colour,
+	statusType,
 	tickets,
 	fresh,
 	groupBy,
@@ -411,6 +425,7 @@ function Lane({
 }: {
 	name: string;
 	colour: string;
+	statusType: string;
 	tickets: TicketView[];
 	fresh: TicketView[];
 	groupBy: GroupBy;
@@ -436,7 +451,7 @@ function Lane({
 		>
 			<h2 className={clsx(board.laneTitle)}>
 				<span
-					className={clsx(board.laneMark, laneMark(colour))}
+					className={clsx(board.laneMark, laneMark(colour, statusType))}
 					data-lane-colour={colour}
 				/>
 				{name} {listed.length}
@@ -641,7 +656,9 @@ function TableRow({
 				<span
 					className={clsx(
 						board.stateMark,
-						lane === undefined ? board.markBacklog : laneMark(lane.colour),
+						lane === undefined
+							? board.markBacklog
+							: laneMark(lane.colour, lane.statusType),
 					)}
 				/>
 				{displayedLaneName(ticket)}
@@ -841,6 +858,7 @@ function Board({
 					key={lane.id}
 					name={lane.name}
 					colour={lane.colour}
+					statusType={lane.statusType}
 					groupBy={boardGroupBy(settings)}
 					tickets={
 						lane.statusType === "done"
