@@ -277,6 +277,10 @@ export type Thread = {
 	comments: ThreadComment[];
 };
 
+export type FetchedThread = Omit<Thread, "comments"> & {
+	comments: Omit<ThreadComment, "html">[];
+};
+
 export type ReplyRequest = {
 	tracker: "github" | "linear";
 	project: string;
@@ -295,12 +299,14 @@ function visibleCommentBody(body: string): string {
 		.trim();
 }
 
-function visibleComment(comment: ThreadComment): ThreadComment {
+function visibleComment(comment: Omit<ThreadComment, "html">): ThreadComment {
 	const body = visibleCommentBody(comment.body);
 	return { ...comment, body, html: commentHtml(body), children: [] };
 }
 
-export function commentTree(comments: ThreadComment[]): ThreadComment[] {
+export function commentTree(
+	comments: Omit<ThreadComment, "html">[],
+): ThreadComment[] {
 	const byParent = new Map<string | null, ThreadComment[]>();
 	for (const comment of comments) {
 		const parent = comment.parentId;

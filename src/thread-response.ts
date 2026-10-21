@@ -1,4 +1,4 @@
-import { commentTree, type Thread } from "./domain.ts";
+import { commentTree, type FetchedThread } from "./domain.ts";
 import { ThreadReadTimeout, withThreadLimit } from "./fetch.ts";
 import { TrackerError } from "./github.ts";
 import type { Tracker } from "./ports.ts";
@@ -40,7 +40,7 @@ export async function threadResponse(
 		return Response.json({ missing: true }, { status: 404 });
 	}
 	try {
-		const thread: Thread | null = await withThreadLimit(
+		const thread: FetchedThread | null = await withThreadLimit(
 			(signal) => fetchThread(project, key.trim(), signal),
 			threadReadLimitMs,
 		);

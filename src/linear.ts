@@ -2,10 +2,10 @@ import { z } from "zod";
 import type {
 	Board,
 	Comment,
+	FetchedThread,
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
-	Thread,
 	ThreadComment,
 	Ticket,
 	TicketRef,
@@ -1117,7 +1117,7 @@ export async function fetchLinearThread(
 	project: string,
 	ticketKey: string,
 	signal?: AbortSignal,
-): Promise<Thread | null> {
+): Promise<FetchedThread | null> {
 	const nodes: NonNullable<
 		z.infer<typeof threadPage>["data"]["issue"]
 	>["comments"]["nodes"] = [];
@@ -1145,11 +1145,10 @@ export async function fetchLinearThread(
 			? issue.comments.pageInfo.endCursor
 			: null;
 	} while (after !== null);
-	const comments: ThreadComment[] = nodes
+	const comments: Omit<ThreadComment, "html">[] = nodes
 		.map((comment) => ({
 			id: comment.id,
 			body: comment.body ?? "",
-			html: "",
 			author: linearAuthor(comment.user),
 			createdAt: comment.createdAt ?? "",
 			url: comment.url ?? "",
