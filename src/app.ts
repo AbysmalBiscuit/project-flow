@@ -82,6 +82,7 @@ import type {
 	Viewer,
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
+import type { TicketSearchHit } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 const fullPollPeriodMs = 10 * 60 * 1000;
