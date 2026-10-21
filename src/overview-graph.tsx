@@ -11,8 +11,10 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
+import { nodeSize, sizedNode, subscribeNodeSizes } from "./graph-measure.ts";
+import { MeasuredNode, useProbedSize } from "./graph-measure.tsx";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
@@ -98,7 +100,7 @@ function layout(
 	return positions;
 }
 
-function ProjectNode({ data }: { data: ProjectNodeData }) {
+function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 	return (
 		<a
 			className={clsx(
@@ -115,6 +117,7 @@ function ProjectNode({ data }: { data: ProjectNodeData }) {
 				openProject(data.project.name);
 			}}
 		>
+			<MeasuredNode id={id} kind="project" />
 			<Handle type="target" position={Position.Left} />
 			<div className={clsx(cards.graphHead)}>
 				<p className={clsx(cards.graphTitle)}>{data.project.name}</p>
@@ -216,6 +219,8 @@ function nodeData(project: ProjectCounts): ProjectNodeData {
 export function graphModel(
 	shown: ProjectCounts[],
 	catalogue: ProjectCounts[],
+	span: { width: number; height: number },
+	drawn: { width: number; height: number },
 ): {
 	nodes: FlowNode<ProjectNodeData>[];
 	edges: FlowEdge<BlockerEdgeData>[];
@@ -223,24 +228,28 @@ export function graphModel(
 	const catalogueNames = new Set(catalogue.map((project) => project.name));
 	const shownNames = new Set(shown.map((project) => project.name));
 	const positions = layout(catalogue, catalogueNames);
-	const nodes = shown.map((project) => ({
-		id: project.name,
-		type: "project",
-		position: positions.get(project.name) ?? { x: 0, y: 0 },
-		data: nodeData(project),
-		// React Flow gives a node pointer events only when it is selectable, draggable, or has a pointer handler.
-		selectable: true,
-	}));
+	const nodes = shown.map((project) =>
+		sizedNode(
+			{
+				id: project.name,
+				type: "project",
+				position: positions.get(project.name) ?? { x: 0, y: 0 },
+				data: nodeData(project),
+				// React Flow gives a node pointer events only when it is selectable, draggable, or has a pointer handler.
+				selectable: true,
+			},
+			drawn.width > 0 ? drawn : span,
+		),
+	);
 	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
 	const pending = shown.flatMap((project) =>
 		project.crossProjectBlockers.flatMap((blocker) =>
 			edgeFor(project.name, blocker, shownNames, marker),
 		),
 	);
-	const span = projectSpan();
 	const bounds = new Map(
 		nodes.flatMap((node) => {
-			const bound = nodeBound(node, span);
+			const bound = nodeBound(node, drawn.width > 0 ? drawn : span);
 			if (bound === undefined) {
 				return [];
 			}
@@ -254,6 +263,7 @@ export function graphModel(
 		);
 		return { edge, nodesForEdge };
 	});
+	const side = (drawn.width > 0 ? drawn : span).height;
 	const spots = labelSpots(
 		laned.map(({ edge, nodesForEdge }) => ({
 			route: edgeRoute(edge, bounds),
@@ -262,7 +272,7 @@ export function graphModel(
 			entry: edge.data.entry,
 			entries: edge.data.entries,
 			nodes: nodesForEdge,
-			side: span.height,
+			side,
 		})),
 	);
 	const edges = laned.map(({ edge, nodesForEdge }, index) => ({
@@ -271,21 +281,10 @@ export function graphModel(
 			...edge.data,
 			nodes: nodesForEdge,
 			label: spots[index] ?? { x: 0, y: 0 },
-			side: span.height,
+			side,
 		},
 	}));
 	return { nodes, edges };
-}
-
-function projectSpan(): { width: number; height: number } {
-	const probe = document.createElement("span");
-	probe.className = classToken(cards.graphNode);
-	probe.style.position = "absolute";
-	probe.style.visibility = "hidden";
-	document.body.append(probe);
-	const box = probe.getBoundingClientRect();
-	probe.remove();
-	return { width: box.width, height: box.height };
 }
 
 function nodeBound(
@@ -359,10 +358,21 @@ export function OverviewGraph({
 	projects: ProjectCounts[];
 	catalogue: ProjectCounts[];
 }) {
-	const model = useMemo(
-		() => graphModel(projects, catalogue),
-		[projects, catalogue],
+	const probed = useProbedSize(cards.graphNode, "Project");
+	const [, setMeasured] = useState(0);
+	useEffect(
+		() => subscribeNodeSizes(() => setMeasured((count) => count + 1)),
+		[],
 	);
+	const drawn = nodeSize("project", probed ?? { width: 0, height: 0 });
+	const model = useMemo(
+		() =>
+			probed === null ? null : graphModel(projects, catalogue, probed, drawn),
+		[projects, catalogue, probed, drawn],
+	);
+	if (model === null) {
+		return <div id="overview-graph" className={clsx(cards.graph)} />;
+	}
 	const places = model.nodes
 		.map((node) => `${node.id}:${node.position.x},${node.position.y}`)
 		.join(" ");
