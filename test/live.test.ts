@@ -1491,7 +1491,9 @@ describe("live updates", () => {
 				const secondLists = requests.filter(
 					(url) => listUrl(url, otherRepo) !== null,
 				);
-				expect(firstLists).toHaveLength(3);
+				// One poll shares one repository snapshot, so a start plus a
+				// refresh is two reads. The refresh keeps the earlier pin's since.
+				expect(firstLists).toHaveLength(2);
 				expect(secondLists).toHaveLength(2);
 				expect(
 					new URL(firstLists[0] ?? "").searchParams.get("since"),
@@ -1499,9 +1501,6 @@ describe("live updates", () => {
 				expect(new URL(firstLists[1] ?? "").searchParams.get("since")).toBe(
 					goodPoll,
 				);
-				expect(
-					new URL(firstLists[2] ?? "").searchParams.get("since"),
-				).toBeNull();
 				expect(
 					new URL(secondLists[0] ?? "").searchParams.get("since"),
 				).toBeNull();

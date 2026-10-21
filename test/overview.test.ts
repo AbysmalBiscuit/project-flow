@@ -4127,7 +4127,9 @@ describe("GET /api/overview", () => {
 					const repoReads = sent.filter((item) =>
 						item.body.includes("query RepoRead"),
 					);
-					expect(repoReads).toHaveLength(3);
+					// One poll shares one repository snapshot, so a start plus a
+					// refresh is two reads.
+					expect(repoReads).toHaveLength(2);
 					resolve();
 				})().catch(reject);
 			};
