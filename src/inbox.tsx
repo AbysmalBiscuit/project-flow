@@ -267,6 +267,7 @@ function InboxList({
 						<input
 							id="inbox-unread-only"
 							type="checkbox"
+							className={clsx(inbox.tick)}
 							checked={unreadOnly}
 							onChange={(event) => setUnreadOnly(event.currentTarget.checked)}
 						/>

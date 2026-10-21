@@ -80,6 +80,7 @@ import type {
 	Viewer,
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
+import { statusColours } from "./token-palette.ts";
 
 const fullPollPeriodMs = 10 * 60 * 1000;
 
@@ -229,6 +230,7 @@ function projectViews(options: PollOptions, configuration: Configuration) {
 			needsYouRules(configuration, options.viewers),
 			configuration.laneMappings,
 			viewedAt,
+			statusColours,
 			row.board,
 		);
 		return {

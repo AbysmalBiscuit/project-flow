@@ -110,6 +110,15 @@ const stateTone: Record<
 	dropped: { label: stateLabel.dropped, tone: board.ticketDropped },
 };
 
+const legendTone: Record<TicketState, (typeof board)["legendDone"]> = {
+	backlog: board.legendReady,
+	inProgress: board.legendProgress,
+	inReview: board.legendReview,
+	awaitingMerge: board.legendMerge,
+	done: board.legendDone,
+	dropped: board.legendDropped,
+};
+
 const legendOrder = [
 	"backlog",
 	"inProgress",
@@ -638,7 +647,7 @@ function Legend() {
 			<ul className={clsx(board.legendRow)}>
 				{legendOrder.map((state) => (
 					<li key={state} className={clsx(board.legendItem)}>
-						<span className={clsx(board.legendDot, stateTone[state].tone)} />
+						<span className={clsx(board.legendDot, legendTone[state])} />
 						{stateTone[state].label}
 					</li>
 				))}

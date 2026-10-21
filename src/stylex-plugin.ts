@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import type { PluginItem } from "@babel/core";
 import babel from "@babel/core";
@@ -43,7 +43,7 @@ async function compile(code: string, filename: string): Promise<string> {
 		rules.delete(filename);
 	}
 	if (filename.endsWith("/tokens.stylex.ts")) {
-		themeMeta = themeFromCompile(code, result?.code ?? "");
+		themeMeta = themeFromCompile(result?.code ?? "");
 	}
 	return result?.code ?? code;
 }
@@ -112,9 +112,16 @@ function compiledVariables(code: string): Map<string, string> {
 	return names;
 }
 
-function tokenValues(source: string, name: string): Record<string, string> {
-	return Object.fromEntries(objectExport(source, name));
-}
+const tokenSource = readFileSync(
+	resolve(rootDir, "src/tokens.stylex.ts"),
+	"utf8",
+);
+const lightTokenData = Object.fromEntries(
+	objectExport(tokenSource, "lightValues"),
+);
+const darkTokenData = Object.fromEntries(
+	objectExport(tokenSource, "darkValues"),
+);
 
 function declarations(
 	values: Record<string, string>,
@@ -129,9 +136,9 @@ function declarations(
 		.join(";");
 }
 
-function themeFromCompile(source: string, code: string): PageThemeMeta {
-	const light = tokenValues(source, "lightValues");
-	const dark = tokenValues(source, "darkValues");
+function themeFromCompile(code: string): PageThemeMeta {
+	const light = lightTokenData;
+	const dark = darkTokenData;
 	const names = compiledVariables(code);
 	return {
 		light: declarations(light, names),
