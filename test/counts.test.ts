@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	doneTicketsForLane,
-	freshTicketsForLane,
 	type Overview,
 	type ProjectReport,
 	type StatusType,
@@ -511,44 +510,44 @@ describe("done counts", () => {
 			type: "completed",
 			color: "#5e6ad2",
 		};
+		const backlog = {
+			id: "st-backlog",
+			name: "Backlog",
+			type: "backlog",
+			color: "#bec2c8",
+		};
+		const progress = {
+			id: "st-progress",
+			name: "In Progress",
+			type: "started",
+			color: "#f2c94c",
+		};
+		const review = {
+			id: "st-review",
+			name: "In Review",
+			type: "started",
+			color: "#4cb782",
+		};
+		const merge = {
+			id: "st-merge",
+			name: "Awaiting merge",
+			type: "started",
+			color: "#bb87fc",
+		};
+		const dropped = {
+			id: "st-dropped",
+			name: "Canceled",
+			type: "canceled",
+			color: "#95a2b3",
+		};
 		const states = [
-			{
-				id: "st-backlog",
-				name: "Backlog",
-				type: "backlog",
-				position: 0,
-				color: "#bec2c8",
-			},
-			{
-				id: "st-progress",
-				name: "In Progress",
-				type: "started",
-				position: 1,
-				color: "#f2c94c",
-			},
-			{
-				id: "st-review",
-				name: "In Review",
-				type: "started",
-				position: 2,
-				color: "#4cb782",
-			},
-			{
-				id: "st-merge",
-				name: "Awaiting merge",
-				type: "started",
-				position: 3,
-				color: "#bb87fc",
-			},
+			{ ...backlog, position: 0 },
+			{ ...progress, position: 1 },
+			{ ...review, position: 2 },
+			{ ...merge, position: 3 },
 			{ ...shipped, position: 4 },
 			{ ...released, position: 5 },
-			{
-				id: "st-dropped",
-				name: "Canceled",
-				type: "canceled",
-				position: 6,
-				color: "#95a2b3",
-			},
+			{ ...dropped, position: 6 },
 		];
 		function linearIssue(
 			identifier: string,
@@ -589,10 +588,10 @@ describe("done counts", () => {
 				},
 				states,
 				issues: [
-					linearIssue("WID-1", "Wait", states[0], "2026-08-18T12:00:00.000Z"),
-					linearIssue("WID-2", "Build", states[1], "2026-08-18T12:00:00.000Z"),
-					linearIssue("WID-3", "Review", states[2], "2026-08-18T12:00:00.000Z"),
-					linearIssue("WID-4", "Merge", states[3], "2026-08-18T12:00:00.000Z"),
+					linearIssue("WID-1", "Wait", backlog, "2026-08-18T12:00:00.000Z"),
+					linearIssue("WID-2", "Build", progress, "2026-08-18T12:00:00.000Z"),
+					linearIssue("WID-3", "Review", review, "2026-08-18T12:00:00.000Z"),
+					linearIssue("WID-4", "Merge", merge, "2026-08-18T12:00:00.000Z"),
 					linearIssue(
 						"WID-5",
 						"Ship fresh",
@@ -612,7 +611,7 @@ describe("done counts", () => {
 						released,
 						"2026-08-01T12:00:00.000Z",
 					),
-					linearIssue("WID-9", "Drop", states[6], "2026-08-17T12:00:00.000Z"),
+					linearIssue("WID-9", "Drop", dropped, "2026-08-17T12:00:00.000Z"),
 				],
 			}),
 			async (base) => {
@@ -656,9 +655,9 @@ describe("done counts", () => {
 				const fresh = Object.fromEntries(
 					doneLanes.map((lane) => [
 						lane.name,
-						freshTicketsForLane(filtered, lane.name).map(
-							(ticket) => ticket.key,
-						),
+						filtered.tickets
+							.filter((ticket) => ticket.lane === lane.name)
+							.map((ticket) => ticket.key),
 					]),
 				);
 				expect(fresh).toEqual({
@@ -667,8 +666,12 @@ describe("done counts", () => {
 				});
 				const seen = filtered.doneTickets.map((ticket) => ticket.key);
 				expect(new Set(seen).size).toBe(seen.length);
-				expect(filtered.done).toBe(card?.done);
-				expect(filtered.total).toBe(card?.tickets.length);
+				expect(card).toBeDefined();
+				if (card === undefined) {
+					return;
+				}
+				expect(filtered.done).toBe(card.done);
+				expect(filtered.total).toBe(card.tickets.length);
 				const board = (await (
 					await fetch(
 						new URL(

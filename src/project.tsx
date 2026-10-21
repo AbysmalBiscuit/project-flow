@@ -827,11 +827,7 @@ function Board({
 							? doneTicketsForLane(report, lane.name)
 							: laneTickets(report, lane.name)
 					}
-					fresh={
-						lane.statusType === "done"
-							? report.freshDoneTickets
-							: laneTickets(report, lane.name)
-					}
+					fresh={laneTickets(report, lane.name)}
 					capped={lane.statusType === "done"}
 					shown={shownDone}
 					reveal={selected}

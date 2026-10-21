@@ -672,7 +672,6 @@ export type ProjectReport = {
 	done: number;
 	total: number;
 	doneTickets: TicketView[];
-	freshDoneTickets: TicketView[];
 };
 
 export function displayedLaneName(ticket: TicketView): string {
@@ -685,16 +684,6 @@ export function doneTicketsForLane(
 ): TicketView[] {
 	return report.doneTickets.filter(
 		(ticket) => displayedLaneName(ticket) === lane,
-	);
-}
-
-export function freshTicketsForLane(
-	report: ProjectReport,
-	lane: string,
-): TicketView[] {
-	return report.tickets.filter(
-		(ticket) =>
-			ticket.statusType === "done" && displayedLaneName(ticket) === lane,
 	);
 }
 
@@ -3765,7 +3754,6 @@ export function projectReport(
 		done: counts.done,
 		total: counts.tickets.length,
 		doneTickets: boardTickets.filter((ticket) => ticket.statusType === "done"),
-		freshDoneTickets: [],
 	};
 }
 
@@ -3845,14 +3833,10 @@ export function filterProjectReport(
 	const done = report.doneTickets.filter((item) =>
 		matchesProjectView(item, view, shown, wanted, needle, now, false),
 	);
-	const fresh = done.filter((item) =>
-		matchesProjectView(item, view, shown, wanted, needle, now, true),
-	);
 	return {
 		...report,
 		tickets: kept,
 		doneTickets: done,
-		freshDoneTickets: fresh,
 	};
 }
 
