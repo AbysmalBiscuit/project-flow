@@ -43,7 +43,7 @@ async function compile(code: string, filename: string): Promise<string> {
 		rules.delete(filename);
 	}
 	if (filename.endsWith("/tokens.stylex.ts")) {
-		themeMeta = themeFromCompile(code, result?.code ?? "");
+		themeMeta = themeFromCompile(result?.code ?? "");
 	}
 	return result?.code ?? code;
 }
@@ -64,26 +64,6 @@ let themeMeta: PageThemeMeta = {
 
 export function pageThemeMeta(): PageThemeMeta {
 	return themeMeta;
-}
-
-const statusColourNames = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-] as const;
-
-export function tokenColour(name: (typeof statusColourNames)[number]): string {
-	const colour = objectExport(
-		readFileSync(resolve(rootDir, "src/tokens.stylex.ts"), "utf8"),
-		"lightValues",
-	).get(name);
-	if (colour === undefined || !colour.startsWith("#")) {
-		throw new Error(`missing token colour ${name}`);
-	}
-	return colour;
 }
 
 function objectExport(source: string, name: string): Map<string, string> {
@@ -132,9 +112,16 @@ function compiledVariables(code: string): Map<string, string> {
 	return names;
 }
 
-function tokenValues(source: string, name: string): Record<string, string> {
-	return Object.fromEntries(objectExport(source, name));
-}
+const tokenDataSource = readFileSync(
+	resolve(rootDir, "src/token-data.ts"),
+	"utf8",
+);
+const lightTokenData = Object.fromEntries(
+	objectExport(tokenDataSource, "lightTokenValues"),
+);
+const darkTokenData = Object.fromEntries(
+	objectExport(tokenDataSource, "darkTokenValues"),
+);
 
 function declarations(
 	values: Record<string, string>,
@@ -149,9 +136,9 @@ function declarations(
 		.join(";");
 }
 
-function themeFromCompile(source: string, code: string): PageThemeMeta {
-	const light = tokenValues(source, "lightValues");
-	const dark = tokenValues(source, "darkValues");
+function themeFromCompile(code: string): PageThemeMeta {
+	const light = lightTokenData;
+	const dark = darkTokenData;
 	const names = compiledVariables(code);
 	return {
 		light: declarations(light, names),
