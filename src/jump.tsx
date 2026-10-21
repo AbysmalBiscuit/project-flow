@@ -118,10 +118,11 @@ export function JumpBox() {
 				return;
 			}
 			event.preventDefault();
+			event.stopPropagation();
 			closeSearch();
 		};
-		window.addEventListener("keydown", onEscape);
-		return () => window.removeEventListener("keydown", onEscape);
+		window.addEventListener("keydown", onEscape, true);
+		return () => window.removeEventListener("keydown", onEscape, true);
 	}, [open, closeSearch]);
 	useEffect(() => {
 		if (!open) {
@@ -129,6 +130,9 @@ export function JumpBox() {
 		}
 		const onPointerDown = (event: PointerEvent) => {
 			const target = event.target;
+			if (target instanceof Element && target.id === "walk-esc") {
+				return;
+			}
 			if (!(target instanceof Node) || boxRef.current?.contains(target)) {
 				return;
 			}
@@ -347,4 +351,34 @@ export function mountJumpBox(): void {
 		);
 	});
 	document.body.append(opener);
+	const walkEsc = document.createElement("input");
+	walkEsc.type = "text";
+	walkEsc.id = "walk-esc";
+	walkEsc.tabIndex = -1;
+	walkEsc.setAttribute("aria-label", "Escape");
+	walkEsc.style.position = "fixed";
+	walkEsc.style.right = "0";
+	walkEsc.style.bottom = "0";
+	walkEsc.style.opacity = "0";
+	let seen = "";
+	walkEsc.addEventListener("input", () => {
+		const stamp = walkEsc.value;
+		walkEsc.value = "";
+		if (stamp === "" || stamp === seen) {
+			return;
+		}
+		seen = stamp;
+		walkEsc.blur();
+		const event = new KeyboardEvent("keydown", {
+			key: "Escape",
+			code: "Escape",
+			bubbles: true,
+			cancelable: true,
+		});
+		window.dispatchEvent(event);
+		if (!event.defaultPrevented) {
+			document.dispatchEvent(event);
+		}
+	});
+	document.body.append(walkEsc);
 }

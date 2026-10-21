@@ -32,12 +32,16 @@ export function Dropdown({
 			return;
 		}
 		const close = (event: PointerEvent) => {
-			if (!root.current?.contains(event.target as Node)) {
+			const target = event.target;
+			if (target instanceof Element && target.id === "walk-esc") {
+				return;
+			}
+			if (!root.current?.contains(target as Node)) {
 				setOpen(false);
 			}
 		};
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") {
+			if (event.key !== "Escape" || event.defaultPrevented) {
 				return;
 			}
 			event.preventDefault();

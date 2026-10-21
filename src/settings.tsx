@@ -335,7 +335,7 @@ function ProjectsTable({
 			return;
 		}
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") {
+			if (event.key !== "Escape" || event.defaultPrevented) {
 				return;
 			}
 			event.preventDefault();

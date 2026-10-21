@@ -281,11 +281,11 @@ export function TicketPanel({
 			event.preventDefault();
 			const target = opener.current;
 			onCloseRef.current();
-			queueMicrotask(() => {
+			setTimeout(() => {
 				if (target?.isConnected === true) {
 					target.focus();
 				}
-			});
+			}, 0);
 		};
 		document.addEventListener("keydown", onKey);
 		return () => document.removeEventListener("keydown", onKey);

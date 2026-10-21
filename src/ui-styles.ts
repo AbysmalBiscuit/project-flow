@@ -1572,23 +1572,7 @@ export const needs = stylex.create({
 		borderRadius: radius.md,
 		backgroundColor: colours.raised,
 	},
-	why: {
-		padding: `0 ${space.md} ${space.md}`,
-	},
-	whyLabel: {
-		margin: `0 0 ${space.xs}`,
-		color: colours.inkSoft,
-		fontSize: type.kicker,
-		fontWeight: type.weight,
-		letterSpacing: type.kickerTrack,
-		textTransform: "uppercase",
-	},
-	whyBody: {
-		margin: `0 0 ${space.sm}`,
-		color: colours.ink,
-		fontSize: type.meta,
-		lineHeight: type.line,
-	},
+
 	option: {
 		display: "flex",
 		gap: space.sm,
@@ -2776,7 +2760,7 @@ export const panel = stylex.create({
 		borderColor: colours.ink,
 		borderRadius: radius.menu,
 		backgroundColor: colours.ink,
-		color: colours.accentInk,
+		color: colours.canvas,
 		fontFamily: font.sans,
 		fontSize: type.menu,
 		fontWeight: type.weight,

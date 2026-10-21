@@ -703,18 +703,25 @@ function MenuButton({
 			setShift(overflow > 0 ? -overflow : 0);
 		};
 		fit();
+		window.addEventListener("resize", fit);
+		return () => {
+			window.removeEventListener("resize", fit);
+		};
+	}, [open]);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") {
+			if (event.key !== "Escape" || event.defaultPrevented) {
 				return;
 			}
 			event.preventDefault();
 			onToggle();
 			document.getElementById(id)?.focus();
 		};
-		window.addEventListener("resize", fit);
 		document.addEventListener("keydown", onKey);
 		return () => {
-			window.removeEventListener("resize", fit);
 			document.removeEventListener("keydown", onKey);
 		};
 	}, [open, id, onToggle]);
