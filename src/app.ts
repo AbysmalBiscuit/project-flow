@@ -1621,8 +1621,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/inbox": pageResponse,
 			"/projects/*": pageResponse,
 			"/api/overview": {
-				GET: async () => {
-					await firstPoll;
+				GET: () => {
 					const body = Response.json(
 						runningOverview(pollOptions, configuration),
 					);
