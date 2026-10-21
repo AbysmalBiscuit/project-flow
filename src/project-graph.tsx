@@ -40,7 +40,7 @@ import {
 	type NodeBound,
 	routeEdge,
 } from "./graph-routes.ts";
-import { sizedNode } from "./graph-sizes.ts";
+import { type NodeSize, sizedNode } from "./graph-sizes.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
@@ -570,38 +570,55 @@ export function graphModel(
 	};
 }
 
-function publishLayout(): void {
+function layoutParts(): {
+	root: HTMLElement;
+	legend: HTMLElement;
+	floats: HTMLElement[];
+} | null {
 	const root = document.getElementById("project-graph");
-	const probe = document.getElementById("project-graph-layout");
-	if (root === null || probe === null) {
-		return;
+	if (!(root instanceof HTMLElement)) {
+		return null;
 	}
-	const pane = document.getElementById("project-graph-pane");
 	const legend = root.querySelector(
 		`[aria-label="${projectGraphLabel.legend}"]`,
 	);
 	const chrome = document.getElementById("project-graph-controls");
-	const page = document.documentElement;
-	if (
-		!(pane instanceof HTMLElement) ||
-		!(legend instanceof HTMLElement) ||
-		!(chrome instanceof HTMLElement)
-	) {
+	const floats = [...(chrome?.querySelectorAll(":scope > *") ?? [])].filter(
+		(node): node is HTMLElement => node instanceof HTMLElement,
+	);
+	if (!(legend instanceof HTMLElement) || floats.length === 0) {
+		return null;
+	}
+	return { root, legend, floats };
+}
+
+function boxesMiss(left: DOMRect, right: DOMRect): boolean {
+	return (
+		Math.round(left.right) <= Math.round(right.left) ||
+		Math.round(left.bottom) <= Math.round(right.top) ||
+		Math.round(right.bottom) <= Math.round(left.top)
+	);
+}
+
+function publishLayout(): void {
+	const probe = document.getElementById("project-graph-layout");
+	const parts = layoutParts();
+	const pane = document.getElementById("project-graph-pane");
+	if (probe === null || parts === null || !(pane instanceof HTMLElement)) {
 		return;
 	}
 	const paneBox = pane.getBoundingClientRect();
-	const legendBox = legend.getBoundingClientRect();
-	const chromeBox = chrome.getBoundingClientRect();
-	const rootBox = root.getBoundingClientRect();
-	const apart =
-		Math.round(legendBox.right) <= Math.round(chromeBox.left) ||
-		Math.round(legendBox.bottom) <= Math.round(chromeBox.top) ||
-		Math.round(chromeBox.bottom) <= Math.round(legendBox.top);
-	const border = Number.parseFloat(getComputedStyle(root).borderTopWidth);
+	const legendBox = parts.legend.getBoundingClientRect();
+	const rootBox = parts.root.getBoundingClientRect();
+	const apart = parts.floats.every((float) =>
+		boxesMiss(legendBox, float.getBoundingClientRect()),
+	);
+	const border = Number.parseFloat(getComputedStyle(parts.root).borderTopWidth);
 	const edge = Number.isFinite(border) ? border : 0;
 	const flush =
 		Math.round(paneBox.top - edge) === Math.round(rootBox.top) &&
 		Math.round(paneBox.bottom + edge) === Math.round(rootBox.bottom);
+	const page = document.documentElement;
 	const fits = page.scrollWidth === page.clientWidth;
 	probe.textContent = [
 		flush ? "canvas-flush" : "canvas-offset",
@@ -610,24 +627,21 @@ function publishLayout(): void {
 	].join(" ");
 }
 
-function watchLayout(): () => void {
-	const root = document.getElementById("project-graph");
-	if (root === null) {
+function watchLayout(span: NodeSize | null): () => void {
+	if (span === null) {
 		return () => {};
 	}
-	const legend = root.querySelector(
-		`[aria-label="${projectGraphLabel.legend}"]`,
-	);
-	const chrome = document.getElementById("project-graph-controls");
+	const parts = layoutParts();
+	if (parts === null) {
+		return () => {};
+	}
 	publishLayout();
 	const observer = new ResizeObserver(publishLayout);
-	observer.observe(root);
+	observer.observe(parts.root);
 	observer.observe(document.documentElement);
-	if (legend instanceof HTMLElement) {
-		observer.observe(legend);
-	}
-	if (chrome instanceof HTMLElement) {
-		observer.observe(chrome);
+	observer.observe(parts.legend);
+	for (const float of parts.floats) {
+		observer.observe(float);
 	}
 	return () => observer.disconnect();
 }
@@ -730,7 +744,6 @@ function SizedProjectGraph({
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
-	useEffect(watchLayout, []);
 	const model = useMemo(() => {
 		if (span === null) {
 			return null;
@@ -747,6 +760,7 @@ function SizedProjectGraph({
 			span,
 		);
 	}, [report, reports, direction, groupBy, assignees, openKey, span, theme]);
+	useEffect(() => watchLayout(span), [span]);
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
