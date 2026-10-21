@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4771",
+	"serve": ["bun", "proof/serve-stored.ts", "4771", "hold"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Project Flow" },
+		{ "assert_text": "acme/widget" },
+		{ "click": "#overview-refresh" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "refresh-overview" }
+	]
+}

@@ -1,0 +1,28 @@
+{
+	"base_url": "http://127.0.0.1:4768",
+	"serve": ["bun", "proof/serve-stored.ts", "4768", "filled"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Project Flow" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "filled-overview" },
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Project Flow" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "filled-project" },
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Project Flow" },
+		{ "assert_text": "0 tickets need you" },
+		{ "shot": "filled-needs-you" },
+		{ "goto": "/inbox" },
+		{ "assert_text": "Project Flow" },
+		{ "assert_text": "No notifications" },
+		{ "shot": "filled-inbox" },
+		{ "goto": "/settings" },
+		{ "assert_text": "Project Flow" },
+		{
+			"assert_text": "Saved to the configuration file. Changes apply without a restart."
+		},
+		{ "shot": "filled-settings" }
+	]
+}
