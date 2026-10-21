@@ -941,9 +941,12 @@ function FilterMenu({
 			}
 		};
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				onOpen(false);
+			if (event.key !== "Escape") {
+				return;
 			}
+			event.preventDefault();
+			onOpen(false);
+			document.getElementById("project-filter")?.focus();
 		};
 		document.addEventListener("pointerdown", onPointer);
 		document.addEventListener("keydown", onKey);
