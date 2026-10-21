@@ -9,6 +9,12 @@ import {
 
 const repo = "acme/widget";
 
+const labels = [
+	{ name: "ready", color: "d0d7de" },
+	{ name: "factory: running", color: "f0c674" },
+	{ name: "factory: in-review", color: "9ecbff" },
+];
+
 function page(items: unknown[]): Response {
 	return new Response(JSON.stringify(items), {
 		status: 200,
@@ -21,9 +27,9 @@ const end = { hasNextPage: false, endCursor: null };
 function recordedIssue(
 	number: number,
 	title: string,
-	labels: string[],
+	issueLabels: string[],
 	state: "OPEN" | "CLOSED" = "OPEN",
-): Record<string, unknown> {
+) {
 	return {
 		number,
 		title,
@@ -35,7 +41,7 @@ function recordedIssue(
 		body: "",
 		comments: { nodes: [], pageInfo: end },
 		labels: {
-			nodes: labels.map((name) => ({ name, color: "d0d7de" })),
+			nodes: issueLabels.map((name) => ({ name, color: "d0d7de" })),
 			pageInfo: end,
 		},
 		assignees: { nodes: [] },
@@ -66,11 +72,7 @@ function recordedRepo(): Response {
 				autoMergeAllowed: false,
 				refs: { nodes: [], pageInfo: end },
 				labels: {
-					nodes: [
-						{ name: "ready", color: "d0d7de" },
-						{ name: "factory: running", color: "f0c674" },
-						{ name: "factory: in-review", color: "9ecbff" },
-					],
+					nodes: labels,
 					pageInfo: end,
 				},
 				issues: { nodes: issues, pageInfo: end },
@@ -81,8 +83,7 @@ function recordedRepo(): Response {
 	});
 }
 
-function restIssue(item: Record<string, unknown>): Record<string, unknown> {
-	const labels = item.labels as { nodes: { name: string }[] };
+function restIssue(item: ReturnType<typeof recordedIssue>) {
 	return {
 		number: item.number,
 		title: item.title,
@@ -93,7 +94,7 @@ function restIssue(item: Record<string, unknown>): Record<string, unknown> {
 		body: "",
 		html_url: `https://github.com/${repo}/issues/${String(item.number)}`,
 		comments: 0,
-		labels: labels.nodes,
+		labels: item.labels.nodes,
 		assignee: null,
 		milestone: null,
 	};
@@ -116,11 +117,7 @@ const recorded: Fetch = async (input, init) => {
 		return page(issues.map(restIssue));
 	}
 	if (url.includes("/labels?")) {
-		return page([
-			{ name: "ready", color: "d0d7de" },
-			{ name: "factory: running", color: "f0c674" },
-			{ name: "factory: in-review", color: "9ecbff" },
-		]);
+		return page(labels);
 	}
 	if (emptyLists(url) || url.includes("/dependencies/")) {
 		return page([]);
