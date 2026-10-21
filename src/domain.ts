@@ -5,6 +5,8 @@ import type {
 	ProjectPin,
 	ProjectViewSettings,
 } from "./configuration.ts";
+import type { KnownBot } from "./known-bots.ts";
+import { knownBots } from "./known-bots.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -1945,9 +1947,6 @@ export function samePin(left: ProjectPin, right: ProjectPin): boolean {
 	}
 	return false;
 }
-
-export const knownBots = ["grok", "codex", "greptile"] as const;
-export type KnownBot = (typeof knownBots)[number];
 
 const botLogin: Record<KnownBot, string> = {
 	grok: "grok-code-review[bot]",
