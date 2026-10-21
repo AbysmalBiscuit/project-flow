@@ -6,6 +6,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedProgressComment from "./fixtures/github-progress-comment.json";
 import {
+	type ChangeEvent,
 	githubIssueNode,
 	recordedDiscovery,
 	repoReadIssues,
@@ -188,11 +189,6 @@ function changingFetch(requests: string[]): Fetch {
 		return recordedOrEmpty(url) ?? unrecorded(input);
 	};
 }
-
-type ChangeEvent = {
-	event: string;
-	data: string;
-};
 
 function overviewOf(data: string): OverviewBody {
 	return JSON.parse(data) as OverviewBody;

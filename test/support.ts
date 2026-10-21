@@ -977,7 +977,7 @@ export async function settledOverview<Body extends { polling?: true }>(
 }
 
 export async function settledOverviewEvent<Body extends { polling?: true }>(
-	events: AsyncIterator<{ event: string; data: string }>,
+	events: AsyncIterator<ChangeEvent>,
 	parse: (data: string) => Body,
 	limit = 4,
 ): Promise<Body> {
