@@ -1,7 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
-import { onAppEvent } from "./events.ts";
+import { useRef, useState } from "react";
 import { openJumpBox } from "./jump.tsx";
+import { pageQuery } from "./queries.ts";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
@@ -105,13 +106,11 @@ export function PollStatus({
 }) {
 	if (polling) {
 		return (
-			<span
-				id="poll-status"
-				role="status"
-				aria-busy="true"
-				aria-label={navLabel.refreshing}
-			>
+			<span id="poll-status" role="status" aria-busy="true">
 				<RefreshGlyph spinning />
+				<span className={clsx(frame.visuallyHidden)}>
+					{navLabel.refreshing}
+				</span>
 			</span>
 		);
 	}
@@ -153,10 +152,6 @@ const links = [
 	{ href: "/inbox", label: navLabel.inbox },
 ] as const;
 
-function openCount(body: unknown): number {
-	return Array.isArray(body) ? body.length : 0;
-}
-
 let themeSave = Promise.resolve();
 
 function saveTheme(theme: "light" | "dark"): Promise<boolean> {
@@ -184,36 +179,13 @@ function saveTheme(theme: "light" | "dark"): Promise<boolean> {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
-	const [count, setCount] = useState<number | null>(null);
+	const needs = useQuery(pageQuery.needsYou);
+	const count = needs.data === undefined ? null : needs.data.length;
 	const [theme, setTheme] = useState(pageTheme);
 	const themeRef = useRef(theme);
 	themeRef.current = theme;
 	const [themeSaveFailed, setThemeSaveFailed] = useState(false);
 	const path = window.location.pathname;
-	useEffect(() => {
-		let stopped = false;
-		const load = () => {
-			fetch("/api/needs-you")
-				.then(async (response) => {
-					if (!stopped && response.ok) {
-						setCount(openCount(await response.json()));
-					}
-				})
-				.catch(() => {
-					if (!stopped) {
-						setCount(0);
-					}
-				});
-		};
-		load();
-		const stop = onAppEvent("overview", () => {
-			load();
-		});
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, []);
 	const current = (href: string) =>
 		href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
 	const projectPage = path.startsWith("/projects/");
@@ -332,7 +304,7 @@ export function PageHeader({
 					{search}
 					{views === undefined || views.length === 0 ? null : (
 						<fieldset className={clsx(frame.views)}>
-							<legend className={clsx(frame.legend)}>Views</legend>
+							<legend className={clsx(frame.visuallyHidden)}>Views</legend>
 							{views.map((item) => (
 								<button
 									key={item.id}
