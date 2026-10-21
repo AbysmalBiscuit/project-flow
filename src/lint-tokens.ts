@@ -30,8 +30,10 @@ for (const [index, line] of tokenFile.split("\n").entries()) {
 
 const namedColour =
 	"aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen";
-const colour = new RegExp(
-	`#[0-9a-fA-F]{3,8}\\b|\\b(?:rgba|hsla|rgb|hsl|hwb|lab|lch|oklab|oklch|color)\\(|\\b(?:${namedColour})\\b`,
+const colourLiteral =
+	/#[0-9a-fA-F]{3,8}\b|\b(?:rgba|hsla|rgb|hsl|hwb|lab|lch|oklab|oklch|color)\(/i;
+const namedColourLiteral = new RegExp(
+	`(?::\\s*|\\(\\s*)(?:${namedColour})\\b`,
 	"i",
 );
 const size = /\b\d*\.?\d+(?:px|rem)\b/;
@@ -124,10 +126,11 @@ for await (const name of files) {
 				}
 				continue;
 			}
-			if (colour.test(line)) {
+			if (colourLiteral.test(line) || namedColourLiteral.test(line)) {
 				failures.push(`${name}:${index + 1}: colour or size literal`);
 			}
-			colour.lastIndex = 0;
+			colourLiteral.lastIndex = 0;
+			namedColourLiteral.lastIndex = 0;
 		}
 		continue;
 	}
@@ -156,10 +159,10 @@ for await (const name of files) {
 			}
 			continue;
 		}
-		if (colour.test(line)) {
+		if (colourLiteral.test(line)) {
 			failures.push(`${name}:${index + 1}: colour or size literal`);
 		}
-		colour.lastIndex = 0;
+		colourLiteral.lastIndex = 0;
 	}
 	const text = await Bun.file(`${root}/${name}`).text();
 	const lines = text.split("\n");
@@ -189,11 +192,14 @@ for await (const name of files) {
 			styled &&
 			!tokenValues(name) &&
 			!inGraph(name, lines, index) &&
-			(colour.test(line) || size.test(line))
+			(colourLiteral.test(line) ||
+				namedColourLiteral.test(line) ||
+				size.test(line))
 		) {
 			failures.push(`${name}:${index + 1}: colour or size literal`);
 		}
-		colour.lastIndex = 0;
+		colourLiteral.lastIndex = 0;
+		namedColourLiteral.lastIndex = 0;
 		if (!styled) {
 			continue;
 		}
