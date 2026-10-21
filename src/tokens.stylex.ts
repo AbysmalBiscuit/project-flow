@@ -5,8 +5,8 @@ const dark = "@media (prefers-color-scheme: dark)";
 export const media = stylex.defineConsts({
 	phone: "@media (max-width: 64rem)",
 	projectBar: "@media (max-width: 480px)",
-	// The one-line shell overflows below this width.
-	shellWrap: "@media (max-width: 24rem)",
+	// The one-line shell overflows at the 390px proof width. 32rem is 512px.
+	shellWrap: "@media (max-width: 32rem)",
 });
 
 export const lightValues = {
@@ -323,18 +323,19 @@ export const stack = stylex.defineVars({
 	toast: 3,
 });
 
+// Shared shell wrapping. Each caller picks its own breakpoint and row gap.
+const shellWrap = {
+	height: "auto",
+	minHeight: measure.shell,
+	flexWrap: "wrap",
+	paddingTop: space.sm,
+	paddingBottom: space.sm,
+} as const;
+
 export const projectBarLayout = stylex.create({
 	// The project page adds this class. Other pages keep the one-line bar.
 	fit: {
-		[media.projectBar]: {
-			height: "auto",
-			minHeight: measure.shell,
-			flexWrap: "wrap",
-			paddingTop: space.sm,
-			paddingBottom: space.sm,
-			paddingLeft: space.sm,
-			paddingRight: space.sm,
-		},
+		[media.projectBar]: shellWrap,
 	},
 });
 
@@ -345,14 +346,8 @@ export const phoneGutter = stylex.create({
 			paddingRight: space.phoneInset,
 		},
 		[media.shellWrap]: {
-			height: "auto",
-			minHeight: measure.shell,
-			flexWrap: "wrap",
+			...shellWrap,
 			rowGap: space.sm,
-			paddingTop: space.sm,
-			paddingBottom: space.sm,
-			paddingLeft: space.phoneInset,
-			paddingRight: space.phoneInset,
 		},
 	},
 	page: {
