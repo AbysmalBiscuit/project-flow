@@ -9,20 +9,19 @@ import type {
 	ProjectReport,
 	TicketView,
 } from "./domain.ts";
-import { sameTicketKey, ticketGroups } from "./domain.ts";
+import {
+	displayedLaneName,
+	doneTicketsForLane,
+	sameTicketKey,
+	ticketGroups,
+} from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
-import {
-	blockedLabel,
-	groupByLabel,
-	loadingLabel,
-	navLabel,
-	stateLabel,
-} from "./terms.ts";
+import { blockedLabel, groupByLabel, loadingLabel, navLabel } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
@@ -506,10 +505,6 @@ function relationKeys(
 	return [...local, ...outside.map((blocker) => blocker.key)];
 }
 
-function displayedLaneName(ticket: TicketView): string {
-	return ticket.lane ?? stateLabel[ticket.state];
-}
-
 function displayedLane(
 	ticket: TicketView,
 	lanes: ProjectReport["lanes"],
@@ -829,7 +824,7 @@ function Board({
 					groupBy={boardGroupBy(settings)}
 					tickets={
 						lane.statusType === "done"
-							? report.doneTickets
+							? doneTicketsForLane(report, lane.name)
 							: laneTickets(report, lane.name)
 					}
 					fresh={

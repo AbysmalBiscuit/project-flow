@@ -2,10 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Overview, ProjectReport, StatusType } from "../src/domain.ts";
+import {
+	doneTicketsForLane,
+	freshTicketsForLane,
+	type Overview,
+	type ProjectReport,
+	type StatusType,
+} from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
+	linearFake,
 	recordedDiscovery,
 	tempConfig,
 	testIo,
@@ -255,7 +262,10 @@ async function withApp(
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
 			testIo({
-				env: { GITHUB_TOKEN: "recorded-token" },
+				env: {
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
 				fetch: fetchImpl,
 				readGhToken: async () => null,
 				databasePath: join(root, "store.sqlite"),
@@ -484,6 +494,202 @@ describe("done counts", () => {
 					`${repo}#13`,
 				]);
 				expect(unlimited.done).toBe(3);
+			},
+		);
+	});
+
+	test("two Done-type statuses keep each ticket in one lane", async () => {
+		const shipped = {
+			id: "st-shipped",
+			name: "Shipped",
+			type: "completed",
+			color: "#4cb782",
+		};
+		const released = {
+			id: "st-released",
+			name: "Released",
+			type: "completed",
+			color: "#5e6ad2",
+		};
+		const states = [
+			{
+				id: "st-backlog",
+				name: "Backlog",
+				type: "backlog",
+				position: 0,
+				color: "#bec2c8",
+			},
+			{
+				id: "st-progress",
+				name: "In Progress",
+				type: "started",
+				position: 1,
+				color: "#f2c94c",
+			},
+			{
+				id: "st-review",
+				name: "In Review",
+				type: "started",
+				position: 2,
+				color: "#4cb782",
+			},
+			{
+				id: "st-merge",
+				name: "Awaiting merge",
+				type: "started",
+				position: 3,
+				color: "#bb87fc",
+			},
+			{ ...shipped, position: 4 },
+			{ ...released, position: 5 },
+			{
+				id: "st-dropped",
+				name: "Canceled",
+				type: "canceled",
+				position: 6,
+				color: "#95a2b3",
+			},
+		];
+		function linearIssue(
+			identifier: string,
+			title: string,
+			state: { id: string; name: string; type: string; color: string },
+			updatedAt: string,
+		): Record<string, unknown> {
+			return {
+				identifier,
+				title,
+				description: "",
+				updatedAt,
+				state,
+				history: {
+					nodes: [{ createdAt: updatedAt, toState: { id: state.id } }],
+				},
+				parent: null,
+				projectMilestone: null,
+				labels: { nodes: [] },
+			};
+		}
+		const project = "Widget launch";
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				projectViews: {
+					[project]: { maxAgeDays: { Shipped: 2, Released: 2 } },
+				},
+			}),
+			linearFake({
+				project: {
+					id: "project-widget",
+					name: project,
+					slugId: "widget-launch",
+					teams: {
+						nodes: [{ id: "team-widget", key: "WID", name: "Widget" }],
+					},
+				},
+				states,
+				issues: [
+					linearIssue("WID-1", "Wait", states[0], "2026-08-18T12:00:00.000Z"),
+					linearIssue("WID-2", "Build", states[1], "2026-08-18T12:00:00.000Z"),
+					linearIssue("WID-3", "Review", states[2], "2026-08-18T12:00:00.000Z"),
+					linearIssue("WID-4", "Merge", states[3], "2026-08-18T12:00:00.000Z"),
+					linearIssue(
+						"WID-5",
+						"Ship fresh",
+						shipped,
+						"2026-08-17T12:00:00.000Z",
+					),
+					linearIssue("WID-6", "Ship old", shipped, "2026-08-01T12:00:00.000Z"),
+					linearIssue(
+						"WID-7",
+						"Release fresh",
+						released,
+						"2026-08-17T12:00:00.000Z",
+					),
+					linearIssue(
+						"WID-8",
+						"Release old",
+						released,
+						"2026-08-01T12:00:00.000Z",
+					),
+					linearIssue("WID-9", "Drop", states[6], "2026-08-17T12:00:00.000Z"),
+				],
+			}),
+			async (base) => {
+				const overview = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				const card = overview.projects.find((item) => item.name === project);
+				expect(card?.statusTypes).toEqual({
+					backlog: 1,
+					inProgress: 1,
+					inReview: 1,
+					awaitingMerge: 1,
+					done: 4,
+					dropped: 1,
+				});
+				expect(card?.done).toBe(4);
+				expect(card?.tickets).toHaveLength(9);
+				expect(card?.progress).toBe(Math.round((4 / 9) * 100));
+				const filtered = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(project)}`, base),
+					)
+				).json()) as ProjectReport;
+				const doneLanes = filtered.lanes.filter(
+					(lane) => lane.statusType === "done",
+				);
+				expect(doneLanes.map((lane) => lane.name)).toEqual([
+					"Shipped",
+					"Released",
+				]);
+				const byLane = Object.fromEntries(
+					doneLanes.map((lane) => [
+						lane.name,
+						doneTicketsForLane(filtered, lane.name).map((ticket) => ticket.key),
+					]),
+				);
+				expect(byLane).toEqual({
+					Shipped: ["WID-5", "WID-6"],
+					Released: ["WID-7", "WID-8"],
+				});
+				const fresh = Object.fromEntries(
+					doneLanes.map((lane) => [
+						lane.name,
+						freshTicketsForLane(filtered, lane.name).map(
+							(ticket) => ticket.key,
+						),
+					]),
+				);
+				expect(fresh).toEqual({
+					Shipped: ["WID-5"],
+					Released: ["WID-7"],
+				});
+				const seen = filtered.doneTickets.map((ticket) => ticket.key);
+				expect(new Set(seen).size).toBe(seen.length);
+				expect(filtered.done).toBe(card?.done);
+				expect(filtered.total).toBe(card?.tickets.length);
+				const board = (await (
+					await fetch(
+						new URL(
+							`/api/projects/${encodeURIComponent(project)}?view=all`,
+							base,
+						),
+					)
+				).json()) as ProjectReport;
+				expect(
+					board.tickets
+						.filter((ticket) => ticket.statusType === "done")
+						.map((ticket) => ticket.key),
+				).toEqual(["WID-5", "WID-6", "WID-7", "WID-8"]);
+				expect(board.doneTickets.map((ticket) => ticket.key)).toEqual([
+					"WID-5",
+					"WID-6",
+					"WID-7",
+					"WID-8",
+				]);
+				expect(board.done).toBe(4);
+				expect(board.total).toBe(9);
 			},
 		);
 	});

@@ -48,6 +48,15 @@ export type StatusType =
 
 export type TicketState = StatusType;
 
+const laneFallback: Record<TicketState, string> = {
+	done: "Done",
+	dropped: "Dropped",
+	backlog: "Backlog",
+	inProgress: "In progress",
+	inReview: "In review",
+	awaitingMerge: "Awaiting merge",
+};
+
 export type TicketRef = {
 	tracker: "github" | "linear";
 	project: string;
@@ -665,6 +674,29 @@ export type ProjectReport = {
 	doneTickets: TicketView[];
 	freshDoneTickets: TicketView[];
 };
+
+export function displayedLaneName(ticket: TicketView): string {
+	return ticket.lane ?? laneFallback[ticket.state];
+}
+
+export function doneTicketsForLane(
+	report: ProjectReport,
+	lane: string,
+): TicketView[] {
+	return report.doneTickets.filter(
+		(ticket) => displayedLaneName(ticket) === lane,
+	);
+}
+
+export function freshTicketsForLane(
+	report: ProjectReport,
+	lane: string,
+): TicketView[] {
+	return report.tickets.filter(
+		(ticket) =>
+			ticket.statusType === "done" && displayedLaneName(ticket) === lane,
+	);
+}
 
 export type Overview = {
 	projects: ProjectCounts[];
