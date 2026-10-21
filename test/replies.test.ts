@@ -211,6 +211,71 @@ function githubFetch(
 	};
 }
 
+type StreamEvent = { event: string; data: string };
+
+function eventsOf(text: string): StreamEvent[] {
+	const events: StreamEvent[] = [];
+	for (const block of text.split("\n\n")) {
+		const event = block
+			.split("\n")
+			.find((line) => line.startsWith("event:"))
+			?.slice("event:".length)
+			.trim();
+		const payload = block
+			.split("\n")
+			.filter((line) => line.startsWith("data:"))
+			.map((line) => line.slice("data:".length).trim())
+			.join("\n");
+		if (event !== undefined && payload !== "") {
+			events.push({ event, data: payload });
+		}
+	}
+	return events;
+}
+
+// /api/refresh returns before the poll reads the tracker. The ended progress
+// event is the poll that read comments after this call.
+async function refreshSettled(base: string): Promise<void> {
+	const stream = await fetch(new URL("/api/events", base), {
+		headers: { accept: "text/event-stream" },
+	});
+	const reader = stream.body?.getReader();
+	if (reader === undefined) {
+		throw new Error("event stream has no body");
+	}
+	const decoder = new TextDecoder();
+	let buffered = "";
+	try {
+		const opened = await reader.read();
+		buffered += decoder.decode(opened.value, { stream: true });
+		if (!buffered.includes(": open")) {
+			throw new Error("event stream did not open");
+		}
+		const refreshed = await fetch(new URL("/api/refresh", base), {
+			method: "POST",
+		});
+		if (refreshed.status !== 204) {
+			throw new Error(`refresh returned ${refreshed.status}`);
+		}
+		const pollEnded = (text: string): boolean =>
+			eventsOf(text).some((event) => {
+				if (event.event !== "progress") {
+					return false;
+				}
+				return (JSON.parse(event.data) as { ended?: boolean }).ended === true;
+			});
+		while (!pollEnded(buffered)) {
+			const chunk = await reader.read();
+			if (chunk.done) {
+				throw new Error("event stream closed before the poll ended");
+			}
+			buffered += decoder.decode(chunk.value, { stream: true });
+		}
+	} finally {
+		await reader.cancel();
+	}
+}
+
 async function serve(
 	fetchImpl: Fetch,
 	config: string,
@@ -1605,10 +1670,7 @@ describe("replies", () => {
 				throw new Error("posted reply missing from recorded comments");
 			}
 			createdNode.reactions = [{ id: "reaction-ack" }];
-			const refreshed = await fetch(new URL("/api/refresh", app.base), {
-				method: "POST",
-			});
-			expect(refreshed.status).toBe(204);
+			await refreshSettled(app.base);
 			const afterPoll = (await (
 				await fetch(new URL("/api/needs-you", app.base))
 			).json()) as NeedsYouItem[];
