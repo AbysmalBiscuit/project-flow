@@ -10,4 +10,133 @@ lizard_baseline = ".agents/plugins/agent-guard/whitelizard.txt"
 lizard_ccn = 10000
 lizard_length = 200
 lizard_arguments = 10000
-jscpd = false
+# fallow covers TypeScript and JavaScript duplication. jscpd stays off for
+# those types and reads the other code language this repo has.
+jscpd = true
+jscpd_extensions = '\.py$'
+
+[file_length]
+enabled = true
+
+[[file_length.limits]]
+extensions = '\.(ts|tsx|mjs)$'
+warn_lines = 500
+block_lines = 1000
+
+# Each file on main that is already past the block limit. The check fails
+# only when that file grows past the recorded size.
+[[file_length.limits]]
+pattern = "src/app.ts"
+accept = true
+lines = 1840
+
+[[file_length.limits]]
+pattern = "src/cards.tsx"
+accept = true
+lines = 1093
+
+[[file_length.limits]]
+pattern = "src/domain.ts"
+accept = true
+lines = 4489
+
+[[file_length.limits]]
+pattern = "src/github.ts"
+accept = true
+lines = 3312
+
+[[file_length.limits]]
+pattern = "src/linear.ts"
+accept = true
+lines = 1205
+
+[[file_length.limits]]
+pattern = "src/project.tsx"
+accept = true
+lines = 1742
+
+[[file_length.limits]]
+pattern = "src/settings.tsx"
+accept = true
+lines = 1444
+
+[[file_length.limits]]
+pattern = "src/ui-styles.ts"
+accept = true
+lines = 3417
+
+[[file_length.limits]]
+pattern = "test/blockers.test.ts"
+accept = true
+lines = 3522
+
+[[file_length.limits]]
+pattern = "test/github-batch.test.ts"
+accept = true
+lines = 1372
+
+[[file_length.limits]]
+pattern = "test/inbox.test.ts"
+accept = true
+lines = 3530
+
+[[file_length.limits]]
+pattern = "test/lanes.test.ts"
+accept = true
+lines = 1946
+
+[[file_length.limits]]
+pattern = "test/live.test.ts"
+accept = true
+lines = 3446
+
+[[file_length.limits]]
+pattern = "test/local-projects.test.ts"
+accept = true
+lines = 1147
+
+[[file_length.limits]]
+pattern = "test/needs-you.test.ts"
+accept = true
+lines = 2384
+
+[[file_length.limits]]
+pattern = "test/overview.test.ts"
+accept = true
+lines = 6538
+
+[[file_length.limits]]
+pattern = "test/project.test.ts"
+accept = true
+lines = 2647
+
+[[file_length.limits]]
+pattern = "test/replies.test.ts"
+accept = true
+lines = 2265
+
+[[file_length.limits]]
+pattern = "test/review.test.ts"
+accept = true
+lines = 5300
+
+[[file_length.limits]]
+pattern = "test/settings.test.ts"
+accept = true
+lines = 2426
+
+[[file_length.limits]]
+pattern = "test/startup.test.ts"
+accept = true
+lines = 1707
+
+[[file_length.limits]]
+pattern = "test/state.test.ts"
+accept = true
+lines = 2934
+
+[[file_length.limits]]
+pattern = "test/support.ts"
+accept = true
+lines = 1499
+
