@@ -78,38 +78,71 @@ function repoOwner(url: string, body: string): string | null {
 			return null;
 		}
 		const owner = "owner" in variables ? variables.owner : null;
-		return typeof owner === "string" && owner !== "" ? owner : null;
+		if (typeof owner === "string" && owner !== "") {
+			return owner;
+		}
+		const projectOwner =
+			"projectOwner" in variables ? variables.projectOwner : null;
+		return typeof projectOwner === "string" && projectOwner !== ""
+			? projectOwner
+			: null;
 	} catch {
 		return null;
 	}
 }
 
-function hostsToken(text: string, now: Date): string | null {
+function hostsToken(
+	text: string,
+	now: Date,
+): { token: string; expiresAt: number } | null {
 	const token = text.match(/^\s*oauth_token:\s*(\S+)\s*$/m)?.[1];
 	const expires = text.match(/^\s*expires_at:\s*(\S+)\s*$/m)?.[1];
 	if (token === undefined || expires === undefined) {
 		return null;
 	}
-	const at = Date.parse(expires);
-	if (Number.isNaN(at) || at - now.getTime() <= tokenRenewWithinMs) {
+	const expiresAt = Date.parse(expires);
+	if (
+		Number.isNaN(expiresAt) ||
+		expiresAt - now.getTime() <= tokenRenewWithinMs
+	) {
 		return null;
 	}
-	return token;
+	return { token, expiresAt };
+}
+
+function graphqlMutation(url: string, body: string): boolean {
+	if (url !== "https://api.github.com/graphql" || body === "") {
+		return false;
+	}
+	try {
+		const parsed: unknown = JSON.parse(body);
+		if (parsed === null || typeof parsed !== "object" || !("query" in parsed)) {
+			return false;
+		}
+		const query = parsed.query;
+		return typeof query === "string" && /^\s*mutation\b/.test(query);
+	} catch {
+		return false;
+	}
 }
 
 export function installationTokenFetch(
 	fetchImpl: Fetch,
-	userToken: string,
-	read: () => Promise<{
+	read: () => {
 		enabled: boolean;
 		dir: string;
-	}>,
+	},
 	now: () => Date,
 ): Fetch {
 	const cached = new Map<string, { token: string; expiresAt: number }>();
 	return async (input, init) => {
-		const settings = await read().catch(() => null);
-		if (settings === null || !settings.enabled) {
+		const withToken = (token: string) => {
+			const headers = new Headers(init?.headers);
+			headers.set("authorization", `Bearer ${token}`);
+			return fetchImpl(input, { ...init, headers });
+		};
+		const settings = read();
+		if (!settings.enabled) {
 			return fetchImpl(input, init);
 		}
 		const url =
@@ -122,10 +155,11 @@ export function installationTokenFetch(
 		const body = typeof init?.body === "string" ? init.body : "";
 		const owner = repoOwner(url, body);
 		const write =
-			method !== "GET" &&
-			method !== "HEAD" &&
-			!url.startsWith("https://api.github.com/graphql");
-		if (owner === null || write || owner === "user") {
+			(method !== "GET" &&
+				method !== "HEAD" &&
+				!url.startsWith("https://api.github.com/graphql")) ||
+			graphqlMutation(url, body);
+		if (owner === null || write) {
 			return fetchImpl(input, init);
 		}
 		const current = now();
@@ -134,9 +168,7 @@ export function installationTokenFetch(
 			held !== undefined &&
 			held.expiresAt - current.getTime() > tokenRenewWithinMs
 		) {
-			const headers = new Headers(init?.headers);
-			headers.set("authorization", `Bearer ${held.token}`);
-			return fetchImpl(input, { ...init, headers });
+			return withToken(held.token);
 		}
 		cached.delete(owner);
 		let text: string;
@@ -145,18 +177,12 @@ export function installationTokenFetch(
 		} catch {
 			return fetchImpl(input, init);
 		}
-		const token = hostsToken(text, current);
-		if (token === null || token === userToken) {
+		const parsed = hostsToken(text, current);
+		if (parsed === null) {
 			return fetchImpl(input, init);
 		}
-		const expires = text.match(/^\s*expires_at:\s*(\S+)\s*$/m)?.[1];
-		const expiresAt = expires === undefined ? Number.NaN : Date.parse(expires);
-		if (!Number.isNaN(expiresAt)) {
-			cached.set(owner, { token, expiresAt });
-		}
-		const headers = new Headers(init?.headers);
-		headers.set("authorization", `Bearer ${token}`);
-		return fetchImpl(input, { ...init, headers });
+		cached.set(owner, parsed);
+		return withToken(parsed.token);
 	};
 }
 
@@ -1011,6 +1037,7 @@ async function listProjectItems(
 	token: string,
 	fetchImpl: Fetch,
 	projectId: string,
+	projectOwner: string,
 ): Promise<ProjectItem[]> {
 	const items: ProjectItem[] = [];
 	let after: string | null = null;
@@ -1020,7 +1047,7 @@ async function listProjectItems(
 			headers: githubHeaders(token),
 			body: JSON.stringify({
 				query: projectItemsQuery,
-				variables: { id: projectId, after },
+				variables: { id: projectId, after, projectOwner },
 			}),
 		});
 		if (!response.ok) {
@@ -1115,13 +1142,14 @@ async function listProjectStatuses(
 	token: string,
 	fetchImpl: Fetch,
 	projectId: string,
+	projectOwner: string,
 ): Promise<TicketStatus[]> {
 	const response = await fetchImpl("https://api.github.com/graphql", {
 		method: "POST",
 		headers: githubHeaders(token),
 		body: JSON.stringify({
 			query: projectFieldsQuery,
-			variables: { id: projectId },
+			variables: { id: projectId, projectOwner },
 		}),
 	});
 	if (!response.ok) {
@@ -1299,6 +1327,7 @@ async function connectionPages<Node>(
 	start: string,
 	query: string,
 	label: string,
+	projectOwner: string,
 	read: (body: unknown) => {
 		nodes: Node[];
 		pageInfo: z.infer<typeof pageInfo>;
@@ -1312,7 +1341,7 @@ async function connectionPages<Node>(
 			headers: githubHeaders(token),
 			body: JSON.stringify({
 				query,
-				variables: { id: issueId, after },
+				variables: { id: issueId, after, projectOwner },
 			}),
 		});
 		if (!response.ok) {
@@ -1342,6 +1371,7 @@ function blockedByPages(
 	fetchImpl: Fetch,
 	issueId: string,
 	start: string,
+	projectOwner: string,
 ): Promise<z.infer<typeof projectBlockedByNode>[]> {
 	return connectionPages(
 		token,
@@ -1350,6 +1380,7 @@ function blockedByPages(
 		start,
 		blockedByQuery,
 		"list blockers",
+		projectOwner,
 		(body) => {
 			const connection = blockedByPage.parse(body).data.node?.blockedBy;
 			if (connection === undefined) {
@@ -1365,6 +1396,7 @@ async function listProjectTickets(
 	fetchImpl: Fetch,
 	items: ProjectItem[],
 	openKeys: Set<string>,
+	projectOwner: string,
 ): Promise<Ticket[]> {
 	const tickets: Ticket[] = [];
 	for (const item of items) {
@@ -1400,7 +1432,13 @@ async function listProjectTickets(
 			: null;
 		if (blockedByAfter !== null && content.id !== undefined) {
 			blockedByNodes.push(
-				...(await blockedByPages(token, fetchImpl, content.id, blockedByAfter)),
+				...(await blockedByPages(
+					token,
+					fetchImpl,
+					content.id,
+					blockedByAfter,
+					projectOwner,
+				)),
 			);
 		}
 		tickets.push({
@@ -1432,6 +1470,7 @@ function closingPullPages(
 	fetchImpl: Fetch,
 	issueId: string,
 	start: string,
+	projectOwner: string,
 ): Promise<z.infer<typeof closingPullNode>[]> {
 	return connectionPages(
 		token,
@@ -1440,6 +1479,7 @@ function closingPullPages(
 		start,
 		closingPullsQuery,
 		"list closing pulls",
+		projectOwner,
 		(body) => {
 			const connection =
 				closingPulls.parse(body).data.node?.closedByPullRequestsReferences;
@@ -1456,6 +1496,7 @@ async function listProjectPulls(
 	fetchImpl: Fetch,
 	items: ProjectItem[],
 	seen: Map<string, ReviewEvidence>,
+	projectOwner: string,
 ): Promise<PullRequest[]> {
 	const pulls: PullRequest[] = [];
 	const seenPulls = new Set<string>();
@@ -1480,7 +1521,13 @@ async function listProjectPulls(
 			: null;
 		if (closingAfter !== null && content.id !== undefined) {
 			linkedPulls.push(
-				...(await closingPullPages(token, fetchImpl, content.id, closingAfter)),
+				...(await closingPullPages(
+					token,
+					fetchImpl,
+					content.id,
+					closingAfter,
+					projectOwner,
+				)),
 			);
 		}
 		for (const linked of linkedPulls) {
@@ -2986,19 +3033,22 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 	let holdLists: Promise<void> = Promise.resolve();
 	const seenReviews = new Map<string, ReviewEvidence>();
 	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
-	const projectItems = (projectId: string) => {
+	const projectItems = (projectId: string, projectOwner: string) => {
 		const cached = projectItemsById.get(projectId);
 		if (cached !== undefined) {
 			return cached;
 		}
-		const listed = listProjectItems(token, fetchImpl, projectId).catch(
-			(error: unknown) => {
-				if (projectItemsById.get(projectId) === listed) {
-					projectItemsById.delete(projectId);
-				}
-				throw error;
-			},
-		);
+		const listed = listProjectItems(
+			token,
+			fetchImpl,
+			projectId,
+			projectOwner,
+		).catch((error: unknown) => {
+			if (projectItemsById.get(projectId) === listed) {
+				projectItemsById.delete(projectId);
+			}
+			throw error;
+		});
 		projectItemsById.set(projectId, listed);
 		return listed;
 	};
@@ -3051,18 +3101,24 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},
-		async listTickets(repo, since) {
+		async listTickets(repo, since, projectOwner = "") {
 			if (!repo.includes("/")) {
 				projectItemsById.clear();
-				const items = await projectItems(repo);
+				const items = await projectItems(repo, projectOwner);
 				const openKeys = openLinkedKeys(items);
 				const tickets = await listProjectTickets(
 					token,
 					fetchImpl,
 					items,
 					openKeys,
+					projectOwner,
 				);
-				const statuses = await listProjectStatuses(token, fetchImpl, repo);
+				const statuses = await listProjectStatuses(
+					token,
+					fetchImpl,
+					repo,
+					projectOwner,
+				);
 				const board: Board = {
 					kind: "github-project",
 					statuses,
@@ -3096,13 +3152,14 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			}
 			return { name: repo, tickets, board };
 		},
-		async listPulls(repo) {
+		async listPulls(repo, _since, projectOwner = "") {
 			if (!repo.includes("/")) {
 				return listProjectPulls(
 					token,
 					fetchImpl,
-					await projectItems(repo),
+					await projectItems(repo, projectOwner),
 					seenReviews,
+					projectOwner,
 				);
 			}
 			const batched = await repoReadFor(repo, null);

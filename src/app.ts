@@ -1012,10 +1012,15 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 		const since = full ? null : lastGood;
 		try {
-			const listedTickets = await tracker.listTickets(project.key, since);
+			const listedTickets = await tracker.listTickets(
+				project.key,
+				since,
+				project.owner,
+			);
 			const pulls = await tracker.listPulls(
 				project.key,
 				project.tracker === "linear" ? since : null,
+				project.owner,
 			);
 			const branches =
 				project.tracker === "github" && github !== null
@@ -1326,8 +1331,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	const fetchGithub = installationTokenFetch(
 		conditionalFetch(trackerFetch, restCache, opened.store.recordValidator),
-		options.token ?? "",
-		async () => ({
+		() => ({
 			enabled: configuration.factoryGithubTokens,
 			dir: configuration.factoryGithubTokenDir,
 		}),
