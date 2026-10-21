@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:4174",
+	"serve": ["bun", "proof/serve-board.ts", "4174"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "6 of 11 done" },
+		{ "assert_text": "Close item 16" },
+		{ "shot": "done-aged-hidden" },
+		{ "click": "[data-show-all='Done']" },
+		{ "assert_text": "Close item 11" },
+		{ "shot": "done-show-all" }
+	]
+}

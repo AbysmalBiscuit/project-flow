@@ -40,6 +40,8 @@ function issue(
 	};
 }
 
+const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
 const widgetIssues = [
 	issue(widget, 1, "Ship the board"),
 	issue(
@@ -50,9 +52,40 @@ const widgetIssues = [
 	),
 	issue(widget, 3, "Write the copy"),
 	issue(widget, 4, "Read the review"),
-	...[11, 12, 13, 14, 15, 16].map((number) =>
-		issue(widget, number, `Close item ${number}`, "", "closed"),
-	),
+	issue(widget, 5, "Merge the board"),
+	...[11, 12, 13, 14, 15, 16].map((number): Record<string, unknown> => {
+		const closed = issue(widget, number, `Close item ${number}`, "", "closed");
+		return {
+			...closed,
+			closed_at:
+				number === 16 ? "2026-08-17T12:00:00Z" : "2026-08-01T12:00:00Z",
+			updated_at:
+				number === 16 ? "2026-08-17T12:00:00Z" : "2026-08-01T12:00:00Z",
+		};
+	}),
+];
+
+const widgetPulls = [
+	{
+		number: 31,
+		title: "Review the copy",
+		state: "open",
+		draft: false,
+		html_url: `https://github.com/${widget}/pull/31`,
+		head: { ref: "review-copy", sha: head },
+		body: "Closes #4",
+		merged_at: null,
+	},
+	{
+		number: 41,
+		title: "Merge the board",
+		state: "open",
+		draft: false,
+		html_url: `https://github.com/${widget}/pull/41`,
+		head: { ref: "merge-board", sha: head },
+		body: "Closes #5",
+		merged_at: null,
+	},
 ];
 
 const platformIssues = [
@@ -169,6 +202,74 @@ const recorded: Fetch = async (input, init) => {
 	if (url.includes(`/repos/${widget}/issues?`)) {
 		return page(widgetIssues);
 	}
+	if (url.includes(`/repos/${widget}/pulls?`) && url.includes("state=open")) {
+		return page(widgetPulls);
+	}
+	if (url.includes(`/repos/${widget}/pulls?`) && url.includes("state=closed")) {
+		return page([
+			{
+				number: 1,
+				title: "merged",
+				state: "closed",
+				draft: false,
+				html_url: `https://github.com/${widget}/pull/1`,
+				head: { ref: "1-merged", sha: head },
+				body: "",
+				merged_at: "2026-08-01T12:00:00Z",
+			},
+		]);
+	}
+	if (url.includes(`/repos/${widget}/branches?`)) {
+		return page([{ name: "3-feat-write-the-copy" }]);
+	}
+	if (url.includes("/commits/") && url.includes("/check-runs")) {
+		return Response.json({
+			check_runs: [
+				{
+					name: "Grok code review",
+					status: "completed",
+					conclusion: "success",
+					app: { slug: "grok-code-review" },
+				},
+			],
+		});
+	}
+	if (url.includes("/pulls/") && url.includes("/reviews")) {
+		const number = Number(/\/pulls\/(\d+)\//.exec(url)?.[1] ?? "0");
+		const commitId =
+			number === 41 ? head : "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+		if (number === 1 || number === 31 || number === 41) {
+			return page([
+				{
+					user: { login: "grok-code-review[bot]" },
+					commit_id: commitId,
+					state: "COMMENTED",
+				},
+			]);
+		}
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("closingIssuesReferences")
+	) {
+		const number = Number(/"number":\s*(\d+)/.exec(body)?.[1] ?? "0");
+		const found = widgetPulls.find((item) => item.number === number);
+		const closing = found?.body.match(/Closes #(\d+)/);
+		return Response.json({
+			data: {
+				repository: {
+					pullRequest: {
+						closingIssuesReferences: {
+							nodes:
+								closing?.[1] === undefined
+									? []
+									: [{ number: Number(closing[1]) }],
+						},
+					},
+				},
+			},
+		});
+	}
 	if (url.includes(`/repos/${platform}/issues?`)) {
 		return page(platformIssues);
 	}
@@ -204,14 +305,15 @@ const recorded: Fetch = async (input, init) => {
 		url.includes("/pulls?") ||
 		url.includes("/branches?") ||
 		url.includes("/labels?") ||
-		url.includes("/comments")
+		url.includes("/comments") ||
+		url.includes("/reactions")
 	) {
 		return page([]);
 	}
 	return new Response("not recorded", { status: 404 });
 };
 
-const port = Number(process.env.PORT ?? "4173");
+const port = Number(process.argv[2] ?? process.env.PORT ?? "4173");
 let base = "";
 try {
 	await run(["--config", configPath, "--host", "127.0.0.1", "--port", "0"], {

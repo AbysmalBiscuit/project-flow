@@ -48,6 +48,15 @@ export type StatusType =
 
 export type TicketState = StatusType;
 
+const laneFallback: Record<TicketState, string> = {
+	done: "Done",
+	dropped: "Dropped",
+	backlog: "Backlog",
+	inProgress: "In progress",
+	inReview: "In review",
+	awaitingMerge: "Awaiting merge",
+};
+
 export type TicketRef = {
 	tracker: "github" | "linear";
 	project: string;
@@ -660,7 +669,23 @@ export type ProjectReport = {
 	lanes: Lane[];
 	tickets: TicketView[];
 	sections: ReportSection[];
+	done: number;
+	total: number;
+	doneTickets: TicketView[];
 };
+
+export function displayedLaneName(ticket: TicketView): string {
+	return ticket.lane ?? laneFallback[ticket.state];
+}
+
+export function doneTicketsForLane(
+	report: ProjectReport,
+	lane: string,
+): TicketView[] {
+	return report.doneTickets.filter(
+		(ticket) => displayedLaneName(ticket) === lane,
+	);
+}
 
 export type Overview = {
 	projects: ProjectCounts[];
@@ -2696,9 +2721,8 @@ export function projectCounts(
 		}
 		if (blockers.length > 0 && ticket.state === "open") {
 			counts.blocked += 1;
-		} else {
-			counts[shown.state] += 1;
 		}
+		counts[shown.state] += 1;
 		statusTypes[shown.lane.statusType] += 1;
 		if (ticket.key !== null) {
 			relationsByKey.set(
@@ -2820,9 +2844,10 @@ export function projectCounts(
 const stateKeys = [
 	"done",
 	"dropped",
-	"blocked",
 	"backlog",
 	"inProgress",
+	"inReview",
+	"awaitingMerge",
 ] as const;
 
 function progressRatio(
@@ -3726,6 +3751,9 @@ export function projectReport(
 		lanes,
 		tickets: boardTickets,
 		sections,
+		done: counts.done,
+		total: counts.tickets.length,
+		doneTickets: boardTickets.filter((ticket) => ticket.statusType === "done"),
 	};
 }
 
@@ -3746,6 +3774,42 @@ function ageDays(entered: string | undefined, now: Date): number {
 	return (now.getTime() - at) / dayMs;
 }
 
+function matchesProjectView(
+	item: TicketView,
+	view: ProjectViewSettings,
+	shown: Set<string>,
+	wanted: Set<string>,
+	needle: string,
+	now: Date,
+	applyAge: boolean,
+): boolean {
+	const lane = (item.lane ?? "").toLowerCase();
+	if (!shown.has(lane)) {
+		return false;
+	}
+	const names = (item.assignees ?? []).map((name) => name.toLowerCase());
+	if (wanted.size > 0 && !names.some((name) => wanted.has(name))) {
+		return false;
+	}
+	if (view.needsYouOnly && item.needsYou !== true) {
+		return false;
+	}
+	if (view.blockedOnly && item.blocked !== true) {
+		return false;
+	}
+	if (applyAge) {
+		const cap = laneAgeCap(view.maxAgeDays, item.lane ?? "", item.statusType);
+		if (cap > 0 && ageDays(item.enteredStateAt, now) > cap) {
+			return false;
+		}
+	}
+	if (needle === "") {
+		return true;
+	}
+	const key = item.key?.toLowerCase() ?? "";
+	return key.includes(needle) || item.title.toLowerCase().includes(needle);
+}
+
 export function filterProjectReport(
 	report: ProjectReport,
 	view: ProjectViewSettings,
@@ -3763,32 +3827,17 @@ export function filterProjectReport(
 		}),
 	);
 	const needle = view.search.trim().toLowerCase();
-	const kept = report.tickets.filter((item) => {
-		const lane = (item.lane ?? "").toLowerCase();
-		if (!shown.has(lane)) {
-			return false;
-		}
-		const names = (item.assignees ?? []).map((name) => name.toLowerCase());
-		if (wanted.size > 0 && !names.some((name) => wanted.has(name))) {
-			return false;
-		}
-		if (view.needsYouOnly && item.needsYou !== true) {
-			return false;
-		}
-		if (view.blockedOnly && item.blocked !== true) {
-			return false;
-		}
-		const cap = laneAgeCap(view.maxAgeDays, item.lane ?? "", item.statusType);
-		if (cap > 0 && ageDays(item.enteredStateAt, now) > cap) {
-			return false;
-		}
-		if (needle === "") {
-			return true;
-		}
-		const key = item.key?.toLowerCase() ?? "";
-		return key.includes(needle) || item.title.toLowerCase().includes(needle);
-	});
-	return { ...report, tickets: kept };
+	const kept = report.tickets.filter((item) =>
+		matchesProjectView(item, view, shown, wanted, needle, now, true),
+	);
+	const done = report.doneTickets.filter((item) =>
+		matchesProjectView(item, view, shown, wanted, needle, now, false),
+	);
+	return {
+		...report,
+		tickets: kept,
+		doneTickets: done,
+	};
 }
 
 export type SettingsProject = {
