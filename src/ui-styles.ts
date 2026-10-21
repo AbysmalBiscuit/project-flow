@@ -854,11 +854,6 @@ export const cards = stylex.create({
 		height: measure.marker,
 		backgroundColor: colours.lineStrong,
 	},
-	graphMarkerMuted: {
-		width: measure.marker,
-		height: measure.marker,
-		backgroundColor: colours.edgeMuted,
-	},
 	graphTools: {
 		position: "absolute",
 		zIndex: 5,
@@ -2466,11 +2461,11 @@ export const board = stylex.create({
 		height: measure.hairline,
 		backgroundColor: colours.lineStrong,
 	},
-	legendSwatchMuted: {
-		backgroundColor: colours.edgeMuted,
+	legendSwatchDone: {
+		backgroundImage: `repeating-linear-gradient(to right, ${colours.lineStrong} 0, ${colours.lineStrong} ${measure.edgeDash}, transparent ${measure.edgeDash}, transparent calc(${measure.edgeDash} * 2))`,
 	},
-	edgeDone: {
-		stroke: colours.edgeMuted,
+	graphEdgeDash: {
+		strokeDasharray: `${measure.edgeDash} ${measure.edgeDash}`,
 	},
 	ticketNode: {
 		display: "flex",
