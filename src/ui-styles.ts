@@ -2065,12 +2065,13 @@ export const board = stylex.create({
 	},
 	lanes: {
 		display: "flex",
-		flex: "0 1 auto",
+		flex: "1 1 auto",
 		gap: 0,
 		alignItems: "stretch",
 		width: "max-content",
 		maxWidth: "100%",
 		minWidth: 0,
+		minHeight: 0,
 		overflowX: "auto",
 		overflowY: "hidden",
 		borderWidth: 0,
@@ -2085,6 +2086,7 @@ export const board = stylex.create({
 		gap: space.sm,
 		boxSizing: "border-box",
 		width: measure.lane,
+		minHeight: 0,
 		overflow: "hidden",
 		padding: space.sm,
 		overflowWrap: "break-word",
@@ -2112,6 +2114,7 @@ export const board = stylex.create({
 	markInReview: { backgroundColor: colours.review },
 	markAwaitingMerge: { backgroundColor: colours.merge },
 	laneTitle: {
+		flex: "0 0 auto",
 		margin: 0,
 		color: colours.inkSoft,
 		fontSize: type.lane,
@@ -2164,6 +2167,12 @@ export const board = stylex.create({
 		margin: 0,
 		padding: 0,
 		listStyle: "none",
+	},
+	laneBody: {
+		flex: "1 1 auto",
+		minHeight: 0,
+		overflowX: "hidden",
+		overflowY: "auto",
 	},
 	cardsClip: {
 		maxHeight: measure.boardMin,
