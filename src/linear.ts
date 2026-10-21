@@ -1020,30 +1020,32 @@ const threadQuery = `query IssueThread($id: String!, $after: String) {
 
 const threadPage = z.object({
 	data: z.object({
-		issue: z.object({
-			identifier: z.string(),
-			title: z.string(),
-			url: z.string(),
-			comments: z.object({
-				nodes: z.array(
-					z.object({
-						id: z.string(),
-						body: z.string().nullable().optional(),
-						createdAt: z.string().optional(),
-						url: z.string().optional(),
-						parent: z.object({ id: z.string() }).nullable().optional(),
-						user: z
-							.object({
-								name: z.string().nullable().optional(),
-								displayName: z.string().nullable().optional(),
-							})
-							.nullable()
-							.optional(),
-					}),
-				),
-				pageInfo,
-			}),
-		}),
+		issue: z
+			.object({
+				identifier: z.string(),
+				title: z.string(),
+				url: z.string(),
+				comments: z.object({
+					nodes: z.array(
+						z.object({
+							id: z.string(),
+							body: z.string().nullable().optional(),
+							createdAt: z.string().optional(),
+							url: z.string().optional(),
+							parent: z.object({ id: z.string() }).nullable().optional(),
+							user: z
+								.object({
+									name: z.string().nullable().optional(),
+									displayName: z.string().nullable().optional(),
+								})
+								.nullable()
+								.optional(),
+						}),
+					),
+					pageInfo,
+				}),
+			})
+			.nullable(),
 	}),
 });
 
@@ -1109,9 +1111,9 @@ export async function fetchLinearThread(
 	project: string,
 	ticketKey: string,
 ): Promise<Thread | null> {
-	const nodes: z.infer<
-		typeof threadPage
-	>["data"]["issue"]["comments"]["nodes"] = [];
+	const nodes: NonNullable<
+		z.infer<typeof threadPage>["data"]["issue"]
+	>["comments"]["nodes"] = [];
 	let issue: z.infer<typeof threadPage>["data"]["issue"] | null = null;
 	let after: string | null = null;
 	do {
@@ -1127,14 +1129,14 @@ export async function fetchLinearThread(
 		}
 		const page = threadPage.parse(body);
 		issue = page.data.issue;
+		if (issue === null) {
+			return null;
+		}
 		nodes.push(...issue.comments.nodes);
 		after = issue.comments.pageInfo.hasNextPage
 			? issue.comments.pageInfo.endCursor
 			: null;
 	} while (after !== null);
-	if (issue === null) {
-		return null;
-	}
 	const comments: ThreadComment[] = nodes
 		.map((comment) => ({
 			id: comment.id,

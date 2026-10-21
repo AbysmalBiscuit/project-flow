@@ -82,6 +82,16 @@ export const reasonTab: Record<NeedsYouItem["reason"], string> = {
 
 export const whyLabel = "Why this needs you";
 
+export const threadMissingLabel = "This thread could not be read.";
+
+export const openOnGitHubLabel = "Open on GitHub";
+
+export const mergeFactLabel = {
+	pr: "PR",
+	ci: "CI",
+	review: "Review",
+} as const;
+
 export const heldActionLabel = {
 	merge: "Merge",
 	removeLabel: "Remove label",
@@ -89,17 +99,17 @@ export const heldActionLabel = {
 
 export const pullStatusLabel = {
 	ci: {
-		passing: "CI passing",
-		failing: "CI failing",
-		pending: "CI pending",
-		none: "CI none",
+		passing: "Passing",
+		failing: "Failing",
+		pending: "Pending",
+		none: "None",
 	},
 	review: {
-		approved: "Review approved",
-		changes: "Review changes",
-		completed: "Review completed",
-		pending: "Review pending",
-		none: "Review none",
+		approved: "Approved",
+		changes: "Changes requested",
+		completed: "Completed",
+		pending: "Pending",
+		none: "None",
 	},
 } as const;
 

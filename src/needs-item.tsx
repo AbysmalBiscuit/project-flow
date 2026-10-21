@@ -8,27 +8,16 @@ import {
 } from "./terms.ts";
 import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { needs, shell } from "./ui-styles.ts";
+import { needs } from "./ui-styles.ts";
 
-export function HeldAction({ item }: { item: NeedsYouItem | null }) {
-	if (item === null) {
-		return null;
+function heldAction(item: NeedsYouItem): string | null {
+	if (item.reason === "awaitingMerge") {
+		return heldActionLabel.merge;
 	}
-	if (item.reason !== "awaitingMerge" && item.reason !== "label") {
-		return null;
+	if (item.reason === "label") {
+		return heldActionLabel.removeLabel;
 	}
-	return (
-		<button
-			type="button"
-			className={clsx(shell.button, shell.disabled)}
-			data-held-action={item.reason}
-			disabled
-		>
-			{item.reason === "awaitingMerge"
-				? heldActionLabel.merge
-				: heldActionLabel.removeLabel}
-		</button>
-	);
+	return null;
 }
 
 function Mark({ children }: { children: ReactNode }) {
@@ -121,8 +110,9 @@ export function NeedsItem({
 	onAction?: (key: string) => void;
 }) {
 	const Icon = reasonIcon[item.reason];
-	const action = actionLabel(item);
-	const disabled = item.reason === "awaitingMerge";
+	const held = heldAction(item);
+	const action = held ?? actionLabel(item);
+	const disabled = held !== null;
 	const lead = (
 		<>
 			<span className={clsx(needs.icon)} aria-hidden="true">
@@ -181,6 +171,7 @@ export function NeedsItem({
 						item.reason === "ask" && !item.answered && needs.actionOn,
 						disabled && needs.actionOff,
 					)}
+					data-held-action={held === null ? undefined : item.reason}
 					disabled={disabled}
 					onClick={() => (onAction ?? onOpen)?.(item.key)}
 				>
@@ -194,7 +185,6 @@ export function NeedsItem({
 				>
 					<CheckIcon />
 				</button>
-				<HeldAction item={item} />
 			</span>
 		</li>
 	);

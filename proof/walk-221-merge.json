@@ -1,0 +1,14 @@
+{
+	"base_url": "http://127.0.0.1:4174",
+	"serve": ["bun", "proof/serve-needs-you.ts", "4174"],
+	"steps": [
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Ready to merge" },
+		{ "click": "[data-needs='acme/widget#8'] button" },
+		{ "assert_text": "Open on GitHub" },
+		{ "assert_text": "CI" },
+		{ "assert_text": "Review" },
+		{ "assert_text": "None" },
+		{ "shot": "merge-facts" }
+	]
+}

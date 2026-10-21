@@ -62,6 +62,7 @@ import {
 	type RestCache,
 	rememberValidator,
 	retainListWindows,
+	TrackerError,
 } from "./github.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
@@ -555,7 +556,7 @@ async function threadResponse(
 	const tracker = trackerFor(trackers, trackerName);
 	const project = new URL(request.url).searchParams.get("project") ?? "";
 	if (tracker?.fetchThread === undefined || project.trim() === "") {
-		return Response.json({ error: "thread not found" }, { status: 404 });
+		return Response.json({ missing: true }, { status: 404 });
 	}
 	try {
 		const thread: Thread | null = await tracker.fetchThread(
@@ -563,13 +564,19 @@ async function threadResponse(
 			key.trim(),
 		);
 		if (thread === null) {
-			return Response.json({ error: "thread not found" }, { status: 404 });
+			return Response.json({ missing: true }, { status: 404 });
 		}
 		return Response.json({
 			...thread,
 			comments: commentTree(thread.comments),
 		});
 	} catch (error) {
+		if (
+			error instanceof TrackerError &&
+			(error.status === 404 || error.status === 410)
+		) {
+			return Response.json({ missing: true }, { status: 404 });
+		}
 		return trackerError(error);
 	}
 }
