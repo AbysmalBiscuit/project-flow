@@ -6,6 +6,7 @@ import {
 	heldActionLabel,
 	reasonLabel,
 } from "./terms.ts";
+import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { needs, shell } from "./ui-styles.ts";
 
@@ -127,7 +128,7 @@ export function NeedsItem({
 			<span className={clsx(needs.icon)} aria-hidden="true">
 				<Icon />
 			</span>
-			<span className={clsx(needs.key)}>{item.key}</span>
+			<span className={clsx(needs.key, phoneLayout.needsKey)}>{item.key}</span>
 			<span className={clsx(needs.headline)}>{item.headline}</span>
 		</>
 	);
@@ -135,23 +136,24 @@ export function NeedsItem({
 		<li
 			className={clsx(
 				needs.item,
+				phoneLayout.needsItem,
 				selected && needs.selected,
 				item.answered && needs.answered,
 			)}
 			data-needs={item.key}
 		>
 			{onOpen === undefined ? (
-				<div className={clsx(needs.row)}>{lead}</div>
+				<div className={clsx(needs.row, phoneLayout.needsRow)}>{lead}</div>
 			) : (
 				<button
 					type="button"
-					className={clsx(needs.row)}
+					className={clsx(needs.row, phoneLayout.needsRow)}
 					onClick={() => onOpen(item.key)}
 				>
 					{lead}
 				</button>
 			)}
-			<span className={clsx(needs.aside)}>
+			<span className={clsx(needs.aside, phoneLayout.needsAside)}>
 				{item.tags.map((tag) => (
 					<span key={tag} className={clsx(needs.tag)}>
 						{tag}
