@@ -261,6 +261,7 @@ function openEventStream(base: string): {
 				closed = true;
 				wake?.();
 			},
+
 			open(socket) {
 				socket.write(
 					"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
@@ -1342,6 +1343,89 @@ describe("live updates", () => {
 			expect(result.exitCode).toBe(0);
 		} finally {
 			releasePoll();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("an empty store ends the running poll on the event stream when every poll fails", async () => {
+		let releasePoll: () => void = () => {};
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				await pollHeld;
+				return discovered;
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let releaseChecks: () => void = () => {};
+		const checks = new Promise<void>((resolve) => {
+			releaseChecks = resolve;
+		});
+		let readFailure: (base: string) => Promise<void> = async () => {};
+		const failed = new Promise<void>((resolve, reject) => {
+			readFailure = async (base: string) => {
+				try {
+					const stream = openEventStream(base);
+					await stream.ready;
+					const events = stream.events[Symbol.asyncIterator]();
+					const running = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as OverviewBody;
+					expect(running.polling).toBe(true);
+					expect(running.projects).toEqual([]);
+					await Bun.write(path, "{\n");
+					releasePoll();
+					const published = await settledOverviewEvent(events, overviewOf, 8);
+					stream.close();
+					expect(published.polling).toBeUndefined();
+					expect(published.error).toContain("invalid configuration");
+					resolve();
+				} catch (error) {
+					reject(error instanceof Error ? error : new Error("checks failed"));
+				}
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => {
+							void readFailure(line);
+						},
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			await failed;
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toContain("invalid configuration");
+			expect(result.listened).toBe(true);
+		} finally {
+			releasePoll();
+			releaseChecks();
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
