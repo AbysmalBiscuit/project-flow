@@ -1,6 +1,11 @@
 {
 	"base_url": "http://127.0.0.1:4771",
-	"serve": ["bun", "proof/serve-stored.ts", "4771", "hold"],
+	"serve": [
+		"bun",
+		"/home/lev/git/github/AbysmalBiscuit/project-flow_workspaces/263-fix-web-paint-stored-data-on-the-first/proof/serve-stored.ts",
+		"4771",
+		"hold"
+	],
 	"steps": [
 		{ "goto": "/" },
 		{ "assert_text": "Project Flow" },

@@ -9,6 +9,24 @@
 	</head>
 	<body>
 		<div id="root"></div>
+		<pre id="project-flow-first-paint" aria-hidden="true"></pre>
 		<script type="module" src="./page.tsx"></script>
+		<script>
+			new MutationObserver(() => {
+				const log = document.getElementById("project-flow-first-paint");
+				const root = document.getElementById("root");
+				if (log === null || root === null || log.textContent !== "") {
+					return;
+				}
+				if (root.innerText.trim() === "") {
+					return;
+				}
+				log.textContent = `${location.pathname} ${root.innerText.replaceAll("\n", " | ")}`;
+			}).observe(document.getElementById("root"), {
+				childList: true,
+				subtree: true,
+				characterData: true,
+			});
+		</script>
 	</body>
 </html>
