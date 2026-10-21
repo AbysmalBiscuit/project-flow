@@ -31,8 +31,9 @@ function open(): EventSource {
 			});
 		}
 		source.addEventListener("open", (event) => {
+			const message = event as MessageEvent;
 			for (const listener of listeners.get("open") ?? []) {
-				listener(event);
+				listener(message);
 			}
 		});
 	}
