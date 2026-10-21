@@ -790,7 +790,7 @@ describe("replies", () => {
 		}
 	});
 
-	test("a missing Linear issue shows thread not found", async () => {
+	test("a missing Linear issue marks the thread missing", async () => {
 		const recorded = linearFake({
 			project: linearProject,
 			issues: [],
