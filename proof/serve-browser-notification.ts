@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { proofStops } from "./lifetime.ts";
 import { releaseLinearAsk, runLinearProof } from "./serve-inbox.ts";
 
 const port = process.argv[2] ?? "4176";
@@ -18,6 +19,8 @@ let streamOpen = false;
 let permissionGranted = false;
 let proxy: ReturnType<typeof Bun.serve> | undefined;
 let armTimer: ReturnType<typeof setTimeout> | undefined;
+
+proofStops();
 
 await runLinearProof(
 	"0",

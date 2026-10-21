@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { recordedViewer, urlOf } from "../test/support.ts";
+import { proofStops } from "./lifetime.ts";
 
 const root = await mkdtemp(join(tmpdir(), "project-flow-stale-"));
 const databasePath = join(root, "project-flow.sqlite");
@@ -47,8 +48,5 @@ const running = await start({
 	now: () => new Date("2026-04-01T12:00:00.000Z"),
 });
 await fetch(new URL("/api/refresh", running.url), { method: "POST" });
-await new Promise<void>((resolve) => {
-	process.once("SIGINT", () => resolve());
-	process.once("SIGTERM", () => resolve());
-});
+await proofStops();
 await running.stop();

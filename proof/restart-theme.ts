@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { proofStops } from "./lifetime.ts";
 
 const port = process.env.PORT ?? "4174";
 const page = `http://127.0.0.1:${port}/`;
@@ -28,6 +29,7 @@ function stopChild(): void {
 
 process.once("SIGINT", stopChild);
 process.once("SIGTERM", stopChild);
+proofStops();
 
 const server = Bun.serve({
 	hostname: "127.0.0.1",

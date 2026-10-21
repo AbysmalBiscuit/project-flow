@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { proofStops } from "./lifetime.ts";
 
 const repo = "acme/widget";
 const port = process.argv[2] ?? "4175";
@@ -231,4 +232,4 @@ const running = await start({
 	now: () => new Date("2026-10-18T12:00:00.000Z"),
 });
 console.log(running.url.href);
-await new Promise(() => {});
+await proofStops();

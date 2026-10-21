@@ -4,6 +4,7 @@ import type { Notification } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { sqliteStore } from "../src/store.ts";
+import { proofStops } from "./lifetime.ts";
 
 const ask = "<!-- workcell:ask pf-1 -->";
 const question = "Which bot should review this?";
@@ -227,11 +228,6 @@ await writeFile(
 		theme: "light",
 	}),
 );
-const stop = new Promise<void>((resolve) => {
-	const done = () => resolve();
-	process.once("SIGINT", done);
-	process.once("SIGTERM", done);
-});
 try {
 	await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 		env: { LINEAR_API_KEY: "recorded-linear-key" },
@@ -242,7 +238,7 @@ try {
 		stdout: (line) => {
 			console.log(line);
 		},
-		waitForStop: stop,
+		waitForStop: proofStops(),
 	});
 } finally {
 	await rm(root, { recursive: true, force: true });

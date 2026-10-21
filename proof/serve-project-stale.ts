@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { recordedViewer, urlOf } from "../test/support.ts";
+import { proofStops } from "./lifetime.ts";
 
 const root = await mkdtemp(join(tmpdir(), "project-flow-project-stale-"));
 const configPath = join(root, "config.json");
@@ -75,8 +76,5 @@ const refresh = await fetch(new URL("/api/refresh", running.url), {
 if (!refresh.ok && refresh.status !== 204) {
 	throw new Error(`refresh failed (HTTP ${refresh.status})`);
 }
-await new Promise<void>((resolve) => {
-	process.once("SIGINT", () => resolve());
-	process.once("SIGTERM", () => resolve());
-});
+await proofStops();
 await running.stop();

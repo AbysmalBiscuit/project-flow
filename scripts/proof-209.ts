@@ -1,5 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { proofStops } from "../proof/lifetime.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 
@@ -20,12 +21,6 @@ await writeFile(
 		viewerLogins: ["lev"],
 	})}\n`,
 );
-
-const stop = new Promise<void>((resolve) => {
-	const done = () => resolve();
-	process.once("SIGINT", done);
-	process.once("SIGTERM", done);
-});
 
 function json(body: unknown): Response {
 	return new Response(JSON.stringify(body), {
@@ -149,7 +144,7 @@ try {
 		stderr: (line) => {
 			console.error(line);
 		},
-		waitForStop: stop,
+		waitForStop: proofStops(),
 	});
 	process.exitCode = result.exitCode;
 } finally {

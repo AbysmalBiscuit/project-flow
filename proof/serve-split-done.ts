@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { recordedViewer, urlOf } from "../test/support.ts";
+import { proofStops } from "./lifetime.ts";
 
 const root = await mkdtemp(join("/var/tmp", "project-flow-split-done-"));
 process.env.XDG_DATA_HOME = root;
@@ -219,6 +220,7 @@ try {
 		},
 		stderr: (line) => console.error(line),
 		waitForStop: (async () => {
+			const stops = proofStops();
 			const deadline = Date.now() + 8_000;
 			while (Date.now() < deadline) {
 				if (base !== "") {
@@ -255,11 +257,8 @@ try {
 								},
 							});
 							console.log(`http://127.0.0.1:${port}/`);
-							return new Promise<void>((resolve) => {
-								const stop = () => resolve();
-								process.once("SIGINT", stop);
-								process.once("SIGTERM", stop);
-							});
+							await stops;
+							return;
 						}
 					}
 				}

@@ -1,8 +1,8 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import { run, waitForStop } from "../src/main.ts";
 import { urlOf } from "../test/support.ts";
+import { serveProof } from "./lifetime.ts";
 
 export function emptyLinear(url: string): Response | null {
 	if (url !== "https://api.linear.app/graphql") {
@@ -52,7 +52,7 @@ export async function serveRecorded(options: {
 	} else if (options.configPath === undefined) {
 		throw new Error("recorded proof needs a configuration");
 	}
-	const result = await run(
+	return serveProof(
 		["--config", configPath, "--host", "127.0.0.1", "--port", options.port],
 		{
 			env: {
@@ -68,8 +68,6 @@ export async function serveRecorded(options: {
 			now: options.now ?? (() => new Date("2026-10-18T12:00:00.000Z")),
 			stdout: (line) => console.log(line),
 			stderr: (line) => console.error(line),
-			waitForStop: waitForStop(),
 		},
 	);
-	process.exit(result.exitCode);
 }

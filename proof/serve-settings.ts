@@ -1,6 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { run } from "../src/main.ts";
+import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "4175";
 const root = await mkdtemp(join("/var/tmp", "project-flow-settings-proof-"));
@@ -38,5 +39,5 @@ await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 	now: () => new Date("2026-08-18T12:00:00.000Z"),
 	stdout: (line) => console.log(line),
 	stderr: (line) => console.error(line),
-	waitForStop: new Promise(() => {}),
+	waitForStop: proofStops(),
 });
