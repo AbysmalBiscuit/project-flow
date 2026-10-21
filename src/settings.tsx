@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
 import { sameRef } from "./configuration.ts";
 import type { KnownBot, SettingsProject, TicketState } from "./domain.ts";
@@ -77,6 +77,46 @@ function draftOf(settings: Configuration): Configuration {
 }
 
 function same(left: Configuration, right: Configuration): boolean {
+	return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function mergeLoaded(
+	current: Configuration,
+	previous: Configuration,
+	loaded: Configuration,
+): Configuration {
+	const next = { ...current };
+	const assign = <K extends keyof Configuration>(key: K): void => {
+		if (sameValue(current[key], previous[key])) {
+			next[key] = loaded[key];
+		}
+	};
+	for (const key of Object.keys(loaded) as (keyof Configuration)[]) {
+		assign(key);
+	}
+	const star = current.projectViews["*"];
+	const previousStar = previous.projectViews["*"];
+	const loadedStar = loaded.projectViews["*"];
+	if (
+		star !== undefined &&
+		previousStar !== undefined &&
+		loadedStar !== undefined
+	) {
+		const merged = { ...star };
+		const assignStar = <K extends keyof typeof loadedStar>(key: K): void => {
+			if (sameValue(star[key], previousStar[key])) {
+				merged[key] = loadedStar[key];
+			}
+		};
+		for (const key of Object.keys(loadedStar) as (keyof typeof loadedStar)[]) {
+			assignStar(key);
+		}
+		next.projectViews = { ...loaded.projectViews, "*": merged };
+	}
+	return next;
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
 	return JSON.stringify(left) === JSON.stringify(right);
 }
 
@@ -199,7 +239,6 @@ function Menu({
 	trackers,
 	projects,
 	onSave,
-	onReload,
 }: {
 	loaded: Configuration;
 	trackers: Trackers;
@@ -208,10 +247,10 @@ function Menu({
 		next: Configuration,
 		baseline: Configuration,
 	) => Promise<string | null>;
-	onReload: () => void;
 }) {
 	const [saved, setSaved] = useState(draftOf(loaded));
 	const [draft, setDraft] = useState(draftOf(loaded));
+	const baseline = useRef(saved);
 	const [current, setCurrent] = useState<string>(sections[0].id);
 	const [message, setMessage] = useState<string | null>(null);
 	const [failed, setFailed] = useState(false);
@@ -220,22 +259,13 @@ function Menu({
 	const view = draft.projectViews["*"] ?? viewDefaults();
 	const theme = pageTheme();
 
-	useEffect(() => onAppEvent("overview", onReload), [onReload]);
 	useEffect(() => {
-		setSaved((current) =>
-			current.pollIntervalSeconds === loaded.pollIntervalSeconds
-				? current
-				: { ...current, pollIntervalSeconds: loaded.pollIntervalSeconds },
-		);
-		setDraft((current) => {
-			if (current.pollIntervalSeconds !== saved.pollIntervalSeconds) {
-				return current;
-			}
-			return current.pollIntervalSeconds === loaded.pollIntervalSeconds
-				? current
-				: { ...current, pollIntervalSeconds: loaded.pollIntervalSeconds };
-		});
-	}, [loaded, saved.pollIntervalSeconds]);
+		const previous = baseline.current;
+		const next = mergeLoaded(previous, previous, loaded);
+		baseline.current = next;
+		setSaved(next);
+		setDraft((current) => mergeLoaded(current, previous, loaded));
+	}, [loaded]);
 
 	useEffect(() => {
 		const notify = navigator.permissions?.query({
@@ -647,6 +677,7 @@ function Menu({
 		setFailed(error !== null);
 		setMessage(error ?? settingsCopy.saved);
 		if (error === null) {
+			baseline.current = draft;
 			setSaved(draft);
 		}
 	}
@@ -1305,17 +1336,6 @@ function Page() {
 			loaded={settings}
 			trackers={trackers}
 			projects={projects}
-			onReload={() => {
-				void fetch("/api/settings")
-					.then(async (response) =>
-						response.ok ? ((await response.json()) as SettingsBody) : null,
-					)
-					.then((body) => {
-						if (body?.projects !== undefined) {
-							setProjects(body.projects);
-						}
-					});
-			}}
 			onSave={async (next, baseline) => {
 				const current = await fetch("/api/settings");
 				if (!current.ok) {
