@@ -1,0 +1,528 @@
+import {
+	groupKeysOf,
+	type ProjectCounts,
+	type ProjectReport,
+} from "./domain.ts";
+import type { GroupBy } from "./view-settings.ts";
+
+export const flowGap = { along: 280, across: 148 };
+const columnGap = flowGap.along;
+const rowGap = flowGap.across;
+const projectColumnGap = 360;
+const projectRowGap = 168;
+
+export type FlowNode = {
+	id: string;
+	band: string;
+};
+
+export type FlowEdge = {
+	from: string;
+	to: string;
+};
+
+export type FlowPlace = {
+	x: number;
+	y: number;
+	band: string;
+};
+
+/** Each connected set sits on its own band, and a straight chain keeps one row. */
+export function flowPlaces(
+	nodes: readonly FlowNode[],
+	edges: readonly FlowEdge[],
+	gaps: { along: number; across: number } = {
+		along: columnGap,
+		across: rowGap,
+	},
+): Map<string, FlowPlace> {
+	const ids = nodes.map((node) => node.id);
+	const known = new Set(ids);
+	const incoming = new Map<string, string[]>();
+	const outgoing = new Map<string, string[]>();
+	for (const edge of edges) {
+		if (!known.has(edge.from) || !known.has(edge.to) || edge.from === edge.to) {
+			continue;
+		}
+		const sources = incoming.get(edge.to) ?? [];
+		if (!sources.includes(edge.from)) {
+			sources.push(edge.from);
+			incoming.set(edge.to, sources);
+		}
+		const targets = outgoing.get(edge.from) ?? [];
+		if (!targets.includes(edge.to)) {
+			targets.push(edge.to);
+			outgoing.set(edge.from, targets);
+		}
+	}
+	const depth = columnDepth(ids, incoming);
+	const touched = new Set<string>([...incoming.keys(), ...outgoing.keys()]);
+	const components = flowBands(ids, incoming, outgoing, depth);
+	const linked = components.filter((idsInSet) =>
+		idsInSet.some((id) => touched.has(id)),
+	);
+	const loose = components.filter((idsInSet) =>
+		idsInSet.every((id) => !touched.has(id)),
+	);
+	const bandOf = new Map(nodes.map((node) => [node.id, node.band]));
+	const orderInComponent = (idsInSet: string[]): string[] =>
+		[...idsInSet].sort((left, right) => {
+			const byBand = (bandOf.get(left) ?? "").localeCompare(
+				bandOf.get(right) ?? "",
+			);
+			if (byBand !== 0) {
+				return byBand;
+			}
+			const byDepth = (depth.get(left) ?? 0) - (depth.get(right) ?? 0);
+			return byDepth !== 0 ? byDepth : left.localeCompare(right);
+		});
+	const componentRank = (idsInSet: string[]): string => {
+		const ordered = orderInComponent(idsInSet);
+		const lead = ordered[0] ?? "";
+		return `${bandOf.get(lead) ?? ""}\n${lead}`;
+	};
+	linked.sort((left, right) =>
+		componentRank(left).localeCompare(componentRank(right)),
+	);
+	loose.sort((left, right) =>
+		componentRank(left).localeCompare(componentRank(right)),
+	);
+
+	const across = new Map<string, number>();
+	const assign = (idsInSet: string[], cursor: { row: number }): void => {
+		const columns = new Map<number, string[]>();
+		for (const id of orderInComponent(idsInSet)) {
+			const column = depth.get(id) ?? 0;
+			const names = columns.get(column) ?? [];
+			names.push(id);
+			columns.set(column, names);
+		}
+		const columnsInOrder = [...columns.keys()].sort(
+			(left, right) => left - right,
+		);
+		const neighboursOf = (id: string, sweep: "back" | "forward"): string[] =>
+			sweep === "back" ? (outgoing.get(id) ?? []) : (incoming.get(id) ?? []);
+		const placeColumn = (names: string[], sweep: "back" | "forward") => {
+			const open = [...names].sort((left, right) => left.localeCompare(right));
+			const taken = new Set<number>();
+			const claim = (id: string, row: number) => {
+				across.set(id, row);
+				taken.add(row);
+			};
+			while (open.length > 0) {
+				let best: { id: string; row: number; index: number } | null = null;
+				for (const [index, id] of open.entries()) {
+					for (const neighbour of neighboursOf(id, sweep)) {
+						const row = across.get(neighbour);
+						if (row === undefined || taken.has(row)) {
+							continue;
+						}
+						if (
+							best === null ||
+							row < best.row ||
+							(row === best.row && id.localeCompare(best.id) < 0)
+						) {
+							best = { id, row, index };
+						}
+					}
+				}
+				if (best !== null) {
+					open.splice(best.index, 1);
+					claim(best.id, best.row);
+					continue;
+				}
+				const id = open.shift();
+				if (id === undefined) {
+					break;
+				}
+				let row = 0;
+				while (taken.has(row)) {
+					row += 1;
+				}
+				claim(id, row);
+			}
+		};
+		for (let pass = 0; pass < 8; pass += 1) {
+			for (const column of [...columnsInOrder].reverse()) {
+				placeColumn(columns.get(column) ?? [], "back");
+			}
+			for (const column of columnsInOrder) {
+				placeColumn(columns.get(column) ?? [], "forward");
+			}
+		}
+		const minRow = Math.min(...idsInSet.map((id) => across.get(id) ?? 0));
+		let span = 0;
+		for (const id of idsInSet) {
+			const row = (across.get(id) ?? 0) - minRow;
+			across.set(id, row);
+			span = Math.max(span, row + 1);
+		}
+		for (const id of idsInSet) {
+			across.set(id, (across.get(id) ?? 0) + cursor.row);
+		}
+		cursor.row += Math.max(span, 1);
+	};
+
+	const cursor = { row: 0 };
+	for (const idsInSet of linked) {
+		assign(idsInSet, cursor);
+	}
+	if (linked.length > 0 && loose.length > 0) {
+		cursor.row += 1;
+	}
+	for (const idsInSet of loose) {
+		assign(idsInSet, cursor);
+	}
+
+	const places = new Map<string, FlowPlace>();
+	for (const id of ids) {
+		places.set(id, {
+			x: (depth.get(id) ?? 0) * gaps.along,
+			y: (across.get(id) ?? 0) * gaps.across,
+			band: bandOf.get(id) ?? "",
+		});
+	}
+	return places;
+}
+
+function columnDepth(
+	ids: readonly string[],
+	incoming: Map<string, string[]>,
+): Map<string, number> {
+	const depth = new Map<string, number>();
+	const visit = (name: string, seen: Set<string>): number => {
+		const known = depth.get(name);
+		if (known !== undefined) {
+			return known;
+		}
+		if (seen.has(name)) {
+			return 0;
+		}
+		seen.add(name);
+		const sources = incoming.get(name) ?? [];
+		const next =
+			sources.length === 0
+				? 0
+				: Math.max(...sources.map((source) => visit(source, seen))) + 1;
+		depth.set(name, next);
+		return next;
+	};
+	for (const id of ids) {
+		visit(id, new Set());
+	}
+	return depth;
+}
+
+function flowBands(
+	ids: readonly string[],
+	incoming: Map<string, string[]>,
+	outgoing: Map<string, string[]>,
+	depth: Map<string, number>,
+): string[][] {
+	const sets = connectedSets(ids, incoming, outgoing);
+	const bands: string[][] = [];
+	for (const set of sets) {
+		const byDepth = new Map<number, string[]>();
+		for (const id of set) {
+			const column = depth.get(id) ?? 0;
+			const names = byDepth.get(column) ?? [];
+			names.push(id);
+			byDepth.set(column, names);
+		}
+		const assigned = new Map<string, number>();
+		let next = 0;
+		const columns = [...byDepth.keys()].sort((left, right) => left - right);
+		for (const column of columns) {
+			const names = [...(byDepth.get(column) ?? [])].sort((left, right) => {
+				const leftRow = Math.min(
+					...(incoming.get(left) ?? []).flatMap((source) => {
+						const row = assigned.get(source);
+						return row === undefined ? [] : [row];
+					}),
+					Number.POSITIVE_INFINITY,
+				);
+				const rightRow = Math.min(
+					...(incoming.get(right) ?? []).flatMap((source) => {
+						const row = assigned.get(source);
+						return row === undefined ? [] : [row];
+					}),
+					Number.POSITIVE_INFINITY,
+				);
+				return leftRow === rightRow
+					? left.localeCompare(right)
+					: leftRow - rightRow;
+			});
+			const used = new Set<number>();
+			for (const id of names) {
+				const wanted = (incoming.get(id) ?? []).flatMap((source) => {
+					const row = assigned.get(source);
+					return row === undefined ? [] : [row];
+				});
+				let row = wanted[0] ?? next;
+				while (used.has(row)) {
+					row += 1;
+				}
+				used.add(row);
+				assigned.set(id, row);
+				next = Math.max(next, row + 1);
+			}
+		}
+		const grouped = new Map<number, string[]>();
+		for (const id of set) {
+			const row = assigned.get(id) ?? 0;
+			const names = grouped.get(row) ?? [];
+			names.push(id);
+			grouped.set(row, names);
+		}
+		for (const row of [...grouped.keys()].sort((left, right) => left - right)) {
+			bands.push(grouped.get(row) ?? []);
+		}
+	}
+	return bands;
+}
+
+function connectedSets(
+	ids: readonly string[],
+	incoming: Map<string, string[]>,
+	outgoing: Map<string, string[]>,
+): string[][] {
+	const neighbours = new Map<string, string[]>();
+	const link = (from: string, to: string) => {
+		const names = neighbours.get(from) ?? [];
+		names.push(to);
+		neighbours.set(from, names);
+	};
+	for (const [target, sources] of incoming) {
+		for (const source of sources) {
+			link(source, target);
+			link(target, source);
+		}
+	}
+	for (const [source, targets] of outgoing) {
+		for (const target of targets) {
+			link(source, target);
+			link(target, source);
+		}
+	}
+	const seen = new Set<string>();
+	const sets: string[][] = [];
+	for (const id of ids) {
+		if (seen.has(id)) {
+			continue;
+		}
+		const set: string[] = [];
+		const stack = [id];
+		seen.add(id);
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (current === undefined) {
+				continue;
+			}
+			set.push(current);
+			for (const next of neighbours.get(current) ?? []) {
+				if (seen.has(next)) {
+					continue;
+				}
+				seen.add(next);
+				stack.push(next);
+			}
+		}
+		sets.push(set);
+	}
+	return sets;
+}
+
+export function projectNodeId(project: string, key: string): string {
+	return `${project}\n${key.toLowerCase()}`;
+}
+
+export function projectFlowPlaces(
+	report: ProjectReport,
+	groupBy: GroupBy,
+	assignees: readonly string[],
+): Map<string, FlowPlace> {
+	const tickets = graphTickets(report);
+	const nodes = tickets.map((ticket) => ({
+		id: projectNodeId(ticket.project, ticket.key),
+		band: graphBand(ticket, groupBy, assignees),
+	}));
+	return flowPlaces(nodes, graphEdges(report));
+}
+
+export function overviewFlowPlaces(
+	projects: ProjectCounts[],
+): Map<string, FlowPlace> {
+	const names = new Set(projects.map((project) => project.name));
+	const nodes = projects.map((project) => ({
+		id: project.name,
+		band: "",
+	}));
+	const edges: FlowEdge[] = [];
+	for (const project of projects) {
+		for (const blocker of project.crossProjectBlockers) {
+			if (!names.has(blocker.project) || blocker.project === project.name) {
+				continue;
+			}
+			edges.push({ from: blocker.project, to: project.name });
+		}
+	}
+	return flowPlaces(nodes, edges, {
+		along: projectColumnGap,
+		across: projectRowGap,
+	});
+}
+
+type LaidTicket = {
+	key: string;
+	title: string;
+	project: string;
+	outside: boolean;
+	workstream?: string;
+	workstreamKey?: string;
+	theme?: string;
+	assignees?: string[];
+	blockers: string[];
+	outsideBlockers: { project: string; key: string }[];
+	blocks: { project: string; key: string }[];
+};
+
+function graphTickets(report: ProjectReport): LaidTicket[] {
+	const seen = new Set<string>();
+	const outside: LaidTicket[] = [];
+	for (const ticket of report.tickets) {
+		for (const blocker of [
+			...(ticket.outsideBlockers ?? []),
+			...(ticket.blocks ?? []),
+		]) {
+			if (blocker.project.toLowerCase() === report.name.toLowerCase()) {
+				continue;
+			}
+			const id = projectNodeId(blocker.project, blocker.key);
+			if (seen.has(id)) {
+				continue;
+			}
+			seen.add(id);
+			outside.push({
+				key: blocker.key,
+				title: blocker.title,
+				project: blocker.project,
+				outside: true,
+				blockers: [],
+				outsideBlockers: [],
+				blocks: [],
+			});
+		}
+	}
+	outside.sort((left, right) =>
+		`${left.project} ${left.key}`.localeCompare(
+			`${right.project} ${right.key}`,
+		),
+	);
+	const local = report.tickets.flatMap((ticket) => {
+		if (ticket.key === null) {
+			return [];
+		}
+		return [
+			{
+				key: ticket.key,
+				title: ticket.title,
+				project: report.name,
+				outside: false,
+				...(ticket.workstream === undefined
+					? {}
+					: { workstream: ticket.workstream }),
+				...(ticket.workstreamKey === undefined
+					? {}
+					: { workstreamKey: ticket.workstreamKey }),
+				...(ticket.theme === undefined ? {} : { theme: ticket.theme }),
+				...(ticket.assignees === undefined
+					? {}
+					: { assignees: ticket.assignees }),
+				blockers: ticket.blockers,
+				outsideBlockers: (ticket.outsideBlockers ?? []).map((blocker) => ({
+					project: blocker.project,
+					key: blocker.key,
+				})),
+				blocks: (ticket.blocks ?? []).map((blocked) => ({
+					project: blocked.project,
+					key: blocked.key,
+				})),
+			},
+		];
+	});
+	return [...outside, ...local];
+}
+
+const outsideBand = "\u0000outside";
+
+function bandNames(ticket: LaidTicket, groupBy: GroupBy): string[] {
+	if (ticket.outside) {
+		return [outsideBand];
+	}
+	if (groupBy === "none") {
+		return [""];
+	}
+	return groupKeysOf(ticket, groupBy);
+}
+
+function graphBand(
+	ticket: LaidTicket,
+	groupBy: GroupBy,
+	assignees: readonly string[],
+): string {
+	const names = bandNames(ticket, groupBy);
+	if (groupBy !== "assignee" || names.length < 2) {
+		return names[0] ?? "";
+	}
+	const wanted = new Set(
+		assignees.flatMap((name) => {
+			const trimmed = name.trim().toLowerCase();
+			return trimmed === "" ? [] : [trimmed];
+		}),
+	);
+	if (wanted.size === 0) {
+		return names[0] ?? "";
+	}
+	return names.find((name) => wanted.has(name.toLowerCase())) ?? names[0] ?? "";
+}
+
+function graphEdges(report: ProjectReport): FlowEdge[] {
+	const local = new Map<string, string>();
+	for (const ticket of report.tickets) {
+		if (ticket.key !== null) {
+			local.set(
+				ticket.key.toLowerCase(),
+				projectNodeId(report.name, ticket.key),
+			);
+		}
+	}
+	const edges: FlowEdge[] = [];
+	for (const ticket of report.tickets) {
+		if (ticket.key === null) {
+			continue;
+		}
+		const target = projectNodeId(report.name, ticket.key);
+		for (const key of ticket.blockers) {
+			const source = local.get(key.toLowerCase());
+			if (source !== undefined && source !== target) {
+				edges.push({ from: source, to: target });
+			}
+		}
+		for (const blocker of ticket.outsideBlockers ?? []) {
+			edges.push({
+				from: projectNodeId(blocker.project, blocker.key),
+				to: target,
+			});
+		}
+		for (const blocked of ticket.blocks ?? []) {
+			if (blocked.project.toLowerCase() === report.name.toLowerCase()) {
+				continue;
+			}
+			edges.push({
+				from: target,
+				to: projectNodeId(blocked.project, blocked.key),
+			});
+		}
+	}
+	return edges;
+}

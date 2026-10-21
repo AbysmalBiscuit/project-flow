@@ -7,7 +7,6 @@ import {
 	type Node as FlowNode,
 	Handle,
 	type NodeProps,
-	Panel,
 	Position,
 	ReactFlow,
 	ReactFlowProvider,
@@ -22,7 +21,8 @@ import {
 	type TicketRelation,
 	type TicketState,
 } from "./domain.ts";
-import { columnDepth, GraphTools } from "./graph-pane.tsx";
+import { flowGap, projectFlowPlaces } from "./graph-flow.ts";
+import { GraphTools } from "./graph-pane.tsx";
 import {
 	assignLanes,
 	type GraphRoute,
@@ -43,10 +43,10 @@ import { board, cards } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
-const columnGap = 280;
-const rowGap = 148;
+const columnGap = flowGap.along;
 const groupPad = 16;
 const groupHead = 28;
+const fitPadding = "24px";
 
 type GraphTicketView = {
 	key: string | null;
@@ -352,139 +352,57 @@ function graphBand(
 	return names.find((name) => wanted.has(name.toLowerCase())) ?? names[0] ?? "";
 }
 
-function ticketIds(tickets: GraphTicket[]): string[] {
-	return tickets.flatMap((ticket) =>
-		ticket.ticket.key === null
-			? []
-			: [nodeId(ticket.project, ticket.ticket.key)],
-	);
-}
-
 function layoutTickets(
-	tickets: GraphTicket[],
-	edges: { from: string; to: string }[],
+	report: ProjectReport,
 	direction: GraphDirection,
 	groupBy: GroupBy,
 	assignees: readonly string[],
 ): Map<string, { x: number; y: number }> {
-	const incoming = new Map<string, string[]>();
-	for (const edge of edges) {
-		const sources = incoming.get(edge.to) ?? [];
-		sources.push(edge.from);
-		incoming.set(edge.to, sources);
-	}
-	const depth = columnDepth(ticketIds(tickets), incoming);
-	const outgoing = new Set(edges.map((edge) => edge.from));
-	const ordered = [...tickets].sort((left, right) =>
-		`${left.ticket.key ?? left.ticket.title}`.localeCompare(
-			`${right.ticket.key ?? right.ticket.title}`,
-		),
-	);
+	const placed = projectFlowPlaces(report, groupBy, assignees);
+	const positions = new Map<string, { x: number; y: number }>();
+	const turned = (place: { x: number; y: number }) =>
+		direction === "top-to-bottom"
+			? {
+					x: (place.y / flowGap.across) * flowGap.along,
+					y: (place.x / flowGap.along) * flowGap.across,
+				}
+			: place;
 	if (groupBy === "none") {
-		const columns = new Map<number, string[]>();
-		for (const id of ticketIds(ordered)) {
-			const column = depth.get(id) ?? 0;
-			const names = columns.get(column) ?? [];
-			names.push(id);
-			columns.set(column, names);
-		}
-		const positions = new Map<string, { x: number; y: number }>();
-		for (const [column, names] of columns) {
-			names.forEach((id, index) => {
-				positions.set(
-					id,
-					direction === "top-to-bottom"
-						? { x: index * columnGap, y: column * rowGap }
-						: { x: column * columnGap, y: index * rowGap },
-				);
-			});
+		for (const [id, place] of placed) {
+			positions.set(id, turned(place));
 		}
 		return positions;
 	}
-	const groups = [
-		...new Set(tickets.flatMap((ticket) => bandNames(ticket, groupBy))),
-	].sort((left, right) => left.localeCompare(right));
-	const members = new Map<string, string[]>();
-	for (const ticket of ordered) {
-		const key = ticket.ticket.key;
-		if (key === null) {
-			continue;
-		}
-		const name = graphBand(ticket, groupBy, assignees);
-		const known = members.get(name) ?? [];
-		known.push(nodeId(ticket.project, key));
-		members.set(name, known);
+	const byBand = new Map<string, { id: string; x: number; y: number }[]>();
+	for (const [id, place] of placed) {
+		const members = byBand.get(place.band) ?? [];
+		members.push({ id, x: place.x, y: place.y });
+		byBand.set(place.band, members);
 	}
-	const slots = new Map<string, { along: number; across: number }>();
-	const groupSpan = new Map<string, { along: number; across: number }>();
-	for (const name of groups) {
-		const ids = members.get(name) ?? [];
-		const linked = ids.filter((id) => incoming.has(id) || outgoing.has(id));
-		const loose = ids.filter((id) => !incoming.has(id) && !outgoing.has(id));
-		const byColumn = new Map<number, string[]>();
-		let minDepth = Number.POSITIVE_INFINITY;
-		for (const id of linked) {
-			const column = depth.get(id) ?? 0;
-			minDepth = Math.min(minDepth, column);
-			const names = byColumn.get(column) ?? [];
-			names.push(id);
-			byColumn.set(column, names);
-		}
-		const looseAcross =
-			loose.length === 0 ? 1 : Math.ceil(Math.sqrt(loose.length));
-		const looseAlong =
-			loose.length === 0 ? 0 : Math.ceil(loose.length / looseAcross);
-		const chainStart = Number.isFinite(minDepth) ? minDepth : 0;
-		let chainAcross = 1;
-		let chainAlong = 0;
-		for (const [column, names] of byColumn) {
-			const along = column - chainStart;
-			names.forEach((id, index) => {
-				slots.set(id, { along, across: index });
-			});
-			chainAcross = Math.max(chainAcross, names.length);
-			chainAlong = Math.max(chainAlong, along + 1);
-		}
-		loose.forEach((id, index) => {
-			slots.set(id, {
-				along: chainAlong + Math.floor(index / looseAcross),
-				across: index % looseAcross,
-			});
-		});
-		groupSpan.set(name, {
-			along: Math.max(chainAlong + looseAlong, 1),
-			across: Math.max(loose.length === 0 ? 1 : looseAcross, chainAcross),
-		});
-	}
-	const groupStart = new Map<string, number>();
-	let cursor = 0;
-	for (const name of groups) {
-		groupStart.set(name, cursor);
-		const span = groupSpan.get(name) ?? { along: 1, across: 1 };
-		const width =
-			direction === "top-to-bottom"
-				? span.across * columnGap
-				: span.along * columnGap;
-		cursor += width + groupPad * 2;
-	}
-	const positions = new Map<string, { x: number; y: number }>();
-	for (const [name, ids] of members) {
-		const origin = groupStart.get(name) ?? 0;
-		for (const id of ids) {
-			const slot = slots.get(id) ?? { along: 0, across: 0 };
+	const bands = [...byBand.keys()].sort((left, right) =>
+		left.localeCompare(right),
+	);
+	let origin = 0;
+	for (const band of bands) {
+		const members = byBand.get(band) ?? [];
+		const minX = Math.min(...members.map((member) => member.x));
+		const minY = Math.min(...members.map((member) => member.y));
+		const maxX = Math.max(...members.map((member) => member.x));
+		const maxY = Math.max(...members.map((member) => member.y));
+		for (const member of members) {
+			const along = member.x - minX;
+			const across = member.y - minY;
 			positions.set(
-				id,
-				direction === "top-to-bottom"
-					? {
-							x: slot.across * columnGap + origin,
-							y: slot.along * rowGap,
-						}
-					: {
-							x: slot.along * columnGap + origin,
-							y: slot.across * rowGap,
-						},
+				member.id,
+				turned(
+					direction === "top-to-bottom"
+						? { x: across + origin, y: along }
+						: { x: along + origin, y: across },
+				),
 			);
 		}
+		const span = direction === "top-to-bottom" ? maxY - minY : maxX - minX;
+		origin += span + columnGap + groupPad * 2;
 	}
 	return positions;
 }
@@ -645,13 +563,7 @@ export function graphModel(
 } {
 	const tickets = [...outsideTickets(report, reports), ...localTickets(report)];
 	const links = graphEdges(report);
-	const positions = layoutTickets(
-		tickets,
-		links,
-		direction,
-		groupBy,
-		assignees,
-	);
+	const positions = layoutTickets(report, direction, groupBy, assignees);
 	const horizontal = direction === "left-to-right";
 	const groups = clusterNodes(
 		tickets,
@@ -752,23 +664,21 @@ export function graphModel(
 
 function Legend() {
 	return (
-		<Panel position="top-left">
-			<section
-				className={clsx(board.legendBox)}
-				aria-label={projectGraphLabel.legend}
-			>
-				<ul className={clsx(board.legendRow)}>
-					{legendOrder.map((state) => (
-						<li key={state} className={clsx(board.legendItem)}>
-							<span className={clsx(board.legendDot, legendTone[state])} />
-							{stateTone[state].label}
-						</li>
-					))}
-				</ul>
-				<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
-				<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
-			</section>
-		</Panel>
+		<section
+			className={clsx(board.legendBox)}
+			aria-label={projectGraphLabel.legend}
+		>
+			<ul className={clsx(board.legendRow)}>
+				{legendOrder.map((state) => (
+					<li key={state} className={clsx(board.legendItem)}>
+						<span className={clsx(board.legendDot, legendTone[state])} />
+						{stateTone[state].label}
+					</li>
+				))}
+			</ul>
+			<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
+			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
+		</section>
 	);
 }
 
@@ -776,7 +686,10 @@ function FitDirection() {
 	const flow = useReactFlow();
 	useEffect(() => {
 		const frame = requestAnimationFrame(() => {
-			void flow.fitView({ padding: 0.28 });
+			void flow.fitView({
+				padding: fitPadding,
+				maxZoom: 1,
+			});
 		});
 		return () => cancelAnimationFrame(frame);
 	}, [flow]);
@@ -873,45 +786,49 @@ function SizedProjectGraph({
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
 			</p>
-
-			<ReactFlow
-				key={direction}
-				nodes={model.nodes}
-				edges={model.edges}
-				nodeTypes={nodeTypes}
-				edgeTypes={edgeTypes}
-				nodesDraggable={false}
-				nodesConnectable={false}
-				elementsSelectable={false}
-				panOnDrag
-				fitView
-				fitViewOptions={{ padding: 0.28 }}
-				proOptions={{ hideAttribution: true }}
-				onNodeClick={(_event, node) => {
-					if (isClusterNode(node)) {
-						return;
-					}
-					onOpen({
-						key: node.data.ticket.key ?? node.data.ticket.title,
-						project: node.data.project,
-						tracker: node.data.tracker,
-						title: node.data.ticket.title,
-						outside: node.data.outside,
-						...(node.data.ticket.state === undefined
-							? {}
-							: { state: node.data.ticket.state }),
-					});
-				}}
-			>
-				<Background variant={BackgroundVariant.Dots} gap={18} />
-				<FitDirection key={direction} />
-				<Legend />
-				<GraphTools
-					probeId="project-graph-viewport"
-					fitId="project-graph-fit"
-					scope="#project-graph"
-				/>
-			</ReactFlow>
+			<Legend />
+			<div className={clsx(board.graphPane)}>
+				<ReactFlow
+					key={direction}
+					nodes={model.nodes}
+					edges={model.edges}
+					nodeTypes={nodeTypes}
+					edgeTypes={edgeTypes}
+					nodesDraggable={false}
+					nodesConnectable={false}
+					elementsSelectable={false}
+					panOnDrag
+					fitView
+					fitViewOptions={{
+						padding: fitPadding,
+						maxZoom: 1,
+					}}
+					proOptions={{ hideAttribution: true }}
+					onNodeClick={(_event, node) => {
+						if (isClusterNode(node)) {
+							return;
+						}
+						onOpen({
+							key: node.data.ticket.key ?? node.data.ticket.title,
+							project: node.data.project,
+							tracker: node.data.tracker,
+							title: node.data.ticket.title,
+							outside: node.data.outside,
+							...(node.data.ticket.state === undefined
+								? {}
+								: { state: node.data.ticket.state }),
+						});
+					}}
+				>
+					<Background variant={BackgroundVariant.Dots} gap={18} />
+					<FitDirection key={direction} />
+					<GraphTools
+						probeId="project-graph-viewport"
+						fitId="project-graph-fit"
+						scope="#project-graph"
+					/>
+				</ReactFlow>
+			</div>
 		</div>
 	);
 }

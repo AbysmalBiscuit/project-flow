@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4245",
+	"serve": ["bun", "proof/serve-graph-flows.ts", "4245"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Chain a start" },
+		{ "assert_text": "Chain b end" },
+		{ "assert_text": "Zed the loose" },
+		{ "assert_text": "Fork tip" },
+		{ "shot": "flows-left-to-right" }
+	]
+}
