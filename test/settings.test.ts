@@ -1761,6 +1761,42 @@ describe("settings", () => {
 		});
 	});
 
+	test("the board open view round-trips", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base) => {
+			const before = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+
+			const saved = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...before,
+					projectViews: {
+						"*": {
+							openView: "board",
+							graphDirection: "left-to-right",
+							shownLanes: ["In progress"],
+							maxAgeDays: {},
+							needsYouOnly: false,
+							blockedOnly: false,
+							assignees: [],
+							search: "",
+						},
+					},
+				}),
+			});
+			expect(saved.status).toBe(200);
+			const body = (await saved.json()) as Configuration;
+			expect(body.projectViews["*"]?.openView).toBe("board");
+
+			const again = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			expect(again.projectViews["*"]?.openView).toBe("board");
+		});
+	});
+
 	test("settings names a missing tracker credential and keeps the token out", async () => {
 		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));

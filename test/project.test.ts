@@ -1311,7 +1311,7 @@ describe("GET /api/projects/:name", () => {
 							...current.projectViews,
 							[githubRepo]: {
 								...current.projectViews[githubRepo],
-								openView: "graph",
+								lastView: "graph",
 							},
 						},
 					}),
@@ -1320,7 +1320,8 @@ describe("GET /api/projects/:name", () => {
 				const written = (await saved.json()) as {
 					projectViews: Record<string, ProjectViewSettings>;
 				};
-				expect(written.projectViews[githubRepo]?.openView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.openView).toBe("board");
 				expect(written.projectViews[githubRepo]?.groupBy).toBeUndefined();
 				expect(
 					savedProjectView(written.projectViews, githubRepo).groupBy,
@@ -1382,17 +1383,21 @@ describe("GET /api/projects/:name", () => {
 							...current.projectViews,
 							[githubRepo]: {
 								...current.projectViews[githubRepo],
-								openView: "graph",
+								lastView: "graph",
 							},
 						},
 					}),
 				});
 				expect(saved.status).toBe(200);
 				const written = (await saved.json()) as {
-					projectViews: Record<string, { groupBy?: string; openView?: string }>;
+					projectViews: Record<
+						string,
+						{ groupBy?: string; openView?: string; lastView?: string }
+					>;
 				};
 				expect(written.projectViews[githubRepo]?.groupBy).toBe("none");
-				expect(written.projectViews[githubRepo]?.openView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.openView).toBeUndefined();
 				expect(written.projectViews["*"]?.groupBy).toBeUndefined();
 			},
 		);
@@ -1979,6 +1984,102 @@ describe("GET /api/projects/:name", () => {
 					"2026-08-12T09:00:00.000Z",
 					"2026-08-18T15:00:00.000Z",
 				]);
+			},
+		);
+	});
+
+	test("last opens the saved view, and a pinned view stays pinned", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([issue(1, "Ship the map")]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const settingsUrl = new URL("/api/settings", base);
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}`,
+					base,
+				);
+				const readSettings = async () =>
+					(await (await fetch(settingsUrl)).json()) as {
+						projectViews: Record<string, ProjectViewSettings>;
+					};
+				const reopen = async () => {
+					const opened = await fetch(projectUrl);
+					expect(opened.status).toBe(200);
+					const report = (await opened.json()) as ProjectReport;
+					expect(report).not.toHaveProperty("openView");
+					expect(report.name).toBe(githubRepo);
+					return readSettings();
+				};
+
+				const current = await readSettings();
+				expect(current.projectViews["*"]?.openView).toBeUndefined();
+				expect(current.projectViews[githubRepo]?.lastView).toBeUndefined();
+
+				const last = await fetch(settingsUrl, {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							"*": { openView: "last" },
+						},
+					}),
+				});
+				expect(last.status).toBe(200);
+				const savedLast = await readSettings();
+				expect(savedLast.projectViews["*"]?.openView).toBe("last");
+
+				const switched = await fetch(settingsUrl, {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...savedLast,
+						projectViews: {
+							"*": { openView: "last" },
+							[githubRepo]: { lastView: "graph" },
+						},
+					}),
+				});
+				expect(switched.status).toBe(200);
+				const reopened = await reopen();
+				expect(reopened.projectViews["*"]?.openView).toBe("last");
+				expect(reopened.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(reopened.projectViews[githubRepo]?.openView).toBeUndefined();
+
+				const pinned = await fetch(settingsUrl, {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...reopened,
+						projectViews: {
+							"*": { openView: "board" },
+							[githubRepo]: { lastView: "graph" },
+						},
+					}),
+				});
+				expect(pinned.status).toBe(200);
+				const savedBoard = await reopen();
+				expect(savedBoard.projectViews["*"]?.openView).toBe("board");
+				expect(savedBoard.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(savedBoard.projectViews[githubRepo]?.openView).toBeUndefined();
+
+				const switchedAgain = await fetch(settingsUrl, {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...savedBoard,
+						projectViews: {
+							"*": { openView: "board" },
+							[githubRepo]: { lastView: "graph" },
+						},
+					}),
+				});
+				expect(switchedAgain.status).toBe(200);
+				const stayed = await reopen();
+				expect(stayed.projectViews["*"]?.openView).toBe("board");
+				expect(stayed.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(stayed.projectViews[githubRepo]?.openView).toBeUndefined();
 			},
 		);
 	});

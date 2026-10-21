@@ -21,17 +21,27 @@ import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
-import { blockedLabel, groupByLabel, loadingLabel, navLabel } from "./terms.ts";
+import {
+	blockedLabel,
+	groupByLabel,
+	loadingLabel,
+	navLabel,
+	viewLabel,
+} from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
 import {
+	defaultGraphDirection,
 	defaultGraphGroupBy,
 	defaultGroupBy,
+	emptyMaxAgeDays,
 	type GroupBy,
 	groupByKeys,
 	groupByWasSaved,
 	laneAgeCap,
+	openedView,
+	type pageViews,
 	savedProjectView,
 	visibleLaneNames,
 } from "./view-settings.ts";
@@ -39,16 +49,16 @@ import {
 const doneCap = 5;
 
 const views = [
-	{ id: "board", label: "Board" },
-	{ id: "graph", label: "Graph" },
-	{ id: "table", label: "Table" },
+	{ id: "board", label: viewLabel.board },
+	{ id: "graph", label: viewLabel.graph },
+	{ id: "table", label: viewLabel.table },
 ] as const;
 
-type OpenView = ProjectViewSettings["openView"];
+type PageView = (typeof pageViews)[number];
 
 const emptyView = savedProjectView({}, "");
 
-function isOpenView(value: string): value is OpenView {
+function isPageView(value: string): value is PageView {
 	return views.some((item) => item.id === value);
 }
 
@@ -1023,7 +1033,7 @@ function Page() {
 	const [openedState, setOpenedState] = useState<TicketView["state"] | null>(
 		null,
 	);
-	const [view, setView] = useState<OpenView>("board");
+	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(
@@ -1082,7 +1092,7 @@ function Page() {
 				const views = body.projectViews ?? {};
 				const saved = savedProjectView(views, loaded);
 				setSettings(saved);
-				setView(saved.openView);
+				setView(openedView(saved));
 				groupBySavedRef.current = groupByWasSaved(views, loaded);
 			})
 			.catch(() => {});
@@ -1238,13 +1248,15 @@ function Page() {
 	if (report === null) {
 		return <PageFrame title={name}>{loadingLabel}</PageFrame>;
 	}
-	const saveView = (next: ProjectViewSettings) => {
+	const saveView = (next: ProjectViewSettings, shown?: PageView) => {
 		const project = name;
 		const generation = saveGeneration.current + 1;
 		saveGeneration.current = generation;
 		setSettings(next);
-		setView(next.openView);
-		const stored = groupBySavedRef.current
+		if (shown !== undefined) {
+			setView(shown);
+		}
+		const kept = groupBySavedRef.current
 			? next
 			: (({ groupBy: _groupBy, ...rest }) => rest)(next);
 		const write = saveChain.current.then(async () => {
@@ -1271,7 +1283,19 @@ function Page() {
 				Object.keys(projectViews).find(
 					(item) => item.toLowerCase() === project.toLowerCase(),
 				) ?? project;
-			projectViews[key] = stored;
+			if (shown === undefined) {
+				projectViews[key] = kept;
+			} else if (kept.lastView !== undefined) {
+				const previous = projectViews[key] ?? {
+					maxAgeDays: emptyMaxAgeDays,
+					needsYouOnly: false,
+					blockedOnly: false,
+					assignees: [],
+					search: "",
+					graphDirection: defaultGraphDirection,
+				};
+				projectViews[key] = { ...previous, lastView: kept.lastView };
+			}
 			const saved = await fetch("/api/settings", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
@@ -1290,7 +1314,6 @@ function Page() {
 			const confirmed = savedProjectView(views, project);
 			groupBySavedRef.current = groupByWasSaved(views, project);
 			setSettings(confirmed);
-			setView(confirmed.openView);
 		});
 		saveChain.current = write.catch(() => {});
 	};
@@ -1378,10 +1401,10 @@ function Page() {
 									)}
 									aria-pressed={view === item.id}
 									onClick={() => {
-										if (!isOpenView(item.id)) {
+										if (!isPageView(item.id)) {
 											return;
 										}
-										saveView({ ...settings, openView: item.id });
+										saveView({ ...settings, lastView: item.id }, item.id);
 									}}
 								>
 									{item.label}

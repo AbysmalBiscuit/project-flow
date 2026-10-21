@@ -4,6 +4,7 @@ import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
 import { sameRef } from "./configuration.ts";
 import type { KnownBot, SettingsProject, TicketState } from "./domain.ts";
 import { knownBots, projectHasPmBot } from "./domain.ts";
+import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { PageFrame } from "./shell.tsx";
@@ -13,11 +14,13 @@ import {
 	settingsCopy,
 	settingsSection,
 	stateLabel,
+	viewLabel,
 } from "./terms.ts";
-import { pageTheme } from "./theme.ts";
+import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
 import {
+	defaultOpenView,
 	graphDirections,
 	laneAgeCap,
 	openViews,
@@ -260,7 +263,11 @@ function Menu({
 	const [permission, setPermission] = useState("default");
 	const dirty = !same(draft, saved);
 	const view = draft.projectViews["*"] ?? viewDefaults();
-	const theme = pageTheme();
+	const [theme, setTheme] = useState(pageTheme);
+	useEffect(() => {
+		setTheme(pageTheme());
+		return watchPageTheme(setTheme);
+	}, []);
 
 	useEffect(() => {
 		const previous = baseline.current;
@@ -390,25 +397,21 @@ function Menu({
 						<h2 className={clsx(fields.cardTitle)}>{settingsSection.views}</h2>
 						<p className={clsx(fields.hint)}>{settingsCopy.viewsLead}</p>
 						<Row title={settingsCopy.openIn} hint={settingsCopy.openHint}>
-							<select
+							<Dropdown
 								id="open-view"
-								className={clsx(fields.select)}
-								value={view.openView}
-								onChange={(event) => {
-									const openView = openViews.find(
-										(item) => item === event.target.value,
-									);
+								label={settingsCopy.openIn}
+								value={view.openView ?? defaultOpenView}
+								choices={openViews.map((item) => ({
+									id: item,
+									label: openViewLabel[item],
+								}))}
+								onChange={(id) => {
+									const openView = openViews.find((item) => item === id);
 									if (openView !== undefined) {
 										patchView({ openView });
 									}
 								}}
-							>
-								{openViews.map((item) => (
-									<option key={item} value={item}>
-										{openViewLabel[item]}
-									</option>
-								))}
-							</select>
+							/>
 						</Row>
 						<Row
 							title={settingsCopy.graphDirection}
@@ -833,9 +836,10 @@ const autoMergeLabel: Record<AutoMerge, string> = {
 };
 
 const openViewLabel: Record<(typeof openViews)[number], string> = {
-	board: settingsCopy.openBoard,
-	graph: settingsCopy.openGraph,
-	table: settingsCopy.openTable,
+	board: viewLabel.board,
+	graph: viewLabel.graph,
+	table: viewLabel.table,
+	last: viewLabel.lastUsed,
 };
 
 const graphDirectionLabel: Record<(typeof graphDirections)[number], string> = {
