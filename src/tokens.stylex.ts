@@ -356,12 +356,6 @@ export const phoneGutter = stylex.create({
 			paddingRight: space.phoneInset,
 		},
 	},
-	alert: {
-		[media.phone]: {
-			paddingLeft: space.phoneInset,
-			paddingRight: space.phoneInset,
-		},
-	},
 	cards: {
 		[media.phone]: {
 			gridTemplateColumns: "minmax(0, 1fr)",

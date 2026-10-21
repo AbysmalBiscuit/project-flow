@@ -248,7 +248,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				</button>
 			</header>
 			{themeSaveFailed ? (
-				<p className={clsx(frame.themeSave, phoneGutter.alert)} role="alert">
+				<p className={clsx(frame.themeSave, phoneGutter.page)} role="alert">
 					Theme not saved. This choice will not survive a reload.
 				</p>
 			) : null}
