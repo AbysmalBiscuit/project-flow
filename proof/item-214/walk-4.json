@@ -1,0 +1,9 @@
+{
+	"base_url": "http://127.0.0.1:4597",
+	"serve": ["bun", "proof/serve-page-cache.ts", "4597", "hold-first"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Loading" },
+		{ "shot": "overview-loading" }
+	]
+}

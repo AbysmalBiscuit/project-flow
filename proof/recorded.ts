@@ -41,6 +41,7 @@ export async function serveRecorded(options: {
 	config?: unknown;
 	dir?: string;
 	configPath?: string;
+	databasePath?: string;
 	fetch: Fetch;
 }): Promise<never> {
 	const dir = options.dir ?? (await mkdtemp(join("/var/tmp", options.prefix)));
@@ -62,7 +63,7 @@ export async function serveRecorded(options: {
 			readGhToken: async () => null,
 			listTodos: async () => "",
 			listCheckouts: async () => [],
-			databasePath: join(dir, "project-flow.sqlite"),
+			databasePath: options.databasePath ?? join(dir, "project-flow.sqlite"),
 			now: () => new Date("2026-10-18T12:00:00.000Z"),
 			stdout: (line) => console.log(line),
 			stderr: (line) => console.error(line),

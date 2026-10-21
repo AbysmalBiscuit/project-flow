@@ -1,0 +1,16 @@
+{
+	"base_url": "http://127.0.0.1:4592",
+	"serve": ["bun", "proof/serve-page-cache.ts", "4592", "refresh"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Cache marker one" },
+		{ "shot": "overview-first" },
+		{ "click": "a[href='/inbox']" },
+		{ "assert_text": "Inbox" },
+		{ "click": "a[href='/']" },
+		{ "assert_text": "Cache marker one" },
+		{ "shot": "overview-cached" },
+		{ "assert_text": "Cache marker two" },
+		{ "shot": "overview-replaced" }
+	]
+}
