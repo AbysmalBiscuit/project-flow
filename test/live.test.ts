@@ -429,6 +429,7 @@ type OverviewBody = {
 		progress: number;
 		fetchedAt: string | null;
 		error: string | null;
+		pending?: boolean;
 		statusTypes: Record<string, number>;
 		ref:
 			| { tracker: "github"; repo: string }
@@ -1460,8 +1461,14 @@ describe("live updates", () => {
 					let sawWidget = false;
 					let sawOther = false;
 					for await (const event of stream.events) {
+						if (event.event !== "overview") {
+							continue;
+						}
 						const body = JSON.parse(event.data) as OverviewBody;
-						const names = body.projects.map((project) => project.name);
+						const ready = body.projects.filter(
+							(project) => project.pending !== true,
+						);
+						const names = ready.map((project) => project.name);
 						if (!sawWidget) {
 							if (names.includes(otherRepo) || names.includes(thirdRepo)) {
 								throw new Error(
@@ -1488,6 +1495,7 @@ describe("live updates", () => {
 							continue;
 						}
 						expect(body.polling).toBeUndefined();
+						expect(ready).toHaveLength(3);
 						break;
 					}
 					expect(sawWidget).toBe(true);
@@ -1498,6 +1506,9 @@ describe("live updates", () => {
 				})().catch((error: unknown) => {
 					clearTimeout(timer);
 					stream.close();
+					for (const release of releases.values()) {
+						release();
+					}
 					reject(error instanceof Error ? error : new Error("checks failed"));
 				});
 			};
