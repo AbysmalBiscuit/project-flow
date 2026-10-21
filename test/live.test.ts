@@ -257,7 +257,6 @@ function openEventStream(base: string): {
 				closed = true;
 				wake?.();
 			},
-
 			open(socket) {
 				socket.write(
 					"GET /api/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n",
