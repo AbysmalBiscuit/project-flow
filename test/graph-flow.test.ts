@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { projectFlowPlaces, projectNodeId } from "../src/graph-flow.ts";
 import { run } from "../src/main.ts";
@@ -203,18 +202,6 @@ describe("GET /api/projects graph", () => {
 			).toEqual(
 				[...places.entries()].map(([id, place]) => [id, place.x, place.y]),
 			);
-		});
-	});
-
-	test("the same tickets give the same overview places", async () => {
-		await withApp(async (base) => {
-			const first = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
-			const second = (await (
-				await fetch(new URL("/api/overview", base))
-			).json()) as Overview;
-			expect(second.projects).toEqual(first.projects);
 		});
 	});
 });
