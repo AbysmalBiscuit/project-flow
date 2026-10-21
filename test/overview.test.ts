@@ -269,7 +269,7 @@ async function assertCard(base: string): Promise<void> {
 	const html = await pageResponse.text();
 	expect(html).toContain('<div id="root"></div>');
 	expect(html).toContain(`id="${storedPageId}"`);
-	expect(embeddedStored(html)).toEqual(body);
+	expect(embeddedForRoute(html, "/")).toEqual(body);
 }
 
 const linearProject = "widget-launch-0d42ae5d46d0";
