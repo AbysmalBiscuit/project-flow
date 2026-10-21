@@ -6,7 +6,6 @@ import {
 	type Edge as FlowEdge,
 	type Node as FlowNode,
 	Handle,
-	MarkerType,
 	type NodeProps,
 	Panel,
 	Position,
@@ -18,11 +17,20 @@ import { useEffect, useMemo } from "react";
 import {
 	groupKeysOf,
 	groupLabelOf,
+	type OutsideBlocker,
+	outsideKey,
 	type ProjectReport,
 	type TicketState,
 } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
-import { type GraphRoute, routeEdge } from "./graph-routes.ts";
+import {
+	assignLanes,
+	type GraphRoute,
+	type LabelSpot,
+	markerEnd,
+	type NodeBound,
+	routeEdge,
+} from "./graph-routes.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
@@ -38,6 +46,7 @@ const columnGap = 280;
 const rowGap = 148;
 const groupPad = 16;
 const groupHead = 28;
+const ticketSpan = { width: 196, height: 88 };
 
 type GraphTicketView = {
 	key: string | null;
@@ -88,6 +97,10 @@ export type OpenedNode = {
 type TicketEdgeData = {
 	lane: number;
 	lanes: number;
+	entry: number;
+	entries: number;
+	nodes: NodeBound[];
+	labels: LabelSpot[];
 };
 
 function shortTicket(key: string, project: string, outside: boolean): string {
@@ -95,14 +108,7 @@ function shortTicket(key: string, project: string, outside: boolean): string {
 		const mark = key.lastIndexOf("#");
 		return mark === -1 ? key : key.slice(mark);
 	}
-	const number = key.slice(key.lastIndexOf("#") + 1);
-	if (
-		number === key ||
-		key.toLowerCase().startsWith(`${project.toLowerCase()}#`)
-	) {
-		return key;
-	}
-	return `${project}#${number}`;
+	return outsideKey(project, key);
 }
 
 function nodeId(project: string, key: string): string {
@@ -207,7 +213,15 @@ function TicketEdge({
 		sourcePosition,
 		targetPosition,
 	};
-	const drawn = routeEdge(route, data?.lane ?? 0, data?.lanes ?? 1);
+	const drawn = routeEdge(
+		route,
+		data?.lane ?? 0,
+		data?.lanes ?? 1,
+		data?.nodes ?? [],
+		data?.labels ?? [],
+		data?.entry ?? 0,
+		data?.entries ?? 1,
+	);
 	return (
 		<BaseEdge
 			id={id}
@@ -241,12 +255,7 @@ function outsideState(
 }
 
 function outsideNode(
-	blocker: {
-		project: string;
-		key: string;
-		title: string;
-		tracker: "github" | "linear";
-	},
+	blocker: OutsideBlocker,
 	reports: ProjectReport[],
 ): GraphTicket {
 	const state = outsideState(reports, blocker.project, blocker.key);
@@ -519,7 +528,7 @@ type TicketSize = { width: number; height: number };
 function clusterNodes(
 	tickets: GraphTicket[],
 	positions: Map<string, { x: number; y: number }>,
-	sizes: Map<string, TicketSize>,
+	ticketSizes: Map<string, TicketSize>,
 	groupBy: GroupBy,
 	assignees: readonly string[],
 ): FlowNode<ClusterNodeData, "cluster">[] {
@@ -538,8 +547,8 @@ function clusterNodes(
 		const name = graphBand(ticket, groupBy, assignees);
 		const id = nodeId(ticket.project, key);
 		const place = positions.get(id);
-		const size = sizes.get(id);
-		if (place === undefined || size === undefined || name === "") {
+		const size = ticketSizes.get(id) ?? ticketSpan;
+		if (place === undefined || name === "") {
 			continue;
 		}
 		const label = groupLabelOf(ticket.ticket, groupBy, name);
@@ -567,8 +576,9 @@ function clusterNodes(
 				position: { x: left - groupPad, y: top - groupHead },
 				width,
 				height,
+				style: { width, height },
 				data: { name, label: group.label },
-				zIndex: 0,
+				zIndex: -1,
 				draggable: false,
 				selectable: false,
 			};
@@ -582,7 +592,7 @@ function graphModel(
 	groupBy: GroupBy,
 	assignees: readonly string[],
 	openKey: string | null,
-	sizes: Map<string, TicketSize>,
+	ticketSizes: Map<string, TicketSize>,
 ): {
 	nodes: ProjectNode[];
 	edges: FlowEdge<TicketEdgeData>[];
@@ -597,7 +607,13 @@ function graphModel(
 		assignees,
 	);
 	const horizontal = direction === "left-to-right";
-	const groups = clusterNodes(tickets, positions, sizes, groupBy, assignees);
+	const groups = clusterNodes(
+		tickets,
+		positions,
+		ticketSizes,
+		groupBy,
+		assignees,
+	);
 	const nodes = tickets.flatMap((item) => {
 		const key = item.ticket.key;
 		if (key === null) {
@@ -605,21 +621,10 @@ function graphModel(
 		}
 		const id = nodeId(item.project, key);
 		const place = positions.get(id) ?? { x: 0, y: 0 };
-		const name = item.outside ? "" : graphBand(item, groupBy, assignees);
-		const parent = groups.find((group) => group.data.name === name);
 		const node: FlowNode<TicketNodeData, "ticket"> = {
 			id,
 			type: "ticket",
-			position:
-				parent === undefined
-					? place
-					: {
-							x: place.x - parent.position.x,
-							y: place.y - parent.position.y,
-						},
-			...(parent === undefined
-				? {}
-				: { parentId: parent.id, extent: "parent" as const, zIndex: 1 }),
+			position: place,
 			sourcePosition: horizontal ? Position.Right : Position.Bottom,
 			targetPosition: horizontal ? Position.Left : Position.Top,
 			data: {
@@ -641,29 +646,39 @@ function graphModel(
 		sourceHandle: fromHandle,
 		targetHandle: toHandle,
 		type: "ticket" as const,
-		markerEnd: {
-			type: MarkerType.ArrowClosed,
-			width: 22,
-			height: 22,
-			markerUnits: "userSpaceOnUse" as const,
-		},
-		data: { lane: 0, lanes: 1 },
+		markerEnd: markerEnd(),
 	}));
-	const laneCount = new Map<string, number>();
-	for (const edge of pending) {
-		const pair = `${edge.source}\0${edge.target}`;
-		laneCount.set(pair, (laneCount.get(pair) ?? 0) + 1);
-	}
-	const used = new Map<string, number>();
-	const edges = pending.map((edge) => {
-		const pair = `${edge.source}\0${edge.target}`;
-		const lane = used.get(pair) ?? 0;
-		used.set(pair, lane + 1);
-		return {
-			...edge,
-			data: { lane, lanes: laneCount.get(pair) ?? 1 },
-		};
-	});
+	const labels: LabelSpot[] = [];
+	const bounds = new Map(
+		nodes.flatMap((node) => {
+			if (isClusterNode(node)) {
+				return [];
+			}
+			const x = node.position.x;
+			const y = node.position.y;
+			return [
+				[
+					node.id,
+					{
+						left: x,
+						top: y,
+						right: x + ticketSpan.width,
+						bottom: y + ticketSpan.height,
+					},
+				] as const,
+			];
+		}),
+	);
+	const edges = assignLanes(pending).map((edge) => ({
+		...edge,
+		data: {
+			...edge.data,
+			nodes: [...bounds.entries()].flatMap(([id, bound]) =>
+				id === edge.source || id === edge.target ? [] : [bound],
+			),
+			labels,
+		},
+	}));
 	return {
 		nodes: [...groups, ...nodes],
 		edges,
@@ -722,7 +737,7 @@ export function ProjectGraph({
 }) {
 	return (
 		<ReactFlowProvider>
-			<MeasuredProjectGraph
+			<SizedProjectGraph
 				report={report}
 				reports={reports}
 				direction={direction}
@@ -735,7 +750,7 @@ export function ProjectGraph({
 	);
 }
 
-function MeasuredProjectGraph({
+function SizedProjectGraph({
 	report,
 	reports,
 	direction,
@@ -767,9 +782,8 @@ function MeasuredProjectGraph({
 	);
 	const places = model.nodes
 		.map((node) => {
-			const parent = model.nodes.find((item) => item.id === node.parentId);
-			const x = node.position.x + (parent?.position.x ?? 0);
-			const y = node.position.y + (parent?.position.y ?? 0);
+			const x = node.position.x;
+			const y = node.position.y;
 			return `${node.id.replaceAll("\n", " ")} ${x},${y}`;
 		})
 		.join(" | ");

@@ -1,4 +1,6 @@
-import type { Position } from "@xyflow/react";
+import { MarkerType, type Position } from "@xyflow/react";
+import { classToken } from "./ui.ts";
+import { cards } from "./ui-styles.ts";
 
 export type GraphRoute = {
 	sourceX: number;
@@ -9,16 +11,50 @@ export type GraphRoute = {
 	targetPosition: Position;
 };
 
+export type NodeBound = {
+	left: number;
+	top: number;
+	right: number;
+	bottom: number;
+};
+
 export type RoutedEdge = {
 	path: string;
 	labelX: number;
 	labelY: number;
 };
 
+export type LabelSpot = NodeBound;
+
+export function markerEnd(): {
+	type: MarkerType;
+	width: number;
+	height: number;
+	markerUnits: "userSpaceOnUse";
+} {
+	const probe = document.createElement("span");
+	probe.className = classToken(cards.graphMarker);
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	document.body.append(probe);
+	const size = probe.getBoundingClientRect().width;
+	probe.remove();
+	return {
+		type: MarkerType.ArrowClosed,
+		width: size,
+		height: size,
+		markerUnits: "userSpaceOnUse",
+	};
+}
+
 const bend = 8;
 const laneGap = 36;
+const stub = 36;
+const approach = 28;
+const labelClearance = 28;
+const channelGap = 18;
 
-function sameColumn(route: GraphRoute): boolean {
+function sameAxis(route: GraphRoute): boolean {
 	return (
 		route.sourcePosition === route.targetPosition ||
 		(route.sourcePosition === "left" && route.targetPosition === "right") ||
@@ -26,6 +62,10 @@ function sameColumn(route: GraphRoute): boolean {
 		(route.sourcePosition === "top" && route.targetPosition === "bottom") ||
 		(route.sourcePosition === "bottom" && route.targetPosition === "top")
 	);
+}
+
+function horizontalRoute(route: GraphRoute): boolean {
+	return route.sourcePosition === "left" || route.sourcePosition === "right";
 }
 
 function forward(route: GraphRoute): boolean {
@@ -101,12 +141,118 @@ function pathThrough(points: { x: number; y: number }[]): string {
 	return path;
 }
 
+function hitsNode(
+	from: { x: number; y: number },
+	to: { x: number; y: number },
+	node: NodeBound,
+): boolean {
+	const horizontal = from.y === to.y;
+	const vertical = from.x === to.x;
+	if (!horizontal && !vertical) {
+		return false;
+	}
+	if (horizontal) {
+		const left = Math.min(from.x, to.x);
+		const right = Math.max(from.x, to.x);
+		return (
+			from.y > node.top &&
+			from.y < node.bottom &&
+			right > node.left &&
+			left < node.right
+		);
+	}
+	const top = Math.min(from.y, to.y);
+	const bottom = Math.max(from.y, to.y);
+	return (
+		from.x > node.left &&
+		from.x < node.right &&
+		bottom > node.top &&
+		top < node.bottom
+	);
+}
+
+function segmentHits(
+	from: { x: number; y: number },
+	to: { x: number; y: number },
+	nodes: NodeBound[],
+): boolean {
+	return nodes.some((node) => hitsNode(from, to, node));
+}
+
+function channelBlocked(
+	horizontal: boolean,
+	at: number,
+	from: number,
+	to: number,
+	nodes: NodeBound[],
+): boolean {
+	const start = Math.min(from, to);
+	const end = Math.max(from, to);
+	return nodes.some((node) => {
+		if (horizontal) {
+			return (
+				at > node.top &&
+				at < node.bottom &&
+				end > node.left &&
+				start < node.right
+			);
+		}
+		return (
+			at > node.left && at < node.right && end > node.top && start < node.bottom
+		);
+	});
+}
+
+function clearChannel(
+	horizontal: boolean,
+	preferred: number,
+	from: number,
+	to: number,
+	nodes: NodeBound[],
+): number {
+	const step = horizontal
+		? Math.max(...nodes.map((node) => node.bottom - node.top), laneGap) +
+			channelGap
+		: Math.max(...nodes.map((node) => node.right - node.left), laneGap) +
+			channelGap;
+	for (let offset = 0; offset < 12; offset += 1) {
+		const sign = offset % 2 === 0 ? 1 : -1;
+		const rank = Math.ceil(offset / 2);
+		const at = preferred + sign * rank * step;
+		if (!channelBlocked(horizontal, at, from, to, nodes)) {
+			return at;
+		}
+	}
+	return preferred;
+}
+
+function targetEntry(
+	route: GraphRoute,
+	index: number,
+	count: number,
+): { x: number; y: number } {
+	const spread = laneOf(index, count);
+	if (route.targetPosition === "left" || route.targetPosition === "right") {
+		return { x: route.targetX, y: route.targetY + spread };
+	}
+	return { x: route.targetX + spread, y: route.targetY };
+}
+
+function sourceExit(route: GraphRoute, lane: number): { x: number; y: number } {
+	if (route.sourcePosition === "left" || route.sourcePosition === "right") {
+		return { x: route.sourceX, y: route.sourceY + lane };
+	}
+	return { x: route.sourceX + lane, y: route.sourceY };
+}
+
 function routePoints(
 	route: GraphRoute,
 	lane: number,
+	entryIndex: number,
+	entries: number,
+	nodes: NodeBound[],
 ): { x: number; y: number }[] {
-	const horizontal =
-		route.sourcePosition === "left" || route.sourcePosition === "right";
+	const horizontal = horizontalRoute(route);
 	const sourceSign =
 		route.sourcePosition === "right" || route.sourcePosition === "bottom"
 			? 1
@@ -115,75 +261,188 @@ function routePoints(
 		route.targetPosition === "right" || route.targetPosition === "bottom"
 			? 1
 			: -1;
-	if (horizontal && forward(route) && sameColumn(route)) {
-		const approach = 28;
-		const endX = route.targetX + Math.min(lane, 0);
-		const endY = route.targetY + lane;
-		return [
-			{ x: route.sourceX, y: route.sourceY },
-			{ x: route.sourceX + approach, y: route.sourceY },
-			{ x: route.sourceX + approach, y: route.sourceY + lane },
-			{ x: endX - approach, y: endY },
-			{ x: endX, y: endY },
-		];
+	const exit = sourceExit(route, lane);
+	const entry = targetEntry(route, entryIndex, entries);
+	const straight =
+		horizontal && forward(route) && sameAxis(route)
+			? [
+					{ x: route.sourceX, y: route.sourceY },
+					{ x: route.sourceX + approach, y: route.sourceY },
+					{ x: route.sourceX + approach, y: exit.y },
+					{ x: entry.x - approach, y: entry.y },
+					{ x: entry.x, y: entry.y },
+				]
+			: !horizontal && forward(route) && sameAxis(route)
+				? [
+						{ x: route.sourceX, y: route.sourceY },
+						{ x: route.sourceX, y: route.sourceY + approach },
+						{ x: exit.x, y: route.sourceY + approach },
+						{ x: entry.x, y: entry.y - approach },
+						{ x: entry.x, y: entry.y },
+					]
+				: null;
+	if (
+		straight !== null &&
+		!straight.some((pointAt, pointIndex) => {
+			const next = straight[pointIndex + 1];
+			return next !== undefined && segmentHits(pointAt, next, nodes);
+		})
+	) {
+		return straight;
 	}
-	if (!horizontal && forward(route) && sameColumn(route)) {
-		const approach = 28;
-		const endX = route.targetX + lane;
-		const endY = route.targetY + Math.min(lane, 0);
-		return [
-			{ x: route.sourceX, y: route.sourceY },
-			{ x: route.sourceX, y: route.sourceY + approach },
-			{ x: route.sourceX + lane, y: route.sourceY + approach },
-			{ x: endX, y: endY - approach },
-			{ x: endX, y: endY },
-		];
-	}
-	const stub = 36;
 	if (horizontal) {
 		const leave = route.sourceX + sourceSign * stub;
 		const arrive = route.targetX + targetSign * stub;
-		const rail = (route.sourceY + route.targetY) / 2 + lane;
+		const rail = clearChannel(
+			true,
+			(route.sourceY + route.targetY) / 2 + lane,
+			leave,
+			arrive,
+			nodes,
+		);
 		return [
 			{ x: route.sourceX, y: route.sourceY },
 			{ x: leave, y: route.sourceY },
 			{ x: leave, y: rail },
 			{ x: arrive, y: rail },
-			{ x: arrive, y: route.targetY },
-			{ x: route.targetX, y: route.targetY },
+			{ x: arrive, y: entry.y },
+			{ x: entry.x, y: entry.y },
 		];
 	}
 	const leave = route.sourceY + sourceSign * stub;
 	const arrive = route.targetY + targetSign * stub;
-	const rail = (route.sourceX + route.targetX) / 2 + lane;
+	const rail = clearChannel(
+		false,
+		(route.sourceX + route.targetX) / 2 + lane,
+		leave,
+		arrive,
+		nodes,
+	);
 	return [
 		{ x: route.sourceX, y: route.sourceY },
 		{ x: route.sourceX, y: leave },
 		{ x: rail, y: leave },
 		{ x: rail, y: arrive },
-		{ x: route.targetX, y: arrive },
-		{ x: route.targetX, y: route.targetY },
+		{ x: entry.x, y: arrive },
+		{ x: entry.x, y: entry.y },
 	];
+}
+
+function labelOn(
+	points: { x: number; y: number }[],
+	nodes: NodeBound[],
+	occupied: NodeBound[],
+): { x: number; y: number } {
+	const candidates: { x: number; y: number }[] = [];
+	for (let index = 0; index < points.length - 1; index += 1) {
+		const from = points[index];
+		const to = points[index + 1];
+		if (from === undefined || to === undefined) {
+			continue;
+		}
+		const length = Math.hypot(to.x - from.x, to.y - from.y);
+		if (length < labelClearance * 2) {
+			continue;
+		}
+		candidates.push({
+			x: from.x + (to.x - from.x) * 0.55,
+			y: from.y + (to.y - from.y) * 0.55,
+		});
+	}
+	const fallback = points[Math.floor(points.length / 2)] ??
+		points[0] ?? { x: 0, y: 0 };
+	const ranked = candidates.length === 0 ? [fallback] : candidates;
+	for (const candidate of ranked) {
+		const box = labelBox(candidate);
+		if (
+			!occupied.some((taken) => overlaps(box, taken)) &&
+			!nodes.some((node) => overlaps(box, node))
+		) {
+			occupied.push(box);
+			return candidate;
+		}
+	}
+	const shifted = { x: fallback.x, y: fallback.y - labelClearance * 2 };
+	occupied.push(labelBox(shifted));
+	return shifted;
+}
+
+function labelBox(at: { x: number; y: number }): NodeBound {
+	return {
+		left: at.x - labelClearance * 2,
+		right: at.x + labelClearance * 2,
+		top: at.y - labelClearance / 2,
+		bottom: at.y + labelClearance / 2,
+	};
+}
+
+function overlaps(left: NodeBound, right: NodeBound): boolean {
+	return (
+		left.left < right.right &&
+		left.right > right.left &&
+		left.top < right.bottom &&
+		left.bottom > right.top
+	);
 }
 
 export function routeEdge(
 	route: GraphRoute,
 	index: number,
 	count: number,
+	nodes: NodeBound[] = [],
+	occupied: LabelSpot[] = [],
+	entry = index,
+	entries = count,
 ): RoutedEdge {
-	const points = routePoints(route, laneOf(index, count));
-	const along = points[2];
-	const next = points[3];
-	const label =
-		along === undefined || next === undefined
-			? { x: route.sourceX, y: route.sourceY }
-			: {
-					x: along.x + (next.x - along.x) * 0.55,
-					y: along.y + (next.y - along.y) * 0.55,
-				};
+	const points = routePoints(
+		route,
+		laneOf(index, count),
+		entry,
+		entries,
+		nodes,
+	);
+	const label = labelOn(points, nodes, occupied);
 	return {
 		path: pathThrough(points),
 		labelX: label.x,
 		labelY: label.y,
 	};
+}
+
+export type LaneAssignment = {
+	lane: number;
+	lanes: number;
+	entry: number;
+	entries: number;
+};
+
+export function assignLanes<
+	T extends { source: string; target: string; data?: object },
+>(edges: T[]): (T & { data: LaneAssignment })[] {
+	const lanes = new Map<string, number>();
+	const incoming = new Map<string, number>();
+	for (const edge of edges) {
+		const pair = `${edge.source}\0${edge.target}`;
+		lanes.set(pair, (lanes.get(pair) ?? 0) + 1);
+		incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+	}
+	const used = new Map<string, number>();
+	const usedIncoming = new Map<string, number>();
+	return edges.map((edge) => {
+		const pair = `${edge.source}\0${edge.target}`;
+		const lane = used.get(pair) ?? 0;
+		used.set(pair, lane + 1);
+		const entry = usedIncoming.get(edge.target) ?? 0;
+		usedIncoming.set(edge.target, entry + 1);
+		return {
+			...edge,
+			data: {
+				...edge.data,
+				lane,
+				lanes: lanes.get(pair) ?? 1,
+				entry,
+				entries: incoming.get(edge.target) ?? 1,
+			},
+		};
+	});
 }

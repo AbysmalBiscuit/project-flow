@@ -7,14 +7,20 @@ import {
 	type Edge as FlowEdge,
 	type Node as FlowNode,
 	Handle,
-	MarkerType,
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
 import { useMemo } from "react";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
-import { type GraphRoute, routeEdge } from "./graph-routes.ts";
+import {
+	assignLanes,
+	type GraphRoute,
+	type LabelSpot,
+	markerEnd,
+	type NodeBound,
+	routeEdge,
+} from "./graph-routes.ts";
 import { openProject } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
@@ -38,6 +44,10 @@ type BlockerEdgeData = {
 	tracker: CrossProjectBlocker["tracker"];
 	lane: number;
 	lanes: number;
+	entry: number;
+	entries: number;
+	nodes: NodeBound[];
+	labels: LabelSpot[];
 };
 
 function depths(
@@ -140,7 +150,15 @@ function BlockerEdge({
 		sourcePosition,
 		targetPosition,
 	};
-	const drawn = routeEdge(route, data?.lane ?? 0, data?.lanes ?? 1);
+	const drawn = routeEdge(
+		route,
+		data?.lane ?? 0,
+		data?.lanes ?? 1,
+		data?.nodes ?? [],
+		data?.labels ?? [],
+		data?.entry ?? 0,
+		data?.entries ?? 1,
+	);
 	const ticket = data?.ticket ?? "";
 	const blocked = data?.blocked ?? "";
 	const blocker = data?.blocker ?? "";
@@ -204,31 +222,42 @@ function graphModel(
 			edgeFor(project.name, blocker, shownNames),
 		),
 	);
-	const lanes = new Map<string, number>();
-	for (const edge of pending) {
-		const pair = `${edge.source}\0${edge.target}`;
-		lanes.set(pair, (lanes.get(pair) ?? 0) + 1);
-	}
-	const used = new Map<string, number>();
-	const edges = pending.flatMap((edge) => {
-		if (edge.data === undefined) {
-			return [];
-		}
-		const pair = `${edge.source}\0${edge.target}`;
-		const lane = used.get(pair) ?? 0;
-		used.set(pair, lane + 1);
-		return [
-			{
-				...edge,
-				data: {
-					...edge.data,
-					lane,
-					lanes: lanes.get(pair) ?? 1,
-				},
-			},
-		];
-	});
+	const labels: LabelSpot[] = [];
+	const bounds = new Map(
+		nodes.flatMap((node) => {
+			const bound = nodeBound(node);
+			return bound === undefined ? [] : [[node.id, bound] as const];
+		}),
+	);
+	const edges = assignLanes(pending).map((edge) => ({
+		...edge,
+		data: {
+			...edge.data,
+			nodes: [...bounds.entries()].flatMap(([id, bound]) =>
+				id === edge.source || id === edge.target ? [] : [bound],
+			),
+			labels,
+		},
+	}));
 	return { nodes, edges };
+}
+
+const projectSpan = { width: 220, height: 132 };
+
+function nodeBound(
+	node: FlowNode<ProjectNodeData> | undefined,
+): NodeBound | undefined {
+	if (node === undefined) {
+		return undefined;
+	}
+	const width = node.measured?.width ?? node.width ?? projectSpan.width;
+	const height = node.measured?.height ?? node.height ?? projectSpan.height;
+	return {
+		left: node.position.x,
+		top: node.position.y,
+		right: node.position.x + width,
+		bottom: node.position.y + height,
+	};
 }
 
 function edgeFor(
@@ -245,12 +274,7 @@ function edgeFor(
 			source: blocker.project,
 			target: blocked,
 			type: "blocker",
-			markerEnd: {
-				type: MarkerType.ArrowClosed,
-				width: 22,
-				height: 22,
-				markerUnits: "userSpaceOnUse",
-			},
+			markerEnd: markerEnd(),
 			data: {
 				ticket: blocker.key,
 				blocked,
@@ -258,6 +282,10 @@ function edgeFor(
 				tracker: blocker.tracker,
 				lane: 0,
 				lanes: 1,
+				entry: 0,
+				entries: 1,
+				nodes: [],
+				labels: [],
 			},
 		},
 	];

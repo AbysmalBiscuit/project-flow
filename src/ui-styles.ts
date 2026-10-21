@@ -717,6 +717,10 @@ export const cards = stylex.create({
 		position: "absolute",
 		pointerEvents: "all",
 	},
+	graphMarker: {
+		width: measure.marker,
+		height: measure.marker,
+	},
 	graphTools: {
 		position: "absolute",
 		zIndex: 5,
@@ -2044,6 +2048,7 @@ export const board = stylex.create({
 		boxSizing: "border-box",
 		width: "100%",
 		height: "100%",
+		pointerEvents: "none",
 		margin: 0,
 		padding: `${space.sm} ${space.md} ${space.md}`,
 		borderWidth: measure.hairline,
