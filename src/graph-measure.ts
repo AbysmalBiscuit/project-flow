@@ -20,7 +20,9 @@ export function rememberNodeSize(
 	if (size.width <= 0 || size.height <= 0) {
 		return;
 	}
-	const changed = writeSize(id, size) || writeSize(kind, size);
+	const idChanged = writeSize(id, size);
+	const kindChanged = writeSize(kind, size);
+	const changed = idChanged || kindChanged;
 	if (!changed) {
 		return;
 	}
