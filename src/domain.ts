@@ -5,6 +5,7 @@ import type {
 	ProjectPin,
 	ProjectViewSettings,
 } from "./configuration.ts";
+import { sameRef as samePin } from "./configuration.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -3954,6 +3955,53 @@ export function displayName(project: CatalogueProject): string {
 	}
 	const slash = project.key.lastIndexOf("/");
 	return slash === -1 ? project.key : project.key.slice(slash + 1);
+}
+
+function pendingCard(
+	project: CatalogueProject,
+	tracked: readonly ProjectPin[],
+): ProjectCounts {
+	return {
+		name: project.name ?? project.key,
+		tracker: project.tracker,
+		ref: refForFound(project, tracked),
+		done: 0,
+		dropped: 0,
+		blocked: 0,
+		backlog: 0,
+		inProgress: 0,
+		inReview: 0,
+		awaitingMerge: 0,
+		unlinkedPrs: [],
+		tickets: [],
+		crossProjectBlockers: [],
+		needsYou: 0,
+		progress: 0,
+		fetchedAt: null,
+		error: null,
+		tags: [],
+		statusTypes: emptyStatusTypes(),
+		pending: true,
+	};
+}
+
+/** Tracked projects with no stored read, shown while a poll is running. */
+export function pendingProjects(
+	catalogue: readonly CatalogueProject[],
+	tracked: readonly ProjectPin[],
+	counted: readonly ProjectCounts[],
+	polledKeys: ReadonlySet<string>,
+): ProjectCounts[] {
+	return catalogue.flatMap((project) => {
+		const pin = tracked.find((ref) => matchesRef(project, ref));
+		if (pin === undefined || polledKeys.has(project.key)) {
+			return [];
+		}
+		if (counted.some((item) => samePin(item.ref, pin))) {
+			return [];
+		}
+		return [pendingCard(project, tracked)];
+	});
 }
 
 export function reposFor(
