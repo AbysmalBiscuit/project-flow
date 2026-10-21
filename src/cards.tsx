@@ -935,7 +935,6 @@ function OverviewPage({
 					<button
 						type="button"
 						id="overview-refresh"
-						data-fetching={refreshing ? "true" : "false"}
 						className={clsx(frame.icon, shell.buttonFocus)}
 						aria-label={overviewControlLabel.refresh}
 						aria-busy={refreshing}

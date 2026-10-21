@@ -34,4 +34,4 @@ Item 8, the refresh icon. Replay `proof/walk-264-refresh.json`. The walk opens O
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-264-refresh.json --proof .devkit/proof --item 8
 ```
 
-The page shows `Refreshing` and the project name `acme/flow` while the overview response stays held. `#poll-status` has `data-spinning="true"`. The spinning refresh icon comes from the query fetch state. The old project data stays on screen.
+The page shows `Refreshing` and the project name `acme/flow` while the overview response stays held. The spinning refresh icon comes from the query fetch state. The old project data stays on screen.

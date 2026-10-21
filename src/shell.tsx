@@ -107,15 +107,9 @@ export function PollStatus({
 }) {
 	if (polling) {
 		return (
-			<span
-				id="poll-status"
-				role="status"
-				aria-busy="true"
-				data-spinning="true"
-				aria-label={navLabel.refreshing}
-			>
+			<span id="poll-status" role="status" aria-busy="true">
 				<RefreshGlyph spinning />
-				<span className={clsx(frame.statusWord)}>{navLabel.refreshing}</span>
+				<span className={clsx(frame.legend)}>{navLabel.refreshing}</span>
 			</span>
 		);
 	}
