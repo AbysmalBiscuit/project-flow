@@ -932,6 +932,51 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 	};
 }
 
+export type ChangeEvent = {
+	event: string;
+	data: string;
+};
+
+export async function settledOverview<Body extends { polling?: true }>(
+	base: string,
+	read: (base: string) => Promise<Body>,
+): Promise<Body> {
+	const deadline = Date.now() + 3_000;
+	let body: Body | null = null;
+	while (Date.now() < deadline) {
+		body = await read(base);
+		if (body.polling !== true) {
+			return body;
+		}
+		await Bun.sleep(20);
+	}
+	if (body === null) {
+		throw new Error("overview never answered");
+	}
+	return body;
+}
+
+export async function settledOverviewEvent<Body extends { polling?: true }>(
+	events: AsyncIterator<{ event: string; data: string }>,
+	parse: (data: string) => Body,
+	limit = 4,
+): Promise<Body> {
+	for (let seen = 0; seen < limit; seen += 1) {
+		const received = await events.next();
+		if (received.done || received.value === undefined) {
+			break;
+		}
+		if (received.value.event !== "overview") {
+			continue;
+		}
+		const body = parse(received.value.data);
+		if (body.polling !== true) {
+			return body;
+		}
+	}
+	throw new Error("the event stream sent no overview after the poll");
+}
+
 export function urlOf(input: string | URL | Request): string {
 	if (typeof input === "string") {
 		return input;
