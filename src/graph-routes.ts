@@ -50,20 +50,9 @@ export function measureMarker(className: string): {
 	return { size: box.width, color, opacity };
 }
 
-export function mutedStroke(
-	color: string,
-	opacity: string,
-): string | undefined {
-	if (opacity === "" || opacity === "1") {
-		return undefined;
-	}
-	const channels = color.match(/[\d.]+/g);
-	if (channels === null || channels.length < 3) {
-		return undefined;
-	}
-	const [red, green, blue] = channels;
-	return `rgb(${red} ${green} ${blue} / ${opacity})`;
-}
+const mutedMarkerMix = "40%";
+
+export const mutedMarkerColor = `color-mix(in srgb, var(--xy-edge-stroke) ${mutedMarkerMix}, transparent)`;
 
 export function markerEnd(size: number, color?: string): MarkerEnd {
 	return {
