@@ -2931,6 +2931,16 @@ export const panel = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.meta,
 	},
+	retry: {
+		padding: 0,
+		borderWidth: 0,
+		backgroundColor: "transparent",
+		color: colours.link,
+		fontFamily: font.sans,
+		fontSize: type.meta,
+		fontWeight: type.weight,
+		cursor: "pointer",
+	},
 });
 
 export const settings = stylex.create({

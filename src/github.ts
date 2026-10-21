@@ -301,19 +301,37 @@ export async function checkToken(
 	});
 }
 
+function fetchWithSignal(
+	fetchImpl: Fetch,
+	input: string,
+	init: RequestInit,
+	signal: AbortSignal | undefined,
+): Promise<Response> {
+	if (signal === undefined) {
+		return fetchImpl(input, init);
+	}
+	return fetchImpl(input, { ...init, signal });
+}
+
 async function pages(
 	start: string,
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
 	label: string,
+	signal?: AbortSignal,
 ): Promise<unknown[]> {
 	const bodies: unknown[] = [];
 	let url: string | null = start;
 	while (url !== null) {
-		const response = await fetchImpl(url, {
-			headers: githubHeaders(token),
-		});
+		const response = await fetchWithSignal(
+			fetchImpl,
+			url,
+			{
+				headers: githubHeaders(token),
+			},
+			signal,
+		);
 		if (!response.ok) {
 			throw new Error(
 				`GitHub ${label} failed (HTTP ${response.status}): ${repo}`,
@@ -3022,8 +3040,8 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			}
 			return batched.branches;
 		},
-		fetchThread(project, key) {
-			return fetchGithubThread(token, fetchImpl, project, key);
+		fetchThread(project, key, signal) {
+			return fetchGithubThread(token, fetchImpl, project, key, signal);
 		},
 		postReply(reply) {
 			return postGithubReply(token, fetchImpl, reply);
@@ -3142,6 +3160,7 @@ export async function fetchGithubThread(
 	fetchImpl: Fetch,
 	project: string,
 	key: string,
+	signal?: AbortSignal,
 ): Promise<Thread | null> {
 	const parsed = githubTicketKey(key);
 	if (parsed === null) {
@@ -3149,9 +3168,23 @@ export async function fetchGithubThread(
 	}
 	const { repo, number } = parsed;
 	const issueUrl = `https://api.github.com/repos/${repo}/issues/${number}`;
-	const issueResponse = await fetchImpl(issueUrl, {
-		headers: githubHeaders(token),
-	});
+	const commentPages = pages(
+		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
+		token,
+		fetchImpl,
+		repo,
+		"fetch thread",
+		signal,
+	);
+	void commentPages.catch(() => undefined);
+	const issueResponse = await fetchWithSignal(
+		fetchImpl,
+		issueUrl,
+		{
+			headers: githubHeaders(token),
+		},
+		signal,
+	);
 	if (issueResponse.status === 404) {
 		return null;
 	}
@@ -3168,24 +3201,20 @@ export async function fetchGithubThread(
 			pull_request: z.unknown().optional(),
 		})
 		.parse(await issueResponse.json());
-	const comments = (
-		await pages(
-			`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
-			token,
-			fetchImpl,
-			repo,
-			"fetch thread",
-		)
-	).flatMap((item) =>
+	const linked =
+		issue.pull_request === undefined
+			? linkedReviewTargets(token, fetchImpl, repo, number, signal)
+			: Promise.resolve([{ repo, number }]);
+	const [listedComments, reviewTargets] = await Promise.all([
+		commentPages,
+		linked,
+	]);
+	const comments = listedComments.flatMap((item) =>
 		z
 			.array(githubThreadComment)
 			.parse(item)
 			.map((comment) => toThreadComment(comment, "comment")),
 	);
-	const reviewTargets =
-		issue.pull_request === undefined
-			? await linkedReviewTargets(token, fetchImpl, repo, number)
-			: [{ repo, number }];
 	const review = (
 		await Promise.all(
 			reviewTargets.map((target) =>
@@ -3195,6 +3224,7 @@ export async function fetchGithubThread(
 					fetchImpl,
 					target.repo,
 					"fetch review thread",
+					signal,
 				),
 			),
 		)
@@ -3221,19 +3251,25 @@ export async function linkedReviewTargets(
 	fetchImpl: Fetch,
 	repo: string,
 	number: number,
+	signal?: AbortSignal,
 ): Promise<{ repo: string; number: number }[]> {
 	const [owner, name] = repo.split("/");
 	if (owner === undefined || name === undefined) {
 		return [];
 	}
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify({
-			query: linkedPullsQuery,
-			variables: { owner, name, number },
-		}),
-	});
+	const response = await fetchWithSignal(
+		fetchImpl,
+		"https://api.github.com/graphql",
+		{
+			method: "POST",
+			headers: githubHeaders(token),
+			body: JSON.stringify({
+				query: linkedPullsQuery,
+				variables: { owner, name, number },
+			}),
+		},
+		signal,
+	);
 	if (!response.ok) {
 		return [];
 	}

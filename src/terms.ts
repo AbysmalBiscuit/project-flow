@@ -87,6 +87,10 @@ export const whyLabel = "Why this needs you";
 
 export const threadMissingLabel = "This thread could not be read.";
 
+export const threadFailedLabel = "This thread did not load.";
+
+export const threadRetryLabel = "Retry";
+
 export const openOnGitHubLabel = "Open on GitHub";
 
 export const mergeFactLabel = {

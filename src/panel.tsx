@@ -11,7 +11,9 @@ import {
 	openOnGitHubLabel,
 	pullStatusLabel,
 	stateLabel,
+	threadFailedLabel,
 	threadMissingLabel,
+	threadRetryLabel,
 	whyLabel,
 } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
@@ -236,6 +238,7 @@ export function TicketPanel({
 	const [thread, setThread] = useState<Thread | null>(null);
 	const [missing, setMissing] = useState(false);
 	const [failed, setFailed] = useState(false);
+	const [attempt, setAttempt] = useState(0);
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -246,7 +249,7 @@ export function TicketPanel({
 			setPicked(false);
 		}
 	}, [item?.answered]);
-	const threadPath = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}`;
+	const threadPath = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}&attempt=${attempt}`;
 	useEffect(() => {
 		let stopped = false;
 		fetch(threadPath)
@@ -381,8 +384,26 @@ export function TicketPanel({
 					</button>
 				</span>
 			</div>
-			{missing || failed ? (
+			{missing ? (
 				<p className={clsx(panel.note)}>{threadMissingLabel}</p>
+			) : null}
+			{failed ? (
+				<p className={clsx(panel.note)}>
+					{threadFailedLabel}{" "}
+					<button
+						type="button"
+						className={clsx(panel.retry, shell.buttonFocus)}
+						data-retry="thread"
+						onClick={() => {
+							setFailed(false);
+							setMissing(false);
+							setThread(null);
+							setAttempt((current) => current + 1);
+						}}
+					>
+						{threadRetryLabel}
+					</button>
+				</p>
 			) : null}
 			{thread === null && !missing && !failed ? (
 				<p className={clsx(panel.label)}>Loading thread</p>
