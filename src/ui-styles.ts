@@ -1944,7 +1944,7 @@ export const board = stylex.create({
 		gap: space.sm,
 		boxSizing: "border-box",
 		width: measure.filterPanel,
-		maxWidth: measure.filterPanelMax,
+		maxWidth: `calc(100vw - 2 * ${space.phoneInset})`,
 		maxHeight: measure.menuTall,
 		marginTop: space.twoXs,
 		padding: space.md,
