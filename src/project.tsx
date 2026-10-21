@@ -5,6 +5,7 @@ import type {
 	CrossProjectBlocker,
 	NeedsYouItem,
 	ProjectReport,
+	StatusType,
 	TicketRelation,
 	TicketView,
 } from "./domain.ts";
@@ -359,7 +360,7 @@ function Card({
 	);
 }
 
-const statusMarks: Record<string, typeof board.markBacklog> = {
+const statusMarks: Record<StatusType, typeof board.markBacklog> = {
 	done: board.markDone,
 	dropped: board.markDropped,
 	backlog: board.markBacklog,
@@ -378,7 +379,7 @@ const laneMarks: Record<string, typeof board.markBacklog> = {
 	[lightValues.awaitingMerge.toLowerCase()]: board.markAwaitingMerge,
 };
 
-function laneMark(colour: string, statusType?: string) {
+function laneMark(colour: string, statusType?: StatusType) {
 	return (
 		(statusType === undefined ? undefined : statusMarks[statusType]) ??
 		laneMarks[colour.trim().toLowerCase()] ??
@@ -425,7 +426,7 @@ function Lane({
 }: {
 	name: string;
 	colour: string;
-	statusType: string;
+	statusType: StatusType;
 	tickets: TicketView[];
 	fresh: TicketView[];
 	groupBy: GroupBy;
