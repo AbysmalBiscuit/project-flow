@@ -627,9 +627,13 @@ describe("startup", () => {
 		}
 	});
 
-	test("a failed opener prints one warning and the API still answers", async () => {
+	test("a pending opener does not block stop", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
-		const opened: string[] = [];
+		let releaseOpen: () => void = () => {};
+		const openerPending = new Promise<void>((resolve) => {
+			releaseOpen = resolve;
+		});
+		let openedUrl = "";
 		try {
 			const result = await run(
 				["--config", path, "--open"],
@@ -641,10 +645,49 @@ describe("startup", () => {
 					readGhToken: async () => null,
 					databasePath: ":memory:",
 					waitForStop: Promise.resolve(),
+					open: (url) => {
+						openedUrl = url;
+						return openerPending;
+					},
+				}),
+			);
+			expect(result.exitCode).toBe(0);
+			expect(openedUrl).toBe(result.stdout);
+			const page = await fetch(openedUrl).catch((error: unknown) => error);
+			expect(page).toBeInstanceOf(Error);
+		} finally {
+			releaseOpen();
+			await cleanup();
+		}
+	});
+
+	test("a failed opener prints one warning and the API still answers", async () => {
+		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
+		const opened: string[] = [];
+		let checked = "";
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<boolean>((resolve, reject) => {
+			startChecks = (base: string) => {
+				checked = base;
+				fetch(new URL("/api/overview", base))
+					.then((page) => resolve(page.ok))
+					.catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--open"],
+				testIo({
+					env: {},
+					fetch: async () => {
+						throw new Error("no tracker call for an empty pin list");
+					},
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					stdout: (line) => startChecks(line),
+					waitForStop: checks.then(() => undefined),
 					open: async (url) => {
 						opened.push(url);
-						const page = await fetch(new URL("/api/overview", url));
-						expect(page.ok).toBe(true);
 						throw new Error("browser missing");
 					},
 				}),
@@ -652,7 +695,8 @@ describe("startup", () => {
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
 			expect(result.stderr).toBe("warning: could not open the browser");
-			expect(opened).toEqual([result.stdout]);
+			expect(opened).toEqual([checked]);
+			expect(await checks).toBe(true);
 		} finally {
 			await cleanup();
 		}

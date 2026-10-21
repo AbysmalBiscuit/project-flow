@@ -645,10 +645,11 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		listened = true;
 		writeOut(running.url.href);
 		if (args.includes("--open")) {
+			const open = io.open ?? ((url) => openBrowser(url, io.env));
 			try {
-				await (io.open ?? ((url) => openBrowser(url, io.env)))(
-					running.url.href,
-				);
+				void open(running.url.href).catch(() => {
+					writeErr("warning: could not open the browser");
+				});
 			} catch {
 				writeErr("warning: could not open the browser");
 			}
