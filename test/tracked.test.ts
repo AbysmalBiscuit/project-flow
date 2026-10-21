@@ -5,7 +5,13 @@ import type { Configuration } from "../src/configuration.ts";
 import type { Overview, SettingsProject } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { tempConfig, testIo, trackerRequest, unrecorded } from "./support.ts";
+import {
+	emptyRepoRead,
+	tempConfig,
+	testIo,
+	trackerRequest,
+	unrecorded,
+} from "./support.ts";
 
 const repos = Array.from({ length: 5 }, (_, index) => `acme/repo-${index}`);
 const linearSlugs = Array.from(
@@ -39,7 +45,9 @@ function membership(sent: string[]): Fetch {
 				? request.url
 				: operation === "ProjectByPin" || operation === "ProjectIssues"
 					? `${request.url} ${operation} ${JSON.stringify(request.variables)}`
-					: `${request.url} ${operation}`,
+					: operation === "RepoRead"
+						? `${request.url} ${operation} ${request.variables.owner}/${request.variables.name}`
+						: `${request.url} ${operation}`,
 		);
 		const url = request.url;
 		if (url === "https://api.github.com/user") {
@@ -122,6 +130,49 @@ function membership(sent: string[]): Fetch {
 						},
 					},
 				});
+			}
+			if (operation === "RepoRead") {
+				const owner = String(request.variables.owner ?? "acme");
+				const name = String(request.variables.name ?? "widget");
+				const since = request.variables.since;
+				const listed =
+					since === undefined || since === null || since === ""
+						? [
+								{
+									number: 1,
+									title: "Ticket 1",
+									state: "OPEN",
+									updatedAt: "2026-08-18T12:00:00.000Z",
+								},
+								{
+									number: 2,
+									title: "Older ticket",
+									state: "OPEN",
+									updatedAt: "2026-03-01T12:00:00.000Z",
+								},
+							]
+						: [
+								{
+									number: 1,
+									title: "Ticket 1",
+									state: "OPEN",
+									updatedAt: "2026-08-18T12:00:00.000Z",
+								},
+							].filter((issue) => String(issue.updatedAt) >= String(since));
+				const body = emptyRepoRead(owner, name) as {
+					data: {
+						repository: {
+							issues: { nodes: Record<string, unknown>[] };
+						};
+					};
+				};
+				body.data.repository.issues.nodes = listed.map((issue) => ({
+					...issue,
+					body: "",
+					comments: emptyPage,
+					labels: emptyPage,
+				}));
+				return json(body);
 			}
 			return json({ data: { node: { fields: { nodes: [{}] } } } });
 		}
@@ -287,13 +338,8 @@ describe("tracked projects", () => {
 			settings.projects.filter((project) => project.tracked).map((p) => p.key),
 		).toEqual(["board-1-0d42ae5d46d0", "acme/repo-3"]);
 		expect([...new Set(sent)].sort()).toEqual([
+			"https://api.github.com/graphql RepoRead acme/repo-3",
 			"https://api.github.com/graphql ViewerProjects",
-			"https://api.github.com/repos/acme/repo-3",
-			"https://api.github.com/repos/acme/repo-3/branches?per_page=100&page=1",
-			"https://api.github.com/repos/acme/repo-3/issues?state=all&per_page=100&page=1",
-			"https://api.github.com/repos/acme/repo-3/labels?per_page=100&page=1",
-			"https://api.github.com/repos/acme/repo-3/pulls?state=closed&per_page=10&page=1",
-			"https://api.github.com/repos/acme/repo-3/pulls?state=open&per_page=100&page=1",
 			"https://api.github.com/user",
 			"https://api.github.com/user/repos?affiliation=owner,collaborator&per_page=100&page=1",
 			"https://api.linear.app/graphql MemberProjects",
@@ -361,13 +407,13 @@ describe("tracked projects", () => {
 					return {
 						retracked: sent
 							.slice(issuesBefore)
-							.filter((request) => request.includes("/repo-1/issues?")),
+							.filter((request) => request.includes("RepoRead acme/repo-1")),
 						overview: await read<Overview>(base, "/api/overview"),
 					};
 				},
 			);
 			expect(checked.retracked).toEqual([
-				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1",
+				"https://api.github.com/graphql RepoRead acme/repo-1",
 			]);
 			const repo = checked.overview.projects.find(
 				(project) => project.name === "acme/repo-1",
@@ -413,7 +459,7 @@ describe("tracked projects", () => {
 				};
 			});
 			expect(checked.added).toContain(
-				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1",
+				"https://api.github.com/graphql RepoRead acme/repo-1",
 			);
 			expect(checked.on.projects.map((project) => project.name)).toContain(
 				"acme/repo-1",
@@ -421,7 +467,7 @@ describe("tracked projects", () => {
 			expect(checked.on.tracked).toBeUndefined();
 			expect(
 				checked.removed.filter((request) =>
-					request.includes("/repo-1/issues?"),
+					request.includes("RepoRead acme/repo-1"),
 				),
 			).toEqual([]);
 			expect(
@@ -468,7 +514,7 @@ describe("tracked projects", () => {
 						againStatus: again.status,
 						removed: sent
 							.slice(before)
-							.filter((request) => request.includes("/repo-1/issues?")),
+							.filter((request) => request.includes("RepoRead acme/repo-1")),
 						overview: await read<Overview>(base, "/api/overview"),
 					};
 				},
@@ -516,11 +562,9 @@ describe("tracked projects", () => {
 			).toEqual(["acme/repo-1"]);
 			expect(
 				restarted.sent.filter((request) =>
-					request.includes("/repos/acme/repo-1/issues?"),
+					request.includes("RepoRead acme/repo-1"),
 				),
-			).toEqual([
-				"https://api.github.com/repos/acme/repo-1/issues?state=all&per_page=100&page=1&since=2026-08-18T12%3A00%3A00.000Z",
-			]);
+			).toContain("https://api.github.com/graphql RepoRead acme/repo-1");
 		} finally {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });

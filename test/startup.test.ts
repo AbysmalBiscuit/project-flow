@@ -13,6 +13,8 @@ import {
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadIssues,
+	repoReadResponse,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -55,6 +57,10 @@ function recordedFetch(userStatus: number): Fetch {
 			);
 		}
 		if (url === "https://api.github.com/graphql") {
+			const read = repoReadResponse(input, init);
+			if (read !== null) {
+				return read;
+			}
 			return new Response(
 				JSON.stringify({
 					data: {
@@ -111,11 +117,53 @@ describe("startup", () => {
 				},
 			],
 			github: async (input, init) => {
+				const url = urlOf(input);
+				const sent = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					sent.includes("query RepoRead")
+				) {
+					return new Response(
+						JSON.stringify(
+							repoReadIssues("acme", "widget", [], {
+								pulls: [
+									{
+										number: 83,
+										title: "PR 83",
+										url: "https://github.com/acme/widget/pull/83",
+										isDraft: false,
+										body: "",
+										state: "OPEN",
+										mergedAt: null,
+										headRefName: "83-feat-review",
+										headRefOid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+										closingIssuesReferences: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+										reviews: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+										comments: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+										reactions: {
+											nodes: [],
+											pageInfo: { hasNextPage: false, endCursor: null },
+										},
+									},
+								],
+							}),
+						),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
 				const discovered = recordedDiscovery(input, init);
 				if (discovered !== null) {
 					return discovered;
 				}
-				const url = urlOf(input);
 				const authorization = new Headers(init?.headers).get("authorization");
 				if (authorization !== null) {
 					authorizations.push(authorization);

@@ -8,6 +8,7 @@ import { run } from "../src/main.ts";
 import {
 	linearFake,
 	recordedDiscovery,
+	repoReadFromHandler,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -164,6 +165,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -323,6 +331,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -569,6 +584,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -768,6 +790,13 @@ describe("needs you", () => {
 				return Response.json({ login: "ada" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -944,6 +973,13 @@ describe("needs you", () => {
 				return Response.json({ login: "ada" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -1102,6 +1138,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -1232,6 +1275,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -1362,6 +1412,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -1510,6 +1567,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -1640,6 +1704,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -1818,6 +1889,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -1995,6 +2073,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {
@@ -2126,6 +2211,13 @@ describe("needs you", () => {
 				return Response.json({ login: "lev" });
 			}
 			if (url === "https://api.github.com/graphql") {
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (body.includes("query RepoRead")) {
+					const read = await repoReadFromHandler(input, init, recorded);
+					if (read !== null) {
+						return read;
+					}
+				}
 				return Response.json({
 					data: {
 						repository: {

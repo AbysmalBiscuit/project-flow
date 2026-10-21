@@ -99,6 +99,15 @@ function githubFetch(
 		if (url === "https://api.github.com/user") {
 			return Response.json({ login: "lev" });
 		}
+		if (url === "https://api.github.com/graphql") {
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (body.includes("query RepoRead")) {
+				return new Response("{}", {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+		}
 		if (url.startsWith(`https://api.github.com/repos/${githubRepo}/issues?`)) {
 			return page(issues);
 		}
@@ -1030,6 +1039,7 @@ describe("GET /api/projects/:name", () => {
 					source.tickets.find((item) => item.key === `${githubRepo}#12`)
 						?.blocks ?? [],
 				).toEqual([]);
+
 				const other = (await (
 					await fetch(
 						new URL(`/api/projects/${encodeURIComponent(otherRepo)}`, base),
