@@ -7,9 +7,9 @@
 		{ "click": "#graph-direction-top-to-bottom" },
 		{ "assert_text": "top-to-bottom" },
 		{ "click": "[aria-label='Zoom in']" },
-		{ "assert_text": "zoom 0.514" },
+		{ "assert_text": "zoom 1.2" },
 		{ "click": "#project-graph-fit" },
-		{ "assert_text": "zoom" },
+		{ "assert_text": "zoom 1.487" },
 		{ "shot": "controls-work" }
 	]
 }

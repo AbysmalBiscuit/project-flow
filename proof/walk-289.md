@@ -28,7 +28,7 @@ Item 3, the floating parts still work. Replay `proof/walk-289-actions.json`:
 workcell walk-replay --walk-file proof/walk-289-actions.json --proof .devkit/proof --item 3
 ```
 
-The direction probe reads `top-to-bottom` after the click. Zoom in writes `zoom 0.514` before Fit. Fit changes that zoom text. The walk runner has no drag step. A drag on the open canvas still pans it. The drag check is in `.devkit/proof/289-browser-walk.log`.
+The direction probe reads `top-to-bottom` after the click. Zoom in writes `zoom 1.2`. Fit writes `zoom 1.487`. The walk runner has click, fill, assert_text and shot. It has no drag step. A drag on the open canvas still pans it. The drag check is in `.devkit/proof/289-browser-walk.log`.
 
 Item 4, the phone width. Replay `proof/walk-289-phone.json`. That file name is a label. `walk_replay` does not run it at 390:
 
