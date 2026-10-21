@@ -260,7 +260,7 @@ function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
 	const known = home?.tickets.find(
 		(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
 	);
-	const state = ticket.state ?? known?.state;
+	const state = ticket.state;
 	return {
 		flow: ticket,
 		ticket: {

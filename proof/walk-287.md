@@ -42,7 +42,7 @@ workcell walk-replay --walk-file proof/walk-287-contrast-dark.json --proof .devk
 
 Dark canvas `rgb(22, 22, 26)`. Solid edge and solid arrowhead `rgb(199, 199, 199)`, ratio 10.67. Dashed edge and dashed arrowhead `rgb(126, 200, 227)`, ratio 9.67.
 
-The overview graph uses the same edge tokens. Its canvas is `colours.surface`. Light surface `rgb(255, 255, 255)` gives the same solid ratio, 7.00. Dark surface `rgb(17, 17, 17)` gives solid `rgb(199, 199, 199)` at 11.48. The overview draws no done edge.
+The overview graph uses the same edge tokens. Its canvas is `colours.surface`. Light surface `rgb(250, 250, 250)` gives solid ratio 6.71. Dark surface `rgb(17, 17, 17)` gives solid `rgb(199, 199, 199)` at 11.48. The overview draws no done edge.
 
 Item 4, legend swatches. Replay `proof/walk-287-legend.json`:
 
@@ -54,6 +54,6 @@ The solid swatch uses the solid edge colour. The dashed swatch uses the dashed e
 
 DECIDED: the solid edge and the arrowhead share the `graphEdge` token. The dashed edge and its arrowhead share the `graphEdgeDone` token. Both tokens are graph-only.
 
-DECIDED: overview graph edges and arrowheads use the project graph edge tokens. The overview edge stroke and marker use `graphEdge`. A done overview edge uses `graphEdgeDone`. The change stays inside both graphs.
+DECIDED: overview graph edges and arrowheads use the project graph edge tokens. The overview edge stroke and marker use `graphEdge`. The change stays inside both graphs.
 
 DECIDED: a done ticket in another project takes its state from that project's report when the report is loaded. The recorded walk includes that ticket.
