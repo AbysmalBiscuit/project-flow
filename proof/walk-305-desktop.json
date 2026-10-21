@@ -1,0 +1,15 @@
+{
+	"base_url": "http://127.0.0.1:4317",
+	"serve": ["bun", "proof/serve-header-height.ts", "4317", "4318"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "Allow notifications" },
+		{ "assert_text": "Search projects" },
+		{ "assert_text": "Cards" },
+		{ "shot": "overview-desktop" },
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "acme/widget" },
+		{ "assert_text": "Group by None" },
+		{ "shot": "project-desktop" }
+	]
+}
