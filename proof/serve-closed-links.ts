@@ -49,11 +49,17 @@ const issues: Record<string, Record<string, unknown>[]> = {
 			state: "closed",
 			state_reason: "completed",
 		}),
-		issue(widget, 8, "Hold the launch", { body: `Blocked by: ${widget}#7` }),
+		issue(widget, 8, "Hold the launch", {
+			body: `Blocked by: ${widget}#7\nBlocked by: ${gate}#4`,
+		}),
 		issue(widget, 9, "Draft the page", { body: `Blocked by: ${widget}#8` }),
 	],
 	[gate]: [
 		issue(gate, 3, "Name the gate", { body: `Blocked by: ${widget}#7` }),
+		issue(gate, 4, "Close the gate", {
+			state: "closed",
+			state_reason: "completed",
+		}),
 	],
 };
 

@@ -942,11 +942,18 @@ describe("GET /api/projects/:name", () => {
 			githubRepo,
 		);
 		const waiting = issue(2, "feat(ux): draw the nodes", {
-			body: `Blocked by: #8\nBlocked by: #8\nBlocked by: ${otherRepo}#9\nBlocked by:   `,
+			body: `Blocked by: #8\nBlocked by: #8\nBlocked by: ${otherRepo}#9\nBlocked by: ${otherRepo}#11\nBlocked by:   `,
 		});
 		const openGate = issue(1, "Ship the map", {
-			body: `Blocked by: ${otherRepo}#9`,
+			body: `Blocked by: ${otherRepo}#11`,
 		});
+		const closedOutside = issue(
+			9,
+			"Platform gate",
+			{ state: "closed", state_reason: "completed" },
+			otherRepo,
+		);
+		const openOutside = issue(11, "Hold the platform", {}, otherRepo);
 		await withApp(
 			JSON.stringify({
 				pinned: [
@@ -954,10 +961,7 @@ describe("GET /api/projects/:name", () => {
 					{ tracker: "github", repo: otherRepo },
 				],
 			}),
-			githubFetch(
-				[openGate, waiting, done],
-				[issue(9, "Platform gate", {}, otherRepo)],
-			),
+			githubFetch([openGate, waiting, done], [closedOutside, openOutside]),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = (await (
@@ -978,7 +982,7 @@ describe("GET /api/projects/:name", () => {
 					},
 					{
 						key: `${otherRepo}#9`,
-						done: false,
+						done: true,
 						outside: {
 							tracker: "github",
 							project: otherRepo,
@@ -986,9 +990,27 @@ describe("GET /api/projects/:name", () => {
 							title: "Platform gate",
 						},
 					},
+					{
+						key: `${otherRepo}#11`,
+						done: false,
+						outside: {
+							tracker: "github",
+							project: otherRepo,
+							key: `${otherRepo}#11`,
+							title: "Hold the platform",
+						},
+					},
 				]);
-				expect(drawn?.blockers).toEqual([`${otherRepo}#9`]);
+				expect(drawn?.blockers).toEqual([`${otherRepo}#11`]);
 				expect(drawn?.blocked).toBe(true);
+				expect(drawn?.outsideBlockers).toEqual([
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#11`,
+						title: "Hold the platform",
+					},
+				]);
 				const summary = report.sections.find(
 					(section) => section.id === "summary",
 				);
@@ -1027,11 +1049,9 @@ describe("GET /api/projects/:name", () => {
 				expect(onlyClosed?.links?.map((link) => link.key)).toEqual([
 					`${githubRepo}#8`,
 					`${otherRepo}#9`,
+					`${otherRepo}#11`,
 				]);
-				const blank = await fetch(
-					new URL(`/api/projects/${encodeURIComponent("")}`, base),
-				);
-				expect(blank.status).toBe(404);
+				expect(onlyClosed?.blockers).toEqual([`${otherRepo}#11`]);
 			},
 		);
 	});

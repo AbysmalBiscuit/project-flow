@@ -32,15 +32,37 @@ export type MarkerEnd = {
 	color?: string;
 };
 
-export function measureMarker(className: string): number {
+export function measureMarker(className: string): {
+	size: number;
+	color: string;
+	opacity: string;
+} {
 	const probe = document.createElement("span");
 	probe.className = className;
 	probe.style.position = "absolute";
 	probe.style.visibility = "hidden";
 	document.body.append(probe);
-	const size = probe.getBoundingClientRect().width;
+	const box = probe.getBoundingClientRect();
+	const style = getComputedStyle(probe);
+	const color = style.backgroundColor;
+	const opacity = style.opacity;
 	probe.remove();
-	return size;
+	return { size: box.width, color, opacity };
+}
+
+export function mutedStroke(
+	color: string,
+	opacity: string,
+): string | undefined {
+	if (opacity === "" || opacity === "1") {
+		return undefined;
+	}
+	const channels = color.match(/[\d.]+/g);
+	if (channels === null || channels.length < 3) {
+		return undefined;
+	}
+	const [red, green, blue] = channels;
+	return `rgb(${red} ${green} ${blue} / ${opacity})`;
 }
 
 export function markerEnd(size: number, color?: string): MarkerEnd {

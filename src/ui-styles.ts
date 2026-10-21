@@ -2461,12 +2461,17 @@ export const board = stylex.create({
 		backgroundColor: colours.lineStrong,
 	},
 	legendSwatchMuted: {
-		backgroundColor: colours.inkMuted,
+		opacity: 0.4,
+	},
+	edgeDone: {
+		opacity: 0.4,
 	},
 	markerMuted: {
 		width: measure.marker,
 		height: measure.marker,
-		color: colours.inkMuted,
+		color: colours.lineStrong,
+		opacity: 0.4,
+		backgroundColor: colours.lineStrong,
 	},
 	ticketNode: {
 		display: "flex",
