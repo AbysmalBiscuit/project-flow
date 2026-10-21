@@ -1056,6 +1056,83 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("the project report lists a shown edge from a done local ticket", async () => {
+		const done = issue(
+			8,
+			"Open the gate",
+			{
+				state: "closed",
+				state_reason: "completed",
+				body: `Blocks: ${otherRepo}#11`,
+			},
+			githubRepo,
+		);
+		const open = issue(2, "feat(ux): draw the nodes");
+		const outside = issue(11, "Hold the platform", {}, otherRepo);
+		const closedOnly = issue(
+			12,
+			"Old history",
+			{ state: "closed", state_reason: "completed" },
+			otherRepo,
+		);
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+			githubFetch([open, done], [outside, closedOnly]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(
+							`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+							base,
+						),
+					)
+				).json()) as ProjectReport;
+				expect(report.graphLinks).toEqual([
+					{
+						from: {
+							project: githubRepo,
+							key: `${githubRepo}#8`,
+							tracker: "github",
+							title: "Open the gate",
+						},
+						to: {
+							project: otherRepo,
+							key: `${otherRepo}#11`,
+							tracker: "github",
+							title: "Hold the platform",
+						},
+						done: true,
+					},
+				]);
+				expect(report.graphTickets.map((item) => item.key)).toEqual([
+					`${githubRepo}#2`,
+					`${githubRepo}#8`,
+				]);
+				const filtered = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(filtered.tickets.map((item) => item.key)).toEqual([
+					`${githubRepo}#2`,
+				]);
+				expect(filtered.graphLinks).toEqual(report.graphLinks);
+				expect(filtered.graphTickets.map((item) => item.key)).toContain(
+					`${githubRepo}#8`,
+				);
+				expect(report.graphTickets.map((item) => item.key)).toContain(
+					`${githubRepo}#8`,
+				);
+			},
+		);
+	});
+
 	test("an open ticket blocked only by a closed blocker is not blocked", async () => {
 		const done = issue(
 			8,

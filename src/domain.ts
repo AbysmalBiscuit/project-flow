@@ -124,6 +124,19 @@ export type GraphLink = {
 	outside?: TicketRelation;
 };
 
+export type GraphEnd = {
+	project: string;
+	key: string;
+	tracker: "github" | "linear";
+	title: string;
+};
+
+export type ShownGraphLink = {
+	from: GraphEnd;
+	to: GraphEnd;
+	done: boolean;
+};
+
 export type TicketView = {
 	key: string | null;
 	title: string;
@@ -686,6 +699,8 @@ export type ProjectReport = {
 	done: number;
 	total: number;
 	doneTickets: TicketView[];
+	graphTickets: TicketView[];
+	graphLinks: ShownGraphLink[];
 };
 
 export function displayedLaneName(ticket: TicketView): string {
@@ -1837,23 +1852,6 @@ function outsideOf(
 	};
 }
 
-function ticketFromRef(ref: TicketRef, done: boolean): Ticket {
-	return {
-		id: ref.key,
-		tracker: ref.tracker,
-		key: ref.key,
-		title: ref.title?.trim() || ref.key,
-		state: done ? "closed" : "open",
-		stateReason: null,
-		updatedAt: "",
-		body: "",
-		blockedBy: [],
-		milestone: null,
-		parent: null,
-		labels: [],
-	};
-}
-
 function graphLinks(
 	ticket: Ticket,
 	index: TicketIndex,
@@ -1880,14 +1878,15 @@ function graphLinks(
 			other !== undefined
 				? other.state !== "open"
 				: ref.state !== undefined && ref.state !== "open";
-		const holder = other ?? ticketFromRef(ref, done);
-		const project = blockerProject(holder, ref, groups);
+		const project =
+			other === undefined ? "" : blockerProject(other, ref, groups);
 		const outside =
+			other === undefined ||
 			project === "" ||
 			home === undefined ||
 			project.toLowerCase() === home.toLowerCase()
 				? undefined
-				: outsideOf(holder, ref, groups);
+				: outsideOf(other, ref, groups);
 		links.push({
 			key: ref.key,
 			done,
@@ -1991,9 +1990,9 @@ function ticketRelations(
 			title,
 		});
 	};
-	if (self !== null && ticket.state === "open") {
+	if (self !== null) {
 		for (const ref of ownBlocks) {
-			if (!stillOpen(ref, index)) {
+			if (ticket.state === "open" && !stillOpen(ref, index)) {
 				continue;
 			}
 			const other = known(index, ref);
@@ -2005,6 +2004,8 @@ function ticketRelations(
 			const title = other?.title.trim() || ref.title?.trim() || ref.key;
 			pushBlock(ref, project, title);
 		}
+	}
+	if (self !== null && ticket.state === "open") {
 		for (const group of groups) {
 			for (const other of group.tickets) {
 				const otherRef = asRef(other);
@@ -2033,6 +2034,106 @@ function ticketRelations(
 		outsideBlockers,
 		blocks,
 	};
+}
+
+function linkedDoneKeys(
+	name: string,
+	relationsByKey: Map<string, ReturnType<typeof ticketRelations>>,
+): Set<string> {
+	const linked = new Set<string>();
+	for (const [key, relations] of relationsByKey) {
+		if (relations.blocks.length > 0) {
+			linked.add(key);
+		}
+		for (const link of relations.links) {
+			if (link.outside === undefined) {
+				linked.add(link.key.toLowerCase());
+			}
+		}
+		for (const blocked of relations.blocks) {
+			if (blocked.project.toLowerCase() === name.toLowerCase()) {
+				linked.add(blocked.key.toLowerCase());
+			}
+		}
+	}
+	return linked;
+}
+
+function shownGraph(
+	name: string,
+	tracker: "github" | "linear",
+	views: TicketView[],
+	relationsByKey: Map<string, ReturnType<typeof ticketRelations>>,
+): { tickets: TicketView[]; links: ShownGraphLink[] } {
+	const withKey = views.filter(
+		(view): view is TicketView & { key: string } => view.key !== null,
+	);
+	const openKeys = new Set(
+		withKey.flatMap((view) =>
+			view.state === "done" ? [] : [view.key.toLowerCase()],
+		),
+	);
+	const linked = linkedDoneKeys(name, relationsByKey);
+	const shown = withKey.filter((view) => {
+		const key = view.key.toLowerCase();
+		return view.state !== "done" || (!openKeys.has(key) && linked.has(key));
+	});
+	const local = new Map(
+		shown.map((view) => [view.key.toLowerCase(), view] as const),
+	);
+	const links: ShownGraphLink[] = [];
+	const seen = new Set<string>();
+	const endOf = (
+		project: string,
+		key: string,
+		title: string,
+		tracker: "github" | "linear",
+	): GraphEnd => ({ project, key, tracker, title });
+	const push = (from: GraphEnd, to: GraphEnd, done: boolean) => {
+		if (
+			from.project.toLowerCase() === to.project.toLowerCase() &&
+			from.key.toLowerCase() === to.key.toLowerCase()
+		) {
+			return;
+		}
+		const id =
+			`${from.project}\0${from.key}\0${to.project}\0${to.key}`.toLowerCase();
+		if (seen.has(id)) {
+			return;
+		}
+		seen.add(id);
+		links.push({ from, to, done });
+	};
+	for (const view of shown) {
+		const relations = relationsByKey.get(view.key.toLowerCase());
+		if (relations === undefined) {
+			continue;
+		}
+		const target = endOf(name, view.key, view.title, tracker);
+		for (const link of relations.links) {
+			const outside = link.outside;
+			const holder = local.get(link.key.toLowerCase());
+			const source =
+				outside === undefined
+					? endOf(name, link.key, holder?.title ?? link.key, tracker)
+					: endOf(outside.project, outside.key, outside.title, outside.tracker);
+			const onGraph = outside !== undefined || holder !== undefined;
+			if (onGraph) {
+				push(source, target, link.done);
+			}
+		}
+		for (const blocked of relations.blocks) {
+			if (blocked.project.toLowerCase() === name.toLowerCase()) {
+				continue;
+			}
+			push(
+				target,
+				endOf(blocked.project, blocked.key, blocked.title, blocked.tracker),
+				view.state === "done",
+			);
+		}
+	}
+	return { tickets: shown, links };
 }
 
 export function samePin(left: ProjectPin, right: ProjectPin): boolean {
@@ -3891,6 +3992,15 @@ export function projectReport(
 				: {}),
 		};
 	});
+	const doneTickets = boardTickets.filter(
+		(ticket) => ticket.statusType === "done",
+	);
+	const graph = shownGraph(
+		counts.name,
+		counts.tracker,
+		boardTickets,
+		relationsByKey,
+	);
 	return {
 		name: counts.name,
 		tracker: counts.tracker,
@@ -3899,7 +4009,9 @@ export function projectReport(
 		sections,
 		done: counts.done,
 		total: counts.tickets.length,
-		doneTickets: boardTickets.filter((ticket) => ticket.statusType === "done"),
+		doneTickets,
+		graphTickets: graph.tickets,
+		graphLinks: graph.links,
 	};
 }
 
@@ -3979,10 +4091,33 @@ export function filterProjectReport(
 	const done = report.doneTickets.filter((item) =>
 		matchesProjectView(item, view, shown, wanted, needle, now, false),
 	);
+	const keptKeys = new Set(
+		kept.flatMap((item) => (item.key === null ? [] : [item.key.toLowerCase()])),
+	);
+	const doneKeys = new Set(
+		done.flatMap((item) => (item.key === null ? [] : [item.key.toLowerCase()])),
+	);
+	const localKey = (end: { project: string; key: string }): string | null =>
+		end.project.toLowerCase() === report.name.toLowerCase()
+			? end.key.toLowerCase()
+			: null;
+	const graphLinks = report.graphLinks.filter((link) => {
+		const from = localKey(link.from);
+		const to = localKey(link.to);
+		const fromShown = from === null || keptKeys.has(from) || doneKeys.has(from);
+		const toShown = to === null || keptKeys.has(to) || doneKeys.has(to);
+		return fromShown && toShown;
+	});
+	const graphTickets = report.graphTickets.filter((ticket) => {
+		const key = ticket.key?.toLowerCase();
+		return key !== undefined && (keptKeys.has(key) || doneKeys.has(key));
+	});
 	return {
 		...report,
 		tickets: kept,
 		doneTickets: done,
+		graphTickets,
+		graphLinks,
 	};
 }
 

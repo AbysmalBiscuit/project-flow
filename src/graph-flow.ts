@@ -17,6 +17,7 @@ export type FlowNode = {
 export type FlowEdge = {
 	from: string;
 	to: string;
+	done?: boolean;
 };
 
 export type FlowPlace = {
@@ -778,25 +779,22 @@ export type FlowTicket = {
 export function graphTickets(report: ProjectReport): FlowTicket[] {
 	const seen = new Set<string>();
 	const outside: FlowTicket[] = [];
-	for (const ticket of report.tickets) {
-		for (const blocker of [
-			...(ticket.outsideBlockers ?? []),
-			...(ticket.blocks ?? []),
-		]) {
-			if (blocker.project.toLowerCase() === report.name.toLowerCase()) {
+	for (const link of report.graphLinks) {
+		for (const end of [link.from, link.to]) {
+			if (end.project.toLowerCase() === report.name.toLowerCase()) {
 				continue;
 			}
-			const id = projectNodeId(blocker.project, blocker.key);
+			const id = projectNodeId(end.project, end.key);
 			if (seen.has(id)) {
 				continue;
 			}
 			seen.add(id);
 			outside.push({
-				key: blocker.key,
-				title: blocker.title,
-				project: blocker.project,
+				key: end.key,
+				title: end.title,
+				project: end.project,
 				outside: true,
-				tracker: blocker.tracker,
+				tracker: end.tracker,
 				blockers: [],
 				outsideBlockers: [],
 				blocks: [],
@@ -808,7 +806,7 @@ export function graphTickets(report: ProjectReport): FlowTicket[] {
 			`${right.project} ${right.key}`,
 		),
 	);
-	const local = report.tickets.flatMap((ticket) => {
+	const local = report.graphTickets.flatMap((ticket) => {
 		if (ticket.key === null) {
 			return [];
 		}
@@ -878,91 +876,9 @@ export function graphBand(
 }
 
 export function graphEdges(report: ProjectReport): FlowEdge[] {
-	const local = localIds(report);
-	const edges: FlowEdge[] = [];
-	for (const ticket of report.tickets) {
-		pushTicketEdges(edges, report, ticket, local);
-	}
-	return edges;
-}
-
-function localIds(report: ProjectReport): Map<string, string> {
-	const local = new Map<string, string>();
-	for (const ticket of report.tickets) {
-		if (ticket.key !== null) {
-			local.set(
-				ticket.key.toLowerCase(),
-				projectNodeId(report.name, ticket.key),
-			);
-		}
-	}
-	return local;
-}
-
-function pushTicketEdges(
-	edges: FlowEdge[],
-	report: ProjectReport,
-	ticket: ProjectReport["tickets"][number],
-	local: Map<string, string>,
-): void {
-	if (ticket.key === null) {
-		return;
-	}
-	const target = projectNodeId(report.name, ticket.key);
-	pushBlockerEdges(edges, ticket.blockers, local, target);
-	pushOutsideBlockers(edges, ticket.outsideBlockers ?? [], target);
-	pushBlockedEdges(edges, report, ticket.blocks ?? [], target);
-}
-
-function pushBlockerEdges(
-	edges: FlowEdge[],
-	blockers: readonly string[],
-	local: Map<string, string>,
-	target: string,
-): void {
-	for (const key of blockers) {
-		const source = local.get(key.toLowerCase());
-		if (source !== undefined && source !== target) {
-			edges.push({ from: source, to: target });
-		}
-	}
-}
-
-function pushOutsideBlockers(
-	edges: FlowEdge[],
-	blockers: readonly { project: string; key: string }[],
-	target: string,
-): void {
-	for (const blocker of blockers) {
-		edges.push({
-			from: projectNodeId(blocker.project, blocker.key),
-			to: target,
-		});
-	}
-}
-
-function pushBlockedEdges(
-	edges: FlowEdge[],
-	report: ProjectReport,
-	blocked: readonly { project: string; key: string }[],
-	target: string,
-): void {
-	for (const item of blocked) {
-		pushBlockedEdge(edges, report, item, target);
-	}
-}
-
-function pushBlockedEdge(
-	edges: FlowEdge[],
-	report: ProjectReport,
-	blocked: { project: string; key: string },
-	target: string,
-): void {
-	if (blocked.project.toLowerCase() === report.name.toLowerCase()) {
-		return;
-	}
-	edges.push({
-		from: target,
-		to: projectNodeId(blocked.project, blocked.key),
-	});
+	return report.graphLinks.map((link) => ({
+		from: projectNodeId(link.from.project, link.from.key),
+		to: projectNodeId(link.to.project, link.to.key),
+		done: link.done,
+	}));
 }

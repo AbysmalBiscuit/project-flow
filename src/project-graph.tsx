@@ -110,6 +110,7 @@ type TicketEdgeData = {
 	nodes: NodeBound[];
 	label: { x: number; y: number };
 	side: number;
+	done: boolean;
 };
 
 function shortTicket(key: string, project: string, outside: boolean): string {
@@ -230,10 +231,12 @@ function TicketEdge({
 		data?.entries ?? 1,
 		data?.side,
 	);
+	const done = data?.done === true;
 	return (
 		<BaseEdge
 			id={id}
 			path={drawn.path}
+			className={done ? classToken(board.edgeDone) : undefined}
 			{...(markerEnd === undefined ? {} : { markerEnd })}
 		/>
 	);
@@ -518,7 +521,7 @@ export function graphModel(
 		targetHandle: toHandle,
 		type: "ticket" as const,
 		markerEnd: marker,
-		data: {},
+		data: { done: link.done === true },
 	}));
 	const bounds = new Map(
 		nodes.flatMap((node) => {
