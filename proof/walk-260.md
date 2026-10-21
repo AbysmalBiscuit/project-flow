@@ -12,7 +12,13 @@ Item 1, equal card height. Replay `proof/walk-260-heights.json`:
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/walk-260-heights.json --proof .devkit/proof --item 1
 ```
 
-Measure each `li[id^=project-card]` height. The three heights are equal. `acme/short` shows `+5 more`.
+The walk tool has no eval action, so that replay records no card height. Measure each `li[id^=project-card]` height with `proof/measure-260-heights.mjs`. It serves `proof/serve-cards.ts` on a recorded server, reads each card height, and writes `.devkit/proof/walk-260-heights.log`. That folder is gitignored. Do not commit the log.
+
+```
+bun proof/measure-260-heights.mjs
+```
+
+The three heights are equal. `acme/short` shows `+5 more`.
 
 Item 2, the overflow chip. Replay `proof/walk-260-more.json`:
 
