@@ -182,9 +182,8 @@ export function useSaveSettings() {
 			}
 			return settingsPageOf(body);
 		},
-		onSuccess: (saved, sent) => {
+		onSuccess: (saved) => {
 			const written: SettingsRead = {
-				...sent,
 				...saved.settings,
 				trackers: saved.trackers,
 				projects: saved.projects,
