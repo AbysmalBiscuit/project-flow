@@ -2,11 +2,7 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import type { Configuration } from "./configuration.ts";
 import type { ProjectReport, SettingsProject } from "./domain.ts";
-import {
-	readStoredPage,
-	readStoredPolling,
-	storedObject,
-} from "./stored-page.ts";
+import { storedObject } from "./stored-page.ts";
 
 type SettingsPage = {
 	settings: Configuration;
@@ -52,18 +48,6 @@ export function writePageCache(
 
 let storedSeeded = false;
 
-function seedOverview(stored: unknown, polling: boolean | undefined): void {
-	const embedded = storedObject(stored);
-	if (embedded === null) {
-		return;
-	}
-	const overview = storedObject(embedded.overview);
-	if (overview === null) {
-		return;
-	}
-	writePageCache("polling", overview.polling === true || polling === true);
-}
-
 function seedSettingsPage(stored: unknown): void {
 	const body = storedObject(stored);
 	if (body === null) {
@@ -96,21 +80,19 @@ function seedProject(pathname: string, stored: unknown): void {
 	writePageCache(`project:${name}`, report as ProjectReport);
 }
 
-export function seedStoredPage(pathname: string): void {
+export function seedStoredPage(
+	pathname: string,
+	stored: unknown,
+	polling: boolean | undefined,
+): void {
 	if (storedSeeded) {
 		return;
 	}
 	storedSeeded = true;
-	const polling = readStoredPolling();
 	if (polling !== undefined) {
 		writePageCache("polling", polling);
 	}
-	const stored = readStoredPage();
 	if (stored === undefined) {
-		return;
-	}
-	if (pathname === "/") {
-		seedOverview(stored, polling);
 		return;
 	}
 	if (pathname === "/settings") {

@@ -4,14 +4,9 @@ import type { Configuration } from "./configuration.ts";
 import type { InboxEntry, NeedsYouItem, Overview } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import { writePageCache } from "./page-cache.ts";
-import {
-	readStoredPage,
-	readStoredPolling,
-	storedObject,
-} from "./stored-page.ts";
+import { storedObject } from "./stored-page.ts";
 
-/** A query stays fresh across a client navigation inside one poll interval. */
-export const pageStaleTimeMs = 60_000;
+const pageStaleTimeMs = 60_000;
 
 export const pageQuery = {
 	overview: queryOptions({
@@ -32,9 +27,10 @@ export const pageQuery = {
 	}),
 };
 
-const client = new QueryClient({
+export const pageQueryClient = new QueryClient({
 	defaultOptions: {
 		queries: {
+			// 60 seconds keeps a query fresh across client navigation.
 			staleTime: pageStaleTimeMs,
 			retry: false,
 			refetchOnWindowFocus: false,
@@ -43,9 +39,7 @@ const client = new QueryClient({
 	},
 });
 
-export const pageQueryClient = client;
-
-export async function fetchJson<T>(path: string): Promise<T> {
+async function fetchJson<T>(path: string): Promise<T> {
 	const response = await fetch(path);
 	if (!response.ok) {
 		throw new Error(`${path} failed (HTTP ${response.status})`);
@@ -55,62 +49,76 @@ export async function fetchJson<T>(path: string): Promise<T> {
 
 let storedSeeded = false;
 
-function seedOverview(stored: unknown, polling: boolean | undefined): void {
-	const embedded = storedObject(stored);
-	if (embedded === null) {
-		return;
-	}
-	const overview = storedObject(embedded.overview);
+function seedOverview(
+	stored: Record<string, unknown>,
+	polling: boolean | undefined,
+): void {
+	const overview = storedObject(stored.overview);
 	if (overview === null) {
 		return;
 	}
 	const body = overview as Overview;
-	client.setQueryData(pageQuery.overview.queryKey, {
+	pageQueryClient.setQueryData(pageQuery.overview.queryKey, {
 		...body,
 		...(body.polling === true || polling === true ? { polling: true } : {}),
 	});
-	const settings = storedObject(embedded.settings);
+	writePageCache("polling", body.polling === true || polling === true);
+	const settings = storedObject(stored.settings);
 	if (settings !== null) {
-		client.setQueryData(pageQuery.settings.queryKey, settings as Configuration);
+		pageQueryClient.setQueryData(
+			pageQuery.settings.queryKey,
+			settings as Configuration,
+		);
 	}
 }
 
-export function seedPageQueries(pathname: string): void {
+export function seedPageQueries(
+	pathname: string,
+	stored: unknown,
+	polling: boolean | undefined,
+): void {
 	if (storedSeeded) {
 		return;
 	}
 	storedSeeded = true;
-	const polling = readStoredPolling();
-	const stored = readStoredPage();
 	if (stored === undefined) {
 		return;
 	}
 	if (pathname === "/") {
-		seedOverview(stored, polling);
+		const embedded = storedObject(stored);
+		if (embedded !== null) {
+			seedOverview(embedded, polling);
+		}
 		return;
 	}
 	if (pathname === "/needs-you" && Array.isArray(stored)) {
-		client.setQueryData(pageQuery.needsYou.queryKey, stored as NeedsYouItem[]);
+		pageQueryClient.setQueryData(
+			pageQuery.needsYou.queryKey,
+			stored as NeedsYouItem[],
+		);
 		return;
 	}
 	if (pathname === "/inbox" && Array.isArray(stored)) {
-		client.setQueryData(pageQuery.inbox.queryKey, stored as InboxEntry[]);
+		pageQueryClient.setQueryData(
+			pageQuery.inbox.queryKey,
+			stored as InboxEntry[],
+		);
 	}
 }
 
 let eventsWired = false;
 
 function applyOverviewEvent(body: Overview): void {
-	client.setQueryData(pageQuery.overview.queryKey, body);
+	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body);
 	writePageCache("polling", body.polling === true);
-	void client.invalidateQueries(pageQuery.needsYou);
-	void client.invalidateQueries(pageQuery.inbox);
+	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
+	void pageQueryClient.invalidateQueries(pageQuery.inbox);
 }
 
 function invalidatePageQueries(): void {
-	void client.invalidateQueries(pageQuery.overview);
-	void client.invalidateQueries(pageQuery.needsYou);
-	void client.invalidateQueries(pageQuery.inbox);
+	void pageQueryClient.invalidateQueries(pageQuery.overview);
+	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
+	void pageQueryClient.invalidateQueries(pageQuery.inbox);
 }
 
 export function wirePageQueryEvents(): void {
@@ -123,6 +131,6 @@ export function wirePageQueryEvents(): void {
 		applyOverviewEvent(JSON.parse(event.data) as Overview);
 	});
 	onAppEvent("notification", () => {
-		void client.invalidateQueries(pageQuery.inbox);
+		void pageQueryClient.invalidateQueries(pageQuery.inbox);
 	});
 }

@@ -6,6 +6,7 @@ import { installPageLinks } from "./page-links.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { seedPageQueries, wirePageQueryEvents } from "./queries.ts";
 import { clearTicketOnPageChange } from "./selection.ts";
+import { readStoredPage, readStoredPolling } from "./stored-page.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
 
@@ -15,8 +16,10 @@ installPageLinks();
 wirePageQueryEvents();
 
 applyPageTheme(pageTheme());
-seedStoredPage(window.location.pathname);
-seedPageQueries(window.location.pathname);
+const storedPage = readStoredPage();
+const storedPolling = readStoredPolling();
+seedStoredPage(window.location.pathname, storedPage, storedPolling);
+seedPageQueries(window.location.pathname, storedPage, storedPolling);
 
 const pages = [
 	{ path: "/needs-you", load: () => import("./needs-you.tsx") },
