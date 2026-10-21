@@ -1262,6 +1262,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (polling !== null) {
 			return polling;
 		}
+		let rejected = false;
 		polling = (async () => {
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
@@ -1269,6 +1270,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			try {
 				configuration = await poll(pollOptions);
 			} catch (error) {
+				rejected = true;
 				if (stopped) {
 					return;
 				}
@@ -1289,13 +1291,17 @@ export async function start(options: StartOptions): Promise<Running> {
 			if (stopped) {
 				return;
 			}
-			notifier.publish({
-				overview: overview(pollOptions, configuration),
-				notifications: [],
-			});
+			// A successful poll already published. Publish here only after a
+			// rejection, so an empty store still ends the running state.
+			if (rejected) {
+				notifier.publish({
+					overview: overview(pollOptions, configuration),
+					notifications: [],
+				});
+			}
 			// A cold failure stops the process on the next turn. Yield so the
 			// settled overview leaves the event stream first.
-			if (!hadRows) {
+			if (rejected && !firstPollDone) {
 				await Bun.sleep(0);
 			}
 		});
