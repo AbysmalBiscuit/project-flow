@@ -1225,7 +1225,12 @@ describe("GET /api/projects/:name", () => {
 	});
 
 	test("the Blocks field lists each open ticket the row blocks, in this project and in others", async () => {
-		const gate = issue(8, "Open the gate", { body: "Blocks: #2" }, githubRepo);
+		const gate = issue(
+			8,
+			"Open the gate",
+			{ body: "Blocks: #2, #3" },
+			githubRepo,
+		);
 		const drawn = issue(2, "feat(ux): draw the nodes");
 		const closed = issue(3, "Already shipped", {
 			state: "closed",
