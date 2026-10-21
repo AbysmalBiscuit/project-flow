@@ -43,6 +43,7 @@ import {
 	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
+import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
 
@@ -798,10 +799,10 @@ function OverviewPage({
 						{needs.slice(0, 4).map((item) => (
 							<li
 								key={`${item.project}:${item.key}`}
-								className={clsx(cards.need)}
+								className={clsx(cards.need, phoneLayout.cardNeed)}
 							>
 								<a
-									className={clsx(cards.needKey)}
+									className={clsx(cards.needKey, phoneLayout.cardNeedKey)}
 									href={projectPath(item.project, item.key)}
 								>
 									{item.project}#{ticketKey(item.key)}
