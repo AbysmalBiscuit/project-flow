@@ -368,6 +368,16 @@ function nodeSpan(): TicketSize {
 	probe.className = classToken(board.ticketNode);
 	probe.style.position = "absolute";
 	probe.style.visibility = "hidden";
+	const meta = document.createElement("span");
+	meta.className = classToken(board.meta);
+	const key = document.createElement("span");
+	key.className = classToken(board.key);
+	key.textContent = "#00";
+	meta.append(key);
+	const title = document.createElement("span");
+	title.className = classToken(board.title);
+	title.textContent = "Ticket";
+	probe.append(meta, title);
 	document.body.append(probe);
 	const box = probe.getBoundingClientRect();
 	probe.remove();
@@ -520,6 +530,16 @@ export function graphModel(
 		markerEnd: marker,
 	}));
 	const span = nodeSpan();
+	const sized = nodes.map((node) =>
+		isClusterNode(node)
+			? node
+			: {
+					...node,
+					width: span.width,
+					height: span.height,
+					measured: span,
+				},
+	);
 	const bounds = new Map(
 		nodes.flatMap((node) => {
 			if (isClusterNode(node)) {
@@ -569,7 +589,7 @@ export function graphModel(
 		},
 	}));
 	return {
-		nodes: [...groups, ...nodes],
+		nodes: [...groups, ...sized],
 		edges,
 	};
 }
@@ -711,6 +731,7 @@ function SizedProjectGraph({
 					elementsSelectable={false}
 					panOnDrag
 					fitView
+					minZoom={0.1}
 					fitViewOptions={{
 						padding: fitPadding,
 						maxZoom: 1,
