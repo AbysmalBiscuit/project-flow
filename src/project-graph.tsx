@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
 	groupKeysOf,
+	groupLabelOf,
 	outsideKey,
 	type ProjectReport,
 	type TicketState,
@@ -33,7 +34,7 @@ import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
 const columnGap = 280;
-const rowGap = 120;
+const rowGap = 148;
 const groupPad = 16;
 const groupHead = 28;
 
@@ -44,6 +45,7 @@ type GraphTicketView = {
 	pull?: string;
 	needsYou?: boolean;
 	workstream?: string;
+	workstreamKey?: string;
 	theme?: string;
 	assignees?: string[];
 };
@@ -58,6 +60,7 @@ type TicketNodeData = {
 
 type ClusterNodeData = {
 	name: string;
+	label: string;
 };
 
 type ProjectNodeData = TicketNodeData | ClusterNodeData;
@@ -120,8 +123,8 @@ function ClusterNode({
 	data,
 }: NodeProps<FlowNode<ClusterNodeData, "cluster">>) {
 	return (
-		<div className={clsx(board.cluster)} data-group={data.name}>
-			{data.name}
+		<div className={clsx(board.cluster)} data-group={data.label}>
+			{data.label}
 		</div>
 	);
 }
@@ -300,6 +303,14 @@ function graphBand(
 	return names.find((name) => wanted.has(name.toLowerCase())) ?? names[0] ?? "";
 }
 
+function ticketIds(tickets: GraphTicket[]): string[] {
+	return tickets.flatMap((ticket) =>
+		ticket.ticket.key === null
+			? []
+			: [nodeId(ticket.project, ticket.ticket.key)],
+	);
+}
+
 function layoutTickets(
 	tickets: GraphTicket[],
 	edges: { from: string; to: string }[],
@@ -313,32 +324,21 @@ function layoutTickets(
 		sources.push(edge.from);
 		incoming.set(edge.to, sources);
 	}
-	const depth = columnDepth(
-		tickets.flatMap((ticket) =>
-			ticket.ticket.key === null
-				? []
-				: [nodeId(ticket.project, ticket.ticket.key)],
-		),
-		incoming,
-	);
-	const columns = new Map<number, string[]>();
+	const depth = columnDepth(ticketIds(tickets), incoming);
+	const outgoing = new Set(edges.map((edge) => edge.from));
 	const ordered = [...tickets].sort((left, right) =>
 		`${left.ticket.key ?? left.ticket.title}`.localeCompare(
 			`${right.ticket.key ?? right.ticket.title}`,
 		),
 	);
-	for (const ticket of ordered) {
-		const key = ticket.ticket.key;
-		if (key === null) {
-			continue;
-		}
-		const id = nodeId(ticket.project, key);
-		const column = depth.get(id) ?? 0;
-		const names = columns.get(column) ?? [];
-		names.push(id);
-		columns.set(column, names);
-	}
 	if (groupBy === "none") {
+		const columns = new Map<number, string[]>();
+		for (const id of ticketIds(ordered)) {
+			const column = depth.get(id) ?? 0;
+			const names = columns.get(column) ?? [];
+			names.push(id);
+			columns.set(column, names);
+		}
 		const positions = new Map<string, { x: number; y: number }>();
 		for (const [column, names] of columns) {
 			names.forEach((id, index) => {
@@ -355,57 +355,87 @@ function layoutTickets(
 	const groups = [
 		...new Set(tickets.flatMap((ticket) => bandNames(ticket, groupBy))),
 	].sort((left, right) => left.localeCompare(right));
-	const columnCounts = new Map<string, number>();
+	const members = new Map<string, string[]>();
 	for (const ticket of ordered) {
 		const key = ticket.ticket.key;
 		if (key === null) {
 			continue;
 		}
 		const name = graphBand(ticket, groupBy, assignees);
-		const column = depth.get(nodeId(ticket.project, key)) ?? 0;
-		const slot = `${name}\n${column}`;
-		columnCounts.set(slot, (columnCounts.get(slot) ?? 0) + 1);
+		const known = members.get(name) ?? [];
+		known.push(nodeId(ticket.project, key));
+		members.set(name, known);
 	}
-	const bandGap = direction === "top-to-bottom" ? columnGap : rowGap;
-	const boxGap =
-		direction === "top-to-bottom" ? groupPad * 2 : groupHead + groupPad;
-	const bandSize = new Map<string, number>();
+	const slots = new Map<string, { along: number; across: number }>();
+	const groupSpan = new Map<string, { along: number; across: number }>();
 	for (const name of groups) {
-		let largest = 1;
-		for (const [slot, count] of columnCounts) {
-			if (slot.startsWith(`${name}\n`)) {
-				largest = Math.max(largest, count);
-			}
+		const ids = members.get(name) ?? [];
+		const linked = ids.filter((id) => incoming.has(id) || outgoing.has(id));
+		const loose = ids.filter((id) => !incoming.has(id) && !outgoing.has(id));
+		const byColumn = new Map<number, string[]>();
+		let minDepth = Number.POSITIVE_INFINITY;
+		for (const id of linked) {
+			const column = depth.get(id) ?? 0;
+			minDepth = Math.min(minDepth, column);
+			const names = byColumn.get(column) ?? [];
+			names.push(id);
+			byColumn.set(column, names);
 		}
-		bandSize.set(name, largest * bandGap + boxGap);
+		const looseAcross =
+			loose.length === 0 ? 1 : Math.ceil(Math.sqrt(loose.length));
+		const looseAlong =
+			loose.length === 0 ? 0 : Math.ceil(loose.length / looseAcross);
+		const chainStart = Number.isFinite(minDepth) ? minDepth : 0;
+		let chainAcross = 1;
+		let chainAlong = 0;
+		for (const [column, names] of byColumn) {
+			const along = column - chainStart;
+			names.forEach((id, index) => {
+				slots.set(id, { along, across: index });
+			});
+			chainAcross = Math.max(chainAcross, names.length);
+			chainAlong = Math.max(chainAlong, along + 1);
+		}
+		loose.forEach((id, index) => {
+			slots.set(id, {
+				along: chainAlong + Math.floor(index / looseAcross),
+				across: index % looseAcross,
+			});
+		});
+		groupSpan.set(name, {
+			along: Math.max(chainAlong + looseAlong, 1),
+			across: Math.max(loose.length === 0 ? 1 : looseAcross, chainAcross),
+		});
 	}
-	const bandStart = new Map<string, number>();
+	const groupStart = new Map<string, number>();
 	let cursor = 0;
 	for (const name of groups) {
-		bandStart.set(name, cursor);
-		cursor += bandSize.get(name) ?? bandGap;
+		groupStart.set(name, cursor);
+		const span = groupSpan.get(name) ?? { along: 1, across: 1 };
+		const width =
+			direction === "top-to-bottom"
+				? span.across * columnGap
+				: span.along * columnGap;
+		cursor += width + groupPad * 2;
 	}
 	const positions = new Map<string, { x: number; y: number }>();
-	for (const [column, names] of columns) {
-		const row = new Map<string, number>();
-		names.forEach((id) => {
-			const ticket = tickets.find(
-				(item) =>
-					item.ticket.key !== null &&
-					nodeId(item.project, item.ticket.key) === id,
-			);
-			const name =
-				ticket === undefined ? "" : graphBand(ticket, groupBy, assignees);
-			const index = row.get(name) ?? 0;
-			row.set(name, index + 1);
-			const shift = bandStart.get(name) ?? 0;
+	for (const [name, ids] of members) {
+		const origin = groupStart.get(name) ?? 0;
+		for (const id of ids) {
+			const slot = slots.get(id) ?? { along: 0, across: 0 };
 			positions.set(
 				id,
 				direction === "top-to-bottom"
-					? { x: index * columnGap + shift, y: column * rowGap }
-					: { x: column * columnGap, y: index * rowGap + shift },
+					? {
+							x: slot.across * columnGap + origin,
+							y: slot.along * rowGap,
+						}
+					: {
+							x: slot.along * columnGap + origin,
+							y: slot.across * rowGap,
+						},
 			);
-		});
+		}
 	}
 	return positions;
 }
@@ -457,7 +487,7 @@ function clusterNodes(
 	}
 	const groups = new Map<
 		string,
-		{ x: number; y: number; size: TicketSize }[]
+		{ label: string; places: { x: number; y: number; size: TicketSize }[] }
 	>();
 	for (const ticket of tickets) {
 		const key = ticket.ticket.key;
@@ -471,13 +501,15 @@ function clusterNodes(
 		if (place === undefined || size === undefined || name === "") {
 			continue;
 		}
-		const known = groups.get(name) ?? [];
-		known.push({ x: place.x, y: place.y, size });
+		const label = groupLabelOf(ticket.ticket, groupBy, name);
+		const known = groups.get(name) ?? { label, places: [] };
+		known.places.push({ x: place.x, y: place.y, size });
 		groups.set(name, known);
 	}
 	return [...groups.entries()]
-		.sort((left, right) => left[0].localeCompare(right[0]))
-		.map(([name, places]) => {
+		.sort((left, right) => left[1].label.localeCompare(right[1].label))
+		.map(([name, group]) => {
+			const places = group.places;
 			const left = Math.min(...places.map((place) => place.x));
 			const top = Math.min(...places.map((place) => place.y));
 			const right = Math.max(
@@ -494,7 +526,7 @@ function clusterNodes(
 				position: { x: left - groupPad, y: top - groupHead },
 				width,
 				height,
-				data: { name },
+				data: { name, label: group.label },
 				zIndex: 0,
 				draggable: false,
 				selectable: false,

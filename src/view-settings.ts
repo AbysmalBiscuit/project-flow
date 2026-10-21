@@ -20,6 +20,8 @@ export const defaultGraphDirection = "left-to-right" as const;
 
 export const defaultGroupBy = "none" as const;
 
+export const defaultGraphGroupBy = "workstream" as const;
+
 export function projectViewKey(
 	views: Record<string, unknown>,
 	name: string,
@@ -38,7 +40,6 @@ export function viewDefaults(): ProjectViewSettings {
 		search: "",
 		openView: defaultOpenView,
 		graphDirection: defaultGraphDirection,
-		groupBy: defaultGroupBy,
 	};
 }
 
@@ -50,11 +51,33 @@ export function savedProjectView(
 	const star = starKey === undefined ? undefined : views[starKey];
 	const key = projectViewKey(views, name);
 	const saved = key === undefined || key === starKey ? undefined : views[key];
+	const { groupBy: starGroupBy, ...starRest } = star ?? {};
+	const { groupBy: savedGroupBy, ...savedRest } = saved ?? {};
+	const groupBy = savedGroupBy ?? starGroupBy;
 	return {
 		...viewDefaults(),
-		...(star === undefined ? {} : star),
-		...(saved === undefined ? {} : saved),
+		...starRest,
+		...savedRest,
+		...(groupBy === undefined ? {} : { groupBy }),
 	};
+}
+
+export function groupByWasSaved(
+	views: Record<string, unknown>,
+	name: string,
+): boolean {
+	const starKey = projectViewKey(views, "*");
+	const key = projectViewKey(views, name);
+	const chosen = key !== undefined && key !== starKey ? key : starKey;
+	if (chosen === undefined) {
+		return false;
+	}
+	const stored = views[chosen];
+	return (
+		stored !== null &&
+		typeof stored === "object" &&
+		Object.hasOwn(stored, "groupBy")
+	);
 }
 
 type LaneRef = { name: string; statusType: string };

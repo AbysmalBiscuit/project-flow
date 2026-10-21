@@ -27,8 +27,11 @@ import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
 import {
+	defaultGraphGroupBy,
+	defaultGroupBy,
 	type GroupBy,
 	groupByKeys,
+	groupByWasSaved,
 	laneAgeCap,
 	savedProjectView,
 	visibleLaneNames,
@@ -211,6 +214,14 @@ function countLine(report: ProjectReport, view: ProjectViewSettings): string {
 
 function isGroupBy(value: string): value is GroupBy {
 	return (groupByKeys as readonly string[]).includes(value);
+}
+
+function graphGroupBy(settings: ProjectViewSettings): GroupBy {
+	return settings.groupBy ?? defaultGraphGroupBy;
+}
+
+function boardGroupBy(settings: ProjectViewSettings): GroupBy {
+	return settings.groupBy ?? defaultGroupBy;
 }
 
 function laneTickets(report: ProjectReport, lane: string): TicketView[] {
@@ -434,8 +445,8 @@ function Lane({
 					/>
 				) : (
 					ticketGroups(visible, groupBy).map((group) => (
-						<div key={group.name} data-group={group.name}>
-							<h3 className={clsx(board.swimlane)}>{group.name}</h3>
+						<div key={group.name} data-group={group.label}>
+							<h3 className={clsx(board.swimlane)}>{group.label}</h3>
 							<LaneCards
 								tickets={group.tickets}
 								onOpen={onOpen}
@@ -760,13 +771,13 @@ function TicketTable({
 								groupBy === "none"
 									? []
 									: [
-											<tr key={`group-${group.name}`} data-group={group.name}>
+											<tr key={`group-${group.name}`} data-group={group.label}>
 												<th
 													className={clsx(board.groupRow)}
 													colSpan={columns.length}
 													scope="rowgroup"
 												>
-													{group.name} {group.tickets.length}
+													{group.label} {group.tickets.length}
 												</th>
 											</tr>,
 										];
@@ -813,13 +824,13 @@ function Board({
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
-		<div className={clsx(board.lanes)} data-group-by={settings.groupBy}>
+		<div className={clsx(board.lanes)} data-group-by={boardGroupBy(settings)}>
 			{visibleLanes(report, settings).map((lane) => (
 				<Lane
 					key={lane.id}
 					name={lane.name}
 					colour={lane.colour}
-					groupBy={settings.groupBy}
+					groupBy={boardGroupBy(settings)}
 					tickets={laneTickets(report, lane.name)}
 					capped={lane.statusType === "done"}
 					shown={shownDone}
@@ -1010,6 +1021,7 @@ function Page() {
 		null,
 	);
 	const [view, setView] = useState<OpenView>("board");
+	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
 	const [report, setReport] = useState<ProjectReport | null>(null);
 	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
@@ -1057,9 +1069,11 @@ function Page() {
 				const body = (await response.json()) as {
 					projectViews?: Record<string, ProjectViewSettings>;
 				};
-				const saved = savedProjectView(body.projectViews ?? {}, loaded);
+				const views = body.projectViews ?? {};
+				const saved = savedProjectView(views, loaded);
 				setSettings(saved);
 				setView(saved.openView);
+				groupBySavedRef.current = groupByWasSaved(views, loaded);
 			})
 			.catch(() => {});
 		return () => {
@@ -1217,6 +1231,9 @@ function Page() {
 		saveGeneration.current = generation;
 		setSettings(next);
 		setView(next.openView);
+		const stored = groupBySavedRef.current
+			? next
+			: (({ groupBy: _groupBy, ...rest }) => rest)(next);
 		const write = saveChain.current.then(async () => {
 			if (generation !== saveGeneration.current) {
 				return;
@@ -1241,7 +1258,7 @@ function Page() {
 				Object.keys(projectViews).find(
 					(item) => item.toLowerCase() === project.toLowerCase(),
 				) ?? project;
-			projectViews[key] = next;
+			projectViews[key] = stored;
 			const saved = await fetch("/api/settings", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
@@ -1256,7 +1273,9 @@ function Page() {
 			if (generation !== saveGeneration.current) {
 				return;
 			}
-			const confirmed = savedProjectView(written.projectViews ?? {}, project);
+			const views = written.projectViews ?? {};
+			const confirmed = savedProjectView(views, project);
+			groupBySavedRef.current = groupByWasSaved(views, project);
 			setSettings(confirmed);
 			setView(confirmed.openView);
 		});
@@ -1328,13 +1347,16 @@ function Page() {
 					<Dropdown
 						id="project-group"
 						label="Group by"
-						value={settings.groupBy}
+						value={
+							view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
+						}
 						choices={groupByKeys.map((id) => ({
 							id,
 							label: `Group by ${groupByLabel[id]}`,
 						}))}
 						onChange={(id) => {
 							if (isGroupBy(id)) {
+								groupBySavedRef.current = true;
 								saveView({ ...settings, groupBy: id });
 							}
 						}}
@@ -1370,7 +1392,9 @@ function Page() {
 				<div
 					data-project={report.name}
 					data-open-view={view}
-					data-group-by={settings.groupBy}
+					data-group-by={
+						view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
+					}
 				/>
 				<div className={clsx(board.stage)}>
 					{view === "board" ? (
@@ -1384,7 +1408,7 @@ function Page() {
 					) : view === "table" ? (
 						<TicketTable
 							report={report}
-							groupBy={settings.groupBy}
+							groupBy={boardGroupBy(settings)}
 							selected={open ? ticket : null}
 							onOpen={openTicketInPanel}
 							onOpenOutside={openOutsideInPanel}
@@ -1394,7 +1418,7 @@ function Page() {
 							report={report}
 							reports={outsideReports}
 							direction={settings.graphDirection}
-							groupBy={settings.groupBy}
+							groupBy={graphGroupBy(settings)}
 							assignees={settings.assignees}
 							openKey={open ? ticket : null}
 							onOpen={(node) => {

@@ -2007,8 +2007,10 @@ export const board = stylex.create({
 	ticketGraph: {
 		position: "relative",
 		flex: "1 1 auto",
+		alignSelf: "stretch",
 		minWidth: 0,
-		minHeight: measure.boardMin,
+		height: measure.boardMin,
+		minHeight: 0,
 		overflow: "hidden",
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
