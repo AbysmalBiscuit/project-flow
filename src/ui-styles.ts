@@ -58,16 +58,17 @@ export const frame = stylex.create({
 		borderBottomColor: colours.laneLine,
 		backgroundColor: colours.raised,
 	},
-	// A narrow project page fits the shell bar to the viewport. Other pages
-	// keep the fixed one-line bar.
+	// The project page adds this class. Other pages keep the one-line bar.
 	barFit: {
-		height: "auto",
-		minHeight: measure.shell,
-		flexWrap: "wrap",
-		paddingTop: space.sm,
-		paddingBottom: space.sm,
-		paddingLeft: space.sm,
-		paddingRight: space.sm,
+		"@media (max-width: 0)": {
+			height: "auto",
+			minHeight: measure.shell,
+			flexWrap: "wrap",
+			paddingTop: space.sm,
+			paddingBottom: space.sm,
+			paddingLeft: space.sm,
+			paddingRight: space.sm,
+		},
 	},
 	logo: {
 		display: "inline-flex",
@@ -298,7 +299,7 @@ export const frame = stylex.create({
 		gap: space.sm,
 		alignItems: "center",
 		boxSizing: "border-box",
-		flex: "1 1 auto",
+		flex: "0 0 auto",
 		height: measure.toggle,
 		width: measure.searchBox,
 		minWidth: 0,

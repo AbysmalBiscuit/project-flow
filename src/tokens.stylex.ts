@@ -270,6 +270,10 @@ export const lightScheme = stylex.createTheme(scheme, { page: "light" });
 
 export const darkScheme = stylex.createTheme(scheme, { page: "dark" });
 
+export const layout = stylex.defineVars({
+	shellNarrow: "480px",
+});
+
 export const measure = stylex.defineVars({
 	page: "84rem",
 	panel: "24rem",
