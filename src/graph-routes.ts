@@ -29,25 +29,31 @@ export type MarkerEnd = {
 	width: number;
 	height: number;
 	markerUnits: "userSpaceOnUse";
+	color?: string;
 };
 
-export function measureMarker(className: string): number {
+export function measureMarker(className: string): {
+	size: number;
+	color: string;
+} {
 	const probe = document.createElement("span");
 	probe.className = className;
 	probe.style.position = "absolute";
 	probe.style.visibility = "hidden";
 	document.body.append(probe);
-	const size = probe.getBoundingClientRect().width;
+	const box = probe.getBoundingClientRect();
+	const color = getComputedStyle(probe).backgroundColor;
 	probe.remove();
-	return size;
+	return { size: box.width, color };
 }
 
-export function markerEnd(size: number): MarkerEnd {
+export function markerEnd(size: number, color?: string): MarkerEnd {
 	return {
 		type: MarkerType.ArrowClosed,
 		width: size,
 		height: size,
 		markerUnits: "userSpaceOnUse",
+		...(color === undefined ? {} : { color }),
 	};
 }
 

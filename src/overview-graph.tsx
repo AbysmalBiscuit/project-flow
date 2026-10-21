@@ -191,7 +191,7 @@ export function graphModel(
 		};
 		return sizedNode(node, span);
 	});
-	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
+	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)).size);
 	const pending = shown.flatMap((project) =>
 		project.crossProjectBlockers.flatMap((blocker) =>
 			edgeFor(project.name, blocker, shownNames, marker),
