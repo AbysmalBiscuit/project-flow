@@ -1,17 +1,9 @@
-import { installStatusColours } from "./domain.ts";
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
 import { installPageLinks } from "./page-links.ts";
 import { clearTicketOnPageChange } from "./selection.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
-
-installStatusColours(() => {
-	const painted = (
-		globalThis as { __projectFlowColours?: Record<string, string> }
-	).__projectFlowColours;
-	return painted ?? {};
-});
 
 watchNotifications();
 mountJumpBox();
