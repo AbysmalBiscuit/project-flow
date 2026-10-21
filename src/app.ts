@@ -1028,12 +1028,10 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	const fullKeys = [...options.fullPoll];
 	for (const key of fullKeys) {
-		const outcome = outcomes.get(key);
-		if (outcome?.ok !== true) {
-			continue;
+		if (outcomes.get(key)?.ok === true) {
+			options.fullPoll.delete(key);
+			options.lastFullPollAt.set(key, polledAt.getTime());
 		}
-		options.fullPoll.delete(key);
-		options.lastFullPollAt.set(key, polledAt.getTime());
 	}
 	options.polling = false;
 	if (options.stopped) {
