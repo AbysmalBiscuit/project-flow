@@ -37,7 +37,7 @@ import {
 	ticketTotal,
 	trackerName,
 } from "./progress-bar.tsx";
-import { pageQuery } from "./queries.ts";
+import { configurationOf, pageQuery } from "./queries.ts";
 import {
 	PageFrame,
 	type PageView,
@@ -1057,7 +1057,10 @@ function OverviewPage({
 export function Page() {
 	const queries = useQueryClient();
 	const overviewQuery = useQuery(pageQuery.overview);
-	const settingsQuery = useQuery(pageQuery.settings);
+	const settingsQuery = useQuery({
+		...pageQuery.settings,
+		select: configurationOf,
+	});
 	const [progress, setProgress] = useState<PollProgress | null>(null);
 	useEffect(() => {
 		return onAppEvent("progress", (event) => {

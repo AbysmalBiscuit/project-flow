@@ -4,6 +4,7 @@ import {
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
+import { readSettings, type SettingsRead } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
 	InboxEntry,
@@ -17,13 +18,13 @@ import type {
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import { storedObject } from "./stored-page.ts";
 
-export type SettingsPage = {
+type SettingsPage = {
 	settings: Configuration;
 	projects: SettingsProject[];
 	trackers: { github: boolean; linear: boolean };
 };
 
-export type ReplyBody = {
+type ReplyBody = {
 	tracker: "github" | "linear";
 	project: string;
 	key: string;
@@ -53,8 +54,9 @@ export const pageQuery = {
 		queryFn: readSettings,
 	}),
 	settingsPage: queryOptions({
-		queryKey: ["settings-page"],
-		queryFn: readSettingsPage,
+		queryKey: ["settings"],
+		queryFn: readSettings,
+		select: settingsPageOf,
 	}),
 	project: (name: string, view?: "all") =>
 		queryOptions({
@@ -88,43 +90,30 @@ async function fetchJson<T>(path: string): Promise<T> {
 	return (await response.json()) as T;
 }
 
-async function readSettings(): Promise<Configuration | null> {
-	const response = await fetch("/api/settings");
-	if (!response.ok) {
+export function configurationOf(
+	body: SettingsRead | null,
+): Configuration | null {
+	if (body === null) {
 		return null;
 	}
-	const body: unknown = await response.json();
-	if (body === null || typeof body !== "object") {
-		return null;
-	}
-	return body as Configuration;
-}
-
-type SettingsBody = Configuration & {
-	trackers?: SettingsPage["trackers"];
-	projects?: SettingsProject[];
-	error?: string;
-};
-
-function configurationOf(body: SettingsBody): Configuration {
-	const { trackers: _trackers, projects: _projects, ...configuration } = body;
+	const {
+		trackers: _trackers,
+		projects: _projects,
+		error: _error,
+		...configuration
+	} = body;
 	return configuration;
 }
 
-export function settingsPageOf(body: SettingsBody): SettingsPage {
+export function settingsPageOf(body: SettingsRead | null): SettingsPage {
+	if (body === null) {
+		throw new Error("settings failed");
+	}
 	return {
 		trackers: body.trackers ?? { github: false, linear: false },
 		projects: body.projects ?? [],
-		settings: configurationOf(body),
+		settings: configurationOf(body) ?? body,
 	};
-}
-
-async function readSettingsPage(): Promise<SettingsPage> {
-	const response = await fetch("/api/settings");
-	if (!response.ok) {
-		throw new Error(`settings failed (HTTP ${response.status})`);
-	}
-	return settingsPageOf((await response.json()) as SettingsBody);
 }
 
 async function readProject(
@@ -144,7 +133,7 @@ async function readProject(
 	return (await response.json()) as ProjectReport;
 }
 
-export type ThreadRead =
+type ThreadRead =
 	| { status: "ready"; thread: Thread }
 	| { status: "missing" }
 	| { status: "failed" };
@@ -167,7 +156,7 @@ async function readThread(
 	return { status: "ready", thread: (await response.json()) as Thread };
 }
 
-export type SettingsWrite = Configuration & {
+type SettingsWrite = Configuration & {
 	baselineTracked?: Configuration["tracked"];
 };
 
@@ -181,7 +170,7 @@ export function useSaveSettings() {
 				body: JSON.stringify(next),
 			});
 			const body = (await response.json().catch(() => null)) as
-				| (SettingsBody & { error?: string })
+				| (SettingsRead & { error?: string })
 				| null;
 			if (!response.ok) {
 				throw new Error(body?.error ?? `save failed (HTTP ${response.status})`);
@@ -191,11 +180,14 @@ export function useSaveSettings() {
 			}
 			return settingsPageOf(body);
 		},
-		onSuccess: (saved) => {
-			queries.setQueryData(pageQuery.settingsPage.queryKey, saved);
-			queries.setQueryData(pageQuery.settings.queryKey, saved.settings);
-			void queries.invalidateQueries(pageQuery.settingsPage);
-			void queries.invalidateQueries(pageQuery.settings);
+		onSuccess: (saved, sent) => {
+			const written: SettingsRead = {
+				...sent,
+				...saved.settings,
+				trackers: saved.trackers,
+				projects: saved.projects,
+			};
+			queries.setQueryData(pageQuery.settings.queryKey, written);
 			void queries.invalidateQueries({ queryKey: ["project"] });
 		},
 	});
@@ -245,7 +237,7 @@ function seedOverview(
 	if (settings !== null) {
 		pageQueryClient.setQueryData(
 			pageQuery.settings.queryKey,
-			settings as Configuration,
+			settings as SettingsRead,
 		);
 	}
 }
@@ -294,8 +286,8 @@ export function seedPageQueries(
 		const body = storedObject(stored);
 		if (body !== null) {
 			pageQueryClient.setQueryData(
-				pageQuery.settingsPage.queryKey,
-				settingsPageOf(body as SettingsBody),
+				pageQuery.settings.queryKey,
+				body as SettingsRead,
 			);
 		}
 		return;
@@ -331,7 +323,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries(pageQuery.overview);
 	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
-	void pageQueryClient.invalidateQueries(pageQuery.settingsPage);
+	void pageQueryClient.invalidateQueries(pageQuery.settings);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
 }
