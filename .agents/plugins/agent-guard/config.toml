@@ -10,8 +10,7 @@ lizard_baseline = ".agents/plugins/agent-guard/whitelizard.txt"
 lizard_ccn = 10000
 lizard_length = 200
 lizard_arguments = 10000
-# fallow covers TypeScript and JavaScript duplication. jscpd stays off for
-# those types and reads Python.
+# fallow covers TypeScript and JavaScript duplication, so jscpd reads only Python.
 jscpd = true
 jscpd_extensions = '\.py$'
 
