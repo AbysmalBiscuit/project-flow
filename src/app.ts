@@ -66,6 +66,7 @@ import {
 	githubProjectByNumber,
 	githubTicketKey,
 	githubTracker,
+	installationTokenFetch,
 	missingToken,
 	type RestCache,
 	rememberValidator,
@@ -1316,10 +1317,21 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	const requests = new AbortController();
 	const trackerFetch = abortableFetch(options.fetch, requests.signal);
-	const fetchGithub = conditionalFetch(
-		trackerFetch,
-		restCache,
-		opened.store.recordValidator,
+	let configuration: Configuration;
+	try {
+		configuration = await configurationPort.read();
+	} catch (error) {
+		opened.close();
+		throw error;
+	}
+	const fetchGithub = installationTokenFetch(
+		conditionalFetch(trackerFetch, restCache, opened.store.recordValidator),
+		options.token ?? "",
+		async () => ({
+			enabled: configuration.factoryGithubTokens,
+			dir: configuration.factoryGithubTokenDir,
+		}),
+		() => clock.now(),
 	);
 	const trackers = {
 		github:
@@ -1334,13 +1346,6 @@ export async function start(options: StartOptions): Promise<Running> {
 						fetchGithub,
 					),
 	};
-	let configuration: Configuration;
-	try {
-		configuration = await configurationPort.read();
-	} catch (error) {
-		opened.close();
-		throw error;
-	}
 	const hadRows = opened.store.readTickets().length > 0;
 	const pollOptions: PollOptions = {
 		configuration: configurationPort,

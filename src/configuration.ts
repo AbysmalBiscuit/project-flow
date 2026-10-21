@@ -133,6 +133,10 @@ const configurationSchema = z
 				blockerCleared: z.boolean().default(true),
 			})
 			.default({ needsYou: true, comment: true, blockerCleared: true }),
+		factoryGithubTokens: z.boolean().default(false),
+		factoryGithubTokenDir: z
+			.string()
+			.default(join(homedir(), ".config", "factory-gh")),
 		projectViews: z.record(z.string(), projectViewSettings).default({}),
 	})
 	.transform(
@@ -141,10 +145,15 @@ const configurationSchema = z
 			pinned,
 			hidden: _hidden,
 			activityWindowDays: _days,
+			factoryGithubTokenDir,
 			...rest
 		}) => ({
 			...rest,
 			tracked: tracked ?? pinned ?? [],
+			factoryGithubTokenDir:
+				factoryGithubTokenDir.trim() === ""
+					? join(homedir(), ".config", "factory-gh")
+					: factoryGithubTokenDir,
 		}),
 	);
 

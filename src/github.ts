@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { z } from "zod";
 import type {
 	Board,
@@ -50,6 +52,111 @@ export function githubHeaders(token: string): HeadersInit {
 		accept: "application/vnd.github+json",
 		authorization: `Bearer ${token}`,
 		"x-github-api-version": "2022-11-28",
+	};
+}
+
+const tokenRenewWithinMs = 5 * 60 * 1000;
+
+const repoInUrl =
+	/^https:\/\/api\.github\.com\/repos\/([^/]+)\/[^/]+(?:\/|$|\?)/;
+
+function repoOwner(url: string, body: string): string | null {
+	const fromUrl = repoInUrl.exec(url)?.[1];
+	if (fromUrl !== undefined) {
+		return fromUrl;
+	}
+	if (url !== "https://api.github.com/graphql" || body === "") {
+		return null;
+	}
+	try {
+		const parsed: unknown = JSON.parse(body);
+		if (parsed === null || typeof parsed !== "object") {
+			return null;
+		}
+		const variables = "variables" in parsed ? parsed.variables : null;
+		if (variables === null || typeof variables !== "object") {
+			return null;
+		}
+		const owner = "owner" in variables ? variables.owner : null;
+		return typeof owner === "string" && owner !== "" ? owner : null;
+	} catch {
+		return null;
+	}
+}
+
+function hostsToken(text: string, now: Date): string | null {
+	const token = text.match(/^\s*oauth_token:\s*(\S+)\s*$/m)?.[1];
+	const expires = text.match(/^\s*expires_at:\s*(\S+)\s*$/m)?.[1];
+	if (token === undefined || expires === undefined) {
+		return null;
+	}
+	const at = Date.parse(expires);
+	if (Number.isNaN(at) || at - now.getTime() <= tokenRenewWithinMs) {
+		return null;
+	}
+	return token;
+}
+
+export function installationTokenFetch(
+	fetchImpl: Fetch,
+	userToken: string,
+	read: () => Promise<{
+		enabled: boolean;
+		dir: string;
+	}>,
+	now: () => Date,
+): Fetch {
+	const cached = new Map<string, { token: string; expiresAt: number }>();
+	return async (input, init) => {
+		const url =
+			typeof input === "string"
+				? input
+				: input instanceof URL
+					? input.href
+					: input.url;
+		const method = (init?.method ?? "GET").toUpperCase();
+		const body = typeof init?.body === "string" ? init.body : "";
+		const owner = repoOwner(url, body);
+		const write =
+			method !== "GET" &&
+			method !== "HEAD" &&
+			!url.startsWith("https://api.github.com/graphql");
+		if (owner === null || write || owner === "user") {
+			return fetchImpl(input, init);
+		}
+		const settings = await read().catch(() => null);
+		if (settings === null || !settings.enabled) {
+			return fetchImpl(input, init);
+		}
+		const current = now();
+		const held = cached.get(owner);
+		if (
+			held !== undefined &&
+			held.expiresAt - current.getTime() > tokenRenewWithinMs
+		) {
+			const headers = new Headers(init?.headers);
+			headers.set("authorization", `Bearer ${held.token}`);
+			return fetchImpl(input, { ...init, headers });
+		}
+		cached.delete(owner);
+		let text: string;
+		try {
+			text = await readFile(join(settings.dir, owner, "hosts.yml"), "utf8");
+		} catch {
+			return fetchImpl(input, init);
+		}
+		const token = hostsToken(text, current);
+		if (token === null || token === userToken) {
+			return fetchImpl(input, init);
+		}
+		const expires = text.match(/^\s*expires_at:\s*(\S+)\s*$/m)?.[1];
+		const expiresAt = expires === undefined ? Number.NaN : Date.parse(expires);
+		if (!Number.isNaN(expiresAt)) {
+			cached.set(owner, { token, expiresAt });
+		}
+		const headers = new Headers(init?.headers);
+		headers.set("authorization", `Bearer ${token}`);
+		return fetchImpl(input, { ...init, headers });
 	};
 }
 
