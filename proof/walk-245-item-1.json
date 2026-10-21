@@ -1,4 +1,5 @@
 {
+	"viewport": "1440 900",
 	"base_url": "http://127.0.0.1:4245",
 	"serve": ["bun", "proof/serve-graph-flows.ts", "4245"],
 	"steps": [

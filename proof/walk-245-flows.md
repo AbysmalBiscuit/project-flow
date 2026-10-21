@@ -4,7 +4,7 @@ The walks serve recorded tracker responses through `proof/serve-graph-flows.ts`.
 
 The board is `acme/widget`. Two chains sit in it: `#11` to `#12` to `#13`, and `#1` to `#2` to `#3`. `#21` and `#22` both block `#20`. `#90` has no edge. `acme/alpha`, `acme/beta` and `acme/gamma` form one overview chain. `acme/beta` also has a ticket with no edge.
 
-Item 1, left to right at 1440. Replay `proof/walk-245-item-1.json`.
+Item 1, left to right at 1440. Replay `proof/walk-245-item-1.json`. The walk sets `"viewport": "1440 900"`.
 
 `#11`, `#12` and `#13` share one row. `#1`, `#2` and `#3` share a later row. No arrow inside either chain crosses another. `#21` and `#22` sit on two rows, and `#20` sits on one of those rows. `#90` sits after every flow.
 
