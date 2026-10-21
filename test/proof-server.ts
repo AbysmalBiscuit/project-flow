@@ -217,6 +217,7 @@ const ready = (async () => {
 		stopped.abort();
 	}
 })();
+void ready;
 
 const result = await run(
 	["--config", configPath, "--host", "127.0.0.1", "--port", "0"],
@@ -241,18 +242,18 @@ const result = await run(
 			appBase = line.trim();
 		},
 		stderr: (line) => console.error(line),
-		waitForStop: Promise.race([
-			ready.then(() => new Promise<void>(() => {})),
-			new Promise<void>((resolve) => {
-				stopped.signal.addEventListener("abort", () => resolve(), {
-					once: true,
-				});
-			}),
-			stops.then(async () => {
-				gate.stop(true);
-				await rm(data, { recursive: true, force: true });
-			}),
-		]),
+		waitForStop: (async () => {
+			await Promise.race([
+				stops,
+				new Promise<void>((resolve) => {
+					stopped.signal.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+				}),
+			]);
+			gate.stop(true);
+			await rm(data, { recursive: true, force: true });
+		})(),
 	},
 );
 process.exit(process.exitCode ?? result.exitCode);
