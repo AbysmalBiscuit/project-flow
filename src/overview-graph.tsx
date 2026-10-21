@@ -220,7 +220,6 @@ export function graphModel(
 	shown: ProjectCounts[],
 	catalogue: ProjectCounts[],
 	span: { width: number; height: number },
-	drawn: { width: number; height: number },
 ): {
 	nodes: FlowNode<ProjectNodeData>[];
 	edges: FlowEdge<BlockerEdgeData>[];
@@ -228,19 +227,17 @@ export function graphModel(
 	const catalogueNames = new Set(catalogue.map((project) => project.name));
 	const shownNames = new Set(shown.map((project) => project.name));
 	const positions = layout(catalogue, catalogueNames);
-	const nodes = shown.map((project) =>
-		sizedNode(
-			{
-				id: project.name,
-				type: "project",
-				position: positions.get(project.name) ?? { x: 0, y: 0 },
-				data: nodeData(project),
-				// React Flow gives a node pointer events only when it is selectable, draggable, or has a pointer handler.
-				selectable: true,
-			},
-			drawn.width > 0 ? drawn : span,
-		),
-	);
+	const nodes = shown.map((project) => {
+		const node = {
+			id: project.name,
+			type: "project" as const,
+			position: positions.get(project.name) ?? { x: 0, y: 0 },
+			data: nodeData(project),
+			// React Flow gives a node pointer events only when it is selectable, draggable, or has a pointer handler.
+			selectable: true,
+		};
+		return sizedNode(node, span);
+	});
 	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
 	const pending = shown.flatMap((project) =>
 		project.crossProjectBlockers.flatMap((blocker) =>
@@ -249,7 +246,7 @@ export function graphModel(
 	);
 	const bounds = new Map(
 		nodes.flatMap((node) => {
-			const bound = nodeBound(node, drawn.width > 0 ? drawn : span);
+			const bound = nodeBound(node, span);
 			if (bound === undefined) {
 				return [];
 			}
@@ -263,7 +260,6 @@ export function graphModel(
 		);
 		return { edge, nodesForEdge };
 	});
-	const side = (drawn.width > 0 ? drawn : span).height;
 	const spots = labelSpots(
 		laned.map(({ edge, nodesForEdge }) => ({
 			route: edgeRoute(edge, bounds),
@@ -272,7 +268,7 @@ export function graphModel(
 			entry: edge.data.entry,
 			entries: edge.data.entries,
 			nodes: nodesForEdge,
-			side,
+			side: span.height,
 		})),
 	);
 	const edges = laned.map(({ edge, nodesForEdge }, index) => ({
@@ -281,7 +277,7 @@ export function graphModel(
 			...edge.data,
 			nodes: nodesForEdge,
 			label: spots[index] ?? { x: 0, y: 0 },
-			side,
+			side: span.height,
 		},
 	}));
 	return { nodes, edges };
@@ -365,10 +361,10 @@ export function OverviewGraph({
 		[],
 	);
 	const drawn = nodeSize("project", probed ?? { width: 0, height: 0 });
+	const span = drawn.width > 0 ? drawn : probed;
 	const model = useMemo(
-		() =>
-			probed === null ? null : graphModel(projects, catalogue, probed, drawn),
-		[projects, catalogue, probed, drawn],
+		() => (span === null ? null : graphModel(projects, catalogue, span)),
+		[projects, catalogue, span],
 	);
 	if (model === null) {
 		return <div id="overview-graph" className={clsx(cards.graph)} />;

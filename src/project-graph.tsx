@@ -836,8 +836,9 @@ function SizedProjectGraph({
 		[],
 	);
 	const drawn = nodeSize("ticket", probed ?? { width: 0, height: 0 });
+	const span = drawn.width > 0 ? drawn : probed;
 	const model = useMemo(() => {
-		if (probed === null) {
+		if (span === null) {
 			return null;
 		}
 		return graphModel(
@@ -848,9 +849,9 @@ function SizedProjectGraph({
 			assignees,
 			openKey,
 			new Map(),
-			drawn.width > 0 ? drawn : probed,
+			span,
 		);
-	}, [report, reports, direction, groupBy, assignees, openKey, probed, drawn]);
+	}, [report, reports, direction, groupBy, assignees, openKey, span]);
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
