@@ -1551,7 +1551,7 @@ function Page() {
 							view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
 						}
 					/>
-					<div className={clsx(board.stage, !filterOpen && board.stageOn)}>
+					<div className={clsx(board.stage)}>
 						{view === "board" ? (
 							<Board
 								report={report}
