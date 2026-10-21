@@ -451,6 +451,47 @@ describe("GET /api/projects/:name", () => {
 				expect(workstreamOf(21)).toBe("no workstream");
 				expect(workstreamOf(22)).toBe("Ship the list");
 				expect(workstreamOf(23)).toBe("Draw the rows");
+				expect(
+					report.tickets.find(
+						(ticket) => ticket.key === `${githubRepo}#22`,
+					)?.workstreamKey,
+				).toBe(`${githubRepo}#21`);
+				expect(
+					report.tickets.find(
+						(ticket) => ticket.key === `${githubRepo}#23`,
+					)?.workstreamKey,
+				).toBe(`${githubRepo}#22`);
+			},
+		);
+	});
+
+	test("two GitHub parents with the same title keep separate workstream keys", async () => {
+		const first = issue(41, "Ship the list");
+		const second = issue(42, "Ship the list");
+		const underFirst = issue(43, "Draw the rows", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/41`,
+		});
+		const underSecond = issue(44, "Name the columns", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/42`,
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([first, second, underFirst, underSecond]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const of = (number: number) =>
+					report.tickets.find(
+						(ticket) => ticket.key === `${githubRepo}#${number}`,
+					);
+				expect(of(43)?.workstream).toBe("Ship the list");
+				expect(of(44)?.workstream).toBe("Ship the list");
+				expect(of(43)?.workstreamKey).toBe(`${githubRepo}#41`);
+				expect(of(44)?.workstreamKey).toBe(`${githubRepo}#42`);
 			},
 		);
 	});
@@ -1164,6 +1205,123 @@ describe("GET /api/projects/:name", () => {
 						title: "Open the gate",
 					},
 				]);
+			},
+		);
+	});
+
+	test("a project view that never set groupBy still opens the graph grouped by workstream", async () => {
+		const config = JSON.stringify({
+			pinned: [{ tracker: "github", repo: githubRepo }],
+			projectViews: {
+				[githubRepo]: { openView: "board" },
+			},
+		});
+		await withApp(
+			config,
+			githubFetch([issue(1, "Ship the map")]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, ProjectViewSettings>;
+				};
+				expect(current.projectViews[githubRepo]?.groupBy).toBeUndefined();
+				expect(
+					savedProjectView(current.projectViews, githubRepo).groupBy,
+				).toBeUndefined();
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							...current.projectViews,
+							[githubRepo]: {
+								...current.projectViews[githubRepo],
+								openView: "graph",
+							},
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as {
+					projectViews: Record<string, ProjectViewSettings>;
+				};
+				expect(written.projectViews[githubRepo]?.openView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.groupBy).toBeUndefined();
+				expect(
+					savedProjectView(written.projectViews, githubRepo).groupBy,
+				).toBeUndefined();
+				const blank = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...written,
+						projectViews: {
+							...written.projectViews,
+							[githubRepo]: {
+								...written.projectViews[githubRepo],
+								groupBy: "   ",
+							},
+						},
+					}),
+				});
+				expect(blank.status).toBe(400);
+				const kept = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, { groupBy?: string }>;
+				};
+				expect(kept.projectViews[githubRepo]?.groupBy).toBeUndefined();
+			},
+		);
+	});
+
+	test("a saved groupBy of none stays none after a Graph-tab save", async () => {
+		const config = JSON.stringify({
+			pinned: [{ tracker: "github", repo: githubRepo }],
+			projectViews: {
+				"*": { openView: "board" },
+				[githubRepo]: { groupBy: "none", search: "" },
+			},
+		});
+		await withApp(
+			config,
+			githubFetch([issue(1, "Ship the map")]),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as {
+					projectViews: Record<string, ProjectViewSettings>;
+				};
+				expect(current.projectViews[githubRepo]?.groupBy).toBe("none");
+				expect(current.projectViews["*"]?.groupBy).toBeUndefined();
+				expect(savedProjectView(current.projectViews, githubRepo).groupBy).toBe(
+					"none",
+				);
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: {
+							...current.projectViews,
+							[githubRepo]: {
+								...current.projectViews[githubRepo],
+								openView: "graph",
+							},
+						},
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await saved.json()) as {
+					projectViews: Record<string, { groupBy?: string; openView?: string }>;
+				};
+				expect(written.projectViews[githubRepo]?.groupBy).toBe("none");
+				expect(written.projectViews[githubRepo]?.openView).toBe("graph");
+				expect(written.projectViews["*"]?.groupBy).toBeUndefined();
 			},
 		);
 	});

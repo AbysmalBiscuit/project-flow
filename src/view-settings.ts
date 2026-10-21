@@ -40,7 +40,6 @@ export function viewDefaults(): ProjectViewSettings {
 		search: "",
 		openView: defaultOpenView,
 		graphDirection: defaultGraphDirection,
-		groupBy: defaultGroupBy,
 	};
 }
 
@@ -52,10 +51,14 @@ export function savedProjectView(
 	const star = starKey === undefined ? undefined : views[starKey];
 	const key = projectViewKey(views, name);
 	const saved = key === undefined || key === starKey ? undefined : views[key];
+	const { groupBy: starGroupBy, ...starRest } = star ?? {};
+	const { groupBy: savedGroupBy, ...savedRest } = saved ?? {};
+	const groupBy = savedGroupBy ?? starGroupBy;
 	return {
 		...viewDefaults(),
-		...(star === undefined ? {} : star),
-		...(saved === undefined ? {} : saved),
+		...starRest,
+		...savedRest,
+		...(groupBy === undefined ? {} : { groupBy }),
 	};
 }
 
