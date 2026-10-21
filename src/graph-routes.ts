@@ -50,10 +50,6 @@ export function measureMarker(className: string): {
 	return { size: box.width, color, opacity };
 }
 
-const mutedMarkerMix = "40%";
-
-export const mutedMarkerColor = `color-mix(in srgb, var(--xy-edge-stroke) ${mutedMarkerMix}, transparent)`;
-
 export function markerEnd(size: number, color?: string): MarkerEnd {
 	return {
 		type: MarkerType.ArrowClosed,

@@ -852,6 +852,12 @@ export const cards = stylex.create({
 	graphMarker: {
 		width: measure.marker,
 		height: measure.marker,
+		backgroundColor: colours.lineStrong,
+	},
+	graphMarkerMuted: {
+		width: measure.marker,
+		height: measure.marker,
+		backgroundColor: colours.edgeMuted,
 	},
 	graphTools: {
 		position: "absolute",
@@ -2461,10 +2467,10 @@ export const board = stylex.create({
 		backgroundColor: colours.lineStrong,
 	},
 	legendSwatchMuted: {
-		opacity: 0.4,
+		backgroundColor: colours.edgeMuted,
 	},
 	edgeDone: {
-		opacity: 0.4,
+		stroke: colours.edgeMuted,
 	},
 	ticketNode: {
 		display: "flex",

@@ -18,6 +18,7 @@ export const lightValues = {
 	inkMuted: "#4d4d4d",
 	line: "#ebebeb",
 	lineStrong: "#a1a1a1",
+	edgeMuted: "#e3e3e3",
 	accent: "#0070f3",
 	accentInk: "#ffffff",
 	link: "#0070f3",
@@ -77,6 +78,7 @@ export const darkValues = {
 	inkMuted: "#a1a1a1",
 	line: "#2e2e2e",
 	lineStrong: "#4d4d4d",
+	edgeMuted: "#1f1f1f",
 	accent: "#3291ff",
 	accentInk: "#000000",
 	link: "#3291ff",
@@ -141,6 +143,10 @@ export const colours = stylex.defineVars({
 	lineStrong: {
 		default: lightValues.lineStrong,
 		[dark]: darkValues.lineStrong,
+	},
+	edgeMuted: {
+		default: lightValues.edgeMuted,
+		[dark]: darkValues.edgeMuted,
 	},
 	accent: { default: lightValues.accent, [dark]: darkValues.accent },
 	accentInk: { default: lightValues.accentInk, [dark]: darkValues.accentInk },

@@ -507,7 +507,8 @@ export function graphModel(
 	});
 	const fromHandle = horizontal ? "right" : "bottom";
 	const toHandle = horizontal ? "left" : "top";
-	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)).size);
+	const openMarker = measureMarker(classToken(cards.graphMarker));
+	const marker = markerEnd(openMarker.size, openMarker.color);
 	const pending = links.map((link) => ({
 		id: `${link.from}->${link.to}`,
 		source: link.from,
