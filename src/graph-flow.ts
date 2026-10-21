@@ -2,6 +2,7 @@ import {
 	groupKeysOf,
 	type ProjectCounts,
 	type ProjectReport,
+	type TicketState,
 } from "./domain.ts";
 import type { GroupBy } from "./view-settings.ts";
 
@@ -766,6 +767,7 @@ export type FlowTicket = {
 	title: string;
 	project: string;
 	outside: boolean;
+	state?: TicketState;
 	tracker?: "github" | "linear";
 	workstream?: string;
 	workstreamKey?: string;
@@ -794,6 +796,7 @@ export function graphTickets(report: ProjectReport): FlowTicket[] {
 				title: end.title,
 				project: end.project,
 				outside: true,
+				...(end.state === undefined ? {} : { state: end.state }),
 				tracker: end.tracker,
 				blockers: [],
 				outsideBlockers: [],
@@ -816,6 +819,7 @@ export function graphTickets(report: ProjectReport): FlowTicket[] {
 				title: ticket.title,
 				project: report.name,
 				outside: false,
+				state: ticket.state,
 				tracker: report.tracker,
 				...(ticket.workstream === undefined
 					? {}

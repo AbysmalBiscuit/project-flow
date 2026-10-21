@@ -253,19 +253,6 @@ type GraphTicket = {
 	outside: boolean;
 };
 
-function outsideState(
-	reports: ProjectReport[],
-	project: string,
-	key: string,
-): TicketState | undefined {
-	const home = reports.find(
-		(report) => report.name.toLowerCase() === project.toLowerCase(),
-	);
-	return home?.tickets.find(
-		(ticket) => ticket.key?.toLowerCase() === key.toLowerCase(),
-	)?.state;
-}
-
 function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
 	const home = reports.find(
 		(report) => report.name.toLowerCase() === ticket.project.toLowerCase(),
@@ -273,9 +260,7 @@ function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
 	const known = home?.tickets.find(
 		(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
 	);
-	const state = ticket.outside
-		? outsideState(reports, ticket.project, ticket.key)
-		: known?.state;
+	const state = ticket.state;
 	return {
 		flow: ticket,
 		ticket: {
@@ -511,18 +496,24 @@ export function graphModel(
 	});
 	const fromHandle = horizontal ? "right" : "bottom";
 	const toHandle = horizontal ? "left" : "top";
-	const openMarker = measureMarker(classToken(cards.graphMarker));
-	const marker = markerEnd(openMarker.size, openMarker.color);
-	const pending = links.map((link) => ({
-		id: `${link.from}->${link.to}`,
-		source: link.from,
-		target: link.to,
-		sourceHandle: fromHandle,
-		targetHandle: toHandle,
-		type: "ticket" as const,
-		markerEnd: marker,
-		data: { done: link.done === true },
-	}));
+	const solid = measureMarker(classToken(cards.graphMarker));
+	const done = measureMarker(classToken(board.graphDoneMarker));
+	const solidMarker = markerEnd(solid.size, solid.color);
+	const doneMarker = markerEnd(done.size, done.color);
+	const pending = links.map((link) => {
+		const closed = link.done === true;
+		return {
+			id: `${link.from}->${link.to}`,
+			source: link.from,
+			target: link.to,
+			sourceHandle: fromHandle,
+			targetHandle: toHandle,
+			type: "ticket" as const,
+			markerEnd: closed ? doneMarker : solidMarker,
+			...(closed ? { className: classToken(board.graphEdgeDone) } : {}),
+			data: { done: closed },
+		};
+	});
 	const bounds = new Map(
 		nodes.flatMap((node) => {
 			if (isClusterNode(node)) {
@@ -716,6 +707,17 @@ function SizedProjectGraph({
 			</p>
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
+			</p>
+			<p id="graph-states" className={clsx(cards.graphProbe)}>
+				{model.nodes
+					.flatMap((node) =>
+						isClusterNode(node)
+							? []
+							: [
+									`${node.data.ticket.key ?? node.id} ${node.data.ticket.state ?? "unknown"}`,
+								],
+					)
+					.join(" | ")}
 			</p>
 			<Legend />
 			<div className={clsx(board.graphPane)}>

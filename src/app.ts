@@ -20,6 +20,7 @@ import type {
 } from "./domain.ts";
 import {
 	type Attention,
+	attachGraphStates,
 	attentionIds,
 	attentionOf,
 	checkoutBasenames,
@@ -338,16 +339,19 @@ function reportFor(
 	name: string,
 	filtered: boolean,
 ): ProjectReport | null {
-	const match = projectViews(options, configuration).find(
-		(item) => item.counts.name.toLowerCase() === name.toLowerCase(),
+	const views = attachGraphStates(
+		projectViews(options, configuration).map((item) => item.report),
+	);
+	const match = views.find(
+		(item) => item.name.toLowerCase() === name.toLowerCase(),
 	);
 	if (match === undefined) {
 		return null;
 	}
-	const view = projectViewFor(configuration, match.counts.name);
+	const view = projectViewFor(configuration, match.name);
 	return filtered
-		? filterProjectReport(match.report, view, options.clock.now())
-		: match.report;
+		? filterProjectReport(match, view, options.clock.now())
+		: match;
 }
 
 function settingsResponse(
