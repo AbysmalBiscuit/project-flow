@@ -3,3 +3,4 @@ node_modules/
 *.local
 *.local.*
 proofshot-artifacts/
+test/settings-page-bundle.js
