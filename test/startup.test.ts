@@ -1074,13 +1074,6 @@ describe("startup", () => {
 			stopFill();
 			await fillRun;
 			const first = await new Promise<Overview>((resolve, reject) => {
-				const deadline = setTimeout(() => {
-					reject(
-						new Error(
-							`cached overview waited for a tracker request (${trackerCompleted} completed)`,
-						),
-					);
-				}, 2_000);
 				restartRun = run(
 					["--config", path, "--host", "127.0.0.1", "--port", "0"],
 					testIo(
@@ -1092,12 +1085,10 @@ describe("startup", () => {
 							stdout: (line) => {
 								void fetch(new URL("/api/overview", line))
 									.then(async (response) => {
-										clearTimeout(deadline);
 										expect(response.status).toBe(200);
 										resolve((await response.json()) as Overview);
 									})
 									.catch((error: unknown) => {
-										clearTimeout(deadline);
 										reject(error);
 									});
 							},

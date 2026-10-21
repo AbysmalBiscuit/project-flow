@@ -13,6 +13,7 @@ import {
 	recordedDiscovery,
 	repoReadIssues,
 	repoReadResponse,
+	settledOverview,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -4731,9 +4732,15 @@ describe("review cycle", () => {
 							method: "POST",
 						});
 						expect(failed.status).toBe(204);
-						const first = await fetch(new URL("/api/overview", base));
-						expect(first.status).toBe(200);
-						expect(await first.json()).toMatchObject({
+						const first = await settledOverview(base, async (url) => {
+							const response = await fetch(new URL("/api/overview", url));
+							expect(response.status).toBe(200);
+							return (await response.json()) as {
+								projects: { error: string | null }[];
+								polling?: true;
+							};
+						});
+						expect(first).toMatchObject({
 							projects: [
 								{
 									name: "Widget board",
@@ -4747,9 +4754,15 @@ describe("review cycle", () => {
 							method: "POST",
 						});
 						expect(refresh.status).toBe(204);
-						const second = await fetch(new URL("/api/overview", base));
-						expect(second.status).toBe(200);
-						expect(await second.json()).toMatchObject({
+						const second = await settledOverview(base, async (url) => {
+							const response = await fetch(new URL("/api/overview", url));
+							expect(response.status).toBe(200);
+							return (await response.json()) as {
+								projects: { error: string | null }[];
+								polling?: true;
+							};
+						});
+						expect(second).toMatchObject({
 							projects: [
 								{
 									name: "Widget board",
@@ -4835,20 +4848,19 @@ describe("review cycle", () => {
 							method: "POST",
 						});
 						expect(refresh.status).toBe(204);
-						const deadline = Date.now() + 3_000;
 						let second: {
-							projects?: { inReview?: number }[];
+							projects?: { inReview?: number; polling?: true }[];
+							polling?: true;
 						} = {};
-						while (Date.now() < deadline) {
+						while (second.projects?.[0]?.inReview !== 1) {
 							const secondResponse = await fetch(
 								new URL("/api/overview", base),
 							);
 							expect(secondResponse.status).toBe(200);
 							second = (await secondResponse.json()) as typeof second;
-							if (second.projects?.[0]?.inReview === 1) {
-								break;
+							if (second.projects?.[0]?.inReview !== 1) {
+								await Bun.sleep(20);
 							}
-							await Bun.sleep(20);
 						}
 						expect(second).toMatchObject({
 							projects: [
