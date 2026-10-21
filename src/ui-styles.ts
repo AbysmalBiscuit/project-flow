@@ -767,6 +767,11 @@ export const cards = stylex.create({
 		color: colours.ink,
 		fontSize: type.small,
 	},
+	graphCard: {
+		display: "block",
+		textDecoration: "none",
+		cursor: "pointer",
+	},
 	graphNeedsYou: {
 		borderColor: colours.ink,
 		borderWidth: measure.focus,
