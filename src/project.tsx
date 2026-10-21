@@ -1239,13 +1239,15 @@ function Page() {
 	if (report === null) {
 		return <PageFrame title={name}>{loadingLabel}</PageFrame>;
 	}
-	const saveView = (next: ProjectViewSettings) => {
+	const saveView = (next: ProjectViewSettings, shown?: PageView) => {
 		const project = name;
 		const generation = saveGeneration.current + 1;
 		saveGeneration.current = generation;
 		setSettings(next);
-		setView(openedView(next));
-		const stored = groupBySavedRef.current
+		if (shown !== undefined) {
+			setView(shown);
+		}
+		const kept = groupBySavedRef.current
 			? next
 			: (({ groupBy: _groupBy, ...rest }) => rest)(next);
 		const write = saveChain.current.then(async () => {
@@ -1272,7 +1274,14 @@ function Page() {
 				Object.keys(projectViews).find(
 					(item) => item.toLowerCase() === project.toLowerCase(),
 				) ?? project;
-			projectViews[key] = stored;
+			const previous = projectViews[key];
+			projectViews[key] =
+				shown === undefined
+					? kept
+					: {
+							...(previous ?? {}),
+							lastView: kept.lastView,
+						};
 			const saved = await fetch("/api/settings", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
@@ -1291,7 +1300,6 @@ function Page() {
 			const confirmed = savedProjectView(views, project);
 			groupBySavedRef.current = groupByWasSaved(views, project);
 			setSettings(confirmed);
-			setView(openedView(confirmed));
 		});
 		saveChain.current = write.catch(() => {});
 	};
@@ -1382,7 +1390,7 @@ function Page() {
 										if (!isPageView(item.id)) {
 											return;
 										}
-										saveView({ ...settings, lastView: item.id });
+										saveView({ ...settings, lastView: item.id }, item.id);
 									}}
 								>
 									{item.label}
