@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { Window } from "happy-dom";
 import type { Configuration } from "../src/configuration.ts";
+import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import stylexPlugin from "../src/stylex-plugin.ts";
 import {
@@ -66,7 +67,7 @@ afterEach(async () => {
 	globalThis.fetch = appFetch;
 });
 
-function recordedFetch(): typeof fetch {
+function recordedFetch(): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
@@ -123,7 +124,7 @@ async function withApp(check: (base: string) => Promise<void>): Promise<void> {
 
 async function openSettings(
 	base: string,
-	settingsGet: (appFetch: typeof fetch) => Promise<Response> | Response,
+	settingsGet: (appFetch: Fetch) => Promise<Response> | Response,
 ): Promise<{
 	window: PageWindow;
 	log: { method: string; path: string }[];
@@ -159,9 +160,9 @@ async function openSettings(
 	globals.requestAnimationFrame = (callback: FrameRequestCallback) =>
 		setTimeout(() => callback(0), 0);
 	globals.cancelAnimationFrame = (id: number) => clearTimeout(id);
-	const listeners = new Map<string, Set<(event: Event) => void>>();
+	const listeners = new Map<string, Set<(event: unknown) => void>>();
 	globals.EventSource = class {
-		addEventListener(name: string, listener: (event: Event) => void): void {
+		addEventListener(name: string, listener: (event: unknown) => void): void {
 			const current = listeners.get(name) ?? new Set();
 			current.add(listener);
 			listeners.set(name, current);
@@ -210,7 +211,7 @@ async function openSettings(
 			page.createElement(
 				page.PageQueryRoot,
 				null,
-				page.createElement(page.Page),
+				page.createElement(page.Page, null),
 			),
 		);
 	await Bun.sleep(150);
@@ -219,7 +220,7 @@ async function openSettings(
 		log,
 		page,
 		deliver: (name, data) => {
-			const event = new window.MessageEvent(name, { data });
+			const event: unknown = new window.MessageEvent(name, { data });
 			for (const listener of listeners.get(name) ?? []) {
 				listener(event);
 			}
