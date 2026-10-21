@@ -6,7 +6,7 @@ import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { openedView, savedProjectView } from "../src/view-settings.ts";
+import { savedProjectView } from "../src/view-settings.ts";
 import {
 	emptyProjectFields,
 	linearFake,
@@ -1247,7 +1247,7 @@ describe("GET /api/projects/:name", () => {
 							...current.projectViews,
 							[githubRepo]: {
 								...current.projectViews[githubRepo],
-								openView: "graph",
+								lastView: "graph",
 							},
 						},
 					}),
@@ -1256,7 +1256,8 @@ describe("GET /api/projects/:name", () => {
 				const written = (await saved.json()) as {
 					projectViews: Record<string, ProjectViewSettings>;
 				};
-				expect(written.projectViews[githubRepo]?.openView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.openView).toBe("board");
 				expect(written.projectViews[githubRepo]?.groupBy).toBeUndefined();
 				expect(
 					savedProjectView(written.projectViews, githubRepo).groupBy,
@@ -1318,17 +1319,21 @@ describe("GET /api/projects/:name", () => {
 							...current.projectViews,
 							[githubRepo]: {
 								...current.projectViews[githubRepo],
-								openView: "graph",
+								lastView: "graph",
 							},
 						},
 					}),
 				});
 				expect(saved.status).toBe(200);
 				const written = (await saved.json()) as {
-					projectViews: Record<string, { groupBy?: string; openView?: string }>;
+					projectViews: Record<
+						string,
+						{ groupBy?: string; openView?: string; lastView?: string }
+					>;
 				};
 				expect(written.projectViews[githubRepo]?.groupBy).toBe("none");
-				expect(written.projectViews[githubRepo]?.openView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(written.projectViews[githubRepo]?.openView).toBeUndefined();
 				expect(written.projectViews["*"]?.groupBy).toBeUndefined();
 			},
 		);
@@ -1925,19 +1930,29 @@ describe("GET /api/projects/:name", () => {
 			githubFetch([issue(1, "Ship the map")]),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
-				const current = (await (
-					await fetch(new URL("/api/settings", base))
-				).json()) as {
-					projectViews: Record<string, ProjectViewSettings>;
+				const settingsUrl = new URL("/api/settings", base);
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}`,
+					base,
+				);
+				const readSettings = async () =>
+					(await (await fetch(settingsUrl)).json()) as {
+						projectViews: Record<string, ProjectViewSettings>;
+					};
+				const reopen = async () => {
+					const opened = await fetch(projectUrl);
+					expect(opened.status).toBe(200);
+					const report = (await opened.json()) as ProjectReport;
+					expect(report).not.toHaveProperty("openView");
+					expect(report.name).toBe(githubRepo);
+					return readSettings();
 				};
-				expect(
-					savedProjectView(current.projectViews, githubRepo).openView,
-				).toBe("last");
-				expect(
-					openedView(savedProjectView(current.projectViews, githubRepo)),
-				).toBe("board");
 
-				const last = await fetch(new URL("/api/settings", base), {
+				const current = await readSettings();
+				expect(current.projectViews["*"]?.openView).toBeUndefined();
+				expect(current.projectViews[githubRepo]?.lastView).toBeUndefined();
+
+				const last = await fetch(settingsUrl, {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
@@ -1948,44 +1963,27 @@ describe("GET /api/projects/:name", () => {
 					}),
 				});
 				expect(last.status).toBe(200);
-				const savedLast = (await last.json()) as {
-					projectViews: Record<string, ProjectViewSettings>;
-				};
+				const savedLast = await readSettings();
 				expect(savedLast.projectViews["*"]?.openView).toBe("last");
 
-				const switched = await fetch(new URL("/api/settings", base), {
+				const switched = await fetch(settingsUrl, {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...savedLast,
 						projectViews: {
-							...savedLast.projectViews,
-							[githubRepo]: {
-								...savedLast.projectViews[githubRepo],
-								lastView: "graph",
-							},
+							"*": { openView: "last" },
+							[githubRepo]: { lastView: "graph" },
 						},
 					}),
 				});
 				expect(switched.status).toBe(200);
-				const afterSwitch = (await switched.json()) as {
-					projectViews: Record<string, ProjectViewSettings>;
-				};
-				expect(afterSwitch.projectViews["*"]?.openView).toBe("last");
-				expect(afterSwitch.projectViews[githubRepo]?.lastView).toBe("graph");
-				expect(afterSwitch.projectViews[githubRepo]?.openView).toBeUndefined();
-
-				const reopened = (await (
-					await fetch(new URL("/api/settings", base))
-				).json()) as {
-					projectViews: Record<string, ProjectViewSettings>;
-				};
-				expect(
-					openedView(savedProjectView(reopened.projectViews, githubRepo)),
-				).toBe("graph");
+				const reopened = await reopen();
 				expect(reopened.projectViews["*"]?.openView).toBe("last");
+				expect(reopened.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(reopened.projectViews[githubRepo]?.openView).toBeUndefined();
 
-				const pinned = await fetch(new URL("/api/settings", base), {
+				const pinned = await fetch(settingsUrl, {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
@@ -1997,39 +1995,27 @@ describe("GET /api/projects/:name", () => {
 					}),
 				});
 				expect(pinned.status).toBe(200);
-				const savedBoard = (await pinned.json()) as {
-					projectViews: Record<string, ProjectViewSettings>;
-				};
+				const savedBoard = await reopen();
 				expect(savedBoard.projectViews["*"]?.openView).toBe("board");
-				expect(
-					openedView(savedProjectView(savedBoard.projectViews, githubRepo)),
-				).toBe("board");
+				expect(savedBoard.projectViews[githubRepo]?.lastView).toBe("graph");
+				expect(savedBoard.projectViews[githubRepo]?.openView).toBeUndefined();
 
-				const switchedAgain = await fetch(new URL("/api/settings", base), {
+				const switchedAgain = await fetch(settingsUrl, {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						...savedBoard,
 						projectViews: {
-							...savedBoard.projectViews,
-							[githubRepo]: {
-								...savedBoard.projectViews[githubRepo],
-								lastView: "graph",
-							},
+							"*": { openView: "board" },
+							[githubRepo]: { lastView: "graph" },
 						},
 					}),
 				});
 				expect(switchedAgain.status).toBe(200);
-				const stayed = (await (
-					await fetch(new URL("/api/settings", base))
-				).json()) as {
-					projectViews: Record<string, ProjectViewSettings>;
-				};
+				const stayed = await reopen();
 				expect(stayed.projectViews["*"]?.openView).toBe("board");
 				expect(stayed.projectViews[githubRepo]?.lastView).toBe("graph");
-				expect(
-					openedView(savedProjectView(stayed.projectViews, githubRepo)),
-				).toBe("board");
+				expect(stayed.projectViews[githubRepo]?.openView).toBeUndefined();
 			},
 		);
 	});
