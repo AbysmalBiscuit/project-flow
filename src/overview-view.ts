@@ -1,3 +1,5 @@
+import type { Configuration } from "./configuration.ts";
+
 export const overviewFilters = ["all", "needs-you", "blocked"] as const;
 
 export const overviewSorts = [
@@ -16,9 +18,4 @@ export const overviewDirections = ["asc", "desc"] as const;
 
 export const overviewViews = ["cards", "graph", "table"] as const;
 
-export type OverviewView = {
-	filter: (typeof overviewFilters)[number];
-	sort: (typeof overviewSorts)[number];
-	direction: (typeof overviewDirections)[number];
-	view: (typeof overviewViews)[number];
-};
+export type OverviewView = Configuration["overview"];
