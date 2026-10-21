@@ -370,6 +370,19 @@ function Menu({
 								{theme === "dark" ? navLabel.dark : navLabel.light}
 							</span>
 						</Row>
+						<Row
+							title={settingsCopy.factoryTokens}
+							hint={settingsCopy.factoryTokensHint}
+						>
+							<Switch
+								id="factory-github-tokens"
+								checked={draft.factoryGithubTokens}
+								label={settingsCopy.factoryTokens}
+								onChange={(factoryGithubTokens) =>
+									patch({ factoryGithubTokens })
+								}
+							/>
+						</Row>
 						<Row title={settingsCopy.pollInterval} hint={settingsCopy.pollHint}>
 							<select
 								id="poll-interval"
