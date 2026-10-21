@@ -1,3 +1,5 @@
+import type { TicketState } from "./domain.ts";
+
 export function sameTicketKey(left: string, right: string): boolean {
 	return left.toLowerCase() === right.toLowerCase();
 }
@@ -7,11 +9,5 @@ export type TicketSearchHit = {
 	tracker: "github" | "linear";
 	key: string;
 	title: string;
-	state:
-		| "done"
-		| "dropped"
-		| "backlog"
-		| "inProgress"
-		| "inReview"
-		| "awaitingMerge";
+	state: TicketState;
 };
