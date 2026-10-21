@@ -17,9 +17,9 @@ import { useEffect, useMemo } from "react";
 import {
 	groupKeysOf,
 	groupLabelOf,
-	type OutsideBlocker,
 	outsideKey,
 	type ProjectReport,
+	type TicketRelation,
 	type TicketState,
 } from "./domain.ts";
 import { columnDepth, GraphTools } from "./graph-pane.tsx";
@@ -255,7 +255,7 @@ function outsideState(
 }
 
 function outsideNode(
-	blocker: OutsideBlocker,
+	blocker: TicketRelation,
 	reports: ProjectReport[],
 ): GraphTicket {
 	const state = outsideState(reports, blocker.project, blocker.key);
