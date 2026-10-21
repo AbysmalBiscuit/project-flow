@@ -5,6 +5,7 @@ import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
 import type { SettingsProject, TicketState } from "./domain.ts";
 import { projectHasPmBot, samePin } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
+import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
@@ -51,8 +52,6 @@ const laneStates = [
 	"awaitingMerge",
 	"done",
 ] as const satisfies readonly TicketState[];
-
-const pollChoices = [30, 60, 300, 600] as const;
 
 const ageChoices = [0, 2, 7, 14, 30] as const;
 
@@ -119,14 +118,6 @@ function mergeLoaded(
 
 function sameValue(left: unknown, right: unknown): boolean {
 	return JSON.stringify(left) === JSON.stringify(right);
-}
-
-function pollLabel(seconds: number): string {
-	if (seconds % 60 === 0) {
-		const minutes = seconds / 60;
-		return minutes === 1 ? "1 minute" : `${minutes} minutes`;
-	}
-	return `${seconds} seconds`;
 }
 
 function ageLabel(days: number): string {
@@ -370,42 +361,14 @@ function Menu({
 								{theme === "dark" ? navLabel.dark : navLabel.light}
 							</span>
 						</Row>
-						<Row
-							title={settingsCopy.factoryTokens}
-							hint={settingsCopy.factoryTokensHint}
-						>
-							<Switch
-								id="factory-github-tokens"
-								checked={draft.factoryGithubTokens}
-								label={settingsCopy.factoryTokens}
-								onChange={(factoryGithubTokens) =>
-									patch({ factoryGithubTokens })
-								}
-							/>
-						</Row>
-						<Row title={settingsCopy.pollInterval} hint={settingsCopy.pollHint}>
-							<select
-								id="poll-interval"
-								className={clsx(fields.select)}
-								value={String(draft.pollIntervalSeconds)}
-								onChange={(event) =>
-									patch({ pollIntervalSeconds: Number(event.target.value) })
-								}
-							>
-								{pollChoices.map((seconds) => (
-									<option key={seconds} value={seconds}>
-										{pollLabel(seconds)}
-									</option>
-								))}
-								{pollChoices.find(
-									(seconds) => seconds === draft.pollIntervalSeconds,
-								) !== undefined ? null : (
-									<option value={draft.pollIntervalSeconds}>
-										{pollLabel(draft.pollIntervalSeconds)}
-									</option>
-								)}
-							</select>
-						</Row>
+						<FactoryTokenRow
+							checked={draft.factoryGithubTokens}
+							onChange={patch}
+						/>
+						<PollIntervalRow
+							seconds={draft.pollIntervalSeconds}
+							onChange={patch}
+						/>
 					</section>
 
 					<section id="project-views" className={clsx(fields.card)}>

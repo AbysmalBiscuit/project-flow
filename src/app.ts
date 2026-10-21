@@ -16,7 +16,6 @@ import type {
 	ProjectReport,
 	ReplyRequest,
 	Snapshot,
-	Thread,
 } from "./domain.ts";
 import {
 	type Attention,
@@ -25,7 +24,6 @@ import {
 	attentionOf,
 	checkoutBasenames,
 	checkoutNamesProject,
-	commentTree,
 	departedNeedsYouIds,
 	expectedBotsByRepo,
 	filterProjectReport,
@@ -54,25 +52,22 @@ import {
 	todoRows,
 	type WorkcellRun,
 } from "./domain.ts";
+import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
 	defaultThreadReadLimitMs,
 	type Fetch,
-	ThreadReadTimeout,
-	withThreadLimit,
 } from "./fetch.ts";
 import {
 	conditionalFetch,
 	githubProjectByNumber,
-	githubTicketKey,
 	githubTracker,
-	installationTokenFetch,
 	missingToken,
 	type RestCache,
 	rememberValidator,
 	retainListWindows,
-	TrackerError,
 } from "./github.ts";
+import { githubTicketKey } from "./github-thread.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
@@ -91,6 +86,7 @@ import type {
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
+import { threadResponse } from "./thread-response.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -571,45 +567,6 @@ function trackerError(error: unknown): Response {
 			? error.status
 			: 502;
 	return Response.json({ error: message }, { status });
-}
-
-async function threadResponse(
-	trackers: Trackers,
-	trackerName: string,
-	key: string,
-	request: Request,
-	threadReadLimitMs: number,
-): Promise<Response> {
-	const tracker = trackerFor(trackers, trackerName);
-	const project = new URL(request.url).searchParams.get("project") ?? "";
-	const fetchThread = tracker?.fetchThread;
-	if (fetchThread === undefined || project.trim() === "") {
-		return Response.json({ missing: true }, { status: 404 });
-	}
-	try {
-		const thread: Thread | null = await withThreadLimit(
-			(signal) => fetchThread(project, key.trim(), signal),
-			threadReadLimitMs,
-		);
-		if (thread === null) {
-			return Response.json({ missing: true }, { status: 404 });
-		}
-		return Response.json({
-			...thread,
-			comments: commentTree(thread.comments),
-		});
-	} catch (error) {
-		if (error instanceof ThreadReadTimeout) {
-			return Response.json({ error: error.message }, { status: 504 });
-		}
-		if (
-			error instanceof TrackerError &&
-			(error.status === 404 || error.status === 410)
-		) {
-			return Response.json({ missing: true }, { status: 404 });
-		}
-		return trackerError(error);
-	}
 }
 
 async function replyResponse(
