@@ -6,9 +6,9 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { sqliteStore } from "../src/store.ts";
+import { eventsOf } from "./events.ts";
 import outsideRelations from "./fixtures/outside-relations.json";
 import {
-	eventsOf,
 	linearFake,
 	recordedDiscovery,
 	repoReadFromLists,
