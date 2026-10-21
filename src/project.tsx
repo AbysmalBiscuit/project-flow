@@ -21,7 +21,13 @@ import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
-import { blockedLabel, groupByLabel, loadingLabel, navLabel } from "./terms.ts";
+import {
+	blockedLabel,
+	groupByLabel,
+	loadingLabel,
+	navLabel,
+	viewLabel,
+} from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
@@ -39,9 +45,9 @@ import {
 const doneCap = 5;
 
 const views = [
-	{ id: "board", label: "Board" },
-	{ id: "graph", label: "Graph" },
-	{ id: "table", label: "Table" },
+	{ id: "board", label: viewLabel.board },
+	{ id: "graph", label: viewLabel.graph },
+	{ id: "table", label: viewLabel.table },
 ] as const;
 
 type OpenView = ProjectViewSettings["openView"];

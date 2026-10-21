@@ -60,8 +60,10 @@ export const inboxCopy = {
 
 export const viewLabel = {
 	cards: "Cards",
+	board: "Board",
 	graph: "Graph",
 	table: "Table",
+	lastUsed: "Last used view",
 } as const;
 
 export const reasonLabel: Record<NeedsYouItem["reason"], string> = {
@@ -263,9 +265,6 @@ export const settingsCopy = {
 	pollHint: "How often each tracker is read.",
 	viewsLead:
 		"The board, graph and table views save these to the configuration file when you change them there.",
-	openBoard: "Lane",
-	openGraph: "Graph",
-	openTable: "Table",
 	openIn: "Open projects in",
 	openHint: "The view a project page opens in.",
 	graphDirection: "Graph direction",
