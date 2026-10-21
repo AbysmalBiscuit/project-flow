@@ -1248,6 +1248,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				resolve();
 			};
 		});
+		pollOptions.github?.holdLists?.(pollOptions.holdLists);
 	}
 	let polling: Promise<void> | null = null;
 	let stopped = false;

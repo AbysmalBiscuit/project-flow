@@ -2855,6 +2855,7 @@ async function readRepo(
 }
 
 export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
+	let holdLists: Promise<void> = Promise.resolve();
 	const seenReviews = new Map<string, ReviewEvidence>();
 	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
 	const projectItems = (projectId: string) => {
@@ -2898,7 +2899,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		if (cached !== undefined) {
 			return cached;
 		}
-		const read = cutoff.then((stamp) =>
+		const read = Promise.all([cutoff, holdLists]).then(([stamp]) =>
 			readRepo(token, fetchImpl, repo, stamp).catch((error: unknown) => {
 				if (repoSnapshots.get(repo) === read) {
 					repoSnapshots.delete(repo);
@@ -2915,6 +2916,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			pollReads.clear();
 			repoSnapshots.clear();
 			autoMergeByRepo.clear();
+		},
+		holdLists(held: Promise<void>) {
+			holdLists = held;
 		},
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
