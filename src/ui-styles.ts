@@ -2728,6 +2728,10 @@ export const panel = stylex.create({
 		fontSize: type.card,
 		lineHeight: type.line,
 	},
+	mdParagraph: {
+		margin: 0,
+		whiteSpace: "pre-line",
+	},
 	mdHeading: {
 		margin: `${space.sm} 0 ${space.xs}`,
 		fontSize: type.heading,
@@ -2782,6 +2786,19 @@ export const panel = stylex.create({
 	},
 	mdLink: {
 		color: colours.link,
+	},
+	mdCheck: {
+		boxSizing: "border-box",
+		width: measure.mark,
+		height: measure.mark,
+		margin: `0 ${space.twoXs} 0 0`,
+		accentColor: colours.link,
+		verticalAlign: "text-bottom",
+	},
+	mdChecked: {
+		marginRight: space.twoXs,
+		color: colours.link,
+		fontWeight: type.weight,
 	},
 	answer: {
 		marginTop: space.sm,

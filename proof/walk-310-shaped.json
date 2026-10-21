@@ -11,6 +11,7 @@
 		{ "assert_text": "Render note" },
 		{ "assert_text": "one item" },
 		{ "assert_text": "open task" },
+		{ "assert_text": "[x] done task" },
 		{ "assert_text": "spec" },
 		{ "assert_text": "ticket.key" },
 		{ "assert_text": "quoted line" },

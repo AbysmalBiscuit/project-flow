@@ -18,18 +18,6 @@
 			"preset": "recommended"
 		}
 	},
-	"overrides": [
-		{
-			"includes": ["src/comment-markdown.tsx"],
-			"linter": {
-				"rules": {
-					"security": {
-						"noDangerouslySetInnerHtml": "off"
-					}
-				}
-			}
-		}
-	],
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double"
