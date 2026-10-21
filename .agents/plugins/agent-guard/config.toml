@@ -11,7 +11,7 @@ lizard_ccn = 10000
 lizard_length = 200
 lizard_arguments = 10000
 # fallow covers TypeScript and JavaScript duplication. jscpd stays off for
-# those types and reads the other code language this repo has.
+# those types and reads Python.
 jscpd = true
 jscpd_extensions = '\.py$'
 
