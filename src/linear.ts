@@ -1125,6 +1125,17 @@ export async function fetchLinearThread(
 		if (linearError(body, "fetch thread") !== null) {
 			return null;
 		}
+		if (body !== null && typeof body === "object" && "data" in body) {
+			const data = body.data;
+			if (
+				data !== null &&
+				typeof data === "object" &&
+				"issue" in data &&
+				data.issue === null
+			) {
+				return null;
+			}
+		}
 		const page = threadPage.parse(body);
 		issue = page.data.issue;
 		nodes.push(...issue.comments.nodes);
