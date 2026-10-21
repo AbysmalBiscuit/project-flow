@@ -1,13 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { AutoMerge, Configuration, ProjectPin } from "./configuration.ts";
 import type { SettingsProject, TicketState } from "./domain.ts";
 import { projectHasPmBot, samePin } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { onAppEvent } from "./events.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
-import { readPageCache, writePageCache } from "./page-cache.ts";
+import { pageQuery, useSaveSettings } from "./queries.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import {
 	loadingLabel,
@@ -29,11 +29,6 @@ import {
 } from "./view-settings.ts";
 
 type Trackers = { github: boolean; linear: boolean };
-
-type SettingsBody = Configuration & {
-	trackers?: Trackers;
-	projects?: SettingsProject[];
-};
 
 const toastHideMs = 4_000;
 
@@ -931,11 +926,6 @@ function AutoMergeEditor({
 	);
 }
 
-function configurationOf(body: SettingsBody): Configuration {
-	const { trackers: _trackers, projects: _projects, ...configuration } = body;
-	return configuration;
-}
-
 function SearchGlyph() {
 	return (
 		<svg
@@ -1306,137 +1296,57 @@ function ProjectRow({
 }
 
 export function Page() {
-	const cached = readPageCache("settings-page");
-	const [settings, setSettings] = useState<Configuration | null>(
-		() => cached?.settings ?? null,
-	);
-	const [projects, setProjects] = useState<SettingsProject[]>(
-		() => cached?.projects ?? [],
-	);
-	const [trackers, setTrackers] = useState<Trackers>(
-		() => cached?.trackers ?? { github: false, linear: false },
-	);
-	const [error, setError] = useState<string | null>(null);
-	const [polling, setPolling] = useState(
-		() => readPageCache("polling") !== false,
-	);
-	useEffect(() => {
-		let stopped = false;
-		const load = () => {
-			fetch("/api/settings")
-				.then(async (response) => {
-					if (!response.ok) {
-						throw new Error(`settings failed (HTTP ${response.status})`);
-					}
-					return (await response.json()) as SettingsBody;
-				})
-				.then((body) => {
-					if (stopped) {
-						return;
-					}
-					const next = {
-						trackers: body.trackers ?? { github: false, linear: false },
-						projects: body.projects ?? [],
-						settings: configurationOf(body),
-					};
-					writePageCache("settings-page", next);
-					setTrackers(next.trackers);
-					setProjects(next.projects);
-					setSettings(next.settings);
-				})
-				.catch((cause: unknown) => {
-					if (!stopped) {
-						setError(
-							cause instanceof Error ? cause.message : "settings failed",
-						);
-					}
-				});
-		};
-		const readPoll = () => {
-			fetch("/api/overview")
-				.then(async (response) => {
-					if (stopped || !response.ok) {
-						return;
-					}
-					const body = (await response.json()) as { polling?: true };
-					const next = body.polling === true;
-					writePageCache("polling", next);
-					setPolling(next);
-				})
-				.catch(() => {
-					if (!stopped) {
-						setPolling(false);
-					}
-				});
-		};
-		load();
-		readPoll();
-		const stop = onAppEvent("overview", () => {
-			if (!stopped) {
-				load();
-				readPoll();
-			}
-		});
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, []);
-	if (error !== null) {
-		return <PageFrame title={navLabel.settings}>{error}</PageFrame>;
+	const page = useQuery(pageQuery.settingsPage);
+	const overview = useQuery(pageQuery.overview);
+	const save = useSaveSettings();
+	const loaded = page.data;
+	const polling =
+		overview.data?.polling === true ||
+		(overview.data === undefined && !page.isFetched);
+	if (page.isError) {
+		const cause = page.error;
+		return (
+			<PageFrame title={navLabel.settings}>
+				{cause instanceof Error ? cause.message : "Settings unavailable"}
+			</PageFrame>
+		);
 	}
-	if (settings === null) {
+	if (loaded === undefined) {
 		return <PageFrame title={navLabel.settings}>{loadingLabel}</PageFrame>;
 	}
 	return (
 		<Menu
-			loaded={settings}
-			trackers={trackers}
-			projects={projects}
+			loaded={loaded.settings}
+			trackers={loaded.trackers}
+			projects={loaded.projects}
 			polling={polling}
 			onSave={async (next, baseline) => {
-				const current = await fetch("/api/settings");
-				if (!current.ok) {
-					return `settings failed (HTTP ${current.status})`;
+				const current = await page.refetch();
+				const live = current.data;
+				if (live === undefined) {
+					return current.error instanceof Error
+						? current.error.message
+						: "Settings unavailable";
 				}
-				const live = (await current.json()) as SettingsBody;
-				const star = next.projectViews["*"] ?? live.projectViews["*"];
-				const response = await fetch("/api/settings", {
-					method: "PUT",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						...configurationOf(live),
+				const star = next.projectViews["*"] ?? live.settings.projectViews["*"];
+				try {
+					await save.mutateAsync({
+						...live.settings,
 						...next,
-						theme: live.theme,
-						overview: live.overview,
+						theme: live.settings.theme,
+						overview: live.settings.overview,
 						tracked: next.tracked,
 						baselineTracked: baseline.tracked,
 						pmBot: next.pmBot,
 						expectedBots: next.expectedBots,
 						projectViews: {
-							...live.projectViews,
+							...live.settings.projectViews,
 							...(star === undefined ? {} : { "*": star }),
 						},
-					}),
-				});
-				const body = (await response.json().catch(() => null)) as
-					| (SettingsBody & { error?: string })
-					| null;
-				if (!response.ok) {
-					return body?.error ?? `save failed (HTTP ${response.status})`;
+					});
+				} catch (cause) {
+					return cause instanceof Error ? cause.message : "save failed";
 				}
-				if (body === null) {
-					throw new Error("save failed");
-				}
-				const saved = {
-					trackers: body.trackers ?? trackers,
-					projects: body.projects ?? [],
-					settings: configurationOf(body),
-				};
-				writePageCache("settings-page", saved);
-				setTrackers(saved.trackers);
-				setProjects(saved.projects);
-				setSettings(saved.settings);
 				return null;
 			}}
 		/>

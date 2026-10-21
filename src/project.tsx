@@ -1,5 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import * as stylex from "@stylexjs/stylex";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import {
 	type ReactNode,
@@ -24,11 +25,10 @@ import {
 	ticketGroups,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { onAppEvent } from "./events.ts";
 import { GraphTools } from "./graph-pane.tsx";
-import { readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
+import { pageQuery } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame, PollStatus } from "./shell.tsx";
 import {
@@ -1236,27 +1236,21 @@ export function Page() {
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
-	const [report, setReport] = useState<ProjectReport | null>(
-		() => readPageCache(`project:${projectName()}`) ?? null,
-	);
-	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
+	const queries = useQueryClient();
+	const reportQuery = useQuery(pageQuery.project(name));
+	const overviewQuery = useQuery(pageQuery.overview);
+	const settingsQuery = useQuery(pageQuery.settings);
+	const report = reportQuery.data === undefined ? null : reportQuery.data;
+	const missing = reportQuery.isError || report === null;
+	const polling =
+		overviewQuery.data?.polling === true ||
+		(overviewQuery.data === undefined && !reportQuery.isFetched);
 	const active = useActiveTicket();
-	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
-	const [missing, setMissing] = useState(false);
-	const [polling, setPolling] = useState(
-		() => readPageCache("polling") !== false,
-	);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	useEffect(() => {
 		if (active === null) {
 			return;
-		}
-		if (
-			active.project !== panelProjectRef.current ||
-			active.tracker !== panelTrackerRef.current
-		) {
-			setPanelReport(null);
 		}
 		setPanelProject(active.project);
 		setPanelTracker(active.tracker);
@@ -1279,159 +1273,55 @@ export function Page() {
 		return () => window.removeEventListener("popstate", onPop);
 	}, []);
 	useEffect(() => {
-		let stopped = false;
 		const loaded = name;
-		fetch("/api/settings")
-			.then(async (response) => {
-				if (stopped || !response.ok) {
-					return;
-				}
-				const body = (await response.json()) as {
-					projectViews?: Record<string, ProjectViewSettings>;
-				};
-				const views = body.projectViews ?? {};
-				const saved = savedProjectView(views, loaded);
-				setSettings(saved);
-				setView(openedView(saved));
-				groupBySavedRef.current = groupByWasSaved(views, loaded);
-			})
-			.catch(() => {});
-		return () => {
-			stopped = true;
-		};
-	}, [name]);
+		const views = settingsQuery.data?.projectViews;
+		if (views === undefined) {
+			return;
+		}
+		const saved = savedProjectView(views, loaded);
+		setSettings(saved);
+		setView(openedView(saved));
+		groupBySavedRef.current = groupByWasSaved(views, loaded);
+	}, [name, settingsQuery.data]);
 	useEffect(() => {
-		const loaded = name;
-		const path = `/api/projects/${encodeURIComponent(loaded)}`;
-		let stopped = false;
-		const load = () => {
-			fetch(path)
-				.then(async (response) => {
-					if (stopped) {
-						return;
-					}
-					if (!response.ok) {
-						setReport(null);
-						setMissing(true);
-						return;
-					}
-					setMissing(false);
-					const body = (await response.json()) as ProjectReport;
-					writePageCache(`project:${loaded}`, body);
-					setReport(body);
-					setPanelTracker((current) =>
-						panelProjectRef.current === loaded ? body.tracker : current,
-					);
-				})
-				.catch(() => {
-					if (!stopped) {
-						setReport(null);
-						setMissing(true);
-					}
-				});
-		};
-		load();
-		const readPoll = () => {
-			fetch("/api/overview")
-				.then(async (response) => {
-					if (stopped || !response.ok) {
-						return;
-					}
-					const body = (await response.json()) as { polling?: true };
-					const next = body.polling === true;
-					writePageCache("polling", next);
-					setPolling(next);
-				})
-				.catch(() => {
-					if (!stopped) {
-						setPolling(false);
-					}
-				});
-		};
-		readPoll();
-		const stop = onAppEvent("overview", () => {
-			load();
-			readPoll();
-		});
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, [name]);
-	const outsideProjects = [
+		if (report === null || report === undefined) {
+			return;
+		}
+		setPanelTracker((current) =>
+			panelProjectRef.current === name ? report.tracker : current,
+		);
+	}, [name, report]);
+	const outsideNames = [
 		...new Set(
 			(report?.tickets ?? []).flatMap((item) =>
 				(item.outsideBlockers ?? []).map((blocker) => blocker.project),
 			),
 		),
-	]
-		.sort((left, right) => left.localeCompare(right))
-		.join("\n");
+	].sort((left, right) => left.localeCompare(right));
+	const outsideQuery = useQuery({
+		queryKey: ["outside-projects", outsideNames],
+		queryFn: async () => {
+			const loaded = await Promise.all(
+				outsideNames.map((project) =>
+					queries.fetchQuery(pageQuery.project(project, "all")),
+				),
+			);
+			return loaded.flatMap((item) => item ?? []);
+		},
+	});
+	const outsideReports = outsideQuery.data ?? [];
+	const panelSourceQuery = useQuery({
+		...pageQuery.project(panelProject, "all"),
+		enabled: open && ticket !== null,
+	});
 	useEffect(() => {
-		let stopped = false;
-		const load = () => {
-			if (outsideProjects === "") {
-				setOutsideReports([]);
-				return;
-			}
-			const names = outsideProjects.split("\n");
-			Promise.all(
-				names.map(async (project) => {
-					const response = await fetch(
-						`/api/projects/${encodeURIComponent(project)}?view=all`,
-					);
-					if (!response.ok) {
-						return null;
-					}
-					return (await response.json()) as ProjectReport;
-				}),
-			)
-				.then((loaded) => {
-					if (!stopped) {
-						setOutsideReports(loaded.flatMap((item) => item ?? []));
-					}
-				})
-				.catch(() => {
-					if (!stopped) {
-						setOutsideReports([]);
-					}
-				});
-		};
-		load();
-		const stop = onAppEvent("overview", load);
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, [outsideProjects]);
-	useEffect(() => {
-		if (!open || ticket === null) {
+		const body = panelSourceQuery.data;
+		if (body === null || body === undefined) {
 			return;
 		}
-		let stopped = false;
-		const path = `/api/projects/${encodeURIComponent(panelProject)}?view=all`;
-		const load = () => {
-			fetch(path)
-				.then(async (response) => {
-					if (stopped || !response.ok) {
-						return;
-					}
-					const body = (await response.json()) as ProjectReport;
-					setPanelReport(body);
-					setPanelTracker(body.tracker);
-				})
-				.catch(() => {});
-		};
-		load();
-		const stop = onAppEvent("overview", () => {
-			load();
-		});
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, [open, ticket, panelProject]);
-	const source = panelReport;
+		setPanelTracker(body.tracker);
+	}, [panelSourceQuery.data]);
+	const source = panelSourceQuery.data ?? null;
 	const selected =
 		source === null || ticket === null
 			? undefined
@@ -1538,7 +1428,6 @@ export function Page() {
 		state?: TicketView["state"],
 	) => {
 		setOpenedState(state ?? null);
-		setPanelReport(null);
 		setPanelProject(blocker.project);
 		setPanelTracker(blocker.tracker);
 		setTicket(blocker.key);
@@ -1721,7 +1610,6 @@ export function Page() {
 									active,
 								)}
 								onOpenBlocker={(blocker) => {
-									setPanelReport(null);
 									setPanelProject(blocker.project);
 									setPanelTracker(blocker.tracker);
 									setTicket(blocker.key);

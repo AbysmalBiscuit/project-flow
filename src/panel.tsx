@@ -1,11 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type {
 	NeedsYouItem,
-	Thread,
 	ThreadComment,
 	TicketRelation,
 	TicketState,
 } from "./domain.ts";
+import { pageQuery, usePostReply } from "./queries.ts";
 import {
 	mergeFactLabel,
 	openOnGitHubLabel,
@@ -235,121 +236,54 @@ export function TicketPanel({
 	onClose: () => void;
 	why?: string;
 }) {
-	const [thread, setThread] = useState<Thread | null>(null);
-	const [missing, setMissing] = useState(false);
-	const [failed, setFailed] = useState(false);
-	const [attempt, setAttempt] = useState(0);
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
-	const [pending, setPending] = useState(false);
 	const [picked, setPicked] = useState(false);
+	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
+	const reply = usePostReply(tracker, project, ticketKey);
+	const pending = reply.isPending;
 	useEffect(() => {
 		if (item?.answered === true) {
 			setPicked(false);
 		}
 	}, [item?.answered]);
-	const threadPath = `/api/threads/${tracker}/${encodeURIComponent(ticketKey)}?project=${encodeURIComponent(project)}&attempt=${attempt}`;
-	useEffect(() => {
-		let stopped = false;
-		fetch(threadPath)
-			.then(async (response) => {
-				if (stopped) {
-					return;
-				}
-				if (!response.ok) {
-					setThread(null);
-					const body = (await response.json().catch(() => null)) as {
-						missing?: boolean;
-					} | null;
-					const gone = body?.missing === true;
-					setMissing(gone);
-					setFailed(!gone);
-					return;
-				}
-				setMissing(false);
-				setFailed(false);
-				setThread((await response.json()) as Thread);
-			})
-			.catch(() => {
-				if (!stopped) {
-					setThread(null);
-					setMissing(false);
-					setFailed(true);
-				}
-			});
-		return () => {
-			stopped = true;
-		};
-	}, [threadPath]);
+	const read = threadQuery.isError
+		? { status: "failed" as const }
+		: threadQuery.data;
+	const thread = read?.status === "ready" ? read.thread : null;
+	const missing = read?.status === "missing";
+	const failed = read?.status === "failed";
 	async function pick(option: number): Promise<void> {
 		if (pending || picked) {
 			return;
 		}
-		setPending(true);
 		setError(null);
 		try {
-			const response = await fetch("/api/replies", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ tracker, project, key: ticketKey, option }),
-			});
-			if (!response.ok) {
-				const failed = (await response.json()) as { error?: string };
-				setError(failed.error ?? "Reply failed");
-				return;
-			}
+			await reply.mutateAsync({ tracker, project, key: ticketKey, option });
 			setPicked(true);
-			const loaded = await fetch(threadPath);
-			if (loaded.ok) {
-				setMissing(false);
-				setFailed(false);
-				setThread((await loaded.json()) as Thread);
-			}
-		} catch {
-			setError("Reply failed");
-		} finally {
-			setPending(false);
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Reply failed");
 		}
 	}
 	async function send(target: ReplyTarget): Promise<void> {
 		if (draft.trim() === "" || pending) {
 			return;
 		}
-		setPending(true);
 		setError(null);
 		try {
-			const response = await fetch("/api/replies", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({
-					tracker,
-					project,
-					key: ticketKey,
-					body: draft,
-					...(target.parentId === undefined
-						? {}
-						: { parentId: target.parentId }),
-					kind: target.kind,
-				}),
+			await reply.mutateAsync({
+				tracker,
+				project,
+				key: ticketKey,
+				body: draft,
+				...(target.parentId === undefined ? {} : { parentId: target.parentId }),
+				kind: target.kind,
 			});
-			if (!response.ok) {
-				const failed = (await response.json()) as { error?: string };
-				setError(failed.error ?? "Reply failed");
-				return;
-			}
 			setDraft("");
 			setReplyTo(null);
-			const loaded = await fetch(threadPath);
-			if (loaded.ok) {
-				setMissing(false);
-				setFailed(false);
-				setThread((await loaded.json()) as Thread);
-			}
-		} catch {
-			setError("Reply failed");
-		} finally {
-			setPending(false);
+		} catch (cause) {
+			setError(cause instanceof Error ? cause.message : "Reply failed");
 		}
 	}
 	const trackerName = tracker === "linear" ? "Linear" : "GitHub";
@@ -395,10 +329,7 @@ export function TicketPanel({
 						className={clsx(panel.retry, shell.buttonFocus)}
 						data-retry="thread"
 						onClick={() => {
-							setFailed(false);
-							setMissing(false);
-							setThread(null);
-							setAttempt((current) => current + 1);
+							void threadQuery.refetch();
 						}}
 					>
 						{threadRetryLabel}
