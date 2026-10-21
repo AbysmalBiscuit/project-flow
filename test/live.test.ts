@@ -1100,10 +1100,16 @@ describe("live updates", () => {
 	}, 20_000);
 
 	test("a refresh during a poll longer than 10 seconds answers before that poll ends", async () => {
-		const waiting: (() => void)[] = [];
-		let released = false;
-		let releasePoll: (() => void) | null = null;
+		// The fake fetch holds the refresh poll until the test releases it.
+		// A wall-clock sleep of 11 seconds sits inside the 30 second test
+		// budget, so a slow machine fails the test before an assertion runs.
+		const pollSpanMs = 11_000;
+		let releasePoll: () => void = () => {};
+		const pollHeld = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
 		let issueReads = 0;
+		let heldReadAt: number | null = null;
 		const fetchImpl: Fetch = async (input, init) => {
 			const discovered = recordedDiscovery(input, init);
 			if (discovered !== null) {
@@ -1116,19 +1122,8 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				issueReads += 1;
 				if (issueReads > 1) {
-					await new Promise<void>((resolve) => {
-						if (released) {
-							resolve();
-							return;
-						}
-						waiting.push(resolve);
-						releasePoll = () => {
-							released = true;
-							for (const release of waiting.splice(0)) {
-								release();
-							}
-						};
-					});
+					heldReadAt = Date.now();
+					await pollHeld;
 					return page([
 						ticket(1, "2026-04-02T00:00:00Z", "closed"),
 						ticket(2, "2026-04-02T00:00:00Z"),
@@ -1138,7 +1133,7 @@ describe("live updates", () => {
 			}
 			return recordedOrEmpty(url) ?? unrecorded(input);
 		};
-		await withServer(fetchImpl, 3600, async (base) => {
+		await withServer(fetchImpl, 3600, async (base, advance) => {
 			const before = await readOverview(base);
 			expect(before.polling).toBeUndefined();
 			expect(before.fetchedAt).toBe(goodPoll);
@@ -1148,7 +1143,8 @@ describe("live updates", () => {
 			const refresh = fetch(new URL("/api/refresh", base), { method: "POST" });
 			const answered = await refresh;
 			expect(answered.status).toBe(204);
-			while (releasePoll === null) {
+			expect(Date.now() - started).toBeLessThan(10_000);
+			while (heldReadAt === null) {
 				await Bun.sleep(20);
 			}
 			const joined = await fetch(new URL("/api/refresh", base), {
@@ -1156,15 +1152,11 @@ describe("live updates", () => {
 				body: "   ",
 			});
 			expect(joined.status).toBe(204);
+			expect(Date.now() - started).toBeLessThan(10_000);
 			expect(issueReads).toBe(2);
-			expect(releasePoll).not.toBeNull();
 			const running = await readOverview(base);
 			expect(running.polling).toBe(true);
 			expect(running.fetchedAt).toBe(before.fetchedAt);
-			const release = releasePoll;
-			if (release === null) {
-				throw new Error("the refresh poll never reached the tracker");
-			}
 			const events = stream.events[Symbol.asyncIterator]();
 			const runningEvent = await events.next();
 			expect(runningEvent.done).toBe(false);
@@ -1172,11 +1164,13 @@ describe("live updates", () => {
 				const startedPoll = overviewOf(runningEvent.value.data);
 				expect(startedPoll.polling).toBe(true);
 			}
-			await Bun.sleep(11_000);
+			// The poll reads the clock again after the tracker answers. Each
+			// read moves one second, so the span elapses as clock steps.
+			for (let elapsed = 0; elapsed < pollSpanMs; elapsed += 1_000) {
+				advance(1_000);
+			}
 			expect(issueReads).toBe(2);
-			expect(Date.now() - started).toBeGreaterThan(10_000);
-			release();
-			releasePoll = null;
+			releasePoll();
 			const published = await settledOverviewEvent(events, overviewOf);
 			stream.close();
 			expect(published.polling).toBeUndefined();
@@ -1186,8 +1180,11 @@ describe("live updates", () => {
 			const after = await settledOverview(base, readOverview);
 			expect(after.fetchedAt).not.toBe(before.fetchedAt);
 			expect(after.polling).toBeUndefined();
+			expect(
+				Date.parse(after.fetchedAt ?? "") - Date.parse(before.fetchedAt ?? ""),
+			).toBeGreaterThanOrEqual(pollSpanMs);
 		});
-	}, 30_000);
+	}, 20_000);
 
 	test("a reply during a held refresh keeps the running poll", async () => {
 		const waiting: (() => void)[] = [];
