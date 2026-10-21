@@ -1420,6 +1420,7 @@ function Page() {
 							<Dropdown
 								id="project-group"
 								label="Group by"
+								style={headerControlStyle.control}
 								value={
 									view === "graph"
 										? graphGroupBy(settings)
@@ -1472,6 +1473,7 @@ function Page() {
 										probeId="project-graph-viewport"
 										fitId="project-graph-fit"
 										scope="#project-graph"
+										styles="header"
 									/>
 								</>
 							) : null}

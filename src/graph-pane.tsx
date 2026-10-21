@@ -4,6 +4,13 @@ import { overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards, headerControlStyle } from "./ui-styles.ts";
 
+const graphToolStyles = {
+	card: cards,
+	header: headerControlStyle,
+} as const;
+
+export type GraphToolStyle = keyof typeof graphToolStyles;
+
 export function columnDepth(
 	ids: Iterable<string>,
 	incoming: Map<string, string[]>,
@@ -117,10 +124,12 @@ export function GraphTools({
 	probeId = "graph-viewport",
 	fitId,
 	scope = "",
+	styles = "card",
 }: {
 	probeId?: string;
 	fitId?: string;
 	scope?: string;
+	styles?: GraphToolStyle;
 }) {
 	const flow = useReactFlow();
 	const [viewport, setViewport] = useState<Viewport | null>(null);
@@ -137,7 +146,7 @@ export function GraphTools({
 			scope === "" ? document : (document.querySelector(scope) ?? document);
 		setViewport(readViewport(root));
 	};
-	const tools = scope === "#project-graph" ? headerControlStyle : cards;
+	const tools = graphToolStyles[styles];
 	return (
 		<div className={clsx(tools.graphTools)}>
 			<button
