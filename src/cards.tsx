@@ -96,7 +96,11 @@ function visibleChipCount(row: HTMLElement, items: HTMLElement[]): number {
 		reserve.hidden = true;
 	}
 	let visible = items.length;
-	while (visible > 0 && !fitsInRow(items[visible - 1] as HTMLElement, row)) {
+	while (visible > 0) {
+		const last = items[visible - 1];
+		if (last === undefined || fitsInRow(last, row)) {
+			break;
+		}
 		visible -= 1;
 	}
 	hidePast(items, visible);
