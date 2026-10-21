@@ -1101,15 +1101,14 @@ describe("live updates", () => {
 
 	test("a refresh during a poll longer than 10 seconds answers before that poll ends", async () => {
 		// The fake fetch holds the refresh poll until the test releases it.
-		// A wall-clock sleep of 11 seconds sits inside the 30 second test
-		// budget, so a slow machine fails the test before an assertion runs.
+		// The poll span runs on the clock port, not wall time.
 		const pollSpanMs = 11_000;
 		let releasePoll: () => void = () => {};
 		const pollHeld = new Promise<void>((resolve) => {
 			releasePoll = resolve;
 		});
 		let issueReads = 0;
-		let heldReadAt: number | null = null;
+		let pollReachedTracker = false;
 		const fetchImpl: Fetch = async (input, init) => {
 			const discovered = recordedDiscovery(input, init);
 			if (discovered !== null) {
@@ -1122,7 +1121,7 @@ describe("live updates", () => {
 			if (listUrl(url) !== null) {
 				issueReads += 1;
 				if (issueReads > 1) {
-					heldReadAt = Date.now();
+					pollReachedTracker = true;
 					await pollHeld;
 					return page([
 						ticket(1, "2026-04-02T00:00:00Z", "closed"),
@@ -1144,7 +1143,7 @@ describe("live updates", () => {
 			const answered = await refresh;
 			expect(answered.status).toBe(204);
 			expect(Date.now() - started).toBeLessThan(10_000);
-			while (heldReadAt === null) {
+			while (!pollReachedTracker) {
 				await Bun.sleep(20);
 			}
 			const joined = await fetch(new URL("/api/refresh", base), {
@@ -1164,11 +1163,7 @@ describe("live updates", () => {
 				const startedPoll = overviewOf(runningEvent.value.data);
 				expect(startedPoll.polling).toBe(true);
 			}
-			// The poll reads the clock again after the tracker answers. Each
-			// read moves one second, so the span elapses as clock steps.
-			for (let elapsed = 0; elapsed < pollSpanMs; elapsed += 1_000) {
-				advance(1_000);
-			}
+			advance(pollSpanMs);
 			expect(issueReads).toBe(2);
 			releasePoll();
 			const published = await settledOverviewEvent(events, overviewOf);
