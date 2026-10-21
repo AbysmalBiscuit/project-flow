@@ -221,9 +221,7 @@ export function graphModel(
 		position: positions.get(project.name) ?? { x: 0, y: 0 },
 		data: nodeData(project),
 	}));
-	const marker = markerEnd(
-		measureMarker(document, classToken(cards.graphMarker)),
-	);
+	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
 	const pending = shown.flatMap((project) =>
 		project.crossProjectBlockers.flatMap((blocker) =>
 			edgeFor(project.name, blocker, shownNames, marker),
