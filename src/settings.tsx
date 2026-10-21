@@ -7,7 +7,7 @@ import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
-import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
+import { readPageCache, writePageCache } from "./page-cache.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import {
 	loadingLabel,
@@ -1305,7 +1305,7 @@ function ProjectRow({
 	);
 }
 
-function Page() {
+export function Page() {
 	const cached = readPageCache("settings-page");
 	const [settings, setSettings] = useState<Configuration | null>(
 		() => cached?.settings ?? null,
@@ -1441,18 +1441,4 @@ function Page() {
 			}}
 		/>
 	);
-}
-
-function mount(): void {
-	if (window.location.pathname !== "/settings") {
-		return;
-	}
-	mountPage((root) => {
-		root.render(<Page />);
-	});
-}
-
-if (typeof document !== "undefined") {
-	window.addEventListener("project-flow-page", mount);
-	mount();
 }

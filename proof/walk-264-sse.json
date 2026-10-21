@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4799",
+	"serve": ["bun", "proof/serve-264.ts", "4799"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "acme/flow" },
+		{ "assert_text": "0 of 1 done" },
+		{ "click": "#overview-refresh" },
+		{ "assert_text": "1 of 1 done" },
+		{ "shot": "sse-after-poll" }
+	]
+}

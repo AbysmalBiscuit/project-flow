@@ -1,14 +1,8 @@
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import type { Configuration } from "./configuration.ts";
-import type {
-	InboxEntry,
-	NeedsYouItem,
-	Overview,
-	ProjectReport,
-	SettingsProject,
-} from "./domain.ts";
-import { pollingPageId, storedPageId } from "./stored-page.ts";
+import type { ProjectReport, SettingsProject } from "./domain.ts";
+import { storedObject } from "./stored-page.ts";
 
 type SettingsPage = {
 	settings: Configuration;
@@ -17,11 +11,6 @@ type SettingsPage = {
 };
 
 type PageCache = {
-	overview: Overview;
-	settings: Configuration;
-	inbox: InboxEntry[];
-	"needs-you": NeedsYouItem[];
-	"fetched-at": string | null;
 	polling: boolean;
 	"settings-page": SettingsPage;
 };
@@ -57,50 +46,7 @@ export function writePageCache(
 	entries.set(key, body);
 }
 
-function readStoredPolling(): boolean | undefined {
-	const node = document.getElementById(pollingPageId);
-	if (node === null) {
-		return undefined;
-	}
-	return node.textContent === "true";
-}
-
-function readStoredPage(): unknown {
-	const node = document.getElementById(storedPageId);
-	if (node === null || node.textContent === null || node.textContent === "") {
-		return undefined;
-	}
-	return JSON.parse(node.textContent) as unknown;
-}
-
-function storedObject(body: unknown): Record<string, unknown> | null {
-	if (body === null || typeof body !== "object" || Array.isArray(body)) {
-		return null;
-	}
-	return body as Record<string, unknown>;
-}
-
 let storedSeeded = false;
-
-function seedOverview(stored: unknown, polling: boolean | undefined): void {
-	const embedded = storedObject(stored);
-	if (embedded === null) {
-		return;
-	}
-	const overview = storedObject(embedded.overview);
-	if (overview === null) {
-		return;
-	}
-	writePageCache("overview", overview as Overview);
-	writePageCache("polling", overview.polling === true || polling === true);
-	const fetchedAt =
-		typeof overview.fetchedAt === "string" ? overview.fetchedAt : null;
-	writePageCache("fetched-at", fetchedAt);
-	const settings = storedObject(embedded.settings);
-	if (settings !== null) {
-		writePageCache("settings", settings as Configuration);
-	}
-}
 
 function seedSettingsPage(stored: unknown): void {
 	const body = storedObject(stored);
@@ -118,7 +64,6 @@ function seedSettingsPage(stored: unknown): void {
 			linear: trackers?.linear === true,
 		},
 	});
-	writePageCache("settings", settings as Configuration);
 }
 
 function seedProject(pathname: string, stored: unknown): void {
@@ -135,29 +80,19 @@ function seedProject(pathname: string, stored: unknown): void {
 	writePageCache(`project:${name}`, report as ProjectReport);
 }
 
-export function seedStoredPage(pathname: string): void {
+export function seedStoredPage(
+	pathname: string,
+	stored: unknown,
+	polling: boolean | undefined,
+): void {
 	if (storedSeeded) {
 		return;
 	}
 	storedSeeded = true;
-	const polling = readStoredPolling();
 	if (polling !== undefined) {
 		writePageCache("polling", polling);
 	}
-	const stored = readStoredPage();
 	if (stored === undefined) {
-		return;
-	}
-	if (pathname === "/") {
-		seedOverview(stored, polling);
-		return;
-	}
-	if (pathname === "/needs-you" && Array.isArray(stored)) {
-		writePageCache("needs-you", stored as NeedsYouItem[]);
-		return;
-	}
-	if (pathname === "/inbox" && Array.isArray(stored)) {
-		writePageCache("inbox", stored as InboxEntry[]);
 		return;
 	}
 	if (pathname === "/settings") {

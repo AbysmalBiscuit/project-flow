@@ -1,10 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import type { NeedsYouItem, Overview } from "./domain.ts";
+import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
-import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
+import { pageQuery } from "./queries.ts";
 import {
 	activeTicket,
 	closeTicket,
@@ -195,16 +195,19 @@ function NeedsList({
 	items,
 	fetchedAt,
 	polling,
+	fetching,
 }: {
 	items: NeedsYouItem[];
 	fetchedAt: string | null;
 	polling: boolean;
+	fetching: boolean;
 }) {
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
 	const [project, setProject] = useState(allProjects);
 	const [group, setGroup] = useState<NeedsGroup>("project");
 	const ticket = useActiveTicket();
 	const seeded = useRef(false);
+	const refreshing = fetching || polling;
 	const projects = [...new Set(items.map((item) => item.project))];
 	const selected =
 		project === allProjects || projects.includes(project)
@@ -243,10 +246,10 @@ function NeedsList({
 			subtitle={
 				<>
 					{summaryLine(items)}
-					{polling || fetchedAt !== null ? ", " : null}
+					{refreshing || fetchedAt !== null ? ", " : null}
 					<PollStatus
-						text={polling ? null : polledAgo(fetchedAt)}
-						polling={polling}
+						text={refreshing ? null : polledAgo(fetchedAt)}
+						polling={refreshing}
 					/>
 				</>
 			}
@@ -301,92 +304,30 @@ function NeedsList({
 	);
 }
 
-function Page() {
-	const [items, setItems] = useState<NeedsYouItem[] | null>(
-		() => readPageCache("needs-you") ?? null,
-	);
-	const [holdsRead, setHoldsRead] = useState(
-		() => readPageCache("overview") !== undefined,
-	);
-	const [fetchedAt, setFetchedAt] = useState<string | null>(
-		() => readPageCache("fetched-at") ?? null,
-	);
-	const [polling, setPolling] = useState(
-		() => readPageCache("polling") !== false,
-	);
+export function Page() {
+	const needs = useQuery(pageQuery.needsYou);
+	const overview = useQuery(pageQuery.overview);
+	const items = needs.isError ? [] : needs.data;
+	const body = overview.data;
 	useEffect(() => {
-		let stopped = false;
-		const load = () => {
-			fetch("/api/needs-you")
-				.then(async (response) => {
-					if (!stopped && response.ok) {
-						const loaded = (await response.json()) as NeedsYouItem[];
-						writePageCache("needs-you", loaded);
-						setItems(loaded);
-						for (const item of loaded) {
-							replaceActiveItem(item);
-						}
-					}
-				})
-				.catch(() => {
-					if (!stopped) {
-						setItems([]);
-					}
-				});
-			fetch("/api/overview")
-				.then(async (response) => {
-					if (!stopped && response.ok) {
-						const body = (await response.json()) as {
-							fetchedAt: string | null;
-							projects?: { pending?: boolean }[];
-							tracked?: false;
-							polling?: true;
-						};
-						const next = body.polling === true;
-						writePageCache("polling", next);
-						setPolling(next);
-						writePageCache("fetched-at", body.fetchedAt);
-						setFetchedAt(body.fetchedAt);
-						const read = storeHoldsRead(body);
-						if (read) {
-							writePageCache("overview", body as Overview);
-						}
-						setHoldsRead(read);
-					}
-				})
-				.catch(() => {
-					if (!stopped) {
-						setPolling(false);
-						writePageCache("fetched-at", null);
-						setFetchedAt(null);
-					}
-				});
-		};
-		load();
-		const stop = onAppEvent("overview", () => {
-			load();
-		});
-		return () => {
-			stopped = true;
-			stop();
-		};
-	}, []);
-	if (items === null || (polling && items.length === 0 && !holdsRead)) {
+		if (items === undefined) {
+			return;
+		}
+		for (const item of items) {
+			replaceActiveItem(item);
+		}
+	}, [items]);
+	const holdsRead = body !== undefined && storeHoldsRead(body);
+	const polling = body?.polling === true;
+	if (items === undefined || (polling && items.length === 0 && !holdsRead)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
-	return <NeedsList items={items} fetchedAt={fetchedAt} polling={polling} />;
-}
-
-function mount(): void {
-	if (window.location.pathname !== "/needs-you") {
-		return;
-	}
-	mountPage((root) => {
-		root.render(<Page />);
-	});
-}
-
-if (typeof document !== "undefined") {
-	window.addEventListener("project-flow-page", mount);
-	mount();
+	return (
+		<NeedsList
+			items={items}
+			fetchedAt={body?.fetchedAt ?? null}
+			polling={polling}
+			fetching={needs.isFetching || overview.isFetching}
+		/>
+	);
 }

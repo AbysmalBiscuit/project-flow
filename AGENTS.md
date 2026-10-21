@@ -17,6 +17,7 @@ Issue #1 holds the v1 rules. Issue #97 overrides #1 where they differ. Use the t
 ### Stack
 
 - The stack is Bun, React and StyleX. One Bun process serves the React page and the JSON API on localhost. Bun bundles the page from an HTML import. Do not add a second bundler or a framework.
+- TanStack Query is the client data layer (ADR 0003). One QueryClient serves the page. The project page, Settings and the side panel read the page cache.
 - Styles use StyleX (ADR 0001). The StyleX Bun plugin in `bunfig.toml` runs in the dev server and the production build.
 - Bun's built-in SQLite is the store. The store is a cache: the next poll fills it again. The notifications table and seeded_ids keep history.
 - One Zod schema validates the configuration file and gives its TypeScript type. Do not write a second type for the configuration.

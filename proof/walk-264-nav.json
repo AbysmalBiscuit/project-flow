@@ -1,0 +1,16 @@
+{
+	"base_url": "http://127.0.0.1:4799",
+	"serve": ["bun", "proof/serve-264.ts", "4799"],
+	"steps": [
+		{ "goto": "/proof/requests?clear=1" },
+		{ "goto": "/" },
+		{ "assert_text": "Overview" },
+		{ "click": "a[href='/needs-you']" },
+		{ "assert_text": "Needs you" },
+		{ "click": "a[href='/']" },
+		{ "assert_text": "Overview" },
+		{ "goto": "/proof/requests" },
+		{ "assert_text": "overview fetches 1" },
+		{ "shot": "nav-one-overview-fetch" }
+	]
+}
