@@ -1,6 +1,7 @@
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
 import { installPageLinks } from "./page-links.ts";
+import { clearTicketOnPageChange } from "./selection.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
 
@@ -41,5 +42,6 @@ async function showPage(): Promise<void> {
 await showPage();
 
 window.addEventListener("popstate", () => {
+	clearTicketOnPageChange(window.location.href);
 	void showPage();
 });

@@ -11,12 +11,7 @@ import type {
 import { sameTicketKey, ticketGroups } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
-import {
-	claimPage,
-	mountPage,
-	readPageCache,
-	writePageCache,
-} from "./page-cache.ts";
+import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
@@ -1015,10 +1010,9 @@ function Page() {
 	);
 	const [view, setView] = useState<OpenView>("board");
 	const [filterOpen, setFilterOpen] = useState(false);
-	const [report, setReport] = useState<ProjectReport | null>(() => {
-		const cached = readPageCache(`project:${projectName()}`);
-		return cached === undefined ? null : (cached as ProjectReport);
-	});
+	const [report, setReport] = useState<ProjectReport | null>(
+		() => readPageCache(`project:${projectName()}`) ?? null,
+	);
 	const [outsideReports, setOutsideReports] = useState<ProjectReport[]>([]);
 	const active = useActiveTicket();
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
@@ -1045,6 +1039,9 @@ function Page() {
 	}, [active]);
 	useEffect(() => {
 		const onPop = () => {
+			if (!window.location.pathname.startsWith("/projects/")) {
+				return;
+			}
 			const next = highlightKey();
 			setName(projectName());
 			setPanelProject(panelProjectName());
@@ -1477,8 +1474,7 @@ function mount(): void {
 	if (!window.location.pathname.startsWith("/projects/")) {
 		return;
 	}
-	const token = claimPage();
-	mountPage(token, (root) => {
+	mountPage((root) => {
 		root.render(<Page key={projectName()} />);
 	});
 }

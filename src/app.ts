@@ -68,6 +68,7 @@ import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import type {
+	Change,
 	CheckoutSource,
 	Clock,
 	ConfigurationPort,
@@ -676,7 +677,7 @@ function eventStream(notifier: Notifier): Response {
 		start(controller) {
 			const encoder = new TextEncoder();
 			controller.enqueue(encoder.encode(": open\n\n"));
-			unsubscribe = notifier.subscribe((change) => {
+			const send = (change: Change): void => {
 				controller.enqueue(
 					encoder.encode(
 						`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
@@ -689,7 +690,12 @@ function eventStream(notifier: Notifier): Response {
 						),
 					);
 				}
-			});
+			};
+			const current = notifier.latest();
+			if (current !== null) {
+				send({ overview: current.overview, notifications: [] });
+			}
+			unsubscribe = notifier.subscribe(send);
 		},
 		cancel() {
 			unsubscribe();

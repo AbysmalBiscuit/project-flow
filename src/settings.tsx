@@ -5,12 +5,7 @@ import { sameRef } from "./configuration.ts";
 import type { KnownBot, SettingsProject, TicketState } from "./domain.ts";
 import { knownBots, projectHasPmBot } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
-import {
-	claimPage,
-	mountPage,
-	readPageCache,
-	writePageCache,
-} from "./page-cache.ts";
+import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { PageFrame } from "./shell.tsx";
 import {
 	loadingLabel,
@@ -226,6 +221,21 @@ function Menu({
 	const theme = pageTheme();
 
 	useEffect(() => onAppEvent("overview", onReload), [onReload]);
+	useEffect(() => {
+		setSaved((current) =>
+			current.pollIntervalSeconds === loaded.pollIntervalSeconds
+				? current
+				: { ...current, pollIntervalSeconds: loaded.pollIntervalSeconds },
+		);
+		setDraft((current) => {
+			if (current.pollIntervalSeconds !== saved.pollIntervalSeconds) {
+				return current;
+			}
+			return current.pollIntervalSeconds === loaded.pollIntervalSeconds
+				? current
+				: { ...current, pollIntervalSeconds: loaded.pollIntervalSeconds };
+		});
+	}, [loaded, saved.pollIntervalSeconds]);
 
 	useEffect(() => {
 		const notify = navigator.permissions?.query({
@@ -1229,14 +1239,8 @@ function ProjectRow({
 	);
 }
 
-type SettingsPage = {
-	settings: Configuration;
-	projects: SettingsProject[];
-	trackers: Trackers;
-};
-
 function Page() {
-	const cached = readPageCache("settings-page") as SettingsPage | undefined;
+	const cached = readPageCache("settings-page");
 	const [settings, setSettings] = useState<Configuration | null>(
 		() => cached?.settings ?? null,
 	);
@@ -1249,34 +1253,45 @@ function Page() {
 	const [error, setError] = useState<string | null>(null);
 	useEffect(() => {
 		let stopped = false;
-		fetch("/api/settings")
-			.then(async (response) => {
-				if (!response.ok) {
-					throw new Error(`settings failed (HTTP ${response.status})`);
-				}
-				return (await response.json()) as SettingsBody;
-			})
-			.then((body) => {
-				if (stopped) {
-					return;
-				}
-				const next = {
-					trackers: body.trackers ?? { github: false, linear: false },
-					projects: body.projects ?? [],
-					settings: configurationOf(body),
-				};
-				writePageCache("settings-page", next);
-				setTrackers(next.trackers);
-				setProjects(next.projects);
-				setSettings(next.settings);
-			})
-			.catch((cause: unknown) => {
-				if (!stopped) {
-					setError(cause instanceof Error ? cause.message : "settings failed");
-				}
-			});
+		const load = () => {
+			fetch("/api/settings")
+				.then(async (response) => {
+					if (!response.ok) {
+						throw new Error(`settings failed (HTTP ${response.status})`);
+					}
+					return (await response.json()) as SettingsBody;
+				})
+				.then((body) => {
+					if (stopped) {
+						return;
+					}
+					const next = {
+						trackers: body.trackers ?? { github: false, linear: false },
+						projects: body.projects ?? [],
+						settings: configurationOf(body),
+					};
+					writePageCache("settings-page", next);
+					setTrackers(next.trackers);
+					setProjects(next.projects);
+					setSettings(next.settings);
+				})
+				.catch((cause: unknown) => {
+					if (!stopped) {
+						setError(
+							cause instanceof Error ? cause.message : "settings failed",
+						);
+					}
+				});
+		};
+		load();
+		const stop = onAppEvent("overview", () => {
+			if (!stopped) {
+				load();
+			}
+		});
 		return () => {
 			stopped = true;
+			stop();
 		};
 	}, []);
 	if (error !== null) {
@@ -1354,8 +1369,7 @@ function mount(): void {
 	if (window.location.pathname !== "/settings") {
 		return;
 	}
-	const token = claimPage();
-	mountPage(token, (root) => {
+	mountPage((root) => {
 		root.render(<Page />);
 	});
 }

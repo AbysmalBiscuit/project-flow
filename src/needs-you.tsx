@@ -3,12 +3,7 @@ import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
-import {
-	claimPage,
-	mountPage,
-	readPageCache,
-	writePageCache,
-} from "./page-cache.ts";
+import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import {
 	activeTicket,
@@ -300,13 +295,10 @@ function ageLine(fetchedAt: string | null): string {
 }
 
 function Page() {
-	const [items, setItems] = useState<NeedsYouItem[] | null>(() => {
-		const cached = readPageCache("needs-you");
-		return cached === undefined ? null : (cached as NeedsYouItem[]);
-	});
-	const [polled, setPolled] = useState(
-		() => (readPageCache("polled") as string | undefined) ?? "",
+	const [items, setItems] = useState<NeedsYouItem[] | null>(
+		() => readPageCache("needs-you") ?? null,
 	);
+	const [polled, setPolled] = useState(() => readPageCache("polled") ?? "");
 	const [polling, setPolling] = useState(
 		() => readPageCache("polling") !== false,
 	);
@@ -370,8 +362,7 @@ function mount(): void {
 	if (window.location.pathname !== "/needs-you") {
 		return;
 	}
-	const token = claimPage();
-	mountPage(token, (root) => {
+	mountPage((root) => {
 		root.render(<Page />);
 	});
 }

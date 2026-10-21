@@ -22,12 +22,7 @@ import {
 	notificationPermission,
 } from "./notify.tsx";
 import { OverviewGraph } from "./overview-graph.tsx";
-import {
-	claimPage,
-	mountPage,
-	readPageCache,
-	writePageCache,
-} from "./page-cache.ts";
+import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { openProject, projectPath } from "./paths.ts";
 import {
 	barSegments,
@@ -862,14 +857,12 @@ async function readOverview(): Promise<Overview> {
 }
 
 function Page() {
-	const [overview, setOverview] = useState<Overview | null>(() => {
-		const cached = readPageCache("overview");
-		return cached === undefined ? null : (cached as Overview);
-	});
-	const [settings, setSettings] = useState<Configuration | null>(() => {
-		const cached = readPageCache("settings");
-		return cached === undefined ? null : (cached as Configuration);
-	});
+	const [overview, setOverview] = useState<Overview | null>(
+		() => readPageCache("overview") ?? null,
+	);
+	const [settings, setSettings] = useState<Configuration | null>(
+		() => readPageCache("settings") ?? null,
+	);
 	useEffect(() => {
 		const show = (next: Overview) => {
 			writePageCache("overview", next);
@@ -909,8 +902,7 @@ function mount(): void {
 	if (window.location.pathname !== "/") {
 		return;
 	}
-	const token = claimPage();
-	mountPage(token, (root) => {
+	mountPage((root) => {
 		root.render(<Page />);
 	});
 }

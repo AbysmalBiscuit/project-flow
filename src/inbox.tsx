@@ -11,12 +11,7 @@ import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
-import {
-	claimPage,
-	mountPage,
-	readPageCache,
-	writePageCache,
-} from "./page-cache.ts";
+import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
@@ -362,10 +357,9 @@ function InboxList({
 }
 
 function Page() {
-	const [entries, setEntries] = useState<InboxEntry[] | null>(() => {
-		const cached = readPageCache("inbox");
-		return cached === undefined ? null : (cached as InboxEntry[]);
-	});
+	const [entries, setEntries] = useState<InboxEntry[] | null>(
+		() => readPageCache("inbox") ?? null,
+	);
 	const [polling, setPolling] = useState(
 		() => readPageCache("polling") !== false,
 	);
@@ -419,8 +413,7 @@ function mount(): void {
 	if (window.location.pathname !== "/inbox") {
 		return;
 	}
-	const token = claimPage();
-	mountPage(token, (root) => {
+	mountPage((root) => {
 		root.render(<Page />);
 	});
 }

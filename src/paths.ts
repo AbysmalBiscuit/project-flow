@@ -1,4 +1,5 @@
 import type { CrossProjectBlocker } from "./domain.ts";
+import { clearTicketOnPageChange } from "./selection.ts";
 
 export function projectPath(
 	name: string,
@@ -28,6 +29,8 @@ export function openProject(
 	panelTracker?: CrossProjectBlocker["tracker"],
 ): void {
 	const next = projectPath(name, ticket, panelProject, panelTracker);
+	clearTicketOnPageChange(next);
 	window.history.pushState(null, "", next);
+	window.scrollTo(0, 0);
 	window.dispatchEvent(new PopStateEvent("popstate"));
 }
