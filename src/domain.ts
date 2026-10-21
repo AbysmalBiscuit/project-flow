@@ -5,7 +5,7 @@ import type {
 	ProjectPin,
 	ProjectViewSettings,
 } from "./configuration.ts";
-import { lightValues } from "./tokens.stylex.ts";
+import { statusColours } from "./token-palette.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -894,21 +894,6 @@ export function reconcilePoll(
 	const globalError = failed?.error ?? null;
 	return { rows, projectErrors, globalError };
 }
-
-type PaletteKey = keyof typeof lightValues;
-
-function statusColour(status: StatusType & PaletteKey): string {
-	return lightValues[status];
-}
-
-const statusColours = {
-	backlog: statusColour("backlog"),
-	inProgress: statusColour("inProgress"),
-	inReview: statusColour("inReview"),
-	awaitingMerge: statusColour("awaitingMerge"),
-	done: statusColour("done"),
-	dropped: statusColour("dropped"),
-} as const satisfies Record<StatusType, string>;
 
 const appLaneNames: Record<StatusType, string> = {
 	backlog: "Backlog",
