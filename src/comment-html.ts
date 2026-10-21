@@ -1,25 +1,4 @@
-import { clsx } from "./ui.ts";
-import { panel } from "./ui-styles.ts";
-
 const safeLink = /^(?:https?|mailto:)/i;
-
-const tagClass: Record<string, string> = {
-	h1: clsx(panel.mdHeading),
-	h2: clsx(panel.mdHeading),
-	h3: clsx(panel.mdHeading),
-	h4: clsx(panel.mdHeading),
-	h5: clsx(panel.mdHeading),
-	h6: clsx(panel.mdHeading),
-	ul: clsx(panel.mdList),
-	ol: clsx(panel.mdList),
-	blockquote: clsx(panel.mdQuote),
-	pre: clsx(panel.mdPre),
-	table: clsx(panel.mdTable),
-	th: clsx(panel.mdCell),
-	td: clsx(panel.mdCell),
-	a: clsx(panel.mdLink),
-	code: clsx(panel.mdCode),
-};
 
 const dropped = new Set([
 	"script",
@@ -44,24 +23,12 @@ const markdownOptions = {
 } as const;
 
 function sanitize(html: string): string {
-	const parents: string[] = [];
 	return new HTMLRewriter()
 		.on("*", {
 			element(element) {
-				parents.push(element.tagName);
-				element.onEndTag(() => {
-					parents.pop();
-				});
 				if (dropped.has(element.tagName)) {
 					element.remove();
 					return;
-				}
-				const named = tagClass[element.tagName];
-				if (
-					named !== undefined &&
-					(element.tagName !== "code" || parents.at(-2) !== "pre")
-				) {
-					element.setAttribute("class", named);
 				}
 				for (const [name] of [...element.attributes]) {
 					if (name.toLowerCase().startsWith("on")) {
