@@ -225,6 +225,8 @@ export type ProjectCounts = {
 	error: string | null;
 	tags: string[];
 	statusTypes: Record<StatusType, number>;
+	/** The card waits for its first read. */
+	pending?: true;
 };
 
 export type ProjectBody = Omit<ProjectCounts, "ref">;
@@ -696,6 +698,14 @@ export type Overview = {
 	error: string | null;
 	polling?: true;
 	tracked?: false;
+};
+
+/** Projects finished in the poll that is running, out of the tracked projects. */
+export type PollProgress = {
+	done: number;
+	total: number;
+	project: string | null;
+	ended: boolean;
 };
 
 export type FetchStatus = {

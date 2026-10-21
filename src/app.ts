@@ -10,6 +10,7 @@ import {
 import type {
 	Comment,
 	Overview,
+	PollProgress,
 	PostedReply,
 	ProjectCounts,
 	ProjectPoll,
@@ -44,6 +45,7 @@ import {
 	projectSnapshots,
 	projectViewFor,
 	reconcilePoll,
+	refForFound,
 	refKey,
 	type SettingsProject,
 	settingsProjects,
@@ -69,6 +71,7 @@ import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import type {
+	Change,
 	CheckoutSource,
 	Clock,
 	ConfigurationPort,
@@ -252,13 +255,67 @@ function attentionFor(
 	return attentionOf(projectViews(options, configuration), configuration.pmBot);
 }
 
+function pendingCard(
+	project: FoundProject,
+	configuration: Configuration,
+): ProjectCounts {
+	const ref = refForFound(project, configuration.tracked);
+	return {
+		name: project.name ?? project.key,
+		tracker: project.tracker,
+		ref,
+		done: 0,
+		dropped: 0,
+		blocked: 0,
+		backlog: 0,
+		inProgress: 0,
+		inReview: 0,
+		awaitingMerge: 0,
+		unlinkedPrs: [],
+		tickets: [],
+		crossProjectBlockers: [],
+		needsYou: 0,
+		progress: 0,
+		fetchedAt: null,
+		error: null,
+		tags: [],
+		statusTypes: {
+			backlog: 0,
+			inProgress: 0,
+			inReview: 0,
+			awaitingMerge: 0,
+			done: 0,
+			dropped: 0,
+		},
+		pending: true,
+	};
+}
+
 function overview(
 	options: PollOptions,
 	configuration: Configuration,
 ): Overview {
-	const projects = projectViews(options, configuration).map(
+	const counted = projectViews(options, configuration).map(
 		(item) => item.counts,
 	);
+	const pending = options.polling
+		? options.catalogue.flatMap((project) => {
+				const pin = configuration.tracked.find((ref) =>
+					matchesRef(project, ref),
+				);
+				if (
+					pin === undefined ||
+					options.store.lastGoodPollAt(project.key) !== null
+				) {
+					return [];
+				}
+				if (counted.some((item) => sameRef(item.ref, pin))) {
+					return [];
+				}
+				return [pendingCard(project, configuration)];
+			})
+		: [];
+	const projects = [...counted, ...pending];
 	const goodPolls = projects.flatMap((project) => {
 		const at = options.store.lastGoodPollAt(project.name);
 		return at === null ? [] : [at.toISOString()];
@@ -680,18 +737,43 @@ function recordPostedReply(
 	]);
 }
 
-function eventStream(notifier: Notifier): Response {
+function eventStream(
+	notifier: Notifier,
+	current: () => Change | null,
+): Response {
 	let unsubscribe = () => {};
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			const encoder = new TextEncoder();
 			controller.enqueue(encoder.encode(": open\n\n"));
+			const open = current();
+			if (open !== null) {
+				controller.enqueue(
+					encoder.encode(
+						`event: overview\ndata: ${JSON.stringify(open.overview)}\n\n`,
+					),
+				);
+				if (open.progress !== undefined) {
+					controller.enqueue(
+						encoder.encode(
+							`event: progress\ndata: ${JSON.stringify(open.progress)}\n\n`,
+						),
+					);
+				}
+			}
 			unsubscribe = notifier.subscribe((change) => {
 				controller.enqueue(
 					encoder.encode(
 						`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
 					),
 				);
+				if (change.progress !== undefined) {
+					controller.enqueue(
+						encoder.encode(
+							`event: progress\ndata: ${JSON.stringify(change.progress)}\n\n`,
+						),
+					);
+				}
 				for (const notification of change.notifications) {
 					controller.enqueue(
 						encoder.encode(
@@ -738,6 +820,7 @@ type PollOptions = {
 	seenNotifications: Set<string>;
 	primed: boolean;
 	polling: boolean;
+	progress: PollProgress | null;
 	stopped: boolean;
 	catalogue: FoundProject[];
 };
@@ -879,6 +962,12 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}));
 	const tracked = found.filter((project) => trackedProjects.has(project));
 	const trackedKeys = new Set(tracked.map((project) => project.key));
+	options.progress = {
+		done: 0,
+		total: tracked.length,
+		project: tracked[0]?.key ?? null,
+		ended: false,
+	};
 	const outcomes = new Map<string, ProjectPoll>();
 	const awaitingFirstPoll = new Set(
 		tracked.flatMap((project) =>
@@ -906,6 +995,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					startedKeys,
 				},
 			});
+			notePollProgress(options, configuration, tracked, outcomes);
 			continue;
 		}
 		const lastGood = options.store.lastGoodPollAt(project.key);
@@ -1010,6 +1100,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			if (fillAsPolled && visible.has(project.key)) {
 				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
 			}
+			notePollProgress(options, configuration, tracked, outcomes);
 		} catch (error) {
 			if (options.stopped) {
 				continue;
@@ -1036,6 +1127,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			if (fillAsPolled) {
 				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
 			}
+			notePollProgress(options, configuration, tracked, outcomes);
 		}
 	}
 	const fullKeys = [...options.fullPoll];
@@ -1046,6 +1138,13 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		}
 	}
 	options.polling = false;
+	const finished: PollProgress = {
+		done: tracked.length,
+		total: tracked.length,
+		project: null,
+		ended: true,
+	};
+	options.progress = finished;
 	if (options.stopped) {
 		return configuration;
 	}
@@ -1112,8 +1211,37 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	options.notifier.publish({
 		overview: runningOverview(options, current),
 		notifications,
+		progress: finished,
 	});
+	options.progress = null;
 	return current;
+}
+
+function notePollProgress(
+	options: PollOptions,
+	configuration: Configuration,
+	tracked: FoundProject[],
+	outcomes: Map<string, ProjectPoll>,
+): void {
+	if (!options.polling || options.stopped) {
+		return;
+	}
+	const next = tracked.find((project) => !outcomes.has(project.key));
+	if (next === undefined) {
+		return;
+	}
+	const progress: PollProgress = {
+		done: outcomes.size,
+		total: tracked.length,
+		project: next?.key ?? null,
+		ended: false,
+	};
+	options.progress = progress;
+	options.notifier.publish({
+		overview: runningOverview(options, configuration),
+		notifications: [],
+		progress,
+	});
 }
 
 function publishPoll(
@@ -1247,6 +1375,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		]),
 		primed: hadRows,
 		polling: false,
+		progress: null,
 		stopped: false,
 		catalogue: [],
 	};
@@ -1316,10 +1445,17 @@ export async function start(options: StartOptions): Promise<Running> {
 			// A successful poll already published. Publish here only after a
 			// rejection, so an empty store still ends the running state.
 			if (rejected) {
+				const failed = pollOptions.progress;
+				pollOptions.progress =
+					failed === null ? null : { ...failed, ended: true };
 				notifier.publish({
 					overview: overview(pollOptions, configuration),
 					notifications: [],
+					...(pollOptions.progress === null
+						? {}
+						: { progress: pollOptions.progress }),
 				});
+				pollOptions.progress = null;
 			}
 			// A cold failure stops the process on the next turn. Yield so the
 			// settled overview leaves the event stream first.
@@ -1470,7 +1606,15 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/events": {
 				GET: (request: Request) => {
 					server.timeout(request, 0);
-					return eventStream(notifier);
+					return eventStream(notifier, () =>
+						pollOptions.progress === null
+							? null
+							: {
+									overview: runningOverview(pollOptions, configuration),
+									notifications: [],
+									progress: pollOptions.progress,
+								},
+					);
 				},
 			},
 			"/api/refresh": {

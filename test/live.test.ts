@@ -726,6 +726,140 @@ describe("live updates", () => {
 		}
 	});
 
+	test("a held poll sends progress with the projects done and a final event", async () => {
+		const second = otherRepo;
+		let releaseFirst: () => void = () => {};
+		let releaseSecond: () => void = () => {};
+		const firstHeld = new Promise<void>((resolve) => {
+			releaseFirst = resolve;
+		});
+		const secondHeld = new Promise<void>((resolve) => {
+			releaseSecond = resolve;
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			const listed = listedRead(input, init);
+			if (listed?.repo === repo) {
+				await firstHeld;
+				return (
+					issuesResponse(input, init, [ticket(1, "2026-04-01T00:00:00Z")]) ??
+					page([])
+				);
+			}
+			if (listed?.repo === second) {
+				await secondHeld;
+				return (
+					issuesResponse(
+						input,
+						init,
+						[ticket(2, "2026-04-01T00:00:00Z")],
+						second,
+					) ?? page([])
+				);
+			}
+			return recordedOrEmpty(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo },
+					{ tracker: "github", repo: second },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				void (async () => {
+					const stream = openEventStream(base);
+					await stream.ready;
+					const events = stream.events[Symbol.asyncIterator]();
+					const nextProgress = async () => {
+						const deadline = Date.now() + 4_000;
+						while (Date.now() < deadline) {
+							const received = await Promise.race([
+								events.next(),
+								Bun.sleep(4_000).then(() => "quiet" as const),
+							]);
+							if (received === "quiet" || received.done) {
+								break;
+							}
+							if (received.value?.event === "progress") {
+								return received.value;
+							}
+						}
+						throw new Error("the held poll sent no progress");
+					};
+					const started = await nextProgress();
+					const running = JSON.parse(started.data) as {
+						done: number;
+						total: number;
+						project: string | null;
+						ended: boolean;
+					};
+					expect(running).toEqual({
+						done: 0,
+						total: 2,
+						project: repo,
+						ended: false,
+					});
+					releaseFirst();
+					const advanced = await nextProgress();
+					expect(JSON.parse(advanced.data)).toEqual({
+						done: 1,
+						total: 2,
+						project: second,
+						ended: false,
+					});
+					releaseSecond();
+					const finished = await nextProgress();
+					expect(JSON.parse(finished.data)).toEqual({
+						done: 2,
+						total: 2,
+						project: null,
+						ended: true,
+					});
+					stream.close();
+					resolve();
+				})().catch(reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath,
+						now: () => new Date(goodPoll),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releaseFirst();
+			releaseSecond();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("the overview answers while a slow first poll holds the tracker", async () => {
 		let releasePoll: () => void = () => {};
 		const pollHeld = new Promise<void>((resolve) => {
