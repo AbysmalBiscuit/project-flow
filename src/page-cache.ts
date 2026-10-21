@@ -20,7 +20,7 @@ type PageCache = {
 	settings: Configuration;
 	inbox: InboxEntry[];
 	"needs-you": NeedsYouItem[];
-	polled: string;
+	"fetched-at": string | null;
 	polling: boolean;
 	"settings-page": SettingsPage;
 };

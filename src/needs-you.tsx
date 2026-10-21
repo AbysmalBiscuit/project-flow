@@ -192,10 +192,10 @@ function summaryLine(items: NeedsYouItem[], polled: string): string {
 
 function NeedsList({
 	items,
-	polled,
+	fetchedAt,
 }: {
 	items: NeedsYouItem[];
-	polled: string;
+	fetchedAt: string | null;
 }) {
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
 	const [project, setProject] = useState(allProjects);
@@ -237,7 +237,7 @@ function NeedsList({
 	return (
 		<PageFrame
 			title={navLabel.needsYou}
-			subtitle={summaryLine(items, polled)}
+			subtitle={summaryLine(items, ageLine(fetchedAt))}
 			wide
 		>
 			<div className={clsx(needs.layout)}>
@@ -298,7 +298,9 @@ function Page() {
 	const [items, setItems] = useState<NeedsYouItem[] | null>(
 		() => readPageCache("needs-you") ?? null,
 	);
-	const [polled, setPolled] = useState(() => readPageCache("polled") ?? "");
+	const [fetchedAt, setFetchedAt] = useState<string | null>(
+		() => readPageCache("fetched-at") ?? null,
+	);
 	const [polling, setPolling] = useState(
 		() => readPageCache("polling") !== false,
 	);
@@ -331,15 +333,15 @@ function Page() {
 						const next = body.polling === true;
 						writePageCache("polling", next);
 						setPolling(next);
-						const line = ageLine(body.fetchedAt);
-						writePageCache("polled", line);
-						setPolled(line);
+						writePageCache("fetched-at", body.fetchedAt);
+						setFetchedAt(body.fetchedAt);
 					}
 				})
 				.catch(() => {
 					if (!stopped) {
 						setPolling(false);
-						setPolled("");
+						writePageCache("fetched-at", null);
+						setFetchedAt(null);
 					}
 				});
 		};
@@ -355,7 +357,7 @@ function Page() {
 	if (items === null || (polling && items.length === 0)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
-	return <NeedsList items={items} polled={polled} />;
+	return <NeedsList items={items} fetchedAt={fetchedAt} />;
 }
 
 function mount(): void {
