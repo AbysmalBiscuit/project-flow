@@ -269,7 +269,7 @@ function FilteredEmpty({
 	return (
 		<div id="filters-hide-all" className={clsx(board.filteredEmpty)}>
 			<p>
-				{names.map((id) => hidingFilterLabel[id]).join(", ")}{" "}
+				{names.map((name) => hidingFilterLabel[name]).join(", ")}{" "}
 				{names.length === 1 ? filterEmptyLabel.one : filterEmptyLabel.many}{" "}
 				{filterEmptyLabel.every}
 			</p>
