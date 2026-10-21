@@ -1,11 +1,6 @@
 import { z } from "zod";
 import type { AutoMerge, Configuration } from "./configuration.ts";
-import {
-	loadConfiguration,
-	parseConfiguration,
-	projectRef as projectRefSchema,
-	saveConfiguration,
-} from "./configuration.ts";
+import { loadConfiguration, saveConfiguration } from "./configuration.ts";
 import type {
 	Comment,
 	Overview,
@@ -31,7 +26,6 @@ import {
 	filterProjectReport,
 	githubRepoForTodo,
 	inboxEntries,
-	knownRepos,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	matchesRef,
@@ -47,8 +41,6 @@ import {
 	reconcilePoll,
 	refKey,
 	type SettingsProject,
-	samePin,
-	settingsProjects,
 	staleView,
 	startedTodoKeys,
 	todoRows,
@@ -82,6 +74,14 @@ import type {
 	Tracker,
 	Viewer,
 } from "./ports.ts";
+import {
+	mergedSettingsWrite,
+	readSettingsWrite,
+	rejectUnknownBotKeys,
+	sameTracked,
+	settingsResponse,
+	viewOnlyChange,
+} from "./settings-write.ts";
 import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
@@ -352,168 +352,6 @@ function reportFor(
 	return filtered
 		? filterProjectReport(match, view, options.clock.now())
 		: match;
-}
-
-function settingsResponse(
-	configuration: Configuration,
-	credentials: { token: string | null; linearKey: string | null },
-	catalogue: FoundProject[],
-	snapshots: {
-		key: string;
-		pulls: Parameters<typeof expectedBotsByRepo>[0];
-	}[],
-): Configuration & {
-	trackers: { github: boolean; linear: boolean };
-	projects: SettingsProject[];
-} {
-	return {
-		...configuration,
-		trackers: {
-			github: credentials.token !== null,
-			linear: credentials.linearKey !== null,
-		},
-		projects: settingsProjects(configuration, catalogue, snapshots),
-	};
-}
-
-function withoutTrackers(text: string): string {
-	const trimmed = text.trim();
-	if (trimmed === "") {
-		return text;
-	}
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(trimmed);
-	} catch {
-		return text;
-	}
-	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-		return text;
-	}
-	const {
-		trackers: _trackers,
-		projects: _projects,
-		baselineTracked: _baselineTracked,
-		...configuration
-	} = parsed as Record<string, unknown>;
-	return JSON.stringify(configuration);
-}
-
-function applyRefEdits(
-	live: Configuration["tracked"],
-	baseline: Configuration["tracked"],
-	draft: Configuration["tracked"],
-): Configuration["tracked"] {
-	const removed = baseline.filter(
-		(ref) => !draft.some((item) => samePin(item, ref)),
-	);
-	const added = draft.filter(
-		(ref) => !baseline.some((item) => samePin(item, ref)),
-	);
-	const kept = live.filter(
-		(ref) => !removed.some((item) => samePin(item, ref)),
-	);
-	return [
-		...kept,
-		...added.filter((ref) => !kept.some((item) => samePin(item, ref))),
-	];
-}
-
-const refBaseline = z.object({
-	baselineTracked: z.array(z.unknown()).optional(),
-});
-
-function refList(value: unknown): Configuration["tracked"] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-	const refs: Configuration["tracked"] = [];
-	for (const item of value) {
-		const parsed = projectRefSchema.safeParse(item);
-		if (!parsed.success) {
-			return undefined;
-		}
-		refs.push(parsed.data);
-	}
-	return refs;
-}
-
-function rejectUnknownBotKeys(
-	parsed: Configuration,
-	live: Configuration,
-	snapshots: {
-		key: string;
-		pulls: { repo: string }[];
-	}[],
-	catalogue: FoundProject[],
-): string | null {
-	const known = knownRepos(snapshots, catalogue);
-	const previous = new Set(Object.keys(live.expectedBots ?? {}));
-	for (const key of Object.keys(parsed.expectedBots ?? {})) {
-		if (known.has(key) || previous.has(key)) {
-			continue;
-		}
-		return `invalid configuration: expectedBots.${key}`;
-	}
-	return null;
-}
-
-function mergedSettingsWrite(
-	live: Configuration,
-	parsed: Configuration,
-	text: string,
-): Configuration {
-	let raw: unknown = null;
-	try {
-		raw = JSON.parse(text);
-	} catch {
-		raw = null;
-	}
-	const baseline = refBaseline.safeParse(raw);
-	const sent = baseline.success ? baseline.data : {};
-	const trackedBaseline = refList(sent.baselineTracked);
-	return {
-		...parsed,
-		tracked:
-			trackedBaseline === undefined
-				? parsed.tracked
-				: applyRefEdits(live.tracked, trackedBaseline, parsed.tracked),
-	};
-}
-
-function sameTracked(
-	before: Configuration["tracked"],
-	after: Configuration["tracked"],
-): boolean {
-	if (before.length !== after.length) {
-		return false;
-	}
-	return before.every((pin, index) => {
-		const next = after[index];
-		return next !== undefined && samePin(pin, next);
-	});
-}
-
-function viewOnlyChange(before: Configuration, after: Configuration): boolean {
-	const {
-		projectViews: previousViews,
-		overview: previousOverview,
-		theme: previousTheme,
-		...rest
-	} = before;
-	const {
-		projectViews: nextViews,
-		overview: nextOverview,
-		theme: nextTheme,
-		...kept
-	} = after;
-	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
-	const viewsChanged =
-		JSON.stringify(previousViews) !== JSON.stringify(nextViews);
-	const overviewChanged =
-		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
-	const themeChanged = previousTheme !== nextTheme;
-	return restSame && (viewsChanged || overviewChanged || themeChanged);
 }
 
 function mergeFound(
@@ -1742,10 +1580,9 @@ export async function start(options: StartOptions): Promise<Running> {
 				},
 				PUT: async (request: Request) => {
 					const rawText = await request.text();
-					const text = withoutTrackers(rawText);
 					let parsed: Configuration;
 					try {
-						parsed = parseConfiguration(text);
+						parsed = readSettingsWrite(rawText);
 					} catch (error) {
 						const message =
 							error instanceof Error
