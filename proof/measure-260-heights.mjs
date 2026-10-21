@@ -125,13 +125,13 @@ try {
 	) {
 		process.exitCode = 1;
 	}
+} catch (error) {
+	console.error(serverLog);
+	throw error;
 } finally {
 	spawnSync("agent-browser", ["close"], {
 		encoding: "utf8",
 		env: { ...process.env, AGENT_BROWSER_NAMESPACE: namespace },
 	});
 	server.kill("SIGTERM");
-	if (server.exitCode === null && !server.killed) {
-		serverLog = serverLog.trim();
-	}
 }
