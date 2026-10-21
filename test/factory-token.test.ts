@@ -487,4 +487,87 @@ describe("factory GitHub tokens", () => {
 			await rm(home, { recursive: true, force: true });
 		}
 	});
+
+	test("a blank reply, a hosts file of spaces and a broken hosts file stay on the user token", async () => {
+		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const folder = join(home, "tokens");
+		await mkdir(join(folder, "blank"), { recursive: true });
+		await mkdir(join(folder, "spaced"), { recursive: true });
+		await mkdir(join(folder, "broken"), { recursive: true });
+		await writeFile(
+			join(folder, "spaced", "hosts.yml"),
+			"github.com:\n    oauth_token:    \n    expires_at: 2026-08-18T13:00:00.000Z\n",
+		);
+		await writeFile(join(folder, "broken", "hosts.yml"), "not a hosts file\n");
+		const recorded: Recorded[] = [];
+		const app = await serve({
+			config: {
+				factoryGithubTokens: true,
+				factoryGithubTokenDir: folder,
+				tracked: [
+					{ tracker: "github", repo: "blank/widget" },
+					{ tracker: "github", repo: "spaced/widget" },
+					{ tracker: "github", repo: "broken/widget" },
+				],
+			},
+			fetchImpl: recordingFetch(recorded, {
+				"blank/widget": [issue(1, "blank/widget")],
+				"spaced/widget": [issue(2, "spaced/widget")],
+				"broken/widget": [issue(3, "broken/widget")],
+			}),
+			now: () => new Date("2026-08-18T12:00:00.000Z"),
+			home,
+		});
+		try {
+			const overview = (await (
+				await fetch(new URL("/api/overview", app.base))
+			).json()) as Overview;
+			expect(overview.error).toBeNull();
+			const reads = [
+				...forOwner(githubCalls(recorded), "blank"),
+				...forOwner(githubCalls(recorded), "spaced"),
+				...forOwner(githubCalls(recorded), "broken"),
+			];
+			expect(reads.length).toBeGreaterThan(0);
+			expect(reads.every((item) => item.authorization === userBearer)).toBe(
+				true,
+			);
+
+			recorded.length = 0;
+			const reply = await fetch(new URL("/api/replies", app.base), {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					tracker: "github",
+					project: "blank/widget",
+					key: "blank/widget#1",
+					body: "   ",
+				}),
+			});
+			expect(reply.status).toBe(400);
+			expect(githubCalls(recorded).some((item) => item.method === "POST")).toBe(
+				false,
+			);
+
+			const blankDir = await fetch(new URL("/api/settings", app.base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ factoryGithubTokenDir: "" }),
+			});
+			expect(blankDir.status).toBe(200);
+			const stored = (await blankDir.json()) as Configuration;
+			expect(stored.factoryGithubTokenDir).toBe(
+				join(homedir(), ".config", "factory-gh"),
+			);
+			const failed = await fetch(new URL("/api/settings", app.base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ factoryGithubTokens: "   " }),
+			});
+			expect(failed.status).toBe(400);
+		} finally {
+			await app.stop();
+			await rm(home, { recursive: true, force: true });
+		}
+	});
 });
