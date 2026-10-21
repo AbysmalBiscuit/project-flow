@@ -158,10 +158,11 @@ function upstreamUrl(request: Request, target: URL): URL {
 }
 
 function proofHold(url: URL): Response {
-	if (pageLoads > 0 || url.searchParams.get("lists") === "1") {
+	const lists = url.searchParams.get("lists") === "1";
+	if (pageLoads > 0) {
 		holdOverview = true;
 	}
-	if (url.searchParams.get("lists") === "1") {
+	if (lists) {
 		holdLists = true;
 	}
 	return new Response("held", {

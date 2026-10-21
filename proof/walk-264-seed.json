@@ -3,15 +3,16 @@
 	"serve": ["bun", "proof/serve-264.ts", "4799"],
 	"steps": [
 		{ "goto": "/proof/hold?lists=1" },
-		{ "goto": "/" },
-		{ "assert_text": "projects" },
-		{ "assert_text": "acme/flow" },
-		{ "shot": "seed-overview" },
 		{ "goto": "/needs-you" },
 		{ "assert_text": "Nothing needs you" },
 		{ "shot": "seed-needs-you" },
 		{ "goto": "/inbox" },
 		{ "assert_text": "No notifications" },
-		{ "shot": "seed-inbox" }
+		{ "shot": "seed-inbox" },
+		{ "goto": "/proof/hold" },
+		{ "goto": "/" },
+		{ "assert_text": "projects" },
+		{ "assert_text": "acme/flow" },
+		{ "shot": "seed-overview" }
 	]
 }
