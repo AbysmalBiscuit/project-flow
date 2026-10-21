@@ -8,7 +8,7 @@ Item 1, at 390 wide. Replay `proof/gutter-walk-390.json`:
 python3 /home/lev/.grok/installed-plugins/workcell-a8292766/skills/manage/scripts/walk_replay.py --walk-file proof/gutter-walk-390.json --proof .devkit/proof --item 1
 ```
 
-The overview, project board and needs-you shots use a side gutter of at most 16px. The page does not scroll sideways. The board lanes scroll inside the page.
+The overview, project board and needs-you shots use a side gutter of at most 16px. The page does not scroll sideways. The board lanes scroll inside the page. Each page shows the search label. The shell bar wraps. The search control stays on screen at 390 wide. The settings control and the theme control are icons. The shots show both icons.
 
 Item 2, at 1440 wide. Replay `proof/gutter-walk-1440.json`:
 

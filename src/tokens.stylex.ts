@@ -5,7 +5,7 @@ const dark = "@media (prefers-color-scheme: dark)";
 export const media = stylex.defineConsts({
 	phone: "@media (max-width: 64rem)",
 	projectBar: "@media (max-width: 480px)",
-	// The one-line shell overflows at the 390px proof width. 32rem is 512px.
+	// The one-line shell overflows below 32rem (512px).
 	shellWrap: "@media (max-width: 32rem)",
 });
 

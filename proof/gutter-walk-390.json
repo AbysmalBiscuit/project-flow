@@ -6,14 +6,17 @@
 		{ "goto": "/" },
 		{ "assert_text": "Overview" },
 		{ "assert_text": "acme/widget" },
+		{ "assert_text": "Search tickets" },
 		{ "shot": "overview-390" },
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "Board" },
 		{ "assert_text": "Ship the list" },
+		{ "assert_text": "Search tickets" },
 		{ "shot": "board-390" },
 		{ "goto": "/needs-you" },
 		{ "assert_text": "Needs you" },
 		{ "assert_text": "Nothing needs you" },
+		{ "assert_text": "Search tickets" },
 		{ "shot": "needs-390" }
 	]
 }
