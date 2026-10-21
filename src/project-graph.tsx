@@ -12,7 +12,7 @@ import {
 	ReactFlowProvider,
 	useReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
 	groupLabelOf,
 	outsideKey,
@@ -45,6 +45,7 @@ import {
 	projectGraphLabel,
 	stateLabel,
 } from "./terms.ts";
+import { pageTheme, watchPageTheme } from "./theme.ts";
 import { classToken, clsx } from "./ui.ts";
 import { board, cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
@@ -109,6 +110,7 @@ type TicketEdgeData = {
 	nodes: NodeBound[];
 	label: { x: number; y: number };
 	side: number;
+	done: boolean;
 };
 
 function shortTicket(key: string, project: string, outside: boolean): string {
@@ -229,10 +231,12 @@ function TicketEdge({
 		data?.entries ?? 1,
 		data?.side,
 	);
+	const done = data?.done === true;
 	return (
 		<BaseEdge
 			id={id}
 			path={drawn.path}
+			className={done ? classToken(board.graphEdgeDash) : undefined}
 			{...(markerEnd === undefined ? {} : { markerEnd })}
 		/>
 	);
@@ -507,7 +511,8 @@ export function graphModel(
 	});
 	const fromHandle = horizontal ? "right" : "bottom";
 	const toHandle = horizontal ? "left" : "top";
-	const marker = markerEnd(measureMarker(classToken(cards.graphMarker)));
+	const openMarker = measureMarker(classToken(cards.graphMarker));
+	const marker = markerEnd(openMarker.size, openMarker.color);
 	const pending = links.map((link) => ({
 		id: `${link.from}->${link.to}`,
 		source: link.from,
@@ -516,6 +521,7 @@ export function graphModel(
 		targetHandle: toHandle,
 		type: "ticket" as const,
 		markerEnd: marker,
+		data: { done: link.done === true },
 	}));
 	const bounds = new Map(
 		nodes.flatMap((node) => {
@@ -585,7 +591,14 @@ function Legend() {
 					</li>
 				))}
 			</ul>
-			<p className={clsx(board.legendNote)}>{projectGraphLabel.arrow}</p>
+			<p className={clsx(board.legendNote, board.legendEdge)}>
+				<span className={clsx(board.legendSwatch)} />
+				{projectGraphLabel.arrow}
+			</p>
+			<p className={clsx(board.legendNote, board.legendEdge)}>
+				<span className={clsx(board.legendSwatch, board.legendSwatchDone)} />
+				{projectGraphLabel.done}
+			</p>
 			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
 		</section>
 	);
@@ -655,10 +668,13 @@ function SizedProjectGraph({
 	onOpen: (ticket: OpenedNode) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
+	const [theme, setTheme] = useState(pageTheme);
+	useEffect(() => watchPageTheme(setTheme), []);
 	const model = useMemo(() => {
 		if (span === null) {
 			return null;
 		}
+		void theme;
 		return graphModel(
 			report,
 			reports,
@@ -669,7 +685,7 @@ function SizedProjectGraph({
 			new Map(),
 			span,
 		);
-	}, [report, reports, direction, groupBy, assignees, openKey, span]);
+	}, [report, reports, direction, groupBy, assignees, openKey, span, theme]);
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}

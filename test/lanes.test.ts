@@ -12,6 +12,7 @@ import {
 	linearFake,
 	recordedDiscovery,
 	repoReadFromHandler,
+	settledOverview,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -1340,9 +1341,11 @@ describe("tracker lanes", () => {
 					method: "POST",
 				});
 				expect(refreshed.status).toBe(204);
-				const overview = (await (
-					await fetch(new URL("/api/overview", base))
-				).json()) as OverviewBody;
+				const overview = await settledOverview(base, async (address) => {
+					const response = await fetch(new URL("/api/overview", address));
+					expect(response.status).toBe(200);
+					return (await response.json()) as OverviewBody & { polling?: true };
+				});
 				const project = overview.projects.find(
 					(item) => item.name === "Widget board",
 				);
