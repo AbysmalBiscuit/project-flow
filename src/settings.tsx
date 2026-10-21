@@ -1303,7 +1303,7 @@ export function Page() {
 	const polling =
 		overview.data?.polling === true ||
 		(overview.data === undefined && !page.isFetched);
-	if (page.isError) {
+	if (page.isError && !save.isPending) {
 		const cause = page.error;
 		return (
 			<PageFrame title={navLabel.settings}>
@@ -1322,12 +1322,12 @@ export function Page() {
 			polling={polling}
 			onSave={async (next, baseline) => {
 				const current = await page.refetch();
-				const live = current.data;
-				if (live === undefined) {
+				if (current.isError || current.data === undefined) {
 					return current.error instanceof Error
 						? current.error.message
 						: "Settings unavailable";
 				}
+				const live = current.data;
 				const star = next.projectViews["*"] ?? live.settings.projectViews["*"];
 				try {
 					await save.mutateAsync({
