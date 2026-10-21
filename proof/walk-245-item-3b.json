@@ -1,5 +1,6 @@
 {
 	"base_url": "http://127.0.0.1:4247",
+	"viewport": { "width": 1440, "height": 900 },
 	"serve": [
 		"env",
 		"GRAPH_GROUP=workstream",

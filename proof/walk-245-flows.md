@@ -6,7 +6,7 @@ The board is `acme/widget`. Two chains sit in it: `#11` to `#12` to `#13`, and `
 
 Item 1, left to right at 1440. Replay `proof/walk-245-item-1.json`.
 
-`walk_replay.py` writes 1280 by 800 into `proofshot.config.json` in its own replay directory and ignores a viewport field. ProofShot reads that file. A worktree `proofshot.config.json` does not change the shot.
+Capture each walk with agent-browser on the recorded server. Set the viewport to 1440 by 900. Each walk names that viewport. Do not run `walk_replay.py`. Do not call a live tracker.
 
 `#11`, `#12` and `#13` share one row. `#1`, `#2` and `#3` share a later row. No arrow inside either chain crosses another. `#21` and `#22` sit on two rows, and `#20` sits on one of those rows. `#90` sits after every flow.
 
