@@ -2281,7 +2281,6 @@ export const board = stylex.create({
 		flex: "1 1 auto",
 		alignSelf: "stretch",
 		minWidth: 0,
-		width: "100%",
 		minHeight: measure.boardMin,
 		overflow: "hidden",
 		padding: space.sm,

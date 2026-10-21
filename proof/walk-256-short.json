@@ -1,5 +1,0 @@
-{
-	"base_url": "http://127.0.0.1:47356",
-	"serve": ["bun", "proof/graph-height.mjs"],
-	"steps": [{ "shot": "graph-1440x800" }]
-}
