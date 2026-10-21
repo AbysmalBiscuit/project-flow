@@ -31,6 +31,8 @@ type SettingsBody = Configuration & {
 	projects?: SettingsProject[];
 };
 
+const toastHideMs = 4_000;
+
 const sections = [
 	{ id: "general", label: settingsSection.general },
 	{ id: "project-views", label: settingsSection.views },
@@ -254,6 +256,7 @@ function Menu({
 	const [current, setCurrent] = useState<string>(sections[0].id);
 	const [message, setMessage] = useState<string | null>(null);
 	const [failed, setFailed] = useState(false);
+	const [toast, setToast] = useState(0);
 	const [permission, setPermission] = useState("default");
 	const dirty = !same(draft, saved);
 	const view = draft.projectViews["*"] ?? viewDefaults();
@@ -285,9 +288,24 @@ function Menu({
 		};
 	}, []);
 
+	useEffect(() => {
+		if (toast === 0 || failed || message === null) {
+			return;
+		}
+		const hide = window.setTimeout(() => {
+			setMessage(null);
+			setToast(0);
+		}, toastHideMs);
+		return () => {
+			window.clearTimeout(hide);
+		};
+	}, [toast, failed, message]);
+
 	function patch(next: Partial<Configuration>): void {
 		setDraft((currentDraft) => ({ ...currentDraft, ...next }));
 		setMessage(null);
+		setFailed(false);
+		setToast(0);
 	}
 
 	function patchView(
@@ -630,14 +648,6 @@ function Menu({
 					</section>
 
 					<div className={clsx(fields.bar)}>
-						{message === null ? null : (
-							<p
-								id="settings-message"
-								className={clsx(failed ? fields.error : fields.saved)}
-							>
-								{message}
-							</p>
-						)}
 						<button
 							id="discard-settings"
 							type="button"
@@ -651,6 +661,7 @@ function Menu({
 								setDraft(saved);
 								setFailed(false);
 								setMessage(null);
+								setToast(0);
 							}}
 						>
 							{settingsCopy.discard}
@@ -669,13 +680,26 @@ function Menu({
 					</div>
 				</div>
 			</div>
+			{message === null ? null : (
+				<p
+					id="settings-toast"
+					className={clsx(
+						fields.toast,
+						failed ? fields.toastError : fields.toastSaved,
+					)}
+					role={failed ? "alert" : "status"}
+				>
+					{message}
+				</p>
+			)}
 		</PageFrame>
 	);
 
 	async function onSaveClick(): Promise<void> {
 		const error = await onSave(draft, saved);
 		setFailed(error !== null);
-		setMessage(error ?? settingsCopy.saved);
+		setMessage(error ?? settingsCopy.savedToast);
+		setToast((shown) => shown + 1);
 		if (error === null) {
 			baseline.current = draft;
 			setSaved(draft);
