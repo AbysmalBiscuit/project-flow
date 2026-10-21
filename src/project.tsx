@@ -4,8 +4,8 @@ import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
 	NeedsYouItem,
-	OutsideBlocker,
 	ProjectReport,
+	TicketRelation,
 	TicketView,
 } from "./domain.ts";
 import {
@@ -155,12 +155,12 @@ function panelBlockers(
 	source: ProjectReport | null,
 	project: string,
 	tracker: "github" | "linear",
-): OutsideBlocker[] {
+): TicketRelation[] {
 	if (ticket === undefined) {
 		return [];
 	}
 	const outside = ticket.outsideBlockers ?? [];
-	const resolved: OutsideBlocker[] = [];
+	const resolved: TicketRelation[] = [];
 	for (const key of ticket.blockers) {
 		const known = outside.find(
 			(blocker) => blocker.key.toLowerCase() === key.toLowerCase(),
@@ -229,7 +229,7 @@ function shortKey(key: string): string {
 
 function relationSplit(ticket: TicketView): {
 	local: string[];
-	outside: OutsideBlocker[];
+	outside: TicketRelation[];
 } {
 	const outside = ticket.outsideBlockers ?? [];
 	const outsideKeys = new Set(
@@ -284,7 +284,7 @@ function Card({
 }: {
 	ticket: TicketView;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const key = ticket.key;
 	const { local, outside } = relationSplit(ticket);
@@ -370,7 +370,7 @@ function LaneCards({
 }: {
 	tickets: TicketView[];
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	return (
 		<ul className={clsx(board.cards)}>
@@ -409,7 +409,7 @@ function Lane({
 	reveal: string | null;
 	onShowAll: () => void;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const pool = capped && !shown ? fresh : tickets;
 	const listed = pool.slice(0, capped && !shown ? doneCap : pool.length);
@@ -593,6 +593,7 @@ function updatedLabel(value: string | undefined): string {
 
 function TableRow({
 	ticket,
+	project,
 	lanes,
 	order,
 	selected,
@@ -600,11 +601,12 @@ function TableRow({
 	onOpenOutside,
 }: {
 	ticket: TicketView;
+	project: string;
 	lanes: ProjectReport["lanes"];
 	order: number;
 	selected: boolean;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const key = ticket.key;
 	const { local, outside } = relationSplit(ticket);
@@ -658,15 +660,19 @@ function TableRow({
 			</td>
 			<td className={clsx(board.rowCell)}>
 				<span className={clsx(board.links)}>
-					{(ticket.blocks ?? []).map((blocker) => (
-						<Chip
-							key={blocker.key}
-							label={blocker.key}
-							ticketKey={blocker.key}
-							outside
-							onOpen={() => onOpenOutside(blocker)}
-						/>
-					))}
+					{(ticket.blocks ?? []).map((blocker) => {
+						const sameProject =
+							blocker.project.toLowerCase() === project.toLowerCase();
+						return (
+							<Chip
+								key={blocker.key}
+								label={sameProject ? shortKey(blocker.key) : blocker.key}
+								ticketKey={blocker.key}
+								{...(sameProject ? {} : { outside: true })}
+								onOpen={sameProject ? onOpen : () => onOpenOutside(blocker)}
+							/>
+						);
+					})}
 				</span>
 			</td>
 			<td className={clsx(board.rowCell)}>
@@ -694,7 +700,7 @@ function TicketTable({
 	groupBy: GroupBy;
 	selected: string | null;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [column, setColumn] = useState<Column>("state");
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
@@ -778,6 +784,7 @@ function TicketTable({
 									<TableRow
 										key={`${group.name}\n${ticket.key ?? ""}\n${ticket.title}`}
 										ticket={ticket}
+										project={report.name}
 										lanes={report.lanes}
 										order={
 											rows.findIndex(
@@ -811,7 +818,7 @@ function Board({
 	settings: ProjectViewSettings;
 	selected: string | null;
 	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: OutsideBlocker) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
@@ -1302,7 +1309,7 @@ function Page() {
 		});
 	};
 	const openOutsideInPanel = (
-		blocker: OutsideBlocker,
+		blocker: TicketRelation,
 		state?: TicketView["state"],
 	) => {
 		setOpenedState(state ?? null);

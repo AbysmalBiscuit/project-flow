@@ -107,7 +107,7 @@ export type Ticket = {
 	createdAt?: string;
 };
 
-export type OutsideBlocker = {
+export type TicketRelation = {
 	tracker: "github" | "linear";
 	project: string;
 	key: string;
@@ -119,8 +119,8 @@ export type TicketView = {
 	title: string;
 	state: TicketState;
 	blockers: string[];
-	outsideBlockers?: OutsideBlocker[];
-	blocks?: OutsideBlocker[];
+	outsideBlockers?: TicketRelation[];
+	blocks?: TicketRelation[];
 	lane?: string;
 	statusType?: StatusType;
 	blocked?: boolean;
@@ -1790,7 +1790,7 @@ function outsideOf(
 	blocker: Ticket,
 	ref: TicketRef | undefined,
 	groups: { project: string; tickets: Ticket[] }[],
-): OutsideBlocker | null {
+): TicketRelation | null {
 	if (blocker.key === null) {
 		return null;
 	}
@@ -1814,8 +1814,8 @@ function ticketRelations(
 	groups: { project: string; tickets: Ticket[] }[],
 ): {
 	blockers: string[];
-	outsideBlockers: OutsideBlocker[];
-	blocks: OutsideBlocker[];
+	outsideBlockers: TicketRelation[];
+	blocks: TicketRelation[];
 } {
 	const self = asRef(ticket);
 	const home = groups.find((group) => group.tickets.includes(ticket))?.project;
@@ -1825,7 +1825,7 @@ function ticketRelations(
 		...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
 	];
 	const keys: string[] = [];
-	const outsideBlockers: OutsideBlocker[] = [];
+	const outsideBlockers: TicketRelation[] = [];
 	for (const blocker of blockers) {
 		if (blocker.key === null) {
 			continue;
@@ -1849,11 +1849,26 @@ function ticketRelations(
 			outsideBlockers.push(outside);
 		}
 	}
-	const blocks: OutsideBlocker[] = [];
+	const blocks: TicketRelation[] = [];
 	const ownBlocks = mergeBlockedBy([
 		parsed.get(parseKey(ticket))?.blocks ?? [],
 		merged?.blocks ?? ticket.blocks ?? [],
 	]);
+	const pushBlock = (ref: TicketRef, project: string, title: string) => {
+		if (
+			project === "" ||
+			home === undefined ||
+			blocks.some((item) => sameRef(item, ref))
+		) {
+			return;
+		}
+		blocks.push({
+			tracker: ref.tracker,
+			project,
+			key: ref.key,
+			title,
+		});
+	};
 	if (self !== null && ticket.state === "open") {
 		for (const ref of ownBlocks) {
 			if (!stillOpen(ref, index)) {
@@ -1865,31 +1880,17 @@ function ticketRelations(
 					? undefined
 					: groups.find((group) => group.tickets.includes(other))?.project;
 			const project = otherHome ?? ref.project;
-			if (
-				project === "" ||
-				home === undefined ||
-				project.toLowerCase() === home.toLowerCase() ||
-				blocks.some((item) => sameRef(item, ref))
-			) {
-				continue;
-			}
 			const title = other?.title.trim() || ref.title?.trim() || ref.key;
-			blocks.push({
-				tracker: ref.tracker,
-				project,
-				key: ref.key,
-				title: title || ref.key,
-			});
+			pushBlock(ref, project, title);
 		}
 		for (const group of groups) {
-			if (group.project.toLowerCase() === home?.toLowerCase()) {
-				continue;
-			}
 			for (const other of group.tickets) {
+				const otherRef = asRef(other);
 				if (
 					other.state !== "open" ||
-					other.key === null ||
-					blocks.some((item) => sameRef(item, asRef(other) ?? self))
+					otherRef === null ||
+					other === ticket ||
+					blocks.some((item) => sameRef(item, otherRef))
 				) {
 					continue;
 				}
@@ -1900,12 +1901,7 @@ function ticketRelations(
 				if (!refs.some((ref) => sameRef(ref, self) && stillOpen(self, index))) {
 					continue;
 				}
-				blocks.push({
-					tracker: other.tracker,
-					project: group.project,
-					key: other.key,
-					title: other.title.trim() || other.key,
-				});
+				pushBlock(otherRef, group.project, other.title.trim() || otherRef.key);
 			}
 		}
 	}
