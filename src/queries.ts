@@ -2,7 +2,12 @@ import { QueryClient, type QueryKey } from "@tanstack/react-query";
 import type { Configuration } from "./configuration.ts";
 import type { InboxEntry, NeedsYouItem, Overview } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import { pollingPageId, storedPageId } from "./stored-page.ts";
+import { writePageCache } from "./page-cache.ts";
+import {
+	readStoredPage,
+	readStoredPolling,
+	storedObject,
+} from "./stored-page.ts";
 
 /** A query stays fresh across a client navigation inside one poll interval. */
 export const pageStaleTimeMs = 60_000;
@@ -35,29 +40,6 @@ export async function fetchJson<T>(path: string): Promise<T> {
 		throw new Error(`${path} failed (HTTP ${response.status})`);
 	}
 	return (await response.json()) as T;
-}
-
-function readStoredPolling(): boolean | undefined {
-	const node = document.getElementById(pollingPageId);
-	if (node === null) {
-		return undefined;
-	}
-	return node.textContent === "true";
-}
-
-function readStoredPage(): unknown {
-	const node = document.getElementById(storedPageId);
-	if (node === null || node.textContent === null || node.textContent === "") {
-		return undefined;
-	}
-	return JSON.parse(node.textContent) as unknown;
-}
-
-function storedObject(body: unknown): Record<string, unknown> | null {
-	if (body === null || typeof body !== "object" || Array.isArray(body)) {
-		return null;
-	}
-	return body as Record<string, unknown>;
 }
 
 function seed<T>(key: QueryKey, data: T): void {
@@ -113,6 +95,7 @@ let eventsWired = false;
 
 function applyOverviewEvent(body: Overview): void {
 	client.setQueryData(pageQuery.overview, body);
+	writePageCache("polling", body.polling === true);
 	void client.invalidateQueries({ queryKey: pageQuery.needsYou });
 	void client.invalidateQueries({ queryKey: pageQuery.inbox });
 }
