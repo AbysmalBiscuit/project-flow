@@ -124,6 +124,7 @@ export type TicketView = {
 	updatedAt?: string;
 	assignees?: string[];
 	workstream?: string;
+	workstreamKey?: string;
 	theme?: string;
 };
 
@@ -3366,6 +3367,7 @@ type Placed = {
 	ticket: Ticket;
 	view: TicketView;
 	workstream: string;
+	workstreamKey: string;
 	theme: string;
 };
 
@@ -3467,21 +3469,23 @@ function workstreamOf(
 	root: Ticket,
 	tracker: ProjectCounts["tracker"],
 	byKey: Map<string, Ticket>,
-): string {
+): { label: string; key: string } {
 	if (tracker === "linear") {
-		return linearMilestone(ticket, byKey) ?? noWorkstream;
+		const milestone = linearMilestone(ticket, byKey) ?? noWorkstream;
+		return { label: milestone, key: milestone };
 	}
 	if (isEpic(root)) {
-		return root.title;
+		const key = root.key ?? root.title;
+		return { label: root.title, key };
 	}
 	if (ticket.milestone !== null) {
-		return ticket.milestone;
+		return { label: ticket.milestone, key: ticket.milestone };
 	}
 	const parent = parentOf(ticket, byKey);
 	if (parent !== undefined && parent.key !== null) {
-		return parent.title;
+		return { label: parent.title, key: parent.key };
 	}
-	return noWorkstream;
+	return { label: noWorkstream, key: noWorkstream };
 }
 
 export type GroupKey = Exclude<GroupBy, "none">;
@@ -3490,6 +3494,7 @@ type GroupedTicket = {
 	key: string | null;
 	title: string;
 	workstream?: string;
+	workstreamKey?: string;
 	theme?: string;
 	assignees?: string[];
 };
@@ -3501,6 +3506,23 @@ function themeGroupKey(view: GroupedTicket): string {
 }
 
 export function groupKeysOf(view: GroupedTicket, key: GroupKey): string[] {
+	return groupBandsOf(view, key).map((band) => band.key);
+}
+
+export function groupLabelOf(
+	view: GroupedTicket,
+	key: GroupKey,
+	band: string,
+): string {
+	return (
+		groupBandsOf(view, key).find((item) => item.key === band)?.label ?? band
+	);
+}
+
+function groupBandsOf(
+	view: GroupedTicket,
+	key: GroupKey,
+): { key: string; label: string }[] {
 	if (key === "assignee") {
 		const names = [
 			...new Set(
@@ -3510,39 +3532,48 @@ export function groupKeysOf(view: GroupedTicket, key: GroupKey): string[] {
 				}),
 			),
 		];
-		return names.length === 0 ? [noAssignee] : names;
+		const bands = names.length === 0 ? [noAssignee] : names;
+		return bands.map((name) => ({ key: name, label: name }));
 	}
 	if (key === "workstream") {
-		return [view.workstream ?? noWorkstream];
+		const label = view.workstream ?? noWorkstream;
+		return [{ key: view.workstreamKey ?? label, label }];
 	}
-	return [themeGroupKey(view)];
+	const label = themeGroupKey(view);
+	return [{ key: label, label }];
 }
 
 export function ticketGroups<T extends GroupedTicket>(
 	tickets: readonly T[],
 	key: GroupBy,
-): { name: string; tickets: T[] }[] {
+): { name: string; label: string; tickets: T[] }[] {
 	if (key === "none") {
-		return [{ name: "", tickets: [...tickets] }];
+		return [{ name: "", label: "", tickets: [...tickets] }];
 	}
 	const order: string[] = [];
+	const labels = new Map<string, string>();
 	const members = new Map<string, T[]>();
 	for (const ticket of tickets) {
-		for (const name of groupKeysOf(ticket, key)) {
-			const known = members.get(name);
+		for (const band of groupBandsOf(ticket, key)) {
+			const known = members.get(band.key);
 			if (known === undefined) {
-				order.push(name);
-				members.set(name, [ticket]);
+				order.push(band.key);
+				labels.set(band.key, band.label);
+				members.set(band.key, [ticket]);
 				continue;
 			}
 			known.push(ticket);
 		}
 	}
 	return order
-		.sort((left, right) => left.localeCompare(right))
+		.sort((left, right) =>
+			(labels.get(left) ?? left).localeCompare(labels.get(right) ?? right),
+		)
 		.flatMap((name) => {
 			const grouped = members.get(name);
-			return grouped === undefined ? [] : [{ name, tickets: grouped }];
+			return grouped === undefined
+				? []
+				: [{ name, label: labels.get(name) ?? name, tickets: grouped }];
 		});
 }
 
@@ -3570,11 +3601,13 @@ function placeTickets(
 			return [];
 		}
 		const root = rootOf(ticket, byKey);
+		const workstream = workstreamOf(ticket, root, tracker, byKey);
 		return [
 			{
 				ticket,
 				view,
-				workstream: workstreamOf(ticket, root, tracker, byKey),
+				workstream: workstream.label,
+				workstreamKey: workstream.key,
 				theme: themeOf(ticket, root, byKey, parents),
 			},
 		];
@@ -3668,7 +3701,11 @@ export function projectReport(
 			...view,
 			...(placedItem === undefined
 				? {}
-				: { workstream: placedItem.workstream, theme: placedItem.theme }),
+				: {
+						workstream: placedItem.workstream,
+						workstreamKey: placedItem.workstreamKey,
+						theme: placedItem.theme,
+					}),
 			...(commentRun === undefined ? {} : { run: commentRun }),
 			...(relations === undefined ? {} : { blockers: relations.blockers }),
 			...(relations === undefined || relations.outsideBlockers.length === 0
