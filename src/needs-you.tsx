@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { NeedsYouItem } from "./domain.ts";
+import type { NeedsYouItem, Overview } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { onAppEvent } from "./events.ts";
 import { NeedsItem } from "./needs-item.tsx";
@@ -14,6 +14,7 @@ import {
 	useActiveTicket,
 } from "./selection.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
+import { storeHoldsRead } from "./stored-page.ts";
 import {
 	loadingLabel,
 	type NeedsGroup,
@@ -304,6 +305,9 @@ function Page() {
 	const [items, setItems] = useState<NeedsYouItem[] | null>(
 		() => readPageCache("needs-you") ?? null,
 	);
+	const [holdsRead, setHoldsRead] = useState(
+		() => readPageCache("overview") !== undefined,
+	);
 	const [fetchedAt, setFetchedAt] = useState<string | null>(
 		() => readPageCache("fetched-at") ?? null,
 	);
@@ -334,6 +338,8 @@ function Page() {
 					if (!stopped && response.ok) {
 						const body = (await response.json()) as {
 							fetchedAt: string | null;
+							projects?: { pending?: boolean }[];
+							tracked?: false;
 							polling?: true;
 						};
 						const next = body.polling === true;
@@ -341,6 +347,11 @@ function Page() {
 						setPolling(next);
 						writePageCache("fetched-at", body.fetchedAt);
 						setFetchedAt(body.fetchedAt);
+						const read = storeHoldsRead(body);
+						if (read) {
+							writePageCache("overview", body as Overview);
+						}
+						setHoldsRead(read);
 					}
 				})
 				.catch(() => {
@@ -360,7 +371,7 @@ function Page() {
 			stop();
 		};
 	}, []);
-	if (items === null) {
+	if (items === null || (polling && items.length === 0 && !holdsRead)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
 	return <NeedsList items={items} fetchedAt={fetchedAt} polling={polling} />;

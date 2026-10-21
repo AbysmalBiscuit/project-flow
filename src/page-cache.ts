@@ -8,7 +8,7 @@ import type {
 	ProjectReport,
 	SettingsProject,
 } from "./domain.ts";
-import { pollingPageId, storedPageId, storeHoldsRead } from "./stored-page.ts";
+import { pollingPageId, storedPageId } from "./stored-page.ts";
 
 type SettingsPage = {
 	settings: Configuration;
@@ -57,7 +57,7 @@ export function writePageCache(
 	entries.set(key, body);
 }
 
-export function readStoredPolling(): boolean | undefined {
+function readStoredPolling(): boolean | undefined {
 	const node = document.getElementById(pollingPageId);
 	if (node === null) {
 		return undefined;
@@ -65,7 +65,7 @@ export function readStoredPolling(): boolean | undefined {
 	return node.textContent === "true";
 }
 
-export function readStoredPage(): unknown {
+function readStoredPage(): unknown {
 	const node = document.getElementById(storedPageId);
 	if (node === null || node.textContent === null || node.textContent === "") {
 		return undefined;
@@ -80,8 +80,6 @@ function storedObject(body: unknown): Record<string, unknown> | null {
 	return body as Record<string, unknown>;
 }
 
-export { storeHoldsRead } from "./stored-page.ts";
-
 let storedSeeded = false;
 
 function seedOverview(stored: unknown, polling: boolean | undefined): void {
@@ -89,19 +87,8 @@ function seedOverview(stored: unknown, polling: boolean | undefined): void {
 	if (embedded === null) {
 		return;
 	}
-	const overview = storedObject(embedded.overview) ?? embedded;
-	const projects = Array.isArray(overview.projects)
-		? overview.projects.flatMap((project) => {
-				const row = storedObject(project);
-				return row === null ? [] : [row];
-			})
-		: [];
-	if (
-		!storeHoldsRead({
-			projects,
-			tracked: overview.tracked === false ? false : undefined,
-		})
-	) {
+	const overview = storedObject(embedded.overview);
+	if (overview === null) {
 		return;
 	}
 	writePageCache("overview", overview as Overview);

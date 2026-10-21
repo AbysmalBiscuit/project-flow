@@ -1503,16 +1503,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			} catch {
 				return undefined;
 			}
-			const body = runningOverview(pollOptions, configuration);
-			const stored = body.projects.some(
-				(project) =>
-					project.name.toLowerCase() === name.toLowerCase() &&
-					project.pending !== true,
-			);
-			if (!stored) {
-				return undefined;
-			}
-			return reportFor(pollOptions, configuration, name, true);
+			return reportFor(pollOptions, configuration, name, true) ?? undefined;
 		}
 		if (pathname === "/needs-you") {
 			const body = runningOverview(pollOptions, configuration);
