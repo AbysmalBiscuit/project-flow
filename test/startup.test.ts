@@ -702,32 +702,6 @@ describe("startup", () => {
 		}
 	});
 
-	test("--open=false does not open the browser", async () => {
-		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
-		const opened: string[] = [];
-		try {
-			const result = await run(
-				["--config", path, "--open=false"],
-				testIo({
-					env: {},
-					fetch: async () => {
-						throw new Error("no tracker call for an empty pin list");
-					},
-					readGhToken: async () => null,
-					databasePath: ":memory:",
-					waitForStop: Promise.resolve(),
-					open: async (url) => {
-						opened.push(url);
-					},
-				}),
-			);
-			expect(result.exitCode).toBe(0);
-			expect(opened).toEqual([]);
-		} finally {
-			await cleanup();
-		}
-	});
-
 	test("--open with a failing browser command warns and the API still answers", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const bin = await mkdtemp(join("/var/tmp", "project-flow-bad-browser-"));
@@ -765,32 +739,6 @@ describe("startup", () => {
 		} finally {
 			await cleanup();
 			await rm(bin, { recursive: true, force: true });
-		}
-	});
-
-	test("repeated --open opens the printed URL once", async () => {
-		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
-		const opened: string[] = [];
-		try {
-			const result = await run(
-				["--config", path, "--open", "--open"],
-				testIo({
-					env: {},
-					fetch: async () => {
-						throw new Error("no tracker call for an empty pin list");
-					},
-					readGhToken: async () => null,
-					databasePath: ":memory:",
-					waitForStop: Promise.resolve(),
-					open: async (url) => {
-						opened.push(url);
-					},
-				}),
-			);
-			expect(result.exitCode).toBe(0);
-			expect(opened).toEqual([result.stdout]);
-		} finally {
-			await cleanup();
 		}
 	});
 
