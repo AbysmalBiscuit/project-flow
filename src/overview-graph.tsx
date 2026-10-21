@@ -51,17 +51,6 @@ type BlockerEdgeData = {
 	side: number;
 };
 
-function layout(
-	projects: ProjectCounts[],
-): Map<string, { x: number; y: number }> {
-	const placed = overviewFlowPlaces(projects);
-	const positions = new Map<string, { x: number; y: number }>();
-	for (const [name, place] of placed) {
-		positions.set(name, { x: place.x, y: place.y });
-	}
-	return positions;
-}
-
 function ProjectNode({ data }: { data: ProjectNodeData }) {
 	return (
 		<a
@@ -185,7 +174,7 @@ export function graphModel(
 	edges: FlowEdge<BlockerEdgeData>[];
 } {
 	const shownNames = new Set(shown.map((project) => project.name));
-	const positions = layout(catalogue);
+	const positions = overviewFlowPlaces(catalogue);
 	const nodes = shown.map((project) => ({
 		id: project.name,
 		type: "project",
