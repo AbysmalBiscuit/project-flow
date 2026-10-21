@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { recordedViewer, urlOf } from "../test/support.ts";
+import { recordedViewer, repoReadFromHandler, urlOf } from "../test/support.ts";
 
 const root = await mkdtemp(join("/var/tmp", "project-flow-board-"));
 process.env.XDG_DATA_HOME = root;
@@ -133,13 +133,16 @@ const gateIssue = {
 };
 
 function linearResponse(body: string): Response {
-	if (body.includes("MemberProjects") || body.includes("viewer { id }")) {
+	if (body.includes("MemberProjects")) {
 		return Response.json({
 			data: {
 				viewer: { id: "lev" },
 				projects: emptyPage,
 			},
 		});
+	}
+	if (body.includes("viewer { id }")) {
+		return Response.json({ data: { viewer: { id: "lev" } } });
 	}
 	if (body.includes("ProjectByPin")) {
 		return Response.json({
@@ -196,6 +199,15 @@ const recorded: Fetch = async (input, init) => {
 	}
 	const url = urlOf(input);
 	const body = typeof init?.body === "string" ? init.body : "";
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("query RepoRead")
+	) {
+		const read = await repoReadFromHandler(input, init, recorded);
+		if (read !== null) {
+			return read;
+		}
+	}
 	if (url === "https://api.linear.app/graphql") {
 		return linearResponse(body);
 	}
