@@ -2748,14 +2748,6 @@ export const settings = stylex.create({
 		display: "block",
 		margin: `${space.xs} 0`,
 	},
-	error: {
-		margin: `${space.md} 0 0`,
-		color: colours.danger,
-	},
-	saved: {
-		margin: `${space.md} 0 0`,
-		color: colours.saved,
-	},
 	toast: {
 		position: "fixed",
 		zIndex: stack.toast,
