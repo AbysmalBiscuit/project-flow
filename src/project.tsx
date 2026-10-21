@@ -727,10 +727,18 @@ function TableRow({
 			data-ticket={key ?? ""}
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
+			tabIndex={key === null ? undefined : 0}
 			onClick={() => {
 				if (key !== null) {
 					onOpen(key);
 				}
+			}}
+			onKeyDown={(event) => {
+				if (key === null || (event.key !== "Enter" && event.key !== " ")) {
+					return;
+				}
+				event.preventDefault();
+				onOpen(key);
 			}}
 		>
 			<td className={clsx(board.rowCell, board.rowKey)}>

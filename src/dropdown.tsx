@@ -36,9 +36,19 @@ export function Dropdown({
 				setOpen(false);
 			}
 		};
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") {
+				return;
+			}
+			event.preventDefault();
+			setOpen(false);
+			root.current?.querySelector("button")?.focus();
+		};
 		document.addEventListener("pointerdown", close);
+		document.addEventListener("keydown", onKey);
 		return () => {
 			document.removeEventListener("pointerdown", close);
+			document.removeEventListener("keydown", onKey);
 		};
 	}, [open]);
 	return (

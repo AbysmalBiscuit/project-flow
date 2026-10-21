@@ -703,11 +703,21 @@ function MenuButton({
 			setShift(overflow > 0 ? -overflow : 0);
 		};
 		fit();
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape") {
+				return;
+			}
+			event.preventDefault();
+			onToggle();
+			document.getElementById(id)?.focus();
+		};
 		window.addEventListener("resize", fit);
+		document.addEventListener("keydown", onKey);
 		return () => {
 			window.removeEventListener("resize", fit);
+			document.removeEventListener("keydown", onKey);
 		};
-	}, [open]);
+	}, [open, id, onToggle]);
 	return (
 		<div className={clsx(cards.menu)} ref={root}>
 			<span ref={gutter} className={clsx(cards.gutter)} aria-hidden="true" />

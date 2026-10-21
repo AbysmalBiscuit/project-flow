@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CommentMarkdown } from "./comment-markdown.tsx";
 import type {
 	NeedsYouItem,
@@ -20,7 +20,7 @@ import {
 } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, needs, panel, shell } from "./ui-styles.ts";
+import { board, panel, shell } from "./ui-styles.ts";
 
 const laneMarks: Record<string, typeof board.markBacklog> = {
 	[lightValues.done.toLowerCase()]: board.markDone,
@@ -106,8 +106,8 @@ function RelationList({
 		return null;
 	}
 	return (
-		<section aria-label={label}>
-			<h3 className={clsx(panel.label)}>{label}</h3>
+		<section className={clsx(panel.section)} aria-label={label}>
+			<h3 className={clsx(panel.sectionLabel)}>{label}</h3>
 			<ul className={clsx(panel.relations)}>
 				{relations.map((blocker) => (
 					<li key={`${blocker.project} ${blocker.key}`}>
@@ -149,7 +149,7 @@ function WhySection({
 	}
 	return (
 		<section className={clsx(panel.section)} aria-label={whyLabel}>
-			<h3 className={clsx(panel.whyLabel)}>{whyLabel}</h3>
+			<h3 className={clsx(panel.sectionLabel)}>{whyLabel}</h3>
 			{question === undefined ? null : (
 				<p className={clsx(panel.question)}>{question}</p>
 			)}
@@ -244,6 +244,10 @@ export function TicketPanel({
 	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
 	const reply = usePostReply(tracker, project, ticketKey);
 	const pending = reply.isPending;
+	const root = useRef<HTMLElement>(null);
+	const opener = useRef<HTMLElement | null>(null);
+	const onCloseRef = useRef(onClose);
+	onCloseRef.current = onClose;
 	useEffect(() => {
 		if (item?.answered === true) {
 			setPicked(false);
@@ -256,6 +260,36 @@ export function TicketPanel({
 	const missing = read?.status === "missing";
 	const failed = read?.status === "failed";
 	const loadingThread = threadQuery.isFetching;
+	useLayoutEffect(() => {
+		const active = document.activeElement;
+		opener.current =
+			active instanceof HTMLElement && root.current?.contains(active) !== true
+				? active
+				: null;
+	}, []);
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) {
+				return;
+			}
+			const openMenu = document.querySelector(
+				"[aria-expanded='true'], [role='dialog']",
+			);
+			if (openMenu !== null) {
+				return;
+			}
+			event.preventDefault();
+			const target = opener.current;
+			onCloseRef.current();
+			queueMicrotask(() => {
+				if (target?.isConnected === true) {
+					target.focus();
+				}
+			});
+		};
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, []);
 	async function pick(option: number): Promise<void> {
 		if (pending || picked) {
 			return;
@@ -298,6 +332,7 @@ export function TicketPanel({
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 			data-state={stateName}
+			ref={root}
 		>
 			<div className={clsx(panel.head)}>
 				<span className={clsx(panel.key)}>{ticketKey}</span>
@@ -340,7 +375,7 @@ export function TicketPanel({
 				</p>
 			) : null}
 			{loadingThread || (thread === null && !missing && !failed) ? (
-				<p className={clsx(panel.label)}>Loading thread</p>
+				<p className={clsx(panel.note)}>Loading thread</p>
 			) : null}
 			{thread !== null || title !== undefined ? (
 				<h2 className={clsx(panel.heading)}>{thread?.title ?? title}</h2>
@@ -358,9 +393,9 @@ export function TicketPanel({
 			)}
 			{item === null || item === undefined ? (
 				why === undefined ? null : (
-					<section className={clsx(needs.why)} aria-label={whyLabel}>
-						<h3 className={clsx(needs.whyLabel)}>{whyLabel}</h3>
-						<p className={clsx(needs.whyBody)}>{why}</p>
+					<section className={clsx(panel.section)} aria-label={whyLabel}>
+						<h3 className={clsx(panel.sectionLabel)}>{whyLabel}</h3>
+						<p className={clsx(panel.question)}>{why}</p>
 					</section>
 				)
 			) : (
@@ -414,7 +449,11 @@ export function TicketPanel({
 						value={draft}
 						onChange={(event) => setDraft(event.target.value)}
 					/>
-					<button type="submit" className={clsx(panel.send)} disabled={pending}>
+					<button
+						type="submit"
+						className={clsx(panel.send, shell.buttonFocus)}
+						disabled={pending}
+					>
 						Comment
 					</button>
 					{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
