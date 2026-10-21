@@ -1865,7 +1865,7 @@ function ticketRelations(
 			tracker: ref.tracker,
 			project,
 			key: ref.key,
-			title: title || ref.key,
+			title,
 		});
 	};
 	if (self !== null && ticket.state === "open") {
