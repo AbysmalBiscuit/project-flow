@@ -11,6 +11,7 @@ type StoredPayload = {
 	board?: Board;
 	owner?: string;
 	number?: number;
+	listedEmpty?: boolean;
 };
 
 function readRows(db: Database): Snapshot[] {
@@ -35,6 +36,9 @@ function readRows(db: Database): Snapshot[] {
 			...(payload.board === undefined ? {} : { board: payload.board }),
 			...(payload.owner === undefined ? {} : { owner: payload.owner }),
 			...(payload.number === undefined ? {} : { number: payload.number }),
+			...(payload.listedEmpty === undefined
+				? {}
+				: { listedEmpty: payload.listedEmpty }),
 		};
 	});
 }
@@ -54,6 +58,9 @@ function writeRow(db: Database, row: Snapshot): void {
 			...(row.board === undefined ? {} : { board: row.board }),
 			...(row.owner === undefined ? {} : { owner: row.owner }),
 			...(row.number === undefined ? {} : { number: row.number }),
+			...(row.listedEmpty === undefined
+				? {}
+				: { listedEmpty: row.listedEmpty }),
 		}),
 	);
 }

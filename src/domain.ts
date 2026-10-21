@@ -719,6 +719,7 @@ export type Snapshot = {
 	board?: Board;
 	owner?: string;
 	number?: number;
+	listedEmpty?: boolean;
 };
 
 export type ProjectPoll = {
@@ -853,6 +854,9 @@ export function reconcilePoll(
 					ticket.key === null ? [] : [ticket.key],
 				),
 			);
+			const listedEmpty = outcome.full
+				? outcome.row.listedEmpty
+				: (prior?.listedEmpty ?? outcome.row.listedEmpty);
 			rows.push({
 				...outcome.row,
 				tickets,
@@ -862,6 +866,7 @@ export function reconcilePoll(
 					returnedIds,
 					outcome.full,
 				),
+				...(listedEmpty === undefined ? {} : { listedEmpty }),
 			});
 			continue;
 		}
