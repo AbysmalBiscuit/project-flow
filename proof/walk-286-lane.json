@@ -10,6 +10,7 @@
 		{ "assert_text": "last card inside" },
 		{ "assert_text": "title held" },
 		{ "assert_text": "reached" },
+		{ "assert_text": "body overflowY auto" },
 		{ "shot": "lane-last-card" }
 	]
 }

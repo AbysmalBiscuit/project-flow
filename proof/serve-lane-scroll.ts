@@ -233,11 +233,13 @@ const laneState = () => {
   const lastInside = lastBox.top >= bodyBox.top - 1 && lastBox.bottom <= bodyBox.bottom + 1;
   const titleHeld = bodyBox.top >= titleBox.bottom - 1 && titleBox.bottom > 0;
   const reached = body.scrollTop + body.clientHeight >= body.scrollHeight - 1;
+  const pageScroll = getComputedStyle(document.body).overflowY;
   return [
     "lane scrollTop " + Math.round(body.scrollTop),
     reached ? "reached" : "short",
     lastInside ? "last card inside" : "last card outside",
     titleHeld ? "title held" : "title lost",
+    "body overflowY " + pageScroll,
     "board scrollWidth " + board.scrollWidth + " clientWidth " + board.clientWidth,
     "board scrollLeft " + Math.round(board.scrollLeft),
     pageFit(),
