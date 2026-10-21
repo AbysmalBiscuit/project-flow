@@ -23,7 +23,7 @@ import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
-import { AppShell, PageFrame } from "./shell.tsx";
+import { AppShell, PageFrame, PollStatus } from "./shell.tsx";
 import {
 	blockedLabel,
 	groupByLabel,
@@ -1079,9 +1079,10 @@ function Page() {
 	const active = useActiveTicket();
 	const [panelReport, setPanelReport] = useState<ProjectReport | null>(null);
 	const [missing, setMissing] = useState(false);
-	const [polling, setPolling] = useState(
-		() => readPageCache("polling") !== false,
-	);
+	const [polling, setPolling] = useState(() => {
+		const cached = readPageCache("polling");
+		return cached === undefined ? true : cached;
+	});
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	useEffect(() => {
@@ -1390,7 +1391,9 @@ function Page() {
 						<div className={clsx(board.identity)}>
 							<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 							<h1 className={clsx(board.name)}>{report.name}</h1>
-							<p className={clsx(board.counts)}>{countLine(report)}</p>
+							<p className={clsx(board.counts)}>
+								{countLine(report)} <PollStatus text={null} polling={polling} />
+							</p>
 						</div>
 						<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
 							{view === "graph" ? (

@@ -8,7 +8,7 @@ import { onAppEvent } from "./events.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
-import { PageFrame } from "./shell.tsx";
+import { PageFrame, PollStatus } from "./shell.tsx";
 import {
 	loadingLabel,
 	navLabel,
@@ -244,11 +244,13 @@ function Menu({
 	loaded,
 	trackers,
 	projects,
+	polling,
 	onSave,
 }: {
 	loaded: Configuration;
 	trackers: Trackers;
 	projects: SettingsProject[];
+	polling: boolean;
 	onSave: (
 		next: Configuration,
 		baseline: Configuration,
@@ -332,7 +334,11 @@ function Menu({
 	);
 
 	return (
-		<PageFrame title={navLabel.settings} scroll>
+		<PageFrame
+			title={navLabel.settings}
+			subtitle={<PollStatus text={null} polling={polling} />}
+			scroll
+		>
 			<p id="settings-lead" className={clsx(fields.lead)}>
 				{settingsCopy.savedTo}
 			</p>
@@ -1311,6 +1317,10 @@ function Page() {
 		() => cached?.trackers ?? { github: false, linear: false },
 	);
 	const [error, setError] = useState<string | null>(null);
+	const [polling, setPolling] = useState(() => {
+		const cached = readPageCache("polling");
+		return cached === undefined ? true : cached;
+	});
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -1343,10 +1353,29 @@ function Page() {
 					}
 				});
 		};
+		const readPoll = () => {
+			fetch("/api/overview")
+				.then(async (response) => {
+					if (stopped || !response.ok) {
+						return;
+					}
+					const body = (await response.json()) as { polling?: true };
+					const next = body.polling === true;
+					writePageCache("polling", next);
+					setPolling(next);
+				})
+				.catch(() => {
+					if (!stopped) {
+						setPolling(false);
+					}
+				});
+		};
 		load();
+		readPoll();
 		const stop = onAppEvent("overview", () => {
 			if (!stopped) {
 				load();
+				readPoll();
 			}
 		});
 		return () => {
@@ -1365,6 +1394,7 @@ function Page() {
 			loaded={settings}
 			trackers={trackers}
 			projects={projects}
+			polling={polling}
 			onSave={async (next, baseline) => {
 				const current = await fetch("/api/settings");
 				if (!current.ok) {

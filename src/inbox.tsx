@@ -14,7 +14,7 @@ import {
 import { mountPage, readPageCache, writePageCache } from "./page-cache.ts";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
-import { PageFrame } from "./shell.tsx";
+import { PageFrame, PollStatus } from "./shell.tsx";
 import {
 	inboxCopy,
 	inboxFilterLabel,
@@ -123,9 +123,11 @@ async function saveRead(path: string, body: string): Promise<boolean> {
 function InboxList({
 	entries,
 	onChange,
+	polling,
 }: {
 	entries: InboxEntry[];
 	onChange: (entries: InboxEntry[]) => void;
+	polling: boolean;
 }) {
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
@@ -204,7 +206,11 @@ function InboxList({
 		);
 	};
 	return (
-		<PageFrame title={navLabel.inbox} wide>
+		<PageFrame
+			title={navLabel.inbox}
+			subtitle={<PollStatus text={null} polling={polling} />}
+			wide
+		>
 			<div className={clsx(inbox.lead)}>
 				<p>{inboxCopy.lead}</p>
 				<p data-unread-count={unread}>
@@ -361,9 +367,10 @@ function Page() {
 	const [entries, setEntries] = useState<InboxEntry[] | null>(
 		() => readPageCache("inbox") ?? null,
 	);
-	const [polling, setPolling] = useState(
-		() => readPageCache("polling") !== false,
-	);
+	const [polling, setPolling] = useState(() => {
+		const cached = readPageCache("polling");
+		return cached === undefined ? true : cached;
+	});
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -407,7 +414,9 @@ function Page() {
 	if (entries === null || (polling && entries.length === 0)) {
 		return <PageFrame title={navLabel.inbox}>{loadingLabel}</PageFrame>;
 	}
-	return <InboxList entries={entries} onChange={setEntries} />;
+	return (
+		<InboxList entries={entries} onChange={setEntries} polling={polling} />
+	);
 }
 
 function mount(): void {

@@ -13,7 +13,7 @@ import {
 	replaceActiveItem,
 	useActiveTicket,
 } from "./selection.ts";
-import { PageFrame } from "./shell.tsx";
+import { PageFrame, PollStatus } from "./shell.tsx";
 import {
 	loadingLabel,
 	type NeedsGroup,
@@ -193,9 +193,11 @@ function summaryLine(items: NeedsYouItem[], polled: string): string {
 function NeedsList({
 	items,
 	fetchedAt,
+	polling,
 }: {
 	items: NeedsYouItem[];
 	fetchedAt: string | null;
+	polling: boolean;
 }) {
 	const [reason, setReason] = useState<ReasonFilter>(allReasons);
 	const [project, setProject] = useState(allProjects);
@@ -237,7 +239,16 @@ function NeedsList({
 	return (
 		<PageFrame
 			title={navLabel.needsYou}
-			subtitle={summaryLine(items, ageLine(fetchedAt))}
+			subtitle={
+				<>
+					{summaryLine(items, "")}
+					{polling || fetchedAt !== null ? ", " : null}
+					<PollStatus
+						text={polling ? null : polledAgo(fetchedAt)}
+						polling={polling}
+					/>
+				</>
+			}
 			wide
 		>
 			<div className={clsx(needs.layout)}>
@@ -289,11 +300,6 @@ function NeedsList({
 	);
 }
 
-function ageLine(fetchedAt: string | null): string {
-	const age = polledAgo(fetchedAt);
-	return age === null ? "" : `, ${age}`;
-}
-
 function Page() {
 	const [items, setItems] = useState<NeedsYouItem[] | null>(
 		() => readPageCache("needs-you") ?? null,
@@ -301,9 +307,10 @@ function Page() {
 	const [fetchedAt, setFetchedAt] = useState<string | null>(
 		() => readPageCache("fetched-at") ?? null,
 	);
-	const [polling, setPolling] = useState(
-		() => readPageCache("polling") !== false,
-	);
+	const [polling, setPolling] = useState(() => {
+		const cached = readPageCache("polling");
+		return cached === undefined ? true : cached;
+	});
 	useEffect(() => {
 		let stopped = false;
 		const load = () => {
@@ -357,7 +364,7 @@ function Page() {
 	if (items === null || (polling && items.length === 0)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
-	return <NeedsList items={items} fetchedAt={fetchedAt} />;
+	return <NeedsList items={items} fetchedAt={fetchedAt} polling={polling} />;
 }
 
 function mount(): void {

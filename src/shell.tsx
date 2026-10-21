@@ -15,7 +15,7 @@ export type PageView = {
 
 export type PageHeaderProps = {
 	title: string;
-	subtitle?: string;
+	subtitle?: ReactNode;
 	filter?: ReactNode;
 	sort?: ReactNode;
 	search?: ReactNode;
@@ -76,6 +76,49 @@ export function SearchGlyph() {
 			<path d="M16 16l4 4" />
 		</Glyph>
 	);
+}
+
+export function RefreshGlyph({ spinning = false }: { spinning?: boolean }) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			aria-hidden="true"
+			className={clsx(frame.glyph, spinning && frame.spinning)}
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="1.75"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+		>
+			<path d="M20 12a8 8 0 1 1-2.3-5.6" />
+			<path d="M20 4v5h-5" />
+		</svg>
+	);
+}
+
+export function PollStatus({
+	text,
+	polling,
+}: {
+	text: string | null;
+	polling: boolean;
+}) {
+	if (polling) {
+		return (
+			<span
+				id="poll-status"
+				role="status"
+				aria-busy="true"
+				aria-label={navLabel.refreshing}
+			>
+				<RefreshGlyph spinning />
+			</span>
+		);
+	}
+	if (text === null || text === "") {
+		return null;
+	}
+	return <span id="poll-status">{text}</span>;
 }
 
 function SettingsIcon() {

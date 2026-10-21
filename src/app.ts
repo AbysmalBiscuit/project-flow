@@ -1481,12 +1481,41 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	void firstPoll.then(armTimer, armTimer).catch(() => {});
 	let server: ReturnType<typeof Bun.serve>;
-	const pageResponse = async (): Promise<Response> => {
+	const pageResponse = async (request: Request): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
-		const html = paintPage(await bundled.text(), configuration.theme);
+		const html = paintPage(
+			await bundled.text(),
+			configuration.theme,
+			storedForPage(new URL(request.url).pathname),
+			pollOptions.polling,
+		);
 		const headers = new Headers(bundled.headers);
 		headers.delete("content-length");
 		return new Response(html, { status: bundled.status, headers });
+	};
+	const storedForPage = (pathname: string): unknown => {
+		const projectPrefix = "/projects/";
+		if (pathname.startsWith(projectPrefix)) {
+			const name = decodeURIComponent(pathname.slice(projectPrefix.length));
+			return reportFor(pollOptions, configuration, name, true);
+		}
+		if (pathname === "/needs-you") {
+			return projectViews(pollOptions, configuration).flatMap(
+				(item) => item.items,
+			);
+		}
+		if (pathname === "/inbox") {
+			return inboxEntries(opened.store.readNotifications(), clock.now());
+		}
+		if (pathname === "/settings") {
+			return settingsResponse(
+				configuration,
+				options,
+				pollOptions.catalogue,
+				opened.store.readTickets(),
+			);
+		}
+		return runningOverview(pollOptions, configuration);
 	};
 	server = Bun.serve({
 		hostname: options.hostname,

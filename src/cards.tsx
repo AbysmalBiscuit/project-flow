@@ -38,7 +38,7 @@ import {
 	ticketTotal,
 	trackerName,
 } from "./progress-bar.tsx";
-import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
+import { PageFrame, type PageView, PollStatus, SearchGlyph } from "./shell.tsx";
 import {
 	actionLabel,
 	loadingLabel,
@@ -799,16 +799,22 @@ function OverviewPage({
 	const summary = [
 		`${overview.projects.length} ${overviewControlLabel.projects}`,
 		`${tickets} ${overviewControlLabel.tickets}`,
-		polled,
-	]
-		.filter((part) => part !== null)
-		.join(", ");
+	].join(", ");
 	const sectionTitle =
 		view.view === "graph" ? "Projects and their blockers" : navLabel.projects;
 	const page = (
 		<PageFrame
 			title={navLabel.overview}
-			subtitle={summary}
+			subtitle={
+				<>
+					{summary}
+					{polled !== null || overview.polling === true ? ", " : null}
+					<PollStatus
+						text={overview.polling === true ? null : polled}
+						polling={overview.polling === true}
+					/>
+				</>
+			}
 			filter={undefined}
 			sort={undefined}
 			search={
@@ -924,8 +930,6 @@ function OverviewPage({
 				<p id="poll-progress" className={clsx(cards.loading)}>
 					{pollLine(progress)}
 				</p>
-			) : overview.polling === true ? (
-				<p className={clsx(cards.loading)}>{overviewControlLabel.refreshing}</p>
 			) : overview.error !== null ? (
 				<p className={clsx(shell.stale)}>{overview.error}</p>
 			) : null}
@@ -972,9 +976,15 @@ async function readOverview(): Promise<Overview> {
 }
 
 function Page() {
-	const [overview, setOverview] = useState<Overview | null>(
-		() => readPageCache("overview") ?? null,
-	);
+	const [overview, setOverview] = useState<Overview | null>(() => {
+		const cached = readPageCache("overview") ?? null;
+		if (cached === null) {
+			return null;
+		}
+		return readPageCache("polling") === true
+			? { ...cached, polling: true }
+			: cached;
+	});
 	const [settings, setSettings] = useState<Configuration | null>(
 		() => readPageCache("settings") ?? null,
 	);
@@ -982,6 +992,7 @@ function Page() {
 	useEffect(() => {
 		const show = (next: Overview) => {
 			writePageCache("overview", next);
+			writePageCache("polling", next.polling === true);
 			setOverview(next);
 		};
 		const stopOverview = onAppEvent("overview", (event) => {
@@ -1007,7 +1018,14 @@ function Page() {
 			stopOpen();
 		};
 	}, []);
-	if (overview === null || settings === null) {
+	const stored =
+		overview?.projects.some((project) => project.pending !== true) === true ||
+		overview?.tracked === false;
+	if (
+		overview === null ||
+		settings === null ||
+		(overview.polling === true && !stored)
+	) {
 		return <PageFrame title={navLabel.overview}>{loadingLabel}</PageFrame>;
 	}
 	return (

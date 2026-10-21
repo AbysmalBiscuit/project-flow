@@ -1,5 +1,6 @@
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
+import { seedStoredPage } from "./page-cache.ts";
 import { installPageLinks } from "./page-links.ts";
 import { clearTicketOnPageChange } from "./selection.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
@@ -10,6 +11,7 @@ mountJumpBox();
 installPageLinks();
 
 applyPageTheme(pageTheme());
+seedStoredPage(window.location.pathname);
 
 const pages = [
 	{ path: "/needs-you", load: () => import("./needs-you.tsx") },

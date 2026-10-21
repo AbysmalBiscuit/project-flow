@@ -353,6 +353,16 @@ export const frame = stylex.create({
 		letterSpacing: type.track,
 		lineHeight: type.line,
 	},
+	spinning: {
+		display: "inline-flex",
+		animationName: stylex.keyframes({
+			from: { transform: "rotate(0deg)" },
+			to: { transform: "rotate(360deg)" },
+		}),
+		animationDuration: measure.spin,
+		animationTimingFunction: "linear",
+		animationIterationCount: "infinite",
+	},
 	subtitle: {
 		margin: `${space.xs} 0 0`,
 		color: colours.inkSoft,

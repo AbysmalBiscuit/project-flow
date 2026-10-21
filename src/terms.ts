@@ -23,6 +23,7 @@ export const navLabel = {
 	projects: "Projects",
 	needsYou: "Needs you",
 	inbox: "Inbox",
+	refreshing: "Refreshing",
 	settings: "Settings",
 	theme: "Theme",
 	light: "Light",

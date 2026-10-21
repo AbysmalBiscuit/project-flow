@@ -304,6 +304,7 @@ export const measure = stylex.defineVars({
 	searchBox: "14.5rem",
 	reply: "5.5rem",
 	panelTop: "4.5rem",
+	spin: "1s",
 	toggle: "2.25rem",
 	mark: "1.15rem",
 	sortMark: "0.7rem",
