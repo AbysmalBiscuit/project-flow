@@ -325,11 +325,17 @@ export function Page() {
 	}, [items]);
 	const holdsRead = body !== undefined && storeHoldsRead(body);
 	const polling = body?.polling === true;
-	if (
-		items === undefined ||
-		(polling && items.length === 0 && !holdsRead) ||
-		(needs.isError && items === undefined)
-	) {
+	if (needs.isError && items === undefined) {
+		return (
+			<NeedsList
+				items={[]}
+				fetchedAt={body?.fetchedAt ?? null}
+				polling={polling}
+				fetching={needs.isFetching || overview.isFetching}
+			/>
+		);
+	}
+	if (items === undefined || (polling && items.length === 0 && !holdsRead)) {
 		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
 	}
 	return (

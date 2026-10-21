@@ -365,6 +365,18 @@ export function Page() {
 	const body = overview.data;
 	const holdsRead = body !== undefined && storeHoldsRead(body);
 	const polling = body?.polling === true;
+	if (inbox.isError && entries === undefined) {
+		return (
+			<InboxList
+				entries={[]}
+				onChange={(next) => {
+					queries.setQueryData(pageQuery.inbox, next);
+				}}
+				polling={polling}
+				fetching={inbox.isFetching || overview.isFetching}
+			/>
+		);
+	}
 	if (
 		entries === undefined ||
 		(polling && entries.length === 0 && !holdsRead)
