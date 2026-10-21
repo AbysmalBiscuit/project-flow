@@ -725,6 +725,37 @@ describe("replies", () => {
 		}
 	});
 
+	test("a blank project marks the thread missing", async () => {
+		const sent: Sent[] = [];
+		const recorded = githubFetch(sent, { issues: [issue(7)] });
+		const app = await serve(
+			recorded,
+			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+		);
+		try {
+			const blank = await fetch(
+				new URL(
+					"/api/threads/github/acme%2Fwidget%237?project=%20%20",
+					app.base,
+				),
+			);
+			const empty = await fetch(
+				new URL("/api/threads/github/acme%2Fwidget%237", app.base),
+			);
+			expect(blank.status).toBe(404);
+			expect(empty.status).toBe(404);
+			expect(((await blank.json()) as { missing?: boolean }).missing).toBe(
+				true,
+			);
+			expect(((await empty.json()) as { missing?: boolean }).missing).toBe(
+				true,
+			);
+			expect(sent.some((item) => item.url.includes("/issues/7"))).toBe(false);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a missing Linear issue shows thread not found", async () => {
 		const recorded = linearFake({
 			project: linearProject,
