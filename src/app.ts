@@ -4,7 +4,6 @@ import {
 	loadConfiguration,
 	parseConfiguration,
 	projectRef as projectRefSchema,
-	sameRef,
 	saveConfiguration,
 } from "./configuration.ts";
 import type {
@@ -47,6 +46,7 @@ import {
 	reconcilePoll,
 	refKey,
 	type SettingsProject,
+	samePin,
 	settingsProjects,
 	staleView,
 	startedTodoKeys,
@@ -400,17 +400,17 @@ function applyRefEdits(
 	draft: Configuration["tracked"],
 ): Configuration["tracked"] {
 	const removed = baseline.filter(
-		(ref) => !draft.some((item) => sameRef(item, ref)),
+		(ref) => !draft.some((item) => samePin(item, ref)),
 	);
 	const added = draft.filter(
-		(ref) => !baseline.some((item) => sameRef(item, ref)),
+		(ref) => !baseline.some((item) => samePin(item, ref)),
 	);
 	const kept = live.filter(
-		(ref) => !removed.some((item) => sameRef(item, ref)),
+		(ref) => !removed.some((item) => samePin(item, ref)),
 	);
 	return [
 		...kept,
-		...added.filter((ref) => !kept.some((item) => sameRef(item, ref))),
+		...added.filter((ref) => !kept.some((item) => samePin(item, ref))),
 	];
 }
 
