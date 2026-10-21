@@ -1,20 +1,41 @@
-type AppEvent = "overview" | "notification";
+type AppEvent = "overview" | "notification" | "progress";
 type StreamEvent = "open" | AppEvent;
 
 type Listener = (event: MessageEvent) => void;
 
 const listeners = new Map<StreamEvent, Set<Listener>>();
+const latest = new Map<AppEvent, MessageEvent>();
 let source: EventSource | null = null;
 let users = 0;
+
+function remember(name: AppEvent, event: MessageEvent): void {
+	latest.set(name, event);
+	if (name === "progress") {
+		const progress = JSON.parse(event.data) as { ended?: boolean };
+		if (progress.ended === true) {
+			latest.delete(name);
+		}
+	}
+}
 
 function open(): EventSource {
 	if (source === null) {
 		source = new EventSource("/api/events");
-		for (const name of listeners.keys()) {
-			for (const listener of listeners.get(name) ?? []) {
-				source.addEventListener(name, listener);
-			}
+		const names: AppEvent[] = ["overview", "notification", "progress"];
+		for (const name of names) {
+			source.addEventListener(name, (event) => {
+				remember(name, event);
+				for (const listener of listeners.get(name) ?? []) {
+					listener(event);
+				}
+			});
 		}
+		source.addEventListener("open", (event) => {
+			const message = event as MessageEvent;
+			for (const listener of listeners.get("open") ?? []) {
+				listener(message);
+			}
+		});
 	}
 	return source;
 }
@@ -23,10 +44,12 @@ function subscribe(name: StreamEvent, listener: Listener): () => void {
 	const current = listeners.get(name) ?? new Set<Listener>();
 	current.add(listener);
 	listeners.set(name, current);
-	if (source === null) {
-		open();
-	} else {
-		source.addEventListener(name, listener);
+	open();
+	if (name !== "open") {
+		const missed = latest.get(name);
+		if (missed !== undefined) {
+			listener(missed);
+		}
 	}
 	users += 1;
 	return () => {

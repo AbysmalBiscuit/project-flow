@@ -12,6 +12,12 @@ import { basename, dirname, join } from "node:path";
 import { z } from "zod";
 import { knownBots } from "./domain.ts";
 import {
+	overviewDirections,
+	overviewFilters,
+	overviewSorts,
+	overviewViews,
+} from "./overview-view.ts";
+import {
 	defaultGraphDirection,
 	emptyMaxAgeDays,
 	graphDirections,
@@ -57,24 +63,6 @@ export function sameRef(left: ProjectPin, right: ProjectPin): boolean {
 }
 
 const knownBot = z.enum(knownBots);
-
-export const overviewFilters = ["all", "needs-you", "blocked"] as const;
-
-export const overviewSorts = [
-	"project",
-	"tracker",
-	"progress",
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"needsYou",
-	"blockedBy",
-] as const;
-
-export const overviewDirections = ["asc", "desc"] as const;
-
-export const overviewViews = ["cards", "graph", "table"] as const;
 
 const storedSorts = [
 	...overviewSorts,
@@ -180,7 +168,7 @@ export type ProjectViewSettings = z.infer<typeof projectViewSettings>;
 
 export type Configuration = z.infer<typeof configurationSchema>;
 
-export type OverviewView = Configuration["overview"];
+export type { OverviewView } from "./overview-view.ts";
 
 export type AutoMerge = Configuration["autoMerge"][string];
 

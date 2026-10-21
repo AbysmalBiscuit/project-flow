@@ -10,6 +10,7 @@ import {
 import type {
 	Comment,
 	Overview,
+	PollProgress,
 	PostedReply,
 	ProjectCounts,
 	ProjectPoll,
@@ -17,7 +18,6 @@ import type {
 	ReplyRequest,
 	Snapshot,
 	Thread,
-	TicketView,
 } from "./domain.ts";
 import {
 	type Attention,
@@ -39,6 +39,7 @@ import {
 	notificationsFor,
 	optionReplyBody,
 	panelReplyBody,
+	pendingProjects,
 	projectCounts,
 	projectHasPmBot,
 	projectSnapshots,
@@ -69,6 +70,7 @@ import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import type {
+	Change,
 	CheckoutSource,
 	Clock,
 	ConfigurationPort,
@@ -80,6 +82,7 @@ import type {
 	Viewer,
 } from "./ports.ts";
 import { sqliteStore } from "./store.ts";
+import type { TicketSearchHit } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 const fullPollPeriodMs = 10 * 60 * 1000;
@@ -256,9 +259,24 @@ function overview(
 	options: PollOptions,
 	configuration: Configuration,
 ): Overview {
-	const projects = projectViews(options, configuration).map(
+	const counted = projectViews(options, configuration).map(
 		(item) => item.counts,
 	);
+	const pending = options.polling
+		? pendingProjects(
+				options.catalogue,
+				configuration.tracked,
+				counted,
+				new Set(
+					options.catalogue.flatMap((project) =>
+						options.store.lastGoodPollAt(project.key) === null
+							? []
+							: [project.key],
+					),
+				),
+			)
+		: [];
+	const projects = [...counted, ...pending];
 	const goodPolls = projects.flatMap((project) => {
 		const at = options.store.lastGoodPollAt(project.name);
 		return at === null ? [] : [at.toISOString()];
@@ -273,15 +291,8 @@ function overview(
 	};
 }
 
+export type { TicketSearchHit } from "./ticket-key.ts";
 export type { SettingsProject };
-
-export type TicketSearchHit = {
-	project: string;
-	tracker: "github" | "linear";
-	key: string;
-	title: string;
-	state: TicketView["state"];
-};
 
 function searchTickets(
 	views: {
@@ -680,24 +691,53 @@ function recordPostedReply(
 	]);
 }
 
-function eventStream(notifier: Notifier): Response {
+function encodeChange(
+	encoder: TextEncoder,
+	change: Change,
+	notifications: boolean,
+): Uint8Array[] {
+	const frames = [
+		encoder.encode(
+			`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
+		),
+	];
+	if (change.progress !== undefined) {
+		frames.push(
+			encoder.encode(
+				`event: progress\ndata: ${JSON.stringify(change.progress)}\n\n`,
+			),
+		);
+	}
+	if (notifications) {
+		for (const notification of change.notifications) {
+			frames.push(
+				encoder.encode(
+					`event: notification\ndata: ${JSON.stringify(notification)}\n\n`,
+				),
+			);
+		}
+	}
+	return frames;
+}
+
+function eventStream(
+	notifier: Notifier,
+	current: () => Change | null,
+): Response {
 	let unsubscribe = () => {};
 	const body = new ReadableStream<Uint8Array>({
 		start(controller) {
 			const encoder = new TextEncoder();
 			controller.enqueue(encoder.encode(": open\n\n"));
+			const open = current();
+			if (open !== null) {
+				for (const frame of encodeChange(encoder, open, false)) {
+					controller.enqueue(frame);
+				}
+			}
 			unsubscribe = notifier.subscribe((change) => {
-				controller.enqueue(
-					encoder.encode(
-						`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
-					),
-				);
-				for (const notification of change.notifications) {
-					controller.enqueue(
-						encoder.encode(
-							`event: notification\ndata: ${JSON.stringify(notification)}\n\n`,
-						),
-					);
+				for (const frame of encodeChange(encoder, change, true)) {
+					controller.enqueue(frame);
 				}
 			});
 		},
@@ -738,11 +778,13 @@ type PollOptions = {
 	seenNotifications: Set<string>;
 	primed: boolean;
 	polling: boolean;
+	progress: PollProgress | null;
 	stopped: boolean;
 	catalogue: FoundProject[];
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
+	options.github?.holdLists?.(options.holdLists);
 	options.github?.beginPoll?.();
 	const polledAt = options.clock.now();
 	const before = options.attention;
@@ -879,6 +921,20 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}));
 	const tracked = found.filter((project) => trackedProjects.has(project));
 	const trackedKeys = new Set(tracked.map((project) => project.key));
+	const started: PollProgress = {
+		done: 0,
+		total: tracked.length,
+		project: tracked[0]?.key ?? null,
+		ended: false,
+	};
+	options.progress = started;
+	if (options.polling && !options.stopped) {
+		options.notifier.publish({
+			overview: runningOverview(options, configuration),
+			notifications: [],
+			progress: started,
+		});
+	}
 	const outcomes = new Map<string, ProjectPoll>();
 	const awaitingFirstPoll = new Set(
 		tracked.flatMap((project) =>
@@ -906,6 +962,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 					startedKeys,
 				},
 			});
+			notePollProgress(options, configuration, tracked, outcomes);
 			continue;
 		}
 		const lastGood = options.store.lastGoodPollAt(project.key);
@@ -982,7 +1039,6 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				full,
 				row: null,
 			});
-			options.store.recordGoodPoll(project.key, polledAt);
 			options.store.clearProjectError(project.key);
 			if (project.tracker === "github" && project.key.includes("/")) {
 				retainListWindows(
@@ -1010,6 +1066,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			if (fillAsPolled && visible.has(project.key)) {
 				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
 			}
+			notePollProgress(options, configuration, tracked, outcomes);
 		} catch (error) {
 			if (options.stopped) {
 				continue;
@@ -1036,6 +1093,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			if (fillAsPolled) {
 				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
 			}
+			notePollProgress(options, configuration, tracked, outcomes);
 		}
 	}
 	const fullKeys = [...options.fullPoll];
@@ -1045,7 +1103,19 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			options.lastFullPollAt.set(key, polledAt.getTime());
 		}
 	}
+	for (const outcome of outcomes.values()) {
+		if (outcome.ok) {
+			options.store.recordGoodPoll(outcome.key, polledAt);
+		}
+	}
 	options.polling = false;
+	const finished: PollProgress = {
+		done: tracked.length,
+		total: tracked.length,
+		project: null,
+		ended: true,
+	};
+	options.progress = finished;
 	if (options.stopped) {
 		return configuration;
 	}
@@ -1107,13 +1177,49 @@ async function poll(options: PollOptions): Promise<Configuration> {
 	}
 	options.attention = after;
 	options.store.appendNotifications(notifications);
-	const current = await options.configuration.read();
+	let current: Configuration;
+	try {
+		current = await options.configuration.read();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "poll failed";
+		options.store.recordFetchError(message);
+		throw error;
+	}
 	options.fallback = current;
 	options.notifier.publish({
 		overview: runningOverview(options, current),
 		notifications,
+		progress: finished,
 	});
+	options.progress = null;
 	return current;
+}
+
+function notePollProgress(
+	options: PollOptions,
+	configuration: Configuration,
+	tracked: FoundProject[],
+	outcomes: Map<string, ProjectPoll>,
+): void {
+	if (!options.polling || options.stopped) {
+		return;
+	}
+	const next = tracked.find((project) => !outcomes.has(project.key));
+	if (next === undefined) {
+		return;
+	}
+	const progress: PollProgress = {
+		done: outcomes.size,
+		total: tracked.length,
+		project: next.key,
+		ended: false,
+	};
+	options.progress = progress;
+	options.notifier.publish({
+		overview: runningOverview(options, configuration),
+		notifications: [],
+		progress,
+	});
 }
 
 function publishPoll(
@@ -1247,6 +1353,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		]),
 		primed: hadRows,
 		polling: false,
+		progress: null,
 		stopped: false,
 		catalogue: [],
 	};
@@ -1260,7 +1367,11 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	let listsHeld = false;
 	let releaseLists = () => {};
-	if (hadRows) {
+	const testHold = options.fetch.holdLists;
+	if (hadRows && testHold !== undefined) {
+		pollOptions.holdLists = testHold();
+		pollOptions.github?.holdLists?.(pollOptions.holdLists);
+	} else if (hadRows) {
 		listsHeld = true;
 		pollOptions.holdLists = new Promise<void>((resolve) => {
 			releaseLists = () => {
@@ -1306,7 +1417,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			polling = null;
 			if (refreshQueued && !stopped) {
 				refreshQueued = false;
-				void pollAgain().catch(() => {});
+				await pollAgain().catch(() => {});
 				return;
 			}
 			pollOptions.polling = false;
@@ -1316,10 +1427,17 @@ export async function start(options: StartOptions): Promise<Running> {
 			// A successful poll already published. Publish here only after a
 			// rejection, so an empty store still ends the running state.
 			if (rejected) {
+				const failed = pollOptions.progress;
+				pollOptions.progress =
+					failed === null ? null : { ...failed, ended: true };
 				notifier.publish({
 					overview: overview(pollOptions, configuration),
 					notifications: [],
+					...(pollOptions.progress === null
+						? {}
+						: { progress: pollOptions.progress }),
 				});
+				pollOptions.progress = null;
 			}
 			// A cold failure stops the process on the next turn. Yield so the
 			// settled overview leaves the event stream first.
@@ -1331,19 +1449,16 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	const beginPoll = (): void => {
 		pollOptions.polling = true;
-		const releasedHeldLists = listsHeld;
 		releaseLists();
-		if (polling !== null) {
-			if (releasedHeldLists || !firstPollDone) {
-				refreshQueued = true;
-			}
-		} else {
-			void pollAgain().catch(() => {});
-		}
 		notifier.publish({
 			overview: runningOverview(pollOptions, configuration),
 			notifications: [],
 		});
+		if (polling !== null) {
+			refreshQueued = true;
+			return;
+		}
+		void pollAgain().catch(() => {});
 	};
 	const firstPoll = pollAgain().finally(() => {
 		firstPollDone = true;
@@ -1470,12 +1585,20 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/api/events": {
 				GET: (request: Request) => {
 					server.timeout(request, 0);
-					return eventStream(notifier);
+					return eventStream(notifier, () =>
+						pollOptions.progress === null
+							? null
+							: {
+									overview: runningOverview(pollOptions, configuration),
+									notifications: [],
+									progress: pollOptions.progress,
+								},
+					);
 				},
 			},
 			"/api/refresh": {
 				POST: () => {
-					beginPoll();
+					queueMicrotask(beginPoll);
 					return new Response(null, { status: 204 });
 				},
 			},
