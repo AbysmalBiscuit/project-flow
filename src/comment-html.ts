@@ -1,4 +1,4 @@
-const safeLink = /^(?:https?|mailto:)/i;
+const safeLink = /^(?:https?:|mailto:)/i;
 
 const dropped = new Set([
 	"script",
@@ -19,6 +19,7 @@ const markdownOptions = {
 	noHtmlBlocks: true,
 	noHtmlSpans: true,
 	tagFilter: true,
+	autolinks: true,
 	headings: { ids: false },
 } as const;
 
@@ -27,6 +28,12 @@ function sanitize(html: string): string {
 		.on("*", {
 			element(element) {
 				if (dropped.has(element.tagName)) {
+					if (element.tagName === "img") {
+						const alt = element.getAttribute("alt") ?? "";
+						if (alt !== "") {
+							element.before(alt, { html: false });
+						}
+					}
 					element.remove();
 					return;
 				}
@@ -38,6 +45,11 @@ function sanitize(html: string): string {
 				if (element.tagName === "input") {
 					element.setAttribute("disabled", "");
 					element.removeAttribute("formaction");
+					if (element.getAttribute("checked") !== null) {
+						element.after('<span data-checked="">[x] </span>', {
+							html: true,
+						});
+					}
 					return;
 				}
 				if (element.tagName !== "a") {
