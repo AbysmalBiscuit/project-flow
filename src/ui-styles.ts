@@ -2425,25 +2425,15 @@ export const board = stylex.create({
 });
 
 export const jump = stylex.create({
-	status: {
-		position: "absolute",
-		width: measure.hairline,
-		height: measure.hairline,
-		overflow: "hidden",
-		clip: "rect(0 0 0 0)",
-	},
-	escape: {
-		position: "absolute",
+	walk: {
+		position: "fixed",
+		left: measure.offscreen,
 		top: 0,
-		right: 0,
-		zIndex: stack.toast,
 		width: measure.icon,
 		height: measure.icon,
+		overflow: "hidden",
 		padding: 0,
 		borderWidth: 0,
-		backgroundColor: "transparent",
-		color: "transparent",
-		fontSize: measure.none,
 	},
 	shade: {
 		position: "fixed",

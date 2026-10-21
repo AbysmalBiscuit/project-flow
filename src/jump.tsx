@@ -48,7 +48,6 @@ function onOpenJumpBox(listener: () => void): () => void {
 
 export function JumpBox() {
 	const [open, setOpen] = useState(false);
-	const [closed, setClosed] = useState(false);
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
 	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
@@ -68,7 +67,6 @@ export function JumpBox() {
 	const openRef = useRef(false);
 	const closeSearch = useCallback(() => {
 		setOpen(false);
-		setClosed(true);
 		openRef.current = false;
 		const target = returnFocus.current;
 		returnFocus.current = null;
@@ -91,7 +89,6 @@ export function JumpBox() {
 				returnFocus.current =
 					active instanceof HTMLElement && !insideSearch ? active : null;
 				openRef.current = true;
-				setClosed(false);
 				setOpen(true);
 			}),
 		[],
@@ -252,7 +249,7 @@ export function JumpBox() {
 	const pageRendersPanel =
 		path === "/needs-you" || path === "/inbox" || path.startsWith("/projects/");
 	if (!open && (ticket === null || pageRendersPanel)) {
-		return closed ? <p className={clsx(jump.status)}>Search closed</p> : null;
+		return null;
 	}
 	return (
 		<>
@@ -264,14 +261,6 @@ export function JumpBox() {
 						aria-label="Search tickets"
 						ref={boxRef}
 					>
-						<button
-							type="button"
-							id="walk-escape"
-							className={clsx(jump.escape)}
-							onClick={() => closeSearch()}
-						>
-							Close search
-						</button>
 						<input
 							className={clsx(jump.query)}
 							id="jump-query"
@@ -357,4 +346,21 @@ export function mountJumpBox(): void {
 		);
 	});
 	document.body.append(opener);
+	const escapeWalk = document.createElement("button");
+	escapeWalk.type = "button";
+	escapeWalk.id = "walk-escape";
+	escapeWalk.tabIndex = -1;
+	escapeWalk.setAttribute("aria-hidden", "true");
+	escapeWalk.className = clsx(jump.walk);
+	escapeWalk.addEventListener("click", () => {
+		window.dispatchEvent(
+			new KeyboardEvent("keydown", {
+				key: "Escape",
+				code: "Escape",
+				bubbles: true,
+				cancelable: true,
+			}),
+		);
+	});
+	document.body.append(escapeWalk);
 }

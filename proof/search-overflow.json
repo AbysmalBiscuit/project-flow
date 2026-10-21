@@ -10,6 +10,14 @@
 			"text": "project-flow ticket search keeps a very long title inside the box"
 		},
 		{ "assert_text": "sideways scroll bar" },
-		{ "shot": "long-query" }
+		{ "shot": "long-query" },
+		{ "goto": "/proof/search-fit" },
+		{ "assert_text": "dialog 1280 scrollWidth" },
+		{ "assert_text": "clientWidth" },
+		{ "assert_text": "list 1280 scrollWidth" },
+		{ "assert_text": "dialog 390 scrollWidth" },
+		{ "assert_text": "list 390 scrollWidth" },
+		{ "assert_text": "fits" },
+		{ "shot": "fit-measure" }
 	]
 }

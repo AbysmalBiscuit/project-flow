@@ -9,13 +9,13 @@
 		{ "fill": "#jump-query", "text": "widget" },
 		{ "assert_text": "Ship the widget" },
 		{ "click": "#jump-shade" },
-		{ "assert_text": "Search closed" },
+		{ "assert_text": "Search tickets" },
 		{ "shot": "closed-outside" },
 		{ "click": "#header-search" },
 		{ "fill": "#jump-query", "text": "gate" },
 		{ "assert_text": "Open the gate" },
 		{ "click": "#walk-escape" },
-		{ "assert_text": "Search closed" },
+		{ "assert_text": "Search tickets" },
 		{ "shot": "closed-escape" }
 	]
 }
