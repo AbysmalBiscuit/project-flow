@@ -691,10 +691,6 @@ function eventStream(notifier: Notifier): Response {
 					);
 				}
 			};
-			const current = notifier.latest();
-			if (current !== null) {
-				send({ overview: current.overview, notifications: [] });
-			}
 			unsubscribe = notifier.subscribe(send);
 		},
 		cancel() {

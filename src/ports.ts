@@ -128,7 +128,6 @@ export type Change = {
 export type Notifier = {
 	publish: (change: Change) => void;
 	subscribe: (send: (change: Change) => void) => () => void;
-	latest: () => Change | null;
 };
 
 export type ConfigurationPort = {
