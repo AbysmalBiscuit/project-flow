@@ -481,6 +481,19 @@ function mergedSettingsWrite(
 	};
 }
 
+function sameTracked(
+	before: Configuration["tracked"],
+	after: Configuration["tracked"],
+): boolean {
+	if (before.length !== after.length) {
+		return false;
+	}
+	return before.every((pin, index) => {
+		const next = after[index];
+		return next !== undefined && samePin(pin, next);
+	});
+}
+
 function viewOnlyChange(before: Configuration, after: Configuration): boolean {
 	const {
 		projectViews: previousViews,
@@ -789,6 +802,8 @@ type PollOptions = {
 	catalogue: FoundProject[];
 	/** True after this poll's discovery has filled the catalogue. */
 	discovered: boolean;
+	/** False when a tracked-list write landed after this poll started. */
+	mayPublish: () => boolean;
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
@@ -946,7 +961,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		ended: false,
 	};
 	options.progress = started;
-	if (options.polling && !options.stopped) {
+	if (options.polling && !options.stopped && options.mayPublish()) {
 		options.notifier.publish({
 			overview: runningOverview(options, configuration),
 			notifications: [],
@@ -1203,6 +1218,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		throw error;
 	}
 	options.fallback = current;
+	if (!options.mayPublish()) {
+		return current;
+	}
 	options.notifier.publish({
 		overview: runningOverview(options, current),
 		notifications,
@@ -1218,7 +1236,7 @@ function notePollProgress(
 	tracked: FoundProject[],
 	outcomes: Map<string, ProjectPoll>,
 ): void {
-	if (!options.polling || options.stopped) {
+	if (!options.polling || options.stopped || !options.mayPublish()) {
 		return;
 	}
 	const next = tracked.find((project) => !outcomes.has(project.key));
@@ -1268,7 +1286,7 @@ function publishPoll(
 	} else if (failed !== null) {
 		options.store.recordFetchError(failed);
 	}
-	if (!publish) {
+	if (!publish || !options.mayPublish()) {
 		return;
 	}
 	options.notifier.publish({
@@ -1347,6 +1365,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		listTodos: options.listTodos,
 		listCheckouts: options.listCheckouts,
 		releaseDiscovery: () => {},
+		mayPublish: () => true,
 		fallback: configuration,
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
@@ -1408,7 +1427,13 @@ export async function start(options: StartOptions): Promise<Running> {
 	let noteDiscovery: () => void = () => {};
 	let stopped = false;
 	let firstPollDone = false;
+	let firstPublished = false;
 	let refreshQueued = false;
+	// A poll that started before the last tracked-list write cannot answer for it.
+	let trackedGeneration = 0;
+	let activeGeneration = 0;
+	let savingTracked = false;
+	let publishedGeneration = 0;
 	const pollAgain = (): Promise<void> => {
 		if (stopped || pollOptions.stopped) {
 			return Promise.resolve();
@@ -1417,7 +1442,14 @@ export async function start(options: StartOptions): Promise<Running> {
 			return polling;
 		}
 		let rejected = false;
+		const generation = trackedGeneration;
+		activeGeneration = generation;
+		pollOptions.mayPublish = () => generation === trackedGeneration;
 		polling = (async () => {
+			if (generation !== trackedGeneration) {
+				refreshQueued = true;
+				return;
+			}
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
 			}
@@ -1431,6 +1463,11 @@ export async function start(options: StartOptions): Promise<Running> {
 			pollOptions.releaseDiscovery = noteDiscovery;
 			try {
 				configuration = await poll(pollOptions);
+				if (generation === trackedGeneration) {
+					publishedGeneration = generation;
+				} else {
+					refreshQueued = true;
+				}
 			} catch (error) {
 				if (stopped || pollOptions.stopped) {
 					return;
@@ -1445,7 +1482,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		})().finally(async () => {
 			noteDiscovery();
 			polling = null;
-			if (refreshQueued && !stopped) {
+			if (
+				!stopped &&
+				firstPublished &&
+				(refreshQueued ||
+					(savingTracked && activeGeneration !== trackedGeneration))
+			) {
 				refreshQueued = false;
 				await pollAgain().catch(() => {});
 				return;
@@ -1484,7 +1526,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			overview: runningOverview(pollOptions, configuration),
 			notifications: [],
 		});
-		if (polling !== null) {
+		if (savingTracked || polling !== null || !firstPublished) {
 			refreshQueued = true;
 			return;
 		}
@@ -1492,6 +1534,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	const firstPoll = pollAgain().finally(() => {
 		firstPollDone = true;
+		firstPublished = true;
 	});
 	let timer: ReturnType<typeof setInterval> | null = null;
 	const schedule = (seconds: number) => {
@@ -1578,7 +1621,8 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/inbox": pageResponse,
 			"/projects/*": pageResponse,
 			"/api/overview": {
-				GET: () => {
+				GET: async () => {
+					await firstPoll;
 					const body = Response.json(
 						runningOverview(pollOptions, configuration),
 					);
@@ -1746,10 +1790,18 @@ export async function start(options: StartOptions): Promise<Running> {
 							),
 						);
 					}
+					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
+					if (trackedChanged) {
+						savingTracked = true;
+					}
 					try {
 						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(mergedText);
+						if (trackedChanged) {
+							trackedGeneration += 1;
+						}
 					} catch (error) {
+						savingTracked = false;
 						const message =
 							error instanceof Error
 								? error.message
@@ -1761,7 +1813,19 @@ export async function start(options: StartOptions): Promise<Running> {
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
-					await pollAgain();
+					const answered = pollAgain();
+					if (trackedChanged) {
+						while (!stopped && publishedGeneration !== trackedGeneration) {
+							await (polling ?? pollAgain());
+						}
+						savingTracked = false;
+						if (refreshQueued && !stopped) {
+							refreshQueued = false;
+							await pollAgain();
+						}
+					} else {
+						await answered;
+					}
 					return Response.json(
 						settingsResponse(
 							configuration,
