@@ -1100,12 +1100,14 @@ describe("GET /api/projects/:name", () => {
 							key: `${githubRepo}#8`,
 							tracker: "github",
 							title: "Open the gate",
+							state: "done",
 						},
 						to: {
 							project: otherRepo,
 							key: `${otherRepo}#11`,
 							tracker: "github",
 							title: "Hold the platform",
+							state: "backlog",
 						},
 						done: true,
 					},
@@ -1129,6 +1131,45 @@ describe("GET /api/projects/:name", () => {
 				expect(report.graphTickets.map((item) => item.key)).toContain(
 					`${githubRepo}#8`,
 				);
+			},
+		);
+	});
+
+	test("the graph data carries the state of a done ticket that only a closed link brings in", async () => {
+		const done = issue(
+			8,
+			"Open the gate",
+			{ state: "closed", state_reason: "completed" },
+			githubRepo,
+		);
+		const open = issue(2, "feat(ux): draw the nodes", {
+			body: "Blocked by: #8",
+		});
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			githubFetch([open, done], []),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(report.tickets.map((item) => item.key)).toEqual([
+					`${githubRepo}#2`,
+				]);
+				const drawn = report.graphTickets.find(
+					(item) => item.key === `${githubRepo}#8`,
+				);
+				expect(drawn?.state).toBe("done");
+				const link = report.graphLinks.find(
+					(item) => item.from.key === `${githubRepo}#8`,
+				);
+				expect(link?.done).toBe(true);
+				expect(link?.from.state).toBe("done");
+				expect(link?.to.state).toBe("backlog");
 			},
 		);
 	});
