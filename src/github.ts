@@ -1143,9 +1143,9 @@ function labelHistory(
 function dependencyRefs(
 	nodes: {
 		number: number;
-		title?: string | null;
+		title?: string | null | undefined;
 		state: string;
-		repository?: { nameWithOwner: string } | null;
+		repository?: { nameWithOwner: string } | null | undefined;
 	}[],
 	fallback: string,
 ): TicketRef[] {

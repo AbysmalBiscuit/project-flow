@@ -1833,8 +1833,8 @@ describe("tracker lanes", () => {
 				).toEqual(
 					expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
 				);
-				expect(project?.statusTypes.dropped).toBe(1);
-				expect(project?.statusTypes.done).toBe(0);
+				expect(project?.statusTypes?.dropped).toBe(1);
+				expect(project?.statusTypes?.done).toBe(0);
 			},
 		);
 	});
