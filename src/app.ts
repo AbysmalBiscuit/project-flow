@@ -1298,7 +1298,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		const releasedHeldLists = listsHeld;
 		releaseLists();
 		if (polling !== null) {
-			if (releasedHeldLists) {
+			if (releasedHeldLists || !firstPollDone) {
 				refreshQueued = true;
 			}
 		} else {

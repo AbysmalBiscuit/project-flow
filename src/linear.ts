@@ -863,8 +863,9 @@ export function linearTracker(
 ): Tracker {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const seenReviews = new Map<string, ReviewEvidence>();
+	let issueGeneration = 0;
 	const issues = (project: string, since: Date | null) => {
-		const cacheKey = `${project}\0${since?.toISOString() ?? ""}`;
+		const cacheKey = `${issueGeneration}\0${project}\0${since?.toISOString() ?? ""}`;
 		const cached = issuesByProject.get(cacheKey);
 		if (cached !== undefined) {
 			return cached;
@@ -884,6 +885,9 @@ export function linearTracker(
 		return listed;
 	};
 	return {
+		beginPoll() {
+			issueGeneration += 1;
+		},
 		findProjects() {
 			return findLinearProjects(key, fetchImpl).then((found) => ({
 				projects: found.projects,
