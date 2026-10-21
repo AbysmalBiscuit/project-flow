@@ -28,7 +28,7 @@ import {
 	navLabel,
 	viewLabel,
 } from "./terms.ts";
-import { lightValues } from "./tokens.stylex.ts";
+import { lightValues, phoneGutter } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { board, frame, shell } from "./ui-styles.ts";
 import {
@@ -430,7 +430,7 @@ function Lane({
 	const visible = [...listed, ...selected];
 	return (
 		<section
-			className={clsx(board.lane, capped && board.laneDone)}
+			className={clsx(board.lane, phoneGutter.lane, capped && board.laneDone)}
 			data-lane={name}
 			aria-label={name}
 		>
@@ -832,7 +832,10 @@ function Board({
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
-		<div className={clsx(board.lanes)} data-group-by={boardGroupBy(settings)}>
+		<div
+			className={clsx(board.lanes, phoneGutter.lanes)}
+			data-group-by={boardGroupBy(settings)}
+		>
 			{visibleLanes(report, settings).map((lane) => (
 				<Lane
 					key={lane.id}
@@ -1241,7 +1244,9 @@ function Page() {
 	if (missing && !polling) {
 		return (
 			<AppShell>
-				<main className={clsx(frame.page, frame.wide)}>Project not found</main>
+				<main className={clsx(frame.page, phoneGutter.page, frame.wide)}>
+					Project not found
+				</main>
 			</AppShell>
 		);
 	}
@@ -1344,7 +1349,9 @@ function Page() {
 	};
 	return (
 		<AppShell>
-			<main className={clsx(frame.page, frame.wide, frame.fill)}>
+			<main
+				className={clsx(frame.page, phoneGutter.page, frame.wide, frame.fill)}
+			>
 				<div className={clsx(board.head)}>
 					<div className={clsx(board.identity)}>
 						<p className={clsx(board.crumb)}>{navLabel.overview} /</p>

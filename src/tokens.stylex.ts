@@ -5,6 +5,8 @@ const dark = "@media (prefers-color-scheme: dark)";
 export const media = stylex.defineConsts({
 	phone: "@media (max-width: 64rem)",
 	projectBar: "@media (max-width: 480px)",
+	// The one-line shell overflows below 32rem (512px).
+	shellWrap: "@media (max-width: 32rem)",
 });
 
 export const lightValues = {
@@ -222,6 +224,8 @@ export const space = stylex.defineVars({
 	lg: "1rem",
 	xl: "1.5rem",
 	pageInset: "5rem",
+	// 16px at the browser default root size. The phone gutter cap.
+	phoneInset: "1rem",
 	navGap: "0.35rem",
 	twoXl: "2rem",
 	pageTop: "2.65rem",
@@ -291,6 +295,8 @@ export const measure = stylex.defineVars({
 	badge: "1.35rem",
 	search: "12rem",
 	lane: "16rem",
+	// Phone lane floor. Lanes scroll inside the page, not the page itself.
+	lanePhone: "11rem",
 	laneDone: "7.5rem",
 	boardMin: "36rem",
 	dot: "0.45rem",
@@ -317,17 +323,55 @@ export const stack = stylex.defineVars({
 	toast: 3,
 });
 
+// Shared shell wrapping. Each caller picks its own breakpoint and row gap.
+const shellWrap = {
+	height: "auto",
+	minHeight: measure.shell,
+	flexWrap: "wrap",
+	paddingTop: space.sm,
+	paddingBottom: space.sm,
+} as const;
+
 export const projectBarLayout = stylex.create({
-	// The project page adds this class. Other pages keep the one-line bar.
+	// The project page adds this class.
 	fit: {
-		[media.projectBar]: {
-			height: "auto",
-			minHeight: measure.shell,
-			flexWrap: "wrap",
-			paddingTop: space.sm,
-			paddingBottom: space.sm,
-			paddingLeft: space.sm,
-			paddingRight: space.sm,
+		[media.projectBar]: shellWrap,
+	},
+});
+
+export const phoneGutter = stylex.create({
+	bar: {
+		[media.phone]: {
+			paddingLeft: space.phoneInset,
+			paddingRight: space.phoneInset,
+		},
+		[media.shellWrap]: {
+			...shellWrap,
+			rowGap: space.sm,
+		},
+	},
+	page: {
+		[media.phone]: {
+			paddingLeft: space.phoneInset,
+			paddingRight: space.phoneInset,
+		},
+	},
+	cards: {
+		[media.phone]: {
+			gridTemplateColumns: "minmax(0, 1fr)",
+		},
+	},
+	lanes: {
+		[media.phone]: {
+			overflowX: "auto",
+		},
+	},
+	lane: {
+		[media.phone]: {
+			flexBasis: measure.lanePhone,
+			flexGrow: 0,
+			flexShrink: 0,
+			minWidth: measure.lanePhone,
 		},
 	},
 });
