@@ -7,11 +7,14 @@
 		{ "click": "button[data-inbox]" },
 		{ "assert_text": "Comment" },
 		{ "shot": "inbox-panel" },
-		{ "click": "#walk-ctrl-k" },
+		{ "click": "#header-search" },
 		{ "assert_text": "Search tickets" },
 		{ "shot": "inbox-jump-open" },
-		{ "click": "button[data-inbox]" },
+		{ "fill": "#walk-esc", "text": "box" },
+		{ "assert_text": "Comment" },
+		{ "shot": "inbox-jump-esc" },
+		{ "fill": "#walk-esc", "text": "panel" },
 		{ "assert_text": "Ready to merge" },
-		{ "shot": "inbox-esc-closed" }
+		{ "shot": "inbox-esc-focus" }
 	]
 }

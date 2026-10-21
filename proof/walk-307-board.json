@@ -8,14 +8,22 @@
 		{ "assert_text": "Open on GitHub" },
 		{ "assert_text": "Comment" },
 		{ "shot": "board-panel-light" },
+		{ "click": "button[type='submit']" },
+		{ "shot": "board-comment-light" },
 		{ "click": "button[data-theme-toggle]" },
-		{ "assert_text": "Theme dark" },
+		{ "assert_text": "Dark" },
+		{ "assert_text": "Comment" },
 		{ "shot": "board-panel-dark" },
+		{ "click": "button[type='submit']" },
+		{ "shot": "board-comment-dark" },
 		{ "click": "#project-filter" },
 		{ "assert_text": "Needs you only" },
 		{ "shot": "board-menu-open" },
-		{ "click": "button[data-ticket='acme/widget#1']" },
+		{ "fill": "#walk-esc", "text": "menu" },
+		{ "assert_text": "Open on GitHub" },
+		{ "shot": "board-menu-esc" },
+		{ "fill": "#walk-esc", "text": "panel" },
 		{ "assert_text": "Ship the board" },
-		{ "shot": "board-esc-closed" }
+		{ "shot": "board-esc-focus" }
 	]
 }
