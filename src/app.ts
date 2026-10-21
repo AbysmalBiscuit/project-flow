@@ -909,7 +909,10 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		const lastGood = options.store.lastGoodPollAt(project.key);
 		const lastFull = options.lastFullPollAt.get(project.key) ?? null;
 		const stored = storedRows.find((row) => row.key === project.key);
-		const emptyStored = stored !== undefined && stored.tickets.length === 0;
+		const emptyStored =
+			stored !== undefined &&
+			stored.tickets.length === 0 &&
+			stored.listedEmpty !== false;
 		const missingRow = stored === undefined && lastFull === null;
 		const full =
 			lastGood === null ||
@@ -988,12 +991,19 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			}
 			const shown = projectSnapshots(listed);
 			const visible = new Set(shown.map((item) => item.key));
+			const sourceEmpty = new Map(
+				listed.map((item) => [item.key, item.tickets.length === 0]),
+			);
 			for (const item of listed) {
 				const outcome = outcomes.get(item.key);
 				if (outcome?.ok !== true) {
 					continue;
 				}
-				outcome.row = shown.find((row) => row.key === item.key) ?? null;
+				const row = shown.find((candidate) => candidate.key === item.key);
+				outcome.row =
+					row === undefined
+						? null
+						: { ...row, listedEmpty: sourceEmpty.get(item.key) === true };
 			}
 			if (fillAsPolled && visible.has(project.key)) {
 				publishPoll(options, configuration, trackedKeys, outcomes, [], null);

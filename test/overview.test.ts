@@ -5772,6 +5772,270 @@ describe("GET /api/overview", () => {
 		}
 	});
 
+	test("a tracked repo whose issues a tracked board claims keeps incremental reads", async () => {
+		const projectId = "PVT_claimed_repo";
+		const repoName = "acme/claimed-repo";
+		const issueUpdatedAt = "2026-10-18T12:00:00.000Z";
+		const repoReads: { since: string | null }[] = [];
+		const claimed: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("query RepoRead")
+			) {
+				const parsed = JSON.parse(body) as {
+					variables?: { since?: string | null };
+				};
+				const since = parsed.variables?.since;
+				repoReads.push({
+					since: since === undefined || since === null ? null : String(since),
+				});
+				const listed = await repoReadFromHandler(input, init, claimed);
+				return listed ?? unrecorded(input);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				return page(
+					[
+						{
+							number: 9,
+							title: "Ticket 9",
+							state: "open",
+							state_reason: null,
+							html_url: `https://github.com/${repoName}/issues/9`,
+							updated_at: issueUpdatedAt,
+						},
+					],
+					null,
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectByNumber")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							repositoryOwner: {
+								projectV2: {
+									id: projectId,
+									number: 4,
+									title: "Claimed board",
+									closed: false,
+									updatedAt: "2026-08-18T12:00:00Z",
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("ProjectFields")
+			) {
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("node(id:")
+			) {
+				return new Response(
+					JSON.stringify({
+						data: {
+							node: {
+								items: {
+									nodes: [
+										{
+											content: {
+												__typename: "Issue",
+												number: 9,
+												title: "Ticket 9",
+												state: "OPEN",
+												stateReason: null,
+												updatedAt: issueUpdatedAt,
+												repository: { nameWithOwner: repoName },
+											},
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return emptyList(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", owner: "acme", project: 4 },
+					{ tracker: "github", repo: repoName },
+				],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-claimed-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let stop: () => void = () => {};
+		const stopped = new Promise<void>((resolve) => {
+			stop = resolve;
+		});
+		let ready: (base: string) => void = () => {};
+		const opened = new Promise<string>((resolve) => {
+			ready = resolve;
+		});
+		const started = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: claimed,
+				readGhToken: async () => null,
+				databasePath,
+				stdout: ready,
+				waitForStop: stopped,
+			}),
+		);
+		try {
+			const base = await opened;
+			const first = await settledOverview(base, readOverview);
+			expect(first.error).toBeNull();
+			expect(
+				first.projects.find((project) => project.name === repoName)?.tickets,
+			).toEqual([]);
+			expect(
+				first.projects.find((project) => project.name === "Claimed board")
+					?.tickets,
+			).toEqual([
+				{
+					key: `${repoName}#9`,
+					title: "Ticket 9",
+					state: "backlog",
+					blockers: [],
+					lane: "Backlog",
+					statusType: "backlog",
+					enteredStateAt: issueUpdatedAt,
+					updatedAt: issueUpdatedAt,
+				},
+			]);
+			expect(repoReads).toEqual([{ since: null }]);
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const deadline = Date.now() + 3_000;
+			while (repoReads.length < 2 && Date.now() < deadline) {
+				await Bun.sleep(20);
+			}
+			const second = await settledOverview(base, readOverview);
+			expect(second.error).toBeNull();
+			expect(repoReads[1]).toEqual({
+				since: first.projects.find((project) => project.name === repoName)
+					?.fetchedAt,
+			});
+			expect(repoReads[1]?.since).not.toBeNull();
+		} finally {
+			stop();
+			await started;
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test("a genuinely empty tracked project full-reads again on the next poll", async () => {
+		const repoName = "acme/genuinely-empty";
+		const repoReads: { since: string | null }[] = [];
+		const recordedFetch: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			const discovered = recordedDiscovery(input, init);
+			if (discovered !== null) {
+				return discovered;
+			}
+			if (url === "https://api.github.com/user") {
+				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+			}
+			if (
+				url === "https://api.github.com/graphql" &&
+				body.includes("query RepoRead")
+			) {
+				const parsed = JSON.parse(body) as {
+					variables?: { since?: string | null };
+				};
+				const since = parsed.variables?.since;
+				repoReads.push({
+					since: since === undefined || since === null ? null : String(since),
+				});
+				const listed = await repoReadFromHandler(input, init, recordedFetch);
+				return listed ?? unrecorded(input);
+			}
+			if (url.includes(`/repos/${repoName}/issues?`)) {
+				return page([], null);
+			}
+			return emptyList(url) ?? unrecorded(input);
+		};
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: repoName }],
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-empty-again-"));
+		const databasePath = join(root, "project-flow.sqlite");
+		let stop: () => void = () => {};
+		const stopped = new Promise<void>((resolve) => {
+			stop = resolve;
+		});
+		let ready: (base: string) => void = () => {};
+		const opened = new Promise<string>((resolve) => {
+			ready = resolve;
+		});
+		const started = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: recordedFetch,
+				readGhToken: async () => null,
+				databasePath,
+				stdout: ready,
+				waitForStop: stopped,
+			}),
+		);
+		try {
+			const base = await opened;
+			const first = await settledOverview(base, readOverview);
+			expect(first.error).toBeNull();
+			expect(first.projects[0]?.tickets).toEqual([]);
+			expect(repoReads).toEqual([{ since: null }]);
+			const refresh = await fetch(new URL("/api/refresh", base), {
+				method: "POST",
+			});
+			expect(refresh.status).toBe(204);
+			const deadline = Date.now() + 3_000;
+			while (repoReads.length < 2 && Date.now() < deadline) {
+				await Bun.sleep(20);
+			}
+			const second = await settledOverview(base, readOverview);
+			expect(second.error).toBeNull();
+			expect(second.projects[0]?.tickets).toEqual([]);
+			expect(repoReads[1]).toEqual({ since: null });
+		} finally {
+			stop();
+			await started;
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a repeated GitHub REST read sends If-None-Match and a 304 keeps the stored data", async () => {
 		const repoName = "acme/validator";
 		const labelsEtag = '"recorded-labels-etag"';
