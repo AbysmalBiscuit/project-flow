@@ -35,7 +35,6 @@ export type MarkerEnd = {
 export function measureMarker(className: string): {
 	size: number;
 	color: string;
-	opacity: string;
 } {
 	const probe = document.createElement("span");
 	probe.className = className;
@@ -43,11 +42,9 @@ export function measureMarker(className: string): {
 	probe.style.visibility = "hidden";
 	document.body.append(probe);
 	const box = probe.getBoundingClientRect();
-	const style = getComputedStyle(probe);
-	const color = style.backgroundColor;
-	const opacity = style.opacity;
+	const color = getComputedStyle(probe).backgroundColor;
 	probe.remove();
-	return { size: box.width, color, opacity };
+	return { size: box.width, color };
 }
 
 export function markerEnd(size: number, color?: string): MarkerEnd {
