@@ -35,6 +35,13 @@ const controlText = {
 	cursor: "pointer",
 } as const;
 
+const headerButtonFill = {
+	backgroundColor: {
+		default: colours.controlFill,
+		":hover": colours.segment,
+	},
+} as const;
+
 const headerControl = {
 	display: "inline-flex",
 	gap: space.xs,
@@ -80,19 +87,10 @@ export const headerControlStyle = stylex.create({
 		flexShrink: 0,
 	},
 	search: {
-		display: "inline-flex",
-		gap: space.xs,
-		alignItems: "center",
-		boxSizing: "border-box",
+		...headerControl,
 		width: measure.search,
-		height: measure.headerControl,
-		padding: `0 ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.md,
-		backgroundColor: colours.controlFill,
 		color: colours.inkMuted,
+		cursor: "text",
 		outline: {
 			default: "none",
 			":focus-within": focusRing,
@@ -133,23 +131,14 @@ export const headerControlStyle = stylex.create({
 		...controlText,
 	},
 	square: {
-		display: "inline-flex",
-		alignItems: "center",
-		justifyContent: "center",
-		boxSizing: "border-box",
+		...headerControl,
+		...headerButtonFill,
 		width: measure.headerControl,
-		height: measure.headerControl,
+		justifyContent: "center",
 		padding: 0,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.md,
-		backgroundColor: {
-			default: colours.controlFill,
-			":hover": colours.segment,
-		},
-		color: colours.controlInk,
-		...controlText,
+	},
+	notify: {
+		...headerButtonFill,
 	},
 	count: {
 		display: "inline-flex",
@@ -307,7 +296,6 @@ export const frame = stylex.create({
 		gap: space.sm,
 		alignItems: "center",
 	},
-
 	page: {
 		position: "relative",
 		boxSizing: "border-box",
@@ -397,7 +385,6 @@ export const frame = stylex.create({
 		alignItems: "center",
 		marginLeft: "auto",
 	},
-
 	query: {
 		display: "inline-flex",
 		gap: space.sm,
@@ -499,7 +486,6 @@ export const frame = stylex.create({
 		whiteSpace: "nowrap",
 		cursor: "pointer",
 	},
-
 	visuallyHidden: {
 		position: "absolute",
 		width: measure.hairline,

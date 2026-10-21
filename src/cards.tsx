@@ -947,7 +947,11 @@ function OverviewPage({
 						<button
 							type="button"
 							id="notify-permission"
-							className={clsx(headerControlStyle.control, shell.buttonFocus)}
+							className={clsx(
+								headerControlStyle.control,
+								headerControlStyle.notify,
+								shell.buttonFocus,
+							)}
 							onClick={() => {
 								void askNotificationPermission().finally(() => {
 									setNotifyPermission(notificationPermission());
