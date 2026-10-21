@@ -1311,76 +1311,74 @@ function Page() {
 						<h1 className={clsx(board.name)}>{report.name}</h1>
 						<p className={clsx(board.counts)}>{countLine(report)}</p>
 					</div>
-					{view === "graph" ? (
-						<DirectionSwitch
-							direction={settings.graphDirection}
-							onChange={(next) =>
-								saveView({ ...settings, graphDirection: next })
-							}
-						/>
-					) : null}
-				</div>
-				<div className={clsx(board.toolbar)}>
-					<div className={clsx(board.filterSlot)}>
+					<div className={clsx(board.toolbar)}>
 						<FilterMenu
 							report={report}
 							view={settings}
 							open={filterOpen}
 							onOpen={setFilterOpen}
 						/>
-					</div>
-					<input
-						id="project-search"
-						className={clsx(board.find)}
-						type="search"
-						aria-label="Search"
-						placeholder="Search"
-						value={settings.search}
-						onChange={(event) =>
-							saveView({ ...settings, search: event.target.value })
-						}
-					/>
-					<Dropdown
-						id="project-group"
-						label="Group by"
-						value={
-							view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
-						}
-						choices={groupByKeys.map((id) => ({
-							id,
-							label: `Group by ${groupByLabel[id]}`,
-						}))}
-						onChange={(id) => {
-							if (isGroupBy(id)) {
-								groupBySavedRef.current = true;
-								saveView({ ...settings, groupBy: id });
+						<input
+							id="project-search"
+							className={clsx(board.find)}
+							type="search"
+							aria-label="Search"
+							placeholder="Search"
+							value={settings.search}
+							onChange={(event) =>
+								saveView({ ...settings, search: event.target.value })
 							}
-						}}
-					/>
-					<fieldset className={clsx(board.views)}>
-						<legend className={clsx(frame.legend)}>Views</legend>
-						{views.map((item) => (
-							<button
-								key={item.id}
-								type="button"
-								id={`view-${item.id}`}
-								className={clsx(
-									board.view,
-									shell.buttonFocus,
-									view === item.id && board.viewOn,
-								)}
-								aria-pressed={view === item.id}
-								onClick={() => {
-									if (!isOpenView(item.id)) {
-										return;
-									}
-									saveView({ ...settings, openView: item.id });
-								}}
-							>
-								{item.label}
-							</button>
-						))}
-					</fieldset>
+						/>
+						<Dropdown
+							id="project-group"
+							label="Group by"
+							value={
+								view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
+							}
+							choices={groupByKeys.map((id) => ({
+								id,
+								label: `Group by ${groupByLabel[id]}`,
+							}))}
+							onChange={(id) => {
+								if (isGroupBy(id)) {
+									groupBySavedRef.current = true;
+									saveView({ ...settings, groupBy: id });
+								}
+							}}
+						/>
+						<fieldset className={clsx(board.views)}>
+							<legend className={clsx(frame.legend)}>Views</legend>
+							{views.map((item) => (
+								<button
+									key={item.id}
+									type="button"
+									id={`view-${item.id}`}
+									className={clsx(
+										board.view,
+										shell.buttonFocus,
+										view === item.id && board.viewOn,
+									)}
+									aria-pressed={view === item.id}
+									onClick={() => {
+										if (!isOpenView(item.id)) {
+											return;
+										}
+										saveView({ ...settings, openView: item.id });
+									}}
+								>
+									{item.label}
+								</button>
+							))}
+						</fieldset>
+						{view === "graph" ? (
+							<DirectionSwitch
+								direction={settings.graphDirection}
+								onChange={(next) =>
+									saveView({ ...settings, graphDirection: next })
+								}
+							/>
+						) : null}
+					</div>
 				</div>
 				{filterOpen ? (
 					<FilterPanel report={report} view={settings} onChange={saveView} />
