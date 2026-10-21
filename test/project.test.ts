@@ -1056,6 +1056,67 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("an open ticket blocked only by a closed blocker is not blocked", async () => {
+		const done = issue(
+			8,
+			"Open the gate",
+			{ state: "closed", state_reason: "completed" },
+			githubRepo,
+		);
+		const waiting = issue(2, "feat(ux): draw the nodes", {
+			body: "Blocked by: #8\nBlocked by: #8\nBlocked by:   ",
+		});
+		const clear = issue(1, "Ship the map");
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			githubFetch([clear, waiting, done], []),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(
+							`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+							base,
+						),
+					)
+				).json()) as ProjectReport;
+				const drawn = report.tickets.find(
+					(item) => item.key === `${githubRepo}#2`,
+				);
+				expect(drawn?.links).toEqual([{ key: `${githubRepo}#8`, done: true }]);
+				expect(drawn?.blocked).toBeUndefined();
+				expect(drawn?.blockers).toEqual([]);
+				const summary = report.sections.find(
+					(section) => section.id === "summary",
+				);
+				expect(summary?.text).toContain("0 blocked");
+				const filtered = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						pinned: [{ tracker: "github", repo: githubRepo }],
+						projectViews: {
+							[githubRepo]: { blockedOnly: true },
+						},
+					}),
+				});
+				expect(filtered.status).toBe(200);
+				const held = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(held.tickets.map((item) => item.key)).toEqual([]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+		);
+	});
+
 	test("A Blocks B yields A.blocks and B.blockers across projects", async () => {
 		const otherSlug = "platform-gate";
 		const gate = {
