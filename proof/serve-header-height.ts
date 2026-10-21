@@ -48,13 +48,17 @@ const ready = new Promise<void>((resolve, reject) => {
 
 await ready;
 
-const boxScript = `(node) => {
-	const box = node.getBoundingClientRect();
-	return box.height + "@" + box.top;
+const lineScript = `(page) => {
+	const boxes = page.map(([, node]) => node.getBoundingClientRect());
+	const heights = boxes.map((box) => box.height).join(" ");
+	const top = boxes[0].top;
+	const equal = boxes.every((box) => box.top === top) ? "yes" : "no";
+	const names = page.map(([name]) => name).join(" ");
+	return names + " heights " + heights + " tops-equal " + equal;
 }`;
 
 const desktopMeasure = `<script>
-const box = ${boxScript};
+const line = ${lineScript};
 const fieldset = (id) => document.getElementById(id)?.closest("fieldset");
 const read = () => {
 	const overview = [
@@ -75,7 +79,7 @@ const read = () => {
 	if (missing !== undefined || host === null) {
 		return;
 	}
-	host.textContent = page.map(([name, node]) => name + " " + box(node)).join(" ");
+	host.textContent = line(page);
 };
 const watch = new MutationObserver(read);
 watch.observe(document.documentElement, { childList: true, subtree: true });
@@ -98,7 +102,7 @@ iframe { display: block; width: 390px; height: 844px; border: 0; background: #ff
 <p id="phone-measure">phone waiting</p>
 <iframe id="phone-frame" title="Overview at 390px" src="${app}"></iframe>
 <script>
-const box = ${boxScript};
+const line = ${lineScript};
 const frame = document.getElementById("phone-frame");
 const host = document.getElementById("phone-measure");
 const read = () => {
@@ -117,9 +121,20 @@ const read = () => {
 		return;
 	}
 	const root = doc.documentElement;
+	const rows = [];
+	for (const item of page) {
+		const top = item[1].getBoundingClientRect().top;
+		const last = rows.at(-1);
+		const same = last !== undefined && last[0][1].getBoundingClientRect().top === top;
+		if (same) {
+			last.push(item);
+		} else {
+			rows.push([item]);
+		}
+	}
 	host.textContent = [
 		"phone",
-		...page.map(([name, node]) => name + " " + box(node)),
+		...rows.map((row) => line(row)),
 		"scrollWidth " + root.scrollWidth,
 	].join(" ");
 };

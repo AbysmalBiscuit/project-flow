@@ -5,14 +5,14 @@
 		{ "goto": "/" },
 		{ "assert_text": "Allow notifications" },
 		{
-			"assert_text": "overview search 36@126.515625 overview view 36@126.515625 overview refresh 36@126.515625 overview notify 36@126.515625"
+			"assert_text": "overview search overview view overview refresh overview notify heights 36 36 36 36 tops-equal yes"
 		},
 		{ "assert_text": "Cards" },
 		{ "shot": "overview-desktop" },
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "acme/widget" },
 		{
-			"assert_text": "project filter 36@152.515625 project search 36@152.515625 project group 36@152.515625 project view 36@152.515625"
+			"assert_text": "project filter project search project group project view heights 36 36 36 36 tops-equal yes"
 		},
 		{ "shot": "project-desktop" }
 	]
