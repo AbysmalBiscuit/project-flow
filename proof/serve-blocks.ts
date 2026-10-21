@@ -37,7 +37,11 @@ function issue(
 const widgetIssues = [
 	issue(widget, 8, "Open the gate", "Blocks: #2"),
 	issue(widget, 2, "Draw the nodes"),
-	issue(widget, 3, "Already shipped"),
+	{
+		...issue(widget, 3, "Already shipped"),
+		state: "closed",
+		state_reason: "completed",
+	},
 ];
 
 const platformIssues = [
