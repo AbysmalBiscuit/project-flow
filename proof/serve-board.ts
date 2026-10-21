@@ -193,6 +193,8 @@ function linearResponse(body: string): Response {
 	return Response.json({ data: {} });
 }
 
+const slowIssueReads = new Map<string, number>();
+
 const recorded: Fetch = async (input, init) => {
 	const known = recordedViewer(input, init);
 	if (known !== null) {
@@ -298,18 +300,33 @@ const recorded: Fetch = async (input, init) => {
 		if (found === undefined) {
 			return new Response("not recorded", { status: 404 });
 		}
+		const reads = slowIssueReads.get(url) ?? 0;
+		slowIssueReads.set(url, reads + 1);
+		if (reads === 0 && init?.signal !== undefined) {
+			await new Promise<void>((resolve) => {
+				const timer = setTimeout(resolve, 60_000);
+				init.signal?.addEventListener(
+					"abort",
+					() => {
+						clearTimeout(timer);
+						resolve();
+					},
+					{ once: true },
+				);
+			});
+		}
 		return new Response(JSON.stringify(found), {
 			status: 200,
 			headers: { "content-type": "application/json" },
 		});
 	}
-	if (url.endsWith("/comments") && url.includes("/issues/")) {
+	if (url.includes("/issues/") && url.includes("/comments")) {
 		return page([
 			{
 				id: 70,
 				body: "The notes are ready.",
 				user: { login: "lev" },
-				html_url: `${url}#issuecomment-70`,
+				html_url: `${url.split("?")[0]}#issuecomment-70`,
 				created_at: "2026-08-18T12:00:00Z",
 			},
 		]);

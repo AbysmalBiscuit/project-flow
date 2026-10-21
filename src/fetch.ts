@@ -23,9 +23,55 @@ function isTrackerRequest(input: string | URL | Request): boolean {
 
 export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
 	return (input, init) => {
-		if (init?.signal !== undefined || !isTrackerRequest(input)) {
+		if (!isTrackerRequest(input)) {
 			return fetchImpl(input, init);
 		}
-		return fetchImpl(input, { ...init, signal });
+		const caller = init?.signal;
+		if (caller === undefined || caller === null) {
+			return fetchImpl(input, { ...init, signal });
+		}
+		return fetchImpl(input, {
+			...init,
+			signal: AbortSignal.any([caller, signal]),
+		});
 	};
+}
+
+export const defaultThreadReadLimitMs = 5_000;
+
+const threadReadTimedOut = "thread read timed out";
+
+export class ThreadReadTimeout extends Error {
+	constructor() {
+		super(threadReadTimedOut);
+		this.name = "ThreadReadTimeout";
+	}
+}
+
+export async function withThreadLimit<T>(
+	read: (signal: AbortSignal) => Promise<T>,
+	limitMs: number,
+): Promise<T> {
+	const deadline = new AbortController();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const limited = new Promise<never>((_resolve, reject) => {
+		timer = setTimeout(() => {
+			deadline.abort();
+			reject(new ThreadReadTimeout());
+		}, limitMs);
+	});
+	const reading = read(deadline.signal);
+	reading.catch(() => undefined);
+	try {
+		return await Promise.race([reading, limited]);
+	} catch (error) {
+		if (deadline.signal.aborted) {
+			throw new ThreadReadTimeout();
+		}
+		throw error;
+	} finally {
+		if (timer !== undefined) {
+			clearTimeout(timer);
+		}
+	}
 }
