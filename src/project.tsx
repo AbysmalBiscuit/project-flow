@@ -451,11 +451,7 @@ function Lane({
 			: [];
 	const visible = [...listed, ...selected];
 	return (
-		<section
-			className={clsx(board.lane, phoneGutter.lane, capped && board.laneDone)}
-			data-lane={name}
-			aria-label={name}
-		>
+		<section className={clsx(board.lane)} data-lane={name} aria-label={name}>
 			<h2 className={clsx(board.laneTitle)}>
 				<span
 					className={clsx(board.laneMark, laneMark(colour, statusType))}
@@ -856,10 +852,7 @@ function Board({
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
-		<div
-			className={clsx(board.lanes, phoneGutter.lanes)}
-			data-group-by={boardGroupBy(settings)}
-		>
+		<div className={clsx(board.lanes)} data-group-by={boardGroupBy(settings)}>
 			{visibleLanes(report, settings).map((lane) => (
 				<Lane
 					key={lane.id}

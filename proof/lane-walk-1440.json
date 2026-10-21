@@ -1,0 +1,10 @@
+{
+	"base_url": "http://127.0.0.1:4717",
+	"serve": ["bun", "proof/serve-lane-width.ts", "4717"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Board" },
+		{ "assert_text": "Ship the list of factory tickets" },
+		{ "shot": "lanes-1440" }
+	]
+}
