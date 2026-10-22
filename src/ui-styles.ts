@@ -1841,8 +1841,6 @@ export const inbox = stylex.create({
 	},
 });
 
-export { board } from "./board-styles.ts";
-
 export const jump = stylex.create({
 	shade: {
 		position: "fixed",

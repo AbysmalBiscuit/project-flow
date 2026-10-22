@@ -9,6 +9,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { board } from "./board-styles.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -54,7 +55,7 @@ import {
 	projectHeaderLayout,
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { frame, headerControlStyle, shell } from "./ui-styles.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphGroupBy,
