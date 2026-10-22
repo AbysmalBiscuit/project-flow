@@ -50,6 +50,7 @@ import {
 } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
+import { tableTree } from "./table-tree-styles.ts";
 import {
 	blockedLabel,
 	filterEmptyLabel,
@@ -743,10 +744,10 @@ function RowIndent({
 	children: ReactNode;
 }) {
 	if (depth === 0) {
-		return <span className={clsx(board.rowTree)}>{children}</span>;
+		return <span className={clsx(tableTree.tree)}>{children}</span>;
 	}
 	return (
-		<span className={clsx(board.rowTree, board.rowIndent)}>
+		<span className={clsx(tableTree.tree, tableTree.indent)}>
 			<RowIndent depth={depth - 1}>{children}</RowIndent>
 		</span>
 	);
@@ -760,12 +761,12 @@ function RowToggle({
 	toggle: TreeToggle | null;
 }) {
 	if (toggle === null) {
-		return <span className={clsx(board.rowToggleSpace)} />;
+		return <span className={clsx(tableTree.toggleSpace)} />;
 	}
 	return (
 		<button
 			type="button"
-			className={clsx(board.rowToggle, shell.buttonFocus)}
+			className={clsx(tableTree.toggle, shell.buttonFocus)}
 			data-toggle={ticketKey}
 			aria-expanded={!toggle.collapsed}
 			aria-label={subTicketsToggleLabel(ticketKey, toggle.collapsed)}
@@ -779,8 +780,8 @@ function RowToggle({
 				viewBox="0 0 8 8"
 				aria-hidden="true"
 				className={clsx(
-					board.rowToggleMark,
-					toggle.collapsed && board.rowToggleShut,
+					tableTree.toggleMark,
+					toggle.collapsed && tableTree.toggleShut,
 				)}
 			>
 				<path d="M2.5 1 5.5 4 2.5 7" fill="none" stroke="currentColor" />
