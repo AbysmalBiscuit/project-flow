@@ -18,7 +18,8 @@ import type {
 	ProjectCounts,
 } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
-import { OverviewSearch, useFocusView } from "./focus-controls.tsx";
+import { useFocusView } from "./focus.ts";
+import { OverviewSearch } from "./focus-controls.tsx";
 import {
 	askNotificationPermission,
 	notificationPermission,

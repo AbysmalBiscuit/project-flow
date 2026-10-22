@@ -1,10 +1,8 @@
-import { type FocusView, useFocusView } from "./focus.ts";
+import type { FocusView } from "./focus.ts";
 import { SearchGlyph } from "./shell.tsx";
 import { clearFocusLabel, overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { headerControlStyle, shell } from "./ui-styles.ts";
-
-export { useFocusView };
 
 export function ClearFocusButton({ onClear }: { onClear: () => void }) {
 	return (
