@@ -1,7 +1,11 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import { urlOf } from "../test/support.ts";
+import {
+	recordedDiscovery,
+	repoReadFromLists,
+	urlOf,
+} from "../test/support.ts";
 import { serveProof } from "./lifetime.ts";
 
 export function emptyLinear(url: string): Response | null {
@@ -29,6 +33,34 @@ export function emptyLists(url: string): boolean {
 		url.includes("/reactions") ||
 		url.includes("/dependencies/blocked_by")
 	);
+}
+
+/** Serves the GitHub repo reads of these issues and empty answers for the rest. */
+export function recordedIssues(
+	issuesByRepo: Record<string, Record<string, unknown>[]>,
+): Fetch {
+	return async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return Response.json({ login: "lev" });
+		}
+		const listed =
+			emptyLinear(url) ?? repoReadFromLists(input, init, issuesByRepo);
+		if (listed !== null) {
+			return listed;
+		}
+		if (emptyLists(url) || url.includes("/dependencies/")) {
+			return Response.json([]);
+		}
+		if (url === "https://api.github.com/graphql") {
+			return Response.json({ data: {} });
+		}
+		return unrecorded(input);
+	};
 }
 
 export function unrecorded(input: string | URL | Request): Response {

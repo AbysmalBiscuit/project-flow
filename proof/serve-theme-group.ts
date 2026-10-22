@@ -1,24 +1,6 @@
-import type { Fetch } from "../src/fetch.ts";
-import {
-	recordedDiscovery,
-	repoReadFromLists,
-	urlOf,
-} from "../test/support.ts";
-import {
-	emptyLinear,
-	emptyLists,
-	serveRecorded,
-	unrecorded,
-} from "./recorded.ts";
+import { recordedIssues, serveRecorded } from "./recorded.ts";
 
 const repo = "acme/widget";
-
-function page(items: unknown[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
 
 function issue(
 	number: number,
@@ -58,35 +40,6 @@ const issues: Record<string, Record<string, unknown>[]> = {
 	],
 };
 
-const recorded: Fetch = async (input, init) => {
-	const discovered = recordedDiscovery(input, init);
-	if (discovered !== null) {
-		return discovered;
-	}
-	const url = urlOf(input);
-	if (url === "https://api.github.com/user") {
-		return Response.json({ login: "lev" });
-	}
-	const linear = emptyLinear(url);
-	if (linear !== null) {
-		return linear;
-	}
-	const listed = repoReadFromLists(input, init, issues);
-	if (listed !== null) {
-		return listed;
-	}
-	if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
-		return page(issues[repo] ?? []);
-	}
-	if (emptyLists(url) || url.includes("/dependencies/")) {
-		return page([]);
-	}
-	if (url === "https://api.github.com/graphql") {
-		return Response.json({ data: {} });
-	}
-	return unrecorded(input);
-};
-
 const port = process.argv[2] ?? process.env.PORT ?? "4342";
 
 await serveRecorded({
@@ -102,5 +55,5 @@ await serveRecorded({
 			[repo]: { openView: "graph", groupBy: "theme" },
 		},
 	},
-	fetch: recorded,
+	fetch: recordedIssues(issues),
 });
