@@ -118,7 +118,10 @@ export function JumpBox() {
 				return;
 			}
 			event.preventDefault();
-			event.stopPropagation();
+			// Ctrl+Escape goes on to the focus mode listener as well.
+			if (!event.ctrlKey && !event.metaKey) {
+				event.stopPropagation();
+			}
 			closeSearch();
 		};
 		window.addEventListener("keydown", onEscape, true);
