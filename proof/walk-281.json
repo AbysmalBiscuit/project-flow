@@ -2,9 +2,17 @@
 	"base_url": "http://127.0.0.1:4281",
 	"serve": ["bun", "proof/serve-281.ts", "4281"],
 	"steps": [
-		{ "goto": "/projects/acme%2Fwidget" },
+		{ "goto": "/projects/Widget%20board" },
+		{ "assert_text": "In review 1" },
 		{ "assert_text": "#205" },
-		{ "assert_text": "Done" },
+		{ "shot": "in-review" },
+		{ "goto": "/" },
+		{ "click": "#overview-refresh" },
+		{ "assert_text": "Refreshing" },
+		{ "assert_text": "Widget board" },
+		{ "goto": "/projects/Widget%20board" },
+		{ "assert_text": "#205" },
+		{ "assert_text": "Done 1" },
 		{ "shot": "done-lane" }
 	]
 }

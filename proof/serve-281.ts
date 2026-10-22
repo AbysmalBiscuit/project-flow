@@ -1,19 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
-import {
-	recordedDiscovery,
-	repoReadFromLists,
-	urlOf,
-} from "../test/support.ts";
-import {
-	emptyLinear,
-	emptyLists,
-	serveRecorded,
-	unrecorded,
-} from "./recorded.ts";
+import projectFields from "../test/fixtures/github-project-fields.json";
+import { recordedDiscovery, urlOf } from "../test/support.ts";
+import { emptyLinear, serveRecorded, unrecorded } from "./recorded.ts";
 
 const repo = "acme/widget";
+const boardId = "PVT_widget";
 const fixtureDir = join(import.meta.dir, "../test/fixtures");
 
 async function fixture(name: string): Promise<Record<string, unknown>> {
@@ -33,16 +26,93 @@ async function fixture(name: string): Promise<Record<string, unknown>> {
 const issue = await fixture("github-issues.json");
 const pull = await fixture("github-open-pulls.json");
 
-const recordedIssue = {
-	...issue,
-	state: "closed",
-	state_reason: "completed",
-	closed_at: "2026-10-21T12:00:00Z",
-	updated_at: "2026-10-21T12:00:00Z",
-	html_url: `https://github.com/${repo}/issues/205`,
+function recordedStatusOptions(body: typeof projectFields) {
+	for (const field of body.data.node.fields.nodes) {
+		if (!("name" in field) || field.name !== "Status") {
+			continue;
+		}
+		return field.options;
+	}
+	throw new Error("recorded project Status field is missing");
+}
+
+function boardOptionId(name: string): string | undefined {
+	const collapsed = name.trim().replace(/\s+/g, " ");
+	return recordedStatusOptions(projectFields).find(
+		(option) => option.name.trim().replace(/\s+/g, " ") === collapsed,
+	)?.id;
+}
+
+function boardItem(
+	status: { name: string; color: string },
+	field: { updatedAt?: string; optionId?: string },
+	contentFields: Record<string, unknown>,
+): Record<string, unknown> {
+	return {
+		fieldValueByName: {
+			name: status.name,
+			optionId:
+				field.optionId ?? boardOptionId(status.name) ?? `opt-${status.name}`,
+			color: status.color,
+			...(field.updatedAt === undefined ? {} : { updatedAt: field.updatedAt }),
+		},
+		content: {
+			__typename: "Issue",
+			id: "I_205",
+			number: 205,
+			title: String(issue.title),
+			body: "",
+			comments: { totalCount: 0 },
+			repository: { nameWithOwner: repo },
+			milestone: null,
+			labels: { nodes: [] },
+			parent: null,
+			blockedBy: {
+				nodes: [],
+				pageInfo: { hasNextPage: false, endCursor: null },
+			},
+			...contentFields,
+		},
+	};
+}
+
+const openItem = boardItem(
+	{ name: "In review", color: "PURPLE" },
+	{ updatedAt: "2026-10-20T21:14:10Z" },
+	{
+		state: "OPEN",
+		stateReason: null,
+		updatedAt: "2026-10-20T21:14:10Z",
+		closedByPullRequestsReferences: {
+			nodes: [{ number: 206, repository: { nameWithOwner: repo } }],
+			pageInfo: { hasNextPage: false, endCursor: null },
+		},
+	},
+);
+
+const closedItem = boardItem(
+	{ name: "Done", color: "ORANGE" },
+	{ updatedAt: "2026-10-21T12:00:00Z", optionId: boardOptionId("Done") },
+	{
+		state: "CLOSED",
+		stateReason: "COMPLETED",
+		updatedAt: "2026-10-21T12:00:00Z",
+		closedByPullRequestsReferences: {
+			nodes: [],
+			pageInfo: { hasNextPage: false, endCursor: null },
+		},
+	},
+);
+
+const openPull = {
+	...pull,
+	state: "open",
+	closed_at: null,
+	merged_at: null,
+	html_url: `https://github.com/${repo}/pull/206`,
 };
 
-const recordedPull = {
+const mergedPull = {
 	...pull,
 	state: "closed",
 	closed_at: "2026-10-21T11:52:35Z",
@@ -58,54 +128,109 @@ function page(items: unknown[]): Response {
 	});
 }
 
+let polls = 0;
+
 const recorded: Fetch = async (input, init) => {
 	const discovered = recordedDiscovery(input, init);
 	if (discovered !== null) {
 		return discovered;
 	}
 	const url = urlOf(input);
+	const body = typeof init?.body === "string" ? init.body : "";
 	if (url === "https://api.github.com/user") {
 		return Response.json({ login: "lev" });
+	}
+	if (url === `https://api.github.com/repos/${repo}`) {
+		return Response.json({ allow_auto_merge: false });
 	}
 	const linear = emptyLinear(url);
 	if (linear !== null) {
 		return linear;
 	}
-	if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
-		return page([recordedIssue]);
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ProjectByNumber")
+	) {
+		return Response.json({
+			data: {
+				repositoryOwner: {
+					projectV2: {
+						id: boardId,
+						number: 4,
+						title: "Widget board",
+						closed: false,
+						updatedAt: "2026-08-18T12:00:00Z",
+					},
+				},
+			},
+		});
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ProjectFields")
+	) {
+		return Response.json(projectFields);
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ProjectItems")
+	) {
+		polls += 1;
+		return Response.json({
+			data: {
+				node: {
+					items: {
+						nodes: [polls > 1 ? closedItem : openItem],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			},
+		});
 	}
 	if (url === `https://api.github.com/repos/${repo}/pulls/206`) {
-		return Response.json(recordedPull);
+		return Response.json(polls > 1 ? mergedPull : openPull);
 	}
-	if (emptyLists(url) || url.includes("/pulls?")) {
-		return page(url.includes("state=closed") ? [recordedPull] : []);
+	if (url.includes("/pulls?")) {
+		const closed = url.includes("state=closed");
+		if (polls > 1 && closed) {
+			return page([mergedPull]);
+		}
+		if (polls === 1 && !closed) {
+			return page([openPull]);
+		}
+		return page([]);
 	}
-	if (url === "https://api.github.com/graphql") {
-		return (
-			repoReadFromLists(
-				input,
-				init,
-				{ [repo]: [recordedIssue] },
-				{ [repo]: [recordedPull] },
-			) ?? Response.json({ data: {} })
-		);
+	if (
+		url.includes("/labels?") ||
+		url.includes("/branches?") ||
+		url.includes("/comments") ||
+		url.includes("/reviews") ||
+		url.includes("/reactions") ||
+		url.includes("/issues?")
+	) {
+		return page([]);
+	}
+	if (url.includes("/check-runs")) {
+		return Response.json({ check_runs: [] });
 	}
 	return unrecorded(input);
 };
 
 const port = process.argv[2] ?? process.env.PORT ?? "4281";
+const startedAt = Date.now();
 
 await serveRecorded({
 	prefix: "project-flow-281-",
 	port,
-	now: () => new Date("2026-10-22T00:00:00.000Z"),
+	now: () =>
+		new Date(Date.parse("2026-10-22T00:00:00.000Z") + (Date.now() - startedAt)),
 	config: {
-		pinned: [{ tracker: "github", repo }],
+		pinned: [{ tracker: "github", owner: "acme", project: 4 }],
 		checkoutRoots: [],
 		pollIntervalSeconds: 3600,
 		theme: "light",
 		projectViews: {
-			[repo]: { openView: "board", groupBy: "none" },
+			"Widget board": { openView: "board", groupBy: "none" },
 		},
 	},
 	fetch: recorded,
