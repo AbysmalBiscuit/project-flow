@@ -920,12 +920,14 @@ function TableRow({
 function TicketTable({
 	report,
 	groupBy,
+	searching,
 	selected,
 	onOpen,
 	onOpenOutside,
 }: {
 	report: ProjectReport;
 	groupBy: GroupBy;
+	searching: boolean;
 	selected: string | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
@@ -934,7 +936,26 @@ function TicketTable({
 	const focus = useContext(TicketFocusContext);
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
 	const collapse = useCollapse();
-	const { collapsed, toggle } = collapse;
+	const [searchShut, setSearchShut] = useState<Record<string, boolean>>({});
+	useEffect(() => {
+		if (!searching) {
+			setSearchShut({});
+		}
+	}, [searching]);
+	const collapsed = (key: string, startsCollapsed: boolean) =>
+		searching
+			? (searchShut[key.toLowerCase()] ?? false)
+			: collapse.collapsed(key, startsCollapsed);
+	const toggle = (key: string, startsCollapsed: boolean) => {
+		if (searching) {
+			setSearchShut((current) => ({
+				...current,
+				[key.toLowerCase()]: !collapsed(key, startsCollapsed),
+			}));
+			return;
+		}
+		collapse.toggle(key, startsCollapsed);
+	};
 	const rows = [...report.tickets].sort((left, right) =>
 		compareTickets(left, right, column, direction, report.lanes),
 	);
@@ -1518,6 +1539,7 @@ export function Page() {
 								<TicketTable
 									report={report}
 									groupBy={boardGroupBy(settings)}
+									searching={settings.search.trim() !== ""}
 									selected={open ? ticket : null}
 									onOpen={openTicketInPanel}
 									onOpenOutside={openOutsideInPanel}
