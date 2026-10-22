@@ -44,6 +44,7 @@ export type GraphTicketView = {
 	workstream?: string;
 	workstreamKey?: string;
 	theme?: string;
+	themeGroup?: string;
 	assignees?: string[];
 };
 
@@ -114,6 +115,9 @@ function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
 				? {}
 				: { workstreamKey: ticket.workstreamKey }),
 			...(ticket.theme === undefined ? {} : { theme: ticket.theme }),
+			...(ticket.themeGroup === undefined
+				? {}
+				: { themeGroup: ticket.themeGroup }),
 			...(ticket.assignees === undefined
 				? {}
 				: { assignees: ticket.assignees }),

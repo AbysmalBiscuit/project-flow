@@ -161,6 +161,7 @@ export type TicketView = {
 	workstream?: string;
 	workstreamKey?: string;
 	theme?: string;
+	themeGroup?: string;
 };
 
 export type CrossProjectBlocker = {
@@ -3727,6 +3728,7 @@ type Placed = {
 	workstream: string;
 	workstreamKey: string;
 	theme: string;
+	themeGroup: string;
 };
 
 function parentOf(
@@ -3853,14 +3855,12 @@ type GroupedTicket = {
 	title: string;
 	workstream?: string;
 	workstreamKey?: string;
-	theme?: string;
+	themeGroup?: string;
 	assignees?: string[];
 };
 
-function themeGroupKey(view: GroupedTicket): string {
-	const theme = view.theme ?? noScope;
-	const workstream = view.workstream ?? noWorkstream;
-	return `${workstream} / ${theme}`;
+function themeGroupOf(workstream: string, theme: string): string {
+	return workstream === theme ? theme : `${workstream} / ${theme}`;
 }
 
 export function groupKeysOf(view: GroupedTicket, key: GroupKey): string[] {
@@ -3897,7 +3897,7 @@ function groupBandsOf(
 		const label = view.workstream ?? noWorkstream;
 		return [{ key: view.workstreamKey ?? label, label }];
 	}
-	const label = themeGroupKey(view);
+	const label = view.themeGroup ?? themeGroupOf(noWorkstream, noScope);
 	return [{ key: label, label }];
 }
 
@@ -3960,13 +3960,15 @@ function placeTickets(
 		}
 		const root = rootOf(ticket, byKey);
 		const workstream = workstreamOf(ticket, root, tracker, byKey);
+		const theme = themeOf(ticket, root, byKey, parents);
 		return [
 			{
 				ticket,
 				view,
 				workstream: workstream.label,
 				workstreamKey: workstream.key,
-				theme: themeOf(ticket, root, byKey, parents),
+				theme,
+				themeGroup: themeGroupOf(workstream.label, theme),
 			},
 		];
 	});
@@ -4063,6 +4065,7 @@ export function projectReport(
 						workstream: placedItem.workstream,
 						workstreamKey: placedItem.workstreamKey,
 						theme: placedItem.theme,
+						themeGroup: placedItem.themeGroup,
 					}),
 			...(commentRun === undefined ? {} : { run: commentRun }),
 			...(relations === undefined ? {} : { blockers: relations.blockers }),
