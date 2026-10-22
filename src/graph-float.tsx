@@ -11,13 +11,23 @@ export const float = stylex.create({
 	pane: {
 		margin: `calc(-1 * ${space.sm})`,
 	},
-	chrome: {
+	overlay: {
 		position: "absolute",
 		zIndex: stack.panel,
 		top: 0,
 		right: 0,
-		left: "50%",
+		left: 0,
 		display: "flex",
+		flexWrap: "wrap",
+		gap: space.xs,
+		alignItems: "flex-start",
+		justifyContent: "space-between",
+		pointerEvents: "none",
+	},
+	chrome: {
+		display: "flex",
+		flex: "0 1 auto",
+		marginLeft: "auto",
 		alignItems: "flex-start",
 		justifyContent: "flex-end",
 		minWidth: 0,
@@ -35,10 +45,7 @@ export const float = stylex.create({
 		pointerEvents: "auto",
 	},
 	legend: {
-		position: "absolute",
-		zIndex: stack.panel,
-		top: 0,
-		left: 0,
+		minWidth: "min-content",
 		maxWidth: measure.legendCap,
 		pointerEvents: "none",
 	},
