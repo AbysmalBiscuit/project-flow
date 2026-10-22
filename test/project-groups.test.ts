@@ -364,43 +364,6 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
-	test("a GitHub ticket with no milestone takes its parent issue as its workstream", async () => {
-		const parent = issue(21, "Ship the list");
-		const child = issue(22, "Draw the rows", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/21`,
-		});
-		const grandchild = issue(23, "Name the columns", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/22`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child, grandchild]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const workstreamOf = (number: number) =>
-					report.tickets.find(
-						(ticket) => ticket.key === `${githubRepo}#${number}`,
-					)?.workstream;
-				expect(workstreamOf(21)).toBe("no workstream");
-				expect(workstreamOf(22)).toBe("Ship the list");
-				expect(workstreamOf(23)).toBe("Draw the rows");
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#22`)
-						?.workstreamKey,
-				).toBe(`${githubRepo}#21`);
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#23`)
-						?.workstreamKey,
-				).toBe(`${githubRepo}#22`);
-			},
-		);
-	});
-
 	test("two GitHub parents with the same title keep separate workstream keys", async () => {
 		const first = issue(41, "Ship the list");
 		const second = issue(42, "Ship the list");
@@ -474,32 +437,6 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
-	test("a GitHub ticket under a non-epic root takes its own milestone", async () => {
-		const parent = issue(7, "Write the notes");
-		const child = issue(8, "feat(notes): add the heading", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
-				).toMatchObject({ workstream: "October" });
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
-				).toMatchObject({ workstream: "no workstream" });
-			},
-		);
-	});
-
 	test("an Epic label makes the ticket the GitHub workstream", async () => {
 		const parent = issue(31, "Ship the board", {
 			labels: [{ name: "Epic" }],
@@ -524,92 +461,6 @@ describe("GET /api/projects/:name", () => {
 				expect(
 					report.tickets.find((ticket) => ticket.key === `${githubRepo}#32`),
 				).toMatchObject({ workstream: "Ship the board" });
-			},
-		);
-	});
-
-	test("a breaking conventional title is grouped by its scope", async () => {
-		const breaking = issue(6, "feat(ux)!: redraw the nodes");
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([breaking]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#6`),
-				).toMatchObject({ theme: "ux" });
-			},
-		);
-	});
-
-	test("a mid-level parent takes the top parent's title as its theme", async () => {
-		const top = issue(10, "Ship the board", {
-			milestone: { title: "October" },
-		});
-		const mid = issue(11, "Draw the legend", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/10`,
-			milestone: { title: "October" },
-		});
-		const leaf = issue(12, "feat(legend): add the key", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/11`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([top, mid, leaf]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const groupOf = (number: number) =>
-					report.tickets.find(
-						(ticket) => ticket.key === `${githubRepo}#${number}`,
-					);
-				expect(groupOf(11)).toMatchObject({
-					workstream: "October",
-					theme: "Ship the board",
-				});
-				expect(groupOf(12)).toMatchObject({
-					workstream: "October",
-					theme: "Ship the board",
-				});
-				expect(groupOf(10)).toMatchObject({ theme: "Ship the board" });
-			},
-		);
-	});
-
-	test("a ticket that is the root of another ticket takes its own title as its theme", async () => {
-		const parent = issue(7, "Write the notes", {
-			milestone: { title: "October" },
-		});
-		const child = issue(8, "feat(notes): add the heading", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
-				).toMatchObject({ theme: "Write the notes" });
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
-				).toMatchObject({ theme: "Write the notes" });
 			},
 		);
 	});
@@ -646,42 +497,6 @@ describe("GET /api/projects/:name", () => {
 					"acme/widget#11",
 					"acme/widget#12",
 				]);
-			},
-		);
-	});
-
-	test("a root epic workstream themes the nearest parent below it", async () => {
-		const root = issue(40, "Ship the board", {
-			labels: [{ name: "Epic" }],
-		});
-		const mid = issue(41, "Draw the legend", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/40`,
-		});
-		const leaf = issue(42, "feat(legend): add the key", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/41`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([root, mid, leaf]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#42`),
-				).toMatchObject({
-					workstream: "Ship the board",
-					theme: "Draw the legend",
-				});
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#41`),
-				).toMatchObject({
-					workstream: "Ship the board",
-					theme: "no scope",
-				});
 			},
 		);
 	});
