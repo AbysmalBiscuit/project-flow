@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import ELK from "elkjs/lib/elk-api.js";
+import { fillShare } from "../proof/elk-spike/handwritten.ts";
 import type { ProjectReport } from "../src/domain.ts";
-import { flowGap } from "../src/graph-flow.ts";
 import {
 	groupHead,
 	groupId,
@@ -26,13 +26,6 @@ async function workcellLayout(direction: "left-to-right" | "top-to-bottom") {
 	const input = layoutInput(workcell, "workstream", []);
 	const layout = await layoutGraph(elk, input, direction, card, () => 0);
 	return { input, layout };
-}
-
-function fillShare(cards: number, frame: Rect): number {
-	const cells =
-		((frame.width - groupPad * 2) * (frame.height - groupHead - groupPad)) /
-		(flowGap.along * flowGap.across);
-	return cards / cells;
 }
 
 function overlap(left: Rect, right: Rect): boolean {
@@ -63,7 +56,13 @@ describe("project graph layout", () => {
 				const cards = input.cards.filter(
 					(item) => item.group === groupId(band),
 				).length;
-				const share = frame === undefined ? 0 : fillShare(cards, frame);
+				const share =
+					frame === undefined
+						? 0
+						: fillShare(cards, {
+								width: frame.width - groupPad * 2,
+								height: frame.height - groupHead - groupPad,
+							});
 				return [band, Math.round(share * 100) / 100];
 			}),
 		);
