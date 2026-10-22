@@ -65,10 +65,15 @@ export function menuOwnsEscape(): boolean {
 }
 
 function escapeTaken(event: KeyboardEvent): boolean {
+	return event.defaultPrevented || isTextBox(event.target) || menuOwnsEscape();
+}
+
+function isTextBox(target: EventTarget | null): boolean {
 	return (
-		event.defaultPrevented ||
-		event.target instanceof HTMLTextAreaElement ||
-		menuOwnsEscape()
+		target instanceof HTMLTextAreaElement ||
+		(target instanceof HTMLInputElement &&
+			target.type !== "checkbox" &&
+			target.type !== "radio")
 	);
 }
 
