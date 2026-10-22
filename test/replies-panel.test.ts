@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
-import type { NeedsYouItem } from "../src/domain.ts";
+import type { NeedsYouItem, PollProgress } from "../src/domain.ts";
 import { eventsOf } from "./events.ts";
-import { serveReplies } from "./replies-app.ts";
+import { serve } from "./replies-github-fake.ts";
 import { linearFake } from "./support.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
@@ -40,11 +40,11 @@ async function refreshSettled(base: string): Promise<void> {
 		const progressOf = (event: {
 			event: string;
 			data: string;
-		}): { done?: number; ended?: boolean } | null => {
+		}): PollProgress | null => {
 			if (event.event !== "progress") {
 				return null;
 			}
-			return JSON.parse(event.data) as { done?: number; ended?: boolean };
+			return JSON.parse(event.data) as PollProgress;
 		};
 		const ownPollSettled = (text: string): boolean => {
 			const progress = eventsOf(text)
@@ -70,8 +70,6 @@ async function refreshSettled(base: string): Promise<void> {
 		await reader.cancel();
 	}
 }
-
-const serve = serveReplies;
 
 test("a plain panel reply quotes an open ask and a reaction acknowledges it", async () => {
 	const sent: string[] = [];
