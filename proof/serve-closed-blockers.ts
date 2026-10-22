@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import recordedClosedBlockers from "../test/fixtures/github-closed-blockers.json";
 import { recordedViewer, repoReadIssues, urlOf } from "../test/support.ts";
 import { proofStops } from "./lifetime.ts";
 
@@ -18,66 +19,30 @@ await writeFile(
 	}),
 );
 
-function issue(
-	number: number,
-	title: string,
-	state: "open" | "closed" = "open",
-): Record<string, unknown> {
+const nodes = structuredClone(recordedClosedBlockers.issues).map((node) => {
+	if (node.number !== 216 && node.number !== 245 && node.number !== 246) {
+		return node;
+	}
+	if (node.number === 216) {
+		return {
+			...node,
+			state: "CLOSED",
+			stateReason: "COMPLETED",
+			closedAt: "2026-08-18T13:00:00Z",
+			updatedAt: "2026-08-18T13:00:00Z",
+		};
+	}
 	return {
-		number,
-		title,
-		state,
-		state_reason: state === "closed" ? "completed" : null,
-		updated_at: "2026-08-18T12:00:00Z",
-		html_url: `https://github.com/${repo}/issues/${number}`,
-		body: "",
+		...node,
+		updatedAt: "2026-08-18T13:00:00Z",
+		blockedBy: {
+			...node.blockedBy,
+			nodes: node.blockedBy.nodes.map((blocker) =>
+				blocker.number === 216 ? { ...blocker, state: "CLOSED" } : blocker,
+			),
+		},
 	};
-}
-
-const pageInfo = { hasNextPage: false, endCursor: null };
-
-function relation(
-	number: number,
-	title: string,
-	state: "OPEN" | "CLOSED",
-): Record<string, unknown> {
-	return {
-		number,
-		title,
-		state,
-		repository: { nameWithOwner: repo },
-	};
-}
-
-function node(
-	number: number,
-	title: string,
-	state: "OPEN" | "CLOSED",
-	blockedBy: Record<string, unknown>[] = [],
-): Record<string, unknown> {
-	return {
-		number,
-		title,
-		state,
-		stateReason: state === "CLOSED" ? "COMPLETED" : null,
-		updatedAt: "2026-08-18T12:00:00.000Z",
-		body: "",
-		blockedBy: { nodes: blockedBy, pageInfo },
-		blocking: { nodes: [], pageInfo },
-	};
-}
-
-const nodes = [
-	node(245, "Draw the board", "OPEN", [
-		relation(216, "Closed native blocker", "CLOSED"),
-	]),
-	node(216, "Closed native blocker", "CLOSED"),
-	node(246, "Keep the open blocker", "OPEN", [
-		relation(216, "Closed native blocker", "CLOSED"),
-		relation(188, "Open native blocker", "OPEN"),
-	]),
-	node(188, "Open native blocker", "OPEN"),
-];
+});
 
 const recorded: Fetch = async (input, init) => {
 	const known = recordedViewer(input, init);
@@ -102,12 +67,19 @@ const recorded: Fetch = async (input, init) => {
 		url === "https://api.github.com/graphql" &&
 		body.includes("query BlockerStates")
 	) {
+		const asked = [...body.matchAll(/issue\(number: (\d+)\)/g)].map((match) =>
+			Number(match[1]),
+		);
+		const byNumber = new Map(
+			nodes.map((node) => [node.number, node.blockedBy]),
+		);
 		const repository: Record<string, unknown> = {};
-		for (const [index, item] of nodes.entries()) {
-			if (item.state !== "OPEN" || !Array.isArray(item.blockedBy)) {
+		for (const [index, number] of asked.entries()) {
+			const blockedBy = byNumber.get(number);
+			if (blockedBy === undefined) {
 				continue;
 			}
-			repository[`i${index}`] = { blockedBy: item.blockedBy };
+			repository[`i${index}`] = { blockedBy };
 		}
 		return new Response(JSON.stringify({ data: { repository } }), {
 			status: 200,
@@ -115,12 +87,7 @@ const recorded: Fetch = async (input, init) => {
 		});
 	}
 	if (url.includes(`/repos/${repo}/issues?`)) {
-		return Response.json([
-			issue(245, "Draw the board"),
-			issue(216, "Closed native blocker", "closed"),
-			issue(246, "Keep the open blocker"),
-			issue(188, "Open native blocker"),
-		]);
+		return Response.json([]);
 	}
 	if (
 		url.includes("/pulls?") ||
