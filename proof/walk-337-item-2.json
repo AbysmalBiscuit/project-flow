@@ -45,10 +45,25 @@
 			"shot": "board-add-fork"
 		},
 		{
+			"click": "#project-group"
+		},
+		{
+			"click": "#project-group-choice-2"
+		},
+		{
+			"assert_text": "Group by Assignee"
+		},
+		{
+			"shot": "board-lanes-and-groups-faded"
+		},
+		{
 			"click": "#view-table"
 		},
 		{
 			"assert_text": "Clear focus"
+		},
+		{
+			"shot": "table-groups-faded"
 		},
 		{
 			"shot": "table-kept"

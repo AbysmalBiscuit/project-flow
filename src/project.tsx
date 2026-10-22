@@ -383,6 +383,7 @@ function Chip({
 }
 
 type TicketFocus = {
+	active: boolean;
 	faded: (key: string | null) => boolean;
 	toggle: (key: string) => void;
 	enter: (key: string) => void;
@@ -390,11 +391,16 @@ type TicketFocus = {
 };
 
 const TicketFocusContext = createContext<TicketFocus>({
+	active: false,
 	faded: () => false,
 	toggle: () => {},
 	enter: () => {},
 	leave: () => {},
 });
+
+function groupFaded(focus: TicketFocus, tickets: TicketView[]): boolean {
+	return focus.active && tickets.every((ticket) => focus.faded(ticket.key));
+}
 
 function focusPointer(focus: TicketFocus, key: string | null) {
 	if (key === null) {
@@ -585,9 +591,14 @@ function Lane({
 			: [];
 	const visible = [...listed, ...selected];
 	const showAll = capped && !shown && listed.length < tickets.length;
+	const focus = useContext(TicketFocusContext);
+	const headFaded = groupFaded(focus, visible);
 	return (
 		<section className={clsx(board.lane)} data-lane={name} aria-label={name}>
-			<div className={clsx(board.laneHead)}>
+			<div
+				className={clsx(board.laneHead, headFaded && board.faded)}
+				data-faded={headFaded ? "true" : "false"}
+			>
 				<h2 className={clsx(board.laneTitle)}>
 					<span
 						className={clsx(board.laneMark, laneMark(colour, statusType))}
@@ -627,7 +638,14 @@ function Lane({
 				) : (
 					ticketGroups(visible, groupBy).map((group) => (
 						<div key={group.name} data-group={group.label}>
-							<h3 className={clsx(board.swimlane)}>{group.label}</h3>
+							<h3
+								className={clsx(
+									board.swimlane,
+									groupFaded(focus, group.tickets) && board.faded,
+								)}
+							>
+								{group.label}
+							</h3>
 							<LaneCards
 								tickets={group.tickets}
 								onOpen={onOpen}
@@ -897,6 +915,7 @@ function TicketTable({
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [column, setColumn] = useState<Column>("state");
+	const focus = useContext(TicketFocusContext);
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
 	const rows = [...report.tickets].sort((left, right) =>
 		compareTickets(left, right, column, direction, report.lanes),
@@ -962,7 +981,13 @@ function TicketTable({
 								groupBy === "none"
 									? []
 									: [
-											<tr key={`group-${group.name}`} data-group={group.label}>
+											<tr
+												key={`group-${group.name}`}
+												data-group={group.label}
+												className={clsx(
+													groupFaded(focus, group.tickets) && board.faded,
+												)}
+											>
 												<th
 													className={clsx(board.groupRow)}
 													colSpan={columns.length}
@@ -1541,6 +1566,7 @@ export function Page() {
 	const seeds = shownSeeds(ticketFocus.focus, ticketFocus.preview);
 	const chain = seeds.size === 0 ? null : focusChain(seeds, graphEdges(report));
 	const focusValue: TicketFocus = {
+		active: chain !== null,
 		faded: (key) =>
 			chain !== null &&
 			(key === null || !chain.has(projectNodeId(report.name, key))),
