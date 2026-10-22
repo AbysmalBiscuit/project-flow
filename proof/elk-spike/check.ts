@@ -1,6 +1,7 @@
 /** Frame check, arrow readability and SVG pages of a laid-out spike graph. */
 import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import {
+	allCards,
 	cell,
 	type Frame,
 	frameCards,
@@ -92,7 +93,7 @@ export function checkLayout(
 	straight: boolean,
 ) {
 	const boxes = rects(laid);
-	const cardIds = [...graph.outside, ...graph.groups.flatMap(frameCards)];
+	const cardIds = allCards(graph);
 	let intruders = 0;
 	let siblingOverlaps = 0;
 	const frames = allFrames(graph.groups);
@@ -262,22 +263,19 @@ export function elkPage(
 					},
 				];
 	});
-	const cards = [...graph.outside, ...graph.groups.flatMap(frameCards)].flatMap(
-		(id) => {
-			const box = boxes.get(id);
-			return box === undefined
-				? []
-				: [
-						{
-							id,
-							label: shortKey(id),
-							box,
-							outside:
-								graph.outside.includes(id) || id.startsWith(outsideParent),
-						},
-					];
-		},
-	);
+	const cards = allCards(graph).flatMap((id) => {
+		const box = boxes.get(id);
+		return box === undefined
+			? []
+			: [
+					{
+						id,
+						label: shortKey(id),
+						box,
+						outside: graph.outside.includes(id) || id.startsWith(outsideParent),
+					},
+				];
+	});
 	const laidEdges = new Map((laid.edges ?? []).map((edge) => [edge.id, edge]));
 	const arrows = graph.edges.flatMap((edge) => {
 		const from = boxes.get(edge.from);

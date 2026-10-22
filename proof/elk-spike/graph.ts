@@ -272,6 +272,13 @@ export function frameCards(frame: Frame): string[] {
 	];
 }
 
+/** Every card id of the graph: the outside cards and the cards of each group. */
+export function allCards(
+	graph: Pick<SpikeGraph, "outside" | "groups">,
+): string[] {
+	return [...graph.outside, ...graph.groups.flatMap(frameCards)];
+}
+
 export type ElkSettings = Record<string, string>;
 
 function cardNode(id: string): ElkNode {

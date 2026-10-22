@@ -13,6 +13,7 @@ import type { ProjectReport } from "../../src/domain.ts";
 import { projectNodeId } from "../../src/graph-flow.ts";
 import { checkLayout, elkPage, frameCount, type Rect, rects } from "./check.ts";
 import {
+	allCards,
 	card,
 	cell,
 	type ElkSettings,
@@ -168,10 +169,7 @@ function median(values: number[]): number {
 const round = (value: number) => Math.round(value);
 const percent = (value: number) => `${Math.round(value * 100)} %`;
 
-function elkFill(
-	graph: SpikeGraph,
-	laid: Map<string, Rect>,
-): FillRow[] {
+function elkFill(graph: SpikeGraph, laid: Map<string, Rect>): FillRow[] {
 	return graph.groups.map((group) => {
 		const box = laid.get(group.id) ?? { x: 0, y: 0, width: 0, height: 0 };
 		const cards = frameCards(group).length;
@@ -274,8 +272,7 @@ for (const [index, name] of projects.entries()) {
 				times.push(`${round(cold.ms)} | ${round(median(warm))}`);
 			}
 			laidOut.set(`${name}\n${ticketSet}\n${groupBy}`, { graph, laid });
-			const cards =
-				graph.outside.length + graph.groups.flatMap(frameCards).length;
+			const cards = allCards(graph).length;
 			console.log(
 				`| ${name} | ${ticketSet} | ${groupBy} | ${cards} | ${graph.edges.length} | ${frameCount(graph.groups)} | ${graph.depth} | ${times.join(" | ")} |`,
 			);
@@ -296,11 +293,7 @@ for (const groupBy of ["workstream", "theme"] as const) {
 	console.log(`\n### Group by ${groupBy}\n`);
 	console.log("| Layout | Frames | All groups | Worst group | Largest group |");
 	console.log("|---|---|---|---|---|");
-	const describe = (
-		label: string,
-		frames: string,
-		rows: FillRow[],
-	) => {
+	const describe = (label: string, frames: string, rows: FillRow[]) => {
 		const worst = [...rows].sort((left, right) => left.share - right.share)[0];
 		const largest = [...rows].sort(
 			(left, right) => right.cards - left.cards,

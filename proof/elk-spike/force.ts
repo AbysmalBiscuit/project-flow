@@ -10,6 +10,7 @@ import {
 } from "d3-force";
 import type { ElkNode } from "elkjs/lib/elk-api.js";
 import {
+	allCards,
 	card,
 	cell,
 	type Frame,
@@ -149,7 +150,7 @@ export function forceLayout(
 	graph: Omit<SpikeGraph, "tickets">,
 	ticks = 300,
 ): ElkNode {
-	const ids = [...graph.outside, ...graph.groups.flatMap(frameCards)];
+	const ids = allCards(graph);
 	const nodes: CardDatum[] = ids.map((id, index) => ({
 		id,
 		x: (index % 20) * cell.width,
