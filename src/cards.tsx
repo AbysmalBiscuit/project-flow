@@ -792,7 +792,9 @@ function OverviewPage({
 		if (written !== null) {
 			pageQueryClient.setQueryData(pageQuery.settings.queryKey, written);
 		}
-		void save.mutateAsync(next);
+		void save
+			.mutateAsync(next)
+			.catch(() => pageQueryClient.invalidateQueries(pageQuery.settings));
 	};
 	const saveView = (next: OverviewView) => {
 		savePatch((current) => ({ ...current, overview: next }));
