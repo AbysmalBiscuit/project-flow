@@ -301,29 +301,41 @@ export const board = stylex.create({
 	},
 	cardBacklog: {
 		borderColor: colours.ready,
-		backgroundColor: colours.readyWash,
+		backgroundColor: {
+			default: colours.readyWash,
+			":hover": colours.surfaceMuted,
+		},
 	},
 	cardProgress: {
 		borderColor: colours.progress,
-		backgroundColor: colours.progressWash,
+		backgroundColor: {
+			default: colours.progressWash,
+			":hover": colours.surfaceMuted,
+		},
 	},
 	cardReview: {
 		borderColor: colours.review,
-		backgroundColor: colours.reviewWash,
+		backgroundColor: {
+			default: colours.reviewWash,
+			":hover": colours.surfaceMuted,
+		},
 	},
 	cardMerge: {
 		borderColor: colours.merge,
-		backgroundColor: colours.mergeWash,
+		backgroundColor: {
+			default: colours.mergeWash,
+			":hover": colours.surfaceMuted,
+		},
 	},
 	cardDone: {
 		borderColor: colours.done,
-		backgroundColor: colours.page,
+		backgroundColor: {
+			default: colours.page,
+			":hover": colours.surfaceMuted,
+		},
 	},
 	cardDropped: {
 		borderColor: colours.dropped,
-		backgroundColor: colours.page,
-	},
-	cardHover: {
 		backgroundColor: {
 			default: colours.page,
 			":hover": colours.surfaceMuted,

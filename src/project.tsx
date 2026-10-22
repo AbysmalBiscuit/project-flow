@@ -392,7 +392,6 @@ function Card({
 				type="button"
 				className={clsx(
 					board.card,
-					board.cardHover,
 					board.cardFocus,
 					cardTone(ticket.statusType),
 				)}
