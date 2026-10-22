@@ -10,6 +10,8 @@ import type {
 } from "./domain.ts";
 import { pageQuery, usePostReply } from "./queries.ts";
 import {
+	collapsePanelLabel,
+	expandPanelLabel,
 	mergeFactLabel,
 	openOnGitHubLabel,
 	pullStatusLabel,
@@ -222,6 +224,7 @@ export function TicketPanel({
 	item = null,
 	onClose,
 	why,
+	dock = false,
 }: {
 	tracker: "github" | "linear";
 	project: string;
@@ -237,18 +240,23 @@ export function TicketPanel({
 	item?: NeedsYouItem | null;
 	onClose: () => void;
 	why?: string;
+	dock?: boolean;
 }) {
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [picked, setPicked] = useState(false);
+	const [expanded, setExpanded] = useState(false);
 	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
 	const reply = usePostReply(tracker, project, ticketKey);
 	const pending = reply.isPending;
 	const root = useRef<HTMLElement>(null);
+	const slot = useRef<HTMLDivElement>(null);
 	const opener = useRef<HTMLElement | null>(null);
 	const onCloseRef = useRef(onClose);
+	const expandedRef = useRef(expanded);
 	onCloseRef.current = onClose;
+	expandedRef.current = expanded;
 	useEffect(() => {
 		if (item?.answered === true) {
 			setPicked(false);
@@ -288,6 +296,10 @@ export function TicketPanel({
 				return;
 			}
 			event.preventDefault();
+			if (expandedRef.current) {
+				setExpanded(false);
+				return;
+			}
 			const target = opener.current;
 			onCloseRef.current();
 			setTimeout(() => {
@@ -335,12 +347,53 @@ export function TicketPanel({
 	const laneName =
 		lane ?? (state === undefined ? undefined : stateLabel[state]);
 	const stateName = state === undefined ? "unknown" : state;
-	return (
+	const [cover, setCover] = useState<HTMLElement | null>(null);
+	const host = useRef<HTMLDivElement | null>(null);
+	useLayoutEffect(() => {
+		const stage = host.current?.parentElement;
+		if (stage === null || stage === undefined || dock) {
+			setCover(null);
+			return;
+		}
+		const node = document.createElement("div");
+		node.dataset.panelCover = "";
+		node.hidden = true;
+		stage.append(node);
+		setCover(node);
+		return () => {
+			const aside = root.current;
+			const place = host.current;
+			if (
+				aside !== null &&
+				place !== null &&
+				aside.parentElement !== place &&
+				place.isConnected
+			) {
+				place.append(aside);
+			}
+			node.remove();
+			setCover(null);
+		};
+	}, [dock]);
+	useLayoutEffect(() => {
+		if (cover === null) {
+			return;
+		}
+		cover.hidden = !expanded;
+		cover.className = expanded ? clsx(panel.cover) : "";
+	}, [cover, expanded]);
+
+	const aside = (
 		<aside
-			className={clsx(panel.panel, why === undefined ? null : panel.needs)}
+			className={clsx(
+				panel.panel,
+				why === undefined ? null : panel.needs,
+				expanded && panel.expanded,
+			)}
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 			data-state={stateName}
+			data-expanded={expanded ? "true" : "false"}
 			ref={root}
 		>
 			<div className={clsx(panel.head)}>
@@ -353,6 +406,16 @@ export function TicketPanel({
 						>
 							Open on {trackerName}
 						</a>
+					)}
+					{dock ? null : (
+						<button
+							type="button"
+							className={clsx(panel.expand, shell.buttonFocus)}
+							aria-label={expanded ? collapsePanelLabel : expandPanelLabel}
+							onClick={() => setExpanded((open) => !open)}
+						>
+							{expanded ? "Collapse" : "Expand"}
+						</button>
 					)}
 					<button
 						type="button"
@@ -470,5 +533,24 @@ export function TicketPanel({
 				</form>
 			)}
 		</aside>
+	);
+	useLayoutEffect(() => {
+		const aside = root.current;
+		const place = host.current;
+		if (aside === null || place === null) {
+			return;
+		}
+		const target = expanded && cover !== null ? cover : place;
+		if (aside.parentElement !== target) {
+			target.append(aside);
+		}
+	});
+	return (
+		<div ref={host} className={clsx(panel.host)}>
+			{expanded && cover !== null ? (
+				<div className={clsx(panel.slot)} data-panel-slot="" ref={slot} />
+			) : null}
+			{aside}
+		</div>
 	);
 }

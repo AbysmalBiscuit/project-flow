@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4324",
+	"serve": ["bun", "proof/serve-needs-you.ts", "4324"],
+	"steps": [
+		{ "goto": "/needs-you" },
+		{ "assert_text": "Ready to merge" },
+		{ "click": "[data-needs='acme/widget#8'] button" },
+		{ "assert_text": "Expand" },
+		{ "click": "[aria-label='Expand panel']" },
+		{ "assert_text": "Collapse" },
+		{ "shot": "needs-expanded" },
+		{ "goto": "/inbox" },
+		{ "assert_text": "Ready to merge" },
+		{ "click": "button[data-inbox]" },
+		{ "assert_text": "Expand" },
+		{ "click": "[aria-label='Expand panel']" },
+		{ "assert_text": "Collapse" },
+		{ "shot": "inbox-expanded" }
+	]
+}
