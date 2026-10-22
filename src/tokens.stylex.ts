@@ -349,6 +349,8 @@ export const measure = stylex.defineVars({
 	edgeFlow: "0.8s",
 	switch: "2.1rem",
 	headerControl: "2.25rem",
+	button: "1.5rem",
+	buttonIcon: "0.875rem",
 	knob: "0.95rem",
 	switchCol: "5.5rem",
 	// Title, progress, legend and one chip row. Extra chips clip.

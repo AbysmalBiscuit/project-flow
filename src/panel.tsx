@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
+import { Button } from "./button.tsx";
 import { CommentMarkdown } from "./comment-markdown.tsx";
 import type {
 	NeedsYouItem,
@@ -11,6 +12,7 @@ import type {
 import { menuOwnsEscape } from "./focus.ts";
 import { pageQuery, usePostReply } from "./queries.ts";
 import {
+	closePanelLabel,
 	collapsePanelLabel,
 	expandPanelLabel,
 	mergeFactLabel,
@@ -347,6 +349,7 @@ export function TicketPanel({
 		}
 	}
 	const trackerName = tracker === "linear" ? "Linear" : "GitHub";
+	const href = thread?.url ?? url;
 	const laneName =
 		lane ?? (state === undefined ? undefined : stateLabel[state]);
 	const stateName = state === undefined ? "unknown" : state;
@@ -402,32 +405,22 @@ export function TicketPanel({
 			<div className={clsx(panel.head)}>
 				<span className={clsx(panel.key)}>{ticketKey}</span>
 				<span className={clsx(panel.actions)}>
-					{thread === null && url === undefined ? null : (
-						<a
-							className={clsx(panel.open, shell.linkFocus)}
-							href={thread?.url ?? url}
-						>
-							Open on {trackerName}
-						</a>
+					{href === undefined ? null : (
+						<Button
+							href={href}
+							icon="external-link"
+							label={trackerName}
+							name={`Open on ${trackerName}`}
+						/>
 					)}
 					{dock ? null : (
-						<button
-							type="button"
-							className={clsx(panel.expand, shell.buttonFocus)}
-							aria-label={expanded ? collapsePanelLabel : expandPanelLabel}
+						<Button
+							icon={expanded ? "shrink" : "expand"}
+							name={expanded ? collapsePanelLabel : expandPanelLabel}
 							onClick={() => setExpanded((open) => !open)}
-						>
-							{expanded ? "Collapse" : "Expand"}
-						</button>
+						/>
 					)}
-					<button
-						type="button"
-						className={clsx(panel.dismiss, shell.buttonFocus)}
-						aria-label="Close"
-						onClick={onClose}
-					>
-						×
-					</button>
+					<Button icon="x" name={closePanelLabel} onClick={onClose} />
 				</span>
 			</div>
 			{missing ? (

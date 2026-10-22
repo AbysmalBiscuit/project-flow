@@ -95,6 +95,8 @@ export const expandPanelLabel = "Expand panel";
 
 export const collapsePanelLabel = "Collapse panel";
 
+export const closePanelLabel = "Close";
+
 export const openOnGitHubLabel = "Open on GitHub";
 
 export const mergeFactLabel = {
