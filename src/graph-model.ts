@@ -58,6 +58,7 @@ export type TicketNodeData = {
 export type ClusterNodeData = {
 	name: string;
 	label: string;
+	members: string[];
 };
 
 export type ProjectNodeData = TicketNodeData | ClusterNodeData;
@@ -253,7 +254,11 @@ function clusterNodes(
 	}
 	const groups = new Map<
 		string,
-		{ label: string; places: { x: number; y: number; size: TicketSize }[] }
+		{
+			label: string;
+			places: { x: number; y: number; size: TicketSize }[];
+			members: string[];
+		}
 	>();
 	for (const ticket of tickets) {
 		const key = ticket.ticket.key;
@@ -268,8 +273,9 @@ function clusterNodes(
 			continue;
 		}
 		const label = groupLabelOf(ticket.ticket, groupBy, name);
-		const known = groups.get(name) ?? { label, places: [] };
+		const known = groups.get(name) ?? { label, places: [], members: [] };
 		known.places.push({ x: place.x, y: place.y, size });
+		known.members.push(id);
 		groups.set(name, known);
 	}
 	return [...groups.entries()]
@@ -294,7 +300,7 @@ function clusterNodes(
 				width,
 				height,
 				style: { width, height },
-				data: { name, label: group.label },
+				data: { name, label: group.label, members: group.members },
 				zIndex: -1,
 				draggable: false,
 				selectable: false,

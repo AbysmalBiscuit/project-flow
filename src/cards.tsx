@@ -18,6 +18,7 @@ import type {
 	ProjectCounts,
 } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
+import { useFocusSet } from "./focus.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -48,6 +49,7 @@ import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
+	clearFocusLabel,
 	loadingLabel,
 	navLabel,
 	overviewControlLabel,
@@ -760,6 +762,7 @@ function OverviewPage({
 	fetching: boolean;
 }) {
 	const [query, setQuery] = useState("");
+	const projectFocus = useFocusSet();
 	const [menu, setMenu] = useState<"filter" | "sort" | null>(null);
 	const [notifyPermission, setNotifyPermission] = useState(
 		notificationPermission,
@@ -792,7 +795,14 @@ function OverviewPage({
 	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
-		graph: <OverviewGraph projects={projects} catalogue={overview.projects} />,
+		graph: (
+			<OverviewGraph
+				projects={projects}
+				catalogue={overview.projects}
+				focus={projectFocus.focus}
+				onFocus={projectFocus.toggle}
+			/>
+		),
 		table: (
 			<TableView
 				projects={projects}
@@ -916,21 +926,33 @@ function OverviewPage({
 			filter={undefined}
 			sort={undefined}
 			search={
-				<label
-					className={clsx(headerControlStyle.search)}
-					htmlFor="overview-search"
-				>
-					<SearchGlyph />
-					<input
-						id="overview-search"
-						className={clsx(headerControlStyle.field)}
-						type="search"
-						aria-label={overviewControlLabel.search}
-						placeholder={overviewControlLabel.search}
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-					/>
-				</label>
+				<>
+					<label
+						className={clsx(headerControlStyle.search)}
+						htmlFor="overview-search"
+					>
+						<SearchGlyph />
+						<input
+							id="overview-search"
+							className={clsx(headerControlStyle.field)}
+							type="search"
+							aria-label={overviewControlLabel.search}
+							placeholder={overviewControlLabel.search}
+							value={query}
+							onChange={(event) => setQuery(event.target.value)}
+						/>
+					</label>
+					{view.view === "graph" && projectFocus.focus.size > 0 ? (
+						<button
+							type="button"
+							id="clear-focus"
+							className={clsx(headerControlStyle.control, shell.buttonFocus)}
+							onClick={projectFocus.clear}
+						>
+							{clearFocusLabel}
+						</button>
+					) : null}
+				</>
 			}
 			views={views}
 			view={view.view}

@@ -12,6 +12,9 @@ import {
 const focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
 export const board = stylex.create({
+	faded: {
+		opacity: 0.2,
+	},
 	crumb: {
 		margin: `0 0 ${space.xs}`,
 		color: colours.inkSoft,

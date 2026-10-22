@@ -90,7 +90,7 @@ const walkScript = `<script id="walk-theme">(function () {
 		for (var i = 0; i < nodes.length; i++) {
 			nodes[i].removeAttribute("data-walk-focus");
 		}
-		if (active && active !== document.body && active.id !== "walk-esc") {
+		if (active && active !== document.body && active.id !== "walk-esc" && active.id !== "walk-ctrl") {
 			var card = active.closest("li") || active.closest("tr") || active;
 			card.setAttribute("data-walk-focus", "");
 			card.scrollIntoView({ block: "center", inline: "nearest" });
@@ -110,7 +110,7 @@ const walkScript = `<script id="walk-theme">(function () {
 			markFocus();
 		});
 	}
-})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style><button type="button" id="walk-ctrl-k" hidden></button><input type="text" id="walk-esc" tabindex="-1" aria-label="Escape" style="position:fixed;right:0;bottom:0;opacity:0"><script id="walk-keys">(function () {
+})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style><button type="button" id="walk-ctrl-k" hidden></button><input type="text" id="walk-esc" tabindex="-1" aria-label="Escape" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-ctrl" tabindex="-1" aria-label="Control" style="position:fixed;right:0;bottom:0;opacity:0"><script id="walk-keys">(function () {
 	var opener = document.getElementById("walk-ctrl-k");
 	if (opener) {
 		opener.addEventListener("click", function () {
@@ -122,6 +122,31 @@ const walkScript = `<script id="walk-theme">(function () {
 				cancelable: true,
 			}));
 		});
+	}
+	var walkCtrl = document.getElementById("walk-ctrl");
+	var ctrlNext = false;
+	if (walkCtrl) {
+		walkCtrl.addEventListener("input", function () {
+			if (walkCtrl.value !== "") {
+				ctrlNext = true;
+			}
+			walkCtrl.value = "";
+		});
+		document.addEventListener("click", function (event) {
+			if (!ctrlNext || !event.isTrusted) {
+				return;
+			}
+			ctrlNext = false;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			event.target.dispatchEvent(new MouseEvent("click", {
+				bubbles: true,
+				cancelable: true,
+				clientX: event.clientX,
+				clientY: event.clientY,
+				ctrlKey: true,
+			}));
+		}, true);
 	}
 	var walkEsc = document.getElementById("walk-esc");
 	if (!walkEsc) {
@@ -151,13 +176,12 @@ const walkScript = `<script id="walk-theme">(function () {
 		var event = new KeyboardEvent("keydown", {
 			key: "Escape",
 			code: "Escape",
+			ctrlKey: stamp.indexOf("ctrl") === 0,
 			bubbles: true,
 			cancelable: true,
 		});
-		window.dispatchEvent(event);
-		if (!event.defaultPrevented) {
-			document.dispatchEvent(event);
-		}
+		var target = reply !== null && reply.isConnected ? reply : document.body;
+		target.dispatchEvent(event);
 		reply = null;
 	});
 })();</script>`;

@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
+import { isFocusClick } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import type {
 	ClusterNodeData,
@@ -257,7 +258,9 @@ export function ProjectGraph({
 	groupBy,
 	assignees,
 	openKey,
+	chain,
 	onOpen,
+	onFocus,
 	onDirection,
 }: {
 	report: ProjectReport;
@@ -266,7 +269,9 @@ export function ProjectGraph({
 	groupBy: GroupBy;
 	assignees: readonly string[];
 	openKey: string | null;
+	chain: ReadonlySet<string> | null;
 	onOpen: (ticket: OpenedNode) => void;
+	onFocus: (nodeId: string) => void;
 	onDirection: (direction: GraphDirection) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
@@ -292,6 +297,18 @@ export function ProjectGraph({
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
+	const faded = classToken(board.faded);
+	const nodes = model.nodes.map((node) => {
+		const kept = isClusterNode(node)
+			? node.data.members.some((id) => chain?.has(id) === true)
+			: chain?.has(node.id) === true;
+		return chain === null || kept ? node : { ...node, className: faded };
+	});
+	const edges = model.edges.map((edge) =>
+		chain === null || (chain.has(edge.source) && chain.has(edge.target))
+			? edge
+			: { ...edge, className: `${edge.className ?? ""} ${faded}`.trim() },
+	);
 	const places = model.nodes
 		.map((node) => {
 			const x = node.position.x;
@@ -311,6 +328,14 @@ export function ProjectGraph({
 			className={clsx(board.ticketGraph)}
 			data-group-by={groupBy}
 		>
+			<p id="project-graph-focus" className={clsx(cards.graphProbe)}>
+				{chain === null
+					? "focus none"
+					: `focus ${[...chain]
+							.sort()
+							.map((id) => id.replace("\n", " "))
+							.join(" | ")}`}
+			</p>
 			<p id="project-graph-places" className={clsx(cards.graphProbe)}>
 				{places}
 			</p>
@@ -338,8 +363,8 @@ export function ProjectGraph({
 			>
 				<ReactFlow
 					key={direction}
-					nodes={model.nodes}
-					edges={model.edges}
+					nodes={nodes}
+					edges={edges}
 					nodeTypes={nodeTypes}
 					edgeTypes={edgeTypes}
 					nodesDraggable={false}
@@ -353,8 +378,12 @@ export function ProjectGraph({
 						maxZoom: 1,
 					}}
 					proOptions={{ hideAttribution: true }}
-					onNodeClick={(_event, node) => {
+					onNodeClick={(event, node) => {
 						if (isClusterNode(node)) {
+							return;
+						}
+						if (isFocusClick(event)) {
+							onFocus(node.id);
 							return;
 						}
 						onOpen({

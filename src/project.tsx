@@ -3,7 +3,9 @@ import * as stylex from "@stylexjs/stylex";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import {
+	createContext,
 	type ReactNode,
+	useContext,
 	useEffect,
 	useLayoutEffect,
 	useMemo,
@@ -28,6 +30,8 @@ import {
 	ticketGroups,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
+import { focusChain, isFocusClick, useFocusSet } from "./focus.ts";
+import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
@@ -41,6 +45,7 @@ import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
 import {
 	blockedLabel,
+	clearFocusLabel,
 	filterEmptyLabel,
 	groupByLabel,
 	type HidingFilter,
@@ -377,6 +382,16 @@ function Chip({
 	);
 }
 
+type TicketFocus = {
+	faded: (key: string | null) => boolean;
+	toggle: (key: string) => void;
+};
+
+const TicketFocusContext = createContext<TicketFocus>({
+	faded: () => false,
+	toggle: () => {},
+});
+
 function Card({
 	ticket,
 	onOpen,
@@ -388,8 +403,10 @@ function Card({
 }) {
 	const key = ticket.key;
 	const { local, outside } = relationSplit(ticket);
+	const focus = useContext(TicketFocusContext);
+	const faded = focus.faded(key);
 	return (
-		<li>
+		<li className={clsx(faded && board.faded)}>
 			<button
 				type="button"
 				className={clsx(
@@ -398,10 +415,16 @@ function Card({
 					cardTone(ticket.statusType),
 				)}
 				data-ticket={key ?? ""}
-				onClick={() => {
-					if (key !== null) {
-						onOpen(key);
+				data-faded={faded ? "true" : "false"}
+				onClick={(event) => {
+					if (key === null) {
+						return;
 					}
+					if (isFocusClick(event)) {
+						focus.toggle(key);
+						return;
+					}
+					onOpen(key);
 				}}
 			>
 				<span className={clsx(board.meta)}>
@@ -743,17 +766,25 @@ function TableRow({
 	const key = ticket.key;
 	const { local, outside } = relationSplit(ticket);
 	const lane = displayedLane(ticket, lanes);
+	const focus = useContext(TicketFocusContext);
+	const faded = focus.faded(key);
 	return (
 		<tr
-			className={clsx(board.row, selected && board.rowOn)}
+			className={clsx(board.row, selected && board.rowOn, faded && board.faded)}
 			data-ticket={key ?? ""}
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
+			data-faded={faded ? "true" : "false"}
 			tabIndex={key === null ? undefined : 0}
-			onClick={() => {
-				if (key !== null) {
-					onOpen(key);
+			onClick={(event) => {
+				if (key === null) {
+					return;
 				}
+				if (isFocusClick(event)) {
+					focus.toggle(key);
+					return;
+				}
+				onOpen(key);
 			}}
 			onKeyDown={(event) => {
 				if (
@@ -1276,6 +1307,12 @@ export function Page() {
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
+	const ticketFocus = useFocusSet();
+	const clearFocus = ticketFocus.clear;
+	useEffect(() => {
+		void name;
+		clearFocus();
+	}, [name, clearFocus]);
 	const reportQuery = useQuery(pageQuery.project(name, "all"));
 	const overviewQuery = useQuery(pageQuery.overview);
 	const settingsQuery = useQuery(pageQuery.settings);
@@ -1484,6 +1521,16 @@ export function Page() {
 		});
 		saveChain.current = write.catch(() => {});
 	};
+	const chain =
+		ticketFocus.focus.size === 0
+			? null
+			: focusChain(ticketFocus.focus, graphEdges(report));
+	const focusValue: TicketFocus = {
+		faded: (key) =>
+			chain !== null &&
+			(key === null || !chain.has(projectNodeId(report.name, key))),
+		toggle: (key) => ticketFocus.toggle(projectNodeId(report.name, key)),
+	};
 	const openTicketInPanel = (key: string) => {
 		setOpenedState(null);
 		setPanelProject(report.name);
@@ -1510,198 +1557,222 @@ export function Page() {
 	};
 	return (
 		<ReactFlowProvider>
-			<AppShell>
-				<main
-					className={clsx(frame.page, phoneGutter.page, frame.wide, frame.fill)}
-				>
-					<div className={clsx(board.head, projectHeaderLayout.head)}>
-						<div className={clsx(board.identity)}>
-							<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
-							<h1 className={clsx(board.name)}>{report.name}</h1>
-							<p className={clsx(board.counts)}>
-								{countLine(report)}
-								<PollAgeText
-									queryKey={pageQuery.project(name, "all").queryKey}
-									refreshing={polling || reportQuery.isFetching}
-								/>
-							</p>
-						</div>
-						<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
-							<RefreshButton
-								id="project-refresh"
-								refreshing={polling || reportQuery.isFetching}
-								onRefresh={() =>
-									postRefresh(pageQuery.project(name, "all").queryKey)
-								}
-							/>
-							<FilterMenu
-								report={report}
-								view={settings}
-								open={filterOpen}
-								onOpen={setFilterOpen}
-								onChange={saveView}
-							/>
-							<input
-								id="project-search"
-								className={clsx(headerControlStyle.control, board.find)}
-								type="search"
-								aria-label="Search"
-								placeholder="Search"
-								value={settings.search}
-								onChange={(event) =>
-									saveView(
-										{ ...settings, search: event.target.value },
-										undefined,
-										searchSaveDelayMs,
-									)
-								}
-							/>
-							<Dropdown
-								id="project-group"
-								label="Group by"
-								style={headerControlStyle.control}
-								value={
-									view === "graph"
-										? graphGroupBy(settings)
-										: boardGroupBy(settings)
-								}
-								choices={groupByKeys.map((id) => ({
-									id,
-									label: `Group by ${groupByLabel[id]}`,
-								}))}
-								onChange={(id) => {
-									if (isGroupBy(id)) {
-										groupBySavedRef.current = true;
-										saveView({ ...settings, groupBy: id });
-									}
-								}}
-							/>
-							<fieldset className={clsx(headerControlStyle.group)}>
-								<legend className={clsx(frame.visuallyHidden)}>Views</legend>
-								{views.map((item) => (
-									<button
-										key={item.id}
-										type="button"
-										id={`view-${item.id}`}
-										className={clsx(
-											headerControlStyle.segment,
-											shell.buttonFocus,
-											view === item.id && headerControlStyle.segmentOn,
-										)}
-										aria-pressed={view === item.id}
-										onClick={() => {
-											if (!isPageView(item.id)) {
-												return;
-											}
-											saveView({ ...settings, lastView: item.id }, item.id);
-										}}
-									>
-										{item.label}
-									</button>
-								))}
-							</fieldset>
-						</div>
-					</div>
-					<div
-						data-project={report.name}
-						data-open-view={view}
-						data-group-by={
-							view === "graph" ? graphGroupBy(settings) : boardGroupBy(settings)
-						}
-					/>
-					<div className={clsx(board.stage)}>
-						{hidingFiltersOf(report).length > 0 ? (
-							<FilteredEmpty
-								names={hidingFiltersOf(report)}
-								onClear={() => saveView(clearedView(settings, report.lanes))}
-							/>
-						) : view === "board" ? (
-							<Board
-								report={report}
-								settings={settings}
-								selected={open ? ticket : null}
-								onOpen={openTicketInPanel}
-								onOpenOutside={openOutsideInPanel}
-							/>
-						) : view === "table" ? (
-							<TicketTable
-								report={report}
-								groupBy={boardGroupBy(settings)}
-								selected={open ? ticket : null}
-								onOpen={openTicketInPanel}
-								onOpenOutside={openOutsideInPanel}
-							/>
-						) : view === "graph" ? (
-							<ProjectGraph
-								report={report}
-								reports={outsideReports}
-								direction={settings.graphDirection}
-								groupBy={graphGroupBy(settings)}
-								assignees={settings.assignees}
-								openKey={open ? ticket : null}
-								onDirection={(next) =>
-									saveView({ ...settings, graphDirection: next })
-								}
-								onOpen={(node) => {
-									if (node.outside) {
-										openOutsideInPanel(node, node.state);
-										return;
-									}
-									openTicketInPanel(node.key);
-								}}
-							/>
-						) : (
-							<p className={clsx(board.placeholder)}>{view}</p>
+			<TicketFocusContext.Provider value={focusValue}>
+				<AppShell>
+					<main
+						className={clsx(
+							frame.page,
+							phoneGutter.page,
+							frame.wide,
+							frame.fill,
 						)}
-						{open && ticket !== null ? (
-							<TicketPanel
-								key={`${panelTracker}:${panelProject}:${ticket}`}
-								tracker={panelTracker}
-								project={panelProject}
-								ticketKey={ticket}
-								{...(selected?.title === undefined
-									? {}
-									: { title: selected.title })}
-								url={
-									selected?.key === undefined || selected.key === null
-										? undefined
-										: trackerUrl(panelTracker, selected.key)
-								}
-								{...(selected?.state !== undefined
-									? { state: selected.state }
-									: openedState === null
-										? {}
-										: { state: openedState })}
-								lane={selected?.lane}
-								laneColour={
-									report.lanes.find((lane) => lane.name === selected?.lane)
-										?.colour
-								}
-								blockers={incoming}
-								blocks={outgoing}
-								item={panelItem(
-									source,
-									panelTracker,
-									panelProject,
-									ticket,
-									active,
+					>
+						<div className={clsx(board.head, projectHeaderLayout.head)}>
+							<div className={clsx(board.identity)}>
+								<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
+								<h1 className={clsx(board.name)}>{report.name}</h1>
+								<p className={clsx(board.counts)}>
+									{countLine(report)}
+									<PollAgeText
+										queryKey={pageQuery.project(name, "all").queryKey}
+										refreshing={polling || reportQuery.isFetching}
+									/>
+								</p>
+							</div>
+							<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
+								<RefreshButton
+									id="project-refresh"
+									refreshing={polling || reportQuery.isFetching}
+									onRefresh={() =>
+										postRefresh(pageQuery.project(name, "all").queryKey)
+									}
+								/>
+								<FilterMenu
+									report={report}
+									view={settings}
+									open={filterOpen}
+									onOpen={setFilterOpen}
+									onChange={saveView}
+								/>
+								<input
+									id="project-search"
+									className={clsx(headerControlStyle.control, board.find)}
+									type="search"
+									aria-label="Search"
+									placeholder="Search"
+									value={settings.search}
+									onChange={(event) =>
+										saveView(
+											{ ...settings, search: event.target.value },
+											undefined,
+											searchSaveDelayMs,
+										)
+									}
+								/>
+								{chain === null ? null : (
+									<button
+										type="button"
+										id="clear-focus"
+										className={clsx(
+											headerControlStyle.control,
+											shell.buttonFocus,
+										)}
+										onClick={ticketFocus.clear}
+									>
+										{clearFocusLabel}
+									</button>
 								)}
-								onOpenBlocker={(blocker) => {
-									setPanelProject(blocker.project);
-									setPanelTracker(blocker.tracker);
-									setTicket(blocker.key);
-									setOpen(true);
-								}}
-								onClose={() => {
-									clearTicketQuery();
-									closeTicket();
-									setOpen(false);
-								}}
-							/>
-						) : null}
-					</div>
-				</main>
-			</AppShell>
+								<Dropdown
+									id="project-group"
+									label="Group by"
+									style={headerControlStyle.control}
+									value={
+										view === "graph"
+											? graphGroupBy(settings)
+											: boardGroupBy(settings)
+									}
+									choices={groupByKeys.map((id) => ({
+										id,
+										label: `Group by ${groupByLabel[id]}`,
+									}))}
+									onChange={(id) => {
+										if (isGroupBy(id)) {
+											groupBySavedRef.current = true;
+											saveView({ ...settings, groupBy: id });
+										}
+									}}
+								/>
+								<fieldset className={clsx(headerControlStyle.group)}>
+									<legend className={clsx(frame.visuallyHidden)}>Views</legend>
+									{views.map((item) => (
+										<button
+											key={item.id}
+											type="button"
+											id={`view-${item.id}`}
+											className={clsx(
+												headerControlStyle.segment,
+												shell.buttonFocus,
+												view === item.id && headerControlStyle.segmentOn,
+											)}
+											aria-pressed={view === item.id}
+											onClick={() => {
+												if (!isPageView(item.id)) {
+													return;
+												}
+												saveView({ ...settings, lastView: item.id }, item.id);
+											}}
+										>
+											{item.label}
+										</button>
+									))}
+								</fieldset>
+							</div>
+						</div>
+						<div
+							data-project={report.name}
+							data-open-view={view}
+							data-group-by={
+								view === "graph"
+									? graphGroupBy(settings)
+									: boardGroupBy(settings)
+							}
+						/>
+						<div className={clsx(board.stage)}>
+							{hidingFiltersOf(report).length > 0 ? (
+								<FilteredEmpty
+									names={hidingFiltersOf(report)}
+									onClear={() => saveView(clearedView(settings, report.lanes))}
+								/>
+							) : view === "board" ? (
+								<Board
+									report={report}
+									settings={settings}
+									selected={open ? ticket : null}
+									onOpen={openTicketInPanel}
+									onOpenOutside={openOutsideInPanel}
+								/>
+							) : view === "table" ? (
+								<TicketTable
+									report={report}
+									groupBy={boardGroupBy(settings)}
+									selected={open ? ticket : null}
+									onOpen={openTicketInPanel}
+									onOpenOutside={openOutsideInPanel}
+								/>
+							) : view === "graph" ? (
+								<ProjectGraph
+									report={report}
+									reports={outsideReports}
+									direction={settings.graphDirection}
+									groupBy={graphGroupBy(settings)}
+									assignees={settings.assignees}
+									openKey={open ? ticket : null}
+									chain={chain}
+									onFocus={ticketFocus.toggle}
+									onDirection={(next) =>
+										saveView({ ...settings, graphDirection: next })
+									}
+									onOpen={(node) => {
+										if (node.outside) {
+											openOutsideInPanel(node, node.state);
+											return;
+										}
+										openTicketInPanel(node.key);
+									}}
+								/>
+							) : (
+								<p className={clsx(board.placeholder)}>{view}</p>
+							)}
+							{open && ticket !== null ? (
+								<TicketPanel
+									key={`${panelTracker}:${panelProject}:${ticket}`}
+									tracker={panelTracker}
+									project={panelProject}
+									ticketKey={ticket}
+									{...(selected?.title === undefined
+										? {}
+										: { title: selected.title })}
+									url={
+										selected?.key === undefined || selected.key === null
+											? undefined
+											: trackerUrl(panelTracker, selected.key)
+									}
+									{...(selected?.state !== undefined
+										? { state: selected.state }
+										: openedState === null
+											? {}
+											: { state: openedState })}
+									lane={selected?.lane}
+									laneColour={
+										report.lanes.find((lane) => lane.name === selected?.lane)
+											?.colour
+									}
+									blockers={incoming}
+									blocks={outgoing}
+									item={panelItem(
+										source,
+										panelTracker,
+										panelProject,
+										ticket,
+										active,
+									)}
+									onOpenBlocker={(blocker) => {
+										setPanelProject(blocker.project);
+										setPanelTracker(blocker.tracker);
+										setTicket(blocker.key);
+										setOpen(true);
+									}}
+									onClose={() => {
+										clearTicketQuery();
+										closeTicket();
+										setOpen(false);
+									}}
+								/>
+							) : null}
+						</div>
+					</main>
+				</AppShell>
+			</TicketFocusContext.Provider>
 		</ReactFlowProvider>
 	);
 }

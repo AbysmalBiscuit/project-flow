@@ -231,6 +231,8 @@ export const hidingFilterLabel: Record<HidingFilter, string> = {
 	search: "Search",
 };
 
+export const clearFocusLabel = "Clear focus";
+
 export const filterEmptyLabel = {
 	clear: "Clear filters",
 	one: "hides",
