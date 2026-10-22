@@ -131,9 +131,11 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			headers text not null
 		)
 	`);
+	let revision = 0;
 	return {
 		store: {
 			replaceTickets(rows) {
+				revision += 1;
 				db.transaction(() => {
 					db.run("delete from snapshots");
 					for (const row of rows) {
@@ -145,6 +147,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 				return readRows(db);
 			},
 			mergeTickets(rows) {
+				revision += 1;
 				db.transaction(() => {
 					const stored = new Map(readRows(db).map((row) => [row.key, row]));
 					for (const row of rows) {
@@ -166,6 +169,7 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 				return new Date(row.fetched_at);
 			},
 			recordGoodPoll(project, at) {
+				revision += 1;
 				const fetchedAt = at.toISOString();
 				db.query(
 					"insert into project_polls (project, fetched_at) values (?, ?) on conflict(project) do update set fetched_at = excluded.fetched_at",
@@ -175,18 +179,24 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 				).run(fetchedAt);
 			},
 			forgetGoodPoll(project) {
-				db.query("delete from project_polls where project = ?").run(project);
+				revision += db
+					.query("delete from project_polls where project = ?")
+					.run(project).changes;
 			},
 			recordFetchError(message) {
+				revision += 1;
 				db.query("update fetch_status set error = ? where id = 1").run(message);
 			},
 			recordProjectError(project, message) {
+				revision += 1;
 				db.query(
 					"insert into project_errors (project, error) values (?, ?) on conflict(project) do update set error = excluded.error",
 				).run(project, message);
 			},
 			clearProjectError(project) {
-				db.query("delete from project_errors where project = ?").run(project);
+				revision += db
+					.query("delete from project_errors where project = ?")
+					.run(project).changes;
 			},
 			projectError(project) {
 				const pending = db
@@ -298,6 +308,9 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 			},
 			forgetValidator(url) {
 				db.query("delete from validators where url = ?").run(url);
+			},
+			revision() {
+				return revision;
 			},
 		},
 		close: () => db.close(),

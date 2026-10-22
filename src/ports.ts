@@ -135,6 +135,8 @@ export type Store = {
 	) => void;
 	/** Drop the last GitHub REST response for a URL. */
 	forgetValidator: (url: string) => void;
+	/** A number that changes on each write to the tickets, polls or errors. */
+	revision: () => number;
 };
 
 export type Change = {

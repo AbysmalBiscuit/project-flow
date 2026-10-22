@@ -44,7 +44,12 @@ import type {
 	Store,
 	TodoSource,
 } from "./ports.ts";
-import { attentionFor, overview, projectViews } from "./project-views.ts";
+import {
+	attentionFor,
+	overview,
+	projectViewNamed,
+	projectViews,
+} from "./project-views.ts";
 import {
 	mergedSettingsWrite,
 	readSettingsWrite,
@@ -125,12 +130,14 @@ function reportFor(
 	name: string,
 	filtered: boolean,
 ): ProjectReport | null {
-	const views = attachGraphStates(
-		projectViews(options, configuration).map((item) => item.report),
-	);
-	const match = views.find(
-		(item) => item.name.toLowerCase() === name.toLowerCase(),
-	);
+	const found = projectViewNamed(options, configuration, name);
+	if (found === null) {
+		return null;
+	}
+	const [match] = attachGraphStates([
+		found.view.report,
+		...found.linked.map((item) => item.report),
+	]);
 	if (match === undefined) {
 		return null;
 	}

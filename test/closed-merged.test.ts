@@ -3,10 +3,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { refreshSettled } from "./events.ts";
 import projectFields from "./fixtures/github-project-fields.json";
 import {
 	recordedDiscovery,
-	settledOverview,
 	type TrackerRequest,
 	tempConfig,
 	testIo,
@@ -201,7 +201,6 @@ type FlightItem = {
 
 type ProjectBody = {
 	tickets?: FlightItem[];
-	polling?: true;
 };
 
 test("a stored open ticket moves to done when a later poll closes it with a merged PR", async () => {
@@ -304,18 +303,8 @@ test("a stored open ticket moves to done when a later poll closes it with a merg
 		expect(firstPoll).toBeGreaterThan(0);
 		closed = true;
 		now += 11 * 60 * 1000;
-		const refresh = await fetch(new URL("/api/refresh", base), {
-			method: "POST",
-		});
-		expect(refresh.status).toBe(204);
-		const report = await settledOverview(base, async (address) => {
-			const body = await readProject(address);
-			if (body.polling === true) {
-				return { polling: true as const };
-			}
-			return body;
-		});
-		expect(report.polling).not.toBe(true);
+		await refreshSettled(base);
+		const report = await readProject(base);
 		expect(requests.length).toBeGreaterThan(firstPoll);
 		expect(ticketFrom(report)).toMatchObject({
 			state: "done",
