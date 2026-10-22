@@ -14,23 +14,22 @@ import {
 } from "react";
 import { board } from "./board-styles.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
-import type {
-	CrossProjectBlocker,
-	NeedsYouItem,
-	ProjectReport,
-	StatusType,
-	TicketRelation,
-	TicketView,
-} from "./domain.ts";
 import {
+	type CrossProjectBlocker,
 	displayedLaneName,
 	doneTicketsForLane,
 	filterProjectReport,
+	focusChain,
+	type NeedsYouItem,
+	type ProjectReport,
+	type StatusType,
 	sameTicketKey,
+	type TicketRelation,
+	type TicketView,
 	ticketGroups,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { focusChain, isFocusClick, shownSeeds, useFocusView } from "./focus.ts";
+import { isFocusClick, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";

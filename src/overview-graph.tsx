@@ -13,14 +13,13 @@ import {
 } from "@xyflow/react";
 import { createContext, useContext, useEffect, useMemo } from "react";
 import { board } from "./board-styles.ts";
-import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import {
-	type FocusLink,
-	type FocusView,
+	type CrossProjectBlocker,
 	focusChain,
-	isFocusClick,
-	shownSeeds,
-} from "./focus.ts";
+	overviewFocusLinks,
+	type ProjectCounts,
+} from "./domain.ts";
+import { type FocusView, isFocusClick, shownSeeds } from "./focus.ts";
 import { overviewFlowPlaces } from "./graph-flow.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
@@ -325,15 +324,6 @@ function edgeFor(
 			},
 		},
 	];
-}
-
-export function overviewFocusLinks(projects: ProjectCounts[]): FocusLink[] {
-	return projects.flatMap((project) =>
-		project.crossProjectBlockers.map((blocker) => ({
-			from: blocker.project,
-			to: project.name,
-		})),
-	);
 }
 
 export function OverviewGraph({
