@@ -306,6 +306,7 @@ describe("GET /api/projects/:name", () => {
 				).json()) as ProjectReport;
 				expect(filtered.tickets.map((item) => item.key)).toEqual([
 					`${githubRepo}#2`,
+					`${githubRepo}#8`,
 				]);
 				expect(filtered.graphLinks).toEqual(report.graphLinks);
 				expect(filtered.graphTickets.map((item) => item.key)).toContain(
@@ -315,6 +316,7 @@ describe("GET /api/projects/:name", () => {
 					`${githubRepo}#8`,
 				);
 			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
 	});
 
@@ -342,6 +344,7 @@ describe("GET /api/projects/:name", () => {
 				).json()) as ProjectReport;
 				expect(report.tickets.map((item) => item.key)).toEqual([
 					`${githubRepo}#2`,
+					`${githubRepo}#8`,
 				]);
 				const drawn = report.graphTickets.find(
 					(item) => item.key === `${githubRepo}#8`,
@@ -354,6 +357,7 @@ describe("GET /api/projects/:name", () => {
 				expect(link?.from.state).toBe("done");
 				expect(link?.to.state).toBe("backlog");
 			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
 	});
 
@@ -2301,6 +2305,73 @@ describe("GET /api/projects/:name", () => {
 					`${githubRepo}#1`,
 				]);
 				expect(hidden.hiddenBy).toEqual(["maxAge"]);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
+	test("the filtered graph leaves out a linked done ticket older than the lane max age until the cap clears", async () => {
+		const issues = [
+			issue(2, "feat(ux): draw the nodes", {
+				body: "Blocked by: #8\nBlocked by: #9",
+				updated_at: "2026-08-18T09:00:00.000Z",
+			}),
+			issue(8, "Open the old gate", {
+				state: "closed",
+				state_reason: "completed",
+				updated_at: "2026-08-10T12:00:00.000Z",
+				closed_at: "2026-08-10T12:00:00.000Z",
+			}),
+			issue(9, "Open the new gate", {
+				state: "closed",
+				state_reason: "completed",
+				updated_at: "2026-08-17T12:00:00.000Z",
+				closed_at: "2026-08-17T12:00:00.000Z",
+			}),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			githubFetch(issues, []),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const graphOf = async (maxAgeDays: Record<string, number>) => {
+					const current = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Record<string, unknown>;
+					const saved = await fetch(new URL("/api/settings", base), {
+						method: "PUT",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({
+							...current,
+							projectViews: { [githubRepo]: { maxAgeDays } },
+						}),
+					});
+					expect(saved.status).toBe(200);
+					const report = (await (
+						await fetch(
+							new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+						)
+					).json()) as ProjectReport;
+					return {
+						tickets: report.graphTickets.map((ticket) => ticket.key),
+						links: report.graphLinks.map(
+							(link) => `${link.from.key} -> ${link.to.key}`,
+						),
+					};
+				};
+				expect(await graphOf({ Done: 3 })).toEqual({
+					tickets: [`${githubRepo}#2`, `${githubRepo}#9`],
+					links: [`${githubRepo}#9 -> ${githubRepo}#2`],
+				});
+				expect(await graphOf({ Done: 0 })).toEqual({
+					tickets: [`${githubRepo}#2`, `${githubRepo}#8`, `${githubRepo}#9`],
+					links: [
+						`${githubRepo}#8 -> ${githubRepo}#2`,
+						`${githubRepo}#9 -> ${githubRepo}#2`,
+					],
+				});
 			},
 			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
