@@ -9,6 +9,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { board } from "./board-styles.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -54,7 +55,7 @@ import {
 	projectHeaderLayout,
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { frame, headerControlStyle, shell } from "./ui-styles.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphGroupBy,
@@ -391,9 +392,8 @@ function Card({
 				type="button"
 				className={clsx(
 					board.card,
-					board.cardHover,
 					board.cardFocus,
-					ticket.blocked && board.cardBlocked,
+					cardTone(ticket.statusType),
 				)}
 				data-ticket={key ?? ""}
 				onClick={() => {
@@ -435,7 +435,7 @@ function Card({
 							/>
 						))}
 						{ticket.needsYou ? (
-							<span className={clsx(board.chip, board.chipNeeds)}>
+							<span className={clsx(board.chip, board.chipNeedsPill)}>
 								{navLabel.needsYou}
 							</span>
 						) : null}
@@ -444,6 +444,19 @@ function Card({
 			</button>
 		</li>
 	);
+}
+
+const cardTones: Record<StatusType, typeof board.cardBacklog> = {
+	backlog: board.cardBacklog,
+	inProgress: board.cardProgress,
+	inReview: board.cardReview,
+	awaitingMerge: board.cardMerge,
+	done: board.cardDone,
+	dropped: board.cardDropped,
+};
+
+function cardTone(statusType: StatusType | undefined) {
+	return statusType === undefined ? board.cardBacklog : cardTones[statusType];
 }
 
 const statusMarks: Record<StatusType, typeof board.markBacklog> = {
@@ -539,6 +552,21 @@ function Lane({
 				/>
 				{name} {listed.length}
 			</h2>
+			{capped && !shown && listed.length < tickets.length ? (
+				<button
+					type="button"
+					className={clsx(
+						shell.button,
+						shell.buttonHover,
+						shell.buttonFocus,
+						board.showAll,
+					)}
+					data-show-all={name}
+					onClick={onShowAll}
+				>
+					Show all
+				</button>
+			) : null}
 			<div
 				className={clsx(board.laneBody, capped && !shown && board.cardsClip)}
 				data-lane-cards={name}
@@ -562,21 +590,6 @@ function Lane({
 					))
 				)}
 			</div>
-			{capped && !shown && listed.length < tickets.length ? (
-				<button
-					type="button"
-					className={clsx(
-						shell.button,
-						shell.buttonHover,
-						shell.buttonFocus,
-						board.showAll,
-					)}
-					data-show-all={name}
-					onClick={onShowAll}
-				>
-					Show all
-				</button>
-			) : null}
 		</section>
 	);
 }

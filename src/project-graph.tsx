@@ -13,6 +13,7 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
+import { board } from "./board-styles.ts";
 import {
 	groupLabelOf,
 	outsideKey,
@@ -47,7 +48,7 @@ import {
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { classToken, clsx } from "./ui.ts";
-import { board, cards, headerControlStyle } from "./ui-styles.ts";
+import { cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
