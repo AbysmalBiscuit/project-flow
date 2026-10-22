@@ -1916,10 +1916,12 @@ function graphLinks(
 		}
 		const other = source ?? known(index, ref);
 		const done =
-			ref.state === "closed" ||
-			(other !== undefined
-				? other.state !== "open"
-				: ref.state !== undefined && ref.state !== "open");
+			other?.state === "open"
+				? false
+				: ref.state === "closed" ||
+					(other !== undefined
+						? true
+						: ref.state !== undefined && ref.state !== "open");
 		const project =
 			other === undefined ? "" : blockerProject(other, ref, groups);
 		const outside =

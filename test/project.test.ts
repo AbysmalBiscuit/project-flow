@@ -1098,6 +1098,15 @@ describe("GET /api/projects/:name", () => {
 				);
 				expect(card?.blockers).toEqual([`${githubRepo}#216`]);
 				expect(card?.blocked).toBe(true);
+				expect(
+					card?.links?.find((link) => link.key === `${githubRepo}#216`)?.done,
+				).toBe(false);
+				const heldClosed = report.graphLinks.find(
+					(link) =>
+						link.from.key === `${githubRepo}#216` &&
+						link.to.key === `${githubRepo}#245`,
+				);
+				expect(heldClosed?.done).toBe(false);
 				const blank = await fetch(
 					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
 				);
