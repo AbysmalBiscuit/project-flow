@@ -1,0 +1,15 @@
+{
+	"base_url": "http://127.0.0.1:47322",
+	"serve": ["bun", "proof/serve-comment-markdown.ts", "47322"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Shaped comment" },
+		{ "click": "[data-ticket='acme/widget#1']" },
+		{ "assert_text": "Render note" },
+		{ "assert_text": "open task" },
+		{ "assert_text": "done task" },
+		{ "shot": "checks-light" },
+		{ "click": "button[data-theme-toggle]" },
+		{ "shot": "checks-dark" }
+	]
+}
