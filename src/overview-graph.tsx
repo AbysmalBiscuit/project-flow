@@ -419,6 +419,7 @@ export function OverviewGraph({
 					elementsSelectable={false}
 					panOnDrag
 					zoomOnScroll
+					zoomOnDoubleClick={false}
 					fitView
 					proOptions={{ hideAttribution: true }}
 				>
