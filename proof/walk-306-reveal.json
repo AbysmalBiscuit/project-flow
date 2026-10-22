@@ -1,0 +1,13 @@
+{
+	"base_url": "http://127.0.0.1:47388",
+	"serve": ["bun", "proof/serve-show-all.ts", "47388"],
+	"steps": [
+		{ "goto": "/projects/Widget%20board?frame=acme/widget%2315" },
+		{ "assert_text": "Show all" },
+		{ "click": "[data-show-all='Done']" },
+		{ "assert_text": "Close item 6" },
+		{ "click": "#card-lane-frame" },
+		{ "assert_text": "lanes framed" },
+		{ "shot": "after-show-all" }
+	]
+}

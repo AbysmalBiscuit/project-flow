@@ -543,30 +543,36 @@ function Lane({
 			? pool.slice(doneCap).filter((ticket) => ticket.key === reveal)
 			: [];
 	const visible = [...listed, ...selected];
+	const showAll = capped && !shown && listed.length < tickets.length;
 	return (
 		<section className={clsx(board.lane)} data-lane={name} aria-label={name}>
-			<h2 className={clsx(board.laneTitle)}>
-				<span
-					className={clsx(board.laneMark, laneMark(colour, statusType))}
-					data-lane-colour={colour}
-				/>
-				{name} {listed.length}
-			</h2>
-			{capped && !shown && listed.length < tickets.length ? (
-				<button
-					type="button"
-					className={clsx(
-						shell.button,
-						shell.buttonHover,
-						shell.buttonFocus,
-						board.showAll,
-					)}
-					data-show-all={name}
-					onClick={onShowAll}
-				>
-					Show all
-				</button>
-			) : null}
+			<div className={clsx(board.laneHead)}>
+				<h2 className={clsx(board.laneTitle)}>
+					<span
+						className={clsx(board.laneMark, laneMark(colour, statusType))}
+						data-lane-colour={colour}
+					/>
+					<span className={clsx(board.laneName)} title={name}>
+						{name}
+					</span>{" "}
+					{listed.length}
+				</h2>
+				{showAll ? (
+					<button
+						type="button"
+						className={clsx(
+							shell.button,
+							shell.buttonHover,
+							shell.buttonFocus,
+							board.showAll,
+						)}
+						data-show-all={name}
+						onClick={onShowAll}
+					>
+						Show all
+					</button>
+				) : null}
+			</div>
 			<div
 				className={clsx(board.laneBody, capped && !shown && board.cardsClip)}
 				data-lane-cards={name}
