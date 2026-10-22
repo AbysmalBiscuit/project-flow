@@ -1,0 +1,17 @@
+{
+	"base_url": "http://127.0.0.1:4358",
+	"viewport": { "width": 1440, "height": 1000 },
+	"serve": ["bun", "proof/serve-354.ts", "4358"],
+	"steps": [
+		{ "goto": "/projects/Initial%20SDI%20Issues" },
+		{ "assert_text": "Publish the search index" },
+		{ "fill": "#project-search", "text": "date columns" },
+		{
+			"assert_text": "SDI-13 in SDI-4 in SDI-2 in SDI-1 | SDI-2 in SDI-1 | SDI-4 in SDI-2 in SDI-1"
+		},
+		{ "assert_text": "Stand up the SDI pipeline" },
+		{ "assert_text": "Validate the export schema" },
+		{ "click": "#project-graph-fit" },
+		{ "shot": "sdi-filtered-parents" }
+	]
+}
