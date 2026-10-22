@@ -18,10 +18,7 @@ export const float = stylex.create({
 		right: 0,
 		left: 0,
 		display: "flex",
-		flexWrap: "wrap",
-		gap: space.xs,
 		alignItems: "flex-start",
-		justifyContent: "space-between",
 		pointerEvents: "none",
 	},
 	corner: {
