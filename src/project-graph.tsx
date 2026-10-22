@@ -326,20 +326,13 @@ export function ProjectGraph({
 		return { ...node, className: chain === null || kept ? fades : faded };
 	});
 	const edges = model.edges.map((edge) => {
-		const base = edge.className ?? "";
-		if (chain === null) {
-			return { ...edge, className: `${base} ${fades}`.trim() };
+		const kept =
+			chain === null || (chain.has(edge.source) && chain.has(edge.target));
+		const className = `${edge.className ?? ""} ${kept ? fades : faded}`.trim();
+		if (chain === null || !kept || edge.data === undefined) {
+			return { ...edge, className };
 		}
-		if (chain.has(edge.source) && chain.has(edge.target)) {
-			return {
-				...edge,
-				className: `${base} ${fades}`.trim(),
-				...(edge.data === undefined
-					? {}
-					: { data: { ...edge.data, flowing: true } }),
-			};
-		}
-		return { ...edge, className: `${base} ${faded}`.trim() };
+		return { ...edge, className, data: { ...edge.data, flowing: true } };
 	});
 	const places = model.nodes
 		.map((node) => {
