@@ -7,7 +7,6 @@ import type {
 	ProjectCounts,
 	ProjectReport,
 	ReplyRequest,
-	SettingsProject,
 	Snapshot,
 } from "./domain.ts";
 import {
@@ -41,11 +40,9 @@ import { type PollOptions, poll, runningOverview } from "./poll.ts";
 import type {
 	Change,
 	CheckoutSource,
-	FoundProject,
 	Notifier,
 	Store,
 	TodoSource,
-	Tracker,
 } from "./ports.ts";
 import { attentionFor, overview, projectViews } from "./project-views.ts";
 import {

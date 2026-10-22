@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
-import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { savedProjectView } from "../src/view-settings.ts";
 import recordedClosedBlockers from "./fixtures/github-closed-blockers.json";

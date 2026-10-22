@@ -6,8 +6,8 @@ import {
 } from "./configuration.ts";
 import type { SettingsProject, SettingsSnapshot } from "./domain.ts";
 import { samePin } from "./domain.ts";
-import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
 import type { FoundProject } from "./ports.ts";
+import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
 
 export function settingsResponse(
 	configuration: Configuration,
