@@ -278,7 +278,12 @@ export function TicketPanel({
 	}, []);
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape" || event.defaultPrevented) {
+			if (
+				event.key !== "Escape" ||
+				event.defaultPrevented ||
+				event.ctrlKey ||
+				event.metaKey
+			) {
 				return;
 			}
 			const reply = document.getElementById("ticket-reply");

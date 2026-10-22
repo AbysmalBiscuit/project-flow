@@ -92,6 +92,20 @@ An open ticket that another ticket depends on.
 A blocker that belongs to a different project than the ticket it blocks.
 _Avoid_: External blocker, outside dependency
 
+### Focus
+
+**Chain**:
+A ticket and every ticket upstream or downstream of it through blocker links. On the overview, a chain is a project and every project upstream or downstream of it through cross-project blockers.
+_Avoid_: Path, lineage, dependency tree
+
+**Focus set**:
+The tickets or projects that Lev selects with Ctrl-click or a double-click. The view shows the chain of each one at full strength and fades the rest. An empty focus set ends focus mode.
+_Avoid_: Selection, highlight
+
+**Preview**:
+The chain of the ticket or project under the pointer. The preview starts after the pointer stays for a short delay. The preview ends when the pointer leaves or when the focus set changes.
+_Avoid_: Hover focus, peek
+
 ### Review
 
 **Review cycle**:

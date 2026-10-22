@@ -11,8 +11,15 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import { useMemo } from "react";
-import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
+import { createContext, useContext, useEffect, useMemo } from "react";
+import { board } from "./board-styles.ts";
+import {
+	type CrossProjectBlocker,
+	focusChain,
+	overviewFocusLinks,
+	type ProjectCounts,
+} from "./domain.ts";
+import { type FocusView, focusOrOpen, shownSeeds } from "./focus.ts";
 import { overviewFlowPlaces } from "./graph-flow.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
@@ -53,7 +60,14 @@ type BlockerEdgeData = {
 	side: number;
 };
 
+const ProjectFocusContext = createContext<{
+	chain: ReadonlySet<string> | null;
+	view: FocusView | null;
+}>({ chain: null, view: null });
+
 function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
+	const focus = useContext(ProjectFocusContext);
+	const faded = focus.chain !== null && !focus.chain.has(data.project.name);
 	return (
 		<a
 			className={clsx(
@@ -61,14 +75,22 @@ function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 				cards.graphCard,
 				shell.linkFocus,
 				data.project.needsYou > 0 && cards.graphNeedsYou,
+				faded && board.faded,
 			)}
 			href={projectPath(data.project.name)}
 			id={`graph-card-${id}`}
 			aria-label={data.project.name}
 			data-project={data.project.name}
+			data-faded={faded ? "true" : "false"}
+			onMouseEnter={() => focus.view?.enter(data.project.name)}
+			onMouseLeave={() => focus.view?.leave()}
 			onClick={(event) => {
 				event.preventDefault();
-				openProject(data.project.name);
+				focusOrOpen(
+					event,
+					() => focus.view?.toggle(data.project.name),
+					() => openProject(data.project.name),
+				);
 			}}
 		>
 			<MeasuredNode id={id} kind="project" />
@@ -132,17 +154,20 @@ function BlockerEdge({
 	const blocked = data?.blocked ?? "";
 	const blocker = data?.blocker ?? "";
 	const tracker = data?.tracker ?? "github";
+	const { chain } = useContext(ProjectFocusContext);
+	const faded = chain !== null && !(chain.has(blocked) && chain.has(blocker));
 	return (
 		<>
 			<BaseEdge
 				id={id}
 				path={drawn.path}
+				{...(faded ? { className: classToken(board.faded) } : {})}
 				{...(markerEnd === undefined ? {} : { markerEnd })}
 			/>
 			<EdgeLabelRenderer>
 				<button
 					type="button"
-					className={`nopan ${clsx(cards.graphEdge, cards.graphLabel)}`}
+					className={`nopan ${clsx(cards.graphEdge, cards.graphLabel, faded && board.faded)}`}
 					style={{
 						transform: `translate(-50%, -50%) translate(${drawn.labelX}px, ${drawn.labelY}px)`,
 					}}
@@ -304,10 +329,20 @@ function edgeFor(
 export function OverviewGraph({
 	projects,
 	catalogue,
+	focus,
 }: {
 	projects: ProjectCounts[];
 	catalogue: ProjectCounts[];
+	focus: FocusView;
 }) {
+	const clearFocus = focus.clear;
+	useEffect(() => clearFocus, [clearFocus]);
+	const seeds = shownSeeds(focus.focus, focus.preview);
+	const chain = useMemo(
+		() =>
+			seeds.size === 0 ? null : focusChain(seeds, overviewFocusLinks(projects)),
+		[seeds, projects],
+	);
 	const span = useNodeSpan(cards.graphNode, "project", "Project");
 	const model = useMemo(
 		() => (span === null ? null : graphModel(projects, catalogue, span)),
@@ -321,30 +356,37 @@ export function OverviewGraph({
 		.join(" ");
 
 	return (
-		<div id="overview-graph" className={clsx(cards.graph)}>
-			<p id="graph-places" className={clsx(cards.graphProbe)}>
-				{places}
-			</p>
+		<ProjectFocusContext.Provider value={{ chain, view: focus }}>
+			<div id="overview-graph" className={clsx(cards.graph)}>
+				<p id="graph-places" className={clsx(cards.graphProbe)}>
+					{places}
+				</p>
+				<p id="graph-focus" className={clsx(cards.graphProbe)}>
+					{chain === null
+						? "focus none"
+						: `focus ${[...chain].sort().join(" | ")}`}
+				</p>
 
-			<ReactFlow
-				nodes={model.nodes}
-				edges={model.edges}
-				nodeTypes={nodeTypes}
-				edgeTypes={edgeTypes}
-				nodesDraggable={false}
-				nodesConnectable={false}
-				nodesFocusable={false}
-				elementsSelectable={false}
-				panOnDrag
-				zoomOnScroll
-				fitView
-				proOptions={{ hideAttribution: true }}
-			>
-				<Background variant={BackgroundVariant.Dots} gap={18} />
-				<div className={clsx(cards.graphTools)}>
-					<GraphTools />
-				</div>
-			</ReactFlow>
-		</div>
+				<ReactFlow
+					nodes={model.nodes}
+					edges={model.edges}
+					nodeTypes={nodeTypes}
+					edgeTypes={edgeTypes}
+					nodesDraggable={false}
+					nodesConnectable={false}
+					nodesFocusable={false}
+					elementsSelectable={false}
+					panOnDrag
+					zoomOnScroll
+					fitView
+					proOptions={{ hideAttribution: true }}
+				>
+					<Background variant={BackgroundVariant.Dots} gap={18} />
+					<div className={clsx(cards.graphTools)}>
+						<GraphTools />
+					</div>
+				</ReactFlow>
+			</div>
+		</ProjectFocusContext.Provider>
 	);
 }
