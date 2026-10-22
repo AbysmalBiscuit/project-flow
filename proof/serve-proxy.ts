@@ -1,5 +1,25 @@
 import { proofStops, proofTheme } from "./lifetime.ts";
 
+type ProxyOptions = {
+	/** Bundled pages the proxy serves itself, beside the app. */
+	pages?: Record<string, Bun.HTMLBundle>;
+	/** Markup the proxy adds before `</body>` of each app page. */
+	inject?: string;
+};
+
+async function injected(response: Response, markup: string) {
+	if (!(response.headers.get("content-type") ?? "").includes("text/html")) {
+		return response;
+	}
+	const page = await response.text();
+	const headers = new Headers(response.headers);
+	headers.delete("content-length");
+	return new Response(page.replace("</body>", `${markup}</body>`), {
+		status: response.status,
+		headers,
+	});
+}
+
 /**
  * Serve an app proof script on the next port through a proxy that adds the
  * walk helpers. A route returns its own page, or null to reach the app.
@@ -8,6 +28,7 @@ export async function serveProxy(
 	port: string,
 	script: string,
 	route: (url: URL) => Response | null = () => null,
+	options: ProxyOptions = {},
 ): Promise<never> {
 	const inner = String(Number(port) + 1);
 	const app = Bun.spawn(["bun", script, inner], {
@@ -28,6 +49,9 @@ export async function serveProxy(
 	Bun.serve({
 		hostname: "127.0.0.1",
 		port,
+		...(options.pages === undefined
+			? {}
+			: { development: false, routes: options.pages }),
 		async fetch(request) {
 			const url = new URL(request.url);
 			const own = route(url);
@@ -42,7 +66,10 @@ export async function serveProxy(
 					body: request.body,
 				}),
 			);
-			return proofTheme(response);
+			const themed = await proofTheme(response);
+			return options.inject === undefined
+				? themed
+				: injected(themed, options.inject);
 		},
 	});
 	console.log(`http://127.0.0.1:${port}/`);

@@ -28,7 +28,7 @@
 			"click": "#project-graph [data-graph-node='acme/widget#3']"
 		},
 		{
-			"assert_text": "Expand"
+			"assert_text": "GitHub"
 		},
 		{
 			"assert_text": "page-fits controls-corner"
