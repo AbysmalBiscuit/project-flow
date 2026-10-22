@@ -104,7 +104,7 @@ function projectRef(
 	return { tracker: "github", repo: row.key };
 }
 
-export function projectViews(
+function computeProjectViews(
 	options: PollOptions,
 	configuration: Configuration,
 ) {
@@ -156,6 +156,47 @@ export function projectViews(
 			report: counted.report,
 		};
 	});
+}
+
+type ProjectViews = ReturnType<typeof computeProjectViews>;
+
+const computed = new WeakMap<
+	PollOptions["store"],
+	{ inputs: unknown[]; views: ProjectViews }
+>();
+
+function viewInputs(
+	options: PollOptions,
+	configuration: Configuration,
+): unknown[] {
+	return [
+		options.store.revision(),
+		configuration,
+		JSON.stringify([
+			options.runs,
+			options.viewers,
+			options.workcellAuto,
+			options.repoAutoMerge,
+		]),
+	];
+}
+
+/** The views of every tracked project, computed again only when an input changes. */
+export function projectViews(
+	options: PollOptions,
+	configuration: Configuration,
+): ProjectViews {
+	const inputs = viewInputs(options, configuration);
+	const last = computed.get(options.store);
+	if (
+		last !== undefined &&
+		inputs.every((input, index) => input === last.inputs[index])
+	) {
+		return last.views;
+	}
+	const views = computeProjectViews(options, configuration);
+	computed.set(options.store, { inputs, views });
+	return views;
 }
 
 export function attentionFor(
