@@ -193,9 +193,10 @@ function forceTimed(
 	graph: Omit<SpikeGraph, "tickets">,
 ): Promise<{ ms: number; laid: ElkNode }> {
 	const started = performance.now();
-	return new Promise((resolve) => {
+	return new Promise((resolve, reject) => {
 		worker.onmessage = (event: MessageEvent<ElkNode>) =>
 			resolve({ ms: performance.now() - started, laid: event.data });
+		worker.onerror = (event) => reject(new Error(event.message));
 		worker.postMessage(graph);
 	});
 }
