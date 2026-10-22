@@ -1,0 +1,27 @@
+{
+	"base_url": "http://127.0.0.1:4373",
+	"serve": ["bun", "proof/serve-372.ts", "4373", "light", "graph"],
+	"steps": [
+		{
+			"goto": "/projects/Widget%20board"
+		},
+		{
+			"assert_text": "Hold the platform"
+		},
+		{
+			"click": "[aria-label=\"Zoom out\"]"
+		},
+		{
+			"shot": "outside-light"
+		},
+		{
+			"click": "button[data-theme-toggle]"
+		},
+		{
+			"assert_text": "Hold the platform"
+		},
+		{
+			"shot": "outside-dark"
+		}
+	]
+}

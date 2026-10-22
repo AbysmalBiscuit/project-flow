@@ -714,7 +714,10 @@ export const board = stylex.create({
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
 		borderRadius: radius.sm,
-		backgroundColor: colours.page,
+		backgroundColor: {
+			default: colours.page,
+			":hover": colours.surfaceMuted,
+		},
 		color: colours.ink,
 		fontFamily: font.sans,
 		fontSize: type.menu,
@@ -724,20 +727,15 @@ export const board = stylex.create({
 		cursor: "pointer",
 	},
 	ticketNodeOpen: {
-		outlineWidth: measure.focus,
-		outlineStyle: "solid",
-		outlineColor: colours.focus,
-		outlineOffset: space.twoXs,
+		outline: focusRing,
 	},
 	ticketOutside: {
 		borderStyle: "dashed",
+		backgroundColor: {
+			default: colours.page,
+			":hover": colours.surfaceMuted,
+		},
 	},
-	ticketReady: { borderColor: colours.ready },
-	ticketProgress: { borderColor: colours.progress },
-	ticketReview: { borderColor: colours.review },
-	ticketMerge: { borderColor: colours.merge },
-	ticketDone: { borderColor: colours.done },
-	ticketDropped: { borderColor: colours.dropped },
 	legendReady: { backgroundColor: colours.ready, borderColor: colours.ready },
 	legendProgress: {
 		backgroundColor: colours.progress,

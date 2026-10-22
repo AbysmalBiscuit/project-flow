@@ -1,0 +1,30 @@
+{
+	"base_url": "http://127.0.0.1:4374",
+	"serve": ["bun", "proof/serve-372.ts", "4374", "light", "graph"],
+	"steps": [
+		{
+			"goto": "/projects/Widget%20board"
+		},
+		{
+			"assert_text": "Build the lane tint"
+		},
+		{
+			"click": "[aria-label=\"Zoom out\"]"
+		},
+		{
+			"click": "[data-graph-node=\"acme/widget#5\"]"
+		},
+		{
+			"shot": "open-hover-light"
+		},
+		{
+			"click": "button[data-theme-toggle]"
+		},
+		{
+			"click": "[data-graph-node=\"acme/widget#10\"]"
+		},
+		{
+			"shot": "open-hover-dark"
+		}
+	]
+}

@@ -1,0 +1,45 @@
+{
+	"base_url": "http://127.0.0.1:4372",
+	"serve": ["bun", "proof/serve-372.ts", "4372"],
+	"steps": [
+		{
+			"goto": "/projects/Widget%20board"
+		},
+		{
+			"assert_text": "Build the lane tint"
+		},
+		{
+			"shot": "board-light"
+		},
+		{
+			"click": "#view-graph"
+		},
+		{
+			"assert_text": "Hold the platform"
+		},
+		{
+			"click": "[aria-label=\"Zoom out\"]"
+		},
+		{
+			"shot": "graph-light"
+		},
+		{
+			"click": "button[data-theme-toggle]"
+		},
+		{
+			"assert_text": "Hold the platform"
+		},
+		{
+			"shot": "graph-dark"
+		},
+		{
+			"click": "#view-board"
+		},
+		{
+			"assert_text": "Build the lane tint"
+		},
+		{
+			"shot": "board-dark"
+		}
+	]
+}

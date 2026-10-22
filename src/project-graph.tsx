@@ -13,6 +13,7 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
+import { cardTones } from "./card-tones.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
@@ -27,12 +28,7 @@ import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import type { NodeSize } from "./graph-sizes.ts";
-import {
-	graphDirectionLabel,
-	navLabel,
-	projectGraphLabel,
-	stateLabel,
-} from "./terms.ts";
+import { graphDirectionLabel, navLabel, projectGraphLabel } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { cards, headerControlStyle } from "./ui-styles.ts";
@@ -56,18 +52,6 @@ function shortTicket(key: string, project: string, outside: boolean): string {
 	return outsideKey(project, key);
 }
 
-const stateTone: Record<
-	TicketState,
-	{ label: string; tone: (typeof board)["ticketReady"] }
-> = {
-	backlog: { label: stateLabel.backlog, tone: board.ticketReady },
-	inProgress: { label: stateLabel.inProgress, tone: board.ticketProgress },
-	inReview: { label: stateLabel.inReview, tone: board.ticketReview },
-	awaitingMerge: { label: stateLabel.awaitingMerge, tone: board.ticketMerge },
-	done: { label: stateLabel.done, tone: board.ticketDone },
-	dropped: { label: stateLabel.dropped, tone: board.ticketDropped },
-};
-
 function ClusterNode({
 	data,
 }: NodeProps<FlowNode<ClusterNodeData, "cluster">>) {
@@ -86,7 +70,8 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 			type="button"
 			className={clsx(
 				board.ticketNode,
-				known === undefined ? null : stateTone[known].tone,
+				board.cardFocus,
+				known === undefined ? null : cardTones[known],
 				data.outside && board.ticketOutside,
 				data.open && board.ticketNodeOpen,
 			)}
