@@ -17,6 +17,11 @@
 		{ "assert_text": "SDI-2 depth 1 shut" },
 		{ "assert_text": "SDI-6 depth 0 shut" },
 		{ "shot": "sdi-rows-after-reload" },
+		{ "goto": "/projects/Initial%20SDI%20Issues" },
+		{ "assert_text": "Stand up the SDI pipeline" },
+		{ "shot": "sdi-table-after-reload" },
+		{ "goto": "/rows" },
+		{ "assert_text": "SDI-2 depth 1 shut" },
 		{ "fill": "#walk-search", "text": "export" },
 		{ "assert_text": "SDI-2 depth 0 open" },
 		{ "assert_text": "SDI-3 depth 1" },
@@ -24,9 +29,6 @@
 		{ "shot": "sdi-search-open" },
 		{ "fill": "#walk-search", "text": "   " },
 		{ "assert_text": "SDI-2 depth 1 shut" },
-		{ "shot": "sdi-search-cleared" },
-		{ "goto": "/projects/Initial%20SDI%20Issues" },
-		{ "assert_text": "Stand up the SDI pipeline" },
-		{ "shot": "sdi-table-after-reload" }
+		{ "shot": "sdi-search-cleared" }
 	]
 }
