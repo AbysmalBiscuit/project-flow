@@ -394,6 +394,7 @@ export function TicketPanel({
 					<span
 						className={clsx(
 							board.laneMark,
+							board.laneMarkGap,
 							laneMark(laneColour ?? lightValues.backlog),
 						)}
 					/>
