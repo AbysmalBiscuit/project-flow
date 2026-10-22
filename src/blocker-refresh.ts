@@ -130,7 +130,9 @@ export async function currentBlockers(
 		if (blockedBy === undefined || blockedBy.pageInfo?.hasNextPage === true) {
 			return [];
 		}
-		return [{ ...ticket, blockedBy: refsOf(blockedBy, repo) }];
+		const listedTicket = listed.find((item) => item.id === ticket.id);
+		const base = listedTicket ?? ticket;
+		return [{ ...base, blockedBy: refsOf(blockedBy, repo) }];
 	});
 	const freshKeys = new Set(
 		fresh.flatMap((ticket) => (ticket.key === null ? [] : [ticket.key])),
