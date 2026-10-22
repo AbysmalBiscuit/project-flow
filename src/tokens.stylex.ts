@@ -319,8 +319,6 @@ export const measure = stylex.defineVars({
 	mark: "1.15rem",
 	tickShort: "0.32rem",
 	tickTall: "0.58rem",
-	tickTop: "0.16rem",
-	tickBack: "-1.05rem",
 	sortMark: "0.7rem",
 	needsPanel: "22.5rem",
 	needsRow: "3.125rem",

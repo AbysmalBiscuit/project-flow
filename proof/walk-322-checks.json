@@ -1,10 +1,6 @@
 {
 	"base_url": "http://127.0.0.1:47322",
-	"serve": [
-		"bun",
-		"/home/lev/git/github/AbysmalBiscuit/project-flow_workspaces/322-fix-web-paint-task-list-checkboxes-in/proof/serve-comment-markdown.ts",
-		"47322"
-	],
+	"serve": ["bun", "proof/serve-comment-markdown.ts", "47322"],
 	"steps": [
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "Shaped comment" },
