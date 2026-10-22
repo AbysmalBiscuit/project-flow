@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { NeedsYouItem, Thread } from "../src/domain.ts";
+import { eventsOf, quietReader } from "./events.ts";
 import {
 	githubFetch,
 	issue,
@@ -27,6 +28,15 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
+			const stream = await fetch(new URL("/api/events", app.base), {
+				headers: { accept: "text/event-stream" },
+			});
+			const reader = stream.body?.getReader();
+			if (reader === undefined) {
+				throw new Error("event stream has no body");
+			}
+			const quiet = quietReader(reader);
+			expect(await quiet.untilIdle()).toContain(": open");
 			const response = await fetch(new URL("/api/replies", app.base), {
 				method: "POST",
 				headers: { "content-type": "application/json" },
@@ -43,6 +53,9 @@ describe("replies", () => {
 				url: string;
 			};
 			expect(created.body).toBe("Use the short name.");
+			const published = eventsOf(await quiet.untilIdle());
+			await reader.cancel();
+			expect(published.map((event) => event.event)).toEqual(["overview"]);
 			expect(created.url).toBe(
 				"https://github.com/acme/widget/issues/7#issuecomment-900",
 			);
