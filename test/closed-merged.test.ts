@@ -175,7 +175,12 @@ function boardFetch(
 			return page([]);
 		}
 		if (url.includes("/check-runs")) {
-			return Response.json({ check_runs: [] });
+			const pending = closed().some((item) => item.state === "open");
+			return Response.json({
+				check_runs: pending
+					? [{ name: "ci", status: "in_progress", conclusion: null }]
+					: [],
+			});
 		}
 		return unrecorded(input);
 	};
