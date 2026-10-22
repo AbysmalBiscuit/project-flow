@@ -317,23 +317,29 @@ export function ProjectGraph({
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
-	const faded = classToken(board.faded);
+	const fades = classToken(board.fades);
+	const faded = `${fades} ${classToken(board.faded)}`;
 	const nodes = model.nodes.map((node) => {
 		const kept = isClusterNode(node)
 			? node.data.members.some((id) => chain?.has(id) === true)
 			: chain?.has(node.id) === true;
-		return chain === null || kept ? node : { ...node, className: faded };
+		return { ...node, className: chain === null || kept ? fades : faded };
 	});
 	const edges = model.edges.map((edge) => {
+		const base = edge.className ?? "";
 		if (chain === null) {
-			return edge;
+			return { ...edge, className: `${base} ${fades}`.trim() };
 		}
 		if (chain.has(edge.source) && chain.has(edge.target)) {
-			return edge.data === undefined
-				? edge
-				: { ...edge, data: { ...edge.data, flowing: true } };
+			return {
+				...edge,
+				className: `${base} ${fades}`.trim(),
+				...(edge.data === undefined
+					? {}
+					: { data: { ...edge.data, flowing: true } }),
+			};
 		}
-		return { ...edge, className: `${edge.className ?? ""} ${faded}`.trim() };
+		return { ...edge, className: `${base} ${faded}`.trim() };
 	});
 	const places = model.nodes
 		.map((node) => {

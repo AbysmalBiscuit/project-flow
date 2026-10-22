@@ -347,6 +347,7 @@ export const measure = stylex.defineVars({
 	marker: "1.375rem",
 	edgeDash: "0.35rem",
 	edgeFlow: "0.8s",
+	fade: "0.2s",
 	switch: "2.1rem",
 	headerControl: "2.25rem",
 	knob: "0.95rem",
