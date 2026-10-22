@@ -1,0 +1,11 @@
+{
+	"base_url": "http://127.0.0.1:4173",
+	"serve": ["bun", "proof/serve-closed-blockers.ts", "4173"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Draw the board" },
+		{ "assert_text": "Keep the open blocker" },
+		{ "assert_text": "Blocked by #188" },
+		{ "shot": "closed-blocker-gone" }
+	]
+}

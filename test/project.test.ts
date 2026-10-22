@@ -9,8 +9,10 @@ import { run } from "../src/main.ts";
 import { savedProjectView } from "../src/view-settings.ts";
 import {
 	emptyProjectFields,
+	githubIssueNode,
 	linearFake,
 	recordedDiscovery,
+	repoReadIssues,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -1171,6 +1173,216 @@ describe("GET /api/projects/:name", () => {
 				expect(link?.from.state).toBe("done");
 				expect(link?.to.state).toBe("backlog");
 			},
+		);
+	});
+
+	test("a recorded closed native blocker drops off the project response", async () => {
+		const blocker = (state: "OPEN" | "CLOSED") =>
+			issue(
+				216,
+				"Closed native blocker",
+				state === "CLOSED"
+					? { state: "closed", state_reason: "completed" }
+					: {},
+				githubRepo,
+			);
+		const openBlocker = issue(188, "Open native blocker", {}, githubRepo);
+		const waiting = issue(245, "Draw the board", {}, githubRepo);
+		const mixed = issue(246, "Keep the open blocker", {}, githubRepo);
+		const relation = (
+			number: number,
+			title: string,
+			state: "OPEN" | "CLOSED",
+		) => ({
+			number,
+			title,
+			state,
+			repository: { nameWithOwner: githubRepo },
+		});
+		const pageInfo = { hasNextPage: false, endCursor: null };
+		let closed = false;
+		const nodes = () => [
+			{
+				...githubIssueNode(waiting),
+				blockedBy: {
+					nodes: [
+						relation(216, "Closed native blocker", closed ? "CLOSED" : "OPEN"),
+					],
+					pageInfo,
+				},
+			},
+			githubIssueNode(blocker(closed ? "CLOSED" : "OPEN")),
+			{
+				...githubIssueNode(mixed),
+				blockedBy: {
+					nodes: [
+						relation(216, "Closed native blocker", closed ? "CLOSED" : "OPEN"),
+						relation(188, "Open native blocker", "OPEN"),
+					],
+					pageInfo,
+				},
+			},
+			githubIssueNode(openBlocker),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: {
+							owner?: string;
+							name?: string;
+							since?: string | null;
+						};
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					if (`${owner}/${name}` !== githubRepo) {
+						return unrecorded(input);
+					}
+					const listed =
+						sent.variables?.since === undefined || sent.variables.since === null
+							? nodes()
+							: [];
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, listed)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					const asked = [...body.matchAll(/issue\(number: (\d+)\)/g)].map(
+						(match) => Number(match[1]),
+					);
+					const repository: Record<string, unknown> = {};
+					for (const [index, number] of asked.entries()) {
+						const nodes =
+							number === 246
+								? [
+										relation(
+											216,
+											"Closed native blocker",
+											closed ? "CLOSED" : "OPEN",
+										),
+										relation(188, "Open native blocker", "OPEN"),
+									]
+								: [
+										relation(
+											216,
+											"Closed native blocker",
+											closed ? "CLOSED" : "OPEN",
+										),
+									];
+						repository[`i${index}`] = { blockedBy: { nodes, pageInfo } };
+					}
+					return new Response(JSON.stringify({ data: { repository } }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+					base,
+				);
+				const before = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
+				expect(
+					before.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.blockers,
+				).toEqual([`${githubRepo}#216`]);
+				closed = true;
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let report: ProjectReport | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as { polling?: true };
+					if (overview.polling !== true) {
+						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (report === null) {
+					throw new Error("the poll did not settle");
+				}
+				const onlyClosed = report.tickets.find(
+					(item) => item.key === `${githubRepo}#245`,
+				);
+				expect(onlyClosed?.blockers).toEqual([]);
+				expect(onlyClosed?.blocked).toBeUndefined();
+				expect(onlyClosed?.links).toEqual([
+					{ key: `${githubRepo}#216`, done: true },
+				]);
+				const both = report.tickets.find(
+					(item) => item.key === `${githubRepo}#246`,
+				);
+				expect(both?.blockers).toEqual([`${githubRepo}#188`]);
+				expect(both?.blocked).toBe(true);
+				expect(both?.links?.map((link) => link.key)).toEqual([
+					`${githubRepo}#216`,
+					`${githubRepo}#188`,
+				]);
+				const summary = report.sections.find(
+					(section) => section.id === "summary",
+				);
+				expect(summary?.text).toContain("1 blocked");
+				const filtered = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						pinned: [{ tracker: "github", repo: githubRepo }],
+						projectViews: {
+							[githubRepo]: { blockedOnly: true },
+						},
+					}),
+				});
+				expect(filtered.status).toBe(200);
+				const held = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(held.tickets.map((item) => item.key)).toEqual([
+					`${githubRepo}#246`,
+				]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+				const spaced = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("  ")}`, base),
+				);
+				expect(spaced.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
 		);
 	});
 

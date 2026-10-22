@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { currentBlockers } from "./blocker-refresh.ts";
 import type {
 	Board,
 	BotCheck,
@@ -1069,7 +1070,7 @@ function labelHistory(
 	return history;
 }
 
-function dependencyRefs(
+export function dependencyRefs(
 	nodes: {
 		number: number;
 		title?: string | null | undefined;
@@ -2881,7 +2882,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},
-		async listTickets(repo, since, projectOwner = "") {
+		async listTickets(repo, since, projectOwner = "", held = []) {
 			if (!repo.includes("/")) {
 				projectItemsById.clear();
 				const items = await projectItems(repo, projectOwner);
@@ -2911,7 +2912,13 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 				throw new Error(`GitHub read repo failed: ${repo}`);
 			}
 			const board = factoryBoard(batched.labels);
-			const tickets = batched.tickets;
+			const tickets = await currentBlockers(
+				token,
+				fetchImpl,
+				repo,
+				batched.tickets,
+				since === null ? [] : held,
+			);
 			const events =
 				board.factoryLabels && tickets.length > 0
 					? await listIssueEvents(token, fetchImpl, repo, oldestUpdate(tickets))

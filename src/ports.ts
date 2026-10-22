@@ -74,6 +74,7 @@ export type Tracker = {
 		project: string,
 		since: Date | null,
 		projectOwner?: string,
+		held?: Ticket[],
 	) => Promise<TicketList>;
 	listPulls: (
 		project: string,

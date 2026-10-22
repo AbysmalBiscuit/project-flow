@@ -806,6 +806,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 				project.key,
 				since,
 				project.owner,
+				since === null ? [] : (stored?.tickets ?? []),
 			);
 			const pulls = await tracker.listPulls(
 				project.key,

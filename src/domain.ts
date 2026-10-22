@@ -800,8 +800,18 @@ function mergeBlockedBy(rows: TicketRef[][]): TicketRef[] {
 	const refs: TicketRef[] = [];
 	for (const row of rows) {
 		for (const ref of row) {
-			if (!refs.some((item) => sameRef(item, ref))) {
+			const earlier = refs.findIndex((item) => sameRef(item, ref));
+			if (earlier === -1) {
 				refs.push(ref);
+				continue;
+			}
+			const kept = refs[earlier];
+			if (
+				kept !== undefined &&
+				ref.state === "closed" &&
+				kept.state !== "closed"
+			) {
+				refs[earlier] = ref;
 			}
 		}
 	}
@@ -1369,6 +1379,9 @@ function known(index: TicketIndex, ref: TicketRef): Ticket | undefined {
 }
 
 function stillOpen(ref: TicketRef, index: TicketIndex): boolean {
+	if (ref.state === "closed") {
+		return false;
+	}
 	const ticket = known(index, ref);
 	if (ticket !== undefined) {
 		return ticket.state === "open";
@@ -1856,9 +1869,10 @@ function graphLinks(
 		}
 		const other = source ?? known(index, ref);
 		const done =
-			other !== undefined
+			ref.state === "closed" ||
+			(other !== undefined
 				? other.state !== "open"
-				: ref.state !== undefined && ref.state !== "open";
+				: ref.state !== undefined && ref.state !== "open");
 		const project =
 			other === undefined ? "" : blockerProject(other, ref, groups);
 		const outside =
