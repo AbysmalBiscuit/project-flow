@@ -1,11 +1,6 @@
 import { z } from "zod";
 import type { AutoMerge, Configuration } from "./configuration.ts";
-import {
-	loadConfiguration,
-	parseConfiguration,
-	projectRef as projectRefSchema,
-	saveConfiguration,
-} from "./configuration.ts";
+import { loadConfiguration, saveConfiguration } from "./configuration.ts";
 import type {
 	Comment,
 	Overview,
@@ -31,7 +26,6 @@ import {
 	filterProjectReport,
 	githubRepoForTodo,
 	inboxEntries,
-	knownRepos,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
 	matchesRef,
@@ -47,8 +41,6 @@ import {
 	reconcilePoll,
 	refKey,
 	type SettingsProject,
-	samePin,
-	settingsProjects,
 	staleView,
 	startedTodoKeys,
 	todoRows,
@@ -88,6 +80,14 @@ import type {
 	Tracker,
 	Viewer,
 } from "./ports.ts";
+import {
+	mergedSettingsWrite,
+	readSettingsWrite,
+	rejectUnknownBotKeys,
+	sameTracked,
+	settingsResponse,
+	viewOnlyChange,
+} from "./settings-write.ts";
 import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
@@ -359,155 +359,6 @@ function reportFor(
 	return filtered
 		? filterProjectReport(match, view, options.clock.now())
 		: match;
-}
-
-function settingsResponse(
-	configuration: Configuration,
-	credentials: { token: string | null; linearKey: string | null },
-	catalogue: FoundProject[],
-	snapshots: {
-		key: string;
-		pulls: Parameters<typeof expectedBotsByRepo>[0];
-	}[],
-): Configuration & {
-	trackers: { github: boolean; linear: boolean };
-	projects: SettingsProject[];
-} {
-	return {
-		...configuration,
-		trackers: {
-			github: credentials.token !== null,
-			linear: credentials.linearKey !== null,
-		},
-		projects: settingsProjects(configuration, catalogue, snapshots),
-	};
-}
-
-function withoutTrackers(text: string): string {
-	const trimmed = text.trim();
-	if (trimmed === "") {
-		return text;
-	}
-	let parsed: unknown;
-	try {
-		parsed = JSON.parse(trimmed);
-	} catch {
-		return text;
-	}
-	if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-		return text;
-	}
-	const {
-		trackers: _trackers,
-		projects: _projects,
-		baselineTracked: _baselineTracked,
-		...configuration
-	} = parsed as Record<string, unknown>;
-	return JSON.stringify(configuration);
-}
-
-function applyRefEdits(
-	live: Configuration["tracked"],
-	baseline: Configuration["tracked"],
-	draft: Configuration["tracked"],
-): Configuration["tracked"] {
-	const removed = baseline.filter(
-		(ref) => !draft.some((item) => samePin(item, ref)),
-	);
-	const added = draft.filter(
-		(ref) => !baseline.some((item) => samePin(item, ref)),
-	);
-	const kept = live.filter(
-		(ref) => !removed.some((item) => samePin(item, ref)),
-	);
-	return [
-		...kept,
-		...added.filter((ref) => !kept.some((item) => samePin(item, ref))),
-	];
-}
-
-const refBaseline = z.object({
-	baselineTracked: z.array(z.unknown()).optional(),
-});
-
-function refList(value: unknown): Configuration["tracked"] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-	const refs: Configuration["tracked"] = [];
-	for (const item of value) {
-		const parsed = projectRefSchema.safeParse(item);
-		if (!parsed.success) {
-			return undefined;
-		}
-		refs.push(parsed.data);
-	}
-	return refs;
-}
-
-function rejectUnknownBotKeys(
-	parsed: Configuration,
-	live: Configuration,
-	snapshots: {
-		key: string;
-		pulls: { repo: string }[];
-	}[],
-	catalogue: FoundProject[],
-): string | null {
-	const known = knownRepos(snapshots, catalogue);
-	const previous = new Set(Object.keys(live.expectedBots ?? {}));
-	for (const key of Object.keys(parsed.expectedBots ?? {})) {
-		if (known.has(key) || previous.has(key)) {
-			continue;
-		}
-		return `invalid configuration: expectedBots.${key}`;
-	}
-	return null;
-}
-
-function mergedSettingsWrite(
-	live: Configuration,
-	parsed: Configuration,
-	text: string,
-): Configuration {
-	let raw: unknown = null;
-	try {
-		raw = JSON.parse(text);
-	} catch {
-		raw = null;
-	}
-	const baseline = refBaseline.safeParse(raw);
-	const sent = baseline.success ? baseline.data : {};
-	const trackedBaseline = refList(sent.baselineTracked);
-	return {
-		...parsed,
-		tracked:
-			trackedBaseline === undefined
-				? parsed.tracked
-				: applyRefEdits(live.tracked, trackedBaseline, parsed.tracked),
-	};
-}
-
-function viewOnlyChange(before: Configuration, after: Configuration): boolean {
-	const {
-		projectViews: previousViews,
-		overview: previousOverview,
-		theme: previousTheme,
-		...rest
-	} = before;
-	const {
-		projectViews: nextViews,
-		overview: nextOverview,
-		theme: nextTheme,
-		...kept
-	} = after;
-	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
-	const viewsChanged =
-		JSON.stringify(previousViews) !== JSON.stringify(nextViews);
-	const overviewChanged =
-		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
-	const themeChanged = previousTheme !== nextTheme;
-	return restSame && (viewsChanged || overviewChanged || themeChanged);
 }
 
 function mergeFound(
@@ -783,6 +634,7 @@ type PollOptions = {
 	restCache: RestCache;
 	listTodos?: TodoSource | undefined;
 	listCheckouts?: CheckoutSource | undefined;
+	releaseDiscovery: () => void;
 	fallback: Configuration;
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
@@ -798,6 +650,8 @@ type PollOptions = {
 	progress: PollProgress | null;
 	stopped: boolean;
 	catalogue: FoundProject[];
+	/** False when a tracked-list write landed after this poll started. */
+	mayPublish: () => boolean;
 };
 
 async function poll(options: PollOptions): Promise<Configuration> {
@@ -945,6 +799,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 			? {}
 			: { configuredOnly: true }),
 	}));
+	options.releaseDiscovery();
 	const tracked = found.filter((project) => trackedProjects.has(project));
 	const trackedKeys = new Set(tracked.map((project) => project.key));
 	const started: PollProgress = {
@@ -954,7 +809,7 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		ended: false,
 	};
 	options.progress = started;
-	if (options.polling && !options.stopped) {
+	if (options.polling && !options.stopped && options.mayPublish()) {
 		options.notifier.publish({
 			overview: runningOverview(options, configuration),
 			notifications: [],
@@ -1211,6 +1066,9 @@ async function poll(options: PollOptions): Promise<Configuration> {
 		throw error;
 	}
 	options.fallback = current;
+	if (!options.mayPublish()) {
+		return current;
+	}
 	options.notifier.publish({
 		overview: runningOverview(options, current),
 		notifications,
@@ -1226,7 +1084,7 @@ function notePollProgress(
 	tracked: FoundProject[],
 	outcomes: Map<string, ProjectPoll>,
 ): void {
-	if (!options.polling || options.stopped) {
+	if (!options.polling || options.stopped || !options.mayPublish()) {
 		return;
 	}
 	const next = tracked.find((project) => !outcomes.has(project.key));
@@ -1276,7 +1134,7 @@ function publishPoll(
 	} else if (failed !== null) {
 		options.store.recordFetchError(failed);
 	}
-	if (!publish) {
+	if (!publish || !options.mayPublish()) {
 		return;
 	}
 	options.notifier.publish({
@@ -1354,6 +1212,8 @@ export async function start(options: StartOptions): Promise<Running> {
 		restCache,
 		listTodos: options.listTodos,
 		listCheckouts: options.listCheckouts,
+		releaseDiscovery: () => {},
+		mayPublish: () => true,
 		fallback: configuration,
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
@@ -1410,25 +1270,48 @@ export async function start(options: StartOptions): Promise<Running> {
 		pollOptions.github?.holdLists?.(pollOptions.holdLists);
 	}
 	let polling: Promise<void> | null = null;
+	let discovery: Promise<void> = Promise.resolve();
+	let noteDiscovery: () => void = () => {};
 	let stopped = false;
 	let firstPollDone = false;
 	let refreshQueued = false;
+	// A poll that started before the last tracked-list write cannot answer for it.
+	let trackedGeneration = 0;
+	let settledGeneration = -1;
+	let awaitingWrite = false;
 	const pollAgain = (): Promise<void> => {
-		if (stopped) {
+		if (stopped || pollOptions.stopped) {
 			return Promise.resolve();
 		}
 		if (polling !== null) {
 			return polling;
 		}
 		let rejected = false;
+		const generation = trackedGeneration;
+		pollOptions.mayPublish = () => generation === trackedGeneration;
 		polling = (async () => {
+			if (generation !== trackedGeneration) {
+				refreshQueued = true;
+				return;
+			}
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
 			}
+			discovery = new Promise<void>((resolve) => {
+				noteDiscovery = resolve;
+			});
+			pollOptions.releaseDiscovery = noteDiscovery;
 			try {
 				configuration = await poll(pollOptions);
+				if (generation !== trackedGeneration) {
+					refreshQueued = true;
+				}
 			} catch (error) {
-				if (stopped || pollOptions.stopped) {
+				if (
+					stopped ||
+					pollOptions.stopped ||
+					generation !== trackedGeneration
+				) {
 					return;
 				}
 				rejected = true;
@@ -1439,8 +1322,10 @@ export async function start(options: StartOptions): Promise<Running> {
 				}
 			}
 		})().finally(async () => {
+			noteDiscovery();
+			settledGeneration = Math.max(settledGeneration, generation);
 			polling = null;
-			if (refreshQueued && !stopped) {
+			if (!stopped && refreshQueued && !awaitingWrite) {
 				refreshQueued = false;
 				await pollAgain().catch(() => {});
 				return;
@@ -1479,7 +1364,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			overview: runningOverview(pollOptions, configuration),
 			notifications: [],
 		});
-		if (polling !== null) {
+		if (polling !== null || !firstPollDone) {
 			refreshQueued = true;
 			return;
 		}
@@ -1678,21 +1563,23 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/settings": pageResponse,
 			"/api/settings": {
-				GET: () =>
-					Response.json(
+				GET: async () => {
+					// A read during discovery waits, so a tracked-list write sees this poll's catalogue.
+					await discovery;
+					return Response.json(
 						settingsResponse(
 							configuration,
 							options,
 							pollOptions.catalogue,
 							opened.store.readTickets(),
 						),
-					),
+					);
+				},
 				PUT: async (request: Request) => {
 					const rawText = await request.text();
-					const text = withoutTrackers(rawText);
 					let parsed: Configuration;
 					try {
-						parsed = parseConfiguration(text);
+						parsed = readSettingsWrite(rawText);
 					} catch (error) {
 						const message =
 							error instanceof Error
@@ -1736,9 +1623,13 @@ export async function start(options: StartOptions): Promise<Running> {
 							),
 						);
 					}
+					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
+					const stale = polling;
 					try {
-						await (polling ?? Promise.resolve());
 						configuration = await configurationPort.write(mergedText);
+						if (trackedChanged) {
+							trackedGeneration += 1;
+						}
 					} catch (error) {
 						const message =
 							error instanceof Error
@@ -1746,12 +1637,28 @@ export async function start(options: StartOptions): Promise<Running> {
 								: "invalid configuration: configuration";
 						return Response.json({ error: message }, { status: 400 });
 					}
-					await (polling ?? Promise.resolve());
 					configuration = await configurationPort.read();
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
-					await pollAgain();
+					if (trackedChanged) {
+						const written = trackedGeneration;
+						awaitingWrite = true;
+						try {
+							while (
+								settledGeneration < written &&
+								!stopped &&
+								!pollOptions.stopped
+							) {
+								await pollAgain();
+							}
+						} finally {
+							awaitingWrite = false;
+						}
+						refreshQueued = false;
+					} else {
+						await (stale ?? pollAgain());
+					}
 					return Response.json(
 						settingsResponse(
 							configuration,
@@ -1840,6 +1747,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		stop: async () => {
 			stopped = true;
 			pollOptions.stopped = true;
+			refreshQueued = false;
 			requests.abort();
 			releaseLists();
 			if (timer !== null) {
