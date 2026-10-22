@@ -11,10 +11,16 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import { board } from "./board-styles.ts";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
-import { type FocusLink, focusChain, isFocusClick } from "./focus.ts";
+import {
+	type FocusLink,
+	type FocusView,
+	focusChain,
+	isFocusClick,
+	shownSeeds,
+} from "./focus.ts";
 import { overviewFlowPlaces } from "./graph-flow.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
@@ -57,8 +63,8 @@ type BlockerEdgeData = {
 
 const ProjectFocusContext = createContext<{
 	chain: ReadonlySet<string> | null;
-	toggle: (project: string) => void;
-}>({ chain: null, toggle: () => {} });
+	view: FocusView | null;
+}>({ chain: null, view: null });
 
 function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 	const focus = useContext(ProjectFocusContext);
@@ -77,10 +83,12 @@ function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 			aria-label={data.project.name}
 			data-project={data.project.name}
 			data-faded={faded ? "true" : "false"}
+			onMouseEnter={() => focus.view?.enter(data.project.name)}
+			onMouseLeave={() => focus.view?.leave()}
 			onClick={(event) => {
 				event.preventDefault();
 				if (isFocusClick(event)) {
-					focus.toggle(data.project.name);
+					focus.view?.toggle(data.project.name);
 					return;
 				}
 				openProject(data.project.name);
@@ -332,17 +340,18 @@ export function OverviewGraph({
 	projects,
 	catalogue,
 	focus,
-	onFocus,
 }: {
 	projects: ProjectCounts[];
 	catalogue: ProjectCounts[];
-	focus: ReadonlySet<string>;
-	onFocus: (project: string) => void;
+	focus: FocusView;
 }) {
+	const clearFocus = focus.clear;
+	useEffect(() => clearFocus, [clearFocus]);
+	const seeds = shownSeeds(focus.focus, focus.preview);
 	const chain = useMemo(
 		() =>
-			focus.size === 0 ? null : focusChain(focus, overviewFocusLinks(projects)),
-		[focus, projects],
+			seeds.size === 0 ? null : focusChain(seeds, overviewFocusLinks(projects)),
+		[seeds, projects],
 	);
 	const span = useNodeSpan(cards.graphNode, "project", "Project");
 	const model = useMemo(
@@ -357,7 +366,7 @@ export function OverviewGraph({
 		.join(" ");
 
 	return (
-		<ProjectFocusContext.Provider value={{ chain, toggle: onFocus }}>
+		<ProjectFocusContext.Provider value={{ chain, view: focus }}>
 			<div id="overview-graph" className={clsx(cards.graph)}>
 				<p id="graph-places" className={clsx(cards.graphProbe)}>
 					{places}

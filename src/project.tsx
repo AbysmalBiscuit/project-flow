@@ -30,7 +30,8 @@ import {
 	ticketGroups,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { focusChain, isFocusClick, useFocusSet } from "./focus.ts";
+import { focusChain, isFocusClick, shownSeeds, useFocusView } from "./focus.ts";
+import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
@@ -45,7 +46,6 @@ import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell, PageFrame } from "./shell.tsx";
 import {
 	blockedLabel,
-	clearFocusLabel,
 	filterEmptyLabel,
 	groupByLabel,
 	type HidingFilter,
@@ -385,12 +385,27 @@ function Chip({
 type TicketFocus = {
 	faded: (key: string | null) => boolean;
 	toggle: (key: string) => void;
+	enter: (key: string) => void;
+	leave: () => void;
 };
 
 const TicketFocusContext = createContext<TicketFocus>({
 	faded: () => false,
 	toggle: () => {},
+	enter: () => {},
+	leave: () => {},
 });
+
+function focusPointer(focus: TicketFocus, key: string | null) {
+	if (key === null) {
+		return {};
+	}
+	return {
+		onMouseEnter: () => focus.enter(key),
+		onMouseLeave: focus.leave,
+		onDoubleClick: () => focus.toggle(key),
+	};
+}
 
 function Card({
 	ticket,
@@ -416,6 +431,7 @@ function Card({
 				)}
 				data-ticket={key ?? ""}
 				data-faded={faded ? "true" : "false"}
+				{...focusPointer(focus, key)}
 				onClick={(event) => {
 					if (key === null) {
 						return;
@@ -775,6 +791,7 @@ function TableRow({
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
 			data-faded={faded ? "true" : "false"}
+			{...focusPointer(focus, key)}
 			tabIndex={key === null ? undefined : 0}
 			onClick={(event) => {
 				if (key === null) {
@@ -1307,7 +1324,7 @@ export function Page() {
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
-	const ticketFocus = useFocusSet();
+	const ticketFocus = useFocusView();
 	const clearFocus = ticketFocus.clear;
 	useEffect(() => {
 		void name;
@@ -1521,15 +1538,15 @@ export function Page() {
 		});
 		saveChain.current = write.catch(() => {});
 	};
-	const chain =
-		ticketFocus.focus.size === 0
-			? null
-			: focusChain(ticketFocus.focus, graphEdges(report));
+	const seeds = shownSeeds(ticketFocus.focus, ticketFocus.preview);
+	const chain = seeds.size === 0 ? null : focusChain(seeds, graphEdges(report));
 	const focusValue: TicketFocus = {
 		faded: (key) =>
 			chain !== null &&
 			(key === null || !chain.has(projectNodeId(report.name, key))),
 		toggle: (key) => ticketFocus.toggle(projectNodeId(report.name, key)),
+		enter: (key) => ticketFocus.enter(projectNodeId(report.name, key)),
+		leave: ticketFocus.leave,
 	};
 	const openTicketInPanel = (key: string) => {
 		setOpenedState(null);
@@ -1609,18 +1626,8 @@ export function Page() {
 										)
 									}
 								/>
-								{chain === null ? null : (
-									<button
-										type="button"
-										id="clear-focus"
-										className={clsx(
-											headerControlStyle.control,
-											shell.buttonFocus,
-										)}
-										onClick={ticketFocus.clear}
-									>
-										{clearFocusLabel}
-									</button>
+								{ticketFocus.focus.size === 0 ? null : (
+									<ClearFocusButton onClear={ticketFocus.clear} />
 								)}
 								<Dropdown
 									id="project-group"
@@ -1709,6 +1716,8 @@ export function Page() {
 									openKey={open ? ticket : null}
 									chain={chain}
 									onFocus={ticketFocus.toggle}
+									onPreview={ticketFocus.enter}
+									onPreviewEnd={ticketFocus.leave}
 									onDirection={(next) =>
 										saveView({ ...settings, graphDirection: next })
 									}

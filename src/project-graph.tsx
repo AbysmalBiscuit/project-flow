@@ -148,11 +148,17 @@ function TicketEdge({
 		data?.side,
 	);
 	const done = data?.done === true;
+	const flowing = done && data?.flowing === true;
 	return (
 		<BaseEdge
 			id={id}
 			path={drawn.path}
-			className={done ? classToken(board.graphEdgeDash) : undefined}
+			data-flowing={flowing ? "true" : "false"}
+			className={
+				done
+					? clsx(board.graphEdgeDash, flowing && board.graphEdgeFlow)
+					: undefined
+			}
 			{...(markerEnd === undefined ? {} : { markerEnd })}
 		/>
 	);
@@ -261,6 +267,8 @@ export function ProjectGraph({
 	chain,
 	onOpen,
 	onFocus,
+	onPreview,
+	onPreviewEnd,
 	onDirection,
 }: {
 	report: ProjectReport;
@@ -272,6 +280,8 @@ export function ProjectGraph({
 	chain: ReadonlySet<string> | null;
 	onOpen: (ticket: OpenedNode) => void;
 	onFocus: (nodeId: string) => void;
+	onPreview: (nodeId: string) => void;
+	onPreviewEnd: () => void;
 	onDirection: (direction: GraphDirection) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
@@ -304,11 +314,17 @@ export function ProjectGraph({
 			: chain?.has(node.id) === true;
 		return chain === null || kept ? node : { ...node, className: faded };
 	});
-	const edges = model.edges.map((edge) =>
-		chain === null || (chain.has(edge.source) && chain.has(edge.target))
-			? edge
-			: { ...edge, className: `${edge.className ?? ""} ${faded}`.trim() },
-	);
+	const edges = model.edges.map((edge) => {
+		if (chain === null) {
+			return edge;
+		}
+		if (chain.has(edge.source) && chain.has(edge.target)) {
+			return edge.data === undefined
+				? edge
+				: { ...edge, data: { ...edge.data, flowing: true } };
+		}
+		return { ...edge, className: `${edge.className ?? ""} ${faded}`.trim() };
+	});
 	const places = model.nodes
 		.map((node) => {
 			const x = node.position.x;
@@ -371,6 +387,7 @@ export function ProjectGraph({
 					nodesConnectable={false}
 					elementsSelectable={false}
 					panOnDrag
+					zoomOnDoubleClick={false}
 					fitView
 					minZoom={0.1}
 					fitViewOptions={{
@@ -378,6 +395,17 @@ export function ProjectGraph({
 						maxZoom: 1,
 					}}
 					proOptions={{ hideAttribution: true }}
+					onNodeMouseEnter={(_event, node) => {
+						if (!isClusterNode(node)) {
+							onPreview(node.id);
+						}
+					}}
+					onNodeMouseLeave={onPreviewEnd}
+					onNodeDoubleClick={(_event, node) => {
+						if (!isClusterNode(node)) {
+							onFocus(node.id);
+						}
+					}}
 					onNodeClick={(event, node) => {
 						if (isClusterNode(node)) {
 							return;

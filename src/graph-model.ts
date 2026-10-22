@@ -82,6 +82,7 @@ export type TicketEdgeData = {
 	label: { x: number; y: number };
 	side: number;
 	done: boolean;
+	flowing?: boolean;
 };
 
 type GraphTicket = {

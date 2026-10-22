@@ -9,6 +9,11 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 
+const edgeFlow = stylex.keyframes({
+	from: { strokeDashoffset: `calc(${measure.edgeDash} * 2)` },
+	to: { strokeDashoffset: "0" },
+});
+
 const focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
 export const board = stylex.create({
@@ -671,6 +676,15 @@ export const board = stylex.create({
 	},
 	graphEdgeDash: {
 		strokeDasharray: `${measure.edgeDash} ${measure.edgeDash}`,
+	},
+	graphEdgeFlow: {
+		animationName: {
+			default: edgeFlow,
+			"@media (prefers-reduced-motion: reduce)": "none",
+		},
+		animationDuration: measure.edgeFlow,
+		animationTimingFunction: "linear",
+		animationIterationCount: "infinite",
 	},
 	graphEdgeDone: {
 		"--xy-edge-stroke": colours.graphEdgeDone,
