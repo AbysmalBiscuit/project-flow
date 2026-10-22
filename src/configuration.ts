@@ -9,6 +9,13 @@ import {
 } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
+
+export const defaultFactoryGithubTokenDir = join(
+	homedir(),
+	".config",
+	"factory-gh",
+);
+
 import { z } from "zod";
 import { knownBots } from "./known-bots.ts";
 import {
@@ -133,6 +140,8 @@ const configurationSchema = z
 				blockerCleared: z.boolean().default(true),
 			})
 			.default({ needsYou: true, comment: true, blockerCleared: true }),
+		factoryGithubTokens: z.boolean().default(false),
+		factoryGithubTokenDir: z.string().default(defaultFactoryGithubTokenDir),
 		projectViews: z.record(z.string(), projectViewSettings).default({}),
 	})
 	.transform(
@@ -141,10 +150,15 @@ const configurationSchema = z
 			pinned,
 			hidden: _hidden,
 			activityWindowDays: _days,
+			factoryGithubTokenDir,
 			...rest
 		}) => ({
 			...rest,
 			tracked: tracked ?? pinned ?? [],
+			factoryGithubTokenDir:
+				factoryGithubTokenDir.trim() === ""
+					? defaultFactoryGithubTokenDir
+					: factoryGithubTokenDir,
 		}),
 	);
 
