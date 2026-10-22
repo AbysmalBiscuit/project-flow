@@ -3,13 +3,16 @@ import type { ProjectCounts } from "./domain.ts";
 import { pollLine, usePollProgress } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import { PageFrame } from "./shell.tsx";
-import { loadingLabel } from "./terms.ts";
+import { loadingLabel, overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards, shell } from "./ui-styles.ts";
 
 function waitingCountLine(project: ProjectCounts): string {
-	const need = project.needsYou === 1 ? "needs" : "need";
-	return `${project.done} of ${ticketTotal(project)} done, ${project.needsYou} ${need} you, ${project.blocked} blocked.`;
+	const needsYou =
+		project.needsYou === 1
+			? overviewControlLabel.needsYouOne
+			: `${project.needsYou} ${overviewControlLabel.needsYouMany}`;
+	return `${project.done} of ${ticketTotal(project)} done, ${needsYou}, ${project.blocked} blocked.`;
 }
 
 /** The project page before its report arrives, from the overview cache. */
