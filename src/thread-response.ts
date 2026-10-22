@@ -2,30 +2,7 @@ import { commentTree } from "./comment-tree.ts";
 import type { FetchedThread } from "./domain.ts";
 import { ThreadReadTimeout, withThreadLimit } from "./fetch.ts";
 import { TrackerError } from "./github.ts";
-import type { Tracker } from "./ports.ts";
-
-type Trackers = { github: Tracker | null; linear: Tracker | null };
-
-function trackerFor(trackers: Trackers, name: string): Tracker | null {
-	if (name === "github") {
-		return trackers.github;
-	}
-	if (name === "linear") {
-		return trackers.linear;
-	}
-	return null;
-}
-
-function trackerError(error: unknown): Response {
-	const message = error instanceof Error ? error.message : "reply failed";
-	const status =
-		error instanceof Error &&
-		"status" in error &&
-		typeof error.status === "number"
-			? error.status
-			: 502;
-	return Response.json({ error: message }, { status });
-}
+import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
 export async function threadResponse(
 	trackers: Trackers,

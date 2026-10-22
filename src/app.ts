@@ -89,6 +89,7 @@ import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
+import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
 const fullPollPeriodMs = 10 * 60 * 1000;
 
@@ -392,32 +393,9 @@ const readIdsBody = readMarkBody.extend({
 	ids: z.array(z.string()),
 });
 
-type Trackers = Pick<PollOptions, "github" | "linear">;
-
 async function readMark(request: Request): Promise<boolean> {
 	const parsed = readMarkBody.safeParse(await request.json().catch(() => null));
 	return parsed.success;
-}
-
-function trackerFor(trackers: Trackers, name: string): Tracker | null {
-	if (name === "github") {
-		return trackers.github;
-	}
-	if (name === "linear") {
-		return trackers.linear;
-	}
-	return null;
-}
-
-function trackerError(error: unknown): Response {
-	const message = error instanceof Error ? error.message : "reply failed";
-	const status =
-		error instanceof Error &&
-		"status" in error &&
-		typeof error.status === "number"
-			? error.status
-			: 502;
-	return Response.json({ error: message }, { status });
 }
 
 async function replyResponse(
@@ -579,7 +557,7 @@ function eventStream(
 	});
 }
 
-type PollOptions = {
+export type PollOptions = {
 	configuration: ConfigurationPort;
 	github: Tracker | null;
 	linear: Tracker | null;
