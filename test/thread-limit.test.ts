@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import type { Thread } from "../src/domain.ts";
-import { githubFetch, issue, json, type Sent, serve } from "./replies-github-fake.ts";
+import {
+	githubFetch,
+	issue,
+	json,
+	type Sent,
+	serve,
+} from "./replies-github-fake.ts";
 
 describe("thread reads", () => {
 	test("a thread read whose tracker calls never answer returns an error", async () => {

@@ -1,11 +1,6 @@
 import { expect, test } from "bun:test";
 import type { Thread } from "../src/domain.ts";
-import {
-	githubFetch,
-	issue,
-	type Sent,
-	serve,
-} from "./replies-github-fake.ts";
+import { githubFetch, issue, type Sent, serve } from "./replies-github-fake.ts";
 import { linearFake } from "./support.ts";
 
 const linearProject = {

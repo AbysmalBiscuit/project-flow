@@ -6,7 +6,6 @@ import { projectHasPmBot, samePin } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
-import { settingsBots } from "./settings-styles.ts";
 import {
 	FilterGlyph,
 	laneStates,
@@ -28,6 +27,7 @@ import {
 	SettingsToast,
 	TrackersSection,
 } from "./settings-sections.tsx";
+import { settingsBots } from "./settings-styles.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import {
 	loadingLabel,

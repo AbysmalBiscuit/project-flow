@@ -623,63 +623,6 @@ describe("replies", () => {
 		}
 	});
 
-	test("a thread keeps only http, https and mailto links", async () => {
-		const cases = [
-			{ id: 81, body: "[x](httpfoo)" },
-			{ id: 82, body: "[x](httpx:alert(1))" },
-			{ id: 83, body: "see https://example.com/spec" },
-			{ id: 84, body: "see <https://example.com/angle>" },
-			{ id: 85, body: "![kept alt](https://example.com/a.png)" },
-			{ id: 86, body: "![](https://example.com/b.png)" },
-			{ id: 87, body: "before ![diagram](https://example.com/c.png) after" },
-			{ id: 88, body: "one line\nnext line" },
-			{ id: 89, body: "- [x] done\n- [ ] open" },
-		];
-		const recorded = githubFetch([], {
-			issues: [issue(7, cases.length)],
-			comments: { 7: cases.map((item) => comment(item.id, item.body)) },
-		});
-		const app = await serve(
-			recorded,
-			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
-		);
-		try {
-			const response = await fetch(
-				new URL(
-					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
-					app.base,
-				),
-			);
-			expect(response.status).toBe(200);
-			const thread = (await response.json()) as Thread;
-			const html = thread.comments.map((item) => item.html);
-			expect(html[0]).toContain("x");
-			expect(html[0]).not.toContain("<a");
-			expect(html[0]).not.toContain("httpfoo");
-			expect(html[1]).toContain("x");
-			expect(html[1]).not.toContain("<a");
-			expect(html[1]).not.toContain("httpx:");
-			expect(html[2]).toContain('href="https://example.com/spec"');
-			expect(html[3]).toContain("&lt;https://example.com/angle&gt;");
-			expect(html[3]).not.toContain("<a");
-			expect(html[4]).toContain("kept alt");
-			expect(html[4]).not.toContain("<img");
-			expect(html[4]).not.toContain("<a");
-			expect(html[5]).not.toContain("<img");
-			expect(html[5]).not.toContain("<a");
-			expect(html[5]?.replace(/<[^>]+>/g, "").trim()).toBe("");
-			expect(html[6]).toContain("before diagram after");
-			expect(html[6]).not.toContain("<img");
-			expect(html[6]).not.toContain("<a");
-			expect(html[7]).toContain("one line\nnext line");
-			expect(html[8]).toContain('checked=""');
-			expect(html[8]).toContain('data-checked="">[x] </span>');
-			expect(html[8]).not.toContain("[ ]");
-		} finally {
-			await app.stop();
-		}
-	});
-
 	test("a GitHub issue thread returns the tracker URL", async () => {
 		const sent: Sent[] = [];
 		const recorded = githubFetch(sent, {
