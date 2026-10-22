@@ -6,7 +6,7 @@ The spike in issue 349 measured both layouts on the recorded tickets of project-
 
 ## Considered options
 
-- The hand-written layout. It has no nested frames. On workcell, a ticket fills about a fifth of the cells of its group frame. ELK `layered` with `SEPARATE_CHILDREN` fills more than twice that share. With `INCLUDE_CHILDREN`, it fills about one and a half times that share.
+- The hand-written layout. It has no nested frames. On workcell, a ticket fills less than a fifth of the cells of its group frame. ELK `layered` with `SEPARATE_CHILDREN` fills about three times that share. With `INCLUDE_CHILDREN`, it fills almost twice that share.
 - dagre. It lays out layers, but it gives no option to bound a layer or to pack the loose tickets of a frame. A fan-out stays one tall column, as in the hand-written layout.
 - ELK `stress` for Force. It lays out each frame alone and ignores the arrows that cross frames. Frames stay intact only because the top level has no arrows. Cards overlap, and arrows across frames become long lines over the graph. When the arrows move up to the frame level, `stress` puts frames on top of each other.
 - d3-force for Layered. It has no layers, so the left-to-right reading order of blockers goes away.
