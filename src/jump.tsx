@@ -118,10 +118,11 @@ export function JumpBox() {
 				return;
 			}
 			event.preventDefault();
+			event.stopPropagation();
 			closeSearch();
 		};
-		window.addEventListener("keydown", onEscape);
-		return () => window.removeEventListener("keydown", onEscape);
+		window.addEventListener("keydown", onEscape, true);
+		return () => window.removeEventListener("keydown", onEscape, true);
 	}, [open, closeSearch]);
 	useEffect(() => {
 		if (!open) {
@@ -331,20 +332,4 @@ export function mountJumpBox(): void {
 	host.style.display = "contents";
 	document.body.append(host);
 	createRoot(host).render(<JumpBox />);
-	const opener = document.createElement("button");
-	opener.type = "button";
-	opener.hidden = true;
-	opener.id = "walk-ctrl-k";
-	opener.addEventListener("click", () => {
-		window.dispatchEvent(
-			new KeyboardEvent("keydown", {
-				key: "k",
-				code: "KeyK",
-				ctrlKey: true,
-				bubbles: true,
-				cancelable: true,
-			}),
-		);
-	});
-	document.body.append(opener);
 }

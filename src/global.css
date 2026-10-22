@@ -11,6 +11,11 @@ input,
 select,
 textarea {
 	font-family: inherit;
+}
+
+input,
+select,
+textarea {
 	color: inherit;
 }
 
