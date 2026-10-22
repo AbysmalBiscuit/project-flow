@@ -21,23 +21,11 @@ export function polledAgo(fetchedAtMs: number, now: number): string | null {
 	return `${polled} ${age} ago`;
 }
 
-const clockShift = "__projectFlowProofClockShiftMs";
-
-function hostNow(): number {
-	const shift = (globalThis as { [clockShift]?: number })[clockShift];
-	return Date.now() + (typeof shift === "number" ? shift : 0);
-}
-
 export function usePollAge(fetchedAtMs: number): string | null {
-	const [now, setNow] = useState(hostNow);
+	const [now, setNow] = useState(() => Date.now());
 	useEffect(() => {
-		const timer = setInterval(() => setNow(hostNow()), 1000);
-		const onShift = () => setNow(hostNow());
-		addEventListener("project-flow-proof-clock", onShift);
-		return () => {
-			clearInterval(timer);
-			removeEventListener("project-flow-proof-clock", onShift);
-		};
+		const timer = setInterval(() => setNow(Date.now()), 200);
+		return () => clearInterval(timer);
 	}, []);
 	return polledAgo(fetchedAtMs, now);
 }
