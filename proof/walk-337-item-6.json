@@ -103,6 +103,31 @@
 		},
 		{
 			"shot": "graph-after-double-clicks"
+		},
+		{
+			"goto": "/"
+		},
+		{
+			"assert_text": "acme/beta"
+		},
+		{
+			"fill": "#walk-dbl",
+			"text": "on"
+		},
+		{
+			"click": "#overview-graph a[data-project='acme/beta']"
+		},
+		{
+			"click": "h1"
+		},
+		{
+			"assert_text": "focus acme/alpha | acme/beta | acme/gamma"
+		},
+		{
+			"assert_text": "Clear focus"
+		},
+		{
+			"shot": "overview-double-click"
 		}
 	]
 }
