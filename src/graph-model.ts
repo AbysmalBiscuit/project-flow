@@ -220,6 +220,24 @@ function edgeRoute(
 	};
 }
 
+function labelHeight(label: string, width: number): number {
+	const probe = document.createElement("div");
+	probe.className = classToken(board.cluster);
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	probe.style.width = `${width}px`;
+	probe.style.height = "auto";
+	probe.textContent = label;
+	document.body.append(probe);
+	const height = probe.getBoundingClientRect().height;
+	probe.remove();
+	return height;
+}
+
+function headGrowth(label: string, width: number): number {
+	return Math.max(0, labelHeight(label, width) - labelHeight("\u00a0", width));
+}
+
 function clusterNodes(
 	tickets: GraphTicket[],
 	positions: Map<string, { x: number; y: number }>,
@@ -265,11 +283,12 @@ function clusterNodes(
 				...places.map((place) => place.y + place.size.height),
 			);
 			const width = right - left + groupPad * 2;
-			const height = bottom - top + groupHead + groupPad;
+			const head = groupHead + headGrowth(group.label, width);
+			const height = bottom - top + head + groupPad;
 			return {
 				id: groupId(name),
 				type: "cluster" as const,
-				position: { x: left - groupPad, y: top - groupHead },
+				position: { x: left - groupPad, y: top - head },
 				width,
 				height,
 				style: { width, height },
