@@ -607,7 +607,9 @@ describe("GET /api/projects/:name", () => {
 					const listed =
 						sent.variables?.since === undefined || sent.variables.since === null
 							? nodes()
-							: nodes().filter((node) => node.number === 245);
+							: nodes().filter(
+									(node) => node.number === 245 || node.number === 216,
+								);
 					return new Response(
 						JSON.stringify(repoReadIssues(owner, name, listed)),
 						{
@@ -620,12 +622,18 @@ describe("GET /api/projects/:name", () => {
 					url === "https://api.github.com/graphql" &&
 					body.includes("query BlockerStates")
 				) {
-					const asked = [...body.matchAll(/issue\(number: (\d+)\)/g)].map(
-						(match) => Number(match[1]),
-					);
+					const sent = JSON.parse(body) as {
+						query?: string;
+						variables?: Record<string, string | null>;
+					};
+					const aliases = [
+						...(sent.query ?? "").matchAll(/i(\d+): issue\(number: (\d+)\)/g),
+					];
 					const repository: Record<string, unknown> = {};
-					for (const [index, number] of asked.entries()) {
-						if (number !== 245) {
+					for (const match of aliases) {
+						const index = match[1];
+						const number = Number(match[2]);
+						if (index === undefined || number !== 245) {
 							continue;
 						}
 						repository[`i${index}`] = {
