@@ -30,6 +30,7 @@ import {
 	overviewViews,
 } from "./overview-view.ts";
 import { openProject, projectPath } from "./paths.ts";
+import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import {
 	barSegments,
 	SegmentedBar,
@@ -43,13 +44,7 @@ import {
 	settingsCacheWrite,
 	useSaveSettings,
 } from "./queries.ts";
-import {
-	PageFrame,
-	type PageView,
-	PollStatus,
-	RefreshGlyph,
-	SearchGlyph,
-} from "./shell.tsx";
+import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
@@ -326,22 +321,6 @@ function shownProjects(
 		view.sort,
 		view.direction,
 	);
-}
-
-function polledLine(fetchedAt: string | null, now: number): string | null {
-	if (fetchedAt === null) {
-		return null;
-	}
-	const at = Date.parse(fetchedAt);
-	if (Number.isNaN(at)) {
-		return null;
-	}
-	const age = Math.max(0, Math.floor((now - at) / 1000));
-	if (age < 60) {
-		return `${overviewControlLabel.polled} ${age} s ago`;
-	}
-	const clock = new Date(at).toISOString().slice(11, 16);
-	return `${overviewControlLabel.polled} ${clock} UTC`;
 }
 
 function slug(value: string): string {
@@ -755,17 +734,14 @@ function OverviewPage({
 	settings,
 	progress,
 	fetching,
-	onRefresh,
 }: {
 	overview: Overview;
 	settings: Configuration;
 	progress: PollProgress | null;
 	fetching: boolean;
-	onRefresh: () => void;
 }) {
 	const [query, setQuery] = useState("");
 	const [menu, setMenu] = useState<"filter" | "sort" | null>(null);
-	const [now, setNow] = useState(() => Date.now());
 	const [notifyPermission, setNotifyPermission] = useState(
 		notificationPermission,
 	);
@@ -774,12 +750,7 @@ function OverviewPage({
 		() => shownProjects(overview, view, query),
 		[overview, view, query],
 	);
-	const polled = polledLine(overview.fetchedAt, now);
 	const refreshing = fetching || overview.polling === true;
-	useEffect(() => {
-		const timer = setInterval(() => setNow(Date.now()), 1000);
-		return () => clearInterval(timer);
-	}, []);
 	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
 	const save = useSaveSettings();
@@ -898,8 +869,10 @@ function OverviewPage({
 			subtitle={
 				<>
 					{summary}
-					{polled !== null || refreshing ? ", " : null}
-					<PollStatus text={refreshing ? null : polled} polling={refreshing} />
+					<PollAgeText
+						queryKey={pageQuery.overview.queryKey}
+						refreshing={refreshing}
+					/>
 				</>
 			}
 			filter={undefined}
@@ -931,17 +904,11 @@ function OverviewPage({
 			}}
 			actions={
 				<div className={clsx(frame.actions)}>
-					<button
-						type="button"
+					<RefreshButton
 						id="overview-refresh"
-						className={clsx(headerControlStyle.square, shell.buttonFocus)}
-						aria-label={overviewControlLabel.refresh}
-						aria-busy={refreshing}
-						title={overviewControlLabel.refresh}
-						onClick={onRefresh}
-					>
-						<RefreshGlyph spinning={refreshing} />
-					</button>
+						refreshing={refreshing}
+						onRefresh={() => postRefresh(pageQuery.overview.queryKey)}
+					/>
 					{notifyPermission === "default" &&
 					typeof Notification !== "undefined" ? (
 						<button
@@ -1090,10 +1057,6 @@ export function Page() {
 			settings={settings}
 			progress={progress}
 			fetching={overviewQuery.isFetching || settingsQuery.isFetching}
-			onRefresh={() => {
-				void overviewQuery.refetch();
-				void fetch("/api/refresh", { method: "POST" });
-			}}
 		/>
 	);
 }
