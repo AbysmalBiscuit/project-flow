@@ -283,7 +283,7 @@ export const board = stylex.create({
 		fontWeight: type.weight,
 		letterSpacing: type.kickerTrack,
 		textTransform: "uppercase",
-		whiteSpace: "nowrap",
+		overflowWrap: "anywhere",
 	},
 	cards: {
 		display: "flex",
