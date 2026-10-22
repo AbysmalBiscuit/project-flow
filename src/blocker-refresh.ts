@@ -121,10 +121,7 @@ export async function currentBlockers(
 		fetchImpl,
 		repo,
 		stale.map((ticket) => Number(ticket.id)),
-	).catch(() => null);
-	if (states === null) {
-		return listed;
-	}
+	);
 	const fresh = stale.flatMap((ticket) => {
 		const blockedBy = states.get(Number(ticket.id));
 		if (blockedBy === undefined || blockedBy.pageInfo?.hasNextPage === true) {

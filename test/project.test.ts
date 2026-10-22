@@ -718,6 +718,116 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a failed blocker refresh reaches the poll error", async () => {
+		const relation = {
+			number: 216,
+			title: "Native blocker",
+			state: "OPEN",
+			repository: { nameWithOwner: githubRepo },
+		};
+		const pageInfo = { hasNextPage: false, endCursor: null };
+		const nodes = [
+			{
+				...githubIssueNode(issue(245, "Draw the board", {}, githubRepo)),
+				blockedBy: { nodes: [relation], pageInfo },
+			},
+			githubIssueNode(issue(216, "Native blocker", {}, githubRepo)),
+		];
+		let failRefresh = false;
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					if (failRefresh) {
+						return new Response("blocker states unavailable", { status: 500 });
+					}
+					return new Response(
+						JSON.stringify({
+							data: {
+								repository: {
+									i0: { blockedBy: { nodes: [relation], pageInfo } },
+								},
+							},
+						}),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: { owner?: string; name?: string };
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, nodes)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overviewUrl = new URL("/api/overview", base);
+				const before = (await (await fetch(overviewUrl)).json()) as {
+					error: string | null;
+					projects: { error: string | null }[];
+				};
+				expect(before.error).toBeNull();
+				expect(before.projects[0]?.error).toBeNull();
+				failRefresh = true;
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let after: typeof before | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(overviewUrl)
+					).json()) as typeof before & {
+						polling?: true;
+					};
+					if (overview.polling !== true) {
+						after = overview;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (after === null) {
+					throw new Error("the poll did not settle");
+				}
+				expect(after.projects[0]?.error).toContain("GitHub read repo failed");
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
 	test("an open ticket blocked only by a closed blocker is not blocked", async () => {
 		const done = issue(
 			8,
