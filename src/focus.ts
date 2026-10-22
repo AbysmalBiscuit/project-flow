@@ -57,11 +57,18 @@ export function useFocusSet() {
 	return { focus, toggle, clear };
 }
 
+/** True while an open menu or dialog takes Escape for itself. */
+export function menuOwnsEscape(): boolean {
+	return (
+		document.querySelector("[aria-expanded='true'], [role='dialog']") !== null
+	);
+}
+
 function escapeTaken(event: KeyboardEvent): boolean {
 	return (
 		event.defaultPrevented ||
 		event.target instanceof HTMLTextAreaElement ||
-		document.querySelector("[aria-expanded='true'], [role='dialog']") !== null
+		menuOwnsEscape()
 	);
 }
 
