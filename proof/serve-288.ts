@@ -263,8 +263,8 @@ const gate = Bun.serve({
 				`<button type="button" id="proof-add-minutes">Add 5 min</button>` +
 				`<button type="button" id="proof-add-hours">Add 2 h</button>` +
 				`<script>` +
-				`document.getElementById("proof-add-minutes").addEventListener("click",()=>globalThis.__projectFlowProofAddOffset(${5 * 60_000}))` +
-				`document.getElementById("proof-add-hours").addEventListener("click",()=>globalThis.__projectFlowProofAddOffset(${2 * 60 * 60_000}))` +
+				`document.getElementById("proof-add-minutes").addEventListener("click",()=>globalThis.__projectFlowProofAddOffset(${5 * 60_000}));` +
+				`document.getElementById("proof-add-hours").addEventListener("click",()=>globalThis.__projectFlowProofAddOffset(${2 * 60 * 60_000}));` +
 				`</script>`;
 			const marked = withClock.includes("</body>")
 				? withClock.replace("</body>", `${arm}</body>`)
