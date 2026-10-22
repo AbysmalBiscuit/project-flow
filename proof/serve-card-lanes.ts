@@ -9,6 +9,8 @@ import {
 } from "./recorded.ts";
 
 const repo = "acme/widget";
+const projectId = "PVT_widget";
+const projectTitle = "Widget board";
 const end = { hasNextPage: false, endCursor: null };
 const ask = "<!-- workcell:ask card-lanes -->\nWhich colour stays?";
 
@@ -80,6 +82,7 @@ const dropped = recordedIssue(7, "Drop the unused card", [], "CLOSED", {
 });
 const mergeTicket = recordedIssue(8, "Wait for the merge", ["ready"]);
 const issues = [
+	recordedIssue(9, "Park the board card", []),
 	recordedIssue(1, "Queue the board card", ["ready"]),
 	blocker,
 	blocked,
@@ -208,6 +211,189 @@ function recordedRepo(): Response {
 	});
 }
 
+function projectStatus(
+	name: string,
+	optionId: string,
+	color: string,
+): Record<string, unknown> {
+	return { name, optionId, color, updatedAt: "2026-10-18T12:00:00Z" };
+}
+
+function projectIssue(
+	number: number,
+	title: string,
+	status: Record<string, unknown> | null,
+	state: "OPEN" | "CLOSED" = "OPEN",
+	fields: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		fieldValueByName: status,
+		content: {
+			__typename: "Issue",
+			id: `I_${number}`,
+			number,
+			title,
+			state,
+			stateReason: state === "CLOSED" ? "COMPLETED" : null,
+			updatedAt: "2026-10-18T12:00:00Z",
+			body: "",
+			comments: { totalCount: 0 },
+			repository: { nameWithOwner: repo },
+			milestone: null,
+			labels: { nodes: [] },
+			parent: null,
+			closedByPullRequestsReferences: { nodes: [], pageInfo: end },
+			blockedBy: { nodes: [], pageInfo: end },
+			...fields,
+		},
+	};
+}
+
+const statusOptions = [
+	{ id: "opt-backlog", name: "Backlog", color: "GRAY" },
+	{ id: "opt-ready", name: "Ready", color: "BLUE" },
+	{ id: "opt-progress", name: "In progress", color: "YELLOW" },
+	{ id: "opt-review", name: "In review", color: "ORANGE" },
+	{ id: "opt-merge", name: "Awaiting merge", color: "GREEN" },
+	{ id: "opt-done", name: "Done", color: "PURPLE" },
+	{ id: "opt-dropped", name: "Dropped", color: "PINK" },
+];
+
+const projectItems = [
+	projectIssue(
+		9,
+		"Park the board card",
+		projectStatus("Backlog", "opt-backlog", "GRAY"),
+	),
+	projectIssue(
+		1,
+		"Queue the board card",
+		projectStatus("Ready", "opt-ready", "BLUE"),
+	),
+	projectIssue(2, "Open the gate", projectStatus("Ready", "opt-ready", "BLUE")),
+	projectIssue(
+		3,
+		"Hold the launch window",
+		projectStatus("Ready", "opt-ready", "BLUE"),
+		"OPEN",
+		{
+			blockedBy: {
+				nodes: [
+					{
+						number: 2,
+						title: "Open the gate",
+						state: "OPEN",
+						repository: { nameWithOwner: repo },
+					},
+				],
+				pageInfo: end,
+			},
+		},
+	),
+	projectIssue(
+		4,
+		"Pick the card colour",
+		projectStatus("Ready", "opt-ready", "BLUE"),
+		"OPEN",
+		{
+			comments: { totalCount: 1 },
+		},
+	),
+	projectIssue(
+		5,
+		"Build the lane tint",
+		projectStatus("In progress", "opt-progress", "YELLOW"),
+	),
+	projectIssue(
+		6,
+		"Read the review comments",
+		projectStatus("In review", "opt-review", "ORANGE"),
+	),
+	projectIssue(
+		8,
+		"Wait for the merge",
+		projectStatus("Awaiting merge", "opt-merge", "GREEN"),
+		"OPEN",
+		{
+			closedByPullRequestsReferences: {
+				nodes: [{ number: 70, repository: { nameWithOwner: repo } }],
+				pageInfo: end,
+			},
+		},
+	),
+	...Array.from({ length: 6 }, (_, index) =>
+		projectIssue(
+			10 + index,
+			`Close item ${String(index + 1)}`,
+			projectStatus("Done", "opt-done", "PURPLE"),
+			"CLOSED",
+		),
+	),
+	projectIssue(
+		7,
+		"Drop the unused card",
+		projectStatus("Dropped", "opt-dropped", "PINK"),
+		"CLOSED",
+		{
+			stateReason: "NOT_PLANNED",
+		},
+	),
+];
+
+function recordedProject(): Response {
+	return Response.json({
+		data: {
+			repositoryOwner: {
+				projectV2: {
+					id: projectId,
+					number: 4,
+					title: projectTitle,
+					closed: false,
+					updatedAt: "2026-10-18T12:00:00Z",
+				},
+			},
+		},
+	});
+}
+
+function recordedFields(): Response {
+	return Response.json({
+		data: {
+			node: {
+				fields: {
+					nodes: [
+						{ id: "PVTSSF_status", name: "Status", options: statusOptions },
+					],
+				},
+			},
+		},
+	});
+}
+
+function recordedItems(): Response {
+	return Response.json({
+		data: {
+			node: {
+				items: { nodes: projectItems, pageInfo: end },
+			},
+		},
+	});
+}
+
+function recordedComments(number: number): Response {
+	if (number !== 4) {
+		return Response.json([]);
+	}
+	return Response.json([
+		{
+			id: 4,
+			body: ask,
+			created_at: "2026-10-18T11:00:00Z",
+			user: { login: "factory" },
+		},
+	]);
+}
+
 const recorded: Fetch = async (input, init) => {
 	const discovered = recordedDiscovery(input, init);
 	if (discovered !== null) {
@@ -224,8 +410,79 @@ const recorded: Fetch = async (input, init) => {
 	if (emptyLists(url) || url.includes("/dependencies/")) {
 		return Response.json([]);
 	}
+	if (url.includes("/issues/4/comments")) {
+		return recordedComments(4);
+	}
+	if (url.includes("/issues/") && url.includes("/comments")) {
+		return Response.json([]);
+	}
+	if (url.includes("/pulls/70")) {
+		return Response.json({
+			number: 70,
+			title: "Wait for the merge",
+			html_url: `https://github.com/${repo}/pull/70`,
+			state: "open",
+			draft: false,
+			merged_at: null,
+			body: "Closes #8",
+			head: { ref: "70-feat-merge", sha: head },
+			user: { login: "lev" },
+		});
+	}
+	if (url.includes("/check-runs")) {
+		return Response.json({
+			check_runs: [{ name: "ci", status: "completed", conclusion: "success" }],
+		});
+	}
+	if (
+		url.includes("/pulls/70/comments") ||
+		url.includes("/issues/70/comments")
+	) {
+		return Response.json([
+			{
+				id: 70,
+				body: "<!-- codex-pull-request-review-summary -->\n| 📝 **Code Review** | ✅ **Completed** | `aaaaaaaa` | PR opened |",
+				created_at: "2026-10-18T11:00:00Z",
+				user: { login: codex },
+				reactions: { total_count: 0 },
+			},
+		]);
+	}
+	if (url.includes("/pulls/70/reviews")) {
+		return Response.json([
+			{
+				user: { login: codex },
+				commit_id: head,
+				state: "APPROVED",
+			},
+		]);
+	}
+	if (
+		url.includes("/pulls/70/reactions") ||
+		url.includes("/issues/70/reactions")
+	) {
+		return Response.json([]);
+	}
+	if (url.includes(`/commits/${head}`)) {
+		return Response.json({
+			sha: head,
+			commit: { committer: { date: "2026-10-18T10:00:00Z" } },
+		});
+	}
+	if (url.includes("/pulls?")) {
+		return Response.json([]);
+	}
 	if (url === "https://api.github.com/graphql") {
 		const body = typeof init?.body === "string" ? init.body : "";
+		if (body.includes("ProjectByNumber")) {
+			return recordedProject();
+		}
+		if (body.includes("ProjectFields")) {
+			return recordedFields();
+		}
+		if (body.includes("ProjectItems")) {
+			return recordedItems();
+		}
 		if (body.includes("RepoRead")) {
 			if (body.includes("openPullRequests")) {
 				return recordedPull();
@@ -260,20 +517,21 @@ void serveRecorded({
 	prefix: "project-flow-card-lanes-",
 	port: String(appPort),
 	config: {
-		pinned: [{ tracker: "github", repo }],
+		pinned: [{ tracker: "github", owner: "acme", project: 4 }],
 		checkoutRoots: [],
 		pmBot: { [repo]: false },
 		expectedBots: { [repo]: ["codex"] },
 		pollIntervalSeconds: 3600,
 		theme: process.argv[3] === "dark" ? "dark" : "light",
 		projectViews: {
-			[repo]: {
+			[projectTitle]: {
 				openView: "board",
 				groupBy: "none",
 				shownLanes: [
-					"ready",
-					"factory: running",
-					"factory: in-review",
+					"Backlog",
+					"Ready",
+					"In progress",
+					"In review",
 					"Awaiting merge",
 					"Done",
 					"Dropped",
@@ -298,6 +556,10 @@ document.addEventListener("DOMContentLoaded", () => {
   left.type = "button";
   left.id = "card-lane-frame-left";
   left.textContent = "Frame left lanes";
+  const backlog = document.createElement("button");
+  backlog.type = "button";
+  backlog.id = "card-lane-frame-backlog";
+  backlog.textContent = "Frame backlog";
   function frameEnd(edge) {
     const lanes = document.querySelector("[data-lanes]");
     const named = new URLSearchParams(location.search).get("frame") ?? "";
@@ -307,6 +569,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!(lanes instanceof HTMLElement) || !(framed instanceof HTMLElement)) {
       button.textContent = "lanes missing";
       left.textContent = "lanes missing";
+      backlog.textContent = "lanes missing";
       return;
     }
     if (named.startsWith("acme/widget#")) {
@@ -331,12 +594,30 @@ document.addEventListener("DOMContentLoaded", () => {
       lanes.replaceChildren(copy);
     } else if (edge === "left") {
       lanes.scrollLeft = 0;
+    } else if (edge === "backlog") {
+      const card = document.querySelector("[data-ticket='acme/widget#9']");
+      if (!(card instanceof HTMLElement)) {
+        button.textContent = "lanes missing";
+        left.textContent = "lanes missing";
+        backlog.textContent = "lanes missing";
+        return;
+      }
+      const lane = card.closest("[data-lanes] > *");
+      if (!(lane instanceof HTMLElement)) {
+        button.textContent = "lanes missing";
+        left.textContent = "lanes missing";
+        backlog.textContent = "lanes missing";
+        return;
+      }
+      const offset = lane.getBoundingClientRect().left - lanes.getBoundingClientRect().left;
+      lanes.scrollLeft += offset;
     } else {
       const offset = framed.getBoundingClientRect().left - lanes.getBoundingClientRect().left;
       lanes.scrollLeft += offset;
     }
     button.textContent = "lanes framed";
     left.textContent = "lanes framed";
+    backlog.textContent = "lanes framed";
   }
   button.addEventListener("click", () => {
     frameEnd("right");
@@ -344,7 +625,10 @@ document.addEventListener("DOMContentLoaded", () => {
   left.addEventListener("click", () => {
     frameEnd("left");
   });
-  document.body.append(button, left);
+  backlog.addEventListener("click", () => {
+    frameEnd("backlog");
+  });
+  document.body.append(button, left, backlog);
 });
 </script>`;
 
