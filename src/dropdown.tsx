@@ -32,13 +32,24 @@ export function Dropdown({
 			return;
 		}
 		const close = (event: PointerEvent) => {
-			if (!root.current?.contains(event.target as Node)) {
+			const target = event.target;
+			if (!root.current?.contains(target as Node)) {
 				setOpen(false);
 			}
 		};
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) {
+				return;
+			}
+			event.preventDefault();
+			setOpen(false);
+			root.current?.querySelector("button")?.focus();
+		};
 		document.addEventListener("pointerdown", close);
+		document.addEventListener("keydown", onKey);
 		return () => {
 			document.removeEventListener("pointerdown", close);
+			document.removeEventListener("keydown", onKey);
 		};
 	}, [open]);
 	return (

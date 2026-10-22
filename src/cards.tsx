@@ -687,6 +687,23 @@ function MenuButton({
 			window.removeEventListener("resize", fit);
 		};
 	}, [open]);
+	useEffect(() => {
+		if (!open) {
+			return;
+		}
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) {
+				return;
+			}
+			event.preventDefault();
+			onToggle();
+			document.getElementById(id)?.focus();
+		};
+		document.addEventListener("keydown", onKey);
+		return () => {
+			document.removeEventListener("keydown", onKey);
+		};
+	}, [open, id, onToggle]);
 	return (
 		<div className={clsx(cards.menu)} ref={root}>
 			<span ref={gutter} className={clsx(cards.gutter)} aria-hidden="true" />

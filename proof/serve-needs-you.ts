@@ -1,9 +1,10 @@
+import { Database } from "bun:sqlite";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { repoReadFromLists } from "../test/support.ts";
-import { proofStops } from "./lifetime.ts";
+import { proofStops, proofTheme } from "./lifetime.ts";
 
 const repo = "acme/widget";
 const gate = "acme/gate";
@@ -367,6 +368,31 @@ const recorded: Fetch = async (input, init) => {
 
 const root = await mkdtemp(join("/var/tmp", "project-flow-proof-"));
 const config = join(root, "config.json");
+const store = new Database(join(root, "store.sqlite"));
+store.run(`
+	create table if not exists notifications (
+		id text primary key,
+		trigger text not null,
+		project text not null,
+		item_key text not null,
+		text text not null,
+		at text not null,
+		read integer not null default 0
+	)
+`);
+store.run(
+	"insert into notifications (id, trigger, project, item_key, text, at, read) values (?, ?, ?, ?, ?, ?, ?)",
+	[
+		"needsYou\nacme/widget\nacme/widget#8\n2026-10-18T12:00:00.000Z",
+		"needsYou",
+		"acme/widget",
+		"acme/widget#8",
+		"Ready to merge",
+		"2026-10-18T12:00:00.000Z",
+		0,
+	],
+);
+store.close();
 await writeFile(
 	config,
 	JSON.stringify({
@@ -381,26 +407,44 @@ await writeFile(
 	}),
 );
 
-Bun.serve({
-	hostname: "127.0.0.1",
-	port: 4180,
-	fetch: async (request) => {
-		const path = new URL(request.url).pathname;
-		if (path !== "/ready") {
-			return new Response("not found", { status: 404 });
+let internal = "";
+const ready = (async () => {
+	const deadline = Date.now() + 20_000;
+	while (Date.now() < deadline) {
+		if (internal !== "") {
+			const listed = await fetch(`${internal}api/needs-you`).catch(() => null);
+			if (listed?.ok) {
+				const items: unknown = await listed.json();
+				if (Array.isArray(items) && items.length >= 5) {
+					Bun.serve({
+						hostname: "127.0.0.1",
+						port: Number(port),
+						async fetch(request) {
+							const url = new URL(request.url);
+							const target = new URL(internal);
+							url.protocol = target.protocol;
+							url.hostname = target.hostname;
+							url.port = target.port;
+							const response = await fetch(
+								new Request(url, {
+									method: request.method,
+									headers: request.headers,
+									body: request.body,
+								}),
+							);
+							return proofTheme(response);
+						},
+					});
+					console.log(`http://127.0.0.1:${port}/`);
+					return;
+				}
+			}
 		}
-		const listed = await fetch(`http://127.0.0.1:${port}/api/needs-you`);
-		if (!listed.ok) {
-			return new Response("not ready", { status: 503 });
-		}
-		const items: unknown = await listed.json();
-		if (!Array.isArray(items) || items.length < 5) {
-			return new Response("not ready", { status: 503 });
-		}
-		return new Response("ready");
-	},
-});
-await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
+		await new Promise((pause) => setTimeout(pause, 50));
+	}
+	throw new Error("needs-you load returned no items");
+})();
+await run(["--config", config, "--host", "127.0.0.1", "--port", "0"], {
 	env: {
 		GITHUB_TOKEN: "recorded-token",
 		LINEAR_API_KEY: "recorded-linear-key",
@@ -411,7 +455,7 @@ await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 	databasePath: join(root, "store.sqlite"),
 	now: () => new Date("2026-10-18T12:00:00.000Z"),
 	stdout: (line) => {
-		console.log(line);
+		internal = line.trim();
 	},
-	waitForStop: proofStops(),
+	waitForStop: Promise.all([proofStops(), ready]).then(() => undefined),
 });

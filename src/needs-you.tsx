@@ -221,6 +221,16 @@ function NeedsList({
 			return;
 		}
 		seeded.current = true;
+		const row = document.querySelector(
+			`[data-needs="${CSS.escape(first.key)}"]`,
+		);
+		const opener = row?.querySelector("button");
+		if (
+			opener instanceof HTMLElement &&
+			document.activeElement === document.body
+		) {
+			opener.focus();
+		}
 		openTicket({
 			tracker: first.tracker,
 			project: first.project,

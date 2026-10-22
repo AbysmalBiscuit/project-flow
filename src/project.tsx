@@ -728,10 +728,22 @@ function TableRow({
 			data-ticket={key ?? ""}
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
+			tabIndex={key === null ? undefined : 0}
 			onClick={() => {
 				if (key !== null) {
 					onOpen(key);
 				}
+			}}
+			onKeyDown={(event) => {
+				if (
+					event.target !== event.currentTarget ||
+					key === null ||
+					(event.key !== "Enter" && event.key !== " ")
+				) {
+					return;
+				}
+				event.preventDefault();
+				onOpen(key);
 			}}
 		>
 			<td className={clsx(board.rowCell, board.rowKey)}>
@@ -1020,12 +1032,13 @@ function FilterMenu({
 			return;
 		}
 		const onPointer = (event: PointerEvent) => {
-			if (!root.current?.contains(event.target as Node)) {
+			const target = event.target;
+			if (!root.current?.contains(target as Node)) {
 				onOpen(false);
 			}
 		};
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key !== "Escape") {
+			if (event.key !== "Escape" || event.defaultPrevented) {
 				return;
 			}
 			event.preventDefault();

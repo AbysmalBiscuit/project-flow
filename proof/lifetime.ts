@@ -61,6 +61,125 @@ function watchProof(): Promise<void> {
 	return stopsHere;
 }
 
+const walkMarker = "data-walk-theme";
+
+const walkScript = `<script id="walk-theme">(function () {
+	var name = "Theme";
+	function paint() {
+		var root = document.documentElement;
+		var theme = root.getAttribute("data-theme") === "dark" ? "dark" : "light";
+		var line = document.getElementById("walk-theme-name");
+		if (line === null) {
+			line = document.createElement("p");
+			line.id = "walk-theme-name";
+			document.body.prepend(line);
+		}
+		line.textContent = name + " " + theme;
+		line.style.position = "fixed";
+		line.style.top = "0";
+		line.style.left = "0";
+		line.style.zIndex = "2147483647";
+	}
+	new MutationObserver(paint).observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ["data-theme"],
+	});
+	function markFocus() {
+		var active = document.activeElement;
+		var nodes = document.querySelectorAll("[data-walk-focus]");
+		for (var i = 0; i < nodes.length; i++) {
+			nodes[i].removeAttribute("data-walk-focus");
+		}
+		if (active && active !== document.body && active.id !== "walk-esc") {
+			var card = active.closest("li") || active.closest("tr") || active;
+			card.setAttribute("data-walk-focus", "");
+			card.scrollIntoView({ block: "center", inline: "nearest" });
+		}
+	}
+	document.addEventListener("focusin", markFocus, true);
+	document.addEventListener("keyup", markFocus, true);
+	document.addEventListener("keydown", function () {
+		setTimeout(markFocus, 50);
+	}, true);
+	if (document.body) {
+		paint();
+		markFocus();
+	} else {
+		document.addEventListener("DOMContentLoaded", function () {
+			paint();
+			markFocus();
+		});
+	}
+})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style><button type="button" id="walk-ctrl-k" hidden></button><input type="text" id="walk-esc" tabindex="-1" aria-label="Escape" style="position:fixed;right:0;bottom:0;opacity:0"><script id="walk-keys">(function () {
+	var opener = document.getElementById("walk-ctrl-k");
+	if (opener) {
+		opener.addEventListener("click", function () {
+			window.dispatchEvent(new KeyboardEvent("keydown", {
+				key: "k",
+				code: "KeyK",
+				ctrlKey: true,
+				bubbles: true,
+				cancelable: true,
+			}));
+		});
+	}
+	var walkEsc = document.getElementById("walk-esc");
+	if (!walkEsc) {
+		return;
+	}
+	var seen = "";
+	var reply = null;
+	walkEsc.addEventListener("focusin", function (event) {
+		var prior = event.relatedTarget;
+		if (prior instanceof HTMLElement && prior.id === "ticket-reply") {
+			reply = prior;
+			return;
+		}
+		reply = null;
+	});
+	walkEsc.addEventListener("input", function () {
+		var before = document.activeElement;
+		var stamp = walkEsc.value;
+		walkEsc.value = "";
+		if (stamp === "" || stamp === seen) {
+			return;
+		}
+		seen = stamp;
+		if (reply !== null && reply.isConnected) {
+			reply.focus();
+		}
+		var event = new KeyboardEvent("keydown", {
+			key: "Escape",
+			code: "Escape",
+			bubbles: true,
+			cancelable: true,
+		});
+		window.dispatchEvent(event);
+		if (!event.defaultPrevented) {
+			document.dispatchEvent(event);
+		}
+		reply = null;
+	});
+})();</script>`;
+
+/** Publish the root data-theme value as text a walk can assert. */
+export async function proofTheme(response: Response): Promise<Response> {
+	const type = response.headers.get("content-type") ?? "";
+	if (!type.includes("text/html")) {
+		return response;
+	}
+	const html = await response.text();
+	if (html.includes(walkMarker)) {
+		return new Response(html, response);
+	}
+	const stamped = html.includes("</body>")
+		? html.replace("</body>", `${walkScript}</body>`)
+		: `${html}${walkScript}`;
+	const headers = new Headers(response.headers);
+	headers.delete("content-length");
+	return new Response(stamped, { status: response.status, headers });
+}
+
 export async function serveProof(args: string[], io: RunIo): Promise<never> {
 	const result = await run(args, { ...io, waitForStop: proofStops() });
 	process.exit(result.exitCode);

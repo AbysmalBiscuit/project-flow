@@ -330,6 +330,21 @@ function ProjectsTable({
 		useState<(typeof trackerFilters)[number]>("all");
 	const [state, setState] = useState<(typeof stateFilters)[number]>("all");
 	const [filtersOpen, setFiltersOpen] = useState(false);
+	useEffect(() => {
+		if (!filtersOpen) {
+			return;
+		}
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key !== "Escape" || event.defaultPrevented) {
+				return;
+			}
+			event.preventDefault();
+			setFiltersOpen(false);
+			document.getElementById("project-filter")?.focus();
+		};
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [filtersOpen]);
 
 	const shown = projects.filter((project) =>
 		projectMatches(project, query, tracker, state, draft),

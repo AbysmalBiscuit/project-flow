@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4313",
+	"serve": ["bun", "proof/serve-needs-you.ts", "4313"],
+	"steps": [
+		{ "goto": "/inbox" },
+		{ "assert_text": "Ready to merge" },
+		{ "click": "button[data-inbox]" },
+		{ "assert_text": "Comment" },
+		{ "shot": "inbox-panel" },
+		{ "click": "#header-search" },
+		{ "assert_text": "Search tickets" },
+		{ "shot": "inbox-jump-open" },
+		{ "fill": "#walk-esc", "text": "box" },
+		{ "assert_text": "Comment" },
+		{ "shot": "inbox-jump-esc" },
+		{ "fill": "#walk-esc", "text": "panel" },
+		{ "assert_text": "Ready to merge" },
+		{ "shot": "inbox-esc-focus" }
+	]
+}
