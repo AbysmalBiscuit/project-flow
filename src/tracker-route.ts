@@ -1,4 +1,4 @@
-import type { PollOptions } from "./app.ts";
+import type { PollOptions } from "./poll.ts";
 import type { Tracker } from "./ports.ts";
 
 export type Trackers = Pick<PollOptions, "github" | "linear">;
