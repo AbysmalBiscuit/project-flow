@@ -3,31 +3,11 @@ import type { FetchedThread, PostedReply, ReplyRequest } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { TrackerError } from "./github.ts";
 import { linearError, linearHeaders } from "./linear.ts";
+import { commentAuthor, linearEndpoint, linearPageInfo } from "./linear-api.ts";
 
-const endpoint = "https://api.linear.app/graphql";
+const endpoint = linearEndpoint;
 
-const pageInfo = z.object({
-	hasNextPage: z.boolean(),
-	endCursor: z.string().nullable(),
-});
-
-function commentAuthor(
-	user:
-		| {
-				name?: string | null | undefined;
-				displayName?: string | null | undefined;
-		  }
-		| null
-		| undefined,
-): string {
-	if (user?.displayName !== undefined && user.displayName !== null) {
-		return user.displayName;
-	}
-	if (user?.name !== undefined && user.name !== null) {
-		return user.name;
-	}
-	return "";
-}
+const pageInfo = linearPageInfo;
 
 const threadQuery = `query IssueThread($id: String!, $after: String) {
 	issue(id: $id) {
@@ -163,7 +143,7 @@ export async function fetchLinearThread(
 		.map((comment) => ({
 			id: comment.id,
 			body: comment.body ?? "",
-			author: commentAuthor(comment.user),
+			author: commentAuthor(comment.user) ?? "",
 			createdAt: comment.createdAt ?? "",
 			url: comment.url ?? "",
 			parentId: comment.parent?.id ?? null,

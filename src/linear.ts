@@ -15,18 +15,16 @@ import {
 	mergedPullHistory,
 	type ReviewEvidence,
 } from "./github.ts";
+import { commentAuthor, linearEndpoint, linearPageInfo } from "./linear-api.ts";
 import { fetchLinearThread, postLinearReply } from "./linear-thread.ts";
 import type { FoundProject, Tracker } from "./ports.ts";
 
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
 
-const endpoint = "https://api.linear.app/graphql";
+const endpoint = linearEndpoint;
 
-const pageInfo = z.object({
-	hasNextPage: z.boolean(),
-	endCursor: z.string().nullable(),
-});
+const pageInfo = linearPageInfo;
 
 const projectsQuery = `query MemberProjects($viewer: ID!, $after: String) {
 	projects(
@@ -608,24 +606,6 @@ const commentsQuery = `query IssueComments($id: String!, $after: String) {
 }`;
 
 type ListedComment = Comment;
-
-function commentAuthor(
-	user:
-		| {
-				name?: string | null | undefined;
-				displayName?: string | null | undefined;
-		  }
-		| null
-		| undefined,
-): string | undefined {
-	if (user?.displayName !== undefined && user.displayName !== null) {
-		return user.displayName;
-	}
-	if (user?.name !== undefined && user.name !== null) {
-		return user.name;
-	}
-	return undefined;
-}
 
 function listedComment(node: {
 	id?: string | undefined;
