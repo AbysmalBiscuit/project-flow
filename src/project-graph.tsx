@@ -180,18 +180,18 @@ function layoutParts(): {
 	const legend = root.querySelector(
 		`[aria-label="${projectGraphLabel.legend}"]`,
 	);
-	const chrome = document.getElementById("project-graph-controls");
-	const floats = [...(chrome?.querySelectorAll(":scope > * > *") ?? [])].filter(
-		(node): node is HTMLElement => node instanceof HTMLElement,
-	);
+	const controls = document.getElementById("project-graph-controls");
+	const floats = [
+		...(controls?.querySelectorAll(":scope > * > *") ?? []),
+	].filter((node): node is HTMLElement => node instanceof HTMLElement);
 	if (
 		!(legend instanceof HTMLElement) ||
-		!(chrome instanceof HTMLElement) ||
+		!(controls instanceof HTMLElement) ||
 		floats.length === 0
 	) {
 		return null;
 	}
-	return { root, legend, controls: chrome, floats };
+	return { root, legend, controls, floats };
 }
 
 function boxesMiss(left: DOMRect, right: DOMRect): boolean {
