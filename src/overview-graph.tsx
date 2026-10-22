@@ -11,14 +11,7 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import {
-	createContext,
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-} from "react";
+import { createContext, useContext, useEffect, useMemo } from "react";
 import { board } from "./board-styles.ts";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import {
@@ -68,8 +61,6 @@ type BlockerEdgeData = {
 	side: number;
 };
 
-const doubleClickMs = 250;
-
 const ProjectFocusContext = createContext<{
 	chain: ReadonlySet<string> | null;
 	view: FocusView | null;
@@ -78,14 +69,6 @@ const ProjectFocusContext = createContext<{
 function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 	const focus = useContext(ProjectFocusContext);
 	const faded = focus.chain !== null && !focus.chain.has(data.project.name);
-	const pendingOpen = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const cancelOpen = useCallback(() => {
-		if (pendingOpen.current !== null) {
-			clearTimeout(pendingOpen.current);
-			pendingOpen.current = null;
-		}
-	}, []);
-	useEffect(() => cancelOpen, [cancelOpen]);
 	return (
 		<a
 			className={clsx(
@@ -108,21 +91,7 @@ function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 					focus.view?.toggle(data.project.name);
 					return;
 				}
-				if (event.detail === 0) {
-					openProject(data.project.name);
-					return;
-				}
-				// A pointer click waits out the double-click time, so a double-click can focus the node instead.
-				cancelOpen();
-				pendingOpen.current = setTimeout(
-					() => openProject(data.project.name),
-					doubleClickMs,
-				);
-			}}
-			onDoubleClick={(event) => {
-				event.preventDefault();
-				cancelOpen();
-				focus.view?.toggle(data.project.name);
+				openProject(data.project.name);
 			}}
 		>
 			<MeasuredNode id={id} kind="project" />
@@ -419,7 +388,6 @@ export function OverviewGraph({
 					elementsSelectable={false}
 					panOnDrag
 					zoomOnScroll
-					zoomOnDoubleClick={false}
 					fitView
 					proOptions={{ hideAttribution: true }}
 				>
