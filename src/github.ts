@@ -6,19 +6,19 @@ import type {
 	BotReaction,
 	BotReview,
 	Comment,
-	PostedReply,
 	PullRequest,
-	ReplyRequest,
-	Thread,
-	ThreadComment,
 	Ticket,
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
 import { factoryBoard, reviewStateValue, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import { githubHeaders, nextPage, pages } from "./github-pages.ts";
+import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 import { statusColours } from "./token-palette.ts";
+
+export { githubHeaders } from "./github-pages.ts";
 
 export class TrackerError extends Error {
 	readonly status: number;
@@ -44,14 +44,6 @@ export const githubPull = z.object({
 	merged_at: z.string().nullable().optional(),
 	auto_merge: z.unknown().nullable().optional(),
 });
-
-export function githubHeaders(token: string): HeadersInit {
-	return {
-		accept: "application/vnd.github+json",
-		authorization: `Bearer ${token}`,
-		"x-github-api-version": "2022-11-28",
-	};
-}
 
 type RestEntry = {
 	etag: string;
@@ -279,19 +271,6 @@ export function conditionalFetch(
 	};
 }
 
-function nextPage(link: string | null): string | null {
-	if (link === null) {
-		return null;
-	}
-	for (const part of link.split(",")) {
-		const match = part.match(/<([^>]+)>;\s*rel="next"/);
-		if (match?.[1] !== undefined) {
-			return match[1];
-		}
-	}
-	return null;
-}
-
 export async function checkToken(
 	token: string,
 	fetchImpl: Fetch,
@@ -299,48 +278,6 @@ export async function checkToken(
 	return fetchImpl("https://api.github.com/user", {
 		headers: githubHeaders(token),
 	});
-}
-
-function fetchWithSignal(
-	fetchImpl: Fetch,
-	input: string,
-	init: RequestInit,
-	signal: AbortSignal | undefined,
-): Promise<Response> {
-	if (signal === undefined) {
-		return fetchImpl(input, init);
-	}
-	return fetchImpl(input, { ...init, signal });
-}
-
-async function pages(
-	start: string,
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	label: string,
-	signal?: AbortSignal,
-): Promise<unknown[]> {
-	const bodies: unknown[] = [];
-	let url: string | null = start;
-	while (url !== null) {
-		const response = await fetchWithSignal(
-			fetchImpl,
-			url,
-			{
-				headers: githubHeaders(token),
-			},
-			signal,
-		);
-		if (!response.ok) {
-			throw new Error(
-				`GitHub ${label} failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		bodies.push(await response.json());
-		url = nextPage(response.headers.get("link"));
-	}
-	return bodies;
 }
 
 const githubRepo = z.object({
@@ -659,30 +596,6 @@ const closingPullsQuery = `query ClosingPulls($id: ID!, $after: String) {
 	}
 }`;
 
-const linkedPullsQuery = `query LinkedPulls($owner: String!, $name: String!, $number: Int!) {
-	repository(owner: $owner, name: $name) {
-		issue(number: $number) {
-			closedByPullRequestsReferences(first: 10) {
-				nodes { number repository { nameWithOwner } }
-			}
-		}
-	}
-}`;
-
-const linkedPulls = z.object({
-	data: z.object({
-		repository: z.object({
-			issue: z
-				.object({
-					closedByPullRequestsReferences: z.object({
-						nodes: z.array(closingPullNode),
-					}),
-				})
-				.nullable(),
-		}),
-	}),
-});
-
 const closingPulls = z.object({
 	data: z.object({
 		node: z
@@ -904,6 +817,7 @@ async function listProjectItems(
 	token: string,
 	fetchImpl: Fetch,
 	projectId: string,
+	projectOwner: string,
 ): Promise<ProjectItem[]> {
 	const items: ProjectItem[] = [];
 	let after: string | null = null;
@@ -913,7 +827,7 @@ async function listProjectItems(
 			headers: githubHeaders(token),
 			body: JSON.stringify({
 				query: projectItemsQuery,
-				variables: { id: projectId, after },
+				variables: { id: projectId, after, projectOwner },
 			}),
 		});
 		if (!response.ok) {
@@ -1008,13 +922,14 @@ async function listProjectStatuses(
 	token: string,
 	fetchImpl: Fetch,
 	projectId: string,
+	projectOwner: string,
 ): Promise<TicketStatus[]> {
 	const response = await fetchImpl("https://api.github.com/graphql", {
 		method: "POST",
 		headers: githubHeaders(token),
 		body: JSON.stringify({
 			query: projectFieldsQuery,
-			variables: { id: projectId },
+			variables: { id: projectId, projectOwner },
 		}),
 	});
 	if (!response.ok) {
@@ -1192,6 +1107,7 @@ async function connectionPages<Node>(
 	start: string,
 	query: string,
 	label: string,
+	projectOwner: string,
 	read: (body: unknown) => {
 		nodes: Node[];
 		pageInfo: z.infer<typeof pageInfo>;
@@ -1205,7 +1121,7 @@ async function connectionPages<Node>(
 			headers: githubHeaders(token),
 			body: JSON.stringify({
 				query,
-				variables: { id: issueId, after },
+				variables: { id: issueId, after, projectOwner },
 			}),
 		});
 		if (!response.ok) {
@@ -1235,6 +1151,7 @@ function blockedByPages(
 	fetchImpl: Fetch,
 	issueId: string,
 	start: string,
+	projectOwner: string,
 ): Promise<z.infer<typeof projectBlockedByNode>[]> {
 	return connectionPages(
 		token,
@@ -1243,6 +1160,7 @@ function blockedByPages(
 		start,
 		blockedByQuery,
 		"list blockers",
+		projectOwner,
 		(body) => {
 			const connection = blockedByPage.parse(body).data.node?.blockedBy;
 			if (connection === undefined) {
@@ -1258,6 +1176,7 @@ async function listProjectTickets(
 	fetchImpl: Fetch,
 	items: ProjectItem[],
 	openKeys: Set<string>,
+	projectOwner: string,
 ): Promise<Ticket[]> {
 	const tickets: Ticket[] = [];
 	for (const item of items) {
@@ -1293,7 +1212,13 @@ async function listProjectTickets(
 			: null;
 		if (blockedByAfter !== null && content.id !== undefined) {
 			blockedByNodes.push(
-				...(await blockedByPages(token, fetchImpl, content.id, blockedByAfter)),
+				...(await blockedByPages(
+					token,
+					fetchImpl,
+					content.id,
+					blockedByAfter,
+					projectOwner,
+				)),
 			);
 		}
 		tickets.push({
@@ -1325,6 +1250,7 @@ function closingPullPages(
 	fetchImpl: Fetch,
 	issueId: string,
 	start: string,
+	projectOwner: string,
 ): Promise<z.infer<typeof closingPullNode>[]> {
 	return connectionPages(
 		token,
@@ -1333,6 +1259,7 @@ function closingPullPages(
 		start,
 		closingPullsQuery,
 		"list closing pulls",
+		projectOwner,
 		(body) => {
 			const connection =
 				closingPulls.parse(body).data.node?.closedByPullRequestsReferences;
@@ -1349,6 +1276,7 @@ async function listProjectPulls(
 	fetchImpl: Fetch,
 	items: ProjectItem[],
 	seen: Map<string, ReviewEvidence>,
+	projectOwner: string,
 ): Promise<PullRequest[]> {
 	const pulls: PullRequest[] = [];
 	const seenPulls = new Set<string>();
@@ -1373,7 +1301,13 @@ async function listProjectPulls(
 			: null;
 		if (closingAfter !== null && content.id !== undefined) {
 			linkedPulls.push(
-				...(await closingPullPages(token, fetchImpl, content.id, closingAfter)),
+				...(await closingPullPages(
+					token,
+					fetchImpl,
+					content.id,
+					closingAfter,
+					projectOwner,
+				)),
 			);
 		}
 		for (const linked of linkedPulls) {
@@ -2879,19 +2813,22 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 	let holdLists: Promise<void> = Promise.resolve();
 	const seenReviews = new Map<string, ReviewEvidence>();
 	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
-	const projectItems = (projectId: string) => {
+	const projectItems = (projectId: string, projectOwner: string) => {
 		const cached = projectItemsById.get(projectId);
 		if (cached !== undefined) {
 			return cached;
 		}
-		const listed = listProjectItems(token, fetchImpl, projectId).catch(
-			(error: unknown) => {
-				if (projectItemsById.get(projectId) === listed) {
-					projectItemsById.delete(projectId);
-				}
-				throw error;
-			},
-		);
+		const listed = listProjectItems(
+			token,
+			fetchImpl,
+			projectId,
+			projectOwner,
+		).catch((error: unknown) => {
+			if (projectItemsById.get(projectId) === listed) {
+				projectItemsById.delete(projectId);
+			}
+			throw error;
+		});
 		projectItemsById.set(projectId, listed);
 		return listed;
 	};
@@ -2944,18 +2881,24 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},
-		async listTickets(repo, since) {
+		async listTickets(repo, since, projectOwner = "") {
 			if (!repo.includes("/")) {
 				projectItemsById.clear();
-				const items = await projectItems(repo);
+				const items = await projectItems(repo, projectOwner);
 				const openKeys = openLinkedKeys(items);
 				const tickets = await listProjectTickets(
 					token,
 					fetchImpl,
 					items,
 					openKeys,
+					projectOwner,
 				);
-				const statuses = await listProjectStatuses(token, fetchImpl, repo);
+				const statuses = await listProjectStatuses(
+					token,
+					fetchImpl,
+					repo,
+					projectOwner,
+				);
 				const board: Board = {
 					kind: "github-project",
 					statuses,
@@ -2989,13 +2932,14 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 			}
 			return { name: repo, tickets, board };
 		},
-		async listPulls(repo) {
+		async listPulls(repo, _since, projectOwner = "") {
 			if (!repo.includes("/")) {
 				return listProjectPulls(
 					token,
 					fetchImpl,
-					await projectItems(repo),
+					await projectItems(repo, projectOwner),
 					seenReviews,
+					projectOwner,
 				);
 			}
 			const batched = await repoReadFor(repo, null);
@@ -3106,243 +3050,4 @@ async function listCommentBodies(
 		}
 	}
 	return bodies;
-}
-
-export function githubTicketKey(
-	key: string,
-): { repo: string; number: number } | null {
-	const match = key.match(/^([^/\s]+\/[^/\s]+)#(\d+)$/);
-	const repo = match?.[1];
-	const raw = match?.[2];
-	if (repo === undefined || raw === undefined) {
-		return null;
-	}
-	return { repo, number: Number(raw) };
-}
-
-const githubThreadComment = z.object({
-	id: z.number(),
-	body: z.string().nullable().optional(),
-	html_url: z.string().optional(),
-	created_at: z.string().optional(),
-	user: z.object({ login: z.string() }).nullable().optional(),
-	in_reply_to_id: z.number().nullable().optional(),
-});
-
-const postedComment = z.object({
-	id: z.number(),
-	body: z.string().nullable().optional(),
-	html_url: z.string(),
-	created_at: z.string(),
-});
-
-function toThreadComment(
-	comment: z.infer<typeof githubThreadComment>,
-	kind: ThreadComment["kind"],
-): ThreadComment {
-	return {
-		id: String(comment.id),
-		body: comment.body ?? "",
-		author: comment.user?.login ?? "",
-		createdAt: comment.created_at ?? "",
-		url: comment.html_url ?? "",
-		parentId:
-			comment.in_reply_to_id === undefined || comment.in_reply_to_id === null
-				? null
-				: String(comment.in_reply_to_id),
-		kind,
-		children: [],
-	};
-}
-
-export async function fetchGithubThread(
-	token: string,
-	fetchImpl: Fetch,
-	project: string,
-	key: string,
-	signal?: AbortSignal,
-): Promise<Thread | null> {
-	const parsed = githubTicketKey(key);
-	if (parsed === null) {
-		return null;
-	}
-	const { repo, number } = parsed;
-	const issueUrl = `https://api.github.com/repos/${repo}/issues/${number}`;
-	const commentPages = pages(
-		`https://api.github.com/repos/${repo}/issues/${number}/comments?per_page=100&page=1`,
-		token,
-		fetchImpl,
-		repo,
-		"fetch thread",
-		signal,
-	);
-	void commentPages.catch(() => undefined);
-	const issueResponse = await fetchWithSignal(
-		fetchImpl,
-		issueUrl,
-		{
-			headers: githubHeaders(token),
-		},
-		signal,
-	);
-	if (issueResponse.status === 404) {
-		return null;
-	}
-	if (!issueResponse.ok) {
-		throw new TrackerError(
-			`GitHub fetch thread failed (HTTP ${issueResponse.status})`,
-			issueResponse.status,
-		);
-	}
-	const issue = z
-		.object({
-			title: z.string(),
-			html_url: z.string(),
-			pull_request: z.unknown().optional(),
-		})
-		.parse(await issueResponse.json());
-	const linked =
-		issue.pull_request === undefined
-			? linkedReviewTargets(token, fetchImpl, repo, number, signal)
-			: Promise.resolve([{ repo, number }]);
-	const [listedComments, reviewTargets] = await Promise.all([
-		commentPages,
-		linked,
-	]);
-	const comments = listedComments.flatMap((item) =>
-		z
-			.array(githubThreadComment)
-			.parse(item)
-			.map((comment) => toThreadComment(comment, "comment")),
-	);
-	const review = (
-		await Promise.all(
-			reviewTargets.map((target) =>
-				pages(
-					`https://api.github.com/repos/${target.repo}/pulls/${target.number}/comments?per_page=100&page=1`,
-					token,
-					fetchImpl,
-					target.repo,
-					"fetch review thread",
-					signal,
-				),
-			),
-		)
-	).flatMap((listed) =>
-		listed.flatMap((item) =>
-			z
-				.array(githubThreadComment)
-				.parse(item)
-				.map((comment) => toThreadComment(comment, "review")),
-		),
-	);
-	return {
-		tracker: "github",
-		project,
-		key,
-		title: issue.title,
-		url: issue.html_url,
-		comments: [...comments, ...review],
-	};
-}
-
-export async function linkedReviewTargets(
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	number: number,
-	signal?: AbortSignal,
-): Promise<{ repo: string; number: number }[]> {
-	const [owner, name] = repo.split("/");
-	if (owner === undefined || name === undefined) {
-		return [];
-	}
-	const response = await fetchWithSignal(
-		fetchImpl,
-		"https://api.github.com/graphql",
-		{
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: linkedPullsQuery,
-				variables: { owner, name, number },
-			}),
-		},
-		signal,
-	);
-	if (!response.ok) {
-		return [];
-	}
-	const linked = linkedPulls.parse(await response.json());
-	const targets: { repo: string; number: number }[] = [];
-	for (const node of linked.data.repository.issue
-		?.closedByPullRequestsReferences.nodes ?? []) {
-		const pullRepo = node.repository?.nameWithOwner ?? repo;
-		if (
-			targets.some(
-				(target) => target.repo === pullRepo && target.number === node.number,
-			)
-		) {
-			continue;
-		}
-		targets.push({ repo: pullRepo, number: node.number });
-	}
-	return targets;
-}
-
-async function postGithubReply(
-	token: string,
-	fetchImpl: Fetch,
-	reply: ReplyRequest,
-): Promise<PostedReply> {
-	const parsed = githubTicketKey(reply.key);
-	if (parsed === null) {
-		throw new TrackerError(
-			"GitHub reply failed: ticket key has no number",
-			400,
-		);
-	}
-	const { repo, number } = parsed;
-	const review = reply.kind === "review";
-	const parent = reply.parentId === undefined ? null : Number(reply.parentId);
-	if (review && (parent === null || !Number.isInteger(parent))) {
-		throw new TrackerError(
-			"GitHub reply failed: review thread has no parent",
-			400,
-		);
-	}
-	const url = review
-		? `https://api.github.com/repos/${repo}/pulls/${number}/comments`
-		: `https://api.github.com/repos/${repo}/issues/${number}/comments`;
-	const payload =
-		review && parent !== null
-			? { body: reply.body, in_reply_to: parent }
-			: { body: reply.body };
-	const response = await fetchImpl(url, {
-		method: "POST",
-		headers: {
-			...githubHeaders(token),
-			"content-type": "application/json",
-		},
-		body: JSON.stringify(payload),
-	});
-	if (response.status === 404) {
-		throw new TrackerError(
-			"GitHub reply failed (HTTP 404): ticket not found",
-			404,
-		);
-	}
-	if (!response.ok) {
-		throw new TrackerError(
-			`GitHub reply failed (HTTP ${response.status})`,
-			response.status,
-		);
-	}
-	const created = postedComment.parse(await response.json());
-	return {
-		id: String(created.id),
-		body: created.body ?? reply.body,
-		url: created.html_url,
-		createdAt: created.created_at,
-	};
 }

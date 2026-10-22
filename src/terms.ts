@@ -301,6 +301,9 @@ export const settingsCopy = {
 		"The theme button in the header switches light and dark. The app writes the choice to the configuration file at once, and starts in it next time.",
 	pollInterval: "Poll interval",
 	pollHint: "How often each tracker is read.",
+	factoryTokens: "Factory GitHub tokens",
+	factoryTokensHint:
+		"GitHub reads and polls use the factory token for that repo owner. Replies stay on your token.",
 	viewsLead:
 		"The board, graph and table views save these to the configuration file when you change them there.",
 	openIn: "Open projects in",
