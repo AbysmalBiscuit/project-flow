@@ -10,9 +10,10 @@ import {
 	Position,
 	ReactFlow,
 	useReactFlow,
+	type Viewport,
 } from "@xyflow/react";
 import ElkConstructor, { type ELK } from "elkjs/lib/elk-api.js";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
 import { cardTones } from "./card-tones.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
@@ -294,17 +295,27 @@ function useLaidGraph(
 	return laid;
 }
 
-function FitDirection() {
+/** Fits each new layout until the viewer moves the view away from the last fit. */
+function FitLayout({ layout }: { layout: GraphLayout }) {
 	const flow = useReactFlow();
+	const fitted = useRef<Viewport | null>(null);
 	useEffect(() => {
+		void layout;
+		const last = fitted.current;
+		const now = flow.getViewport();
+		if (
+			last !== null &&
+			(last.x !== now.x || last.y !== now.y || last.zoom !== now.zoom)
+		) {
+			return;
+		}
 		const frame = requestAnimationFrame(() => {
-			void flow.fitView({
-				padding: fitPadding,
-				maxZoom: 1,
+			void flow.fitView({ padding: fitPadding, maxZoom: 1 }).then(() => {
+				fitted.current = flow.getViewport();
 			});
 		});
 		return () => cancelAnimationFrame(frame);
-	}, [flow]);
+	}, [flow, layout]);
 	return null;
 }
 
@@ -484,7 +495,7 @@ export function ProjectGraph({
 					}}
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
-					<FitDirection key={drawn} />
+					<FitLayout key={drawn} layout={laid.layout} />
 				</ReactFlow>
 				<div className={clsx(float.overlay)}>
 					<Legend />
