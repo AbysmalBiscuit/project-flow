@@ -19,7 +19,7 @@ import {
 	overviewFocusLinks,
 	type ProjectCounts,
 } from "./domain.ts";
-import { type FocusView, isFocusClick, shownSeeds } from "./focus.ts";
+import { type FocusView, focusOrOpen, shownSeeds } from "./focus.ts";
 import { overviewFlowPlaces } from "./graph-flow.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
@@ -86,11 +86,11 @@ function ProjectNode({ id, data }: { id: string; data: ProjectNodeData }) {
 			onMouseLeave={() => focus.view?.leave()}
 			onClick={(event) => {
 				event.preventDefault();
-				if (isFocusClick(event)) {
-					focus.view?.toggle(data.project.name);
-					return;
-				}
-				openProject(data.project.name);
+				focusOrOpen(
+					event,
+					() => focus.view?.toggle(data.project.name),
+					() => openProject(data.project.name),
+				);
 			}}
 		>
 			<MeasuredNode id={id} kind="project" />

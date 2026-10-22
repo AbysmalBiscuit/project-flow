@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** A focus click toggles focus; any other click runs the view's open action. */
+export function focusOrOpen(
+	event: { ctrlKey: boolean; metaKey: boolean },
+	focus: () => void,
+	open: () => void,
+): void {
+	if (isFocusClick(event)) {
+		focus();
+		return;
+	}
+	open();
+}
+
 export function isFocusClick(event: {
 	ctrlKey: boolean;
 	metaKey: boolean;

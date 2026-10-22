@@ -14,7 +14,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
-import { isFocusClick } from "./focus.ts";
+import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import type {
 	ClusterNodeData,
@@ -410,20 +410,21 @@ export function ProjectGraph({
 						if (isClusterNode(node)) {
 							return;
 						}
-						if (isFocusClick(event)) {
-							onFocus(node.id);
-							return;
-						}
-						onOpen({
-							key: node.data.ticket.key ?? node.data.ticket.title,
-							project: node.data.project,
-							tracker: node.data.tracker,
-							title: node.data.ticket.title,
-							outside: node.data.outside,
-							...(node.data.ticket.state === undefined
-								? {}
-								: { state: node.data.ticket.state }),
-						});
+						focusOrOpen(
+							event,
+							() => onFocus(node.id),
+							() =>
+								onOpen({
+									key: node.data.ticket.key ?? node.data.ticket.title,
+									project: node.data.project,
+									tracker: node.data.tracker,
+									title: node.data.ticket.title,
+									outside: node.data.outside,
+									...(node.data.ticket.state === undefined
+										? {}
+										: { state: node.data.ticket.state }),
+								}),
+						);
 					}}
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />

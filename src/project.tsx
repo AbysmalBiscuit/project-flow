@@ -29,7 +29,7 @@ import {
 	ticketGroups,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { isFocusClick, shownSeeds, useFocusView } from "./focus.ts";
+import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";
@@ -401,11 +401,21 @@ function groupFaded(focus: TicketFocus, tickets: TicketView[]): boolean {
 	return focus.active && tickets.every((ticket) => focus.faded(ticket.key));
 }
 
-function focusPointer(focus: TicketFocus, key: string | null) {
+function focusPointer(
+	focus: TicketFocus,
+	key: string | null,
+	onOpen: (key: string) => void,
+) {
 	if (key === null) {
 		return {};
 	}
 	return {
+		onClick: (event: { ctrlKey: boolean; metaKey: boolean }) =>
+			focusOrOpen(
+				event,
+				() => focus.toggle(key),
+				() => onOpen(key),
+			),
 		onMouseEnter: () => focus.enter(key),
 		onMouseLeave: focus.leave,
 		onDoubleClick: () => focus.toggle(key),
@@ -436,17 +446,7 @@ function Card({
 				)}
 				data-ticket={key ?? ""}
 				data-faded={faded ? "true" : "false"}
-				{...focusPointer(focus, key)}
-				onClick={(event) => {
-					if (key === null) {
-						return;
-					}
-					if (isFocusClick(event)) {
-						focus.toggle(key);
-						return;
-					}
-					onOpen(key);
-				}}
+				{...focusPointer(focus, key, onOpen)}
 			>
 				<span className={clsx(board.meta)}>
 					{key === null ? (
@@ -808,18 +808,8 @@ function TableRow({
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
 			data-faded={faded ? "true" : "false"}
-			{...focusPointer(focus, key)}
+			{...focusPointer(focus, key, onOpen)}
 			tabIndex={key === null ? undefined : 0}
-			onClick={(event) => {
-				if (key === null) {
-					return;
-				}
-				if (isFocusClick(event)) {
-					focus.toggle(key);
-					return;
-				}
-				onOpen(key);
-			}}
 			onKeyDown={(event) => {
 				if (
 					event.target !== event.currentTarget ||
