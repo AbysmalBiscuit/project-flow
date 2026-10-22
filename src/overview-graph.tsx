@@ -341,7 +341,9 @@ export function OverviewGraph({
 				proOptions={{ hideAttribution: true }}
 			>
 				<Background variant={BackgroundVariant.Dots} gap={18} />
-				<GraphTools />
+				<div className={clsx(cards.graphTools)}>
+					<GraphTools />
+				</div>
 			</ReactFlow>
 		</div>
 	);
