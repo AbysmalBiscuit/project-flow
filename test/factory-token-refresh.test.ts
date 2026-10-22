@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
-import type { Overview } from "../src/domain.ts";
+import type { Overview, PollProgress } from "../src/domain.ts";
+import { eventsOf } from "./events.ts";
 import {
 	acmeBearer,
 	acmeToken,
@@ -16,6 +17,65 @@ import {
 	serve,
 	userBearer,
 } from "./factory-token-support.ts";
+
+// The refresh route answers before its poll sends tracker calls. The poll
+// publishes a progress start, then an ended progress, on the event stream.
+async function refreshSettled(base: string): Promise<void> {
+	const stream = await fetch(new URL("/api/events", base), {
+		headers: { accept: "text/event-stream" },
+	});
+	const reader = stream.body?.getReader();
+	if (reader === undefined) {
+		throw new Error("event stream has no body");
+	}
+	const decoder = new TextDecoder();
+	let buffered = "";
+	try {
+		const opened = await reader.read();
+		buffered += decoder.decode(opened.value, { stream: true });
+		if (!buffered.includes(": open")) {
+			throw new Error("event stream did not open");
+		}
+		const openEvents = eventsOf(buffered);
+		const refreshed = await fetch(new URL("/api/refresh", base), {
+			method: "POST",
+		});
+		if (refreshed.status !== 204) {
+			throw new Error(`refresh returned ${refreshed.status}`);
+		}
+		const progressOf = (event: {
+			event: string;
+			data: string;
+		}): PollProgress | null => {
+			if (event.event !== "progress") {
+				return null;
+			}
+			return JSON.parse(event.data) as PollProgress;
+		};
+		const ownPollSettled = (text: string): boolean => {
+			const progress = eventsOf(text)
+				.slice(openEvents.length)
+				.map(progressOf)
+				.filter((item) => item !== null);
+			const started = progress.findIndex(
+				(item) => item.done === 0 && item.ended === false,
+			);
+			return (
+				started >= 0 &&
+				progress.slice(started).some((item) => item.ended === true)
+			);
+		};
+		while (!ownPollSettled(buffered)) {
+			const chunk = await reader.read();
+			if (chunk.done) {
+				throw new Error("event stream closed before the poll ended");
+			}
+			buffered += decoder.decode(chunk.value, { stream: true });
+		}
+	} finally {
+		await reader.cancel();
+	}
+}
 
 describe("factory GitHub token refresh", () => {
 	test("a token inside the renew window is read again and kept until it expires", async () => {
@@ -54,10 +114,7 @@ describe("factory GitHub token refresh", () => {
 				hostsText("ghs_acme_near", "2026-08-18T12:03:00.000Z"),
 			);
 			recorded.length = 0;
-			const refreshed = await fetch(new URL("/api/refresh", app.base), {
-				method: "POST",
-			});
-			expect(refreshed.status).toBe(204);
+			await refreshSettled(app.base);
 			const second = (await (
 				await fetch(new URL("/api/overview", app.base))
 			).json()) as Overview;
