@@ -1,0 +1,14 @@
+{
+	"base_url": "http://127.0.0.1:4358",
+	"serve": ["bun", "proof/serve-358.ts", "4358"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "GitHub read repo failed (HTTP 500): acme/broken" },
+		{ "click": "#project-card-acme-broken a" },
+		{ "assert_text": "GitHub read repo failed (HTTP 500): acme/broken" },
+		{ "shot": "waiting-error" },
+		{ "assert_text": "by other projects" },
+		{ "assert_text": "GitHub read repo failed (HTTP 500): acme/broken" },
+		{ "shot": "report-error" }
+	]
+}
