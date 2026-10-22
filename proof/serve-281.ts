@@ -86,7 +86,7 @@ const openItem = boardItem(
 		stateReason: null,
 		updatedAt: "2026-10-20T21:14:10Z",
 		closedByPullRequestsReferences: {
-			nodes: [{ number: 206, repository: { nameWithOwner: repo } }],
+			nodes: [],
 			pageInfo: { hasNextPage: false, endCursor: null },
 		},
 	},
@@ -110,14 +110,6 @@ const closedItem = boardItem(
 		},
 	},
 );
-
-const openPull = {
-	...pull,
-	state: "open",
-	closed_at: null,
-	merged_at: null,
-	html_url: `https://github.com/${repo}/pull/206`,
-};
 
 const mergedPull = {
 	...pull,
@@ -202,15 +194,12 @@ const recorded: Fetch = async (input, init) => {
 		});
 	}
 	if (url === `https://api.github.com/repos/${repo}/pulls/206`) {
-		return Response.json(polls > 1 ? mergedPull : openPull);
+		return Response.json(mergedPull);
 	}
 	if (url.includes("/pulls?")) {
 		const closed = url.includes("state=closed");
 		if (polls > 1 && closed) {
 			return page([mergedPull]);
-		}
-		if (polls === 1 && !closed) {
-			return page([openPull]);
 		}
 		return page([]);
 	}
@@ -225,17 +214,14 @@ const recorded: Fetch = async (input, init) => {
 		return page([]);
 	}
 	if (url.includes("/check-runs")) {
-		const pending = polls <= 1;
 		return Response.json({
-			check_runs: pending
-				? [
-						{
-							name: "ci",
-							status: "in_progress",
-							conclusion: null,
-						},
-					]
-				: [],
+			check_runs: [
+				{
+					name: "ci",
+					status: "in_progress",
+					conclusion: null,
+				},
+			],
 		});
 	}
 	return unrecorded(input);

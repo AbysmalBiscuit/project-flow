@@ -2,7 +2,7 @@
 
 The walk serves recorded tracker responses through `proof/serve-281.ts`. That script sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker.
 
-The first poll returns the recorded #205 body as an open issue with status In review, and the recorded #206 body as an open pull with `Closes #205`. The second poll returns the same #205 body closed as completed, with project status Done, and the same #206 body merged. The clock is 2026-10-22 so the Done age cap still shows the card.
+The first poll returns the recorded #205 body as an open issue with status In review. That item has no linked pull, so the board lane stays In review. The second poll returns the same #205 body closed as completed, with project status Done, and the recorded #206 body merged. The clock is 2026-10-22 so the Done age cap still shows the card.
 
 Replay `proof/walk-281.json`:
 
