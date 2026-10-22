@@ -1,22 +1,4 @@
-import { proofStops, proofTheme } from "./lifetime.ts";
-
-const port = process.argv[2] ?? "4346";
-const inner = String(Number(port) + 1);
-const app = Bun.spawn(["bun", "proof/serve-graph-flows.ts", inner], {
-	stdout: "inherit",
-	stderr: "inherit",
-});
-const base = `http://127.0.0.1:${inner}`;
-for (let tries = 0; tries < 200; tries += 1) {
-	const ready = await fetch(base).then(
-		() => true,
-		() => false,
-	);
-	if (ready) {
-		break;
-	}
-	await Bun.sleep(100);
-}
+import { serveProxy } from "./serve-proxy.ts";
 
 const frames = {
 	closed: "/projects/acme%2Fwidget",
@@ -46,28 +28,13 @@ setInterval(() => {
 }, 200);
 </script>`;
 
-Bun.serve({
-	hostname: "127.0.0.1",
-	port,
-	async fetch(request) {
-		const url = new URL(request.url);
-		if (url.pathname === "/phone") {
-			return new Response(phonePage, {
-				headers: { "content-type": "text/html; charset=utf-8" },
-			});
-		}
-		const target = new URL(`${url.pathname}${url.search}`, base);
-		const response = await fetch(
-			new Request(target, {
-				method: request.method,
-				headers: request.headers,
-				body: request.body,
-			}),
-		);
-		return proofTheme(response);
-	},
-});
-console.log(`http://127.0.0.1:${port}/`);
-await proofStops();
-app.kill();
-process.exit(0);
+await serveProxy(
+	process.argv[2] ?? "4346",
+	"proof/serve-graph-flows.ts",
+	(url) =>
+		url.pathname === "/phone"
+			? new Response(phonePage, {
+					headers: { "content-type": "text/html; charset=utf-8" },
+				})
+			: null,
+);
