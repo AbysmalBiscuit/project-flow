@@ -80,7 +80,7 @@ const layeredBase: ElkSettings = {
 	"elk.edgeRouting": "ORTHOGONAL",
 	...spacing,
 };
-const bestOptions = {
+const separateCoffmanGraham = {
 	name: "SEPARATE_CHILDREN + COFFMAN_GRAHAM layerBound 4",
 	options: {
 		"elk.hierarchyHandling": "SEPARATE_CHILDREN",
@@ -123,7 +123,7 @@ const layeredVariants: { name: string; options: ElkSettings }[] = [
 			"elk.layered.highDegreeNodes.treeHeight": "2",
 		},
 	},
-	bestOptions,
+	separateCoffmanGraham,
 	{
 		name: "SEPARATE_CHILDREN + COFFMAN_GRAHAM 4 + NETWORK_SIMPLEX placement",
 		options: {
@@ -204,7 +204,10 @@ function forceTimed(
 	});
 }
 
-const separateGroups: ElkSettings = { ...layeredBase, ...bestOptions.options };
+const separateGroups: ElkSettings = {
+	...layeredBase,
+	...separateCoffmanGraham.options,
+};
 const engines = {
 	layered: { options: layeredBase, lift: false },
 	"layered, groups apart": { options: separateGroups, lift: false },
@@ -335,7 +338,8 @@ for (const groupBy of ["workstream", "theme"] as const) {
 			}
 			if (
 				!nested &&
-				(variant.name === "default" || variant.name === bestOptions.name)
+				(variant.name === "default" ||
+					variant.name === separateCoffmanGraham.name)
 			) {
 				const slug = variant.name === "default" ? "default" : "best";
 				await writeFile(
@@ -350,7 +354,7 @@ for (const groupBy of ["workstream", "theme"] as const) {
 			}
 		}
 	}
-	const columns = ["hand-written", "default", bestOptions.name];
+	const columns = ["hand-written", "default", separateCoffmanGraham.name];
 	console.log(`\n| Group | Cards | ${columns.join(" | ")} |`);
 	console.log(`|---|---|${columns.map(() => "---|").join("")}`);
 	const cardsOf = new Map(hand.map((group) => [group.name, group.cards]));
