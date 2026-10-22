@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:47382",
+	"serve": ["bun", "proof/serve-card-lanes.ts", "47382"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Queue the board card" },
+		{ "assert_text": "Build the lane tint" },
+		{ "assert_text": "Read the review comments" },
+		{ "assert_text": "Close item 1" },
+		{ "shot": "light-lanes" }
+	]
+}
