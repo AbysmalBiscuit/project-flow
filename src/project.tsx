@@ -13,6 +13,11 @@ import {
 	useState,
 } from "react";
 import { board } from "./board-styles.ts";
+import {
+	CardHierarchyChips,
+	Chip,
+	OutsideParentsContext,
+} from "./card-chips.tsx";
 import type { ProjectViewSettings } from "./configuration.ts";
 import {
 	type CrossProjectBlocker,
@@ -21,9 +26,7 @@ import {
 	filterProjectReport,
 	focusChain,
 	type NeedsYouItem,
-	type OutsideParent,
 	type ProjectReport,
-	parentChip,
 	type StatusType,
 	sameTicketKey,
 	type TicketRelation,
@@ -54,8 +57,6 @@ import {
 	hidingFilterLabel,
 	loadingLabel,
 	navLabel,
-	parentChipLabel,
-	subTicketsLabel,
 	viewLabel,
 } from "./terms.ts";
 import {
@@ -351,53 +352,6 @@ function relationSplit(ticket: TicketView): {
 	};
 }
 
-function Chip({
-	label,
-	ticketKey,
-	outside,
-	hierarchy,
-	onOpen,
-}: {
-	label: string;
-	ticketKey?: string;
-	outside?: boolean;
-	hierarchy?: boolean;
-	onOpen?: (key: string) => void;
-}) {
-	if (ticketKey === undefined || onOpen === undefined) {
-		return (
-			<span
-				className={clsx(
-					board.chip,
-					board.chipStatic,
-					hierarchy && board.chipHierarchy,
-				)}
-			>
-				{label}
-			</span>
-		);
-	}
-	return (
-		<button
-			type="button"
-			className={clsx(
-				board.chip,
-				outside && board.chipOutside,
-				hierarchy && board.chipHierarchy,
-				shell.buttonFocus,
-			)}
-			data-chip={ticketKey}
-			onClick={(event) => {
-				event.stopPropagation();
-				onOpen(ticketKey);
-			}}
-		>
-			{label}
-			{outside ? " ↗" : ""}
-		</button>
-	);
-}
-
 type TicketFocus = {
 	active: boolean;
 	faded: (key: string | null) => boolean;
@@ -413,30 +367,6 @@ const TicketFocusContext = createContext<TicketFocus>({
 	enter: () => {},
 	leave: () => {},
 });
-
-const OutsideParentsContext = createContext<OutsideParent[]>([]);
-
-function ParentChip({
-	parent,
-	onOpen,
-	onOpenOutside,
-}: {
-	parent: string;
-	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: TicketRelation) => void;
-}) {
-	const chip = parentChip(useContext(OutsideParentsContext), parent);
-	const outside = chip.outside;
-	return (
-		<Chip
-			label={parentChipLabel(chip.label)}
-			ticketKey={parent}
-			hierarchy
-			outside={outside !== undefined}
-			onOpen={outside === undefined ? onOpen : () => onOpenOutside(outside)}
-		/>
-	);
-}
 
 function groupFaded(focus: TicketFocus, tickets: TicketView[]): boolean {
 	return focus.active && tickets.every((ticket) => focus.faded(ticket.key));
@@ -506,16 +436,11 @@ function Card({
 				ticket.subTickets === undefined &&
 				!ticket.needsYou ? null : (
 					<span className={clsx(board.chips)}>
-						{ticket.parent === undefined ? null : (
-							<ParentChip
-								parent={ticket.parent}
-								onOpen={onOpen}
-								onOpenOutside={onOpenOutside}
-							/>
-						)}
-						{ticket.subTickets === undefined ? null : (
-							<Chip label={subTicketsLabel(ticket.subTickets)} hierarchy />
-						)}
+						<CardHierarchyChips
+							ticket={ticket}
+							onOpen={onOpen}
+							onOpenOutside={onOpenOutside}
+						/>
 						{local.map((blocker) => (
 							<Chip
 								key={blocker}
