@@ -2719,11 +2719,6 @@ export const panel = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.meta,
 	},
-	body: {
-		margin: 0,
-		fontSize: type.card,
-		whiteSpace: "pre-wrap",
-	},
 	answer: {
 		marginTop: space.sm,
 		padding: `${space.twoXs} ${space.md}`,
@@ -3359,24 +3354,5 @@ export const settings = stylex.create({
 	projectMeta: {
 		color: colours.inkSoft,
 		fontSize: type.meta,
-	},
-	bots: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.xs,
-		alignItems: "center",
-	},
-	addBot: {
-		padding: `${space.twoXs} ${space.md}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		lineHeight: 1,
 	},
 });
