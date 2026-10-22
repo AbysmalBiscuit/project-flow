@@ -67,7 +67,7 @@
 			"click": "#view-graph"
 		},
 		{
-			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+			"assert_text": "acme/widget acme/widget#11 | acme/widget acme/widget#12 | acme/widget acme/widget#13"
 		},
 		{
 			"shot": "graph-kept"

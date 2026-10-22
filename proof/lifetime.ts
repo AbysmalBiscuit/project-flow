@@ -132,6 +132,10 @@ const walkScript = `<script id="walk-theme">(function () {
 			}
 			walkCtrl.value = "";
 		});
+		var pressed = null;
+		document.addEventListener("mousedown", function (event) {
+			pressed = event.target;
+		}, true);
 		document.addEventListener("click", function (event) {
 			if (!ctrlNext || !event.isTrusted) {
 				return;
@@ -139,7 +143,8 @@ const walkScript = `<script id="walk-theme">(function () {
 			ctrlNext = false;
 			event.preventDefault();
 			event.stopImmediatePropagation();
-			event.target.dispatchEvent(new MouseEvent("click", {
+			var target = pressed !== null && pressed.isConnected ? pressed : event.target;
+			target.dispatchEvent(new MouseEvent("click", {
 				bubbles: true,
 				cancelable: true,
 				clientX: event.clientX,
