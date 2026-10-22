@@ -25,7 +25,12 @@ import {
 	type SpikeGraph,
 	spikeGraph,
 } from "./graph.ts";
-import { fillShare, handPage, handWritten } from "./handwritten.ts";
+import {
+	type FillRow,
+	fillShare,
+	handPage,
+	handWritten,
+} from "./handwritten.ts";
 
 const [dataDir, outDir] = process.argv.slice(2);
 if (
@@ -166,7 +171,7 @@ const percent = (value: number) => `${Math.round(value * 100)} %`;
 function elkFill(
 	graph: SpikeGraph,
 	laid: Map<string, Rect>,
-): { name: string; cards: number; share: number }[] {
+): FillRow[] {
 	return graph.groups.map((group) => {
 		const box = laid.get(group.id) ?? { x: 0, y: 0, width: 0, height: 0 };
 		const cards = frameCards(group).length;
@@ -294,7 +299,7 @@ for (const groupBy of ["workstream", "theme"] as const) {
 	const describe = (
 		label: string,
 		frames: string,
-		rows: { name: string; cards: number; share: number }[],
+		rows: FillRow[],
 	) => {
 		const worst = [...rows].sort((left, right) => left.share - right.share)[0];
 		const largest = [...rows].sort(

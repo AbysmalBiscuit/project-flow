@@ -5,6 +5,9 @@ import type { GroupBy } from "../../src/view-settings.ts";
 import { type Rect, shortKey, svgPage } from "./check.ts";
 import { card, cell, framePad } from "./graph.ts";
 
+/** One group frame and the share of its cells that hold a card. */
+export type FillRow = { name: string; cards: number; share: number };
+
 /** Share of the cells in a frame that hold a card, with one cell per card and gap. */
 export function fillShare(
 	cards: number,
@@ -31,8 +34,7 @@ export function handWritten(report: ProjectReport, groupBy: GroupBy) {
 		byBand.set(place.band, members);
 	}
 	const positions = new Map<string, { x: number; y: number }>();
-	const groups: { name: string; cards: number; share: number; box: Rect }[] =
-		[];
+	const groups: (FillRow & { box: Rect })[] = [];
 	let origin = 0;
 	for (const band of [...byBand.keys()].sort((left, right) =>
 		left.localeCompare(right),
