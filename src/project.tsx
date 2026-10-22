@@ -10,12 +10,13 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { board, cardTones } from "./board-styles.ts";
+import { board } from "./board-styles.ts";
 import {
 	CardHierarchyChips,
 	Chip,
 	OutsideParentsContext,
 } from "./card-chips.tsx";
+import { cardTones } from "./card-tones.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import {
 	type CrossProjectBlocker,

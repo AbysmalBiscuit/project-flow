@@ -1,5 +1,4 @@
 import * as stylex from "@stylexjs/stylex";
-import type { StatusType } from "./domain.ts";
 import {
 	colours,
 	font,
@@ -753,12 +752,3 @@ export const board = stylex.create({
 		borderColor: colours.dropped,
 	},
 });
-
-export const cardTones: Record<StatusType, typeof board.cardBacklog> = {
-	backlog: board.cardBacklog,
-	inProgress: board.cardProgress,
-	inReview: board.cardReview,
-	awaitingMerge: board.cardMerge,
-	done: board.cardDone,
-	dropped: board.cardDropped,
-};

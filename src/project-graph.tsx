@@ -12,7 +12,8 @@ import {
 	useReactFlow,
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
-import { board, cardTones } from "./board-styles.ts";
+import { board } from "./board-styles.ts";
+import { cardTones } from "./card-tones.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
