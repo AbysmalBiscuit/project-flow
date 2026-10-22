@@ -1,5 +1,5 @@
+import { commentBody } from "./comment-styles.ts";
 import { clsx } from "./ui.ts";
-import { panel } from "./ui-styles.ts";
 
 type Tag =
 	| "h1"
@@ -21,26 +21,26 @@ type Tag =
 	| "span";
 
 const tagClass = {
-	h1: clsx(panel.mdHeading),
-	h2: clsx(panel.mdHeading),
-	h3: clsx(panel.mdHeading),
-	h4: clsx(panel.mdHeading),
-	h5: clsx(panel.mdHeading),
-	h6: clsx(panel.mdHeading),
-	p: clsx(panel.mdParagraph),
-	ul: clsx(panel.mdList),
-	ol: clsx(panel.mdList),
-	blockquote: clsx(panel.mdQuote),
-	pre: clsx(panel.mdPre),
-	table: clsx(panel.mdTable),
-	th: clsx(panel.mdCell),
-	td: clsx(panel.mdCell),
-	a: clsx(panel.mdLink),
-	input: clsx(panel.mdCheck),
-	span: clsx(panel.mdChecked),
+	h1: clsx(commentBody.heading),
+	h2: clsx(commentBody.heading),
+	h3: clsx(commentBody.heading),
+	h4: clsx(commentBody.heading),
+	h5: clsx(commentBody.heading),
+	h6: clsx(commentBody.heading),
+	p: clsx(commentBody.paragraph),
+	ul: clsx(commentBody.list),
+	ol: clsx(commentBody.list),
+	blockquote: clsx(commentBody.quote),
+	pre: clsx(commentBody.pre),
+	table: clsx(commentBody.table),
+	th: clsx(commentBody.cell),
+	td: clsx(commentBody.cell),
+	a: clsx(commentBody.link),
+	input: clsx(commentBody.check),
+	span: clsx(commentBody.checked),
 } satisfies Record<Tag, string>;
 
-const inlineCode = clsx(panel.mdCode);
+const inlineCode = clsx(commentBody.code);
 const tagPattern = new RegExp(
 	`<(${Object.keys(tagClass).join("|")})(?=[\\s>])`,
 	"g",
@@ -65,7 +65,7 @@ function styled(html: string): string {
 export function CommentMarkdown({ html }: { html: string }) {
 	return (
 		<div
-			className={clsx(panel.body)}
+			className={clsx(commentBody.body)}
 			data-comment-body=""
 			// biome-ignore lint/security/noDangerouslySetInnerHtml: comment HTML is rendered and sanitized on the server
 			dangerouslySetInnerHTML={{ __html: styled(html) }}

@@ -1,4 +1,5 @@
-import { commentTree, type FetchedThread } from "./domain.ts";
+import { commentTree } from "./comment-tree.ts";
+import type { FetchedThread } from "./domain.ts";
 import { ThreadReadTimeout, withThreadLimit } from "./fetch.ts";
 import { TrackerError } from "./github.ts";
 import type { Tracker } from "./ports.ts";

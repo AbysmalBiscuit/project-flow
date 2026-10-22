@@ -6,6 +6,7 @@ import { projectHasPmBot, samePin } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
+import { settingsBots } from "./settings-styles.ts";
 import {
 	FilterGlyph,
 	laneStates,
@@ -506,7 +507,7 @@ function ProjectRow({
 						const missing = knownBots.filter((bot) => !bots.includes(bot));
 						const repoId = repo.replace(/[^A-Za-z0-9]+/g, "-");
 						return (
-							<div key={repo} className={clsx(fields.bots)}>
+							<div key={repo} className={clsx(settingsBots.bots)}>
 								<span className={clsx(fields.projectMeta)}>{repo}</span>
 								{bots.map((bot) => (
 									<span key={bot} className={clsx(fields.chip)}>
@@ -533,7 +534,7 @@ function ProjectRow({
 								{missing.length === 0 ? null : (
 									<select
 										id={`add-bot-${id}-${repoId}`}
-										className={clsx(fields.addBot)}
+										className={clsx(settingsBots.addBot)}
 										aria-label={`${settingsCopy.addBot} ${repo}`}
 										value=""
 										onChange={(event) => {
