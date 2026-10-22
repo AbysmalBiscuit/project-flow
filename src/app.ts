@@ -1266,6 +1266,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	// A poll that started before the last tracked-list write cannot answer for it.
 	let trackedGeneration = 0;
 	let settledGeneration = -1;
+	let awaitingWrite = false;
 	const pollAgain = (): Promise<void> => {
 		if (stopped || pollOptions.stopped) {
 			return Promise.resolve();
@@ -1312,7 +1313,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			noteDiscovery();
 			settledGeneration = Math.max(settledGeneration, generation);
 			polling = null;
-			if (!stopped && refreshQueued) {
+			if (!stopped && refreshQueued && !awaitingWrite) {
 				refreshQueued = false;
 				await pollAgain().catch(() => {});
 				return;
@@ -1630,17 +1631,19 @@ export async function start(options: StartOptions): Promise<Running> {
 					releaseLists();
 					if (trackedChanged) {
 						const written = trackedGeneration;
-						while (
-							settledGeneration < written &&
-							!stopped &&
-							!pollOptions.stopped
-						) {
-							await pollAgain();
+						awaitingWrite = true;
+						try {
+							while (
+								settledGeneration < written &&
+								!stopped &&
+								!pollOptions.stopped
+							) {
+								await pollAgain();
+							}
+						} finally {
+							awaitingWrite = false;
 						}
-						if (refreshQueued && trackedGeneration === written) {
-							refreshQueued = false;
-							await pollAgain();
-						}
+						refreshQueued = false;
 					} else {
 						await (stale ?? pollAgain());
 					}

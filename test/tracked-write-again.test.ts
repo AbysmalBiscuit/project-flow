@@ -164,7 +164,7 @@ test("a later tracked-list write starts its own poll", async () => {
 	}
 });
 
-test("a refresh during a tracked-list save starts a poll after that save", async () => {
+test("a refresh during a tracked-list save joins that save's poll", async () => {
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({
 			pinned: [],
@@ -273,11 +273,12 @@ test("a refresh during a tracked-list save starts a poll after that save", async
 				});
 				expect(refresh.status).toBe(204);
 				await Bun.sleep(20);
-				expect(viewerPolls).toBeGreaterThan(before);
+				const during = viewerPolls;
+				expect(during).toBe(before + 1);
 				releaseFresh();
 				const saved = await write;
 				expect(saved.status).toBe(200);
-				expect(viewerPolls).toBeGreaterThan(before + 1);
+				expect(viewerPolls).toBe(during);
 				resolve();
 			})().catch((error: unknown) => {
 				releaseFresh();

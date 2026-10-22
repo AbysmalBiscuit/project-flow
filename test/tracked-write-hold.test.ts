@@ -41,6 +41,14 @@ test("a tracked-list write waits for a poll that started after the write", async
 		});
 	let projectReads = 0;
 	let viewerPolls = 0;
+	let releaseFirstItem: () => void = () => {};
+	const firstItemEntered = new Promise<void>((resolve) => {
+		releaseFirstItem = resolve;
+	});
+	let releaseFreshEntered: () => void = () => {};
+	const freshEntered = new Promise<void>((resolve) => {
+		releaseFreshEntered = resolve;
+	});
 	const fetchImpl: Fetch = async (input, init) => {
 		const url = urlOf(input);
 		const body = typeof init?.body === "string" ? init.body : "";
@@ -52,6 +60,9 @@ test("a tracked-list write waits for a poll that started after the write", async
 			const freshIndex = viewerPolls;
 			const gate = freshIndex > 0 ? holdFresh() : null;
 			viewerPolls += 1;
+			if (freshIndex > 0) {
+				releaseFreshEntered();
+			}
 			if (gate !== null) {
 				await gate;
 			}
@@ -80,6 +91,7 @@ test("a tracked-list write waits for a poll that started after the write", async
 		) {
 			projectReads += 1;
 			if (projectReads === 1) {
+				releaseFirstItem();
 				await held;
 			}
 			return new Response(
@@ -135,7 +147,7 @@ test("a tracked-list write waits for a poll that started after the write", async
 		onListen = (line: string) => {
 			base = line;
 			void (async () => {
-				await Bun.sleep(20);
+				await firstItemEntered;
 				expect(projectReads).toBe(1);
 				const settings = (await (
 					await fetch(new URL("/api/settings", base))
@@ -163,7 +175,7 @@ test("a tracked-list write waits for a poll that started after the write", async
 				expect(settled).toBe(false);
 				expect(viewerPolls).toBe(1);
 				releasePoll();
-				await Bun.sleep(30);
+				await freshEntered;
 				expect(viewerPolls).toBeGreaterThan(1);
 				expect(settled).toBe(false);
 				const releaseHeld = freshReleases.shift();
@@ -183,6 +195,8 @@ test("a tracked-list write waits for a poll that started after the write", async
 				resolve();
 			})().catch((error: unknown) => {
 				releasePoll();
+				releaseFirstItem();
+				releaseFreshEntered();
 				for (const release of freshReleases.splice(0)) {
 					release();
 				}
@@ -210,6 +224,8 @@ test("a tracked-list write waits for a poll that started after the write", async
 		expect(result.exitCode).toBe(0);
 	} finally {
 		releasePoll();
+		releaseFirstItem();
+		releaseFreshEntered();
 		for (const release of freshReleases.splice(0)) {
 			release();
 		}
