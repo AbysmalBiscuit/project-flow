@@ -192,67 +192,52 @@ const port = Number(portText);
 
 let base = "";
 try {
-	await run(["--config", configPath, "--host", "127.0.0.1", "--port", "0"], {
-		env: {
-			GITHUB_TOKEN: "recorded-token",
-			LINEAR_API_KEY: "recorded-linear-key",
-		},
-		fetch: recorded,
-		readGhToken: async () => null,
-		listTodos: async () => "",
-		listCheckouts: async () => [],
-		databasePath: join(root, "project-flow.sqlite"),
-		now: () => new Date("2026-08-18T12:00:00.000Z"),
-		stdout: (line) => {
-			base = line.trim();
-		},
-		stderr: (line) => console.error(line),
-		waitForStop: (async () => {
-			const stops = proofStops();
-			const deadline = Date.now() + 8_000;
-			while (Date.now() < deadline) {
-				if (base !== "") {
-					const loaded = await fetch(
-						new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
-					).catch(() => null);
-					if (loaded?.ok) {
-						const project = (await loaded.json()) as {
-							tickets?: { title?: string }[];
-						};
-						if (
-							project.tickets?.some(
-								(ticket) => ticket.title === "Shaped comment",
-							)
-						) {
-							const internal = new URL(base);
-							Bun.serve({
-								hostname: "127.0.0.1",
-								port,
-								fetch(request) {
-									const url = new URL(request.url);
-									url.protocol = internal.protocol;
-									url.hostname = internal.hostname;
-									url.port = internal.port;
-									return fetch(
-										new Request(url, {
-											method: request.method,
-											headers: request.headers,
-											body: request.body,
-										}),
-									);
-								},
-							});
-							console.log(`http://127.0.0.1:${port}/`);
-							await stops;
-							return;
+	await run(
+		["--config", configPath, "--host", "127.0.0.1", "--port", String(port)],
+		{
+			env: {
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
+			fetch: recorded,
+			readGhToken: async () => null,
+			listTodos: async () => "",
+			listCheckouts: async () => [],
+			databasePath: join(root, "project-flow.sqlite"),
+			now: () => new Date("2026-08-18T12:00:00.000Z"),
+			stdout: (line) => {
+				base = line.trim();
+			},
+			stderr: (line) => console.error(line),
+			waitForStop: (async () => {
+				const stops = proofStops();
+				const deadline = Date.now() + 8_000;
+				while (Date.now() < deadline) {
+					if (base !== "") {
+						const loaded = await fetch(
+							new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+						).catch(() => null);
+						if (loaded?.ok) {
+							const project = (await loaded.json()) as {
+								tickets?: { title?: string }[];
+							};
+							if (
+								project.tickets?.some(
+									(ticket) => ticket.title === "Shaped comment",
+								)
+							) {
+								console.log(base);
+								await stops;
+								return;
+							}
 						}
 					}
+					await new Promise((pause) => setTimeout(pause, 50));
 				}
-				await new Promise((pause) => setTimeout(pause, 50));
-			}
-			throw new Error("project load returned no shaped ticket");
-		})(),
-	});
+				throw new Error("project load returned no shaped ticket");
+			})(),
+		},
+	);
 } finally {
 	await rm(root, { recursive: true, force: true });
 }
