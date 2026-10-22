@@ -1,4 +1,5 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
@@ -122,7 +123,8 @@ const recorded: Fetch = async (input, init) => {
 	return unrecorded(input);
 };
 
-const dir = await mkdtemp(join("/var/tmp", "project-flow-288-"));
+const dir = await mkdtemp(join(tmpdir(), "project-flow-288-"));
+process.env.XDG_DATA_HOME = dir;
 const configPath = join(dir, "config.json");
 await writeFile(
 	configPath,
@@ -235,7 +237,14 @@ const gate = Bun.serve({
 			const html = await upstream.text();
 			const arm =
 				`<button type="button" id="proof-arm-hold">Arm hold</button>` +
-				`<script>document.getElementById("proof-arm-hold").addEventListener("click",()=>{fetch("/proof/hold-set",{method:"POST"}).then(()=>{document.getElementById("proof-arm-hold").textContent="held"})})</script>`;
+				`<script>document.getElementById("proof-arm-hold").addEventListener("click",()=>{fetch("/proof/hold-set",{method:"POST"}).then(()=>{document.getElementById("proof-arm-hold").textContent="held"})})</script>` +
+				`<button type="button" id="proof-shift-minutes">Shift minutes</button>` +
+				`<button type="button" id="proof-shift-hours">Shift hours</button>` +
+				`<script>` +
+				`function proofShift(ms){globalThis.__projectFlowProofClockShiftMs=ms;dispatchEvent(new Event("project-flow-proof-clock"))}` +
+				`document.getElementById("proof-shift-minutes").addEventListener("click",()=>proofShift(${5 * 60_000 - 10_000}))` +
+				`document.getElementById("proof-shift-hours").addEventListener("click",()=>proofShift(${2 * 60 * 60_000 - 10_000}))` +
+				`</script>`;
 			const marked = html.includes("</body>")
 				? html.replace("</body>", `${arm}</body>`)
 				: `${html}${arm}`;

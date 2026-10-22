@@ -12,7 +12,7 @@ workcell walk-replay --walk-file proof/walk-288-refresh.json --proof .devkit/pro
 
 The walk opens the project page, then `GET /proof/release` polls. The return names an age in seconds and shows `#project-refresh`. `#proof-arm-hold` holds every later project read. The refresh click sends `POST /api/refresh`. The project read stays open, so the refresh icon spins and the page names `Refreshing`. The request log at `/proof/requests` names `POST /api/refresh`. The shot is the page while that fetch is open.
 
-Item 2. Replay `proof/walk-288-age.json`. The walk opens the project page. The recorded clock starts 10 seconds behind the host clock. `GET /proof/age?age=minutes` moves that clock to 5 minutes and polls. `GET /proof/age?age=hours` moves it to 2 hours and polls. Each return to the project page loads the new response. The age reads `fetchedAt` from the query data TanStack Query holds.
+Item 2. Replay `proof/walk-288-age.json`. The walk opens the project page once. The recorded clock starts 10 seconds behind the host clock, so the page names `polled 10 s ago`. The walk stays on that page. `#proof-shift-minutes` moves the page clock forward by 4 minutes and 50 seconds. The age timer then names `polled 5 min ago`. `#proof-shift-hours` moves the same clock to 2 hours behind the host clock. The age timer then names `polled 2 h ago`. No step navigates or reloads between those ages. The age reads `fetchedAt` from the query data TanStack Query holds.
 
 ```bash
 workcell walk-replay --walk-file proof/walk-288-age.json --proof .devkit/proof --item 2
