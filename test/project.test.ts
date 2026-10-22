@@ -358,8 +358,16 @@ describe("GET /api/projects/:name", () => {
 	});
 
 	test("a recorded closed native blocker drops off the project response", async () => {
-		type RecordedIssue = (typeof recordedClosedBlockers.issues)[number];
-		const recorded = structuredClone(recordedClosedBlockers.issues);
+		type RecordedIssue = Omit<
+			(typeof recordedClosedBlockers.issues)[number],
+			"stateReason" | "closedAt"
+		> & {
+			stateReason: string | null;
+			closedAt: string | null;
+		};
+		const recorded: RecordedIssue[] = structuredClone(
+			recordedClosedBlockers.issues,
+		);
 		let closed = false;
 		const nodes = (): RecordedIssue[] => {
 			if (!closed) {
