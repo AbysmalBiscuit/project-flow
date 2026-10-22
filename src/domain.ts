@@ -4068,16 +4068,11 @@ function placeTickets(
 	const treeWorkstream = (root: Ticket): Workstream | undefined => {
 		const seen = new Set<Ticket>([root]);
 		const pending = [root];
-		const votes: Workstream[] = [];
 		for (
 			let ticket = pending.pop();
 			ticket !== undefined;
 			ticket = pending.pop()
 		) {
-			const own = owned.get(ticket);
-			if (own !== undefined) {
-				votes.push(own);
-			}
 			for (const sub of subTicketsOf(ticket)) {
 				if (!seen.has(sub)) {
 					seen.add(sub);
@@ -4085,7 +4080,11 @@ function placeTickets(
 				}
 			}
 		}
-		return mostCommon(votes);
+		return mostCommon(
+			tickets.flatMap((ticket) =>
+				seen.has(ticket) ? (owned.get(ticket) ?? []) : [],
+			),
+		);
 	};
 	const rootWorkstreams = new Map<Ticket, Workstream>();
 	const rootWorkstream = (root: Ticket): Workstream => {
