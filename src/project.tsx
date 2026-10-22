@@ -1293,10 +1293,21 @@ export function Page() {
 		(overviewQuery.data === undefined && !reportQuery.isFetched);
 	const active = useActiveTicket();
 	const save = useSaveSettings({ refetchProjects: false });
-	const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-		undefined,
+	const pendingSave = useRef<{
+		timer: ReturnType<typeof setTimeout>;
+		write: () => void;
+	} | null>(null);
+	useEffect(
+		() => () => {
+			const pending = pendingSave.current;
+			if (pending !== null) {
+				clearTimeout(pending.timer);
+				pendingSave.current = null;
+				pending.write();
+			}
+		},
+		[],
 	);
-	useEffect(() => () => clearTimeout(searchTimer.current), []);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	const settingsData = settingsQuery.data;
@@ -1396,12 +1407,19 @@ export function Page() {
 		if (shown !== undefined) {
 			setView(shown);
 		}
-		clearTimeout(searchTimer.current);
+		if (pendingSave.current !== null) {
+			clearTimeout(pendingSave.current.timer);
+			pendingSave.current = null;
+		}
 		if (delayMs > 0) {
-			searchTimer.current = setTimeout(
-				() => writeView(next, shown, project, generation),
-				delayMs,
-			);
+			const write = () => writeView(next, shown, project, generation);
+			pendingSave.current = {
+				timer: setTimeout(() => {
+					pendingSave.current = null;
+					write();
+				}, delayMs),
+				write,
+			};
 			return;
 		}
 		writeView(next, shown, project, generation);
