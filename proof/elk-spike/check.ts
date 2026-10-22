@@ -25,7 +25,7 @@ export function frameCount(frames: readonly Frame[]): number {
 	return frames.reduce((sum, frame) => sum + 1 + frameCount(frame.frames), 0);
 }
 
-export function allFrames(frames: readonly Frame[]): Frame[] {
+function allFrames(frames: readonly Frame[]): Frame[] {
 	return frames.flatMap((frame) => [frame, ...allFrames(frame.frames)]);
 }
 
@@ -59,7 +59,7 @@ function overlaps(left: Rect, right: Rect): boolean {
 	);
 }
 
-export const centre = (rect: Rect) => ({
+const centre = (rect: Rect) => ({
 	x: rect.x + rect.width / 2,
 	y: rect.y + rect.height / 2,
 });
