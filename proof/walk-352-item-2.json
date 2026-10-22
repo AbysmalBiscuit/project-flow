@@ -1,0 +1,16 @@
+{
+	"base_url": "http://127.0.0.1:4756",
+	"serve": ["bun", "proof/serve-352.ts", ".devkit/proof/data-352", "4756"],
+	"steps": [
+		{ "goto": "/projects/AbysmalBiscuit%2Fproject-flow" },
+		{
+			"assert_text": "feat(web): show the ticket hierarchy on the project graph"
+		},
+		{ "assert_text": "spec: project flow v1" },
+		{ "assert_text": "no workstream" },
+		{ "shot": "project-flow-left-to-right" },
+		{ "click": "#graph-direction-top-to-bottom" },
+		{ "assert_text": "spec: project flow v1" },
+		{ "shot": "project-flow-top-to-bottom" }
+	]
+}
