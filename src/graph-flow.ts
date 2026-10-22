@@ -176,6 +176,7 @@ function assign(
 	const columnsInOrder = [...columns.keys()].sort(
 		(left, right) => left - right,
 	);
+	const setRow = new Map<string, number>();
 	let span = 0;
 	for (const band of bandsOf(idsInSet, bandOf)) {
 		span = Math.max(
@@ -188,11 +189,12 @@ function assign(
 				columnsInOrder,
 				links,
 				rows,
+				setRow,
 				bandRow,
 			),
 		);
 	}
-	offsetAcross(idsInSet, across, bandRow, cursor.row);
+	offsetAcross(idsInSet, across, setRow, cursor.row);
 	cursor.row += Math.max(span, 1);
 }
 
@@ -213,12 +215,14 @@ function assignBand(
 	columnsInOrder: readonly number[],
 	links: FlowAdjacency,
 	rows: Map<string, number>,
+	setRow: Map<string, number>,
 	bandRow: Map<string, number>,
 ): number {
 	const inBand = idsInSet.filter((id) => (bandOf.get(id) ?? "") === band);
 	const placed = sweepBand(inBand, columns, columnsInOrder, links);
 	const packed = packRows(shiftRows(inBand, placed), rows);
-	return writeBandRows(inBand, packed, bandRow);
+	const start = bandEnd(band, bandOf, bandRow);
+	return writeBandRows(inBand, packed, start, setRow, bandRow);
 }
 
 function sweepBand(
@@ -272,12 +276,15 @@ function shiftRows(
 function writeBandRows(
 	inBand: readonly string[],
 	packed: Map<string, number>,
+	start: number,
+	setRow: Map<string, number>,
 	bandRow: Map<string, number>,
 ): number {
 	let bandSpan = 0;
 	for (const id of inBand) {
 		const row = packed.get(id) ?? 0;
-		bandRow.set(id, row);
+		setRow.set(id, row);
+		bandRow.set(id, start + row);
 		bandSpan = Math.max(bandSpan, row + 1);
 	}
 	return bandSpan;
@@ -286,11 +293,11 @@ function writeBandRows(
 function offsetAcross(
 	idsInSet: readonly string[],
 	across: Map<string, number>,
-	bandRow: Map<string, number>,
+	setRow: Map<string, number>,
 	start: number,
 ): void {
 	for (const id of idsInSet) {
-		across.set(id, (bandRow.get(id) ?? 0) + start);
+		across.set(id, (setRow.get(id) ?? 0) + start);
 	}
 }
 
@@ -503,13 +510,23 @@ function looseStart(
 	bandOf: Map<string, string>,
 	bandRow: Map<string, number>,
 ): number {
-	let span = 0;
+	const end = bandEnd(band, bandOf, bandRow);
+	return end === 0 ? 0 : end + 1;
+}
+
+/** The first band row below every ticket already placed in the band. */
+function bandEnd(
+	band: string,
+	bandOf: Map<string, string>,
+	bandRow: Map<string, number>,
+): number {
+	let end = 0;
 	for (const [id, placed] of bandRow) {
 		if ((bandOf.get(id) ?? "") === band) {
-			span = Math.max(span, placed + 1);
+			end = Math.max(end, placed + 1);
 		}
 	}
-	return span === 0 ? 0 : span + 1;
+	return end;
 }
 
 function columnDepth(

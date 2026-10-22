@@ -1,0 +1,70 @@
+{
+	"base_url": "http://127.0.0.1:4359",
+	"viewport": {
+		"width": 1440,
+		"height": 900
+	},
+	"serve": ["bun", "proof/serve-359.ts", "4359"],
+	"steps": [
+		{
+			"goto": "/projects/acme%2Fwidget"
+		},
+		{
+			"assert_text": "feat: show parent and sub-ticket chips"
+		},
+		{
+			"fill": "#walk-style",
+			"text": "#project-graph .react-flow__node:has([data-graph-node='acme/widget#260'])"
+		},
+		{
+			"assert_text": "fade opacity 0.2s opacity 1"
+		},
+		{
+			"shot": "fade-before"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "#project-graph [data-graph-node='acme/widget#264']"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#264 | acme/widget acme/widget#265"
+		},
+		{
+			"shot": "fade-hover"
+		},
+		{
+			"fill": "#walk-style",
+			"text": "#project-graph .react-flow__node:has([data-graph-node='acme/widget#260'])"
+		},
+		{
+			"assert_text": "fade opacity 0.2s opacity 0.2"
+		},
+		{
+			"fill": "#walk-style",
+			"text": "#project-graph .react-flow__edge:not(:has([data-flowing='true']))"
+		},
+		{
+			"assert_text": "fade opacity 0.2s"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "leave"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"shot": "fade-leave"
+		},
+		{
+			"fill": "#walk-style",
+			"text": "#project-graph .react-flow__node:has([data-graph-node='acme/widget#260'])"
+		},
+		{
+			"assert_text": "fade opacity 0.2s opacity 1"
+		},
+		{
+			"shot": "fade-after"
+		}
+	]
+}
