@@ -91,6 +91,10 @@ export const threadFailedLabel = "This thread did not load.";
 
 export const threadRetryLabel = "Retry";
 
+export const expandPanelLabel = "Expand panel";
+
+export const collapsePanelLabel = "Collapse panel";
+
 export const openOnGitHubLabel = "Open on GitHub";
 
 export const mergeFactLabel = {

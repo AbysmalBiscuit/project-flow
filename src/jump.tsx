@@ -312,7 +312,7 @@ export function JumpBox() {
 				</div>
 			) : null}
 			{ticket === null || pageRendersPanel ? null : (
-				<div className={clsx(jump.dock)}>
+				<div className={clsx(jump.dock)} data-panel-dock="">
 					<TicketPanel
 						key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
 						tracker={ticket.tracker}
@@ -320,6 +320,7 @@ export function JumpBox() {
 						ticketKey={ticket.key}
 						item={needsItem(ticket) ?? null}
 						onClose={closeTicket}
+						dock
 					/>
 				</div>
 			)}
