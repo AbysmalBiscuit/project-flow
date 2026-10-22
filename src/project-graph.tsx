@@ -9,30 +9,21 @@ import {
 	type NodeProps,
 	Position,
 	ReactFlow,
-	useReactFlow,
-	type Viewport,
 } from "@xyflow/react";
-import ElkConstructor, { type ELK } from "elkjs/lib/elk-api.js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
 import { cardTones } from "./card-tones.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
-import {
-	elkWorkerPath,
-	type GraphLayout,
-	type LayoutInput,
-	layoutGraph,
-	layoutInput,
-} from "./graph-layout.ts";
+import { FitLayout, useLaidGraph } from "./graph-laid.tsx";
 import type {
 	ClusterNodeData,
 	TicketEdgeData,
 	TicketNodeData,
 } from "./graph-model.ts";
-import { graphModel, headGrowth, isClusterNode } from "./graph-model.ts";
+import { graphModel, isClusterNode } from "./graph-model.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
@@ -247,76 +238,6 @@ function watchLayout(span: NodeSize | null): () => void {
 		observer.observe(float);
 	}
 	return () => observer.disconnect();
-}
-
-let pageElk: ELK | null = null;
-
-function elk(): ELK {
-	pageElk ??= new ElkConstructor({
-		workerFactory: () => new Worker(elkWorkerPath),
-	});
-	return pageElk;
-}
-
-type LaidGraph = {
-	report: ProjectReport;
-	direction: GraphDirection;
-	groupBy: GroupBy;
-	input: LayoutInput;
-	layout: GraphLayout;
-};
-
-/** Lays out the graph in the ELK worker, and keeps the last layout until the next one lands. */
-function useLaidGraph(
-	report: ProjectReport,
-	direction: GraphDirection,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-	span: NodeSize | null,
-): LaidGraph | null {
-	const [laid, setLaid] = useState<LaidGraph | null>(null);
-	useEffect(() => {
-		if (span === null) {
-			return;
-		}
-		let current = true;
-		const input = layoutInput(report, groupBy, assignees);
-		void layoutGraph(elk(), input, direction, span, headGrowth).then(
-			(layout) => {
-				if (current) {
-					setLaid({ report, direction, groupBy, input, layout });
-				}
-			},
-		);
-		return () => {
-			current = false;
-		};
-	}, [report, direction, groupBy, assignees, span]);
-	return laid;
-}
-
-/** Fits each new layout until the viewer moves the view away from the last fit. */
-function FitLayout({ layout }: { layout: GraphLayout }) {
-	const flow = useReactFlow();
-	const fitted = useRef<Viewport | null>(null);
-	useEffect(() => {
-		void layout;
-		const last = fitted.current;
-		const now = flow.getViewport();
-		if (
-			last !== null &&
-			(last.x !== now.x || last.y !== now.y || last.zoom !== now.zoom)
-		) {
-			return;
-		}
-		const frame = requestAnimationFrame(() => {
-			void flow.fitView({ padding: fitPadding, maxZoom: 1 }).then(() => {
-				fitted.current = flow.getViewport();
-			});
-		});
-		return () => cancelAnimationFrame(frame);
-	}, [flow, layout]);
-	return null;
 }
 
 export function ProjectGraph({
