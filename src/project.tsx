@@ -734,7 +734,11 @@ function TableRow({
 				}
 			}}
 			onKeyDown={(event) => {
-				if (key === null || (event.key !== "Enter" && event.key !== " ")) {
+				if (
+					event.target !== event.currentTarget ||
+					key === null ||
+					(event.key !== "Enter" && event.key !== " ")
+				) {
 					return;
 				}
 				event.preventDefault();
