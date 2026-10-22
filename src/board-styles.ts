@@ -530,6 +530,10 @@ export const board = stylex.create({
 			":hover": colours.surfaceMuted,
 		},
 		cursor: "pointer",
+		outline: {
+			default: "none",
+			":focus-visible": focusRing,
+		},
 	},
 	rowOn: {
 		backgroundColor: {
