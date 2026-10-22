@@ -7,6 +7,7 @@ import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { savedProjectView } from "../src/view-settings.ts";
+import recordedClosedBlockers from "./fixtures/github-closed-blockers.json";
 import {
 	githubFetch,
 	githubRepo,
@@ -357,53 +358,40 @@ describe("GET /api/projects/:name", () => {
 	});
 
 	test("a recorded closed native blocker drops off the project response", async () => {
-		const blocker = (state: "OPEN" | "CLOSED") =>
-			issue(
-				216,
-				"Closed native blocker",
-				state === "CLOSED"
-					? { state: "closed", state_reason: "completed" }
-					: {},
-				githubRepo,
-			);
-		const openBlocker = issue(188, "Open native blocker", {}, githubRepo);
-		const waiting = issue(245, "Draw the board", {}, githubRepo);
-		const mixed = issue(246, "Keep the open blocker", {}, githubRepo);
-		const relation = (
-			number: number,
-			title: string,
-			state: "OPEN" | "CLOSED",
-		) => ({
-			number,
-			title,
-			state,
-			repository: { nameWithOwner: githubRepo },
-		});
-		const pageInfo = { hasNextPage: false, endCursor: null };
+		type RecordedIssue = (typeof recordedClosedBlockers.issues)[number];
+		const recorded = structuredClone(recordedClosedBlockers.issues);
 		let closed = false;
-		const nodes = () => [
-			{
-				...githubIssueNode(waiting),
-				blockedBy: {
-					nodes: [
-						relation(216, "Closed native blocker", closed ? "CLOSED" : "OPEN"),
-					],
-					pageInfo,
-				},
-			},
-			githubIssueNode(blocker(closed ? "CLOSED" : "OPEN")),
-			{
-				...githubIssueNode(mixed),
-				blockedBy: {
-					nodes: [
-						relation(216, "Closed native blocker", closed ? "CLOSED" : "OPEN"),
-						relation(188, "Open native blocker", "OPEN"),
-					],
-					pageInfo,
-				},
-			},
-			githubIssueNode(openBlocker),
-		];
+		const nodes = (): RecordedIssue[] => {
+			if (!closed) {
+				return structuredClone(recorded);
+			}
+			return structuredClone(recorded).map((node) => {
+				if (node.number !== 216 && node.number !== 245 && node.number !== 246) {
+					return node;
+				}
+				if (node.number === 216) {
+					return {
+						...node,
+						state: "CLOSED",
+						stateReason: "COMPLETED",
+						closedAt: "2026-08-18T13:00:00Z",
+						updatedAt: "2026-08-18T13:00:00Z",
+					};
+				}
+				return {
+					...node,
+					updatedAt: "2026-08-18T13:00:00Z",
+					blockedBy: {
+						...node.blockedBy,
+						nodes: node.blockedBy.nodes.map((blocker) =>
+							blocker.number === 216
+								? { ...blocker, state: "CLOSED" }
+								: blocker,
+						),
+					},
+				};
+			});
+		};
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "github", repo: githubRepo }],
@@ -430,7 +418,7 @@ describe("GET /api/projects/:name", () => {
 					const listed =
 						sent.variables?.since === undefined || sent.variables.since === null
 							? nodes()
-							: [];
+							: nodes().filter((node) => [216, 245, 246].includes(node.number));
 					return new Response(
 						JSON.stringify(repoReadIssues(owner, name, listed)),
 						{
@@ -447,25 +435,15 @@ describe("GET /api/projects/:name", () => {
 						(match) => Number(match[1]),
 					);
 					const repository: Record<string, unknown> = {};
+					const byNumber = new Map(
+						nodes().map((node) => [node.number, node.blockedBy]),
+					);
 					for (const [index, number] of asked.entries()) {
-						const nodes =
-							number === 246
-								? [
-										relation(
-											216,
-											"Closed native blocker",
-											closed ? "CLOSED" : "OPEN",
-										),
-										relation(188, "Open native blocker", "OPEN"),
-									]
-								: [
-										relation(
-											216,
-											"Closed native blocker",
-											closed ? "CLOSED" : "OPEN",
-										),
-									];
-						repository[`i${index}`] = { blockedBy: { nodes, pageInfo } };
+						const blockedBy = byNumber.get(number);
+						if (blockedBy === undefined) {
+							continue;
+						}
+						repository[`i${index}`] = { blockedBy };
 					}
 					return new Response(JSON.stringify({ data: { repository } }), {
 						status: 200,
