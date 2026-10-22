@@ -245,7 +245,7 @@ function NeedsList({
 				<>
 					{summaryLine(items)}
 					<PollAgeText
-						queryKey={pageQuery.needsYou.queryKey}
+						queryKey={pageQuery.overview.queryKey}
 						refreshing={refreshing}
 					/>
 				</>
