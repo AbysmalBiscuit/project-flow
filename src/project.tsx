@@ -21,7 +21,6 @@ import {
 	filterProjectReport,
 	focusChain,
 	type NeedsYouItem,
-	type ProjectCounts,
 	type ProjectReport,
 	type StatusType,
 	sameTicketKey,
@@ -34,15 +33,9 @@ import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";
-import {
-	PollAgeText,
-	pollLine,
-	postRefresh,
-	RefreshButton,
-	usePollProgress,
-} from "./poll-freshness.tsx";
-import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
+import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
+import { ProjectWaiting } from "./project-waiting.tsx";
 import {
 	pageQuery,
 	pageQueryClient,
@@ -50,7 +43,7 @@ import {
 	useSaveSettings,
 } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
-import { AppShell, PageFrame } from "./shell.tsx";
+import { AppShell } from "./shell.tsx";
 import {
 	blockedLabel,
 	filterEmptyLabel,
@@ -58,7 +51,6 @@ import {
 	type HidingFilter,
 	hidingFilterIds,
 	hidingFilterLabel,
-	loadingLabel,
 	navLabel,
 	viewLabel,
 } from "./terms.ts";
@@ -68,7 +60,7 @@ import {
 	projectHeaderLayout,
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { cards, frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { frame, headerControlStyle, shell } from "./ui-styles.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphGroupBy,
@@ -316,45 +308,6 @@ function countLine(report: ProjectReport): string {
 	).length;
 	const need = needs === 1 ? "needs" : "need";
 	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects).`;
-}
-
-function waitingCountLine(project: ProjectCounts): string {
-	const need = project.needsYou === 1 ? "needs" : "need";
-	return `${project.done} of ${ticketTotal(project)} done, ${project.needsYou} ${need} you, ${project.blocked} blocked.`;
-}
-
-/** The project page before its report arrives, from the overview cache. */
-function ProjectWaiting({
-	name,
-	counts,
-	error,
-}: {
-	name: string;
-	counts: ProjectCounts | undefined;
-	error: string | null;
-}) {
-	const progress = usePollProgress();
-	return (
-		<PageFrame title={counts?.name ?? name}>
-			{counts === undefined || counts.pending === true ? null : (
-				<>
-					<p id="project-waiting-counts" className={clsx(board.counts)}>
-						{waitingCountLine(counts)}
-					</p>
-					<SegmentedBar project={counts} />
-				</>
-			)}
-			{error === null ? (
-				<p id="poll-progress" className={clsx(cards.loading)}>
-					{progress === null ? loadingLabel : pollLine(progress)}
-				</p>
-			) : (
-				<p id="project-error" className={clsx(shell.stale)}>
-					{error}
-				</p>
-			)}
-		</PageFrame>
-	);
 }
 
 function isGroupBy(value: string): value is GroupBy {
