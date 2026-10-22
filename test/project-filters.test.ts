@@ -408,10 +408,12 @@ describe("GET /api/projects/:name filters", () => {
 						),
 					};
 				};
-				expect(await graphOf({ Done: 3 })).toEqual({
+				const capped = {
 					tickets: [`${githubRepo}#2`, `${githubRepo}#9`],
 					links: [`${githubRepo}#9 -> ${githubRepo}#2`],
-				});
+				};
+				expect(await graphOf({})).toEqual(capped);
+				expect(await graphOf({ Done: 3 })).toEqual(capped);
 				expect(await graphOf({ Done: 0 })).toEqual({
 					tickets: [`${githubRepo}#2`, `${githubRepo}#8`, `${githubRepo}#9`],
 					links: [
