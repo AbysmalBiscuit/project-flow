@@ -4,14 +4,10 @@ import {
 	parseConfiguration,
 	projectRef as projectRefSchema,
 } from "./configuration.ts";
-import {
-	knownRepos,
-	type SettingsProject,
-	type SettingsSnapshot,
-	samePin,
-	settingsProjects,
-} from "./domain.ts";
+import type { SettingsProject, SettingsSnapshot } from "./domain.ts";
+import { samePin } from "./domain.ts";
 import type { FoundProject } from "./ports.ts";
+import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
 
 export function settingsResponse(
 	configuration: Configuration,

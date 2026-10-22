@@ -1,0 +1,144 @@
+{
+	"recordedAt": "2026-10-22",
+	"source": "test/fixtures/github-repo-read.json issue node",
+	"repository": "acme/widget",
+	"pageInfo": { "hasNextPage": false, "endCursor": null },
+	"issues": [
+		{
+			"number": 245,
+			"title": "Draw the board",
+			"state": "OPEN",
+			"stateReason": null,
+			"updatedAt": "2026-08-18T12:00:00Z",
+			"createdAt": "2026-08-01T12:00:00Z",
+			"closedAt": null,
+			"body": "",
+			"comments": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"labels": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"assignees": { "nodes": [] },
+			"milestone": null,
+			"parent": null,
+			"blockedBy": {
+				"nodes": [
+					{
+						"number": 216,
+						"title": "Closed native blocker",
+						"state": "OPEN",
+						"repository": { "nameWithOwner": "acme/widget" }
+					}
+				],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"blocking": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			}
+		},
+		{
+			"number": 216,
+			"title": "Closed native blocker",
+			"state": "OPEN",
+			"stateReason": null,
+			"updatedAt": "2026-08-18T12:00:00Z",
+			"createdAt": "2026-08-01T12:00:00Z",
+			"closedAt": null,
+			"body": "",
+			"comments": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"labels": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"assignees": { "nodes": [] },
+			"milestone": null,
+			"parent": null,
+			"blockedBy": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"blocking": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			}
+		},
+		{
+			"number": 246,
+			"title": "Keep the open blocker",
+			"state": "OPEN",
+			"stateReason": null,
+			"updatedAt": "2026-08-18T12:00:00Z",
+			"createdAt": "2026-08-01T12:00:00Z",
+			"closedAt": null,
+			"body": "",
+			"comments": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"labels": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"assignees": { "nodes": [] },
+			"milestone": null,
+			"parent": null,
+			"blockedBy": {
+				"nodes": [
+					{
+						"number": 216,
+						"title": "Closed native blocker",
+						"state": "OPEN",
+						"repository": { "nameWithOwner": "acme/widget" }
+					},
+					{
+						"number": 188,
+						"title": "Open native blocker",
+						"state": "OPEN",
+						"repository": { "nameWithOwner": "acme/widget" }
+					}
+				],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"blocking": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			}
+		},
+		{
+			"number": 188,
+			"title": "Open native blocker",
+			"state": "OPEN",
+			"stateReason": null,
+			"updatedAt": "2026-08-18T12:00:00Z",
+			"createdAt": "2026-08-01T12:00:00Z",
+			"closedAt": null,
+			"body": "",
+			"comments": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"labels": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"assignees": { "nodes": [] },
+			"milestone": null,
+			"parent": null,
+			"blockedBy": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			},
+			"blocking": {
+				"nodes": [],
+				"pageInfo": { "hasNextPage": false, "endCursor": null }
+			}
+		}
+	]
+}
