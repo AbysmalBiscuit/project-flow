@@ -41,8 +41,8 @@ export function Chip({
 			type="button"
 			className={clsx(
 				board.chip,
-				outside && board.chipOutside,
 				hierarchy && board.chipHierarchy,
+				outside && board.chipOutside,
 				shell.buttonFocus,
 			)}
 			data-chip={ticketKey}
