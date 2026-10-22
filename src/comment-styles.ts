@@ -30,7 +30,7 @@ export const commentBody = stylex.create({
 	},
 	list: {
 		margin: `${space.xs} 0`,
-		paddingLeft: space.lg,
+		paddingLeft: space.twoXl,
 	},
 	quote: {
 		margin: `${space.xs} 0`,
