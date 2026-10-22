@@ -14,6 +14,14 @@ import type {
 } from "./domain.ts";
 import { factoryBoard, reviewStateValue, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import {
+	commentFromGithub,
+	githubComment,
+	graphqlActor,
+	graphqlComment,
+	projectComments,
+	projectItemComments,
+} from "./github-comment.ts";
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
@@ -660,17 +668,6 @@ const blockedByQuery = `query BlockedBy($id: ID!, $after: String) {
 	}
 }`;
 
-const graphqlActor = z.object({ login: z.string() }).nullable();
-
-const graphqlComment = z.object({
-	databaseId: z.number().optional(),
-	body: z.string().nullable().optional(),
-	createdAt: z.string().optional(),
-	updatedAt: z.string().optional(),
-	author: graphqlActor.optional(),
-	reactions: z.object({ totalCount: z.number() }).optional(),
-});
-
 const projectBlockedByNode = z.object({
 	number: z.number(),
 	title: z.string().nullable().optional(),
@@ -711,12 +708,7 @@ const projectItem = z.object({
 			state: z.string().optional(),
 			stateReason: z.string().nullable().optional(),
 			updatedAt: z.string().optional(),
-			comments: z
-				.object({
-					totalCount: z.number().optional(),
-					nodes: z.array(graphqlComment.optional().catch(undefined)).optional(),
-				})
-				.optional(),
+			comments: projectItemComments,
 			repository: z.object({ nameWithOwner: z.string() }).optional(),
 			milestone: z.object({ title: z.string() }).nullable().optional(),
 			labels: z
@@ -1217,15 +1209,11 @@ async function listProjectTickets(
 				? null
 				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
 		const ticketKey = `${repoName}#${content.number}`;
-		const listed = commentBodies(content.comments);
-		const comments =
-			listed.length > 0
-				? listed
-				: state === "open" &&
-						openKeys.has(ticketKey) &&
-						(content.comments?.totalCount ?? 0) > 0
-					? await listCommentBodies(token, fetchImpl, repoName, content.number)
-					: [];
+		const comments = await projectComments(
+			content.comments,
+			state === "open" && openKeys.has(ticketKey),
+			() => listCommentBodies(token, fetchImpl, repoName, content.number),
+		);
 		const blockedByNodes = [...(content.blockedBy?.nodes ?? [])];
 		const blockedByAfter = content.blockedBy?.pageInfo?.hasNextPage
 			? content.blockedBy.pageInfo.endCursor
@@ -3005,70 +2993,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		postReply(reply) {
 			return postGithubReply(token, fetchImpl, reply);
 		},
-	};
-}
-
-const githubComment = z.object({
-	id: z.number().optional(),
-	body: z.string().nullable().optional(),
-	created_at: z.string().optional(),
-	updated_at: z.string().optional(),
-	user: z.object({ login: z.string() }).nullable().optional(),
-	reactions: z.object({ total_count: z.number().optional() }).optional(),
-});
-
-function commentBodies(
-	comments:
-		| {
-				nodes?: (z.infer<typeof graphqlComment> | undefined)[];
-		  }
-		| undefined,
-): Comment[] {
-	const nodes = comments?.nodes;
-	if (nodes === undefined) {
-		return [];
-	}
-	return nodes.flatMap((comment) => {
-		if (comment === undefined) {
-			return [];
-		}
-		const mapped = commentFromGithub({
-			...(comment.databaseId === undefined ? {} : { id: comment.databaseId }),
-			body: comment.body,
-			created_at: comment.createdAt,
-			updated_at: comment.updatedAt,
-			user: comment.author ?? null,
-			reactions:
-				comment.reactions === undefined
-					? undefined
-					: { total_count: comment.reactions.totalCount },
-		});
-		return mapped === null ? [] : [mapped];
-	});
-}
-
-function commentFromGithub(
-	comment: z.infer<typeof githubComment>,
-): Comment | null {
-	const body = comment.body ?? "";
-	if (body === "") {
-		return null;
-	}
-	return {
-		body,
-		...(comment.id === undefined ? {} : { id: String(comment.id) }),
-		...(comment.created_at === undefined
-			? {}
-			: { createdAt: comment.created_at }),
-		...(comment.updated_at === undefined
-			? {}
-			: { updatedAt: comment.updated_at }),
-		...(comment.user?.login === undefined
-			? {}
-			: { author: comment.user.login }),
-		...(comment.reactions?.total_count === undefined
-			? {}
-			: { reactions: comment.reactions.total_count }),
 	};
 }
 
