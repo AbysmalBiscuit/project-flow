@@ -56,6 +56,93 @@ const underPlatformGate = issue(25, "Wait on the other repo", {
 	},
 });
 
+const projectId = "PVT_widget";
+const widgetBoard: Fetch = async (input, init) => {
+	const url = urlOf(input);
+	const body = typeof init?.body === "string" ? init.body : "";
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	if (url === "https://api.github.com/user") {
+		return Response.json({ login: "lev" });
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ProjectByNumber")
+	) {
+		return Response.json({
+			data: {
+				repositoryOwner: {
+					projectV2: {
+						id: projectId,
+						number: 3,
+						title: "Widget board",
+						closed: false,
+						updatedAt: "2026-08-18T12:00:00Z",
+					},
+				},
+			},
+		});
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ProjectFields")
+	) {
+		return emptyProjectFields(input, init) ?? unrecorded(input);
+	}
+	if (url === "https://api.github.com/graphql" && body.includes("node(id:")) {
+		return Response.json({
+			data: {
+				node: {
+					items: {
+						nodes: [
+							{
+								content: {
+									__typename: "Issue",
+									number: 11,
+									title: "Ship the board",
+									state: "OPEN",
+									stateReason: null,
+									updatedAt: "2026-08-18T12:00:00Z",
+									repository: { nameWithOwner: githubRepo },
+									milestone: { title: "October" },
+									labels: { nodes: [{ name: "epic" }] },
+									parent: null,
+								},
+							},
+							{
+								content: {
+									__typename: "Issue",
+									number: 12,
+									title: "Draw the legend",
+									state: "OPEN",
+									stateReason: null,
+									updatedAt: "2026-08-18T12:00:00Z",
+									repository: { nameWithOwner: githubRepo },
+									milestone: { title: "October" },
+									labels: { nodes: [] },
+									parent: {
+										number: 11,
+										repository: { nameWithOwner: githubRepo },
+									},
+								},
+							},
+							{
+								content: {
+									__typename: "DraftIssue",
+									title: "Not a ticket",
+								},
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			},
+		});
+	}
+	return emptyProjectFields(input, init) ?? unrecorded(input);
+};
 function recording(sent: TrackerRequest[], inner: Fetch): Fetch {
 	return (input, init) => {
 		sent.push(trackerRequest(input, init));
@@ -527,101 +614,11 @@ describe("GET /api/projects/:name", () => {
 	});
 
 	test("a Projects v2 pin groups by milestone, epic label and parent", async () => {
-		const projectId = "PVT_widget";
-		const board: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			const body = typeof init?.body === "string" ? init.body : "";
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			if (url === "https://api.github.com/user") {
-				return Response.json({ login: "lev" });
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ProjectByNumber")
-			) {
-				return Response.json({
-					data: {
-						repositoryOwner: {
-							projectV2: {
-								id: projectId,
-								number: 3,
-								title: "Widget board",
-								closed: false,
-								updatedAt: "2026-08-18T12:00:00Z",
-							},
-						},
-					},
-				});
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ProjectFields")
-			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("node(id:")
-			) {
-				return Response.json({
-					data: {
-						node: {
-							items: {
-								nodes: [
-									{
-										content: {
-											__typename: "Issue",
-											number: 11,
-											title: "Ship the board",
-											state: "OPEN",
-											stateReason: null,
-											updatedAt: "2026-08-18T12:00:00Z",
-											repository: { nameWithOwner: githubRepo },
-											milestone: { title: "October" },
-											labels: { nodes: [{ name: "epic" }] },
-											parent: null,
-										},
-									},
-									{
-										content: {
-											__typename: "Issue",
-											number: 12,
-											title: "Draw the legend",
-											state: "OPEN",
-											stateReason: null,
-											updatedAt: "2026-08-18T12:00:00Z",
-											repository: { nameWithOwner: githubRepo },
-											milestone: { title: "October" },
-											labels: { nodes: [] },
-											parent: {
-												number: 11,
-												repository: { nameWithOwner: githubRepo },
-											},
-										},
-									},
-									{
-										content: {
-											__typename: "DraftIssue",
-											title: "Not a ticket",
-										},
-									},
-								],
-								pageInfo: { hasNextPage: false, endCursor: null },
-							},
-						},
-					},
-				});
-			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
-		};
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
 			}),
-			board,
+			widgetBoard,
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = (await (
@@ -853,5 +850,25 @@ describe("GET /api/projects/:name", () => {
 		expect(
 			githubSent.filter((sent) => JSON.stringify(sent).includes("platform")),
 		).toEqual([]);
+		const boardSent: TrackerRequest[] = [];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
+			}),
+			recording(boardSent, widgetBoard),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				await reportOf(base, "Widget board");
+			},
+		);
+		const itemReads = boardSent.filter((sent) =>
+			sent.query.includes("query ProjectItems"),
+		);
+		expect(itemReads.length).toBeGreaterThan(0);
+		for (const read of itemReads) {
+			expect(read.query).toContain(
+				"parent { number title state url repository { nameWithOwner } }",
+			);
+		}
 	});
 });
