@@ -1,9 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
+import { board } from "./board-styles.ts";
 import type { TicketState } from "./domain.ts";
 import { projectGraphLabel, stateLabel } from "./terms.ts";
 import { measure, space, stack } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board } from "./board-styles.ts";
 
 export const fitPadding = 0.28;
 

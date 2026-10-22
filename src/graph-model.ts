@@ -3,6 +3,7 @@ import {
 	type Node as FlowNode,
 	Position,
 } from "@xyflow/react";
+import { board } from "./board-styles.ts";
 import {
 	groupLabelOf,
 	type ProjectReport,
@@ -27,7 +28,6 @@ import {
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
 import { classToken } from "./ui.ts";
-import { board } from "./board-styles.ts";
 import { cards } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 
