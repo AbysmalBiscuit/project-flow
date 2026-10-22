@@ -8,6 +8,7 @@ import type {
 	TicketRelation,
 	TicketState,
 } from "./domain.ts";
+import { menuOwnsEscape } from "./focus.ts";
 import { pageQuery, usePostReply } from "./queries.ts";
 import {
 	collapsePanelLabel,
@@ -294,10 +295,7 @@ export function TicketPanel({
 				}
 				return;
 			}
-			const openMenu = document.querySelector(
-				"[aria-expanded='true'], [role='dialog']",
-			);
-			if (openMenu !== null) {
+			if (menuOwnsEscape()) {
 				return;
 			}
 			event.preventDefault();
