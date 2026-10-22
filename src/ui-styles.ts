@@ -1,5 +1,4 @@
 import * as stylex from "@stylexjs/stylex";
-import { focusRing } from "./board-styles.ts";
 import {
 	colours,
 	font,
@@ -10,6 +9,8 @@ import {
 	stack,
 	type,
 } from "./tokens.stylex.ts";
+
+const focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
 const headerGroup = {
 	display: "inline-flex",
