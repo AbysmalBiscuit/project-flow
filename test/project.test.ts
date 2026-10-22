@@ -828,6 +828,149 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a blocker on a later page stays in the refresh", async () => {
+		const pageInfo = (hasNextPage: boolean, endCursor: string | null) => ({
+			hasNextPage,
+			endCursor,
+		});
+		const relation = (number: number, title: string) => ({
+			number,
+			title,
+			state: "OPEN",
+			repository: { nameWithOwner: githubRepo },
+		});
+		const nodes = [
+			{
+				...githubIssueNode(issue(245, "Draw the board", {}, githubRepo)),
+				blockedBy: {
+					nodes: [relation(216, "First page blocker")],
+					pageInfo: pageInfo(false, null),
+				},
+			},
+			githubIssueNode(issue(216, "First page blocker", {}, githubRepo)),
+			githubIssueNode(issue(188, "Later page blocker", {}, githubRepo)),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: {
+							owner?: string;
+							name?: string;
+							since?: string | null;
+						};
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					const listed =
+						sent.variables?.since === undefined || sent.variables.since === null
+							? nodes
+							: [];
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, listed)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					const asked = [...body.matchAll(/issue\(number: (\d+)\)/g)].map(
+						(match) => Number(match[1]),
+					);
+					const sent = JSON.parse(body) as {
+						variables?: Record<string, string | null>;
+					};
+					const repository: Record<string, unknown> = {};
+					for (const [index, number] of asked.entries()) {
+						if (number !== 245) {
+							continue;
+						}
+						const after = sent.variables?.[`after${index}`];
+						repository[`i${index}`] =
+							after === "cursor-2"
+								? {
+										blockedBy: {
+											nodes: [relation(188, "Later page blocker")],
+											pageInfo: pageInfo(false, null),
+										},
+									}
+								: {
+										blockedBy: {
+											nodes: [relation(216, "First page blocker")],
+											pageInfo: pageInfo(true, "cursor-2"),
+										},
+									};
+					}
+					return new Response(JSON.stringify({ data: { repository } }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+					base,
+				);
+				const before = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
+				expect(
+					before.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.blockers,
+				).toEqual([`${githubRepo}#216`]);
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let report: ProjectReport | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as { polling?: true };
+					if (overview.polling !== true) {
+						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (report === null) {
+					throw new Error("the poll did not settle");
+				}
+				expect(
+					report.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.blockers,
+				).toEqual([`${githubRepo}#216`, `${githubRepo}#188`]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
 	test("a reopened blocker stays open over a held closed reference", async () => {
 		const gate = (state: "open" | "closed") =>
 			issue(

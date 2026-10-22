@@ -44,49 +44,84 @@ async function readBlockerStates(
 	const page = 40;
 	for (let start = 0; start < numbers.length; start += page) {
 		const slice = numbers.slice(start, start + page);
-		const fields = slice
-			.map(
-				(number, index) =>
-					`i${index}: issue(number: ${number}) { blockedBy(first: 20) { nodes { number title state repository { nameWithOwner } } ${connectionPage} } }`,
-			)
-			.join("\n");
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: `query BlockerStates($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`,
-				variables: { owner: parts.owner, name: parts.name },
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		const parsed = z
-			.object({
-				data: z.object({
-					repository: z
-						.record(z.string(), z.object({ blockedBy: blockerPage }).nullable())
-						.nullable(),
-				}),
-				errors: z.array(z.object({ message: z.string() })).optional(),
-			})
-			.safeParse(await response.json());
-		const repository = parsed.success ? parsed.data.data.repository : null;
-		if (
-			!parsed.success ||
-			parsed.data.errors?.[0] !== undefined ||
-			repository === null
-		) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
-		}
-		slice.forEach((number, index) => {
-			const node = repository[`i${index}`];
-			if (node !== undefined && node !== null) {
-				states.set(number, node.blockedBy);
+		const collected = slice.map(() => [] as z.infer<typeof blockerNode>[]);
+		let cursors: (string | null)[] = slice.map(() => null);
+		let pending = true;
+		while (pending) {
+			const fields = slice
+				.map(
+					(number, index) =>
+						`i${index}: issue(number: ${number}) { blockedBy(first: 20, after: $after${index}) { nodes { number title state repository { nameWithOwner } } ${connectionPage} } }`,
+				)
+				.join("\n");
+			const afterNames = slice.map((_, index) => `$after${index}: String`);
+			const variables: Record<string, string | null> = {
+				owner: parts.owner,
+				name: parts.name,
+			};
+			for (const [index, cursor] of cursors.entries()) {
+				variables[`after${index}`] = cursor;
 			}
-		});
+			const response = await fetchImpl("https://api.github.com/graphql", {
+				method: "POST",
+				headers: githubHeaders(token),
+				body: JSON.stringify({
+					query: `query BlockerStates($owner: String!, $name: String!, ${afterNames.join(", ")}) { repository(owner: $owner, name: $name) { ${fields} } }`,
+					variables,
+				}),
+			});
+			if (!response.ok) {
+				throw new Error(
+					`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
+				);
+			}
+			const parsed = z
+				.object({
+					data: z.object({
+						repository: z
+							.record(
+								z.string(),
+								z.object({ blockedBy: blockerPage }).nullable(),
+							)
+							.nullable(),
+					}),
+					errors: z.array(z.object({ message: z.string() })).optional(),
+				})
+				.safeParse(await response.json());
+			const repository = parsed.success ? parsed.data.data.repository : null;
+			if (
+				!parsed.success ||
+				parsed.data.errors?.[0] !== undefined ||
+				repository === null
+			) {
+				throw new Error(`GitHub read repo failed: ${repo}`);
+			}
+			const next: (string | null)[] = [];
+			slice.forEach((number, index) => {
+				const node = repository[`i${index}`];
+				if (node === undefined || node === null) {
+					next.push(null);
+					return;
+				}
+				collected[index]?.push(
+					...node.blockedBy.nodes.flatMap((item) =>
+						item === undefined ? [] : [item],
+					),
+				);
+				const cursor = node.blockedBy.pageInfo?.endCursor ?? null;
+				next.push(
+					node.blockedBy.pageInfo?.hasNextPage === true && cursor !== null
+						? cursor
+						: null,
+				);
+				states.set(number, {
+					nodes: collected[index] ?? [],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				});
+			});
+			cursors = next;
+			pending = cursors.some((cursor) => cursor !== null);
+		}
 	}
 	return states;
 }
@@ -124,7 +159,7 @@ export async function currentBlockers(
 	);
 	const fresh = stale.flatMap((ticket) => {
 		const blockedBy = states.get(Number(ticket.id));
-		if (blockedBy === undefined || blockedBy.pageInfo?.hasNextPage === true) {
+		if (blockedBy === undefined) {
 			return [];
 		}
 		const listedTicket = listed.find((item) => item.id === ticket.id);
