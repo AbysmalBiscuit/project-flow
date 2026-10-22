@@ -627,7 +627,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 					content {
 						__typename
 						... on Issue {
-							id number title body state stateReason updatedAt comments { totalCount }
+							id number title body state stateReason updatedAt comments(first: 20) { nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } } totalCount }
 							repository { nameWithOwner }
 							milestone { title }
 							labels(first: 20) { nodes { name } }
@@ -659,6 +659,17 @@ const blockedByQuery = `query BlockedBy($id: ID!, $after: String) {
 		}
 	}
 }`;
+
+const graphqlActor = z.object({ login: z.string() }).nullable();
+
+const graphqlComment = z.object({
+	databaseId: z.number().optional(),
+	body: z.string().nullable().optional(),
+	createdAt: z.string().optional(),
+	updatedAt: z.string().optional(),
+	author: graphqlActor.optional(),
+	reactions: z.object({ totalCount: z.number() }).optional(),
+});
 
 const projectBlockedByNode = z.object({
 	number: z.number(),
@@ -700,7 +711,12 @@ const projectItem = z.object({
 			state: z.string().optional(),
 			stateReason: z.string().nullable().optional(),
 			updatedAt: z.string().optional(),
-			comments: z.object({ totalCount: z.number() }).optional(),
+			comments: z
+				.object({
+					totalCount: z.number().optional(),
+					nodes: z.array(graphqlComment.optional().catch(undefined)).optional(),
+				})
+				.optional(),
 			repository: z.object({ nameWithOwner: z.string() }).optional(),
 			milestone: z.object({ title: z.string() }).nullable().optional(),
 			labels: z
@@ -1201,12 +1217,15 @@ async function listProjectTickets(
 				? null
 				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
 		const ticketKey = `${repoName}#${content.number}`;
+		const listed = commentBodies(content.comments);
 		const comments =
-			state === "open" &&
-			openKeys.has(ticketKey) &&
-			(content.comments?.totalCount ?? 0) > 0
-				? await listCommentBodies(token, fetchImpl, repoName, content.number)
-				: [];
+			listed.length > 0
+				? listed
+				: state === "open" &&
+						openKeys.has(ticketKey) &&
+						(content.comments?.totalCount ?? 0) > 0
+					? await listCommentBodies(token, fetchImpl, repoName, content.number)
+					: [];
 		const blockedByNodes = [...(content.blockedBy?.nodes ?? [])];
 		const blockedByAfter = content.blockedBy?.pageInfo?.hasNextPage
 			? content.blockedBy.pageInfo.endCursor
@@ -1785,17 +1804,6 @@ function repoReadQuery(include: RepoIncludes): string {
 	${editedFilter}
 }`;
 }
-
-const graphqlActor = z.object({ login: z.string() }).nullable();
-
-const graphqlComment = z.object({
-	databaseId: z.number().optional(),
-	body: z.string().nullable().optional(),
-	createdAt: z.string().optional(),
-	updatedAt: z.string().optional(),
-	author: graphqlActor.optional(),
-	reactions: z.object({ totalCount: z.number() }).optional(),
-});
 
 const graphqlDependency = z.object({
 	number: z.number(),
@@ -3008,6 +3016,36 @@ const githubComment = z.object({
 	user: z.object({ login: z.string() }).nullable().optional(),
 	reactions: z.object({ total_count: z.number().optional() }).optional(),
 });
+
+function commentBodies(
+	comments:
+		| {
+				nodes?: (z.infer<typeof graphqlComment> | undefined)[];
+		  }
+		| undefined,
+): Comment[] {
+	const nodes = comments?.nodes;
+	if (nodes === undefined) {
+		return [];
+	}
+	return nodes.flatMap((comment) => {
+		if (comment === undefined) {
+			return [];
+		}
+		const mapped = commentFromGithub({
+			...(comment.databaseId === undefined ? {} : { id: comment.databaseId }),
+			body: comment.body,
+			created_at: comment.createdAt,
+			updated_at: comment.updatedAt,
+			user: comment.author ?? null,
+			reactions:
+				comment.reactions === undefined
+					? undefined
+					: { total_count: comment.reactions.totalCount },
+		});
+		return mapped === null ? [] : [mapped];
+	});
+}
 
 function commentFromGithub(
 	comment: z.infer<typeof githubComment>,
