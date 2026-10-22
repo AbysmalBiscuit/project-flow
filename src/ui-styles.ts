@@ -2036,6 +2036,9 @@ export const panel = stylex.create({
 		lineHeight: 1,
 		cursor: "pointer",
 	},
+	host: {
+		display: "contents",
+	},
 	slot: {
 		flex: `0 0 ${measure.panel}`,
 		alignSelf: "stretch",

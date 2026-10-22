@@ -348,8 +348,9 @@ export function TicketPanel({
 		lane ?? (state === undefined ? undefined : stateLabel[state]);
 	const stateName = state === undefined ? "unknown" : state;
 	const [cover, setCover] = useState<HTMLElement | null>(null);
+	const host = useRef<HTMLDivElement | null>(null);
 	useLayoutEffect(() => {
-		const stage = (slot.current ?? root.current)?.parentElement;
+		const stage = host.current?.parentElement;
 		if (stage === null || stage === undefined || dock) {
 			setCover(null);
 			return;
@@ -360,6 +361,16 @@ export function TicketPanel({
 		stage.append(node);
 		setCover(node);
 		return () => {
+			const aside = root.current;
+			const place = host.current;
+			if (
+				aside !== null &&
+				place !== null &&
+				aside.parentElement !== place &&
+				place.isConnected
+			) {
+				place.append(aside);
+			}
 			node.remove();
 			setCover(null);
 		};
@@ -524,19 +535,22 @@ export function TicketPanel({
 		</aside>
 	);
 	useLayoutEffect(() => {
-		if (!expanded || cover === null || root.current === null) {
+		const aside = root.current;
+		const place = host.current;
+		if (aside === null || place === null) {
 			return;
 		}
-		if (root.current.parentElement !== cover) {
-			cover.append(root.current);
+		const target = expanded && cover !== null ? cover : place;
+		if (aside.parentElement !== target) {
+			target.append(aside);
 		}
 	});
 	return (
-		<>
+		<div ref={host} className={clsx(panel.host)}>
 			{expanded && cover !== null ? (
 				<div className={clsx(panel.slot)} data-panel-slot="" ref={slot} />
 			) : null}
 			{aside}
-		</>
+		</div>
 	);
 }
