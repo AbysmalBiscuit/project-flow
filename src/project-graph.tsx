@@ -170,6 +170,7 @@ const edgeTypes = { ticket: TicketEdge };
 function layoutParts(): {
 	root: HTMLElement;
 	legend: HTMLElement;
+	controls: HTMLElement;
 	floats: HTMLElement[];
 } | null {
 	const root = document.getElementById("project-graph");
@@ -183,10 +184,14 @@ function layoutParts(): {
 	const floats = [...(chrome?.querySelectorAll(":scope > * > *") ?? [])].filter(
 		(node): node is HTMLElement => node instanceof HTMLElement,
 	);
-	if (!(legend instanceof HTMLElement) || floats.length === 0) {
+	if (
+		!(legend instanceof HTMLElement) ||
+		!(chrome instanceof HTMLElement) ||
+		floats.length === 0
+	) {
 		return null;
 	}
-	return { root, legend, floats };
+	return { root, legend, controls: chrome, floats };
 }
 
 function boxesMiss(left: DOMRect, right: DOMRect): boolean {
@@ -215,12 +220,17 @@ function publishLayout(): void {
 	const flush =
 		Math.round(paneBox.top - edge) === Math.round(rootBox.top) &&
 		Math.round(paneBox.bottom + edge) === Math.round(rootBox.bottom);
+	const controlsBox = parts.controls.getBoundingClientRect();
+	const corner =
+		Math.round(controlsBox.left) === Math.round(paneBox.left) &&
+		Math.round(controlsBox.bottom) === Math.round(paneBox.bottom);
 	const page = document.documentElement;
 	const fits = page.scrollWidth === page.clientWidth;
 	probe.textContent = [
 		flush ? "canvas-flush" : "canvas-offset",
 		apart ? "floats-apart" : "floats-cover",
 		fits ? "page-fits" : "page-scrolls",
+		corner ? "controls-corner" : "controls-moved",
 	].join(" ");
 }
 
@@ -432,15 +442,15 @@ export function ProjectGraph({
 				</ReactFlow>
 				<div className={clsx(float.overlay)}>
 					<Legend />
-					<div id="project-graph-controls" className={clsx(float.chrome)}>
-						<div className={clsx(float.group)}>
-							<DirectionSwitch direction={direction} onChange={onDirection} />
-							<GraphTools
-								probeId="project-graph-viewport"
-								fitId="project-graph-fit"
-								scope="#project-graph"
-							/>
-						</div>
+				</div>
+				<div id="project-graph-controls" className={clsx(float.corner)}>
+					<div className={clsx(float.group)}>
+						<DirectionSwitch direction={direction} onChange={onDirection} />
+						<GraphTools
+							probeId="project-graph-viewport"
+							fitId="project-graph-fit"
+							scope="#project-graph"
+						/>
 					</div>
 				</div>
 			</div>

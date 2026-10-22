@@ -24,13 +24,13 @@ export const float = stylex.create({
 		justifyContent: "space-between",
 		pointerEvents: "none",
 	},
-	chrome: {
+	corner: {
+		position: "absolute",
+		zIndex: stack.panel,
+		bottom: 0,
+		left: 0,
 		display: "flex",
-		flex: "0 1 auto",
-		marginLeft: "auto",
-		alignItems: "flex-start",
-		justifyContent: "flex-end",
-		minWidth: 0,
+		maxWidth: "100%",
 		pointerEvents: "none",
 	},
 	group: {
@@ -39,7 +39,6 @@ export const float = stylex.create({
 		flexWrap: "wrap",
 		gap: space.xs,
 		alignItems: "center",
-		justifyContent: "flex-end",
 		minWidth: 0,
 		maxWidth: "100%",
 		pointerEvents: "auto",
