@@ -3854,7 +3854,7 @@ function themeOf(
 	ticket: Ticket,
 	root: Ticket,
 	byKey: Map<string, Ticket>,
-	parents: Set<string>,
+	parents: ReadonlyMap<string, Ticket[]>,
 ): string {
 	if (isEpic(ticket)) {
 		return ticket.title;
@@ -3899,15 +3899,21 @@ function linearMilestone(
 	return null;
 }
 
-function workstreamOf(
+type Workstream = { label: string; key: string };
+
+const none: Workstream = { label: noWorkstream, key: noWorkstream };
+
+function ownWorkstream(
 	ticket: Ticket,
 	root: Ticket,
 	tracker: ProjectCounts["tracker"],
 	byKey: Map<string, Ticket>,
-): { label: string; key: string } {
+): Workstream | undefined {
 	if (tracker === "linear") {
-		const milestone = linearMilestone(ticket, byKey) ?? noWorkstream;
-		return { label: milestone, key: milestone };
+		const milestone = linearMilestone(ticket, byKey);
+		return milestone === null
+			? undefined
+			: { label: milestone, key: milestone };
 	}
 	if (isEpic(root)) {
 		const key = root.key ?? root.title;
@@ -3916,11 +3922,28 @@ function workstreamOf(
 	if (ticket.milestone !== null) {
 		return { label: ticket.milestone, key: ticket.milestone };
 	}
-	const parent = parentOf(ticket, byKey);
-	if (parent !== undefined && parent.key !== null) {
-		return { label: parent.title, key: parent.key };
+	if (root !== ticket && root.key !== null) {
+		return { label: root.title, key: root.key };
 	}
-	return { label: noWorkstream, key: noWorkstream };
+	return undefined;
+}
+
+function mostCommon(workstreams: Workstream[]): Workstream | undefined {
+	const counts = new Map<string, { workstream: Workstream; count: number }>();
+	for (const workstream of workstreams) {
+		const known = counts.get(workstream.key);
+		counts.set(workstream.key, {
+			workstream,
+			count: (known?.count ?? 0) + 1,
+		});
+	}
+	let best: { workstream: Workstream; count: number } | undefined;
+	for (const entry of counts.values()) {
+		if (best === undefined || entry.count > best.count) {
+			best = entry;
+		}
+	}
+	return best?.workstream;
 }
 
 export type GroupKey = Exclude<GroupBy, "none">;
@@ -4021,20 +4044,43 @@ function placeTickets(
 			byKey.set(ticket.key.toLowerCase(), ticket);
 		}
 	}
-	const parents = new Set<string>();
+	const parents = new Map<string, Ticket[]>();
 	for (const ticket of tickets) {
 		const parent = parentOf(ticket, byKey);
 		if (parent?.key !== null && parent?.key !== undefined) {
-			parents.add(parent.key.toLowerCase());
+			const key = parent.key.toLowerCase();
+			const known = parents.get(key);
+			if (known === undefined) {
+				parents.set(key, [ticket]);
+			} else {
+				known.push(ticket);
+			}
 		}
 	}
+	const owned = new Map(
+		tickets.map((ticket) => [
+			ticket,
+			ownWorkstream(ticket, rootOf(ticket, byKey), tracker, byKey),
+		]),
+	);
+	// A parent ticket with no workstream of its own joins the group that most
+	// of its sub-tickets are in.
+	const workstreamOf = (ticket: Ticket): Workstream => {
+		const own = owned.get(ticket);
+		if (own !== undefined) {
+			return own;
+		}
+		const subTickets =
+			ticket.key === null ? [] : (parents.get(ticket.key.toLowerCase()) ?? []);
+		return mostCommon(subTickets.map((sub) => owned.get(sub) ?? none)) ?? none;
+	};
 	return tickets.flatMap((ticket, index) => {
 		const view = views[index];
 		if (view === undefined) {
 			return [];
 		}
 		const root = rootOf(ticket, byKey);
-		const workstream = workstreamOf(ticket, root, tracker, byKey);
+		const workstream = workstreamOf(ticket);
 		const theme = themeOf(ticket, root, byKey, parents);
 		return [
 			{

@@ -37,7 +37,7 @@ describe("GET /api/projects/:name", () => {
 					themeGroup: "October / feat: redesign the board",
 				});
 				expect(groupOf(20)).toMatchObject({
-					themeGroup: "no workstream / feat: redesign the board",
+					themeGroup: "feat: redesign the board",
 				});
 			},
 		);
