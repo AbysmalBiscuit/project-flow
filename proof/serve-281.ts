@@ -1,9 +1,11 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
+import { run } from "../src/main.ts";
 import projectFields from "../test/fixtures/github-project-fields.json";
 import { recordedDiscovery, urlOf } from "../test/support.ts";
-import { emptyLinear, serveRecorded, unrecorded } from "./recorded.ts";
+import { proofStops } from "./lifetime.ts";
+import { emptyLinear, unrecorded } from "./recorded.ts";
 
 const repo = "acme/widget";
 const boardId = "PVT_widget";
@@ -90,9 +92,14 @@ const openItem = boardItem(
 	},
 );
 
+const doneOptionId = boardOptionId("Done");
+if (doneOptionId === undefined) {
+	throw new Error("recorded project Done option is missing");
+}
+
 const closedItem = boardItem(
 	{ name: "Done", color: "ORANGE" },
-	{ updatedAt: "2026-10-21T12:00:00Z", optionId: boardOptionId("Done") },
+	{ updatedAt: "2026-10-21T12:00:00Z", optionId: doneOptionId },
 	{
 		state: "CLOSED",
 		stateReason: "COMPLETED",
@@ -129,6 +136,10 @@ function page(items: unknown[]): Response {
 }
 
 let polls = 0;
+let releaseRefresh = () => {};
+const refreshed = new Promise<void>((resolve) => {
+	releaseRefresh = resolve;
+});
 
 const recorded: Fetch = async (input, init) => {
 	const discovered = recordedDiscovery(input, init);
@@ -176,6 +187,9 @@ const recorded: Fetch = async (input, init) => {
 		body.includes("ProjectItems")
 	) {
 		polls += 1;
+		if (polls > 1) {
+			await refreshed;
+		}
 		return Response.json({
 			data: {
 				node: {
@@ -227,15 +241,13 @@ const recorded: Fetch = async (input, init) => {
 	return unrecorded(input);
 };
 
-const port = process.argv[2] ?? process.env.PORT ?? "4281";
+const port = Number(process.argv[2] ?? process.env.PORT ?? "4281");
 const startedAt = Date.now();
-
-await serveRecorded({
-	prefix: "project-flow-281-",
-	port,
-	now: () =>
-		new Date(Date.parse("2026-10-22T00:00:00.000Z") + (Date.now() - startedAt)),
-	config: {
+const dir = await mkdtemp(join("/var/tmp", "project-flow-281-"));
+const configPath = join(dir, "config.json");
+await writeFile(
+	configPath,
+	`${JSON.stringify({
 		pinned: [{ tracker: "github", owner: "acme", project: 4 }],
 		checkoutRoots: [],
 		pollIntervalSeconds: 3600,
@@ -243,6 +255,89 @@ await serveRecorded({
 		projectViews: {
 			"Widget board": { openView: "board", groupBy: "none" },
 		},
+	})}\n`,
+);
+
+let upstream: URL | null = null;
+
+function upstreamUrl(request: Request): URL | null {
+	const target = upstream;
+	if (target === null) {
+		return null;
+	}
+	const url = new URL(request.url);
+	url.protocol = target.protocol;
+	url.hostname = target.hostname;
+	url.port = target.port;
+	return url;
+}
+
+const gate = Bun.serve({
+	hostname: "127.0.0.1",
+	port,
+	async fetch(request) {
+		const url = new URL(request.url);
+		if (url.pathname === "/proof/refresh") {
+			releaseRefresh();
+			return new Response("refreshed", {
+				headers: { "content-type": "text/plain; charset=utf-8" },
+			});
+		}
+		const next = upstreamUrl(request);
+		if (next === null) {
+			return new Promise(() => {});
+		}
+		if (url.pathname === "/api/refresh" && request.method === "POST") {
+			releaseRefresh();
+		}
+		const headers = new Headers(request.headers);
+		headers.delete("host");
+		const hasBody = request.method !== "GET" && request.method !== "HEAD";
+		return fetch(next, {
+			method: request.method,
+			headers,
+			...(hasBody ? { body: request.body } : {}),
+		});
 	},
-	fetch: recorded,
 });
+
+console.log(gate.url.href);
+
+const heard = new Promise<string>((resolve, reject) => {
+	const timer = setTimeout(() => {
+		reject(new Error("recorded app did not listen"));
+	}, 15_000);
+	void run(["--config", configPath, "--host", "127.0.0.1", "--port", "0"], {
+		env: {
+			GITHUB_TOKEN: "recorded-token",
+			LINEAR_API_KEY: "recorded-linear-key",
+			XDG_DATA_HOME: dir,
+		},
+		fetch: recorded,
+		readGhToken: async () => null,
+		listTodos: async () => "",
+		listCheckouts: async () => [],
+		databasePath: join(dir, "project-flow.sqlite"),
+		now: () =>
+			new Date(
+				Date.parse("2026-10-22T00:00:00.000Z") + (Date.now() - startedAt),
+			),
+		stdout: (line) => {
+			clearTimeout(timer);
+			resolve(line);
+		},
+		stderr: (line) => console.error(line),
+		waitForStop: proofStops(),
+	}).then(
+		(result) => {
+			clearTimeout(timer);
+			reject(new Error(`recorded app exited ${result.exitCode}`));
+		},
+		(error: unknown) => {
+			clearTimeout(timer);
+			reject(error);
+		},
+	);
+});
+
+upstream = new URL(await heard);

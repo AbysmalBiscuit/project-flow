@@ -6,13 +6,14 @@
 		{ "assert_text": "In review 1" },
 		{ "assert_text": "#205" },
 		{ "shot": "in-review" },
+		{ "goto": "/proof/refresh" },
+		{ "assert_text": "refreshed" },
 		{ "goto": "/" },
 		{ "click": "#overview-refresh" },
-		{ "assert_text": "Refreshing" },
 		{ "assert_text": "Widget board" },
 		{ "goto": "/projects/Widget%20board" },
-		{ "assert_text": "#205" },
 		{ "assert_text": "Done 1" },
+		{ "assert_text": "#205" },
 		{ "shot": "done-lane" }
 	]
 }

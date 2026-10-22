@@ -10,4 +10,6 @@ Replay `proof/walk-281.json`:
 workcell walk-replay --walk-file proof/walk-281.json --proof .devkit/proof --item 2
 ```
 
-The board shows #205 in In review after the first poll. Refresh on the overview starts the second poll. The board then shows #205 in the Done lane. The card title is the recorded #205 title. The proof clock follows real time from 2026-10-22T00:00:00Z, so a refresh after the minimum poll gap reads the trackers again.
+The board shows #205 in the In review lane after the first poll. The lane heading reads `In review 1`. The card shows `#205`.
+
+`GET /proof/refresh` releases the second poll. That poll stays held until the walk opens that route, so the first board paint cannot read the closed ticket. Refresh on the overview starts the second poll. The board then shows #205 in the Done lane. The lane heading reads `Done 1`. The card title is the recorded #205 title. The proof clock follows real time from 2026-10-22T00:00:00Z, so a refresh after the minimum poll gap reads the trackers again.
