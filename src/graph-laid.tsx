@@ -31,25 +31,36 @@ export type LaidGraph = {
 	layout: GraphLayout;
 };
 
-/** Lays out the graph in the ELK worker, and keeps the last layout until the next one lands. */
+/**
+ * Lays out the graph in the ELK worker, and keeps the last layout until the
+ * next one lands. `failed` tells whether the latest layout was rejected.
+ */
 export function useLaidGraph(
 	report: ProjectReport,
 	direction: GraphDirection,
 	groupBy: GroupBy,
 	assignees: readonly string[],
 	span: NodeSize | null,
-): LaidGraph | null {
+): { laid: LaidGraph | null; failed: boolean } {
 	const [laid, setLaid] = useState<LaidGraph | null>(null);
+	const [failed, setFailed] = useState(false);
 	useEffect(() => {
 		if (span === null) {
 			return;
 		}
 		let current = true;
 		const input = layoutInput(report, groupBy, assignees);
-		void layoutGraph(elk(), input, direction, span, headGrowth).then(
+		layoutGraph(elk(), input, direction, span, headGrowth).then(
 			(layout) => {
 				if (current) {
 					setLaid({ report, direction, groupBy, input, layout });
+					setFailed(false);
+				}
+			},
+			(error: unknown) => {
+				console.error(error);
+				if (current) {
+					setFailed(true);
 				}
 			},
 		);
@@ -57,7 +68,7 @@ export function useLaidGraph(
 			current = false;
 		};
 	}, [report, direction, groupBy, assignees, span]);
-	return laid;
+	return { laid, failed };
 }
 
 /** Fits each new layout until the viewer moves the view away from the last fit. */

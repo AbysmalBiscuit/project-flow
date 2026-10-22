@@ -28,10 +28,15 @@ import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import type { NodeSize } from "./graph-sizes.ts";
-import { graphDirectionLabel, navLabel, projectGraphLabel } from "./terms.ts";
+import {
+	graphDirectionLabel,
+	graphLayoutFailedLabel,
+	navLabel,
+	projectGraphLabel,
+} from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { cards, headerControlStyle } from "./ui-styles.ts";
+import { cards, headerControlStyle, panel } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
@@ -270,7 +275,13 @@ export function ProjectGraph({
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
-	const laid = useLaidGraph(report, direction, groupBy, assignees, span);
+	const { laid, failed } = useLaidGraph(
+		report,
+		direction,
+		groupBy,
+		assignees,
+		span,
+	);
 	const model = useMemo(() => {
 		if (span === null || laid === null) {
 			return null;
@@ -290,7 +301,15 @@ export function ProjectGraph({
 	}, [laid, reports, openKey, span, theme]);
 	useEffect(() => watchLayout(span), [span]);
 	if (model === null || laid === null) {
-		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
+		return (
+			<div id="project-graph" className={clsx(board.ticketGraph)}>
+				{failed && laid === null ? (
+					<p className={clsx(panel.error)} role="alert">
+						{graphLayoutFailedLabel}
+					</p>
+				) : null}
+			</div>
+		);
 	}
 	const drawn = laid.direction;
 	const fades = clsx(board.fades);
