@@ -1,0 +1,83 @@
+{
+	"base_url": "http://127.0.0.1:4346",
+	"serve": ["bun", "proof/serve-337.ts", "4346"],
+	"steps": [
+		{
+			"goto": "/projects/acme%2Fwidget"
+		},
+		{
+			"assert_text": "Chain b mid"
+		},
+		{
+			"assert_text": "Left to right"
+		},
+		{
+			"fill": "#walk-ctrl",
+			"text": "on"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"click": "h1"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#3']"
+		},
+		{
+			"assert_text": "Expand"
+		},
+		{
+			"shot": "focus-panel-open"
+		},
+		{
+			"fill": "#walk-esc",
+			"text": "esc-a"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"assert_text": "Expand"
+		},
+		{
+			"shot": "esc-left-focus-panel-kept"
+		},
+		{
+			"fill": "#walk-esc",
+			"text": "esc-b"
+		},
+		{
+			"assert_text": "panel closed"
+		},
+		{
+			"shot": "esc-closed-panel"
+		},
+		{
+			"fill": "#walk-ctrl",
+			"text": "on"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"click": "h1"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+		},
+		{
+			"fill": "#walk-esc",
+			"text": "esc-c"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"shot": "esc-left-focus-no-panel"
+		}
+	]
+}

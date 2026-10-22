@@ -1,0 +1,56 @@
+{
+	"base_url": "http://127.0.0.1:4346",
+	"serve": ["bun", "proof/serve-337.ts", "4346"],
+	"steps": [
+		{
+			"goto": "/projects/acme%2Fwidget"
+		},
+		{
+			"assert_text": "Chain b mid"
+		},
+		{
+			"assert_text": "Left to right"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#3']"
+		},
+		{
+			"assert_text": "Expand"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"click": "[aria-label='Expand panel']"
+		},
+		{
+			"assert_text": "Collapse"
+		},
+		{
+			"shot": "panel-expanded"
+		},
+		{
+			"fill": "#walk-esc",
+			"text": "esc-a"
+		},
+		{
+			"assert_text": "Expand"
+		},
+		{
+			"shot": "esc-collapsed-panel"
+		},
+		{
+			"fill": "#walk-esc",
+			"text": "esc-b"
+		},
+		{
+			"assert_text": "panel closed"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"shot": "esc-closed-panel"
+		}
+	]
+}
