@@ -1265,9 +1265,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	let refreshQueued = false;
 	// A poll that started before the last tracked-list write cannot answer for it.
 	let trackedGeneration = 0;
-	let activeGeneration = 0;
-	let savingTracked = false;
-	let freshPoll: Promise<void> | null = null;
+	let settledGeneration = -1;
 	const pollAgain = (): Promise<void> => {
 		if (stopped || pollOptions.stopped) {
 			return Promise.resolve();
@@ -1277,7 +1275,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		}
 		let rejected = false;
 		const generation = trackedGeneration;
-		activeGeneration = generation;
 		pollOptions.mayPublish = () => generation === trackedGeneration;
 		polling = (async () => {
 			if (generation !== trackedGeneration) {
@@ -1313,18 +1310,9 @@ export async function start(options: StartOptions): Promise<Running> {
 			}
 		})().finally(async () => {
 			noteDiscovery();
+			settledGeneration = Math.max(settledGeneration, generation);
 			polling = null;
-			if (
-				!stopped &&
-				savingTracked &&
-				activeGeneration !== trackedGeneration &&
-				freshPoll === null
-			) {
-				const next = pollAgain().catch(() => {});
-				freshPoll = next;
-				return;
-			}
-			if (!stopped && refreshQueued && !savingTracked) {
+			if (!stopped && refreshQueued) {
 				refreshQueued = false;
 				await pollAgain().catch(() => {});
 				return;
@@ -1363,7 +1351,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			overview: runningOverview(pollOptions, configuration),
 			notifications: [],
 		});
-		if (savingTracked || polling !== null || !firstPollDone) {
+		if (polling !== null || !firstPollDone) {
 			refreshQueued = true;
 			return;
 		}
@@ -1623,9 +1611,6 @@ export async function start(options: StartOptions): Promise<Running> {
 						);
 					}
 					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
-					if (trackedChanged) {
-						savingTracked = true;
-					}
 					const stale = polling;
 					try {
 						configuration = await configurationPort.write(mergedText);
@@ -1633,7 +1618,6 @@ export async function start(options: StartOptions): Promise<Running> {
 							trackedGeneration += 1;
 						}
 					} catch (error) {
-						savingTracked = false;
 						const message =
 							error instanceof Error
 								? error.message
@@ -1644,17 +1628,21 @@ export async function start(options: StartOptions): Promise<Running> {
 					pollOptions.fallback = configuration;
 					schedule(configuration.pollIntervalSeconds);
 					releaseLists();
-					try {
-						if (freshPoll !== null) {
-							await freshPoll;
-							freshPoll = null;
-						} else {
-							await (stale ?? pollAgain());
+					if (trackedChanged) {
+						const written = trackedGeneration;
+						while (
+							settledGeneration < written &&
+							!stopped &&
+							!pollOptions.stopped
+						) {
+							await pollAgain();
 						}
-					} finally {
-						if (trackedChanged) {
-							savingTracked = false;
+						if (refreshQueued && trackedGeneration === written) {
+							refreshQueued = false;
+							await pollAgain();
 						}
+					} else {
+						await (stale ?? pollAgain());
 					}
 					return Response.json(
 						settingsResponse(
@@ -1744,8 +1732,6 @@ export async function start(options: StartOptions): Promise<Running> {
 			stopped = true;
 			pollOptions.stopped = true;
 			refreshQueued = false;
-			savingTracked = false;
-			trackedGeneration = activeGeneration;
 			requests.abort();
 			releaseLists();
 			if (timer !== null) {

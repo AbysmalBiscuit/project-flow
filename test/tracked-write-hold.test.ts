@@ -34,13 +34,13 @@ test("a tracked-list write waits for a poll that started after the write", async
 	const held = new Promise<void>((resolve) => {
 		releasePoll = resolve;
 	});
+	const freshReleases: (() => void)[] = [];
+	const holdFresh = (): Promise<void> =>
+		new Promise<void>((resolve) => {
+			freshReleases.push(resolve);
+		});
 	let projectReads = 0;
 	let viewerPolls = 0;
-	let releaseFirst: () => void = () => {};
-	const firstEntered = new Promise<void>((resolve) => {
-		releaseFirst = resolve;
-	});
-
 	const fetchImpl: Fetch = async (input, init) => {
 		const url = urlOf(input);
 		const body = typeof init?.body === "string" ? init.body : "";
@@ -49,7 +49,12 @@ test("a tracked-list write waits for a poll that started after the write", async
 			url === "https://api.github.com/graphql" &&
 			body.includes("ViewerProjects")
 		) {
+			const freshIndex = viewerPolls;
+			const gate = freshIndex > 0 ? holdFresh() : null;
 			viewerPolls += 1;
+			if (gate !== null) {
+				await gate;
+			}
 			return new Response(
 				JSON.stringify({
 					data: {
@@ -75,7 +80,6 @@ test("a tracked-list write waits for a poll that started after the write", async
 		) {
 			projectReads += 1;
 			if (projectReads === 1) {
-				releaseFirst();
 				await held;
 			}
 			return new Response(
@@ -131,7 +135,7 @@ test("a tracked-list write waits for a poll that started after the write", async
 		onListen = (line: string) => {
 			base = line;
 			void (async () => {
-				await firstEntered;
+				await Bun.sleep(20);
 				expect(projectReads).toBe(1);
 				const settings = (await (
 					await fetch(new URL("/api/settings", base))
@@ -157,10 +161,18 @@ test("a tracked-list write waits for a poll that started after the write", async
 				});
 				await Bun.sleep(30);
 				expect(settled).toBe(false);
+				expect(viewerPolls).toBe(1);
 				releasePoll();
+				await Bun.sleep(30);
+				expect(viewerPolls).toBeGreaterThan(1);
+				expect(settled).toBe(false);
+				const releaseHeld = freshReleases.shift();
+				if (releaseHeld === undefined) {
+					throw new Error("fresh poll has no release");
+				}
+				releaseHeld();
 				const saved = await write;
 				expect(saved.status).toBe(200);
-				expect(viewerPolls).toBeGreaterThan(1);
 				const body = (await saved.json()) as { tracked: unknown[] };
 				expect(body.tracked).toEqual([]);
 				const overview = (await (
@@ -171,6 +183,9 @@ test("a tracked-list write waits for a poll that started after the write", async
 				resolve();
 			})().catch((error: unknown) => {
 				releasePoll();
+				for (const release of freshReleases.splice(0)) {
+					release();
+				}
 				reject(error instanceof Error ? error : new Error("checks failed"));
 			});
 		};
@@ -195,7 +210,9 @@ test("a tracked-list write waits for a poll that started after the write", async
 		expect(result.exitCode).toBe(0);
 	} finally {
 		releasePoll();
-		releaseFirst();
+		for (const release of freshReleases.splice(0)) {
+			release();
+		}
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
 	}
