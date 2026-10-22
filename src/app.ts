@@ -581,7 +581,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			} catch {
 				return undefined;
 			}
-			return reportFor(pollOptions, configuration, name, true) ?? undefined;
+			return reportFor(pollOptions, configuration, name, false) ?? undefined;
 		}
 		if (pathname === "/needs-you") {
 			const body = runningOverview(pollOptions, configuration);

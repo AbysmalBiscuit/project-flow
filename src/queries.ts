@@ -183,7 +183,7 @@ export function settingsCacheWrite(
 	};
 }
 
-export function useSaveSettings() {
+export function useSaveSettings({ refetchProjects = true } = {}) {
 	const queries = useQueryClient();
 	return useMutation({
 		mutationFn: async (next: SettingsWrite): Promise<SettingsPage> => {
@@ -210,7 +210,9 @@ export function useSaveSettings() {
 				projects: saved.projects,
 			};
 			queries.setQueryData(pageQuery.settings.queryKey, written);
-			void queries.invalidateQueries({ queryKey: ["project"] });
+			if (refetchProjects) {
+				void queries.invalidateQueries({ queryKey: ["project"] });
+			}
 		},
 	});
 }
@@ -359,7 +361,7 @@ function seedStoredProject(pathname: string, stored: unknown): void {
 		return;
 	}
 	pageQueryClient.setQueryData(
-		pageQuery.project(name).queryKey,
+		pageQuery.project(name, "all").queryKey,
 		report as ProjectReport,
 		{ updatedAt: 0 },
 	);
@@ -371,12 +373,18 @@ function applyOverviewEvent(body: Overview): void {
 	const updatedAt =
 		pageQueryClient.getQueryState(pageQuery.overview.queryKey)?.dataUpdatedAt ??
 		0;
+	const previous = pageQueryClient.getQueryData(pageQuery.overview.queryKey);
 	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body, {
 		updatedAt,
 	});
+	void pageQueryClient.invalidateQueries(pageQuery.settings);
+	// A settings write that changes only saved views publishes the same overview;
+	// the tracker data is unchanged, so the reports stay cached.
+	if (JSON.stringify(previous) === JSON.stringify(body)) {
+		return;
+	}
 	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
-	void pageQueryClient.invalidateQueries(pageQuery.settings);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 }
 

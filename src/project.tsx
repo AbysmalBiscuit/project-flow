@@ -6,6 +6,7 @@ import {
 	type ReactNode,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -22,6 +23,7 @@ import type {
 import {
 	displayedLaneName,
 	doneTicketsForLane,
+	filterProjectReport,
 	sameTicketKey,
 	ticketGroups,
 } from "./domain.ts";
@@ -70,6 +72,7 @@ import {
 	visibleLaneNames,
 } from "./view-settings.ts";
 
+const searchSaveDelayMs = 400;
 const doneCap = 5;
 
 const views = [
@@ -1273,16 +1276,27 @@ export function Page() {
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
-	const reportQuery = useQuery(pageQuery.project(name));
+	const reportQuery = useQuery(pageQuery.project(name, "all"));
 	const overviewQuery = useQuery(pageQuery.overview);
 	const settingsQuery = useQuery(pageQuery.settings);
-	const report = reportQuery.data === undefined ? null : reportQuery.data;
-	const missing = reportQuery.isError || reportQuery.data === null;
+	const fullReport = reportQuery.data;
+	const report = useMemo(
+		() =>
+			fullReport === undefined || fullReport === null
+				? null
+				: filterProjectReport(fullReport, settings, new Date()),
+		[fullReport, settings],
+	);
+	const missing = reportQuery.isError || fullReport === null;
 	const polling =
 		overviewQuery.data?.polling === true ||
 		(overviewQuery.data === undefined && !reportQuery.isFetched);
 	const active = useActiveTicket();
-	const save = useSaveSettings();
+	const save = useSaveSettings({ refetchProjects: false });
+	const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+		undefined,
+	);
+	useEffect(() => () => clearTimeout(searchTimer.current), []);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
 	const settingsData = settingsQuery.data;
@@ -1370,7 +1384,11 @@ export function Page() {
 	if (report === null) {
 		return <PageFrame title={name}>{loadingLabel}</PageFrame>;
 	}
-	const saveView = (next: ProjectViewSettings, shown?: PageView) => {
+	const saveView = (
+		next: ProjectViewSettings,
+		shown?: PageView,
+		delayMs = 0,
+	) => {
 		const project = name;
 		const generation = saveGeneration.current + 1;
 		saveGeneration.current = generation;
@@ -1378,6 +1396,22 @@ export function Page() {
 		if (shown !== undefined) {
 			setView(shown);
 		}
+		clearTimeout(searchTimer.current);
+		if (delayMs > 0) {
+			searchTimer.current = setTimeout(
+				() => writeView(next, shown, project, generation),
+				delayMs,
+			);
+			return;
+		}
+		writeView(next, shown, project, generation);
+	};
+	const writeView = (
+		next: ProjectViewSettings,
+		shown: PageView | undefined,
+		project: string,
+		generation: number,
+	) => {
 		const kept = groupBySavedRef.current
 			? next
 			: (({ groupBy: _groupBy, ...rest }) => rest)(next);
@@ -1469,7 +1503,7 @@ export function Page() {
 							<p className={clsx(board.counts)}>
 								{countLine(report)}
 								<PollAgeText
-									queryKey={pageQuery.project(name).queryKey}
+									queryKey={pageQuery.project(name, "all").queryKey}
 									refreshing={polling || reportQuery.isFetching}
 								/>
 							</p>
@@ -1478,7 +1512,9 @@ export function Page() {
 							<RefreshButton
 								id="project-refresh"
 								refreshing={polling || reportQuery.isFetching}
-								onRefresh={() => postRefresh(pageQuery.project(name).queryKey)}
+								onRefresh={() =>
+									postRefresh(pageQuery.project(name, "all").queryKey)
+								}
 							/>
 							<FilterMenu
 								report={report}
@@ -1495,7 +1531,11 @@ export function Page() {
 								placeholder="Search"
 								value={settings.search}
 								onChange={(event) =>
-									saveView({ ...settings, search: event.target.value })
+									saveView(
+										{ ...settings, search: event.target.value },
+										undefined,
+										searchSaveDelayMs,
+									)
 								}
 							/>
 							<Dropdown
