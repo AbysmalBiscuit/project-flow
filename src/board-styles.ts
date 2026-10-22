@@ -627,7 +627,8 @@ export const board = stylex.create({
 	},
 	legendRow: {
 		display: "flex",
-		flexWrap: "wrap",
+		flexWrap: "nowrap",
+		whiteSpace: "nowrap",
 		gap: space.sm,
 		margin: 0,
 		padding: 0,

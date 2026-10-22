@@ -372,15 +372,17 @@ export function ProjectGraph({
 					<Background variant={BackgroundVariant.Dots} gap={18} />
 					<FitDirection key={direction} />
 				</ReactFlow>
-				<Legend />
-				<div id="project-graph-controls" className={clsx(float.chrome)}>
-					<div className={clsx(float.group)}>
-						<DirectionSwitch direction={direction} onChange={onDirection} />
-						<GraphTools
-							probeId="project-graph-viewport"
-							fitId="project-graph-fit"
-							scope="#project-graph"
-						/>
+				<div className={clsx(float.overlay)}>
+					<Legend />
+					<div id="project-graph-controls" className={clsx(float.chrome)}>
+						<div className={clsx(float.group)}>
+							<DirectionSwitch direction={direction} onChange={onDirection} />
+							<GraphTools
+								probeId="project-graph-viewport"
+								fitId="project-graph-fit"
+								scope="#project-graph"
+							/>
+						</div>
 					</div>
 				</div>
 			</div>
