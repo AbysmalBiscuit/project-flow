@@ -46,7 +46,7 @@ function overlap(left: Rect, right: Rect): boolean {
 
 describe("project graph layout", () => {
 	test("each workcell workstream frame fills at least the share the elkjs spike recorded", async () => {
-		// Issue 349 recorded these shares for ELK `layered` with the chosen options.
+		// `proof/elk-spike/measure.ts` prints these shares for ELK `layered` again.
 		const recorded: Record<string, number> = {
 			"no workstream": 0.71,
 			"AbysmalBiscuit/workcell#654": 0.42,
