@@ -1,12 +1,16 @@
 {
-	"base_url": "http://127.0.0.1:47383",
-	"serve": ["bun", "proof/serve-card-lanes.ts", "47383", "dark"],
+	"base_url": "http://127.0.0.1:47683",
+	"serve": ["bun", "proof/serve-card-lanes.ts", "47683", "dark"],
 	"steps": [
 		{ "goto": "/projects/acme%2Fwidget" },
 		{ "assert_text": "Queue the board card" },
 		{ "assert_text": "Build the lane tint" },
 		{ "assert_text": "Read the review comments" },
+		{ "assert_text": "Wait for the merge" },
+		{ "assert_text": "Drop the unused card" },
 		{ "assert_text": "Close item 1" },
+		{ "click": "#card-lane-frame" },
+		{ "assert_text": "lanes framed" },
 		{ "shot": "dark-lanes" }
 	]
 }

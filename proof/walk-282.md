@@ -2,9 +2,9 @@
 
 Each walk serves recorded tracker responses through `proof/serve-card-lanes.ts`. That script sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker.
 
-The board is `acme/widget`. The ready lane holds `Queue the board card`, `Hold the launch window` and `Pick the card colour`. `Hold the launch window` is blocked by `#2`. `Pick the card colour` has an open ask, so its card shows `Needs you`. The factory running lane holds `Build the lane tint`. The factory in-review lane holds `Read the review comments`. Done holds six closed tickets, so `Show all` sits under the Done title and above the cards.
+The board is `acme/widget`. The ready lane holds `Queue the board card`, `Hold the launch window` and `Pick the card colour`. `Hold the launch window` is blocked by `#2`. `Pick the card colour` has an open ask, so its card shows `Needs you`. The factory running lane holds `Build the lane tint`. The factory in-review lane holds `Read the review comments`. Awaiting merge holds `Wait for the merge`. Dropped holds `Drop the unused card`. Done holds six closed tickets, so `Show all` sits under the Done title and above the cards.
 
-Item 1, light and dark themes. Replay `proof/walk-282-light.json` for the light theme. The server starts in the light theme. The shot shows a lane-colour border on each card. Replay `proof/walk-282-dark.json` for the dark theme. Its serve command passes `dark`. The shot shows the same borders in the dark tokens.
+Item 1, light and dark themes. Replay `proof/walk-282-light.json` for the light theme. The server starts in the light theme. The walk clicks `Frame lanes`. That control is in the proof server, not the shipped page. It scrolls the Dropped card into the lanes frame. The shot shows a lane-colour border on each card, including Awaiting merge and Dropped. Replay `proof/walk-282-dark.json` for the dark theme. Its serve command passes `dark`. The shot shows the same borders in the dark tokens.
 
 ```
 workcell walk-replay --walk-file proof/walk-282-light.json --proof .devkit/proof --item 1

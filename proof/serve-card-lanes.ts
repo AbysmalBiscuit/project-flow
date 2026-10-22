@@ -75,6 +75,10 @@ const needs = recordedIssue(4, "Pick the card colour", ["ready"], "OPEN", {
 		pageInfo: end,
 	},
 });
+const dropped = recordedIssue(7, "Drop the unused card", [], "CLOSED", {
+	stateReason: "NOT_PLANNED",
+});
+const mergeTicket = recordedIssue(8, "Wait for the merge", ["ready"]);
 const issues = [
 	recordedIssue(1, "Queue the board card", ["ready"]),
 	blocker,
@@ -82,10 +86,111 @@ const issues = [
 	needs,
 	recordedIssue(5, "Build the lane tint", ["factory: running"]),
 	recordedIssue(6, "Read the review comments", ["factory: in-review"]),
+	dropped,
+	mergeTicket,
 	...Array.from({ length: 6 }, (_, index) =>
 		recordedIssue(10 + index, `Close item ${String(index + 1)}`, [], "CLOSED"),
 	),
 ];
+
+const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const older = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const codex = "chatgpt-codex-connector[bot]";
+
+function recordedPull(): Response {
+	return Response.json({
+		data: {
+			repository: {
+				nameWithOwner: repo,
+				autoMergeAllowed: false,
+				refs: { nodes: [], pageInfo: end },
+				labels: { nodes: labels, pageInfo: end },
+				issues: { nodes: issues, pageInfo: end },
+				openPullRequests: {
+					nodes: [
+						{
+							number: 70,
+							title: "Wait for the merge",
+							url: `https://github.com/${repo}/pull/70`,
+							isDraft: false,
+							body: "Closes #8",
+							state: "OPEN",
+							mergedAt: null,
+							headRefName: "70-feat-merge",
+							headRefOid: head,
+							autoMergeRequest: null,
+							commits: {
+								nodes: [
+									{
+										commit: {
+											committedDate: "2026-10-18T10:00:00Z",
+										},
+									},
+								],
+								pageInfo: end,
+							},
+							closingIssuesReferences: {
+								nodes: [{ number: 8 }],
+								pageInfo: end,
+							},
+							reviews: { nodes: [], pageInfo: end },
+							comments: {
+								nodes: [
+									{
+										author: { login: codex },
+										body: "<!-- codex-pull-request-review-summary -->\n| 📝 **Code Review** | ✅ **Completed** | `aaaaaaaa` | PR opened |",
+										createdAt: "2026-10-18T11:00:00Z",
+										reactions: { totalCount: 0 },
+									},
+								],
+								pageInfo: end,
+							},
+							reactions: { nodes: [], pageInfo: end },
+							statusCheckRollup: {
+								contexts: { nodes: [], pageInfo: end },
+							},
+						},
+					],
+					pageInfo: end,
+				},
+				mergedPullRequests: {
+					nodes: [
+						{
+							number: 1,
+							title: "merged",
+							url: `https://github.com/${repo}/pull/1`,
+							isDraft: false,
+							body: "",
+							state: "MERGED",
+							mergedAt: "2026-10-01T00:00:00Z",
+							headRefName: "1-merged",
+							headRefOid: older,
+							autoMergeRequest: null,
+							commits: { nodes: [], pageInfo: end },
+							closingIssuesReferences: { nodes: [], pageInfo: end },
+							reviews: {
+								nodes: [
+									{
+										author: { login: codex },
+										commit: { oid: older },
+										state: "APPROVED",
+									},
+								],
+								pageInfo: end,
+							},
+							comments: { nodes: [], pageInfo: end },
+							reactions: { nodes: [], pageInfo: end },
+							statusCheckRollup: {
+								contexts: { nodes: [], pageInfo: end },
+							},
+						},
+					],
+					pageInfo: end,
+				},
+			},
+		},
+	});
+}
 
 function recordedRepo(): Response {
 	return Response.json({
@@ -122,6 +227,9 @@ const recorded: Fetch = async (input, init) => {
 	if (url === "https://api.github.com/graphql") {
 		const body = typeof init?.body === "string" ? init.body : "";
 		if (body.includes("RepoRead")) {
+			if (body.includes("openPullRequests")) {
+				return recordedPull();
+			}
 			return recordedRepo();
 		}
 		return Response.json({
@@ -155,12 +263,21 @@ void serveRecorded({
 		pinned: [{ tracker: "github", repo }],
 		checkoutRoots: [],
 		pmBot: { [repo]: false },
+		expectedBots: { [repo]: ["codex"] },
 		pollIntervalSeconds: 3600,
 		theme: process.argv[3] === "dark" ? "dark" : "light",
 		projectViews: {
 			[repo]: {
 				openView: "board",
 				groupBy: "none",
+				shownLanes: [
+					"ready",
+					"factory: running",
+					"factory: in-review",
+					"Awaiting merge",
+					"Done",
+					"Dropped",
+				],
 				maxAgeDays: { Done: 0 },
 			},
 		},
@@ -171,6 +288,26 @@ void serveRecorded({
 	process.exit(1);
 });
 
+const frameScript = `<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.id = "card-lane-frame";
+  button.textContent = "Frame lanes";
+  button.addEventListener("click", () => {
+    const board = document.querySelector("[data-lanes]");
+    const dropped = document.querySelector("[data-ticket='acme/widget#7']");
+    if (board === null || dropped === null) {
+      button.textContent = "lanes missing";
+      return;
+    }
+    dropped.scrollIntoView({ inline: "end", block: "nearest" });
+    button.textContent = "lanes framed";
+  });
+  document.body.append(button);
+});
+</script>`;
+
 Bun.serve({
 	hostname: "127.0.0.1",
 	port: publicPort,
@@ -179,7 +316,18 @@ Bun.serve({
 		const target = `http://127.0.0.1:${String(appPort)}${url.pathname}${url.search}`;
 		for (let attempt = 0; attempt < 50; attempt += 1) {
 			try {
-				return await fetch(target);
+				const response = await fetch(target);
+				const type = response.headers.get("content-type") ?? "";
+				if (!type.includes("text/html")) {
+					return response;
+				}
+				const html = await response.text();
+				const headers = new Headers(response.headers);
+				headers.delete("content-length");
+				return new Response(html.replace("</body>", `${frameScript}</body>`), {
+					status: response.status,
+					headers,
+				});
 			} catch {
 				await Bun.sleep(100);
 			}
