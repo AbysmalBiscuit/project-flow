@@ -817,20 +817,6 @@ export const cards = stylex.create({
 		display: "inline-flex",
 		gap: space.xs,
 	},
-	graphTool: {
-		padding: `${space.xs} ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		lineHeight: 1,
-		cursor: "pointer",
-	},
 	graphProbe: {
 		position: "absolute",
 		width: measure.hairline,
@@ -945,9 +931,6 @@ export const cards = stylex.create({
 		fontWeight: type.weight,
 		letterSpacing: type.track,
 		textTransform: "uppercase",
-	},
-	grow: {
-		flexGrow: 1,
 	},
 	chips: {
 		display: "flex",

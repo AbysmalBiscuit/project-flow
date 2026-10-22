@@ -651,12 +651,14 @@ function MenuButton({
 	open,
 	onToggle,
 	children,
+	style = cards.control,
 }: {
 	id: string;
 	label: ReactNode;
 	open: boolean;
 	onToggle: () => void;
 	children: ReactNode;
+	style?: stylex.StyleXStyles;
 }) {
 	const root = useRef<HTMLDivElement>(null);
 	const gutter = useRef<HTMLSpanElement>(null);
@@ -710,7 +712,7 @@ function MenuButton({
 			<button
 				type="button"
 				id={id}
-				className={clsx(cards.control, shell.buttonFocus)}
+				className={clsx(style, shell.buttonFocus)}
 				aria-expanded={open}
 				aria-controls={`${id}-panel`}
 				onClick={onToggle}
@@ -849,7 +851,26 @@ function OverviewPage({
 	const filterMenu = (
 		<MenuButton
 			id="overview-filter"
-			label={overviewControlLabel.filter}
+			style={headerControlStyle.control}
+			label={
+				<>
+					<svg
+						viewBox="0 0 16 16"
+						aria-hidden="true"
+						className={clsx(headerControlStyle.icon)}
+						fill="none"
+						stroke="currentColor"
+						strokeWidth="1.5"
+						strokeLinecap="round"
+					>
+						<path d="M2 3.5h12M4.5 8h7M7 12.5h2" />
+					</svg>
+					{overviewControlLabel.filter}
+					<span className={clsx(headerControlStyle.count)}>
+						{view.filter === "all" ? 0 : 1}
+					</span>
+				</>
+			}
 			open={menu === "filter"}
 			onToggle={() => setMenu(menu === "filter" ? null : "filter")}
 		>
@@ -946,6 +967,7 @@ function OverviewPage({
 							Allow notifications
 						</button>
 					) : null}
+					{filterMenu}
 				</div>
 			}
 		>
@@ -954,8 +976,6 @@ function OverviewPage({
 					<div>
 						<p className={clsx(cards.tableLabel)}>{navLabel.projects}</p>
 					</div>
-					<span className={clsx(cards.grow)} />
-					{filterMenu}
 				</div>
 			) : null}
 			{needs.length === 0 || view.view !== "cards" ? null : (
@@ -998,10 +1018,9 @@ function OverviewPage({
 			{view.view === "table" ? null : (
 				<div className={clsx(cards.section)}>
 					<h2 className={clsx(cards.sectionLabel)}>{sectionTitle}</h2>
-					<div className={clsx(cards.controls)}>
-						{filterMenu}
-						{view.view === "graph" ? null : sortMenu}
-					</div>
+					{view.view === "graph" ? null : (
+						<div className={clsx(cards.controls)}>{sortMenu}</div>
+					)}
 				</div>
 			)}
 			{progress !== null && !progress.ended ? (

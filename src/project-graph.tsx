@@ -380,7 +380,6 @@ export function ProjectGraph({
 							probeId="project-graph-viewport"
 							fitId="project-graph-fit"
 							scope="#project-graph"
-							styles="header"
 						/>
 					</div>
 				</div>

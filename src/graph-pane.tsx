@@ -2,14 +2,7 @@ import { useReactFlow, type Viewport } from "@xyflow/react";
 import { useEffect, useState } from "react";
 import { overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { cards, headerControlStyle } from "./ui-styles.ts";
-
-const graphToolStyles = {
-	card: cards,
-	header: headerControlStyle,
-} as const;
-
-export type GraphToolStyle = keyof typeof graphToolStyles;
+import { cards, headerControlStyle as tools } from "./ui-styles.ts";
 
 function viewportElement(root: ParentNode): HTMLElement | SVGElement | null {
 	const pane = root.querySelector(".react-flow__viewport");
@@ -96,12 +89,10 @@ export function GraphTools({
 	probeId = "graph-viewport",
 	fitId,
 	scope = "",
-	styles = "card",
 }: {
 	probeId?: string;
 	fitId?: string;
 	scope?: string;
-	styles?: GraphToolStyle;
 }) {
 	const flow = useReactFlow();
 	const [viewport, setViewport] = useState<Viewport | null>(null);
@@ -118,7 +109,6 @@ export function GraphTools({
 			scope === "" ? document : (document.querySelector(scope) ?? document);
 		setViewport(readViewport(root));
 	};
-	const tools = graphToolStyles[styles];
 	return (
 		<div className={clsx(tools.graphTools)}>
 			<button
