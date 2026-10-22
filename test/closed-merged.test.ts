@@ -7,8 +7,10 @@ import projectFields from "./fixtures/github-project-fields.json";
 import {
 	recordedDiscovery,
 	settledOverview,
+	type TrackerRequest,
 	tempConfig,
 	testIo,
+	trackerRequest,
 	unrecorded,
 	urlOf,
 } from "./support.ts";
@@ -88,8 +90,10 @@ function boardItem(
 function boardFetch(
 	items: () => Record<string, unknown>[],
 	closed: () => Record<string, unknown>[] = () => [],
+	requests: TrackerRequest[] = [],
 ): Fetch {
 	return async (input, init) => {
+		requests.push(trackerRequest(input, init));
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
 			return discovered;
@@ -191,7 +195,13 @@ type FlightItem = {
 	state: string;
 	lane: string;
 	statusType: string;
+	updatedAt?: string;
 	pull?: string;
+};
+
+type ProjectBody = {
+	tickets?: FlightItem[];
+	polling?: true;
 };
 
 test("a stored open ticket moves to done when a later poll closes it with a merged PR", async () => {
@@ -227,13 +237,17 @@ test("a stored open ticket moves to done when a later poll closes it with a merg
 			},
 		},
 	);
+	const doneOptionId = boardOptionId("Done");
+	if (doneOptionId === undefined) {
+		throw new Error("recorded project Done option is missing");
+	}
 	const closedItem = boardItem(
 		205,
 		String(issue.title),
 		{ name: "Done", color: "ORANGE" },
 		{
 			updatedAt: "2026-10-21T12:00:00Z",
-			optionId: boardOptionId("Done"),
+			optionId: doneOptionId,
 		},
 		{
 			state: "CLOSED",
@@ -263,6 +277,7 @@ test("a stored open ticket moves to done when a later poll closes it with a merg
 		}),
 	);
 	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const requests: TrackerRequest[] = [];
 	let now = Date.parse("2026-10-22T00:00:00.000Z");
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
@@ -270,31 +285,39 @@ test("a stored open ticket moves to done when a later poll closes it with a merg
 			check(base).then(resolve).catch(reject);
 		};
 	});
-	const readTicket = async (base: string) => {
+	const readProject = async (base: string): Promise<ProjectBody> => {
 		const response = await fetch(new URL("/api/projects/Widget%20board", base));
 		expect(response.status).toBe(200);
-		const report = (await response.json()) as {
-			tickets?: FlightItem[];
-			polling?: true;
-		};
-		return report.tickets?.find((item) => item.key === `${githubRepo}#205`);
+		return (await response.json()) as ProjectBody;
 	};
+	const ticketFrom = (report: ProjectBody): FlightItem | undefined =>
+		report.tickets?.find((item) => item.key === `${githubRepo}#205`);
 	const check = async (base: string) => {
-		const stored = await readTicket(base);
+		const stored = ticketFrom(await readProject(base));
 		expect(stored).toMatchObject({
 			state: "inReview",
 			lane: "In review",
 			statusType: "inReview",
 			updatedAt: "2026-10-20T21:14:10Z",
 		});
+		const firstPoll = requests.length;
+		expect(firstPoll).toBeGreaterThan(0);
 		closed = true;
 		now += 11 * 60 * 1000;
 		const refresh = await fetch(new URL("/api/refresh", base), {
 			method: "POST",
 		});
 		expect(refresh.status).toBe(204);
-		const found = await settledOverview(base, readTicket);
-		expect(found).toMatchObject({
+		const report = await settledOverview(base, async (address) => {
+			const body = await readProject(address);
+			if (body.polling === true) {
+				return { polling: true as const };
+			}
+			return body;
+		});
+		expect(report.polling).not.toBe(true);
+		expect(requests.length).toBeGreaterThan(firstPoll);
+		expect(ticketFrom(report)).toMatchObject({
 			state: "done",
 			lane: "Done",
 			statusType: "done",
@@ -309,6 +332,7 @@ test("a stored open ticket moves to done when a later poll closes it with a merg
 				fetch: boardFetch(
 					() => [closed ? closedItem : openItem],
 					() => [closed ? mergedPull : openPull],
+					requests,
 				),
 				readGhToken: async () => null,
 				databasePath: join(root, "store.sqlite"),
