@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4360",
+	"serve": ["bun", "proof/serve-360.ts", "4360"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget?ticket=acme%2Fwidget%233" },
+		{ "assert_text": "icon name=Expand panel tooltip=Expand panel" },
+		{ "assert_text": "icon name=Close tooltip=Close" },
+		{ "click": "[aria-label='Expand panel']" },
+		{ "assert_text": "icon name=Collapse panel tooltip=Collapse panel" },
+		{ "shot": "panel-names" }
+	]
+}
