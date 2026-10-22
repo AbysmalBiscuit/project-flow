@@ -9,7 +9,6 @@ import {
 	type NodeProps,
 	Position,
 	ReactFlow,
-	ReactFlowProvider,
 	useReactFlow,
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
@@ -252,41 +251,6 @@ function FitDirection() {
 }
 
 export function ProjectGraph({
-	report,
-	reports,
-	direction,
-	groupBy,
-	assignees,
-	openKey,
-	onOpen,
-	onDirection,
-}: {
-	report: ProjectReport;
-	reports: ProjectReport[];
-	direction: GraphDirection;
-	groupBy: GroupBy;
-	assignees: readonly string[];
-	openKey: string | null;
-	onOpen: (ticket: OpenedNode) => void;
-	onDirection: (direction: GraphDirection) => void;
-}) {
-	return (
-		<ReactFlowProvider>
-			<SizedProjectGraph
-				report={report}
-				reports={reports}
-				direction={direction}
-				groupBy={groupBy}
-				assignees={assignees}
-				openKey={openKey}
-				onOpen={onOpen}
-				onDirection={onDirection}
-			/>
-		</ReactFlowProvider>
-	);
-}
-
-function SizedProjectGraph({
 	report,
 	reports,
 	direction,
