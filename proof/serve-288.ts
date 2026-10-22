@@ -235,19 +235,40 @@ const gate = Bun.serve({
 		});
 		if (request.method === "GET" && url.pathname.startsWith("/projects/")) {
 			const html = await upstream.text();
-			const arm =
-				`<button type="button" id="proof-arm-hold">Arm hold</button>` +
-				`<script>document.getElementById("proof-arm-hold").addEventListener("click",()=>{fetch("/proof/hold-set",{method:"POST"}).then(()=>{document.getElementById("proof-arm-hold").textContent="held"})})</script>` +
-				`<button type="button" id="proof-shift-minutes">Shift minutes</button>` +
-				`<button type="button" id="proof-shift-hours">Shift hours</button>` +
+			const clock =
 				`<script>` +
-				`function proofShift(ms){globalThis.__projectFlowProofClockShiftMs=ms;dispatchEvent(new Event("project-flow-proof-clock"))}` +
-				`document.getElementById("proof-shift-minutes").addEventListener("click",()=>proofShift(${5 * 60_000 - 10_000}))` +
-				`document.getElementById("proof-shift-hours").addEventListener("click",()=>proofShift(${2 * 60 * 60_000 - 10_000}))` +
+				`(function(){` +
+				`var offset=0;` +
+				`var NativeDate=Date;` +
+				`var now=NativeDate.now;` +
+				`NativeDate.now=function(){return now.call(NativeDate)+offset};` +
+				`function WrappedDate(){` +
+				`if(arguments.length===0){return new NativeDate(NativeDate.now())}` +
+				`return new NativeDate(...arguments)` +
+				`}` +
+				`WrappedDate.prototype=NativeDate.prototype;` +
+				`WrappedDate.now=NativeDate.now;` +
+				`WrappedDate.parse=NativeDate.parse;` +
+				`WrappedDate.UTC=NativeDate.UTC;` +
+				`globalThis.Date=WrappedDate;` +
+				`globalThis.__projectFlowProofAddOffset=function(ms){offset+=ms};` +
+				`})();` +
 				`</script>`;
-			const marked = html.includes("</body>")
-				? html.replace("</body>", `${arm}</body>`)
-				: `${html}${arm}`;
+			const withClock = html.includes("</head>")
+				? html.replace("</head>", `${clock}</head>`)
+				: `${clock}${html}`;
+			const arm =
+				`<button type="button" hidden id="proof-arm-hold">Arm hold</button>` +
+				`<script>document.getElementById("proof-arm-hold").addEventListener("click",()=>{fetch("/proof/hold-set",{method:"POST"}).then(()=>{document.getElementById("proof-arm-hold").textContent="held"})})</script>` +
+				`<button type="button" hidden id="proof-add-minutes">Add 5 min</button>` +
+				`<button type="button" hidden id="proof-add-hours">Add 2 h</button>` +
+				`<script>` +
+				`document.getElementById("proof-add-minutes").addEventListener("click",()=>globalThis.__projectFlowProofAddOffset(${5 * 60_000}))` +
+				`document.getElementById("proof-add-hours").addEventListener("click",()=>globalThis.__projectFlowProofAddOffset(${2 * 60 * 60_000}))` +
+				`</script>`;
+			const marked = withClock.includes("</body>")
+				? withClock.replace("</body>", `${arm}</body>`)
+				: `${withClock}${arm}`;
 			const pageHeaders = new Headers(upstream.headers);
 			pageHeaders.delete("content-length");
 			return new Response(marked, {

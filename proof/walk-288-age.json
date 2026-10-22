@@ -6,10 +6,10 @@
 		{ "assert_text": "Stored ticket" },
 		{ "assert_text": "polled 10 s ago" },
 		{ "shot": "age-seconds" },
-		{ "click": "#proof-shift-minutes" },
+		{ "click": "#proof-add-minutes" },
 		{ "assert_text": "polled 5 min ago" },
 		{ "shot": "age-minutes" },
-		{ "click": "#proof-shift-hours" },
+		{ "click": "#proof-add-hours" },
 		{ "assert_text": "polled 2 h ago" },
 		{ "shot": "age-hours" }
 	]
