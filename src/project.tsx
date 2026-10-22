@@ -10,7 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { board } from "./board-styles.ts";
+import { board, cardTones } from "./board-styles.ts";
 import {
 	CardHierarchyChips,
 	Chip,
@@ -451,15 +451,6 @@ function Card({
 		</li>
 	);
 }
-
-const cardTones: Record<StatusType, typeof board.cardBacklog> = {
-	backlog: board.cardBacklog,
-	inProgress: board.cardProgress,
-	inReview: board.cardReview,
-	awaitingMerge: board.cardMerge,
-	done: board.cardDone,
-	dropped: board.cardDropped,
-};
 
 function cardTone(statusType: StatusType | undefined) {
 	return statusType === undefined ? board.cardBacklog : cardTones[statusType];
