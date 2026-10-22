@@ -552,7 +552,10 @@ function Lane({
 						className={clsx(board.laneMark, laneMark(colour, statusType))}
 						data-lane-colour={colour}
 					/>
-					<span className={clsx(board.laneName)}>{name}</span> {listed.length}
+					<span className={clsx(board.laneName)} title={name}>
+						{name}
+					</span>{" "}
+					{listed.length}
 				</h2>
 				{showAll ? (
 					<button

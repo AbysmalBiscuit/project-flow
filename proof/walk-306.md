@@ -36,4 +36,4 @@ The desktop shot shows the Done title on one line with `Show all` in that row. T
 
 Item 4, styles. The button uses `shell.button` and `board.showAll`. Those styles take `space`, `type` and `measure` variables. The diff adds no `px` or `rem` literal.
 
-DECIDED: the lane name ellipsizes when the header is tight, so `Show all` stays on the title line at 390. A long tracker status keeps its full name in the lane `aria-label`.
+DECIDED: the senior accepted the ellipsis (answer ed413881-1d6d-44ed-a57a-b25174b2b4ca). The lane name ellipsizes when the header is tight, so `Show all` stays on the title line at 390. The name span carries `title={name}`, so a cut name shows in full on hover. The lane `aria-label` stays.
