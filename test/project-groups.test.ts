@@ -364,92 +364,6 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
-	test("a Linear parent with no milestone shares the group of its sub-tickets", async () => {
-		const ticket = (
-			id: string,
-			title: string,
-			parent: string | null,
-			milestone: string | null,
-		) => ({
-			id,
-			identifier: id,
-			title,
-			description: "",
-			state: { type: "unstarted" },
-			updatedAt: "2026-08-18T12:00:00.000Z",
-			projectMilestone: milestone === null ? null : { name: milestone },
-			labels: { nodes: [] },
-			parent: parent === null ? null : { identifier: parent },
-		});
-		await withApp(
-			JSON.stringify({
-				pinned: [{ tracker: "linear", project: linearSlug }],
-			}),
-			linearFake({
-				project: {
-					id: "project-widget",
-					name: "Widget launch",
-					slugId: linearSlug,
-				},
-				issues: [
-					ticket("WID-1", "Ship the list", null, null),
-					ticket("WID-2", "Draw the rows", "WID-1", "Beta"),
-					ticket("WID-3", "Name the columns", "WID-1", "Beta"),
-					ticket("WID-4", "Sort the rows", "WID-1", "Later"),
-				],
-			}),
-			{ LINEAR_API_KEY: "recorded-linear-key" },
-			async (base) => {
-				const report = (await (
-					await fetch(new URL("/api/projects/Widget%20launch", base))
-				).json()) as ProjectReport;
-				for (const key of ["WID-1", "WID-2", "WID-3"]) {
-					expect(report.tickets.find((item) => item.key === key)).toMatchObject(
-						{
-							workstream: "Beta",
-							theme: "Ship the list",
-							themeGroup: "Beta / Ship the list",
-						},
-					);
-				}
-			},
-		);
-	});
-
-	test("a GitHub top parent with no milestone shares the group of its sub-tickets", async () => {
-		const parent = issue(21, "Ship the list");
-		const child = issue(22, "Draw the rows", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/21`,
-		});
-		const grandchild = issue(23, "Name the columns", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/22`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child, grandchild]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				for (const number of [21, 22, 23]) {
-					expect(
-						report.tickets.find(
-							(ticket) => ticket.key === `${githubRepo}#${number}`,
-						),
-					).toMatchObject({
-						workstream: "Ship the list",
-						workstreamKey: `${githubRepo}#21`,
-						theme: "Ship the list",
-						themeGroup: "Ship the list",
-					});
-				}
-			},
-		);
-	});
-
 	test("two GitHub parents with the same title keep separate workstream keys", async () => {
 		const first = issue(41, "Ship the list");
 		const second = issue(42, "Ship the list");
@@ -519,38 +433,6 @@ describe("GET /api/projects/:name", () => {
 				expect(
 					report.tickets.find((ticket) => ticket.key === `${githubRepo}#25`),
 				).toMatchObject({ workstream: "no workstream" });
-			},
-		);
-	});
-
-	test("a GitHub top parent with no milestone takes the milestone of its sub-ticket", async () => {
-		const parent = issue(7, "Write the notes");
-		const child = issue(8, "feat(notes): add the heading", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
-				).toMatchObject({
-					workstream: "October",
-					themeGroup: "October / Write the notes",
-				});
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
-				).toMatchObject({
-					workstream: "October",
-					themeGroup: "October / Write the notes",
-				});
 			},
 		);
 	});

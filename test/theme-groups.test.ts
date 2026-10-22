@@ -8,13 +8,14 @@ describe("GET /api/projects/:name", () => {
 		const same = issue(21, "feat(board): draw the lanes", {
 			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/20`,
 		});
-		const other = issue(22, "feat(board): draw the cards", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/20`,
+		const otherParent = issue(30, "feat: redesign the inbox");
+		const other = issue(31, "feat(inbox): draw the rows", {
+			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/30`,
 			milestone: { title: "October" },
 		});
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, same, other]),
+			githubFetch([parent, same, otherParent, other]),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = (await (
@@ -31,10 +32,10 @@ describe("GET /api/projects/:name", () => {
 					theme: "feat: redesign the board",
 					themeGroup: "feat: redesign the board",
 				});
-				expect(groupOf(22)).toMatchObject({
+				expect(groupOf(31)).toMatchObject({
 					workstream: "October",
-					theme: "feat: redesign the board",
-					themeGroup: "October / feat: redesign the board",
+					theme: "feat: redesign the inbox",
+					themeGroup: "October / feat: redesign the inbox",
 				});
 				expect(groupOf(20)).toMatchObject({
 					themeGroup: "feat: redesign the board",

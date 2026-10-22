@@ -3901,7 +3901,10 @@ function linearMilestone(
 
 type Workstream = { label: string; key: string };
 
-const none: Workstream = { label: noWorkstream, key: noWorkstream };
+const noWorkstreamGroup: Workstream = {
+	label: noWorkstream,
+	key: noWorkstream,
+};
 
 function ownWorkstream(
 	ticket: Ticket,
@@ -3921,9 +3924,6 @@ function ownWorkstream(
 	}
 	if (ticket.milestone !== null) {
 		return { label: ticket.milestone, key: ticket.milestone };
-	}
-	if (root !== ticket && root.key !== null) {
-		return { label: root.title, key: root.key };
 	}
 	return undefined;
 }
@@ -4063,17 +4063,41 @@ function placeTickets(
 			ownWorkstream(ticket, rootOf(ticket, byKey), tracker, byKey),
 		]),
 	);
-	// A parent ticket with no workstream of its own joins the group that most
-	// of its sub-tickets are in.
-	const workstreamOf = (ticket: Ticket): Workstream => {
+	const subTicketsOf = (ticket: Ticket): Ticket[] =>
+		ticket.key === null ? [] : (parents.get(ticket.key.toLowerCase()) ?? []);
+	const treeWorkstream = (
+		ticket: Ticket,
+		seen: Set<Ticket>,
+	): Workstream | undefined => {
 		const own = owned.get(ticket);
-		if (own !== undefined) {
+		if (own !== undefined || seen.has(ticket)) {
 			return own;
 		}
-		const subTickets =
-			ticket.key === null ? [] : (parents.get(ticket.key.toLowerCase()) ?? []);
-		return mostCommon(subTickets.map((sub) => owned.get(sub) ?? none)) ?? none;
+		seen.add(ticket);
+		return mostCommon(
+			subTicketsOf(ticket).flatMap((sub) => treeWorkstream(sub, seen) ?? []),
+		);
 	};
+	const rootWorkstreams = new Map<Ticket, Workstream>();
+	const rootWorkstream = (root: Ticket): Workstream => {
+		const known = rootWorkstreams.get(root);
+		if (known !== undefined) {
+			return known;
+		}
+		const workstream =
+			treeWorkstream(root, new Set()) ??
+			(tracker === "github" &&
+			root.key !== null &&
+			subTicketsOf(root).length > 0
+				? { label: root.title, key: root.key }
+				: noWorkstreamGroup);
+		rootWorkstreams.set(root, workstream);
+		return workstream;
+	};
+	// A ticket with no workstream of its own shares the workstream of its top
+	// parent, so one tree of tickets stays in one group.
+	const workstreamOf = (ticket: Ticket): Workstream =>
+		owned.get(ticket) ?? rootWorkstream(rootOf(ticket, byKey));
 	return tickets.flatMap((ticket, index) => {
 		const view = views[index];
 		if (view === undefined) {
