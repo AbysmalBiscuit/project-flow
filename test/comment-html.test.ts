@@ -251,7 +251,7 @@ describe("comment html", () => {
 			expect(html[6]).not.toContain("<a");
 			expect(html[7]).toContain("one line\nnext line");
 			expect(html[8]).toContain('checked=""');
-			expect(html[8]).toContain('data-checked="">[x] </span>');
+			expect(html[8]).toContain('checked><span data-checked=""></span>done');
 			expect(html[8]).not.toContain("[ ]");
 		} finally {
 			await app.stop();

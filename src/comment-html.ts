@@ -46,9 +46,7 @@ function sanitize(html: string): string {
 					element.setAttribute("disabled", "");
 					element.removeAttribute("formaction");
 					if (element.getAttribute("checked") !== null) {
-						element.after('<span data-checked="">[x] </span>', {
-							html: true,
-						});
+						element.after('<span data-checked=""></span>', { html: true });
 					}
 					return;
 				}
