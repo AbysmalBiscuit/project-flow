@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
+import type { PollProgress } from "./domain.ts";
+import { onAppEvent } from "./events.ts";
 import { usePollAge } from "./poll-age.ts";
 import { pageQueryClient } from "./queries.ts";
 import { PollStatus, RefreshGlyph } from "./shell.tsx";
@@ -8,6 +10,26 @@ import { headerControlStyle, shell } from "./ui-styles.ts";
 
 function queryFetchedAt(queryKey: readonly unknown[]): number {
 	return pageQueryClient.getQueryState(queryKey)?.dataUpdatedAt ?? 0;
+}
+
+export function pollLine(progress: PollProgress): string {
+	const count = `${progress.done} ${overviewControlLabel.pollProgress} ${progress.total}`;
+	if (progress.project === null) {
+		return count;
+	}
+	return `${count}, ${overviewControlLabel.reading} ${progress.project}`;
+}
+
+/** The progress of the running poll, or null when no poll runs. */
+export function usePollProgress(): PollProgress | null {
+	const [progress, setProgress] = useState<PollProgress | null>(null);
+	useEffect(() => {
+		return onAppEvent("progress", (event) => {
+			const next = JSON.parse(event.data) as PollProgress;
+			setProgress(next.ended ? null : next);
+		});
+	}, []);
+	return progress;
 }
 
 export function postRefresh(queryKey: readonly unknown[]): void {
