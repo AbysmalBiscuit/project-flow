@@ -31,9 +31,7 @@ import {
 	sameTicketKey,
 	type TicketRelation,
 	type TicketView,
-	type TreeRow,
 	ticketGroups,
-	treeRows,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
@@ -64,6 +62,7 @@ import {
 	subTicketsToggleLabel,
 	viewLabel,
 } from "./terms.ts";
+import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import {
 	lightValues,
 	phoneGutter,
