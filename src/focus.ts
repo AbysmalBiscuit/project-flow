@@ -22,7 +22,8 @@ export function isFocusClick(event: {
 
 /**
  * The focus set of a view. Ctrl+Escape always clears it. A plain Escape
- * clears it only when no other handler, such as the side panel, took the key.
+ * clears it before the side panel sees the key, unless a menu or dialog is
+ * open or the key lands in a text box.
  */
 export function useFocusSet() {
 	const [focus, setFocus] = useState<ReadonlySet<string>>(() => new Set());
@@ -45,15 +46,23 @@ export function useFocusSet() {
 			if (event.key !== "Escape") {
 				return;
 			}
-			if (isFocusClick(event) || !event.defaultPrevented) {
+			if (isFocusClick(event) || !escapeTaken(event)) {
 				event.preventDefault();
 				clear();
 			}
 		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
+		window.addEventListener("keydown", onKey, true);
+		return () => window.removeEventListener("keydown", onKey, true);
 	}, [focused, clear]);
 	return { focus, toggle, clear };
+}
+
+function escapeTaken(event: KeyboardEvent): boolean {
+	return (
+		event.defaultPrevented ||
+		event.target instanceof HTMLTextAreaElement ||
+		document.querySelector("[aria-expanded='true'], [role='dialog']") !== null
+	);
 }
 
 const previewDelayMs = 250;
