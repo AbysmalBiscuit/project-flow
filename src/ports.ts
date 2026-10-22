@@ -1,5 +1,6 @@
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import type {
+	FetchedThread,
 	Notification,
 	Overview,
 	PollProgress,
@@ -7,7 +8,6 @@ import type {
 	PullRequest,
 	ReplyRequest,
 	Snapshot,
-	Thread,
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
@@ -92,7 +92,7 @@ export type Tracker = {
 		project: string,
 		key: string,
 		signal?: AbortSignal,
-	) => Promise<Thread | null>;
+	) => Promise<FetchedThread | null>;
 	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
 };
 

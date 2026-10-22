@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { CommentMarkdown } from "./comment-markdown.tsx";
 import type {
 	NeedsYouItem,
 	ThreadComment,
@@ -69,7 +70,7 @@ function CommentTree({
 						<span>{comment.author}</span>
 						<span>{commentTime(comment.createdAt)}</span>
 					</p>
-					<p className={clsx(panel.body)}>{comment.body}</p>
+					<CommentMarkdown html={comment.html} />
 					{nested || comment.kind === "review" ? (
 						<button
 							type="button"

@@ -666,6 +666,7 @@ describe("replies", () => {
 				{
 					id: "70",
 					body: "Which name?",
+					html: "<p>Which name?</p>\n",
 					author: "ada",
 					createdAt: "2026-08-18T12:00:00.000Z",
 					url: "https://github.com/acme/widget/issues/7#issuecomment-70",
@@ -722,6 +723,7 @@ describe("replies", () => {
 				{
 					id: "44",
 					body: "Rename this.",
+					html: "<p>Rename this.</p>\n",
 					author: "ada",
 					createdAt: "2026-08-18T12:00:00.000Z",
 					url: "https://github.com/acme/widget/pull/8#discussion_r44",
@@ -731,6 +733,7 @@ describe("replies", () => {
 						{
 							id: "45",
 							body: "Renamed.",
+							html: "<p>Renamed.</p>\n",
 							author: "lev",
 							createdAt: "2026-08-18T12:30:00.000Z",
 							url: "https://github.com/acme/widget/pull/8#discussion_r45",
@@ -812,6 +815,7 @@ describe("replies", () => {
 				{
 					id: "90",
 					body: "Issue note.",
+					html: "<p>Issue note.</p>\n",
 					author: "ada",
 					createdAt: "2026-08-18T12:00:00.000Z",
 					url: "https://github.com/acme/widget/issues/9#issuecomment-90",
@@ -822,6 +826,7 @@ describe("replies", () => {
 				{
 					id: "120",
 					body: "Rename this.",
+					html: "<p>Rename this.</p>\n",
 					author: "ada",
 					createdAt: "2026-08-18T12:10:00.000Z",
 					url: "https://github.com/acme/widget/pull/12#discussion_r120",
@@ -891,6 +896,7 @@ describe("replies", () => {
 				{
 					id: "comment-parent",
 					body: "Which name?",
+					html: "<p>Which name?</p>\n",
 					author: "Ada",
 					createdAt: "2026-08-18T12:00:00.000Z",
 					url: "https://linear.app/issue/PF-1#comment-parent",
@@ -900,6 +906,7 @@ describe("replies", () => {
 						{
 							id: "comment-child",
 							body: "The short name.",
+							html: "<p>The short name.</p>\n",
 							author: "Lev",
 							createdAt: "2026-08-18T12:30:00.000Z",
 							url: "https://linear.app/issue/PF-1#comment-child",

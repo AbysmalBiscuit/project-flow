@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type {
+	FetchedThread,
 	PostedReply,
 	ReplyRequest,
-	Thread,
 	ThreadComment,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
@@ -40,7 +40,7 @@ const postedComment = z.object({
 function toThreadComment(
 	comment: z.infer<typeof githubThreadComment>,
 	kind: ThreadComment["kind"],
-): ThreadComment {
+): Omit<ThreadComment, "html"> {
 	return {
 		id: String(comment.id),
 		body: comment.body ?? "",
@@ -91,7 +91,7 @@ export async function fetchGithubThread(
 	project: string,
 	key: string,
 	signal?: AbortSignal,
-): Promise<Thread | null> {
+): Promise<FetchedThread | null> {
 	const parsed = githubTicketKey(key);
 	if (parsed === null) {
 		return null;

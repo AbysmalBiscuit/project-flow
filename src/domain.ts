@@ -258,6 +258,7 @@ export type ProjectBody = Omit<ProjectCounts, "ref">;
 export type ThreadComment = {
 	id: string;
 	body: string;
+	html: string;
 	author: string;
 	createdAt: string;
 	url: string;
@@ -275,6 +276,10 @@ export type Thread = {
 	comments: ThreadComment[];
 };
 
+export type FetchedThread = Omit<Thread, "comments"> & {
+	comments: Omit<ThreadComment, "html">[];
+};
+
 export type ReplyRequest = {
 	tracker: "github" | "linear";
 	project: string;
@@ -283,34 +288,6 @@ export type ReplyRequest = {
 	parentId?: string;
 	kind?: "comment" | "review";
 };
-
-const htmlComment = /<!--[\s\S]*?-->/g;
-
-function visibleCommentBody(body: string): string {
-	return body
-		.replace(htmlComment, "")
-		.replace(/[ \t]+\n/g, "\n")
-		.trim();
-}
-
-function visibleComment(comment: ThreadComment): ThreadComment {
-	return { ...comment, body: visibleCommentBody(comment.body), children: [] };
-}
-
-export function commentTree(comments: ThreadComment[]): ThreadComment[] {
-	const byParent = new Map<string | null, ThreadComment[]>();
-	for (const comment of comments) {
-		const parent = comment.parentId;
-		const list = byParent.get(parent) ?? [];
-		list.push(visibleComment(comment));
-		byParent.set(parent, list);
-	}
-	const attach = (comment: ThreadComment): ThreadComment => ({
-		...comment,
-		children: (byParent.get(comment.id) ?? []).map(attach),
-	});
-	return (byParent.get(null) ?? []).map(attach);
-}
 
 export type PostedReply = {
 	id: string;

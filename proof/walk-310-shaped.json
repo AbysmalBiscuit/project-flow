@@ -1,0 +1,21 @@
+{
+	"base_url": "http://127.0.0.1:47310",
+	"serve": [
+		"bun",
+		"/home/lev/git/github/AbysmalBiscuit/project-flow_workspaces/310-feat-web-render-comment-markdown-in-the/proof/serve-comment-markdown.ts",
+		"47310"
+	],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "click": "[data-ticket='acme/widget#1']" },
+		{ "assert_text": "Render note" },
+		{ "assert_text": "one item" },
+		{ "assert_text": "open task" },
+		{ "assert_text": "[x] done task" },
+		{ "assert_text": "spec" },
+		{ "assert_text": "ticket.key" },
+		{ "assert_text": "quoted line" },
+		{ "assert_text": "column" },
+		{ "shot": "shaped" }
+	]
+}
