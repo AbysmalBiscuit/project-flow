@@ -93,7 +93,8 @@ function placeOptions(
 }
 
 /**
- * The ELK options that fill a group frame best, as ADR 0004 records.
+ * The ELK options that fill a group frame best, from the elkjs spike tables
+ * that `proof/elk-spike/measure.ts` prints.
  *
  * ELK lays out each group alone and ignores the arrows between groups, so the
  * graph routes those arrows itself.
