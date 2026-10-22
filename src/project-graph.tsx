@@ -9,7 +9,6 @@ import {
 	type NodeProps,
 	Position,
 	ReactFlow,
-	useReactFlow,
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
@@ -18,6 +17,7 @@ import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
+import { FitLayout, useLaidGraph } from "./graph-laid.tsx";
 import type {
 	ClusterNodeData,
 	TicketEdgeData,
@@ -28,10 +28,15 @@ import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import type { NodeSize } from "./graph-sizes.ts";
-import { graphDirectionLabel, navLabel, projectGraphLabel } from "./terms.ts";
+import {
+	graphDirectionLabel,
+	graphLayoutFailedLabel,
+	navLabel,
+	projectGraphLabel,
+} from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { cards, headerControlStyle } from "./ui-styles.ts";
+import { cards, headerControlStyle, panel } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
@@ -240,20 +245,6 @@ function watchLayout(span: NodeSize | null): () => void {
 	return () => observer.disconnect();
 }
 
-function FitDirection() {
-	const flow = useReactFlow();
-	useEffect(() => {
-		const frame = requestAnimationFrame(() => {
-			void flow.fitView({
-				padding: fitPadding,
-				maxZoom: 1,
-			});
-		});
-		return () => cancelAnimationFrame(frame);
-	}, [flow]);
-	return null;
-}
-
 export function ProjectGraph({
 	report,
 	reports,
@@ -284,26 +275,43 @@ export function ProjectGraph({
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
+	const { laid, failed } = useLaidGraph(
+		report,
+		direction,
+		groupBy,
+		assignees,
+		span,
+	);
 	const model = useMemo(() => {
-		if (span === null) {
+		if (span === null || laid === null) {
 			return null;
 		}
 		void theme;
 		return graphModel(
-			report,
+			laid.report,
 			reports,
-			direction,
-			groupBy,
-			assignees,
+			laid.direction,
+			laid.groupBy,
 			openKey,
+			laid.input,
+			laid.layout,
 			new Map(),
 			span,
 		);
-	}, [report, reports, direction, groupBy, assignees, openKey, span, theme]);
+	}, [laid, reports, openKey, span, theme]);
 	useEffect(() => watchLayout(span), [span]);
-	if (model === null) {
-		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
+	if (model === null || laid === null) {
+		return (
+			<div id="project-graph" className={clsx(board.ticketGraph)}>
+				{failed && laid === null ? (
+					<p className={clsx(panel.error)} role="alert">
+						{graphLayoutFailedLabel}
+					</p>
+				) : null}
+			</div>
+		);
 	}
+	const drawn = laid.direction;
 	const fades = clsx(board.fades);
 	const faded = clsx(board.fades, board.faded);
 	const nodes = model.nodes.map((node) => {
@@ -338,7 +346,7 @@ export function ProjectGraph({
 		<div
 			id="project-graph"
 			className={clsx(board.ticketGraph)}
-			data-group-by={groupBy}
+			data-group-by={laid.groupBy}
 		>
 			<p id="project-graph-focus" className={clsx(cards.graphProbe)}>
 				{chain === null
@@ -352,7 +360,7 @@ export function ProjectGraph({
 				{places}
 			</p>
 			<p id="project-graph-direction" className={clsx(cards.graphProbe)}>
-				{direction}
+				{drawn}
 			</p>
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
@@ -377,7 +385,7 @@ export function ProjectGraph({
 				className={clsx(board.graphPane, float.pane)}
 			>
 				<ReactFlow
-					key={direction}
+					key={drawn}
 					nodes={nodes}
 					edges={edges}
 					nodeTypes={nodeTypes}
@@ -427,7 +435,7 @@ export function ProjectGraph({
 					}}
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
-					<FitDirection key={direction} />
+					<FitLayout key={drawn} layout={laid.layout} />
 				</ReactFlow>
 				<div className={clsx(float.overlay)}>
 					<Legend />

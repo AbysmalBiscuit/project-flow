@@ -1,0 +1,10 @@
+{
+	"base_url": "http://127.0.0.1:4756",
+	"serve": ["bun", "proof/serve-352.ts", ".devkit/proof/data-352", "4756"],
+	"steps": [
+		{ "goto": "/projects/AbysmalBiscuit%2Fworkcell" },
+		{ "assert_text": "no workstream" },
+		{ "assert_text": "Group by Workstream" },
+		{ "shot": "workcell-workstream" }
+	]
+}
