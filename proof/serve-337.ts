@@ -2,7 +2,8 @@ import { proofStops, proofTheme } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "4337";
 const inner = String(Number(port) + 1);
-const app = Bun.spawn(["bun", "proof/serve-graph-flows.ts", inner], {
+const script = process.argv[3] ?? "proof/serve-graph-flows.ts";
+const app = Bun.spawn(["bun", script, inner], {
 	stdout: "inherit",
 	stderr: "inherit",
 });

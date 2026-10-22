@@ -16,7 +16,10 @@
 			"assert_text": "Left to right"
 		},
 		{
-			"fill": "#walk-ctrl",
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"fill": "#walk-dbl",
 			"text": "on"
 		},
 		{
@@ -26,82 +29,80 @@
 			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
 		},
 		{
-			"fill": "#walk-esc",
-			"text": "esc-a"
+			"assert_text": "Clear focus"
 		},
 		{
-			"assert_text": "focus none"
+			"assert_text": "Expand"
 		},
 		{
-			"shot": "esc-left-focus"
+			"shot": "graph-double-click-focus"
 		},
 		{
-			"fill": "#walk-ctrl",
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"fill": "#walk-dbl",
 			"text": "on"
 		},
 		{
 			"click": "#project-graph [data-graph-node='acme/widget#2']"
 		},
 		{
-			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
-		},
-		{
-			"click": "#project-graph [data-graph-node='acme/widget#3']"
-		},
-		{
-			"assert_text": "Expand"
-		},
-		{
-			"shot": "panel-open-in-focus"
-		},
-		{
-			"fill": "#walk-esc",
-			"text": "esc-b"
-		},
-		{
-			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
-		},
-		{
-			"shot": "esc-closed-panel-kept-focus"
-		},
-		{
-			"fill": "#walk-esc",
-			"text": "esc-c"
-		},
-		{
 			"assert_text": "focus none"
 		},
 		{
-			"shot": "esc-left-focus-after-panel"
+			"shot": "graph-double-click-unfocus"
 		},
 		{
-			"fill": "#walk-ctrl",
+			"fill": "#walk-esc",
+			"text": "close-panel"
+		},
+		{
+			"click": "#view-board"
+		},
+		{
+			"assert_text": "Fork left"
+		},
+		{
+			"click": "button[data-ticket='acme/widget#21']"
+		},
+		{
+			"fill": "#walk-dbl",
 			"text": "on"
 		},
 		{
-			"click": "#project-graph [data-graph-node='acme/widget#2']"
+			"click": "button[data-ticket='acme/widget#21']"
 		},
 		{
-			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+			"assert_text": "Clear focus"
 		},
 		{
-			"click": "#project-graph [data-graph-node='acme/widget#3']"
+			"shot": "board-double-click"
 		},
 		{
-			"assert_text": "Expand"
+			"click": "#view-table"
 		},
 		{
-			"fill": "#walk-esc",
-			"text": "ctrl-esc-d"
+			"click": "tr[data-ticket='acme/widget#12']"
 		},
 		{
-			"assert_text": "focus none"
+			"fill": "#walk-dbl",
+			"text": "on"
 		},
 		{
-			"assert_text": "Expand"
+			"click": "tr[data-ticket='acme/widget#12']"
 		},
 		{
-			"shot": "ctrl-esc-kept-panel"
+			"shot": "table-double-click"
+		},
+		{
+			"click": "#view-graph"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#11 | acme/widget acme/widget#12 | acme/widget acme/widget#13 | acme/widget acme/widget#20 | acme/widget acme/widget#21"
+		},
+		{
+			"shot": "graph-after-double-clicks"
 		}
 	]
 }
