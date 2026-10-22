@@ -319,7 +319,7 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
-	test("the graph data carries the state of a done ticket that only a closed link brings in", async () => {
+	test("the graph data carries the state of a done ticket that a closed link brings in", async () => {
 		const done = issue(
 			8,
 			"Open the gate",
