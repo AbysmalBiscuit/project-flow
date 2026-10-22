@@ -17,6 +17,8 @@ import type { GroupBy } from "../../src/view-settings.ts";
 export const card = { width: 220, height: 96 };
 export const cell = { width: flowGap.along, height: flowGap.across };
 export const framePad = { side: 16, head: 28 };
+/** Id prefix of a parent ticket card from outside the project. */
+export const outsideParent = "outside-parent\n";
 
 export type Recorded = { url: string; body: string; text: string };
 
@@ -168,7 +170,7 @@ export function spikeGraph(
 		.map((edge, index) => ({ id: `e${index}`, from: edge.from, to: edge.to }));
 
 	const parentOf = new Map<string, string>();
-	const nodeOf = (key: string) => idOfKey.get(key) ?? `outside-parent\n${key}`;
+	const nodeOf = (key: string) => idOfKey.get(key) ?? `${outsideParent}${key}`;
 	if (nested) {
 		for (const key of idOfKey.keys()) {
 			let child = key;

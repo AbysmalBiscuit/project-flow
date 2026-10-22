@@ -1,6 +1,12 @@
 /** Frame check, arrow readability and SVG pages of a laid-out spike graph. */
 import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
-import { cell, type Frame, frameCards, type SpikeGraph } from "./graph.ts";
+import {
+	cell,
+	type Frame,
+	frameCards,
+	outsideParent,
+	type SpikeGraph,
+} from "./graph.ts";
 
 export type Rect = { x: number; y: number; width: number; height: number };
 
@@ -267,7 +273,7 @@ export function elkPage(
 							label: shortKey(id),
 							box,
 							outside:
-								graph.outside.includes(id) || id.startsWith("outside-parent"),
+								graph.outside.includes(id) || id.startsWith(outsideParent),
 						},
 					];
 		},
