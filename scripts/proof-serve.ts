@@ -258,7 +258,7 @@ const fakeTrackers: Fetch = async (input, init) => {
 								parent: null,
 								projectMilestone: null,
 								labels: { nodes: [] },
-								assignee: null,
+								assignee: { id: "ada", name: "Ada", displayName: "ada" },
 								attachments: { nodes: [] },
 								comments: {
 									nodes: [],
