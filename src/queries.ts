@@ -364,7 +364,12 @@ function seedStoredProject(pathname: string, stored: unknown): void {
 let eventsWired = false;
 
 function applyOverviewEvent(body: Overview): void {
-	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body);
+	const updatedAt =
+		pageQueryClient.getQueryState(pageQuery.overview.queryKey)?.dataUpdatedAt ??
+		0;
+	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body, {
+		updatedAt,
+	});
 	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
 	void pageQueryClient.invalidateQueries(pageQuery.settings);
