@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import type { RunIo } from "../src/main.ts";
+import { answerRecordedRepoRead } from "./recorded-read.ts";
 
 const emptyPage = {
 	nodes: [],
@@ -890,70 +891,6 @@ export function emptyProjectFields(
 		}),
 		{ status: 200, headers: { "content-type": "application/json" } },
 	);
-}
-
-function nullRepository(body: unknown): boolean {
-	if (typeof body !== "object" || body === null || !("data" in body)) {
-		return false;
-	}
-	const data = body.data;
-	return (
-		typeof data === "object" &&
-		data !== null &&
-		"repository" in data &&
-		data.repository === null
-	);
-}
-
-function repositoryBody(body: unknown): boolean {
-	if (typeof body !== "object" || body === null || !("data" in body)) {
-		return false;
-	}
-	const data = body.data;
-	return (
-		typeof data === "object" &&
-		data !== null &&
-		"repository" in data &&
-		typeof data.repository === "object" &&
-		data.repository !== null &&
-		"nameWithOwner" in data.repository
-	);
-}
-
-export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
-	const wrapped: Fetch = async (input, init) => {
-		const body = typeof init?.body === "string" ? init.body : "";
-		const answered = await fetchImpl(input, init);
-		if (
-			urlOf(input) !== "https://api.github.com/graphql" ||
-			!body.includes("query RepoRead")
-		) {
-			return answered;
-		}
-		if (!answered.ok) {
-			if (answered.status !== 404) {
-				return answered;
-			}
-		} else {
-			const payload: unknown = await answered
-				.clone()
-				.json()
-				.catch(() => null);
-			if (repositoryBody(payload) || nullRepository(payload)) {
-				return answered;
-			}
-		}
-		try {
-			const read = await repoReadFromHandler(input, init, fetchImpl);
-			return read ?? answered;
-		} catch {
-			return answered;
-		}
-	};
-	if (fetchImpl.holdLists !== undefined) {
-		wrapped.holdLists = () => fetchImpl.holdLists?.() ?? Promise.resolve();
-	}
-	return wrapped;
 }
 
 export type ChangeEvent = {

@@ -4,849 +4,31 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
-import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { savedProjectView } from "../src/view-settings.ts";
+import recordedClosedBlockers from "./fixtures/github-closed-blockers.json";
+import {
+	githubFetch,
+	githubRepo,
+	issue,
+	linearIssue,
+	linearSlug,
+	otherRepo,
+	page,
+	withApp,
+} from "./project-harness.ts";
 import {
 	emptyProjectFields,
-	linearFake,
+	githubIssueNode,
 	recordedDiscovery,
+	repoReadIssues,
 	tempConfig,
 	testIo,
 	unrecorded,
 	urlOf,
 } from "./support.ts";
 
-const githubRepo = "acme/widget";
-const otherRepo = "acme/platform";
-const linearSlug = "widget-launch";
-
-function issue(
-	number: number,
-	title: string,
-	fields: Record<string, unknown> = {},
-	repo = githubRepo,
-): Record<string, unknown> {
-	return {
-		number,
-		title,
-		state: "open",
-		state_reason: null,
-		updated_at: "2026-08-18T12:00:00.000Z",
-		body: "",
-		html_url: `https://github.com/${repo}/issues/${number}`,
-		...fields,
-	};
-}
-
-function linearIssue(
-	identifier: string,
-	description: string,
-	stateType: string,
-): Record<string, unknown> {
-	return {
-		id: identifier,
-		identifier,
-		title: identifier,
-		description,
-		updatedAt: "2026-08-18T12:00:00.000Z",
-		state: { type: stateType },
-		inverseRelations: { nodes: [] },
-	};
-}
-
-function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
-
-const githubIssues = [
-	issue(1, "Ship the map", {
-		labels: [{ name: "epic" }],
-		milestone: { title: "October" },
-	}),
-	issue(2, "feat(ux): draw the nodes", {
-		parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/1`,
-		milestone: { title: "October" },
-		body: `Blocked by: ${otherRepo}#9`,
-	}),
-	issue(3, "Write the copy", {
-		milestone: { title: "October" },
-	}),
-	issue(4, "Draft the page", {
-		body: "A draft exists.",
-	}),
-];
-
-const otherIssues = [
-	issue(9, "Platform gate", { labels: [{ name: "epic" }] }, otherRepo),
-];
-
-function githubFetch(
-	issues = githubIssues,
-	others = otherIssues,
-	calls?: string[],
-): Fetch {
-	return async (input, init) => {
-		calls?.push(urlOf(input));
-		const discovered = recordedDiscovery(input, init);
-		if (discovered !== null) {
-			return discovered;
-		}
-		const url = urlOf(input);
-		if (url === "https://api.github.com/user") {
-			return Response.json({ login: "lev" });
-		}
-		if (url === "https://api.github.com/graphql") {
-			const body = typeof init?.body === "string" ? init.body : "";
-			if (body.includes("query RepoRead")) {
-				return new Response("{}", {
-					status: 200,
-					headers: { "content-type": "application/json" },
-				});
-			}
-		}
-		if (url.startsWith(`https://api.github.com/repos/${githubRepo}/issues?`)) {
-			return page(issues);
-		}
-		if (url.startsWith(`https://api.github.com/repos/${otherRepo}/issues?`)) {
-			return page(others);
-		}
-		if (url.includes("/labels?")) {
-			return page([]);
-		}
-		if (url.includes("/pulls?")) {
-			if (url.includes(githubRepo)) {
-				return page([
-					{
-						number: 40,
-						title: "Fix the legend",
-						state: "open",
-						draft: true,
-						html_url: `https://github.com/${githubRepo}/pull/40`,
-						head: { ref: "legend" },
-						body: "",
-					},
-				]);
-			}
-			return page([]);
-		}
-		if (url.includes("/branches?")) {
-			if (url.includes(githubRepo)) {
-				return page([{ name: "4-draft-the-page" }]);
-			}
-			return page([]);
-		}
-		if (url.endsWith("/comments")) {
-			return page([]);
-		}
-		return emptyProjectFields(input, init) ?? unrecorded(input);
-	};
-}
-
-const linearIssues = [
-	{
-		id: "parent",
-		identifier: "WID-1",
-		title: "Launch epic",
-		description: "",
-		state: { type: "started" },
-		updatedAt: "2026-08-18T12:00:00.000Z",
-		projectMilestone: { name: "Beta" },
-		labels: { nodes: [{ name: "epic" }] },
-		parent: null,
-	},
-	{
-		id: "story",
-		identifier: "WID-4",
-		title: "Ship the list",
-		description: "",
-		state: { type: "unstarted" },
-		updatedAt: "2026-08-18T12:00:00.000Z",
-		parent: { identifier: "WID-1" },
-		projectMilestone: null,
-		labels: { nodes: [] },
-	},
-	{
-		id: "child",
-		identifier: "WID-2",
-		title: "feat(api): list projects",
-		description: `Blocked by: ${otherRepo}#9`,
-		state: { type: "unstarted" },
-		updatedAt: "2026-08-18T12:00:00.000Z",
-		parent: { identifier: "WID-4" },
-		projectMilestone: { name: "Later" },
-		labels: { nodes: [] },
-	},
-	{
-		id: "backlog",
-		identifier: "WID-3",
-		title: "Write the notes",
-		description: "",
-		state: { type: "backlog" },
-		updatedAt: "2026-08-18T12:00:00.000Z",
-		parent: null,
-		projectMilestone: { name: "Beta" },
-		labels: { nodes: [] },
-	},
-];
-
-async function withApp(
-	config: string,
-	fetchImpl: Fetch,
-	env: Record<string, string | undefined>,
-	check: (base: string) => Promise<void>,
-	now?: () => Date,
-): Promise<void> {
-	const { path, cleanup } = await tempConfig(config);
-	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-	let startChecks: (base: string) => void = () => {};
-	const checks = new Promise<void>((resolve, reject) => {
-		startChecks = (base) => {
-			check(base).then(resolve).catch(reject);
-		};
-	});
-	try {
-		const result = await run(
-			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			testIo({
-				env,
-				fetch: fetchImpl,
-				readGhToken: async () => null,
-				databasePath: join(root, "store.sqlite"),
-				...(now === undefined ? {} : { now }),
-				stdout: (line) => startChecks(line),
-				waitForStop: checks,
-			}),
-		);
-		expect(result.stderr).toBe("");
-		expect(result.exitCode).toBe(0);
-	} finally {
-		await cleanup();
-		await rm(root, { recursive: true, force: true });
-	}
-}
-
 describe("GET /api/projects/:name", () => {
-	test("the same tracker data gives the same project report", async () => {
-		await withApp(
-			JSON.stringify({
-				pinned: [
-					{ tracker: "github", repo: githubRepo },
-					{ tracker: "github", repo: otherRepo },
-				],
-			}),
-			githubFetch(),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const first = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const second = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(second).toEqual(first);
-				expect(first.sections.map((section) => section.id)).toEqual([
-					"summary",
-					"inFlight",
-					"needsYou",
-					"backlog",
-				]);
-				const summary = first.sections.find(
-					(section) => section.id === "summary",
-				);
-				expect(summary?.text).toBe(
-					"acme/widget: 0 done, 0 dropped, 1 blocked, 1 in progress, 3 backlog.",
-				);
-				const flight = first.sections.find(
-					(section) => section.id === "inFlight",
-				);
-				expect(flight?.items?.map((item) => item.key)).toEqual([
-					"acme/widget#4",
-					"acme/widget#40",
-				]);
-				const blocked = first.tickets.find(
-					(ticket) => ticket.key === "acme/widget#2",
-				);
-				expect(blocked?.blocked).toBe(true);
-				const backlog = first.sections.find(
-					(section) => section.id === "backlog",
-				);
-				expect(backlog?.items?.map((item) => item.key)).toEqual([
-					"acme/widget#1",
-					"acme/widget#2",
-					"acme/widget#3",
-				]);
-				const groupOf = (key: string) => {
-					const ticket = first.tickets.find((item) => item.key === key);
-					return {
-						workstream: ticket?.workstream,
-						theme: ticket?.theme,
-					};
-				};
-				expect(groupOf("acme/widget#1")).toEqual({
-					workstream: "Ship the map",
-					theme: "Ship the map",
-				});
-				expect(groupOf("acme/widget#2")).toEqual({
-					workstream: "Ship the map",
-					theme: "ux",
-				});
-				expect(groupOf("acme/widget#3")).toEqual({
-					workstream: "October",
-					theme: "no scope",
-				});
-				expect(groupOf("acme/widget#4")).toEqual({
-					workstream: "no workstream",
-					theme: "no scope",
-				});
-			},
-		);
-		await withApp(
-			JSON.stringify({
-				pinned: [
-					{ tracker: "linear", project: linearSlug },
-					{ tracker: "github", repo: otherRepo },
-				],
-			}),
-			linearFake({
-				project: {
-					id: "project-widget",
-					name: "Widget launch",
-					slugId: linearSlug,
-				},
-				issues: linearIssues,
-				github: githubFetch(),
-			}),
-			{ GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "recorded-linear-key" },
-			async (base) => {
-				const linearReport = (await (
-					await fetch(new URL("/api/projects/Widget%20launch", base))
-				).json()) as ProjectReport;
-				const again = (await (
-					await fetch(new URL("/api/projects/Widget%20launch", base))
-				).json()) as ProjectReport;
-				expect(again).toEqual(linearReport);
-				expect(linearReport.sections.map((section) => section.title)).toEqual([
-					"Summary",
-					"In flight",
-					"Needs you",
-					"Backlog",
-				]);
-				const linearSummary = linearReport.sections.find(
-					(section) => section.id === "summary",
-				);
-				expect(linearSummary?.text).toContain("1 blocked");
-				expect(linearSummary?.text).toContain("4 backlog");
-				const held = linearReport.tickets.find(
-					(ticket) => ticket.key === "WID-2",
-				);
-				expect(held?.blocked).toBe(true);
-				const groupOf = (key: string) => {
-					const ticket = linearReport.tickets.find((item) => item.key === key);
-					return {
-						workstream: ticket?.workstream,
-						theme: ticket?.theme,
-					};
-				};
-				expect(groupOf("WID-1")).toEqual({
-					workstream: "Beta",
-					theme: "Launch epic",
-				});
-				expect(groupOf("WID-4")).toEqual({
-					workstream: "Beta",
-					theme: "no scope",
-				});
-				expect(groupOf("WID-2")).toEqual({
-					workstream: "Later",
-					theme: "Ship the list",
-				});
-				expect(groupOf("WID-3")).toEqual({
-					workstream: "Beta",
-					theme: "no scope",
-				});
-			},
-		);
-	});
-
-	test("a Linear ticket with no milestone takes the first ancestor milestone", async () => {
-		const issues = [
-			{
-				id: "parent",
-				identifier: "WID-1",
-				title: "Launch epic",
-				description: "",
-				state: { type: "unstarted" },
-				updatedAt: "2026-08-18T12:00:00.000Z",
-				projectMilestone: { name: "Beta" },
-				labels: { nodes: [{ name: "epic" }] },
-				parent: null,
-			},
-			{
-				id: "story",
-				identifier: "WID-4",
-				title: "Ship the list",
-				description: "",
-				state: { type: "unstarted" },
-				updatedAt: "2026-08-18T12:00:00.000Z",
-				parent: { identifier: "WID-1" },
-				projectMilestone: null,
-				labels: { nodes: [] },
-			},
-			{
-				id: "child",
-				identifier: "WID-8",
-				title: "List the rows",
-				description: "",
-				state: { type: "unstarted" },
-				updatedAt: "2026-08-18T12:00:00.000Z",
-				parent: { identifier: "WID-4" },
-				projectMilestone: null,
-				labels: { nodes: [] },
-			},
-		];
-		await withApp(
-			JSON.stringify({
-				pinned: [{ tracker: "linear", project: linearSlug }],
-			}),
-			linearFake({
-				project: {
-					id: "project-widget",
-					name: "Widget launch",
-					slugId: linearSlug,
-				},
-				issues,
-			}),
-			{ LINEAR_API_KEY: "recorded-linear-key" },
-			async (base) => {
-				const report = (await (
-					await fetch(new URL("/api/projects/Widget%20launch", base))
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === "WID-8"),
-				).toMatchObject({ workstream: "Beta" });
-			},
-		);
-	});
-
-	test("a GitHub ticket with no milestone takes its parent issue as its workstream", async () => {
-		const parent = issue(21, "Ship the list");
-		const child = issue(22, "Draw the rows", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/21`,
-		});
-		const grandchild = issue(23, "Name the columns", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/22`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child, grandchild]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const workstreamOf = (number: number) =>
-					report.tickets.find(
-						(ticket) => ticket.key === `${githubRepo}#${number}`,
-					)?.workstream;
-				expect(workstreamOf(21)).toBe("no workstream");
-				expect(workstreamOf(22)).toBe("Ship the list");
-				expect(workstreamOf(23)).toBe("Draw the rows");
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#22`)
-						?.workstreamKey,
-				).toBe(`${githubRepo}#21`);
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#23`)
-						?.workstreamKey,
-				).toBe(`${githubRepo}#22`);
-			},
-		);
-	});
-
-	test("two GitHub parents with the same title keep separate workstream keys", async () => {
-		const first = issue(41, "Ship the list");
-		const second = issue(42, "Ship the list");
-		const underFirst = issue(43, "Draw the rows", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/41`,
-		});
-		const underSecond = issue(44, "Name the columns", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/42`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([first, second, underFirst, underSecond]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const of = (number: number) =>
-					report.tickets.find(
-						(ticket) => ticket.key === `${githubRepo}#${number}`,
-					);
-				expect(of(43)?.workstream).toBe("Ship the list");
-				expect(of(44)?.workstream).toBe("Ship the list");
-				expect(of(43)?.workstreamKey).toBe(`${githubRepo}#41`);
-				expect(of(44)?.workstreamKey).toBe(`${githubRepo}#42`);
-			},
-		);
-	});
-
-	test("a GitHub ticket with a blank parent stays in no workstream", async () => {
-		const lone = issue(24, "Leave the draft", {
-			parent_issue_url: "   ",
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([lone]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#24`),
-				).toMatchObject({ workstream: "no workstream" });
-			},
-		);
-	});
-
-	test("a GitHub ticket whose parent is outside the project stays in no workstream", async () => {
-		const orphan = issue(25, "Wait on the other repo", {
-			parent_issue_url: `https://api.github.com/repos/${otherRepo}/issues/9`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([orphan]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#25`),
-				).toMatchObject({ workstream: "no workstream" });
-			},
-		);
-	});
-
-	test("a GitHub ticket under a non-epic root takes its own milestone", async () => {
-		const parent = issue(7, "Write the notes");
-		const child = issue(8, "feat(notes): add the heading", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
-				).toMatchObject({ workstream: "October" });
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
-				).toMatchObject({ workstream: "no workstream" });
-			},
-		);
-	});
-
-	test("an Epic label makes the ticket the GitHub workstream", async () => {
-		const parent = issue(31, "Ship the board", {
-			labels: [{ name: "Epic" }],
-		});
-		const child = issue(32, "Draw the legend", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/31`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#31`),
-				).toMatchObject({ workstream: "Ship the board" });
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#32`),
-				).toMatchObject({ workstream: "Ship the board" });
-			},
-		);
-	});
-
-	test("a breaking conventional title is grouped by its scope", async () => {
-		const breaking = issue(6, "feat(ux)!: redraw the nodes");
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([breaking]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#6`),
-				).toMatchObject({ theme: "ux" });
-			},
-		);
-	});
-
-	test("a mid-level parent takes the top parent's title as its theme", async () => {
-		const top = issue(10, "Ship the board", {
-			milestone: { title: "October" },
-		});
-		const mid = issue(11, "Draw the legend", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/10`,
-			milestone: { title: "October" },
-		});
-		const leaf = issue(12, "feat(legend): add the key", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/11`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([top, mid, leaf]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				const groupOf = (number: number) =>
-					report.tickets.find(
-						(ticket) => ticket.key === `${githubRepo}#${number}`,
-					);
-				expect(groupOf(11)).toMatchObject({
-					workstream: "October",
-					theme: "Ship the board",
-				});
-				expect(groupOf(12)).toMatchObject({
-					workstream: "October",
-					theme: "Ship the board",
-				});
-				expect(groupOf(10)).toMatchObject({ theme: "Ship the board" });
-			},
-		);
-	});
-
-	test("a ticket that is the root of another ticket takes its own title as its theme", async () => {
-		const parent = issue(7, "Write the notes", {
-			milestone: { title: "October" },
-		});
-		const child = issue(8, "feat(notes): add the heading", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/7`,
-			milestone: { title: "October" },
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([parent, child]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#7`),
-				).toMatchObject({ theme: "Write the notes" });
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#8`),
-				).toMatchObject({ theme: "Write the notes" });
-			},
-		);
-	});
-
-	test("a Projects v2 pin groups by milestone, epic label and parent", async () => {
-		const projectId = "PVT_widget";
-		const board: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			const body = typeof init?.body === "string" ? init.body : "";
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			if (url === "https://api.github.com/user") {
-				return Response.json({ login: "lev" });
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ProjectByNumber")
-			) {
-				return Response.json({
-					data: {
-						repositoryOwner: {
-							projectV2: {
-								id: projectId,
-								number: 3,
-								title: "Widget board",
-								closed: false,
-								updatedAt: "2026-08-18T12:00:00Z",
-							},
-						},
-					},
-				});
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ProjectFields")
-			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("node(id:")
-			) {
-				return Response.json({
-					data: {
-						node: {
-							items: {
-								nodes: [
-									{
-										content: {
-											__typename: "Issue",
-											number: 11,
-											title: "Ship the board",
-											state: "OPEN",
-											stateReason: null,
-											updatedAt: "2026-08-18T12:00:00Z",
-											repository: { nameWithOwner: githubRepo },
-											milestone: { title: "October" },
-											labels: { nodes: [{ name: "epic" }] },
-											parent: null,
-										},
-									},
-									{
-										content: {
-											__typename: "Issue",
-											number: 12,
-											title: "Draw the legend",
-											state: "OPEN",
-											stateReason: null,
-											updatedAt: "2026-08-18T12:00:00Z",
-											repository: { nameWithOwner: githubRepo },
-											milestone: { title: "October" },
-											labels: { nodes: [] },
-											parent: {
-												number: 11,
-												repository: { nameWithOwner: githubRepo },
-											},
-										},
-									},
-									{
-										content: {
-											__typename: "DraftIssue",
-											title: "Not a ticket",
-										},
-									},
-								],
-								pageInfo: { hasNextPage: false, endCursor: null },
-							},
-						},
-					},
-				});
-			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
-		};
-		await withApp(
-			JSON.stringify({
-				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
-			}),
-			board,
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(new URL("/api/projects/Widget%20board", base))
-				).json()) as ProjectReport;
-				expect(report.name).toBe("Widget board");
-				expect(report.tracker).toBe("github");
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#11`),
-				).toMatchObject({
-					workstream: "Ship the board",
-					theme: "Ship the board",
-				});
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#12`),
-				).toMatchObject({
-					workstream: "Ship the board",
-					theme: "no scope",
-				});
-				const backlog = report.sections.find(
-					(section) => section.id === "backlog",
-				);
-				expect(backlog?.items?.map((item) => item.key)).toEqual([
-					"acme/widget#11",
-					"acme/widget#12",
-				]);
-			},
-		);
-	});
-
-	test("a root epic workstream themes the nearest parent below it", async () => {
-		const root = issue(40, "Ship the board", {
-			labels: [{ name: "Epic" }],
-		});
-		const mid = issue(41, "Draw the legend", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/40`,
-		});
-		const leaf = issue(42, "feat(legend): add the key", {
-			parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/41`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([root, mid, leaf]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#42`),
-				).toMatchObject({
-					workstream: "Ship the board",
-					theme: "Draw the legend",
-				});
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#41`),
-				).toMatchObject({
-					workstream: "Ship the board",
-					theme: "no scope",
-				});
-			},
-		);
-	});
-
 	test("each ticket lists its blockers, outside blockers and the open tickets it blocks", async () => {
 		const gate = issue(8, "Open the gate", { body: "Blocks: #2" }, githubRepo);
 		const drawn = issue(2, "feat(ux): draw the nodes", {
@@ -1174,6 +356,766 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a recorded closed native blocker drops off the project response", async () => {
+		type RecordedIssue = Omit<
+			(typeof recordedClosedBlockers.issues)[number],
+			"stateReason" | "closedAt"
+		> & {
+			stateReason: string | null;
+			closedAt: string | null;
+		};
+		const recorded: RecordedIssue[] = structuredClone(
+			recordedClosedBlockers.issues,
+		);
+		let closed = false;
+		const nodes = (): RecordedIssue[] => {
+			if (!closed) {
+				return structuredClone(recorded);
+			}
+			return structuredClone(recorded).map((node) => {
+				if (node.number !== 216 && node.number !== 245 && node.number !== 246) {
+					return node;
+				}
+				if (node.number === 216) {
+					return {
+						...node,
+						state: "CLOSED",
+						stateReason: "COMPLETED",
+						closedAt: "2026-08-18T13:00:00Z",
+						updatedAt: "2026-08-18T13:00:00Z",
+					};
+				}
+				return {
+					...node,
+					updatedAt: "2026-08-18T13:00:00Z",
+					blockedBy: {
+						...node.blockedBy,
+						nodes: node.blockedBy.nodes.map((blocker) =>
+							blocker.number === 216
+								? { ...blocker, state: "CLOSED" }
+								: blocker,
+						),
+					},
+				};
+			});
+		};
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: {
+							owner?: string;
+							name?: string;
+							since?: string | null;
+						};
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					if (`${owner}/${name}` !== githubRepo) {
+						return unrecorded(input);
+					}
+					const listed =
+						sent.variables?.since === undefined || sent.variables.since === null
+							? nodes()
+							: nodes().filter((node) => [216, 245, 246].includes(node.number));
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, listed)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					const asked = [...body.matchAll(/issue\(number: (\d+)\)/g)].map(
+						(match) => Number(match[1]),
+					);
+					const repository: Record<string, unknown> = {};
+					const byNumber = new Map(
+						nodes().map((node) => [node.number, node.blockedBy]),
+					);
+					for (const [index, number] of asked.entries()) {
+						const blockedBy = byNumber.get(number);
+						if (blockedBy === undefined) {
+							continue;
+						}
+						repository[`i${index}`] = { blockedBy };
+					}
+					return new Response(JSON.stringify({ data: { repository } }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+					base,
+				);
+				const before = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
+				expect(
+					before.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.blockers,
+				).toEqual([`${githubRepo}#216`]);
+				closed = true;
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let report: ProjectReport | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as { polling?: true };
+					if (overview.polling !== true) {
+						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (report === null) {
+					throw new Error("the poll did not settle");
+				}
+				const onlyClosed = report.tickets.find(
+					(item) => item.key === `${githubRepo}#245`,
+				);
+				expect(onlyClosed?.blockers).toEqual([]);
+				expect(onlyClosed?.blocked).toBeUndefined();
+				expect(onlyClosed?.chips ?? []).not.toContain("Blocked");
+				expect(onlyClosed?.links).toEqual([
+					{ key: `${githubRepo}#216`, done: true },
+				]);
+				const both = report.tickets.find(
+					(item) => item.key === `${githubRepo}#246`,
+				);
+				expect(both?.blockers).toEqual([`${githubRepo}#188`]);
+				expect(both?.blocked).toBe(true);
+				expect(both?.chips).toContain("Blocked");
+				expect(both?.links?.map((link) => link.key)).toEqual([
+					`${githubRepo}#216`,
+					`${githubRepo}#188`,
+				]);
+				const summary = report.sections.find(
+					(section) => section.id === "summary",
+				);
+				expect(summary?.text).toContain("1 blocked");
+				const filtered = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						pinned: [{ tracker: "github", repo: githubRepo }],
+						projectViews: {
+							[githubRepo]: { blockedOnly: true },
+						},
+					}),
+				});
+				expect(filtered.status).toBe(200);
+				const held = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				expect(held.tickets.map((item) => item.key)).toEqual([
+					`${githubRepo}#246`,
+				]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+				const spaced = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("  ")}`, base),
+				);
+				expect(spaced.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
+	test("a closed blocker refresh keeps the fresh ticket fields", async () => {
+		const blocker = (state: "OPEN" | "CLOSED") =>
+			issue(
+				216,
+				"Closed native blocker",
+				state === "CLOSED"
+					? { state: "closed", state_reason: "completed" }
+					: {},
+				githubRepo,
+			);
+		const waiting = (title: string, updatedAt: string) =>
+			issue(245, title, { updated_at: updatedAt }, githubRepo);
+		const relation = (state: "OPEN" | "CLOSED") => ({
+			number: 216,
+			title: "Closed native blocker",
+			state,
+			repository: { nameWithOwner: githubRepo },
+		});
+		const pageInfo = { hasNextPage: false, endCursor: null };
+		let closed = false;
+		const nodes = () => [
+			{
+				...githubIssueNode(
+					waiting(
+						closed ? "Draw the closed board" : "Draw the board",
+						closed ? "2026-08-18T13:00:00.000Z" : "2026-08-18T12:00:00.000Z",
+					),
+				),
+				blockedBy: {
+					nodes: [relation(closed ? "CLOSED" : "OPEN")],
+					pageInfo,
+				},
+			},
+			githubIssueNode(blocker(closed ? "CLOSED" : "OPEN")),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: {
+							owner?: string;
+							name?: string;
+							since?: string | null;
+						};
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					if (`${owner}/${name}` !== githubRepo) {
+						return unrecorded(input);
+					}
+					const listed =
+						sent.variables?.since === undefined || sent.variables.since === null
+							? nodes()
+							: nodes().filter(
+									(node) => node.number === 245 || node.number === 216,
+								);
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, listed)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					const sent = JSON.parse(body) as {
+						query?: string;
+						variables?: Record<string, string | null>;
+					};
+					const aliases = [
+						...(sent.query ?? "").matchAll(/i(\d+): issue\(number: (\d+)\)/g),
+					];
+					const repository: Record<string, unknown> = {};
+					for (const match of aliases) {
+						const index = match[1];
+						const number = Number(match[2]);
+						if (index === undefined || number !== 245) {
+							continue;
+						}
+						repository[`i${index}`] = {
+							blockedBy: {
+								nodes: [relation(closed ? "CLOSED" : "OPEN")],
+								pageInfo,
+							},
+						};
+					}
+					return new Response(JSON.stringify({ data: { repository } }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+					base,
+				);
+				const before = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
+				expect(
+					before.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.title,
+				).toBe("Draw the board");
+				closed = true;
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let report: ProjectReport | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as { polling?: true };
+					if (overview.polling !== true) {
+						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (report === null) {
+					throw new Error("the poll did not settle");
+				}
+				const card = report.tickets.find(
+					(item) => item.key === `${githubRepo}#245`,
+				);
+				expect(card?.title).toBe("Draw the closed board");
+				expect(card?.updatedAt).toBe("2026-08-18T13:00:00.000Z");
+				expect(card?.blockers).toEqual([]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
+	test("a failed blocker refresh reaches the poll error", async () => {
+		const relation = {
+			number: 216,
+			title: "Native blocker",
+			state: "OPEN",
+			repository: { nameWithOwner: githubRepo },
+		};
+		const pageInfo = { hasNextPage: false, endCursor: null };
+		const nodes = [
+			{
+				...githubIssueNode(issue(245, "Draw the board", {}, githubRepo)),
+				blockedBy: { nodes: [relation], pageInfo },
+			},
+			githubIssueNode(issue(216, "Native blocker", {}, githubRepo)),
+		];
+		let failRefresh = false;
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					if (failRefresh) {
+						return new Response("blocker states unavailable", { status: 500 });
+					}
+					return new Response(
+						JSON.stringify({
+							data: {
+								repository: {
+									i0: { blockedBy: { nodes: [relation], pageInfo } },
+								},
+							},
+						}),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: { owner?: string; name?: string };
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, nodes)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const overviewUrl = new URL("/api/overview", base);
+				const before = (await (await fetch(overviewUrl)).json()) as {
+					error: string | null;
+					projects: { error: string | null }[];
+				};
+				expect(before.error).toBeNull();
+				expect(before.projects[0]?.error).toBeNull();
+				failRefresh = true;
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let after: typeof before | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(overviewUrl)
+					).json()) as typeof before & {
+						polling?: true;
+					};
+					if (overview.polling !== true) {
+						after = overview;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (after === null) {
+					throw new Error("the poll did not settle");
+				}
+				expect(after.projects[0]?.error).toContain("GitHub read repo failed");
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
+	test("a blocker on a later page stays in the refresh", async () => {
+		const pageInfo = (hasNextPage: boolean, endCursor: string | null) => ({
+			hasNextPage,
+			endCursor,
+		});
+		const relation = (number: number, title: string) => ({
+			number,
+			title,
+			state: "OPEN",
+			repository: { nameWithOwner: githubRepo },
+		});
+		const nodes = [
+			{
+				...githubIssueNode(issue(245, "Draw the board", {}, githubRepo)),
+				blockedBy: {
+					nodes: [relation(216, "First page blocker")],
+					pageInfo: pageInfo(false, null),
+				},
+			},
+			githubIssueNode(issue(216, "First page blocker", {}, githubRepo)),
+			githubIssueNode(issue(188, "Later page blocker", {}, githubRepo)),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: {
+							owner?: string;
+							name?: string;
+							since?: string | null;
+						};
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					const listed =
+						sent.variables?.since === undefined || sent.variables.since === null
+							? nodes
+							: [];
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, listed)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					const asked = [...body.matchAll(/issue\(number: (\d+)\)/g)].map(
+						(match) => Number(match[1]),
+					);
+					const sent = JSON.parse(body) as {
+						variables?: Record<string, string | null>;
+					};
+					const repository: Record<string, unknown> = {};
+					for (const [index, number] of asked.entries()) {
+						if (number !== 245) {
+							continue;
+						}
+						const after = sent.variables?.[`after${index}`];
+						repository[`i${index}`] =
+							after === "cursor-2"
+								? {
+										blockedBy: {
+											nodes: [relation(188, "Later page blocker")],
+											pageInfo: pageInfo(false, null),
+										},
+									}
+								: {
+										blockedBy: {
+											nodes: [relation(216, "First page blocker")],
+											pageInfo: pageInfo(true, "cursor-2"),
+										},
+									};
+					}
+					return new Response(JSON.stringify({ data: { repository } }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+					base,
+				);
+				const before = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
+				expect(
+					before.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.blockers,
+				).toEqual([`${githubRepo}#216`]);
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let report: ProjectReport | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as { polling?: true };
+					if (overview.polling !== true) {
+						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (report === null) {
+					throw new Error("the poll did not settle");
+				}
+				expect(
+					report.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.blockers,
+				).toEqual([`${githubRepo}#216`, `${githubRepo}#188`]);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
+	test("a reopened blocker stays open over a held closed reference", async () => {
+		const gate = (state: "open" | "closed") =>
+			issue(
+				216,
+				"Native blocker",
+				state === "closed"
+					? { state: "closed", state_reason: "completed" }
+					: { state: "open", state_reason: "reopened" },
+				githubRepo,
+			);
+		const waiting = issue(245, "Draw the board", {}, githubRepo);
+		const relation = (state: "OPEN" | "CLOSED") => ({
+			number: 216,
+			title: "Native blocker",
+			state,
+			repository: { nameWithOwner: githubRepo },
+		});
+		const pageInfo = { hasNextPage: false, endCursor: null };
+		let reopened = false;
+		const nodes = () => [
+			{
+				...githubIssueNode(waiting),
+				blockedBy: {
+					nodes: [relation("CLOSED")],
+					pageInfo,
+				},
+			},
+			githubIssueNode(gate(reopened ? "open" : "closed")),
+		];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", repo: githubRepo }],
+			}),
+			async (input, init) => {
+				const url = urlOf(input);
+				const body = typeof init?.body === "string" ? init.body : "";
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query RepoRead")
+				) {
+					const sent = JSON.parse(body) as {
+						variables?: {
+							owner?: string;
+							name?: string;
+							since?: string | null;
+						};
+					};
+					const owner = sent.variables?.owner ?? "acme";
+					const name = sent.variables?.name ?? "widget";
+					if (`${owner}/${name}` !== githubRepo) {
+						return unrecorded(input);
+					}
+					const listed =
+						sent.variables?.since === undefined || sent.variables.since === null
+							? nodes()
+							: nodes().filter((node) => node.number === 216);
+					return new Response(
+						JSON.stringify(repoReadIssues(owner, name, listed)),
+						{
+							status: 200,
+							headers: { "content-type": "application/json" },
+						},
+					);
+				}
+				if (
+					url === "https://api.github.com/graphql" &&
+					body.includes("query BlockerStates")
+				) {
+					const asked = [...body.matchAll(/issue\(number: (\d+)\)/g)].map(
+						(match) => Number(match[1]),
+					);
+					const repository: Record<string, unknown> = {};
+					for (const [index, number] of asked.entries()) {
+						if (number !== 245) {
+							continue;
+						}
+						repository[`i${index}`] = {
+							blockedBy: {
+								nodes: [relation("CLOSED")],
+								pageInfo,
+							},
+						};
+					}
+					return new Response(JSON.stringify({ data: { repository } }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				if (url === "https://api.github.com/user") {
+					return Response.json({ login: "lev" });
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const projectUrl = new URL(
+					`/api/projects/${encodeURIComponent(githubRepo)}?view=all`,
+					base,
+				);
+				const before = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
+				expect(
+					before.tickets.find((item) => item.key === `${githubRepo}#245`)
+						?.blockers,
+				).toEqual([]);
+				reopened = true;
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				let report: ProjectReport | null = null;
+				for (let attempt = 0; attempt < 50; attempt += 1) {
+					const overview = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as { polling?: true };
+					if (overview.polling !== true) {
+						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
+						break;
+					}
+					await Bun.sleep(20);
+				}
+				if (report === null) {
+					throw new Error("the poll did not settle");
+				}
+				const card = report.tickets.find(
+					(item) => item.key === `${githubRepo}#245`,
+				);
+				expect(card?.blockers).toEqual([`${githubRepo}#216`]);
+				expect(card?.blocked).toBe(true);
+				expect(
+					card?.links?.find((link) => link.key === `${githubRepo}#216`)?.done,
+				).toBe(false);
+				const heldClosed = report.graphLinks.find(
+					(link) =>
+						link.from.key === `${githubRepo}#216` &&
+						link.to.key === `${githubRepo}#245`,
+				);
+				expect(heldClosed?.done).toBe(false);
+				const blank = await fetch(
+					new URL(`/api/projects/${encodeURIComponent("   ")}`, base),
+				);
+				expect(blank.status).toBe(404);
+			},
+			() => new Date("2026-08-18T12:00:00.000Z"),
+		);
+	});
+
 	test("an open ticket blocked only by a closed blocker is not blocked", async () => {
 		const done = issue(
 			8,
@@ -1206,6 +1148,7 @@ describe("GET /api/projects/:name", () => {
 				expect(drawn?.links).toEqual([{ key: `${githubRepo}#8`, done: true }]);
 				expect(drawn?.blocked).toBeUndefined();
 				expect(drawn?.blockers).toEqual([]);
+				expect(drawn?.chips ?? []).not.toContain("Blocked");
 				const summary = report.sections.find(
 					(section) => section.id === "summary",
 				);
