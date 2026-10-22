@@ -1,6 +1,5 @@
 import { useSyncExternalStore } from "react";
 import { z } from "zod";
-import type { TicketView } from "./domain.ts";
 
 const storageKey = "project-flow.collapsed";
 
@@ -35,26 +34,23 @@ function write(next: Stored): void {
 	}
 }
 
-function finished(ticket: TicketView): boolean {
-	return ticket.statusType === "done" || ticket.statusType === "dropped";
-}
-
 /**
  * The per-browser collapse state of each parent ticket, keyed by its ticket
- * key. A parent ticket with no stored state starts collapsed when all its
- * sub-tickets are done.
+ * key. A parent ticket with no stored state takes its `startsCollapsed` value.
  */
 export function useCollapse(): {
-	collapsed: (key: string, subTickets: readonly TicketView[]) => boolean;
-	toggle: (key: string, subTickets: readonly TicketView[]) => void;
+	collapsed: (key: string, startsCollapsed: boolean) => boolean;
+	toggle: (key: string, startsCollapsed: boolean) => void;
 } {
 	const current = useSyncExternalStore(subscribe, () => stored);
-	const collapsed = (key: string, subTickets: readonly TicketView[]) =>
-		current[key.toLowerCase()] ??
-		(subTickets.length > 0 && subTickets.every(finished));
+	const collapsed = (key: string, startsCollapsed: boolean) =>
+		current[key.toLowerCase()] ?? startsCollapsed;
 	return {
 		collapsed,
-		toggle: (key, subTickets) =>
-			write({ ...stored, [key.toLowerCase()]: !collapsed(key, subTickets) }),
+		toggle: (key, startsCollapsed) =>
+			write({
+				...stored,
+				[key.toLowerCase()]: !collapsed(key, startsCollapsed),
+			}),
 	};
 }

@@ -31,7 +31,9 @@ import {
 	sameTicketKey,
 	type TicketRelation,
 	type TicketView,
+	type TreeRow,
 	ticketGroups,
+	treeRows,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
@@ -915,59 +917,6 @@ function TableRow({
 	);
 }
 
-type TreeRow = {
-	ticket: TicketView;
-	depth: number;
-	subTickets: TicketView[];
-};
-
-/** The tickets in parent-first order, each sub-ticket under its parent ticket. */
-function treeRows(
-	tickets: readonly TicketView[],
-	collapsed: (key: string, subTickets: readonly TicketView[]) => boolean,
-): TreeRow[] {
-	const keys = new Set(
-		tickets.flatMap((ticket) =>
-			ticket.key === null ? [] : [ticket.key.toLowerCase()],
-		),
-	);
-	const placed = (ticket: TicketView) =>
-		ticket.parent !== undefined && keys.has(ticket.parent.toLowerCase());
-	const subTicketsOf = new Map<string, TicketView[]>();
-	for (const ticket of tickets) {
-		if (ticket.parent === undefined || !placed(ticket)) {
-			continue;
-		}
-		const parent = ticket.parent.toLowerCase();
-		subTicketsOf.set(parent, [...(subTicketsOf.get(parent) ?? []), ticket]);
-	}
-	const rows: TreeRow[] = [];
-	const seen = new Set<TicketView>();
-	const visit = (ticket: TicketView, depth: number) => {
-		if (seen.has(ticket)) {
-			return;
-		}
-		seen.add(ticket);
-		const subTickets =
-			ticket.key === null
-				? []
-				: (subTicketsOf.get(ticket.key.toLowerCase()) ?? []);
-		rows.push({ ticket, depth, subTickets });
-		if (ticket.key !== null && collapsed(ticket.key, subTickets)) {
-			return;
-		}
-		for (const sub of subTickets) {
-			visit(sub, depth + 1);
-		}
-	};
-	for (const ticket of tickets) {
-		if (!placed(ticket)) {
-			visit(ticket, 0);
-		}
-	}
-	return rows;
-}
-
 function TicketTable({
 	report,
 	groupBy,
@@ -985,21 +934,26 @@ function TicketTable({
 	const focus = useContext(TicketFocusContext);
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
 	const collapse = useCollapse();
+	const { collapsed, toggle } = collapse;
 	const rows = [...report.tickets].sort((left, right) =>
 		compareTickets(left, right, column, direction, report.lanes),
 	);
-	const toggleOf = ({ ticket, subTickets }: TreeRow): TreeToggle | null => {
+	const toggleOf = ({
+		ticket,
+		hasSubTickets,
+		startsCollapsed,
+	}: TreeRow<TicketView>): TreeToggle | null => {
 		const key = ticket.key;
-		return key === null || subTickets.length === 0
+		return key === null || !hasSubTickets
 			? null
 			: {
-					collapsed: collapse.collapsed(key, subTickets),
-					onToggle: () => collapse.toggle(key, subTickets),
+					collapsed: collapsed(key, startsCollapsed),
+					onToggle: () => toggle(key, startsCollapsed),
 				};
 	};
 	const tableRows = (tickets: readonly TicketView[]) =>
 		groupBy === "workstream" || groupBy === "theme"
-			? treeRows(tickets, collapse.collapsed).map((row) => ({
+			? treeRows(tickets, collapsed).map((row) => ({
 					ticket: row.ticket,
 					tree: { depth: row.depth, toggle: toggleOf(row) },
 				}))
