@@ -37,7 +37,9 @@ function sdiTicket(
 	};
 }
 
-// A three-level tree, a parent ticket whose sub-tickets are all done, and a
+// The tickets and the project slug are invented, because a proof run must not
+// read a live tracker. They hold a three-level tree, a parent ticket whose
+// sub-tickets are all done, a done sub-ticket with an open sub-ticket, and a
 // ticket with no parent ticket.
 const issues = [
 	sdiTicket("SDI-1", "Stand up the SDI pipeline", "In Progress", null),
@@ -49,6 +51,9 @@ const issues = [
 	sdiTicket("SDI-7", "Remove the importer cron", "Done", "SDI-6"),
 	sdiTicket("SDI-8", "Drop the importer tables", "Done", "SDI-6"),
 	sdiTicket("SDI-9", "Write the SDI runbook", "Todo", null),
+	sdiTicket("SDI-10", "Move the SDI archive", "In Progress", null),
+	sdiTicket("SDI-11", "Copy the archive files", "Done", "SDI-10"),
+	sdiTicket("SDI-12", "Check the copied files", "Todo", "SDI-11"),
 ];
 
 const fetch = linearFake({
