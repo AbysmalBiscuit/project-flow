@@ -6349,7 +6349,7 @@ describe("page responses", () => {
 								{ page: "/", api: "/api/overview" },
 								{
 									page: `/projects/${encodeURIComponent(projectName)}`,
-									api: `/api/projects/${encodeURIComponent(projectName)}`,
+									api: `/api/projects/${encodeURIComponent(projectName)}?view=all`,
 								},
 								{ page: "/needs-you", api: "/api/needs-you" },
 								{ page: "/inbox", api: "/api/inbox" },
@@ -6443,7 +6443,7 @@ describe("page responses", () => {
 								await (
 									await fetch(
 										new URL(
-											`/api/projects/${encodeURIComponent(projectName)}`,
+											`/api/projects/${encodeURIComponent(projectName)}?view=all`,
 											base,
 										),
 									)

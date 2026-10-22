@@ -183,7 +183,7 @@ export function settingsCacheWrite(
 	};
 }
 
-export function useSaveSettings() {
+export function useSaveSettings({ refetchProjects = true } = {}) {
 	const queries = useQueryClient();
 	return useMutation({
 		mutationFn: async (next: SettingsWrite): Promise<SettingsPage> => {
@@ -210,7 +210,9 @@ export function useSaveSettings() {
 				projects: saved.projects,
 			};
 			queries.setQueryData(pageQuery.settings.queryKey, written);
-			void queries.invalidateQueries({ queryKey: ["project"] });
+			if (refetchProjects) {
+				void queries.invalidateQueries({ queryKey: ["project"] });
+			}
 		},
 	});
 }
@@ -359,7 +361,7 @@ function seedStoredProject(pathname: string, stored: unknown): void {
 		return;
 	}
 	pageQueryClient.setQueryData(
-		pageQuery.project(name).queryKey,
+		pageQuery.project(name, "all").queryKey,
 		report as ProjectReport,
 		{ updatedAt: 0 },
 	);
@@ -367,16 +369,20 @@ function seedStoredProject(pathname: string, stored: unknown): void {
 
 let eventsWired = false;
 
-function applyOverviewEvent(body: Overview): void {
+function applyViewsEvent(body: Overview): void {
 	const updatedAt =
 		pageQueryClient.getQueryState(pageQuery.overview.queryKey)?.dataUpdatedAt ??
 		0;
 	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body, {
 		updatedAt,
 	});
+	void pageQueryClient.invalidateQueries(pageQuery.settings);
+}
+
+function applyOverviewEvent(body: Overview): void {
+	applyViewsEvent(body);
 	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
-	void pageQueryClient.invalidateQueries(pageQuery.settings);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 }
 
@@ -397,6 +403,9 @@ export function wirePageQueryEvents(): void {
 	onEventStreamOpen(invalidatePageQueries);
 	onAppEvent("overview", (event) => {
 		applyOverviewEvent(JSON.parse(event.data) as Overview);
+	});
+	onAppEvent("views", (event) => {
+		applyViewsEvent(JSON.parse(event.data) as Overview);
 	});
 	onAppEvent("notification", () => {
 		void pageQueryClient.invalidateQueries(pageQuery.inbox);
