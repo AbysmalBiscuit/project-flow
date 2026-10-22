@@ -175,7 +175,7 @@ export type TicketView = {
 	parent?: string;
 	subTickets?: number;
 	/** True when the ticket has sub-tickets and every descendant is done or dropped. */
-	startsCollapsed?: boolean;
+	startsCollapsed?: true;
 };
 
 export type CrossProjectBlocker = {
@@ -3227,10 +3227,11 @@ function withStartsCollapsed(views: TicketView[]): TicketView[] {
 		settled.set(view, result);
 		return result;
 	};
-	return views.map((view) => ({
-		...view,
-		startsCollapsed: subTicketsOf(view).length > 0 && allClosed(view),
-	}));
+	return views.map((view) =>
+		subTicketsOf(view).length > 0 && allClosed(view)
+			? { ...view, startsCollapsed: true }
+			: view,
+	);
 }
 
 function subTicketCounts(tickets: Ticket[]): Map<string, number> {

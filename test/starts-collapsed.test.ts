@@ -31,7 +31,7 @@ const issues = [
 ];
 
 const startsCollapsed = async (search: string) => {
-	let found: Record<string, boolean | undefined> = {};
+	let found: Record<string, boolean> = {};
 	await withApp(
 		JSON.stringify({
 			pinned: [{ tracker: "linear", project: linearSlug }],
@@ -53,7 +53,7 @@ const startsCollapsed = async (search: string) => {
 			found = Object.fromEntries(
 				[...report.tickets, ...report.doneTickets].map((ticket) => [
 					ticket.key,
-					ticket.startsCollapsed,
+					ticket.startsCollapsed === true,
 				]),
 			);
 		},
