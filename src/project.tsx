@@ -435,7 +435,7 @@ function Card({
 							/>
 						))}
 						{ticket.needsYou ? (
-							<span className={clsx(board.chip, board.chipNeeds)}>
+							<span className={clsx(board.chip, board.chipNeedsPill)}>
 								{navLabel.needsYou}
 							</span>
 						) : null}

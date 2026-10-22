@@ -387,6 +387,12 @@ export const board = stylex.create({
 	},
 	chipNeeds: {
 		borderRadius: radius.pill,
+		backgroundColor: colours.needs,
+		color: colours.needsInk,
+		cursor: "default",
+	},
+	chipNeedsPill: {
+		borderRadius: radius.pill,
 		borderColor: colours.needsPillInk,
 		backgroundColor: colours.needsPill,
 		color: colours.needsPillInk,
