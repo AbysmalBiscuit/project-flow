@@ -52,6 +52,7 @@ function issue(
 
 const issues = [
 	issue(1, "Ship the map", {
+		body: "Blocked by: #4",
 		assignee: { login: "ada" },
 		assignees: [{ login: "ada" }, { login: "bea" }],
 	}),

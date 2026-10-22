@@ -4364,9 +4364,6 @@ export function filterProjectReport(
 	const keptKeys = new Set(
 		kept.flatMap((item) => (item.key === null ? [] : [item.key.toLowerCase()])),
 	);
-	const doneKeys = new Set(
-		done.flatMap((item) => (item.key === null ? [] : [item.key.toLowerCase()])),
-	);
 	const localKey = (end: { project: string; key: string }): string | null =>
 		end.project.toLowerCase() === report.name.toLowerCase()
 			? end.key.toLowerCase()
@@ -4374,13 +4371,13 @@ export function filterProjectReport(
 	const graphLinks = report.graphLinks.filter((link) => {
 		const from = localKey(link.from);
 		const to = localKey(link.to);
-		const fromShown = from === null || keptKeys.has(from) || doneKeys.has(from);
-		const toShown = to === null || keptKeys.has(to) || doneKeys.has(to);
+		const fromShown = from === null || keptKeys.has(from);
+		const toShown = to === null || keptKeys.has(to);
 		return fromShown && toShown;
 	});
 	const graphTickets = report.graphTickets.filter((ticket) => {
 		const key = ticket.key?.toLowerCase();
-		return key !== undefined && (keptKeys.has(key) || doneKeys.has(key));
+		return key !== undefined && keptKeys.has(key);
 	});
 	const hiddenBy = kept.length === 0 ? hidingFilters(report, view, shown) : [];
 	return {
