@@ -20,6 +20,10 @@ export const board = stylex.create({
 	faded: {
 		opacity: 0.2,
 	},
+	fades: {
+		transitionProperty: "opacity",
+		transitionDuration: measure.fade,
+	},
 	crumb: {
 		margin: `0 0 ${space.xs}`,
 		color: colours.inkSoft,

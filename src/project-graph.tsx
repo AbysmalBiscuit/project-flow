@@ -33,7 +33,7 @@ import {
 	stateLabel,
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
-import { classToken, clsx } from "./ui.ts";
+import { clsx } from "./ui.ts";
 import { cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
@@ -317,23 +317,22 @@ export function ProjectGraph({
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
-	const faded = classToken(board.faded);
+	const fades = clsx(board.fades);
+	const faded = clsx(board.fades, board.faded);
 	const nodes = model.nodes.map((node) => {
 		const kept = isClusterNode(node)
 			? node.data.members.some((id) => chain?.has(id) === true)
 			: chain?.has(node.id) === true;
-		return chain === null || kept ? node : { ...node, className: faded };
+		return { ...node, className: chain === null || kept ? fades : faded };
 	});
 	const edges = model.edges.map((edge) => {
-		if (chain === null) {
-			return edge;
+		const kept =
+			chain === null || (chain.has(edge.source) && chain.has(edge.target));
+		const className = `${edge.className ?? ""} ${kept ? fades : faded}`.trim();
+		if (chain === null || !kept || edge.data === undefined) {
+			return { ...edge, className };
 		}
-		if (chain.has(edge.source) && chain.has(edge.target)) {
-			return edge.data === undefined
-				? edge
-				: { ...edge, data: { ...edge.data, flowing: true } };
-		}
-		return { ...edge, className: `${edge.className ?? ""} ${faded}`.trim() };
+		return { ...edge, className, data: { ...edge.data, flowing: true } };
 	});
 	const places = model.nodes
 		.map((node) => {
