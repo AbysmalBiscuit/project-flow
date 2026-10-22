@@ -71,7 +71,7 @@ export async function projectComments(
 export function commentBodies(
 	comments:
 		| {
-				nodes?: (z.infer<typeof graphqlComment> | undefined)[];
+				nodes?: (z.infer<typeof graphqlComment> | undefined)[] | undefined;
 		  }
 		| undefined,
 ): Comment[] {

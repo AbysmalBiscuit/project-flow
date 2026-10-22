@@ -1204,15 +1204,16 @@ async function listProjectTickets(
 			continue;
 		}
 		const repoName = content.repository.nameWithOwner;
+		const issueNumber = content.number;
 		const parent =
 			content.parent === null || content.parent === undefined
 				? null
 				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
-		const ticketKey = `${repoName}#${content.number}`;
+		const ticketKey = `${repoName}#${issueNumber}`;
 		const comments = await projectComments(
 			content.comments,
 			state === "open" && openKeys.has(ticketKey),
-			() => listCommentBodies(token, fetchImpl, repoName, content.number),
+			() => listCommentBodies(token, fetchImpl, repoName, issueNumber),
 		);
 		const blockedByNodes = [...(content.blockedBy?.nodes ?? [])];
 		const blockedByAfter = content.blockedBy?.pageInfo?.hasNextPage
