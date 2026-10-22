@@ -1,0 +1,24 @@
+{
+	"base_url": "http://127.0.0.1:4750",
+	"serve": ["bun", "proof/serve-350.ts", "4750"],
+	"steps": [
+		{
+			"goto": "/check"
+		},
+		{
+			"assert_text": "#97 inside: feat: redesign Project Flow on the factory state model with"
+		},
+		{
+			"shot": "parent-97-check"
+		},
+		{
+			"goto": "/projects/AbysmalBiscuit%2Fproject-flow"
+		},
+		{
+			"assert_text": "feat: redesign Project Flow on the factory state model"
+		},
+		{
+			"shot": "parent-97-graph"
+		}
+	]
+}

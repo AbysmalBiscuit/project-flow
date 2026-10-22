@@ -41,7 +41,7 @@ _Avoid_: Source, provider, tool
 ### Grouping
 
 **Workstream**:
-The top group in a project map: on GitHub the root epic, else the milestone, else the parent ticket; on Linear the project milestone.
+The top group in a project map: on GitHub the root epic, else the milestone, else the top parent ticket; on Linear the project milestone. A top parent ticket with no workstream takes the most common workstream in its tree of sub-tickets. Another ticket with no workstream takes the workstream of its top parent ticket.
 _Avoid_: Area, epic, feature area
 
 **Theme**:

@@ -1,0 +1,1997 @@
+[
+	{
+		"number": 361,
+		"title": "fix(web): show full list bullets in panel comments",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:50:42Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/361",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 360,
+		"title": "feat(web): one button component for the panel header",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:47:44Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/360",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 359,
+		"title": "fix(web): stop graph nodes ghosting on hover",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:53:36Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/359",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 358,
+		"title": "perf: serve project pages without recomputing every project",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:56:15Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/358",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 357,
+		"title": "feat(web): switch the project graph between Layered and Force",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T15:50:49Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/357",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347",
+		"dependencyRows": [
+			{
+				"number": 349,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "spike: measure elkjs layered and stress on real projects"
+			},
+			{
+				"number": 354,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat(web): frame sub-tickets inside their parent ticket"
+			}
+		]
+	},
+	{
+		"number": 356,
+		"title": "feat(web): collapse a parent ticket frame on the graph",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T15:50:37Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/356",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347",
+		"dependencyRows": [
+			{
+				"number": 353,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat(web): show the table hierarchy as expandable rows"
+			},
+			{
+				"number": 354,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat(web): frame sub-tickets inside their parent ticket"
+			}
+		]
+	},
+	{
+		"number": 355,
+		"title": "feat(web): head a frame with a parent ticket from another project",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T15:50:27Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/355",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347",
+		"dependencyRows": [
+			{
+				"number": 354,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat(web): frame sub-tickets inside their parent ticket"
+			}
+		]
+	},
+	{
+		"number": 354,
+		"title": "feat(web): frame sub-tickets inside their parent ticket",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T15:50:10Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/354",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347",
+		"dependencyRows": [
+			{
+				"number": 350,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "fix: keep a parent ticket in the group of its sub-tickets"
+			},
+			{
+				"number": 351,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat: show parent and sub-ticket chips"
+			},
+			{
+				"number": 352,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "refactor(web): lay out the project graph with elkjs"
+			}
+		]
+	},
+	{
+		"number": 353,
+		"title": "feat(web): show the table hierarchy as expandable rows",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T15:49:56Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/353",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347",
+		"dependencyRows": [
+			{
+				"number": 350,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "fix: keep a parent ticket in the group of its sub-tickets"
+			},
+			{
+				"number": 351,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat: show parent and sub-ticket chips"
+			}
+		]
+	},
+	{
+		"number": 352,
+		"title": "refactor(web): lay out the project graph with elkjs",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:46:29Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/352",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347",
+		"dependencyRows": [
+			{
+				"number": 349,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "spike: measure elkjs layered and stress on real projects"
+			}
+		]
+	},
+	{
+		"number": 351,
+		"title": "feat: show parent and sub-ticket chips",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:48:17Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/351",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347"
+	},
+	{
+		"number": 350,
+		"title": "fix: keep a parent ticket in the group of its sub-tickets",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:48:41Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/350",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347"
+	},
+	{
+		"number": 349,
+		"title": "spike: measure elkjs layered and stress on real projects",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:48:26Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/349",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/347"
+	},
+	{
+		"number": 347,
+		"title": "feat(web): show the ticket hierarchy on the project graph",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T15:33:14Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/347",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 339,
+		"title": "test: live.test.ts held-refresh reply test times out",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T12:37:25Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/339",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 327,
+		"title": "test: settle the token refresh test after a refresh",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T05:00:28Z",
+		"closed_at": "2026-10-22T04:58:46Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/327",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 322,
+		"title": "fix(web): paint task-list checkboxes in comments",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T03:50:34Z",
+		"closed_at": "2026-10-22T03:50:08Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/322",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 310,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat(web): render comment markdown in the side panel"
+			}
+		]
+	},
+	{
+		"number": 311,
+		"title": "feat(web): expand the side panel over the page views",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T12:18:46Z",
+		"closed_at": "2026-10-22T12:18:11Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/311",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 307,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "fix(web): lay out the side panel to the mockup"
+			},
+			{
+				"number": 310,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "feat(web): render comment markdown in the side panel"
+			}
+		]
+	},
+	{
+		"number": 310,
+		"title": "feat(web): render comment markdown in the side panel",
+		"state": "open",
+		"state_reason": "reopened",
+		"updated_at": "2026-10-22T16:08:59Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/310",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 309,
+		"title": "feat: poll GitHub with the factory App token",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T02:11:35Z",
+		"closed_at": "2026-10-22T02:10:14Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/309",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 308,
+		"title": "fix(web): show a slow or failed thread load in the panel",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T23:05:06Z",
+		"closed_at": "2026-10-21T23:02:47Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/308",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 307,
+		"title": "fix(web): lay out the side panel to the mockup",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T04:59:37Z",
+		"closed_at": "2026-10-22T04:58:41Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/307",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 306,
+		"title": "fix(web): put a capped lane's Show all in its header",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T07:07:59Z",
+		"closed_at": "2026-10-22T07:02:46Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/306",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 305,
+		"title": "fix(web): give the overview header controls one height",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T01:44:08Z",
+		"closed_at": "2026-10-22T01:43:39Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/305",
+		"body": "",
+		"comments": 0,
+		"labels": [],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 304,
+		"title": "build: turn on agent-guard file length limits",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T22:42:38Z",
+		"closed_at": "2026-10-21T22:41:25Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/304",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 301,
+		"title": "test: fix flaky replies panel-reply acknowledge test",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T01:53:41Z",
+		"closed_at": "2026-10-22T01:53:20Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/301",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 300,
+		"title": "test: fix flaky live refresh-during-long-poll test",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T22:42:37Z",
+		"closed_at": "2026-10-21T22:41:34Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/300",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 297,
+		"title": "test: fix flaky local-projects rediscovery test",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T01:28:02Z",
+		"closed_at": "2026-10-22T01:27:05Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/297",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 296,
+		"title": "build: limit lizard to function length 200",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T20:18:01Z",
+		"closed_at": "2026-10-21T20:17:46Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/296",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 292,
+		"title": "feat: open the web app in the browser with --open",
+		"state": "open",
+		"state_reason": "reopened",
+		"updated_at": "2026-10-22T16:09:01Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/292",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 291,
+		"title": "build: pin one fallow version for the agent-guard audit",
+		"state": "closed",
+		"state_reason": "not_planned",
+		"updated_at": "2026-10-21T18:55:43Z",
+		"closed_at": "2026-10-21T18:55:43Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/291",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 290,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "open",
+				"title": "build: run fallow plus lizard length and argument checks"
+			}
+		]
+	},
+	{
+		"number": 290,
+		"title": "build: run fallow plus lizard length and argument checks",
+		"state": "open",
+		"state_reason": "reopened",
+		"updated_at": "2026-10-22T16:10:35Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/290",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 289,
+		"title": "fix(web): float the graph legend and controls over the canvas",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T12:05:50Z",
+		"closed_at": "2026-10-22T12:05:13Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/289",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 287,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "fix(web): show status on every graph ticket and raise edge contrast"
+			}
+		]
+	},
+	{
+		"number": 288,
+		"title": "feat(web): add refresh and last-poll age to the project page",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T03:53:02Z",
+		"closed_at": "2026-10-22T03:52:35Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/288",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 265,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "refactor(web): move project and settings pages onto TanStack Query"
+			}
+		]
+	},
+	{
+		"number": 287,
+		"title": "fix(web): show status on every graph ticket and raise edge contrast",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T18:41:38Z",
+		"closed_at": "2026-10-21T18:41:20Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/287",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 286,
+		"title": "fix(web): scroll a board lane that holds more cards than fit",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T19:45:47Z",
+		"closed_at": "2026-10-21T19:45:36Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/286",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 283,
+		"title": "fix(web): give the overview graph the Cards view's controls",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T12:44:14Z",
+		"closed_at": "2026-10-22T12:44:01Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/283",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 265,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "refactor(web): move project and settings pages onto TanStack Query"
+			},
+			{
+				"number": 289,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "fix(web): float the graph legend and controls over the canvas"
+			}
+		]
+	},
+	{
+		"number": 282,
+		"title": "fix(web): colour board cards by lane",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T06:14:33Z",
+		"closed_at": "2026-10-22T06:11:28Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/282",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 265,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "refactor(web): move project and settings pages onto TanStack Query"
+			}
+		]
+	},
+	{
+		"number": 281,
+		"title": "fix: put a closed ticket with a merged PR in Done",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T03:14:53Z",
+		"closed_at": "2026-10-22T03:13:38Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/281",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 265,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "refactor(web): move project and settings pages onto TanStack Query"
+			}
+		]
+	},
+	{
+		"number": 280,
+		"title": "fix: drop closed blockers from a ticket",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T04:06:36Z",
+		"closed_at": "2026-10-22T04:06:08Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/280",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 265,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "refactor(web): move project and settings pages onto TanStack Query"
+			}
+		]
+	},
+	{
+		"number": 276,
+		"title": "build: deny git hook bypasses in agent shells",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T12:58:44Z",
+		"closed_at": "2026-10-21T12:58:29Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/276",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 270,
+		"title": "build: turn on agent-guard lizard and jscpd checks",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T11:03:20Z",
+		"closed_at": "2026-10-21T11:03:11Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/270",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 266,
+		"title": "test: stop two overview poll tests from flaking",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T13:54:53Z",
+		"closed_at": "2026-10-21T13:54:53Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/266",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 265,
+		"title": "refactor(web): move project and settings pages onto TanStack Query",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-22T00:17:51Z",
+		"closed_at": "2026-10-22T00:17:18Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/265",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 264,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "refactor(web): load page data through TanStack Query"
+			}
+		]
+	},
+	{
+		"number": 264,
+		"title": "refactor(web): load page data through TanStack Query",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T20:31:20Z",
+		"closed_at": "2026-10-21T20:31:08Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/264",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 263,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "fix(web): paint stored data on the first page load"
+			}
+		]
+	},
+	{
+		"number": 263,
+		"title": "fix(web): paint stored data on the first page load",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T14:15:08Z",
+		"closed_at": "2026-10-21T14:14:31Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/263",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 261,
+		"title": "fix(web): say when filters hide every ticket",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T17:31:51Z",
+		"closed_at": "2026-10-21T17:31:40Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/261",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 260,
+		"title": "fix(web): keep overview cards one fixed height",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T12:07:09Z",
+		"closed_at": "2026-10-21T12:06:57Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/260",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 259,
+		"title": "fix(web): close and pad the ticket search box",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T12:39:58Z",
+		"closed_at": "2026-10-21T12:39:47Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/259",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 258,
+		"title": "fix(web): open a project from its overview graph card",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T10:51:58Z",
+		"closed_at": "2026-10-21T10:51:45Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/258",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 257,
+		"title": "fix(web): float the filter panel over the view",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T14:13:23Z",
+		"closed_at": "2026-10-21T14:13:11Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/257",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 256,
+		"title": "fix(web): fill the window height with the project graph",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T14:46:56Z",
+		"closed_at": "2026-10-21T14:46:46Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/256",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 255,
+		"title": "fix(web): draw closed dependency links on the graph",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T15:01:59Z",
+		"closed_at": "2026-10-21T15:01:51Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/255",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 254,
+		"title": "fix(web): draw the project graph after a switch from Board",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T12:15:49Z",
+		"closed_at": "2026-10-21T12:15:33Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/254",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 250,
+		"title": "fix(web): give every board lane one fixed width",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T10:33:29Z",
+		"closed_at": "2026-10-21T10:32:28Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/250",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 247,
+		"title": "fix(proof): stop each proof server when its caller exits",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T10:33:27Z",
+		"closed_at": "2026-10-21T10:32:31Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/247",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 246,
+		"title": "fix(web): match the project header to the mockup",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T10:33:26Z",
+		"closed_at": "2026-10-21T10:31:30Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/246",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 217,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "fix(web): style every control and the Done colour from the tokens"
+			}
+		]
+	},
+	{
+		"number": 245,
+		"title": "fix(web): lay out graph tickets as clear flows",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T14:31:12Z",
+		"closed_at": "2026-10-21T14:30:32Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/245",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 216,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "fix(web): draw graph edges with arrows and clear labels"
+			}
+		]
+	},
+	{
+		"number": 242,
+		"title": "build: run the full suite nightly on yin",
+		"state": "closed",
+		"state_reason": "not_planned",
+		"updated_at": "2026-10-21T17:34:08Z",
+		"closed_at": "2026-10-21T17:34:08Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/242",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 241,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "build: run only affected tests on pre-push"
+			}
+		]
+	},
+	{
+		"number": 241,
+		"title": "build: run only affected tests on pre-push",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T06:41:20Z",
+		"closed_at": "2026-10-21T06:40:54Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/241",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 235,
+		"title": "fix: start proof/serve-board.ts on main again",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T03:24:23Z",
+		"closed_at": "2026-10-21T03:23:47Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/235",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 234,
+		"title": "fix(web): use a phone gutter at narrow widths",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T05:18:04Z",
+		"closed_at": "2026-10-21T05:17:49Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/234",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 223,
+		"title": "fix(web): list same-project tickets in the Blocks column",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T03:15:43Z",
+		"closed_at": "2026-10-21T03:15:32Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/223",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 221,
+		"title": "fix(web): show each needs-you action once, with the merge facts",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T02:53:32Z",
+		"closed_at": "2026-10-21T02:52:51Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/221",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 220,
+		"title": "fix(web): sync the settings theme row and name the board view",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T04:04:12Z",
+		"closed_at": "2026-10-21T04:03:59Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/220",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 219,
+		"title": "fix(web): show the full key of another project's ticket in tables",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T22:55:12Z",
+		"closed_at": "2026-10-20T22:55:12Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/219",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 218,
+		"title": "feat(web): put the project page controls in the title row",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T02:38:00Z",
+		"closed_at": "2026-10-21T02:37:33Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/218",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 217,
+		"title": "fix(web): style every control and the Done colour from the tokens",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T07:01:39Z",
+		"closed_at": "2026-10-21T07:01:25Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/217",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 216,
+		"title": "fix(web): draw graph edges with arrows and clear labels",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T08:13:02Z",
+		"closed_at": "2026-10-21T08:12:11Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/216",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 213,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): lay out graph groups side by side in a grid"
+			}
+		]
+	},
+	{
+		"number": 215,
+		"title": "fix: count done tickets the same way on every page",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T01:31:41Z",
+		"closed_at": "2026-10-21T01:31:35Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/215",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 214,
+		"title": "fix(web): show cached page data while it reloads",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T02:04:19Z",
+		"closed_at": "2026-10-21T02:01:39Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/214",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 213,
+		"title": "feat(web): lay out graph groups side by side in a grid",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T01:10:54Z",
+		"closed_at": "2026-10-21T01:10:41Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/213",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 211,
+		"title": "feat(web): show poll progress on the overview",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T07:54:06Z",
+		"closed_at": "2026-10-21T07:53:53Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/211",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 210,
+		"title": "feat(web): confirm a settings save with a toast",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T02:53:31Z",
+		"closed_at": "2026-10-21T02:53:02Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/210",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 209,
+		"title": "fix(web): stop the needs-you key overlapping its headline",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T01:09:49Z",
+		"closed_at": "2026-10-21T01:09:39Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/209",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 208,
+		"title": "fix: fully read a tracked project with no stored tickets",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T06:24:33Z",
+		"closed_at": "2026-10-21T06:23:56Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/208",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 207,
+		"title": "fix: answer a refresh before its poll ends",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T04:45:38Z",
+		"closed_at": "2026-10-21T04:44:17Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/207",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 205,
+		"title": "build: add @babel/parser as a direct dependency",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T21:52:37Z",
+		"closed_at": "2026-10-20T21:52:37Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/205",
+		"body": "",
+		"comments": 0,
+		"labels": ["bug", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 201,
+		"title": "perf: read each tracked GitHub repo in one batched query",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-21T00:53:01Z",
+		"closed_at": "2026-10-21T00:53:01Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/201",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 199,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: poll only tracked projects"
+			},
+			{
+				"number": 198,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "perf: stop the double poll and use ETags on start"
+			}
+		]
+	},
+	{
+		"number": 200,
+		"title": "feat(web): add a Tracked toggle to the settings projects table",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T22:28:16Z",
+		"closed_at": "2026-10-20T22:28:16Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/200",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 199,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: poll only tracked projects"
+			}
+		]
+	},
+	{
+		"number": 199,
+		"title": "feat: poll only tracked projects",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T20:47:30Z",
+		"closed_at": "2026-10-20T20:47:08Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/199",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 118,
+		"title": "feat(web): Ctrl+K ticket jump box",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T07:59:05Z",
+		"closed_at": "2026-10-20T07:57:54Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/118",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 100,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): share the app shell and page header"
+			},
+			{
+				"number": 103,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: move a ticket's state forward on evidence"
+			}
+		]
+	},
+	{
+		"number": 117,
+		"title": "feat(web): settings projects table",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T15:16:45Z",
+		"closed_at": "2026-10-20T15:15:58Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/117",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 115,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat!: rename noSenior to pmBot"
+			},
+			{
+				"number": 116,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): settings sections"
+			}
+		]
+	},
+	{
+		"number": 116,
+		"title": "feat(web): settings sections",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T13:04:31Z",
+		"closed_at": "2026-10-20T13:03:51Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/116",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 101,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: save the theme in the configuration"
+			},
+			{
+				"number": 103,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: move a ticket's state forward on evidence"
+			},
+			{
+				"number": 108,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: save the project view filter"
+			}
+		]
+	},
+	{
+		"number": 115,
+		"title": "feat!: rename noSenior to pmBot",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-19T20:45:20Z",
+		"closed_at": "2026-10-19T20:45:20Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/115",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 98,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "docs: record the state model, StyleX and React Flow"
+			}
+		]
+	},
+	{
+		"number": 114,
+		"title": "feat: inbox read state and side panel",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T11:23:11Z",
+		"closed_at": "2026-10-20T11:23:11Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/114",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 113,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: show why an item needs you"
+			},
+			{
+				"number": 70,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: notify on needs-you rejoin and linked PR comments"
+			}
+		]
+	},
+	{
+		"number": 113,
+		"title": "feat: show why an item needs you",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T10:59:15Z",
+		"closed_at": "2026-10-20T10:59:09Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/113",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 112,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): Needs you page with a side panel"
+			}
+		]
+	},
+	{
+		"number": 112,
+		"title": "feat(web): Needs you page with a side panel",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T08:12:35Z",
+		"closed_at": "2026-10-20T08:11:32Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/112",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 100,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): share the app shell and page header"
+			}
+		]
+	},
+	{
+		"number": 111,
+		"title": "feat(web): group project views",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T16:53:49Z",
+		"closed_at": "2026-10-20T16:53:49Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/111",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 109,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): project table"
+			},
+			{
+				"number": 110,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): project dependency graph on React Flow"
+			}
+		]
+	},
+	{
+		"number": 110,
+		"title": "feat(web): project dependency graph on React Flow",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T15:05:31Z",
+		"closed_at": "2026-10-20T15:05:22Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/110",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 106,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): overview graph on React Flow"
+			},
+			{
+				"number": 108,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: save the project view filter"
+			}
+		]
+	},
+	{
+		"number": 109,
+		"title": "feat(web): project table",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T11:38:17Z",
+		"closed_at": "2026-10-20T11:38:17Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/109",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 108,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: save the project view filter"
+			}
+		]
+	},
+	{
+		"number": 108,
+		"title": "feat: save the project view filter",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T11:29:57Z",
+		"closed_at": "2026-10-20T11:29:57Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/108",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 107,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: project board with a ticket side panel"
+			}
+		]
+	},
+	{
+		"number": 107,
+		"title": "feat: project board with a ticket side panel",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T08:32:34Z",
+		"closed_at": "2026-10-20T08:31:38Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/107",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 100,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): share the app shell and page header"
+			},
+			{
+				"number": 103,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: move a ticket's state forward on evidence"
+			}
+		]
+	},
+	{
+		"number": 106,
+		"title": "feat(web): overview graph on React Flow",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T11:25:07Z",
+		"closed_at": "2026-10-20T11:25:07Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/106",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 104,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): overview cards with saved filters"
+			}
+		]
+	},
+	{
+		"number": 105,
+		"title": "feat(web): overview table",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T11:10:58Z",
+		"closed_at": "2026-10-20T11:10:12Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/105",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 104,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): overview cards with saved filters"
+			}
+		]
+	},
+	{
+		"number": 104,
+		"title": "feat(web): overview cards with saved filters",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T09:38:20Z",
+		"closed_at": "2026-10-20T09:36:26Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/104",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 100,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): share the app shell and page header"
+			},
+			{
+				"number": 103,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: move a ticket's state forward on evidence"
+			}
+		]
+	},
+	{
+		"number": 103,
+		"title": "feat: move a ticket's state forward on evidence",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T06:15:21Z",
+		"closed_at": "2026-10-20T06:15:21Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/103",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 102,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat: read tracker statuses into lanes"
+			}
+		]
+	},
+	{
+		"number": 102,
+		"title": "feat: read tracker statuses into lanes",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T00:50:17Z",
+		"closed_at": "2026-10-20T00:50:17Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/102",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 98,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "docs: record the state model, StyleX and React Flow"
+			}
+		]
+	},
+	{
+		"number": 101,
+		"title": "feat: save the theme in the configuration",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T02:44:46Z",
+		"closed_at": "2026-10-20T02:44:45Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/101",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 100,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "feat(web): share the app shell and page header"
+			}
+		]
+	},
+	{
+		"number": 100,
+		"title": "feat(web): share the app shell and page header",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-20T01:03:13Z",
+		"closed_at": "2026-10-20T01:03:13Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/100",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 99,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "build(web): move styles to StyleX with typed tokens"
+			}
+		]
+	},
+	{
+		"number": 99,
+		"title": "build(web): move styles to StyleX with typed tokens",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-19T22:34:46Z",
+		"closed_at": "2026-10-19T22:34:46Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/99",
+		"body": "",
+		"comments": 0,
+		"labels": ["enhancement", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97",
+		"dependencyRows": [
+			{
+				"number": 98,
+				"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+				"state": "closed",
+				"title": "docs: record the state model, StyleX and React Flow"
+			}
+		]
+	},
+	{
+		"number": 98,
+		"title": "docs: record the state model, StyleX and React Flow",
+		"state": "closed",
+		"state_reason": "completed",
+		"updated_at": "2026-10-19T18:25:33Z",
+		"closed_at": "2026-10-19T18:25:33Z",
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/98",
+		"body": "",
+		"comments": 0,
+		"labels": ["documentation", "ready-for-agent"],
+		"assignee": null,
+		"milestone": null,
+		"parent_issue_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow/issues/97"
+	},
+	{
+		"number": 97,
+		"title": "feat: redesign Project Flow on the factory state model",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-22T16:01:59Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/97",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null
+	},
+	{
+		"number": 1,
+		"title": "spec: project flow v1",
+		"state": "open",
+		"state_reason": null,
+		"updated_at": "2026-10-19T17:13:52Z",
+		"closed_at": null,
+		"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/1",
+		"body": "",
+		"comments": 0,
+		"labels": ["ready-for-agent"],
+		"assignee": null,
+		"milestone": null
+	}
+]
