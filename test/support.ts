@@ -920,14 +920,79 @@ function repositoryBody(body: unknown): boolean {
 	);
 }
 
+async function blockerStatesFromHandler(
+	body: string,
+	handler: Fetch,
+): Promise<Response | null> {
+	const parsed = JSON.parse(body) as {
+		query?: string;
+		variables?: { owner?: string; name?: string };
+	};
+	const owner = parsed.variables?.owner;
+	const name = parsed.variables?.name;
+	if (
+		owner === undefined ||
+		name === undefined ||
+		owner === "" ||
+		name === ""
+	) {
+		return null;
+	}
+	const repo = `${owner}/${name}`;
+	const aliases = [
+		...(parsed.query ?? "").matchAll(/i(\d+): issue\(number: (\d+)\)/g),
+	];
+	const repository: Record<string, unknown> = {};
+	for (const match of aliases) {
+		const index = match[1];
+		const number = match[2];
+		if (index === undefined || number === undefined) {
+			continue;
+		}
+		const response = await handler(
+			`https://api.github.com/repos/${repo}/issues/${number}/dependencies/blocked_by?per_page=100&page=1`,
+			{ method: "GET" },
+		);
+		if (!response.ok) {
+			return null;
+		}
+		const rows = (await response.json()) as Record<string, unknown>[];
+		repository[`i${index}`] = {
+			blockedBy: {
+				nodes: (Array.isArray(rows) ? rows : []).flatMap((row) => {
+					const repoUrl = String(row.repository_url ?? row.html_url ?? "");
+					const repoMatch = repoUrl.match(/\/repos\/([^/]+\/[^/]+)/);
+					return [
+						{
+							number: row.number,
+							title: row.title ?? null,
+							state: String(row.state ?? "open").toUpperCase(),
+							repository:
+								repoMatch?.[1] === undefined
+									? { nameWithOwner: repo }
+									: { nameWithOwner: repoMatch[1] },
+						},
+					];
+				}),
+				pageInfo: { hasNextPage: false, endCursor: null },
+			},
+		};
+	}
+	return Response.json({ data: { repository } });
+}
+
 export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 	const wrapped: Fetch = async (input, init) => {
 		const body = typeof init?.body === "string" ? init.body : "";
 		const answered = await fetchImpl(input, init);
-		if (
-			urlOf(input) !== "https://api.github.com/graphql" ||
-			!body.includes("query RepoRead")
-		) {
+		if (urlOf(input) !== "https://api.github.com/graphql") {
+			return answered;
+		}
+		if (body.includes("query BlockerStates")) {
+			const states = await blockerStatesFromHandler(body, fetchImpl);
+			return states ?? answered;
+		}
+		if (!body.includes("query RepoRead")) {
 			return answered;
 		}
 		if (!answered.ok) {
