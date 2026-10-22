@@ -372,6 +372,9 @@ export function ProjectGraph({
 				{outsideLabels.join(" | ")}
 			</p>
 			<p id="project-graph-layout" className={clsx(cards.graphProbe)} />
+			<p id="project-graph-panel" className={clsx(cards.graphProbe)}>
+				{openKey === null ? "panel closed" : "panel open"}
+			</p>
 			<p id="graph-states" className={clsx(cards.graphProbe)}>
 				{model.nodes
 					.flatMap((node) =>

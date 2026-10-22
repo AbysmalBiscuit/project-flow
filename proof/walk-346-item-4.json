@@ -44,6 +44,9 @@
 			"text": "esc-b"
 		},
 		{
+			"assert_text": "panel closed"
+		},
+		{
 			"assert_text": "focus none"
 		},
 		{

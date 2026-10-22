@@ -51,6 +51,9 @@
 			"text": "esc-b"
 		},
 		{
+			"assert_text": "panel closed"
+		},
+		{
 			"shot": "esc-closed-panel"
 		},
 		{
