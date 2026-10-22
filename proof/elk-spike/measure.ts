@@ -74,6 +74,14 @@ const layeredBase: ElkSettings = {
 	"elk.edgeRouting": "ORTHOGONAL",
 	...spacing,
 };
+const bestOptions = {
+	name: "SEPARATE_CHILDREN + COFFMAN_GRAHAM layerBound 4",
+	options: {
+		"elk.hierarchyHandling": "SEPARATE_CHILDREN",
+		"elk.layered.layering.strategy": "COFFMAN_GRAHAM",
+		"elk.layered.layering.coffmanGraham.layerBound": "4",
+	},
+};
 const layeredVariants: { name: string; options: ElkSettings }[] = [
 	{ name: "default", options: {} },
 	{
@@ -109,14 +117,7 @@ const layeredVariants: { name: string; options: ElkSettings }[] = [
 			"elk.layered.highDegreeNodes.treeHeight": "2",
 		},
 	},
-	{
-		name: "SEPARATE_CHILDREN + COFFMAN_GRAHAM layerBound 4",
-		options: {
-			"elk.hierarchyHandling": "SEPARATE_CHILDREN",
-			"elk.layered.layering.strategy": "COFFMAN_GRAHAM",
-			"elk.layered.layering.coffmanGraham.layerBound": "4",
-		},
-	},
+	bestOptions,
 	{
 		name: "SEPARATE_CHILDREN + COFFMAN_GRAHAM 4 + NETWORK_SIMPLEX placement",
 		options: {
@@ -139,7 +140,6 @@ const layeredVariants: { name: string; options: ElkSettings }[] = [
 		},
 	},
 ];
-const bestVariant = "SEPARATE_CHILDREN + COFFMAN_GRAHAM layerBound 4";
 const stressBase: ElkSettings = {
 	"elk.algorithm": "stress",
 	"elk.stress.desiredEdgeLength": String(cell.width),
@@ -190,7 +190,7 @@ const forceWorker = () => new Worker(join(import.meta.dir, "force-worker.ts"));
 
 function forceTimed(
 	worker: Worker,
-	graph: SpikeGraph,
+	graph: Omit<SpikeGraph, "tickets">,
 ): Promise<{ ms: number; laid: ElkNode }> {
 	const started = performance.now();
 	return new Promise((resolve) => {
@@ -200,12 +200,7 @@ function forceTimed(
 	});
 }
 
-const separateGroups: ElkSettings = {
-	...layeredBase,
-	"elk.hierarchyHandling": "SEPARATE_CHILDREN",
-	"elk.layered.layering.strategy": "COFFMAN_GRAHAM",
-	"elk.layered.layering.coffmanGraham.layerBound": "4",
-};
+const separateGroups: ElkSettings = { ...layeredBase, ...bestOptions.options };
 const engines = {
 	layered: { options: layeredBase, lift: false },
 	"layered, groups apart": { options: separateGroups, lift: false },
@@ -215,6 +210,24 @@ const engines = {
 } as const;
 type Engine = keyof typeof engines;
 const engineNames = Object.keys(engines) as Engine[];
+
+function startEngine(engine: Engine, graph: SpikeGraph) {
+	if (engine === "d3-force") {
+		const { tickets: _tickets, ...forceGraph } = graph;
+		const worker = forceWorker();
+		return {
+			run: () => forceTimed(worker, forceGraph),
+			stop: () => worker.terminate(),
+		};
+	}
+	const { options, lift } = engines[engine];
+	const input = elkGraph(graph, { ...options, ...coords }, options, lift);
+	const elk = freshElk();
+	return {
+		run: () => timed(elk, input),
+		stop: () => elk.terminateWorker(),
+	};
+}
 
 // 1. Layout time of `layered` and `stress`, in a Web Worker, with nested frames.
 console.log(
@@ -228,7 +241,7 @@ console.log(
 );
 const laidOut = new Map<
 	string,
-	{ graph: SpikeGraph; laid: Record<Engine, ElkNode> }
+	{ graph: SpikeGraph; laid: Map<Engine, ElkNode> }
 >();
 for (const [index, name] of projects.entries()) {
 	const shownReport = reports[index];
@@ -241,39 +254,20 @@ for (const [index, name] of projects.entries()) {
 	] as const) {
 		for (const groupBy of ["workstream", "theme"] as const) {
 			const graph = spikeGraph(report, parents, groupBy, true);
-			const laid: Partial<Record<Engine, ElkNode>> = {};
+			const laid = new Map<Engine, ElkNode>();
 			const times: string[] = [];
 			for (const engine of engineNames) {
-				const { options, lift } = engines[engine];
-				const input = elkGraph(graph, { ...options, ...coords }, options, lift);
-				const elk = freshElk();
-				const worker = forceWorker();
-				const run = () =>
-					engine === "d3-force" ? forceTimed(worker, graph) : timed(elk, input);
+				const { run, stop } = startEngine(engine, graph);
 				const cold = await run();
 				const warm: number[] = [];
 				for (let again = 0; again < 5; again += 1) {
 					warm.push((await run()).ms);
 				}
-				elk.terminateWorker();
-				worker.terminate();
-				laid[engine] = cold.laid;
+				stop();
+				laid.set(engine, cold.laid);
 				times.push(`${round(cold.ms)} | ${round(median(warm))}`);
 			}
-			laidOut.set(`${name}\n${ticketSet}\n${groupBy}`, {
-				graph,
-				laid: {
-					layered: laid.layered ?? { id: "root" },
-					"layered, groups apart": laid["layered, groups apart"] ?? {
-						id: "root",
-					},
-					stress: laid.stress ?? { id: "root" },
-					"stress, lifted arrows": laid["stress, lifted arrows"] ?? {
-						id: "root",
-					},
-					"d3-force": laid["d3-force"] ?? { id: "root" },
-				},
-			});
+			laidOut.set(`${name}\n${ticketSet}\n${groupBy}`, { graph, laid });
 			const cards =
 				graph.outside.length + graph.groups.flatMap(frameCards).length;
 			console.log(
@@ -342,7 +336,7 @@ for (const groupBy of ["workstream", "theme"] as const) {
 			}
 			if (
 				!nested &&
-				(variant.name === "default" || variant.name === bestVariant)
+				(variant.name === "default" || variant.name === bestOptions.name)
 			) {
 				const slug = variant.name === "default" ? "default" : "best";
 				await writeFile(
@@ -357,7 +351,7 @@ for (const groupBy of ["workstream", "theme"] as const) {
 			}
 		}
 	}
-	const columns = ["hand-written", "default", bestVariant];
+	const columns = ["hand-written", "default", bestOptions.name];
 	console.log(`\n| Group | Cards | ${columns.join(" | ")} |`);
 	console.log(`|---|---|${columns.map(() => "---|").join("")}`);
 	const cardsOf = new Map(hand.map((group) => [group.name, group.cards]));
@@ -450,7 +444,7 @@ for (const [key, entry] of laidOut) {
 	for (const engine of engineNames) {
 		const check = checkLayout(
 			entry.graph,
-			entry.laid[engine],
+			entry.laid.get(engine) ?? { id: "root" },
 			engine !== "layered",
 		);
 		console.log(
@@ -477,7 +471,7 @@ for (const [name, slug, ticketSet] of [
 			elkPage(
 				`${name}, ${tickets}, Group by Workstream, nested frames, ${how}`,
 				entry.graph,
-				entry.laid[engine],
+				entry.laid.get(engine) ?? { id: "root" },
 				engine !== "layered",
 			),
 		);

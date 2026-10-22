@@ -53,7 +53,7 @@ type Item = { members: CardDatum[]; box: () => Box };
 
 /** The sibling items of each container: its frames, and each loose card on its own. */
 function siblingLevels(
-	graph: SpikeGraph,
+	graph: Omit<SpikeGraph, "tickets">,
 	at: Map<string, CardDatum>,
 ): Item[][] {
 	const datums = (ids: readonly string[]) =>
@@ -145,7 +145,10 @@ function frameForce(levels: readonly Item[][]) {
 }
 
 /** Lays out the spike graph with d3-force and returns it in ELK's shape, root coordinates. */
-export function forceLayout(graph: SpikeGraph, ticks = 300): ElkNode {
+export function forceLayout(
+	graph: Omit<SpikeGraph, "tickets">,
+	ticks = 300,
+): ElkNode {
 	const ids = [...graph.outside, ...graph.groups.flatMap(frameCards)];
 	const nodes: CardDatum[] = ids.map((id, index) => ({
 		id,

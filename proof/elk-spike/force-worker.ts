@@ -4,6 +4,6 @@ import type { SpikeGraph } from "./graph.ts";
 
 declare const self: Worker;
 
-self.onmessage = (event: MessageEvent<SpikeGraph>) => {
+self.onmessage = (event: MessageEvent<Omit<SpikeGraph, "tickets">>) => {
 	self.postMessage(forceLayout(event.data));
 };
