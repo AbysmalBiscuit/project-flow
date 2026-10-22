@@ -34,6 +34,8 @@ workcell walk-replay --walk-file proof/walk-311-keep.json --proof .devkit/proof 
 
 `keep-before` shows the table and the selected row. `keep-expanded` covers that view. `keep-after` shows the same selected row after collapse. `keep-graph` shows the graph after a zoom and a collapse. The ticket stays open and the zoom tools stay on the page.
 
+The graph tools print the viewport as `zoom <scale> at <x>,<y>` in a hidden probe. The walk asserts that text after `Zoom in` and again after the collapse. The values hold for the replay viewport of 1280 by 800.
+
 The walk format has no scroll step. `proof/measure-scroll-311.mjs` sets the board lane scroller to 200 and the table scroller to 33, expands, collapses, and writes `.devkit/proof/walk-311-scroll.log`. That folder is gitignored. Do not commit the log.
 
 ```bash

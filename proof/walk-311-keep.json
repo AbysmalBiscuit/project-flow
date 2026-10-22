@@ -21,11 +21,14 @@
 		{ "assert_text": "Expand" },
 		{ "click": "#view-graph" },
 		{ "assert_text": "Fit" },
+		{ "assert_text": "zoom 0.405 at" },
 		{ "click": "[aria-label='Zoom in']" },
+		{ "assert_text": "zoom 0.486 at 30,82" },
 		{ "click": "[aria-label='Expand panel']" },
 		{ "assert_text": "Collapse" },
 		{ "click": "[aria-label='Collapse panel']" },
-		{ "assert_text": "Fit" },
+		{ "assert_text": "Expand" },
+		{ "assert_text": "zoom 0.486 at 30,82" },
 		{ "shot": "keep-graph" }
 	]
 }
