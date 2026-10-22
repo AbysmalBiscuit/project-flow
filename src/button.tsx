@@ -67,8 +67,8 @@ type ButtonProps = Content &
 	};
 
 /**
- * One control height for every mix of icon and label. An icon-only button
- * takes `name` as its accessible name and its tooltip.
+ * One control height for every mix of icon and label. `name`, when given,
+ * sets the accessible name and the tooltip. An icon-only button requires it.
  */
 export function Button(props: ButtonProps) {
 	const { icon, label, name, iconSide = "left" } = props;
