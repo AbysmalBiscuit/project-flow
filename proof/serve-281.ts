@@ -239,7 +239,11 @@ await writeFile(
 		pollIntervalSeconds: 3600,
 		theme: "light",
 		projectViews: {
-			"Widget board": { openView: "board", groupBy: "none" },
+			"Widget board": {
+				openView: "board",
+				groupBy: "none",
+				shownLanes: ["In review", "Done"],
+			},
 		},
 	})}\n`,
 );

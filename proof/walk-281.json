@@ -3,7 +3,7 @@
 	"serve": ["bun", "proof/serve-281.ts", "4281"],
 	"steps": [
 		{ "goto": "/projects/Widget%20board" },
-		{ "assert_text": "In review 1" },
+		{ "assert_text": "IN REVIEW 1" },
 		{ "assert_text": "#205" },
 		{ "shot": "in-review" },
 		{ "goto": "/proof/refresh" },
@@ -12,7 +12,7 @@
 		{ "click": "#overview-refresh" },
 		{ "assert_text": "Widget board" },
 		{ "goto": "/projects/Widget%20board" },
-		{ "assert_text": "Done 1" },
+		{ "assert_text": "DONE 1" },
 		{ "assert_text": "#205" },
 		{ "shot": "done-lane" }
 	]
