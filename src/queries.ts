@@ -355,10 +355,9 @@ function seedStoredProject(pathname: string, stored: unknown): void {
 	} catch {
 		return;
 	}
-	seedQueryData(
+	pageQueryClient.setQueryData(
 		pageQuery.project(name).queryKey,
 		report as ProjectReport,
-		pollUpdatedAt(report.fetchedAt),
 	);
 }
 

@@ -20,7 +20,7 @@ workcell walk-replay --walk-file proof/walk-288-age.json --proof .devkit/proof -
 
 The shots name an age in seconds, then `polled 5 min ago`, then `polled 2 h ago`. The seconds count moves while the page stays open. The minutes and hours counts stay on those units.
 
-DECIDED: the age reads `fetchedAt` from the query data when the response carries it, and `dataUpdatedAt` when it does not. The project response already carries that poll time, so the report exposes it. A seeded overview stamps `dataUpdatedAt` from the same field.
+DECIDED: the age reads `dataUpdatedAt` from the page query. The project response carries no poll time. A seeded overview stamps `dataUpdatedAt` from its `fetchedAt`. The proof server stamps the project query `dataUpdatedAt` from the recorded poll time. The app ships none of that stamp.
 
 DECIDED: the shared pieces are `PollAgeText` and `RefreshButton` in `src/poll-freshness.tsx`. The age text sits in the subtitle. The button sits in the page actions. The project page keeps its own header, so the button sits in that header's toolbar.
 

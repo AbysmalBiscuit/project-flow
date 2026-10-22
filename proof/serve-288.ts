@@ -235,6 +235,7 @@ const gate = Bun.serve({
 		});
 		if (request.method === "GET" && url.pathname.startsWith("/projects/")) {
 			const html = await upstream.text();
+			const pollAt = anchorAt + pollLagMs - ageOffset;
 			const clock =
 				`<script>` +
 				`(function(){` +
@@ -254,6 +255,18 @@ const gate = Bun.serve({
 				`globalThis.__projectFlowProofAddOffset=function(ms){offset+=ms};` +
 				`})();` +
 				`</script>`;
+			const stamp =
+				`<script type="module">` +
+				`var queries=await import("/src/queries.ts");` +
+				`var name=decodeURIComponent(location.pathname.slice("/projects/".length));` +
+				`var key=queries.pageQuery.project(name).queryKey;` +
+				`var deadline=Date.now()+8000;` +
+				`while(queries.pageQueryClient.getQueryData(key)===undefined&&Date.now()<deadline){` +
+				`await new Promise(function(resolve){setTimeout(resolve,20)});` +
+				`}` +
+				`var data=queries.pageQueryClient.getQueryData(key);` +
+				`if(data!==undefined){queries.pageQueryClient.setQueryData(key,data,{updatedAt:${pollAt}})}` +
+				`</script>`;
 			const withClock = html.includes("</head>")
 				? html.replace("</head>", `${clock}</head>`)
 				: `${clock}${html}`;
@@ -267,8 +280,8 @@ const gate = Bun.serve({
 				`document.getElementById("proof-add-hours").addEventListener("click",()=>globalThis.__projectFlowProofAddOffset(${2 * 60 * 60_000}));` +
 				`</script>`;
 			const marked = withClock.includes("</body>")
-				? withClock.replace("</body>", `${arm}</body>`)
-				: `${withClock}${arm}`;
+				? withClock.replace("</body>", `${stamp}${arm}</body>`)
+				: `${withClock}${stamp}${arm}`;
 			const pageHeaders = new Headers(upstream.headers);
 			pageHeaders.delete("content-length");
 			return new Response(marked, {

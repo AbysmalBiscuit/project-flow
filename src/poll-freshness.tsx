@@ -7,13 +7,6 @@ import { clsx } from "./ui.ts";
 import { headerControlStyle, shell } from "./ui-styles.ts";
 
 function queryFetchedAt(queryKey: readonly unknown[]): number {
-	const data = pageQueryClient.getQueryData(queryKey) as
-		| { fetchedAt?: string | null }
-		| undefined;
-	const fetchedAt = Date.parse(data?.fetchedAt ?? "");
-	if (!Number.isNaN(fetchedAt) && fetchedAt > 0) {
-		return fetchedAt;
-	}
 	return pageQueryClient.getQueryState(queryKey)?.dataUpdatedAt ?? 0;
 }
 
