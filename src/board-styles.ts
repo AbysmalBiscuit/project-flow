@@ -597,6 +597,44 @@ export const board = stylex.create({
 		color: colours.ink,
 		fontWeight: type.weight,
 	},
+	rowTree: {
+		display: "flex",
+		alignItems: "center",
+	},
+	rowIndent: {
+		paddingLeft: space.lg,
+	},
+	rowToggle: {
+		flex: "0 0 auto",
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		width: space.lg,
+		height: space.lg,
+		marginRight: space.xs,
+		padding: 0,
+		borderWidth: 0,
+		borderRadius: radius.sm,
+		backgroundColor: {
+			default: "transparent",
+			":hover": colours.chip,
+		},
+		color: colours.inkSoft,
+		cursor: "pointer",
+	},
+	rowToggleSpace: {
+		flex: "0 0 auto",
+		width: space.lg,
+		marginRight: space.xs,
+	},
+	rowToggleMark: {
+		width: measure.sortMark,
+		height: measure.sortMark,
+		transform: "rotate(90deg)",
+	},
+	rowToggleShut: {
+		transform: "none",
+	},
 	stateMark: {
 		display: "inline-block",
 		width: measure.dot,
