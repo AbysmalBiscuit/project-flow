@@ -129,13 +129,20 @@ const walkScript = `<script id="walk-theme">(function () {
 	}
 	var seen = "";
 	walkEsc.addEventListener("input", function () {
+		var before = document.activeElement;
 		var stamp = walkEsc.value;
 		walkEsc.value = "";
 		if (stamp === "" || stamp === seen) {
 			return;
 		}
 		seen = stamp;
-		walkEsc.blur();
+		if (
+			before instanceof HTMLElement &&
+			before.isConnected &&
+			before !== walkEsc
+		) {
+			before.focus();
+		}
 		var event = new KeyboardEvent("keydown", {
 			key: "Escape",
 			code: "Escape",
