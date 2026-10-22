@@ -1,11 +1,12 @@
 /**
  * The spike graph: tickets, blocker links, groups and parent ticket frames of
- * one project report, as the elkjs spike for issue 349 lays them out.
+ * one project report, as the elkjs spike lays them out.
  */
 import type { ElkNode } from "elkjs/lib/elk-api.js";
 import type { ProjectReport } from "../../src/domain.ts";
 import {
 	type FlowTicket,
+	flowGap,
 	graphBand,
 	graphEdges,
 	graphTickets,
@@ -14,7 +15,7 @@ import {
 import type { GroupBy } from "../../src/view-settings.ts";
 
 export const card = { width: 220, height: 96 };
-export const cell = { width: 280, height: 148 };
+export const cell = { width: flowGap.along, height: flowGap.across };
 export const framePad = { side: 16, head: 28 };
 
 export type Recorded = { url: string; body: string; text: string };
@@ -135,8 +136,8 @@ function parentKey(parent: unknown): string | null {
 /**
  * Groups the tickets like the project graph, then nests parent ticket frames
  * to full depth inside each group. A parent ticket tree joins the group that
- * most of its tickets have, as the shared-group rule of issue 350 asks. A
- * parent ticket that the graph does not show heads its frame as an outside card.
+ * most of its tickets have. A parent ticket that the graph does not show heads
+ * its frame as an outside card.
  */
 export function spikeGraph(
 	report: ProjectReport,

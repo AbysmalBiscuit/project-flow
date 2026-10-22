@@ -64,7 +64,6 @@ export const centre = (rect: Rect) => ({
 	y: rect.y + rect.height / 2,
 });
 
-/** Frame check and arrow readability of one layout. */
 /** ELK's route of an arrow, or a straight line when the layout gives none. */
 function arrowPoints(
 	laid: ElkExtendedEdge | undefined,
@@ -80,6 +79,7 @@ function arrowPoints(
 	return straight || routed.length === 0 ? [centre(from), centre(to)] : routed;
 }
 
+/** Frame check and arrow readability of one layout. */
 export function checkLayout(
 	graph: SpikeGraph,
 	laid: ElkNode,
