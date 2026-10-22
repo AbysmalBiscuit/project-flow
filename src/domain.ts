@@ -806,11 +806,14 @@ function mergeBlockedBy(rows: TicketRef[][]): TicketRef[] {
 				continue;
 			}
 			const kept = refs[earlier];
-			if (
-				kept !== undefined &&
-				ref.state === "closed" &&
-				kept.state !== "closed"
-			) {
+			if (kept === undefined) {
+				continue;
+			}
+			if (ref.state === "open" && kept.state === "closed") {
+				refs[earlier] = ref;
+				continue;
+			}
+			if (ref.state === "closed" && kept.state !== "closed") {
 				refs[earlier] = ref;
 			}
 		}
@@ -1379,10 +1382,13 @@ function known(index: TicketIndex, ref: TicketRef): Ticket | undefined {
 }
 
 function stillOpen(ref: TicketRef, index: TicketIndex): boolean {
+	const ticket = known(index, ref);
+	if (ticket !== undefined && ticket.state === "open") {
+		return true;
+	}
 	if (ref.state === "closed") {
 		return false;
 	}
-	const ticket = known(index, ref);
 	if (ticket !== undefined) {
 		return ticket.state === "open";
 	}
