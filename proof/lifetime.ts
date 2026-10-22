@@ -211,7 +211,7 @@ const walkScript = `<script id="walk-theme">(function () {
 				return;
 			}
 			var style = getComputedStyle(node);
-			out.textContent = "style " + style.animationName + " offset " + style.strokeDashoffset;
+			out.textContent = "style " + style.animationName + " offset " + style.strokeDashoffset + " fade " + style.transitionProperty + " " + style.transitionDuration + " opacity " + style.opacity;
 		});
 	}
 	var walkBoxes = document.getElementById("walk-boxes");
