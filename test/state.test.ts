@@ -1488,6 +1488,72 @@ describe("forward state", () => {
 		}
 	});
 
+	test("a closed issue with a merged closing PR reports state done", async () => {
+		const issues = (await recordedJson("github-issues.json")) as Record<
+			string,
+			unknown
+		>[];
+		const pulls = (await recordedJson("github-open-pulls.json")) as Record<
+			string,
+			unknown
+		>[];
+		const issue = issues[0];
+		const pull = pulls[0];
+		if (issue === undefined || pull === undefined) {
+			throw new Error("recorded #205 and #206 responses are missing");
+		}
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 4 }],
+			}),
+			boardFetch(
+				[
+					boardItem(
+						205,
+						String(issue.title),
+						{ name: "In review", color: "PURPLE" },
+						{ updatedAt: "2026-10-21T12:00:00Z" },
+						{
+							state: "CLOSED",
+							stateReason: "COMPLETED",
+							updatedAt: "2026-10-21T12:00:00Z",
+							closedByPullRequestsReferences: {
+								nodes: [
+									{
+										number: 206,
+										repository: { nameWithOwner: githubRepo },
+									},
+								],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					),
+				],
+				[
+					{
+						...pull,
+						state: "closed",
+						closed_at: "2026-10-21T11:52:35Z",
+						merged_at: "2026-10-21T11:52:35Z",
+						html_url: `https://github.com/${githubRepo}/pull/206`,
+					},
+				],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await projectOf(base, "Widget board");
+				expect(ticketOf(report, `${githubRepo}#205`)).toMatchObject({
+					state: "done",
+					lane: "Done",
+					statusType: "done",
+					pull: `${githubRepo}#206`,
+				});
+			},
+			undefined,
+			new Date("2026-10-22T00:00:00Z"),
+		);
+	});
+
 	test("a merged PR moves its ticket to Done only when the body closes the ticket", async () => {
 		const merged = (await recordedJson(
 			"github-pull-merged.json",

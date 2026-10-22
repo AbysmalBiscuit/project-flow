@@ -1,0 +1,10 @@
+{
+	"base_url": "http://127.0.0.1:4281",
+	"serve": ["bun", "proof/serve-281.ts", "4281"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "#205" },
+		{ "assert_text": "Done" },
+		{ "shot": "done-lane" }
+	]
+}
