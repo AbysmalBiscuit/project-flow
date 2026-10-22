@@ -86,7 +86,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			description
 			state { id name type color }
 			updatedAt
-			parent { identifier }
+			parent { identifier title url state { type } project { name } }
 			projectMilestone { name }
 			labels { nodes { name } }
 			assignee { id name displayName }
@@ -193,7 +193,16 @@ const issueNode = z.object({
 			color: z.string().optional(),
 		})
 		.nullable(),
-	parent: z.object({ identifier: z.string() }).nullable().optional(),
+	parent: z
+		.object({
+			identifier: z.string(),
+			title: z.string().optional(),
+			url: z.string().optional(),
+			state: z.object({ type: z.string() }).nullable().optional(),
+			project: z.object({ name: z.string() }).nullable().optional(),
+		})
+		.nullable()
+		.optional(),
 	projectMilestone: z.object({ name: z.string() }).nullable().optional(),
 	labels: z
 		.object({ nodes: z.array(z.object({ name: z.string() })) })
@@ -354,6 +363,32 @@ function blocking(node: z.infer<typeof issueNode>): TicketRef[] {
 	});
 }
 
+function parentDetailsOf(
+	parent: z.infer<typeof issueNode>["parent"],
+): Pick<Ticket, "parentDetails"> {
+	const mapped =
+		parent?.state === null || parent?.state === undefined
+			? null
+			: toState(parent.state.type);
+	if (
+		parent === null ||
+		parent === undefined ||
+		parent.title === undefined ||
+		parent.url === undefined ||
+		mapped === null
+	) {
+		return {};
+	}
+	return {
+		parentDetails: {
+			title: parent.title,
+			state: mapped.state,
+			project: parent.project?.name ?? "",
+			url: parent.url,
+		},
+	};
+}
+
 function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 	if (node.state === null || node.identifier === undefined) {
 		return null;
@@ -396,6 +431,7 @@ function toTicket(node: z.infer<typeof issueNode>): Ticket | null {
 		...(comments.length === 0 ? {} : { comments }),
 		milestone: node.projectMilestone?.name ?? null,
 		parent: node.parent?.identifier ?? null,
+		...parentDetailsOf(node.parent),
 		labels: (node.labels?.nodes ?? []).map((label) => label.name),
 		...(node.assignee === undefined ? {} : { assignee }),
 		...(status === undefined ? {} : { status }),

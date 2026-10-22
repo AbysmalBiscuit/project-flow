@@ -637,7 +637,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 							repository { nameWithOwner }
 							milestone { title }
 							labels(first: 20) { nodes { name } }
-							parent { number repository { nameWithOwner } }
+							parent { number title state url repository { nameWithOwner } }
 							closedByPullRequestsReferences(first: 20) {
 								nodes { number repository { nameWithOwner } }
 								pageInfo { hasNextPage endCursor }
@@ -687,6 +687,37 @@ const blockedByPage = z.object({
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
+const githubParent = z.object({
+	number: z.number(),
+	title: z.string().nullable().optional(),
+	state: z.string().optional(),
+	url: z.string().optional(),
+	repository: z.object({ nameWithOwner: z.string() }),
+});
+
+function parentOf(
+	parent: z.infer<typeof githubParent> | null | undefined,
+): Pick<Ticket, "parent" | "parentDetails"> {
+	if (parent === null || parent === undefined) {
+		return { parent: null };
+	}
+	const project = parent.repository.nameWithOwner;
+	const key = `${project}#${parent.number}`;
+	const state = githubState(parent.state ?? "");
+	if (state === null || parent.url === undefined) {
+		return { parent: key };
+	}
+	return {
+		parent: key,
+		parentDetails: {
+			title: parent.title ?? "",
+			state,
+			project,
+			url: parent.url,
+		},
+	};
+}
+
 const projectItem = z.object({
 	fieldValueByName: z
 		.object({
@@ -715,13 +746,7 @@ const projectItem = z.object({
 				})
 				.nullable()
 				.optional(),
-			parent: z
-				.object({
-					number: z.number(),
-					repository: z.object({ nameWithOwner: z.string() }),
-				})
-				.nullable()
-				.optional(),
+			parent: githubParent.nullable().optional(),
 			body: z.string().nullable().optional(),
 			blockedBy: z
 				.object({
@@ -1202,10 +1227,6 @@ async function listProjectTickets(
 			continue;
 		}
 		const repoName = content.repository.nameWithOwner;
-		const parent =
-			content.parent === null || content.parent === undefined
-				? null
-				: `${content.parent.repository.nameWithOwner}#${content.parent.number}`;
 		const ticketKey = `${repoName}#${content.number}`;
 		const comments =
 			state === "open" &&
@@ -1241,7 +1262,7 @@ async function listProjectTickets(
 			blockedBy: dependencyRefs(blockedByNodes, repoName),
 			...(comments.length === 0 ? {} : { comments }),
 			milestone: content.milestone?.title ?? null,
-			parent,
+			...parentOf(content.parent),
 			labels:
 				content.labels?.nodes.flatMap((label) =>
 					label === undefined ? [] : [label.name],
@@ -1714,7 +1735,7 @@ function issueNodeFields(include: boolean): string {
 				labels(first: ${pageSize}) { nodes { name color } ${connectionPage} }
 				assignees(first: 10) { nodes { login } }
 				milestone { title }
-				parent { number repository { nameWithOwner } }
+				parent { number title state url repository { nameWithOwner } }
 				blockedBy(first: 20) {
 					nodes { number title state repository { nameWithOwner } }
 					${connectionPage}
@@ -1822,15 +1843,7 @@ const graphqlIssueNode = z.object({
 		.object({ nodes: z.array(z.object({ login: z.string() })) })
 		.optional(),
 	milestone: z.object({ title: z.string() }).nullable().optional(),
-	parent: z
-		.object({
-			number: z.number(),
-			title: z.string().nullable().optional(),
-			repository: z.object({ nameWithOwner: z.string() }),
-		})
-		.nullable()
-		.optional()
-		.catch(null),
+	parent: githubParent.nullable().optional().catch(null),
 	blockedBy: graphqlConnection(graphqlDependency).optional().catch(undefined),
 	blocking: graphqlConnection(graphqlDependency).optional(),
 });
@@ -2158,10 +2171,7 @@ function ticketFromGraphql(
 		...(blocking.length === 0 ? {} : { blocks: blocking }),
 		...(comments.length === 0 ? {} : { comments }),
 		milestone: issue.milestone?.title ?? null,
-		parent:
-			issue.parent === undefined || issue.parent === null
-				? null
-				: `${issue.parent.repository.nameWithOwner}#${issue.parent.number}`,
+		...parentOf(issue.parent),
 		labels:
 			issue.labels?.nodes.flatMap((label) =>
 				label === undefined ? [] : [label.name],
