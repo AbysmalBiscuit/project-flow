@@ -5,6 +5,7 @@ import {
 	githubFetch,
 	githubRepo,
 	issue,
+	linearIssue,
 	linearIssues,
 	linearSlug,
 	otherRepo,
@@ -14,9 +15,148 @@ import {
 	emptyProjectFields,
 	linearFake,
 	recordedDiscovery,
+	type TrackerRequest,
+	trackerRequest,
 	unrecorded,
 	urlOf,
 } from "./support.ts";
+
+const linearProject = {
+	id: "project-widget",
+	name: "Widget launch",
+	slugId: linearSlug,
+};
+
+const platformEpic = {
+	identifier: "PLT-3",
+	title: "Platform epic",
+	url: "https://linear.app/acme/issue/PLT-3/platform-epic",
+	state: { type: "started" },
+	project: { name: "Platform" },
+};
+
+const underPlatform = {
+	id: "under-platform",
+	identifier: "WID-5",
+	title: "Wire the platform hook",
+	description: "",
+	state: { type: "unstarted" },
+	updatedAt: "2026-08-18T12:00:00.000Z",
+	parent: platformEpic,
+	projectMilestone: null,
+	labels: { nodes: [] },
+};
+
+const underPlatformGate = issue(25, "Wait on the other repo", {
+	parent: {
+		number: 9,
+		title: "Platform gate",
+		state: "CLOSED",
+		url: `https://github.com/${otherRepo}/issues/9`,
+		repository: { nameWithOwner: otherRepo },
+	},
+});
+
+const projectId = "PVT_widget";
+const widgetBoard: Fetch = async (input, init) => {
+	const url = urlOf(input);
+	const body = typeof init?.body === "string" ? init.body : "";
+	const discovered = recordedDiscovery(input, init);
+	if (discovered !== null) {
+		return discovered;
+	}
+	if (url === "https://api.github.com/user") {
+		return Response.json({ login: "lev" });
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ProjectByNumber")
+	) {
+		return Response.json({
+			data: {
+				repositoryOwner: {
+					projectV2: {
+						id: projectId,
+						number: 3,
+						title: "Widget board",
+						closed: false,
+						updatedAt: "2026-08-18T12:00:00Z",
+					},
+				},
+			},
+		});
+	}
+	if (
+		url === "https://api.github.com/graphql" &&
+		body.includes("ProjectFields")
+	) {
+		return emptyProjectFields(input, init) ?? unrecorded(input);
+	}
+	if (url === "https://api.github.com/graphql" && body.includes("node(id:")) {
+		return Response.json({
+			data: {
+				node: {
+					items: {
+						nodes: [
+							{
+								content: {
+									__typename: "Issue",
+									number: 11,
+									title: "Ship the board",
+									state: "OPEN",
+									stateReason: null,
+									updatedAt: "2026-08-18T12:00:00Z",
+									repository: { nameWithOwner: githubRepo },
+									milestone: { title: "October" },
+									labels: { nodes: [{ name: "epic" }] },
+									parent: null,
+								},
+							},
+							{
+								content: {
+									__typename: "Issue",
+									number: 12,
+									title: "Draw the legend",
+									state: "OPEN",
+									stateReason: null,
+									updatedAt: "2026-08-18T12:00:00Z",
+									repository: { nameWithOwner: githubRepo },
+									milestone: { title: "October" },
+									labels: { nodes: [] },
+									parent: {
+										number: 11,
+										repository: { nameWithOwner: githubRepo },
+									},
+								},
+							},
+							{
+								content: {
+									__typename: "DraftIssue",
+									title: "Not a ticket",
+								},
+							},
+						],
+						pageInfo: { hasNextPage: false, endCursor: null },
+					},
+				},
+			},
+		});
+	}
+	return emptyProjectFields(input, init) ?? unrecorded(input);
+};
+function recording(sent: TrackerRequest[], inner: Fetch): Fetch {
+	return (input, init) => {
+		sent.push(trackerRequest(input, init));
+		return inner(input, init);
+	};
+}
+
+async function reportOf(base: string, name: string): Promise<ProjectReport> {
+	const response = await fetch(
+		new URL(`/api/projects/${encodeURIComponent(name)}`, base),
+	);
+	return (await response.json()) as ProjectReport;
+}
 
 describe("GET /api/projects/:name", () => {
 	test("the same tracker data gives the same project report", async () => {
@@ -475,101 +615,11 @@ describe("GET /api/projects/:name", () => {
 	});
 
 	test("a Projects v2 pin groups by milestone, epic label and parent", async () => {
-		const projectId = "PVT_widget";
-		const board: Fetch = async (input, init) => {
-			const url = urlOf(input);
-			const body = typeof init?.body === "string" ? init.body : "";
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			if (url === "https://api.github.com/user") {
-				return Response.json({ login: "lev" });
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ProjectByNumber")
-			) {
-				return Response.json({
-					data: {
-						repositoryOwner: {
-							projectV2: {
-								id: projectId,
-								number: 3,
-								title: "Widget board",
-								closed: false,
-								updatedAt: "2026-08-18T12:00:00Z",
-							},
-						},
-					},
-				});
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("ProjectFields")
-			) {
-				return emptyProjectFields(input, init) ?? unrecorded(input);
-			}
-			if (
-				url === "https://api.github.com/graphql" &&
-				body.includes("node(id:")
-			) {
-				return Response.json({
-					data: {
-						node: {
-							items: {
-								nodes: [
-									{
-										content: {
-											__typename: "Issue",
-											number: 11,
-											title: "Ship the board",
-											state: "OPEN",
-											stateReason: null,
-											updatedAt: "2026-08-18T12:00:00Z",
-											repository: { nameWithOwner: githubRepo },
-											milestone: { title: "October" },
-											labels: { nodes: [{ name: "epic" }] },
-											parent: null,
-										},
-									},
-									{
-										content: {
-											__typename: "Issue",
-											number: 12,
-											title: "Draw the legend",
-											state: "OPEN",
-											stateReason: null,
-											updatedAt: "2026-08-18T12:00:00Z",
-											repository: { nameWithOwner: githubRepo },
-											milestone: { title: "October" },
-											labels: { nodes: [] },
-											parent: {
-												number: 11,
-												repository: { nameWithOwner: githubRepo },
-											},
-										},
-									},
-									{
-										content: {
-											__typename: "DraftIssue",
-											title: "Not a ticket",
-										},
-									},
-								],
-								pageInfo: { hasNextPage: false, endCursor: null },
-							},
-						},
-					},
-				});
-			}
-			return emptyProjectFields(input, init) ?? unrecorded(input);
-		};
 		await withApp(
 			JSON.stringify({
 				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
 			}),
-			board,
+			widgetBoard,
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = (await (
@@ -634,5 +684,168 @@ describe("GET /api/projects/:name", () => {
 				});
 			},
 		);
+	});
+
+	test("a three-level Linear chain gives each ticket its parent key", async () => {
+		const issues = [
+			{
+				...linearIssue("WID-1", "", "started"),
+				title: "Launch epic",
+				parent: null,
+			},
+			{
+				...linearIssue("WID-4", "", "unstarted"),
+				title: "Ship the list",
+				parent: { identifier: "WID-1" },
+			},
+			{
+				...linearIssue("WID-6", "", "unstarted"),
+				title: "Name the list",
+				parent: { identifier: "WID-1" },
+			},
+			{
+				...linearIssue("WID-8", "", "unstarted"),
+				title: "List the rows",
+				parent: { identifier: "WID-4" },
+			},
+		];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({ project: linearProject, issues }),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await reportOf(base, "Widget launch");
+				const hierarchy = Object.fromEntries(
+					report.tickets.map((ticket) => [
+						ticket.key,
+						{ parent: ticket.parent, subTickets: ticket.subTickets },
+					]),
+				);
+				expect(hierarchy).toEqual({
+					"WID-1": { parent: undefined, subTickets: 2 },
+					"WID-4": { parent: "WID-1", subTickets: 1 },
+					"WID-6": { parent: "WID-1", subTickets: undefined },
+					"WID-8": { parent: "WID-4", subTickets: undefined },
+				});
+				expect(report.outsideParents).toEqual([]);
+			},
+		);
+	});
+
+	test("a parent ticket in another project gives an outside parent entry", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({ project: linearProject, issues: [underPlatform] }),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await reportOf(base, "Widget launch");
+				expect(
+					report.tickets.find((ticket) => ticket.key === "WID-5")?.parent,
+				).toBe("PLT-3");
+				expect(report.outsideParents).toEqual([
+					{
+						tracker: "linear",
+						project: "Platform",
+						key: "PLT-3",
+						title: "Platform epic",
+						state: "open",
+						url: "https://linear.app/acme/issue/PLT-3/platform-epic",
+					},
+				]);
+			},
+		);
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch([underPlatformGate], []),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await reportOf(base, githubRepo);
+				expect(
+					report.tickets.find((ticket) => ticket.key === `${githubRepo}#25`)
+						?.parent,
+				).toBe(`${otherRepo}#9`);
+				expect(report.outsideParents).toEqual([
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#9`,
+						title: "Platform gate",
+						state: "closed",
+						url: `https://github.com/${otherRepo}/issues/9`,
+					},
+				]);
+			},
+		);
+	});
+
+	test("the tracker reads ask for the parent fields and send no request per parent", async () => {
+		const linearSent: TrackerRequest[] = [];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({
+				project: linearProject,
+				issues: [underPlatform],
+				sent: linearSent,
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				await reportOf(base, "Widget launch");
+			},
+		);
+		const issueReads = linearSent.filter((sent) =>
+			sent.query.includes("query ProjectIssues"),
+		);
+		expect(issueReads.length).toBeGreaterThan(0);
+		for (const read of issueReads) {
+			expect(read.query).toContain(
+				"parent { identifier title url state { type } project { name } }",
+			);
+		}
+		expect(
+			linearSent.filter((sent) => JSON.stringify(sent).includes("PLT-3")),
+		).toEqual([]);
+		const githubSent: TrackerRequest[] = [];
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			recording(githubSent, githubFetch([underPlatformGate], [])),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				await reportOf(base, githubRepo);
+			},
+		);
+		const repoReads = githubSent.filter((sent) =>
+			sent.query.includes("query RepoRead"),
+		);
+		expect(repoReads.length).toBeGreaterThan(0);
+		expect(
+			repoReads.some((read) =>
+				read.query.includes(
+					"parent { number title state url repository { nameWithOwner } }",
+				),
+			),
+		).toBe(true);
+		expect(
+			githubSent.filter((sent) => JSON.stringify(sent).includes("platform")),
+		).toEqual([]);
+		const boardSent: TrackerRequest[] = [];
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "github", owner: "acme", project: 3 }],
+			}),
+			recording(boardSent, widgetBoard),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				await reportOf(base, "Widget board");
+			},
+		);
+		const itemReads = boardSent.filter((sent) =>
+			sent.query.includes("query ProjectItems"),
+		);
+		expect(itemReads.length).toBeGreaterThan(0);
+		for (const read of itemReads) {
+			expect(read.query).toContain(
+				"parent { number title state url repository { nameWithOwner } }",
+			);
+		}
 	});
 });

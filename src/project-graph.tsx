@@ -16,6 +16,7 @@ import { board } from "./board-styles.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
+import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import type {
 	ClusterNodeData,
 	TicketEdgeData,
@@ -112,6 +113,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 				) : null}
 			</span>
 			<span className={clsx(board.title)}>{data.ticket.title}</span>
+			{data.hierarchyChips ? <HierarchyChips ticket={data.ticket} /> : null}
 			<Handle type="source" position={Position.Right} id="right" />
 			<Handle type="source" position={Position.Bottom} id="bottom" />
 		</button>

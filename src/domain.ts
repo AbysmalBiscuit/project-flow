@@ -8,6 +8,7 @@ import type {
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import type { HidingFilter } from "./terms.ts";
+import { sameTicketKey } from "./ticket-key.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -102,6 +103,8 @@ export type Ticket = {
 	comments?: Comment[];
 	milestone: string | null;
 	parent: string | null;
+	/** What the tracker read says about the parent ticket. */
+	parentDetails?: ParentDetails;
 	labels: string[];
 	assignee?: string | null;
 	assignees?: string[];
@@ -110,6 +113,13 @@ export type Ticket = {
 	history?: { statusId: string; at: string; statusType?: StatusType }[];
 	closedAt?: string;
 	createdAt?: string;
+};
+
+export type ParentDetails = {
+	title: string;
+	state: "open" | "closed";
+	project: string;
+	url: string;
 };
 
 export type TicketRelation = {
@@ -162,6 +172,8 @@ export type TicketView = {
 	workstreamKey?: string;
 	theme?: string;
 	themeGroup?: string;
+	parent?: string;
+	subTickets?: number;
 };
 
 export type CrossProjectBlocker = {
@@ -169,6 +181,12 @@ export type CrossProjectBlocker = {
 	tracker: "github" | "linear";
 	key: string;
 	title: string;
+};
+
+/** A parent ticket that the project's tickets do not include. */
+export type OutsideParent = CrossProjectBlocker & {
+	state: ParentDetails["state"];
+	url: string;
 };
 
 export type PullRequest = {
@@ -681,6 +699,7 @@ export type ProjectReport = {
 	doneTickets: TicketView[];
 	graphTickets: TicketView[];
 	graphLinks: ShownGraphLink[];
+	outsideParents: OutsideParent[];
 	/** Filters that leave no ticket on the board, graph or table. */
 	hiddenBy?: HidingFilter[];
 };
@@ -3015,6 +3034,7 @@ export function projectCounts(
 	const active = pulls.filter((pull) => !pull.merged);
 	const linkedByTicket = new Map<string, PullRequest[]>();
 	const linkedKeys = new Set<string>();
+	const subTickets = subTicketCounts(tickets);
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, index, parsed, all);
 		const links = linked(ticket, pulls);
@@ -3086,6 +3106,8 @@ export function projectCounts(
 			enteredStateAt: shown.enteredStateAt,
 			...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
 			...assigneesOf(ticket),
+			...(ticket.parent === null ? {} : { parent: ticket.parent }),
+			...countOf(subTickets, ticket.key),
 		});
 		if (blockers.length === 0 || ticket.state !== "open") {
 			continue;
@@ -3166,12 +3188,65 @@ export function projectCounts(
 		pullByKey,
 		needsYouItemsForProject,
 		runByKey,
+		outsideParents(tickets, all),
 	);
 	return {
 		counts: project,
 		needsYou: needsYouItemsForProject,
 		report,
 	};
+}
+
+function subTicketCounts(tickets: Ticket[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const ticket of tickets) {
+		if (ticket.parent !== null) {
+			const key = ticket.parent.toLowerCase();
+			counts.set(key, (counts.get(key) ?? 0) + 1);
+		}
+	}
+	return counts;
+}
+
+function countOf(
+	counts: Map<string, number>,
+	key: string | null,
+): { subTickets?: number } {
+	const count = key === null ? undefined : counts.get(key.toLowerCase());
+	return count === undefined ? {} : { subTickets: count };
+}
+
+function outsideParents(
+	tickets: Ticket[],
+	all: { project: string; tickets: Ticket[] }[],
+): OutsideParent[] {
+	const own = new Set(
+		tickets.flatMap((ticket) =>
+			ticket.key === null ? [] : [ticket.key.toLowerCase()],
+		),
+	);
+	const found = new Map<string, OutsideParent>();
+	for (const ticket of tickets) {
+		const key = ticket.parent;
+		const details = ticket.parentDetails;
+		if (key === null || details === undefined || own.has(key.toLowerCase())) {
+			continue;
+		}
+		const home = all.find((group) =>
+			group.tickets.some(
+				(other) => other.key !== null && sameTicketKey(other.key, key),
+			),
+		)?.project;
+		found.set(key.toLowerCase(), {
+			tracker: ticket.tracker,
+			project: home ?? details.project,
+			key,
+			title: details.title.trim() || key,
+			state: details.state,
+			url: details.url,
+		});
+	}
+	return [...found.values()];
 }
 
 const stateKeys = [
@@ -3985,6 +4060,21 @@ export function outsideKey(project: string, key: string): string {
 	return `${project}#${number}`;
 }
 
+/** The chip that names a parent ticket: an outside parent, else a ticket of the project. */
+export function parentChip(
+	outsideParents: OutsideParent[],
+	key: string,
+): { label: string; outside?: OutsideParent } {
+	const outside = outsideParents.find((parent) =>
+		sameTicketKey(parent.key, key),
+	);
+	if (outside !== undefined) {
+		return { label: outsideKey(outside.project, outside.key), outside };
+	}
+	const mark = key.lastIndexOf("#");
+	return { label: mark === -1 ? key : key.slice(mark) };
+}
+
 function summaryLine(counts: ProjectBody): string {
 	return `${counts.name}: ${counts.done} done, ${counts.dropped} dropped, ${counts.blocked} blocked, ${counts.inProgress} in progress, ${counts.backlog} backlog.`;
 }
@@ -3997,6 +4087,7 @@ export function projectReport(
 	pullByKey: Map<string, string> = new Map(),
 	needs: NeedsYouItem[] = [],
 	runByKey: Map<string, LiveRun> = new Map(),
+	outsideParents: OutsideParent[] = [],
 ): ProjectReport {
 	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
 	const ticketsByKey = new Map(
@@ -4104,6 +4195,7 @@ export function projectReport(
 		doneTickets,
 		graphTickets: graph.tickets,
 		graphLinks: graph.links,
+		outsideParents,
 	};
 }
 

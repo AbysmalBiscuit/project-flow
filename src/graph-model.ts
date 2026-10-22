@@ -7,6 +7,7 @@ import { board } from "./board-styles.ts";
 import {
 	groupLabelOf,
 	type ProjectReport,
+	parentChip,
 	type TicketState,
 } from "./domain.ts";
 import {
@@ -45,6 +46,8 @@ export type GraphTicketView = {
 	workstreamKey?: string;
 	themeGroup?: string;
 	assignees?: string[];
+	parentLabel?: string;
+	subTickets?: number;
 };
 
 export type TicketNodeData = {
@@ -53,6 +56,8 @@ export type TicketNodeData = {
 	project: string;
 	tracker: "github" | "linear";
 	open: boolean;
+	/** A flat grouping shows the parent ticket hierarchy as chips. */
+	hierarchyChips: boolean;
 };
 
 export type ClusterNodeData = {
@@ -93,7 +98,11 @@ type GraphTicket = {
 	outside: boolean;
 };
 
-function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
+function ticketView(
+	ticket: FlowTicket,
+	report: ProjectReport,
+	reports: ProjectReport[],
+): GraphTicket {
 	const home = reports.find(
 		(report) => report.name.toLowerCase() === ticket.project.toLowerCase(),
 	);
@@ -109,6 +118,14 @@ function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
 			...(state === undefined ? {} : { state }),
 			...(known?.pull === undefined ? {} : { pull: known.pull }),
 			...(known?.needsYou === undefined ? {} : { needsYou: known.needsYou }),
+			...(ticket.parent === undefined
+				? {}
+				: {
+						parentLabel: parentChip(report.outsideParents, ticket.parent).label,
+					}),
+			...(ticket.subTickets === undefined
+				? {}
+				: { subTickets: ticket.subTickets }),
 			...(ticket.workstream === undefined
 				? {}
 				: { workstream: ticket.workstream }),
@@ -132,7 +149,9 @@ function shownTickets(
 	report: ProjectReport,
 	reports: ProjectReport[],
 ): GraphTicket[] {
-	return graphTickets(report).map((ticket) => ticketView(ticket, reports));
+	return graphTickets(report).map((ticket) =>
+		ticketView(ticket, report, reports),
+	);
 }
 
 function layoutTickets(
@@ -354,6 +373,7 @@ export function graphModel(
 					project: item.project,
 					tracker: item.tracker,
 					open: openKey === key,
+					hierarchyChips: groupBy === "assignee" || groupBy === "none",
 				},
 			},
 			ticketSizes.get(id) ?? fallback,

@@ -13,6 +13,11 @@ import {
 	useState,
 } from "react";
 import { board } from "./board-styles.ts";
+import {
+	CardHierarchyChips,
+	Chip,
+	OutsideParentsContext,
+} from "./card-chips.tsx";
 import type { ProjectViewSettings } from "./configuration.ts";
 import {
 	type CrossProjectBlocker,
@@ -347,40 +352,6 @@ function relationSplit(ticket: TicketView): {
 	};
 }
 
-function Chip({
-	label,
-	ticketKey,
-	outside,
-	onOpen,
-}: {
-	label: string;
-	ticketKey?: string;
-	outside?: boolean;
-	onOpen?: (key: string) => void;
-}) {
-	if (ticketKey === undefined || onOpen === undefined) {
-		return <span className={clsx(board.chip, board.chipStatic)}>{label}</span>;
-	}
-	return (
-		<button
-			type="button"
-			className={clsx(
-				board.chip,
-				outside && board.chipOutside,
-				shell.buttonFocus,
-			)}
-			data-chip={ticketKey}
-			onClick={(event) => {
-				event.stopPropagation();
-				onOpen(ticketKey);
-			}}
-		>
-			{label}
-			{outside ? " ↗" : ""}
-		</button>
-	);
-}
-
 type TicketFocus = {
 	active: boolean;
 	faded: (key: string | null) => boolean;
@@ -461,8 +432,15 @@ function Card({
 				<p className={clsx(board.title)}>{ticket.title}</p>
 				{local.length === 0 &&
 				outside.length === 0 &&
+				ticket.parent === undefined &&
+				ticket.subTickets === undefined &&
 				!ticket.needsYou ? null : (
 					<span className={clsx(board.chips)}>
+						<CardHierarchyChips
+							ticket={ticket}
+							onOpen={onOpen}
+							onOpenOutside={onOpenOutside}
+						/>
 						{local.map((blocker) => (
 							<Chip
 								key={blocker}
@@ -1030,33 +1008,35 @@ function Board({
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
-		<div
-			className={clsx(board.lanes)}
-			data-lanes=""
-			data-group-by={boardGroupBy(settings)}
-		>
-			{visibleLanes(report, settings).map((lane) => (
-				<Lane
-					key={lane.id}
-					name={lane.name}
-					colour={lane.colour}
-					statusType={lane.statusType}
-					groupBy={boardGroupBy(settings)}
-					tickets={
-						lane.statusType === "done"
-							? doneTicketsForLane(report, lane.name)
-							: laneTickets(report, lane.name)
-					}
-					fresh={laneTickets(report, lane.name)}
-					capped={lane.statusType === "done"}
-					shown={shownDone}
-					reveal={selected}
-					onShowAll={() => setShownDone(true)}
-					onOpen={onOpen}
-					onOpenOutside={onOpenOutside}
-				/>
-			))}
-		</div>
+		<OutsideParentsContext.Provider value={report.outsideParents}>
+			<div
+				className={clsx(board.lanes)}
+				data-lanes=""
+				data-group-by={boardGroupBy(settings)}
+			>
+				{visibleLanes(report, settings).map((lane) => (
+					<Lane
+						key={lane.id}
+						name={lane.name}
+						colour={lane.colour}
+						statusType={lane.statusType}
+						groupBy={boardGroupBy(settings)}
+						tickets={
+							lane.statusType === "done"
+								? doneTicketsForLane(report, lane.name)
+								: laneTickets(report, lane.name)
+						}
+						fresh={laneTickets(report, lane.name)}
+						capped={lane.statusType === "done"}
+						shown={shownDone}
+						reveal={selected}
+						onShowAll={() => setShownDone(true)}
+						onOpen={onOpen}
+						onOpenOutside={onOpenOutside}
+					/>
+				))}
+			</div>
+		</OutsideParentsContext.Provider>
 	);
 }
 
