@@ -17,7 +17,6 @@ import type {
 	PollProgress,
 	ProjectCounts,
 } from "./domain.ts";
-import { onAppEvent } from "./events.ts";
 import { useFocusView } from "./focus.ts";
 import { OverviewSearch } from "./focus-controls.tsx";
 import {
@@ -32,7 +31,13 @@ import {
 	overviewViews,
 } from "./overview-view.ts";
 import { openProject, projectPath } from "./paths.ts";
-import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
+import {
+	PollAgeText,
+	pollLine,
+	postRefresh,
+	RefreshButton,
+	usePollProgress,
+} from "./poll-freshness.tsx";
 import {
 	barSegments,
 	SegmentedBar,
@@ -742,14 +747,6 @@ function ticketKey(key: string): string {
 	return hash === -1 ? key : key.slice(hash + 1);
 }
 
-function pollLine(progress: PollProgress): string {
-	const count = `${progress.done} ${overviewControlLabel.pollProgress} ${progress.total}`;
-	if (progress.project === null) {
-		return count;
-	}
-	return `${count}, ${overviewControlLabel.reading} ${progress.project}`;
-}
-
 function OverviewPage({
 	overview,
 	settings,
@@ -1063,13 +1060,7 @@ export function Page() {
 		...pageQuery.settings,
 		select: configurationOf,
 	});
-	const [progress, setProgress] = useState<PollProgress | null>(null);
-	useEffect(() => {
-		return onAppEvent("progress", (event) => {
-			const next = JSON.parse(event.data) as PollProgress;
-			setProgress(next.ended ? null : next);
-		});
-	}, []);
+	const progress = usePollProgress();
 	const overview = overviewQuery.data ?? null;
 	const settings = settingsQuery.data ?? null;
 	const stored = overview !== null && storeHoldsRead(overview);

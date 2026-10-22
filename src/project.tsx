@@ -21,6 +21,7 @@ import {
 	filterProjectReport,
 	focusChain,
 	type NeedsYouItem,
+	type ProjectCounts,
 	type ProjectReport,
 	type StatusType,
 	sameTicketKey,
@@ -33,7 +34,14 @@ import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";
-import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
+import {
+	PollAgeText,
+	pollLine,
+	postRefresh,
+	RefreshButton,
+	usePollProgress,
+} from "./poll-freshness.tsx";
+import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import {
 	pageQuery,
@@ -60,7 +68,7 @@ import {
 	projectHeaderLayout,
 } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { cards, frame, headerControlStyle, shell } from "./ui-styles.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphGroupBy,
@@ -308,6 +316,45 @@ function countLine(report: ProjectReport): string {
 	).length;
 	const need = needs === 1 ? "needs" : "need";
 	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects).`;
+}
+
+function waitingCountLine(project: ProjectCounts): string {
+	const need = project.needsYou === 1 ? "needs" : "need";
+	return `${project.done} of ${ticketTotal(project)} done, ${project.needsYou} ${need} you, ${project.blocked} blocked.`;
+}
+
+/** The project page before its report arrives, from the overview cache. */
+function ProjectWaiting({
+	name,
+	counts,
+	error,
+}: {
+	name: string;
+	counts: ProjectCounts | undefined;
+	error: string | null;
+}) {
+	const progress = usePollProgress();
+	return (
+		<PageFrame title={counts?.name ?? name}>
+			{counts === undefined || counts.pending === true ? null : (
+				<>
+					<p id="project-waiting-counts" className={clsx(board.counts)}>
+						{waitingCountLine(counts)}
+					</p>
+					<SegmentedBar project={counts} />
+				</>
+			)}
+			{error === null ? (
+				<p id="poll-progress" className={clsx(cards.loading)}>
+					{progress === null ? loadingLabel : pollLine(progress)}
+				</p>
+			) : (
+				<p id="project-error" className={clsx(shell.stale)}>
+					{error}
+				</p>
+			)}
+		</PageFrame>
+	);
 }
 
 function isGroupBy(value: string): value is GroupBy {
@@ -1356,6 +1403,10 @@ export function Page() {
 		[fullReport, settings],
 	);
 	const missing = reportQuery.isError || fullReport === null;
+	const counts = overviewQuery.data?.projects.find(
+		(item) => item.name.toLowerCase() === name.toLowerCase(),
+	);
+	const pollError = counts?.error ?? reportQuery.error?.message ?? null;
 	const polling =
 		overviewQuery.data?.polling === true ||
 		(overviewQuery.data === undefined && !reportQuery.isFetched);
@@ -1451,7 +1502,7 @@ export function Page() {
 			: source.tickets.find((item) => item.key === ticket);
 	const incoming = panelBlockers(selected, source, panelProject, panelTracker);
 	const outgoing = selected?.blocks ?? [];
-	if (missing && !polling) {
+	if (missing && !polling && pollError === null) {
 		return (
 			<AppShell>
 				<main className={clsx(frame.page, phoneGutter.page, frame.wide)}>
@@ -1461,7 +1512,7 @@ export function Page() {
 		);
 	}
 	if (report === null) {
-		return <PageFrame title={name}>{loadingLabel}</PageFrame>;
+		return <ProjectWaiting name={name} counts={counts} error={pollError} />;
 	}
 	const saveView = (
 		next: ProjectViewSettings,
@@ -1690,6 +1741,11 @@ export function Page() {
 								</fieldset>
 							</div>
 						</div>
+						{counts === undefined || counts.error === null ? null : (
+							<p id="project-error" className={clsx(shell.stale)}>
+								{counts.error}
+							</p>
+						)}
 						<div
 							data-project={report.name}
 							data-open-view={view}
