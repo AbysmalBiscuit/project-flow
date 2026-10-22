@@ -1,6 +1,6 @@
 import type { TicketView } from "./domain.ts";
 
-type TreeTicket = Pick<TicketView, "key" | "parent" | "statusType">;
+type TreeTicket = Pick<TicketView, "key" | "parent" | "startsCollapsed">;
 
 export type TreeRow<T extends TreeTicket> = {
 	ticket: T;
@@ -11,9 +11,8 @@ export type TreeRow<T extends TreeTicket> = {
 
 /**
  * The tickets in parent-first order, each sub-ticket one depth step below its
- * parent ticket. A collapsed parent ticket hides all its descendants. A
- * parent ticket starts collapsed when every descendant in the list is done or
- * dropped. A ticket in a parent cycle starts a tree at depth 0.
+ * parent ticket. A collapsed parent ticket hides all its descendants. A ticket
+ * in a parent cycle starts a tree at depth 0.
  */
 export function treeRows<T extends TreeTicket>(
 	tickets: readonly T[],
@@ -49,21 +48,6 @@ export function treeRows<T extends TreeTicket>(
 		ticket.key === null
 			? []
 			: (subTicketsOf.get(ticket.key.toLowerCase()) ?? []);
-	const closed = (ticket: T) =>
-		ticket.statusType === "done" || ticket.statusType === "dropped";
-	const settled = new Map<T, boolean>();
-	const allClosed = (ticket: T): boolean => {
-		const known = settled.get(ticket);
-		if (known !== undefined) {
-			return known;
-		}
-		settled.set(ticket, true);
-		const result = subTickets(ticket).every(
-			(sub) => closed(sub) && allClosed(sub),
-		);
-		settled.set(ticket, result);
-		return result;
-	};
 	const rows: TreeRow<T>[] = [];
 	const seen = new Set<T>();
 	const visit = (ticket: T, depth: number, hidden: boolean) => {
@@ -72,7 +56,7 @@ export function treeRows<T extends TreeTicket>(
 		}
 		seen.add(ticket);
 		const below = subTickets(ticket);
-		const startsCollapsed = below.length > 0 && allClosed(ticket);
+		const startsCollapsed = ticket.startsCollapsed ?? false;
 		if (!hidden) {
 			rows.push({
 				ticket,

@@ -174,6 +174,8 @@ export type TicketView = {
 	themeGroup?: string;
 	parent?: string;
 	subTickets?: number;
+	/** True when the ticket has sub-tickets and every descendant is done or dropped. */
+	startsCollapsed?: boolean;
 };
 
 export type CrossProjectBlocker = {
@@ -3172,7 +3174,7 @@ export function projectCounts(
 		tracker,
 		...counts,
 		unlinkedPrs,
-		tickets: views,
+		tickets: withStartsCollapsed(views),
 		crossProjectBlockers: [...cross.values()],
 		needsYou: needsYouItemsForProject.length,
 		progress: progressRatio(counts),
@@ -3195,6 +3197,40 @@ export function projectCounts(
 		needsYou: needsYouItemsForProject,
 		report,
 	};
+}
+
+function withStartsCollapsed(views: TicketView[]): TicketView[] {
+	const subTicketsByKey = new Map<string, TicketView[]>();
+	for (const view of views) {
+		const parent = view.parent?.toLowerCase();
+		if (parent === undefined || parent === view.key?.toLowerCase()) {
+			continue;
+		}
+		subTicketsByKey.set(parent, [...(subTicketsByKey.get(parent) ?? []), view]);
+	}
+	const subTicketsOf = (view: TicketView) =>
+		view.key === null
+			? []
+			: (subTicketsByKey.get(view.key.toLowerCase()) ?? []);
+	const settled = new Map<TicketView, boolean>();
+	const allClosed = (view: TicketView): boolean => {
+		const known = settled.get(view);
+		if (known !== undefined) {
+			return known;
+		}
+		settled.set(view, true);
+		const result = subTicketsOf(view).every(
+			(sub) =>
+				(sub.statusType === "done" || sub.statusType === "dropped") &&
+				allClosed(sub),
+		);
+		settled.set(view, result);
+		return result;
+	};
+	return views.map((view) => ({
+		...view,
+		startsCollapsed: subTicketsOf(view).length > 0 && allClosed(view),
+	}));
 }
 
 function subTicketCounts(tickets: Ticket[]): Map<string, number> {
