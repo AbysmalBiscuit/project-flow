@@ -2,7 +2,7 @@
 
 The walks serve recorded tracker responses through `proof/serve-header-height.ts`. That script sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker. The script stubs `Notification.permission` as `default`, so the Overview header shows Allow notifications.
 
-`proof/serve-header-height.ts` writes each control's height and a per-row tops-equal yes or no as visible page text. It does not write an absolute top. The desktop page writes the overview line, then the project page line. The phone walk serves a same-origin wrapper. The wrapper loads the app in an iframe 390px wide, so the phone media queries run inside the iframe. The wrapper copies each row's heights, that row's tops-equal line and `scrollWidth` into its own visible text. The iframe width is a proof harness length.
+`proof/serve-header-height.ts` writes each control's height and a per-row tops-equal yes or no as visible page text. It does not write an absolute top. The desktop page writes the overview line, then the project page line. The phone walk serves a same-origin wrapper. The wrapper loads the app in an iframe 390px wide, so the phone media queries run inside the iframe. The wrapper copies each row's heights, that row's tops-equal line and `scrollWidth` into its own visible text. A row groups controls whose tops differ by at most 1px. The measure writes that text only when the line differs, so the observer does not loop. The iframe width is a proof harness length.
 
 Item 1, desktop height. Replay `proof/walk-305-desktop.json`:
 

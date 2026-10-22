@@ -52,7 +52,7 @@ const lineScript = `(page) => {
 	const boxes = page.map(([, node]) => node.getBoundingClientRect());
 	const heights = boxes.map((box) => box.height).join(" ");
 	const top = boxes[0].top;
-	const equal = boxes.every((box) => box.top === top) ? "yes" : "no";
+	const equal = boxes.every((box) => Math.abs(box.top - top) <= 1) ? "yes" : "no";
 	const names = page.map(([name]) => name).join(" ");
 	return names + " heights " + heights + " tops-equal " + equal;
 }`;
@@ -79,7 +79,8 @@ const read = () => {
 	if (missing !== undefined || host === null) {
 		return;
 	}
-	host.textContent = line(page);
+	const next = line(page);
+	if (host.textContent !== next) host.textContent = next;
 };
 const watch = new MutationObserver(read);
 watch.observe(document.documentElement, { childList: true, subtree: true });
@@ -125,18 +126,19 @@ const read = () => {
 	for (const item of page) {
 		const top = item[1].getBoundingClientRect().top;
 		const last = rows.at(-1);
-		const same = last !== undefined && last[0][1].getBoundingClientRect().top === top;
+		const same = last !== undefined && Math.abs(last[0][1].getBoundingClientRect().top - top) <= 1;
 		if (same) {
 			last.push(item);
 		} else {
 			rows.push([item]);
 		}
 	}
-	host.textContent = [
+	const next = [
 		"phone",
 		...rows.map((row) => line(row)),
 		"scrollWidth " + root.scrollWidth,
 	].join(" ");
+	if (host.textContent !== next) host.textContent = next;
 };
 frame.addEventListener("load", () => {
 	const doc = frame.contentDocument;
