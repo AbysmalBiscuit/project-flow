@@ -128,6 +128,15 @@ const walkScript = `<script id="walk-theme">(function () {
 		return;
 	}
 	var seen = "";
+	var reply = null;
+	walkEsc.addEventListener("focusin", function (event) {
+		var prior = event.relatedTarget;
+		if (prior instanceof HTMLElement && prior.id === "ticket-reply") {
+			reply = prior;
+			return;
+		}
+		reply = null;
+	});
 	walkEsc.addEventListener("input", function () {
 		var before = document.activeElement;
 		var stamp = walkEsc.value;
@@ -136,12 +145,8 @@ const walkScript = `<script id="walk-theme">(function () {
 			return;
 		}
 		seen = stamp;
-		if (
-			before instanceof HTMLElement &&
-			before.isConnected &&
-			before !== walkEsc
-		) {
-			before.focus();
+		if (reply !== null && reply.isConnected) {
+			reply.focus();
 		}
 		var event = new KeyboardEvent("keydown", {
 			key: "Escape",
@@ -153,6 +158,7 @@ const walkScript = `<script id="walk-theme">(function () {
 		if (!event.defaultPrevented) {
 			document.dispatchEvent(event);
 		}
+		reply = null;
 	});
 })();</script>`;
 
