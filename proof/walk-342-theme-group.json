@@ -1,0 +1,16 @@
+{
+	"base_url": "http://127.0.0.1:4342",
+	"serve": ["bun", "proof/serve-theme-group.ts", "4342"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Fit" },
+		{ "assert_text": "feat(board): draw the lanes" },
+		{ "shot": "graph-theme-group" },
+		{ "click": "#view-board" },
+		{ "assert_text": "feat(board): draw the lanes" },
+		{ "shot": "board-theme-group" },
+		{ "click": "#view-table" },
+		{ "assert_text": "feat(board): draw the lanes" },
+		{ "shot": "table-theme-group" }
+	]
+}
