@@ -33,7 +33,7 @@ import {
 	stateLabel,
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
-import { classToken, clsx } from "./ui.ts";
+import { clsx } from "./ui.ts";
 import { cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
@@ -317,8 +317,8 @@ export function ProjectGraph({
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
-	const fades = classToken(board.fades);
-	const faded = `${fades} ${classToken(board.faded)}`;
+	const fades = clsx(board.fades);
+	const faded = clsx(board.fades, board.faded);
 	const nodes = model.nodes.map((node) => {
 		const kept = isClusterNode(node)
 			? node.data.members.some((id) => chain?.has(id) === true)
