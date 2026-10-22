@@ -10,7 +10,7 @@ The spike in issue 349 measured both layouts on the recorded tickets of project-
 - dagre. It lays out layers, but it gives no option to bound a layer or to pack the loose tickets of a frame. A fan-out stays one tall column, as in the hand-written layout.
 - ELK `stress` for Force. It lays out each frame alone and ignores the arrows that cross frames. Frames stay intact only because the top level has no arrows. Cards overlap, and arrows across frames become long lines over the graph. When the arrows move up to the frame level, `stress` puts frames on top of each other.
 - d3-force for Layered. It has no layers, so the left-to-right reading order of blockers goes away.
-- WebCola. Its group constraints keep frames apart, but it is a second layout model with no layered mode, and it gets no maintenance. d3-force with a frame force passed the same frame check.
+- WebCola. Its group constraints keep frames apart. But it is a second layout model, and it has no layered mode. It gets no maintenance. d3-force with a frame force passed the same frame check.
 
 ## Decision
 
@@ -21,5 +21,6 @@ The spike in issue 349 measured both layouts on the recorded tickets of project-
 ## Consequences
 
 - `elkjs` and `d3-force` are dependencies. The elkjs licence is EPL-2.0 or GPL-3.0-or-later, so it fits the GPL-3.0 licence of this app.
-- The Layered options follow the spike tables. `INCLUDE_CHILDREN` lets arrows across frames shape the layout and gives routes for them, but the groups spread out. `SEPARATE_CHILDREN` with a Coffman-Graham layer bound fills the groups best and wraps a fan-out, but ELK gives no route for an arrow across groups.
+- The Layered options follow the spike tables. `INCLUDE_CHILDREN` lets arrows across frames shape the layout and gives routes for them. But the groups spread out. `SEPARATE_CHILDREN` fills the groups best and wraps a fan-out. A Coffman-Graham layer bound adds fill only with nested frames on Group by Workstream. With `SEPARATE_CHILDREN`, ELK gives no route for an arrow across groups.
+- With straight arrows, most arrows across frames on workcell cross a card in every layout. d3-force crosses a card with 65 of 82 arrows on Workstream and 75 of 99 on Theme. So the app must route the arrows across frames.
 - The d3-force frame forces are app code. The browser proof of each layout change checks that each sub-ticket stays inside its frame and that sibling frames do not overlap.
