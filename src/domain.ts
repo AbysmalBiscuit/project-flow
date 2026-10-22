@@ -704,7 +704,6 @@ export type ProjectReport = {
 	graphTickets: TicketView[];
 	graphLinks: ShownGraphLink[];
 	fetchedAt: string | null;
-	/** Filters that leave no ticket on the board, graph or table. */
 	hiddenBy?: HidingFilter[];
 };
 
@@ -987,7 +986,6 @@ const awaitingNames = new Set([
 ]);
 
 const doneNames = new Set(["done", "completed", "shipped", "merged"]);
-
 const droppedNames = new Set([
 	"dropped",
 	"canceled",
