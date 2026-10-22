@@ -330,14 +330,14 @@ export const board = stylex.create({
 	cardDone: {
 		borderColor: colours.done,
 		backgroundColor: {
-			default: colours.page,
+			default: colours.doneWash,
 			":hover": colours.surfaceMuted,
 		},
 	},
 	cardDropped: {
 		borderColor: colours.dropped,
 		backgroundColor: {
-			default: colours.page,
+			default: colours.droppedWash,
 			":hover": colours.surfaceMuted,
 		},
 	},
