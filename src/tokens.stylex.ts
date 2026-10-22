@@ -60,6 +60,8 @@ export const lightValues = {
 	warnInk: "#8a5a12",
 	needs: "#18181b",
 	needsInk: "#ffffff",
+	needsPill: "#ffffff",
+	needsPillInk: "#18181b",
 	segment: "#f3f3f1",
 	controlLine: "#e7e7e4",
 	controlInk: "#18181b",
@@ -121,6 +123,8 @@ export const darkValues = {
 	warnInk: "#e8c49a",
 	needs: "#ededef",
 	needsInk: "#0e0e10",
+	needsPill: "#ffffff",
+	needsPillInk: "#18181b",
 	segment: "#1d1d22",
 	controlLine: "#26262c",
 	controlInk: "#ededef",
@@ -203,6 +207,14 @@ export const colours = stylex.defineVars({
 	warnInk: { default: lightValues.warnInk, [dark]: darkValues.warnInk },
 	needs: { default: lightValues.needs, [dark]: darkValues.needs },
 	needsInk: { default: lightValues.needsInk, [dark]: darkValues.needsInk },
+	needsPill: {
+		default: lightValues.needsPill,
+		[dark]: darkValues.needsPill,
+	},
+	needsPillInk: {
+		default: lightValues.needsPillInk,
+		[dark]: darkValues.needsPillInk,
+	},
 	segment: { default: lightValues.segment, [dark]: darkValues.segment },
 	controlLine: {
 		default: lightValues.controlLine,

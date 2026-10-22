@@ -2119,11 +2119,11 @@ export const board = stylex.create({
 		gap: space.xs,
 		width: "100%",
 		padding: space.sm,
-		borderWidth: measure.hairline,
+		borderWidth: measure.focus,
 		borderStyle: "solid",
-		borderColor: colours.laneLine,
+		borderColor: colours.ready,
 		borderRadius: radius.sm,
-		backgroundColor: colours.page,
+		backgroundColor: colours.readyWash,
 		color: colours.ink,
 		fontFamily: font.sans,
 		fontSize: type.menu,
@@ -2132,8 +2132,29 @@ export const board = stylex.create({
 		textAlign: "left",
 		cursor: "pointer",
 	},
-	cardBlocked: {
-		borderColor: colours.warn,
+	cardBacklog: {
+		borderColor: colours.ready,
+		backgroundColor: colours.readyWash,
+	},
+	cardProgress: {
+		borderColor: colours.progress,
+		backgroundColor: colours.progressWash,
+	},
+	cardReview: {
+		borderColor: colours.review,
+		backgroundColor: colours.reviewWash,
+	},
+	cardMerge: {
+		borderColor: colours.merge,
+		backgroundColor: colours.mergeWash,
+	},
+	cardDone: {
+		borderColor: colours.done,
+		backgroundColor: colours.page,
+	},
+	cardDropped: {
+		borderColor: colours.dropped,
+		backgroundColor: colours.page,
 	},
 	cardHover: {
 		backgroundColor: {
@@ -2197,8 +2218,9 @@ export const board = stylex.create({
 	},
 	chipNeeds: {
 		borderRadius: radius.pill,
-		backgroundColor: colours.needs,
-		color: colours.needsInk,
+		borderColor: colours.needsPillInk,
+		backgroundColor: colours.needsPill,
+		color: colours.needsPillInk,
 		cursor: "default",
 	},
 	showAll: {
