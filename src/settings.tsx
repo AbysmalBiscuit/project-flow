@@ -6,7 +6,16 @@ import { projectHasPmBot, samePin } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
-import { laneStates, sections, type Trackers } from "./settings-parts.tsx";
+import {
+	FilterGlyph,
+	laneStates,
+	SearchGlyph,
+	Switch,
+	sections,
+	type stateFilters,
+	type Trackers,
+	type trackerFilters,
+} from "./settings-parts.tsx";
 import {
 	ContentsNav,
 	GeneralSection,
