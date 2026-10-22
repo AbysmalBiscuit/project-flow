@@ -771,7 +771,6 @@ export type FlowTicket = {
 	tracker?: "github" | "linear";
 	workstream?: string;
 	workstreamKey?: string;
-	theme?: string;
 	themeGroup?: string;
 	assignees?: string[];
 	blockers: string[];
@@ -828,7 +827,6 @@ export function graphTickets(report: ProjectReport): FlowTicket[] {
 				...(ticket.workstreamKey === undefined
 					? {}
 					: { workstreamKey: ticket.workstreamKey }),
-				...(ticket.theme === undefined ? {} : { theme: ticket.theme }),
 				...(ticket.themeGroup === undefined
 					? {}
 					: { themeGroup: ticket.themeGroup }),
