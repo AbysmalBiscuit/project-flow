@@ -98,6 +98,30 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("a nested Linear parent tree takes the milestone most common across all its sub-tickets", async () => {
+		await linearReport(
+			[
+				linearTicket("WID-1", "Ship the list", null, null),
+				linearTicket("WID-2", "Draw the rows", "WID-1", null),
+				...["WID-3", "WID-4", "WID-5", "WID-6", "WID-7"].map((id) =>
+					linearTicket(id, `Paint row ${id}`, "WID-2", "Beta"),
+				),
+				linearTicket("WID-8", "Sort the rows", "WID-1", "Later"),
+				linearTicket("WID-9", "Filter the rows", "WID-1", "Later"),
+			],
+			(report) => {
+				for (const key of ["WID-1", "WID-2", "WID-3"]) {
+					expect(report.tickets.find((item) => item.key === key)).toMatchObject(
+						{
+							workstream: "Beta",
+							themeGroup: "Beta / Ship the list",
+						},
+					);
+				}
+			},
+		);
+	});
+
 	test("a nested Linear parent tree shares the milestone of its deepest sub-ticket", async () => {
 		await linearReport(
 			[

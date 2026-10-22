@@ -4065,18 +4065,27 @@ function placeTickets(
 	);
 	const subTicketsOf = (ticket: Ticket): Ticket[] =>
 		ticket.key === null ? [] : (parents.get(ticket.key.toLowerCase()) ?? []);
-	const treeWorkstream = (
-		ticket: Ticket,
-		seen: Set<Ticket>,
-	): Workstream | undefined => {
-		const own = owned.get(ticket);
-		if (own !== undefined || seen.has(ticket)) {
-			return own;
+	const treeWorkstream = (root: Ticket): Workstream | undefined => {
+		const seen = new Set<Ticket>([root]);
+		const pending = [root];
+		const votes: Workstream[] = [];
+		for (
+			let ticket = pending.pop();
+			ticket !== undefined;
+			ticket = pending.pop()
+		) {
+			const own = owned.get(ticket);
+			if (own !== undefined) {
+				votes.push(own);
+			}
+			for (const sub of subTicketsOf(ticket)) {
+				if (!seen.has(sub)) {
+					seen.add(sub);
+					pending.push(sub);
+				}
+			}
 		}
-		seen.add(ticket);
-		return mostCommon(
-			subTicketsOf(ticket).flatMap((sub) => treeWorkstream(sub, seen) ?? []),
-		);
+		return mostCommon(votes);
 	};
 	const rootWorkstreams = new Map<Ticket, Workstream>();
 	const rootWorkstream = (root: Ticket): Workstream => {
@@ -4085,7 +4094,7 @@ function placeTickets(
 			return known;
 		}
 		const workstream =
-			treeWorkstream(root, new Set()) ??
+			treeWorkstream(root) ??
 			(tracker === "github" &&
 			root.key !== null &&
 			subTicketsOf(root).length > 0
