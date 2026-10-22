@@ -6,7 +6,8 @@ import type {
 	ThreadComment,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { githubHeaders, TrackerError } from "./github.ts";
+import { TrackerError } from "./github.ts";
+import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
 
 export function githubTicketKey(
 	key: string,
@@ -53,61 +54,6 @@ function toThreadComment(
 		kind,
 		children: [],
 	};
-}
-
-function nextPage(link: string | null): string | null {
-	if (link === null) {
-		return null;
-	}
-	for (const part of link.split(",")) {
-		const match = part.match(/<([^>]+)>;\s*rel="next"/);
-		if (match?.[1] !== undefined) {
-			return match[1];
-		}
-	}
-	return null;
-}
-
-function fetchWithSignal(
-	fetchImpl: Fetch,
-	input: string,
-	init: RequestInit,
-	signal: AbortSignal | undefined,
-): Promise<Response> {
-	if (signal === undefined) {
-		return fetchImpl(input, init);
-	}
-	return fetchImpl(input, { ...init, signal });
-}
-
-async function pages(
-	start: string,
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	label: string,
-	signal?: AbortSignal,
-): Promise<unknown[]> {
-	const bodies: unknown[] = [];
-	let url: string | null = start;
-	while (url !== null) {
-		const response = await fetchWithSignal(
-			fetchImpl,
-			url,
-			{
-				headers: githubHeaders(token),
-			},
-			signal,
-		);
-		if (!response.ok) {
-			throw new Error(
-				`GitHub ${label} failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		bodies.push(await response.json());
-		url = nextPage(response.headers.get("link"));
-	}
-	return bodies;
 }
 
 const linkedPullsQuery = `query LinkedPulls($owner: String!, $name: String!, $number: Int!) {

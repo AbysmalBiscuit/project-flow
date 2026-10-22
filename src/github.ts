@@ -13,9 +13,12 @@ import type {
 } from "./domain.ts";
 import { factoryBoard, reviewStateValue, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
 import { statusColours } from "./token-palette.ts";
+
+export { githubHeaders } from "./github-pages.ts";
 
 export class TrackerError extends Error {
 	readonly status: number;
@@ -41,14 +44,6 @@ export const githubPull = z.object({
 	merged_at: z.string().nullable().optional(),
 	auto_merge: z.unknown().nullable().optional(),
 });
-
-export function githubHeaders(token: string): HeadersInit {
-	return {
-		accept: "application/vnd.github+json",
-		authorization: `Bearer ${token}`,
-		"x-github-api-version": "2022-11-28",
-	};
-}
 
 type RestEntry = {
 	etag: string;
@@ -276,19 +271,6 @@ export function conditionalFetch(
 	};
 }
 
-function nextPage(link: string | null): string | null {
-	if (link === null) {
-		return null;
-	}
-	for (const part of link.split(",")) {
-		const match = part.match(/<([^>]+)>;\s*rel="next"/);
-		if (match?.[1] !== undefined) {
-			return match[1];
-		}
-	}
-	return null;
-}
-
 export async function checkToken(
 	token: string,
 	fetchImpl: Fetch,
@@ -296,48 +278,6 @@ export async function checkToken(
 	return fetchImpl("https://api.github.com/user", {
 		headers: githubHeaders(token),
 	});
-}
-
-function fetchWithSignal(
-	fetchImpl: Fetch,
-	input: string,
-	init: RequestInit,
-	signal: AbortSignal | undefined,
-): Promise<Response> {
-	if (signal === undefined) {
-		return fetchImpl(input, init);
-	}
-	return fetchImpl(input, { ...init, signal });
-}
-
-async function pages(
-	start: string,
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	label: string,
-	signal?: AbortSignal,
-): Promise<unknown[]> {
-	const bodies: unknown[] = [];
-	let url: string | null = start;
-	while (url !== null) {
-		const response = await fetchWithSignal(
-			fetchImpl,
-			url,
-			{
-				headers: githubHeaders(token),
-			},
-			signal,
-		);
-		if (!response.ok) {
-			throw new Error(
-				`GitHub ${label} failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		bodies.push(await response.json());
-		url = nextPage(response.headers.get("link"));
-	}
-	return bodies;
 }
 
 const githubRepo = z.object({
