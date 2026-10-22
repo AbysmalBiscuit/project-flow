@@ -89,6 +89,7 @@ const silent: Fetch = (_input, init) =>
 		init?.signal?.addEventListener("abort", () => reject(new Error("stopped")));
 	});
 
+const startedAt = performance.now();
 const running = await start({
 	configPath,
 	token: "recorded-token",
@@ -98,10 +99,13 @@ const running = await start({
 	hostname: "127.0.0.1",
 	port: 0,
 });
+const startMs = performance.now() - startedAt;
 const size = (await stat(databasePath)).size;
 console.log(
 	`store: ${projectCount} projects, ${ticketCount} tickets each, ${(size / 1_048_576).toFixed(1)} MB`,
 );
+// A stored project list makes start() compute every project view once.
+console.log(`start ${startMs.toFixed(0)} ms`);
 
 async function timed(path: string): Promise<void> {
 	const began = performance.now();
