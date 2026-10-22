@@ -94,6 +94,9 @@ describe("GET /api/projects/:name", () => {
 						},
 					);
 				}
+				expect(
+					report.tickets.find((item) => item.key === "WID-4"),
+				).toMatchObject({ workstream: "Later" });
 			},
 		);
 	});
