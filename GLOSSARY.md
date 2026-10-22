@@ -40,6 +40,14 @@ _Avoid_: Source, provider, tool
 
 ### Grouping
 
+**Parent ticket**:
+A ticket that other tickets name as their parent in the tracker.
+_Avoid_: Epic (when a parent ticket is meant), parent issue
+
+**Sub-ticket**:
+A ticket that has a parent ticket.
+_Avoid_: Child, subtask, sub-issue
+
 **Workstream**:
 The top group in a project map: on GitHub the root epic, else the milestone, else the top parent ticket; on Linear the project milestone. A top parent ticket with no workstream takes the most common workstream in its tree of sub-tickets. Another ticket with no workstream takes the workstream of its top parent ticket.
 _Avoid_: Area, epic, feature area
