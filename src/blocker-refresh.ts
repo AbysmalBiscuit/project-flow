@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { Ticket, TicketRef } from "./domain.ts";
+import {
+	heldBlockerIds,
+	refreshedBlockers,
+	type Ticket,
+	type TicketRef,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { dependencyRefs, githubHeaders } from "./github.ts";
 
@@ -48,13 +53,15 @@ async function readBlockerStates(
 		let cursors: (string | null)[] = slice.map(() => null);
 		let pending = true;
 		while (pending) {
-			const fields = slice
-				.map(
-					(number, index) =>
-						`i${index}: issue(number: ${number}) { blockedBy(first: 20, after: $after${index}) { nodes { number title state repository { nameWithOwner } } ${connectionPage} } }`,
-				)
-				.join("\n");
 			const afterNames = slice.map((_, index) => `$after${index}: String`);
+			const variableNames = `$owner: String!, $name: String!, ${afterNames.join(", ")}`;
+			const blockedByArgs = "first: 20, after: $after";
+			const fields = slice
+				.map((number, index) => {
+					const args = blockedByArgs.replace("$after", `$after${index}`);
+					return `i${index}: issue(number: ${number}) { blockedBy(${args}) { nodes { number title state repository { nameWithOwner } } ${connectionPage} } }`;
+				})
+				.join("\n");
 			const variables: Record<string, string | null> = {
 				owner: parts.owner,
 				name: parts.name,
@@ -66,7 +73,7 @@ async function readBlockerStates(
 				method: "POST",
 				headers: githubHeaders(token),
 				body: JSON.stringify({
-					query: `query BlockerStates($owner: String!, $name: String!, ${afterNames.join(", ")}) { repository(owner: $owner, name: $name) { ${fields} } }`,
+					query: `query BlockerStates(${variableNames}) { repository(owner: $owner, name: $name) { ${fields} } }`,
 					variables,
 				}),
 			});
@@ -141,38 +148,13 @@ export async function currentBlockers(
 	listed: Ticket[],
 	held: Ticket[],
 ): Promise<Ticket[]> {
-	const stale = held.filter(
-		(ticket) =>
-			ticket.state === "open" &&
-			ticket.key !== null &&
-			ticket.blockedBy.length > 0 &&
-			Number.isInteger(Number(ticket.id)),
-	);
-	if (stale.length === 0) {
+	const ids = heldBlockerIds(held);
+	if (ids.length === 0) {
 		return listed;
 	}
-	const states = await readBlockerStates(
-		token,
-		fetchImpl,
-		repo,
-		stale.map((ticket) => Number(ticket.id)),
+	const states = await readBlockerStates(token, fetchImpl, repo, ids);
+	const refsById = new Map(
+		[...states].map(([id, page]) => [id, refsOf(page, repo)]),
 	);
-	const fresh = stale.flatMap((ticket) => {
-		const blockedBy = states.get(Number(ticket.id));
-		if (blockedBy === undefined) {
-			return [];
-		}
-		const listedTicket = listed.find((item) => item.id === ticket.id);
-		const base = listedTicket ?? ticket;
-		return [{ ...base, blockedBy: refsOf(blockedBy, repo) }];
-	});
-	const freshKeys = new Set(
-		fresh.flatMap((ticket) => (ticket.key === null ? [] : [ticket.key])),
-	);
-	return [
-		...listed.filter(
-			(ticket) => ticket.key === null || !freshKeys.has(ticket.key),
-		),
-		...fresh,
-	];
+	return refreshedBlockers(listed, held, refsById);
 }

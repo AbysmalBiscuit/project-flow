@@ -821,6 +821,47 @@ function mergeBlockedBy(rows: TicketRef[][]): TicketRef[] {
 	return refs;
 }
 
+export function heldBlockerIds(held: Ticket[]): number[] {
+	return held.flatMap((ticket) => {
+		if (
+			ticket.state !== "open" ||
+			ticket.key === null ||
+			ticket.blockedBy.length === 0 ||
+			!Number.isInteger(Number(ticket.id))
+		) {
+			return [];
+		}
+		return [Number(ticket.id)];
+	});
+}
+
+export function refreshedBlockers(
+	listed: Ticket[],
+	held: Ticket[],
+	refsById: Map<number, TicketRef[]>,
+): Ticket[] {
+	const fresh = held.flatMap((ticket) => {
+		if (!Number.isInteger(Number(ticket.id))) {
+			return [];
+		}
+		const blockedBy = refsById.get(Number(ticket.id));
+		if (blockedBy === undefined) {
+			return [];
+		}
+		const listedTicket = listed.find((item) => item.id === ticket.id);
+		return [{ ...(listedTicket ?? ticket), blockedBy }];
+	});
+	const freshKeys = new Set(
+		fresh.flatMap((ticket) => (ticket.key === null ? [] : [ticket.key])),
+	);
+	return [
+		...listed.filter(
+			(ticket) => ticket.key === null || !freshKeys.has(ticket.key),
+		),
+		...fresh,
+	];
+}
+
 export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 	const byId = new Map(stored.map((ticket) => [ticket.id, ticket]));
 	for (const ticket of incoming) {
