@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { board } from "./board-styles.ts";
 import { CommentMarkdown } from "./comment-markdown.tsx";
 import type {
 	NeedsYouItem,
@@ -20,7 +21,7 @@ import {
 } from "./terms.ts";
 import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { board, panel, shell } from "./ui-styles.ts";
+import { panel, shell } from "./ui-styles.ts";
 
 const laneMarks: Record<string, typeof board.markBacklog> = {
 	[lightValues.done.toLowerCase()]: board.markDone,

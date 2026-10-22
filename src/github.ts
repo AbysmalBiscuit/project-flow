@@ -14,6 +14,12 @@ import type {
 } from "./domain.ts";
 import { factoryBoard, reviewStateValue, statusTypeOfName } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import {
+	commentFromGithub,
+	githubComment,
+	graphqlActor,
+	graphqlComment,
+} from "./github-comment.ts";
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import type { FoundProject, Tracker, Viewer } from "./ports.ts";
@@ -1786,17 +1792,6 @@ function repoReadQuery(include: RepoIncludes): string {
 }`;
 }
 
-const graphqlActor = z.object({ login: z.string() }).nullable();
-
-const graphqlComment = z.object({
-	databaseId: z.number().optional(),
-	body: z.string().nullable().optional(),
-	createdAt: z.string().optional(),
-	updatedAt: z.string().optional(),
-	author: graphqlActor.optional(),
-	reactions: z.object({ totalCount: z.number() }).optional(),
-});
-
 const graphqlDependency = z.object({
 	number: z.number(),
 	title: z.string().nullable().optional(),
@@ -2997,40 +2992,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		postReply(reply) {
 			return postGithubReply(token, fetchImpl, reply);
 		},
-	};
-}
-
-const githubComment = z.object({
-	id: z.number().optional(),
-	body: z.string().nullable().optional(),
-	created_at: z.string().optional(),
-	updated_at: z.string().optional(),
-	user: z.object({ login: z.string() }).nullable().optional(),
-	reactions: z.object({ total_count: z.number().optional() }).optional(),
-});
-
-function commentFromGithub(
-	comment: z.infer<typeof githubComment>,
-): Comment | null {
-	const body = comment.body ?? "";
-	if (body === "") {
-		return null;
-	}
-	return {
-		body,
-		...(comment.id === undefined ? {} : { id: String(comment.id) }),
-		...(comment.created_at === undefined
-			? {}
-			: { createdAt: comment.created_at }),
-		...(comment.updated_at === undefined
-			? {}
-			: { updatedAt: comment.updated_at }),
-		...(comment.user?.login === undefined
-			? {}
-			: { author: comment.user.login }),
-		...(comment.reactions?.total_count === undefined
-			? {}
-			: { reactions: comment.reactions.total_count }),
 	};
 }
 
