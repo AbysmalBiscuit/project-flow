@@ -1,9 +1,5 @@
 import type { Fetch } from "../src/fetch.ts";
-import {
-	recordedDiscovery,
-	repoReadFromLists,
-	urlOf,
-} from "../test/support.ts";
+import { urlOf } from "../test/support.ts";
 import {
 	end,
 	issues,
@@ -14,12 +10,7 @@ import {
 	repo,
 	statusOptions,
 } from "./card-lane-board.ts";
-import {
-	emptyLinear,
-	emptyLists,
-	serveRecorded,
-	unrecorded,
-} from "./recorded.ts";
+import { recordedIssues, serveRecorded } from "./recorded.ts";
 
 const outsideRepo = "acme/gate";
 
@@ -87,7 +78,7 @@ const linkedItems = projectItems.map((item) => {
 	};
 });
 
-function graphql(body: string): Response {
+function projectRead(body: string): Response | null {
 	if (body.includes("ProjectByNumber")) {
 		return Response.json({
 			data: {
@@ -121,7 +112,7 @@ function graphql(body: string): Response {
 			data: { node: { items: { nodes: linkedItems, pageInfo: end } } },
 		});
 	}
-	if (body.includes("RepoRead")) {
+	if (body.includes("RepoRead") && !body.includes('"name":"gate"')) {
 		return Response.json({
 			data: {
 				repository: {
@@ -136,44 +127,18 @@ function graphql(body: string): Response {
 			},
 		});
 	}
-	return Response.json({
-		data: { repository: { nameWithOwner: repo, autoMergeAllowed: false } },
-	});
+	return null;
 }
 
+const outside = recordedIssues(outsideIssues);
+
 const recorded: Fetch = async (input, init) => {
-	const discovered = recordedDiscovery(input, init);
-	if (discovered !== null) {
-		return discovered;
-	}
-	const url = urlOf(input);
-	if (url === "https://api.github.com/user") {
-		return Response.json({ login: "lev" });
-	}
-	const linear = emptyLinear(url);
-	if (linear !== null) {
-		return linear;
-	}
-	if (
-		emptyLists(url) ||
-		url.includes("/dependencies/") ||
-		url.includes("/comments") ||
-		url.includes("/pulls?") ||
-		url.includes("/check-runs")
-	) {
-		return Response.json([]);
-	}
-	if (url === "https://api.github.com/graphql") {
-		const body = typeof init?.body === "string" ? init.body : "";
-		if (body.includes('"name":"gate"')) {
-			return (
-				repoReadFromLists(input, init, outsideIssues) ??
-				Response.json({ data: {} })
-			);
-		}
-		return graphql(typeof init?.body === "string" ? init.body : "");
-	}
-	return unrecorded(input);
+	const read =
+		urlOf(input) === "https://api.github.com/graphql" &&
+		typeof init?.body === "string"
+			? projectRead(init.body)
+			: null;
+	return read ?? outside(input, init);
 };
 
 const port = process.argv[2] ?? process.env.PORT ?? "4372";
