@@ -518,6 +518,7 @@ describe("GET /api/projects/:name", () => {
 				);
 				expect(onlyClosed?.blockers).toEqual([]);
 				expect(onlyClosed?.blocked).toBeUndefined();
+				expect(onlyClosed?.chips ?? []).not.toContain("Blocked");
 				expect(onlyClosed?.links).toEqual([
 					{ key: `${githubRepo}#216`, done: true },
 				]);
@@ -526,6 +527,7 @@ describe("GET /api/projects/:name", () => {
 				);
 				expect(both?.blockers).toEqual([`${githubRepo}#188`]);
 				expect(both?.blocked).toBe(true);
+				expect(both?.chips).toContain("Blocked");
 				expect(both?.links?.map((link) => link.key)).toEqual([
 					`${githubRepo}#216`,
 					`${githubRepo}#188`,
@@ -748,6 +750,7 @@ describe("GET /api/projects/:name", () => {
 				expect(drawn?.links).toEqual([{ key: `${githubRepo}#8`, done: true }]);
 				expect(drawn?.blocked).toBeUndefined();
 				expect(drawn?.blockers).toEqual([]);
+				expect(drawn?.chips ?? []).not.toContain("Blocked");
 				const summary = report.sections.find(
 					(section) => section.id === "summary",
 				);

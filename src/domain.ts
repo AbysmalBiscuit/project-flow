@@ -2772,6 +2772,7 @@ function shownTicket(
 	autoMerge: boolean,
 	lanes: Lane[],
 	now: Date,
+	openBlockerCount: number,
 ): ShownTicket {
 	const trackerState = lane.statusType;
 	let state = trackerState;
@@ -2848,7 +2849,7 @@ function shownTicket(
 		chips,
 		runFailed,
 		enteredStateAt: enteredStateAt(ticket, shownLane),
-		blocked: ticket.state === "open" && ticket.blockedBy.length > 0,
+		blocked: ticket.state === "open" && openBlockerCount > 0,
 		...(shownRun === undefined ? {} : { run: shownRun }),
 	};
 }
@@ -2991,6 +2992,7 @@ export function projectCounts(
 			mergesAlone,
 			lanes,
 			now,
+			blockers.length,
 		);
 		if (ticket.key !== null) {
 			shownByKey.set(ticket.key, shown.state);
