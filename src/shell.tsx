@@ -7,7 +7,7 @@ import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { frame, shell } from "./ui-styles.ts";
+import { frame, headerControlStyle, shell } from "./ui-styles.ts";
 
 export type PageView = {
 	id: string;
@@ -303,7 +303,7 @@ export function PageHeader({
 					{sort}
 					{search}
 					{views === undefined || views.length === 0 ? null : (
-						<fieldset className={clsx(frame.views)}>
+						<fieldset className={clsx(headerControlStyle.group)}>
 							<legend className={clsx(frame.visuallyHidden)}>Views</legend>
 							{views.map((item) => (
 								<button
@@ -311,9 +311,9 @@ export function PageHeader({
 									type="button"
 									id={`view-${item.id}`}
 									className={clsx(
-										frame.view,
+										headerControlStyle.segment,
 										shell.buttonFocus,
-										view === item.id && frame.viewOn,
+										view === item.id && headerControlStyle.segmentOn,
 									)}
 									aria-pressed={view === item.id}
 									onClick={() => onView?.(item.id)}

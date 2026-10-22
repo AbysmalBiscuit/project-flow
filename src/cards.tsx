@@ -65,7 +65,7 @@ import {
 } from "./terms.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { cards, frame, shell } from "./ui-styles.ts";
+import { cards, frame, headerControlStyle, shell } from "./ui-styles.ts";
 
 function blockerTicket(blocker: CrossProjectBlocker): string {
 	if (blocker.key.includes("#")) {
@@ -905,11 +905,14 @@ function OverviewPage({
 			filter={undefined}
 			sort={undefined}
 			search={
-				<label className={clsx(frame.searchBox)} htmlFor="overview-search">
+				<label
+					className={clsx(headerControlStyle.search)}
+					htmlFor="overview-search"
+				>
 					<SearchGlyph />
 					<input
 						id="overview-search"
-						className={clsx(frame.search)}
+						className={clsx(headerControlStyle.field)}
 						type="search"
 						aria-label={overviewControlLabel.search}
 						placeholder={overviewControlLabel.search}
@@ -931,7 +934,7 @@ function OverviewPage({
 					<button
 						type="button"
 						id="overview-refresh"
-						className={clsx(frame.icon, shell.buttonFocus)}
+						className={clsx(headerControlStyle.square, shell.buttonFocus)}
 						aria-label={overviewControlLabel.refresh}
 						aria-busy={refreshing}
 						title={overviewControlLabel.refresh}
@@ -944,7 +947,11 @@ function OverviewPage({
 						<button
 							type="button"
 							id="notify-permission"
-							className={clsx(frame.notify, shell.buttonFocus)}
+							className={clsx(
+								headerControlStyle.control,
+								headerControlStyle.notify,
+								shell.buttonFocus,
+							)}
 							onClick={() => {
 								void askNotificationPermission().finally(() => {
 									setNotifyPermission(notificationPermission());

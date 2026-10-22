@@ -1,0 +1,11 @@
+{
+	"base_url": "http://127.0.0.1:4319",
+	"serve": ["bun", "proof/serve-header-height.ts", "4319", "4320", "390"],
+	"steps": [
+		{ "goto": "/" },
+		{
+			"assert_text": "phone overview search heights 36 tops-equal yes overview view overview refresh overview notify heights 36 36 36 tops-equal yes scrollWidth 390"
+		},
+		{ "shot": "overview-phone" }
+	]
+}
