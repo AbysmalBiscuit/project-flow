@@ -29,8 +29,10 @@ import type { NodeSize } from "./graph-sizes.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
+	parentChipLabel,
 	projectGraphLabel,
 	stateLabel,
+	subTicketsLabel,
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
@@ -77,6 +79,23 @@ function ClusterNode({
 	);
 }
 
+function HierarchyChips({ ticket }: { ticket: TicketNodeData["ticket"] }) {
+	if (ticket.parentLabel === undefined && ticket.subTickets === undefined) {
+		return null;
+	}
+	const chip = clsx(board.chip, board.chipStatic, board.chipHierarchy);
+	return (
+		<span className={clsx(board.chips)}>
+			{ticket.parentLabel === undefined ? null : (
+				<span className={chip}>{parentChipLabel(ticket.parentLabel)}</span>
+			)}
+			{ticket.subTickets === undefined ? null : (
+				<span className={chip}>{subTicketsLabel(ticket.subTickets)}</span>
+			)}
+		</span>
+	);
+}
+
 function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 	const key = data.ticket.key ?? data.ticket.title;
 	const known = data.ticket.state;
@@ -112,6 +131,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 				) : null}
 			</span>
 			<span className={clsx(board.title)}>{data.ticket.title}</span>
+			{data.hierarchyChips ? <HierarchyChips ticket={data.ticket} /> : null}
 			<Handle type="source" position={Position.Right} id="right" />
 			<Handle type="source" position={Position.Bottom} id="bottom" />
 		</button>

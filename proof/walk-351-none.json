@@ -1,0 +1,17 @@
+{
+	"base_url": "http://127.0.0.1:4351",
+	"serve": ["bun", "proof/serve-351.ts", "4351", "none"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Fit" },
+		{ "assert_text": "Parent #1" },
+		{ "assert_text": "2 sub-tickets" },
+		{ "assert_text": "Parent acme/platform#9" },
+		{ "shot": "graph-none-chips" },
+		{ "click": "#view-board" },
+		{ "assert_text": "Parent #2" },
+		{ "assert_text": "1 sub-ticket" },
+		{ "assert_text": "Parent acme/platform#9" },
+		{ "shot": "cards-chips" }
+	]
+}

@@ -21,7 +21,9 @@ import {
 	filterProjectReport,
 	focusChain,
 	type NeedsYouItem,
+	type OutsideParent,
 	type ProjectReport,
+	parentChip,
 	type StatusType,
 	sameTicketKey,
 	type TicketRelation,
@@ -52,6 +54,8 @@ import {
 	hidingFilterLabel,
 	loadingLabel,
 	navLabel,
+	parentChipLabel,
+	subTicketsLabel,
 	viewLabel,
 } from "./terms.ts";
 import {
@@ -351,15 +355,27 @@ function Chip({
 	label,
 	ticketKey,
 	outside,
+	hierarchy,
 	onOpen,
 }: {
 	label: string;
 	ticketKey?: string;
 	outside?: boolean;
+	hierarchy?: boolean;
 	onOpen?: (key: string) => void;
 }) {
 	if (ticketKey === undefined || onOpen === undefined) {
-		return <span className={clsx(board.chip, board.chipStatic)}>{label}</span>;
+		return (
+			<span
+				className={clsx(
+					board.chip,
+					board.chipStatic,
+					hierarchy && board.chipHierarchy,
+				)}
+			>
+				{label}
+			</span>
+		);
 	}
 	return (
 		<button
@@ -367,6 +383,7 @@ function Chip({
 			className={clsx(
 				board.chip,
 				outside && board.chipOutside,
+				hierarchy && board.chipHierarchy,
 				shell.buttonFocus,
 			)}
 			data-chip={ticketKey}
@@ -396,6 +413,30 @@ const TicketFocusContext = createContext<TicketFocus>({
 	enter: () => {},
 	leave: () => {},
 });
+
+const OutsideParentsContext = createContext<OutsideParent[]>([]);
+
+function ParentChip({
+	parent,
+	onOpen,
+	onOpenOutside,
+}: {
+	parent: string;
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
+}) {
+	const chip = parentChip(useContext(OutsideParentsContext), parent);
+	const outside = chip.outside;
+	return (
+		<Chip
+			label={parentChipLabel(chip.label)}
+			ticketKey={parent}
+			hierarchy
+			outside={outside !== undefined}
+			onOpen={outside === undefined ? onOpen : () => onOpenOutside(outside)}
+		/>
+	);
+}
 
 function groupFaded(focus: TicketFocus, tickets: TicketView[]): boolean {
 	return focus.active && tickets.every((ticket) => focus.faded(ticket.key));
@@ -461,8 +502,20 @@ function Card({
 				<p className={clsx(board.title)}>{ticket.title}</p>
 				{local.length === 0 &&
 				outside.length === 0 &&
+				ticket.parent === undefined &&
+				ticket.subTickets === undefined &&
 				!ticket.needsYou ? null : (
 					<span className={clsx(board.chips)}>
+						{ticket.parent === undefined ? null : (
+							<ParentChip
+								parent={ticket.parent}
+								onOpen={onOpen}
+								onOpenOutside={onOpenOutside}
+							/>
+						)}
+						{ticket.subTickets === undefined ? null : (
+							<Chip label={subTicketsLabel(ticket.subTickets)} hierarchy />
+						)}
 						{local.map((blocker) => (
 							<Chip
 								key={blocker}
@@ -1030,33 +1083,35 @@ function Board({
 }) {
 	const [shownDone, setShownDone] = useState(false);
 	return (
-		<div
-			className={clsx(board.lanes)}
-			data-lanes=""
-			data-group-by={boardGroupBy(settings)}
-		>
-			{visibleLanes(report, settings).map((lane) => (
-				<Lane
-					key={lane.id}
-					name={lane.name}
-					colour={lane.colour}
-					statusType={lane.statusType}
-					groupBy={boardGroupBy(settings)}
-					tickets={
-						lane.statusType === "done"
-							? doneTicketsForLane(report, lane.name)
-							: laneTickets(report, lane.name)
-					}
-					fresh={laneTickets(report, lane.name)}
-					capped={lane.statusType === "done"}
-					shown={shownDone}
-					reveal={selected}
-					onShowAll={() => setShownDone(true)}
-					onOpen={onOpen}
-					onOpenOutside={onOpenOutside}
-				/>
-			))}
-		</div>
+		<OutsideParentsContext.Provider value={report.outsideParents}>
+			<div
+				className={clsx(board.lanes)}
+				data-lanes=""
+				data-group-by={boardGroupBy(settings)}
+			>
+				{visibleLanes(report, settings).map((lane) => (
+					<Lane
+						key={lane.id}
+						name={lane.name}
+						colour={lane.colour}
+						statusType={lane.statusType}
+						groupBy={boardGroupBy(settings)}
+						tickets={
+							lane.statusType === "done"
+								? doneTicketsForLane(report, lane.name)
+								: laneTickets(report, lane.name)
+						}
+						fresh={laneTickets(report, lane.name)}
+						capped={lane.statusType === "done"}
+						shown={shownDone}
+						reveal={selected}
+						onShowAll={() => setShownDone(true)}
+						onOpen={onOpen}
+						onOpenOutside={onOpenOutside}
+					/>
+				))}
+			</div>
+		</OutsideParentsContext.Provider>
 	);
 }
 

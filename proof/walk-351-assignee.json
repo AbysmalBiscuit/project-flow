@@ -1,0 +1,11 @@
+{
+	"base_url": "http://127.0.0.1:4352",
+	"serve": ["bun", "proof/serve-351.ts", "4352", "assignee"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "Fit" },
+		{ "assert_text": "Parent #1" },
+		{ "assert_text": "2 sub-tickets" },
+		{ "shot": "graph-assignee-chips" }
+	]
+}

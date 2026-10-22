@@ -4060,6 +4060,21 @@ export function outsideKey(project: string, key: string): string {
 	return `${project}#${number}`;
 }
 
+/** The chip that names a parent ticket: an outside parent, else a ticket of the project. */
+export function parentChip(
+	outsideParents: OutsideParent[],
+	key: string,
+): { label: string; outside?: OutsideParent } {
+	const outside = outsideParents.find((parent) =>
+		sameTicketKey(parent.key, key),
+	);
+	if (outside !== undefined) {
+		return { label: outsideKey(outside.project, outside.key), outside };
+	}
+	const mark = key.lastIndexOf("#");
+	return { label: mark === -1 ? key : key.slice(mark) };
+}
+
 function summaryLine(counts: ProjectBody): string {
 	return `${counts.name}: ${counts.done} done, ${counts.dropped} dropped, ${counts.blocked} blocked, ${counts.inProgress} in progress, ${counts.backlog} backlog.`;
 }
