@@ -50,4 +50,10 @@ workcell walk-replay --walk-file proof/walk-311-lists.json --proof .devkit/proof
 
 `needs-expanded` shows the panel over the Needs you list. `inbox-expanded` shows the panel over the Inbox list.
 
+The walk format has no scroll step. `proof/measure-header-311.mjs` opens Needs you and Inbox at 1280 by 500. It scrolls the page to the bottom, expands the panel and writes `.devkit/proof/walk-311-header.log`. The log line `header-shown true` means the panel header sits inside the visible page area.
+
+```bash
+bun proof/measure-header-311.mjs
+```
+
 Item 6, the style diff. `git diff origin/main -- src/ui-styles.ts src/panel.tsx src/tokens.stylex.ts src/terms.ts` adds no `px` or `rem` literal.
