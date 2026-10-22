@@ -27,6 +27,7 @@ import {
 import { Dropdown } from "./dropdown.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { TicketPanel } from "./panel.tsx";
+import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { DirectionSwitch, ProjectGraph } from "./project-graph.tsx";
 import {
 	pageQuery,
@@ -35,7 +36,7 @@ import {
 	useSaveSettings,
 } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
-import { AppShell, PageFrame, PollStatus } from "./shell.tsx";
+import { AppShell, PageFrame } from "./shell.tsx";
 import {
 	blockedLabel,
 	filterEmptyLabel,
@@ -1435,10 +1436,19 @@ export function Page() {
 							<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 							<h1 className={clsx(board.name)}>{report.name}</h1>
 							<p className={clsx(board.counts)}>
-								{countLine(report)} <PollStatus text={null} polling={polling} />
+								{countLine(report)}
+								<PollAgeText
+									queryKey={pageQuery.project(name).queryKey}
+									refreshing={polling || reportQuery.isFetching}
+								/>
 							</p>
 						</div>
 						<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
+							<RefreshButton
+								id="project-refresh"
+								refreshing={polling || reportQuery.isFetching}
+								onRefresh={() => postRefresh(pageQuery.project(name).queryKey)}
+							/>
 							{view === "graph" ? (
 								<>
 									<DirectionSwitch

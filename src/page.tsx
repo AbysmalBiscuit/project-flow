@@ -4,7 +4,11 @@ import { watchNotifications } from "./notify.tsx";
 import { mountPage } from "./page-cache.ts";
 import { installPageLinks } from "./page-links.ts";
 import { PageQueryRoot } from "./page-query.tsx";
-import { seedPageQueries, wirePageQueryEvents } from "./queries.ts";
+import {
+	seedPageQueries,
+	seedStoredProject,
+	wirePageQueryEvents,
+} from "./queries.ts";
 import { clearTicketOnPageChange } from "./selection.ts";
 import { readStoredPage, readStoredPolling } from "./stored-page.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
@@ -63,6 +67,7 @@ async function showPage(): Promise<void> {
 		return;
 	}
 	currentPage = loaded.Page;
+	seedStoredProject(path, readStoredPage());
 	paint(path);
 }
 

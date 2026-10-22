@@ -4,6 +4,7 @@ import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { NeedsItem } from "./needs-item.tsx";
 import { TicketPanel } from "./panel.tsx";
+import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { pageQuery } from "./queries.ts";
 import {
 	activeTicket,
@@ -13,14 +14,13 @@ import {
 	replaceActiveItem,
 	useActiveTicket,
 } from "./selection.ts";
-import { PageFrame, PollStatus } from "./shell.tsx";
+import { PageFrame } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
 	loadingLabel,
 	type NeedsGroup,
 	navLabel,
 	needsGroupLabel,
-	polledAgo,
 	reasonLabel,
 	reasonOrder,
 	reasonTab,
@@ -193,12 +193,10 @@ function summaryLine(items: NeedsYouItem[]): string {
 
 function NeedsList({
 	items,
-	fetchedAt,
 	polling,
 	fetching,
 }: {
 	items: NeedsYouItem[];
-	fetchedAt: string | null;
 	polling: boolean;
 	fetching: boolean;
 }) {
@@ -246,12 +244,18 @@ function NeedsList({
 			subtitle={
 				<>
 					{summaryLine(items)}
-					{refreshing || fetchedAt !== null ? ", " : null}
-					<PollStatus
-						text={refreshing ? null : polledAgo(fetchedAt)}
-						polling={refreshing}
+					<PollAgeText
+						queryKey={pageQuery.needsYou.queryKey}
+						refreshing={refreshing}
 					/>
 				</>
+			}
+			actions={
+				<RefreshButton
+					id="needs-refresh"
+					refreshing={refreshing}
+					onRefresh={() => postRefresh(pageQuery.needsYou.queryKey)}
+				/>
 			}
 			wide
 		>
@@ -325,7 +329,6 @@ export function Page() {
 	return (
 		<NeedsList
 			items={items}
-			fetchedAt={body?.fetchedAt ?? null}
 			polling={polling}
 			fetching={needs.isFetching || overview.isFetching}
 		/>

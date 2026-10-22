@@ -1,0 +1,20 @@
+{
+	"base_url": "http://127.0.0.1:4810",
+	"serve": ["bun", "proof/serve-288.ts", "4810", "seconds"],
+	"steps": [
+		{ "goto": "/projects/acme%2Fflow" },
+		{ "assert_text": "Stored ticket" },
+		{ "assert_text": " s ago" },
+		{ "shot": "age-seconds" },
+		{ "goto": "/proof/age?age=minutes" },
+		{ "assert_text": "minutes" },
+		{ "goto": "/projects/acme%2Fflow" },
+		{ "assert_text": "polled 5 min ago" },
+		{ "shot": "age-minutes" },
+		{ "goto": "/proof/age?age=hours" },
+		{ "assert_text": "hours" },
+		{ "goto": "/projects/acme%2Fflow" },
+		{ "assert_text": "polled 2 h ago" },
+		{ "shot": "age-hours" }
+	]
+}

@@ -242,6 +242,26 @@ export function usePostReply(tracker: string, project: string, key: string) {
 
 let storedSeeded = false;
 
+function pollUpdatedAt(value: unknown): number {
+	if (typeof value !== "string") {
+		return 0;
+	}
+	const parsed = Date.parse(value);
+	return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function seedQueryData(
+	queryKey: readonly unknown[],
+	data: unknown,
+	updatedAt: number,
+): void {
+	pageQueryClient.setQueryData(queryKey, data);
+	if (updatedAt <= 0) {
+		return;
+	}
+	pageQueryClient.setQueryData(queryKey, data, { updatedAt });
+}
+
 function seedOverview(
 	stored: Record<string, unknown>,
 	polling: boolean | undefined,
@@ -251,10 +271,14 @@ function seedOverview(
 		return;
 	}
 	const body = overview as Overview;
-	pageQueryClient.setQueryData(pageQuery.overview.queryKey, {
-		...body,
-		...(body.polling === true || polling === true ? { polling: true } : {}),
-	});
+	seedQueryData(
+		pageQuery.overview.queryKey,
+		{
+			...body,
+			...(body.polling === true || polling === true ? { polling: true } : {}),
+		},
+		pollUpdatedAt(body.fetchedAt),
+	);
 	const settings = storedObject(stored.settings);
 	if (settings !== null) {
 		pageQueryClient.setQueryData(
@@ -314,22 +338,28 @@ export function seedPageQueries(
 		}
 		return;
 	}
-	if (pathname.startsWith("/projects/")) {
-		const report = storedObject(stored);
-		if (report === null || report.pending === true) {
-			return;
-		}
-		let name: string;
-		try {
-			name = decodeURIComponent(pathname.slice("/projects/".length));
-		} catch {
-			return;
-		}
-		pageQueryClient.setQueryData(
-			pageQuery.project(name).queryKey,
-			report as ProjectReport,
-		);
+	seedStoredProject(pathname, stored);
+}
+
+export function seedStoredProject(pathname: string, stored: unknown): void {
+	if (!pathname.startsWith("/projects/")) {
+		return;
 	}
+	const report = storedObject(stored);
+	if (report === null || report.pending === true) {
+		return;
+	}
+	let name: string;
+	try {
+		name = decodeURIComponent(pathname.slice("/projects/".length));
+	} catch {
+		return;
+	}
+	seedQueryData(
+		pageQuery.project(name).queryKey,
+		report as ProjectReport,
+		pollUpdatedAt(report.fetchedAt),
+	);
 }
 
 let eventsWired = false;

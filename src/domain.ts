@@ -703,6 +703,7 @@ export type ProjectReport = {
 	doneTickets: TicketView[];
 	graphTickets: TicketView[];
 	graphLinks: ShownGraphLink[];
+	fetchedAt: string | null;
 	/** Filters that leave no ticket on the board, graph or table. */
 	hiddenBy?: HidingFilter[];
 };
@@ -4060,6 +4061,7 @@ export function projectReport(
 		doneTickets,
 		graphTickets: graph.tickets,
 		graphLinks: graph.links,
+		fetchedAt: counts.fetchedAt,
 	};
 }
 
