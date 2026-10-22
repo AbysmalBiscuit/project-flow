@@ -16,6 +16,7 @@ import {
 	Chip,
 	OutsideParentsContext,
 } from "./card-chips.tsx";
+import { cardTones } from "./card-tones.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import {
 	type CrossProjectBlocker,
@@ -451,15 +452,6 @@ function Card({
 		</li>
 	);
 }
-
-const cardTones: Record<StatusType, typeof board.cardBacklog> = {
-	backlog: board.cardBacklog,
-	inProgress: board.cardProgress,
-	inReview: board.cardReview,
-	awaitingMerge: board.cardMerge,
-	done: board.cardDone,
-	dropped: board.cardDropped,
-};
 
 function cardTone(statusType: StatusType | undefined) {
 	return statusType === undefined ? board.cardBacklog : cardTones[statusType];
