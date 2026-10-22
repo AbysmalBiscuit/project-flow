@@ -4,215 +4,18 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview } from "../src/domain.ts";
-import type { Fetch } from "../src/fetch.ts";
-import { run } from "../src/main.ts";
 import {
-	recordedDiscovery,
-	repoReadFromLists,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
-
-const userToken = "recorded-user-token";
-const acmeToken = "ghs_acme_installation";
-const userBearer = `Bearer ${userToken}`;
-const acmeBearer = `Bearer ${acmeToken}`;
-
-type Recorded = {
-	url: string;
-	method: string;
-	authorization: string | null;
-	body: string;
-};
-
-function hostsText(token: string, expiresAt: string): string {
-	return [
-		"github.com:",
-		`    oauth_token: ${token}`,
-		"    git_protocol: https",
-		"    user: x-access-token",
-		`    expires_at: ${expiresAt}`,
-		"",
-	].join("\n");
-}
-
-function json(body: unknown, status = 200): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { "content-type": "application/json" },
-	});
-}
-
-function issue(number: number, repo = "acme/widget"): Record<string, unknown> {
-	return {
-		number,
-		title: `Ticket ${number}`,
-		state: "open",
-		html_url: `https://github.com/${repo}/issues/${number}`,
-		updated_at: "2026-08-18T12:00:00.000Z",
-		body: "Body",
-		comments: 0,
-		labels: [],
-		assignee: null,
-	};
-}
-
-function recordingFetch(
-	recorded: Recorded[],
-	issues: Record<string, Record<string, unknown>[]>,
-): Fetch {
-	return async (input, init) => {
-		const url = urlOf(input);
-		const method = (
-			init?.method ?? (input instanceof Request ? input.method : "GET")
-		).toUpperCase();
-		const headers = new Headers(init?.headers);
-		if (url.startsWith("https://api.github.com/")) {
-			recorded.push({
-				url,
-				method,
-				authorization: headers.get("authorization"),
-				body: typeof init?.body === "string" ? init.body : "",
-			});
-		}
-		if (url === "https://api.github.com/user") {
-			return json({ login: "lev" });
-		}
-		const discovered = recordedDiscovery(input, init);
-		if (discovered !== null) {
-			return discovered;
-		}
-		const list = url.match(
-			/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?/,
-		);
-		if (list?.[1] !== undefined && method === "GET") {
-			return json(issues[list[1]] ?? []);
-		}
-		const one = url.match(
-			/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)$/,
-		);
-		if (one?.[1] !== undefined && one[2] !== undefined && method === "GET") {
-			const found = (issues[one[1]] ?? []).find(
-				(item) => String(item.number) === one[2],
-			);
-			return found === undefined ? unrecorded(input) : json(found);
-		}
-		const comments = url.match(
-			/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/(\d+)\/comments$/,
-		);
-		if (comments !== null && method === "GET") {
-			return json([]);
-		}
-		if (comments !== null && method === "POST") {
-			const repo = comments[1];
-			const number = comments[2];
-			return json(
-				{
-					id: 900,
-					body: "Posted",
-					html_url: `https://github.com/${repo}/issues/${number}#issuecomment-900`,
-					created_at: "2026-08-18T13:00:00.000Z",
-					user: { login: "lev" },
-				},
-				201,
-			);
-		}
-		if (url === "https://api.github.com/graphql" && method === "POST") {
-			const body = typeof init?.body === "string" ? init.body : "";
-			const parsed = JSON.parse(body) as {
-				variables?: { owner?: string; name?: string };
-			};
-			const owner = parsed.variables?.owner;
-			const name = parsed.variables?.name;
-			if (owner !== undefined && name !== undefined) {
-				const repo = `${owner}/${name}`;
-				const read = repoReadFromLists(input, init, {
-					[repo]: issues[repo] ?? [],
-				});
-				if (read !== null) {
-					return read;
-				}
-			}
-			return json({ data: {} });
-		}
-		if (
-			url.includes("/pulls?") ||
-			url.includes("/labels?") ||
-			url.includes("/branches?")
-		) {
-			return json([]);
-		}
-		return unrecorded(input);
-	};
-}
-
-async function serve(options: {
-	config: Record<string, unknown>;
-	fetchImpl: Fetch;
-	now: () => Date;
-	home: string;
-}): Promise<{ base: string; stop: () => Promise<void> }> {
-	const { path, cleanup } = await tempConfig(JSON.stringify(options.config));
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
-	await writeFile(join(root, "notes.txt"), "untracked harness file\n");
-	let startChecks: (base: string) => void = () => {};
-	const ready = new Promise<string>((resolve) => {
-		startChecks = resolve;
-	});
-	const stopped = new Promise<void>((resolve) => {
-		void ready.then(() => {
-			stop = async () => {
-				resolve();
-				await cleanup();
-				await rm(root, { recursive: true, force: true });
-			};
-		});
-	});
-	let stop: () => Promise<void> = async () => {};
-	const running = run(
-		["--config", path, "--host", "127.0.0.1", "--port", "0"],
-		testIo({
-			env: { GITHUB_TOKEN: userToken, HOME: options.home },
-			fetch: options.fetchImpl,
-			readGhToken: async () => null,
-			databasePath: join(root, "store.sqlite"),
-			now: options.now,
-			stdout: (line) => startChecks(line),
-			stderr: (line) => {
-				throw new Error(line);
-			},
-			waitForStop: stopped,
-		}),
-	);
-	const base = await ready;
-	return {
-		base,
-		stop: async () => {
-			await stop();
-			const result = await running;
-			expect(result.stderr).toBe("");
-			expect(result.exitCode).toBe(0);
-		},
-	};
-}
-
-function githubCalls(recorded: Recorded[]): Recorded[] {
-	return recorded.filter((item) =>
-		item.url.startsWith("https://api.github.com/"),
-	);
-}
-
-function forOwner(recorded: Recorded[], owner: string): Recorded[] {
-	return recorded.filter(
-		(item) =>
-			item.url.includes(`/repos/${owner}/`) ||
-			item.body.includes(`"owner":"${owner}"`) ||
-			item.body.includes(`"login":"${owner}"`) ||
-			item.body.includes(`"projectOwner":"${owner}"`),
-	);
-}
+	acmeBearer,
+	acmeToken,
+	forOwner,
+	githubCalls,
+	hostsText,
+	type Recorded,
+	recordedIssue,
+	recordingFetch,
+	serve,
+	userBearer,
+} from "./factory-token-support.ts";
 
 describe("factory GitHub token refresh", () => {
 	test("a token inside the renew window is read again and kept until it expires", async () => {
@@ -230,7 +33,7 @@ describe("factory GitHub token refresh", () => {
 				tracked: [{ tracker: "github", repo: "acme/widget" }],
 			},
 			fetchImpl: recordingFetch(recorded, {
-				"acme/widget": [issue(7)],
+				"acme/widget": [recordedIssue("acme/widget")],
 			}),
 			now: () => clock.at,
 			home,
@@ -292,7 +95,7 @@ describe("factory GitHub token refresh", () => {
 				tracked: [{ tracker: "github", repo: "acme/widget" }],
 			},
 			fetchImpl: recordingFetch(recorded, {
-				"acme/widget": [issue(7)],
+				"acme/widget": [recordedIssue("acme/widget")],
 			}),
 			now: () => new Date("2026-08-18T12:00:00.000Z"),
 			home,
@@ -355,7 +158,7 @@ describe("factory GitHub token refresh", () => {
 				tracked: [{ tracker: "github", repo: "acme/widget" }],
 			},
 			fetchImpl: recordingFetch(recorded, {
-				"acme/widget": [issue(7)],
+				"acme/widget": [recordedIssue("acme/widget")],
 			}),
 			now: () => clock.at,
 			home,
@@ -405,7 +208,7 @@ describe("factory GitHub token refresh", () => {
 				tracked: [{ tracker: "github", repo: "acme/widget" }],
 			},
 			fetchImpl: recordingFetch(recorded, {
-				"acme/widget": [issue(7)],
+				"acme/widget": [recordedIssue("acme/widget")],
 			}),
 			now: () => new Date("2026-08-18T12:00:00.000Z"),
 			home,
@@ -470,9 +273,9 @@ describe("factory GitHub token refresh", () => {
 				],
 			},
 			fetchImpl: recordingFetch(recorded, {
-				"blank/widget": [issue(1, "blank/widget")],
-				"spaced/widget": [issue(2, "spaced/widget")],
-				"broken/widget": [issue(3, "broken/widget")],
+				"blank/widget": [recordedIssue("blank/widget")],
+				"spaced/widget": [recordedIssue("spaced/widget")],
+				"broken/widget": [recordedIssue("broken/widget")],
 			}),
 			now: () => new Date("2026-08-18T12:00:00.000Z"),
 			home,
@@ -499,7 +302,7 @@ describe("factory GitHub token refresh", () => {
 				body: JSON.stringify({
 					tracker: "github",
 					project: "blank/widget",
-					key: "blank/widget#1",
+					key: "blank/widget#205",
 					body: "   ",
 				}),
 			});
