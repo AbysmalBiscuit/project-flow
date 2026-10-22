@@ -21,6 +21,15 @@ import {
 type CardDatum = SimulationNodeDatum & { id: string };
 type Box = { left: number; top: number; right: number; bottom: number };
 
+function cardBox(datum: CardDatum): Box {
+	return {
+		left: (datum.x ?? 0) - card.width / 2,
+		top: (datum.y ?? 0) - card.height / 2,
+		right: (datum.x ?? 0) + card.width / 2,
+		bottom: (datum.y ?? 0) + card.height / 2,
+	};
+}
+
 function frameBox(frame: Frame, at: Map<string, CardDatum>): Box {
 	const boxes: Box[] = [
 		...[
@@ -28,16 +37,7 @@ function frameBox(frame: Frame, at: Map<string, CardDatum>): Box {
 			...frame.cards,
 		].flatMap((id) => {
 			const datum = at.get(id);
-			return datum === undefined
-				? []
-				: [
-						{
-							left: (datum.x ?? 0) - card.width / 2,
-							top: (datum.y ?? 0) - card.height / 2,
-							right: (datum.x ?? 0) + card.width / 2,
-							bottom: (datum.y ?? 0) + card.height / 2,
-						},
-					];
+			return datum === undefined ? [] : [cardBox(datum)];
 		}),
 		...frame.frames.map((child) => frameBox(child, at)),
 	];
@@ -64,12 +64,7 @@ function siblingLevels(
 	const cardItem = (id: string): Item[] =>
 		datums([id]).map((datum) => ({
 			members: [datum],
-			box: () => ({
-				left: (datum.x ?? 0) - card.width / 2,
-				top: (datum.y ?? 0) - card.height / 2,
-				right: (datum.x ?? 0) + card.width / 2,
-				bottom: (datum.y ?? 0) + card.height / 2,
-			}),
+			box: () => cardBox(datum),
 		}));
 	const frameItem = (frame: Frame): Item => ({
 		members: datums(frameCards(frame)),

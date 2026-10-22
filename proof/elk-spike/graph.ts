@@ -360,3 +360,19 @@ export function elkGraph(
 	}
 	return root;
 }
+
+/** The report with every ticket on the graph, done tickets included. */
+export function everyTicket(report: ProjectReport): ProjectReport {
+	const shown = new Set(
+		report.graphTickets.map((ticket) => ticket.key?.toLowerCase()),
+	);
+	const rest = [...report.tickets, ...report.doneTickets].filter((ticket) => {
+		const key = ticket.key?.toLowerCase();
+		if (shown.has(key)) {
+			return false;
+		}
+		shown.add(key);
+		return true;
+	});
+	return { ...report, graphTickets: [...report.graphTickets, ...rest] };
+}

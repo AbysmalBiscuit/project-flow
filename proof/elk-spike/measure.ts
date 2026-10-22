@@ -10,22 +10,14 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import ELK, { type ElkNode } from "elkjs/lib/elk-api.js";
 import type { ProjectReport } from "../../src/domain.ts";
-import { projectFlowPlaces, projectNodeId } from "../../src/graph-flow.ts";
-import type { GroupBy } from "../../src/view-settings.ts";
-import {
-	checkLayout,
-	elkPage,
-	frameCount,
-	type Rect,
-	rects,
-	shortKey,
-	svgPage,
-} from "./check.ts";
+import { projectNodeId } from "../../src/graph-flow.ts";
+import { checkLayout, elkPage, frameCount, type Rect, rects } from "./check.ts";
 import {
 	card,
 	cell,
 	type ElkSettings,
 	elkGraph,
+	everyTicket,
 	frameCards,
 	framePad,
 	type Recorded,
@@ -33,6 +25,7 @@ import {
 	type SpikeGraph,
 	spikeGraph,
 } from "./graph.ts";
+import { fillShare, handPage, handWritten } from "./handwritten.ts";
 
 const [dataDir, outDir] = process.argv.slice(2);
 if (
@@ -170,19 +163,6 @@ function median(values: number[]): number {
 const round = (value: number) => Math.round(value);
 const percent = (value: number) => `${Math.round(value * 100)} %`;
 
-/** Share of the cells in a frame that hold a card, with one cell per card and gap. */
-function fillShare(
-	cards: number,
-	inner: { width: number; height: number },
-): number {
-	const gapX = cell.width - card.width;
-	const gapY = cell.height - card.height;
-	return (
-		(cards * cell.width * cell.height) /
-		((inner.width + gapX) * (inner.height + gapY))
-	);
-}
-
 function elkFill(
 	graph: SpikeGraph,
 	laid: Map<string, Rect>,
@@ -204,108 +184,6 @@ function elkFill(
 function totalShare(rows: { cards: number; share: number }[]): number {
 	const cells = rows.reduce((sum, row) => sum + row.cards / row.share, 0);
 	return rows.reduce((sum, row) => sum + row.cards, 0) / cells;
-}
-
-/** The hand-written layout of `graph-model.ts`, left to right, one frame per group. */
-function handWritten(report: ProjectReport, groupBy: GroupBy) {
-	const placed = projectFlowPlaces(report, groupBy, []);
-	const byBand = new Map<string, { id: string; x: number; y: number }[]>();
-	for (const [id, place] of placed) {
-		const members = byBand.get(place.band) ?? [];
-		members.push({ id, x: place.x, y: place.row * cell.height });
-		byBand.set(place.band, members);
-	}
-	const positions = new Map<string, { x: number; y: number }>();
-	const groups: { name: string; cards: number; share: number; box: Rect }[] =
-		[];
-	let origin = 0;
-	for (const band of [...byBand.keys()].sort((left, right) =>
-		left.localeCompare(right),
-	)) {
-		const members = byBand.get(band) ?? [];
-		const minX = Math.min(...members.map((member) => member.x));
-		const minY = Math.min(...members.map((member) => member.y));
-		const maxX = Math.max(...members.map((member) => member.x));
-		const maxY = Math.max(...members.map((member) => member.y));
-		for (const member of members) {
-			positions.set(member.id, {
-				x: member.x - minX + origin,
-				y: member.y - minY,
-			});
-		}
-		if (!band.startsWith("\u0000")) {
-			const inner = {
-				width: maxX - minX + card.width,
-				height: maxY - minY + card.height,
-			};
-			groups.push({
-				name: band,
-				cards: members.length,
-				share: fillShare(members.length, inner),
-				box: {
-					x: origin - framePad.side,
-					y: -framePad.head,
-					width: inner.width + framePad.side * 2,
-					height: inner.height + framePad.head + framePad.side,
-				},
-			});
-		}
-		origin += maxX - minX + cell.width + framePad.side * 2;
-	}
-	return { positions, groups };
-}
-
-function handPage(
-	title: string,
-	report: ProjectReport,
-	groupBy: GroupBy,
-): string {
-	const { positions, groups } = handWritten(report, groupBy);
-	const cards = [...positions].map(([id, place]) => ({
-		id,
-		label: shortKey(id),
-		box: { x: place.x, y: place.y, width: card.width, height: card.height },
-		outside: !id.toLowerCase().startsWith(`${report.name.toLowerCase()}\n`),
-	}));
-	const at = new Map(cards.map((item) => [item.id, item.box]));
-	const arrows = report.graphLinks.flatMap((link) => {
-		const from = at.get(projectNodeId(link.from.project, link.from.key));
-		const to = at.get(projectNodeId(link.to.project, link.to.key));
-		return from === undefined || to === undefined
-			? []
-			: [
-					[
-						{ x: from.x + from.width, y: from.y + from.height / 2 },
-						{ x: to.x, y: to.y + to.height / 2 },
-					],
-				];
-	});
-	return svgPage(
-		title,
-		groups.map((group) => ({
-			id: group.name,
-			label: group.name,
-			box: group.box,
-		})),
-		cards,
-		arrows,
-	);
-}
-
-/** The report with every ticket on the graph, done tickets included. */
-function everyTicket(report: ProjectReport): ProjectReport {
-	const shown = new Set(
-		report.graphTickets.map((ticket) => ticket.key?.toLowerCase()),
-	);
-	const rest = [...report.tickets, ...report.doneTickets].filter((ticket) => {
-		const key = ticket.key?.toLowerCase();
-		if (shown.has(key)) {
-			return false;
-		}
-		shown.add(key);
-		return true;
-	});
-	return { ...report, graphTickets: [...report.graphTickets, ...rest] };
 }
 
 const forceWorker = () => new Worker(join(import.meta.dir, "force-worker.ts"));
