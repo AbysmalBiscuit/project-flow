@@ -14,32 +14,18 @@ import {
 } from "@xyflow/react";
 import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
-import {
-	groupLabelOf,
-	outsideKey,
-	type ProjectReport,
-	type TicketState,
-} from "./domain.ts";
-import {
-	type FlowTicket,
-	flowGap,
-	graphBand,
-	graphEdges,
-	graphTickets,
-	projectFlowPlaces,
-	projectNodeId,
-} from "./graph-flow.ts";
+import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
+import { fitPadding, float, Legend } from "./graph-float.tsx";
+import type {
+	ClusterNodeData,
+	TicketEdgeData,
+	TicketNodeData,
+} from "./graph-model.ts";
+import { graphModel, isClusterNode } from "./graph-model.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
-import {
-	assignLanes,
-	type GraphRoute,
-	labelSpots,
-	markerEnd,
-	measureMarker,
-	type NodeBound,
-	routeEdge,
-} from "./graph-routes.ts";
-import { sizedNode } from "./graph-sizes.ts";
+import { GraphTools } from "./graph-pane.tsx";
+import { type GraphRoute, routeEdge } from "./graph-routes.ts";
+import type { NodeSize } from "./graph-sizes.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
@@ -52,48 +38,6 @@ import { cards, headerControlStyle } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 import { graphDirections } from "./view-settings.ts";
 
-const columnGap = flowGap.along;
-const groupPad = 16;
-const groupHead = 28;
-const fitPadding = 0.28;
-
-type GraphTicketView = {
-	key: string | null;
-	title: string;
-	state?: TicketState;
-	pull?: string;
-	needsYou?: boolean;
-	workstream?: string;
-	workstreamKey?: string;
-	theme?: string;
-	assignees?: string[];
-};
-
-type TicketNodeData = {
-	ticket: GraphTicketView;
-	outside: boolean;
-	project: string;
-	tracker: "github" | "linear";
-	open: boolean;
-};
-
-type ClusterNodeData = {
-	name: string;
-	label: string;
-};
-
-type ProjectNodeData = TicketNodeData | ClusterNodeData;
-
-type ProjectNode =
-	| FlowNode<TicketNodeData, "ticket">
-	| FlowNode<ClusterNodeData, "cluster">;
-
-function isClusterNode(
-	node: FlowNode<ProjectNodeData>,
-): node is FlowNode<ClusterNodeData, "cluster"> {
-	return node.type === "cluster";
-}
-
 export type OpenedNode = {
 	key: string;
 	project: string;
@@ -101,17 +45,6 @@ export type OpenedNode = {
 	title: string;
 	outside: boolean;
 	state?: TicketState;
-};
-
-type TicketEdgeData = {
-	lane: number;
-	lanes: number;
-	entry: number;
-	entries: number;
-	nodes: NodeBound[];
-	label: { x: number; y: number };
-	side: number;
-	done: boolean;
 };
 
 function shortTicket(key: string, project: string, outside: boolean): string {
@@ -133,24 +66,6 @@ const stateTone: Record<
 	done: { label: stateLabel.done, tone: board.ticketDone },
 	dropped: { label: stateLabel.dropped, tone: board.ticketDropped },
 };
-
-const legendTone: Record<TicketState, (typeof board)["legendDone"]> = {
-	backlog: board.legendReady,
-	inProgress: board.legendProgress,
-	inReview: board.legendReview,
-	awaitingMerge: board.legendMerge,
-	done: board.legendDone,
-	dropped: board.legendDropped,
-};
-
-const legendOrder = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-] as const satisfies ReadonlyArray<TicketState>;
 
 function ClusterNode({
 	data,
@@ -246,354 +161,80 @@ function TicketEdge({
 const nodeTypes = { ticket: TicketNode, cluster: ClusterNode };
 const edgeTypes = { ticket: TicketEdge };
 
-type GraphTicket = {
-	flow: FlowTicket;
-	ticket: GraphTicketView;
-	project: string;
-	tracker: "github" | "linear";
-	outside: boolean;
-};
-
-function ticketView(ticket: FlowTicket, reports: ProjectReport[]): GraphTicket {
-	const home = reports.find(
-		(report) => report.name.toLowerCase() === ticket.project.toLowerCase(),
-	);
-	const known = home?.tickets.find(
-		(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
-	);
-	const state = ticket.state;
-	return {
-		flow: ticket,
-		ticket: {
-			key: ticket.key,
-			title: ticket.title,
-			...(state === undefined ? {} : { state }),
-			...(known?.pull === undefined ? {} : { pull: known.pull }),
-			...(known?.needsYou === undefined ? {} : { needsYou: known.needsYou }),
-			...(ticket.workstream === undefined
-				? {}
-				: { workstream: ticket.workstream }),
-			...(ticket.workstreamKey === undefined
-				? {}
-				: { workstreamKey: ticket.workstreamKey }),
-			...(ticket.theme === undefined ? {} : { theme: ticket.theme }),
-			...(ticket.assignees === undefined
-				? {}
-				: { assignees: ticket.assignees }),
-		},
-		project: ticket.project,
-		tracker: ticket.tracker ?? home?.tracker ?? "github",
-		outside: ticket.outside,
-	};
-}
-
-function shownTickets(
-	report: ProjectReport,
-	reports: ProjectReport[],
-): GraphTicket[] {
-	return graphTickets(report).map((ticket) => ticketView(ticket, reports));
-}
-
-function layoutTickets(
-	report: ProjectReport,
-	direction: GraphDirection,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-): Map<string, { x: number; y: number }> {
-	const placed = projectFlowPlaces(report, groupBy, assignees);
-	const positions = new Map<string, { x: number; y: number }>();
-	const local = (place: { x: number; row: number }) => ({
-		x: place.x,
-		y: place.row * flowGap.across,
-	});
-	const turned = (place: { x: number; y: number }) =>
-		direction === "top-to-bottom"
-			? {
-					x: (place.y / flowGap.across) * flowGap.along,
-					y: (place.x / flowGap.along) * flowGap.across,
-				}
-			: place;
-	if (groupBy === "none") {
-		for (const [id, place] of placed) {
-			positions.set(id, turned(place));
-		}
-		return positions;
+function layoutParts(): {
+	root: HTMLElement;
+	legend: HTMLElement;
+	floats: HTMLElement[];
+} | null {
+	const root = document.getElementById("project-graph");
+	if (!(root instanceof HTMLElement)) {
+		return null;
 	}
-	const byBand = new Map<string, { id: string; x: number; y: number }[]>();
-	for (const [id, place] of placed) {
-		const members = byBand.get(place.band) ?? [];
-		const home = local(place);
-		members.push({ id, x: home.x, y: home.y });
-		byBand.set(place.band, members);
-	}
-	const bands = [...byBand.keys()].sort((left, right) =>
-		left.localeCompare(right),
+	const legend = root.querySelector(
+		`[aria-label="${projectGraphLabel.legend}"]`,
 	);
-	let origin = 0;
-	for (const band of bands) {
-		const members = byBand.get(band) ?? [];
-		const minX = Math.min(...members.map((member) => member.x));
-		const minY = Math.min(...members.map((member) => member.y));
-		const shifted = members.map((member) =>
-			turned({ x: member.x - minX, y: member.y - minY }),
-		);
-		for (const [index, member] of members.entries()) {
-			const place = shifted[index] ?? { x: 0, y: 0 };
-			positions.set(member.id, {
-				x: place.x + origin,
-				y: place.y,
-			});
-		}
-		const span = Math.max(...shifted.map((place) => place.x));
-		origin += span + columnGap + groupPad * 2;
-	}
-	return positions;
-}
-
-function groupId(name: string): string {
-	return `group\n${name}`;
-}
-
-type TicketSize = { width: number; height: number };
-
-function edgeRoute(
-	edge: { source: string; target: string },
-	bounds: Map<string, NodeBound>,
-	horizontal: boolean,
-): GraphRoute {
-	const source = bounds.get(edge.source);
-	const target = bounds.get(edge.target);
-	if (horizontal) {
-		return {
-			sourceX: source?.right ?? 0,
-			sourceY: source === undefined ? 0 : (source.top + source.bottom) / 2,
-			targetX: target?.left ?? 0,
-			targetY: target === undefined ? 0 : (target.top + target.bottom) / 2,
-			sourcePosition: Position.Right,
-			targetPosition: Position.Left,
-		};
-	}
-	return {
-		sourceX: source === undefined ? 0 : (source.left + source.right) / 2,
-		sourceY: source?.bottom ?? 0,
-		targetX: target === undefined ? 0 : (target.left + target.right) / 2,
-		targetY: target?.top ?? 0,
-		sourcePosition: Position.Bottom,
-		targetPosition: Position.Top,
-	};
-}
-
-function clusterNodes(
-	tickets: GraphTicket[],
-	positions: Map<string, { x: number; y: number }>,
-	ticketSizes: Map<string, TicketSize>,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-	fallback: TicketSize,
-): FlowNode<ClusterNodeData, "cluster">[] {
-	if (groupBy === "none") {
-		return [];
-	}
-	const groups = new Map<
-		string,
-		{ label: string; places: { x: number; y: number; size: TicketSize }[] }
-	>();
-	for (const ticket of tickets) {
-		const key = ticket.ticket.key;
-		if (key === null || ticket.outside) {
-			continue;
-		}
-		const name = graphBand(ticket.flow, groupBy, assignees);
-		const id = projectNodeId(ticket.project, key);
-		const place = positions.get(id);
-		const size = ticketSizes.get(id) ?? fallback;
-		if (place === undefined || name === "") {
-			continue;
-		}
-		const label = groupLabelOf(ticket.ticket, groupBy, name);
-		const known = groups.get(name) ?? { label, places: [] };
-		known.places.push({ x: place.x, y: place.y, size });
-		groups.set(name, known);
-	}
-	return [...groups.entries()]
-		.sort((left, right) => left[1].label.localeCompare(right[1].label))
-		.map(([name, group]) => {
-			const places = group.places;
-			const left = Math.min(...places.map((place) => place.x));
-			const top = Math.min(...places.map((place) => place.y));
-			const right = Math.max(
-				...places.map((place) => place.x + place.size.width),
-			);
-			const bottom = Math.max(
-				...places.map((place) => place.y + place.size.height),
-			);
-			const width = right - left + groupPad * 2;
-			const height = bottom - top + groupHead + groupPad;
-			return {
-				id: groupId(name),
-				type: "cluster" as const,
-				position: { x: left - groupPad, y: top - groupHead },
-				width,
-				height,
-				style: { width, height },
-				data: { name, label: group.label },
-				zIndex: -1,
-				draggable: false,
-				selectable: false,
-			};
-		});
-}
-
-export function graphModel(
-	report: ProjectReport,
-	reports: ProjectReport[],
-	direction: GraphDirection,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-	openKey: string | null,
-	ticketSizes: Map<string, TicketSize>,
-	fallback: TicketSize,
-): {
-	nodes: ProjectNode[];
-	edges: FlowEdge<TicketEdgeData>[];
-} {
-	const tickets = shownTickets(report, reports);
-	const links = graphEdges(report);
-	const positions = layoutTickets(report, direction, groupBy, assignees);
-	const horizontal = direction === "left-to-right";
-	const groups = clusterNodes(
-		tickets,
-		positions,
-		ticketSizes,
-		groupBy,
-		assignees,
-		fallback,
+	const chrome = document.getElementById("project-graph-controls");
+	const floats = [...(chrome?.querySelectorAll(":scope > * > *") ?? [])].filter(
+		(node): node is HTMLElement => node instanceof HTMLElement,
 	);
-	const nodes = tickets.flatMap((item) => {
-		const key = item.ticket.key;
-		if (key === null) {
-			return [];
-		}
-		const id = projectNodeId(item.project, key);
-		const place = positions.get(id) ?? { x: 0, y: 0 };
-		const node: FlowNode<TicketNodeData, "ticket"> = sizedNode(
-			{
-				id,
-				type: "ticket",
-				position: place,
-				sourcePosition: horizontal ? Position.Right : Position.Bottom,
-				targetPosition: horizontal ? Position.Left : Position.Top,
-				data: {
-					ticket: item.ticket,
-					outside: item.outside,
-					project: item.project,
-					tracker: item.tracker,
-					open: openKey === key,
-				},
-			},
-			ticketSizes.get(id) ?? fallback,
-		);
-		return [node];
-	});
-	const fromHandle = horizontal ? "right" : "bottom";
-	const toHandle = horizontal ? "left" : "top";
-	const solid = measureMarker(classToken(cards.graphMarker));
-	const done = measureMarker(classToken(board.graphDoneMarker));
-	const solidMarker = markerEnd(solid.size, solid.color);
-	const doneMarker = markerEnd(done.size, done.color);
-	const pending = links.map((link) => {
-		const closed = link.done === true;
-		return {
-			id: `${link.from}->${link.to}`,
-			source: link.from,
-			target: link.to,
-			sourceHandle: fromHandle,
-			targetHandle: toHandle,
-			type: "ticket" as const,
-			markerEnd: closed ? doneMarker : solidMarker,
-			...(closed ? { className: classToken(board.graphEdgeDone) } : {}),
-			data: { done: closed },
-		};
-	});
-	const bounds = new Map(
-		nodes.flatMap((node) => {
-			if (isClusterNode(node)) {
-				return [];
-			}
-			const size = ticketSizes.get(node.id) ?? fallback;
-			const x = node.position.x;
-			const y = node.position.y;
-			return [
-				[
-					node.id,
-					{
-						left: x,
-						top: y,
-						right: x + size.width,
-						bottom: y + size.height,
-					},
-				] as const,
-			];
-		}),
-	);
-	const laned = assignLanes(pending).map((edge) => {
-		const nodesForEdge = [...bounds.entries()].flatMap(([id, bound]) =>
-			id === edge.source || id === edge.target ? [] : [bound],
-		);
-		return { edge, nodesForEdge };
-	});
-	const side = horizontal ? fallback.height : fallback.width;
-	const spots = labelSpots(
-		laned.map(({ edge, nodesForEdge }) => ({
-			route: edgeRoute(edge, bounds, horizontal),
-			lane: edge.data.lane,
-			lanes: edge.data.lanes,
-			entry: edge.data.entry,
-			entries: edge.data.entries,
-			nodes: nodesForEdge,
-			side,
-		})),
-	);
-	const edges = laned.map(({ edge, nodesForEdge }, index) => ({
-		...edge,
-		data: {
-			...edge.data,
-			nodes: nodesForEdge,
-			label: spots[index] ?? { x: 0, y: 0 },
-			side,
-		},
-	}));
-	return {
-		nodes: [...groups, ...nodes],
-		edges,
-	};
+	if (!(legend instanceof HTMLElement) || floats.length === 0) {
+		return null;
+	}
+	return { root, legend, floats };
 }
 
-function Legend() {
+function boxesMiss(left: DOMRect, right: DOMRect): boolean {
 	return (
-		<section
-			className={clsx(board.legendBox)}
-			aria-label={projectGraphLabel.legend}
-		>
-			<ul className={clsx(board.legendRow)}>
-				{legendOrder.map((state) => (
-					<li key={state} className={clsx(board.legendItem)}>
-						<span className={clsx(board.legendDot, legendTone[state])} />
-						{stateTone[state].label}
-					</li>
-				))}
-			</ul>
-			<p className={clsx(board.legendNote, board.legendEdge)}>
-				<span className={clsx(board.legendSwatch)} />
-				{projectGraphLabel.arrow}
-			</p>
-			<p className={clsx(board.legendNote, board.legendEdge)}>
-				<span className={clsx(board.legendSwatch, board.legendSwatchDone)} />
-				{projectGraphLabel.done}
-			</p>
-			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
-		</section>
+		Math.round(left.right) <= Math.round(right.left) ||
+		Math.round(left.bottom) <= Math.round(right.top) ||
+		Math.round(right.bottom) <= Math.round(left.top)
 	);
+}
+
+function publishLayout(): void {
+	const probe = document.getElementById("project-graph-layout");
+	const parts = layoutParts();
+	const pane = document.getElementById("project-graph-pane");
+	if (probe === null || parts === null || !(pane instanceof HTMLElement)) {
+		return;
+	}
+	const paneBox = pane.getBoundingClientRect();
+	const legendBox = parts.legend.getBoundingClientRect();
+	const rootBox = parts.root.getBoundingClientRect();
+	const apart = parts.floats.every((float) =>
+		boxesMiss(legendBox, float.getBoundingClientRect()),
+	);
+	const border = Number.parseFloat(getComputedStyle(parts.root).borderTopWidth);
+	const edge = Number.isFinite(border) ? border : 0;
+	const flush =
+		Math.round(paneBox.top - edge) === Math.round(rootBox.top) &&
+		Math.round(paneBox.bottom + edge) === Math.round(rootBox.bottom);
+	const page = document.documentElement;
+	const fits = page.scrollWidth === page.clientWidth;
+	probe.textContent = [
+		flush ? "canvas-flush" : "canvas-offset",
+		apart ? "floats-apart" : "floats-cover",
+		fits ? "page-fits" : "page-scrolls",
+	].join(" ");
+}
+
+function watchLayout(span: NodeSize | null): () => void {
+	if (span === null) {
+		return () => {};
+	}
+	const parts = layoutParts();
+	if (parts === null) {
+		return () => {};
+	}
+	publishLayout();
+	const observer = new ResizeObserver(publishLayout);
+	observer.observe(parts.root);
+	observer.observe(document.documentElement);
+	observer.observe(parts.legend);
+	for (const float of parts.floats) {
+		observer.observe(float);
+	}
+	return () => observer.disconnect();
 }
 
 function FitDirection() {
@@ -618,6 +259,7 @@ export function ProjectGraph({
 	assignees,
 	openKey,
 	onOpen,
+	onDirection,
 }: {
 	report: ProjectReport;
 	reports: ProjectReport[];
@@ -626,6 +268,7 @@ export function ProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
+	onDirection: (direction: GraphDirection) => void;
 }) {
 	return (
 		<ReactFlowProvider>
@@ -637,6 +280,7 @@ export function ProjectGraph({
 				assignees={assignees}
 				openKey={openKey}
 				onOpen={onOpen}
+				onDirection={onDirection}
 			/>
 		</ReactFlowProvider>
 	);
@@ -650,6 +294,7 @@ function SizedProjectGraph({
 	assignees,
 	openKey,
 	onOpen,
+	onDirection,
 }: {
 	report: ProjectReport;
 	reports: ProjectReport[];
@@ -658,6 +303,7 @@ function SizedProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	onOpen: (ticket: OpenedNode) => void;
+	onDirection: (direction: GraphDirection) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
@@ -678,6 +324,7 @@ function SizedProjectGraph({
 			span,
 		);
 	}, [report, reports, direction, groupBy, assignees, openKey, span, theme]);
+	useEffect(() => watchLayout(span), [span]);
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
@@ -709,6 +356,7 @@ function SizedProjectGraph({
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
 			</p>
+			<p id="project-graph-layout" className={clsx(cards.graphProbe)} />
 			<p id="graph-states" className={clsx(cards.graphProbe)}>
 				{model.nodes
 					.flatMap((node) =>
@@ -720,8 +368,10 @@ function SizedProjectGraph({
 					)
 					.join(" | ")}
 			</p>
-			<Legend />
-			<div className={clsx(board.graphPane)}>
+			<div
+				id="project-graph-pane"
+				className={clsx(board.graphPane, float.pane)}
+			>
 				<ReactFlow
 					key={direction}
 					nodes={model.nodes}
@@ -758,6 +408,18 @@ function SizedProjectGraph({
 					<Background variant={BackgroundVariant.Dots} gap={18} />
 					<FitDirection key={direction} />
 				</ReactFlow>
+				<Legend />
+				<div id="project-graph-controls" className={clsx(float.chrome)}>
+					<div className={clsx(float.group)}>
+						<DirectionSwitch direction={direction} onChange={onDirection} />
+						<GraphTools
+							probeId="project-graph-viewport"
+							fitId="project-graph-fit"
+							scope="#project-graph"
+							styles="header"
+						/>
+					</div>
+				</div>
 			</div>
 		</div>
 	);
