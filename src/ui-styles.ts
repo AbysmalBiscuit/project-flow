@@ -1287,9 +1287,11 @@ export const project = stylex.create({
 
 export const needs = stylex.create({
 	layout: {
+		position: "relative",
 		display: "flex",
 		gap: space.lg,
 		alignItems: "stretch",
+		minHeight: measure.boardMin,
 	},
 	main: {
 		flex: "1 1 auto",
@@ -1828,11 +1830,12 @@ export const inbox = stylex.create({
 		color: colours.inkMuted,
 	},
 	stage: {
+		position: "relative",
 		display: "flex",
 		flex: "1 1 auto",
 		gap: space.md,
 		alignItems: "stretch",
-		minHeight: 0,
+		minHeight: measure.boardMin,
 	},
 	list: {
 		flex: "1 1 auto",
@@ -2014,6 +2017,36 @@ export const panel = stylex.create({
 		fontSize: type.menu,
 		lineHeight: 1,
 		cursor: "pointer",
+	},
+	expand: {
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		padding: `${space.twoXs} ${space.sm}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.menu,
+		backgroundColor: "transparent",
+		color: colours.inkSoft,
+		fontFamily: font.sans,
+		fontSize: type.meta,
+		lineHeight: 1,
+		cursor: "pointer",
+	},
+	expanded: {
+		position: "absolute",
+		zIndex: stack.expanded,
+		top: 0,
+		right: 0,
+		bottom: 0,
+		left: 0,
+		flex: "1 1 auto",
+		alignSelf: "stretch",
+		width: "auto",
+		maxWidth: "none",
+		height: "auto",
+		maxHeight: "none",
 	},
 	heading: {
 		margin: `0 0 ${space.sm}`,

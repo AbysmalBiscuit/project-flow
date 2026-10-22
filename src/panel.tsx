@@ -10,6 +10,8 @@ import type {
 } from "./domain.ts";
 import { pageQuery, usePostReply } from "./queries.ts";
 import {
+	collapsePanelLabel,
+	expandPanelLabel,
 	mergeFactLabel,
 	openOnGitHubLabel,
 	pullStatusLabel,
@@ -242,6 +244,7 @@ export function TicketPanel({
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [picked, setPicked] = useState(false);
+	const [expanded, setExpanded] = useState(false);
 	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
 	const reply = usePostReply(tracker, project, ticketKey);
 	const pending = reply.isPending;
@@ -288,6 +291,10 @@ export function TicketPanel({
 				return;
 			}
 			event.preventDefault();
+			if (root.current?.dataset.expanded === "true") {
+				setExpanded(false);
+				return;
+			}
 			const target = opener.current;
 			onCloseRef.current();
 			setTimeout(() => {
@@ -296,8 +303,8 @@ export function TicketPanel({
 				}
 			}, 0);
 		};
-		document.addEventListener("keydown", onKey);
-		return () => document.removeEventListener("keydown", onKey);
+		window.addEventListener("keydown", onKey, true);
+		return () => window.removeEventListener("keydown", onKey, true);
 	}, []);
 	async function pick(option: number): Promise<void> {
 		if (pending || picked) {
@@ -337,10 +344,15 @@ export function TicketPanel({
 	const stateName = state === undefined ? "unknown" : state;
 	return (
 		<aside
-			className={clsx(panel.panel, why === undefined ? null : panel.needs)}
+			className={clsx(
+				panel.panel,
+				why === undefined ? null : panel.needs,
+				expanded && panel.expanded,
+			)}
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 			data-state={stateName}
+			data-expanded={expanded ? "true" : "false"}
 			ref={root}
 		>
 			<div className={clsx(panel.head)}>
@@ -354,6 +366,15 @@ export function TicketPanel({
 							Open on {trackerName}
 						</a>
 					)}
+					<button
+						type="button"
+						className={clsx(panel.expand, shell.buttonFocus)}
+						aria-label={expanded ? collapsePanelLabel : expandPanelLabel}
+						aria-pressed={expanded}
+						onClick={() => setExpanded((open) => !open)}
+					>
+						{expanded ? "Collapse" : "Expand"}
+					</button>
 					<button
 						type="button"
 						className={clsx(panel.dismiss, shell.buttonFocus)}

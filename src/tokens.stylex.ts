@@ -363,6 +363,8 @@ export const stack = stylex.defineVars({
 	panel: 1,
 	jump: 2,
 	toast: 3,
+	// Covers the stage while the page view stays mounted underneath.
+	expanded: 4,
 });
 
 // Shared shell wrapping. Each caller picks its own breakpoint and row gap.
