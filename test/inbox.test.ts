@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { sqliteStore } from "../src/store.ts";
+import { eventsOf } from "./events.ts";
 import outsideRelations from "./fixtures/outside-relations.json";
 import {
 	linearFake,
@@ -99,31 +100,6 @@ function isIssueQuery(
 		urlOf(input) === "https://api.linear.app/graphql" &&
 		bodyOf(init).includes("ProjectIssues")
 	);
-}
-
-type StreamEvent = {
-	event: string;
-	data: string;
-};
-
-function eventsOf(text: string): StreamEvent[] {
-	const events: StreamEvent[] = [];
-	for (const block of text.split("\n\n")) {
-		const event = block
-			.split("\n")
-			.find((line) => line.startsWith("event:"))
-			?.slice("event:".length)
-			.trim();
-		const payload = block
-			.split("\n")
-			.filter((line) => line.startsWith("data:"))
-			.map((line) => line.slice("data:".length).trim())
-			.join("\n");
-		if (event !== undefined && payload !== "") {
-			events.push({ event, data: payload });
-		}
-	}
-	return events;
 }
 
 async function openEvents(base: string) {
