@@ -32,6 +32,7 @@ import {
 	rememberValidator,
 } from "./github.ts";
 import { githubTicketKey } from "./github-thread.ts";
+import { elkWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
@@ -63,6 +64,11 @@ import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
 import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
+
+const elkWorkerFile = Bun.resolveSync(
+	"elkjs/lib/elk-worker.min.js",
+	import.meta.dir,
+);
 
 export type StartOptions = {
 	configPath: string;
@@ -629,6 +635,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		development: false,
 		routes: {
 			"/_page": page,
+			[elkWorkerPath]: () => new Response(Bun.file(elkWorkerFile)),
 			"/": pageResponse,
 			"/needs-you": pageResponse,
 			"/inbox": pageResponse,

@@ -101,6 +101,8 @@ export const threadMissingLabel = "This thread could not be read.";
 
 export const threadFailedLabel = "This thread did not load.";
 
+export const graphLayoutFailedLabel = "The graph did not lay out.";
+
 export const threadRetryLabel = "Retry";
 
 export const expandPanelLabel = "Expand panel";

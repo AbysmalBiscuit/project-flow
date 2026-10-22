@@ -4,21 +4,14 @@ import {
 	Position,
 } from "@xyflow/react";
 import { board } from "./board-styles.ts";
-import {
-	groupLabelOf,
-	type ProjectReport,
-	parentChip,
-	type TicketState,
-} from "./domain.ts";
+import { type ProjectReport, parentChip, type TicketState } from "./domain.ts";
 import {
 	type FlowTicket,
-	flowGap,
-	graphBand,
 	graphEdges,
 	graphTickets,
-	projectFlowPlaces,
 	projectNodeId,
 } from "./graph-flow.ts";
+import type { GraphLayout, LayoutInput } from "./graph-layout.ts";
 import {
 	assignLanes,
 	type GraphRoute,
@@ -31,10 +24,6 @@ import { sizedNode } from "./graph-sizes.ts";
 import { classToken } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
-
-const columnGap = flowGap.along;
-const groupPad = 16;
-const groupHead = 28;
 
 export type GraphTicketView = {
 	key: string | null;
@@ -61,7 +50,6 @@ export type TicketNodeData = {
 };
 
 export type ClusterNodeData = {
-	name: string;
 	label: string;
 	members: string[];
 };
@@ -154,66 +142,6 @@ function shownTickets(
 	);
 }
 
-function layoutTickets(
-	report: ProjectReport,
-	direction: GraphDirection,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-): Map<string, { x: number; y: number }> {
-	const placed = projectFlowPlaces(report, groupBy, assignees);
-	const positions = new Map<string, { x: number; y: number }>();
-	const local = (place: { x: number; row: number }) => ({
-		x: place.x,
-		y: place.row * flowGap.across,
-	});
-	const turned = (place: { x: number; y: number }) =>
-		direction === "top-to-bottom"
-			? {
-					x: (place.y / flowGap.across) * flowGap.along,
-					y: (place.x / flowGap.along) * flowGap.across,
-				}
-			: place;
-	if (groupBy === "none") {
-		for (const [id, place] of placed) {
-			positions.set(id, turned(place));
-		}
-		return positions;
-	}
-	const byBand = new Map<string, { id: string; x: number; y: number }[]>();
-	for (const [id, place] of placed) {
-		const members = byBand.get(place.band) ?? [];
-		const home = local(place);
-		members.push({ id, x: home.x, y: home.y });
-		byBand.set(place.band, members);
-	}
-	const bands = [...byBand.keys()].sort((left, right) =>
-		left.localeCompare(right),
-	);
-	let origin = 0;
-	for (const band of bands) {
-		const members = byBand.get(band) ?? [];
-		const minX = Math.min(...members.map((member) => member.x));
-		const minY = Math.min(...members.map((member) => member.y));
-		const shifted = members.map((member) =>
-			turned({ x: member.x - minX, y: member.y - minY }),
-		);
-		for (const [index, member] of members.entries()) {
-			const place = shifted[index] ?? { x: 0, y: 0 };
-			positions.set(member.id, {
-				x: place.x + origin,
-				y: place.y,
-			});
-		}
-		const span = Math.max(...shifted.map((place) => place.x));
-		origin += span + columnGap + groupPad * 2;
-	}
-	return positions;
-}
-
-function groupId(name: string): string {
-	return `group\n${name}`;
-}
-
 type TicketSize = { width: number; height: number };
 
 function edgeRoute(
@@ -257,75 +185,40 @@ function labelHeight(label: string, width: number): number {
 	return height;
 }
 
-function headGrowth(label: string, width: number): number {
+/** The extra height of a group label that wraps at the frame width. */
+export function headGrowth(label: string, width: number): number {
 	return Math.max(0, labelHeight(label, width) - labelHeight("\u00a0", width));
 }
 
 function clusterNodes(
-	tickets: GraphTicket[],
-	positions: Map<string, { x: number; y: number }>,
-	ticketSizes: Map<string, TicketSize>,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-	fallback: TicketSize,
+	input: LayoutInput,
+	layout: GraphLayout,
 ): FlowNode<ClusterNodeData, "cluster">[] {
-	if (groupBy === "none") {
-		return [];
-	}
-	const groups = new Map<
-		string,
-		{
-			label: string;
-			places: { x: number; y: number; size: TicketSize }[];
-			members: string[];
+	return input.groups.flatMap((group) => {
+		const frame = layout.groups.get(group.id);
+		if (frame === undefined) {
+			return [];
 		}
-	>();
-	for (const ticket of tickets) {
-		const key = ticket.ticket.key;
-		if (key === null || ticket.outside) {
-			continue;
-		}
-		const name = graphBand(ticket.flow, groupBy, assignees);
-		const id = projectNodeId(ticket.project, key);
-		const place = positions.get(id);
-		const size = ticketSizes.get(id) ?? fallback;
-		if (place === undefined || name === "") {
-			continue;
-		}
-		const label = groupLabelOf(ticket.ticket, groupBy, name);
-		const known = groups.get(name) ?? { label, places: [], members: [] };
-		known.places.push({ x: place.x, y: place.y, size });
-		known.members.push(id);
-		groups.set(name, known);
-	}
-	return [...groups.entries()]
-		.sort((left, right) => left[1].label.localeCompare(right[1].label))
-		.map(([name, group]) => {
-			const places = group.places;
-			const left = Math.min(...places.map((place) => place.x));
-			const top = Math.min(...places.map((place) => place.y));
-			const right = Math.max(
-				...places.map((place) => place.x + place.size.width),
-			);
-			const bottom = Math.max(
-				...places.map((place) => place.y + place.size.height),
-			);
-			const width = right - left + groupPad * 2;
-			const head = groupHead + headGrowth(group.label, width);
-			const height = bottom - top + head + groupPad;
-			return {
-				id: groupId(name),
+		return [
+			{
+				id: group.id,
 				type: "cluster" as const,
-				position: { x: left - groupPad, y: top - head },
-				width,
-				height,
-				style: { width, height },
-				data: { name, label: group.label, members: group.members },
+				position: { x: frame.x, y: frame.y },
+				width: frame.width,
+				height: frame.height,
+				style: { width: frame.width, height: frame.height },
+				data: {
+					label: group.label,
+					members: input.cards.flatMap((card) =>
+						card.group === group.id ? [card.id] : [],
+					),
+				},
 				zIndex: -1,
 				draggable: false,
 				selectable: false,
-			};
-		});
+			},
+		];
+	});
 }
 
 export function graphModel(
@@ -333,8 +226,9 @@ export function graphModel(
 	reports: ProjectReport[],
 	direction: GraphDirection,
 	groupBy: GroupBy,
-	assignees: readonly string[],
 	openKey: string | null,
+	input: LayoutInput,
+	layout: GraphLayout,
 	ticketSizes: Map<string, TicketSize>,
 	fallback: TicketSize,
 ): {
@@ -343,23 +237,15 @@ export function graphModel(
 } {
 	const tickets = shownTickets(report, reports);
 	const links = graphEdges(report);
-	const positions = layoutTickets(report, direction, groupBy, assignees);
 	const horizontal = direction === "left-to-right";
-	const groups = clusterNodes(
-		tickets,
-		positions,
-		ticketSizes,
-		groupBy,
-		assignees,
-		fallback,
-	);
+	const groups = clusterNodes(input, layout);
 	const nodes = tickets.flatMap((item) => {
 		const key = item.ticket.key;
 		if (key === null) {
 			return [];
 		}
 		const id = projectNodeId(item.project, key);
-		const place = positions.get(id) ?? { x: 0, y: 0 };
+		const place = layout.cards.get(id) ?? { x: 0, y: 0 };
 		const node: FlowNode<TicketNodeData, "ticket"> = sizedNode(
 			{
 				id,
