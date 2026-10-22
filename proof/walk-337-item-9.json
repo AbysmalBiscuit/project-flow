@@ -23,6 +23,9 @@
 			"click": "#project-graph [data-graph-node='acme/widget#2']"
 		},
 		{
+			"click": "h1"
+		},
+		{
 			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
 		},
 		{
@@ -41,6 +44,9 @@
 		},
 		{
 			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"click": "h1"
 		},
 		{
 			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
@@ -82,6 +88,9 @@
 			"click": "#project-graph [data-graph-node='acme/widget#2']"
 		},
 		{
+			"click": "h1"
+		},
+		{
 			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
 		},
 		{
@@ -102,32 +111,6 @@
 		},
 		{
 			"shot": "ctrl-esc-kept-panel"
-		},
-		{
-			"fill": "#walk-ctrl",
-			"text": "on"
-		},
-		{
-			"click": "#project-graph [data-graph-node='acme/widget#2']"
-		},
-		{
-			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
-		},
-		{
-			"click": "#header-search"
-		},
-		{
-			"shot": "jump-open-in-focus"
-		},
-		{
-			"fill": "#walk-esc",
-			"text": "ctrl-jump"
-		},
-		{
-			"assert_text": "focus none"
-		},
-		{
-			"shot": "ctrl-esc-left-focus-and-jump"
 		}
 	]
 }

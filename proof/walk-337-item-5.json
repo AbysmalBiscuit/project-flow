@@ -20,6 +20,9 @@
 			"click": "#overview-graph a[data-project='acme/beta']"
 		},
 		{
+			"click": "h1"
+		},
+		{
 			"assert_text": "focus acme/alpha | acme/beta | acme/gamma"
 		},
 		{
@@ -36,6 +39,9 @@
 			"click": "#overview-graph a[data-project='acme/widget']"
 		},
 		{
+			"click": "h1"
+		},
+		{
 			"assert_text": "focus acme/alpha | acme/beta | acme/gamma | acme/widget"
 		},
 		{
@@ -47,6 +53,9 @@
 		},
 		{
 			"click": "#overview-graph a[data-project='acme/widget']"
+		},
+		{
+			"click": "h1"
 		},
 		{
 			"assert_text": "focus acme/alpha | acme/beta | acme/gamma"
@@ -72,6 +81,9 @@
 			"click": "#overview-graph a[data-project='acme/beta']"
 		},
 		{
+			"click": "h1"
+		},
+		{
 			"assert_text": "focus acme/alpha | acme/beta"
 		},
 		{
@@ -91,6 +103,9 @@
 			"click": "#overview-graph a[data-project='acme/beta']"
 		},
 		{
+			"click": "h1"
+		},
+		{
 			"assert_text": "focus acme/alpha | acme/beta"
 		},
 		{
@@ -99,6 +114,9 @@
 		},
 		{
 			"click": "#overview-graph a[data-project='acme/beta']"
+		},
+		{
+			"click": "h1"
 		},
 		{
 			"assert_text": "focus none"
