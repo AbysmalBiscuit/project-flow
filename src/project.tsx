@@ -1028,9 +1028,6 @@ function FilterMenu({
 		}
 		const onPointer = (event: PointerEvent) => {
 			const target = event.target;
-			if (target instanceof Element && target.id === "walk-esc") {
-				return;
-			}
 			if (!root.current?.contains(target as Node)) {
 				onOpen(false);
 			}

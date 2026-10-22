@@ -130,9 +130,6 @@ export function JumpBox() {
 		}
 		const onPointerDown = (event: PointerEvent) => {
 			const target = event.target;
-			if (target instanceof Element && target.id === "walk-esc") {
-				return;
-			}
 			if (!(target instanceof Node) || boxRef.current?.contains(target)) {
 				return;
 			}
@@ -335,50 +332,4 @@ export function mountJumpBox(): void {
 	host.style.display = "contents";
 	document.body.append(host);
 	createRoot(host).render(<JumpBox />);
-	const opener = document.createElement("button");
-	opener.type = "button";
-	opener.hidden = true;
-	opener.id = "walk-ctrl-k";
-	opener.addEventListener("click", () => {
-		window.dispatchEvent(
-			new KeyboardEvent("keydown", {
-				key: "k",
-				code: "KeyK",
-				ctrlKey: true,
-				bubbles: true,
-				cancelable: true,
-			}),
-		);
-	});
-	document.body.append(opener);
-	const walkEsc = document.createElement("input");
-	walkEsc.type = "text";
-	walkEsc.id = "walk-esc";
-	walkEsc.tabIndex = -1;
-	walkEsc.setAttribute("aria-label", "Escape");
-	walkEsc.style.position = "fixed";
-	walkEsc.style.right = "0";
-	walkEsc.style.bottom = "0";
-	walkEsc.style.opacity = "0";
-	let seen = "";
-	walkEsc.addEventListener("input", () => {
-		const stamp = walkEsc.value;
-		walkEsc.value = "";
-		if (stamp === "" || stamp === seen) {
-			return;
-		}
-		seen = stamp;
-		walkEsc.blur();
-		const event = new KeyboardEvent("keydown", {
-			key: "Escape",
-			code: "Escape",
-			bubbles: true,
-			cancelable: true,
-		});
-		window.dispatchEvent(event);
-		if (!event.defaultPrevented) {
-			document.dispatchEvent(event);
-		}
-	});
-	document.body.append(walkEsc);
 }

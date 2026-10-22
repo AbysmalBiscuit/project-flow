@@ -110,7 +110,44 @@ const walkScript = `<script id="walk-theme">(function () {
 			markFocus();
 		});
 	}
-})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style>`;
+})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style><button type="button" id="walk-ctrl-k" hidden></button><input type="text" id="walk-esc" tabindex="-1" aria-label="Escape" style="position:fixed;right:0;bottom:0;opacity:0"><script id="walk-keys">(function () {
+	var opener = document.getElementById("walk-ctrl-k");
+	if (opener) {
+		opener.addEventListener("click", function () {
+			window.dispatchEvent(new KeyboardEvent("keydown", {
+				key: "k",
+				code: "KeyK",
+				ctrlKey: true,
+				bubbles: true,
+				cancelable: true,
+			}));
+		});
+	}
+	var walkEsc = document.getElementById("walk-esc");
+	if (!walkEsc) {
+		return;
+	}
+	var seen = "";
+	walkEsc.addEventListener("input", function () {
+		var stamp = walkEsc.value;
+		walkEsc.value = "";
+		if (stamp === "" || stamp === seen) {
+			return;
+		}
+		seen = stamp;
+		walkEsc.blur();
+		var event = new KeyboardEvent("keydown", {
+			key: "Escape",
+			code: "Escape",
+			bubbles: true,
+			cancelable: true,
+		});
+		window.dispatchEvent(event);
+		if (!event.defaultPrevented) {
+			document.dispatchEvent(event);
+		}
+	});
+})();</script>`;
 
 /** Publish the root data-theme value as text a walk can assert. */
 export async function proofTheme(response: Response): Promise<Response> {

@@ -33,9 +33,6 @@ export function Dropdown({
 		}
 		const close = (event: PointerEvent) => {
 			const target = event.target;
-			if (target instanceof Element && target.id === "walk-esc") {
-				return;
-			}
 			if (!root.current?.contains(target as Node)) {
 				setOpen(false);
 			}

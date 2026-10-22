@@ -272,6 +272,14 @@ export function TicketPanel({
 			if (event.key !== "Escape" || event.defaultPrevented) {
 				return;
 			}
+			const reply = document.getElementById("ticket-reply");
+			if (event.target === reply || document.activeElement === reply) {
+				event.preventDefault();
+				if (reply instanceof HTMLElement) {
+					reply.blur();
+				}
+				return;
+			}
 			const openMenu = document.querySelector(
 				"[aria-expanded='true'], [role='dialog']",
 			);
