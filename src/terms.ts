@@ -23,6 +23,10 @@ export function subTicketsLabel(count: number): string {
 	return `${count} ${count === 1 ? "sub-ticket" : "sub-tickets"}`;
 }
 
+export function subTicketsToggleLabel(key: string, collapsed: boolean): string {
+	return `${collapsed ? "Expand" : "Collapse"} the sub-tickets of ${key}`;
+}
+
 export const loadingLabel = "Loading";
 
 export const navLabel = {

@@ -1,0 +1,19 @@
+{
+	"base_url": "http://127.0.0.1:4353",
+	"serve": ["bun", "proof/serve-353.ts", "4353"],
+	"steps": [
+		{ "goto": "/rows" },
+		{ "assert_text": "SDI-1 depth 0 open" },
+		{ "assert_text": "SDI-2 depth 1 open" },
+		{ "assert_text": "SDI-3 depth 2" },
+		{ "shot": "sdi-rows" },
+		{ "goto": "/projects/Initial%20SDI%20Issues" },
+		{ "assert_text": "Parse the CSV exports" },
+		{ "shot": "sdi-table-open" },
+		{ "click": "[data-toggle='SDI-2']" },
+		{ "shot": "sdi-table-collapsed" },
+		{ "click": "[data-toggle='SDI-2']" },
+		{ "assert_text": "Validate the export schema" },
+		{ "shot": "sdi-table-expanded" }
+	]
+}
