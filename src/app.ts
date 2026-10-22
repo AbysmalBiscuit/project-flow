@@ -65,6 +65,11 @@ import { threadResponse } from "./thread-response.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
 import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
+const elkWorkerFile = Bun.resolveSync(
+	"elkjs/lib/elk-worker.min.js",
+	import.meta.dir,
+);
+
 export type StartOptions = {
 	configPath: string;
 	token: string | null;
@@ -630,12 +635,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		development: false,
 		routes: {
 			"/_page": page,
-			[elkWorkerPath]: () =>
-				new Response(
-					Bun.file(
-						Bun.resolveSync("elkjs/lib/elk-worker.min.js", import.meta.dir),
-					),
-				),
+			[elkWorkerPath]: () => new Response(Bun.file(elkWorkerFile)),
 			"/": pageResponse,
 			"/needs-you": pageResponse,
 			"/inbox": pageResponse,
