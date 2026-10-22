@@ -49,8 +49,9 @@ export async function serveProxy(
 	Bun.serve({
 		hostname: "127.0.0.1",
 		port,
-		development: false,
-		routes: options.pages ?? {},
+		...(options.pages === undefined
+			? {}
+			: { development: false, routes: options.pages }),
 		async fetch(request) {
 			const url = new URL(request.url);
 			const own = route(url);
