@@ -427,6 +427,10 @@ export const board = stylex.create({
 		backgroundColor: colours.warnWash,
 		color: colours.warnInk,
 	},
+	chipHierarchy: {
+		backgroundColor: colours.chip,
+		color: colours.chipInk,
+	},
 	chipNeeds: {
 		borderRadius: radius.pill,
 		backgroundColor: colours.needs,

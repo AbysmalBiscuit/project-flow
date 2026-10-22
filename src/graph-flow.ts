@@ -790,6 +790,8 @@ export type FlowTicket = {
 	workstreamKey?: string;
 	themeGroup?: string;
 	assignees?: string[];
+	parent?: string;
+	subTickets?: number;
 	blockers: string[];
 	outsideBlockers: { project: string; key: string }[];
 	blocks: { project: string; key: string }[];
@@ -850,6 +852,10 @@ export function graphTickets(report: ProjectReport): FlowTicket[] {
 				...(ticket.assignees === undefined
 					? {}
 					: { assignees: ticket.assignees }),
+				...(ticket.parent === undefined ? {} : { parent: ticket.parent }),
+				...(ticket.subTickets === undefined
+					? {}
+					: { subTickets: ticket.subTickets }),
 				blockers: ticket.blockers,
 				outsideBlockers: (ticket.outsideBlockers ?? []).map((blocker) => ({
 					project: blocker.project,

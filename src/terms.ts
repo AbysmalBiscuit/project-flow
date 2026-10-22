@@ -15,6 +15,14 @@ export const stateLabel: Record<TicketState, string> = {
 
 export const blockedLabel = "Blocked";
 
+export function parentChipLabel(key: string): string {
+	return `Parent ${key}`;
+}
+
+export function subTicketsLabel(count: number): string {
+	return `${count} ${count === 1 ? "sub-ticket" : "sub-tickets"}`;
+}
+
 export const loadingLabel = "Loading";
 
 export const navLabel = {

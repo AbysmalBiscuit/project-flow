@@ -22,6 +22,14 @@ _Avoid_: Pinned project, hidden project, watched project
 One unit of tracked work: a GitHub issue or a Linear issue.
 _Avoid_: Issue, task, item
 
+**Parent ticket**:
+A ticket that other tickets sit under in the tracker. A parent ticket is outside when the project's tickets do not include it.
+_Avoid_: Parent issue
+
+**Sub-ticket**:
+A ticket that sits under a parent ticket.
+_Avoid_: Child ticket, sub-issue
+
 **Unlinked PR**:
 An open PR that links to no ticket, through a closing reference, a tracker attachment, or its branch name.
 _Avoid_: Orphan PR, loose PR
