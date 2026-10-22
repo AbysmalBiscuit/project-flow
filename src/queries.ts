@@ -255,10 +255,6 @@ function seedQueryData(
 	data: unknown,
 	updatedAt: number,
 ): void {
-	pageQueryClient.setQueryData(queryKey, data);
-	if (updatedAt <= 0) {
-		return;
-	}
 	pageQueryClient.setQueryData(queryKey, data, { updatedAt });
 }
 
@@ -299,10 +295,17 @@ export function seedPageQueries(
 	storedSeeded = true;
 	if (polling === true) {
 		const current = pageQueryClient.getQueryData(pageQuery.overview.queryKey);
-		pageQueryClient.setQueryData(pageQuery.overview.queryKey, {
-			...(current ?? { projects: [], fetchedAt: null, error: null }),
-			polling: true,
-		});
+		const updatedAt =
+			pageQueryClient.getQueryState(pageQuery.overview.queryKey)
+				?.dataUpdatedAt ?? 0;
+		pageQueryClient.setQueryData(
+			pageQuery.overview.queryKey,
+			{
+				...(current ?? { projects: [], fetchedAt: null, error: null }),
+				polling: true,
+			},
+			{ updatedAt },
+		);
 	}
 	if (stored === undefined) {
 		return;
@@ -358,6 +361,7 @@ function seedStoredProject(pathname: string, stored: unknown): void {
 	pageQueryClient.setQueryData(
 		pageQuery.project(name).queryKey,
 		report as ProjectReport,
+		{ updatedAt: 0 },
 	);
 }
 
