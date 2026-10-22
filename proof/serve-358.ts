@@ -3,13 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
-import {
-	githubIssueNode,
-	recordedViewer,
-	repoReadIssues,
-	urlOf,
-} from "../test/support.ts";
 import { proofStops, proofTheme } from "./lifetime.ts";
+import { recordedIssues } from "./recorded.ts";
 
 // A cold poll reads acme/widget, fails on acme/broken and stays on acme/slow.
 // The proxy holds each project read, so the page waits for its report.
@@ -49,42 +44,23 @@ function held(init: RequestInit | undefined): Promise<Response> {
 	});
 }
 
-const widgetIssues = [
-	issue(1, "Ship the board", "closed"),
-	issue(2, "Draft the page"),
-	issue(3, "Hold the launch"),
-];
+const widget = recordedIssues({
+	"acme/widget": [
+		issue(1, "Ship the board", "closed"),
+		issue(2, "Draft the page"),
+		issue(3, "Hold the launch"),
+	],
+});
 
-const recorded: Fetch = async (input, init) => {
-	const known = recordedViewer(input, init);
-	if (known !== null) {
-		return known;
-	}
-	const url = urlOf(input);
+const recorded: Fetch = (input, init) => {
 	const body = typeof init?.body === "string" ? init.body : "";
-	const repoRead =
-		url === "https://api.github.com/graphql" && body.includes("RepoRead");
-	if (repoRead && body.includes('"name":"widget"')) {
-		return Response.json(
-			repoReadIssues("acme", "widget", widgetIssues.map(githubIssueNode)),
-		);
+	if (body.includes("query RepoRead") && body.includes('"name":"broken"')) {
+		return Promise.resolve(new Response("recorded failure", { status: 500 }));
 	}
-	if (repoRead && body.includes('"name":"broken"')) {
-		return new Response("recorded failure", { status: 500 });
-	}
-	if (repoRead && body.includes('"name":"slow"')) {
+	if (body.includes("query RepoRead") && body.includes('"name":"slow"')) {
 		return held(init);
 	}
-	if (
-		url.includes("/issues?") ||
-		url.includes("/pulls?") ||
-		url.includes("/branches?") ||
-		url.includes("/labels?") ||
-		url.includes("/comments")
-	) {
-		return Response.json([]);
-	}
-	return new Response("not recorded", { status: 404 });
+	return widget(input, init);
 };
 
 const running = await start({
