@@ -743,19 +743,6 @@ export function projectNodeId(project: string, key: string): string {
 	return `${project}\n${key.toLowerCase()}`;
 }
 
-export function projectFlowPlaces(
-	report: ProjectReport,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-): Map<string, FlowPlace> {
-	const tickets = graphTickets(report);
-	const nodes = tickets.map((ticket) => ({
-		id: projectNodeId(ticket.project, ticket.key),
-		band: graphBand(ticket, groupBy, assignees),
-	}));
-	return flowPlaces(nodes, graphEdges(report));
-}
-
 export function overviewFlowPlaces(
 	projects: ProjectCounts[],
 ): Map<string, FlowPlace> {

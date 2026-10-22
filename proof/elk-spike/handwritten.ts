@@ -1,6 +1,12 @@
 /** The hand-written layout of the project graph, and the fill share of a frame. */
 import type { ProjectReport } from "../../src/domain.ts";
-import { projectFlowPlaces, projectNodeId } from "../../src/graph-flow.ts";
+import {
+	flowPlaces,
+	graphBand,
+	graphEdges,
+	graphTickets,
+	projectNodeId,
+} from "../../src/graph-flow.ts";
 import type { GroupBy } from "../../src/view-settings.ts";
 import { type Rect, shortKey, svgPage } from "./check.ts";
 import { card, cell, framePad } from "./graph.ts";
@@ -21,12 +27,21 @@ export function fillShare(
 	);
 }
 
+/** The places of the hand-written layout, before it cuts out each group. */
+function projectFlowPlaces(report: ProjectReport, groupBy: GroupBy) {
+	const nodes = graphTickets(report).map((ticket) => ({
+		id: projectNodeId(ticket.project, ticket.key),
+		band: graphBand(ticket, groupBy, []),
+	}));
+	return flowPlaces(nodes, graphEdges(report));
+}
+
 /**
- * Mirrors `layoutTickets` in `src/graph-model.ts`, which is private and also
- * measures DOM labels, so the spike cannot call it from Bun.
+ * The hand-written project graph layout, kept as the baseline of the spike
+ * tables. Each group keeps its global columns and rows.
  */
 export function handWritten(report: ProjectReport, groupBy: GroupBy) {
-	const placed = projectFlowPlaces(report, groupBy, []);
+	const placed = projectFlowPlaces(report, groupBy);
 	const byBand = new Map<string, { id: string; x: number; y: number }[]>();
 	for (const [id, place] of placed) {
 		const members = byBand.get(place.band) ?? [];
