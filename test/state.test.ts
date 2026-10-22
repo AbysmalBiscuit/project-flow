@@ -493,7 +493,7 @@ async function withApp(
 	env: Record<string, string | undefined>,
 	check: (base: string) => Promise<void>,
 	checkoutRoot?: string,
-	now?: Date,
+	now = new Date("2026-10-21T00:00:00.000Z"),
 ): Promise<void> {
 	const written =
 		checkoutRoot === undefined ? config : withCheckout(config, checkoutRoot);
@@ -515,7 +515,7 @@ async function withApp(
 				databasePath: join(root, "store.sqlite"),
 				stdout: (line) => startChecks(line),
 				waitForStop: checks,
-				...(now === undefined ? {} : { now: () => now }),
+				now: () => now,
 			}),
 		);
 		expect(result.stderr).toBe("");
