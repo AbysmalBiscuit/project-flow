@@ -9,7 +9,7 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 
-const focusRing = `${measure.focus} solid ${colours.focus}` as const;
+export const focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
 export const board = stylex.create({
 	crumb: {
