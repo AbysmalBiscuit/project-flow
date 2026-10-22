@@ -341,7 +341,7 @@ export function seedPageQueries(
 	seedStoredProject(pathname, stored);
 }
 
-export function seedStoredProject(pathname: string, stored: unknown): void {
+function seedStoredProject(pathname: string, stored: unknown): void {
 	if (!pathname.startsWith("/projects/")) {
 		return;
 	}
