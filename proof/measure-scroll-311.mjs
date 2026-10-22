@@ -40,33 +40,76 @@ function waitForServer() {
 	throw new Error(`${base} did not answer`);
 }
 
-function readScroll(marker, target) {
+function readScroller(target) {
 	const raw = browser([
 		"eval",
 		`(() => {
 			const scroller = [...document.querySelectorAll("div")].find((node) =>
 				${target} && node.scrollWidth > node.clientWidth + 8);
 			if (!scroller) return JSON.stringify({ missing: true });
-			if (scroller.scrollLeft === 0) scroller.scrollLeft = ${marker};
-			const button = document.querySelector("[aria-label='Expand panel'], [aria-label='Collapse panel']");
-			const key = button && Object.keys(button).find((name) => name.startsWith("__reactProps"));
-			const before = Math.round(scroller.scrollLeft);
-			if (button && key) button[key].onClick({ preventDefault() {}, stopPropagation() {} });
-			const mid = Math.round(scroller.scrollLeft);
-			const next = document.querySelector("[aria-label='Expand panel'], [aria-label='Collapse panel']");
-			const nextKey = next && Object.keys(next).find((name) => name.startsWith("__reactProps"));
-			if (next && nextKey) next[nextKey].onClick({ preventDefault() {}, stopPropagation() {} });
+			scroller.dataset.scrollProbe = "1";
+			const panel = document.querySelector("[data-panel]");
+			const box = panel ? panel.getBoundingClientRect() : null;
 			return JSON.stringify({
-				before,
-				mid,
-				after: Math.round(scroller.scrollLeft),
+				left: Math.round(scroller.scrollLeft),
 				sw: scroller.scrollWidth,
 				cw: scroller.clientWidth,
+				expanded: panel ? panel.dataset.expanded : null,
+				visible: box ? box.width > 8 && box.height > 8 : false,
 			});
 		})()`,
 	]);
 	const parsed = JSON.parse(raw.trim());
 	return typeof parsed === "string" ? JSON.parse(parsed) : parsed;
+}
+
+function setScroll(marker) {
+	browser([
+		"eval",
+		`document.querySelector("[data-scroll-probe='1']").scrollLeft = ${marker}`,
+	]);
+}
+
+function waitVisible(label, expanded) {
+	const started = Date.now();
+	let last = null;
+	while (Date.now() - started < 8_000) {
+		browser(["wait", "--text", label]);
+		last = readScroller("node.dataset.scrollProbe === '1'");
+		if (last.expanded === expanded && last.visible === true) {
+			return last;
+		}
+		spawnSync("sleep", ["0.1"]);
+	}
+	throw new Error(
+		`panel did not reach visible ${expanded}: ${JSON.stringify(last)}`,
+	);
+}
+
+function clickLabel(label) {
+	browser(["click", `[aria-label='${label}']`]);
+}
+
+function measureCycle(marker, target) {
+	const found = readScroller(target);
+	if (found.missing) {
+		return found;
+	}
+	setScroll(marker);
+	const before = readScroller("node.dataset.scrollProbe === '1'");
+	clickLabel("Expand panel");
+	const mid = waitVisible("Collapse", "true");
+	clickLabel("Collapse panel");
+	const after = waitVisible("Expand", "false");
+	return {
+		before: before.left,
+		mid: mid.left,
+		after: after.left,
+		sw: after.sw,
+		cw: after.cw,
+		midSw: mid.sw,
+		midCw: mid.cw,
+	};
 }
 
 mkdirSync(proof, { recursive: true });
@@ -79,17 +122,15 @@ try {
 	waitForServer();
 	browser(["open", page]);
 	browser(["wait", "--text", "Ship the board"]);
-	browser(["eval", "document.querySelector('#view-board').click()"]);
-	spawnSync("sleep", ["0.6"]);
-	browser([
-		"eval",
-		"document.querySelector(\"button[data-ticket='acme/widget#1']\").dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }))",
-	]);
-	spawnSync("sleep", ["0.3"]);
-	const board = readScroll(200, "node.querySelector('[data-ticket]')");
-	browser(["eval", "document.querySelector('#view-table').click()"]);
-	spawnSync("sleep", ["0.6"]);
-	const table = readScroll(33, "node.querySelector('table')");
+	browser(["click", "#view-board"]);
+	browser(["wait", "button[data-ticket='acme/widget#1']"]);
+	browser(["click", "button[data-ticket='acme/widget#1']"]);
+	browser(["wait", "[aria-label='Expand panel']"]);
+	const board = measureCycle(200, "node.querySelector('[data-ticket]')");
+	browser(["click", "#view-table"]);
+	browser(["wait", "--text", "Close item 16"]);
+	spawnSync("sleep", ["0.4"]);
+	const table = measureCycle(33, "node.querySelector('table')");
 	const kept =
 		board.before === board.mid &&
 		board.mid === board.after &&
