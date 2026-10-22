@@ -17,8 +17,7 @@ type Tag =
 	| "th"
 	| "td"
 	| "a"
-	| "input"
-	| "span";
+	| "input";
 
 const tagClass = {
 	h1: clsx(commentBody.heading),
@@ -37,8 +36,10 @@ const tagClass = {
 	td: clsx(commentBody.cell),
 	a: clsx(commentBody.link),
 	input: clsx(commentBody.check),
-	span: clsx(commentBody.checked),
 } satisfies Record<Tag, string>;
+
+const checkWrap = clsx(commentBody.checkWrap);
+const checkedMark = clsx(commentBody.checked);
 
 const inlineCode = clsx(commentBody.code);
 const tagPattern = new RegExp(
@@ -50,10 +51,13 @@ function styled(html: string): string {
 	return html
 		.split("\n")
 		.map((line) => {
-			const tagged = line.replace(
-				tagPattern,
-				(_match, tag: Tag) => `<${tag} class="${tagClass[tag]}"`,
-			);
+			const tagged = line
+				.replace(
+					tagPattern,
+					(_match, tag: Tag) => `<${tag} class="${tagClass[tag]}"`,
+				)
+				.replace(/<span(?= data-check="")/g, `<span class="${checkWrap}"`)
+				.replace(/<span(?= data-checked="")/g, `<span class="${checkedMark}"`);
 			if (line.includes("</pre>") || line.includes("<pre")) {
 				return tagged;
 			}
