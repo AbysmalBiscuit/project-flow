@@ -297,16 +297,10 @@ const projectItems = [
 		projectStatus("Ready", "opt-ready", "BLUE"),
 		"OPEN",
 		{
-			comments: {
-				totalCount: 1,
-				nodes: [
-					{
-						databaseId: 4,
-						body: ask,
-						createdAt: "2026-10-18T11:00:00Z",
-						author: { login: "factory" },
-					},
-				],
+			comments: { totalCount: 1 },
+			closedByPullRequestsReferences: {
+				nodes: [{ number: 40, repository: { nameWithOwner: repo } }],
+				pageInfo: end,
 			},
 		},
 	),
@@ -423,6 +417,19 @@ const recorded: Fetch = async (input, init) => {
 	}
 	if (emptyLists(url) || url.includes("/dependencies/")) {
 		return Response.json([]);
+	}
+	if (url.includes("/pulls/40")) {
+		return Response.json({
+			number: 40,
+			title: "Pick the card colour",
+			html_url: `https://github.com/${repo}/pull/40`,
+			state: "closed",
+			draft: false,
+			merged_at: null,
+			body: "Closes #4",
+			head: { ref: "40-feat-colour", sha: head },
+			user: { login: "lev" },
+		});
 	}
 	if (url.includes("/pulls/70")) {
 		return Response.json({
