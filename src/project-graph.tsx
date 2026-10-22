@@ -16,6 +16,7 @@ import { board } from "./board-styles.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
+import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import type {
 	ClusterNodeData,
 	TicketEdgeData,
@@ -29,10 +30,8 @@ import type { NodeSize } from "./graph-sizes.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
-	parentChipLabel,
 	projectGraphLabel,
 	stateLabel,
-	subTicketsLabel,
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
@@ -76,23 +75,6 @@ function ClusterNode({
 		<div className={clsx(board.cluster)} data-group={data.label}>
 			{data.label}
 		</div>
-	);
-}
-
-function HierarchyChips({ ticket }: { ticket: TicketNodeData["ticket"] }) {
-	if (ticket.parentLabel === undefined && ticket.subTickets === undefined) {
-		return null;
-	}
-	const chip = clsx(board.chip, board.chipStatic, board.chipHierarchy);
-	return (
-		<span className={clsx(board.chips)}>
-			{ticket.parentLabel === undefined ? null : (
-				<span className={chip}>{parentChipLabel(ticket.parentLabel)}</span>
-			)}
-			{ticket.subTickets === undefined ? null : (
-				<span className={chip}>{subTicketsLabel(ticket.subTickets)}</span>
-			)}
-		</span>
 	);
 }
 
