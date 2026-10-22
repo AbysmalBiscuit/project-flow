@@ -32,6 +32,7 @@ import {
 	rememberValidator,
 } from "./github.ts";
 import { githubTicketKey } from "./github-thread.ts";
+import { elkWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
@@ -629,6 +630,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		development: false,
 		routes: {
 			"/_page": page,
+			[elkWorkerPath]: () =>
+				new Response(
+					Bun.file(
+						Bun.resolveSync("elkjs/lib/elk-worker.min.js", import.meta.dir),
+					),
+				),
 			"/": pageResponse,
 			"/needs-you": pageResponse,
 			"/inbox": pageResponse,

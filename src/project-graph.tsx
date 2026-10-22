@@ -11,6 +11,7 @@ import {
 	ReactFlow,
 	useReactFlow,
 } from "@xyflow/react";
+import ElkConstructor, { type ELK } from "elkjs/lib/elk-api.js";
 import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
 import { cardTones } from "./card-tones.ts";
@@ -18,12 +19,19 @@ import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
+import {
+	elkWorkerPath,
+	type GraphLayout,
+	type LayoutInput,
+	layoutGraph,
+	layoutInput,
+} from "./graph-layout.ts";
 import type {
 	ClusterNodeData,
 	TicketEdgeData,
 	TicketNodeData,
 } from "./graph-model.ts";
-import { graphModel, isClusterNode } from "./graph-model.ts";
+import { graphModel, headGrowth, isClusterNode } from "./graph-model.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
@@ -240,6 +248,52 @@ function watchLayout(span: NodeSize | null): () => void {
 	return () => observer.disconnect();
 }
 
+let pageElk: ELK | null = null;
+
+function elk(): ELK {
+	pageElk ??= new ElkConstructor({
+		workerFactory: () => new Worker(elkWorkerPath),
+	});
+	return pageElk;
+}
+
+type LaidGraph = {
+	report: ProjectReport;
+	direction: GraphDirection;
+	groupBy: GroupBy;
+	input: LayoutInput;
+	layout: GraphLayout;
+};
+
+/** Lays out the graph in the ELK worker, and keeps the last layout until the next one lands. */
+function useLaidGraph(
+	report: ProjectReport,
+	direction: GraphDirection,
+	groupBy: GroupBy,
+	assignees: readonly string[],
+	span: NodeSize | null,
+): LaidGraph | null {
+	const [laid, setLaid] = useState<LaidGraph | null>(null);
+	useEffect(() => {
+		if (span === null) {
+			return;
+		}
+		let current = true;
+		const input = layoutInput(report, groupBy, assignees);
+		void layoutGraph(elk(), input, direction, span, headGrowth).then(
+			(layout) => {
+				if (current) {
+					setLaid({ report, direction, groupBy, input, layout });
+				}
+			},
+		);
+		return () => {
+			current = false;
+		};
+	}, [report, direction, groupBy, assignees, span]);
+	return laid;
+}
+
 function FitDirection() {
 	const flow = useReactFlow();
 	useEffect(() => {
@@ -284,26 +338,29 @@ export function ProjectGraph({
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
+	const laid = useLaidGraph(report, direction, groupBy, assignees, span);
 	const model = useMemo(() => {
-		if (span === null) {
+		if (span === null || laid === null) {
 			return null;
 		}
 		void theme;
 		return graphModel(
-			report,
+			laid.report,
 			reports,
-			direction,
-			groupBy,
-			assignees,
+			laid.direction,
+			laid.groupBy,
 			openKey,
+			laid.input,
+			laid.layout,
 			new Map(),
 			span,
 		);
-	}, [report, reports, direction, groupBy, assignees, openKey, span, theme]);
+	}, [laid, reports, openKey, span, theme]);
 	useEffect(() => watchLayout(span), [span]);
-	if (model === null) {
+	if (model === null || laid === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
+	const drawn = laid.direction;
 	const fades = clsx(board.fades);
 	const faded = clsx(board.fades, board.faded);
 	const nodes = model.nodes.map((node) => {
@@ -338,7 +395,7 @@ export function ProjectGraph({
 		<div
 			id="project-graph"
 			className={clsx(board.ticketGraph)}
-			data-group-by={groupBy}
+			data-group-by={laid.groupBy}
 		>
 			<p id="project-graph-focus" className={clsx(cards.graphProbe)}>
 				{chain === null
@@ -352,7 +409,7 @@ export function ProjectGraph({
 				{places}
 			</p>
 			<p id="project-graph-direction" className={clsx(cards.graphProbe)}>
-				{direction}
+				{drawn}
 			</p>
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
@@ -377,7 +434,7 @@ export function ProjectGraph({
 				className={clsx(board.graphPane, float.pane)}
 			>
 				<ReactFlow
-					key={direction}
+					key={drawn}
 					nodes={nodes}
 					edges={edges}
 					nodeTypes={nodeTypes}
@@ -427,7 +484,7 @@ export function ProjectGraph({
 					}}
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
-					<FitDirection key={direction} />
+					<FitDirection key={drawn} />
 				</ReactFlow>
 				<div className={clsx(float.overlay)}>
 					<Legend />
