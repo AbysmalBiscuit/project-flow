@@ -2052,7 +2052,7 @@ export const panel = stylex.create({
 		width: "auto",
 		maxWidth: "none",
 		height: "auto",
-		maxHeight: "none",
+		maxHeight: `calc(100vh - ${measure.shell} - ${space.threeXl})`,
 	},
 	cover: {
 		position: "absolute",
