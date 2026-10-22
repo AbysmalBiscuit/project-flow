@@ -2,9 +2,11 @@
 	"base_url": "http://127.0.0.1:47386",
 	"serve": ["bun", "proof/serve-card-lanes.ts", "47386"],
 	"steps": [
-		{ "goto": "/projects/acme%2Fwidget" },
+		{ "goto": "/projects/acme%2Fwidget?frame=acme/widget%2310" },
 		{ "assert_text": "Show all" },
 		{ "assert_text": "Close item 1" },
+		{ "click": "#card-lane-frame" },
+		{ "assert_text": "lanes framed" },
 		{ "shot": "show-all" }
 	]
 }

@@ -2,9 +2,11 @@
 	"base_url": "http://127.0.0.1:47385",
 	"serve": ["bun", "proof/serve-card-lanes.ts", "47385"],
 	"steps": [
-		{ "goto": "/projects/acme%2Fwidget" },
+		{ "goto": "/projects/acme%2Fwidget?frame=acme/widget%234" },
 		{ "assert_text": "Pick the card colour" },
 		{ "assert_text": "Needs you" },
+		{ "click": "#card-lane-frame" },
+		{ "assert_text": "lanes framed" },
 		{ "shot": "needs-you" }
 	]
 }

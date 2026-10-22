@@ -2,9 +2,11 @@
 	"base_url": "http://127.0.0.1:47384",
 	"serve": ["bun", "proof/serve-card-lanes.ts", "47384"],
 	"steps": [
-		{ "goto": "/projects/acme%2Fwidget" },
+		{ "goto": "/projects/acme%2Fwidget?frame=acme/widget%233" },
 		{ "assert_text": "Hold the launch window" },
 		{ "assert_text": "Blocked by #2" },
+		{ "click": "#card-lane-frame" },
+		{ "assert_text": "lanes framed" },
 		{ "shot": "blocked-backlog" }
 	]
 }

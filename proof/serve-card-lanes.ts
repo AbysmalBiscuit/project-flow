@@ -295,13 +295,37 @@ document.addEventListener("DOMContentLoaded", () => {
   button.id = "card-lane-frame";
   button.textContent = "Frame lanes";
   button.addEventListener("click", () => {
-    const board = document.querySelector("[data-lanes]");
-    const dropped = document.querySelector("[data-ticket='acme/widget#7']");
-    if (board === null || dropped === null) {
+    const lanes = document.querySelector("[data-lanes]");
+    const named = new URLSearchParams(location.search).get("frame") ?? "";
+    const framed = named.startsWith("acme/widget#")
+      ? document.querySelector("[data-lanes] button[data-ticket='" + named + "']")
+      : document.querySelector("[data-ticket='acme/widget#7']");
+    if (!(lanes instanceof HTMLElement) || !(framed instanceof HTMLElement)) {
       button.textContent = "lanes missing";
       return;
     }
-    dropped.scrollIntoView({ inline: "end", block: "nearest" });
+    if (named.startsWith("acme/widget#")) {
+      const lane = framed.closest("[data-lanes] > *");
+      if (!(lane instanceof HTMLElement)) {
+        button.textContent = "lanes missing";
+        return;
+      }
+      const copy = lane.cloneNode(true);
+      if (!(copy instanceof HTMLElement)) {
+        button.textContent = "lanes missing";
+        return;
+      }
+      const cards = [...copy.querySelectorAll("button[data-ticket]")];
+      for (const card of cards) {
+        if (card.getAttribute("data-ticket") !== named) {
+          card.remove();
+        }
+      }
+      lanes.replaceChildren(copy);
+    } else {
+      const left = framed.getBoundingClientRect().left - lanes.getBoundingClientRect().left;
+      lanes.scrollLeft += left;
+    }
     button.textContent = "lanes framed";
   });
   document.body.append(button);
