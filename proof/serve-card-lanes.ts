@@ -51,7 +51,7 @@ function recordedIssue(
 }
 
 const blocker = recordedIssue(2, "Open the gate", ["ready"]);
-const blocked = recordedIssue(3, "Hold the launch window", ["ready"], "OPEN", {
+const blocked = recordedIssue(3, "Hold the launch window", [], "OPEN", {
 	blockedBy: {
 		nodes: [
 			{
@@ -274,7 +274,7 @@ const projectItems = [
 	projectIssue(
 		3,
 		"Hold the launch window",
-		projectStatus("Ready", "opt-ready", "BLUE"),
+		projectStatus("Backlog", "opt-backlog", "GRAY"),
 		"OPEN",
 		{
 			blockedBy: {
@@ -296,7 +296,17 @@ const projectItems = [
 		projectStatus("Ready", "opt-ready", "BLUE"),
 		"OPEN",
 		{
-			comments: { totalCount: 1 },
+			comments: {
+				totalCount: 1,
+				nodes: [
+					{
+						databaseId: 4,
+						body: ask,
+						createdAt: "2026-10-18T11:00:00Z",
+						author: { login: "factory" },
+					},
+				],
+			},
 		},
 	),
 	projectIssue(
@@ -407,13 +417,10 @@ const recorded: Fetch = async (input, init) => {
 	if (linear !== null) {
 		return linear;
 	}
-	if (emptyLists(url) || url.includes("/dependencies/")) {
-		return Response.json([]);
-	}
 	if (url.includes("/issues/4/comments")) {
 		return recordedComments(4);
 	}
-	if (url.includes("/issues/") && url.includes("/comments")) {
+	if (emptyLists(url) || url.includes("/dependencies/")) {
 		return Response.json([]);
 	}
 	if (url.includes("/pulls/70")) {
@@ -519,7 +526,7 @@ void serveRecorded({
 	config: {
 		pinned: [{ tracker: "github", owner: "acme", project: 4 }],
 		checkoutRoots: [],
-		pmBot: { [repo]: false },
+		pmBot: { [projectId]: false, [repo]: false },
 		expectedBots: { [repo]: ["codex"] },
 		pollIntervalSeconds: 3600,
 		theme: process.argv[3] === "dark" ? "dark" : "light",
