@@ -1288,6 +1288,7 @@ export const project = stylex.create({
 export const needs = stylex.create({
 	layout: {
 		position: "relative",
+		zIndex: 0,
 		display: "flex",
 		gap: space.lg,
 		alignItems: "stretch",
@@ -1831,6 +1832,7 @@ export const inbox = stylex.create({
 	},
 	stage: {
 		position: "relative",
+		zIndex: 0,
 		display: "flex",
 		flex: "1 1 auto",
 		gap: space.md,
@@ -2034,19 +2036,31 @@ export const panel = stylex.create({
 		lineHeight: 1,
 		cursor: "pointer",
 	},
+	slot: {
+		flex: `0 0 ${measure.panel}`,
+		alignSelf: "stretch",
+		width: measure.panel,
+		maxWidth: "100%",
+		visibility: "hidden",
+	},
 	expanded: {
-		position: "absolute",
-		zIndex: stack.expanded,
-		top: 0,
-		right: 0,
-		bottom: 0,
-		left: 0,
 		flex: "1 1 auto",
 		alignSelf: "stretch",
 		width: "auto",
 		maxWidth: "none",
 		height: "auto",
 		maxHeight: "none",
+	},
+	cover: {
+		position: "absolute",
+		zIndex: stack.expanded,
+		top: 0,
+		right: 0,
+		bottom: 0,
+		left: 0,
+		display: "flex",
+		flexDirection: "column",
+		minWidth: 0,
 	},
 	heading: {
 		margin: `0 0 ${space.sm}`,

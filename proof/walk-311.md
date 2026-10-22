@@ -2,7 +2,7 @@
 
 Each app walk serves recorded tracker responses. The server sets `XDG_DATA_HOME` to a temporary folder. Do not call a live tracker.
 
-The walk format has no key press. `workcell walk-replay` accepts `goto`, `click`, `fill`, `assert_text` and `shot`. A fill of `#walk-esc` is the Escape step that format accepts. The fill dispatches one Escape `keydown`. The same event reaches the capture listener on `window`.
+The walk format has no key press. `workcell walk-replay` accepts `goto`, `click`, `fill`, `assert_text` and `shot`. A fill of `#walk-esc` is the Escape step that format accepts. The fill dispatches one Escape `keydown`. The same event reaches the listener on `document`.
 
 The expand button shows `Expand` and carries the accessible label `Expand panel`. A click sets `data-expanded="true"`. The button then shows `Collapse` and carries the accessible label `Collapse panel`. The expanded panel covers the board, graph or table area and the side panel area. Needs you and Inbox use the same button over their list area. A phone width uses the same overlay. The panel already fills the screen there, so the overlay covers that same area.
 
@@ -33,6 +33,12 @@ workcell walk-replay --walk-file proof/walk-311-keep.json --proof .devkit/proof 
 ```
 
 `keep-before` shows the table and the selected row. `keep-expanded` covers that view. `keep-after` shows the same selected row after collapse. `keep-graph` shows the graph after a zoom and a collapse. The ticket stays open and the zoom tools stay on the page.
+
+The walk format has no scroll step. `proof/measure-scroll-311.mjs` sets the board lane scroller to 200 and the table scroller to 33, expands, collapses, and writes `.devkit/proof/walk-311-scroll.log`. That folder is gitignored. Do not commit the log.
+
+```bash
+bun proof/measure-scroll-311.mjs
+```
 
 Item 5, Needs you and Inbox. Replay `proof/walk-311-lists.json`:
 

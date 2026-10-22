@@ -224,6 +224,7 @@ export function TicketPanel({
 	item = null,
 	onClose,
 	why,
+	dock = false,
 }: {
 	tracker: "github" | "linear";
 	project: string;
@@ -239,6 +240,7 @@ export function TicketPanel({
 	item?: NeedsYouItem | null;
 	onClose: () => void;
 	why?: string;
+	dock?: boolean;
 }) {
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [draft, setDraft] = useState("");
@@ -249,9 +251,12 @@ export function TicketPanel({
 	const reply = usePostReply(tracker, project, ticketKey);
 	const pending = reply.isPending;
 	const root = useRef<HTMLElement>(null);
+	const slot = useRef<HTMLDivElement>(null);
 	const opener = useRef<HTMLElement | null>(null);
 	const onCloseRef = useRef(onClose);
+	const expandedRef = useRef(expanded);
 	onCloseRef.current = onClose;
+	expandedRef.current = expanded;
 	useEffect(() => {
 		if (item?.answered === true) {
 			setPicked(false);
@@ -291,7 +296,7 @@ export function TicketPanel({
 				return;
 			}
 			event.preventDefault();
-			if (root.current?.dataset.expanded === "true") {
+			if (expandedRef.current) {
 				setExpanded(false);
 				return;
 			}
@@ -303,8 +308,8 @@ export function TicketPanel({
 				}
 			}, 0);
 		};
-		window.addEventListener("keydown", onKey, true);
-		return () => window.removeEventListener("keydown", onKey, true);
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
 	}, []);
 	async function pick(option: number): Promise<void> {
 		if (pending || picked) {
@@ -342,7 +347,32 @@ export function TicketPanel({
 	const laneName =
 		lane ?? (state === undefined ? undefined : stateLabel[state]);
 	const stateName = state === undefined ? "unknown" : state;
-	return (
+	const [cover, setCover] = useState<HTMLElement | null>(null);
+	useLayoutEffect(() => {
+		const stage = (slot.current ?? root.current)?.parentElement;
+		if (stage === null || stage === undefined || dock) {
+			setCover(null);
+			return;
+		}
+		const node = document.createElement("div");
+		node.dataset.panelCover = "";
+		node.hidden = true;
+		stage.append(node);
+		setCover(node);
+		return () => {
+			node.remove();
+			setCover(null);
+		};
+	}, [dock]);
+	useLayoutEffect(() => {
+		if (cover === null) {
+			return;
+		}
+		cover.hidden = !expanded;
+		cover.className = expanded ? clsx(panel.cover) : "";
+	}, [cover, expanded]);
+
+	const aside = (
 		<aside
 			className={clsx(
 				panel.panel,
@@ -366,15 +396,16 @@ export function TicketPanel({
 							Open on {trackerName}
 						</a>
 					)}
-					<button
-						type="button"
-						className={clsx(panel.expand, shell.buttonFocus)}
-						aria-label={expanded ? collapsePanelLabel : expandPanelLabel}
-						aria-pressed={expanded}
-						onClick={() => setExpanded((open) => !open)}
-					>
-						{expanded ? "Collapse" : "Expand"}
-					</button>
+					{dock ? null : (
+						<button
+							type="button"
+							className={clsx(panel.expand, shell.buttonFocus)}
+							aria-label={expanded ? collapsePanelLabel : expandPanelLabel}
+							onClick={() => setExpanded((open) => !open)}
+						>
+							{expanded ? "Collapse" : "Expand"}
+						</button>
+					)}
 					<button
 						type="button"
 						className={clsx(panel.dismiss, shell.buttonFocus)}
@@ -491,5 +522,21 @@ export function TicketPanel({
 				</form>
 			)}
 		</aside>
+	);
+	useLayoutEffect(() => {
+		if (!expanded || cover === null || root.current === null) {
+			return;
+		}
+		if (root.current.parentElement !== cover) {
+			cover.append(root.current);
+		}
+	});
+	return (
+		<>
+			{expanded && cover !== null ? (
+				<div className={clsx(panel.slot)} data-panel-slot="" ref={slot} />
+			) : null}
+			{aside}
+		</>
 	);
 }
