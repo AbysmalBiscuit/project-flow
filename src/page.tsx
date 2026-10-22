@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
-import { mountPage, seedStoredPage } from "./page-cache.ts";
+import { mountPage } from "./page-cache.ts";
 import { installPageLinks } from "./page-links.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { seedPageQueries, wirePageQueryEvents } from "./queries.ts";
@@ -18,7 +18,6 @@ wirePageQueryEvents();
 applyPageTheme(pageTheme());
 const storedPage = readStoredPage();
 const storedPolling = readStoredPolling();
-seedStoredPage(window.location.pathname, storedPage, storedPolling);
 seedPageQueries(window.location.pathname, storedPage, storedPolling);
 
 const pages = [
