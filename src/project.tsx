@@ -17,6 +17,7 @@ import {
 	OutsideParentsContext,
 } from "./card-chips.tsx";
 import { cardTones } from "./card-tones.ts";
+import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import {
 	type CrossProjectBlocker,
@@ -49,6 +50,7 @@ import {
 } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
+import { tableTree } from "./table-tree-styles.ts";
 import {
 	blockedLabel,
 	filterEmptyLabel,
@@ -57,8 +59,10 @@ import {
 	hidingFilterIds,
 	hidingFilterLabel,
 	navLabel,
+	subTicketsToggleLabel,
 	viewLabel,
 } from "./terms.ts";
+import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import {
 	lightValues,
 	phoneGutter,
@@ -731,12 +735,69 @@ function updatedLabel(value: string | undefined): string {
 	}).format(new Date(at));
 }
 
+type TreeToggle = { collapsed: boolean; onToggle: () => void };
+
+function RowIndent({
+	depth,
+	children,
+}: {
+	depth: number;
+	children: ReactNode;
+}) {
+	if (depth === 0) {
+		return <span className={clsx(tableTree.tree)}>{children}</span>;
+	}
+	return (
+		<span className={clsx(tableTree.tree, tableTree.indent)}>
+			<RowIndent depth={depth - 1}>{children}</RowIndent>
+		</span>
+	);
+}
+
+function RowToggle({
+	ticketKey,
+	toggle,
+}: {
+	ticketKey: string;
+	toggle: TreeToggle | null;
+}) {
+	if (toggle === null) {
+		return <span className={clsx(tableTree.toggleSpace)} />;
+	}
+	return (
+		<button
+			type="button"
+			className={clsx(tableTree.toggle, shell.buttonFocus)}
+			data-toggle={ticketKey}
+			aria-expanded={!toggle.collapsed}
+			aria-label={subTicketsToggleLabel(ticketKey, toggle.collapsed)}
+			onClick={(event) => {
+				event.stopPropagation();
+				toggle.onToggle();
+			}}
+			onDoubleClick={(event) => event.stopPropagation()}
+		>
+			<svg
+				viewBox="0 0 8 8"
+				aria-hidden="true"
+				className={clsx(
+					tableTree.toggleMark,
+					toggle.collapsed && tableTree.toggleShut,
+				)}
+			>
+				<path d="M2.5 1 5.5 4 2.5 7" fill="none" stroke="currentColor" />
+			</svg>
+		</button>
+	);
+}
+
 function TableRow({
 	ticket,
 	project,
 	lanes,
 	order,
 	selected,
+	tree,
 	onOpen,
 	onOpenOutside,
 }: {
@@ -745,6 +806,7 @@ function TableRow({
 	lanes: ProjectReport["lanes"];
 	order: number;
 	selected: boolean;
+	tree: { depth: number; toggle: TreeToggle | null } | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
@@ -760,6 +822,7 @@ function TableRow({
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
 			data-faded={faded ? "true" : "false"}
+			data-depth={tree?.depth}
 			{...focusPointer(focus, key, onOpen)}
 			tabIndex={key === null ? undefined : 0}
 			onKeyDown={(event) => {
@@ -775,7 +838,18 @@ function TableRow({
 			}}
 		>
 			<td className={clsx(board.rowCell, board.rowKey)}>
-				{key === null ? "" : shortKey(key)}
+				{tree === null ? (
+					key === null ? (
+						""
+					) : (
+						shortKey(key)
+					)
+				) : (
+					<RowIndent depth={tree.depth}>
+						<RowToggle ticketKey={key ?? ""} toggle={tree.toggle} />
+						{key === null ? "" : shortKey(key)}
+					</RowIndent>
+				)}
 			</td>
 			<td className={clsx(board.rowCell, board.rowTitle)}>{ticket.title}</td>
 			<td className={clsx(board.rowCell)}>
@@ -845,12 +919,14 @@ function TableRow({
 function TicketTable({
 	report,
 	groupBy,
+	searching,
 	selected,
 	onOpen,
 	onOpenOutside,
 }: {
 	report: ProjectReport;
 	groupBy: GroupBy;
+	searching: boolean;
 	selected: string | null;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
@@ -858,9 +934,50 @@ function TicketTable({
 	const [column, setColumn] = useState<Column>("state");
 	const focus = useContext(TicketFocusContext);
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
+	const collapse = useCollapse();
+	const [searchShut, setSearchShut] = useState<Record<string, boolean>>({});
+	useEffect(() => {
+		if (!searching) {
+			setSearchShut({});
+		}
+	}, [searching]);
+	const collapsed = (key: string, startsCollapsed: boolean) =>
+		searching
+			? (searchShut[key.toLowerCase()] ?? false)
+			: collapse.collapsed(key, startsCollapsed);
+	const toggle = (key: string, startsCollapsed: boolean) => {
+		if (searching) {
+			setSearchShut((current) => ({
+				...current,
+				[key.toLowerCase()]: !collapsed(key, startsCollapsed),
+			}));
+			return;
+		}
+		collapse.toggle(key, startsCollapsed);
+	};
 	const rows = [...report.tickets].sort((left, right) =>
 		compareTickets(left, right, column, direction, report.lanes),
 	);
+	const toggleOf = ({
+		ticket,
+		hasSubTickets,
+		startsCollapsed,
+	}: TreeRow<TicketView>): TreeToggle | null => {
+		const key = ticket.key;
+		return key === null || !hasSubTickets
+			? null
+			: {
+					collapsed: collapsed(key, startsCollapsed),
+					onToggle: () => toggle(key, startsCollapsed),
+				};
+	};
+	const tableRows = (tickets: readonly TicketView[]) =>
+		groupBy === "workstream" || groupBy === "theme"
+			? treeRows(tickets, collapsed).map((row) => ({
+					ticket: row.ticket,
+					tree: { depth: row.depth, toggle: toggleOf(row) },
+				}))
+			: tickets.map((ticket) => ({ ticket, tree: null }));
 	return (
 		<div
 			className={clsx(board.grid)}
@@ -940,10 +1057,11 @@ function TicketTable({
 										];
 							return [
 								...heading,
-								...group.tickets.map((ticket) => (
+								...tableRows(group.tickets).map(({ ticket, tree }) => (
 									<TableRow
 										key={`${group.name}\n${ticket.key ?? ""}\n${ticket.title}`}
 										ticket={ticket}
+										tree={tree}
 										project={report.name}
 										lanes={report.lanes}
 										order={
@@ -1420,6 +1538,7 @@ export function Page() {
 								<TicketTable
 									report={report}
 									groupBy={boardGroupBy(settings)}
+									searching={settings.search.trim() !== ""}
 									selected={open ? ticket : null}
 									onOpen={openTicketInPanel}
 									onOpenOutside={openOutsideInPanel}
