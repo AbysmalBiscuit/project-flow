@@ -1,0 +1,119 @@
+{
+	"base_url": "http://127.0.0.1:4337",
+	"viewport": {
+		"width": 1440,
+		"height": 900
+	},
+	"serve": ["bun", "proof/serve-337.ts", "4337"],
+	"steps": [
+		{
+			"goto": "/projects/acme%2Fwidget"
+		},
+		{
+			"assert_text": "Chain b mid"
+		},
+		{
+			"assert_text": "Left to right"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+		},
+		{
+			"shot": "hover-preview"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "leave"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"shot": "hover-left"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "#project-graph [data-graph-node='acme/widget#11'] >> #project-graph [data-graph-node='acme/widget#12'] >> #project-graph [data-graph-node='acme/widget#13'] >> #project-graph [data-graph-node='acme/widget#20'] >> leave"
+		},
+		{
+			"shot": "fast-pass"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"shot": "fast-pass-no-preview"
+		},
+		{
+			"fill": "#walk-ctrl",
+			"text": "on"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "#project-graph [data-graph-node='acme/widget#12']"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#11 | acme/widget acme/widget#12 | acme/widget acme/widget#13"
+		},
+		{
+			"shot": "preview-over-focus"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "leave"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+		},
+		{
+			"assert_text": "Clear focus"
+		},
+		{
+			"shot": "focus-restored"
+		},
+		{
+			"click": "#view-board"
+		},
+		{
+			"assert_text": "Fork left"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "button[data-ticket='acme/widget#21']"
+		},
+		{
+			"shot": "board-hover-preview"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "leave"
+		},
+		{
+			"click": "#view-table"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "tr[data-ticket='acme/widget#12']"
+		},
+		{
+			"shot": "table-hover-preview"
+		},
+		{
+			"fill": "#walk-hover",
+			"text": "leave"
+		},
+		{
+			"shot": "table-hover-left"
+		}
+	]
+}

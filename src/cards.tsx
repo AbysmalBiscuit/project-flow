@@ -18,6 +18,8 @@ import type {
 	ProjectCounts,
 } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
+import { useFocusView } from "./focus.ts";
+import { OverviewSearch } from "./focus-controls.tsx";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -44,7 +46,7 @@ import {
 	settingsCacheWrite,
 	useSaveSettings,
 } from "./queries.ts";
-import { PageFrame, type PageView, SearchGlyph } from "./shell.tsx";
+import { PageFrame, type PageView } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
@@ -760,6 +762,7 @@ function OverviewPage({
 	fetching: boolean;
 }) {
 	const [query, setQuery] = useState("");
+	const focus = useFocusView();
 	const [menu, setMenu] = useState<"filter" | "sort" | null>(null);
 	const [notifyPermission, setNotifyPermission] = useState(
 		notificationPermission,
@@ -792,7 +795,13 @@ function OverviewPage({
 	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
-		graph: <OverviewGraph projects={projects} catalogue={overview.projects} />,
+		graph: (
+			<OverviewGraph
+				projects={projects}
+				catalogue={overview.projects}
+				focus={focus}
+			/>
+		),
 		table: (
 			<TableView
 				projects={projects}
@@ -915,23 +924,7 @@ function OverviewPage({
 			}
 			filter={undefined}
 			sort={undefined}
-			search={
-				<label
-					className={clsx(headerControlStyle.search)}
-					htmlFor="overview-search"
-				>
-					<SearchGlyph />
-					<input
-						id="overview-search"
-						className={clsx(headerControlStyle.field)}
-						type="search"
-						aria-label={overviewControlLabel.search}
-						placeholder={overviewControlLabel.search}
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-					/>
-				</label>
-			}
+			search={<OverviewSearch query={query} onQuery={setQuery} focus={focus} />}
 			views={views}
 			view={view.view}
 			onView={(id) => {

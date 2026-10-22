@@ -1,0 +1,108 @@
+{
+	"base_url": "http://127.0.0.1:4337",
+	"viewport": {
+		"width": 1440,
+		"height": 900
+	},
+	"serve": ["bun", "proof/serve-337.ts", "4337"],
+	"steps": [
+		{
+			"goto": "/projects/acme%2Fwidget"
+		},
+		{
+			"assert_text": "Chain b mid"
+		},
+		{
+			"assert_text": "Left to right"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"fill": "#walk-dbl",
+			"text": "on"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
+		},
+		{
+			"assert_text": "Clear focus"
+		},
+		{
+			"assert_text": "Expand"
+		},
+		{
+			"shot": "graph-double-click-focus"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"fill": "#walk-dbl",
+			"text": "on"
+		},
+		{
+			"click": "#project-graph [data-graph-node='acme/widget#2']"
+		},
+		{
+			"assert_text": "focus none"
+		},
+		{
+			"shot": "graph-double-click-unfocus"
+		},
+		{
+			"fill": "#walk-esc",
+			"text": "close-panel"
+		},
+		{
+			"click": "#view-board"
+		},
+		{
+			"assert_text": "Fork left"
+		},
+		{
+			"click": "button[data-ticket='acme/widget#21']"
+		},
+		{
+			"fill": "#walk-dbl",
+			"text": "on"
+		},
+		{
+			"click": "button[data-ticket='acme/widget#21']"
+		},
+		{
+			"assert_text": "Clear focus"
+		},
+		{
+			"shot": "board-double-click"
+		},
+		{
+			"click": "#view-table"
+		},
+		{
+			"click": "tr[data-ticket='acme/widget#12']"
+		},
+		{
+			"fill": "#walk-dbl",
+			"text": "on"
+		},
+		{
+			"click": "tr[data-ticket='acme/widget#12']"
+		},
+		{
+			"shot": "table-double-click"
+		},
+		{
+			"click": "#view-graph"
+		},
+		{
+			"assert_text": "focus acme/widget acme/widget#11 | acme/widget acme/widget#12 | acme/widget acme/widget#13 | acme/widget acme/widget#20 | acme/widget acme/widget#21"
+		},
+		{
+			"shot": "graph-after-double-clicks"
+		}
+	]
+}

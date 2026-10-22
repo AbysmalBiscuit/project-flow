@@ -14,6 +14,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
+import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import type {
 	ClusterNodeData,
@@ -147,11 +148,17 @@ function TicketEdge({
 		data?.side,
 	);
 	const done = data?.done === true;
+	const flowing = done && data?.flowing === true;
 	return (
 		<BaseEdge
 			id={id}
 			path={drawn.path}
-			className={done ? classToken(board.graphEdgeDash) : undefined}
+			data-flowing={flowing ? "true" : "false"}
+			className={
+				done
+					? clsx(board.graphEdgeDash, flowing && board.graphEdgeFlow)
+					: undefined
+			}
 			{...(markerEnd === undefined ? {} : { markerEnd })}
 		/>
 	);
@@ -257,7 +264,11 @@ export function ProjectGraph({
 	groupBy,
 	assignees,
 	openKey,
+	chain,
 	onOpen,
+	onFocus,
+	onPreview,
+	onPreviewEnd,
 	onDirection,
 }: {
 	report: ProjectReport;
@@ -266,7 +277,11 @@ export function ProjectGraph({
 	groupBy: GroupBy;
 	assignees: readonly string[];
 	openKey: string | null;
+	chain: ReadonlySet<string> | null;
 	onOpen: (ticket: OpenedNode) => void;
+	onFocus: (nodeId: string) => void;
+	onPreview: (nodeId: string) => void;
+	onPreviewEnd: () => void;
 	onDirection: (direction: GraphDirection) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
@@ -292,6 +307,24 @@ export function ProjectGraph({
 	if (model === null) {
 		return <div id="project-graph" className={clsx(board.ticketGraph)} />;
 	}
+	const faded = classToken(board.faded);
+	const nodes = model.nodes.map((node) => {
+		const kept = isClusterNode(node)
+			? node.data.members.some((id) => chain?.has(id) === true)
+			: chain?.has(node.id) === true;
+		return chain === null || kept ? node : { ...node, className: faded };
+	});
+	const edges = model.edges.map((edge) => {
+		if (chain === null) {
+			return edge;
+		}
+		if (chain.has(edge.source) && chain.has(edge.target)) {
+			return edge.data === undefined
+				? edge
+				: { ...edge, data: { ...edge.data, flowing: true } };
+		}
+		return { ...edge, className: `${edge.className ?? ""} ${faded}`.trim() };
+	});
 	const places = model.nodes
 		.map((node) => {
 			const x = node.position.x;
@@ -311,6 +344,14 @@ export function ProjectGraph({
 			className={clsx(board.ticketGraph)}
 			data-group-by={groupBy}
 		>
+			<p id="project-graph-focus" className={clsx(cards.graphProbe)}>
+				{chain === null
+					? "focus none"
+					: `focus ${[...chain]
+							.sort()
+							.map((id) => id.replace("\n", " "))
+							.join(" | ")}`}
+			</p>
 			<p id="project-graph-places" className={clsx(cards.graphProbe)}>
 				{places}
 			</p>
@@ -338,14 +379,15 @@ export function ProjectGraph({
 			>
 				<ReactFlow
 					key={direction}
-					nodes={model.nodes}
-					edges={model.edges}
+					nodes={nodes}
+					edges={edges}
 					nodeTypes={nodeTypes}
 					edgeTypes={edgeTypes}
 					nodesDraggable={false}
 					nodesConnectable={false}
 					elementsSelectable={false}
 					panOnDrag
+					zoomOnDoubleClick={false}
 					fitView
 					minZoom={0.1}
 					fitViewOptions={{
@@ -353,20 +395,36 @@ export function ProjectGraph({
 						maxZoom: 1,
 					}}
 					proOptions={{ hideAttribution: true }}
-					onNodeClick={(_event, node) => {
+					onNodeMouseEnter={(_event, node) => {
+						if (!isClusterNode(node)) {
+							onPreview(node.id);
+						}
+					}}
+					onNodeMouseLeave={onPreviewEnd}
+					onNodeDoubleClick={(_event, node) => {
+						if (!isClusterNode(node)) {
+							onFocus(node.id);
+						}
+					}}
+					onNodeClick={(event, node) => {
 						if (isClusterNode(node)) {
 							return;
 						}
-						onOpen({
-							key: node.data.ticket.key ?? node.data.ticket.title,
-							project: node.data.project,
-							tracker: node.data.tracker,
-							title: node.data.ticket.title,
-							outside: node.data.outside,
-							...(node.data.ticket.state === undefined
-								? {}
-								: { state: node.data.ticket.state }),
-						});
+						focusOrOpen(
+							event,
+							() => onFocus(node.id),
+							() =>
+								onOpen({
+									key: node.data.ticket.key ?? node.data.ticket.title,
+									project: node.data.project,
+									tracker: node.data.tracker,
+									title: node.data.ticket.title,
+									outside: node.data.outside,
+									...(node.data.ticket.state === undefined
+										? {}
+										: { state: node.data.ticket.state }),
+								}),
+						);
 					}}
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
