@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview } from "../src/domain.ts";
+import { refreshSettled } from "./events.ts";
 import {
 	acmeBearer,
 	acmeToken,
@@ -54,10 +55,7 @@ describe("factory GitHub token refresh", () => {
 				hostsText("ghs_acme_near", "2026-08-18T12:03:00.000Z"),
 			);
 			recorded.length = 0;
-			const refreshed = await fetch(new URL("/api/refresh", app.base), {
-				method: "POST",
-			});
-			expect(refreshed.status).toBe(204);
+			await refreshSettled(app.base);
 			const second = (await (
 				await fetch(new URL("/api/overview", app.base))
 			).json()) as Overview;
@@ -124,10 +122,7 @@ describe("factory GitHub token refresh", () => {
 			});
 			expect(saved.status).toBe(200);
 			recorded.length = 0;
-			const refreshed = await fetch(new URL("/api/refresh", app.base), {
-				method: "POST",
-			});
-			expect(refreshed.status).toBe(204);
+			await refreshSettled(app.base);
 			const second = (await (
 				await fetch(new URL("/api/overview", app.base))
 			).json()) as Overview;
@@ -180,10 +175,7 @@ describe("factory GitHub token refresh", () => {
 				hostsText("ghs_acme_renewed", "2026-08-18T13:30:00.000Z"),
 			);
 			recorded.length = 0;
-			const refreshed = await fetch(new URL("/api/refresh", app.base), {
-				method: "POST",
-			});
-			expect(refreshed.status).toBe(204);
+			await refreshSettled(app.base);
 			const second = (await (
 				await fetch(new URL("/api/overview", app.base))
 			).json()) as Overview;
