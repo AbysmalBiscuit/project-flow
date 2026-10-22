@@ -208,11 +208,138 @@ function forOwner(recorded: Recorded[], owner: string): Recorded[] {
 	return recorded.filter(
 		(item) =>
 			item.url.includes(`/repos/${owner}/`) ||
-			item.body.includes(`"owner":"${owner}"`),
+			item.body.includes(`"owner":"${owner}"`) ||
+			item.body.includes(`"login":"${owner}"`) ||
+			item.body.includes(`"projectOwner":"${owner}"`),
 	);
 }
 
 describe("factory GitHub token refresh", () => {
+	test("a token inside the renew window is read again and kept until it expires", async () => {
+		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const folder = join(home, "tokens");
+		const hosts = join(folder, "acme", "hosts.yml");
+		await mkdir(join(folder, "acme"), { recursive: true });
+		await writeFile(hosts, hostsText(acmeToken, "2026-08-18T12:02:00.000Z"));
+		const recorded: Recorded[] = [];
+		const clock = { at: new Date("2026-08-18T12:00:00.000Z") };
+		const app = await serve({
+			config: {
+				factoryGithubTokens: true,
+				factoryGithubTokenDir: folder,
+				tracked: [{ tracker: "github", repo: "acme/widget" }],
+			},
+			fetchImpl: recordingFetch(recorded, {
+				"acme/widget": [issue(7)],
+			}),
+			now: () => clock.at,
+			home,
+		});
+		try {
+			const first = (await (
+				await fetch(new URL("/api/overview", app.base))
+			).json()) as Overview;
+			expect(first.error).toBeNull();
+			const before = forOwner(githubCalls(recorded), "acme");
+			expect(before.length).toBeGreaterThan(0);
+			expect(before.every((item) => item.authorization === acmeBearer)).toBe(
+				true,
+			);
+
+			await writeFile(
+				hosts,
+				hostsText("ghs_acme_near", "2026-08-18T12:03:00.000Z"),
+			);
+			recorded.length = 0;
+			const refreshed = await fetch(new URL("/api/refresh", app.base), {
+				method: "POST",
+			});
+			expect(refreshed.status).toBe(204);
+			const second = (await (
+				await fetch(new URL("/api/overview", app.base))
+			).json()) as Overview;
+			expect(second.error).toBeNull();
+			const near = forOwner(githubCalls(recorded), "acme");
+			expect(near.length).toBeGreaterThan(0);
+			expect(
+				near.every((item) => item.authorization === "Bearer ghs_acme_near"),
+			).toBe(true);
+		} finally {
+			await app.stop();
+			await rm(home, { recursive: true, force: true });
+		}
+	});
+
+	test("a Settings save that changes the token folder drops the cached token for that owner", async () => {
+		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const firstFolder = join(home, "tokens");
+		const nextFolder = join(home, "moved-tokens");
+		await mkdir(join(firstFolder, "acme"), { recursive: true });
+		await mkdir(join(nextFolder, "acme"), { recursive: true });
+		await writeFile(
+			join(firstFolder, "acme", "hosts.yml"),
+			hostsText(acmeToken, "2026-08-18T13:00:00.000Z"),
+		);
+		await writeFile(
+			join(nextFolder, "acme", "hosts.yml"),
+			hostsText("ghs_acme_moved", "2026-08-18T13:00:00.000Z"),
+		);
+		const recorded: Recorded[] = [];
+		const app = await serve({
+			config: {
+				factoryGithubTokens: true,
+				factoryGithubTokenDir: firstFolder,
+				tracked: [{ tracker: "github", repo: "acme/widget" }],
+			},
+			fetchImpl: recordingFetch(recorded, {
+				"acme/widget": [issue(7)],
+			}),
+			now: () => new Date("2026-08-18T12:00:00.000Z"),
+			home,
+		});
+		try {
+			const first = (await (
+				await fetch(new URL("/api/overview", app.base))
+			).json()) as Overview;
+			expect(first.error).toBeNull();
+			expect(
+				forOwner(githubCalls(recorded), "acme").every(
+					(item) => item.authorization === acmeBearer,
+				),
+			).toBe(true);
+
+			const settings = (await (
+				await fetch(new URL("/api/settings", app.base))
+			).json()) as Configuration;
+			const saved = await fetch(new URL("/api/settings", app.base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...settings,
+					factoryGithubTokenDir: nextFolder,
+				}),
+			});
+			expect(saved.status).toBe(200);
+			recorded.length = 0;
+			const refreshed = await fetch(new URL("/api/refresh", app.base), {
+				method: "POST",
+			});
+			expect(refreshed.status).toBe(204);
+			const second = (await (
+				await fetch(new URL("/api/overview", app.base))
+			).json()) as Overview;
+			expect(second.error).toBeNull();
+			const moved = forOwner(githubCalls(recorded), "acme");
+			expect(moved.length).toBeGreaterThan(0);
+			expect(
+				moved.every((item) => item.authorization === "Bearer ghs_acme_moved"),
+			).toBe(true);
+		} finally {
+			await app.stop();
+			await rm(home, { recursive: true, force: true });
+		}
+	});
+
 	test("a token that expires while the app runs is read again before the next call", async () => {
 		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
 		const folder = join(home, "tokens");

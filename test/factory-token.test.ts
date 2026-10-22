@@ -79,6 +79,42 @@ function recordingFetch(
 		if (url === "https://api.github.com/user") {
 			return json({ login: "lev" });
 		}
+		if (url === "https://api.github.com/graphql" && method === "POST") {
+			const sent = typeof init?.body === "string" ? init.body : "";
+			if (sent.includes("OrgProjects")) {
+				const parsed = JSON.parse(sent) as { variables?: { login?: string } };
+				const login = parsed.variables?.login;
+				if (login === "acme") {
+					return json({
+						data: {
+							organization: {
+								projectsV2: {
+									nodes: [],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						},
+					});
+				}
+			}
+			if (sent.includes("ViewerProjects")) {
+				return json({
+					data: {
+						viewer: {
+							login: "lev",
+							projectsV2: {
+								nodes: [],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+							organizations: {
+								nodes: [{ login: "acme" }],
+								pageInfo: { hasNextPage: false, endCursor: null },
+							},
+						},
+					},
+				});
+			}
+		}
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
 			return discovered;
@@ -207,7 +243,9 @@ function forOwner(recorded: Recorded[], owner: string): Recorded[] {
 	return recorded.filter(
 		(item) =>
 			item.url.includes(`/repos/${owner}/`) ||
-			item.body.includes(`"owner":"${owner}"`),
+			item.body.includes(`"owner":"${owner}"`) ||
+			item.body.includes(`"login":"${owner}"`) ||
+			item.body.includes(`"projectOwner":"${owner}"`),
 	);
 }
 
@@ -274,6 +312,13 @@ describe("factory GitHub tokens", () => {
 							forOwner([item], "other").length === 0,
 					)
 					.every((item) => item.authorization === userBearer),
+			).toBe(true);
+			const orgDiscovery = reads.filter((item) =>
+				item.body.includes("OrgProjects"),
+			);
+			expect(orgDiscovery.length).toBeGreaterThan(0);
+			expect(
+				orgDiscovery.every((item) => item.authorization === acmeBearer),
 			).toBe(true);
 
 			recorded.length = 0;

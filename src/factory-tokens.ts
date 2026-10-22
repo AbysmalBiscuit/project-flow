@@ -30,9 +30,11 @@ function repoOwner(url: string, body: string): string | null {
 		}
 		const projectOwner =
 			"projectOwner" in variables ? variables.projectOwner : null;
-		return typeof projectOwner === "string" && projectOwner !== ""
-			? projectOwner
-			: null;
+		if (typeof projectOwner === "string" && projectOwner !== "") {
+			return projectOwner;
+		}
+		const login = "login" in variables ? variables.login : null;
+		return typeof login === "string" && login !== "" ? login : null;
 	} catch {
 		return null;
 	}
@@ -48,10 +50,7 @@ function hostsToken(
 		return null;
 	}
 	const expiresAt = Date.parse(expires);
-	if (
-		Number.isNaN(expiresAt) ||
-		expiresAt - now.getTime() <= tokenRenewWithinMs
-	) {
+	if (Number.isNaN(expiresAt) || expiresAt <= now.getTime()) {
 		return null;
 	}
 	return { token, expiresAt };
@@ -81,7 +80,10 @@ export function installationTokenFetch(
 	},
 	now: () => Date,
 ): Fetch {
-	const cached = new Map<string, { token: string; expiresAt: number }>();
+	const cached = new Map<
+		string,
+		{ token: string; expiresAt: number; dir: string }
+	>();
 	return async (input, init) => {
 		const withToken = (token: string) => {
 			const headers = new Headers(init?.headers);
@@ -113,6 +115,7 @@ export function installationTokenFetch(
 		const held = cached.get(owner);
 		if (
 			held !== undefined &&
+			held.dir === settings.dir &&
 			held.expiresAt - current.getTime() > tokenRenewWithinMs
 		) {
 			return withToken(held.token);
@@ -128,7 +131,7 @@ export function installationTokenFetch(
 		if (parsed === null) {
 			return fetchImpl(input, init);
 		}
-		cached.set(owner, parsed);
+		cached.set(owner, { ...parsed, dir: settings.dir });
 		return withToken(parsed.token);
 	};
 }
