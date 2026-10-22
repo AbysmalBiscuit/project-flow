@@ -141,6 +141,8 @@ export type Change = {
 	overview: Overview;
 	notifications: Notification[];
 	progress?: PollProgress;
+	/** The change touches only saved views, so tracker data stays the same. */
+	viewsOnly?: true;
 };
 
 export type Notifier = {

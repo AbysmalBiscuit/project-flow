@@ -265,7 +265,7 @@ function encodeChange(
 ): Uint8Array[] {
 	const frames = [
 		encoder.encode(
-			`event: overview\ndata: ${JSON.stringify(change.overview)}\n\n`,
+			`event: ${change.viewsOnly === true ? "views" : "overview"}\ndata: ${JSON.stringify(change.overview)}\n\n`,
 		),
 	];
 	if (change.progress !== undefined) {
@@ -782,6 +782,7 @@ export async function start(options: StartOptions): Promise<Running> {
 						notifier.publish({
 							overview: runningOverview(pollOptions, configuration),
 							notifications: [],
+							viewsOnly: true,
 						});
 						return Response.json(
 							settingsResponse(

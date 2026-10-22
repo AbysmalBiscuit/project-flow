@@ -75,3 +75,32 @@ export async function refreshSettled(base: string): Promise<void> {
 		await reader.cancel();
 	}
 }
+
+// Read an event stream in quiet-separated batches. A read that outlasts one
+// batch carries over to the next, so no chunk is lost.
+export function quietReader(reader: ReadableStreamDefaultReader<Uint8Array>): {
+	untilIdle: (idleMs?: number) => Promise<string>;
+} {
+	const decoder = new TextDecoder();
+	let pending: ReturnType<typeof reader.read> | null = null;
+	return {
+		async untilIdle(idleMs = 300) {
+			let text = "";
+			for (;;) {
+				pending ??= reader.read();
+				const chunk = await Promise.race([
+					pending,
+					Bun.sleep(idleMs).then(() => null),
+				]);
+				if (chunk === null) {
+					return text;
+				}
+				pending = null;
+				if (chunk.done) {
+					return text;
+				}
+				text += decoder.decode(chunk.value, { stream: true });
+			}
+		},
+	};
+}

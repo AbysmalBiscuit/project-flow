@@ -1,4 +1,4 @@
-type AppEvent = "overview" | "notification" | "progress";
+type AppEvent = "overview" | "views" | "notification" | "progress";
 type StreamEvent = "open" | AppEvent;
 
 type Listener = (event: MessageEvent) => void;
@@ -21,7 +21,7 @@ function remember(name: AppEvent, event: MessageEvent): void {
 function open(): EventSource {
 	if (source === null) {
 		source = new EventSource("/api/events");
-		const names: AppEvent[] = ["overview", "notification", "progress"];
+		const names: AppEvent[] = ["overview", "views", "notification", "progress"];
 		for (const name of names) {
 			source.addEventListener(name, (event) => {
 				remember(name, event);

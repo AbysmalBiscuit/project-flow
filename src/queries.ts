@@ -369,20 +369,18 @@ function seedStoredProject(pathname: string, stored: unknown): void {
 
 let eventsWired = false;
 
-function applyOverviewEvent(body: Overview): void {
+function applyViewsEvent(body: Overview): void {
 	const updatedAt =
 		pageQueryClient.getQueryState(pageQuery.overview.queryKey)?.dataUpdatedAt ??
 		0;
-	const previous = pageQueryClient.getQueryData(pageQuery.overview.queryKey);
 	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body, {
 		updatedAt,
 	});
 	void pageQueryClient.invalidateQueries(pageQuery.settings);
-	// A settings write that changes only saved views publishes the same overview;
-	// the tracker data is unchanged, so the reports stay cached.
-	if (JSON.stringify(previous) === JSON.stringify(body)) {
-		return;
-	}
+}
+
+function applyOverviewEvent(body: Overview): void {
+	applyViewsEvent(body);
 	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
@@ -405,6 +403,9 @@ export function wirePageQueryEvents(): void {
 	onEventStreamOpen(invalidatePageQueries);
 	onAppEvent("overview", (event) => {
 		applyOverviewEvent(JSON.parse(event.data) as Overview);
+	});
+	onAppEvent("views", (event) => {
+		applyViewsEvent(JSON.parse(event.data) as Overview);
 	});
 	onAppEvent("notification", () => {
 		void pageQueryClient.invalidateQueries(pageQuery.inbox);

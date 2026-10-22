@@ -6,6 +6,7 @@ import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import { run } from "../src/main.ts";
 import { savedProjectView } from "../src/view-settings.ts";
+import { eventsOf, quietReader } from "./events.ts";
 import recordedClosedBlockers from "./fixtures/github-closed-blockers.json";
 import {
 	githubFetch,
@@ -2106,8 +2107,11 @@ describe("GET /api/projects/:name", () => {
 				});
 				const reader = events.body?.getReader();
 				expect(reader).toBeDefined();
-				const opened = await reader?.read();
-				expect(new TextDecoder().decode(opened?.value)).toContain(": open");
+				if (reader === undefined) {
+					throw new Error("event stream has no body");
+				}
+				const quiet = quietReader(reader);
+				expect(await quiet.untilIdle()).toContain(": open");
 				const viewOnly = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -2120,11 +2124,9 @@ describe("GET /api/projects/:name", () => {
 				});
 				expect(viewOnly.status).toBe(200);
 				expect(calls.length).toBe(before);
-				const published = await reader?.read();
-				expect(new TextDecoder().decode(published?.value)).toContain(
-					"event: overview",
-				);
-				await reader?.cancel();
+				const published = eventsOf(await quiet.untilIdle());
+				expect(published.map((event) => event.event)).toEqual(["views"]);
+				await reader.cancel();
 				const repeated = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
