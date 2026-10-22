@@ -294,7 +294,11 @@ document.addEventListener("DOMContentLoaded", () => {
   button.type = "button";
   button.id = "card-lane-frame";
   button.textContent = "Frame lanes";
-  button.addEventListener("click", () => {
+  const left = document.createElement("button");
+  left.type = "button";
+  left.id = "card-lane-frame-left";
+  left.textContent = "Frame left lanes";
+  function frameEnd(edge) {
     const lanes = document.querySelector("[data-lanes]");
     const named = new URLSearchParams(location.search).get("frame") ?? "";
     const framed = named.startsWith("acme/widget#")
@@ -302,17 +306,20 @@ document.addEventListener("DOMContentLoaded", () => {
       : document.querySelector("[data-ticket='acme/widget#7']");
     if (!(lanes instanceof HTMLElement) || !(framed instanceof HTMLElement)) {
       button.textContent = "lanes missing";
+      left.textContent = "lanes missing";
       return;
     }
     if (named.startsWith("acme/widget#")) {
       const lane = framed.closest("[data-lanes] > *");
       if (!(lane instanceof HTMLElement)) {
         button.textContent = "lanes missing";
+        left.textContent = "lanes missing";
         return;
       }
       const copy = lane.cloneNode(true);
       if (!(copy instanceof HTMLElement)) {
         button.textContent = "lanes missing";
+        left.textContent = "lanes missing";
         return;
       }
       const cards = [...copy.querySelectorAll("button[data-ticket]")];
@@ -322,13 +329,22 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
       lanes.replaceChildren(copy);
+    } else if (edge === "left") {
+      lanes.scrollLeft = 0;
     } else {
-      const left = framed.getBoundingClientRect().left - lanes.getBoundingClientRect().left;
-      lanes.scrollLeft += left;
+      const offset = framed.getBoundingClientRect().left - lanes.getBoundingClientRect().left;
+      lanes.scrollLeft += offset;
     }
     button.textContent = "lanes framed";
+    left.textContent = "lanes framed";
+  }
+  button.addEventListener("click", () => {
+    frameEnd("right");
   });
-  document.body.append(button);
+  left.addEventListener("click", () => {
+    frameEnd("left");
+  });
+  document.body.append(button, left);
 });
 </script>`;
 

@@ -9,8 +9,11 @@
 		{ "assert_text": "Wait for the merge" },
 		{ "assert_text": "Drop the unused card" },
 		{ "assert_text": "Close item 1" },
+		{ "click": "#card-lane-frame-left" },
+		{ "assert_text": "lanes framed" },
+		{ "shot": "light-lanes-left" },
 		{ "click": "#card-lane-frame" },
 		{ "assert_text": "lanes framed" },
-		{ "shot": "light-lanes" }
+		{ "shot": "light-lanes-right" }
 	]
 }
