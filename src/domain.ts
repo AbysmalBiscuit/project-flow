@@ -963,7 +963,6 @@ const awaitingNames = new Set([
 ]);
 
 const doneNames = new Set(["done", "completed", "shipped", "merged"]);
-
 const droppedNames = new Set([
 	"dropped",
 	"canceled",
