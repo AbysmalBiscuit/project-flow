@@ -163,39 +163,12 @@ export const board = stylex.create({
 		fontSize: type.menu,
 	},
 	age: {
-		boxSizing: "border-box",
 		width: measure.fieldMin,
-		padding: `${space.twoXs} ${space.xs}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
 	},
 	find: {
 		flex: "1 1 auto",
 		width: measure.headerSearch,
-		minWidth: 0,
 		maxWidth: "100%",
-		minHeight: measure.headerControl,
-		maxHeight: measure.headerControl,
-		cursor: "text",
-		"::-webkit-search-decoration": {
-			appearance: "none",
-		},
-		"::-webkit-search-cancel-button": {
-			appearance: "none",
-		},
-		"::-webkit-search-results-button": {
-			appearance: "none",
-		},
-		"::-webkit-search-results-decoration": {
-			appearance: "none",
-		},
 	},
 	stage: {
 		display: "flex",
@@ -437,11 +410,6 @@ export const board = stylex.create({
 		color: colours.needsPillInk,
 		cursor: "default",
 	},
-	showAll: {
-		flexShrink: 0,
-		padding: `${space.twoXs} ${space.sm}`,
-		fontSize: type.meta,
-	},
 	placeholder: {
 		margin: 0,
 		color: colours.inkMuted,
@@ -454,20 +422,6 @@ export const board = stylex.create({
 		margin: 0,
 		padding: space.lg,
 		color: colours.inkSoft,
-	},
-	clearFilters: {
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		padding: `${space.twoXs} ${space.md}`,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		lineHeight: 1,
-		cursor: "pointer",
 	},
 	grid: {
 		flex: "1 1 auto",

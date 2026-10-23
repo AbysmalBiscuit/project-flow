@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Button } from "./button.tsx";
 import { ColourPicker } from "./colour-picker.tsx";
 import type { StateColours } from "./configuration.ts";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
@@ -7,7 +8,6 @@ import { settings as fields } from "./settings-styles.ts";
 import { colouredStates } from "./state-colours.ts";
 import { settingsCopy, settingsSection, stateLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { shell } from "./ui-styles.ts";
 
 export function StateColoursSection({
 	colours,
@@ -23,14 +23,11 @@ export function StateColoursSection({
 		<section id="colours" className={clsx(fields.card)}>
 			<div className={clsx(fields.cardHead)}>
 				<h2 className={clsx(fields.cardTitle)}>{settingsSection.colours}</h2>
-				<button
+				<Button
 					id="reset-colours"
-					type="button"
-					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+					label={settingsCopy.reset}
 					onClick={() => setAsking(true)}
-				>
-					{settingsCopy.reset}
-				</button>
+				/>
 			</div>
 			<p className={clsx(fields.hint)}>{settingsCopy.coloursLead}</p>
 			{colouredStates.map((state) => (

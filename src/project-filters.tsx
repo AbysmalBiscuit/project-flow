@@ -1,10 +1,12 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
+import { Button } from "./button.tsx";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type { ProjectReport } from "./domain.ts";
+import { TextInput } from "./text-input.tsx";
 import { clsx } from "./ui.ts";
-import { frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { frame } from "./ui-styles.ts";
 import { laneAgeCap, visibleLaneNames } from "./view-settings.ts";
 
 function filterCount(
@@ -105,31 +107,15 @@ export function FilterMenu({
 				className={clsx(board.filterInset)}
 				aria-hidden="true"
 			/>
-			<button
-				type="button"
+			<Button
 				id="project-filter"
-				className={clsx(headerControlStyle.control, shell.buttonFocus)}
-				aria-label="Filter"
+				icon="filter"
+				label="Filter"
+				count={filterCount(view, report.lanes)}
 				aria-expanded={open}
 				aria-controls="project-filter-menu"
 				onClick={() => onOpen(!open)}
-			>
-				<svg
-					viewBox="0 0 16 16"
-					aria-hidden="true"
-					className={clsx(headerControlStyle.icon)}
-					fill="none"
-					stroke="currentColor"
-					strokeWidth="1.5"
-					strokeLinecap="round"
-				>
-					<path d="M2 3.5h12M4.5 8h7M7 12.5h2" />
-				</svg>
-				Filter
-				<span className={clsx(headerControlStyle.count)}>
-					{filterCount(view, report.lanes)}
-				</span>
-			</button>
+			/>
 			{open ? (
 				<FilterPanel
 					report={report}
@@ -198,12 +184,17 @@ function FilterPanel({
 			))}
 			<p className={clsx(board.menuLabel)}>Max age</p>
 			{report.lanes.map((lane) => (
-				<label key={`${lane.id}-age`} className={clsx(board.menuRow)}>
+				<label
+					key={`${lane.id}-age`}
+					className={clsx(board.menuRow)}
+					htmlFor={`lane-age-${lane.id}`}
+				>
 					<span>{lane.name}</span>
-					<input
+					<TextInput
+						id={`lane-age-${lane.id}`}
 						type="number"
 						min={0}
-						className={clsx(board.age)}
+						width={board.age}
 						aria-label={`${lane.name} max age`}
 						data-lane-age={lane.name}
 						value={

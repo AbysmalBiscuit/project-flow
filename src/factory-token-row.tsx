@@ -1,4 +1,6 @@
 import type { Configuration } from "./configuration.ts";
+import { Select } from "./select.tsx";
+import { Switch } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import { settingsCopy } from "./terms.ts";
 import { clsx } from "./ui.ts";
@@ -30,17 +32,12 @@ export function FactoryTokenRow({
 					{settingsCopy.factoryTokensHint}
 				</span>
 			</div>
-			<button
+			<Switch
 				id="factory-github-tokens"
-				type="button"
-				role="switch"
-				aria-checked={checked}
-				aria-label={settingsCopy.factoryTokens}
-				className={clsx(fields.switch, checked && fields.switchOn)}
-				onClick={() => onChange({ factoryGithubTokens: !checked })}
-			>
-				<span className={clsx(fields.knob, checked && fields.knobOn)} />
-			</button>
+				checked={checked}
+				label={settingsCopy.factoryTokens}
+				onChange={(next) => onChange({ factoryGithubTokens: next })}
+			/>
 		</div>
 	);
 }
@@ -61,21 +58,14 @@ export function PollIntervalRow({
 				</span>
 				<span className={clsx(fields.hint)}>{settingsCopy.pollHint}</span>
 			</div>
-			<select
+			<Select
 				id="poll-interval"
-				className={clsx(fields.select)}
-				value={String(seconds)}
-				onChange={(event) =>
-					onChange({ pollIntervalSeconds: Number(event.target.value) })
-				}
-			>
-				{pollChoices.map((choice) => (
-					<option key={choice} value={choice}>
-						{pollLabel(choice)}
-					</option>
-				))}
-				{known ? null : <option value={seconds}>{pollLabel(seconds)}</option>}
-			</select>
+				value={seconds}
+				options={[...pollChoices, ...(known ? [] : [seconds])].map(
+					(choice) => ({ value: choice, label: pollLabel(choice) }),
+				)}
+				onChange={(choice) => onChange({ pollIntervalSeconds: choice })}
+			/>
 		</div>
 	);
 }

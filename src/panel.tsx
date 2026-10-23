@@ -36,7 +36,6 @@ import {
 } from "./terms.ts";
 import { sameTicketKey, type TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
-import { shell } from "./ui-styles.ts";
 
 type ReplyTarget = {
 	parentId?: string;
@@ -326,17 +325,14 @@ export function TicketPanel({
 			{failed ? (
 				<p className={clsx(panel.note)}>
 					{threadFailedLabel}{" "}
-					<button
-						type="button"
-						className={clsx(panel.retry, shell.buttonFocus)}
+					<Button
+						label={threadRetryLabel}
 						data-retry="thread"
 						disabled={loadingThread}
 						onClick={() => {
 							void threadQuery.refetch();
 						}}
-					>
-						{threadRetryLabel}
-					</button>
+					/>
 				</p>
 			) : null}
 			{loadingThread || (thread === null && !missing && !failed) ? (
@@ -408,13 +404,13 @@ export function TicketPanel({
 						value={draft}
 						onChange={(event) => setDraft(event.target.value)}
 					/>
-					<button
-						type="submit"
-						className={clsx(panel.send, shell.buttonFocus)}
+					<Button
+						label="Comment"
+						submit
+						tone="primary"
+						layout={panel.send}
 						disabled={pending}
-					>
-						Comment
-					</button>
+					/>
 					{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
 				</form>
 			)}

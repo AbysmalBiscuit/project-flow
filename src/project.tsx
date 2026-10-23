@@ -1,3 +1,6 @@
+import { Button } from "./button.tsx";
+import { Segment } from "./segment.tsx";
+import { TextInput } from "./text-input.tsx";
 import "@xyflow/react/dist/style.css";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
@@ -144,14 +147,11 @@ function FilteredEmpty({
 				{names.length === 1 ? filterEmptyLabel.one : filterEmptyLabel.many}{" "}
 				{filterEmptyLabel.every}
 			</p>
-			<button
-				type="button"
+			<Button
 				id="clear-filters"
-				className={clsx(board.clearFilters, shell.buttonFocus)}
+				label={filterEmptyLabel.clear}
 				onClick={onClear}
-			>
-				{filterEmptyLabel.clear}
-			</button>
+			/>
 		</div>
 	);
 }
@@ -416,19 +416,7 @@ function Lane({
 					{listed.length}
 				</h2>
 				{showAll ? (
-					<button
-						type="button"
-						className={clsx(
-							shell.button,
-							shell.buttonHover,
-							shell.buttonFocus,
-							board.showAll,
-						)}
-						data-show-all={name}
-						onClick={onShowAll}
-					>
-						Show all
-					</button>
+					<Button label="Show all" data-show-all={name} onClick={onShowAll} />
 				) : null}
 			</div>
 			<div
@@ -1197,9 +1185,9 @@ export function Page() {
 									onOpen={setFilterOpen}
 									onChange={saveView}
 								/>
-								<input
+								<TextInput
 									id="project-search"
-									className={clsx(headerControlStyle.control, board.find)}
+									width={board.find}
 									type="search"
 									aria-label="Search"
 									placeholder="Search"
@@ -1238,25 +1226,18 @@ export function Page() {
 								<fieldset className={clsx(headerControlStyle.group)}>
 									<legend className={clsx(frame.visuallyHidden)}>Views</legend>
 									{views.map((item) => (
-										<button
+										<Segment
 											key={item.id}
-											type="button"
 											id={`view-${item.id}`}
-											className={clsx(
-												headerControlStyle.segment,
-												shell.buttonFocus,
-												view === item.id && headerControlStyle.segmentOn,
-											)}
-											aria-pressed={view === item.id}
+											label={item.label}
+											on={view === item.id}
 											onClick={() => {
 												if (!isPageView(item.id)) {
 													return;
 												}
 												saveView({ ...settings, lastView: item.id }, item.id);
 											}}
-										>
-											{item.label}
-										</button>
+										/>
 									))}
 								</fieldset>
 							</div>

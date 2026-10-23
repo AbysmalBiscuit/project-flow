@@ -1,12 +1,28 @@
 import * as stylex from "@stylexjs/stylex";
-import { Expand, ExternalLink, type LucideIcon, Shrink, X } from "lucide-react";
+import {
+	Bell,
+	Check,
+	Expand,
+	ExternalLink,
+	ListFilter,
+	type LucideIcon,
+	Search,
+	Shrink,
+	X,
+} from "lucide-react";
+import type { ComponentPropsWithoutRef } from "react";
+import { control } from "./control-styles.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { shell } from "./ui-styles.ts";
 
 const icons = {
+	bell: Bell,
+	check: Check,
 	expand: Expand,
 	"external-link": ExternalLink,
+	filter: ListFilter,
+	search: Search,
 	shrink: Shrink,
 	x: X,
 } satisfies Record<string, LucideIcon>;
@@ -20,26 +36,12 @@ const styles = stylex.create({
 		gap: space.xs,
 		alignItems: "center",
 		justifyContent: "center",
-		boxSizing: "border-box",
-		height: measure.button,
-		padding: `0 ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.menu,
 		backgroundColor: {
-			default: "transparent",
+			default: colours.controlFill,
 			":hover": colours.segment,
 		},
-		color: {
-			default: colours.inkSoft,
-			":hover": colours.ink,
-		},
-		fontSize: type.meta,
-		lineHeight: 1,
 		textDecoration: "none",
 		whiteSpace: "nowrap",
-		cursor: "pointer",
 	},
 	primary: {
 		borderColor: colours.needs,
@@ -47,15 +49,19 @@ const styles = stylex.create({
 		color: colours.needsInk,
 		fontWeight: type.weight,
 	},
-	disabled: {
-		borderColor: colours.laneLine,
-		backgroundColor: "transparent",
-		color: colours.inkSoft,
-		opacity: 0.5,
-		cursor: "default",
+	danger: {
+		borderColor: colours.danger,
+		backgroundColor: colours.danger,
+		color: colours.accentInk,
+		fontWeight: type.weight,
+	},
+	pressed: {
+		backgroundColor: colours.segment,
+		color: colours.ink,
+		fontWeight: type.weight,
 	},
 	iconOnly: {
-		width: measure.button,
+		width: measure.control,
 		padding: 0,
 	},
 	iconRight: {
@@ -66,21 +72,51 @@ const styles = stylex.create({
 		width: measure.buttonIcon,
 		height: measure.buttonIcon,
 	},
+	count: {
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		minWidth: measure.badge,
+		padding: `0 ${space.xs}`,
+		borderRadius: radius.pill,
+		backgroundColor: colours.segment,
+		color: colours.ink,
+		fontSize: type.kicker,
+		lineHeight: 1,
+	},
 });
 
 type Content =
 	| { icon: IconName; label?: never; name: string }
-	| { label: string; icon?: IconName; name?: string };
+	| { label: string; icon?: IconName | undefined; name?: string };
 
-type Action =
-	| { href: string; newTab?: boolean; onClick?: never; disabled?: never }
-	| { onClick: () => void; disabled?: boolean };
+type Link = { href: string; newTab?: boolean };
+
+type Native = Omit<
+	ComponentPropsWithoutRef<"button">,
+	| "children"
+	| "className"
+	| "style"
+	| "title"
+	| "type"
+	| "aria-label"
+	| "aria-pressed"
+> & { href?: never; submit?: boolean };
 
 type ButtonProps = Content &
-	Action & {
-		id?: string;
+	(Link | Native) & {
 		iconSide?: "left" | "right";
-		primary?: boolean;
+		tone?: "primary" | "danger";
+		/** Marks a toggle button and shows its on state. */
+		pressed?: boolean;
+		/** A count badge after the label. */
+		count?: number | undefined;
+		/** The place of the button in its row or column. */
+		layout?: stylex.StyleXStyles<{
+			alignSelf?: "flex-start" | "center" | "flex-end";
+			marginTop?: string;
+			marginLeft?: string;
+		}>;
 	};
 
 /**
@@ -88,16 +124,28 @@ type ButtonProps = Content &
  * sets the accessible name and the tooltip. An icon-only button requires it.
  */
 export function Button(props: ButtonProps) {
-	const { id, icon, label, name, iconSide = "left", primary = false } = props;
-	const disabled = props.disabled === true;
+	const {
+		icon,
+		label,
+		name,
+		iconSide = "left",
+		tone,
+		pressed,
+		count,
+		layout,
+	} = props;
 	const Icon = icon === undefined ? null : icons[icon];
 	const className = clsx(
+		control.box,
+		control.off,
 		styles.button,
+		tone === "primary" && styles.primary,
+		tone === "danger" && styles.danger,
+		pressed === true && styles.pressed,
 		label === undefined && styles.iconOnly,
 		iconSide === "right" && styles.iconRight,
-		primary && styles.primary,
-		disabled && styles.disabled,
 		shell.buttonFocus,
+		layout,
 	);
 	const content = (
 		<>
@@ -105,12 +153,14 @@ export function Button(props: ButtonProps) {
 				<Icon className={clsx(styles.icon)} aria-hidden="true" />
 			)}
 			{label}
+			{count === undefined ? null : (
+				<span className={clsx(styles.count)}>{count}</span>
+			)}
 		</>
 	);
-	if ("href" in props) {
+	if (props.href !== undefined) {
 		return (
 			<a
-				id={id}
 				className={className}
 				href={props.href}
 				aria-label={name}
@@ -123,15 +173,27 @@ export function Button(props: ButtonProps) {
 			</a>
 		);
 	}
+	const {
+		icon: _icon,
+		label: _label,
+		name: _name,
+		iconSide: _iconSide,
+		tone: _tone,
+		pressed: _pressed,
+		count: _count,
+		layout: _layout,
+		href: _href,
+		submit,
+		...native
+	} = props;
 	return (
 		<button
-			id={id}
-			type="button"
+			{...native}
+			type={submit === true ? "submit" : "button"}
 			className={className}
-			disabled={disabled}
 			aria-label={name}
+			aria-pressed={pressed}
 			title={name}
-			onClick={props.onClick}
 		>
 			{content}
 		</button>

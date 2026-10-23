@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "./button.tsx";
+import { Chip } from "./chip.tsx";
 import type { Configuration, ProjectPin } from "./configuration.ts";
 import type { SettingsProject } from "./domain.ts";
 import { projectHasPmBot } from "./domain.ts";
@@ -7,11 +9,10 @@ import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
+import { Select } from "./select.tsx";
 import { StateColoursSection } from "./settings-colours.tsx";
 import {
-	FilterGlyph,
 	laneStates,
-	SearchGlyph,
 	Switch,
 	sections,
 	type stateFilters,
@@ -38,6 +39,7 @@ import {
 	settingsSection,
 	stateLabel,
 } from "./terms.ts";
+import { TextInput } from "./text-input.tsx";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { viewDefaults } from "./view-settings.ts";
@@ -383,30 +385,24 @@ function ProjectsTable({
 			<h2 className={clsx(fields.cardTitle)}>{settingsSection.projects}</h2>
 			<p className={clsx(fields.projectsLead)}>{settingsCopy.projectsLead}</p>
 			<div className={clsx(fields.toolbar)}>
-				<label className={clsx(fields.projectSearch)} htmlFor="project-search">
-					<SearchGlyph />
-					<input
-						id="project-search"
-						className={clsx(fields.projectQuery)}
-						type="search"
-						aria-label={settingsCopy.searchProjects}
-						placeholder={settingsCopy.searchProjects}
-						value={query}
-						onChange={(event) => setQuery(event.target.value)}
-					/>
-				</label>
-				<button
+				<TextInput
+					id="project-search"
+					type="search"
+					icon="search"
+					width={fields.projectSearch}
+					aria-label={settingsCopy.searchProjects}
+					placeholder={settingsCopy.searchProjects}
+					value={query}
+					onChange={(event) => setQuery(event.target.value)}
+				/>
+				<Button
 					id="project-filter"
-					type="button"
-					className={clsx(fields.filterButton)}
-					aria-label={settingsCopy.filter}
+					icon="filter"
+					label={settingsCopy.filter}
 					aria-expanded={filtersOpen}
 					aria-controls="project-filters"
 					onClick={() => setFiltersOpen((open) => !open)}
-				>
-					<FilterGlyph />
-					{settingsCopy.filter}
-				</button>
+				/>
 				<span id="project-count" className={clsx(fields.count)}>
 					{shown.length} {settingsCopy.of} {projects.length}{" "}
 					{settingsCopy.projects}
@@ -423,19 +419,13 @@ function ProjectsTable({
 								["linear", settingsCopy.linear],
 							] as const
 						).map(([value, label]) => (
-							<button
+							<Button
 								key={value}
 								id={`tracker-${value}`}
-								type="button"
-								aria-pressed={tracker === value}
-								className={clsx(
-									fields.filterChoice,
-									tracker === value && fields.filterOn,
-								)}
+								label={label}
+								pressed={tracker === value}
 								onClick={() => setTracker(value)}
-							>
-								{label}
-							</button>
+							/>
 						))}
 					</div>
 					<div id="state-filter" className={clsx(fields.filterLabel)}>
@@ -446,19 +436,13 @@ function ProjectsTable({
 								["tracked", settingsCopy.tracked],
 							] as const
 						).map(([value, label]) => (
-							<button
+							<Button
 								key={value}
 								id={`state-${value}`}
-								type="button"
-								aria-pressed={state === value}
-								className={clsx(
-									fields.filterChoice,
-									state === value && fields.filterOn,
-								)}
+								label={label}
+								pressed={state === value}
 								onClick={() => setState(value)}
-							>
-								{label}
-							</button>
+							/>
 						))}
 					</div>
 				</div>
@@ -554,55 +538,38 @@ function ProjectRow({
 							<div key={repo} className={clsx(settingsBots.bots)}>
 								<span className={clsx(fields.projectMeta)}>{repo}</span>
 								{bots.map((bot) => (
-									<span key={bot} className={clsx(fields.chip)}>
-										{bot}
-										<button
-											type="button"
-											className={clsx(fields.chipRemove)}
-											aria-label={`Remove ${bot} ${repo}`}
-											onClick={() =>
-												onChange({
-													expectedBots: setBots(
-														draft,
-														project,
-														repo,
-														bots.filter((item) => item !== bot),
-													),
-												})
-											}
-										>
-											×
-										</button>
-									</span>
+									<Chip
+										key={bot}
+										label={bot}
+										removeLabel={`Remove ${bot} ${repo}`}
+										onRemove={() =>
+											onChange({
+												expectedBots: setBots(
+													draft,
+													project,
+													repo,
+													bots.filter((item) => item !== bot),
+												),
+											})
+										}
+									/>
 								))}
 								{missing.length === 0 ? null : (
-									<select
+									<Select
 										id={`add-bot-${id}-${repoId}`}
-										className={clsx(settingsBots.addBot)}
 										aria-label={`${settingsCopy.addBot} ${repo}`}
-										value=""
-										onChange={(event) => {
-											const bot = knownBots.find(
-												(item) => item === event.target.value,
-											);
-											if (bot === undefined) {
-												return;
-											}
+										value={undefined}
+										placeholder={settingsCopy.addBot}
+										options={missing.map((bot) => ({ value: bot, label: bot }))}
+										onChange={(bot) =>
 											onChange({
 												expectedBots: setBots(draft, project, repo, [
 													...bots,
 													bot,
 												]),
-											});
-										}}
-									>
-										<option value="">{settingsCopy.addBot}</option>
-										{missing.map((bot) => (
-											<option key={bot} value={bot}>
-												{bot}
-											</option>
-										))}
-									</select>
+											})
+										}
+									/>
 								)}
 							</div>
 						);
