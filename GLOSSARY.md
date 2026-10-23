@@ -52,6 +52,10 @@ _Avoid_: Category, scope group
 The box around the sub-tickets of a parent ticket on the project graph, when the graph groups by workstream or theme. The parent ticket card heads the frame. A parent ticket that a filter hides still heads the frame of its shown sub-tickets. A group that holds a sub-ticket of a parent ticket from another group heads its frame with a copy of the parent ticket card. An outside parent ticket heads the frame of its sub-tickets as a dashed outside card, with its title and state.
 _Avoid_: Parent box, epic frame
 
+**Graph scope line**:
+The line above the project graph that names what the graph shows: the project, the count of open parent ticket frames, and the focus set when focus is on. Each part is a link that returns the graph to that scope.
+_Avoid_: Breadcrumb trail
+
 ### State
 
 **State**:

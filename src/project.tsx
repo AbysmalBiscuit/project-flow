@@ -1568,7 +1568,9 @@ export function Page() {
 									assignees={settings.assignees}
 									openKey={open ? ticket : null}
 									seeds={seeds}
+									focus={ticketFocus.focus}
 									onFocus={ticketFocus.toggle}
+									onClearFocus={ticketFocus.clear}
 									onPreview={ticketFocus.enter}
 									onPreviewEnd={ticketFocus.leave}
 									onDirection={(next) =>
