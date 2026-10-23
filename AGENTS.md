@@ -68,3 +68,7 @@ The default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent
 ### Domain docs
 
 Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Workcell roles
+
+`.agents/workcell.toml` sets the role of each workcell agent. The PM is the senior and does the senior review. No senior agent runs. A run posts each senior question on its issue, and the PM answers there.
