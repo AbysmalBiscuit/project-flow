@@ -1602,7 +1602,7 @@ export function Page() {
 											: { state: openedState })}
 									lane={selected?.lane}
 									laneColour={
-										report.lanes.find((lane) => lane.name === selected?.lane)
+										source?.lanes.find((lane) => lane.name === selected?.lane)
 											?.colour
 									}
 									blockers={incoming}
