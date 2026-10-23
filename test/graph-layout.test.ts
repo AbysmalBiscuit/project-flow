@@ -407,6 +407,22 @@ describe("project graph layout", () => {
 		}
 	});
 
+	test("a filtered-out parent ticket from another workstream leaves no empty workstream", async () => {
+		const report = await hierarchyReport("sort by name", milestones);
+		const input = layoutInput(report, "workstream", []);
+		expect({
+			groups: input.groups.map((group) => group.id),
+			cards: input.cards
+				.map((item) => `${item.ticket} in ${item.group}`)
+				.sort(),
+		}).toEqual({
+			groups: [groupId("Gamma")],
+			cards: ["WID-1", "WID-3", "WID-4"]
+				.map((key) => `${cardOf(key)} in ${groupId("Gamma")}`)
+				.sort(),
+		});
+	});
+
 	test("a parent ticket whose sub-tickets are all hidden shows as a plain card", async () => {
 		const report = await hierarchyReport("ship the widget");
 		expect(layoutInput(report, "workstream", [])).toMatchObject({

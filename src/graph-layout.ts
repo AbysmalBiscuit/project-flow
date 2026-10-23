@@ -210,11 +210,12 @@ export function layoutInput(
 	const edges = graphEdges(report).filter(
 		(edge) => shown.has(edge.from) && shown.has(edge.to),
 	);
+	const filled = new Set(cards.map((card) => card.group));
 	return {
 		cards,
-		groups: [...groups.values()].sort((left, right) =>
-			left.label.localeCompare(right.label),
-		),
+		groups: [...groups.values()]
+			.filter((group) => filled.has(group.id))
+			.sort((left, right) => left.label.localeCompare(right.label)),
 		frames,
 		edges,
 	};
