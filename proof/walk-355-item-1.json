@@ -1,0 +1,18 @@
+{
+	"base_url": "http://127.0.0.1:4455",
+	"viewport": { "width": 1440, "height": 1000 },
+	"serve": ["bun", "proof/serve-355.ts", "4455"],
+	"steps": [
+		{ "goto": "/projects/api-kysely%20cleanup%20followup" },
+		{ "assert_text": "Move the API to Kysely" },
+		{ "assert_text": "Retire the legacy query builder" },
+		{ "assert_text": "Clean up the query logs" },
+		{
+			"assert_text": "API-41 in PLT-12 | API-42 in PLT-12 | API-43 in PLT-12 | API-44 in PLT-12 | API-45 in DB-7 | API-46 in DB-7 | API-47 in DB-7 | API-48 in OPS-4 | API-49 in OPS-4"
+		},
+		{ "assert_text": "In progress" },
+		{ "assert_text": "Open" },
+		{ "click": "#project-graph-fit" },
+		{ "shot": "kysely-outside-parent-frames" }
+	]
+}
