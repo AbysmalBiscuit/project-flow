@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import projectFields from "./fixtures/github-project-fields.json";
+import recorded from "./fixtures/github-project-ticket-fields.json";
 import {
 	recordedViewer,
 	repoReadIssues,
@@ -15,79 +16,18 @@ import {
 	urlOf,
 } from "./support.ts";
 
-const repo = "acme/widget";
-const board = "Widget board";
-const projectId = "PVT_widget";
+const repo = recorded.repository;
+const board = recorded.projectByNumber.data.repositoryOwner.projectV2.title;
 
-const emptyPage = {
-	nodes: [],
-	pageInfo: { hasNextPage: false, endCursor: null },
-};
+const lastPage = { hasNextPage: false, endCursor: null };
 
-const connection = (nodes: Record<string, unknown>[]) => ({
-	nodes,
-	pageInfo: { hasNextPage: false, endCursor: null },
+const withoutStatus = <Item extends object>(item: Item) => ({
+	...item,
+	fieldValueByName: null,
 });
 
-const openIssue = {
-	number: 7,
-	title: "Draw the nodes",
-	state: "OPEN",
-	stateReason: null,
-	createdAt: "2026-08-01T09:00:00Z",
-	updatedAt: "2026-08-18T12:00:00Z",
-	closedAt: null,
-	body: "",
-	labels: emptyPage,
-	assignees: connection([{ login: "ada" }]),
-	milestone: null,
-	parent: null,
-	blockedBy: emptyPage,
-	blocking: connection([
-		{
-			number: 3,
-			title: "Ship the API",
-			state: "OPEN",
-			repository: { nameWithOwner: "acme/api" },
-		},
-	]),
-};
-
-const closedIssue = {
-	number: 8,
-	title: "Write the copy",
-	state: "CLOSED",
-	stateReason: "COMPLETED",
-	createdAt: "2026-07-20T09:00:00Z",
-	updatedAt: "2026-08-12T08:00:00Z",
-	closedAt: "2026-08-10T15:00:00Z",
-	body: "",
-	labels: emptyPage,
-	assignees: connection([{ login: "lin" }]),
-	milestone: null,
-	parent: null,
-	blockedBy: emptyPage,
-	blocking: emptyPage,
-};
-
-const issues = [openIssue, closedIssue];
-
-function projectItem(issue: Record<string, unknown>) {
-	return {
-		fieldValueByName: null,
-		content: {
-			__typename: "Issue",
-			id: `I_${String(issue.number)}`,
-			...issue,
-			comments: { totalCount: 0 },
-			repository: { nameWithOwner: repo },
-			closedByPullRequestsReferences: emptyPage,
-		},
-	};
-}
-
 const trackerFetch =
-	(projectIssues: Record<string, unknown>[], sent: string[] = []): Fetch =>
+	(projectItems: unknown[], sent: string[] = []): Fetch =>
 	async (input, init) => {
 		const viewer = recordedViewer(input, init);
 		if (viewer !== null) {
@@ -97,53 +37,25 @@ const trackerFetch =
 		const body = typeof init?.body === "string" ? init.body : "";
 		if (url === "https://api.github.com/graphql") {
 			if (body.includes("query RepoRead")) {
-				return Response.json(
-					repoReadIssues(
-						"acme",
-						"widget",
-						issues.map((issue) => ({ ...issue, comments: emptyPage })),
-					),
-				);
+				const [owner = "", name = ""] = repo.split("/");
+				return Response.json(repoReadIssues(owner, name, recorded.repoIssues));
 			}
 			if (body.includes("ProjectByNumber")) {
-				return Response.json({
-					data: {
-						repositoryOwner: {
-							projectV2: {
-								id: projectId,
-								number: 4,
-								title: board,
-								closed: false,
-								updatedAt: "2026-08-18T12:00:00Z",
-							},
-						},
-					},
-				});
+				return Response.json(recorded.projectByNumber);
 			}
 			if (body.includes("ProjectFields")) {
 				return Response.json(projectFields);
 			}
 			if (body.includes("ProjectItems")) {
 				return Response.json({
-					data: { node: { items: connection(projectIssues.map(projectItem)) } },
+					data: {
+						node: { items: { nodes: projectItems, pageInfo: lastPage } },
+					},
 				});
 			}
 			if (body.includes("query Blocking")) {
 				sent.push(body);
-				return Response.json({
-					data: {
-						node: {
-							blocking: connection([
-								{
-									number: 4,
-									title: "Ship the docs",
-									state: "OPEN",
-									repository: { nameWithOwner: "acme/docs" },
-								},
-							]),
-						},
-					},
-				});
+				return Response.json(recorded.blockingNextPage);
 			}
 		}
 		if (
@@ -167,13 +79,17 @@ type Item = {
 
 type ProjectBody = { tickets: Item[] };
 
-const projectPin = { tracker: "github", owner: "acme", project: 4 };
+const projectPin = {
+	tracker: "github",
+	owner: "AbysmalBiscuit",
+	project: recorded.projectByNumber.data.repositoryOwner.projectV2.number,
+};
 const repoPin = { tracker: "github", repo };
 
 async function ticketsOf(
 	pin: typeof projectPin | typeof repoPin,
 	name: string,
-	fetchImpl = trackerFetch(issues),
+	fetchImpl = trackerFetch(recorded.projectItems.map(withoutStatus)),
 ): Promise<Item[]> {
 	const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [pin] }));
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -229,7 +145,7 @@ async function readTickets(base: string, name: string): Promise<Item[]> {
 }
 
 describe("GitHub project ticket fields", () => {
-	test("a project ticket carries assignees, blocks, a created time and a closed time", async () => {
+	test("a project ticket with no status carries assignees, blocks, a created time and a closed time", async () => {
 		const tickets = await ticketsOf(projectPin, board);
 		expect(
 			tickets.map((ticket) => ({
@@ -241,18 +157,21 @@ describe("GitHub project ticket fields", () => {
 			})),
 		).toEqual([
 			{
-				key: "acme/widget#7",
-				statusType: "backlog",
-				enteredStateAt: "2026-08-01T09:00:00Z",
-				assignees: ["ada"],
-				blocks: ["acme/api#3"],
+				key: "AbysmalBiscuit/project-flow#17",
+				statusType: "done",
+				enteredStateAt: "2026-10-18T16:25:24Z",
+				assignees: ["AbysmalBiscuit"],
+				blocks: undefined,
 			},
 			{
-				key: "acme/widget#8",
-				statusType: "done",
-				enteredStateAt: "2026-08-10T15:00:00Z",
-				assignees: ["lin"],
-				blocks: undefined,
+				key: "AbysmalBiscuit/project-flow#383",
+				statusType: "backlog",
+				enteredStateAt: "2026-10-23T05:39:54Z",
+				assignees: undefined,
+				blocks: [
+					"AbysmalBiscuit/project-flow#400",
+					"AbysmalBiscuit/project-flow#399",
+				],
 			},
 		]);
 	});
@@ -260,29 +179,32 @@ describe("GitHub project ticket fields", () => {
 	test("a ticket from a project and from its repo give the same ticket view", async () => {
 		const fromProject = await ticketsOf(projectPin, board);
 		const fromRepo = await ticketsOf(repoPin, repo);
-		expect(fromProject).toHaveLength(issues.length);
+		expect(fromProject).toHaveLength(recorded.repoIssues.length);
 		expect(fromProject).toEqual(fromRepo);
 	});
 
 	test("a later page of blocked tickets reaches the project ticket", async () => {
 		const sent: string[] = [];
-		const paged = {
-			...openIssue,
-			blocking: {
-				...openIssue.blocking,
-				pageInfo: { hasNextPage: true, endCursor: "cursor-blocking" },
-			},
-		};
+		const open = recorded.projectItems.find(
+			(item) => item.content.state === "OPEN",
+		);
+		if (open === undefined) {
+			throw new Error("the recording has no open project item");
+		}
+		const paged = withoutStatus({
+			...open,
+			content: { ...open.content, blocking: recorded.blockingFirstPage },
+		});
 		const tickets = await ticketsOf(
 			projectPin,
 			board,
 			trackerFetch([paged], sent),
 		);
 		expect(tickets[0]?.blocks?.map((ref) => ref.key)).toEqual([
-			"acme/api#3",
-			"acme/docs#4",
+			"AbysmalBiscuit/project-flow#400",
+			"AbysmalBiscuit/project-flow#399",
 		]);
 		expect(sent).toHaveLength(1);
-		expect(sent[0]).toContain("cursor-blocking");
+		expect(sent[0]).toContain(recorded.blockingFirstPage.pageInfo.endCursor);
 	});
 });

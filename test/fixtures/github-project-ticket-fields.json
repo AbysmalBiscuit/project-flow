@@ -1,0 +1,389 @@
+{
+	"recordedAt": "2026-10-23",
+	"source": "gh api graphql with the ProjectItems, RepoRead issue and Blocking selections of src/github.ts on AbysmalBiscuit/project-flow project 10. projectByNumber selects projectV2 through a ProjectV2Owner fragment.",
+	"repository": "AbysmalBiscuit/project-flow",
+	"projectByNumber": {
+		"data": {
+			"repositoryOwner": {
+				"projectV2": {
+					"id": "PVT_kwHOAXki-s4BnnNW",
+					"number": 10,
+					"title": "project-flow",
+					"closed": false,
+					"updatedAt": "2026-10-23T10:14:12Z"
+				}
+			}
+		}
+	},
+	"projectItems": [
+		{
+			"fieldValueByName": {
+				"name": "Done",
+				"optionId": "98236657",
+				"color": "ORANGE",
+				"updatedAt": "2026-10-18T16:25:26Z"
+			},
+			"content": {
+				"__typename": "Issue",
+				"id": "I_kwDOVOfhI88AAAABYFLlVA",
+				"number": 17,
+				"title": "ci: add checks, git hooks and release-please",
+				"state": "CLOSED",
+				"stateReason": "COMPLETED",
+				"updatedAt": "2026-10-18T16:25:24Z",
+				"createdAt": "2026-10-18T15:17:10Z",
+				"closedAt": "2026-10-18T16:25:24Z",
+				"body": "The repo gets a Bun TypeScript project with typecheck, test, lint and format scripts, using Biome for lint and format. CI runs all four on every PR and on every push to `main`, and fails on any finding. Each job has a timeout of about 10 minutes, so a hung job cannot hold a runner. A concurrency group per branch or PR cancels the in-progress run when a new push arrives, so only the latest commit uses CI time; runs on `main` are not cancelled. prek hooks run a light version locally: pre-commit formats and lints the staged files, commit-msg checks the Conventional Commits format, and pre-push runs the typecheck and the tests. One `prek install` covers every worktree of the clone. release-please maintains a release PR and changelog on `main`, with the `RELEASE_PLEASE_TOKEN` PAT so its PR triggers CI, as workcell does. That secret is already set on the repo.\n\n## Done when\n\n- [ ] A PR runs typecheck, test, lint and format check in CI, and each one fails the run on a finding (proof: link to a failing and a passing CI run)\n- [ ] Every CI and release-please job has a timeout of about 10 minutes (proof: the `timeout-minutes` lines in the workflow files)\n- [ ] A new push to a branch or PR cancels the CI run still in progress for it, while runs on `main` are never cancelled (proof: link to a cancelled run and the run that replaced it)\n- [ ] After `prek install`, a commit with a lint error or a non-conventional message is refused (proof: command and its output)\n- [ ] A push runs the typecheck and the tests first (proof: command and its output)\n- [ ] release-please opens a release PR after a `feat:` commit lands on `main` (proof: link to the release PR)\n\n## Context\n\nParent: https://github.com/AbysmalBiscuit/project-flow/issues/1\n",
+				"labels": {
+					"nodes": [
+						{
+							"name": "enhancement"
+						}
+					],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "MQ"
+					}
+				},
+				"assignees": {
+					"nodes": [
+						{
+							"login": "AbysmalBiscuit"
+						}
+					]
+				},
+				"milestone": null,
+				"parent": {
+					"number": 1,
+					"title": "spec: project flow v1",
+					"state": "OPEN",
+					"stateReason": null,
+					"url": "https://github.com/AbysmalBiscuit/project-flow/issues/1",
+					"repository": {
+						"nameWithOwner": "AbysmalBiscuit/project-flow"
+					}
+				},
+				"blockedBy": {
+					"nodes": [],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": null
+					}
+				},
+				"blocking": {
+					"nodes": [
+						{
+							"number": 2,
+							"title": "feat: serve one GitHub repo as a project card",
+							"state": "CLOSED",
+							"repository": {
+								"nameWithOwner": "AbysmalBiscuit/project-flow"
+							}
+						}
+					],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "MQ"
+					}
+				},
+				"comments": {
+					"totalCount": 0
+				},
+				"repository": {
+					"nameWithOwner": "AbysmalBiscuit/project-flow"
+				},
+				"closedByPullRequestsReferences": {
+					"nodes": [
+						{
+							"number": 18,
+							"repository": {
+								"nameWithOwner": "AbysmalBiscuit/project-flow"
+							}
+						}
+					],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "MQ"
+					}
+				}
+			}
+		},
+		{
+			"fieldValueByName": {
+				"name": "Backlog",
+				"optionId": "f75ad846",
+				"color": "GREEN",
+				"updatedAt": "2026-10-23T05:39:57Z"
+			},
+			"content": {
+				"__typename": "Issue",
+				"id": "I_kwDOVOfhI88AAAABZS89YA",
+				"number": 383,
+				"title": "chore: remove unused styles and functions",
+				"state": "OPEN",
+				"stateReason": null,
+				"updatedAt": "2026-10-23T05:39:54Z",
+				"createdAt": "2026-10-23T05:39:54Z",
+				"closedAt": null,
+				"body": "Unused style keys, a whole unused project style namespace, an unused backlog colour function, and unused refs and effects in the project page stay in the code. A search then shows dead code next to live code, and agents copy patterns that nothing uses.\n\nRemove the unused style keys, the unused project style namespace and the unused backlog colour function. Remove the panel tracker ref that nothing reads, and the redundant effects in the project page. Behaviour does not change.\n\n## Done when\n\n- [ ] A search for each removed style key and function finds no reference (proof: command and its output)\n- [ ] The project page, the overview and Settings look the same as before (proof: screenshot)\n- [ ] `bun run typecheck`, `bun run test` and `bun run lint` pass (proof: command and its output)\n\n## Out of scope\n\n- Moving style namespaces to new files. A separate ticket owns it.\n\n## Context\n\nParent: #378\n",
+				"labels": {
+					"nodes": [
+						{
+							"name": "enhancement"
+						},
+						{
+							"name": "ready-for-agent"
+						}
+					],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "Mg"
+					}
+				},
+				"assignees": {
+					"nodes": []
+				},
+				"milestone": null,
+				"parent": {
+					"number": 378,
+					"title": "spec: deepen modules and remove duplicated rules",
+					"state": "OPEN",
+					"stateReason": null,
+					"url": "https://github.com/AbysmalBiscuit/project-flow/issues/378",
+					"repository": {
+						"nameWithOwner": "AbysmalBiscuit/project-flow"
+					}
+				},
+				"blockedBy": {
+					"nodes": [],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": null
+					}
+				},
+				"blocking": {
+					"nodes": [
+						{
+							"number": 400,
+							"title": "refactor: split the core file and move rules out of the HTTP adapter",
+							"state": "OPEN",
+							"repository": {
+								"nameWithOwner": "AbysmalBiscuit/project-flow"
+							}
+						},
+						{
+							"number": 399,
+							"title": "refactor(web): move feature styles next to their components",
+							"state": "OPEN",
+							"repository": {
+								"nameWithOwner": "AbysmalBiscuit/project-flow"
+							}
+						}
+					],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "Mg"
+					}
+				},
+				"comments": {
+					"totalCount": 0
+				},
+				"repository": {
+					"nameWithOwner": "AbysmalBiscuit/project-flow"
+				},
+				"closedByPullRequestsReferences": {
+					"nodes": [],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": null
+					}
+				}
+			}
+		}
+	],
+	"repoIssues": [
+		{
+			"number": 17,
+			"title": "ci: add checks, git hooks and release-please",
+			"state": "CLOSED",
+			"stateReason": "COMPLETED",
+			"updatedAt": "2026-10-18T16:25:24Z",
+			"createdAt": "2026-10-18T15:17:10Z",
+			"closedAt": "2026-10-18T16:25:24Z",
+			"body": "The repo gets a Bun TypeScript project with typecheck, test, lint and format scripts, using Biome for lint and format. CI runs all four on every PR and on every push to `main`, and fails on any finding. Each job has a timeout of about 10 minutes, so a hung job cannot hold a runner. A concurrency group per branch or PR cancels the in-progress run when a new push arrives, so only the latest commit uses CI time; runs on `main` are not cancelled. prek hooks run a light version locally: pre-commit formats and lints the staged files, commit-msg checks the Conventional Commits format, and pre-push runs the typecheck and the tests. One `prek install` covers every worktree of the clone. release-please maintains a release PR and changelog on `main`, with the `RELEASE_PLEASE_TOKEN` PAT so its PR triggers CI, as workcell does. That secret is already set on the repo.\n\n## Done when\n\n- [ ] A PR runs typecheck, test, lint and format check in CI, and each one fails the run on a finding (proof: link to a failing and a passing CI run)\n- [ ] Every CI and release-please job has a timeout of about 10 minutes (proof: the `timeout-minutes` lines in the workflow files)\n- [ ] A new push to a branch or PR cancels the CI run still in progress for it, while runs on `main` are never cancelled (proof: link to a cancelled run and the run that replaced it)\n- [ ] After `prek install`, a commit with a lint error or a non-conventional message is refused (proof: command and its output)\n- [ ] A push runs the typecheck and the tests first (proof: command and its output)\n- [ ] release-please opens a release PR after a `feat:` commit lands on `main` (proof: link to the release PR)\n\n## Context\n\nParent: https://github.com/AbysmalBiscuit/project-flow/issues/1\n",
+			"labels": {
+				"nodes": [
+					{
+						"name": "enhancement"
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": "MQ"
+				}
+			},
+			"assignees": {
+				"nodes": [
+					{
+						"login": "AbysmalBiscuit"
+					}
+				]
+			},
+			"milestone": null,
+			"parent": {
+				"number": 1,
+				"title": "spec: project flow v1",
+				"state": "OPEN",
+				"stateReason": null,
+				"url": "https://github.com/AbysmalBiscuit/project-flow/issues/1",
+				"repository": {
+					"nameWithOwner": "AbysmalBiscuit/project-flow"
+				}
+			},
+			"blockedBy": {
+				"nodes": [],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			},
+			"blocking": {
+				"nodes": [
+					{
+						"number": 2,
+						"title": "feat: serve one GitHub repo as a project card",
+						"state": "CLOSED",
+						"repository": {
+							"nameWithOwner": "AbysmalBiscuit/project-flow"
+						}
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": "MQ"
+				}
+			},
+			"comments": {
+				"nodes": [],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			}
+		},
+		{
+			"number": 383,
+			"title": "chore: remove unused styles and functions",
+			"state": "OPEN",
+			"stateReason": null,
+			"updatedAt": "2026-10-23T05:39:54Z",
+			"createdAt": "2026-10-23T05:39:54Z",
+			"closedAt": null,
+			"body": "Unused style keys, a whole unused project style namespace, an unused backlog colour function, and unused refs and effects in the project page stay in the code. A search then shows dead code next to live code, and agents copy patterns that nothing uses.\n\nRemove the unused style keys, the unused project style namespace and the unused backlog colour function. Remove the panel tracker ref that nothing reads, and the redundant effects in the project page. Behaviour does not change.\n\n## Done when\n\n- [ ] A search for each removed style key and function finds no reference (proof: command and its output)\n- [ ] The project page, the overview and Settings look the same as before (proof: screenshot)\n- [ ] `bun run typecheck`, `bun run test` and `bun run lint` pass (proof: command and its output)\n\n## Out of scope\n\n- Moving style namespaces to new files. A separate ticket owns it.\n\n## Context\n\nParent: #378\n",
+			"labels": {
+				"nodes": [
+					{
+						"name": "enhancement"
+					},
+					{
+						"name": "ready-for-agent"
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": "Mg"
+				}
+			},
+			"assignees": {
+				"nodes": []
+			},
+			"milestone": null,
+			"parent": {
+				"number": 378,
+				"title": "spec: deepen modules and remove duplicated rules",
+				"state": "OPEN",
+				"stateReason": null,
+				"url": "https://github.com/AbysmalBiscuit/project-flow/issues/378",
+				"repository": {
+					"nameWithOwner": "AbysmalBiscuit/project-flow"
+				}
+			},
+			"blockedBy": {
+				"nodes": [],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			},
+			"blocking": {
+				"nodes": [
+					{
+						"number": 400,
+						"title": "refactor: split the core file and move rules out of the HTTP adapter",
+						"state": "OPEN",
+						"repository": {
+							"nameWithOwner": "AbysmalBiscuit/project-flow"
+						}
+					},
+					{
+						"number": 399,
+						"title": "refactor(web): move feature styles next to their components",
+						"state": "OPEN",
+						"repository": {
+							"nameWithOwner": "AbysmalBiscuit/project-flow"
+						}
+					}
+				],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": "Mg"
+				}
+			},
+			"comments": {
+				"nodes": [],
+				"pageInfo": {
+					"hasNextPage": false,
+					"endCursor": null
+				}
+			}
+		}
+	],
+	"blockingFirstPage": {
+		"nodes": [
+			{
+				"number": 400,
+				"title": "refactor: split the core file and move rules out of the HTTP adapter",
+				"state": "OPEN",
+				"repository": {
+					"nameWithOwner": "AbysmalBiscuit/project-flow"
+				}
+			}
+		],
+		"pageInfo": {
+			"hasNextPage": true,
+			"endCursor": "MQ"
+		}
+	},
+	"blockingNextPage": {
+		"data": {
+			"node": {
+				"blocking": {
+					"nodes": [
+						{
+							"number": 399,
+							"title": "refactor(web): move feature styles next to their components",
+							"state": "OPEN",
+							"repository": {
+								"nameWithOwner": "AbysmalBiscuit/project-flow"
+							}
+						}
+					],
+					"pageInfo": {
+						"hasNextPage": false,
+						"endCursor": "Mg"
+					}
+				}
+			}
+		}
+	}
+}
