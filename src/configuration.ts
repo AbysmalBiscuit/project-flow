@@ -25,6 +25,7 @@ import {
 	overviewViews,
 } from "./overview-view.ts";
 import { ownerRepo } from "./project-ref.ts";
+import { statusColours } from "./token-palette.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphLayout,
@@ -102,6 +103,22 @@ const projectViewSettings = z.strictObject({
 	groupBy: z.enum(groupByKeys).optional(),
 });
 
+const hexColour = z
+	.string()
+	.regex(/^#[0-9A-Fa-f]{6}$/)
+	.transform((value) => value.toLowerCase());
+
+const stateColoursSchema = z
+	.strictObject({
+		backlog: hexColour.default(statusColours.backlog),
+		inProgress: hexColour.default(statusColours.inProgress),
+		inReview: hexColour.default(statusColours.inReview),
+		awaitingMerge: hexColour.default(statusColours.awaitingMerge),
+		done: hexColour.default(statusColours.done),
+		dropped: hexColour.default(statusColours.dropped),
+	})
+	.default(statusColours);
+
 const configurationSchema = z
 	.strictObject({
 		theme: z.enum(["light", "dark"]).default("light"),
@@ -147,6 +164,7 @@ const configurationSchema = z
 		factoryGithubTokens: z.boolean().default(false),
 		factoryGithubTokenDir: z.string().default(defaultFactoryGithubTokenDir),
 		projectViews: z.record(z.string(), projectViewSettings).default({}),
+		stateColours: stateColoursSchema,
 	})
 	.transform(
 		({
@@ -171,6 +189,8 @@ export type ProjectViewSettings = z.infer<typeof projectViewSettings>;
 export type Configuration = z.infer<typeof configurationSchema>;
 
 export type { OverviewView } from "./overview-view.ts";
+
+export type StateColours = Configuration["stateColours"];
 
 export type AutoMerge = Configuration["autoMerge"][string];
 
@@ -240,4 +260,30 @@ export async function saveConfiguration(
 		throw error;
 	}
 	return configuration;
+}
+
+const storedStateColours = z.object({
+	stateColours: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * Loads the configuration, and writes the default state colours into a file
+ * that lacks any of them, so the file always shows every colour to edit.
+ */
+export async function loadFilledConfiguration(
+	path: string,
+): Promise<Configuration> {
+	const configuration = await loadConfiguration(path);
+	const stored = storedStateColours.safeParse(
+		JSON.parse(await readFile(path, "utf8")),
+	);
+	const written = new Set(
+		Object.keys(stored.success ? (stored.data.stateColours ?? {}) : {}),
+	);
+	if (
+		Object.keys(configuration.stateColours).every((key) => written.has(key))
+	) {
+		return configuration;
+	}
+	return saveConfiguration(path, JSON.stringify(configuration));
 }
