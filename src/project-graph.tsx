@@ -31,6 +31,7 @@ import type { NodeSize } from "./graph-sizes.ts";
 import {
 	graphDirectionLabel,
 	graphLayoutFailedLabel,
+	graphLayoutLabel,
 	navLabel,
 	projectGraphLabel,
 	subTicketsDoneLabel,
@@ -38,8 +39,13 @@ import {
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
 import { cards, headerControlStyle, panel } from "./ui-styles.ts";
-import type { GraphDirection, GroupBy } from "./view-settings.ts";
-import { graphDirections } from "./view-settings.ts";
+import {
+	type GraphDirection,
+	type GraphLayoutKind,
+	type GroupBy,
+	graphDirections,
+	graphLayouts,
+} from "./view-settings.ts";
 
 export type OpenedNode = {
 	key: string;
@@ -141,22 +147,24 @@ function TicketEdge({
 		sourcePosition,
 		targetPosition,
 	};
-	const drawn = routeEdge(
-		route,
-		data?.lane ?? 0,
-		data?.lanes ?? 1,
-		data?.nodes ?? [],
-		data?.label ?? { x: 0, y: 0 },
-		data?.entry ?? 0,
-		data?.entries ?? 1,
-		data?.side,
-	);
+	const drawn =
+		data?.straight ??
+		routeEdge(
+			route,
+			data?.lane ?? 0,
+			data?.lanes ?? 1,
+			data?.nodes ?? [],
+			data?.label ?? { x: 0, y: 0 },
+			data?.entry ?? 0,
+			data?.entries ?? 1,
+			data?.side,
+		).path;
 	const done = data?.done === true;
 	const flowing = done && data?.flowing === true;
 	return (
 		<BaseEdge
 			id={id}
-			path={drawn.path}
+			path={drawn}
 			data-flowing={flowing ? "true" : "false"}
 			className={
 				done
@@ -261,6 +269,7 @@ export function ProjectGraph({
 	report,
 	reports,
 	direction,
+	layout,
 	groupBy,
 	assignees,
 	openKey,
@@ -270,10 +279,12 @@ export function ProjectGraph({
 	onPreview,
 	onPreviewEnd,
 	onDirection,
+	onLayout,
 }: {
 	report: ProjectReport;
 	reports: ProjectReport[];
 	direction: GraphDirection;
+	layout: GraphLayoutKind;
 	groupBy: GroupBy;
 	assignees: readonly string[];
 	openKey: string | null;
@@ -283,6 +294,7 @@ export function ProjectGraph({
 	onPreview: (nodeId: string) => void;
 	onPreviewEnd: () => void;
 	onDirection: (direction: GraphDirection) => void;
+	onLayout: (layout: GraphLayoutKind) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
@@ -290,6 +302,7 @@ export function ProjectGraph({
 	const { laid, failed } = useLaidGraph(
 		report,
 		direction,
+		layout,
 		groupBy,
 		assignees,
 		span,
@@ -303,6 +316,7 @@ export function ProjectGraph({
 			laid.report,
 			reports,
 			laid.direction,
+			laid.kind,
 			laid.groupBy,
 			openKey,
 			laid.input,
@@ -323,7 +337,7 @@ export function ProjectGraph({
 			</div>
 		);
 	}
-	const drawn = laid.direction;
+	const drawn = `${laid.kind} ${laid.direction}`;
 	const fades = clsx(board.fades);
 	const faded = clsx(board.fades, board.faded);
 	const nodes = model.nodes.map((node) => {
@@ -411,7 +425,10 @@ export function ProjectGraph({
 				{places}
 			</p>
 			<p id="project-graph-direction" className={clsx(cards.graphProbe)}>
-				{drawn}
+				{laid.direction}
+			</p>
+			<p id="project-graph-engine" className={clsx(cards.graphProbe)}>
+				{laid.kind}
 			</p>
 			<p id="project-graph-frames" className={clsx(cards.graphProbe)}>
 				{framedCards.sort().join(" | ")}
@@ -496,7 +513,12 @@ export function ProjectGraph({
 				</div>
 				<div id="project-graph-controls" className={clsx(float.corner)}>
 					<div className={clsx(float.group)}>
-						<DirectionSwitch direction={direction} onChange={onDirection} />
+						<LayoutSwitch layout={layout} onChange={onLayout} />
+						<DirectionSwitch
+							direction={direction}
+							disabled={layout !== "layered"}
+							onChange={onDirection}
+						/>
 						<GraphTools
 							probeId="project-graph-viewport"
 							fitId="project-graph-fit"
@@ -509,15 +531,53 @@ export function ProjectGraph({
 	);
 }
 
-export function DirectionSwitch({
-	direction,
+function LayoutSwitch({
+	layout,
 	onChange,
 }: {
-	direction: GraphDirection;
-	onChange: (direction: GraphDirection) => void;
+	layout: GraphLayoutKind;
+	onChange: (layout: GraphLayoutKind) => void;
 }) {
 	return (
 		<fieldset className={clsx(headerControlStyle.group)}>
+			<legend className={clsx(cards.graphProbe)}>Graph layout</legend>
+			{graphLayouts.map((item) => (
+				<button
+					key={item}
+					type="button"
+					id={`graph-layout-${item}`}
+					className={clsx(
+						headerControlStyle.segment,
+						layout === item && headerControlStyle.segmentOn,
+					)}
+					aria-pressed={layout === item}
+					onClick={() => onChange(item)}
+				>
+					{graphLayoutLabel[item]}
+				</button>
+			))}
+		</fieldset>
+	);
+}
+
+/** Only the Layered layout has a direction, so Force disables the switch. */
+export function DirectionSwitch({
+	direction,
+	disabled = false,
+	onChange,
+}: {
+	direction: GraphDirection;
+	disabled?: boolean;
+	onChange: (direction: GraphDirection) => void;
+}) {
+	return (
+		<fieldset
+			className={clsx(
+				headerControlStyle.group,
+				disabled && headerControlStyle.groupOff,
+			)}
+			disabled={disabled}
+		>
 			<legend className={clsx(cards.graphProbe)}>Graph direction</legend>
 			{graphDirections.map((item) => (
 				<button

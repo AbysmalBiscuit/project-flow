@@ -1432,7 +1432,7 @@ describe("settings", () => {
 		});
 	});
 
-	test("a project graph direction survives a restart", async () => {
+	test("a project graph direction and layout survive a restart", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		try {
 			await withAppFile(path, async (base) => {
@@ -1446,23 +1446,28 @@ describe("settings", () => {
 					body: JSON.stringify({
 						...before,
 						projectViews: {
-							"acme/widget": { graphDirection: "top-to-bottom" },
+							"acme/widget": {
+								graphDirection: "top-to-bottom",
+								graphLayout: "force",
+							},
 						},
 					}),
 				});
 				expect(saved.status).toBe(200);
 				const written = (await saved.json()) as Configuration;
-				expect(written.projectViews["acme/widget"]?.graphDirection).toBe(
-					"top-to-bottom",
-				);
+				expect(written.projectViews["acme/widget"]).toMatchObject({
+					graphDirection: "top-to-bottom",
+					graphLayout: "force",
+				});
 			});
 			await withAppFile(path, async (base) => {
 				const restarted = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as Configuration;
-				expect(restarted.projectViews["acme/widget"]?.graphDirection).toBe(
-					"top-to-bottom",
-				);
+				expect(restarted.projectViews["acme/widget"]).toMatchObject({
+					graphDirection: "top-to-bottom",
+					graphLayout: "force",
+				});
 			});
 		} finally {
 			await cleanup();

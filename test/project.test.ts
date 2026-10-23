@@ -1925,6 +1925,7 @@ describe("GET /api/projects/:name", () => {
 					search: "done",
 					openView: "table",
 					graphDirection: "top-to-bottom",
+					graphLayout: "layered",
 					groupBy: "none",
 				});
 				const filtered = await keys(base);
@@ -1945,6 +1946,7 @@ describe("GET /api/projects/:name", () => {
 					search: "done",
 					openView: "table",
 					graphDirection: "top-to-bottom",
+					graphLayout: "layered",
 					groupBy: "none",
 				});
 				const filtered = await keys(base);
