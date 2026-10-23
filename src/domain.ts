@@ -164,6 +164,7 @@ export type TicketView = {
 	staleStatus?: string;
 	chips?: string[];
 	pull?: string;
+	pullUrl?: string;
 	needsYou?: boolean;
 	enteredStateAt?: string;
 	run?: LiveRun;
@@ -3039,7 +3040,7 @@ export function projectCounts(
 	const tags = new Set<string>();
 	const views: TicketView[] = [];
 	const relationsByKey = new Map<string, ReturnType<typeof ticketRelations>>();
-	const pullByKey = new Map<string, string>();
+	const pullByKey = new Map<string, PullRequest>();
 	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
 	const runByKey = new Map<string, LiveRun>();
@@ -3097,7 +3098,7 @@ export function projectCounts(
 			);
 			const pull = links[0];
 			if (pull !== undefined) {
-				pullByKey.set(ticket.key.toLowerCase(), pullKey(pull));
+				pullByKey.set(ticket.key.toLowerCase(), pull);
 			}
 		}
 		views.push({
@@ -4253,7 +4254,7 @@ export function projectReport(
 	tickets: Ticket[],
 	lanes: Lane[],
 	relationsByKey: Map<string, ReturnType<typeof ticketRelations>> = new Map(),
-	pullByKey: Map<string, string> = new Map(),
+	pullByKey: Map<string, PullRequest> = new Map(),
 	needs: NeedsYouItem[] = [],
 	runByKey: Map<string, LiveRun> = new Map(),
 	outsideParents: OutsideParent[] = [],
@@ -4338,7 +4339,7 @@ export function projectReport(
 			...(relations === undefined || relations.blocks.length === 0
 				? {}
 				: { blocks: relations.blocks }),
-			...(pull === undefined ? {} : { pull }),
+			...(pull === undefined ? {} : { pull: pullKey(pull), pullUrl: pull.url }),
 			...(view.key !== null && needsKeys.has(view.key.toLowerCase())
 				? { needsYou: true as const }
 				: {}),
