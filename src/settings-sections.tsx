@@ -396,15 +396,20 @@ export function TrackersSection({ trackers }: { trackers: Trackers }) {
 
 export function SettingsBar({
 	dirty,
+	message,
+	failed,
 	onDiscard,
 	onSave,
 }: {
 	dirty: boolean;
+	message: string | null;
+	failed: boolean;
 	onDiscard: () => void;
 	onSave: () => void;
 }) {
 	return (
 		<div className={clsx(fields.bar)}>
+			<SettingsToast message={message} failed={failed} />
 			<button
 				id="discard-settings"
 				type="button"
@@ -427,7 +432,7 @@ export function SettingsBar({
 	);
 }
 
-export function SettingsToast({
+function SettingsToast({
 	message,
 	failed,
 }: {

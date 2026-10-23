@@ -25,7 +25,6 @@ import {
 	patchStar,
 	ReviewSection,
 	SettingsBar,
-	SettingsToast,
 	TrackersSection,
 } from "./settings-sections.tsx";
 import { settings as fields, settingsBots } from "./settings-styles.ts";
@@ -207,6 +206,8 @@ function Menu({
 					<TrackersSection trackers={trackers} />
 					<SettingsBar
 						dirty={dirty}
+						message={message}
+						failed={failed}
 						onDiscard={() => {
 							setDraft(saved);
 							setFailed(false);
@@ -219,7 +220,6 @@ function Menu({
 					/>
 				</div>
 			</div>
-			<SettingsToast message={message} failed={failed} />
 		</PageFrame>
 	);
 
