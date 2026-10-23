@@ -27,7 +27,7 @@ import {
 	SettingsToast,
 	TrackersSection,
 } from "./settings-sections.tsx";
-import { settingsBots } from "./settings-styles.ts";
+import { settings as fields, settingsBots } from "./settings-styles.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import {
 	loadingLabel,
@@ -38,7 +38,6 @@ import {
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { settings as fields } from "./ui-styles.ts";
 import { viewDefaults } from "./view-settings.ts";
 
 const toastHideMs = 4_000;

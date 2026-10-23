@@ -15,6 +15,7 @@ import {
 	sections,
 	type Trackers,
 } from "./settings-parts.tsx";
+import { settings as fields } from "./settings-styles.ts";
 import { stateTones } from "./state-tone.ts";
 import {
 	graphDirectionLabel,
@@ -24,7 +25,7 @@ import {
 	stateLabel,
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { settings as fields, shell } from "./ui-styles.ts";
+import { shell } from "./ui-styles.ts";
 import {
 	defaultOpenView,
 	graphDirections,

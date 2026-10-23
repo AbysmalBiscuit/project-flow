@@ -1,7 +1,7 @@
 import type { Configuration } from "./configuration.ts";
+import { settings as fields } from "./settings-styles.ts";
 import { settingsCopy } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { settings as fields } from "./ui-styles.ts";
 
 const pollChoices = [30, 60, 300, 600] as const;
 

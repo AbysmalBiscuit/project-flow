@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { InboxEntry, NotificationTrigger } from "./domain.ts";
+import { inbox } from "./inbox-styles.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -20,7 +21,7 @@ import {
 } from "./terms.ts";
 import { ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
-import { frame, inbox, shell } from "./ui-styles.ts";
+import { frame, shell } from "./ui-styles.ts";
 
 const filters = ["all", "needsYou", "comment", "blockerCleared"] as const;
 type InboxFilter = (typeof filters)[number];

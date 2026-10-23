@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import type { TicketState } from "./domain.ts";
+import { settings as fields } from "./settings-styles.ts";
 import {
 	settingsCopy,
 	settingsSection,
@@ -9,7 +10,7 @@ import {
 	viewLabel,
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { settings as fields, shell } from "./ui-styles.ts";
+import { shell } from "./ui-styles.ts";
 import type { openViews } from "./view-settings.ts";
 
 export type Trackers = { github: boolean; linear: boolean };
