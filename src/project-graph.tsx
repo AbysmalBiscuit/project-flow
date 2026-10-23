@@ -29,7 +29,13 @@ import {
 	type TicketState,
 } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
-import { fitPadding, float, Legend } from "./graph-float.tsx";
+import {
+	fitPadding,
+	float,
+	Legend,
+	LegendProbe,
+	legendFit,
+} from "./graph-float.tsx";
 import { projectNodeId } from "./graph-flow.ts";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import { type Anchor, FitLayout, useLaidGraph } from "./graph-laid.tsx";
@@ -673,6 +679,7 @@ export function ProjectGraph({
 							held={laid.held}
 							refit={refit}
 						/>
+						<LegendProbe />
 					</ReactFlow>
 				</FrameToggleContext>
 				<div className={clsx(float.overlay)}>
@@ -700,6 +707,7 @@ export function ProjectGraph({
 							probeId="project-graph-viewport"
 							fitId="project-graph-fit"
 							scope="#project-graph"
+							fitOptions={legendFit}
 						/>
 						<FrameTools
 							parents={laid.input.parents.length}

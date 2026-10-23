@@ -2,7 +2,7 @@ import { useReactFlow, type Viewport } from "@xyflow/react";
 import ElkConstructor, { type ELK } from "elkjs/lib/elk-api.js";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import type { ProjectReport } from "./domain.ts";
-import { fitPadding } from "./graph-float.tsx";
+import { legendFit } from "./graph-float.tsx";
 import { growGroups } from "./graph-force.ts";
 import type { ForceRequest } from "./graph-force-worker.ts";
 import {
@@ -221,7 +221,7 @@ export function FitLayout({
 		}
 		const frame = requestAnimationFrame(() => {
 			asked.current = refit;
-			void flow.fitView({ padding: fitPadding, maxZoom: 1 }).then(() => {
+			void flow.fitView(legendFit()).then(() => {
 				fitted.current = flow.getViewport();
 			});
 		});
