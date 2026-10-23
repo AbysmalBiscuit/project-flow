@@ -44,12 +44,7 @@ import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { FilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
-import {
-	pageQuery,
-	pageQueryClient,
-	settingsPageOf,
-	useSaveSettings,
-} from "./queries.ts";
+import { pageQuery, useSaveSettings } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
 import { tableTree } from "./table-tree-styles.ts";
@@ -1293,43 +1288,29 @@ export function Page() {
 			if (generation !== saveGeneration.current) {
 				return;
 			}
-			const loaded = await pageQueryClient.fetchQuery(pageQuery.settings);
-			if (
-				loaded === null ||
-				loaded === undefined ||
-				generation !== saveGeneration.current
-			) {
-				return;
-			}
-			const current = settingsPageOf(loaded);
-			if (generation !== saveGeneration.current) {
-				return;
-			}
-			const projectViews: Record<string, ProjectViewSettings> = {
-				...current.settings.projectViews,
-			};
-			const key =
-				Object.keys(projectViews).find(
-					(item) => item.toLowerCase() === project.toLowerCase(),
-				) ?? project;
-			if (shown === undefined) {
-				projectViews[key] = kept;
-			} else if (kept.lastView !== undefined) {
-				const previous = projectViews[key] ?? {
-					maxAgeDays: emptyMaxAgeDays,
-					needsYouOnly: false,
-					blockedOnly: false,
-					assignees: [],
-					search: "",
-					graphDirection: defaultGraphDirection,
-					graphLayout: defaultGraphLayout,
+			const written = await save.mutateAsync((current) => {
+				const projectViews: Record<string, ProjectViewSettings> = {
+					...current.projectViews,
 				};
-				projectViews[key] = { ...previous, lastView: kept.lastView };
-			}
-			const written = await save.mutateAsync({
-				...loaded,
-				...current.settings,
-				projectViews,
+				const key =
+					Object.keys(projectViews).find(
+						(item) => item.toLowerCase() === project.toLowerCase(),
+					) ?? project;
+				if (shown === undefined) {
+					projectViews[key] = kept;
+				} else if (kept.lastView !== undefined) {
+					const previous = projectViews[key] ?? {
+						maxAgeDays: emptyMaxAgeDays,
+						needsYouOnly: false,
+						blockedOnly: false,
+						assignees: [],
+						search: "",
+						graphDirection: defaultGraphDirection,
+						graphLayout: defaultGraphLayout,
+					};
+					projectViews[key] = { ...previous, lastView: kept.lastView };
+				}
+				return { ...current, projectViews };
 			});
 			if (generation !== saveGeneration.current) {
 				return;

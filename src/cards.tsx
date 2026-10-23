@@ -48,7 +48,6 @@ import {
 	configurationOf,
 	pageQuery,
 	pageQueryClient,
-	settingsCacheWrite,
 	useSaveSettings,
 } from "./queries.ts";
 import { PageFrame, type PageView } from "./shell.tsx";
@@ -772,18 +771,10 @@ function OverviewPage({
 	const refreshing = fetching || overview.polling === true;
 	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
-	const save = useSaveSettings();
+	const save = useSaveSettings({ refetchProjects: false, optimistic: true });
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
-		const next = patch(settings);
-		const written = settingsCacheWrite(
-			pageQueryClient.getQueryData(pageQuery.settings.queryKey),
-			next,
-		);
-		if (written !== null) {
-			pageQueryClient.setQueryData(pageQuery.settings.queryKey, written);
-		}
 		void save
-			.mutateAsync(next)
+			.mutateAsync(patch)
 			.catch(() => pageQueryClient.invalidateQueries(pageQuery.settings));
 	};
 	const saveView = (next: OverviewView) => {
