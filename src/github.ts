@@ -814,24 +814,32 @@ function labelColour(color: string): string {
 	return `#${hex.toUpperCase()}`;
 }
 
+function openIssues(items: ProjectItem[]) {
+	return items.flatMap(({ content }) =>
+		content === null ||
+		content.__typename !== "Issue" ||
+		content.number === undefined ||
+		content.repository === undefined ||
+		githubState(content.state ?? "") !== "open"
+			? []
+			: [
+					{
+						content,
+						repo: content.repository.nameWithOwner,
+						key: githubKey(content.repository.nameWithOwner, content.number),
+					},
+				],
+	);
+}
+
 function openLinkedKeys(items: ProjectItem[]): Set<string> {
-	const keys = new Set<string>();
-	for (const item of items) {
-		const content = item.content;
-		if (
-			content === null ||
-			content.__typename !== "Issue" ||
-			content.number === undefined ||
-			content.repository === undefined ||
-			githubState(content.state ?? "") !== "open"
-		) {
-			continue;
-		}
-		if ((content.closedByPullRequestsReferences?.nodes.length ?? 0) > 0) {
-			keys.add(githubKey(content.repository.nameWithOwner, content.number));
-		}
-	}
-	return keys;
+	return new Set(
+		openIssues(items).flatMap(({ content, key }) =>
+			(content.closedByPullRequestsReferences?.nodes.length ?? 0) > 0
+				? [key]
+				: [],
+		),
+	);
 }
 
 async function listProjectItems(
@@ -1310,23 +1318,8 @@ async function listProjectPulls(
 	seen: Map<string, ReviewEvidence>,
 	projectOwner: string,
 ): Promise<PullRequest[]> {
-	const pulls: PullRequest[] = [];
-	const seenPulls = new Set<string>();
-	for (const item of items) {
-		const content = item.content;
-		if (
-			content === null ||
-			content.__typename !== "Issue" ||
-			content.number === undefined ||
-			content.repository === undefined ||
-			githubState(content.state ?? "") !== "open"
-		) {
-			continue;
-		}
-		const ticketKey = githubKey(
-			content.repository.nameWithOwner,
-			content.number,
-		);
+	const links: PullLink[] = [];
+	for (const { content, repo, key: ticketKey } of openIssues(items)) {
 		const linkedPulls = [
 			...(content.closedByPullRequestsReferences?.nodes ?? []),
 		];
@@ -1346,48 +1339,80 @@ async function listProjectPulls(
 			);
 		}
 		for (const linked of linkedPulls) {
-			const pullRepo =
-				linked.repository?.nameWithOwner ?? content.repository.nameWithOwner;
-			const key = githubKey(pullRepo, linked.number);
-			const loaded = pulls.find(
-				(pull) => pull.repo === pullRepo && pull.number === linked.number,
-			);
-			if (loaded !== undefined) {
-				if (!loaded.closingKeys.includes(ticketKey)) {
-					loaded.closingKeys.push(ticketKey);
-				}
-				continue;
-			}
-			if (seenPulls.has(key)) {
-				continue;
-			}
-			seenPulls.add(key);
-			const opened = await loadOpenPull(
-				token,
-				fetchImpl,
-				pullRepo,
-				linked.number,
-				[ticketKey],
-			);
-			if (opened !== null) {
-				pulls.push(opened);
-			}
+			links.push({
+				repo: linked.repository?.nameWithOwner ?? repo,
+				number: linked.number,
+				ticketKey,
+			});
 		}
 	}
-	const repos = new Set(pulls.map((pull) => pull.repo));
-	for (const item of items) {
-		const content = item.content;
-		if (content !== null && content.repository !== undefined) {
-			repos.add(content.repository.nameWithOwner);
+	const repos = items.flatMap(({ content }) =>
+		content?.repository === undefined ? [] : [content.repository.nameWithOwner],
+	);
+	return loadLinkedPulls(token, fetchImpl, links, repos, seen);
+}
+
+export type PullLink = { repo: string; number: number; ticketKey: string };
+
+/**
+ * Loads each PR in order. A PR that fails to load is skipped, so one broken PR
+ * never fails the project; the next poll reads it again.
+ */
+async function loadEachPull<T>(
+	sources: Iterable<T>,
+	load: (source: T) => Promise<PullRequest | null>,
+): Promise<PullRequest[]> {
+	const pulls: PullRequest[] = [];
+	for (const source of sources) {
+		const pull = await load(source).catch(() => null);
+		if (pull !== null) {
+			pulls.push(pull);
 		}
 	}
+	return pulls;
+}
+
+/**
+ * Loads each linked open PR once, with the keys of every ticket that links it,
+ * then the merged history of each repo.
+ */
+export async function loadLinkedPulls(
+	token: string,
+	fetchImpl: Fetch,
+	links: PullLink[],
+	historyRepos: string[],
+	seen: Map<string, ReviewEvidence>,
+): Promise<PullRequest[]> {
+	const targets = new Map<
+		string,
+		{ repo: string; number: number; closingKeys: string[] }
+	>();
+	for (const link of links) {
+		const key = githubKey(link.repo, link.number);
+		const target = targets.get(key);
+		if (target === undefined) {
+			targets.set(key, {
+				repo: link.repo,
+				number: link.number,
+				closingKeys: [link.ticketKey],
+			});
+		} else if (!target.closingKeys.includes(link.ticketKey)) {
+			target.closingKeys.push(link.ticketKey);
+		}
+	}
+	const pulls = await loadEachPull(
+		targets.values(),
+		({ repo, number, closingKeys }) =>
+			loadOpenPull(token, fetchImpl, repo, number, closingKeys),
+	);
+	const repos = new Set([...pulls.map((pull) => pull.repo), ...historyRepos]);
 	for (const repo of repos) {
 		pulls.push(...(await mergedPullHistory(repo, token, fetchImpl, seen)));
 	}
 	return pulls;
 }
 
-export async function loadOpenPull(
+async function loadOpenPull(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
@@ -1591,7 +1616,7 @@ export type ReviewEvidence = Pick<
 	"checks" | "comments" | "reviews" | "reactions"
 >;
 
-export async function mergedPullHistory(
+async function mergedPullHistory(
 	repo: string,
 	token: string,
 	fetchImpl: Fetch,
@@ -1605,19 +1630,15 @@ export async function mergedPullHistory(
 		return [];
 	}
 	const page = z.array(githubPull).parse(await response.json());
-	const pulls: PullRequest[] = [];
-	for (const pull of page) {
-		if ((pull.merged_at ?? null) === null) {
-			continue;
-		}
+	const merged = page.filter((pull) => (pull.merged_at ?? null) !== null);
+	return loadEachPull(merged, async (pull) => {
 		const head = pull.head.sha ?? "";
 		const key = githubKey(repo, pull.number);
-		const cached = seen.get(key);
 		const review =
-			cached ??
+			seen.get(key) ??
 			(await pullReview(repo, pull.number, head, false, token, fetchImpl));
 		seen.set(key, review);
-		pulls.push({
+		return {
 			repo,
 			number: pull.number,
 			url: pull.html_url,
@@ -1630,9 +1651,8 @@ export async function mergedPullHistory(
 			headCommittedAt: null,
 			merged: true,
 			...review,
-		});
-	}
-	return pulls;
+		};
+	});
 }
 
 const githubCommit = z.object({
@@ -2728,33 +2748,32 @@ async function readRepo(
 		await pageIssueRelations(token, fetchImpl, repo, issue);
 		await pageIssueComments(token, fetchImpl, repo, issue);
 	}
-	const pullPages = [
-		...pullNodes,
-		...(first.mergedPullRequests?.nodes ?? []),
-	].flatMap((node) => (node === undefined || node === null ? [] : [node]));
-	for (const pull of pullPages) {
+	const loadPull = async (pull: z.infer<typeof graphqlPullNode>) => {
 		await pageNestedReviews(token, fetchImpl, repo, pull);
-	}
+		return pullFromGraphql(pull, repo);
+	};
+	const openPulls = await loadEachPull(
+		pullNodes.flatMap((pull) => (pull === undefined ? [] : [pull])),
+		async (pull) => {
+			const mapped = await loadPull(pull);
+			return mapped?.merged === false ? mapped : null;
+		},
+	);
+	const mergedKept = await loadEachPull(
+		(first.mergedPullRequests?.nodes ?? []).flatMap((pull) =>
+			pull === undefined || pull === null ? [] : [pull],
+		),
+		async (pull) => {
+			const mapped = await loadPull(pull);
+			return mapped?.merged === true ? mapped : null;
+		},
+	);
 	const tickets = issueNodes
 		.filter((issue) => {
 			const state = issue.state.toLowerCase();
 			return state === "open" || state === "closed";
 		})
 		.map((issue) => ticketFromGraphql(issue, repo));
-	const openPulls = pullNodes.flatMap((pull) => {
-		if (pull === undefined) {
-			return [];
-		}
-		const mapped = pullFromGraphql(pull, repo);
-		return mapped === null || mapped.merged ? [] : [mapped];
-	});
-	const mergedKept = (first.mergedPullRequests?.nodes ?? []).flatMap((pull) => {
-		if (pull === undefined) {
-			return [];
-		}
-		const mapped = pullFromGraphql(pull, repo);
-		return mapped?.merged === true ? [mapped] : [];
-	});
 	return {
 		tickets,
 		pulls: [...openPulls, ...mergedKept],
