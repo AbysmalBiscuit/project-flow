@@ -275,7 +275,11 @@ export function TicketPanel({
 
 	const aside = (
 		<aside
-			className={clsx(panel.panel, expanded && panel.expanded)}
+			className={clsx(
+				panel.panel,
+				dock && panel.docked,
+				expanded && panel.expanded,
+			)}
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 			data-state={stateName}

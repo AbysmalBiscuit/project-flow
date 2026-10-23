@@ -1728,6 +1728,9 @@ export const panel = stylex.create({
 		maxWidth: "100%",
 		visibility: "hidden",
 	},
+	docked: {
+		flex: "0 1 auto",
+	},
 	expanded: {
 		flex: "1 1 auto",
 		alignSelf: "stretch",
