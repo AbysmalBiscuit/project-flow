@@ -414,4 +414,17 @@ describe("project graph layout", () => {
 			frames: [],
 		});
 	});
+
+	test("a flat grouping frames no parent ticket", async () => {
+		const report = await hierarchyReport("");
+		expect(
+			(["assignee", "none"] as const).map((groupBy) => ({
+				groupBy,
+				frames: layoutInput(report, groupBy, []).frames,
+			})),
+		).toEqual([
+			{ groupBy: "assignee", frames: [] },
+			{ groupBy: "none", frames: [] },
+		]);
+	});
 });
