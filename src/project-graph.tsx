@@ -206,11 +206,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 					) : null}
 				</span>
 				<span className={clsx(board.title)}>{data.ticket.title}</span>
-				<GraphCardChips
-					ticket={data.ticket}
-					parentLabel={data.parentLabel}
-					hierarchy={data.hierarchyChips}
-				/>
+				<GraphCardChips data={data} />
 				<Handle type="source" position={Position.Right} id="right" />
 				<Handle type="source" position={Position.Bottom} id="bottom" />
 			</button>
