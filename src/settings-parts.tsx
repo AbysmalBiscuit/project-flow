@@ -10,7 +10,7 @@ import {
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { settings as fields, shell } from "./ui-styles.ts";
-import type { graphDirections, openViews } from "./view-settings.ts";
+import type { openViews } from "./view-settings.ts";
 
 export type Trackers = { github: boolean; linear: boolean };
 
@@ -283,14 +283,6 @@ export const openViewLabel: Record<(typeof openViews)[number], string> = {
 	graph: viewLabel.graph,
 	table: viewLabel.table,
 	last: viewLabel.lastUsed,
-};
-
-export const graphDirectionLabel: Record<
-	(typeof graphDirections)[number],
-	string
-> = {
-	"left-to-right": settingsCopy.leftToRight,
-	"top-to-bottom": settingsCopy.topToBottom,
 };
 
 export function AutoMergeEditor({

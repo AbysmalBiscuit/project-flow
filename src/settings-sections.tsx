@@ -7,7 +7,6 @@ import {
 	ageLabel,
 	Chips,
 	Credential,
-	graphDirectionLabel,
 	laneStates,
 	MappingEditor,
 	openViewLabel,
@@ -18,6 +17,7 @@ import {
 } from "./settings-parts.tsx";
 import { stateTones } from "./state-tone.ts";
 import {
+	graphDirectionLabel,
 	navLabel,
 	settingsCopy,
 	settingsSection,

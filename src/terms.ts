@@ -3,6 +3,7 @@ import type {
 	NotificationTrigger,
 	TicketState,
 } from "./domain.ts";
+import type { GraphDirection } from "./view-settings.ts";
 
 export const stateLabel: Record<TicketState, string> = {
 	done: "Done",
@@ -243,10 +244,10 @@ export const overviewControlLabel = {
 	noneTrackedHint: "Turn a project on in",
 } as const;
 
-export const graphDirectionLabel = {
+export const graphDirectionLabel: Record<GraphDirection, string> = {
 	"left-to-right": "Left to right",
 	"top-to-bottom": "Top to bottom",
-} as const;
+};
 
 export const graphLayoutLabel = {
 	layered: "Layered",
@@ -351,8 +352,6 @@ export const settingsCopy = {
 	openHint: "The view a project page opens in.",
 	graphDirection: "Graph direction",
 	graphHint: "Which way the dependency graph runs.",
-	leftToRight: "Left to right",
-	topToBottom: "Top to bottom",
 	ticketFilter: "Ticket filter",
 	ticketHint:
 		"The states the views show, and the oldest ticket each state keeps.",
