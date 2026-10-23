@@ -2,7 +2,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import type { InboxEntry, NotificationTrigger } from "./domain.ts";
-import { sameTicketKey } from "./domain.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -19,6 +18,7 @@ import {
 	navLabel,
 	triggerLabel,
 } from "./terms.ts";
+import { sameTicketKey } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { frame, inbox, shell } from "./ui-styles.ts";
 

@@ -1,4 +1,5 @@
 import type { TicketView } from "./domain.ts";
+import { foldKey } from "./ticket-key.ts";
 
 type TreeTicket = Pick<TicketView, "key" | "parent" | "startsCollapsed">;
 
@@ -20,14 +21,14 @@ export function treeRows<T extends TreeTicket>(
 ): TreeRow<T>[] {
 	const keys = new Set(
 		tickets.flatMap((ticket) =>
-			ticket.key === null ? [] : [ticket.key.toLowerCase()],
+			ticket.key === null ? [] : [foldKey(ticket.key)],
 		),
 	);
 	const parentKey = (ticket: T) => {
-		const parent = ticket.parent?.toLowerCase();
+		const parent = foldKey(ticket.parent);
 		return parent !== undefined &&
 			keys.has(parent) &&
-			parent !== ticket.key?.toLowerCase()
+			parent !== foldKey(ticket.key)
 			? parent
 			: undefined;
 	};
@@ -45,9 +46,7 @@ export function treeRows<T extends TreeTicket>(
 		}
 	}
 	const subTickets = (ticket: T) =>
-		ticket.key === null
-			? []
-			: (subTicketsOf.get(ticket.key.toLowerCase()) ?? []);
+		ticket.key === null ? [] : (subTicketsOf.get(foldKey(ticket.key)) ?? []);
 	const rows: TreeRow<T>[] = [];
 	const seen = new Set<T>();
 	const visit = (ticket: T, depth: number, hidden: boolean) => {

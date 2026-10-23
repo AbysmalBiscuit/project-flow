@@ -2587,6 +2587,34 @@ describe("inbox", () => {
 		);
 	});
 
+	test("a ticket whose key changes case between polls raises one notification", async () => {
+		const headline = "Which bot should review this?";
+		const askedAs = (identifier: string) =>
+			linearIssue(
+				identifier,
+				"Open ask",
+				headline,
+				[
+					{
+						body: `${headline}\n\n${ask("pf-1")}`,
+						createdAt: "2026-08-18T12:00:00.000Z",
+					},
+				],
+				{},
+				"2026-08-18T13:00:00.000Z",
+			);
+		await withInbox(pinned, [], async (base, setIssues) => {
+			setIssues([askedAs("PF-1")]);
+			const event = await notificationAfterRefresh(base);
+			expect(event).toMatchObject({ trigger: "needsYou", key: "PF-1" });
+			setIssues([askedAs("pf-1")]);
+			await expectQuietRefresh(base);
+			setIssues([askedAs("PF-1")]);
+			await expectQuietRefresh(base);
+			expect(await inboxOf(base)).toEqual([event]);
+		});
+	});
+
 	test("marking one entry read survives a restart while another stays unread", async () => {
 		let current = [
 			linearIssue(

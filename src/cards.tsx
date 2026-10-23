@@ -65,15 +65,13 @@ import {
 	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
+import { outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, headerControlStyle, shell } from "./ui-styles.ts";
 
 function blockerTicket(blocker: CrossProjectBlocker): string {
-	if (blocker.key.includes("#")) {
-		return blocker.key;
-	}
-	return `${blocker.project}#${blocker.key}`;
+	return outsideKey(blocker.project, blocker.key);
 }
 
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
@@ -750,11 +748,6 @@ function MenuButton({
 	);
 }
 
-function ticketKey(key: string): string {
-	const hash = key.lastIndexOf("#");
-	return hash === -1 ? key : key.slice(hash + 1);
-}
-
 function OverviewPage({
 	overview,
 	settings,
@@ -986,7 +979,7 @@ function OverviewPage({
 									className={clsx(cards.needKey, phoneLayout.cardNeedKey)}
 									href={projectPath(item.project, item)}
 								>
-									{item.project}#{ticketKey(item.key)}
+									{outsideKey(item.project, item.key)}
 								</a>
 								<a
 									className={clsx(cards.needTitle)}

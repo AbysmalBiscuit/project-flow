@@ -4,7 +4,7 @@ import {
 	Position,
 } from "@xyflow/react";
 import { board } from "./board-styles.ts";
-import { outsideKey, type ProjectReport, parentChip } from "./domain.ts";
+import { type ProjectReport, parentChip } from "./domain.ts";
 import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import type { GraphLayout, LayoutInput } from "./graph-layout.ts";
 import {
@@ -17,6 +17,7 @@ import {
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
 import { straightPath } from "./graph-straight.ts";
+import { outsideKey } from "./ticket-key.ts";
 import { classToken } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 import type {

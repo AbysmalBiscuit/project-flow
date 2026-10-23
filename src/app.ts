@@ -13,7 +13,6 @@ import {
 	attachGraphStates,
 	filterProjectReport,
 	inboxEntries,
-	needsYouSeenId,
 	optionReplyBody,
 	panelReplyBody,
 	projectHasPmBot,
@@ -26,7 +25,6 @@ import {
 	type Fetch,
 } from "./fetch.ts";
 import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
-import { githubTicketKey } from "./github-thread.ts";
 import { elkWorkerPath, forceWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
@@ -58,6 +56,7 @@ import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
+import { githubKeyParts, needsYouSeenId } from "./ticket-key.ts";
 import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
 const elkWorkerFile = Bun.resolveSync(
@@ -249,7 +248,7 @@ function rowForReply(
 	store: Store,
 	reply: { tracker: string; project: string; key: string },
 ): Snapshot | undefined {
-	const repo = githubTicketKey(reply.key)?.repo;
+	const repo = githubKeyParts(reply.key)?.repo;
 	return store.readTickets().find((item) => {
 		if (item.tracker !== reply.tracker) {
 			return false;

@@ -5,6 +5,7 @@ import {
 	type TicketState,
 	type TicketView,
 } from "./domain.ts";
+import { itemId } from "./ticket-key.ts";
 import type { GroupBy } from "./view-settings.ts";
 
 export const flowGap = { along: 280, across: 148 };
@@ -741,7 +742,7 @@ function pushUnseen(
 }
 
 export function projectNodeId(project: string, key: string): string {
-	return `${project}\n${key.toLowerCase()}`;
+	return itemId(project, key);
 }
 
 export function overviewFlowPlaces(

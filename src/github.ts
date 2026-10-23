@@ -28,6 +28,7 @@ import {
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import type { FoundProject, GithubTracker, Viewer } from "./ports.ts";
+import { githubKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 export { githubHeaders } from "./github-pages.ts";
@@ -666,7 +667,7 @@ function parentOf(
 		return { parent: null };
 	}
 	const project = parent.repository.nameWithOwner;
-	const key = `${project}#${parent.number}`;
+	const key = githubKey(project, parent.number);
 	const state = githubState(parent.state ?? "");
 	if (state === null || parent.url === undefined) {
 		return { parent: key };
@@ -807,7 +808,7 @@ function openLinkedKeys(items: ProjectItem[]): Set<string> {
 			continue;
 		}
 		if ((content.closedByPullRequestsReferences?.nodes.length ?? 0) > 0) {
-			keys.add(`${content.repository.nameWithOwner}#${content.number}`);
+			keys.add(githubKey(content.repository.nameWithOwner, content.number));
 		}
 	}
 	return keys;
@@ -1089,7 +1090,7 @@ export function dependencyRefs(
 		const ref: TicketRef = {
 			tracker: "github",
 			project,
-			key: `${project}#${node.number}`,
+			key: githubKey(project, node.number),
 			state,
 			...(title === "" ? {} : { title }),
 		};
@@ -1195,7 +1196,7 @@ async function listProjectTickets(
 			continue;
 		}
 		const repoName = content.repository.nameWithOwner;
-		const ticketKey = `${repoName}#${content.number}`;
+		const ticketKey = githubKey(repoName, content.number);
 		const comments =
 			state === "open" &&
 			openKeys.has(ticketKey) &&
@@ -1220,12 +1221,12 @@ async function listProjectTickets(
 		tickets.push({
 			id: String(content.number),
 			tracker: "github",
-			key: `${repoName}#${content.number}`,
+			key: githubKey(repoName, content.number),
 			title: content.title ?? "",
 			state,
 			stateReason: githubReason(content.stateReason ?? null),
 			updatedAt: content.updatedAt ?? "",
-			ref: `${repoName}#${content.number}`,
+			ref: githubKey(repoName, content.number),
 			body: content.body ?? "",
 			blockedBy: dependencyRefs(blockedByNodes, repoName),
 			...(comments.length === 0 ? {} : { comments }),
@@ -1287,7 +1288,10 @@ async function listProjectPulls(
 		) {
 			continue;
 		}
-		const ticketKey = `${content.repository.nameWithOwner}#${content.number}`;
+		const ticketKey = githubKey(
+			content.repository.nameWithOwner,
+			content.number,
+		);
 		const linkedPulls = [
 			...(content.closedByPullRequestsReferences?.nodes ?? []),
 		];
@@ -1309,7 +1313,7 @@ async function listProjectPulls(
 		for (const linked of linkedPulls) {
 			const pullRepo =
 				linked.repository?.nameWithOwner ?? content.repository.nameWithOwner;
-			const key = `${pullRepo}#${linked.number}`;
+			const key = githubKey(pullRepo, linked.number);
 			const loaded = pulls.find(
 				(pull) => pull.repo === pullRepo && pull.number === linked.number,
 			);
@@ -1552,10 +1556,6 @@ export type ReviewEvidence = Pick<
 	"checks" | "comments" | "reviews" | "reactions"
 >;
 
-function mergedReviewKey(repo: string, number: number): string {
-	return `${repo}#${number}`;
-}
-
 export async function mergedPullHistory(
 	repo: string,
 	token: string,
@@ -1576,7 +1576,7 @@ export async function mergedPullHistory(
 			continue;
 		}
 		const head = pull.head.sha ?? "";
-		const key = mergedReviewKey(repo, pull.number);
+		const key = githubKey(repo, pull.number);
 		const cached = seen.get(key);
 		const review =
 			cached ??
@@ -2128,12 +2128,12 @@ function ticketFromGraphql(
 	return {
 		id: String(issue.number),
 		tracker: "github",
-		key: `${repo}#${issue.number}`,
+		key: githubKey(repo, issue.number),
 		title: issue.title,
 		state: state === "closed" ? "closed" : "open",
 		stateReason: githubReason(issue.stateReason ?? null),
 		updatedAt: issue.updatedAt,
-		ref: `${repo}#${issue.number}`,
+		ref: githubKey(repo, issue.number),
 		body: issue.body ?? "",
 		blockedBy,
 		...(blocking.length === 0 ? {} : { blocks: blocking }),
@@ -2233,7 +2233,7 @@ function pullFromGraphql(
 			if (node === undefined) {
 				continue;
 			}
-			const key = `${repo}#${node.number}`;
+			const key = githubKey(repo, node.number);
 			if (!keys.includes(key)) {
 				keys.push(key);
 			}
@@ -2907,7 +2907,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			}
 			for (const pull of batched.pulls) {
 				if (pull.merged) {
-					seenReviews.set(mergedReviewKey(repo, pull.number), {
+					seenReviews.set(githubKey(repo, pull.number), {
 						checks: pull.checks,
 						comments: pull.comments,
 						reviews: pull.reviews,

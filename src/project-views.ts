@@ -4,13 +4,13 @@ import {
 	type Attention,
 	attentionOf,
 	expectedBotsByRepo,
-	needsYouSeenId,
 	projectCounts,
 	staleView,
 } from "./domain.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
 import { pendingProjects, refKey } from "./settings-catalogue.ts";
+import { commentNotificationId, needsYouSeenId } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 export function seededForProjects(
@@ -20,8 +20,10 @@ export function seededForProjects(
 	const needsYou = attention.needsYou.flatMap((item) =>
 		projects.has(item.project) ? [needsYouSeenId(item)] : [],
 	);
-	const comments = [...attention.comments].flatMap(([id, comment]) =>
-		projects.has(comment.project) ? [`comment\n${id}\n${comment.stamp}`] : [],
+	const comments = [...attention.comments.values()].flatMap((comment) =>
+		projects.has(comment.project)
+			? [commentNotificationId(comment, comment.stamp)]
+			: [],
 	);
 	return [...needsYou, ...comments];
 }
