@@ -324,6 +324,7 @@ export function actionLabel(
 export const settingsSection = {
 	general: "General",
 	views: "Project views",
+	colours: "State colours",
 	projects: "Projects",
 	review: "Review",
 	notifications: "Notifications",
@@ -410,4 +411,17 @@ export const settingsCopy = {
 	botsUnavailable: "No repository known",
 	of: "of",
 	projects: "projects",
+	coloursLead:
+		"Each state shows in this colour on the board, cards, graphs and side panel, in both themes.",
+	colour: "colour",
+	saturation: "Saturation",
+	brightness: "brightness",
+	hue: "Hue",
+	hex: "Hex",
+	reset: "Reset",
+	resetTitle: "Reset the state colours?",
+	resetBody:
+		"Every state goes back to its default colour. The app saves the default colours at once.",
+	resetConfirm: "Reset colours",
+	cancel: "Cancel",
 } as const;

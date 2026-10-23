@@ -6,6 +6,15 @@ import { stateColours, stateValues } from "./tokens.stylex.ts";
 
 export const defaultStateColours: StateColours = stateValues;
 
+export const colouredStates = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+] as const satisfies readonly (keyof StateColours)[];
+
 const paint = stylex.create({
 	states: (
 		backlog: string,

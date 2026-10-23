@@ -18,6 +18,7 @@ export type Trackers = { github: boolean; linear: boolean };
 export const sections = [
 	{ id: "general", label: settingsSection.general },
 	{ id: "project-views", label: settingsSection.views },
+	{ id: "colours", label: settingsSection.colours },
 	{ id: "projects", label: settingsSection.projects },
 	{ id: "review", label: settingsSection.review },
 	{ id: "notifications", label: settingsSection.notifications },

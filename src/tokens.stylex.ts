@@ -345,6 +345,11 @@ export const measure = stylex.defineVars({
 	tip: "16rem",
 	// chipRow holds one type.small chip line with space.twoXs padding.
 	chipRow: "1.7rem",
+	picker: "13rem",
+	pickerBar: "0.75rem",
+	pickerThumb: "0.875rem",
+	swatchButton: "1.5rem",
+	dialog: "26rem",
 });
 
 export const stack = stylex.defineVars({
