@@ -3,7 +3,7 @@ import ELK from "elkjs/lib/elk-api.js";
 import { fillShare } from "../proof/elk-spike/handwritten.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import { projectNodeId } from "../src/graph-flow.ts";
-import { forceLayout } from "../src/graph-force.ts";
+import { forceLayout, growGroups } from "../src/graph-force.ts";
 import {
 	frameId,
 	type GraphLayout,
@@ -212,6 +212,15 @@ function strayFromHolders(input: LayoutInput, layout: GraphLayout): string[] {
 			rect !== undefined && inside(box, rect) ? [] : [`${item.id} / ${holder}`],
 		);
 	});
+}
+
+function forceLaid(input: LayoutInput, labelGrowth = 0): GraphLayout {
+	return growGroups(
+		input,
+		forceLayout(input, card, () => 0),
+		card,
+		() => labelGrowth,
+	);
 }
 
 function cardOverlaps(layout: GraphLayout): string[] {
@@ -464,12 +473,7 @@ describe("project graph layout", () => {
 		const report = await hierarchyReport("");
 		for (const groupBy of ["workstream", "theme"] as const) {
 			const input = layoutInput(report, groupBy, []);
-			const layout = forceLayout(
-				input,
-				card,
-				() => 0,
-				() => 0,
-			);
+			const layout = forceLaid(input);
 			expect({
 				groupBy,
 				stray: strayCards(layout, Object.keys(chains)),
@@ -485,12 +489,8 @@ describe("project graph layout", () => {
 			layoutInput(report, "workstream", []),
 			layoutInput(workcell, "workstream", []),
 		]) {
-			const layout = forceLayout(
-				input,
-				card,
-				() => 0,
-				() => 0,
-			);
+			// A wrapped group label makes each group frame taller.
+			const layout = forceLaid(input, 40);
 			const groups = [...layout.groups];
 			expect({
 				stray: strayFromHolders(input, layout),

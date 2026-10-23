@@ -35,7 +35,8 @@ type Holder = {
 	minWidth: number;
 };
 
-type Item = { members: CardDatum[]; box: () => Rect };
+/** A card or a frame that the overlap pass moves as one piece. */
+type Item = { box: () => Rect; move: (dx: number, dy: number) => void };
 
 function cardBox(datum: CardDatum, card: NodeSize): Rect {
 	return {
@@ -66,6 +67,13 @@ function membersOf(holder: Holder): CardDatum[] {
 	return [...holder.cards, ...holder.holders.flatMap(membersOf)];
 }
 
+function moveAll(members: readonly CardDatum[], dx: number, dy: number): void {
+	for (const node of members) {
+		node.x = (node.x ?? 0) + dx;
+		node.y = (node.y ?? 0) + dy;
+	}
+}
+
 /** The sibling items of each holder: its frames, and each loose card on its own. */
 function siblingLevels(
 	root: Holder,
@@ -74,13 +82,16 @@ function siblingLevels(
 ): Item[][] {
 	return [root, ...holders].map((holder) => [
 		...holder.cards.map((datum) => ({
-			members: [datum],
 			box: () => cardBox(datum, card),
+			move: (dx: number, dy: number) => moveAll([datum], dx, dy),
 		})),
-		...holder.holders.map((child) => ({
-			members: membersOf(child),
-			box: () => holderBox(child, card),
-		})),
+		...holder.holders.map((child) => {
+			const members = membersOf(child);
+			return {
+				box: () => holderBox(child, card),
+				move: (dx: number, dy: number) => moveAll(members, dx, dy),
+			};
+		}),
 	]);
 }
 
@@ -91,10 +102,14 @@ function siblingLevels(
 function separate(levels: readonly Item[][], share: number): boolean {
 	let moved = false;
 	for (const items of levels) {
+		const boxes = items.map((item) => item.box());
 		for (const [index, one] of items.entries()) {
-			for (const two of items.slice(index + 1)) {
-				const a = one.box();
-				const b = two.box();
+			for (const [offset, two] of items.slice(index + 1).entries()) {
+				const a = boxes[index];
+				const b = boxes[index + 1 + offset];
+				if (a === undefined || b === undefined) {
+					continue;
+				}
 				const dx =
 					Math.min(a.x + a.width, b.x + b.width) -
 					Math.max(a.x, b.x) +
@@ -112,17 +127,15 @@ function separate(levels: readonly Item[][], share: number): boolean {
 					? Math.sign(a.x * 2 + a.width - b.x * 2 - b.width) || 1
 					: Math.sign(a.y * 2 + a.height - b.y * 2 - b.height) || 1;
 				const push = ((alongX ? dx : dy) / 2 + 1) * share;
-				for (const [members, direction] of [
-					[one.members, sign],
-					[two.members, -sign],
+				for (const [item, box, direction] of [
+					[one, a, sign],
+					[two, b, -sign],
 				] as const) {
-					for (const node of members) {
-						if (alongX) {
-							node.x = (node.x ?? 0) + push * direction;
-						} else {
-							node.y = (node.y ?? 0) + push * direction;
-						}
-					}
+					const dxBy = alongX ? push * direction : 0;
+					const dyBy = alongX ? 0 : push * direction;
+					box.x += dxBy;
+					box.y += dyBy;
+					item.move(dxBy, dyBy);
 				}
 			}
 		}
@@ -131,10 +144,9 @@ function separate(levels: readonly Item[][], share: number): boolean {
 }
 
 /** Pulls the members of each frame toward their centre and pushes siblings apart. */
-function frameForce(levels: readonly Item[][]) {
-	const frames = levels.flat().filter((item) => item.members.length > 1);
+function frameForce(frames: readonly CardDatum[][], levels: readonly Item[][]) {
 	return (alpha: number) => {
-		for (const { members } of frames) {
+		for (const members of frames) {
 			const x =
 				members.reduce((sum, node) => sum + (node.x ?? 0), 0) / members.length;
 			const y =
@@ -154,13 +166,12 @@ function settle(levels: readonly Item[][]): void {
 
 /**
  * Lays out the project graph with d3-force, and removes the overlaps of
- * sibling cards and frames at the end. `headGrowth` and `titleGrowth` work as
- * in `layoutGraph`.
+ * sibling cards and frames at the end. `titleGrowth` works as in `layoutGraph`.
+ * `growGroups` adds the height of wrapped group labels.
  */
 export function forceLayout(
 	input: LayoutInput,
 	card: NodeSize,
-	headGrowth: (label: string, width: number) => number,
 	titleGrowth: (title: string) => number,
 ): GraphLayout {
 	const root: Holder = {
@@ -236,17 +247,9 @@ export function forceLayout(
 		.force("collide", forceCollide<CardDatum>(reach / 2))
 		.force("x", forceX<CardDatum>(0).strength(0.02))
 		.force("y", forceY<CardDatum>(0).strength(0.02))
-		.force("frames", frameForce(levels))
+		.force("frames", frameForce([...holders.values()].map(membersOf), levels))
 		.stop()
 		.tick(300);
-	settle(levels);
-	const labels = new Map(input.groups.map((group) => [group.id, group]));
-	for (const holder of root.holders) {
-		const group = labels.get(holder.id);
-		if (group?.framed === true) {
-			holder.top += headGrowth(group.label, holderBox(holder, card).width);
-		}
-	}
 	settle(levels);
 	const layout: GraphLayout = {
 		cards: new Map(),
@@ -267,5 +270,78 @@ export function forceLayout(
 			layout.groups.set(group.id, holderBox(holderOf(group.id), card));
 		}
 	}
+	return layout;
+}
+
+function bounds(boxes: readonly Rect[]): Rect {
+	const left = Math.min(...boxes.map((box) => box.x));
+	const top = Math.min(...boxes.map((box) => box.y));
+	return {
+		x: left,
+		y: top,
+		width: Math.max(...boxes.map((box) => box.x + box.width)) - left,
+		height: Math.max(...boxes.map((box) => box.y + box.height)) - top,
+	};
+}
+
+/**
+ * Grows each group frame of a Force layout by the extra height of its wrapped
+ * label, then moves the groups apart. The page runs it after the worker,
+ * because `headGrowth` measures the label in the page.
+ */
+export function growGroups(
+	input: LayoutInput,
+	layout: GraphLayout,
+	card: NodeSize,
+	headGrowth: (label: string, width: number) => number,
+): GraphLayout {
+	const items = input.groups.flatMap((group): Item[] => {
+		const cards = input.cards.filter((item) => item.group === group.id);
+		const frames = input.frames.filter((frame) => frame.group === group.id);
+		const framed = layout.groups.get(group.id);
+		const placed = [
+			...cards.flatMap((item) => {
+				const place = layout.cards.get(item.id);
+				return place === undefined ? [] : [{ ...place, ...card }];
+			}),
+			...frames.flatMap((frame) => {
+				const box = layout.frames.get(frame.id);
+				return box === undefined ? [] : [box];
+			}),
+		];
+		if (placed.length === 0) {
+			return [];
+		}
+		if (framed !== undefined) {
+			const growth = headGrowth(group.label, framed.width);
+			framed.y -= growth;
+			framed.height += growth;
+		}
+		const box = framed ?? bounds(placed);
+		return [
+			{
+				box: () => ({ ...box }),
+				move: (dx, dy) => {
+					for (const rect of [
+						box,
+						...frames.flatMap((frame) => {
+							const found = layout.frames.get(frame.id);
+							return found === undefined ? [] : [found];
+						}),
+					]) {
+						rect.x += dx;
+						rect.y += dy;
+					}
+					for (const item of cards) {
+						const place = layout.cards.get(item.id);
+						if (place !== undefined) {
+							layout.cards.set(item.id, { x: place.x + dx, y: place.y + dy });
+						}
+					}
+				},
+			},
+		];
+	});
+	settle([items]);
 	return layout;
 }
