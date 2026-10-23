@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4495",
+	"serve": ["bun", "proof/serve-395-failed.ts", "4495"],
+	"steps": [
+		{ "goto": "/" },
+		{ "assert_text": "The graph did not lay out." },
+		{ "shot": "overview-failed" },
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "The graph did not lay out." },
+		{ "shot": "project-failed" }
+	]
+}
