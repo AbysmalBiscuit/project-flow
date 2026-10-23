@@ -222,10 +222,12 @@ const rootId = "root";
  * The ELK node tree: the root holds the groups, a group or a frame holds its
  * cards and frames. A frame stands in for its head card.
  */
-function layoutTree(input: LayoutInput): {
+type LayoutTree = {
 	holderOf: Map<string, string>;
 	nodeOf: (card: string) => string;
-} {
+};
+
+function layoutTree(input: LayoutInput): LayoutTree {
 	const headed = new Map(input.frames.map((frame) => [frame.head, frame.id]));
 	const holderOf = new Map<string, string>();
 	for (const group of input.groups) {
@@ -246,8 +248,10 @@ function layoutTree(input: LayoutInput): {
  * Each blocker arrow joins the two nodes that hold its ends right below their
  * nearest shared holder, and ELK lays it out inside that holder.
  */
-function edgesByHolder(input: LayoutInput): Map<string, ElkExtendedEdge[]> {
-	const { holderOf, nodeOf } = layoutTree(input);
+function edgesByHolder(
+	input: LayoutInput,
+	{ holderOf, nodeOf }: LayoutTree,
+): Map<string, ElkExtendedEdge[]> {
 	const pathOf = (node: string): string[] => {
 		const path = [node];
 		for (let above = holderOf.get(node); above !== undefined; ) {
@@ -307,10 +311,11 @@ export async function layoutGraph(
 	titleGrowth: (title: string) => number,
 ): Promise<GraphLayout> {
 	const options = placeOptions(direction, card);
-	const edges = edgesByHolder(input);
-	const { holderOf } = layoutTree(input);
-	const held = Map.groupBy(holderOf, ([, holder]) => holder);
+	const tree = layoutTree(input);
+	const edges = edgesByHolder(input, tree);
+	const held = Map.groupBy(tree.holderOf, ([, holder]) => holder);
 	const frames = new Map(input.frames.map((frame) => [frame.id, frame]));
+	const groups = new Map(input.groups.map((group) => [group.id, group]));
 	const groupOptions = { ...options, ...compactGroups };
 	const frameOptions = (title: string) => ({
 		...groupOptions,
@@ -332,7 +337,7 @@ export async function layoutGraph(
 				edges: edges.get(id) ?? [],
 			};
 		}
-		const group = input.groups.find((item) => item.id === id);
+		const group = groups.get(id);
 		if (group === undefined) {
 			return { id, ...card };
 		}
