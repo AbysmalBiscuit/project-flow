@@ -356,6 +356,7 @@ export const measure = stylex.defineVars({
 	overviewCard: "13.5rem",
 	// The legend takes at most half the pane width.
 	legendCap: `calc(50% - 2 * ${space.sm})`,
+	tip: "16rem",
 	// chipRow holds one type.small chip line with space.twoXs padding.
 	chipRow: "1.7rem",
 });

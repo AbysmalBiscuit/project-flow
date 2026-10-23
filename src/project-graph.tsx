@@ -688,6 +688,7 @@ export function ProjectGraph({
 					</ReactFlow>
 				</FrameToggleContext>
 				<div className={clsx(float.overlay)}>
+					<Legend />
 					<ScopeLine
 						project={report.name}
 						openFrames={laid.input.frames.length}
@@ -698,7 +699,6 @@ export function ProjectGraph({
 						onFrames={() => toScope("keep", true)}
 						onFocus={() => toScope("keep", false)}
 					/>
-					<Legend />
 				</div>
 				<div id="project-graph-controls" className={clsx(float.corner)}>
 					<div className={clsx(float.group)}>
