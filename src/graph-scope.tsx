@@ -1,51 +1,24 @@
 import * as stylex from "@stylexjs/stylex";
-import { board } from "./board-styles.ts";
+import { Fragment } from "react";
 import { Segment } from "./segment.tsx";
 import { frameToolLabel, graphScopeLabel, openFramesLabel } from "./terms.ts";
-import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
+import { colours, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { headerControlStyle as tools } from "./ui-styles.ts";
 
 const scope = stylex.create({
-	line: {
+	place: {
 		flex: "0 1 auto",
 		alignSelf: "flex-start",
-		display: "flex",
-		flexWrap: "wrap",
-		alignItems: "baseline",
-		gap: space.xs,
-		justifyContent: "flex-end",
 		minWidth: 0,
+		maxWidth: "100%",
 		marginLeft: "auto",
-		padding: `${space.xs} ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.sm,
-		backgroundColor: colours.raised,
-		color: colours.inkSoft,
-		fontSize: type.meta,
+		overflow: "hidden",
 		pointerEvents: "auto",
-	},
-	part: {
-		display: "inline-flex",
-		alignItems: "baseline",
-		gap: space.xs,
-		minWidth: 0,
 	},
 	mark: {
 		color: colours.inkSoft,
-	},
-	link: {
-		padding: 0,
-		borderWidth: 0,
-		backgroundColor: "transparent",
-		color: colours.inkSoft,
-		font: "inherit",
-		textAlign: "start",
-		textDecorationLine: "underline",
-		textUnderlineOffset: space.twoXs,
-		cursor: "pointer",
+		fontSize: type.menu,
 	},
 });
 
@@ -82,25 +55,22 @@ export function ScopeLine({
 		<nav
 			id="project-graph-scope"
 			aria-label={graphScopeLabel.nav}
-			className={clsx(scope.line)}
+			className={clsx(tools.group, scope.place)}
 		>
 			{parts.map((part, index) => (
-				<span key={part.scope} className={clsx(scope.part)}>
+				<Fragment key={part.scope}>
 					{index === 0 ? null : (
 						<span aria-hidden="true" className={clsx(scope.mark)}>
 							/
 						</span>
 					)}
-					<button
-						type="button"
-						className={clsx(scope.link, board.cardFocus)}
+					<Segment
+						label={part.label}
 						data-scope={part.scope}
 						aria-current={index === parts.length - 1 ? "location" : undefined}
 						onClick={part.onClick}
-					>
-						{part.label}
-					</button>
-				</span>
+					/>
+				</Fragment>
 			))}
 		</nav>
 	);

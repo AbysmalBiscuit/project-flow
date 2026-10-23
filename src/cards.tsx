@@ -11,6 +11,7 @@ import {
 	useState,
 } from "react";
 import { Button, type IconName } from "./button.tsx";
+import { Choice } from "./choice.tsx";
 import type { Configuration } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -765,12 +766,11 @@ function OverviewPage({
 			onToggle={() => setMenu(menu === "sort" ? null : "sort")}
 		>
 			{overviewSorts.map((item) => (
-				<button
+				<Choice
 					key={item}
-					type="button"
 					id={`overview-sort-${item}`}
-					aria-pressed={view.sort === item}
-					className={clsx(cards.choice, shell.buttonFocus)}
+					label={overviewSortLabel[item]}
+					on={view.sort === item}
 					onClick={() =>
 						saveView({
 							...view,
@@ -778,16 +778,7 @@ function OverviewPage({
 							direction: sortDirectionFor(view.sort, item, view.direction),
 						})
 					}
-				>
-					<span
-						className={clsx(
-							cards.choiceMark,
-							view.sort === item && cards.markOn,
-						)}
-						aria-hidden="true"
-					/>
-					{overviewSortLabel[item]}
-				</button>
+				/>
 			))}
 		</MenuButton>
 	);
@@ -801,23 +792,13 @@ function OverviewPage({
 			onToggle={() => setMenu(menu === "filter" ? null : "filter")}
 		>
 			{overviewFilters.map((item) => (
-				<button
+				<Choice
 					key={item}
-					type="button"
 					id={`overview-filter-${item}`}
-					aria-pressed={view.filter === item}
-					className={clsx(cards.choice, shell.buttonFocus)}
+					label={overviewFilterLabel[item]}
+					on={view.filter === item}
 					onClick={() => saveView({ ...view, filter: item })}
-				>
-					<span
-						className={clsx(
-							cards.choiceMark,
-							view.filter === item && cards.markOn,
-						)}
-						aria-hidden="true"
-					/>
-					{overviewFilterLabel[item]}
-				</button>
+				/>
 			))}
 		</MenuButton>
 	);

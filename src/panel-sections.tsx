@@ -1,4 +1,5 @@
 import { Button } from "./button.tsx";
+import { Choice } from "./choice.tsx";
 import { CommentMarkdown } from "./comment-markdown.tsx";
 import type { NeedsYouItem, ThreadComment, TicketRelation } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
@@ -10,7 +11,6 @@ import {
 } from "./terms.ts";
 import { itemId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
-import { shell } from "./ui-styles.ts";
 
 function commentTime(value: string): string {
 	const parsed = new Date(value);
@@ -156,16 +156,13 @@ export function WhySection({
 				<ul className={clsx(panel.options)}>
 					{options.map((option) => (
 						<li key={option.number}>
-							<button
-								type="button"
-								className={clsx(panel.option, shell.buttonFocus)}
+							<Choice
+								number={option.number}
+								label={option.label}
 								data-option={option.number}
 								disabled={pending || picked || item.answered}
 								onClick={() => onPick(option.number)}
-							>
-								<span className={clsx(panel.number)}>{option.number}</span>
-								<span>{option.label}</span>
-							</button>
+							/>
 						</li>
 					))}
 				</ul>
