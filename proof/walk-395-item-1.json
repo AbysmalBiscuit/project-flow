@@ -1,0 +1,18 @@
+{
+	"base_url": "http://127.0.0.1:4395",
+	"serve": ["bun", "proof/serve-337.ts", "4395"],
+	"steps": [
+		{ "goto": "/" },
+		{
+			"assert_text": "acme/alpha 12,180 | acme/beta 372,180 | acme/gamma 732,180"
+		},
+		{ "assert_text": "canvas-flush floats-apart page-fits controls-corner" },
+		{ "click": "#overview-graph #graph-fit" },
+		{ "shot": "overview-graph" },
+		{ "goto": "/projects/acme%2Fwidget" },
+		{ "assert_text": "acme/widget acme/widget#90 12,12" },
+		{ "assert_text": "canvas-flush floats-apart page-fits controls-corner" },
+		{ "click": "#project-graph #project-graph-fit" },
+		{ "shot": "project-graph" }
+	]
+}
