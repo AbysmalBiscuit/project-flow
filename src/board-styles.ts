@@ -85,12 +85,6 @@ export const board = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.count,
 	},
-	tools: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.sm,
-		alignItems: "center",
-	},
 	toolbar: {
 		display: "flex",
 		flex: "0 1 auto",

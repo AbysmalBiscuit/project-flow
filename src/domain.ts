@@ -1110,10 +1110,6 @@ export function linearStatusType(type: string, name: string): StatusType {
 	return "backlog";
 }
 
-export function backlogColour(colours: StatusColours): string {
-	return colours.backlog;
-}
-
 function namesMatch(left: string, right: string): boolean {
 	return laneName(left) === laneName(right);
 }
