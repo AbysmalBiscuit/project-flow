@@ -5,7 +5,7 @@ import {
 	type TicketState,
 	type TicketView,
 } from "./domain.ts";
-import { itemId } from "./ticket-key.ts";
+import { foldKey, itemId } from "./ticket-key.ts";
 import type { GroupBy } from "./view-settings.ts";
 
 export const flowGap = { along: 280, across: 148 };
@@ -784,7 +784,7 @@ function homeTicket(
 ): TicketView | undefined {
 	return homes
 		.find((home) => home.name.toLowerCase() === project.toLowerCase())
-		?.tickets.find((ticket) => ticket.key?.toLowerCase() === key.toLowerCase());
+		?.tickets.find((ticket) => foldKey(ticket.key) === foldKey(key));
 }
 
 /**
