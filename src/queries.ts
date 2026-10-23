@@ -60,9 +60,9 @@ export const pageQuery = {
 		select: settingsPageOf,
 		placeholderData: (previous: SettingsRead | null | undefined) => previous,
 	}),
-	project: (name: string, view?: "all") =>
+	project: (name: string, view: "all") =>
 		queryOptions({
-			queryKey: ["project", name, view ?? "filtered"],
+			queryKey: ["project", name, view],
 			queryFn: () => readProject(name, view),
 		}),
 	thread: (tracker: string, project: string, key: string) =>
@@ -121,11 +121,10 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 
 async function readProject(
 	name: string,
-	view?: "all",
+	view: "all",
 ): Promise<ProjectReport | null> {
-	const suffix = view === undefined ? "" : `?view=${view}`;
 	const response = await fetch(
-		`/api/projects/${encodeURIComponent(name)}${suffix}`,
+		`/api/projects/${encodeURIComponent(name)}?view=${view}`,
 	);
 	if (response.status === 404) {
 		return null;
@@ -183,9 +182,14 @@ export function settingsCacheWrite(
 	};
 }
 
+const saveSettingsKey = ["save-settings"];
+
 export function useSaveSettings({ refetchProjects = true } = {}) {
 	const queries = useQueryClient();
 	return useMutation({
+		mutationKey: saveSettingsKey,
+		// Each save sends the whole configuration, so saves run in click order.
+		scope: { id: "save-settings" },
 		mutationFn: async (next: SettingsWrite): Promise<SettingsPage> => {
 			const response = await fetch("/api/settings", {
 				method: "PUT",
@@ -204,6 +208,10 @@ export function useSaveSettings({ refetchProjects = true } = {}) {
 			return settingsPageOf(body);
 		},
 		onSuccess: (saved) => {
+			// A queued save already wrote its newer choice to the cache.
+			if (queries.isMutating({ mutationKey: saveSettingsKey }) > 1) {
+				return;
+			}
 			const written: SettingsRead = {
 				...saved.settings,
 				trackers: saved.trackers,
@@ -376,7 +384,10 @@ function applyViewsEvent(body: Overview): void {
 	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body, {
 		updatedAt,
 	});
-	void pageQueryClient.invalidateQueries(pageQuery.settings);
+	// A pending save writes the saved settings when it lands.
+	if (pageQueryClient.isMutating({ mutationKey: saveSettingsKey }) === 0) {
+		void pageQueryClient.invalidateQueries(pageQuery.settings);
+	}
 }
 
 function applyOverviewEvent(body: Overview): void {

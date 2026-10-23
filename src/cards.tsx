@@ -772,7 +772,7 @@ function OverviewPage({
 	const refreshing = fetching || overview.polling === true;
 	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
-	const save = useSaveSettings();
+	const save = useSaveSettings({ refetchProjects: false });
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
 		const next = patch(settings);
 		const written = settingsCacheWrite(
