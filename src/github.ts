@@ -12,7 +12,12 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { factoryBoard, reviewStateValue, statusTypeOfName } from "./domain.ts";
+import {
+	closedStatusType,
+	factoryBoard,
+	reviewStateValue,
+	statusTypeOfName,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	commentFromGithub,
@@ -637,7 +642,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 							repository { nameWithOwner }
 							milestone { title }
 							labels(first: 20) { nodes { name } }
-							parent { number title state url repository { nameWithOwner } }
+							parent { number title state stateReason url repository { nameWithOwner } }
 							closedByPullRequestsReferences(first: 20) {
 								nodes { number repository { nameWithOwner } }
 								pageInfo { hasNextPage endCursor }
@@ -691,6 +696,7 @@ const githubParent = z.object({
 	number: z.number(),
 	title: z.string().nullable().optional(),
 	state: z.string().optional(),
+	stateReason: z.string().nullable().optional(),
 	url: z.string().optional(),
 	repository: z.object({ nameWithOwner: z.string() }),
 });
@@ -711,7 +717,11 @@ function parentOf(
 		parent: key,
 		parentDetails: {
 			title: parent.title ?? "",
-			state,
+			...(state === "open"
+				? {}
+				: {
+						state: closedStatusType(githubReason(parent.stateReason ?? null)),
+					}),
 			project,
 			url: parent.url,
 		},
@@ -1735,7 +1745,7 @@ function issueNodeFields(include: boolean): string {
 				labels(first: ${pageSize}) { nodes { name color } ${connectionPage} }
 				assignees(first: 10) { nodes { login } }
 				milestone { title }
-				parent { number title state url repository { nameWithOwner } }
+				parent { number title state stateReason url repository { nameWithOwner } }
 				blockedBy(first: 20) {
 					nodes { number title state repository { nameWithOwner } }
 					${connectionPage}

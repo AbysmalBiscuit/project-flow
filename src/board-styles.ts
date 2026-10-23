@@ -758,6 +758,10 @@ export const board = stylex.create({
 			":hover": colours.surfaceMuted,
 		},
 	},
+	/** An outside card whose state has no tone. */
+	ticketOutsideUntoned: {
+		borderColor: colours.inkSoft,
+	},
 	legendReady: { backgroundColor: colours.ready, borderColor: colours.ready },
 	legendProgress: {
 		backgroundColor: colours.progress,

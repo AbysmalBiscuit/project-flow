@@ -15,6 +15,7 @@ import {
 	closePanelLabel,
 	collapsePanelLabel,
 	expandPanelLabel,
+	projectPageLabel,
 	stateLabel,
 	threadFailedLabel,
 	threadMissingLabel,
@@ -50,6 +51,7 @@ export function TicketPanel({
 	ticketKey,
 	title,
 	url,
+	projectHref,
 	state,
 	lane,
 	laneColour,
@@ -66,6 +68,8 @@ export function TicketPanel({
 	ticketKey: string;
 	title?: string;
 	url?: string | undefined;
+	/** The project page of a ticket in another tracked project. */
+	projectHref?: string | undefined;
 	state?: TicketState;
 	lane?: string | undefined;
 	laneColour?: string | undefined;
@@ -237,6 +241,9 @@ export function TicketPanel({
 			<div className={clsx(panel.head)}>
 				<span className={clsx(panel.key)}>{ticketKey}</span>
 				<span className={clsx(panel.actions)}>
+					{projectHref === undefined ? null : (
+						<Button href={projectHref} label={projectPageLabel} />
+					)}
 					{href === undefined ? null : (
 						<Button
 							href={href}

@@ -1,0 +1,52 @@
+{
+	"base_url": "http://127.0.0.1:4456",
+	"viewport": {
+		"width": 1440,
+		"height": 1000
+	},
+	"serve": ["bun", "proof/serve-355.ts", "4456"],
+	"steps": [
+		{
+			"goto": "/projects/api-kysely%20cleanup%20followup"
+		},
+		{
+			"assert_text": "Retire the legacy query builder"
+		},
+		{
+			"click": "#project-graph-fit"
+		},
+		{
+			"click": "#project-graph [data-graph-node='DB-7']"
+		},
+		{
+			"assert_text": "panel open"
+		},
+		{
+			"click": "aside[data-panel='DB-7']:has(a[href='https://linear.app/acme/issue/DB-7']):not(:has(a[href^='/projects/'])) h2"
+		},
+		{
+			"shot": "untracked-parent-tracker-link"
+		},
+		{
+			"click": "#project-graph-fit"
+		},
+		{
+			"click": "#project-graph [data-graph-node='PLT-12'][id$='Cleanup']"
+		},
+		{
+			"click": "aside[data-panel='PLT-12']:has(a[href='/projects/API%20platform?ticket=PLT-12']) h2"
+		},
+		{
+			"shot": "tracked-parent-project-link"
+		},
+		{
+			"click": "aside[data-panel='PLT-12'] a[href='/projects/API%20platform?ticket=PLT-12']"
+		},
+		{
+			"assert_text": "Pin the Kysely version"
+		},
+		{
+			"shot": "tracked-parent-project-page"
+		}
+	]
+}

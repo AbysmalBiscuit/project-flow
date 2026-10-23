@@ -38,6 +38,7 @@ import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";
+import { projectPath } from "./paths.ts";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { FilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
@@ -1240,11 +1241,14 @@ export function Page() {
 		);
 	}, [name, report]);
 	const outsideNames = [
-		...new Set(
-			(report?.tickets ?? []).flatMap((item) =>
+		...new Set([
+			...(report?.tickets ?? []).flatMap((item) =>
 				(item.outsideBlockers ?? []).map((blocker) => blocker.project),
 			),
-		),
+			...(report?.outsideParents ?? []).flatMap((parent) =>
+				parent.tracked ? [parent.project] : [],
+			),
+		]),
 	].sort((left, right) => left.localeCompare(right));
 	const outsideQueries = useQueries({
 		queries: outsideNames.map((project) => pageQuery.project(project, "all")),
@@ -1266,6 +1270,15 @@ export function Page() {
 		source === null || ticket === null
 			? undefined
 			: source.tickets.find((item) => item.key === ticket);
+	const openedParent =
+		ticket === null
+			? undefined
+			: report?.outsideParents.find(
+					(parent) =>
+						parent.project === panelProject &&
+						sameTicketKey(parent.key, ticket),
+				);
+	const panelTitle = selected?.title ?? openedParent?.title;
 	const incoming = panelBlockers(selected, source, panelProject, panelTracker);
 	const outgoing = selected?.blocks ?? [];
 	if (missing && !polling && pollError === null) {
@@ -1581,13 +1594,16 @@ export function Page() {
 									tracker={panelTracker}
 									project={panelProject}
 									ticketKey={ticket}
-									{...(selected?.title === undefined
-										? {}
-										: { title: selected.title })}
+									{...(panelTitle === undefined ? {} : { title: panelTitle })}
 									url={
 										selected?.key === undefined || selected.key === null
-											? undefined
+											? openedParent?.url
 											: trackerUrl(panelTracker, selected.key)
+									}
+									projectHref={
+										openedParent?.tracked === true
+											? projectPath(openedParent.project, openedParent.key)
+											: undefined
 									}
 									{...(selected?.state !== undefined
 										? { state: selected.state }

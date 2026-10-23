@@ -1,17 +1,9 @@
 import { linearFake } from "../test/support.ts";
+import { type StateName, stateOf, teamStates } from "./linear-states.ts";
 import { serveRecorded } from "./recorded.ts";
 
 const slug = "initial-sdi-issues-5b1d0c7e2f3a";
 const project = "Initial SDI Issues";
-
-const states = [
-	{ id: "st-backlog", name: "Backlog", type: "backlog", color: "#bec2c8" },
-	{ id: "st-todo", name: "Todo", type: "unstarted", color: "#e2e2e2" },
-	{ id: "st-progress", name: "In Progress", type: "started", color: "#f2c94c" },
-	{ id: "st-done", name: "Done", type: "completed", color: "#5e6ad2" },
-] as const;
-
-type StateName = (typeof states)[number]["name"];
 
 function sdiTicket(
 	id: string,
@@ -19,7 +11,7 @@ function sdiTicket(
 	state: StateName,
 	parent: string | null,
 ): Record<string, unknown> {
-	const found = states.find((item) => item.name === state) ?? states[0];
+	const found = stateOf(state);
 	return {
 		identifier: id,
 		title,
@@ -63,7 +55,7 @@ const fetch = linearFake({
 		slugId: slug,
 		teams: { nodes: [{ id: "team-sdi", key: "SDI", name: "SDI" }] },
 	},
-	states: states.map((state, position) => ({ ...state, position })),
+	states: teamStates,
 	issues,
 });
 
