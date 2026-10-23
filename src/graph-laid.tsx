@@ -9,6 +9,7 @@ import { board } from "./board-styles.ts";
 import { type FlowGap, flowGap } from "./graph-flow.ts";
 import { growGroups } from "./graph-force.ts";
 import type { ForceRequest } from "./graph-force-worker.ts";
+import { type LaidLink, laneLinks } from "./graph-lanes.ts";
 import {
 	elkWorkerPath,
 	forceWorkerPath,
@@ -18,7 +19,6 @@ import {
 	type Point,
 } from "./graph-layout.ts";
 import { useNodeSizes } from "./graph-node-size.tsx";
-import { type LaidLink, laneLinks } from "./graph-routes.ts";
 import type { NodeSize } from "./graph-sizes.ts";
 import { classToken } from "./ui.ts";
 import type { GraphDirection, GraphLayoutKind } from "./view-settings.ts";

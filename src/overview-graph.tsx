@@ -8,7 +8,7 @@ import {
 } from "./domain.ts";
 import { type FocusView, shownSeeds } from "./focus.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
-import { blockerLinkId, focusLinks, overviewInput } from "./graph-layout.ts";
+import { focusLinks, type LayoutInput } from "./graph-layout.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import {
 	CardHandles,
@@ -25,6 +25,45 @@ import { cards, shell } from "./ui-styles.ts";
 
 /** Projects sit farther apart than tickets, so each arrow label fits between them. */
 const projectGap = { along: 360, across: 168 };
+
+/** The id of the arrow for one cross-project blocker on the overview graph. */
+function blockerLinkId(blocked: string, blocker: string, key: string) {
+	return `blocker:${blocked}:${blocker}:${key}`;
+}
+
+/**
+ * The overview graph: one card per project, and one arrow per ticket that
+ * blocks a ticket of another shown project.
+ */
+function overviewInput(projects: readonly ProjectCounts[]): LayoutInput {
+	const shown = new Set(projects.map((project) => project.name));
+	return {
+		cards: projects.map((project) => ({
+			id: project.name,
+			ticket: project.name,
+			group: null,
+			frame: null,
+			collapsed: false,
+		})),
+		groups: [],
+		frames: [],
+		edges: projects.flatMap((project) =>
+			project.crossProjectBlockers.flatMap((blocker) =>
+				shown.has(blocker.project) && blocker.project !== project.name
+					? [
+							{
+								id: blockerLinkId(project.name, blocker.project, blocker.key),
+								from: blocker.project,
+								to: project.name,
+							},
+						]
+					: [],
+			),
+		),
+		hiddenIn: new Map(),
+		parents: [],
+	};
+}
 
 type ProjectCard = { key: string; project: ProjectCounts };
 

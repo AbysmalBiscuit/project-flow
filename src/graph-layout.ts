@@ -1,10 +1,5 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
-import {
-	type FocusLink,
-	groupLabelOf,
-	type ProjectCounts,
-	type ProjectReport,
-} from "./domain.ts";
+import { type FocusLink, groupLabelOf, type ProjectReport } from "./domain.ts";
 import {
 	type FlowEdge,
 	type FlowGap,
@@ -292,45 +287,6 @@ export function layoutInput(
 				laid.flatMap((item) => (heading.has(item.id) ? [item.ticket.key] : [])),
 			),
 		],
-	};
-}
-
-/** The id of the arrow for one cross-project blocker on the overview graph. */
-export function blockerLinkId(blocked: string, blocker: string, key: string) {
-	return `blocker:${blocked}:${blocker}:${key}`;
-}
-
-/**
- * The overview graph: one card per project, and one arrow per ticket that
- * blocks a ticket of another shown project.
- */
-export function overviewInput(projects: readonly ProjectCounts[]): LayoutInput {
-	const shown = new Set(projects.map((project) => project.name));
-	return {
-		cards: projects.map((project) => ({
-			id: project.name,
-			ticket: project.name,
-			group: null,
-			frame: null,
-			collapsed: false,
-		})),
-		groups: [],
-		frames: [],
-		edges: projects.flatMap((project) =>
-			project.crossProjectBlockers.flatMap((blocker) =>
-				shown.has(blocker.project) && blocker.project !== project.name
-					? [
-							{
-								id: blockerLinkId(project.name, blocker.project, blocker.key),
-								from: blocker.project,
-								to: project.name,
-							},
-						]
-					: [],
-			),
-		),
-		hiddenIn: new Map(),
-		parents: [],
 	};
 }
 
