@@ -795,6 +795,12 @@ export function graphTickets(
 	report: ProjectReport,
 	withParents = false,
 ): FlowTicket[] {
+	const parents = new Map(
+		report.outsideParents.map((parent) => [
+			projectNodeId(parent.project, parent.key),
+			parent,
+		]),
+	);
 	const seen = new Set<string>();
 	const outside: FlowTicket[] = [];
 	for (const link of report.graphLinks) {
@@ -807,12 +813,14 @@ export function graphTickets(
 				continue;
 			}
 			seen.add(id);
+			const parent = parents.get(id);
+			const state = end.state ?? parent?.state;
 			outside.push({
 				key: end.key,
-				title: end.title,
+				title: parent?.title ?? end.title,
 				project: end.project,
 				outside: true,
-				...(end.state === undefined ? {} : { state: end.state }),
+				...(state === undefined ? {} : { state }),
 				tracker: end.tracker,
 				blockers: [],
 				outsideBlockers: [],
@@ -825,9 +833,9 @@ export function graphTickets(
 			`${right.project} ${right.key}`,
 		),
 	);
-	const outsideParents = (withParents ? report.outsideParents : []).flatMap(
-		(parent): FlowTicket[] =>
-			seen.has(projectNodeId(parent.project, parent.key))
+	const outsideParents = (withParents ? [...parents] : []).flatMap(
+		([id, parent]): FlowTicket[] =>
+			seen.has(id)
 				? []
 				: [
 						{

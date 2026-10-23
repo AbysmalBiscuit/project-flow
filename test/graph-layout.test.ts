@@ -2,7 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import ELK from "elkjs/lib/elk-api.js";
 import { fillShare } from "../proof/elk-spike/handwritten.ts";
 import { focusChain } from "../src/domain.ts";
-import { projectNodeId } from "../src/graph-flow.ts";
+import { graphTickets, projectNodeId } from "../src/graph-flow.ts";
 import {
 	focusLinks,
 	focusSeeds,
@@ -347,6 +347,47 @@ describe("project graph layout", () => {
 			].sort(),
 			titles: ["Ops cleanup", "Platform epic", "Platform epic"],
 			stray: [],
+		});
+	});
+
+	test("an outside parent ticket that its sub-ticket blocks heads one frame with its state", async () => {
+		const reviewEpic = {
+			...platformEpic,
+			state: { type: "started", name: "In Review" },
+		};
+		const report = await hierarchyReport("", [
+			{
+				...linearTicket("WID-40", "Wire the platform", "unstarted", null),
+				parent: reviewEpic,
+				inverseRelations: {
+					nodes: [
+						{
+							type: "blockedBy",
+							issue: {
+								identifier: "PLT-3",
+								title: "Platform epic",
+								state: { type: "started" },
+								project: { name: "Platform", slugId: "platform-slug" },
+							},
+						},
+					],
+				},
+			},
+		]);
+		const input = layoutInput(report, "workstream", []);
+		const sub = input.cards.find((item) => item.id === cardOf("WID-40"));
+		const head = input.frames.find((frame) => frame.id === sub?.frame)?.head;
+		const headTicket = input.cards.find((item) => item.id === head)?.ticket;
+		expect({
+			heads: graphTickets(report, true).flatMap((ticket) =>
+				projectNodeId(ticket.project, ticket.key) === headTicket
+					? [{ key: ticket.key, title: ticket.title, state: ticket.state }]
+					: [],
+			),
+			tickets: [...new Set(input.cards.map((item) => item.ticket))].sort(),
+		}).toEqual({
+			heads: [{ key: "PLT-3", title: "Platform epic", state: "inReview" }],
+			tickets: [projectNodeId("Platform", "PLT-3"), cardOf("WID-40")].sort(),
 		});
 	});
 
