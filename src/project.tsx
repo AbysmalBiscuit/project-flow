@@ -19,7 +19,6 @@ import {
 import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import {
-	type CrossProjectBlocker,
 	displayedLaneName,
 	doneTicketsForLane,
 	filterProjectReport,
@@ -58,6 +57,7 @@ import {
 	subTicketsToggleLabel,
 	viewLabel,
 } from "./terms.ts";
+import { sameTicket, type TicketRef } from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -98,36 +98,6 @@ function projectName(): string {
 	return decodeURIComponent(
 		window.location.pathname.slice("/projects/".length),
 	);
-}
-
-function queryValue(name: string): string | null {
-	const value = new URLSearchParams(window.location.search).get(name);
-	if (value === null || value.trim() === "") {
-		return null;
-	}
-	return value;
-}
-
-function highlightKey(): string | null {
-	return queryValue("ticket");
-}
-
-function panelProjectName(): string {
-	return queryValue("panelProject") ?? projectName();
-}
-
-function panelTrackerName(): CrossProjectBlocker["tracker"] {
-	return queryValue("panelTracker") === "linear" ? "linear" : "github";
-}
-
-function clearTicketQuery(): void {
-	const url = new URL(window.location.href);
-	if (!url.searchParams.has("ticket")) {
-		return;
-	}
-	url.searchParams.delete("ticket");
-	const next = `${url.pathname}${url.search}${url.hash}`;
-	window.history.replaceState(window.history.state, "", next);
 }
 
 function trackerUrl(
@@ -1087,15 +1057,11 @@ function Board({
 
 export function Page() {
 	const [name, setName] = useState(projectName);
-	const [ticket, setTicket] = useState(highlightKey);
 	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
-	const [panelProject, setPanelProject] = useState(panelProjectName);
-	const [panelTracker, setPanelTracker] =
-		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
-	const [open, setOpen] = useState(highlightKey() !== null);
-	const [openedState, setOpenedState] = useState<TicketView["state"] | null>(
-		null,
-	);
+	const [openedState, setOpenedState] = useState<{
+		ticket: TicketRef;
+		state: TicketView["state"];
+	} | null>(null);
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
@@ -1145,25 +1111,11 @@ export function Page() {
 	const saveGeneration = useRef(0);
 	const settingsData = settingsQuery.data;
 	useEffect(() => {
-		if (active === null) {
-			return;
-		}
-		setPanelProject(active.project);
-		setPanelTracker(active.tracker);
-		setTicket(active.key);
-		setOpen(true);
-	}, [active]);
-	useEffect(() => {
 		const onPop = () => {
 			if (!window.location.pathname.startsWith("/projects/")) {
 				return;
 			}
-			const next = highlightKey();
 			setName(projectName());
-			setPanelProject(panelProjectName());
-			setPanelTracker(panelTrackerName());
-			setTicket(next);
-			setOpen(next !== null || window.history.state?.panel === true);
 		};
 		window.addEventListener("popstate", onPop);
 		return () => window.removeEventListener("popstate", onPop);
@@ -1193,18 +1145,24 @@ export function Page() {
 		queries: outsideNames.map((project) => pageQuery.project(project, "all")),
 	});
 	const outsideReports = outsideQueries.flatMap((item) => item.data ?? []);
+	const ticket = active?.key ?? null;
+	const panelProject = active?.project ?? name;
 	const panelSourceQuery = useQuery({
 		...pageQuery.project(panelProject, "all"),
-		enabled: open && ticket !== null,
+		enabled: active !== null,
 	});
-	useEffect(() => {
-		const body = panelSourceQuery.data;
-		if (body === null || body === undefined) {
-			return;
-		}
-		setPanelTracker(body.tracker);
-	}, [panelSourceQuery.data]);
 	const source = panelSourceQuery.data ?? null;
+	useEffect(() => {
+		if (
+			active !== null &&
+			source !== null &&
+			source.name === active.project &&
+			source.tracker !== active.tracker
+		) {
+			openTicket({ ...active, tracker: source.tracker }, "replace");
+		}
+	}, [active, source]);
+	const panelTracker = active?.tracker ?? "github";
 	const selected =
 		source === null || ticket === null
 			? undefined
@@ -1319,29 +1277,23 @@ export function Page() {
 		enter: (key) => ticketFocus.enter(projectNodeId(report.name, key)),
 		leave: ticketFocus.leave,
 	};
-	const openTicketInPanel = (key: string) => {
-		setOpenedState(null);
-		setPanelProject(report.name);
-		setPanelTracker(report.tracker);
-		setTicket(key);
-		setOpen(true);
-		const item = needsYouItem(report, report.tracker, report.name, key);
-		openTicket({
-			tracker: report.tracker,
-			project: report.name,
-			key,
-			...(item === null ? {} : { item }),
-		});
+	const openInPanel = (target: TicketRef, state?: TicketView["state"]) => {
+		const ticket = {
+			tracker: target.tracker,
+			project: target.project,
+			key: target.key,
+		};
+		setOpenedState(state === undefined ? null : { ticket, state });
+		const item = needsYouItem(
+			report,
+			ticket.tracker,
+			ticket.project,
+			ticket.key,
+		);
+		openTicket({ ...ticket, ...(item === null ? {} : { item }) });
 	};
-	const openOutsideInPanel = (
-		blocker: TicketRelation,
-		state?: TicketView["state"],
-	) => {
-		setOpenedState(state ?? null);
-		setPanelProject(blocker.project);
-		setPanelTracker(blocker.tracker);
-		setTicket(blocker.key);
-		setOpen(true);
+	const openTicketInPanel = (key: string) => {
+		openInPanel({ tracker: report.tracker, project: report.name, key });
 	};
 	return (
 		<ReactFlowProvider>
@@ -1470,18 +1422,18 @@ export function Page() {
 								<Board
 									report={report}
 									settings={settings}
-									selected={open ? ticket : null}
+									selected={ticket}
 									onOpen={openTicketInPanel}
-									onOpenOutside={openOutsideInPanel}
+									onOpenOutside={openInPanel}
 								/>
 							) : view === "table" ? (
 								<TicketTable
 									report={report}
 									groupBy={boardGroupBy(settings)}
 									searching={settings.search.trim() !== ""}
-									selected={open ? ticket : null}
+									selected={ticket}
 									onOpen={openTicketInPanel}
-									onOpenOutside={openOutsideInPanel}
+									onOpenOutside={openInPanel}
 								/>
 							) : view === "graph" ? (
 								<ProjectGraph
@@ -1491,7 +1443,7 @@ export function Page() {
 									layout={settings.graphLayout}
 									groupBy={graphGroupBy(settings)}
 									assignees={settings.assignees}
-									openKey={open ? ticket : null}
+									openKey={ticket}
 									seeds={seeds}
 									focus={ticketFocus.focus}
 									onFocus={ticketFocus.toggle}
@@ -1506,7 +1458,7 @@ export function Page() {
 									}
 									onOpen={(node) => {
 										if (node.outside) {
-											openOutsideInPanel(node, node.state);
+											openInPanel(node, node.state);
 											return;
 										}
 										openTicketInPanel(node.key);
@@ -1515,7 +1467,7 @@ export function Page() {
 							) : (
 								<p className={clsx(board.placeholder)}>{view}</p>
 							)}
-							{open && ticket !== null ? (
+							{active !== null && ticket !== null ? (
 								<TicketPanel
 									key={`${panelTracker}:${panelProject}:${ticket}`}
 									tracker={panelTracker}
@@ -1529,14 +1481,15 @@ export function Page() {
 									}
 									projectHref={
 										openedParent?.tracked === true
-											? projectPath(openedParent.project, openedParent.key)
+											? projectPath(openedParent.project, openedParent)
 											: undefined
 									}
 									{...(selected?.state !== undefined
 										? { state: selected.state }
-										: openedState === null
+										: openedState === null ||
+												!sameTicket(openedState.ticket, active)
 											? {}
-											: { state: openedState })}
+											: { state: openedState.state })}
 									lane={selected?.lane}
 									laneState={
 										source?.lanes.find((lane) => lane.name === selected?.lane)
@@ -1551,17 +1504,8 @@ export function Page() {
 										ticket,
 										active,
 									)}
-									onOpenBlocker={(blocker) => {
-										setPanelProject(blocker.project);
-										setPanelTracker(blocker.tracker);
-										setTicket(blocker.key);
-										setOpen(true);
-									}}
-									onClose={() => {
-										clearTicketQuery();
-										closeTicket();
-										setOpen(false);
-									}}
+									onOpenBlocker={openInPanel}
+									onClose={closeTicket}
 								/>
 							) : null}
 						</div>

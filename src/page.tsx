@@ -5,7 +5,6 @@ import { mountPage } from "./page-cache.ts";
 import { installPageLinks } from "./page-links.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { seedPageQueries, wirePageQueryEvents } from "./queries.ts";
-import { clearTicketOnPageChange } from "./selection.ts";
 import { readStoredPage, readStoredPolling } from "./stored-page.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
@@ -69,6 +68,5 @@ async function showPage(): Promise<void> {
 await showPage();
 
 window.addEventListener("popstate", () => {
-	clearTicketOnPageChange(window.location.href);
 	void showPage();
 });
