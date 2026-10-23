@@ -1760,10 +1760,8 @@ export const panel = stylex.create({
 		fontSize: type.meta,
 	},
 	thread: {
-		flex: "1 1 auto",
-		minHeight: 0,
+		flex: "0 0 auto",
 		margin: 0,
-		overflow: "auto",
 		padding: 0,
 		listStyle: "none",
 	},
