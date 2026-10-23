@@ -926,15 +926,18 @@ function keptPulls(
 	if (full) {
 		return incoming;
 	}
-	const incomingIds = new Set(incoming.map((pull) => pullKey(pull)));
-	const incomingKeys = new Set(incoming.flatMap((pull) => pull.closingKeys));
+	const incomingIds = new Set(incoming.map((pull) => foldKey(pullKey(pull))));
+	const incomingKeys = new Set(
+		incoming.flatMap((pull) => pull.closingKeys.map((key) => foldKey(key))),
+	);
 	return [
 		...incoming,
 		...stored.filter(
 			(pull) =>
-				!incomingIds.has(pullKey(pull)) &&
+				!incomingIds.has(foldKey(pullKey(pull))) &&
 				!pull.closingKeys.some(
-					(key) => returnedIds.has(key) || incomingKeys.has(key),
+					(key) =>
+						returnedIds.has(foldKey(key)) || incomingKeys.has(foldKey(key)),
 				),
 		),
 	];
@@ -961,7 +964,7 @@ export function reconcilePoll(
 				: mergeTickets(prior?.tickets ?? [], outcome.row.tickets);
 			const returnedIds = new Set(
 				outcome.row.tickets.flatMap((ticket) =>
-					ticket.key === null ? [] : [ticket.key],
+					ticket.key === null ? [] : [foldKey(ticket.key)],
 				),
 			);
 			const listedEmpty = outcome.full
