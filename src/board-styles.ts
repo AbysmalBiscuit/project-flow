@@ -14,6 +14,16 @@ const edgeFlow = stylex.keyframes({
 	to: { strokeDashoffset: "0" },
 });
 
+const enter = stylex.keyframes({
+	from: { opacity: 0 },
+});
+
+const edgeEnter = stylex.keyframes({
+	"0%": { opacity: 0 },
+	"70%": { opacity: 0 },
+	"100%": { opacity: 1 },
+});
+
 const focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
 export const board = stylex.create({
@@ -23,6 +33,26 @@ export const board = stylex.create({
 	fades: {
 		transitionProperty: "opacity",
 		transitionDuration: measure.fade,
+	},
+	moves: {
+		transitionProperty: {
+			default: "opacity, transform, width, height",
+			"@media (prefers-reduced-motion: reduce)": "opacity",
+		},
+		transitionDuration: `${measure.fade}, ${measure.move}, ${measure.move}, ${measure.move}`,
+		transitionTimingFunction: "ease-in-out",
+		animationName: {
+			default: enter,
+			"@media (prefers-reduced-motion: reduce)": "none",
+		},
+		animationDuration: measure.move,
+	},
+	edgeEnters: {
+		animationName: {
+			default: edgeEnter,
+			"@media (prefers-reduced-motion: reduce)": "none",
+		},
+		animationDuration: measure.move,
 	},
 	crumb: {
 		margin: `0 0 ${space.xs}`,

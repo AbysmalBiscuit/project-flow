@@ -245,17 +245,19 @@ function TicketEdge({
 	const done = data?.done === true;
 	const flowing = done && data?.flowing === true;
 	return (
-		<BaseEdge
-			id={id}
-			path={drawn}
-			data-flowing={flowing ? "true" : "false"}
-			className={
-				done
-					? clsx(board.graphEdgeDash, flowing && board.graphEdgeFlow)
-					: undefined
-			}
-			{...(markerEnd === undefined ? {} : { markerEnd })}
-		/>
+		<g key={drawn} className={clsx(board.edgeEnters)}>
+			<BaseEdge
+				id={id}
+				path={drawn}
+				data-flowing={flowing ? "true" : "false"}
+				className={
+					done
+						? clsx(board.graphEdgeDash, flowing && board.graphEdgeFlow)
+						: undefined
+				}
+				{...(markerEnd === undefined ? {} : { markerEnd })}
+			/>
+		</g>
 	);
 }
 
@@ -442,11 +444,13 @@ export function ProjectGraph({
 	);
 	const fades = clsx(board.fades);
 	const faded = clsx(board.fades, board.faded);
+	const moves = clsx(board.moves);
+	const movesFaded = clsx(board.moves, board.faded);
 	const nodes = model.nodes.map((node) => {
 		const kept = isClusterNode(node)
 			? node.data.members.some((id) => chain?.has(id) === true)
 			: chain?.has(node.data.ticketId) === true;
-		return { ...node, className: chain === null || kept ? fades : faded };
+		return { ...node, className: chain === null || kept ? moves : movesFaded };
 	});
 	const edges = model.edges.map((edge) => {
 		const kept =
