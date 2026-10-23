@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { Button } from "./button.tsx";
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import type { TicketState } from "./domain.ts";
 import { settings as fields } from "./settings-styles.ts";
@@ -10,7 +11,6 @@ import {
 	viewLabel,
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
-import { shell } from "./ui-styles.ts";
 import type { openViews } from "./view-settings.ts";
 
 export type Trackers = { github: boolean; linear: boolean };
@@ -116,6 +116,13 @@ export function Chips({
 	onChange: (next: string[]) => void;
 }) {
 	const [text, setText] = useState("");
+	function add(): void {
+		const next = text.trim();
+		if (next !== "" && !values.includes(next)) {
+			onChange([...values, next]);
+		}
+		setText("");
+	}
 	return (
 		<div className={clsx(fields.chips)}>
 			{values.map((value) => (
@@ -142,15 +149,10 @@ export function Chips({
 						return;
 					}
 					event.preventDefault();
-					const next = text.trim();
-					if (next === "" || values.includes(next)) {
-						setText("");
-						return;
-					}
-					onChange([...values, next]);
-					setText("");
+					add();
 				}}
 			/>
+			<Button id={`${id}-add`} label={settingsCopy.add} onClick={add} />
 		</div>
 	);
 }
@@ -262,14 +264,7 @@ export function MappingEditor({
 				}}
 				onChange={(event) => setStatus(event.target.value)}
 			/>
-			<button
-				id="lane-mapping-add"
-				type="button"
-				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
-				onClick={add}
-			>
-				{settingsCopy.add}
-			</button>
+			<Button id="lane-mapping-add" label={settingsCopy.add} onClick={add} />
 		</div>
 	);
 }
@@ -352,14 +347,7 @@ export function AutoMergeEditor({
 					</option>
 				))}
 			</select>
-			<button
-				id="auto-merge-add"
-				type="button"
-				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
-				onClick={add}
-			>
-				{settingsCopy.add}
-			</button>
+			<Button id="auto-merge-add" label={settingsCopy.add} onClick={add} />
 		</div>
 	);
 }

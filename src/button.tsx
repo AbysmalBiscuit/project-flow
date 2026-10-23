@@ -41,6 +41,19 @@ const styles = stylex.create({
 		whiteSpace: "nowrap",
 		cursor: "pointer",
 	},
+	primary: {
+		borderColor: colours.needs,
+		backgroundColor: colours.needs,
+		color: colours.needsInk,
+		fontWeight: type.weight,
+	},
+	disabled: {
+		borderColor: colours.laneLine,
+		backgroundColor: "transparent",
+		color: colours.inkSoft,
+		opacity: 0.5,
+		cursor: "default",
+	},
 	iconOnly: {
 		width: measure.button,
 		padding: 0,
@@ -60,12 +73,14 @@ type Content =
 	| { label: string; icon?: IconName; name?: string };
 
 type Action =
-	| { href: string; newTab?: boolean; onClick?: never }
-	| { onClick: () => void };
+	| { href: string; newTab?: boolean; onClick?: never; disabled?: never }
+	| { onClick: () => void; disabled?: boolean };
 
 type ButtonProps = Content &
 	Action & {
+		id?: string;
 		iconSide?: "left" | "right";
+		primary?: boolean;
 	};
 
 /**
@@ -73,12 +88,15 @@ type ButtonProps = Content &
  * sets the accessible name and the tooltip. An icon-only button requires it.
  */
 export function Button(props: ButtonProps) {
-	const { icon, label, name, iconSide = "left" } = props;
+	const { id, icon, label, name, iconSide = "left", primary = false } = props;
+	const disabled = props.disabled === true;
 	const Icon = icon === undefined ? null : icons[icon];
 	const className = clsx(
 		styles.button,
 		label === undefined && styles.iconOnly,
 		iconSide === "right" && styles.iconRight,
+		primary && styles.primary,
+		disabled && styles.disabled,
 		shell.buttonFocus,
 	);
 	const content = (
@@ -92,6 +110,7 @@ export function Button(props: ButtonProps) {
 	if ("href" in props) {
 		return (
 			<a
+				id={id}
 				className={className}
 				href={props.href}
 				aria-label={name}
@@ -106,8 +125,10 @@ export function Button(props: ButtonProps) {
 	}
 	return (
 		<button
+			id={id}
 			type="button"
 			className={className}
+			disabled={disabled}
 			aria-label={name}
 			title={name}
 			onClick={props.onClick}
