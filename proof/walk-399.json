@@ -1,6 +1,6 @@
 {
 	"base_url": "http://127.0.0.1:47399",
-	"serve": ["bun", "proof/serve-399.ts", "47399"],
+	"serve": ["bun", "proof/serve-396.ts", "47399", "group-none"],
 	"steps": [
 		{ "goto": "/" },
 		{ "click": "#view-cards" },

@@ -3,7 +3,8 @@
  * The local blocker has a done parent in the untracked project `acme/plan`.
  *
  * The second poll adds a needs-human label, which raises an inbox entry, and a second comment to the thread.
- * Usage: `bun proof/serve-396.ts [PORT]`.
+ * With `group-none`, the project graph groups by none, so its cards show the hierarchy chips.
+ * Usage: `bun proof/serve-396.ts [PORT] [group-none]`.
  */
 import type { Fetch } from "../src/fetch.ts";
 import { recordedIssues, serveRecorded } from "./recorded.ts";
@@ -133,7 +134,12 @@ await serveRecorded({
 		viewerLogins: ["lev"],
 		pollIntervalSeconds: 3600,
 		theme: "light",
-		projectViews: { [flow]: { openView: "board" } },
+		projectViews: {
+			[flow]:
+				process.argv[3] === "group-none"
+					? { openView: "board", groupBy: "none" }
+					: { openView: "board" },
+		},
 	},
 	fetch,
 	now: () => new Date("2026-10-18T12:00:00.000Z"),
