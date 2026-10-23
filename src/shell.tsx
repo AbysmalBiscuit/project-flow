@@ -3,12 +3,7 @@ import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import type { Configuration } from "./configuration.ts";
 import { openJumpBox } from "./jump.tsx";
-import {
-	pageQuery,
-	pageQueryClient,
-	useSaveSettings,
-	writeSettingsCache,
-} from "./queries.ts";
+import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
@@ -165,10 +160,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const themeRef = useRef(theme);
 	themeRef.current = theme;
 	const [themeSaveFailed, setThemeSaveFailed] = useState(false);
-	const save = useSaveSettings({ refetchProjects: false });
+	const save = useSaveSettings({ refetchProjects: false, optimistic: true });
 	const saveTheme = (next: "light" | "dark") => {
 		const patch = (current: Configuration) => ({ ...current, theme: next });
-		writeSettingsCache(patch);
 		void save.mutateAsync(patch).then(
 			() => {
 				if (next === themeRef.current) {

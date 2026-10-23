@@ -49,7 +49,6 @@ import {
 	pageQuery,
 	pageQueryClient,
 	useSaveSettings,
-	writeSettingsCache,
 } from "./queries.ts";
 import { PageFrame, type PageView } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
@@ -772,9 +771,8 @@ function OverviewPage({
 	const refreshing = fetching || overview.polling === true;
 	const needsQuery = useQuery(pageQuery.needsYou);
 	const needs = needsQuery.data ?? [];
-	const save = useSaveSettings({ refetchProjects: false });
+	const save = useSaveSettings({ refetchProjects: false, optimistic: true });
 	const savePatch = (patch: (current: Configuration) => Configuration) => {
-		writeSettingsCache(patch);
 		void save
 			.mutateAsync(patch)
 			.catch(() => pageQueryClient.invalidateQueries(pageQuery.settings));

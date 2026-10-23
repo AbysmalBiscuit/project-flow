@@ -164,9 +164,7 @@ type SettingsWrite = Configuration & {
 
 type SettingsPatch = (current: Configuration) => SettingsWrite;
 
-export function writeSettingsCache(
-	patch: (current: Configuration) => Configuration,
-): void {
+function writeSettingsCache(patch: SettingsPatch): void {
 	const key = pageQuery.settings.queryKey;
 	const cached = pageQueryClient.getQueryData(key);
 	const current = cached === undefined ? null : configurationOf(cached);
@@ -184,14 +182,26 @@ export function writeSettingsCache(
 
 const saveSettingsKey = ["save-settings"];
 
-export function useSaveSettings({ refetchProjects = true } = {}) {
+// Optimistic patches whose saves have not settled, in click order.
+const optimisticPatches = new Set<SettingsPatch>();
+
+export function useSaveSettings({
+	refetchProjects = true,
+	optimistic = false,
+} = {}) {
 	const queries = useQueryClient();
 	return useMutation({
 		mutationKey: saveSettingsKey,
 		// Each save sends the whole configuration, so saves run in click order.
 		scope: { id: "save-settings" },
+		onMutate: (patch) => {
+			if (optimistic) {
+				optimisticPatches.add(patch);
+				writeSettingsCache(patch);
+			}
+		},
 		// The patch reads the settings when its turn comes, so it keeps the
-		// choices that earlier queued saves wrote to the cache.
+		// choices that earlier saves wrote to the cache.
 		mutationFn: async (patch: SettingsPatch): Promise<SettingsPage> => {
 			const loaded = await queries.ensureQueryData(pageQuery.settings);
 			const next = patch(settingsPageOf(loaded).settings);
@@ -211,13 +221,17 @@ export function useSaveSettings({ refetchProjects = true } = {}) {
 			}
 			return settingsPageOf(body);
 		},
-		onSuccess: (saved) => {
-			// A queued save already wrote its newer choice to the cache.
-			if (queries.isMutating({ mutationKey: saveSettingsKey }) > 1) {
-				return;
+		onSuccess: (saved, patch) => {
+			// The saved configuration is the new base, and queued optimistic
+			// choices stay on top of it until their own saves land.
+			let settings = saved.settings;
+			for (const queued of optimisticPatches) {
+				if (queued !== patch) {
+					settings = { ...settings, ...queued(settings) };
+				}
 			}
 			const written: SettingsRead = {
-				...saved.settings,
+				...settings,
 				trackers: saved.trackers,
 				projects: saved.projects,
 			};
@@ -225,6 +239,9 @@ export function useSaveSettings({ refetchProjects = true } = {}) {
 			if (refetchProjects) {
 				void queries.invalidateQueries({ queryKey: ["project"] });
 			}
+		},
+		onSettled: (_saved, _error, patch) => {
+			optimisticPatches.delete(patch);
 		},
 	});
 }
