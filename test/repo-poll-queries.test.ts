@@ -14,7 +14,11 @@ import {
 	unrecorded,
 } from "./support.ts";
 
-type Sent = { operation: string; query: string };
+type Sent = {
+	operation: string;
+	query: string;
+	variables: Record<string, unknown>;
+};
 
 type Answer = (sent: Sent, earlier: Sent[]) => unknown;
 
@@ -27,13 +31,21 @@ const refused = {
 	],
 };
 
+const issueIds = ["issue:acme/widget#101", "issue:acme/widget#102"];
+const pullIds = ["pull:acme/widget#1", "pull:acme/widget#2"];
+const mergedId = "pull:acme/widget#90";
+
 async function readOverview(base: string): Promise<Overview> {
 	return (await (
 		await fetch(new URL("/api/overview", base))
 	).json()) as Overview;
 }
 
-function repoRead(pullUpdatedAt: string): unknown {
+/**
+ * The recorded `acme/widget` read with each PR at `pullUpdatedAt`. An
+ * incremental read lists no issue, as GitHub does when none changed.
+ */
+function repoRead(sent: Sent, pullUpdatedAt = "2026-08-18T11:00:00Z") {
 	const body = structuredClone(recordedRepoRead);
 	for (const pull of [
 		...body.data.repository.openPullRequests.nodes,
@@ -41,12 +53,19 @@ function repoRead(pullUpdatedAt: string): unknown {
 	]) {
 		Object.assign(pull, { updatedAt: pullUpdatedAt });
 	}
+	if (sent.variables.since !== null && sent.variables.since !== undefined) {
+		body.data.repository.issues.nodes = [];
+	}
 	return body;
 }
 
 /** The repo read that lists issues and PRs, not the auto-merge read. */
 function listsRepo(sent: Sent): boolean {
 	return sent.operation === "RepoRead" && sent.query.includes("issues(");
+}
+
+function ofOperation(sent: Sent[], operation: string): Sent[] {
+	return sent.filter((item) => item.operation === operation);
 }
 
 /**
@@ -72,10 +91,19 @@ async function poll(
 			return unrecorded(input, init);
 		}
 		const operation = request.query.match(/^\s*query\s+(\w+)/)?.[1] ?? "";
-		const query = { operation, query: request.query };
+		const query = {
+			operation,
+			query: request.query,
+			variables: request.variables,
+		};
 		const earlier = [...sent];
 		sent.push(query);
-		const body = answer(query, earlier);
+		const body =
+			answer(query, earlier) ??
+			(operation === "RepoRead" ? repoRead(query) : undefined);
+		if (body instanceof Response) {
+			return body;
+		}
 		return body === undefined
 			? new Response("not recorded", { status: 404 })
 			: Response.json(body);
@@ -120,9 +148,6 @@ async function poll(
 	}
 }
 
-const recordedAnswer: Answer = (sent) =>
-	sent.operation === "RepoRead" ? repoRead("2026-08-18T11:00:00Z") : undefined;
-
 /** Names each connection of 100 or more that sits inside another one. */
 function nestedHundreds(query: string): string[] {
 	const found: string[] = [];
@@ -149,54 +174,117 @@ function widget(overview: Overview) {
 	return overview.projects.find((project) => project.name === "acme/widget");
 }
 
+/** A recorded read whose PR 1 has a second page of reviews. */
+function pagedReviews(sent: Sent, pullUpdatedAt?: string) {
+	const body = repoRead(sent, pullUpdatedAt);
+	const pull = body.data.repository.openPullRequests.nodes[0];
+	if (pull !== undefined) {
+		Object.assign(pull, {
+			reviews: {
+				nodes: [],
+				pageInfo: { hasNextPage: true, endCursor: "review-2" },
+			},
+		});
+	}
+	return body;
+}
+
+const secondReviewPage = {
+	data: {
+		c0: {
+			reviews: {
+				nodes: [
+					{
+						author: { login: "lev" },
+						commit: { oid: "later" },
+						state: "COMMENTED",
+					},
+				],
+				pageInfo: { hasNextPage: false, endCursor: null },
+			},
+		},
+	},
+};
+
 describe("repo poll queries", () => {
 	test("no poll query nests a connection of 100 inside a connection of 100", async () => {
-		const { overview, sent } = await poll(recordedAnswer);
+		const { overview, sent } = await poll((item) =>
+			item.operation === "RepoPages" ? secondReviewPage : undefined,
+		);
 		expect(sent.flatMap((item) => nestedHundreds(item.query))).toEqual([]);
 		expect(widget(overview)?.error).toBeNull();
 		expect(sent.map((item) => item.operation)).toEqual([
 			"RepoRead",
 			"RepoLists",
 		]);
-		const lists = sent.find((item) => item.operation === "RepoLists");
-		expect(lists?.query).toContain("i101: issue(number: 101)");
-		expect(lists?.query).toContain("p1: pullRequest(number: 1)");
-		expect(lists?.query).toContain("p90: pullRequest(number: 90)");
+		const lists = ofOperation(sent, "RepoLists")[0];
+		expect(lists?.query).toContain("full: nodes(ids: $full)");
+		expect(lists?.variables).toEqual({
+			full: [...issueIds, ...pullIds, mergedId],
+			live: [...pullIds, mergedId],
+		});
 	});
 
-	test("a second poll reads the lists of a PR again only when its updatedAt changed", async () => {
+	test("the continuation pages of many items go in one RepoPages read", async () => {
+		const { overview, sent } = await poll((item) => {
+			if (listsRepo(item)) {
+				const body = pagedReviews(item);
+				for (const pull of body.data.repository.openPullRequests.nodes) {
+					Object.assign(pull, {
+						reviews: {
+							nodes: [],
+							pageInfo: { hasNextPage: true, endCursor: "review-2" },
+						},
+					});
+				}
+				return body;
+			}
+			if (item.operation === "RepoPages") {
+				const page = secondReviewPage.data.c0;
+				return { data: { c0: page, c1: page } };
+			}
+			return undefined;
+		});
+		expect(widget(overview)?.error).toBeNull();
+		const pages = ofOperation(sent, "RepoPages");
+		expect(pages).toHaveLength(1);
+		expect(pages[0]?.variables).toEqual({
+			id0: pullIds[0],
+			after0: "review-2",
+			id1: pullIds[1],
+			after1: "review-2",
+		});
+		expect(sent.flatMap((item) => nestedHundreds(item.query))).toEqual([]);
+	});
+
+	test("a later poll reads the lists of an item again only when its updatedAt changed", async () => {
 		let reads = 0;
 		const { sent } = await poll((item) => {
-			if (item.operation !== "RepoRead") {
-				return undefined;
-			}
 			if (!listsRepo(item)) {
-				return repoRead("2026-08-18T11:00:00Z");
+				return undefined;
 			}
 			reads += 1;
 			return repoRead(
+				item,
 				reads === 1 ? "2026-08-18T11:00:00Z" : "2026-08-18T11:30:00Z",
 			);
 		}, 3);
-		const lists = sent
-			.filter((item) => item.operation === "RepoLists")
-			.map((item) => item.query);
-		expect(lists).toHaveLength(3);
-		expect(lists[0]).toContain("p1: pullRequest(number: 1)");
-		expect(lists[1]).toContain("p1: pullRequest(number: 1)");
-		expect(lists[2]).not.toContain("pullRequest(");
-		expect(lists[2]).toContain("i101: issue(number: 101)");
+		expect(
+			ofOperation(sent, "RepoLists").map((item) => item.variables),
+		).toEqual([
+			{
+				full: [...issueIds, ...pullIds, mergedId],
+				live: [...pullIds, mergedId],
+			},
+			{ full: [...pullIds, mergedId], live: [...pullIds, mergedId] },
+			{ full: [], live: pullIds },
+		]);
 	});
 
 	test("a repo read that GitHub refuses for its cost retries once with half the page size", async () => {
-		const { overview, sent } = await poll((item, earlier) => {
-			if (item.operation !== "RepoRead") {
-				return undefined;
-			}
-			return !listsRepo(item) || earlier.some(listsRepo)
-				? repoRead("2026-08-18T11:00:00Z")
-				: refused;
-		});
+		const { overview, sent } = await poll((item, earlier) =>
+			listsRepo(item) && !earlier.some(listsRepo) ? refused : undefined,
+		);
 		const reads = sent.filter(listsRepo);
 		expect(reads).toHaveLength(2);
 		expect(reads[0]?.query).toContain("issues(first: 100");
@@ -210,37 +298,101 @@ describe("repo poll queries", () => {
 	});
 
 	test("a list read that GitHub refuses for its cost retries once with half the page size", async () => {
-		const { overview, sent } = await poll((item, earlier) => {
-			if (item.operation === "RepoRead") {
-				return repoRead("2026-08-18T11:00:00Z");
-			}
-			if (
-				item.operation === "RepoLists" &&
-				!earlier.some((before) => before.operation === "RepoLists")
-			) {
-				return refused;
-			}
-			return undefined;
-		});
-		const lists = sent.filter((item) => item.operation === "RepoLists");
+		const { overview, sent } = await poll((item, earlier) =>
+			item.operation === "RepoLists" &&
+			ofOperation(earlier, "RepoLists").length === 0
+				? refused
+				: undefined,
+		);
+		const lists = ofOperation(sent, "RepoLists");
 		expect(lists).toHaveLength(2);
 		expect(lists[0]?.query).toContain("comments(first: 100");
 		expect(lists[1]?.query).toContain("comments(first: 50");
 		expect(widget(overview)?.error).toBeNull();
 	});
 
-	test("a repo read that GitHub refuses twice reports the failure", async () => {
+	test("a continuation page that GitHub refuses after a first page retries once with half the page size", async () => {
 		const { overview, sent } = await poll((item, earlier) => {
-			if (item.operation !== "RepoRead") {
+			if (listsRepo(item)) {
+				return pagedReviews(item);
+			}
+			if (item.operation !== "RepoPages") {
 				return undefined;
 			}
-			return listsRepo(item) && earlier.some(listsRepo)
+			return ofOperation(earlier, "RepoPages").length === 0
 				? refused
-				: repoRead("2026-08-18T11:00:00Z");
-		}, 2);
+				: secondReviewPage;
+		});
+		const pages = ofOperation(sent, "RepoPages");
+		expect(pages).toHaveLength(2);
+		expect(pages[0]?.query).toContain("reviews(first: 100, after: $after0)");
+		expect(pages[1]?.query).toContain("reviews(first: 50, after: $after0)");
+		expect(widget(overview)?.error).toBeNull();
+	});
+
+	test("a repo read that GitHub refuses twice reports the failure", async () => {
+		const { overview, sent } = await poll(
+			(item, earlier) =>
+				listsRepo(item) && earlier.some(listsRepo) ? refused : undefined,
+			2,
+		);
 		expect(sent.filter(listsRepo)).toHaveLength(3);
 		expect(widget(overview)?.error).toContain(
 			"Resource limits for this query exceeded",
 		);
+	});
+
+	test("a list read with a missing node fails the poll and keeps the stored rows", async () => {
+		const { overview } = await poll(
+			(item, earlier) =>
+				item.operation === "RepoLists" &&
+				ofOperation(earlier, "RepoLists").length > 0
+					? {
+							data: { full: [null], live: [null] },
+							errors: [{ message: "Could not resolve to a node" }],
+						}
+					: undefined,
+			2,
+		);
+		expect(widget(overview)?.error).toContain("Could not resolve to a node");
+		expect(widget(overview)?.tickets.map((ticket) => ticket.key)).toEqual([
+			"acme/widget#101",
+			"acme/widget#102",
+		]);
+	});
+
+	test("a continuation page that fails fails the poll", async () => {
+		const { overview } = await poll((item, earlier) => {
+			if (listsRepo(item)) {
+				return earlier.some(listsRepo)
+					? pagedReviews(item, "2026-08-18T11:30:00Z")
+					: undefined;
+			}
+			return item.operation === "RepoPages"
+				? new Response("recorded failure", { status: 500 })
+				: undefined;
+		}, 2);
+		expect(widget(overview)?.error).toContain("HTTP 500");
+	});
+
+	test("the poll after a failed continuation page reads those lists again", async () => {
+		const { overview, sent } = await poll((item, earlier) => {
+			if (listsRepo(item)) {
+				return earlier.some(listsRepo)
+					? pagedReviews(item, "2026-08-18T11:30:00Z")
+					: undefined;
+			}
+			if (item.operation !== "RepoPages") {
+				return undefined;
+			}
+			return ofOperation(earlier, "RepoPages").length === 0
+				? new Response("recorded failure", { status: 500 })
+				: secondReviewPage;
+		}, 3);
+		expect(widget(overview)?.error).toBeNull();
+		const lists = ofOperation(sent, "RepoLists").map((item) => item.variables);
+		expect(lists[1]?.full).toEqual([...pullIds, mergedId]);
+		expect(lists[2]?.full).toEqual([...pullIds, mergedId]);
+		expect(ofOperation(sent, "RepoPages")).toHaveLength(2);
 	});
 });

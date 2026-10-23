@@ -5,15 +5,12 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { projectBoard } from "./review-board.ts";
-import { connection, page } from "./review-github-fake.ts";
+import { page } from "./review-github-fake.ts";
 import { pull, repo } from "./review-support.ts";
 import {
 	emptyProjectFields,
-	githubIssueNode,
-	githubPullNode,
 	linearFake,
 	recordedDiscovery,
-	repoReadIssues,
 	settledOverview,
 	tempConfig,
 	testIo,
@@ -249,37 +246,4 @@ describe("skipped linked PRs", () => {
 			);
 		},
 	);
-
-	test("a GitHub repo skips a linked PR with a broken review page until the next good poll", async () => {
-		const board = projectBoard();
-		const issues = [8, 9].map((number) =>
-			githubIssueNode({ number, title: `Ticket ${number}` }),
-		);
-		const pulledReviews = (number: number) => ({
-			...connection([]),
-			pageInfo: { hasNextPage: true, endCursor: `review-${number}` },
-		});
-		await skippedThenShown(
-			{ tracked: [{ tracker: "github", repo }] },
-			async (input, init) => {
-				const sent = typeof init?.body === "string" ? init.body : "";
-				if (sent.includes("query RepoRead")) {
-					const pulls = [83, 84].map((number) => ({
-						...githubPullNode(pull(number, number - 75)),
-						reviews: pulledReviews(number),
-					}));
-					return page(repoReadIssues("acme", "widget", issues, { pulls }));
-				}
-				if (sent.includes("query NestedReview")) {
-					return page({
-						data: {
-							repository: { pullRequest: { reviews: connection([]) } },
-						},
-					});
-				}
-				return board(input, init);
-			},
-			{ GITHUB_TOKEN: "recorded-token" },
-		);
-	});
 });

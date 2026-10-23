@@ -694,7 +694,7 @@ describe("batched GitHub reads", () => {
 				return body;
 			},
 		);
-		expect(github.filter((url) => url.endsWith("/graphql")).length).toBe(4);
+		expect(github.filter((url) => url.endsWith("/graphql")).length).toBe(5);
 		expect(
 			needsYou.find((item) => item.key === "acme/widget#101")?.pull?.review,
 		).toBe("completed");

@@ -1716,25 +1716,14 @@ type RepoIncludes = {
 	edited: boolean;
 };
 
-const pullNodeFields = `number title url isDraft body state mergedAt updatedAt headRefName headRefOid
+const closingSelection = `nodes { number } ${connectionPage}`;
+
+const pullNodeFields = `id number title url isDraft body state mergedAt updatedAt headRefName headRefOid
 				autoMergeRequest { enabledAt }
 				commits(last: 1) { nodes { commit { committedDate } } }
-				closingIssuesReferences(first: 10, userLinkedOnly: true) {
-					nodes { number }
-					${connectionPage}
-				}
-				reactions(first: ${nestedPageSize}) {
-					nodes { user { login } content createdAt }
-					${connectionPage}
-				}
-				statusCheckRollup {
-					contexts(first: ${nestedPageSize}) {
-						nodes { ... on CheckRun { name status conclusion } }
-						${connectionPage}
-					}
-				}`;
+				closingIssuesReferences(first: 10, userLinkedOnly: true) { ${closingSelection} }`;
 
-const issueNodeFields = issueTicketFields(nestedPageSize);
+const issueNodeFields = `id ${issueTicketFields(nestedPageSize)}`;
 
 function repoReadQuery(include: RepoIncludes, size: number): string {
 	const variables = [
@@ -1803,51 +1792,55 @@ function repoReadQuery(include: RepoIncludes, size: number): string {
 }`;
 }
 
-/** One issue or PR whose comments, and for a PR reviews, the poll reads. */
-type ListRead = { kind: "issue" | "pull"; number: number };
+const issueCommentSelection = `nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } } ${connectionPage}`;
 
-const listsPerBatch = 40;
+const pullCommentSelection = `nodes { author { login } body createdAt reactions { totalCount } } ${connectionPage}`;
 
-const listWeight = { issue: 1, pull: 2 } as const;
+const reviewSelection = `nodes { author { login } commit { oid } state } ${connectionPage}`;
 
-const listAlias = { issue: "i", pull: "p" } as const;
+const reactionSelection = `nodes { user { login } content createdAt } ${connectionPage}`;
 
-const listField = { issue: "issue", pull: "pullRequest" } as const;
+const checkSelection = `nodes { ... on CheckRun { name status conclusion } } ${connectionPage}`;
 
-function listFields(read: ListRead, size: number): string {
-	if (read.kind === "issue") {
-		return `comments(first: ${size}) {
-				nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } }
-				${connectionPage}
-			}`;
+const labelSelection = `nodes { name } ${connectionPage}`;
+
+const dependencySelection = `nodes { number title state repository { nameWithOwner } } ${connectionPage}`;
+
+/**
+ * Reads lists by node id. `full` takes the comments, and a PR's reviews, of
+ * each changed item. `live` takes a PR's reactions and checks, which change
+ * with no change to the PR's `updatedAt`.
+ */
+function repoListsQuery(size: number): string {
+	return `query RepoLists($full: [ID!]!, $live: [ID!]!) {
+	full: nodes(ids: $full) {
+		... on Issue { id comments(first: ${size}) { ${issueCommentSelection} } }
+		... on PullRequest {
+			id
+			reviews(first: ${size}) { ${reviewSelection} }
+			comments(first: ${size}) { ${pullCommentSelection} }
+		}
 	}
-	return `reviews(first: ${size}) {
-				nodes { author { login } commit { oid } state }
-				${connectionPage}
-			}
-			comments(first: ${size}) {
-				nodes { author { login } body createdAt reactions { totalCount } }
-				${connectionPage}
-			}`;
-}
-
-function repoListsQuery(reads: ListRead[], size: number): string {
-	const parts = reads.map(
-		(read) =>
-			`${listAlias[read.kind]}${read.number}: ${listField[read.kind]}(number: ${read.number}) {
-			${listFields(read, size)}
-		}`,
-	);
-	return `query RepoLists($owner: String!, $name: String!) {
-	repository(owner: $owner, name: $name) {
-		${parts.join("\n\t\t")}
+	live: nodes(ids: $live) {
+		... on PullRequest {
+			id
+			reactions(first: ${size}) { ${reactionSelection} }
+			statusCheckRollup { contexts(first: ${size}) { ${checkSelection} } }
+		}
 	}
 }`;
 }
 
-const graphqlIssueNode = githubIssue.extend({
-	comments: graphqlConnection(graphqlComment).optional(),
-});
+/** Ids with comment lists in one `RepoLists` request. */
+const fullPerBatch = 40;
+
+/** Ids with reaction and check lists in one `RepoLists` request. */
+const livePerBatch = 50;
+
+/** Continuation pages in one `RepoPages` request. */
+const pagesPerBatch = 20;
+
+const graphqlIssueNode = githubIssue.extend({ id: z.string() });
 
 const checkConclusion = z.enum([
 	"ACTION_REQUIRED",
@@ -1890,6 +1883,7 @@ const reactionContent = z.enum([
 ]);
 
 const graphqlPullNode = z.object({
+	id: z.string(),
 	number: z.number(),
 	title: z.string(),
 	url: z.string(),
@@ -1911,51 +1905,58 @@ const graphqlPullNode = z.object({
 	closingIssuesReferences: graphqlConnection(
 		z.object({ number: z.number() }),
 	).optional(),
-	reactions: graphqlConnection(
-		z.object({
-			user: graphqlActor.optional(),
-			content: reactionContent,
-			createdAt: z.string().optional(),
-		}),
-	).optional(),
-	statusCheckRollup: z
-		.object({
-			contexts: graphqlConnection(
-				z.object({
-					name: z.string().optional(),
-					status: checkStatus.optional(),
-					conclusion: checkConclusion.nullable().optional(),
-				}),
-			),
-		})
-		.nullable()
-		.optional(),
 });
 
-const graphqlPullLists = graphqlPullNode
-	.pick({
-		reactions: true,
-		statusCheckRollup: true,
-	})
-	.extend({
-		reviews: graphqlConnection(
-			z.object({
-				author: graphqlActor.optional(),
-				commit: z.object({ oid: z.string() }).nullable().optional(),
-				state: reviewStateGraphql,
-			}),
-		).optional(),
-		comments: graphqlConnection(
-			z.object({
-				author: graphqlActor.optional(),
-				body: z.string().nullable().optional(),
-				createdAt: z.string().optional(),
-				reactions: z.object({ totalCount: z.number() }).optional(),
-			}),
-		).optional(),
-	});
+const graphqlReview = z.object({
+	author: graphqlActor.optional(),
+	commit: z.object({ oid: z.string() }).nullable().optional(),
+	state: reviewStateGraphql,
+});
 
-type PullLists = z.infer<typeof graphqlPullLists>;
+const graphqlPullComment = z.object({
+	author: graphqlActor.optional(),
+	body: z.string().nullable().optional(),
+	createdAt: z.string().optional(),
+	reactions: z.object({ totalCount: z.number() }).optional(),
+});
+
+const graphqlReaction = z.object({
+	user: graphqlActor.optional(),
+	content: reactionContent,
+	createdAt: z.string().optional(),
+});
+
+const graphqlCheck = z.object({
+	name: z.string().optional(),
+	status: checkStatus.optional(),
+	conclusion: checkConclusion.nullable().optional(),
+});
+
+const fullIssueLists = z.object({
+	id: z.string(),
+	comments: graphqlConnection(graphqlComment),
+});
+
+const fullPullLists = z.object({
+	id: z.string(),
+	reviews: graphqlConnection(graphqlReview),
+	comments: graphqlConnection(graphqlPullComment),
+});
+
+const livePullLists = z.object({
+	id: z.string(),
+	reactions: graphqlConnection(graphqlReaction),
+	statusCheckRollup: z
+		.object({ contexts: graphqlConnection(graphqlCheck) })
+		.nullable(),
+});
+
+type PullLists = {
+	reviews?: z.infer<typeof fullPullLists>["reviews"] | undefined;
+	comments?: z.infer<typeof fullPullLists>["comments"] | undefined;
+	reactions?: z.infer<typeof livePullLists>["reactions"] | undefined;
+	statusCheckRollup?: z.infer<typeof livePullLists>["statusCheckRollup"];
+};
 
 const graphqlLabelNode = z.object({ name: z.string(), color: z.string() });
 
@@ -2057,6 +2058,52 @@ function resourceLimited(body: unknown): boolean {
 	);
 }
 
+/**
+ * Sends one poll query at the full page size. A query that GitHub refuses for
+ * its cost goes again once at half the page size. A 404 gives null.
+ */
+async function postPollQuery(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	build: (size: number) => { query: string; variables: object },
+	size = pageSize,
+): Promise<unknown> {
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify(build(size)),
+	});
+	if (response.status === 404) {
+		return null;
+	}
+	if (!response.ok) {
+		throw new Error(
+			`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
+		);
+	}
+	const body: unknown = await response.json();
+	if (size === pageSize && resourceLimited(body)) {
+		return postPollQuery(token, fetchImpl, repo, build, pageSize / 2);
+	}
+	return body;
+}
+
+const pollPage = z.object({ data: z.record(z.string(), z.unknown()) });
+
+/** The data of a poll query, or a failure for any GraphQL error. */
+function pollData(body: unknown, repo: string): Record<string, unknown> {
+	const error = graphqlErrors.safeParse(body).data?.errors[0]?.message;
+	if (error !== undefined) {
+		throw new Error(`GitHub read repo failed: ${error}`);
+	}
+	const parsed = pollPage.safeParse(body);
+	if (!parsed.success) {
+		throw new Error(`GitHub read repo failed: ${repo}`);
+	}
+	return parsed.data.data;
+}
+
 async function readRepoPage(
 	token: string,
 	fetchImpl: Fetch,
@@ -2064,7 +2111,6 @@ async function readRepoPage(
 	since: Date | null,
 	cursors: PageCursors,
 	include: RepoIncludes,
-	size = pageSize,
 ): Promise<RepoReadPage | null> {
 	const parts = repoParts(repo);
 	if (parts === null) {
@@ -2092,33 +2138,12 @@ async function readRepoPage(
 		variables.afterEdited = cursors.edited;
 		variables.editedQuery = `repo:${repo} is:issue updated:>=${sinceStamp}`;
 	}
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify({
-			query: repoReadQuery(include, size),
-			variables,
-		}),
-	});
-	if (response.status === 404) {
+	const body = await postPollQuery(token, fetchImpl, repo, (size) => ({
+		query: repoReadQuery(include, size),
+		variables,
+	}));
+	if (body === null) {
 		return null;
-	}
-	if (!response.ok) {
-		throw new Error(
-			`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-		);
-	}
-	const body: unknown = await response.json();
-	if (size === pageSize && resourceLimited(body)) {
-		return readRepoPage(
-			token,
-			fetchImpl,
-			repo,
-			since,
-			cursors,
-			include,
-			pageSize / 2,
-		);
 	}
 	const parsed = repoReadPage.safeParse(body);
 	if (!parsed.success) {
@@ -2143,9 +2168,10 @@ async function readRepoPage(
 function ticketFromGraphql(
 	issue: z.infer<typeof graphqlIssueNode>,
 	repo: string,
+	listed: IssueComments["nodes"],
 ): Ticket {
 	const state = issue.state.toLowerCase();
-	const comments = (issue.comments?.nodes ?? []).flatMap((comment) => {
+	const comments = listed.flatMap((comment) => {
 		if (comment === undefined || state !== "open") {
 			return [];
 		}
@@ -2410,400 +2436,169 @@ async function collectConnection<T>(
 	return nodes;
 }
 
-const nestedReviewQuery = `query NestedReview($owner: String!, $name: String!, $number: Int!, $afterReviews: String, $afterComments: String, $afterReactions: String, $afterContexts: String, $afterClosing: String) {
-	repository(owner: $owner, name: $name) {
-		pullRequest(number: $number) {
-			reviews(first: ${pageSize}, after: $afterReviews) {
-				nodes { author { login } commit { oid } state }
-				${connectionPage}
-			}
-			comments(first: ${pageSize}, after: $afterComments) {
-				nodes { author { login } body createdAt reactions { totalCount } }
-				${connectionPage}
-			}
-			reactions(first: ${pageSize}, after: $afterReactions) {
-				nodes { user { login } content createdAt }
-				${connectionPage}
-			}
-			closingIssuesReferences(first: 10, after: $afterClosing, userLinkedOnly: true) {
-				nodes { number }
-				${connectionPage}
-			}
-			statusCheckRollup {
-				contexts(first: ${pageSize}, after: $afterContexts) {
-					nodes { ... on CheckRun { name status conclusion } }
-					${connectionPage}
-				}
-			}
-		}
+function chunked<T>(items: T[], size: number): T[][] {
+	const chunks: T[][] = [];
+	for (let start = 0; start < items.length; start += size) {
+		chunks.push(items.slice(start, start + size));
 	}
-}`;
-
-const nestedReviewPage = z.object({
-	data: z.object({
-		repository: z
-			.object({
-				pullRequest: graphqlPullLists
-					.extend({
-						closingIssuesReferences:
-							graphqlPullNode.shape.closingIssuesReferences,
-					})
-					.nullable(),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
-});
-
-async function pageNestedReviews(
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	pull: z.infer<typeof graphqlPullNode>,
-	lists: PullLists,
-): Promise<void> {
-	const parts = repoParts(repo);
-	if (parts === null) {
-		return;
-	}
-	const pending = {
-		reviews: nextCursor(lists.reviews),
-		comments: nextCursor(lists.comments),
-		reactions: nextCursor(lists.reactions),
-		contexts: nextCursor(lists.statusCheckRollup?.contexts),
-		closing:
-			pull.closingIssuesReferences === undefined
-				? null
-				: nextCursor(pull.closingIssuesReferences),
-	};
-	while (
-		pending.reviews !== null ||
-		pending.comments !== null ||
-		pending.reactions !== null ||
-		pending.contexts !== null ||
-		pending.closing !== null
-	) {
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: nestedReviewQuery,
-				variables: {
-					owner: parts.owner,
-					name: parts.name,
-					number: pull.number,
-					afterReviews: pending.reviews,
-					afterComments: pending.comments,
-					afterReactions: pending.reactions,
-					afterContexts: pending.contexts,
-					afterClosing: pending.closing,
-				},
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		const parsed = nestedReviewPage.safeParse(await response.json());
-		const next = parsed.success
-			? parsed.data.data.repository?.pullRequest
-			: null;
-		if (!parsed.success || next === null || next === undefined) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
-		}
-		if (parsed.data.errors?.[0] !== undefined) {
-			throw new Error(
-				`GitHub read repo failed: ${parsed.data.errors[0].message}`,
-			);
-		}
-		if (pending.reviews !== null) {
-			lists.reviews?.nodes.push(...(next.reviews?.nodes ?? []));
-			pending.reviews = nextCursor(next.reviews);
-		}
-		if (pending.comments !== null) {
-			lists.comments?.nodes.push(...(next.comments?.nodes ?? []));
-			pending.comments = nextCursor(next.comments);
-		}
-		if (pending.reactions !== null) {
-			lists.reactions?.nodes.push(...(next.reactions?.nodes ?? []));
-			pending.reactions = nextCursor(next.reactions);
-		}
-		if (pending.closing !== null) {
-			pull.closingIssuesReferences?.nodes.push(
-				...(next.closingIssuesReferences?.nodes ?? []),
-			);
-			pending.closing = nextCursor(next.closingIssuesReferences);
-		}
-		if (pending.contexts !== null) {
-			const contexts = lists.statusCheckRollup?.contexts;
-			contexts?.nodes.push(...(next.statusCheckRollup?.contexts.nodes ?? []));
-			pending.contexts = nextCursor(next.statusCheckRollup?.contexts);
-		}
-	}
+	return chunks;
 }
 
-async function pageIssueRelations(
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	issue: z.infer<typeof graphqlIssueNode>,
-): Promise<void> {
-	const parts = repoParts(repo);
-	if (parts === null) {
-		return;
-	}
-	const pending = {
-		blockedBy: nextCursor(issue.blockedBy),
-		blocking: nextCursor(issue.blocking),
-		labels: nextCursor(issue.labels),
-	};
-	while (
-		pending.blockedBy !== null ||
-		pending.blocking !== null ||
-		pending.labels !== null
-	) {
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: `query IssueRelations($owner: String!, $name: String!, $number: Int!, $afterBlockedBy: String, $afterBlocking: String, $afterLabels: String) {
-					repository(owner: $owner, name: $name) {
-						issue(number: $number) {
-							blockedBy(first: 20, after: $afterBlockedBy) {
-								nodes { number title state repository { nameWithOwner } }
-								${connectionPage}
-							}
-							blocking(first: 20, after: $afterBlocking) {
-								nodes { number title state repository { nameWithOwner } }
-								${connectionPage}
-							}
-							labels(first: ${pageSize}, after: $afterLabels) {
-								nodes { name color }
-								${connectionPage}
-							}
-						}
-					}
-				}`,
-				variables: {
-					owner: parts.owner,
-					name: parts.name,
-					number: issue.number,
-					afterBlockedBy: pending.blockedBy,
-					afterBlocking: pending.blocking,
-					afterLabels: pending.labels,
-				},
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		const parsed = z
-			.object({
-				data: z.object({
-					repository: z
-						.object({
-							issue: z
-								.object({
-									blockedBy: graphqlIssueNode.shape.blockedBy,
-									blocking: graphqlIssueNode.shape.blocking,
-									labels: graphqlIssueNode.shape.labels,
-								})
-								.nullable(),
-						})
-						.nullable(),
-				}),
-				errors: z.array(z.object({ message: z.string() })).optional(),
-			})
-			.safeParse(await response.json());
-		const next = parsed.success ? parsed.data.data.repository?.issue : null;
-		if (
-			!parsed.success ||
-			parsed.data.errors?.[0] !== undefined ||
-			next === null ||
-			next === undefined
-		) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
-		}
-		if (pending.blockedBy !== null) {
-			issue.blockedBy?.nodes.push(...(next.blockedBy?.nodes ?? []));
-			pending.blockedBy = nextCursor(next.blockedBy);
-		}
-		if (pending.blocking !== null) {
-			issue.blocking?.nodes.push(...(next.blocking?.nodes ?? []));
-			pending.blocking = nextCursor(next.blocking);
-		}
-		if (pending.labels !== null) {
-			issue.labels?.nodes.push(...(next.labels?.nodes ?? []));
-			pending.labels = nextCursor(next.labels);
-		}
-	}
-}
+const nodeId = z.object({ id: z.string() });
 
-async function pageIssueComments(
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	issue: z.infer<typeof graphqlIssueNode>,
-): Promise<void> {
-	const parts = repoParts(repo);
-	if (parts === null || nextCursor(issue.comments) === null) {
-		return;
-	}
-	let cursor = nextCursor(issue.comments);
-	while (cursor !== null) {
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: `query IssueComments($owner: String!, $name: String!, $number: Int!, $after: String) {
-					repository(owner: $owner, name: $name) {
-						issue(number: $number) {
-							comments(first: ${pageSize}, after: $after) {
-								nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } }
-								${connectionPage}
-							}
-						}
-					}
-				}`,
-				variables: {
-					owner: parts.owner,
-					name: parts.name,
-					number: issue.number,
-					after: cursor,
-				},
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-			);
-		}
-		const parsed = z
-			.object({
-				data: z.object({
-					repository: z
-						.object({
-							issue: z
-								.object({ comments: graphqlConnection(graphqlComment) })
-								.nullable(),
-						})
-						.nullable(),
-				}),
-			})
-			.safeParse(await response.json());
-		const comments = parsed.success
-			? parsed.data.data.repository?.issue?.comments
-			: undefined;
-		if (comments === undefined) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
-		}
-		issue.comments?.nodes.push(...comments.nodes);
-		cursor = nextCursor(comments);
-	}
-}
-
-const repoListsPage = z.object({
-	data: z.object({
-		repository: z.record(z.string(), z.unknown()).nullable(),
-	}),
-});
-
-async function readListBatch(
-	token: string,
-	fetchImpl: Fetch,
-	repo: string,
-	reads: ListRead[],
-	size = pageSize,
-): Promise<Record<string, unknown>> {
-	const parts = repoParts(repo);
-	if (parts === null) {
-		return {};
-	}
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify({
-			query: repoListsQuery(reads, size),
-			variables: { owner: parts.owner, name: parts.name },
-		}),
-	});
-	if (!response.ok) {
-		throw new Error(
-			`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-		);
-	}
-	const body: unknown = await response.json();
-	if (size === pageSize && resourceLimited(body)) {
-		return readListBatch(token, fetchImpl, repo, reads, pageSize / 2);
-	}
-	const repository = repoListsPage.safeParse(body).data?.data.repository;
-	if (repository === undefined || repository === null) {
-		const failed = graphqlErrors.safeParse(body);
-		throw new Error(
-			`GitHub read repo failed: ${failed.data?.errors[0]?.message ?? repo}`,
-		);
-	}
-	return repository;
-}
-
+/**
+ * Reads the `full` and `live` lists of each id with `nodes(ids:)` batches. A
+ * missing or other node fails the read, so no item loses its lists.
+ */
 async function readLists(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
-	reads: ListRead[],
-): Promise<Record<string, unknown>> {
-	const batches: ListRead[][] = [];
-	let batch: ListRead[] = [];
-	let lists = 0;
-	for (const read of reads) {
-		const weight = listWeight[read.kind];
-		if (lists + weight > listsPerBatch) {
-			batches.push(batch);
-			batch = [];
-			lists = 0;
+	ids: { full: string[]; live: string[] },
+): Promise<{ full: Map<string, unknown>; live: Map<string, unknown> }> {
+	const found = {
+		full: new Map<string, unknown>(),
+		live: new Map<string, unknown>(),
+	};
+	const full = chunked(ids.full, fullPerBatch);
+	const live = chunked(ids.live, livePerBatch);
+	for (let index = 0; index < Math.max(full.length, live.length); index += 1) {
+		const batch = { full: full[index] ?? [], live: live[index] ?? [] };
+		const data = pollData(
+			await postPollQuery(token, fetchImpl, repo, (size) => ({
+				query: repoListsQuery(size),
+				variables: batch,
+			})),
+			repo,
+		);
+		for (const kind of ["full", "live"] as const) {
+			const nodes = z.array(z.unknown()).safeParse(data[kind]).data ?? [];
+			batch[kind].forEach((id, at) => {
+				const node = nodes[at];
+				if (nodeId.safeParse(node).data?.id !== id) {
+					throw new Error(`GitHub read repo failed: ${repo}`);
+				}
+				found[kind].set(id, node);
+			});
 		}
-		batch.push(read);
-		lists += weight;
-	}
-	if (batch.length > 0) {
-		batches.push(batch);
-	}
-	const found: Record<string, unknown> = {};
-	for (const reads of batches) {
-		Object.assign(found, await readListBatch(token, fetchImpl, repo, reads));
 	}
 	return found;
 }
 
-const issueLists = z.object({
-	comments: graphqlConnection(graphqlComment).optional(),
-});
+/** One more page of a list that the poll has read only in part. */
+type PendingPage = {
+	id: string;
+	cursor: string;
+	selection: (size: number, after: string) => string;
+	accept: (node: unknown) => string | null;
+};
 
-/** The lists of a PR as the last full read saw them, at its `updatedAt`. */
-type StoredEvidence = { updatedAt: string; evidence: ReviewEvidence };
+type PagePath = {
+	type: "Issue" | "PullRequest";
+	field: string;
+	wrap?: string;
+	args?: string;
+};
 
-function pullListRead(
-	pull: z.infer<typeof graphqlPullNode>,
-	stored: StoredEvidence | undefined,
-): ListRead | null {
-	if (
-		pull.isDraft ||
-		(stored !== undefined && stored.updatedAt === pull.updatedAt)
-	) {
+const pageHolder = z.record(z.string(), z.unknown());
+
+function child(value: unknown, key: string): unknown {
+	return pageHolder.safeParse(value).data?.[key];
+}
+
+/** The next page of `path` on node `id`, or null when `target` is complete. */
+function pendingPage<Node extends z.ZodType>(
+	id: string,
+	path: PagePath,
+	selection: string,
+	node: Node,
+	target: z.infer<ReturnType<typeof graphqlConnection<Node>>> | undefined,
+): PendingPage | null {
+	const cursor = nextCursor(target);
+	if (target === undefined || cursor === null) {
 		return null;
 	}
-	return { kind: "pull", number: pull.number };
+	const connection = graphqlConnection(node);
+	return {
+		id,
+		cursor,
+		selection: (size, after) => {
+			const list = `${path.field}(first: ${size}, after: ${after}${path.args ?? ""}) { ${selection} }`;
+			return `... on ${path.type} { ${path.wrap === undefined ? list : `${path.wrap} { ${list} }`} }`;
+		},
+		accept: (data) => {
+			const holder = path.wrap === undefined ? data : child(data, path.wrap);
+			const parsed = connection.safeParse(child(holder, path.field));
+			if (!parsed.success) {
+				throw new Error(`GitHub read repo failed: ${path.field} of ${id}`);
+			}
+			target.nodes.push(...parsed.data.nodes);
+			return nextCursor(parsed.data);
+		},
+	};
 }
+
+function repoPagesQuery(pages: PendingPage[], size: number): string {
+	const variables = pages
+		.map((_, at) => `$id${at}: ID!, $after${at}: String!`)
+		.join(", ");
+	const parts = pages.map(
+		(page, at) =>
+			`c${at}: node(id: $id${at}) { ${page.selection(size, `$after${at}`)} }`,
+	);
+	return `query RepoPages(${variables}) {
+	${parts.join("\n\t")}
+}`;
+}
+
+/** Reads every pending page, many items per request, until each list ends. */
+async function readPages(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	pages: (PendingPage | null)[],
+): Promise<void> {
+	let open = pages.flatMap((page) => (page === null ? [] : [page]));
+	while (open.length > 0) {
+		const next: PendingPage[] = [];
+		for (const batch of chunked(open, pagesPerBatch)) {
+			const data = pollData(
+				await postPollQuery(token, fetchImpl, repo, (size) => ({
+					query: repoPagesQuery(batch, size),
+					variables: Object.fromEntries(
+						batch.flatMap((page, at) => [
+							[`id${at}`, page.id],
+							[`after${at}`, page.cursor],
+						]),
+					),
+				})),
+				repo,
+			);
+			batch.forEach((page, at) => {
+				const cursor = page.accept(data[`c${at}`]);
+				if (cursor !== null) {
+					next.push({ ...page, cursor });
+				}
+			});
+		}
+		open = next;
+	}
+}
+
+type IssueComments = z.infer<typeof fullIssueLists>["comments"];
+
+/** The lists of each item as the poll last read them, keyed by ticket key. */
+type StoredLists = {
+	issues: Map<string, { updatedAt: string; comments: IssueComments["nodes"] }>;
+	pulls: Map<string, { updatedAt: string; evidence: ReviewEvidence }>;
+};
 
 async function readRepo(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
 	since: Date | null,
-	stored: Map<string, StoredEvidence>,
+	stored: StoredLists,
 ): Promise<{
 	tickets: Ticket[];
 	pulls: PullRequest[];
@@ -2895,9 +2690,6 @@ async function readRepo(
 	const issueNodes = issues.flatMap((issue) =>
 		issue === undefined ? [] : [issue],
 	);
-	for (const issue of issueNodes) {
-		await pageIssueRelations(token, fetchImpl, repo, issue);
-	}
 	const openIssues = issueNodes.filter(
 		(issue) => issue.state.toLowerCase() === "open",
 	);
@@ -2907,72 +2699,173 @@ async function readRepo(
 	const mergedPullNodes = (first.mergedPullRequests?.nodes ?? []).flatMap(
 		(pull) => (pull === undefined || pull === null ? [] : [pull]),
 	);
-	const pullReads = new Map<number, ListRead>();
-	for (const pull of [...openPullNodes, ...mergedPullNodes]) {
-		const read = pullListRead(pull, stored.get(githubKey(repo, pull.number)));
-		if (read !== null) {
-			pullReads.set(pull.number, read);
+	const allPulls = [...openPullNodes, ...mergedPullNodes];
+	// An incremental read lists only the issues GitHub saw change, which
+	// includes an edited comment that leaves the issue's updatedAt as it was.
+	const changedIssues = openIssues.filter(
+		(issue) =>
+			since !== null ||
+			stored.issues.get(githubKey(repo, issue.number))?.updatedAt !==
+				issue.updatedAt,
+	);
+	const readable = allPulls.filter((pull) => !pull.isDraft);
+	const changedPulls = readable.filter((pull) => {
+		const kept = stored.pulls.get(githubKey(repo, pull.number));
+		return kept === undefined || kept.updatedAt !== pull.updatedAt;
+	});
+	const livePulls = readable.filter(
+		(pull) => pull.mergedAt == null || changedPulls.includes(pull),
+	);
+	const lists = await readLists(token, fetchImpl, repo, {
+		full: [...changedIssues, ...changedPulls].map((item) => item.id),
+		live: livePulls.map((pull) => pull.id),
+	});
+	const commentsById = new Map<string, IssueComments>();
+	for (const issue of changedIssues) {
+		const parsed = fullIssueLists.safeParse(lists.full.get(issue.id));
+		if (!parsed.success) {
+			throw new Error(`GitHub read repo failed: ${repo}`);
 		}
+		commentsById.set(issue.id, parsed.data.comments);
 	}
-	const lists = await readLists(token, fetchImpl, repo, [
-		...openIssues.map(
-			(issue): ListRead => ({
-				kind: "issue",
-				number: issue.number,
-			}),
-		),
-		...pullReads.values(),
+	const listsById = new Map<string, PullLists>();
+	for (const pull of changedPulls) {
+		const parsed = fullPullLists.safeParse(lists.full.get(pull.id));
+		if (!parsed.success) {
+			throw new Error(`GitHub read repo failed: ${repo}`);
+		}
+		listsById.set(pull.id, parsed.data);
+	}
+	for (const pull of livePulls) {
+		const parsed = livePullLists.safeParse(lists.live.get(pull.id));
+		if (!parsed.success) {
+			throw new Error(`GitHub read repo failed: ${repo}`);
+		}
+		listsById.set(pull.id, { ...listsById.get(pull.id), ...parsed.data });
+	}
+	await readPages(token, fetchImpl, repo, [
+		...issueNodes.flatMap((issue) => [
+			pendingPage(
+				issue.id,
+				{ type: "Issue", field: "labels" },
+				labelSelection,
+				z.object({ name: z.string() }),
+				issue.labels,
+			),
+			pendingPage(
+				issue.id,
+				{ type: "Issue", field: "blockedBy" },
+				dependencySelection,
+				graphqlDependency,
+				issue.blockedBy,
+			),
+			pendingPage(
+				issue.id,
+				{ type: "Issue", field: "blocking" },
+				dependencySelection,
+				graphqlDependency,
+				issue.blocking,
+			),
+			pendingPage(
+				issue.id,
+				{ type: "Issue", field: "comments" },
+				issueCommentSelection,
+				graphqlComment,
+				commentsById.get(issue.id),
+			),
+		]),
+		...allPulls.flatMap((pull) => {
+			const read = listsById.get(pull.id);
+			return [
+				pendingPage(
+					pull.id,
+					{
+						type: "PullRequest",
+						field: "closingIssuesReferences",
+						args: ", userLinkedOnly: true",
+					},
+					closingSelection,
+					z.object({ number: z.number() }),
+					pull.closingIssuesReferences,
+				),
+				pendingPage(
+					pull.id,
+					{ type: "PullRequest", field: "reviews" },
+					reviewSelection,
+					graphqlReview,
+					read?.reviews,
+				),
+				pendingPage(
+					pull.id,
+					{ type: "PullRequest", field: "comments" },
+					pullCommentSelection,
+					graphqlPullComment,
+					read?.comments,
+				),
+				pendingPage(
+					pull.id,
+					{ type: "PullRequest", field: "reactions" },
+					reactionSelection,
+					graphqlReaction,
+					read?.reactions,
+				),
+				pendingPage(
+					pull.id,
+					{
+						type: "PullRequest",
+						field: "contexts",
+						wrap: "statusCheckRollup",
+					},
+					checkSelection,
+					graphqlCheck,
+					read?.statusCheckRollup?.contexts,
+				),
+			];
+		}),
 	]);
-	for (const issue of openIssues) {
-		const comments = issueLists.safeParse(lists[`i${issue.number}`]).data
-			?.comments;
-		if (comments !== undefined) {
-			issue.comments = comments;
-			await pageIssueComments(token, fetchImpl, repo, issue);
-		}
-	}
-	const loadPull = async (pull: z.infer<typeof graphqlPullNode>) => {
+	const pullOf = (pull: z.infer<typeof graphqlPullNode>) => {
 		const key = githubKey(repo, pull.number);
-		const read = pullReads.has(pull.number)
-			? graphqlPullLists.safeParse(lists[`p${pull.number}`])
-			: null;
-		if (read?.success === false) {
-			return null;
-		}
-		const pullLists: PullLists = {
-			...read?.data,
-			reactions: pull.reactions,
-			statusCheckRollup: pull.statusCheckRollup,
+		const kept = stored.pulls.get(key)?.evidence ?? noEvidence;
+		const read = listsById.get(pull.id) ?? {};
+		const fresh = reviewFromGraphql(read);
+		const full = read.reviews !== undefined;
+		const live = read.reactions !== undefined;
+		const evidence: ReviewEvidence = {
+			comments: full ? fresh.comments : kept.comments,
+			reviews: full ? fresh.reviews : kept.reviews,
+			reactions: live ? fresh.reactions : kept.reactions,
+			checks: live ? fresh.checks : kept.checks,
 		};
-		await pageNestedReviews(token, fetchImpl, repo, pull, pullLists);
-		const fresh = reviewFromGraphql(pullLists);
-		if (read === null) {
-			const kept = stored.get(key)?.evidence ?? noEvidence;
-			return pullFromGraphql(pull, repo, {
-				...kept,
-				checks: fresh.checks,
-				reactions: fresh.reactions,
-			});
+		if (!pull.isDraft && pull.updatedAt !== undefined) {
+			stored.pulls.set(key, { updatedAt: pull.updatedAt, evidence });
 		}
-		if (pull.updatedAt !== undefined) {
-			stored.set(key, { updatedAt: pull.updatedAt, evidence: fresh });
-		}
-		return pullFromGraphql(pull, repo, fresh);
+		return pullFromGraphql(pull, repo, evidence);
 	};
-	const openPulls = await loadEachPull(openPullNodes, async (pull) => {
-		const mapped = await loadPull(pull);
-		return mapped?.merged === false ? mapped : null;
+	const openPulls = openPullNodes.flatMap((pull) => {
+		const mapped = pullOf(pull);
+		return mapped?.merged === false ? [mapped] : [];
 	});
-	const mergedKept = await loadEachPull(mergedPullNodes, async (pull) => {
-		const mapped = await loadPull(pull);
-		return mapped?.merged === true ? mapped : null;
+	const mergedKept = mergedPullNodes.flatMap((pull) => {
+		const mapped = pullOf(pull);
+		return mapped?.merged === true ? [mapped] : [];
 	});
+	for (const issue of openIssues) {
+		const key = githubKey(repo, issue.number);
+		const comments =
+			commentsById.get(issue.id)?.nodes ??
+			stored.issues.get(key)?.comments ??
+			[];
+		stored.issues.set(key, { updatedAt: issue.updatedAt, comments });
+		commentsById.set(issue.id, { nodes: comments });
+	}
 	const tickets = issueNodes
 		.filter((issue) => {
 			const state = issue.state.toLowerCase();
 			return state === "open" || state === "closed";
 		})
-		.map((issue) => ticketFromGraphql(issue, repo));
+		.map((issue) =>
+			ticketFromGraphql(issue, repo, commentsById.get(issue.id)?.nodes ?? []),
+		);
 	return {
 		tickets,
 		pulls: [...openPulls, ...mergedKept],
@@ -2990,7 +2883,7 @@ async function readRepo(
 
 export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 	const seenReviews = new Map<string, ReviewEvidence>();
-	const storedLists = new Map<string, StoredEvidence>();
+	const storedLists: StoredLists = { issues: new Map(), pulls: new Map() };
 	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
 	const projectItems = (projectId: string, projectOwner: string) => {
 		const cached = projectItemsById.get(projectId);
