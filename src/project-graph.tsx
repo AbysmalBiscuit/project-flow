@@ -28,6 +28,7 @@ import {
 	type TicketState,
 } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
+import { GraphCardChips } from "./graph-card-chips.tsx";
 import {
 	fitPadding,
 	float,
@@ -36,7 +37,6 @@ import {
 	legendFit,
 } from "./graph-float.tsx";
 import { projectNodeId } from "./graph-flow.ts";
-import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import { type Anchor, FitLayout, useLaidGraph } from "./graph-laid.tsx";
 import { focusLinks, focusSeeds } from "./graph-layout.ts";
 import type {
@@ -206,9 +206,11 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 					) : null}
 				</span>
 				<span className={clsx(board.title)}>{data.ticket.title}</span>
-				{data.hierarchyChips ? (
-					<HierarchyChips ticket={data.ticket} parentLabel={data.parentLabel} />
-				) : null}
+				<GraphCardChips
+					ticket={data.ticket}
+					parentLabel={data.parentLabel}
+					hierarchy={data.hierarchyChips}
+				/>
 				<Handle type="source" position={Position.Right} id="right" />
 				<Handle type="source" position={Position.Bottom} id="bottom" />
 			</button>

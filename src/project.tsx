@@ -15,6 +15,7 @@ import {
 	CardHierarchyChips,
 	Chip,
 	OutsideParentsContext,
+	ServerChips,
 } from "./card-chips.tsx";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
@@ -47,7 +48,6 @@ import { AppShell } from "./shell.tsx";
 import { toneOf } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
-	blockedLabel,
 	filterEmptyLabel,
 	groupByLabel,
 	type HidingFilter,
@@ -383,6 +383,7 @@ function Card({
 				<p className={clsx(board.title)}>{ticket.title}</p>
 				{local.length === 0 &&
 				outside.length === 0 &&
+				ticket.chips === undefined &&
 				ticket.parent === undefined &&
 				ticket.subTickets === undefined &&
 				!ticket.needsYou ? null : (
@@ -392,10 +393,11 @@ function Card({
 							onOpen={onOpen}
 							onOpenOutside={onOpenOutside}
 						/>
+						<ServerChips ticket={ticket} />
 						{local.map((blocker) => (
 							<Chip
 								key={blocker}
-								label={`${blockedLabel} by ${shortKey(blocker)}`}
+								label={shortKey(blocker)}
 								ticketKey={blocker}
 								onOpen={onOpen}
 							/>
@@ -786,6 +788,11 @@ function TableRow({
 			<td className={clsx(board.rowCell)}>
 				<span className={clsx(board.stateMark, toneOf(lane?.statusType))} />
 				{displayedLaneName(ticket)}
+				{ticket.chips === undefined ? null : (
+					<span className={clsx(board.links)}>
+						<ServerChips ticket={ticket} />
+					</span>
+				)}
 			</td>
 			<td className={clsx(board.rowCell)}>{ticket.pull ?? ""}</td>
 			<td className={clsx(board.rowCell)}>
