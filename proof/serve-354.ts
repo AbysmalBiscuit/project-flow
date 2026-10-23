@@ -25,6 +25,7 @@ function sdiTicket(
 	state: StateName,
 	parent: string | null,
 	blockers: string[] = [],
+	milestone = "Initial SDI",
 ): Record<string, unknown> {
 	const found = states.find((item) => item.name === state) ?? states[0];
 	return {
@@ -35,7 +36,7 @@ function sdiTicket(
 		updatedAt: "2026-10-21T12:00:00.000Z",
 		history: { nodes: [] },
 		parent: parent === null ? null : { identifier: parent },
-		projectMilestone: { name: "Initial SDI" },
+		projectMilestone: { name: milestone },
 		labels: { nodes: [] },
 		assignee: null,
 		attachments: { nodes: [] },
@@ -55,7 +56,8 @@ function sdiTicket(
 }
 
 // Invented tickets, because a proof run must not read a live tracker.
-// SDI-1 > SDI-2 > SDI-4 gives three nested parent ticket frames.
+// SDI-1 > SDI-2 > SDI-4 gives three nested parent ticket frames, and SDI-15
+// repeats the SDI-1 card as the head of a frame in the Search milestone.
 const issues = [
 	sdiTicket("SDI-1", "Stand up the SDI pipeline", "In Progress", null),
 	sdiTicket("SDI-2", "Ingest the source exports", "In Progress", "SDI-1"),
@@ -66,6 +68,7 @@ const issues = [
 	sdiTicket("SDI-5", "Publish the search index", "Backlog", "SDI-1", [
 		"SDI-14",
 	]),
+	sdiTicket("SDI-15", "Rank the search results", "Todo", "SDI-1", [], "Search"),
 	sdiTicket("SDI-9", "Write the SDI runbook", "Todo", null),
 	sdiTicket("SDI-10", "Move the SDI archive", "In Progress", null),
 	sdiTicket("SDI-11", "Copy the archive files", "Done", "SDI-10"),

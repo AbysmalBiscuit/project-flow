@@ -47,6 +47,7 @@ const linearTicket = (
 	state: "unstarted" | "completed",
 	parent: string | null,
 	blocks: string[] = [],
+	milestone = "Beta",
 ) => ({
 	id,
 	identifier: id,
@@ -54,7 +55,7 @@ const linearTicket = (
 	description: "",
 	state: { type: state },
 	updatedAt: "2026-10-21T12:00:00.000Z",
-	projectMilestone: { name: "Beta" },
+	projectMilestone: { name: milestone },
 	labels: { nodes: [] },
 	parent: parent === null ? null : { identifier: parent },
 	inverseRelations: {
@@ -88,7 +89,18 @@ const hierarchy = [
 	linearTicket("WID-20", "Write the runbook", "unstarted", null),
 ];
 
-async function hierarchyReport(search: string): Promise<ProjectReport> {
+// WID-1 and WID-2 sit in Beta, while the WID-3 chain below WID-1 sits in Gamma.
+const milestones = [
+	linearTicket("WID-1", "Ship the widget", "unstarted", null),
+	linearTicket("WID-2", "Paint the list", "unstarted", "WID-1"),
+	linearTicket("WID-3", "Sort the list", "unstarted", "WID-1", [], "Gamma"),
+	linearTicket("WID-4", "Sort by name", "unstarted", "WID-3", [], "Gamma"),
+];
+
+async function hierarchyReport(
+	search: string,
+	issues = hierarchy,
+): Promise<ProjectReport> {
 	let report: ProjectReport | null = null;
 	await withApp(
 		JSON.stringify({
@@ -101,7 +113,7 @@ async function hierarchyReport(search: string): Promise<ProjectReport> {
 				name: "Widget launch",
 				slugId: linearSlug,
 			},
-			issues: hierarchy,
+			issues,
 		}),
 		{ LINEAR_API_KEY: "recorded-linear-key" },
 		async (base) => {
@@ -319,6 +331,78 @@ describe("project graph layout", () => {
 				direction,
 				overlapping: [],
 				cardOverlaps: [],
+			});
+		}
+	});
+
+	test("a parent ticket heads a frame in each workstream that holds its sub-tickets", async () => {
+		const report = await hierarchyReport("", milestones);
+		const input = layoutInput(report, "workstream", []);
+		const ticketOf = new Map(input.cards.map((item) => [item.id, item]));
+		const frameOf = new Map(input.frames.map((frame) => [frame.id, frame]));
+		const shown = (id: string) => {
+			const item = ticketOf.get(id);
+			return `${item?.ticket ?? id} in ${item?.group ?? "no group"}`;
+		};
+		const holders = (frame: string | null): string[] => {
+			const found = frame === null ? undefined : frameOf.get(frame);
+			return found === undefined ? [] : [found.id, ...holders(found.parent)];
+		};
+		for (const direction of ["left-to-right", "top-to-bottom"] as const) {
+			const layout = await layoutGraph(
+				elk,
+				input,
+				direction,
+				card,
+				() => 0,
+				() => 0,
+			);
+			const stray = input.cards.flatMap((item) => {
+				const place = layout.cards.get(item.id);
+				const box = place === undefined ? undefined : { ...place, ...card };
+				const group = layout.groups.get(item.group ?? "");
+				return [
+					...holders(item.frame).map(
+						(frame) => [frame, layout.frames.get(frame)] as const,
+					),
+					[item.group, group] as const,
+				].flatMap(([holder, rect]) =>
+					box !== undefined && rect !== undefined && inside(box, rect)
+						? []
+						: [`${shown(item.id)} / ${holder}`],
+				);
+			});
+			expect({
+				direction,
+				frames: input.frames
+					.map((frame) => `${shown(frame.head)} / ${frame.group}`)
+					.sort(),
+				chains: input.cards
+					.map((item) =>
+						[
+							shown(item.id),
+							...holders(item.frame).map((frame) =>
+								shown(frameOf.get(frame)?.head ?? frame),
+							),
+						].join(" < "),
+					)
+					.sort(),
+				stray,
+			}).toEqual({
+				direction,
+				frames: [
+					`${cardOf("WID-1")} in ${groupId("Beta")} / ${groupId("Beta")}`,
+					`${cardOf("WID-1")} in ${groupId("Gamma")} / ${groupId("Gamma")}`,
+					`${cardOf("WID-3")} in ${groupId("Gamma")} / ${groupId("Gamma")}`,
+				].sort(),
+				chains: [
+					`${cardOf("WID-1")} in ${groupId("Beta")}`,
+					`${cardOf("WID-1")} in ${groupId("Gamma")}`,
+					`${cardOf("WID-2")} in ${groupId("Beta")} < ${cardOf("WID-1")} in ${groupId("Beta")}`,
+					`${cardOf("WID-3")} in ${groupId("Gamma")} < ${cardOf("WID-1")} in ${groupId("Gamma")}`,
+					`${cardOf("WID-4")} in ${groupId("Gamma")} < ${cardOf("WID-3")} in ${groupId("Gamma")} < ${cardOf("WID-1")} in ${groupId("Gamma")}`,
+				].sort(),
+				stray: [],
 			});
 		}
 	});

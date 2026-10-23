@@ -36,11 +36,20 @@ export type LayoutFrame = {
 };
 
 /**
- * The cards, groups, parent ticket frames and blocker arrows that the project
- * graph lays out. The `frame` of a card is the frame of its parent ticket.
+ * A card on the project graph. `ticket` is the node id of the ticket it shows:
+ * a parent ticket from another group shows again as a card of its own in each
+ * group that holds its sub-tickets. `frame` is the frame of its parent ticket.
  */
+export type LayoutCard = {
+	id: string;
+	ticket: string;
+	group: string | null;
+	frame: string | null;
+};
+
+/** The cards, groups, parent ticket frames and blocker arrows that the project graph lays out. */
 export type LayoutInput = {
-	cards: { id: string; group: string | null; frame: string | null }[];
+	cards: LayoutCard[];
 	groups: LayoutGroup[];
 	frames: LayoutFrame[];
 	edges: { from: string; to: string }[];
@@ -73,34 +82,67 @@ export function framesParents(groupBy: GroupBy): boolean {
 type Placed = { id: string; group: string | null; ticket: FlowTicket };
 
 /**
- * The parent ticket of each card, when both cards share a group. A link that
- * would close a parent cycle is dropped.
+ * The parent ticket card of each card. Each group frames its cards by their
+ * whole parent chain, with a copy of each parent ticket card from another
+ * group. A link that would close a parent cycle is dropped.
  */
-function parentLinks(placed: readonly Placed[]): Map<string, string> {
-	const idOfKey = new Map(
+function parentLinks(
+	placed: readonly Placed[],
+	hidden: ReadonlySet<string>,
+): {
+	links: Map<string, string>;
+	copies: Map<string, Placed & { of: string }>;
+} {
+	const byKey = new Map(
 		placed.flatMap((item) =>
 			item.ticket.outside ? [] : [[item.ticket.key.toLowerCase(), item]],
 		),
 	);
+	const parentOf = (item: Placed) =>
+		byKey.get(item.ticket.parent?.toLowerCase() ?? "");
 	const links = new Map<string, string>();
+	const copies = new Map<string, Placed & { of: string }>();
+	const encloses = (outer: string, inner: string): boolean => {
+		for (let at: string | undefined = outer; at !== undefined; ) {
+			if (at === inner) {
+				return true;
+			}
+			at = links.get(at);
+		}
+		return false;
+	};
 	for (const item of placed) {
-		const parent = idOfKey.get(item.ticket.parent?.toLowerCase() ?? "");
-		if (
-			item.ticket.outside ||
-			parent === undefined ||
-			parent.group !== item.group
-		) {
+		if (item.ticket.outside || hidden.has(item.id)) {
 			continue;
 		}
-		let above: string | undefined = parent.id;
-		while (above !== undefined && above !== item.id) {
-			above = links.get(above);
-		}
-		if (above === undefined) {
-			links.set(item.id, parent.id);
+		const cardIn = (ticket: Placed) =>
+			ticket.group === item.group
+				? ticket.id
+				: `${ticket.id}\nin\n${item.group ?? ""}`;
+		let lower = item;
+		for (
+			let upper = parentOf(lower);
+			upper !== undefined;
+			upper = parentOf(lower)
+		) {
+			const below = cardIn(lower);
+			const head = cardIn(upper);
+			if (links.has(below) || encloses(head, below)) {
+				break;
+			}
+			links.set(below, head);
+			if (head !== upper.id) {
+				copies.set(head, {
+					...upper,
+					id: head,
+					group: item.group,
+					of: upper.id,
+				});
+			}
+			lower = upper;
 		}
 	}
-	return links;
+	return { links, copies };
 }
 
 export function layoutInput(
@@ -126,35 +168,32 @@ export function layoutInput(
 		}
 		return { id, group, ticket };
 	});
-	const links = framed ? parentLinks(placed) : new Map<string, string>();
 	const hiddenParents = new Set(
 		report.graphParents.flatMap((ticket) =>
 			ticket.key === null ? [] : [projectNodeId(report.name, ticket.key)],
 		),
 	);
-	const heading = new Set<string>();
-	for (const item of placed) {
-		if (hiddenParents.has(item.id)) {
-			continue;
-		}
-		for (let above = links.get(item.id); above !== undefined; ) {
-			heading.add(above);
-			above = links.get(above);
-		}
-	}
-	const kept = placed.filter(
-		(item) => !hiddenParents.has(item.id) || heading.has(item.id),
-	);
+	const { links, copies } = framed
+		? parentLinks(placed, hiddenParents)
+		: { links: new Map<string, string>(), copies: new Map() };
+	const heading = new Set(links.values());
+	const laid = [
+		...placed
+			.filter((item) => !hiddenParents.has(item.id) || heading.has(item.id))
+			.map((item) => ({ ...item, of: item.id })),
+		...copies.values(),
+	];
 	const frameOf = (id: string): string | null => {
 		const parent = links.get(id);
 		return parent === undefined ? null : frameId(parent);
 	};
-	const cards = kept.map((item) => ({
+	const cards = laid.map((item) => ({
 		id: item.id,
+		ticket: item.of,
 		group: item.group,
 		frame: frameOf(item.id),
 	}));
-	const frames = kept.flatMap((item) =>
+	const frames = laid.flatMap((item) =>
 		heading.has(item.id)
 			? [
 					{

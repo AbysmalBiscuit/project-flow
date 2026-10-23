@@ -329,7 +329,7 @@ export function ProjectGraph({
 	const nodes = model.nodes.map((node) => {
 		const kept = isClusterNode(node)
 			? node.data.members.some((id) => chain?.has(id) === true)
-			: chain?.has(node.id) === true;
+			: chain?.has(node.data.ticketId) === true;
 		return { ...node, className: chain === null || kept ? fades : faded };
 	});
 	const edges = model.edges.map((edge) => {
@@ -458,13 +458,13 @@ export function ProjectGraph({
 					proOptions={{ hideAttribution: true }}
 					onNodeMouseEnter={(_event, node) => {
 						if (!isClusterNode(node)) {
-							onPreview(node.id);
+							onPreview(node.data.ticketId);
 						}
 					}}
 					onNodeMouseLeave={onPreviewEnd}
 					onNodeDoubleClick={(_event, node) => {
 						if (!isClusterNode(node)) {
-							onFocus(node.id);
+							onFocus(node.data.ticketId);
 						}
 					}}
 					onNodeClick={(event, node) => {
@@ -473,7 +473,7 @@ export function ProjectGraph({
 						}
 						focusOrOpen(
 							event,
-							() => onFocus(node.id),
+							() => onFocus(node.data.ticketId),
 							() =>
 								onOpen({
 									key: node.data.ticket.key ?? node.data.ticket.title,

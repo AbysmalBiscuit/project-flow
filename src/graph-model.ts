@@ -41,6 +41,8 @@ export type GraphTicketView = {
 };
 
 export type TicketNodeData = {
+	/** The node id of the ticket. A parent ticket card copied into another group keeps it. */
+	ticketId: string;
 	ticket: GraphTicketView;
 	outside: boolean;
 	project: string;
@@ -145,13 +147,25 @@ function shownTickets(
 	report: ProjectReport,
 	reports: ProjectReport[],
 	input: LayoutInput,
-): GraphTicket[] {
-	const laid = new Set(input.cards.map((card) => card.id));
-	return graphTickets(report, true).flatMap((ticket) =>
-		laid.has(projectNodeId(ticket.project, ticket.key))
-			? [ticketView(ticket, report, reports)]
-			: [],
+): (GraphTicket & { id: string; ticketId: string })[] {
+	const byId = new Map(
+		graphTickets(report, true).map((ticket) => [
+			projectNodeId(ticket.project, ticket.key),
+			ticket,
+		]),
 	);
+	return input.cards.flatMap((card) => {
+		const ticket = byId.get(card.ticket);
+		return ticket === undefined
+			? []
+			: [
+					{
+						...ticketView(ticket, report, reports),
+						id: card.id,
+						ticketId: card.ticket,
+					},
+				];
+	});
 }
 
 type TicketSize = { width: number; height: number };
@@ -262,7 +276,7 @@ function frameNodes(
 					head: keyOf.get(frame.head) ?? frame.head,
 					members: input.cards.flatMap((card) =>
 						card.id === frame.head || holdersOf(card.id).includes(frame.id)
-							? [card.id]
+							? [card.ticket]
 							: [],
 					),
 				},
@@ -294,7 +308,7 @@ function clusterNodes(
 				data: {
 					label: group.label,
 					members: input.cards.flatMap((card) =>
-						card.group === group.id ? [card.id] : [],
+						card.group === group.id ? [card.ticket] : [],
 					),
 				},
 				zIndex: -1,
@@ -328,9 +342,7 @@ export function graphModel(
 		layout,
 		new Map(
 			tickets.flatMap((item) =>
-				item.ticket.key === null
-					? []
-					: [[projectNodeId(item.project, item.ticket.key), item.ticket.key]],
+				item.ticket.key === null ? [] : [[item.id, item.ticket.key]],
 			),
 		),
 	);
@@ -340,7 +352,7 @@ export function graphModel(
 		if (key === null) {
 			return [];
 		}
-		const id = projectNodeId(item.project, key);
+		const id = item.id;
 		const place = layout.cards.get(id) ?? { x: 0, y: 0 };
 		const node: FlowNode<TicketNodeData, "ticket"> = sizedNode(
 			{
@@ -350,6 +362,7 @@ export function graphModel(
 				sourcePosition: horizontal ? Position.Right : Position.Bottom,
 				targetPosition: horizontal ? Position.Left : Position.Top,
 				data: {
+					ticketId: item.ticketId,
 					ticket: item.ticket,
 					outside: item.outside,
 					project: item.project,

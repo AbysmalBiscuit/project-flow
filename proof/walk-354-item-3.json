@@ -8,6 +8,7 @@
 		{ "assert_text": "SDI-13 in SDI-4 in SDI-2 in SDI-1" },
 		{ "assert_text": "SDI-14 in SDI-4 in SDI-2 in SDI-1" },
 		{ "assert_text": "SDI-5 in SDI-1" },
+		{ "assert_text": "SDI-15 in SDI-1" },
 		{ "click": "#project-graph-fit" },
 		{ "shot": "sdi-nested-frames" },
 		{ "click": "#project-graph [data-graph-node='SDI-2']" },
