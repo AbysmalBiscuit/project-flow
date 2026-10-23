@@ -1,60 +1,62 @@
 /**
- * Serves a `Colour Board` Linear project with tickets in Backlog, In progress
- * and Done, for the state colour settings.
+ * Serves a `Colour Board` Linear project with the recorded Linear tickets,
+ * one in progress and two not started, for the state colour settings.
  *
  * Usage: bun proof/serve-456.ts [PORT] [light|dark]
  */
+import recordedTeam from "../test/fixtures/linear-team-states.json";
+import outsideRelations from "../test/fixtures/outside-relations.json";
 import { linearFake } from "../test/support.ts";
-import { type StateName, stateOf, teamStates } from "./linear-states.ts";
 import { serveRecorded } from "./recorded.ts";
 
-const slug = "colour-board-4c56a1b2d3e4";
-const project = "Colour Board";
+const project = {
+	id: "project-colour",
+	name: "Colour Board",
+	slugId: "colour-board-4c56a1b2d3e4",
+	teams: { nodes: [{ id: "team-aut", key: "AUT", name: "AUT" }] },
+};
 
-function ticket(id: string, title: string, state: StateName) {
-	return {
-		identifier: id,
-		title,
-		description: "",
-		state: stateOf(state),
-		updatedAt: "2026-10-21T12:00:00.000Z",
-		history: { nodes: [] },
-		parent: null,
-		projectMilestone: null,
-		labels: { nodes: [] },
-		assignee: null,
-		attachments: { nodes: [] },
-		comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
-		inverseRelations: { nodes: [] },
-	};
+const teamStates = recordedTeam.data.team.states.nodes;
+
+// The ticket recordings hold only the state type. Each ticket gets the
+// recorded team state that the board names for that type.
+const stateNames: Record<string, string> = {
+	started: "In Progress",
+	unstarted: "Todo",
+};
+
+function stateOf(type: string) {
+	const recorded = teamStates.find((item) => item.name === stateNames[type]);
+	if (recorded === undefined) {
+		throw new Error(`no recorded state for type ${type}`);
+	}
+	const { position: _, ...state } = recorded;
+	return state;
 }
 
-// Invented tickets, because a proof run must not read a live tracker.
 const issues = [
-	ticket("COL-1", "Sketch the palette", "Backlog"),
-	ticket("COL-2", "Pick the hue", "Todo"),
-	ticket("COL-3", "Paint the board", "In Progress"),
-	ticket("COL-4", "Paint the graph", "In Progress"),
-	ticket("COL-5", "Mix the base colours", "Done"),
-];
+	outsideRelations.linearAut1040,
+	outsideRelations.linearSwe13029,
+	outsideRelations.linearOps3838,
+].map((ticket) => ({
+	...ticket,
+	id: ticket.identifier.toLowerCase(),
+	state: stateOf(ticket.state.type),
+	attachments: { nodes: [] },
+}));
 
 await serveRecorded({
 	prefix: "project-flow-456-",
 	port: process.argv[2]?.trim() || "4456",
 	config: {
-		pinned: [{ tracker: "linear", project: slug }],
+		pinned: [{ tracker: "linear", project: project.slugId }],
 		checkoutRoots: [],
 		pollIntervalSeconds: 3600,
 		theme: process.argv[3] === "dark" ? "dark" : "light",
-		projectViews: { [project]: { openView: "board" } },
+		projectViews: { [project.name]: { openView: "board" } },
 	},
 	fetch: linearFake({
-		project: {
-			id: "project-colour",
-			name: project,
-			slugId: slug,
-			teams: { nodes: [{ id: "team-col", key: "COL", name: "COL" }] },
-		},
+		project,
 		states: teamStates,
 		issues,
 	}),

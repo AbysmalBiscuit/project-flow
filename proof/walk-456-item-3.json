@@ -3,7 +3,7 @@
 	"serve": ["bun", "proof/serve-456.ts", "47463"],
 	"steps": [
 		{ "goto": "/projects/Colour%20Board" },
-		{ "assert_text": "Paint the board" },
+		{ "assert_text": "liquid-handler command framework" },
 		{ "shot": "board-before" },
 		{ "goto": "/settings" },
 		{ "click": "#colour-inProgress" },
@@ -13,7 +13,7 @@
 		{ "assert_text": "#ff0066" },
 		{ "shot": "settings-saved" },
 		{ "goto": "/projects/Colour%20Board" },
-		{ "assert_text": "Paint the board" },
+		{ "assert_text": "liquid-handler command framework" },
 		{ "shot": "board-after" }
 	]
 }

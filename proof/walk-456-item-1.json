@@ -8,14 +8,14 @@
 		{ "click": "#save-settings" },
 		{ "assert_text": "Settings saved" },
 		{ "goto": "/projects/Colour%20Board" },
-		{ "assert_text": "Paint the board" },
+		{ "assert_text": "liquid-handler command framework" },
 		{ "shot": "board-after-change" },
-		{ "click": "button[data-ticket='COL-3']" },
-		{ "click": "aside[data-panel='COL-3'] h2" },
+		{ "click": "button[data-ticket='AUT-1040']" },
+		{ "click": "aside[data-panel='AUT-1040'] h2" },
 		{ "shot": "panel-after-change" },
 		{ "goto": "/projects/Colour%20Board" },
 		{ "click": "#view-graph" },
-		{ "assert_text": "Paint the graph" },
+		{ "assert_text": "Get Macs added with Apple Configurator" },
 		{ "shot": "graph-after-change" }
 	]
 }
