@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedProgressComment from "./fixtures/github-progress-comment.json";
+import { answerRecordedRepoRead } from "./recorded-read.ts";
 import {
 	type ChangeEvent,
 	githubIssueNode,
@@ -1544,7 +1545,7 @@ describe("live updates", () => {
 		const databasePath = join(root, "project-flow.sqlite");
 		const filler = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			{
+			testIo({
 				env: { GITHUB_TOKEN: "recorded-token" },
 				fetch: async (input, init) => {
 					const discovered = recordedDiscovery(input, init);
@@ -1571,7 +1572,7 @@ describe("live updates", () => {
 				now: () => new Date(goodPoll),
 				listTodos: async () => "",
 				waitForStop: Promise.resolve(),
-			},
+			}),
 		);
 		expect(filler.exitCode).toBe(0);
 		let startChecks: (base: string) => void = () => {};
@@ -1656,7 +1657,7 @@ describe("live updates", () => {
 		const databasePath = join(root, "project-flow.sqlite");
 		const filler = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			{
+			testIo({
 				env: { GITHUB_TOKEN: "recorded-token" },
 				fetch: async (input, init) => {
 					const discovered = recordedDiscovery(input, init);
@@ -1683,7 +1684,7 @@ describe("live updates", () => {
 				now: () => new Date(goodPoll),
 				listTodos: async () => "",
 				waitForStop: Promise.resolve(),
-			},
+			}),
 		);
 		expect(filler.exitCode).toBe(0);
 		let startChecks: (base: string) => void = () => {};
@@ -1738,7 +1739,7 @@ describe("live updates", () => {
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				{
 					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: fetchImpl,
+					fetch: answerRecordedRepoRead(fetchImpl),
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-04-03T12:00:00.000Z"),
