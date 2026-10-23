@@ -59,6 +59,8 @@ export type LayoutInput = {
 	groups: LayoutGroup[];
 	frames: LayoutFrame[];
 	edges: FlowEdge[];
+	/** The ticket of the collapsed card that hides each hidden ticket. */
+	hiddenIn: Map<string, string>;
 };
 
 /** Tells whether the frame of the parent ticket with this key is collapsed. */
@@ -253,6 +255,15 @@ export function layoutInput(
 		const done = (edges.get(id)?.done ?? true) && edge.done === true;
 		edges.set(id, { from, to, done });
 	}
+	const showing = new Set(cards.map((card) => card.ticket));
+	const ticketOf = new Map(laid.map((item) => [item.id, item.of]));
+	const hiddenIn = new Map<string, string>();
+	for (const item of laid) {
+		const by = ticketOf.get(shownAs(item.id));
+		if (by !== undefined && !showing.has(item.of) && !hiddenIn.has(item.of)) {
+			hiddenIn.set(item.of, by);
+		}
+	}
 	const filled = new Set(cards.map((card) => card.group));
 	return {
 		cards,
@@ -261,6 +272,7 @@ export function layoutInput(
 			.sort((left, right) => left.label.localeCompare(right.label)),
 		frames,
 		edges: [...edges.values()],
+		hiddenIn,
 	};
 }
 
@@ -271,6 +283,14 @@ export function focusLinks(input: LayoutInput): FocusLink[] {
 		from: ticketOf.get(edge.from) ?? edge.from,
 		to: ticketOf.get(edge.to) ?? edge.to,
 	}));
+}
+
+/** The focused tickets, each hidden one moved to the collapsed card that hides it. */
+export function focusSeeds(
+	input: LayoutInput,
+	seeds: ReadonlySet<string>,
+): ReadonlySet<string> {
+	return new Set([...seeds].map((id) => input.hiddenIn.get(id) ?? id));
 }
 
 function placeOptions(

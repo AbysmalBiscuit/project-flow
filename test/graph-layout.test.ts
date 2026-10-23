@@ -4,6 +4,7 @@ import { fillShare } from "../proof/elk-spike/handwritten.ts";
 import { focusChain } from "../src/domain.ts";
 import {
 	focusLinks,
+	focusSeeds,
 	groupHead,
 	groupId,
 	groupPad,
@@ -338,6 +339,31 @@ describe("project graph layout", () => {
 		}).toEqual({
 			fromBlocked: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
 			fromFrame: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
+		});
+	});
+
+	test("focus on a hidden sub-ticket moves to the collapsed card that hides it", async () => {
+		// WID-3 sits under WID-2 under WID-1, and WID-6 blocks WID-3.
+		const report = await hierarchyReport("", [
+			linearTicket("WID-1", "Ship the widget", "unstarted", null),
+			linearTicket("WID-2", "Paint the list", "unstarted", "WID-1"),
+			linearTicket("WID-3", "Sort the list", "unstarted", "WID-2", ["WID-6"]),
+			linearTicket("WID-6", "Sort by name", "unstarted", null),
+			linearTicket("WID-7", "Name the widget", "unstarted", null),
+		]);
+		const chainOf = (shut: readonly string[]) => {
+			const input = layoutInput(report, "workstream", [], (key) =>
+				shut.includes(key),
+			);
+			const seeds = focusSeeds(input, new Set([cardOf("WID-3")]));
+			return [...focusChain(seeds, focusLinks(input))].sort();
+		};
+		expect({
+			inner: chainOf(["WID-2"]),
+			both: chainOf(["WID-1", "WID-2"]),
+		}).toEqual({
+			inner: ["WID-2", "WID-6"].map(cardOf).sort(),
+			both: ["WID-1", "WID-6"].map(cardOf).sort(),
 		});
 	});
 

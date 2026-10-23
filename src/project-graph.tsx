@@ -24,7 +24,7 @@ import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import { FitLayout, useLaidGraph } from "./graph-laid.tsx";
-import { focusLinks } from "./graph-layout.ts";
+import { focusLinks, focusSeeds } from "./graph-layout.ts";
 import type {
 	ClusterNodeData,
 	TicketEdgeData,
@@ -402,7 +402,9 @@ export function ProjectGraph({
 	}
 	const drawn = `${laid.kind} ${laid.direction}`;
 	const chain =
-		seeds.size === 0 ? null : focusChain(seeds, focusLinks(laid.input));
+		seeds.size === 0
+			? null
+			: focusChain(focusSeeds(laid.input, seeds), focusLinks(laid.input));
 	const ticketOf = new Map(
 		laid.input.cards.map((card) => [card.id, card.ticket]),
 	);
