@@ -556,8 +556,12 @@ const pageSize = 100;
 
 const connectionPage = `pageInfo { hasNextPage endCursor }`;
 
-const issueTicketFields = `number title state stateReason updatedAt createdAt closedAt body
-				labels(first: ${pageSize}) { nodes { name } ${connectionPage} }
+const nestedPageSize = 20;
+
+const issueTicketFields = (
+	labelPage: number,
+) => `number title state stateReason updatedAt createdAt closedAt body
+				labels(first: ${labelPage}) { nodes { name } ${connectionPage} }
 				assignees(first: 10) { nodes { login } }
 				milestone { title }
 				parent { number title state stateReason url repository { nameWithOwner } }
@@ -616,7 +620,7 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 					content {
 						__typename
 						... on Issue {
-							id ${issueTicketFields}
+							id ${issueTicketFields(pageSize)}
 							comments { totalCount }
 							repository { nameWithOwner }
 							closedByPullRequestsReferences(first: 20) {
@@ -1712,49 +1716,27 @@ type RepoIncludes = {
 	edited: boolean;
 };
 
-function pullNodeFields(include: boolean): string {
-	if (!include) {
-		return "";
-	}
-	return `number title url isDraft body state mergedAt headRefName headRefOid
+const pullNodeFields = `number title url isDraft body state mergedAt updatedAt headRefName headRefOid
 				autoMergeRequest { enabledAt }
-				commits(last: 1) { nodes { commit { committedDate } } ${connectionPage} }
+				commits(last: 1) { nodes { commit { committedDate } } }
 				closingIssuesReferences(first: 10, userLinkedOnly: true) {
 					nodes { number }
 					${connectionPage}
 				}
-				reviews(first: ${pageSize}) {
-					nodes { author { login } commit { oid } state }
-					${connectionPage}
-				}
-				comments(first: ${pageSize}) {
-					nodes { author { login } body createdAt reactions { totalCount } }
-					${connectionPage}
-				}
-				reactions(first: ${pageSize}) {
+				reactions(first: ${nestedPageSize}) {
 					nodes { user { login } content createdAt }
 					${connectionPage}
 				}
 				statusCheckRollup {
-					contexts(first: ${pageSize}) {
+					contexts(first: ${nestedPageSize}) {
 						nodes { ... on CheckRun { name status conclusion } }
 						${connectionPage}
 					}
 				}`;
-}
 
-function issueNodeFields(include: boolean): string {
-	if (!include) {
-		return "";
-	}
-	return `${issueTicketFields}
-				comments(first: ${pageSize}) {
-					nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } }
-					${connectionPage}
-				}`;
-}
+const issueNodeFields = issueTicketFields(nestedPageSize);
 
-function repoReadQuery(include: RepoIncludes): string {
+function repoReadQuery(include: RepoIncludes, size: number): string {
 	const variables = [
 		"$owner: String!",
 		"$name: String!",
@@ -1767,8 +1749,8 @@ function repoReadQuery(include: RepoIncludes): string {
 			: []),
 	];
 	const editedFilter = include.edited
-		? `editedIssues: search(first: ${pageSize}, after: $afterEdited, type: ISSUE, query: $editedQuery) {
-			nodes { ... on Issue { ${issueNodeFields(true)} } }
+		? `editedIssues: search(first: ${size}, after: $afterEdited, type: ISSUE, query: $editedQuery) {
+			nodes { ... on Issue { ${issueNodeFields} } }
 			${connectionPage}
 		}`
 		: "";
@@ -1778,7 +1760,7 @@ function repoReadQuery(include: RepoIncludes): string {
 		autoMergeAllowed
 		${
 			include.refs
-				? `refs(refPrefix: "refs/heads/", first: ${pageSize}, after: $afterRefs) {
+				? `refs(refPrefix: "refs/heads/", first: ${size}, after: $afterRefs) {
 			nodes { name }
 			${connectionPage}
 		}`
@@ -1786,7 +1768,7 @@ function repoReadQuery(include: RepoIncludes): string {
 		}
 		${
 			include.labels
-				? `labels(first: ${pageSize}, after: $afterLabels) {
+				? `labels(first: ${size}, after: $afterLabels) {
 			nodes { name color }
 			${connectionPage}
 		}`
@@ -1794,16 +1776,16 @@ function repoReadQuery(include: RepoIncludes): string {
 		}
 		${
 			include.issues
-				? `issues(first: ${pageSize}, after: $afterIssues, states: [OPEN, CLOSED], filterBy: { since: $since }, orderBy: { field: UPDATED_AT, direction: DESC }) {
-			nodes { ${issueNodeFields(true)} }
+				? `issues(first: ${size}, after: $afterIssues, states: [OPEN, CLOSED], filterBy: { since: $since }, orderBy: { field: UPDATED_AT, direction: DESC }) {
+			nodes { ${issueNodeFields} }
 			${connectionPage}
 		}`
 				: ""
 		}
 		${
 			include.openPulls
-				? `openPullRequests: pullRequests(first: ${pageSize}, after: $afterPulls, states: [OPEN], orderBy: { field: UPDATED_AT, direction: DESC }) {
-			nodes { ${pullNodeFields(true)} }
+				? `openPullRequests: pullRequests(first: ${size}, after: $afterPulls, states: [OPEN], orderBy: { field: UPDATED_AT, direction: DESC }) {
+			nodes { ${pullNodeFields} }
 			${connectionPage}
 		}`
 				: ""
@@ -1811,13 +1793,55 @@ function repoReadQuery(include: RepoIncludes): string {
 		${
 			include.mergedPulls
 				? `mergedPullRequests: pullRequests(first: ${mergedPageBound}, states: [MERGED], orderBy: { field: UPDATED_AT, direction: DESC }) {
-			nodes { ${pullNodeFields(true)} }
+			nodes { ${pullNodeFields} }
 			${connectionPage}
 		}`
 				: ""
 		}
 	}
 	${editedFilter}
+}`;
+}
+
+/** One issue or PR whose comments, and for a PR reviews, the poll reads. */
+type ListRead = { kind: "issue" | "pull"; number: number };
+
+const listsPerBatch = 40;
+
+const listWeight = { issue: 1, pull: 2 } as const;
+
+const listAlias = { issue: "i", pull: "p" } as const;
+
+const listField = { issue: "issue", pull: "pullRequest" } as const;
+
+function listFields(read: ListRead, size: number): string {
+	if (read.kind === "issue") {
+		return `comments(first: ${size}) {
+				nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } }
+				${connectionPage}
+			}`;
+	}
+	return `reviews(first: ${size}) {
+				nodes { author { login } commit { oid } state }
+				${connectionPage}
+			}
+			comments(first: ${size}) {
+				nodes { author { login } body createdAt reactions { totalCount } }
+				${connectionPage}
+			}`;
+}
+
+function repoListsQuery(reads: ListRead[], size: number): string {
+	const parts = reads.map(
+		(read) =>
+			`${listAlias[read.kind]}${read.number}: ${listField[read.kind]}(number: ${read.number}) {
+			${listFields(read, size)}
+		}`,
+	);
+	return `query RepoLists($owner: String!, $name: String!) {
+	repository(owner: $owner, name: $name) {
+		${parts.join("\n\t\t")}
+	}
 }`;
 }
 
@@ -1873,6 +1897,7 @@ const graphqlPullNode = z.object({
 	body: z.string().nullable().optional(),
 	state: z.string(),
 	mergedAt: z.string().nullable().optional(),
+	updatedAt: z.string().optional(),
 	headRefName: z.string(),
 	headRefOid: z.string(),
 	autoMergeRequest: z.unknown().nullable().optional(),
@@ -1885,21 +1910,6 @@ const graphqlPullNode = z.object({
 	).optional(),
 	closingIssuesReferences: graphqlConnection(
 		z.object({ number: z.number() }),
-	).optional(),
-	reviews: graphqlConnection(
-		z.object({
-			author: graphqlActor.optional(),
-			commit: z.object({ oid: z.string() }).nullable().optional(),
-			state: reviewStateGraphql,
-		}),
-	).optional(),
-	comments: graphqlConnection(
-		z.object({
-			author: graphqlActor.optional(),
-			body: z.string().nullable().optional(),
-			createdAt: z.string().optional(),
-			reactions: z.object({ totalCount: z.number() }).optional(),
-		}),
 	).optional(),
 	reactions: graphqlConnection(
 		z.object({
@@ -1921,6 +1931,31 @@ const graphqlPullNode = z.object({
 		.nullable()
 		.optional(),
 });
+
+const graphqlPullLists = graphqlPullNode
+	.pick({
+		reactions: true,
+		statusCheckRollup: true,
+	})
+	.extend({
+		reviews: graphqlConnection(
+			z.object({
+				author: graphqlActor.optional(),
+				commit: z.object({ oid: z.string() }).nullable().optional(),
+				state: reviewStateGraphql,
+			}),
+		).optional(),
+		comments: graphqlConnection(
+			z.object({
+				author: graphqlActor.optional(),
+				body: z.string().nullable().optional(),
+				createdAt: z.string().optional(),
+				reactions: z.object({ totalCount: z.number() }).optional(),
+			}),
+		).optional(),
+	});
+
+type PullLists = z.infer<typeof graphqlPullLists>;
 
 const graphqlLabelNode = z.object({ name: z.string(), color: z.string() });
 
@@ -2008,6 +2043,20 @@ async function readAutoMerge(
 	return repository.autoMergeAllowed === true;
 }
 
+const graphqlErrors = z.object({
+	errors: z.array(z.object({ message: z.string() })).min(1),
+});
+
+function resourceLimited(body: unknown): boolean {
+	const parsed = graphqlErrors.safeParse(body);
+	return (
+		parsed.success &&
+		parsed.data.errors.some((error) =>
+			error.message.includes("Resource limits for this query exceeded"),
+		)
+	);
+}
+
 async function readRepoPage(
 	token: string,
 	fetchImpl: Fetch,
@@ -2015,6 +2064,7 @@ async function readRepoPage(
 	since: Date | null,
 	cursors: PageCursors,
 	include: RepoIncludes,
+	size = pageSize,
 ): Promise<RepoReadPage | null> {
 	const parts = repoParts(repo);
 	if (parts === null) {
@@ -2046,7 +2096,7 @@ async function readRepoPage(
 		method: "POST",
 		headers: githubHeaders(token),
 		body: JSON.stringify({
-			query: repoReadQuery(include),
+			query: repoReadQuery(include, size),
 			variables,
 		}),
 	});
@@ -2059,11 +2109,20 @@ async function readRepoPage(
 		);
 	}
 	const body: unknown = await response.json();
+	if (size === pageSize && resourceLimited(body)) {
+		return readRepoPage(
+			token,
+			fetchImpl,
+			repo,
+			since,
+			cursors,
+			include,
+			pageSize / 2,
+		);
+	}
 	const parsed = repoReadPage.safeParse(body);
 	if (!parsed.success) {
-		const failed = z
-			.object({ errors: z.array(z.object({ message: z.string() })).min(1) })
-			.safeParse(body);
+		const failed = graphqlErrors.safeParse(body);
 		const failure = failed.success ? failed.data.errors[0] : undefined;
 		if (failure !== undefined) {
 			throw new Error(failure.message);
@@ -2159,9 +2218,7 @@ function ticketFromGithubIssue(
 	};
 }
 
-function reviewFromGraphql(
-	pull: z.infer<typeof graphqlPullNode>,
-): ReviewEvidence {
+function reviewFromGraphql(pull: PullLists): ReviewEvidence {
 	const checks: BotCheck[] = [];
 	for (const node of pull.statusCheckRollup?.contexts.nodes ?? []) {
 		if (
@@ -2226,9 +2283,17 @@ function reviewFromGraphql(
 	return { checks, comments, reviews, reactions };
 }
 
+const noEvidence: ReviewEvidence = {
+	checks: [],
+	comments: [],
+	reviews: [],
+	reactions: [],
+};
+
 function pullFromGraphql(
 	pull: z.infer<typeof graphqlPullNode>,
 	repo: string,
+	evidence: ReviewEvidence,
 ): PullRequest | null {
 	const merged = pull.mergedAt != null;
 	if (pull.state !== "OPEN" && pull.state !== "MERGED" && !merged) {
@@ -2260,9 +2325,7 @@ function pullFromGraphql(
 		headCommittedAt: merged || pull.isDraft ? null : committed,
 		merged,
 		autoMerge: pull.autoMergeRequest != null,
-		...(pull.isDraft
-			? { checks: [], comments: [], reviews: [], reactions: [] }
-			: reviewFromGraphql(pull)),
+		...(pull.isDraft ? noEvidence : evidence),
 	};
 }
 
@@ -2380,14 +2443,10 @@ const nestedReviewPage = z.object({
 	data: z.object({
 		repository: z
 			.object({
-				pullRequest: z
-					.object({
-						reviews: graphqlPullNode.shape.reviews,
-						comments: graphqlPullNode.shape.comments,
-						reactions: graphqlPullNode.shape.reactions,
+				pullRequest: graphqlPullLists
+					.extend({
 						closingIssuesReferences:
 							graphqlPullNode.shape.closingIssuesReferences,
-						statusCheckRollup: graphqlPullNode.shape.statusCheckRollup,
 					})
 					.nullable(),
 			})
@@ -2401,19 +2460,17 @@ async function pageNestedReviews(
 	fetchImpl: Fetch,
 	repo: string,
 	pull: z.infer<typeof graphqlPullNode>,
+	lists: PullLists,
 ): Promise<void> {
 	const parts = repoParts(repo);
 	if (parts === null) {
 		return;
 	}
 	const pending = {
-		reviews: pull.reviews === undefined ? null : nextCursor(pull.reviews),
-		comments: pull.comments === undefined ? null : nextCursor(pull.comments),
-		reactions: pull.reactions === undefined ? null : nextCursor(pull.reactions),
-		contexts:
-			pull.statusCheckRollup?.contexts === undefined
-				? null
-				: nextCursor(pull.statusCheckRollup.contexts),
+		reviews: nextCursor(lists.reviews),
+		comments: nextCursor(lists.comments),
+		reactions: nextCursor(lists.reactions),
+		contexts: nextCursor(lists.statusCheckRollup?.contexts),
 		closing:
 			pull.closingIssuesReferences === undefined
 				? null
@@ -2461,15 +2518,15 @@ async function pageNestedReviews(
 			);
 		}
 		if (pending.reviews !== null) {
-			pull.reviews?.nodes.push(...(next.reviews?.nodes ?? []));
+			lists.reviews?.nodes.push(...(next.reviews?.nodes ?? []));
 			pending.reviews = nextCursor(next.reviews);
 		}
 		if (pending.comments !== null) {
-			pull.comments?.nodes.push(...(next.comments?.nodes ?? []));
+			lists.comments?.nodes.push(...(next.comments?.nodes ?? []));
 			pending.comments = nextCursor(next.comments);
 		}
 		if (pending.reactions !== null) {
-			pull.reactions?.nodes.push(...(next.reactions?.nodes ?? []));
+			lists.reactions?.nodes.push(...(next.reactions?.nodes ?? []));
 			pending.reactions = nextCursor(next.reactions);
 		}
 		if (pending.closing !== null) {
@@ -2479,7 +2536,7 @@ async function pageNestedReviews(
 			pending.closing = nextCursor(next.closingIssuesReferences);
 		}
 		if (pending.contexts !== null) {
-			const contexts = pull.statusCheckRollup?.contexts;
+			const contexts = lists.statusCheckRollup?.contexts;
 			contexts?.nodes.push(...(next.statusCheckRollup?.contexts.nodes ?? []));
 			pending.contexts = nextCursor(next.statusCheckRollup?.contexts);
 		}
@@ -2648,11 +2705,105 @@ async function pageIssueComments(
 	}
 }
 
+const repoListsPage = z.object({
+	data: z.object({
+		repository: z.record(z.string(), z.unknown()).nullable(),
+	}),
+});
+
+async function readListBatch(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	reads: ListRead[],
+	size = pageSize,
+): Promise<Record<string, unknown>> {
+	const parts = repoParts(repo);
+	if (parts === null) {
+		return {};
+	}
+	const response = await fetchImpl("https://api.github.com/graphql", {
+		method: "POST",
+		headers: githubHeaders(token),
+		body: JSON.stringify({
+			query: repoListsQuery(reads, size),
+			variables: { owner: parts.owner, name: parts.name },
+		}),
+	});
+	if (!response.ok) {
+		throw new Error(
+			`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
+		);
+	}
+	const body: unknown = await response.json();
+	if (size === pageSize && resourceLimited(body)) {
+		return readListBatch(token, fetchImpl, repo, reads, pageSize / 2);
+	}
+	const repository = repoListsPage.safeParse(body).data?.data.repository;
+	if (repository === undefined || repository === null) {
+		const failed = graphqlErrors.safeParse(body);
+		throw new Error(
+			`GitHub read repo failed: ${failed.data?.errors[0]?.message ?? repo}`,
+		);
+	}
+	return repository;
+}
+
+async function readLists(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	reads: ListRead[],
+): Promise<Record<string, unknown>> {
+	const batches: ListRead[][] = [];
+	let batch: ListRead[] = [];
+	let lists = 0;
+	for (const read of reads) {
+		const weight = listWeight[read.kind];
+		if (lists + weight > listsPerBatch) {
+			batches.push(batch);
+			batch = [];
+			lists = 0;
+		}
+		batch.push(read);
+		lists += weight;
+	}
+	if (batch.length > 0) {
+		batches.push(batch);
+	}
+	const found: Record<string, unknown> = {};
+	for (const reads of batches) {
+		Object.assign(found, await readListBatch(token, fetchImpl, repo, reads));
+	}
+	return found;
+}
+
+const issueLists = z.object({
+	comments: graphqlConnection(graphqlComment).optional(),
+});
+
+/** The lists of a PR as the last full read saw them, at its `updatedAt`. */
+type StoredEvidence = { updatedAt: string; evidence: ReviewEvidence };
+
+function pullListRead(
+	pull: z.infer<typeof graphqlPullNode>,
+	stored: StoredEvidence | undefined,
+): ListRead | null {
+	if (
+		pull.isDraft ||
+		(stored !== undefined && stored.updatedAt === pull.updatedAt)
+	) {
+		return null;
+	}
+	return { kind: "pull", number: pull.number };
+}
+
 async function readRepo(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
 	since: Date | null,
+	stored: Map<string, StoredEvidence>,
 ): Promise<{
 	tickets: Ticket[];
 	pulls: PullRequest[];
@@ -2746,28 +2897,76 @@ async function readRepo(
 	);
 	for (const issue of issueNodes) {
 		await pageIssueRelations(token, fetchImpl, repo, issue);
-		await pageIssueComments(token, fetchImpl, repo, issue);
+	}
+	const openIssues = issueNodes.filter(
+		(issue) => issue.state.toLowerCase() === "open",
+	);
+	const openPullNodes = pullNodes.flatMap((pull) =>
+		pull === undefined ? [] : [pull],
+	);
+	const mergedPullNodes = (first.mergedPullRequests?.nodes ?? []).flatMap(
+		(pull) => (pull === undefined || pull === null ? [] : [pull]),
+	);
+	const pullReads = new Map<number, ListRead>();
+	for (const pull of [...openPullNodes, ...mergedPullNodes]) {
+		const read = pullListRead(pull, stored.get(githubKey(repo, pull.number)));
+		if (read !== null) {
+			pullReads.set(pull.number, read);
+		}
+	}
+	const lists = await readLists(token, fetchImpl, repo, [
+		...openIssues.map(
+			(issue): ListRead => ({
+				kind: "issue",
+				number: issue.number,
+			}),
+		),
+		...pullReads.values(),
+	]);
+	for (const issue of openIssues) {
+		const comments = issueLists.safeParse(lists[`i${issue.number}`]).data
+			?.comments;
+		if (comments !== undefined) {
+			issue.comments = comments;
+			await pageIssueComments(token, fetchImpl, repo, issue);
+		}
 	}
 	const loadPull = async (pull: z.infer<typeof graphqlPullNode>) => {
-		await pageNestedReviews(token, fetchImpl, repo, pull);
-		return pullFromGraphql(pull, repo);
+		const key = githubKey(repo, pull.number);
+		const read = pullReads.has(pull.number)
+			? graphqlPullLists.safeParse(lists[`p${pull.number}`])
+			: null;
+		if (read?.success === false) {
+			return null;
+		}
+		const pullLists: PullLists = {
+			...read?.data,
+			reactions: pull.reactions,
+			statusCheckRollup: pull.statusCheckRollup,
+		};
+		await pageNestedReviews(token, fetchImpl, repo, pull, pullLists);
+		const fresh = reviewFromGraphql(pullLists);
+		if (read === null) {
+			const kept = stored.get(key)?.evidence ?? noEvidence;
+			return pullFromGraphql(pull, repo, {
+				...kept,
+				checks: fresh.checks,
+				reactions: fresh.reactions,
+			});
+		}
+		if (pull.updatedAt !== undefined) {
+			stored.set(key, { updatedAt: pull.updatedAt, evidence: fresh });
+		}
+		return pullFromGraphql(pull, repo, fresh);
 	};
-	const openPulls = await loadEachPull(
-		pullNodes.flatMap((pull) => (pull === undefined ? [] : [pull])),
-		async (pull) => {
-			const mapped = await loadPull(pull);
-			return mapped?.merged === false ? mapped : null;
-		},
-	);
-	const mergedKept = await loadEachPull(
-		(first.mergedPullRequests?.nodes ?? []).flatMap((pull) =>
-			pull === undefined || pull === null ? [] : [pull],
-		),
-		async (pull) => {
-			const mapped = await loadPull(pull);
-			return mapped?.merged === true ? mapped : null;
-		},
-	);
+	const openPulls = await loadEachPull(openPullNodes, async (pull) => {
+		const mapped = await loadPull(pull);
+		return mapped?.merged === false ? mapped : null;
+	});
+	const mergedKept = await loadEachPull(mergedPullNodes, async (pull) => {
+		const mapped = await loadPull(pull);
+		return mapped?.merged === true ? mapped : null;
+	});
 	const tickets = issueNodes
 		.filter((issue) => {
 			const state = issue.state.toLowerCase();
@@ -2791,6 +2990,7 @@ async function readRepo(
 
 export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 	const seenReviews = new Map<string, ReviewEvidence>();
+	const storedLists = new Map<string, StoredEvidence>();
 	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
 	const projectItems = (projectId: string, projectOwner: string) => {
 		const cached = projectItemsById.get(projectId);
@@ -2818,7 +3018,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 		if (cached !== undefined) {
 			return cached;
 		}
-		const read = readRepo(token, fetchImpl, repo, since).catch(
+		const read = readRepo(token, fetchImpl, repo, since, storedLists).catch(
 			(error: unknown) => {
 				if (repoSnapshots.get(repo) === read) {
 					repoSnapshots.delete(repo);

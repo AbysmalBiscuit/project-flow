@@ -340,15 +340,15 @@ async function startCounted(
 }
 
 describe("batched GitHub reads", () => {
-	test("a start with 10 tracked repos of 10 open PRs sends at most 25 GitHub requests", async () => {
+	test("a start with 10 tracked repos of 10 open PRs sends at most 35 GitHub requests", async () => {
 		const tracked = repos.map((repo) => ({ tracker: "github", repo }));
 		const { github, overview, needsYou } = await startCounted(
 			JSON.stringify({ tracked }),
 			(owner, name) => budgetRead(owner, name),
 		);
-		expect(github.length).toBeLessThanOrEqual(25);
+		expect(github.length).toBeLessThanOrEqual(35);
 		expect(github.filter((url) => url.includes("/pulls/")).length).toBe(0);
-		expect(github.filter((url) => url.endsWith("/graphql")).length).toBe(11);
+		expect(github.filter((url) => url.endsWith("/graphql")).length).toBe(21);
 		const project = overview.projects.find(
 			(item) => item.name === "acme/repo-0",
 		);
@@ -694,7 +694,7 @@ describe("batched GitHub reads", () => {
 				return body;
 			},
 		);
-		expect(github.filter((url) => url.endsWith("/graphql")).length).toBe(3);
+		expect(github.filter((url) => url.endsWith("/graphql")).length).toBe(4);
 		expect(
 			needsYou.find((item) => item.key === "acme/widget#101")?.pull?.review,
 		).toBe("completed");
@@ -1361,12 +1361,12 @@ describe("batched GitHub reads", () => {
 		}
 	});
 
-	test("a start with 10 tracked repos of 10 open PRs stays within 25 requests when nested pages are empty", async () => {
+	test("a start with 10 tracked repos of 10 open PRs stays within 35 requests when nested pages are empty", async () => {
 		const tracked = repos.map((repo) => ({ tracker: "github", repo }));
 		const { github } = await startCounted(
 			JSON.stringify({ tracked }),
 			(owner, name) => budgetRead(owner, name),
 		);
-		expect(github.length).toBeLessThanOrEqual(25);
+		expect(github.length).toBeLessThanOrEqual(35);
 	});
 });
