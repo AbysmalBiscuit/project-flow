@@ -8,6 +8,7 @@ import {
 import { createRoot } from "react-dom/client";
 import type { NeedsYouItem } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
+import { PageQueryRoot } from "./page-query.tsx";
 import { TicketPanel } from "./panel.tsx";
 import {
 	activeTicket,
@@ -335,5 +336,9 @@ export function mountJumpBox(): void {
 	const host = document.createElement("div");
 	host.style.display = "contents";
 	document.body.append(host);
-	createRoot(host).render(<JumpBox />);
+	createRoot(host).render(
+		<PageQueryRoot>
+			<JumpBox />
+		</PageQueryRoot>,
+	);
 }

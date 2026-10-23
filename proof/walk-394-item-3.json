@@ -1,0 +1,42 @@
+{
+	"base_url": "http://127.0.0.1:4394",
+	"serve": ["bun", "proof/serve-394.ts", "4394"],
+	"steps": [
+		{ "goto": "/projects/Fleet%20rollout" },
+		{ "click": "#view-table" },
+		{ "click": "tr[data-ticket='SWE-13029'] button[data-chip='SWE-11753']" },
+		{
+			"click": "aside[data-panel='SWE-11753'] > div:first-child > span:first-child"
+		},
+		{
+			"assert_text": "?ticket=SWE-11753&panelProject=MDM/Fleet+Management&panelTracker=linear | selected none"
+		},
+		{ "shot": "outside-open" },
+		{ "click": "tr[data-ticket='OPS-3838'] td:first-child" },
+		{ "click": "aside[data-panel='OPS-3838'] h2" },
+		{
+			"assert_text": "?ticket=OPS-3838&panelTracker=linear | selected OPS-3838"
+		},
+		{ "shot": "local-open" },
+		{ "click": "aside[data-panel='OPS-3838'] button[data-blocker='OPS-3837']" },
+		{
+			"click": "aside[data-panel='OPS-3837'] > div:first-child > span:first-child"
+		},
+		{ "assert_text": "?ticket=OPS-3837&panelTracker=linear | selected none" },
+		{ "shot": "blocker-open" },
+		{ "click": "#walk-back" },
+		{ "click": "aside[data-panel='OPS-3838'] h2" },
+		{
+			"assert_text": "?ticket=OPS-3838&panelTracker=linear | selected OPS-3838"
+		},
+		{ "shot": "back-to-local" },
+		{ "click": "#walk-back" },
+		{
+			"click": "aside[data-panel='SWE-11753'] > div:first-child > span:first-child"
+		},
+		{
+			"assert_text": "?ticket=SWE-11753&panelProject=MDM/Fleet+Management&panelTracker=linear | selected none"
+		},
+		{ "shot": "back-to-outside" }
+	]
+}

@@ -231,11 +231,14 @@ function NeedsList({
 		) {
 			opener.focus();
 		}
-		openTicket({
-			tracker: first.tracker,
-			project: first.project,
-			key: first.key,
-		});
+		openTicket(
+			{
+				tracker: first.tracker,
+				project: first.project,
+				key: first.key,
+			},
+			"replace",
+		);
 	}, [items]);
 	const shown = inProject.filter(
 		(item) => reason === allReasons || item.reason === reason,

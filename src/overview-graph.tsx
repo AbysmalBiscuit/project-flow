@@ -173,7 +173,7 @@ function BlockerEdge({
 					}}
 					aria-label={`${ticket} ${blocked}`}
 					onClick={() => {
-						openProject(blocked, ticket, blocker, tracker);
+						openProject(blocked, { tracker, project: blocker, key: ticket });
 					}}
 				>
 					{ticket}

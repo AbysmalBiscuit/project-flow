@@ -1,5 +1,3 @@
-import { clearTicketOnPageChange } from "./selection.ts";
-
 function pageHref(anchor: HTMLAnchorElement): string | null {
 	if (anchor.target !== "" || anchor.hasAttribute("download")) {
 		return null;
@@ -48,7 +46,6 @@ export function installPageLinks(): void {
 			return;
 		}
 		event.preventDefault();
-		clearTicketOnPageChange(next);
 		window.history.pushState(null, "", next);
 		const hash = new URL(next, window.location.href).hash;
 		if (hash === "") {
