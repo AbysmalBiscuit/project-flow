@@ -1,13 +1,9 @@
+import { attentionOf } from "./attention.ts";
 import type { Configuration } from "./configuration.ts";
-import type { Overview, Snapshot } from "./domain.ts";
-import {
-	type Attention,
-	attentionOf,
-	expectedBotsByRepo,
-	projectCounts,
-	staleView,
-} from "./domain.ts";
+import { projectCounts } from "./counts.ts";
+import type { Attention, Overview, Snapshot } from "./domain.ts";
 import type { PollOptions } from "./poll.ts";
+import { staleView } from "./poll-merge.ts";
 import type { Viewer } from "./ports.ts";
 import {
 	listedRef,
@@ -17,6 +13,7 @@ import {
 	refRepo,
 	sameProject,
 } from "./project-ref.ts";
+import { expectedBotsByRepo } from "./review.ts";
 import { pendingProjects } from "./settings-catalogue.ts";
 import { commentNotificationId, needsYouSeenId } from "./ticket-key.ts";
 

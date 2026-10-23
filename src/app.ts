@@ -1,27 +1,12 @@
 import { z } from "zod";
+import { inboxEntries } from "./attention.ts";
 import type { Configuration } from "./configuration.ts";
 import {
 	loadConfiguration,
 	loadFilledConfiguration,
 	saveConfiguration,
 } from "./configuration.ts";
-import type {
-	Comment,
-	PostedReply,
-	ProjectCounts,
-	ProjectReport,
-	ReplyRequest,
-	Snapshot,
-} from "./domain.ts";
-import {
-	attachGraphStates,
-	filterProjectReport,
-	inboxEntries,
-	optionReplyBody,
-	panelReplyBody,
-	projectHasPmBot,
-	projectViewFor,
-} from "./domain.ts";
+import { type PostedReply, type ProjectReport, trackers } from "./domain.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
@@ -32,16 +17,11 @@ import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
 import { elkWorkerPath, forceWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
+import { attachGraphStates } from "./links.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import { type PollOptions, poll, runningOverview } from "./poll.ts";
-import type {
-	Change,
-	CheckoutSource,
-	Notifier,
-	Store,
-	TodoSource,
-} from "./ports.ts";
+import type { Change, CheckoutSource, Notifier, TodoSource } from "./ports.ts";
 import { listedRef } from "./project-ref.ts";
 import {
 	attentionFor,
@@ -49,6 +29,9 @@ import {
 	projectViewNamed,
 	projectViews,
 } from "./project-views.ts";
+import { recordedReply, replyRequest } from "./replies.ts";
+import { filterProjectReport, projectViewFor } from "./report.ts";
+import { searchTickets } from "./search.ts";
 import {
 	mergedSettingsWrite,
 	readSettingsWrite,
@@ -60,13 +43,7 @@ import {
 import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
-import type { TicketSearchHit } from "./ticket-key.ts";
-import {
-	foldKey,
-	githubKeyParts,
-	needsYouSeenId,
-	sameTicketKey,
-} from "./ticket-key.ts";
+import { needsYouSeenId } from "./ticket-key.ts";
 import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
 const elkWorkerFile = Bun.resolveSync(
@@ -117,43 +94,6 @@ export type Running = {
 export type { SettingsProject } from "./domain.ts";
 export type { TicketSearchHit } from "./ticket-key.ts";
 
-function searchTickets(
-	views: {
-		counts: Pick<ProjectCounts, "name" | "tracker" | "tickets">;
-	}[],
-	query: string,
-): TicketSearchHit[] {
-	const needle = query.trim().toLowerCase();
-	if (needle === "") {
-		return [];
-	}
-	const hits: TicketSearchHit[] = [];
-	for (const view of views) {
-		for (const ticket of view.counts.tickets) {
-			if (ticket.key === null) {
-				continue;
-			}
-			const key = foldKey(ticket.key);
-			const title = ticket.title.toLowerCase();
-			if (!key.includes(needle) && !title.includes(needle)) {
-				continue;
-			}
-			hits.push({
-				project: view.counts.name,
-				tracker: view.counts.tracker,
-				key: ticket.key,
-				title: ticket.title,
-				state: ticket.state,
-			});
-		}
-	}
-	hits.sort((left, right) => {
-		const byProject = left.project.localeCompare(right.project);
-		return byProject !== 0 ? byProject : left.key.localeCompare(right.key);
-	});
-	return hits;
-}
-
 function reportFor(
 	options: PollOptions,
 	configuration: Configuration,
@@ -178,7 +118,7 @@ function reportFor(
 }
 
 const replyBody = z.object({
-	tracker: z.enum(["github", "linear"]),
+	tracker: z.enum(trackers),
 	project: z.string().trim().min(1),
 	key: z.string().trim().min(1),
 	body: z.string().optional(),
@@ -192,6 +132,14 @@ const readMarkBody = z.object({ read: z.literal(true) });
 const readIdsBody = readMarkBody.extend({
 	ids: z.array(z.string()),
 });
+
+function invalidConfiguration(error: unknown): Response {
+	const message =
+		error instanceof Error
+			? error.message
+			: "invalid configuration: configuration";
+	return Response.json({ error: message }, { status: 400 });
+}
 
 async function readMark(request: Request): Promise<boolean> {
 	const parsed = readMarkBody.safeParse(await request.json().catch(() => null));
@@ -213,39 +161,21 @@ async function replyResponse(
 	if (tracker?.postReply === undefined) {
 		return Response.json({ error: "tracker unavailable" }, { status: 404 });
 	}
-	const row = rowForReply(options.store, parsed.data);
-	const ticket = row?.tickets.find(
-		(item) => item.key !== null && sameTicketKey(item.key, parsed.data.key),
-	);
-	const pmBot = projectHasPmBot(
+	const drafted = replyRequest(
+		options.store.readTickets(),
+		parsed.data,
 		configuration.pmBot,
-		row?.key ?? parsed.data.project,
-		parsed.data.tracker,
 	);
-	const picked =
-		parsed.data.option === undefined
-			? null
-			: optionReplyBody(ticket, parsed.data.option, pmBot);
-	if (parsed.data.option !== undefined && picked === null) {
-		return Response.json({ error: "option not found" }, { status: 400 });
+	if ("error" in drafted) {
+		return Response.json({ error: drafted.error }, { status: 400 });
 	}
-	const text = picked ?? parsed.data.body ?? "";
-	if (text.trim() === "") {
-		return Response.json({ error: "reply is empty" }, { status: 400 });
-	}
-	const reply: ReplyRequest = {
-		tracker: parsed.data.tracker,
-		project: parsed.data.project,
-		key: parsed.data.key,
-		body: panelReplyBody(ticket, text, pmBot, parsed.data.parentId),
-		...(parsed.data.parentId === undefined
-			? {}
-			: { parentId: parsed.data.parentId }),
-		...(parsed.data.kind === undefined ? {} : { kind: parsed.data.kind }),
-	};
+	const { reply } = drafted;
 	try {
 		const created: PostedReply = await tracker.postReply(reply);
-		recordPostedReply(options.store, reply, created);
+		const recorded = recordedReply(options.store.readTickets(), reply, created);
+		if (recorded !== undefined) {
+			options.store.mergeTickets([recorded]);
+		}
 		notifier.publish({
 			overview: runningOverview(options, configuration),
 			notifications: [],
@@ -254,47 +184,6 @@ async function replyResponse(
 	} catch (error) {
 		return trackerError(error);
 	}
-}
-
-function rowForReply(
-	store: Store,
-	reply: { tracker: string; project: string; key: string },
-): Snapshot | undefined {
-	const repo = githubKeyParts(reply.key)?.repo;
-	return store.readTickets().find((item) => {
-		if (item.tracker !== reply.tracker) {
-			return false;
-		}
-		if (item.key === reply.project || item.name === reply.project) {
-			return true;
-		}
-		return repo !== undefined && item.key === repo;
-	});
-}
-
-function recordPostedReply(
-	store: Store,
-	reply: ReplyRequest,
-	created: PostedReply,
-): void {
-	const row = rowForReply(store, reply);
-	if (row === undefined) {
-		return;
-	}
-	const comment: Comment = {
-		body: created.body,
-		createdAt: created.createdAt,
-	};
-	store.mergeTickets([
-		{
-			...row,
-			tickets: row.tickets.map((ticket) =>
-				ticket.key !== null && sameTicketKey(ticket.key, reply.key)
-					? { ...ticket, comments: [...(ticket.comments ?? []), comment] }
-					: ticket,
-			),
-		},
-	]);
 }
 
 function encodeChange(
@@ -772,11 +661,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					try {
 						parsed = readSettingsWrite(rawText);
 					} catch (error) {
-						const message =
-							error instanceof Error
-								? error.message
-								: "invalid configuration: configuration";
-						return Response.json({ error: message }, { status: 400 });
+						return invalidConfiguration(error);
 					}
 					const current = await configurationPort.read();
 					const unknownBot = rejectUnknownBotKeys(
@@ -790,16 +675,14 @@ export async function start(options: StartOptions): Promise<Running> {
 					}
 					const merged = mergedSettingsWrite(current, parsed, rawText);
 					const mergedText = JSON.stringify(merged);
+					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
+					const stale = polling;
+					try {
+						configuration = await configurationPort.write(mergedText);
+					} catch (error) {
+						return invalidConfiguration(error);
+					}
 					if (viewOnlyChange(current, merged)) {
-						try {
-							configuration = await configurationPort.write(mergedText);
-						} catch (error) {
-							const message =
-								error instanceof Error
-									? error.message
-									: "invalid configuration: configuration";
-							return Response.json({ error: message }, { status: 400 });
-						}
 						pollOptions.fallback = configuration;
 						notifier.publish({
 							overview: runningOverview(pollOptions, configuration),
@@ -815,19 +698,8 @@ export async function start(options: StartOptions): Promise<Running> {
 							),
 						);
 					}
-					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
-					const stale = polling;
-					try {
-						configuration = await configurationPort.write(mergedText);
-						if (trackedChanged) {
-							trackedGeneration += 1;
-						}
-					} catch (error) {
-						const message =
-							error instanceof Error
-								? error.message
-								: "invalid configuration: configuration";
-						return Response.json({ error: message }, { status: 400 });
+					if (trackedChanged) {
+						trackedGeneration += 1;
 					}
 					configuration = await configurationPort.read();
 					pollOptions.fallback = configuration;

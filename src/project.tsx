@@ -22,27 +22,26 @@ import {
 } from "./card-chips.tsx";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
-import {
-	displayedLaneName,
-	doneTicketsForLane,
-	filterProjectReport,
-	focusChain,
-	type ProjectReport,
-	type StatusType,
-	type TicketRelation,
-	type TicketView,
-	ticketGroups,
+import type {
+	ProjectReport,
+	StatusType,
+	TicketRelation,
+	TicketView,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
+import { ticketGroups } from "./grouping.ts";
+import { displayedLaneName, doneTicketsForLane } from "./lanes.ts";
+import { focusChain } from "./links.ts";
 import { TicketPanel } from "./panel.tsx";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { FilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useSaveSettings } from "./queries.ts";
+import { filterProjectReport } from "./report.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
 import { toneOf } from "./state-tone.ts";

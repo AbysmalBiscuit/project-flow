@@ -14,6 +14,7 @@ import type {
 	ProjectReport,
 	SettingsProject,
 	Thread,
+	Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import { storedObject } from "./stored-page.ts";
@@ -25,7 +26,7 @@ type SettingsPage = {
 };
 
 type ReplyBody = {
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	project: string;
 	key: string;
 	body?: string;

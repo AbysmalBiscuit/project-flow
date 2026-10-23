@@ -3,14 +3,12 @@ import type {
 	ProjectCounts,
 	SettingsProject,
 	SettingsSnapshot,
-} from "./domain.ts";
-import {
-	emptyStatusTypes,
-	expectedBotsByRepo,
-	projectHasPmBot,
+	Tracker,
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
+import { emptyStatusTypes } from "./lanes.ts";
+import { projectHasPmBot } from "./open-ask.ts";
 import {
 	listedRef,
 	pinRef,
@@ -23,11 +21,12 @@ import {
 	samePin,
 	sameProject,
 } from "./project-ref.ts";
+import { expectedBotsByRepo } from "./review.ts";
 
 export type CatalogueProject = {
 	key: string;
 	name?: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	owner?: string;
 	number?: number;
 	configuredOnly?: boolean;
