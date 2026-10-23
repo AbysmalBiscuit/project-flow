@@ -79,7 +79,10 @@ export function RelationList({
 			<h3 className={clsx(panel.sectionLabel)}>{label}</h3>
 			<ul className={clsx(panel.relations)}>
 				{relations.map((blocker) => (
-					<li key={itemId(blocker.project, blocker.key)}>
+					<li
+						key={itemId(blocker.project, blocker.key)}
+						className={clsx(panel.relation)}
+					>
 						<button
 							type="button"
 							className={clsx(
@@ -92,6 +95,9 @@ export function RelationList({
 						>
 							{blocker.key}
 						</button>
+						{blocker.title === blocker.key ? null : (
+							<span>{blocker.title}</span>
+						)}
 					</li>
 				))}
 			</ul>

@@ -1848,6 +1848,13 @@ export const panel = stylex.create({
 		padding: 0,
 		listStyle: "none",
 	},
+	relation: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "baseline",
+		marginBottom: space.xs,
+		fontSize: type.menu,
+	},
 	section: {
 		margin: 0,
 		padding: `${space.md} 0`,
