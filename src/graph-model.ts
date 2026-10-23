@@ -21,9 +21,14 @@ import {
 	type NodeBound,
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
+import { straightPath } from "./graph-straight.ts";
 import { classToken } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
-import type { GraphDirection, GroupBy } from "./view-settings.ts";
+import type {
+	GraphDirection,
+	GraphLayoutKind,
+	GroupBy,
+} from "./view-settings.ts";
 
 export type GraphTicketView = {
 	key: string | null;
@@ -83,6 +88,8 @@ export type TicketEdgeData = {
 	side: number;
 	done: boolean;
 	flowing?: boolean;
+	/** The straight path of an arrow in the Force layout. */
+	straight?: string;
 };
 
 type GraphTicket = {
@@ -323,6 +330,7 @@ export function graphModel(
 	report: ProjectReport,
 	reports: ProjectReport[],
 	direction: GraphDirection,
+	kind: GraphLayoutKind,
 	groupBy: GroupBy,
 	openKey: string | null,
 	input: LayoutInput,
@@ -435,15 +443,22 @@ export function graphModel(
 			side,
 		})),
 	);
-	const edges = laned.map(({ edge, nodesForEdge }, index) => ({
-		...edge,
-		data: {
-			...edge.data,
-			nodes: nodesForEdge,
-			label: spots[index] ?? { x: 0, y: 0 },
-			side,
-		},
-	}));
+	const edges = laned.map(({ edge, nodesForEdge }, index) => {
+		const source = bounds.get(edge.source);
+		const target = bounds.get(edge.target);
+		return {
+			...edge,
+			data: {
+				...edge.data,
+				nodes: nodesForEdge,
+				label: spots[index] ?? { x: 0, y: 0 },
+				side,
+				...(kind === "force" && source !== undefined && target !== undefined
+					? { straight: straightPath(source, target) }
+					: {}),
+			},
+		};
+	});
 	return {
 		nodes: [...groups, ...frames, ...nodes],
 		edges,

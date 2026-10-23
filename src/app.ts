@@ -32,7 +32,7 @@ import {
 	rememberValidator,
 } from "./github.ts";
 import { githubTicketKey } from "./github-thread.ts";
-import { elkWorkerPath } from "./graph-layout.ts";
+import { elkWorkerPath, forceWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
@@ -69,6 +69,26 @@ const elkWorkerFile = Bun.resolveSync(
 	"elkjs/lib/elk-worker.min.js",
 	import.meta.dir,
 );
+
+let forceWorkerScript: Promise<string> | undefined;
+
+/** Bundles the Force layout worker on its first request. */
+async function forceWorker(): Promise<Response> {
+	forceWorkerScript ??= Bun.build({
+		entrypoints: [Bun.resolveSync("./graph-force-worker.ts", import.meta.dir)],
+		target: "browser",
+		minify: true,
+	}).then(async (built) => {
+		const [script] = built.outputs;
+		if (script === undefined) {
+			throw new Error("the Force layout worker did not bundle");
+		}
+		return script.text();
+	});
+	return new Response(await forceWorkerScript, {
+		headers: { "content-type": "text/javascript" },
+	});
+}
 
 export type StartOptions = {
 	configPath: string;
@@ -636,6 +656,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		routes: {
 			"/_page": page,
 			[elkWorkerPath]: () => new Response(Bun.file(elkWorkerFile)),
+			[forceWorkerPath]: forceWorker,
 			"/": pageResponse,
 			"/needs-you": pageResponse,
 			"/inbox": pageResponse,

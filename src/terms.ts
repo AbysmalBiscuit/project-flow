@@ -224,6 +224,11 @@ export const graphDirectionLabel = {
 	"top-to-bottom": "Top to bottom",
 } as const;
 
+export const graphLayoutLabel = {
+	layered: "Layered",
+	force: "Force",
+} as const;
+
 export const groupByLabel = {
 	workstream: "Workstream",
 	theme: "Theme",

@@ -80,6 +80,10 @@ export const headerControlStyle = stylex.create({
 		color: colours.ink,
 		fontWeight: type.weight,
 	},
+	groupOff: {
+		opacity: 0.5,
+		cursor: "not-allowed",
+	},
 	icon: {
 		display: "inline-flex",
 		width: measure.glyph,
