@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import type { Board, Notification, Ticket } from "./domain.ts";
 import { mergeTickets } from "./domain.ts";
+import type { ValidatorStore } from "./github.ts";
 import type { Snapshot, Store } from "./ports.ts";
 
 type StoredPayload = {
@@ -67,7 +68,11 @@ function writeRow(db: Database, row: Snapshot): void {
 
 const busyTimeoutMs = 5_000;
 
-export function sqliteStore(path: string): { store: Store; close: () => void } {
+export function sqliteStore(path: string): {
+	store: Store;
+	validators: ValidatorStore;
+	close: () => void;
+} {
 	const db = new Database(path);
 	db.run(`pragma busy_timeout = ${busyTimeoutMs}`);
 	db.run("pragma journal_mode = WAL");
@@ -290,8 +295,13 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					}
 				})();
 			},
-			readValidators() {
-				const rows = db
+			revision() {
+				return revision;
+			},
+		},
+		validators: {
+			read() {
+				return db
 					.query("select url, etag, body, headers from validators")
 					.all() as {
 					url: string;
@@ -299,18 +309,11 @@ export function sqliteStore(path: string): { store: Store; close: () => void } {
 					body: string;
 					headers: string;
 				}[];
-				return rows;
 			},
-			recordValidator(url, etag, body, headers) {
+			record(url, etag, body, headers) {
 				db.query(
 					"insert into validators (url, etag, body, headers) values (?, ?, ?, ?) on conflict(url) do update set etag = excluded.etag, body = excluded.body, headers = excluded.headers",
 				).run(url, etag, body, headers);
-			},
-			forgetValidator(url) {
-				db.query("delete from validators where url = ?").run(url);
-			},
-			revision() {
-				return revision;
 			},
 		},
 		close: () => db.close(),

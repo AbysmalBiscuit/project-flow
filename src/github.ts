@@ -27,7 +27,7 @@ import {
 } from "./github-comment.ts";
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
-import type { FoundProject, Tracker, Viewer } from "./ports.ts";
+import type { FoundProject, GithubTracker, Viewer } from "./ports.ts";
 import { statusColours } from "./token-palette.ts";
 
 export { githubHeaders } from "./github-pages.ts";
@@ -63,64 +63,13 @@ type RestEntry = {
 	headers: [string, string][];
 };
 
-export type RestCache = Map<string, RestEntry>;
+type RestCache = Map<string, RestEntry>;
 
-const issueList =
-	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\?(.*)$/;
-const issueCommentList =
-	/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/issues\/comments\?(.*)$/;
-
-function listWindow(
-	url: string,
-	pattern: RegExp,
-): { repo: string; since: string } | null {
-	const match = pattern.exec(url);
-	if (match?.[1] === undefined || match[2] === undefined) {
-		return null;
-	}
-	const since = new URLSearchParams(match[2]).get("since");
-	if (since === null) {
-		return null;
-	}
-	return { repo: match[1], since };
-}
-
-function retainWindow(
-	cache: RestCache,
-	repo: string,
-	read: (url: string) => { repo: string; since: string } | null,
-	forget?: (url: string) => void,
-): void {
-	let current: string | undefined;
-	for (const key of cache.keys()) {
-		const window = read(key);
-		if (window?.repo !== repo) {
-			continue;
-		}
-		if (current === undefined || window.since > current) {
-			current = window.since;
-		}
-	}
-	if (current === undefined) {
-		return;
-	}
-	for (const key of cache.keys()) {
-		const window = read(key);
-		if (window?.repo === repo && window.since < current) {
-			cache.delete(key);
-			forget?.(key);
-		}
-	}
-}
-
-export function retainListWindows(
-	cache: RestCache,
-	repo: string,
-	forget?: (url: string) => void,
-): void {
-	retainWindow(cache, repo, (url) => listWindow(url, issueList), forget);
-	retainWindow(cache, repo, (url) => listWindow(url, issueCommentList), forget);
-}
+/** The last GitHub REST response for each URL, kept across restarts. */
+export type ValidatorStore = {
+	read: () => { url: string; etag: string; body: string; headers: string }[];
+	record: (url: string, etag: string, body: string, headers: string) => void;
+};
 
 function restUrl(input: string | URL | Request): string {
 	if (typeof input === "string") {
@@ -187,7 +136,7 @@ function parseStoredHeaders(headers: string): [string, string][] {
 	return entries;
 }
 
-export function rememberValidator(
+function rememberValidator(
 	cache: RestCache,
 	url: string,
 	etag: string,
@@ -222,9 +171,18 @@ function sameHeaders(
 
 export function conditionalFetch(
 	fetchImpl: Fetch,
-	cache: RestCache,
-	remember?: (url: string, etag: string, body: string, headers: string) => void,
+	validators?: ValidatorStore,
 ): Fetch {
+	const cache: RestCache = new Map();
+	for (const validator of validators?.read() ?? []) {
+		rememberValidator(
+			cache,
+			validator.url,
+			validator.etag,
+			JSON.parse(validator.body) as unknown,
+			validator.headers,
+		);
+	}
 	return async (input, init) => {
 		const url = restUrl(input);
 		const method = (init?.method ?? "GET").toUpperCase();
@@ -256,7 +214,7 @@ export function conditionalFetch(
 					body: stored.body,
 					headers: kept,
 				});
-				remember?.(
+				validators?.record(
 					key,
 					etag,
 					JSON.stringify(stored.body),
@@ -277,7 +235,7 @@ export function conditionalFetch(
 				body,
 				headers: kept,
 			});
-			remember?.(key, next, JSON.stringify(body), JSON.stringify(kept));
+			validators?.record(key, next, JSON.stringify(body), JSON.stringify(kept));
 		}
 		return response;
 	};
@@ -553,7 +511,7 @@ const projectByNumber = z.object({
 	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
-export async function githubProjectByNumber(
+async function githubProjectByNumber(
 	token: string,
 	fetchImpl: Fetch,
 	owner: string,
@@ -2825,7 +2783,7 @@ async function readRepo(
 	};
 }
 
-export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
+export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 	const seenReviews = new Map<string, ReviewEvidence>();
 	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
 	const projectItems = (projectId: string, projectOwner: string) => {
@@ -2848,50 +2806,33 @@ export function githubTracker(token: string, fetchImpl: Fetch): Tracker {
 		return listed;
 	};
 	const autoMergeByRepo = new Map<string, Promise<boolean>>();
-	const pollReads = new Map<string, Promise<Date | null>>();
 	const repoSnapshots = new Map<string, ReturnType<typeof readRepo>>();
 	const repoReadFor = (repo: string, since: Date | null) => {
-		const pending = pollReads.get(repo);
-		const cutoff = pending ?? Promise.resolve(since);
-		if (pending === undefined) {
-			pollReads.set(repo, cutoff);
-		} else {
-			pollReads.set(
-				repo,
-				Promise.all([pending, Promise.resolve(since)]).then(
-					([earlier, next]) => {
-						if (earlier === null || next === null) {
-							return null;
-						}
-						return earlier < next ? earlier : next;
-					},
-				),
-			);
-		}
 		const cached = repoSnapshots.get(repo);
 		if (cached !== undefined) {
 			return cached;
 		}
-		const read = cutoff.then((stamp) =>
-			readRepo(token, fetchImpl, repo, stamp).catch((error: unknown) => {
+		const read = readRepo(token, fetchImpl, repo, since).catch(
+			(error: unknown) => {
 				if (repoSnapshots.get(repo) === read) {
 					repoSnapshots.delete(repo);
-					pollReads.delete(repo);
 				}
 				throw error;
-			}),
+			},
 		);
 		repoSnapshots.set(repo, read);
 		return read;
 	};
 	return {
 		beginPoll() {
-			pollReads.clear();
 			repoSnapshots.clear();
 			autoMergeByRepo.clear();
 		},
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
+		},
+		findPinnedProject(owner, number) {
+			return githubProjectByNumber(token, fetchImpl, owner, number);
 		},
 		async listTickets(repo, since, projectOwner = "", held = []) {
 			if (!repo.includes("/")) {

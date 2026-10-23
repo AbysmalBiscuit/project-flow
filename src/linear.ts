@@ -873,7 +873,7 @@ export function linearTracker(
 	key: string,
 	fetchImpl: Fetch,
 	githubToken: string | null = null,
-	fetchGithub: Fetch = conditionalFetch(fetchImpl, new Map()),
+	fetchGithub: Fetch = conditionalFetch(fetchImpl),
 ): Tracker {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const seenReviews = new Map<string, ReviewEvidence>();
@@ -1001,12 +1001,6 @@ export function linearTracker(
 			const project = await findLinearProject(key, pin, fetchImpl);
 			const nodes = await issues(project.id, since ?? null);
 			return pullsForIssues(nodes, githubToken, fetchGithub, seenReviews);
-		},
-		async listBranches(_project) {
-			return [];
-		},
-		async repoAutoMerge(_project) {
-			return false;
 		},
 		fetchThread(project, ticketKey, signal) {
 			return fetchLinearThread(key, fetchImpl, project, ticketKey, signal);

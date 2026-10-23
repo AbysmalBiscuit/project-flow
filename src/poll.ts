@@ -23,19 +23,14 @@ import {
 	startedTodoKeys,
 	todoRows,
 } from "./domain.ts";
-import type { Fetch } from "./fetch.ts";
-import {
-	githubProjectByNumber,
-	missingToken,
-	type RestCache,
-	retainListWindows,
-} from "./github.ts";
+import { missingToken } from "./github.ts";
 import { missingLinearKey } from "./linear.ts";
 import type {
 	CheckoutSource,
 	Clock,
 	ConfigurationPort,
 	FoundProject,
+	GithubTracker,
 	Notifier,
 	Store,
 	TodoSource,
@@ -71,15 +66,11 @@ function mergeFound(
 const fullPollPeriodMs = 10 * 60 * 1000;
 export type PollOptions = {
 	configuration: ConfigurationPort;
-	github: Tracker | null;
+	github: GithubTracker | null;
 	linear: Tracker | null;
 	store: Store;
 	clock: Clock;
 	notifier: Notifier;
-	token: string | null;
-	fetch: Fetch;
-	fetchGithub: Fetch;
-	restCache: RestCache;
 	listTodos?: TodoSource | undefined;
 	listCheckouts?: CheckoutSource | undefined;
 	releaseDiscovery: () => void;
@@ -227,13 +218,8 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			continue;
 		}
 		const located =
-			pin.tracker === "github" && "project" in pin && options.token !== null
-				? await githubProjectByNumber(
-						options.token,
-						options.fetchGithub,
-						pin.owner,
-						pin.project,
-					)
+			pin.tracker === "github" && "project" in pin && github !== null
+				? await github.findPinnedProject(pin.owner, pin.project)
 				: { key: refKey(pin), tracker: pin.tracker, updatedAt: null };
 		if (located !== null) {
 			found.push(located);
@@ -373,13 +359,6 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				row: null,
 			});
 			options.store.clearProjectError(project.key);
-			if (project.tracker === "github" && project.key.includes("/")) {
-				retainListWindows(
-					options.restCache,
-					project.key,
-					options.store.forgetValidator,
-				);
-			}
 			const shown = projectSnapshots(listed);
 			const visible = new Set(shown.map((item) => item.key));
 			const sourceEmpty = new Map(
