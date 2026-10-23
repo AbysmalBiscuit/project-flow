@@ -94,16 +94,16 @@ function ProjectNode({ id, data }: CardProps<ProjectCard>) {
 		>
 			<MeasuredNode id={id} kind="project" />
 			<CardHandles />
-			<div className={clsx(cards.graphHead)}>
-				<p className={clsx(cards.graphTitle)}>{project.name}</p>
-				{project.needsYou > 0 ? (
-					<span className={clsx(cards.graphBadge)}>
+			<p className={clsx(cards.graphTitle)}>{project.name}</p>
+			{project.needsYou > 0 ? (
+				<span className={clsx(board.chips, cards.graphChips)}>
+					<span className={clsx(board.chip, board.chipNeeds)}>
 						{project.needsYou === 1
 							? overviewControlLabel.needsYouOne
 							: `${project.needsYou} ${overviewControlLabel.needsYouMany}`}
 					</span>
-				) : null}
-			</div>
+				</span>
+			) : null}
 			<p className={clsx(cards.graphMeta)}>{trackerName(project.tracker)}</p>
 			{project.pending === true ? (
 				<p className={clsx(cards.loading)}>{loadingLabel}</p>

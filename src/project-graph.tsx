@@ -40,7 +40,6 @@ import {
 import { stateTones } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
-	navLabel,
 	openParentLabel,
 	stateLabel,
 	subTicketsDoneLabel,
@@ -192,11 +191,6 @@ function TicketNode({ id, data }: CardProps<TicketCard>) {
 								data.ticket.subTicketsDone ?? 0,
 								data.ticket.subTickets,
 							)}
-						</span>
-					) : null}
-					{data.ticket.needsYou ? (
-						<span className={clsx(board.chip, board.chipNeeds)}>
-							{navLabel.needsYou}
 						</span>
 					) : null}
 				</span>
