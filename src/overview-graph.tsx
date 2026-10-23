@@ -36,6 +36,7 @@ import { sizedNode } from "./graph-sizes.ts";
 import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
+import { linkId, ticketRefId } from "./ticket-key.ts";
 import { classToken, clsx } from "./ui.ts";
 import { cards, shell } from "./ui-styles.ts";
 
@@ -311,7 +312,7 @@ function edgeFor(
 	}
 	return [
 		{
-			id: `blocker:${blocked}:${blocker.project}:${blocker.key}`,
+			id: linkId(blocked, ticketRefId(blocker)),
 			source: blocker.project,
 			target: blocked,
 			type: "blocker",

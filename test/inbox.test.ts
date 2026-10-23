@@ -2587,6 +2587,55 @@ describe("inbox", () => {
 		);
 	});
 
+	test("a ticket whose key changes case between polls raises one notification", async () => {
+		const headline = "Which bot should review this?";
+		const askedAs = (identifier: string) =>
+			linearIssue(
+				identifier,
+				"Open ask",
+				headline,
+				[
+					{
+						body: `${headline}\n\n${ask("pf-1")}`,
+						createdAt: "2026-08-18T12:00:00.000Z",
+					},
+				],
+				{},
+				"2026-08-18T13:00:00.000Z",
+			);
+		await withInbox(pinned, [], async (base, setIssues) => {
+			setIssues([askedAs("PF-1")]);
+			const event = await notificationAfterRefresh(base);
+			expect(event).toMatchObject({ trigger: "needsYou", key: "PF-1" });
+			setIssues([askedAs("pf-1")]);
+			await expectQuietRefresh(base);
+			setIssues([askedAs("PF-1")]);
+			await expectQuietRefresh(base);
+			expect(await inboxOf(base)).toEqual([event]);
+		});
+	});
+
+	test("an incremental poll keeps one ticket when its key changes case", async () => {
+		const named = (identifier: string) =>
+			linearIssue(identifier, "Open ticket", "");
+		await withInbox(pinned, [named("PF-1")], async (base, setIssues) => {
+			await refresh(base);
+			setIssues([named("pf-1")]);
+			await refresh(base);
+			const response = await fetch(
+				new URL(
+					`/api/projects/${encodeURIComponent(linearProject.name)}?view=all`,
+					base,
+				),
+			);
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as {
+				tickets: { key: string }[];
+			};
+			expect(body.tickets.map((ticket) => ticket.key)).toEqual(["pf-1"]);
+		});
+	});
+
 	test("marking one entry read survives a restart while another stays unread", async () => {
 		let current = [
 			linearIssue(

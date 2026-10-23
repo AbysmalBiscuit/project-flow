@@ -21,12 +21,7 @@ import {
 } from "react";
 import { board } from "./board-styles.ts";
 import { useCollapse } from "./collapse.ts";
-import {
-	focusChain,
-	outsideKey,
-	type ProjectReport,
-	type TicketState,
-} from "./domain.ts";
+import { focusChain, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { GraphCardChips } from "./graph-card-chips.tsx";
 import {
@@ -63,6 +58,7 @@ import {
 	subTicketsToggleLabel,
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
+import { outsideKey, shortKey } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { cards, panel } from "./ui-styles.ts";
 import type {
@@ -81,11 +77,7 @@ export type OpenedNode = {
 };
 
 function shortTicket(key: string, project: string, outside: boolean): string {
-	if (!outside) {
-		const mark = key.lastIndexOf("#");
-		return mark === -1 ? key : key.slice(mark);
-	}
-	return outsideKey(project, key);
+	return outside ? outsideKey(project, key) : shortKey(key);
 }
 
 function ClusterNode({

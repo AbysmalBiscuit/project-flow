@@ -27,7 +27,6 @@ import {
 	type NeedsYouItem,
 	type ProjectReport,
 	type StatusType,
-	sameTicketKey,
 	type TicketRelation,
 	type TicketView,
 	ticketGroups,
@@ -57,7 +56,15 @@ import {
 	subTicketsToggleLabel,
 	viewLabel,
 } from "./terms.ts";
-import { sameTicket, type TicketRef } from "./ticket-key.ts";
+import {
+	foldKey,
+	githubIssueUrl,
+	itemId,
+	sameTicket,
+	sameTicketKey,
+	shortKey,
+	type TicketRef,
+} from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -104,8 +111,8 @@ function trackerUrl(
 	tracker: "github" | "linear",
 	key: string,
 ): string | undefined {
-	if (tracker === "github" && key.includes("#")) {
-		return `https://github.com/${key.replace("#", "/issues/")}`;
+	if (tracker === "github") {
+		return githubIssueUrl(key);
 	}
 	if (tracker === "linear") {
 		return `https://linear.app/issue/${key}`;
@@ -175,14 +182,14 @@ function panelBlockers(
 	const resolved: TicketRelation[] = [];
 	for (const key of ticket.blockers) {
 		const known = outside.find(
-			(blocker) => blocker.key.toLowerCase() === key.toLowerCase(),
+			(blocker) => foldKey(blocker.key) === foldKey(key),
 		);
 		if (known !== undefined) {
 			resolved.push(known);
 			continue;
 		}
 		const local = source?.tickets.find(
-			(item) => item.key?.toLowerCase() === key.toLowerCase(),
+			(item) => foldKey(item.key) === foldKey(key),
 		);
 		resolved.push({
 			tracker,
@@ -281,22 +288,15 @@ function laneTickets(report: ProjectReport, lane: string): TicketView[] {
 	return report.tickets.filter((ticket) => displayedLaneName(ticket) === lane);
 }
 
-function shortKey(key: string): string {
-	const mark = key.lastIndexOf("#");
-	return mark === -1 ? key : key.slice(mark);
-}
-
 function relationSplit(ticket: TicketView): {
 	local: string[];
 	outside: TicketRelation[];
 } {
 	const outside = ticket.outsideBlockers ?? [];
-	const outsideKeys = new Set(
-		outside.map((blocker) => blocker.key.toLowerCase()),
-	);
+	const outsideKeys = new Set(outside.map((blocker) => foldKey(blocker.key)));
 	return {
 		local: ticket.blockers.filter(
-			(blocker) => !outsideKeys.has(blocker.toLowerCase()),
+			(blocker) => !outsideKeys.has(foldKey(blocker)),
 		),
 		outside,
 	};
@@ -458,7 +458,7 @@ function LaneCards({
 		<ul className={clsx(board.cards)}>
 			{tickets.map((ticket) => (
 				<Card
-					key={`${ticket.key ?? ""} ${ticket.title}`}
+					key={ticket.key ?? ticket.title}
 					ticket={ticket}
 					onOpen={onOpen}
 					onOpenOutside={onOpenOutside}
@@ -627,7 +627,7 @@ function sortValue(
 	lanes: ProjectReport["lanes"],
 ): string | number {
 	if (column === "key") {
-		return ticket.key?.toLowerCase() ?? "";
+		return foldKey(ticket.key) ?? "";
 	}
 	if (column === "title") {
 		return ticket.title.toLowerCase();
@@ -885,13 +885,13 @@ function TicketTable({
 	}, [searching]);
 	const collapsed = (key: string, startsCollapsed: boolean) =>
 		searching
-			? (searchShut[key.toLowerCase()] ?? false)
+			? (searchShut[foldKey(key)] ?? false)
 			: collapse.collapsed(key, startsCollapsed);
 	const toggle = (key: string, startsCollapsed: boolean) => {
 		if (searching) {
 			setSearchShut((current) => ({
 				...current,
-				[key.toLowerCase()]: !collapsed(key, startsCollapsed),
+				[foldKey(key)]: !collapsed(key, startsCollapsed),
 			}));
 			return;
 		}
@@ -1001,7 +1001,7 @@ function TicketTable({
 								...heading,
 								...tableRows(group.tickets).map(({ ticket, tree }) => (
 									<TableRow
-										key={`${group.name}\n${ticket.key ?? ""}\n${ticket.title}`}
+										key={itemId(group.name, ticket.key ?? ticket.title)}
 										ticket={ticket}
 										tree={tree}
 										project={report.name}

@@ -11,6 +11,7 @@ import {
 	projectNodeId,
 } from "./graph-flow.ts";
 import type { NodeSize } from "./graph-sizes.ts";
+import { foldKey } from "./ticket-key.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 
 /** The page starts ELK from this script in a Web Worker. */
@@ -109,11 +110,9 @@ function parentLinks(
 	links: Map<string, string>;
 	copies: Map<string, Placed & { of: string }>;
 } {
-	const byKey = new Map(
-		placed.map((item) => [item.ticket.key.toLowerCase(), item]),
-	);
+	const byKey = new Map(placed.map((item) => [foldKey(item.ticket.key), item]));
 	const parentOf = (item: Placed) =>
-		byKey.get(item.ticket.parent?.toLowerCase() ?? "");
+		byKey.get(foldKey(item.ticket.parent) ?? "");
 	const links = new Map<string, string>();
 	const copies = new Map<string, Placed & { of: string }>();
 	const encloses = (outer: string, inner: string): boolean => {
