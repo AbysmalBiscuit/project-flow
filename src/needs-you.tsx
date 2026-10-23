@@ -25,6 +25,7 @@ import {
 	reasonOrder,
 	reasonTab,
 } from "./terms.ts";
+import { itemId, sameTicketKey, ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { needs } from "./ui-styles.ts";
 
@@ -133,9 +134,9 @@ function NeedsGroups({
 						<ul className={clsx(needs.list)}>
 							{grouped.map((item) => (
 								<NeedsItem
-									key={`${item.project} ${item.key}`}
+									key={itemId(item.project, item.key)}
 									item={item}
-									selected={selected === `${item.project} ${item.key}`}
+									selected={selected === itemId(item.project, item.key)}
 									onOpen={() => onOpen(item)}
 									onAction={() => onOpen(item)}
 								/>
@@ -162,11 +163,12 @@ function NeedsPanel({
 		ticket.item ??
 		items.find(
 			(candidate) =>
-				candidate.project === ticket.project && candidate.key === ticket.key,
+				candidate.project === ticket.project &&
+				sameTicketKey(candidate.key, ticket.key),
 		);
 	return (
 		<TicketPanel
-			key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
+			key={ticketRefId(ticket)}
 			tracker={ticket.tracker}
 			project={ticket.project}
 			ticketKey={ticket.key}
@@ -310,7 +312,7 @@ function NeedsList({
 						items={shown}
 						group={group}
 						selected={
-							ticket === null ? null : `${ticket.project} ${ticket.key}`
+							ticket === null ? null : itemId(ticket.project, ticket.key)
 						}
 						onOpen={choose}
 					/>

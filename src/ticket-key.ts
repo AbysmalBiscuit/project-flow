@@ -122,12 +122,13 @@ export function linkId(from: string, to: string): string {
 	return id(from, to);
 }
 
-export function blockerId(
-	project: string,
-	tracker: string,
-	key: string,
-): string {
-	return id(project, tracker, foldKey(key));
+/** The id of a ticket in one project of one tracker. */
+export function ticketRefId(ref: {
+	project: string;
+	tracker: string;
+	key: string;
+}): string {
+	return id(ref.project, ref.tracker, foldKey(ref.key));
 }
 
 export function needsYouSeenId(item: { project: string; key: string }): string {
@@ -152,11 +153,7 @@ export function blockerClearedId(
 	blocker: { project: string; tracker: string; key: string },
 	at: string,
 ): string {
-	return id(
-		"blockerCleared",
-		blockerId(blocker.project, blocker.tracker, blocker.key),
-		at,
-	);
+	return id("blockerCleared", ticketRefId(blocker), at);
 }
 
 export type TicketRef = {

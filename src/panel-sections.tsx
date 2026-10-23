@@ -6,6 +6,7 @@ import {
 	pullStatusLabel,
 	whyLabel,
 } from "./terms.ts";
+import { itemId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { panel, shell } from "./ui-styles.ts";
 
@@ -78,7 +79,7 @@ export function RelationList({
 			<h3 className={clsx(panel.sectionLabel)}>{label}</h3>
 			<ul className={clsx(panel.relations)}>
 				{relations.map((blocker) => (
-					<li key={`${blocker.project} ${blocker.key}`}>
+					<li key={itemId(blocker.project, blocker.key)}>
 						<button
 							type="button"
 							className={clsx(

@@ -65,7 +65,7 @@ import {
 	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
-import { outsideKey } from "./ticket-key.ts";
+import { itemId, outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { cards, frame, headerControlStyle, shell } from "./ui-styles.ts";
@@ -143,8 +143,8 @@ function BlockerRow({ project }: { project: ProjectCounts }) {
 	const tags = project.tags.length;
 	const unlinked = project.unlinkedPrs.length;
 	const chipList = [
-		...project.crossProjectBlockers.map(
-			(blocker) => `${blocker.project} ${blocker.key}`,
+		...project.crossProjectBlockers.map((blocker) =>
+			itemId(blocker.project, blocker.key),
 		),
 		...project.tags,
 		String(unlinked),
@@ -182,7 +182,7 @@ function BlockerRow({ project }: { project: ProjectCounts }) {
 	return (
 		<p ref={row} className={clsx(cards.blockers)}>
 			{project.crossProjectBlockers.map((blocker) => (
-				<span key={`${blocker.project} ${blocker.key}`} data-chip="">
+				<span key={itemId(blocker.project, blocker.key)} data-chip="">
 					<Chip blocker={blocker} />
 				</span>
 			))}
@@ -616,7 +616,7 @@ function TableView({
 										<div className={clsx(cards.chips)}>
 											{project.crossProjectBlockers.map((blocker) => (
 												<a
-													key={`${blocker.project} ${blocker.key}`}
+													key={itemId(blocker.project, blocker.key)}
 													className={clsx(
 														cards.chip,
 														cards.blockerChip,
@@ -972,7 +972,7 @@ function OverviewPage({
 					<ul className={clsx(cards.needs)}>
 						{needs.slice(0, 4).map((item) => (
 							<li
-								key={`${item.project}:${item.key}`}
+								key={itemId(item.project, item.key)}
 								className={clsx(cards.need, phoneLayout.cardNeed)}
 							>
 								<a

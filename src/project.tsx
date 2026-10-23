@@ -458,7 +458,7 @@ function LaneCards({
 		<ul className={clsx(board.cards)}>
 			{tickets.map((ticket) => (
 				<Card
-					key={`${ticket.key ?? ""} ${ticket.title}`}
+					key={ticket.key ?? ticket.title}
 					ticket={ticket}
 					onOpen={onOpen}
 					onOpenOutside={onOpenOutside}

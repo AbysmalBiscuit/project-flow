@@ -832,8 +832,8 @@ export function graphTickets(
 		}
 	}
 	outside.sort((left, right) =>
-		`${left.project} ${left.key}`.localeCompare(
-			`${right.project} ${right.key}`,
+		itemId(left.project, left.key).localeCompare(
+			itemId(right.project, right.key),
 		),
 	);
 	const outsideParents = (withParents ? [...parents] : []).flatMap(

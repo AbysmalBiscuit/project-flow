@@ -18,7 +18,7 @@ import {
 	navLabel,
 	triggerLabel,
 } from "./terms.ts";
-import { sameTicketKey } from "./ticket-key.ts";
+import { sameTicketKey, ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { frame, inbox, shell } from "./ui-styles.ts";
 
@@ -330,7 +330,7 @@ function InboxList({
 				</div>
 				{ticket === null ? null : (
 					<TicketPanel
-						key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
+						key={ticketRefId(ticket)}
 						tracker={ticket.tracker}
 						project={ticket.project}
 						ticketKey={ticket.key}

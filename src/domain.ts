@@ -10,7 +10,6 @@ import { knownBots } from "./known-bots.ts";
 import type { HidingFilter } from "./terms.ts";
 import {
 	blockerClearedId,
-	blockerId,
 	commentNotificationId,
 	foldKey,
 	githubKey,
@@ -28,6 +27,7 @@ import {
 	scopedKey,
 	shortKey,
 	ticketId,
+	ticketRefId,
 } from "./ticket-key.ts";
 import {
 	type GroupBy,
@@ -488,12 +488,13 @@ export function attentionOf(
 			});
 		}
 		for (const blocker of view.counts.crossProjectBlockers) {
-			blockers.set(blockerId(view.counts.name, blocker.tracker, blocker.key), {
+			const crossBlocker = {
 				project: view.counts.name,
 				tracker: blocker.tracker,
 				key: blocker.key,
 				title: blocker.title.trim() === "" ? blocker.key : blocker.title,
-			});
+			};
+			blockers.set(ticketRefId(crossBlocker), crossBlocker);
 		}
 		for (const ticket of view.row.tickets) {
 			if (ticket.key === null) {
@@ -3143,12 +3144,13 @@ export function projectCounts(
 			if (project === "" || project.toLowerCase() === name.toLowerCase()) {
 				continue;
 			}
-			cross.set(`${blocker.tracker} ${project} ${blocker.key}`, {
+			const crossBlocker = {
 				project,
 				tracker: blocker.tracker,
 				key: blocker.key,
 				title: blocker.title,
-			});
+			};
+			cross.set(ticketRefId(crossBlocker), crossBlocker);
 		}
 	}
 	const unlinked = active.filter((pull) => !linkedKeys.has(pullKey(pull)));
