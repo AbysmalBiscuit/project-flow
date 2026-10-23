@@ -2,9 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type { Configuration, ProjectPin } from "./configuration.ts";
 import type { SettingsProject } from "./domain.ts";
-import { projectHasPmBot, samePin } from "./domain.ts";
+import { projectHasPmBot } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
+import { samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import {
 	FilterGlyph,

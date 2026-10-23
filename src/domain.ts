@@ -16,6 +16,7 @@ import type {
 } from "./configuration.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
+import { listedRef, ownerRepo, refRepo } from "./project-ref.ts";
 import type { HidingFilter } from "./terms.ts";
 import {
 	blockerClearedId,
@@ -1346,7 +1347,10 @@ function trimPunctuation(token: string): string {
 	return token.replace(/^[([{"']+/, "").replace(/[)\]}"'.,;:!?]+$/, "");
 }
 
-function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
+function refFrom(
+	match: RegExpExecArray,
+	repo: string | null,
+): TicketRef | null {
 	const githubUrlOwner = match[1];
 	const githubUrlRepo = match[2];
 	const githubUrlNumber = match[3];
@@ -1377,10 +1381,14 @@ function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
 	}
 	const sameNumber = match[7];
 	if (sameNumber !== undefined) {
-		if (!project.includes("/")) {
+		if (repo === null) {
 			return null;
 		}
-		return { tracker: "github", project, key: githubKey(project, sameNumber) };
+		return {
+			tracker: "github",
+			project: repo,
+			key: githubKey(repo, sameNumber),
+		};
 	}
 	const linearMatch = match[8];
 	if (linearMatch !== undefined) {
@@ -1391,7 +1399,7 @@ function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
 
 function parseLine(
 	line: string,
-	project: string,
+	repo: string | null,
 	direction: "blockedBy" | "blocks",
 ): TicketRef[] {
 	const matched = line.trim().match(label);
@@ -1415,7 +1423,7 @@ function parseLine(
 		if (found === null) {
 			continue;
 		}
-		const ref = refFrom(found, project);
+		const ref = refFrom(found, repo);
 		if (ref !== null && !refs.some((item) => sameRef(item, ref))) {
 			refs.push(ref);
 		}
@@ -1425,12 +1433,12 @@ function parseLine(
 
 export function bodyBlockers(
 	ticket: Ticket,
-	project: string,
+	repo: string | null,
 	direction: "blockedBy" | "blocks",
 ): TicketRef[] {
 	const refs: TicketRef[] = [];
 	for (const line of ticket.body.split("\n")) {
-		for (const ref of parseLine(line, project, direction)) {
+		for (const ref of parseLine(line, repo, direction)) {
 			if (!refs.some((item) => sameRef(item, ref))) {
 				refs.push(ref);
 			}
@@ -1528,27 +1536,29 @@ function bodyLines(donor: Ticket | undefined, ticket: Ticket): string {
 	return lines.join("\n");
 }
 
-function bodyProject(ticket: Ticket, project: string): string {
-	if (project.includes("/")) {
-		return project;
-	}
-	const repo = ticket.key === null ? null : keyRepo(ticket.key);
-	if (ticket.tracker === "github" && repo?.includes("/") === true) {
+/** The repo that a bare `#number` in a ticket body names. */
+function bodyRepo(ticket: Ticket, repo: string | null): string | null {
+	if (repo !== null || ticket.tracker !== "github" || ticket.key === null) {
 		return repo;
 	}
-	return project;
+	return keyRepo(ticket.key);
 }
 
-function parseBodies(
-	groups: { project: string; tickets: Ticket[] }[],
-): ParsedBodies {
+/** The tickets of one project, with its repo when the project is a GitHub repo. */
+export type ProjectGroup = {
+	project: string;
+	repo: string | null;
+	tickets: Ticket[];
+};
+
+function parseBodies(groups: ProjectGroup[]): ParsedBodies {
 	const parsed: ParsedBodies = new Map();
 	for (const group of groups) {
 		for (const ticket of group.tickets) {
 			const key = parseKey(ticket);
-			const project = bodyProject(ticket, group.project);
-			const blockedBy = bodyBlockers(ticket, project, "blockedBy");
-			const blocks = bodyBlockers(ticket, project, "blocks");
+			const repo = bodyRepo(ticket, group.repo);
+			const blockedBy = bodyBlockers(ticket, repo, "blockedBy");
+			const blocks = bodyBlockers(ticket, repo, "blocks");
 			const earlier = parsed.get(key);
 			if (earlier === undefined) {
 				parsed.set(key, { blockedBy, blocks });
@@ -1640,6 +1650,8 @@ export type ListedProject = {
 	key: string;
 	name?: string;
 	tracker: "github" | "linear";
+	owner?: string;
+	number?: number;
 	updatedAt: string | null;
 	tickets: Ticket[];
 	pulls: PullRequest[];
@@ -1649,28 +1661,18 @@ export type ListedProject = {
 	closed?: boolean;
 };
 
-export function projectSnapshots(found: ListedProject[]): {
-	key: string;
-	name: string;
-	tracker: ListedProject["tracker"];
-	tickets: Ticket[];
-	pulls: PullRequest[];
-	branches: string[];
-	startedKeys: string[];
-	board?: Board;
-}[] {
+export function projectSnapshots(found: ListedProject[]): Snapshot[] {
+	const kinds = new Map(
+		found.map((project) => [project, listedRef(project).kind]),
+	);
 	const projects = [
-		...found.filter(
-			(project) => project.tracker === "github" && !project.key.includes("/"),
-		),
-		...found.filter(
-			(project) => project.tracker === "linear" || project.key.includes("/"),
-		),
+		...found.filter((project) => kinds.get(project) === "github-project"),
+		...found.filter((project) => kinds.get(project) !== "github-project"),
 	];
 	const shown = projects.filter((project) => project.closed !== true);
 	const carried = new Map<string, Ticket>();
 	for (const project of shown) {
-		if (!project.key.includes("/")) {
+		if (kinds.get(project) !== "github-repo") {
 			continue;
 		}
 		for (const ticket of project.tickets) {
@@ -1682,6 +1684,7 @@ export function projectSnapshots(found: ListedProject[]): {
 	const claimed = new Set<string>();
 	const rows = [];
 	for (const project of shown) {
+		const repo = refRepo(listedRef(project));
 		const tickets = project.tickets.flatMap((ticket) => {
 			if (ticket.ref !== undefined && claimed.has(ticket.ref)) {
 				return [];
@@ -1701,16 +1704,8 @@ export function projectSnapshots(found: ListedProject[]): {
 							blockedBy: mergeBlockedBy([
 								donor.blockedBy,
 								ticket.blockedBy,
-								bodyBlockers(
-									donor,
-									bodyProject(donor, project.key),
-									"blockedBy",
-								),
-								bodyBlockers(
-									ticket,
-									bodyProject(ticket, project.key),
-									"blockedBy",
-								),
+								bodyBlockers(donor, bodyRepo(donor, repo), "blockedBy"),
+								bodyBlockers(ticket, bodyRepo(ticket, repo), "blockedBy"),
 							]),
 						};
 			if (ticket.ref !== undefined) {
@@ -1727,12 +1722,13 @@ export function projectSnapshots(found: ListedProject[]): {
 			branches: project.branches,
 			startedKeys: project.startedKeys,
 			...(project.board === undefined ? {} : { board: project.board }),
+			...(project.owner === undefined ? {} : { owner: project.owner }),
+			...(project.number === undefined ? {} : { number: project.number }),
 		});
 	}
 	return rows;
 }
 
-export const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
 const githubNode = /^(\d+)-/;
 const sessionSuffix = /\.[a-z][a-z0-9]*-\d+$/i;
 const linearSegment = /^([a-z][a-z0-9]*)-(\d+)(?![a-z0-9])/i;
@@ -2269,22 +2265,6 @@ function shownGraph(
 		}
 	}
 	return { tickets: shown, links };
-}
-
-export function samePin(left: ProjectPin, right: ProjectPin): boolean {
-	if (left.tracker !== right.tracker) {
-		return false;
-	}
-	if (left.tracker === "linear" && right.tracker === "linear") {
-		return left.project === right.project;
-	}
-	if ("repo" in left && "repo" in right) {
-		return left.repo === right.repo;
-	}
-	if ("owner" in left && "owner" in right) {
-		return left.owner === right.owner && left.project === right.project;
-	}
-	return false;
 }
 
 const botLogin: Record<KnownBot, string> = {
@@ -2968,7 +2948,7 @@ export function projectCounts(
 	startedKeys: string[],
 	runs: WorkcellRun[],
 	autoMerge: AutoMergeSources,
-	all: { project: string; tickets: Ticket[] }[],
+	all: ProjectGroup[],
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
 	rules: Omit<NeedsYouRules, "pmBot"> & {
@@ -4298,8 +4278,10 @@ export type SettingsProject = {
 	ref: ProjectPin;
 };
 
-export type SettingsSnapshot = {
-	key: string;
+export type SettingsSnapshot = Pick<
+	Snapshot,
+	"key" | "tracker" | "owner" | "number"
+> & {
 	pulls: Pick<
 		PullRequest,
 		"repo" | "merged" | "checks" | "comments" | "reviews" | "reactions"

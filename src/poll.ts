@@ -33,32 +33,34 @@ import type {
 	Notifier,
 	Store,
 	TodoSource,
+	TrackedProject,
 	Tracker,
 	Viewer,
 } from "./ports.ts";
+import {
+	listedRef,
+	pinRef,
+	refListed,
+	refRepo,
+	sameProject,
+} from "./project-ref.ts";
 import {
 	overview,
 	projectViews,
 	seededForProjects,
 	viewerLogins,
 } from "./project-views.ts";
-import { matchesRef, refKey } from "./settings-catalogue.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
 
 function mergeFound(
 	found: FoundProject[],
 	next: FoundProject[],
 ): FoundProject[] {
-	const seen = new Set(
-		found.map((project) => `${project.tracker}:${project.key}`),
-	);
 	for (const project of next) {
-		const id = `${project.tracker}:${project.key}`;
-		if (seen.has(id)) {
-			continue;
+		const ref = listedRef(project);
+		if (!found.some((item) => sameProject(listedRef(item), ref))) {
+			found.push(project);
 		}
-		seen.add(id);
-		found.push(project);
 	}
 	return found;
 }
@@ -174,7 +176,6 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		viewer === null ? [] : [viewer],
 	);
 	const viewer = githubPage.viewer;
-	const named = new Set<string>();
 	for (const checkout of checkouts) {
 		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {
 			continue;
@@ -188,7 +189,6 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		) {
 			continue;
 		}
-		named.add(checkout.repo.trim().toLowerCase());
 		mergeFound(discovered, [
 			{ key: checkout.repo.trim(), tracker: "github", updatedAt: null },
 		]);
@@ -196,44 +196,43 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	const rows = todoRows(todoListing);
 	for (const row of rows) {
 		const repo = githubRepoForTodo(row.project, checkoutBasenames(checkouts));
-		if (repo === null || named.has(repo.toLowerCase())) {
+		if (repo === null) {
 			continue;
 		}
-		named.add(repo.toLowerCase());
 		mergeFound(discovered, [{ key: repo, tracker: "github", updatedAt: null }]);
 	}
 	if (linear !== null) {
 		const keys = linearKeysForNames(linearNamesFromCheckouts(checkouts, rows));
 		mergeFound(discovered, (await linear.projectsForKeys?.(keys)) ?? []);
 	}
-	const discoveredKeys = new Set(
-		discovered.map((project) => `${project.tracker}:${project.key}`),
-	);
 	const found = [...discovered];
-	const trackedProjects = new Set<FoundProject>();
+	const trackedProjects = new Map<FoundProject, TrackedProject>();
 	for (const pin of configuration.tracked) {
-		const known = found.find((project) => matchesRef(project, pin));
-		if (known !== undefined) {
-			trackedProjects.add(known);
+		const ref = pinRef(pin);
+		const known = found.find((project) => sameProject(listedRef(project), ref));
+		const located =
+			known ??
+			(ref.kind === "github-project" && github !== null
+				? await github.findPinnedProject(ref.owner, ref.number)
+				: { ...refListed(ref), updatedAt: null });
+		if (located === null) {
 			continue;
 		}
-		const located =
-			pin.tracker === "github" && "project" in pin && github !== null
-				? await github.findPinnedProject(pin.owner, pin.project)
-				: { key: refKey(pin), tracker: pin.tracker, updatedAt: null };
-		if (located !== null) {
+		if (known === undefined) {
 			found.push(located);
-			trackedProjects.add(located);
 		}
+		trackedProjects.set(located, { ...located, ref: listedRef(located) });
 	}
-	options.catalogue = found.map((project) => ({
-		...project,
-		...(discoveredKeys.has(`${project.tracker}:${project.key}`)
-			? {}
-			: { configuredOnly: true }),
-	}));
+	options.catalogue = found.map((project) =>
+		discovered.includes(project)
+			? project
+			: { ...project, configuredOnly: true },
+	);
 	options.releaseDiscovery();
-	const tracked = found.filter((project) => trackedProjects.has(project));
+	const tracked = found.flatMap((project) => {
+		const resolved = trackedProjects.get(project);
+		return resolved === undefined ? [] : [resolved];
+	});
 	const trackedKeys = new Set(tracked.map((project) => project.key));
 	const started: PollProgress = {
 		done: 0,
@@ -274,6 +273,8 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 					pulls: [],
 					branches: [],
 					startedKeys,
+					...(project.owner === undefined ? {} : { owner: project.owner }),
+					...(project.number === undefined ? {} : { number: project.number }),
 				},
 			});
 			notePollProgress(options, configuration, tracked, outcomes);
@@ -300,24 +301,21 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		const since = full ? null : lastGood;
 		try {
 			const listedTickets = await tracker.listTickets(
-				project.key,
+				project,
 				since,
-				project.owner,
 				since === null ? [] : (stored?.tickets ?? []),
 			);
 			const pulls = await tracker.listPulls(
-				project.key,
+				project,
 				project.tracker === "linear" ? since : null,
-				project.owner,
 			);
+			const repo = refRepo(project.ref);
 			const branches =
-				project.tracker === "github" && github !== null
-					? await github.listBranches(project.key)
-					: [];
+				repo !== null && github !== null ? await github.listBranches(repo) : [];
 			if (github !== null) {
 				const repos = new Set([
 					...pulls.map((pull) => pull.repo),
-					...(project.tracker === "github" ? [project.key] : []),
+					...(repo === null ? [] : [repo]),
 				]);
 				for (const repo of repos) {
 					if (readRepos.has(repo)) {
@@ -340,15 +338,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				startedKeys,
 				...(listedTickets.board === undefined
 					? {}
-					: {
-							board:
-								project.owner === undefined || project.number === undefined
-									? listedTickets.board
-									: {
-											...listedTickets.board,
-											laneKey: `${project.owner}/${project.number}`,
-										},
-						}),
+					: { board: listedTickets.board }),
 				...(project.closed === undefined ? {} : { closed: project.closed }),
 			});
 			outcomes.set(project.key, {
@@ -513,7 +503,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 function notePollProgress(
 	options: PollOptions,
 	configuration: Configuration,
-	tracked: FoundProject[],
+	tracked: TrackedProject[],
 	outcomes: Map<string, ProjectPoll>,
 ): void {
 	if (!options.polling || options.stopped || !options.mayPublish()) {

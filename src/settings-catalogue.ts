@@ -8,10 +8,19 @@ import {
 	emptyStatusTypes,
 	expectedBotsByRepo,
 	projectHasPmBot,
-	samePin,
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
+import {
+	listedRef,
+	pinRef,
+	refListed,
+	refPin,
+	refRepo,
+	repoParts,
+	samePin,
+	sameProject,
+} from "./project-ref.ts";
 
 export type CatalogueProject = {
 	key: string;
@@ -22,63 +31,29 @@ export type CatalogueProject = {
 	configuredOnly?: boolean;
 };
 
-export function refKey(ref: ProjectPin): string {
-	if (ref.tracker === "linear") {
-		return ref.project;
-	}
-	if ("repo" in ref) {
-		return ref.repo;
-	}
-	return `${ref.owner}/${ref.project}`;
-}
-
 export function matchesRef(
 	project: CatalogueProject,
 	ref: ProjectPin,
 ): boolean {
-	if (project.tracker !== ref.tracker) {
-		return false;
-	}
-	if (ref.tracker === "linear") {
-		return project.key === ref.project;
-	}
-	if ("repo" in ref) {
-		return project.key === ref.repo;
-	}
-	return project.owner === ref.owner && project.number === ref.project;
+	return sameProject(listedRef(project), pinRef(ref));
 }
 
 export function refForFound(
 	project: CatalogueProject,
 	tracked: readonly ProjectPin[],
 ): ProjectPin {
-	const pin = tracked.find((ref) => matchesRef(project, ref));
-	if (pin !== undefined) {
-		return pin;
-	}
-	if (project.tracker === "linear") {
-		return { tracker: "linear", project: project.key };
-	}
-	if (
-		project.owner !== undefined &&
-		project.number !== undefined &&
-		!project.key.includes("/")
-	) {
-		return {
-			tracker: "github",
-			owner: project.owner,
-			project: project.number,
-		};
-	}
-	return { tracker: "github", repo: project.key };
+	return (
+		tracked.find((ref) => matchesRef(project, ref)) ??
+		refPin(listedRef(project))
+	);
 }
 
 export function displayName(project: CatalogueProject): string {
 	if (project.name !== undefined && project.name !== project.key) {
 		return project.name;
 	}
-	const slash = project.key.lastIndexOf("/");
-	return slash === -1 ? project.key : project.key.slice(slash + 1);
+	const repo = refRepo(listedRef(project));
+	return (repo === null ? null : repoParts(repo)?.name) ?? project.key;
 }
 
 function pendingCard(
@@ -130,25 +105,15 @@ export function pendingProjects(
 
 export function reposFor(
 	project: CatalogueProject,
-	snapshots: readonly { key: string; pulls: { repo: string }[] }[],
-	expectedBots: Configuration["expectedBots"],
+	snapshots: readonly SettingsSnapshot[],
 ): string[] {
-	const row = snapshots.find((item) => item.key === project.key);
+	const ref = listedRef(project);
+	const row = snapshots.find((item) => sameProject(listedRef(item), ref));
 	if (row !== undefined && row.pulls.length > 0) {
 		return [...new Set(row.pulls.map((pull) => pull.repo).filter(Boolean))];
 	}
-	if (
-		project.tracker === "github" &&
-		project.owner === undefined &&
-		project.number === undefined &&
-		project.key.includes("/")
-	) {
-		return [project.key];
-	}
-	const saved = expectedBots ?? {};
-	return Object.keys(saved).filter(
-		(repo) => repo.toLowerCase() === project.key.toLowerCase(),
-	);
+	const repo = refRepo(ref);
+	return repo === null ? [] : [repo];
 }
 
 export function botsFor(
@@ -181,13 +146,6 @@ function pullsFor(
 	);
 }
 
-function absentProject(
-	key: string,
-	tracker: ProjectPin["tracker"],
-): CatalogueProject {
-	return { key, tracker };
-}
-
 function catalogueRow(
 	project: CatalogueProject,
 	configuration: Configuration,
@@ -195,7 +153,7 @@ function catalogueRow(
 	source: SettingsProject["source"],
 	ref: ProjectPin,
 ): SettingsProject {
-	const repos = reposFor(project, snapshots, configuration.expectedBots);
+	const repos = reposFor(project, snapshots);
 	const bots = botsFor(
 		repos,
 		configuration.expectedBots,
@@ -231,15 +189,17 @@ export function settingsProjects(
 	);
 	for (const pin of configuration.tracked) {
 		const located = catalogue.find((project) => matchesRef(project, pin));
-		if (located !== undefined && rows.some((row) => row.key === located.key)) {
+		if (located !== undefined) {
 			continue;
 		}
-		const key = located?.key ?? refKey(pin);
-		const absent = located ?? absentProject(key, pin.tracker);
 		rows.push({
-			...catalogueRow(absent, configuration, snapshots, "configured", pin),
-			key,
-			tracker: pin.tracker,
+			...catalogueRow(
+				refListed(pinRef(pin)),
+				configuration,
+				snapshots,
+				"configured",
+				pin,
+			),
 			tracked: true,
 		});
 	}
@@ -248,12 +208,12 @@ export function settingsProjects(
 }
 
 export function knownRepos(
-	snapshots: readonly { key: string; pulls: { repo: string }[] }[],
+	snapshots: readonly SettingsSnapshot[],
 	catalogue: readonly CatalogueProject[],
 ): Set<string> {
 	const repos = new Set<string>();
 	for (const project of catalogue) {
-		for (const repo of reposFor(project, snapshots, undefined)) {
+		for (const repo of reposFor(project, snapshots)) {
 			repos.add(repo);
 		}
 	}

@@ -11,6 +11,7 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
+import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
 
@@ -54,6 +55,9 @@ export type FoundProject = {
 	configuredOnly?: boolean;
 };
 
+/** A found project that poll resolved to its ProjectRef. */
+export type TrackedProject = FoundProject & { ref: ProjectRef };
+
 export type Viewer = {
 	login: string;
 	orgs: string[];
@@ -70,15 +74,13 @@ export type Tracker = {
 	/** Drop repo reads from the previous poll, including a poll that failed. */
 	beginPoll?: () => void;
 	listTickets: (
-		project: string,
+		project: TrackedProject,
 		since: Date | null,
-		projectOwner?: string,
 		held?: Ticket[],
 	) => Promise<TicketList>;
 	listPulls: (
-		project: string,
+		project: TrackedProject,
 		since?: Date | null,
-		projectOwner?: string,
 	) => Promise<PullRequest[]>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
