@@ -406,7 +406,7 @@ export function GraphView<
 						refit={refit}
 						fit={fit}
 					/>
-					<OverlayProbe id={`${probe}-legend`} paneId={paneId} />
+					<OverlayProbe probe={probe} paneId={paneId} />
 				</ReactFlow>
 				{overlay === undefined ? null : (
 					<div className={clsx(float.overlay)} data-graph-overlay="">

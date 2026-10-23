@@ -45,35 +45,69 @@ export function overlayFit(paneId: string): FitViewOptions {
 	};
 }
 
-/** Reports whether the overlay covers a card or a frame in the current view. */
-export function OverlayProbe({ id, paneId }: { id: string; paneId: string }) {
+type Clear = { overlay: boolean; scope: boolean | null };
+
+function overlayClear(paneId: string, scopeId: string): Clear | null {
+	const pane = document.getElementById(paneId);
+	const parts = overlayParts(pane);
+	if (pane === null || parts.length === 0) {
+		return null;
+	}
+	const nodes = [...pane.querySelectorAll(".react-flow__node")].map((node) =>
+		node.getBoundingClientRect(),
+	);
+	const misses = (box: DOMRect) => nodes.every((node) => boxesApart(box, node));
+	const scope = parts.find((part) => part.id === scopeId);
+	const scopeBox = scope?.getBoundingClientRect();
+	return {
+		overlay: parts.every((part) => misses(part.getBoundingClientRect())),
+		scope:
+			scopeBox === undefined
+				? null
+				: misses(scopeBox) &&
+					parts.every(
+						(part) =>
+							part === scope ||
+							boxesApart(scopeBox, part.getBoundingClientRect()),
+					),
+	};
+}
+
+/**
+ * Reports whether the overlay covers a card or a frame in the current view,
+ * and whether the scope line covers a card, a frame or another overlay part.
+ */
+export function OverlayProbe({
+	probe,
+	paneId,
+}: {
+	probe: string;
+	paneId: string;
+}) {
 	const transform = useStore((state) => state.transform);
 	const nodes = useStore((state) => state.nodes);
-	const [clear, setClear] = useState<boolean | null>(null);
+	const [clear, setClear] = useState<Clear | null>(null);
 	useEffect(() => {
 		void transform;
 		void nodes;
-		const frame = requestAnimationFrame(() => {
-			const pane = document.getElementById(paneId);
-			const parts = overlayParts(pane).map((part) =>
-				part.getBoundingClientRect(),
-			);
-			setClear(
-				pane === null || parts.length === 0
-					? null
-					: [...pane.querySelectorAll(".react-flow__node")].every((node) =>
-							parts.every((part) =>
-								boxesApart(part, node.getBoundingClientRect()),
-							),
-						),
-			);
-		});
+		const frame = requestAnimationFrame(() =>
+			setClear(overlayClear(paneId, `${probe}-scope`)),
+		);
 		return () => cancelAnimationFrame(frame);
-	}, [transform, nodes, paneId]);
+	}, [transform, nodes, paneId, probe]);
 	return (
-		<p id={id} className={clsx(cards.graphProbe)}>
-			{clear === null ? "" : clear ? "legend-clear" : "legend-covers"}
-		</p>
+		<>
+			<p id={`${probe}-legend`} className={clsx(cards.graphProbe)}>
+				{clear === null ? "" : clear.overlay ? "legend-clear" : "legend-covers"}
+			</p>
+			<p id={`${probe}-scope-clear`} className={clsx(cards.graphProbe)}>
+				{clear?.scope == null
+					? ""
+					: clear.scope
+						? "scope-clear"
+						: "scope-covers"}
+			</p>
+		</>
 	);
 }
 
