@@ -21,8 +21,7 @@ Issue #1 holds the v1 rules. Issue #97 overrides #1 where they differ. Use the t
 - Styles use StyleX (ADR 0001). The StyleX Bun plugin in `bunfig.toml` runs in the dev server and the production build.
 - Bun's built-in SQLite is the store. The store is a cache: the next poll fills it again. The notifications table and seeded_ids keep history.
 - One Zod schema validates the configuration file and gives its TypeScript type. Do not write a second type for the configuration.
-- Graphs move to React Flow (ADR 0002). Until a graph moves, Mermaid draws it.
-- Mermaid leaves the dependencies when both graphs move.
+- React Flow draws the graphs (ADR 0002).
 - StyleX variables in `src/tokens.stylex.ts` are the one source of colours and sizes.
 - A component styles only through StyleX. Do not add a colour, `px` or `rem` literal outside a StyleX variable. Computed graph coordinates stay allowed.
 
