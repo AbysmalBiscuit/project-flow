@@ -124,8 +124,5 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 			return answered;
 		}
 	};
-	if (fetchImpl.holdLists !== undefined) {
-		wrapped.holdLists = () => fetchImpl.holdLists?.() ?? Promise.resolve();
-	}
 	return wrapped;
 }
