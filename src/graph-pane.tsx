@@ -4,6 +4,7 @@ import {
 	type Viewport,
 } from "@xyflow/react";
 import { useEffect, useState } from "react";
+import { Segment } from "./segment.tsx";
 import { overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 import { cards, headerControlStyle as tools } from "./ui-styles.ts";
@@ -117,37 +118,27 @@ export function GraphTools({
 	};
 	return (
 		<div className={clsx(tools.graphTools)}>
-			<button
-				type="button"
-				className={clsx(tools.graphTool)}
+			<Segment
+				label="−"
 				aria-label={overviewControlLabel.zoomOut}
 				onClick={() => {
 					void flow.zoomOut().then(show);
 				}}
-			>
-				−
-			</button>
-			<button
-				type="button"
+			/>
+			<Segment
 				id={fitId}
-				className={clsx(tools.graphTool)}
-				aria-label={overviewControlLabel.fit}
+				label={overviewControlLabel.fit}
 				onClick={() => {
 					void flow.fitView(fitOptions?.()).then(show);
 				}}
-			>
-				{overviewControlLabel.fit}
-			</button>
-			<button
-				type="button"
-				className={clsx(tools.graphTool)}
+			/>
+			<Segment
+				label="+"
 				aria-label={overviewControlLabel.zoomIn}
 				onClick={() => {
 					void flow.zoomIn().then(show);
 				}}
-			>
-				+
-			</button>
+			/>
 			<p id={probeId} className={clsx(cards.graphProbe)}>
 				{viewport === null
 					? ""

@@ -11,6 +11,7 @@ import { PageQueryRoot } from "./page-query.tsx";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
+import { TextInput } from "./text-input.tsx";
 import { type TicketSearchHit, ticketRefId } from "./ticket-key.ts";
 import { phoneGutter } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -173,8 +174,7 @@ export function JumpBox() {
 						aria-label="Search tickets"
 						ref={boxRef}
 					>
-						<input
-							className={clsx(jump.query)}
+						<TextInput
 							id="jump-query"
 							type="search"
 							aria-label="Search tickets"

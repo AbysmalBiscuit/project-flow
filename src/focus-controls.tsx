@@ -1,20 +1,18 @@
+import * as stylex from "@stylexjs/stylex";
+import { Button } from "./button.tsx";
 import type { FocusView } from "./focus.ts";
-import { SearchGlyph } from "./shell.tsx";
 import { clearFocusLabel, overviewControlLabel } from "./terms.ts";
-import { clsx } from "./ui.ts";
-import { headerControlStyle, shell } from "./ui-styles.ts";
+import { TextInput } from "./text-input.tsx";
+import { measure } from "./tokens.stylex.ts";
+
+const styles = stylex.create({
+	search: {
+		width: measure.search,
+	},
+});
 
 export function ClearFocusButton({ onClear }: { onClear: () => void }) {
-	return (
-		<button
-			type="button"
-			id="clear-focus"
-			className={clsx(headerControlStyle.control, shell.buttonFocus)}
-			onClick={onClear}
-		>
-			{clearFocusLabel}
-		</button>
-	);
+	return <Button id="clear-focus" label={clearFocusLabel} onClick={onClear} />;
 }
 
 /**
@@ -32,21 +30,16 @@ export function OverviewSearch({
 }) {
 	return (
 		<>
-			<label
-				className={clsx(headerControlStyle.search)}
-				htmlFor="overview-search"
-			>
-				<SearchGlyph />
-				<input
-					id="overview-search"
-					className={clsx(headerControlStyle.field)}
-					type="search"
-					aria-label={overviewControlLabel.search}
-					placeholder={overviewControlLabel.search}
-					value={query}
-					onChange={(event) => onQuery(event.target.value)}
-				/>
-			</label>
+			<TextInput
+				id="overview-search"
+				type="search"
+				icon="search"
+				width={styles.search}
+				aria-label={overviewControlLabel.search}
+				placeholder={overviewControlLabel.search}
+				value={query}
+				onChange={(event) => onQuery(event.target.value)}
+			/>
 			{focus.focus.size === 0 ? null : (
 				<ClearFocusButton onClear={focus.clear} />
 			)}

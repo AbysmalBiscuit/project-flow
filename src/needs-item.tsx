@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Button } from "./button.tsx";
 import type { NeedsYouItem } from "./domain.ts";
 import { needs } from "./needs-you-styles.ts";
 import {
@@ -69,23 +70,6 @@ function FailIcon() {
 			<circle cx="12" cy="12" r="7" />
 			<path d="M12 8v5M12 16.5h.01" />
 		</Mark>
-	);
-}
-
-function CheckIcon() {
-	return (
-		<svg
-			viewBox="0 0 24 24"
-			aria-hidden="true"
-			className={clsx(needs.check)}
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="1.75"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M6 12.5l4 4 8-9" />
-		</svg>
 	);
 }
 
@@ -164,27 +148,16 @@ export function NeedsItem({
 						{item.project}
 					</a>
 				) : null}
-				<button
-					type="button"
-					className={clsx(
-						needs.action,
-						item.reason === "ask" && !item.answered && needs.actionOn,
-						disabled && needs.actionOff,
-					)}
+				<Button
+					label={action}
+					{...(item.reason === "ask" && !item.answered
+						? { tone: "primary" as const }
+						: {})}
 					data-held-action={held === null ? undefined : item.reason}
 					disabled={disabled}
 					onClick={() => (onAction ?? onOpen)?.(item.key)}
-				>
-					{action}
-				</button>
-				<button
-					type="button"
-					className={clsx(needs.quiet, needs.actionOff)}
-					aria-label={`Clear ${item.key}`}
-					disabled
-				>
-					<CheckIcon />
-				</button>
+				/>
+				<Button icon="check" name={`Clear ${item.key}`} disabled />
 			</span>
 		</li>
 	);

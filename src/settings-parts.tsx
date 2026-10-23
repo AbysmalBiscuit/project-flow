@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Button } from "./button.tsx";
+import { Chip } from "./chip.tsx";
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import type { TicketState } from "./domain.ts";
+import { Select } from "./select.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import {
 	settingsCopy,
@@ -10,6 +12,7 @@ import {
 	stateLabel,
 	viewLabel,
 } from "./terms.ts";
+import { TextInput } from "./text-input.tsx";
 import { clsx } from "./ui.ts";
 import type { openViews } from "./view-settings.ts";
 
@@ -126,21 +129,16 @@ export function Chips({
 	return (
 		<div className={clsx(fields.chips)}>
 			{values.map((value) => (
-				<span key={value} className={clsx(fields.chip)}>
-					{value}
-					<button
-						type="button"
-						className={clsx(fields.chipRemove)}
-						aria-label={`Remove ${value}`}
-						onClick={() => onChange(values.filter((item) => item !== value))}
-					>
-						×
-					</button>
-				</span>
+				<Chip
+					key={value}
+					label={value}
+					removeLabel={`Remove ${value}`}
+					onRemove={() => onChange(values.filter((item) => item !== value))}
+				/>
 			))}
-			<input
+			<TextInput
 				id={id}
-				className={clsx(fields.chipInput)}
+				width={fields.chipInput}
 				placeholder={placeholder}
 				value={text}
 				onChange={(event) => setText(event.target.value)}
@@ -197,61 +195,46 @@ export function MappingEditor({
 					return value === undefined
 						? []
 						: [
-								<span key={`${name}-${item}`} className={clsx(fields.chip)}>
-									{name} {stateLabel[item]} {value}
-									<button
-										type="button"
-										className={clsx(fields.chipRemove)}
-										aria-label={`Remove ${name} ${stateLabel[item]}`}
-										onClick={() => {
-											const next = { ...mapping };
-											delete next[item];
-											const kept = { ...mappings };
-											if (Object.keys(next).length === 0) {
-												delete kept[name];
-											} else {
-												kept[name] = next;
-											}
-											onChange(kept);
-										}}
-									>
-										×
-									</button>
-								</span>,
+								<Chip
+									key={`${name}-${item}`}
+									label={`${name} ${stateLabel[item]} ${value}`}
+									removeLabel={`Remove ${name} ${stateLabel[item]}`}
+									onRemove={() => {
+										const next = { ...mapping };
+										delete next[item];
+										const kept = { ...mappings };
+										if (Object.keys(next).length === 0) {
+											delete kept[name];
+										} else {
+											kept[name] = next;
+										}
+										onChange(kept);
+									}}
+								/>,
 							];
 				}),
 			)}
-			<input
+			<TextInput
 				id="lane-mapping-key"
-				className={clsx(fields.chipInput)}
+				width={fields.chipInput}
 				aria-label={settingsCopy.mappingKey}
 				placeholder={settingsCopy.mappingKey}
 				value={key}
 				onChange={(event) => setKey(event.target.value)}
 			/>
-			<select
+			<Select
 				id="lane-mapping-state"
-				className={clsx(fields.select)}
 				aria-label={settingsCopy.laneState}
 				value={state}
-				onChange={(event) => {
-					const next = evidenceStates.find(
-						(item) => item === event.target.value,
-					);
-					if (next !== undefined) {
-						setState(next);
-					}
-				}}
-			>
-				{evidenceStates.map((item) => (
-					<option key={item} value={item}>
-						{stateLabel[item]}
-					</option>
-				))}
-			</select>
-			<input
+				options={evidenceStates.map((item) => ({
+					value: item,
+					label: stateLabel[item],
+				}))}
+				onChange={setState}
+			/>
+			<TextInput
 				id="lane-mapping-status"
-				className={clsx(fields.chipInput)}
+				width={fields.chipInput}
 				aria-label={settingsCopy.statusName}
 				placeholder={settingsCopy.statusName}
 				value={status}
@@ -303,86 +286,36 @@ export function AutoMergeEditor({
 	return (
 		<div className={clsx(fields.chips)}>
 			{rows.map(([name, value]) => (
-				<span key={name} className={clsx(fields.chip)}>
-					{name} {value}
-					<button
-						type="button"
-						className={clsx(fields.chipRemove)}
-						aria-label={`Remove ${name}`}
-						onClick={() => {
-							const next = { ...overrides };
-							delete next[name];
-							onChange(next);
-						}}
-					>
-						×
-					</button>
-				</span>
+				<Chip
+					key={name}
+					label={`${name} ${value}`}
+					removeLabel={`Remove ${name}`}
+					onRemove={() => {
+						const next = { ...overrides };
+						delete next[name];
+						onChange(next);
+					}}
+				/>
 			))}
-			<input
+			<TextInput
 				id="auto-merge-repo"
-				className={clsx(fields.chipInput)}
+				width={fields.chipInput}
 				aria-label={settingsCopy.repo}
 				placeholder={settingsCopy.repo}
 				value={repo}
 				onChange={(event) => setRepo(event.target.value)}
 			/>
-			<select
+			<Select
 				id="auto-merge-value"
-				className={clsx(fields.select)}
 				aria-label={settingsCopy.autoMerge}
 				value={choice}
-				onChange={(event) => {
-					const next = autoMergeChoices.find(
-						(item) => item === event.target.value,
-					);
-					if (next !== undefined) {
-						setChoice(next);
-					}
-				}}
-			>
-				{autoMergeChoices.map((item) => (
-					<option key={item} value={item}>
-						{autoMergeLabel[item]}
-					</option>
-				))}
-			</select>
+				options={autoMergeChoices.map((item) => ({
+					value: item,
+					label: autoMergeLabel[item],
+				}))}
+				onChange={setChoice}
+			/>
 			<Button id="auto-merge-add" label={settingsCopy.add} onClick={add} />
 		</div>
-	);
-}
-
-export function SearchGlyph() {
-	return (
-		<svg
-			viewBox="0 0 24 24"
-			aria-hidden="true"
-			className={clsx(fields.filterGlyph)}
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="1.75"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<circle cx="11" cy="11" r="6.5" />
-			<path d="M16 16l4 4" />
-		</svg>
-	);
-}
-
-export function FilterGlyph() {
-	return (
-		<svg
-			viewBox="0 0 24 24"
-			aria-hidden="true"
-			className={clsx(fields.filterGlyph)}
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="1.75"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z" />
-		</svg>
 	);
 }

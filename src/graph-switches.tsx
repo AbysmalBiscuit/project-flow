@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
+import { Segment } from "./segment.tsx";
 import {
 	graphDirectionLabel,
 	graphLayoutLabel,
@@ -64,14 +65,10 @@ export function LayoutSwitch({
 			<legend className={clsx(cards.graphProbe)}>Graph layout</legend>
 			{graphLayouts.map((item) => (
 				<span key={item} className={clsx(tip.anchor)}>
-					<button
-						type="button"
+					<Segment
 						id={`graph-layout-${item}`}
-						className={clsx(
-							headerControlStyle.segment,
-							layout === item && headerControlStyle.segmentOn,
-						)}
-						aria-pressed={layout === item}
+						label={graphLayoutLabel[item]}
+						on={layout === item}
 						aria-describedby={`graph-layout-${item}-tip`}
 						onClick={() => onChange(item)}
 						onMouseEnter={() => setShown(item)}
@@ -83,9 +80,7 @@ export function LayoutSwitch({
 								hide();
 							}
 						}}
-					>
-						{graphLayoutLabel[item]}
-					</button>
+					/>
 					<span
 						id={`graph-layout-${item}-tip`}
 						role="tooltip"
@@ -120,19 +115,13 @@ export function DirectionSwitch({
 		>
 			<legend className={clsx(cards.graphProbe)}>Graph direction</legend>
 			{graphDirections.map((item) => (
-				<button
+				<Segment
 					key={item}
-					type="button"
 					id={`graph-direction-${item}`}
-					className={clsx(
-						headerControlStyle.segment,
-						direction === item && headerControlStyle.segmentOn,
-					)}
-					aria-pressed={direction === item}
+					label={graphDirectionLabel[item]}
+					on={direction === item}
 					onClick={() => onChange(item)}
-				>
-					{graphDirectionLabel[item]}
-				</button>
+				/>
 			))}
 		</fieldset>
 	);

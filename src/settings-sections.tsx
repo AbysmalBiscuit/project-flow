@@ -2,6 +2,7 @@ import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
+import { Select } from "./select.tsx";
 import {
 	AutoMergeEditor,
 	ageChoices,
@@ -144,26 +145,23 @@ function LaneAgeRow({
 				<span className={clsx(fields.dot, stateTones[state])} />
 				{stateLabel[state]}
 			</span>
-			<select
+			<Select
 				id={`age-${state}`}
-				className={clsx(fields.select)}
 				aria-label={`${stateLabel[state]} age`}
-				value={String(days)}
-				onChange={(event) =>
+				value={days}
+				options={ageChoices.map((choice) => ({
+					value: choice,
+					label: ageLabel(choice),
+				}))}
+				onChange={(choice) =>
 					onPatchView({
 						maxAgeDays: {
 							...view.maxAgeDays,
-							[stateLabel[state]]: Number(event.target.value),
+							[stateLabel[state]]: choice,
 						},
 					})
 				}
-			>
-				{ageChoices.map((choice) => (
-					<option key={choice} value={choice}>
-						{ageLabel(choice)}
-					</option>
-				))}
-			</select>
+			/>
 		</div>
 	);
 }
@@ -199,25 +197,15 @@ export function ProjectViewsSection({
 				/>
 			</Row>
 			<Row title={settingsCopy.graphDirection} hint={settingsCopy.graphHint}>
-				<select
+				<Select
 					id="graph-direction"
-					className={clsx(fields.select)}
 					value={view.graphDirection}
-					onChange={(event) => {
-						const graphDirection = graphDirections.find(
-							(item) => item === event.target.value,
-						);
-						if (graphDirection !== undefined) {
-							onPatchView({ graphDirection });
-						}
-					}}
-				>
-					{graphDirections.map((item) => (
-						<option key={item} value={item}>
-							{graphDirectionLabel[item]}
-						</option>
-					))}
-				</select>
+					options={graphDirections.map((item) => ({
+						value: item,
+						label: graphDirectionLabel[item],
+					}))}
+					onChange={(graphDirection) => onPatchView({ graphDirection })}
+				/>
 			</Row>
 			<Row title={settingsCopy.ticketFilter} hint={settingsCopy.ticketHint}>
 				<span />
@@ -420,7 +408,7 @@ export function SettingsBar({
 			<Button
 				id="save-settings"
 				label={settingsCopy.save}
-				primary
+				tone="primary"
 				disabled={!dirty}
 				onClick={onSave}
 			/>

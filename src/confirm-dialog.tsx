@@ -1,9 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef } from "react";
+import { Button } from "./button.tsx";
 import { settingsCopy } from "./terms.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { shell } from "./ui-styles.ts";
 
 const styles = stylex.create({
 	dialog: {
@@ -36,19 +36,6 @@ const styles = stylex.create({
 		display: "flex",
 		gap: space.sm,
 		justifyContent: "flex-end",
-	},
-	confirm: {
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.danger,
-		borderRadius: radius.menu,
-		padding: `${space.xs} ${space.md}`,
-		backgroundColor: colours.danger,
-		color: colours.accentInk,
-		fontSize: type.menu,
-		fontWeight: type.weight,
-		lineHeight: 1,
-		cursor: "pointer",
 	},
 });
 
@@ -104,22 +91,17 @@ export function ConfirmDialog({
 			</h2>
 			<p className={clsx(styles.body)}>{body}</p>
 			<div className={clsx(styles.actions)}>
-				<button
+				<Button
 					id={`${id}-cancel`}
-					type="button"
-					className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+					label={settingsCopy.cancel}
 					onClick={onCancel}
-				>
-					{settingsCopy.cancel}
-				</button>
-				<button
+				/>
+				<Button
 					id={`${id}-confirm`}
-					type="button"
-					className={clsx(styles.confirm, shell.buttonFocus)}
+					label={confirmLabel}
+					tone="danger"
 					onClick={onConfirm}
-				>
-					{confirmLabel}
-				</button>
+				/>
 			</div>
 		</dialog>
 	);
