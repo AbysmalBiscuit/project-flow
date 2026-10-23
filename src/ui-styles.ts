@@ -263,6 +263,15 @@ export const frame = stylex.create({
 		height: measure.glyph,
 		flexShrink: 0,
 	},
+	markProgress: {
+		fill: colours.inProgress,
+	},
+	markReview: {
+		fill: colours.inReview,
+	},
+	markMerge: {
+		fill: colours.awaitingMerge,
+	},
 	themeSave: {
 		margin: 0,
 		padding: `${space.xs} ${space.pageInset}`,
