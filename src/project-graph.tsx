@@ -148,7 +148,7 @@ function FrameToggle({
 }
 
 function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
-	const key = data.ticket.key ?? data.ticket.title;
+	const key = data.ticket.key;
 	const known = data.ticket.state;
 	return (
 		<>
@@ -159,13 +159,15 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 					board.cardFocus,
 					known !== undefined && board.toned,
 					known !== undefined && stateTones[known],
-					data.outside && board.ticketOutside,
-					data.outside && known === undefined && board.ticketOutsideUntoned,
+					data.ticket.outside && board.ticketOutside,
+					data.ticket.outside &&
+						known === undefined &&
+						board.ticketOutsideUntoned,
 					data.open && board.ticketNodeOpen,
 				)}
 				data-graph-node={key}
 				id={`graph-card-${id}`}
-				data-outside={data.outside ? "true" : "false"}
+				data-outside={data.ticket.outside ? "true" : "false"}
 				data-state={known ?? "unknown"}
 				aria-pressed={data.open}
 			>
@@ -179,12 +181,12 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 					)}
 				>
 					<span className={clsx(board.key)}>
-						{shortTicket(key, data.project, data.outside)}
+						{shortTicket(key, data.ticket.project, data.ticket.outside)}
 					</span>
 					{data.ticket.pull === undefined ? null : (
 						<span className={clsx(board.pull)}>{data.ticket.pull}</span>
 					)}
-					{data.frame !== null && data.outside ? (
+					{data.frame !== null && data.ticket.outside ? (
 						<span className={clsx(board.pull)}>
 							{known === undefined ? openParentLabel : stateLabel[known]}
 						</span>
@@ -204,11 +206,13 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 					) : null}
 				</span>
 				<span className={clsx(board.title)}>{data.ticket.title}</span>
-				{data.hierarchyChips ? <HierarchyChips ticket={data.ticket} /> : null}
+				{data.hierarchyChips ? (
+					<HierarchyChips ticket={data.ticket} parentLabel={data.parentLabel} />
+				) : null}
 				<Handle type="source" position={Position.Right} id="right" />
 				<Handle type="source" position={Position.Bottom} id="bottom" />
 			</button>
-			{data.frame === null || data.ticket.key === null ? null : (
+			{data.frame === null ? null : (
 				<FrameToggle
 					card={id}
 					ticket={data.ticket.key}
@@ -493,9 +497,9 @@ export function ProjectGraph({
 						[
 							node.data.ticketId,
 							shortTicket(
-								node.data.ticket.key ?? node.data.ticket.title,
-								node.data.project,
-								node.data.outside,
+								node.data.ticket.key,
+								node.data.ticket.project,
+								node.data.ticket.outside,
 							),
 						] as const,
 					],
@@ -551,7 +555,7 @@ export function ProjectGraph({
 		const top = node.position.y;
 		const right = left + (node.width ?? 0);
 		const bottom = top + (node.height ?? 0);
-		const key = node.data.ticket.key ?? node.id;
+		const key = node.data.ticket.key;
 		const holders = frameBoxes
 			.filter(
 				(box) =>
@@ -570,9 +574,9 @@ export function ProjectGraph({
 		return holders.length === 0 ? [] : [[key, ...holders].join(" in ")];
 	});
 	const outsideLabels = model.nodes.flatMap((node) =>
-		isClusterNode(node) || !node.data.outside
+		isClusterNode(node) || !node.data.ticket.outside
 			? []
-			: [shortTicket(node.data.ticket.key ?? "", node.data.project, true)],
+			: [shortTicket(node.data.ticket.key, node.data.ticket.project, true)],
 	);
 	return (
 		<div
@@ -613,7 +617,7 @@ export function ProjectGraph({
 						isClusterNode(node)
 							? []
 							: [
-									`${node.data.ticket.key ?? node.id} ${node.data.ticket.state ?? "unknown"}`,
+									`${node.data.ticket.key} ${node.data.ticket.state ?? "unknown"}`,
 								],
 					)
 					.join(" | ")}
@@ -661,11 +665,11 @@ export function ProjectGraph({
 								() => onFocus(node.data.ticketId),
 								() =>
 									onOpen({
-										key: node.data.ticket.key ?? node.data.ticket.title,
-										project: node.data.project,
-										tracker: node.data.tracker,
+										key: node.data.ticket.key,
+										project: node.data.ticket.project,
+										tracker: node.data.ticket.tracker,
 										title: node.data.ticket.title,
-										outside: node.data.outside,
+										outside: node.data.ticket.outside,
 										...(node.data.ticket.state === undefined
 											? {}
 											: { state: node.data.ticket.state }),

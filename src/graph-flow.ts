@@ -3,6 +3,7 @@ import {
 	type ProjectCounts,
 	type ProjectReport,
 	type TicketState,
+	type TicketView,
 } from "./domain.ts";
 import type { GroupBy } from "./view-settings.ts";
 
@@ -766,34 +767,35 @@ export function overviewFlowPlaces(
 	});
 }
 
-export type FlowTicket = {
+/** The server's ticket view, placed in its project on the graph. */
+export type FlowTicket = Omit<TicketView, "key" | "state"> & {
 	key: string;
-	title: string;
+	state?: TicketState;
 	project: string;
 	outside: boolean;
-	state?: TicketState;
-	tracker?: "github" | "linear";
-	workstream?: string;
-	workstreamKey?: string;
-	themeGroup?: string;
-	assignees?: string[];
-	parent?: string;
-	subTickets?: number;
-	subTicketsDone?: number;
-	startsCollapsed?: true;
-	blockers: string[];
-	outsideBlockers: { project: string; key: string }[];
-	blocks: { project: string; key: string }[];
+	tracker: "github" | "linear";
 };
+
+function homeTicket(
+	homes: readonly ProjectReport[],
+	project: string,
+	key: string,
+): TicketView | undefined {
+	return homes
+		.find((home) => home.name.toLowerCase() === project.toLowerCase())
+		?.tickets.find((ticket) => ticket.key?.toLowerCase() === key.toLowerCase());
+}
 
 /**
  * The tickets the project graph shows. With `withParents`, the hidden parent
  * tickets and the outside parent tickets that head the frames of shown
- * sub-tickets come last.
+ * sub-tickets come last. An outside ticket carries its view from the report
+ * of its own project in `homes`, when that report holds it.
  */
 export function graphTickets(
 	report: ProjectReport,
 	withParents = false,
+	homes: readonly ProjectReport[] = [],
 ): FlowTicket[] {
 	const parents = new Map(
 		report.outsideParents.map((parent) => [
@@ -814,17 +816,17 @@ export function graphTickets(
 			}
 			seen.add(id);
 			const parent = parents.get(id);
-			const state = end.state ?? parent?.state;
+			const home = homeTicket(homes, end.project, end.key);
+			const state = end.state ?? parent?.state ?? home?.state;
 			outside.push({
+				blockers: [],
+				...home,
 				key: end.key,
 				title: parent?.title ?? end.title,
 				project: end.project,
 				outside: true,
 				...(state === undefined ? {} : { state }),
 				tracker: end.tracker,
-				blockers: [],
-				outsideBlockers: [],
-				blocks: [],
 			});
 		}
 	}
@@ -834,72 +836,42 @@ export function graphTickets(
 		),
 	);
 	const outsideParents = (withParents ? [...parents] : []).flatMap(
-		([id, parent]): FlowTicket[] =>
-			seen.has(id)
-				? []
-				: [
-						{
-							key: parent.key,
-							title: parent.title,
-							project: parent.project,
-							outside: true,
-							...(parent.state === undefined ? {} : { state: parent.state }),
-							tracker: parent.tracker,
-							blockers: [],
-							outsideBlockers: [],
-							blocks: [],
-						},
-					],
+		([id, parent]): FlowTicket[] => {
+			if (seen.has(id)) {
+				return [];
+			}
+			const home = homeTicket(homes, parent.project, parent.key);
+			const state = parent.state ?? home?.state;
+			return [
+				{
+					blockers: [],
+					...home,
+					key: parent.key,
+					title: parent.title,
+					project: parent.project,
+					outside: true,
+					...(state === undefined ? {} : { state }),
+					tracker: parent.tracker,
+				},
+			];
+		},
 	);
 	const local = [
 		...report.graphTickets,
 		...(withParents ? report.graphParents : []),
-	].flatMap((ticket) => {
-		if (ticket.key === null) {
-			return [];
-		}
-		return [
-			{
-				key: ticket.key,
-				title: ticket.title,
-				project: report.name,
-				outside: false,
-				state: ticket.state,
-				tracker: report.tracker,
-				...(ticket.workstream === undefined
-					? {}
-					: { workstream: ticket.workstream }),
-				...(ticket.workstreamKey === undefined
-					? {}
-					: { workstreamKey: ticket.workstreamKey }),
-				...(ticket.themeGroup === undefined
-					? {}
-					: { themeGroup: ticket.themeGroup }),
-				...(ticket.assignees === undefined
-					? {}
-					: { assignees: ticket.assignees }),
-				...(ticket.parent === undefined ? {} : { parent: ticket.parent }),
-				...(ticket.subTickets === undefined
-					? {}
-					: { subTickets: ticket.subTickets }),
-				...(ticket.subTicketsDone === undefined
-					? {}
-					: { subTicketsDone: ticket.subTicketsDone }),
-				...(ticket.startsCollapsed === undefined
-					? {}
-					: { startsCollapsed: ticket.startsCollapsed }),
-				blockers: ticket.blockers,
-				outsideBlockers: (ticket.outsideBlockers ?? []).map((blocker) => ({
-					project: blocker.project,
-					key: blocker.key,
-				})),
-				blocks: (ticket.blocks ?? []).map((blocked) => ({
-					project: blocked.project,
-					key: blocked.key,
-				})),
-			},
-		];
-	});
+	].flatMap((ticket) =>
+		ticket.key === null
+			? []
+			: [
+					{
+						...ticket,
+						key: ticket.key,
+						project: report.name,
+						outside: false,
+						tracker: report.tracker,
+					},
+				],
+	);
 	return [...outside, ...local, ...outsideParents];
 }
 
