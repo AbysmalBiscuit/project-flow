@@ -61,12 +61,37 @@ function LogoMark() {
 			className={clsx(frame.glyph)}
 			fill="none"
 			stroke="currentColor"
-			strokeWidth="1.75"
+			strokeWidth="2.25"
 			strokeLinecap="round"
-			strokeLinejoin="round"
 		>
-			<rect x="3.5" y="3.5" width="17" height="17" rx="4" />
-			<path d="M8 14.5l2.4-3.2 2.1 2.2L16.2 9" />
+			<path d="M6.25 8c0 5 5.75 4 5.75 8M17.75 8c0 5-5.75 4-5.75 8" />
+			<rect
+				x="1.5"
+				y="2.5"
+				width="9.5"
+				height="6.5"
+				rx="2"
+				stroke="none"
+				className={clsx(frame.markProgress)}
+			/>
+			<rect
+				x="13"
+				y="2.5"
+				width="9.5"
+				height="6.5"
+				rx="2"
+				stroke="none"
+				className={clsx(frame.markReview)}
+			/>
+			<rect
+				x="7.25"
+				y="15"
+				width="9.5"
+				height="6.5"
+				rx="2"
+				stroke="none"
+				className={clsx(frame.markMerge)}
+			/>
 		</svg>
 	);
 }
