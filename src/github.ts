@@ -25,6 +25,11 @@ import {
 	graphqlActor,
 	graphqlComment,
 } from "./github-comment.ts";
+import {
+	graphqlConnection,
+	graphqlDependency,
+	pageInfo,
+} from "./github-graphql.ts";
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import type { FoundProject, GithubTracker, Viewer } from "./ports.ts";
@@ -254,11 +259,6 @@ export async function checkToken(
 const githubRepo = z.object({
 	full_name: z.string(),
 	pushed_at: z.string().nullable().optional(),
-});
-
-const pageInfo = z.object({
-	hasNextPage: z.boolean(),
-	endCursor: z.string().nullable(),
 });
 
 const projectNode = z.object({
@@ -653,13 +653,6 @@ const blockingQuery = `query Blocking($id: ID!, $after: String) {
 	}
 }`;
 
-const graphqlDependency = z.object({
-	number: z.number(),
-	title: z.string().nullable().optional(),
-	state: z.string(),
-	repository: z.object({ nameWithOwner: z.string() }).nullable().optional(),
-});
-
 const dependencyConnection = z.object({
 	nodes: z.array(graphqlDependency),
 	pageInfo,
@@ -712,12 +705,6 @@ function parentOf(
 		},
 	};
 }
-
-const graphqlConnection = <T extends z.ZodType>(node: T) =>
-	z.object({
-		nodes: z.array(node.optional().catch(undefined)),
-		pageInfo: pageInfo.optional(),
-	});
 
 const githubIssue = z.object({
 	number: z.number(),

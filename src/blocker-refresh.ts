@@ -7,25 +7,11 @@ import {
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { dependencyRefs, githubHeaders } from "./github.ts";
+import { graphqlConnection, graphqlDependency } from "./github-graphql.ts";
 
 const connectionPage = "pageInfo { hasNextPage endCursor }";
 
-const blockerNode = z.object({
-	number: z.number(),
-	title: z.string().nullable().optional(),
-	state: z.string(),
-	repository: z.object({ nameWithOwner: z.string() }).nullable().optional(),
-});
-
-const blockerPage = z.object({
-	nodes: z.array(blockerNode.optional().catch(undefined)),
-	pageInfo: z
-		.object({
-			hasNextPage: z.boolean(),
-			endCursor: z.string().nullable(),
-		})
-		.optional(),
-});
+const blockerPage = graphqlConnection(graphqlDependency);
 
 function splitRepo(repo: string): { owner: string; name: string } | null {
 	const [owner, name] = repo.split("/");
@@ -49,7 +35,9 @@ async function readBlockerStates(
 	const page = 40;
 	for (let start = 0; start < numbers.length; start += page) {
 		const slice = numbers.slice(start, start + page);
-		const collected = slice.map(() => [] as z.infer<typeof blockerNode>[]);
+		const collected = slice.map(
+			() => [] as z.infer<typeof graphqlDependency>[],
+		);
 		let cursors: (string | null)[] = slice.map(() => null);
 		let pending = true;
 		while (pending) {
