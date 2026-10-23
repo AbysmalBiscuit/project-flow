@@ -6,10 +6,22 @@ import {
 	type LayoutInput,
 	type Rect,
 } from "../src/graph-layout.ts";
+import type { NodeSize } from "../src/graph-sizes.ts";
 import { linearSlug, withApp } from "./project-harness.ts";
 import { type LinearFake, linearFake } from "./support.ts";
 
 export const card = { width: 220, height: 96 };
+
+/** Measured sizes that make every other card as tall as a card with a long title. */
+export function tallCards(input: LayoutInput): Map<string, NodeSize> {
+	return new Map(
+		input.cards.flatMap((item, index) =>
+			index % 2 === 0
+				? [[item.id, { width: card.width, height: card.height * 2.5 }] as const]
+				: [],
+		),
+	);
+}
 export const workcell = (await Bun.file(
 	new URL("./fixtures/workcell-graph-report.json", import.meta.url),
 ).json()) as ProjectReport;
@@ -167,9 +179,41 @@ export function frameOverlaps(
 	);
 }
 
-export function cardOverlaps(layout: GraphLayout): string[] {
+/** Each card that sits outside a parent ticket frame or a group frame that holds it, as `card / holder`. */
+export function strayFromHolders(
+	input: LayoutInput,
+	layout: GraphLayout,
+	sizes: ReadonlyMap<string, NodeSize> = new Map(),
+): string[] {
+	const frameOf = new Map(input.frames.map((frame) => [frame.id, frame]));
+	const holders = (frame: string | null): string[] => {
+		const found = frame === null ? undefined : frameOf.get(frame);
+		return found === undefined ? [] : [found.id, ...holders(found.parent)];
+	};
+	return input.cards.flatMap((item) => {
+		const place = layout.cards.get(item.id);
+		if (place === undefined) {
+			return [`${item.id} / no card`];
+		}
+		const box = { ...place, ...(sizes.get(item.id) ?? card) };
+		const group = layout.groups.get(item.group ?? "");
+		return [
+			...holders(item.frame).map(
+				(frame) => [frame, layout.frames.get(frame)] as const,
+			),
+			...(group === undefined ? [] : [[item.group, group] as const]),
+		].flatMap(([holder, rect]) =>
+			rect !== undefined && inside(box, rect) ? [] : [`${item.id} / ${holder}`],
+		);
+	});
+}
+
+export function cardOverlaps(
+	layout: GraphLayout,
+	sizes: ReadonlyMap<string, NodeSize> = new Map(),
+): string[] {
 	const boxes = [...layout.cards].map(
-		([id, place]) => [id, { ...place, ...card }] as const,
+		([id, place]) => [id, { ...place, ...(sizes.get(id) ?? card) }] as const,
 	);
 	return boxes.flatMap(([id, box], index) =>
 		boxes

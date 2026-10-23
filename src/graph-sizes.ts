@@ -48,6 +48,26 @@ export function nodeSize(id: string, fallback: NodeSize): NodeSize {
 	return sizes.get(id) ?? fallback;
 }
 
+/** The measured size of each of these nodes, or `previous` when none changed. */
+export function measuredSizes(
+	ids: readonly string[],
+	previous: ReadonlyMap<string, NodeSize>,
+): ReadonlyMap<string, NodeSize> {
+	const next = new Map(
+		ids.flatMap((id) => {
+			const size = sizes.get(id);
+			return size === undefined ? [] : [[id, size] as const];
+		}),
+	);
+	const same =
+		next.size === previous.size &&
+		[...next].every(([id, size]) => {
+			const before = previous.get(id);
+			return before?.width === size.width && before.height === size.height;
+		});
+	return same ? previous : next;
+}
+
 export function kindSize(kind: NodeKind): NodeSize {
 	return kindSizes.get(kind) ?? emptySize;
 }

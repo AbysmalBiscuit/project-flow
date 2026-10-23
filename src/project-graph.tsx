@@ -392,7 +392,7 @@ export function ProjectGraph({
 			openKey,
 			laid.input,
 			laid.layout,
-			new Map(),
+			laid.sizes,
 			span,
 		);
 	}, [laid, reports, openKey, span, theme]);

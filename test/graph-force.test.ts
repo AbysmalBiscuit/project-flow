@@ -5,50 +5,32 @@ import {
 	type LayoutInput,
 	layoutInput,
 } from "../src/graph-layout.ts";
+import type { NodeSize } from "../src/graph-sizes.ts";
 import {
 	card,
 	cardOverlaps,
 	chains,
 	frameOverlaps,
 	hierarchyReport,
-	inside,
 	milestones,
 	overlap,
 	strayCards,
+	strayFromHolders,
+	tallCards,
 	workcell,
 } from "./graph-layout-support.ts";
 
-/** Each card that sits outside a parent ticket frame or a group frame that holds it, as `card / holder`. */
-function strayFromHolders(input: LayoutInput, layout: GraphLayout): string[] {
-	const frameOf = new Map(input.frames.map((frame) => [frame.id, frame]));
-	const holders = (frame: string | null): string[] => {
-		const found = frame === null ? undefined : frameOf.get(frame);
-		return found === undefined ? [] : [found.id, ...holders(found.parent)];
-	};
-	return input.cards.flatMap((item) => {
-		const place = layout.cards.get(item.id);
-		if (place === undefined) {
-			return [`${item.id} / no card`];
-		}
-		const box = { ...place, ...card };
-		const group = layout.groups.get(item.group ?? "");
-		return [
-			...holders(item.frame).map(
-				(frame) => [frame, layout.frames.get(frame)] as const,
-			),
-			...(group === undefined ? [] : [[item.group, group] as const]),
-		].flatMap(([holder, rect]) =>
-			rect !== undefined && inside(box, rect) ? [] : [`${item.id} / ${holder}`],
-		);
-	});
-}
-
-function forceLaid(input: LayoutInput, labelGrowth = 0): GraphLayout {
+function forceLaid(
+	input: LayoutInput,
+	labelGrowth = 0,
+	sizes: ReadonlyMap<string, NodeSize> = new Map(),
+): GraphLayout {
 	return growGroups(
 		input,
-		forceLayout(input, card, () => 0),
+		forceLayout(input, card, () => 0, sizes),
 		card,
 		() => labelGrowth,
+		sizes,
 	);
 }
 
@@ -64,6 +46,23 @@ describe("project graph Force layout", () => {
 				overlapping: frameOverlaps(input, layout),
 				cardOverlaps: cardOverlaps(layout),
 			}).toEqual({ groupBy, stray: [], overlapping: [], cardOverlaps: [] });
+		}
+	});
+
+	test("the Force layout holds each card at its measured size", async () => {
+		const reports = { hierarchy: await hierarchyReport(""), workcell };
+		for (const [name, report] of Object.entries(reports)) {
+			for (const groupBy of ["workstream", "theme"] as const) {
+				const input = layoutInput(report, groupBy, []);
+				const sizes = tallCards(input);
+				const layout = forceLaid(input, 0, sizes);
+				expect({
+					name,
+					groupBy,
+					stray: strayFromHolders(input, layout, sizes),
+					cardOverlaps: cardOverlaps(layout, sizes),
+				}).toEqual({ name, groupBy, stray: [], cardOverlaps: [] });
+			}
 		}
 	});
 
