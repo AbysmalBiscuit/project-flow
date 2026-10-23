@@ -83,6 +83,52 @@ function isTextBox(target: EventTarget | null): boolean {
 	);
 }
 
+const doubleClickMs = 300;
+
+/**
+ * Click handlers where a double click cancels the open of its first click.
+ * A plain click opens only after the double-click wait.
+ */
+export function useClickOrDouble() {
+	const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const cancel = useCallback(() => {
+		if (timer.current !== null) {
+			clearTimeout(timer.current);
+			timer.current = null;
+		}
+	}, []);
+	const click = useCallback(
+		(
+			event: { ctrlKey: boolean; metaKey: boolean; detail: number },
+			focus: () => void,
+			open: () => void,
+		) => {
+			cancel();
+			if (isFocusClick(event)) {
+				focus();
+				return;
+			}
+			if (event.detail > 1) {
+				return;
+			}
+			timer.current = setTimeout(() => {
+				timer.current = null;
+				open();
+			}, doubleClickMs);
+		},
+		[cancel],
+	);
+	const double = useCallback(
+		(focus: () => void) => {
+			cancel();
+			focus();
+		},
+		[cancel],
+	);
+	useEffect(() => cancel, [cancel]);
+	return { click, double };
+}
+
 const previewDelayMs = 250;
 
 /**

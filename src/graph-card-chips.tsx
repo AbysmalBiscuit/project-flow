@@ -1,11 +1,15 @@
 import { board } from "./board-styles.ts";
 import { ServerChips } from "./card-chips.tsx";
-import type { TicketNodeData } from "./graph-model.ts";
+import type { FlowTicket } from "./graph-flow.ts";
 import { parentChipLabel, subTicketsLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
 /** The hierarchy chips, when shown, and the server chips of a graph node. */
-export function GraphCardChips({ data }: { data: TicketNodeData }) {
+export function GraphCardChips({
+	data,
+}: {
+	data: { ticket: FlowTicket; parentLabel?: string; hierarchyChips: boolean };
+}) {
 	const { ticket, hierarchyChips } = data;
 	const parent = hierarchyChips ? data.parentLabel : undefined;
 	const subTickets = hierarchyChips ? ticket.subTickets : undefined;

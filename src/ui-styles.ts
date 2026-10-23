@@ -656,8 +656,11 @@ export const cards = stylex.create({
 	},
 	graph: {
 		position: "relative",
+		display: "flex",
+		flexDirection: "column",
 		height: measure.diagram,
 		overflow: "hidden",
+		padding: space.sm,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
@@ -741,14 +744,6 @@ export const cards = stylex.create({
 		width: measure.marker,
 		height: measure.marker,
 		backgroundColor: colours.graphEdge,
-	},
-	graphTools: {
-		position: "absolute",
-		zIndex: 5,
-		top: space.sm,
-		right: space.sm,
-		display: "inline-flex",
-		gap: space.xs,
 	},
 	graphProbe: {
 		position: "absolute",
