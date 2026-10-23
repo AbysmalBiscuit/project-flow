@@ -19,7 +19,11 @@ import {
 	useActiveTicket,
 } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
-import { sameTicketKey, type TicketSearchHit } from "./ticket-key.ts";
+import {
+	sameTicketKey,
+	type TicketSearchHit,
+	ticketRefId,
+} from "./ticket-key.ts";
 import { phoneGutter } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
@@ -282,7 +286,7 @@ export function JumpBox() {
 						) : null}
 						<ul className={clsx(jump.list)}>
 							{hits.map((hit) => (
-								<li key={`${hit.tracker} ${hit.project} ${hit.key}`}>
+								<li key={ticketRefId(hit)}>
 									<button
 										type="button"
 										className={clsx(jump.hit)}
@@ -318,7 +322,7 @@ export function JumpBox() {
 			{ticket === null || pageRendersPanel ? null : (
 				<div className={clsx(jump.dock)} data-panel-dock="">
 					<TicketPanel
-						key={`${ticket.tracker} ${ticket.project} ${ticket.key}`}
+						key={ticketRefId(ticket)}
 						tracker={ticket.tracker}
 						project={ticket.project}
 						ticketKey={ticket.key}

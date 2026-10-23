@@ -16,7 +16,6 @@ import {
 	githubRepoForTodo,
 	linearKeysForNames,
 	linearNamesFromCheckouts,
-	needsYouSeenId,
 	notificationsFor,
 	projectSnapshots,
 	reconcilePoll,
@@ -44,6 +43,7 @@ import {
 	viewerLogins,
 } from "./project-views.ts";
 import { matchesRef, refKey } from "./settings-catalogue.ts";
+import { needsYouSeenId } from "./ticket-key.ts";
 
 function mergeFound(
 	found: FoundProject[],

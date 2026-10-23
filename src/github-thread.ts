@@ -8,18 +8,7 @@ import type {
 import type { Fetch } from "./fetch.ts";
 import { TrackerError } from "./github.ts";
 import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
-
-export function githubTicketKey(
-	key: string,
-): { repo: string; number: number } | null {
-	const match = key.match(/^([^/\s]+\/[^/\s]+)#(\d+)$/);
-	const repo = match?.[1];
-	const raw = match?.[2];
-	if (repo === undefined || raw === undefined) {
-		return null;
-	}
-	return { repo, number: Number(raw) };
-}
+import { githubKeyParts } from "./ticket-key.ts";
 
 const githubThreadComment = z.object({
 	id: z.number(),
@@ -92,7 +81,7 @@ export async function fetchGithubThread(
 	key: string,
 	signal?: AbortSignal,
 ): Promise<FetchedThread | null> {
-	const parsed = githubTicketKey(key);
+	const parsed = githubKeyParts(key);
 	if (parsed === null) {
 		return null;
 	}
@@ -225,7 +214,7 @@ export async function postGithubReply(
 	fetchImpl: Fetch,
 	reply: ReplyRequest,
 ): Promise<PostedReply> {
-	const parsed = githubTicketKey(reply.key);
+	const parsed = githubKeyParts(reply.key);
 	if (parsed === null) {
 		throw new TrackerError(
 			"GitHub reply failed: ticket key has no number",

@@ -13,7 +13,6 @@ import {
 	attachGraphStates,
 	filterProjectReport,
 	inboxEntries,
-	needsYouSeenId,
 	optionReplyBody,
 	panelReplyBody,
 	projectHasPmBot,
@@ -26,7 +25,6 @@ import {
 	type Fetch,
 } from "./fetch.ts";
 import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
-import { githubTicketKey } from "./github-thread.ts";
 import { elkWorkerPath, forceWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
@@ -58,6 +56,12 @@ import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
+import {
+	foldKey,
+	githubKeyParts,
+	needsYouSeenId,
+	sameTicketKey,
+} from "./ticket-key.ts";
 import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
 const elkWorkerFile = Bun.resolveSync(
@@ -124,7 +128,7 @@ function searchTickets(
 			if (ticket.key === null) {
 				continue;
 			}
-			const key = ticket.key.toLowerCase();
+			const key = foldKey(ticket.key);
 			const title = ticket.title.toLowerCase();
 			if (!key.includes(needle) && !title.includes(needle)) {
 				continue;
@@ -205,7 +209,9 @@ async function replyResponse(
 		return Response.json({ error: "tracker unavailable" }, { status: 404 });
 	}
 	const row = rowForReply(options.store, parsed.data);
-	const ticket = row?.tickets.find((item) => item.key === parsed.data.key);
+	const ticket = row?.tickets.find(
+		(item) => item.key !== null && sameTicketKey(item.key, parsed.data.key),
+	);
 	const pmBot = projectHasPmBot(
 		configuration.pmBot,
 		row?.key ?? parsed.data.project,
@@ -249,7 +255,7 @@ function rowForReply(
 	store: Store,
 	reply: { tracker: string; project: string; key: string },
 ): Snapshot | undefined {
-	const repo = githubTicketKey(reply.key)?.repo;
+	const repo = githubKeyParts(reply.key)?.repo;
 	return store.readTickets().find((item) => {
 		if (item.tracker !== reply.tracker) {
 			return false;
@@ -278,7 +284,7 @@ function recordPostedReply(
 		{
 			...row,
 			tickets: row.tickets.map((ticket) =>
-				ticket.key === reply.key
+				ticket.key !== null && sameTicketKey(ticket.key, reply.key)
 					? { ...ticket, comments: [...(ticket.comments ?? []), comment] }
 					: ticket,
 			),

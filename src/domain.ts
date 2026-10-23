@@ -8,7 +8,27 @@ import type {
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import type { HidingFilter } from "./terms.ts";
-import { sameTicketKey } from "./ticket-key.ts";
+import {
+	blockerClearedId,
+	commentNotificationId,
+	foldKey,
+	githubKey,
+	itemId,
+	keyNumber,
+	keyRepo,
+	keyTracker,
+	linearKey,
+	linkId,
+	needsYouNotificationId,
+	needsYouSeenId,
+	outsideKey,
+	pullKey,
+	sameTicketKey,
+	scopedKey,
+	shortKey,
+	ticketId,
+	ticketRefId,
+} from "./ticket-key.ts";
 import {
 	type GroupBy,
 	laneAgeCap,
@@ -373,9 +393,13 @@ export type Attention = {
 			replyStamp: string;
 			authors: string[];
 			project: string;
+			key: string;
 		}
 	>;
-	blockers: Map<string, string>;
+	blockers: Map<
+		string,
+		{ project: string; tracker: string; key: string; title: string }
+	>;
 	closed: Set<string>;
 	closedBlockers: Set<string>;
 };
@@ -406,17 +430,15 @@ function commentSources(
 	tickets: Map<string, Ticket>,
 	pulls: PullRequest[],
 ): Comment[] {
-	const ticket = tickets.get(ticketKey(item.tracker, item.key));
+	const ticket = tickets.get(ticketId(item.tracker, item.key));
 	if (ticket !== undefined) {
 		const linkedPulls = linked(ticket, pulls);
 		return [...(ticket.comments ?? []), ...linkedPulls.flatMap(pullComments)];
 	}
-	const pull = pulls.find((candidate) => pullKey(candidate) === item.key);
+	const pull = pulls.find((candidate) =>
+		sameTicketKey(pullKey(candidate), item.key),
+	);
 	return pull === undefined ? [] : pullComments(pull);
-}
-
-function ticketKey(tracker: string, key: string): string {
-	return `${tracker}\n${key.toLowerCase()}`;
 }
 
 export function attentionOf(
@@ -427,16 +449,8 @@ export function attentionOf(
 	}[],
 	pmBot: Record<string, boolean> = {},
 ): Attention {
-	const comments = new Map<
-		string,
-		{
-			stamp: string;
-			replyStamp: string;
-			authors: string[];
-			project: string;
-		}
-	>();
-	const blockers = new Map<string, string>();
+	const comments: Attention["comments"] = new Map();
+	const blockers: Attention["blockers"] = new Map();
 	const closed = new Set<string>();
 	const closedBlockers = new Set<string>();
 	const tickets = new Map<string, Ticket>();
@@ -445,7 +459,7 @@ export function attentionOf(
 			if (ticket.key === null) {
 				continue;
 			}
-			const id = ticketKey(ticket.tracker, ticket.key);
+			const id = ticketId(ticket.tracker, ticket.key);
 			tickets.set(id, ticket);
 			if (ticket.state === "closed") {
 				closed.add(id);
@@ -465,25 +479,29 @@ export function attentionOf(
 					? levReply(itemComments, ask.index)
 					: null;
 			const newest = newestComment(itemComments);
-			comments.set(`${item.project}\n${item.key}`, {
+			comments.set(itemId(item.project, item.key), {
 				stamp: newest.stamp,
 				replyStamp: reply?.createdAt ?? "",
 				authors: newest.authors,
 				project: item.project,
+				key: item.key,
 			});
 		}
 		for (const blocker of view.counts.crossProjectBlockers) {
-			blockers.set(
-				`${view.counts.name}\n${blocker.tracker}\n${blocker.key}`,
-				blocker.title.trim() === "" ? blocker.key : blocker.title,
-			);
+			const crossBlocker = {
+				project: view.counts.name,
+				tracker: blocker.tracker,
+				key: blocker.key,
+				title: blocker.title.trim() === "" ? blocker.key : blocker.title,
+			};
+			blockers.set(ticketRefId(crossBlocker), crossBlocker);
 		}
 		for (const ticket of view.row.tickets) {
 			if (ticket.key === null) {
 				continue;
 			}
 			for (const ref of ticket.blockedBy) {
-				const id = ticketKey(ref.tracker, ref.key);
+				const id = ticketId(ref.tracker, ref.key);
 				if (tickets.has(id) || ref.state !== "closed") {
 					continue;
 				}
@@ -500,19 +518,11 @@ export function attentionOf(
 	};
 }
 
-export function needsYouSeenId(item: { project: string; key: string }): string {
-	return `needsYou\n${item.project}\n${item.key}`;
-}
-
-function needsYouNotificationId(item: NeedsYouItem, at: string): string {
-	return `${needsYouSeenId(item)}\n${at}`;
-}
-
 export function attentionIds(attention: Attention): string[] {
 	return [
 		...attention.needsYou.map(needsYouSeenId),
-		...[...attention.comments].map(
-			([id, comment]) => `comment\n${id}\n${comment.stamp}`,
+		...[...attention.comments.values()].map((comment) =>
+			commentNotificationId(comment, comment.stamp),
 		),
 	];
 }
@@ -523,11 +533,11 @@ export function departedNeedsYouIds(
 	loadedProjects: ReadonlySet<string>,
 ): string[] {
 	const current = new Set(
-		after.needsYou.map((item) => `${item.project}\n${item.key}`),
+		after.needsYou.map((item) => itemId(item.project, item.key)),
 	);
 	return before.needsYou.flatMap((item) =>
 		!loadedProjects.has(item.project) ||
-		current.has(`${item.project}\n${item.key}`)
+		current.has(itemId(item.project, item.key))
 			? []
 			: [needsYouSeenId(item)],
 	);
@@ -567,10 +577,10 @@ export function notificationsFor(
 	};
 	if (triggers.needsYou) {
 		const previous = new Set(
-			before.needsYou.map((item) => `${item.project}\n${item.key}`),
+			before.needsYou.map((item) => itemId(item.project, item.key)),
 		);
 		for (const item of after.needsYou) {
-			const id = `${item.project}\n${item.key}`;
+			const id = itemId(item.project, item.key);
 			if (previous.has(id)) {
 				continue;
 			}
@@ -608,38 +618,35 @@ export function notificationsFor(
 				continue;
 			}
 			const item = after.needsYou.find(
-				(candidate) => `${candidate.project}\n${candidate.key}` === id,
+				(candidate) => itemId(candidate.project, candidate.key) === id,
 			);
-			const [project = "", itemKey = ""] = id.split("\n");
 			push(
 				"comment",
-				`comment\n${id}\n${comment.stamp}`,
-				project,
-				itemKey,
-				item?.headline ?? itemKey,
+				commentNotificationId(comment, comment.stamp),
+				comment.project,
+				comment.key,
+				item?.headline ?? comment.key,
 			);
 		}
 	}
 	if (triggers.blockerCleared) {
-		for (const [id, title] of before.blockers) {
+		for (const [id, blocker] of before.blockers) {
 			if (after.blockers.has(id)) {
 				continue;
 			}
-			const [, tracker = "", itemKey = ""] = id.split("\n");
-			const closedKey = `${tracker}\n${itemKey.toLowerCase()}`;
+			const closedKey = ticketId(blocker.tracker, blocker.key);
 			if (
 				!after.closed.has(closedKey) &&
 				!after.closedBlockers.has(closedKey)
 			) {
 				continue;
 			}
-			const [project = ""] = id.split("\n");
 			push(
 				"blockerCleared",
-				`blockerCleared\n${id}\n${at}`,
-				project,
-				itemKey,
-				title,
+				blockerClearedId(blocker, at),
+				blocker.project,
+				blocker.key,
+				blocker.title,
 			);
 		}
 	}
@@ -676,7 +683,7 @@ export function inboxEntries(entries: Notification[], now: Date): InboxEntry[] {
 		return {
 			...entry,
 			day,
-			tracker: entry.key.includes("#") ? "github" : "linear",
+			tracker: keyTracker(entry.key),
 		};
 	});
 }
@@ -808,11 +815,11 @@ function closingKeys(body: string, repo: string): string[] {
 		const linearNumber = match[5];
 		const key =
 			namedRepo !== undefined && namedNumber !== undefined
-				? `${namedRepo}#${namedNumber}`
+				? githubKey(namedRepo, namedNumber)
 				: bareNumber !== undefined
-					? `${repo}#${bareNumber}`
+					? githubKey(repo, bareNumber)
 					: team !== undefined && linearNumber !== undefined
-						? `${team.toUpperCase()}-${linearNumber}`
+						? linearKey(team, linearNumber)
 						: null;
 		if (key !== null && !keys.includes(key)) {
 			keys.push(key);
@@ -822,10 +829,7 @@ function closingKeys(body: string, repo: string): string[] {
 }
 
 function sameRef(left: TicketRef, right: TicketRef): boolean {
-	return (
-		left.tracker === right.tracker &&
-		left.key.toLowerCase() === right.key.toLowerCase()
-	);
+	return left.tracker === right.tracker && sameTicketKey(left.key, right.key);
 }
 
 function mergeBlockedBy(rows: TicketRef[][]): TicketRef[] {
@@ -894,10 +898,16 @@ export function refreshedBlockers(
 	];
 }
 
+function ticketIdentity(ticket: Ticket): string {
+	return ticket.key === null ? ticket.id : ticketId(ticket.tracker, ticket.key);
+}
+
 export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
-	const byId = new Map(stored.map((ticket) => [ticket.id, ticket]));
+	const byId = new Map(
+		stored.map((ticket) => [ticketIdentity(ticket), ticket]),
+	);
 	for (const ticket of incoming) {
-		byId.set(ticket.id, ticket);
+		byId.set(ticketIdentity(ticket), ticket);
 	}
 	return [...byId.values()];
 }
@@ -917,17 +927,18 @@ function keptPulls(
 	if (full) {
 		return incoming;
 	}
-	const incomingIds = new Set(
-		incoming.map((pull) => `${pull.repo}#${pull.number}`),
+	const incomingIds = new Set(incoming.map((pull) => foldKey(pullKey(pull))));
+	const incomingKeys = new Set(
+		incoming.flatMap((pull) => pull.closingKeys.map((key) => foldKey(key))),
 	);
-	const incomingKeys = new Set(incoming.flatMap((pull) => pull.closingKeys));
 	return [
 		...incoming,
 		...stored.filter(
 			(pull) =>
-				!incomingIds.has(`${pull.repo}#${pull.number}`) &&
+				!incomingIds.has(foldKey(pullKey(pull))) &&
 				!pull.closingKeys.some(
-					(key) => returnedIds.has(key) || incomingKeys.has(key),
+					(key) =>
+						returnedIds.has(foldKey(key)) || incomingKeys.has(foldKey(key)),
 				),
 		),
 	];
@@ -954,7 +965,7 @@ export function reconcilePoll(
 				: mergeTickets(prior?.tickets ?? [], outcome.row.tickets);
 			const returnedIds = new Set(
 				outcome.row.tickets.flatMap((ticket) =>
-					ticket.key === null ? [] : [ticket.key],
+					ticket.key === null ? [] : [foldKey(ticket.key)],
 				),
 			);
 			const listedEmpty = outcome.full
@@ -1339,7 +1350,7 @@ function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
 		return {
 			tracker: "github",
 			project: repo,
-			key: `${repo}#${githubUrlNumber}`,
+			key: githubKey(repo, githubUrlNumber),
 		};
 	}
 	const linearUrlKey = match[4];
@@ -1352,7 +1363,7 @@ function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
 		return {
 			tracker: "github",
 			project: ownerRepo,
-			key: `${ownerRepo}#${ownerNumber}`,
+			key: githubKey(ownerRepo, ownerNumber),
 		};
 	}
 	const sameNumber = match[7];
@@ -1360,11 +1371,11 @@ function refFrom(match: RegExpExecArray, project: string): TicketRef | null {
 		if (!project.includes("/")) {
 			return null;
 		}
-		return { tracker: "github", project, key: `${project}#${sameNumber}` };
+		return { tracker: "github", project, key: githubKey(project, sameNumber) };
 	}
-	const linearKey = match[8];
-	if (linearKey !== undefined) {
-		return { tracker: "linear", project: "", key: linearKey.toUpperCase() };
+	const linearMatch = match[8];
+	if (linearMatch !== undefined) {
+		return { tracker: "linear", project: "", key: linearMatch.toUpperCase() };
 	}
 	return null;
 }
@@ -1421,19 +1432,13 @@ export function bodyBlockers(
 
 type TicketIndex = Map<string, Ticket>;
 
-function indexKey(tracker: string, key: string): string {
-	return `${tracker}\0${key.toLowerCase()}`;
-}
-
-export { sameTicketKey } from "./ticket-key.ts";
-
 function indexTickets(tickets: Ticket[]): TicketIndex {
 	const index = new Map<string, Ticket>();
 	for (const ticket of tickets) {
 		if (ticket.key === null) {
 			continue;
 		}
-		const key = indexKey(ticket.tracker, ticket.key);
+		const key = ticketId(ticket.tracker, ticket.key);
 		const earlier = index.get(key);
 		if (earlier === undefined) {
 			index.set(key, ticket);
@@ -1450,7 +1455,7 @@ function indexTickets(tickets: Ticket[]): TicketIndex {
 }
 
 function known(index: TicketIndex, ref: TicketRef): Ticket | undefined {
-	return index.get(indexKey(ref.tracker, ref.key));
+	return index.get(ticketId(ref.tracker, ref.key));
 }
 
 function stillOpen(ref: TicketRef, index: TicketIndex): boolean {
@@ -1497,7 +1502,7 @@ type ParsedBodies = Map<
 >;
 
 function parseKey(ticket: Ticket): string {
-	return indexKey(ticket.tracker, ticket.key ?? "");
+	return ticketId(ticket.tracker, ticket.key ?? "");
 }
 
 function bodyLines(donor: Ticket | undefined, ticket: Ticket): string {
@@ -1518,7 +1523,7 @@ function bodyProject(ticket: Ticket, project: string): string {
 	if (project.includes("/")) {
 		return project;
 	}
-	const repo = ticket.key?.split("#")[0];
+	const repo = ticket.key === null ? null : keyRepo(ticket.key);
 	if (ticket.tracker === "github" && repo?.includes("/") === true) {
 		return repo;
 	}
@@ -1616,7 +1621,7 @@ export function openBlockers(
 			resolved.findIndex(
 				(item) =>
 					item.tracker === blocker.tracker &&
-					item.key?.toLowerCase() === blocker.key?.toLowerCase(),
+					foldKey(item.key) === foldKey(blocker.key),
 			) === position
 		);
 	});
@@ -1718,18 +1723,10 @@ export function projectSnapshots(found: ListedProject[]): {
 	return rows;
 }
 
-function ticketNumber(key: string): string | null {
-	const number = key.split("#").at(-1);
-	if (number === undefined || !/^\d+$/.test(number)) {
-		return null;
-	}
-	return number;
-}
-
 export const ownerRepo = /^[^/\s]+\/[^/\s]+$/;
 const githubNode = /^(\d+)-/;
 const sessionSuffix = /\.[a-z][a-z0-9]*-\d+$/i;
-const linearKey = /^([a-z][a-z0-9]*)-(\d+)(?![a-z0-9])/i;
+const linearSegment = /^([a-z][a-z0-9]*)-(\d+)(?![a-z0-9])/i;
 
 export function checkoutNamesProject(
 	hasTrackerConfig: boolean,
@@ -1821,13 +1818,13 @@ export function linearKeysForNames(names: string[]): string[] {
 	for (const name of names) {
 		const bare = name.replace(sessionSuffix, "");
 		for (const segment of bare.split(/[/_.]/)) {
-			const match = segment.match(linearKey);
+			const match = segment.match(linearSegment);
 			const team = match?.[1];
 			const number = match?.[2];
 			if (team === undefined || number === undefined) {
 				continue;
 			}
-			const key = `${team.toUpperCase()}-${number}`;
+			const key = linearKey(team, number);
 			if (!keys.includes(key)) {
 				keys.push(key);
 			}
@@ -1855,8 +1852,8 @@ export function startedTodoKeys(
 			continue;
 		}
 		const repo = repos.find((item) => item.name === project)?.repo;
-		const scoped = key.startsWith("#") ? `${repo ?? project}${key}` : key;
-		if (!keys.some((item) => item.toLowerCase() === scoped.toLowerCase())) {
+		const scoped = scopedKey(repo ?? project, key);
+		if (!keys.some((item) => sameTicketKey(item, scoped))) {
 			keys.push(scoped);
 		}
 	}
@@ -1864,12 +1861,12 @@ export function startedTodoKeys(
 }
 
 function branchLinksTicket(branch: string, key: string): boolean {
-	const number = ticketNumber(key);
+	const number = keyNumber(key);
 	const leading = branch.match(/^(?:[^/]+\/)?(\d+)-/)?.[1];
 	if (leading !== undefined) {
 		return number !== null && leading === number;
 	}
-	return key.includes("#") && branch.toLowerCase().includes(key.toLowerCase());
+	return keyTracker(key) === "github" && foldKey(branch).includes(foldKey(key));
 }
 
 function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
@@ -1879,7 +1876,10 @@ function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 	const key = ticket.key;
 	return pulls.filter((pull) => {
 		const keys = [...pull.closingKeys, ...closingKeys(pull.body, pull.repo)];
-		return keys.includes(key) || branchLinksTicket(pull.branch, key);
+		return (
+			keys.some((item) => sameTicketKey(item, key)) ||
+			branchLinksTicket(pull.branch, key)
+		);
 	});
 }
 
@@ -1898,8 +1898,8 @@ function blockerProject(
 	if (ref?.project !== undefined && ref.project !== "") {
 		return ref.project;
 	}
-	if (blocker.tracker === "github" && blocker.key?.includes("#") === true) {
-		return blocker.key.split("#")[0] ?? "";
+	if (blocker.tracker === "github" && blocker.key !== null) {
+		return keyRepo(blocker.key) ?? "";
 	}
 	return "";
 }
@@ -1940,7 +1940,7 @@ function graphLinks(
 	const links: GraphLink[] = [];
 	const push = (ref: TicketRef, source: Ticket | undefined) => {
 		if (
-			links.some((item) => item.key.toLowerCase() === ref.key.toLowerCase()) ||
+			links.some((item) => sameTicketKey(item.key, ref.key)) ||
 			(self !== null && sameRef(self, ref))
 		) {
 			return;
@@ -2032,7 +2032,7 @@ function ticketRelations(
 		const source = incoming.find(
 			(ref) =>
 				ref.tracker === blocker.tracker &&
-				ref.key.toLowerCase() === blocker.key?.toLowerCase(),
+				foldKey(ref.key) === foldKey(blocker.key),
 		);
 		const project = blockerProject(blocker, source, groups) || home || "";
 		if (project === "") {
@@ -2127,12 +2127,12 @@ function linkedDoneKeys(
 		}
 		for (const link of relations.links) {
 			if (link.outside === undefined) {
-				linked.add(link.key.toLowerCase());
+				linked.add(foldKey(link.key));
 			}
 		}
 		for (const blocked of relations.blocks) {
 			if (blocked.project.toLowerCase() === name.toLowerCase()) {
-				linked.add(blocked.key.toLowerCase());
+				linked.add(foldKey(blocked.key));
 			}
 		}
 	}
@@ -2146,7 +2146,7 @@ function stateByKey(reports: ProjectReport[]): Map<string, TicketState> {
 			if (ticket.key === null) {
 				continue;
 			}
-			states.set(`${report.name}\0${ticket.key}`.toLowerCase(), ticket.state);
+			states.set(itemId(report.name.toLowerCase(), ticket.key), ticket.state);
 		}
 	}
 	return states;
@@ -2160,7 +2160,7 @@ function withEndStates(
 		if (item.state !== undefined) {
 			return item;
 		}
-		const state = states.get(`${item.project}\0${item.key}`.toLowerCase());
+		const state = states.get(itemId(item.project.toLowerCase(), item.key));
 		return state === undefined ? item : { ...item, state };
 	};
 	return links.map((link) => ({
@@ -2181,16 +2181,16 @@ function shownGraph(
 	);
 	const openKeys = new Set(
 		withKey.flatMap((view) =>
-			view.state === "done" ? [] : [view.key.toLowerCase()],
+			view.state === "done" ? [] : [foldKey(view.key)],
 		),
 	);
 	const linked = linkedDoneKeys(name, relationsByKey);
 	const shown = withKey.filter((view) => {
-		const key = view.key.toLowerCase();
+		const key = foldKey(view.key);
 		return view.state !== "done" || (!openKeys.has(key) && linked.has(key));
 	});
 	const local = new Map(
-		shown.map((view) => [view.key.toLowerCase(), view] as const),
+		shown.map((view) => [foldKey(view.key), view] as const),
 	);
 	const links: ShownGraphLink[] = [];
 	const seen = new Set<string>();
@@ -2210,12 +2210,14 @@ function shownGraph(
 	const push = (from: GraphEnd, to: GraphEnd, done: boolean) => {
 		if (
 			from.project.toLowerCase() === to.project.toLowerCase() &&
-			from.key.toLowerCase() === to.key.toLowerCase()
+			sameTicketKey(from.key, to.key)
 		) {
 			return;
 		}
-		const id =
-			`${from.project}\0${from.key}\0${to.project}\0${to.key}`.toLowerCase();
+		const id = linkId(
+			itemId(from.project.toLowerCase(), from.key),
+			itemId(to.project.toLowerCase(), to.key),
+		);
 		if (seen.has(id)) {
 			return;
 		}
@@ -2223,14 +2225,14 @@ function shownGraph(
 		links.push({ from, to, done });
 	};
 	for (const view of shown) {
-		const relations = relationsByKey.get(view.key.toLowerCase());
+		const relations = relationsByKey.get(foldKey(view.key));
 		if (relations === undefined) {
 			continue;
 		}
 		const target = endOf(name, view.key, view.title, tracker, view.state);
 		for (const link of relations.links) {
 			const outside = link.outside;
-			const holder = local.get(link.key.toLowerCase());
+			const holder = local.get(foldKey(link.key));
 			const source =
 				outside === undefined
 					? endOf(
@@ -2780,13 +2782,13 @@ function runFor(ticket: Ticket, runs: WorkcellRun[]): WorkcellRun | undefined {
 		return undefined;
 	}
 	return runs.find((run) => {
-		if (run.key.toLowerCase() === key.toLowerCase()) {
+		if (sameTicketKey(run.key, key)) {
 			return true;
 		}
 		if (run.repo === undefined) {
 			return false;
 		}
-		return `${run.repo}#${run.key}`.toLowerCase() === key.toLowerCase();
+		return sameTicketKey(githubKey(run.repo, run.key), key);
 	});
 }
 
@@ -2795,8 +2797,8 @@ function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
 	if (key === null || !pull.merged) {
 		return false;
 	}
-	return closingKeys(pull.body, pull.repo).some(
-		(item) => item.toLowerCase() === key.toLowerCase(),
+	return closingKeys(pull.body, pull.repo).some((item) =>
+		sameTicketKey(item, key),
 	);
 }
 
@@ -2863,8 +2865,7 @@ function shownTicket(
 	let state = trackerState;
 	const key = ticket.key;
 	const started =
-		key !== null &&
-		startedKeys.some((item) => item.toLowerCase() === key.toLowerCase());
+		key !== null && startedKeys.some((item) => sameTicketKey(item, key));
 	const pushed =
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);
@@ -2991,10 +2992,6 @@ function mergesOnItsOwn(
 	});
 }
 
-function pullKey(pull: PullRequest): string {
-	return `${pull.repo}#${pull.number}`;
-}
-
 export function projectCounts(
 	name: string,
 	key: string,
@@ -3086,7 +3083,7 @@ export function projectCounts(
 				failedKeys.add(ticket.key);
 			}
 			if (shown.run !== undefined) {
-				runByKey.set(ticket.key.toLowerCase(), shown.run);
+				runByKey.set(foldKey(ticket.key), shown.run);
 			}
 		}
 		if (blockers.length > 0 && ticket.state === "open") {
@@ -3096,12 +3093,12 @@ export function projectCounts(
 		statusTypes[shown.lane.statusType] += 1;
 		if (ticket.key !== null) {
 			relationsByKey.set(
-				ticket.key.toLowerCase(),
+				foldKey(ticket.key),
 				ticketRelations(ticket, blockers, index, parsed, all),
 			);
 			const pull = links[0];
 			if (pull !== undefined) {
-				pullByKey.set(ticket.key.toLowerCase(), pull);
+				pullByKey.set(foldKey(ticket.key), pull);
 			}
 		}
 		views.push({
@@ -3141,18 +3138,19 @@ export function projectCounts(
 			].find(
 				(ref) =>
 					ref.tracker === blocker.tracker &&
-					ref.key.toLowerCase() === blocker.key?.toLowerCase(),
+					foldKey(ref.key) === foldKey(blocker.key),
 			);
 			const project = blockerProject(blocker, source, all);
 			if (project === "" || project.toLowerCase() === name.toLowerCase()) {
 				continue;
 			}
-			cross.set(`${blocker.tracker} ${project} ${blocker.key}`, {
+			const crossBlocker = {
 				project,
 				tracker: blocker.tracker,
 				key: blocker.key,
 				title: blocker.title,
-			});
+			};
+			cross.set(ticketRefId(crossBlocker), crossBlocker);
 		}
 	}
 	const unlinked = active.filter((pull) => !linkedKeys.has(pullKey(pull)));
@@ -3217,16 +3215,14 @@ export function projectCounts(
 function withSubTicketCounts(views: TicketView[]): TicketView[] {
 	const subTicketsByKey = new Map<string, TicketView[]>();
 	for (const view of views) {
-		const parent = view.parent?.toLowerCase();
-		if (parent === undefined || parent === view.key?.toLowerCase()) {
+		const parent = foldKey(view.parent);
+		if (parent === undefined || parent === foldKey(view.key)) {
 			continue;
 		}
 		subTicketsByKey.set(parent, [...(subTicketsByKey.get(parent) ?? []), view]);
 	}
 	const subTicketsOf = (view: TicketView) =>
-		view.key === null
-			? []
-			: (subTicketsByKey.get(view.key.toLowerCase()) ?? []);
+		view.key === null ? [] : (subTicketsByKey.get(foldKey(view.key)) ?? []);
 	const settled = new Map<TicketView, boolean>();
 	const allClosed = (view: TicketView): boolean => {
 		const known = settled.get(view);
@@ -3262,24 +3258,24 @@ function graphParentsOf(
 ): TicketView[] {
 	const byKey = new Map(
 		tickets.flatMap((ticket) =>
-			ticket.key === null ? [] : [[ticket.key.toLowerCase(), ticket] as const],
+			ticket.key === null ? [] : [[foldKey(ticket.key), ticket] as const],
 		),
 	);
 	const shown = new Set(
 		graphTickets.flatMap((ticket) =>
-			ticket.key === null ? [] : [ticket.key.toLowerCase()],
+			ticket.key === null ? [] : [foldKey(ticket.key)],
 		),
 	);
 	const found = new Map<string, TicketView>();
 	for (const ticket of graphTickets) {
-		let parent = ticket.parent?.toLowerCase();
+		let parent = foldKey(ticket.parent);
 		while (parent !== undefined && !shown.has(parent) && !found.has(parent)) {
 			const view = byKey.get(parent);
 			if (view === undefined) {
 				break;
 			}
 			found.set(parent, view);
-			parent = view.parent?.toLowerCase();
+			parent = foldKey(view.parent);
 		}
 	}
 	return [...found.values()];
@@ -3289,7 +3285,7 @@ function subTicketCounts(tickets: Ticket[]): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const ticket of tickets) {
 		if (ticket.parent !== null) {
-			const key = ticket.parent.toLowerCase();
+			const key = foldKey(ticket.parent);
 			counts.set(key, (counts.get(key) ?? 0) + 1);
 		}
 	}
@@ -3300,7 +3296,7 @@ function countOf(
 	counts: Map<string, number>,
 	key: string | null,
 ): { subTickets?: number } {
-	const count = key === null ? undefined : counts.get(key.toLowerCase());
+	const count = key === null ? undefined : counts.get(foldKey(key));
 	return count === undefined ? {} : { subTickets: count };
 }
 
@@ -3310,14 +3306,14 @@ function outsideParents(
 ): OutsideParent[] {
 	const own = new Set(
 		tickets.flatMap((ticket) =>
-			ticket.key === null ? [] : [ticket.key.toLowerCase()],
+			ticket.key === null ? [] : [foldKey(ticket.key)],
 		),
 	);
 	const found = new Map<string, OutsideParent>();
 	for (const ticket of tickets) {
 		const key = ticket.parent;
 		const details = ticket.parentDetails;
-		if (key === null || details === undefined || own.has(key.toLowerCase())) {
+		if (key === null || details === undefined || own.has(foldKey(key))) {
 			continue;
 		}
 		const home =
@@ -3331,7 +3327,7 @@ function outsideParents(
 					details.project !== "" &&
 					group.project.toLowerCase() === details.project.toLowerCase(),
 			)?.project;
-		found.set(key.toLowerCase(), {
+		found.set(foldKey(key), {
 			tracker: ticket.tracker,
 			project: home ?? details.project,
 			key,
@@ -3909,7 +3905,7 @@ function parentOf(
 	if (parentKey === null) {
 		return undefined;
 	}
-	return byKey.get(parentKey.toLowerCase());
+	return byKey.get(foldKey(parentKey));
 }
 
 function* ancestors(
@@ -3923,7 +3919,7 @@ function* ancestors(
 		if (parent === undefined || parent.key === null) {
 			return;
 		}
-		const key = parent.key.toLowerCase();
+		const key = foldKey(parent.key);
 		if (seen.has(key)) {
 			return;
 		}
@@ -3973,7 +3969,7 @@ function themeOf(
 	if (root !== ticket && root.key !== null) {
 		return root.title;
 	}
-	if (ticket.key !== null && parents.has(ticket.key.toLowerCase())) {
+	if (ticket.key !== null && parents.has(foldKey(ticket.key))) {
 		return ticket.title;
 	}
 	return scopeOf(ticket.title);
@@ -4136,14 +4132,14 @@ function placeTickets(
 	const byKey = new Map<string, Ticket>();
 	for (const ticket of tickets) {
 		if (ticket.key !== null) {
-			byKey.set(ticket.key.toLowerCase(), ticket);
+			byKey.set(foldKey(ticket.key), ticket);
 		}
 	}
 	const parents = new Map<string, Ticket[]>();
 	for (const ticket of tickets) {
 		const parent = parentOf(ticket, byKey);
 		if (parent?.key !== null && parent?.key !== undefined) {
-			const key = parent.key.toLowerCase();
+			const key = foldKey(parent.key);
 			const known = parents.get(key);
 			if (known === undefined) {
 				parents.set(key, [ticket]);
@@ -4159,7 +4155,7 @@ function placeTickets(
 		]),
 	);
 	const subTicketsOf = (ticket: Ticket): Ticket[] =>
-		ticket.key === null ? [] : (parents.get(ticket.key.toLowerCase()) ?? []);
+		ticket.key === null ? [] : (parents.get(foldKey(ticket.key)) ?? []);
 	const treeWorkstream = (root: Ticket): Workstream | undefined => {
 		const seen = new Set<Ticket>([root]);
 		const pending = [root];
@@ -4222,17 +4218,6 @@ function placeTickets(
 	});
 }
 
-export function outsideKey(project: string, key: string): string {
-	const number = key.slice(key.lastIndexOf("#") + 1);
-	if (
-		number === key ||
-		key.toLowerCase().startsWith(`${project.toLowerCase()}#`)
-	) {
-		return key;
-	}
-	return `${project}#${number}`;
-}
-
 /** The chip that names a parent ticket: an outside parent, else a ticket of the project. */
 export function parentChip(
 	outsideParents: OutsideParent[],
@@ -4244,8 +4229,7 @@ export function parentChip(
 	if (outside !== undefined) {
 		return { label: outsideKey(outside.project, outside.key), outside };
 	}
-	const mark = key.lastIndexOf("#");
-	return { label: mark === -1 ? key : key.slice(mark) };
+	return { label: shortKey(key) };
 }
 
 function summaryLine(counts: ProjectBody): string {
@@ -4285,7 +4269,7 @@ export function projectReport(
 			);
 		}),
 		...counts.unlinkedPrs.map((pull) => ({
-			key: `${pull.repo}#${pull.number}`,
+			key: pullKey(pull),
 			title: pull.title,
 			state: "inProgress" as const,
 			blockers: [],
@@ -4302,25 +4286,23 @@ export function projectReport(
 		},
 		{ id: "backlog", title: "Backlog", items: backlog },
 	];
-	const needsKeys = new Set(needs.map((item) => item.key.toLowerCase()));
+	const needsKeys = new Set(needs.map((item) => foldKey(item.key)));
 	const placedByKey = new Map(
 		placed.flatMap((item) =>
 			item.ticket.key === null
 				? []
-				: [[item.ticket.key.toLowerCase(), item] as const],
+				: [[foldKey(item.ticket.key), item] as const],
 		),
 	);
 	const boardTickets = counts.tickets.map((view) => {
 		const relations =
-			view.key === null
-				? undefined
-				: relationsByKey.get(view.key.toLowerCase());
+			view.key === null ? undefined : relationsByKey.get(foldKey(view.key));
 		const pull =
-			view.key === null ? undefined : pullByKey.get(view.key.toLowerCase());
+			view.key === null ? undefined : pullByKey.get(foldKey(view.key));
 		const commentRun =
-			view.key === null ? undefined : runByKey.get(view.key.toLowerCase());
+			view.key === null ? undefined : runByKey.get(foldKey(view.key));
 		const placedItem =
-			view.key === null ? undefined : placedByKey.get(view.key.toLowerCase());
+			view.key === null ? undefined : placedByKey.get(foldKey(view.key));
 		return {
 			...view,
 			...(placedItem === undefined
@@ -4345,7 +4327,7 @@ export function projectReport(
 				? {}
 				: { blocks: relations.blocks }),
 			...(pull === undefined ? {} : { pull: pullKey(pull), pullUrl: pull.url }),
-			...(view.key !== null && needsKeys.has(view.key.toLowerCase())
+			...(view.key !== null && needsKeys.has(foldKey(view.key))
 				? { needsYou: true as const }
 				: {}),
 		};
@@ -4424,7 +4406,7 @@ function matchesProjectView(
 	if (needle === "") {
 		return true;
 	}
-	const key = item.key?.toLowerCase() ?? "";
+	const key = foldKey(item.key) ?? "";
 	return key.includes(needle) || item.title.toLowerCase().includes(needle);
 }
 
@@ -4460,11 +4442,11 @@ export function filterProjectReport(
 		matchesProjectView(item, view, shown, wanted, needle, now, false),
 	);
 	const keptKeys = new Set(
-		kept.flatMap((item) => (item.key === null ? [] : [item.key.toLowerCase()])),
+		kept.flatMap((item) => (item.key === null ? [] : [foldKey(item.key)])),
 	);
 	const localKey = (end: { project: string; key: string }): string | null =>
 		end.project.toLowerCase() === report.name.toLowerCase()
-			? end.key.toLowerCase()
+			? foldKey(end.key)
 			: null;
 	const graphLinks = report.graphLinks.filter((link) => {
 		const from = localKey(link.from);
@@ -4474,7 +4456,7 @@ export function filterProjectReport(
 		return fromShown && toShown;
 	});
 	const graphTickets = report.graphTickets.filter((ticket) => {
-		const key = ticket.key?.toLowerCase();
+		const key = foldKey(ticket.key);
 		return key !== undefined && keptKeys.has(key);
 	});
 	const hiddenBy = kept.length === 0 ? hidingFilters(report, view, shown) : [];
