@@ -19,7 +19,7 @@ export function trackerName(tracker: ProjectCounts["tracker"]): string {
 	return tracker === "linear" ? "Linear" : "GitHub";
 }
 
-export const barSegments = [
+const barSegments = [
 	{ key: "done", tone: stateTones.done },
 	{ key: "inProgress", tone: stateTones.inProgress },
 	{ key: "inReview", tone: stateTones.inReview },
@@ -27,14 +27,23 @@ export const barSegments = [
 	{ key: "backlog", tone: stateTones.backlog },
 ] as const;
 
-export function SegmentedBar({ project }: { project: ProjectCounts }) {
+const barTrack = { card: cards.bar, cell: cards.barThin } as const;
+
+/** A project's state segments. A card hides the bar of an empty project; a table cell keeps the empty track. */
+export function SegmentedBar({
+	project,
+	variant = "card",
+}: {
+	project: ProjectCounts;
+	variant?: keyof typeof barTrack;
+}) {
 	const total = ticketTotal(project);
-	if (total === 0) {
+	if (total === 0 && variant === "card") {
 		return null;
 	}
 	return (
 		<div
-			className={clsx(cards.bar)}
+			className={clsx(barTrack[variant])}
 			role="progressbar"
 			aria-valuenow={project.progress}
 			aria-valuemin={0}
@@ -42,7 +51,7 @@ export function SegmentedBar({ project }: { project: ProjectCounts }) {
 			aria-label={`${project.name} progress`}
 		>
 			{barSegments.map((item) =>
-				project.statusTypes[item.key] === 0 ? null : (
+				project.statusTypes[item.key] === 0 || total === 0 ? null : (
 					<div
 						key={item.key}
 						data-state={item.key}

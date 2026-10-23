@@ -1,5 +1,5 @@
 import { board } from "./board-styles.ts";
-import { ServerChips } from "./card-chips.tsx";
+import { Chip, ServerChips } from "./card-chips.tsx";
 import type { FlowTicket } from "./graph-flow.ts";
 import { parentChipLabel, subTicketsLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
@@ -20,14 +20,13 @@ export function GraphCardChips({
 	) {
 		return null;
 	}
-	const chip = clsx(board.chip, board.chipStatic, board.chipHierarchy);
 	return (
 		<span className={clsx(board.chips)}>
 			{parent === undefined ? null : (
-				<span className={chip}>{parentChipLabel(parent)}</span>
+				<Chip label={parentChipLabel(parent)} hierarchy />
 			)}
 			{subTickets === undefined ? null : (
-				<span className={chip}>{subTicketsLabel(subTickets)}</span>
+				<Chip label={subTicketsLabel(subTickets)} hierarchy />
 			)}
 			<ServerChips ticket={ticket} />
 		</span>
