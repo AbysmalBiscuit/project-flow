@@ -60,9 +60,9 @@ export const pageQuery = {
 		select: settingsPageOf,
 		placeholderData: (previous: SettingsRead | null | undefined) => previous,
 	}),
-	project: (name: string, view?: "all") =>
+	project: (name: string, view: "all") =>
 		queryOptions({
-			queryKey: ["project", name, view ?? "filtered"],
+			queryKey: ["project", name, view],
 			queryFn: () => readProject(name, view),
 		}),
 	thread: (tracker: string, project: string, key: string) =>
@@ -121,11 +121,10 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 
 async function readProject(
 	name: string,
-	view?: "all",
+	view: "all",
 ): Promise<ProjectReport | null> {
-	const suffix = view === undefined ? "" : `?view=${view}`;
 	const response = await fetch(
-		`/api/projects/${encodeURIComponent(name)}${suffix}`,
+		`/api/projects/${encodeURIComponent(name)}?view=${view}`,
 	);
 	if (response.status === 404) {
 		return null;
@@ -163,30 +162,49 @@ type SettingsWrite = Configuration & {
 	baselineTracked?: Configuration["tracked"];
 };
 
-export function settingsCacheWrite(
-	cached: SettingsRead | null | undefined,
-	next: Configuration,
-): SettingsRead | null {
-	if (
-		cached === null ||
-		cached === undefined ||
-		cached.projects === undefined ||
-		cached.trackers === undefined
-	) {
-		return null;
+type SettingsPatch = (current: Configuration) => SettingsWrite;
+
+function writeSettingsCache(patch: SettingsPatch): void {
+	const key = pageQuery.settings.queryKey;
+	const cached = pageQueryClient.getQueryData(key);
+	const current = cached === undefined ? null : configurationOf(cached);
+	if (cached === undefined || cached === null || current === null) {
+		return;
 	}
-	return {
-		...cached,
-		...next,
-		projects: cached.projects,
-		trackers: cached.trackers,
-	};
+	// The write keeps the fetch time, so a seeded cache still refetches.
+	const updatedAt = pageQueryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
+	pageQueryClient.setQueryData(
+		key,
+		{ ...cached, ...patch(current) },
+		{ updatedAt },
+	);
 }
 
-export function useSaveSettings({ refetchProjects = true } = {}) {
+const saveSettingsKey = ["save-settings"];
+
+// Optimistic patches whose saves have not settled, in click order.
+const optimisticPatches = new Set<SettingsPatch>();
+
+export function useSaveSettings({
+	refetchProjects = true,
+	optimistic = false,
+} = {}) {
 	const queries = useQueryClient();
 	return useMutation({
-		mutationFn: async (next: SettingsWrite): Promise<SettingsPage> => {
+		mutationKey: saveSettingsKey,
+		// Each save sends the whole configuration, so saves run in click order.
+		scope: { id: "save-settings" },
+		onMutate: (patch) => {
+			if (optimistic) {
+				optimisticPatches.add(patch);
+				writeSettingsCache(patch);
+			}
+		},
+		// The patch reads the settings when its turn comes, so it keeps the
+		// choices that earlier saves wrote to the cache.
+		mutationFn: async (patch: SettingsPatch): Promise<SettingsPage> => {
+			const loaded = await queries.ensureQueryData(pageQuery.settings);
+			const next = patch(settingsPageOf(loaded).settings);
 			const response = await fetch("/api/settings", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
@@ -203,9 +221,17 @@ export function useSaveSettings({ refetchProjects = true } = {}) {
 			}
 			return settingsPageOf(body);
 		},
-		onSuccess: (saved) => {
+		onSuccess: (saved, patch) => {
+			// The saved configuration is the new base, and queued optimistic
+			// choices stay on top of it until their own saves land.
+			let settings = saved.settings;
+			for (const queued of optimisticPatches) {
+				if (queued !== patch) {
+					settings = { ...settings, ...queued(settings) };
+				}
+			}
 			const written: SettingsRead = {
-				...saved.settings,
+				...settings,
 				trackers: saved.trackers,
 				projects: saved.projects,
 			};
@@ -213,6 +239,9 @@ export function useSaveSettings({ refetchProjects = true } = {}) {
 			if (refetchProjects) {
 				void queries.invalidateQueries({ queryKey: ["project"] });
 			}
+		},
+		onSettled: (_saved, _error, patch) => {
+			optimisticPatches.delete(patch);
 		},
 	});
 }
@@ -376,7 +405,10 @@ function applyViewsEvent(body: Overview): void {
 	pageQueryClient.setQueryData(pageQuery.overview.queryKey, body, {
 		updatedAt,
 	});
-	void pageQueryClient.invalidateQueries(pageQuery.settings);
+	// A pending save writes the saved settings when it lands.
+	if (pageQueryClient.isMutating({ mutationKey: saveSettingsKey }) === 0) {
+		void pageQueryClient.invalidateQueries(pageQuery.settings);
+	}
 }
 
 function applyOverviewEvent(body: Overview): void {

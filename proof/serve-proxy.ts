@@ -20,6 +20,28 @@ async function injected(response: Response, markup: string) {
 	});
 }
 
+/** Start an app proof script on this port and wait until it answers. */
+export async function startApp(
+	script: string,
+	port: string,
+): Promise<Bun.Subprocess> {
+	const app = Bun.spawn(["bun", script, port], {
+		stdout: "inherit",
+		stderr: "inherit",
+	});
+	for (let tries = 0; tries < 200; tries += 1) {
+		const ready = await fetch(`http://127.0.0.1:${port}`).then(
+			() => true,
+			() => false,
+		);
+		if (ready) {
+			break;
+		}
+		await Bun.sleep(100);
+	}
+	return app;
+}
+
 /**
  * Serve an app proof script on the next port through a proxy that adds the
  * walk helpers. A route returns its own page, or null to reach the app.
@@ -31,21 +53,8 @@ export async function serveProxy(
 	options: ProxyOptions = {},
 ): Promise<never> {
 	const inner = String(Number(port) + 1);
-	const app = Bun.spawn(["bun", script, inner], {
-		stdout: "inherit",
-		stderr: "inherit",
-	});
+	const app = await startApp(script, inner);
 	const base = `http://127.0.0.1:${inner}`;
-	for (let tries = 0; tries < 200; tries += 1) {
-		const ready = await fetch(base).then(
-			() => true,
-			() => false,
-		);
-		if (ready) {
-			break;
-		}
-		await Bun.sleep(100);
-	}
 	Bun.serve({
 		hostname: "127.0.0.1",
 		port,
