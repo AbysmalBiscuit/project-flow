@@ -1,0 +1,218 @@
+import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { Fetch } from "../src/fetch.ts";
+import { run } from "../src/main.ts";
+import { projectBoard } from "./review-board.ts";
+import { page } from "./review-github-fake.ts";
+import { pull, repo } from "./review-support.ts";
+import {
+	emptyProjectFields,
+	linearFake,
+	recordedDiscovery,
+	settledOverview,
+	tempConfig,
+	testIo,
+	unrecorded,
+	urlOf,
+} from "./support.ts";
+
+describe("skipped linked PRs", () => {
+	const brokenPull = "https://api.github.com/repos/acme/widget/pulls/84";
+
+	async function skippedThenShown(
+		pinned: Record<string, unknown>,
+		tracker: (
+			input: string | URL | Request,
+			init?: RequestInit,
+		) => Response | Promise<Response>,
+		env: Record<string, string>,
+	): Promise<void> {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [pinned],
+				expectedBots: { [repo]: [] },
+				pollIntervalSeconds: 3600,
+			}),
+		);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		let broken = true;
+		const fetchImpl: Fetch = async (input, init) => {
+			if (broken && urlOf(input) === brokenPull) {
+				return new Response("recorded failure", { status: 500 });
+			}
+			return tracker(input, init);
+		};
+		const readTickets = async (base: string) => {
+			const overview = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as { projects: { name: string }[] };
+			const project = overview.projects[0]?.name ?? "";
+			const response = await fetch(
+				new URL(`/api/projects/${encodeURIComponent(project)}`, base),
+			);
+			expect(response.status).toBe(200);
+			const report = (await response.json()) as {
+				tickets: { key: string; pull?: string }[];
+			};
+			return report.tickets.map(({ key, pull }) => ({ key, pull }));
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<string>((resolve) => {
+			startChecks = (base: string) => resolve(base);
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env,
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-10-18T12:00:00.000Z"),
+					stdout: (line) => startChecks(line),
+					waitForStop: (async () => {
+						const base = await checks;
+						const skipped = await fetch(new URL("/api/overview", base));
+						expect(await skipped.json()).toMatchObject({
+							projects: [{ error: null }],
+						});
+						expect(await readTickets(base)).toEqual(
+							expect.arrayContaining([
+								{ key: expect.stringMatching(/8$/), pull: `${repo}#83` },
+								{ key: expect.stringMatching(/9$/), pull: undefined },
+							]),
+						);
+						broken = false;
+						const refresh = await fetch(new URL("/api/refresh", base), {
+							method: "POST",
+						});
+						expect(refresh.status).toBe(204);
+						const shown = await settledOverview(base, async (url) => {
+							const response = await fetch(new URL("/api/overview", url));
+							return (await response.json()) as {
+								projects: { error: string | null }[];
+								polling?: true;
+							};
+						});
+						expect(shown).toMatchObject({ projects: [{ error: null }] });
+						expect(await readTickets(base)).toEqual(
+							expect.arrayContaining([
+								{ key: expect.stringMatching(/8$/), pull: `${repo}#83` },
+								{ key: expect.stringMatching(/9$/), pull: `${repo}#84` },
+							]),
+						);
+					})(),
+				}),
+			);
+			if (result.exitCode !== 0) {
+				throw new Error(result.stderr);
+			}
+		} finally {
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	}
+
+	function linkedPull(number: number, ticket: number) {
+		return { ...pull(number, ticket), body: `Fixes ticket ${ticket}` };
+	}
+
+	test("a GitHub project skips a broken linked PR until the next good poll", async () => {
+		const board = projectBoard(
+			[{ number: 83 }],
+			undefined,
+			[],
+			[
+				{
+					id: "I_widget_9",
+					number: 9,
+					title: "Ticket 9",
+					pulls: [{ number: 84 }],
+					comments: [],
+				},
+			],
+		);
+		await skippedThenShown(
+			{ tracker: "github", owner: "acme", project: 7 },
+			async (input, init) => {
+				const number = urlOf(input).match(
+					/^https:\/\/api\.github\.com\/repos\/acme\/widget\/pulls\/(\d+)$/,
+				)?.[1];
+				return number === undefined
+					? board(input, init)
+					: page(linkedPull(Number(number), Number(number) - 75));
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+		);
+	});
+
+	test("a Linear project skips a broken linked PR until the next good poll", async () => {
+		const linearProject = "widget-launch-0d42ae5d46d0";
+		const attached = (ticket: number, number: number) => ({
+			identifier: `WID-${ticket}`,
+			title: `Linear ticket ${ticket}`,
+			updatedAt: "2026-10-01T00:00:00.000Z",
+			state: { type: "started" },
+			attachments: {
+				nodes: [
+					{
+						url: `https://github.com/${repo}/pull/${number}`,
+						title: `PR ${number}`,
+						sourceType: "github",
+					},
+				],
+			},
+		});
+		const linear = linearFake({
+			project: {
+				id: "project-1",
+				name: "Widget launch",
+				slugId: linearProject,
+			},
+			issues: [attached(8, 83), attached(9, 84)],
+			github: async (input, init) => {
+				const discovered = recordedDiscovery(input, init);
+				if (discovered !== null) {
+					return discovered;
+				}
+				const url = urlOf(input);
+				if (url === "https://api.github.com/user") {
+					return page({ login: "lev" });
+				}
+				const number = url.match(
+					/^https:\/\/api\.github\.com\/repos\/acme\/widget\/pulls\/(\d+)$/,
+				)?.[1];
+				if (number !== undefined) {
+					return page(linkedPull(Number(number), Number(number) - 75));
+				}
+				if (url.includes("/commits/") && url.includes("/check-runs")) {
+					return page({ check_runs: [] });
+				}
+				if (url.includes("/commits/")) {
+					return page({
+						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+					});
+				}
+				if (
+					url.includes("/pulls?state=closed") ||
+					url.includes("/comments") ||
+					url.includes("/reviews") ||
+					url.includes("/reactions")
+				) {
+					return page([]);
+				}
+				return emptyProjectFields(input, init) ?? unrecorded(input);
+			},
+		});
+		await skippedThenShown(
+			{ tracker: "linear", project: linearProject },
+			linear,
+			{
+				GITHUB_TOKEN: "recorded-token",
+				LINEAR_API_KEY: "recorded-linear-key",
+			},
+		);
+	});
+});
