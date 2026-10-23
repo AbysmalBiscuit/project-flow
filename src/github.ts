@@ -551,6 +551,24 @@ async function githubProjectByNumber(
 	};
 }
 
+const pageSize = 100;
+
+const connectionPage = `pageInfo { hasNextPage endCursor }`;
+
+const issueTicketFields = `number title state stateReason updatedAt createdAt closedAt body
+				labels(first: ${pageSize}) { nodes { name } ${connectionPage} }
+				assignees(first: 10) { nodes { login } }
+				milestone { title }
+				parent { number title state stateReason url repository { nameWithOwner } }
+				blockedBy(first: 20) {
+					nodes { number title state repository { nameWithOwner } }
+					${connectionPage}
+				}
+				blocking(first: 20) {
+					nodes { number title state repository { nameWithOwner } }
+					${connectionPage}
+				}`;
+
 const closingPullNode = z.object({
 	number: z.number(),
 	repository: z.object({ nameWithOwner: z.string() }).optional(),
@@ -597,17 +615,11 @@ const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
 					content {
 						__typename
 						... on Issue {
-							id number title body state stateReason updatedAt comments { totalCount }
+							id ${issueTicketFields}
+							comments { totalCount }
 							repository { nameWithOwner }
-							milestone { title }
-							labels(first: 20) { nodes { name } }
-							parent { number title state stateReason url repository { nameWithOwner } }
 							closedByPullRequestsReferences(first: 20) {
 								nodes { number repository { nameWithOwner } }
-								pageInfo { hasNextPage endCursor }
-							}
-							blockedBy(first: 20) {
-								nodes { number title state repository { nameWithOwner } }
 								pageInfo { hasNextPage endCursor }
 							}
 						}
@@ -630,21 +642,35 @@ const blockedByQuery = `query BlockedBy($id: ID!, $after: String) {
 	}
 }`;
 
-const projectBlockedByNode = z.object({
+const blockingQuery = `query Blocking($id: ID!, $after: String) {
+	node(id: $id) {
+		... on Issue {
+			blocking(first: 20, after: $after) {
+				nodes { number title state repository { nameWithOwner } }
+				pageInfo { hasNextPage endCursor }
+			}
+		}
+	}
+}`;
+
+const graphqlDependency = z.object({
 	number: z.number(),
 	title: z.string().nullable().optional(),
 	state: z.string(),
 	repository: z.object({ nameWithOwner: z.string() }).nullable().optional(),
 });
 
-const blockedByPage = z.object({
+const dependencyConnection = z.object({
+	nodes: z.array(graphqlDependency),
+	pageInfo,
+});
+
+const dependencyPage = z.object({
 	data: z.object({
 		node: z
 			.object({
-				blockedBy: z.object({
-					nodes: z.array(projectBlockedByNode),
-					pageInfo,
-				}),
+				blockedBy: dependencyConnection.optional(),
+				blocking: dependencyConnection.optional(),
 			})
 			.nullable(),
 	}),
@@ -687,6 +713,31 @@ function parentOf(
 	};
 }
 
+const graphqlConnection = <T extends z.ZodType>(node: T) =>
+	z.object({
+		nodes: z.array(node.optional().catch(undefined)),
+		pageInfo: pageInfo.optional(),
+	});
+
+const githubIssue = z.object({
+	number: z.number(),
+	title: z.string(),
+	state: z.string(),
+	stateReason: z.string().nullable().optional(),
+	updatedAt: z.string(),
+	createdAt: z.string().optional(),
+	closedAt: z.string().nullable().optional(),
+	body: z.string().nullable().optional(),
+	labels: graphqlConnection(z.object({ name: z.string() })).optional(),
+	assignees: z
+		.object({ nodes: z.array(z.object({ login: z.string() })) })
+		.optional(),
+	milestone: z.object({ title: z.string() }).nullable().optional(),
+	parent: githubParent.nullable().optional().catch(null),
+	blockedBy: graphqlConnection(graphqlDependency).optional().catch(undefined),
+	blocking: graphqlConnection(graphqlDependency).optional(),
+});
+
 const projectItem = z.object({
 	fieldValueByName: z
 		.object({
@@ -697,32 +748,13 @@ const projectItem = z.object({
 		})
 		.nullable()
 		.optional(),
-	content: z
-		.object({
+	content: githubIssue
+		.partial()
+		.extend({
 			__typename: z.string(),
 			id: z.string().optional(),
-			number: z.number().optional(),
-			title: z.string().optional(),
-			state: z.string().optional(),
-			stateReason: z.string().nullable().optional(),
-			updatedAt: z.string().optional(),
 			comments: z.object({ totalCount: z.number() }).optional(),
 			repository: z.object({ nameWithOwner: z.string() }).optional(),
-			milestone: z.object({ title: z.string() }).nullable().optional(),
-			labels: z
-				.object({
-					nodes: z.array(z.object({ name: z.string() })),
-				})
-				.nullable()
-				.optional(),
-			parent: githubParent.nullable().optional(),
-			body: z.string().nullable().optional(),
-			blockedBy: z
-				.object({
-					nodes: z.array(projectBlockedByNode),
-					pageInfo: pageInfo.optional(),
-				})
-				.optional(),
 			closedByPullRequestsReferences: z
 				.object({
 					nodes: z.array(closingPullNode),
@@ -1147,29 +1179,44 @@ async function connectionPages<Node>(
 	return nodes;
 }
 
-function blockedByPages(
+const dependencyQueries = {
+	blockedBy: { query: blockedByQuery, label: "list blockers" },
+	blocking: { query: blockingQuery, label: "list blocked tickets" },
+};
+
+async function dependencyPages(
 	token: string,
 	fetchImpl: Fetch,
-	issueId: string,
-	start: string,
+	issueId: string | undefined,
+	relation: keyof typeof dependencyQueries,
+	first: z.infer<typeof githubIssue>[typeof relation],
 	projectOwner: string,
-): Promise<z.infer<typeof projectBlockedByNode>[]> {
-	return connectionPages(
+): Promise<z.infer<typeof graphqlDependency>[]> {
+	const nodes = (first?.nodes ?? []).flatMap((node) =>
+		node === undefined ? [] : [node],
+	);
+	const start = nextCursor(first);
+	if (start === null || issueId === undefined) {
+		return nodes;
+	}
+	const { query, label } = dependencyQueries[relation];
+	const rest = await connectionPages(
 		token,
 		fetchImpl,
 		issueId,
 		start,
-		blockedByQuery,
-		"list blockers",
+		query,
+		label,
 		projectOwner,
 		(body) => {
-			const connection = blockedByPage.parse(body).data.node?.blockedBy;
+			const connection = dependencyPage.parse(body).data.node?.[relation];
 			if (connection === undefined) {
-				throw new Error(`GitHub list blockers failed: ${issueId}`);
+				throw new Error(`GitHub ${label} failed: ${issueId}`);
 			}
 			return connection;
 		},
 	);
+	return [...nodes, ...rest];
 }
 
 async function listProjectTickets(
@@ -1203,39 +1250,39 @@ async function listProjectTickets(
 			(content.comments?.totalCount ?? 0) > 0
 				? await listCommentBodies(token, fetchImpl, repoName, content.number)
 				: [];
-		const blockedByNodes = [...(content.blockedBy?.nodes ?? [])];
-		const blockedByAfter = content.blockedBy?.pageInfo?.hasNextPage
-			? content.blockedBy.pageInfo.endCursor
-			: null;
-		if (blockedByAfter !== null && content.id !== undefined) {
-			blockedByNodes.push(
-				...(await blockedByPages(
-					token,
-					fetchImpl,
-					content.id,
-					blockedByAfter,
-					projectOwner,
-				)),
-			);
-		}
+		const blockedBy = await dependencyPages(
+			token,
+			fetchImpl,
+			content.id,
+			"blockedBy",
+			content.blockedBy,
+			projectOwner,
+		);
+		const blocking =
+			state === "closed"
+				? []
+				: await dependencyPages(
+						token,
+						fetchImpl,
+						content.id,
+						"blocking",
+						content.blocking,
+						projectOwner,
+					);
 		tickets.push({
-			id: String(content.number),
-			tracker: "github",
-			key: githubKey(repoName, content.number),
-			title: content.title ?? "",
-			state,
-			stateReason: githubReason(content.stateReason ?? null),
-			updatedAt: content.updatedAt ?? "",
-			ref: githubKey(repoName, content.number),
-			body: content.body ?? "",
-			blockedBy: dependencyRefs(blockedByNodes, repoName),
-			...(comments.length === 0 ? {} : { comments }),
-			milestone: content.milestone?.title ?? null,
-			...parentOf(content.parent),
-			labels:
-				content.labels?.nodes.flatMap((label) =>
-					label === undefined ? [] : [label.name],
-				) ?? [],
+			...ticketFromGithubIssue(
+				{
+					...content,
+					number: content.number,
+					title: content.title ?? "",
+					state,
+					updatedAt: content.updatedAt ?? "",
+					blockedBy: { nodes: blockedBy },
+					blocking: { nodes: blocking },
+				},
+				repoName,
+				comments,
+			),
 			...githubItemStatus(item.fieldValueByName),
 		});
 	}
@@ -1646,7 +1693,6 @@ export async function pullReview(
 	return { checks, comments, reviews, reactions };
 }
 
-const pageSize = 100;
 const mergedPageBound = 10;
 
 type RepoIncludes = {
@@ -1657,8 +1703,6 @@ type RepoIncludes = {
 	labels: boolean;
 	edited: boolean;
 };
-
-const connectionPage = `pageInfo { hasNextPage endCursor }`;
 
 function pullNodeFields(include: boolean): string {
 	if (!include) {
@@ -1695,21 +1739,9 @@ function issueNodeFields(include: boolean): string {
 	if (!include) {
 		return "";
 	}
-	return `number title state stateReason updatedAt createdAt closedAt body
+	return `${issueTicketFields}
 				comments(first: ${pageSize}) {
 					nodes { databaseId body createdAt updatedAt author { login } reactions { totalCount } }
-					${connectionPage}
-				}
-				labels(first: ${pageSize}) { nodes { name color } ${connectionPage} }
-				assignees(first: 10) { nodes { login } }
-				milestone { title }
-				parent { number title state stateReason url repository { nameWithOwner } }
-				blockedBy(first: 20) {
-					nodes { number title state repository { nameWithOwner } }
-					${connectionPage}
-				}
-				blocking(first: 20) {
-					nodes { number title state repository { nameWithOwner } }
 					${connectionPage}
 				}`;
 }
@@ -1781,39 +1813,8 @@ function repoReadQuery(include: RepoIncludes): string {
 }`;
 }
 
-const graphqlDependency = z.object({
-	number: z.number(),
-	title: z.string().nullable().optional(),
-	state: z.string(),
-	repository: z.object({ nameWithOwner: z.string() }).nullable().optional(),
-});
-
-const graphqlConnection = <T extends z.ZodType>(node: T) =>
-	z.object({
-		nodes: z.array(node.optional().catch(undefined)),
-		pageInfo: pageInfo.optional(),
-	});
-
-const graphqlIssueNode = z.object({
-	number: z.number(),
-	title: z.string(),
-	state: z.string(),
-	stateReason: z.string().nullable().optional(),
-	updatedAt: z.string(),
-	createdAt: z.string().optional(),
-	closedAt: z.string().nullable().optional(),
-	body: z.string().nullable().optional(),
+const graphqlIssueNode = githubIssue.extend({
 	comments: graphqlConnection(graphqlComment).optional(),
-	labels: graphqlConnection(
-		z.object({ name: z.string(), color: z.string() }),
-	).optional(),
-	assignees: z
-		.object({ nodes: z.array(z.object({ login: z.string() })) })
-		.optional(),
-	milestone: z.object({ title: z.string() }).nullable().optional(),
-	parent: githubParent.nullable().optional().catch(null),
-	blockedBy: graphqlConnection(graphqlDependency).optional().catch(undefined),
-	blocking: graphqlConnection(graphqlDependency).optional(),
 });
 
 const checkConclusion = z.enum([
@@ -2087,8 +2088,6 @@ function ticketFromGraphql(
 	issue: z.infer<typeof graphqlIssueNode>,
 	repo: string,
 ): Ticket {
-	const closedAt = issue.closedAt?.trim() ?? "";
-	const createdAt = issue.createdAt?.trim() ?? "";
 	const state = issue.state.toLowerCase();
 	const comments = (issue.comments?.nodes ?? []).flatMap((comment) => {
 		if (comment === undefined || state !== "open") {
@@ -2107,6 +2106,17 @@ function ticketFromGraphql(
 		});
 		return mapped === null ? [] : [mapped];
 	});
+	return ticketFromGithubIssue(issue, repo, comments);
+}
+
+function ticketFromGithubIssue(
+	issue: z.infer<typeof githubIssue>,
+	repo: string,
+	comments: Comment[],
+): Ticket {
+	const closedAt = issue.closedAt?.trim() ?? "";
+	const createdAt = issue.createdAt?.trim() ?? "";
+	const state = issue.state.toLowerCase();
 	const blockedBy = dependencyRefs(
 		(issue.blockedBy?.nodes ?? []).flatMap((node) =>
 			node === undefined ? [] : [node],
