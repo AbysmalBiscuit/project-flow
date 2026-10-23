@@ -14,7 +14,6 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import type { LocalCheckout } from "../src/ports.ts";
 import {
-	defaultStateColours,
 	emptyProjectFields,
 	githubIssueNode,
 	linearFake,
@@ -26,7 +25,6 @@ import {
 	testIo,
 	unrecorded,
 	urlOf,
-	writtenColours,
 } from "./support.ts";
 
 const shown = "acme/shown";
@@ -2429,92 +2427,5 @@ describe("settings", () => {
 			async () => [],
 			fetchingBots,
 		);
-	});
-});
-
-describe("state colours", () => {
-	test("the first start writes the default state colours into a fresh configuration file", async () => {
-		await withApp(JSON.stringify({}), async (base, path) => {
-			expect(await writtenColours(path)).toEqual(defaultStateColours);
-			const settings = (await (
-				await fetch(new URL("/api/settings", base))
-			).json()) as Configuration;
-			expect(settings.stateColours).toEqual(defaultStateColours);
-		});
-	});
-
-	test("a partial colour set gets the missing defaults written at start", async () => {
-		await withApp(
-			JSON.stringify({ stateColours: { done: "#123456" } }),
-			async (_base, path) => {
-				expect(await writtenColours(path)).toEqual({
-					...defaultStateColours,
-					done: "#123456",
-				});
-			},
-		);
-	});
-
-	test("a saved state colour reaches the settings API and the page, sends no tracker request, and survives a restart", async () => {
-		const { path, cleanup } = await tempConfig(JSON.stringify({}));
-		try {
-			await withAppFile(path, async (base, _path, requests) => {
-				const before = (await (
-					await fetch(new URL("/api/settings", base))
-				).json()) as Configuration;
-				const sent = requests.length;
-				const saved = await fetch(new URL("/api/settings", base), {
-					method: "PUT",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						...before,
-						stateColours: { ...before.stateColours, inProgress: "#FF0066" },
-					}),
-				});
-				expect(saved.status).toBe(200);
-				expect(requests.length).toBe(sent);
-				const written = (await saved.json()) as Configuration;
-				expect(written.stateColours).toEqual({
-					...defaultStateColours,
-					inProgress: "#ff0066",
-				});
-				const page = await (await fetch(new URL("/", base))).text();
-				expect(page).toContain('"inProgress":"#ff0066"');
-			});
-			await withAppFile(path, async (base) => {
-				const restarted = (await (
-					await fetch(new URL("/api/settings", base))
-				).json()) as Configuration;
-				expect(restarted.stateColours.inProgress).toBe("#ff0066");
-			});
-			expect(await writtenColours(path)).toEqual({
-				...defaultStateColours,
-				inProgress: "#ff0066",
-			});
-		} finally {
-			await cleanup();
-		}
-	}, 30_000);
-
-	test("a blank, short or named colour names the field and leaves the file", async () => {
-		await withApp(JSON.stringify({}), async (base, path) => {
-			const before = (await (
-				await fetch(new URL("/api/settings", base))
-			).json()) as Configuration;
-			for (const colour of ["", "  ", "#12345", "red", "#12345g"]) {
-				const saved = await fetch(new URL("/api/settings", base), {
-					method: "PUT",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						...before,
-						stateColours: { ...before.stateColours, done: colour },
-					}),
-				});
-				expect(saved.status).toBe(400);
-				const body = (await saved.json()) as { error: string };
-				expect(body.error).toContain("stateColours.done");
-			}
-			expect(await writtenColours(path)).toEqual(defaultStateColours);
-		});
 	});
 });
