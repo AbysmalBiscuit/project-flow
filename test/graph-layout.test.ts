@@ -30,7 +30,14 @@ const workcell = (await Bun.file(
 
 async function workcellLayout(direction: "left-to-right" | "top-to-bottom") {
 	const input = layoutInput(workcell, "workstream", []);
-	const layout = await layoutGraph(elk, input, direction, card, () => 0);
+	const layout = await layoutGraph(
+		elk,
+		input,
+		direction,
+		card,
+		() => 0,
+		() => 0,
+	);
 	return { input, layout };
 }
 
@@ -238,7 +245,14 @@ describe("project graph layout", () => {
 		for (const groupBy of ["workstream", "theme"] as const) {
 			for (const direction of ["left-to-right", "top-to-bottom"] as const) {
 				const input = layoutInput(report, groupBy, []);
-				const layout = await layoutGraph(elk, input, direction, card, () => 0);
+				const layout = await layoutGraph(
+					elk,
+					input,
+					direction,
+					card,
+					() => 0,
+					() => 0,
+				);
 				expect({
 					groupBy,
 					direction,
@@ -265,6 +279,7 @@ describe("project graph layout", () => {
 			"left-to-right",
 			card,
 			() => 0,
+			() => 0,
 		);
 		expect({
 			cards: input.cards.map((item) => item.id).sort(),
@@ -279,7 +294,14 @@ describe("project graph layout", () => {
 		const report = await hierarchyReport("");
 		for (const direction of ["left-to-right", "top-to-bottom"] as const) {
 			const input = layoutInput(report, "workstream", []);
-			const layout = await layoutGraph(elk, input, direction, card, () => 0);
+			const layout = await layoutGraph(
+				elk,
+				input,
+				direction,
+				card,
+				() => 0,
+				() => 0,
+			);
 			const boxes = [...layout.cards].map(
 				([id, place]) => [id, { ...place, ...card }] as const,
 			);

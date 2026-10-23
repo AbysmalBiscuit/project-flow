@@ -304,7 +304,7 @@ export async function layoutGraph(
 	direction: GraphDirection,
 	card: NodeSize,
 	headGrowth: (label: string, width: number) => number,
-	titleGrowth: (title: string) => number = () => 0,
+	titleGrowth: (title: string) => number,
 ): Promise<GraphLayout> {
 	const options = placeOptions(direction, card);
 	const edges = edgesByHolder(input);
