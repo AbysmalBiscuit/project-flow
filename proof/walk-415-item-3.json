@@ -2,20 +2,22 @@
 	"base_url": "http://127.0.0.1:4415",
 	"serve": ["bun", "proof/serve-415.ts", "4415"],
 	"steps": [
-		{ "goto": "/projects/acme%2Fwidget" },
-		{ "assert_text": "Ship the legend" },
-		{ "click": "button[data-ticket='acme/widget#12']" },
+		{ "goto": "/projects/AbysmalBiscuit%2Fproject-flow" },
+		{ "assert_text": "build: add @babel/parser as a direct dependency" },
+		{ "click": "button[data-ticket='AbysmalBiscuit/project-flow#205']" },
 		{
-			"click": "aside[data-panel='acme/widget#12']:has(a[aria-label='Open the PR on GitHub'][href='https://github.com/acme/widget/pull/40'][target='_blank']) h2"
+			"click": "aside[data-panel='AbysmalBiscuit/project-flow#205']:has(a[aria-label='Open on GitHub'] + a[aria-label='Open the PR on GitHub'][href='https://github.com/AbysmalBiscuit/project-flow/pull/206'][target='_blank']) h2"
 		},
 		{ "shot": "github-panel-with-pr" },
-		{ "goto": "/api/projects/Widget%20launch" },
-		{ "assert_text": "\"pullUrl\":\"https://github.com/acme/launch/pull/77\"" },
-		{ "goto": "/projects/Widget%20launch" },
-		{ "assert_text": "Ship the launch" },
-		{ "click": "button[data-ticket='WID-14']" },
+		{ "goto": "/api/projects/Fleet%20rollout?view=all" },
 		{
-			"click": "aside[data-panel='WID-14']:has(a[aria-label='Open on Linear'] + a[aria-label='Open the PR on GitHub'][href='https://github.com/acme/launch/pull/77'][target='_blank']) h2"
+			"assert_text": "\"pullUrl\":\"https://github.com/AbysmalBiscuit/project-flow/pull/206\""
+		},
+		{ "goto": "/projects/Fleet%20rollout" },
+		{ "assert_text": "Get Macs added with Apple Configurator into Fleet" },
+		{ "click": "button[data-ticket='SWE-13029']" },
+		{
+			"click": "aside[data-panel='SWE-13029']:has(a[aria-label='Open on Linear'] + a[aria-label='Open the PR on GitHub'][href='https://github.com/AbysmalBiscuit/project-flow/pull/206'][target='_blank']) h2"
 		},
 		{ "shot": "linear-panel-with-pr" }
 	]

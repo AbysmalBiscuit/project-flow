@@ -2,18 +2,20 @@
 	"base_url": "http://127.0.0.1:4415",
 	"serve": ["bun", "proof/serve-415.ts", "4415"],
 	"steps": [
-		{ "goto": "/projects/acme%2Fwidget" },
-		{ "assert_text": "Write the legend copy" },
-		{ "click": "button[data-ticket='acme/widget#13']" },
+		{ "goto": "/projects/AbysmalBiscuit%2Fproject-flow" },
+		{ "assert_text": "feat: name and notify outside blockers" },
+		{ "click": "button[data-ticket='AbysmalBiscuit/project-flow#80']" },
 		{
-			"click": "aside[data-panel='acme/widget#13']:has(a[aria-label='Open on GitHub']):not(:has(a[aria-label='Open the PR on GitHub'])) h2"
+			"click": "aside[data-panel='AbysmalBiscuit/project-flow#80']:has(a[aria-label='Open on GitHub']):not(:has(a[aria-label='Open the PR on GitHub'])) h2"
 		},
 		{ "shot": "github-panel-without-pr" },
-		{ "goto": "/projects/Widget%20launch" },
-		{ "assert_text": "Plan the launch party" },
-		{ "click": "button[data-ticket='WID-15']" },
+		{ "goto": "/projects/Fleet%20rollout" },
 		{
-			"click": "aside[data-panel='WID-15']:has(a[aria-label='Open on Linear']):not(:has(a[aria-label='Open the PR on GitHub'])) h2"
+			"assert_text": "Swap Lukas Horstmann's take-home reminder before his FA call"
+		},
+		{ "click": "button[data-ticket='OPS-3838']" },
+		{
+			"click": "aside[data-panel='OPS-3838']:has(a[aria-label='Open on Linear']):not(:has(a[aria-label='Open the PR on GitHub'])) h2"
 		},
 		{ "shot": "linear-panel-without-pr" }
 	]

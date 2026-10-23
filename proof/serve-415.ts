@@ -1,106 +1,62 @@
 /**
- * Serves a GitHub and a Linear project, each with one ticket that has a linked PR and one without.
+ * Serves recorded GitHub and Linear tickets, with and without a linked PR, for the panel PR button.
  * Usage: bun proof/serve-415.ts [PORT]
  */
 import type { Fetch } from "../src/fetch.ts";
+import recordedComments from "../test/fixtures/github-issue-comments-205.json";
+import recordedIssues from "../test/fixtures/github-issues.json";
+import recordedPulls from "../test/fixtures/github-open-pulls.json";
+import recordedTeam from "../test/fixtures/linear-team-states.json";
+import outsideRelations from "../test/fixtures/outside-relations.json";
 import {
 	linearFake,
 	recordedDiscovery,
 	repoReadFromLists,
 	urlOf,
 } from "../test/support.ts";
-import { stateOf, teamStates } from "./linear-states.ts";
-import { emptyLists, serveRecorded, unrecorded } from "./recorded.ts";
+import { serveRecorded, unrecorded } from "./recorded.ts";
 
-const widget = "acme/widget";
-const launch = "acme/launch";
-
-function issue(number: number, title: string, body = "") {
-	return {
-		number,
-		title,
-		state: "open",
-		state_reason: null,
-		updated_at: "2026-10-21T12:00:00Z",
-		body,
-		html_url: `https://github.com/${widget}/issues/${number}`,
-		comments: 0,
-		labels: [],
-		assignee: null,
-		milestone: null,
-	};
+const repo = "AbysmalBiscuit/project-flow";
+const issues = [...recordedIssues, outsideRelations.githubIssue80];
+const recordedPull = recordedPulls.find((pull) => pull.number === 206);
+if (recordedPull === undefined) {
+	throw new Error("recorded PR 206 is missing");
 }
 
-function pull(repo: string, number: number, title: string, body: string) {
-	return {
-		number,
-		title,
-		state: "open",
-		draft: false,
-		html_url: `https://github.com/${repo}/pull/${number}`,
-		head: { ref: `pr-${number}`, sha: `sha-${number}` },
-		body,
-	};
-}
-
-// Invented tickets, because a proof run must not read a live tracker.
-const issues = {
-	[widget]: [issue(12, "Ship the legend"), issue(13, "Write the legend copy")],
-};
-
-const pulls: Record<string, ReturnType<typeof pull>[]> = {
-	[widget]: [pull(widget, 40, "feat: ship the legend", "Closes #12")],
-	[launch]: [pull(launch, 77, "fix: ship the launch", "")],
-};
-
-function linearTicket(identifier: string, title: string, prUrl?: string) {
-	return {
-		id: identifier,
-		identifier,
-		title,
-		description: "",
-		state: stateOf("Todo"),
-		updatedAt: "2026-10-21T12:00:00.000Z",
-		history: { nodes: [] },
-		parent: null,
-		projectMilestone: null,
-		labels: { nodes: [] },
-		assignee: null,
-		attachments: {
-			nodes:
-				prUrl === undefined
-					? []
-					: [
-							{
-								url: prUrl,
-								title: "fix: ship the launch",
-								sourceType: "github",
-							},
-						],
-		},
-		comments: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
-		inverseRelations: { nodes: [] },
-	};
-}
-
-const launchProject = {
+const launch = {
 	id: "project-launch",
-	name: "Widget launch",
-	slugId: "widget-launch-0d42ae5d46d0",
-	teams: { nodes: [{ id: "team-wid", key: "WID", name: "Widget" }] },
+	name: "Fleet rollout",
+	slugId: "fleet-rollout-257b06861460",
+	teams: { nodes: [{ id: "team-swe", key: "SWE", name: "SWE" }] },
 };
+
+// The recordings hold no Linear ticket with a PR attachment. SWE-13029 gets
+// the recorded PR 206 as its one attachment.
+const linearTickets = [
+	{
+		...outsideRelations.linearSwe13029,
+		id: "swe-13029",
+		attachments: {
+			nodes: [
+				{
+					url: recordedPull.html_url,
+					title: recordedPull.title,
+					sourceType: "github",
+				},
+			],
+		},
+	},
+	{
+		...outsideRelations.linearOps3838,
+		id: "ops-3838",
+		attachments: { nodes: [] },
+	},
+];
 
 const linear = linearFake({
-	project: launchProject,
-	states: teamStates,
-	issues: [
-		linearTicket(
-			"WID-14",
-			"Ship the launch",
-			`https://github.com/${launch}/pull/77`,
-		),
-		linearTicket("WID-15", "Plan the launch party"),
-	],
+	project: launch,
+	states: recordedTeam.data.team.states.nodes,
+	issues: linearTickets,
 });
 
 const fetch: Fetch = async (input, init) => {
@@ -115,42 +71,31 @@ const fetch: Fetch = async (input, init) => {
 	if (url === "https://api.github.com/user") {
 		return Response.json({ login: "lev" });
 	}
-	const body = typeof init?.body === "string" ? init.body : "";
-	if (body.includes("query LinkedPulls")) {
-		return Response.json({ data: { repository: { issue: null } } });
-	}
 	if (url === "https://api.github.com/graphql") {
 		return (
-			repoReadFromLists(input, init, issues, pulls) ??
-			Response.json({ data: {} })
+			repoReadFromLists(
+				input,
+				init,
+				{ [repo]: issues },
+				{ [repo]: recordedPulls },
+			) ?? unrecorded(input)
 		);
 	}
-	const single = url.match(
-		/^https:\/\/api\.github\.com\/repos\/([^/]+\/[^/]+)\/pulls\/(\d+)$/,
-	);
-	if (single !== null) {
-		const found = (pulls[single[1] ?? ""] ?? []).find(
-			(item) => item.number === Number(single[2]),
-		);
-		return found === undefined ? unrecorded(input) : Response.json(found);
+	const path = url.replace(`https://api.github.com/repos/${repo}`, "");
+	if (path === "/pulls/206") {
+		return Response.json(recordedPull);
 	}
-	const ticket = url.match(
-		/^https:\/\/api\.github\.com\/repos\/acme\/widget\/issues\/(\d+)$/,
-	);
-	const found = issues[widget]?.find(
-		(item) => item.number === Number(ticket?.[1]),
-	);
-	if (found !== undefined) {
-		return Response.json(found);
+	const issue = issues.find((item) => path === `/issues/${item.number}`);
+	if (issue !== undefined) {
+		return Response.json(issue);
 	}
-	if (url.includes("/check-runs") || url.includes("/commits/")) {
+	if (path.startsWith("/issues/205/comments?")) {
+		return Response.json(recordedComments);
+	}
+	if (path.includes("/check-runs")) {
 		return Response.json({ check_runs: [] });
 	}
-	if (
-		emptyLists(url) ||
-		url.includes("/dependencies/") ||
-		url.includes("/issues?")
-	) {
+	if (path !== url) {
 		return Response.json([]);
 	}
 	return unrecorded(input);
@@ -161,16 +106,16 @@ await serveRecorded({
 	port: process.argv[2]?.trim() || "4415",
 	config: {
 		pinned: [
-			{ tracker: "github", repo: widget },
-			{ tracker: "linear", project: launchProject.slugId },
+			{ tracker: "github", repo },
+			{ tracker: "linear", project: launch.slugId },
 		],
 		checkoutRoots: [],
-		pmBot: { [widget]: false },
+		pmBot: { [repo]: false },
 		pollIntervalSeconds: 3600,
 		theme: "light",
 		projectViews: {
-			[widget]: { openView: "board" },
-			[launchProject.name]: { openView: "board" },
+			[repo]: { openView: "board" },
+			[launch.name]: { openView: "board" },
 		},
 	},
 	fetch,
