@@ -131,7 +131,10 @@ export function Legend() {
 			<ul className={clsx(board.legendRow)}>
 				{legendOrder.map((state) => (
 					<li key={state} className={clsx(board.legendItem)}>
-						<span className={clsx(board.legendDot, stateTones[state])} />
+						<span
+							className={clsx(board.legendDot, stateTones[state])}
+							data-state={state}
+						/>
 						{stateLabel[state]}
 					</li>
 				))}

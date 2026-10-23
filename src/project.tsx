@@ -516,7 +516,10 @@ function Lane({
 				data-faded={headFaded ? "true" : "false"}
 			>
 				<h2 className={clsx(board.laneTitle)}>
-					<span className={clsx(board.laneMark, toneOf(statusType))} />
+					<span
+						className={clsx(board.laneMark, toneOf(statusType))}
+						data-state={statusType}
+					/>
 					<span className={clsx(board.laneName)} title={name}>
 						{name}
 					</span>{" "}

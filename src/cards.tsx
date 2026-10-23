@@ -369,7 +369,10 @@ function Legend({ project }: { project: ProjectCounts }) {
 			{legendSegments.map((item) =>
 				project.statusTypes[item.key] === 0 ? null : (
 					<span key={item.key} className={clsx(cards.count)}>
-						<span className={clsx(cards.swatch, item.tone)} />
+						<span
+							className={clsx(cards.swatch, item.tone)}
+							data-state={item.key}
+						/>
 						{item.label} {project.statusTypes[item.key]}
 					</span>
 				),
@@ -493,6 +496,7 @@ function ProgressBar({ project }: { project: ProjectCounts }) {
 					project.statusTypes[item.key] === 0 || total === 0 ? null : (
 						<div
 							key={item.key}
+							data-state={item.key}
 							{...stylex.props(
 								cards.segment(
 									`${(project.statusTypes[item.key] / total) * 100}%`,

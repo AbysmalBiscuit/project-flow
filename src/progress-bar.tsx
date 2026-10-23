@@ -45,6 +45,7 @@ export function SegmentedBar({ project }: { project: ProjectCounts }) {
 				project.statusTypes[item.key] === 0 ? null : (
 					<div
 						key={item.key}
+						data-state={item.key}
 						{...stylex.props(
 							cards.segment(
 								`${(project.statusTypes[item.key] / total) * 100}%`,
