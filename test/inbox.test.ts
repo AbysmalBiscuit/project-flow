@@ -2615,6 +2615,27 @@ describe("inbox", () => {
 		});
 	});
 
+	test("an incremental poll keeps one ticket when its key changes case", async () => {
+		const named = (identifier: string) =>
+			linearIssue(identifier, "Open ticket", "");
+		await withInbox(pinned, [named("PF-1")], async (base, setIssues) => {
+			await refresh(base);
+			setIssues([named("pf-1")]);
+			await refresh(base);
+			const response = await fetch(
+				new URL(
+					`/api/projects/${encodeURIComponent(linearProject.name)}?view=all`,
+					base,
+				),
+			);
+			expect(response.status).toBe(200);
+			const body = (await response.json()) as {
+				tickets: { key: string }[];
+			};
+			expect(body.tickets.map((ticket) => ticket.key)).toEqual(["pf-1"]);
+		});
+	});
+
 	test("marking one entry read survives a restart while another stays unread", async () => {
 		let current = [
 			linearIssue(

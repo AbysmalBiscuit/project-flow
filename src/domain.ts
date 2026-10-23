@@ -897,10 +897,16 @@ export function refreshedBlockers(
 	];
 }
 
+function ticketIdentity(ticket: Ticket): string {
+	return ticket.key === null ? ticket.id : ticketId(ticket.tracker, ticket.key);
+}
+
 export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
-	const byId = new Map(stored.map((ticket) => [ticket.id, ticket]));
+	const byId = new Map(
+		stored.map((ticket) => [ticketIdentity(ticket), ticket]),
+	);
 	for (const ticket of incoming) {
-		byId.set(ticket.id, ticket);
+		byId.set(ticketIdentity(ticket), ticket);
 	}
 	return [...byId.values()];
 }
