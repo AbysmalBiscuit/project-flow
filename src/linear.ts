@@ -15,9 +15,15 @@ import {
 	type PullLink,
 	type ReviewEvidence,
 } from "./github.ts";
-import { commentAuthor, linearEndpoint, linearPageInfo } from "./linear-api.ts";
+import {
+	commentAuthor,
+	linearEndpoint,
+	linearGraphql,
+	linearHeaders,
+	linearPageInfo,
+} from "./linear-api.ts";
 import { fetchLinearThread, postLinearReply } from "./linear-thread.ts";
-import type { FoundProject, Tracker } from "./ports.ts";
+import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
 
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
@@ -43,20 +49,17 @@ const projectsQuery = `query MemberProjects($viewer: ID!, $after: String) {
 }`;
 
 const memberProjects = z.object({
-	data: z.object({
-		projects: z.object({
-			nodes: z.array(
-				z.object({
-					id: z.string(),
-					name: z.string(),
-					slugId: z.string(),
-					updatedAt: z.string(),
-				}),
-			),
-			pageInfo,
-		}),
+	projects: z.object({
+		nodes: z.array(
+			z.object({
+				id: z.string(),
+				name: z.string(),
+				slugId: z.string(),
+				updatedAt: z.string(),
+			}),
+		),
+		pageInfo,
 	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
 const projectQuery = `query ProjectByPin($pin: String!) {
@@ -139,10 +142,7 @@ const linearProjectNode = z.object({
 });
 
 const projectPage = z.object({
-	data: z.object({
-		projects: z.object({ nodes: z.array(linearProjectNode) }),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	projects: z.object({ nodes: z.array(linearProjectNode) }),
 });
 
 type LinearProject = z.infer<typeof linearProjectNode>;
@@ -150,22 +150,19 @@ type LinearProject = z.infer<typeof linearProjectNode>;
 const openProjectStates = new Set(["backlog", "planned", "started"]);
 
 const ticketProject = z.object({
-	data: z.object({
-		issue: z
-			.object({
-				identifier: z.string(),
-				project: z
-					.object({
-						id: z.string(),
-						name: z.string(),
-						slugId: z.string(),
-						state: z.string(),
-					})
-					.nullable(),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	issue: z
+		.object({
+			identifier: z.string(),
+			project: z
+				.object({
+					id: z.string(),
+					name: z.string(),
+					slugId: z.string(),
+					state: z.string(),
+				})
+				.nullable(),
+		})
+		.nullable(),
 });
 
 const relatedIssue = z.object({
@@ -264,33 +261,13 @@ const issueNode = z.object({
 });
 
 const issuePage = z.object({
-	data: z.object({
-		issues: z.object({
-			nodes: z.array(issueNode),
-			pageInfo,
-		}),
+	issues: z.object({
+		nodes: z.array(issueNode),
+		pageInfo,
 	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
 });
 
-const linearErrors = z.object({
-	errors: z.array(z.object({ message: z.string() })).min(1),
-});
-
-export function linearError(body: unknown, label: string): string | null {
-	const parsed = linearErrors.safeParse(body);
-	if (!parsed.success) {
-		return null;
-	}
-	return `Linear ${label} failed: ${parsed.data.errors[0]?.message ?? "request failed"}`;
-}
-
-export function linearHeaders(key: string): HeadersInit {
-	return {
-		authorization: key,
-		"content-type": "application/json",
-	};
-}
+const viewerQuery = "query { viewer { id } }";
 
 export async function checkLinearKey(
 	key: string,
@@ -299,7 +276,7 @@ export async function checkLinearKey(
 	return fetchImpl(endpoint, {
 		method: "POST",
 		headers: linearHeaders(key),
-		body: JSON.stringify({ query: "query { viewer { id } }" }),
+		body: JSON.stringify({ query: viewerQuery }),
 	});
 }
 
@@ -445,36 +422,27 @@ async function findLinearProjects(
 	key: string,
 	fetchImpl: Fetch,
 ): Promise<{ projects: FoundProject[]; viewerId: string }> {
-	const viewer = await checkLinearKey(key, fetchImpl);
-	if (!viewer.ok) {
-		throw new Error(`Linear find projects failed (HTTP ${viewer.status})`);
-	}
-	const viewerPage = z
-		.object({
-			data: z.object({ viewer: z.object({ id: z.string() }) }),
-		})
-		.parse(await viewer.json());
-	const viewerId = viewerPage.data.viewer.id;
+	const connection = { key, fetchImpl };
+	const viewerPage = await linearGraphql(connection, {
+		query: viewerQuery,
+		variables: {},
+		data: z.object({ viewer: z.object({ id: z.string() }) }),
+		label: "find projects",
+	});
+	const viewerId = viewerPage.viewer.id;
 	const found: FoundProject[] = [];
 	let after: string | null = null;
 	do {
-		const response = await fetchImpl(endpoint, {
-			method: "POST",
-			headers: linearHeaders(key),
-			body: JSON.stringify({
+		const page: z.infer<typeof memberProjects> = await linearGraphql(
+			connection,
+			{
 				query: projectsQuery,
 				variables: { viewer: viewerId, after },
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(`Linear find projects failed (HTTP ${response.status})`);
-		}
-		const page = memberProjects.parse(await response.json());
-		const error = page.errors?.[0];
-		if (error !== undefined) {
-			throw new Error(`Linear find projects failed: ${error.message}`);
-		}
-		for (const node of page.data.projects.nodes) {
+				data: memberProjects,
+				label: "find projects",
+			},
+		);
+		for (const node of page.projects.nodes) {
 			found.push({
 				key: node.slugId,
 				name: node.name,
@@ -482,8 +450,8 @@ async function findLinearProjects(
 				updatedAt: node.updatedAt,
 			});
 		}
-		after = page.data.projects.pageInfo.hasNextPage
-			? page.data.projects.pageInfo.endCursor
+		after = page.projects.pageInfo.hasNextPage
+			? page.projects.pageInfo.endCursor
 			: null;
 	} while (after !== null);
 	return { projects: found, viewerId };
@@ -498,29 +466,21 @@ async function findLinearProject(
 	pin: string,
 	fetchImpl: Fetch,
 ): Promise<LinearProject> {
-	const response = await fetchImpl(endpoint, {
-		method: "POST",
-		headers: linearHeaders(key),
-		body: JSON.stringify({
+	const page = await linearGraphql(
+		{ key, fetchImpl },
+		{
 			query: projectQuery,
 			variables: { pin },
-		}),
-	});
-	if (!response.ok) {
-		throw new Error(
-			`Linear project lookup failed (HTTP ${response.status}): ${pin}`,
-		);
-	}
-	const page = projectPage.parse(await response.json());
-	const error = page.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`Linear project lookup failed: ${error.message}`);
-	}
-	const match = page.data.projects.nodes.find((project) =>
+			data: projectPage,
+			label: "project lookup",
+			subject: pin,
+		},
+	);
+	const match = page.projects.nodes.find((project) =>
 		matchesPin(project.slugId, pin),
 	);
 	if (match === undefined) {
-		throw new Error(`Linear project not found: ${pin}`);
+		throw new TrackerError(`Linear project not found: ${pin}`, 404);
 	}
 	return match;
 }
@@ -534,24 +494,21 @@ const teamStatesQuery = `query TeamStates($id: String!) {
 }`;
 
 const teamStates = z.object({
-	data: z.object({
-		team: z
-			.object({
-				states: z.object({
-					nodes: z.array(
-						z.object({
-							id: z.string(),
-							name: z.string(),
-							type: z.string(),
-							position: z.number(),
-							color: z.string(),
-						}),
-					),
-				}),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	team: z
+		.object({
+			states: z.object({
+				nodes: z.array(
+					z.object({
+						id: z.string(),
+						name: z.string(),
+						type: z.string(),
+						position: z.number(),
+						color: z.string(),
+					}),
+				),
+			}),
+		})
+		.nullable(),
 });
 
 async function listTeamStates(
@@ -559,28 +516,18 @@ async function listTeamStates(
 	teamId: string,
 	fetchImpl: Fetch,
 ): Promise<TicketStatus[]> {
-	const response = await fetchImpl(endpoint, {
-		method: "POST",
-		headers: linearHeaders(key),
-		body: JSON.stringify({
+	const { team } = await linearGraphql(
+		{ key, fetchImpl },
+		{
 			query: teamStatesQuery,
 			variables: { id: teamId },
-		}),
-	});
-	if (!response.ok) {
-		throw new Error(
-			`Linear list team statuses failed (HTTP ${response.status}): ${teamId}`,
-		);
-	}
-	const body = await response.json();
-	const failed = linearError(body, "list team statuses");
-	if (failed !== null) {
-		throw new Error(failed);
-	}
-	const recorded = teamStates.safeParse(body);
-	const team = recorded.success ? recorded.data.data.team : null;
-	if (!recorded.success || team === null) {
-		throw new Error(`Linear list team statuses failed: ${teamId}`);
+			data: teamStates,
+			label: "list team statuses",
+			subject: teamId,
+		},
+	);
+	if (team === null) {
+		throw new TrackerError(`Linear list team statuses failed: ${teamId}`, 502);
 	}
 	const nodes = team.states.nodes;
 	return [...nodes]
@@ -606,32 +553,29 @@ function linearBoard(
 }
 
 const commentPage = z.object({
-	data: z.object({
-		issue: z
-			.object({
-				comments: z.object({
-					nodes: z.array(
-						z.object({
-							id: z.string().optional(),
-							body: z.string().nullable(),
-							createdAt: z.string().optional(),
-							updatedAt: z.string().optional(),
-							user: z
-								.object({
-									name: z.string().nullable().optional(),
-									displayName: z.string().nullable().optional(),
-								})
-								.nullable()
-								.optional(),
-							reactions: z.array(z.object({ id: z.string() })).optional(),
-						}),
-					),
-					pageInfo,
-				}),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	issue: z
+		.object({
+			comments: z.object({
+				nodes: z.array(
+					z.object({
+						id: z.string().optional(),
+						body: z.string().nullable(),
+						createdAt: z.string().optional(),
+						updatedAt: z.string().optional(),
+						user: z
+							.object({
+								name: z.string().nullable().optional(),
+								displayName: z.string().nullable().optional(),
+							})
+							.nullable()
+							.optional(),
+						reactions: z.array(z.object({ id: z.string() })).optional(),
+					}),
+				),
+				pageInfo,
+			}),
+		})
+		.nullable(),
 });
 
 const commentsQuery = `query IssueComments($id: String!, $after: String) {
@@ -696,27 +640,19 @@ async function commentPages(
 	const comments: ListedComment[] = [];
 	let cursor = after;
 	do {
-		const response = await fetchImpl(endpoint, {
-			method: "POST",
-			headers: linearHeaders(key),
-			body: JSON.stringify({
+		const page: z.infer<typeof commentPage> = await linearGraphql(
+			{ key, fetchImpl },
+			{
 				query: commentsQuery,
 				variables: { id, after: cursor },
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`Linear list comments failed (HTTP ${response.status}): ${id}`,
-			);
-		}
-		const page = commentPage.parse(await response.json());
-		const error = page.errors?.[0];
-		if (error !== undefined) {
-			throw new Error(`Linear list comments failed: ${error.message}`);
-		}
-		const connection = page.data.issue?.comments;
+				data: commentPage,
+				label: "list comments",
+				subject: id,
+			},
+		);
+		const connection = page.issue?.comments;
 		if (connection === undefined) {
-			throw new Error(`Linear list comments failed: ${id}`);
+			throw new TrackerError(`Linear list comments failed: ${id}`, 502);
 		}
 		for (const node of connection.nodes) {
 			const comment = listedComment(node);
@@ -800,30 +736,19 @@ async function issuePages(
 	const nodes: ListedIssue[] = [];
 	let after: string | null = null;
 	do {
-		const response = await fetchImpl(endpoint, {
-			method: "POST",
-			headers: linearHeaders(key),
-			body: JSON.stringify({
+		const page: z.infer<typeof issuePage> = await linearGraphql(
+			{ key, fetchImpl },
+			{
 				query,
-				variables: {
-					filter,
-					after,
-				},
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`Linear list tickets failed (HTTP ${response.status}): ${project}`,
-			);
-		}
-		const page = issuePage.parse(await response.json());
-		const error = page.errors?.[0];
-		if (error !== undefined) {
-			throw new Error(`Linear list tickets failed: ${error.message}`);
-		}
-		nodes.push(...page.data.issues.nodes);
-		after = page.data.issues.pageInfo.hasNextPage
-			? page.data.issues.pageInfo.endCursor
+				variables: { filter, after },
+				data: issuePage,
+				label: "list tickets",
+				subject: project,
+			},
+		);
+		nodes.push(...page.issues.nodes);
+		after = page.issues.pageInfo.hasNextPage
+			? page.issues.pageInfo.endCursor
 			: null;
 	} while (after !== null);
 	return nodes;
@@ -874,20 +799,23 @@ export function linearTracker(
 		async projectsForKeys(keys) {
 			const found: FoundProject[] = [];
 			for (const ticketKey of keys) {
-				const response = await fetchImpl(endpoint, {
-					method: "POST",
-					headers: linearHeaders(key),
-					body: JSON.stringify({
+				const read = await linearGraphql(
+					{ key, fetchImpl },
+					{
 						query:
 							"query TicketProject($id: String!) { issue(id: $id) { identifier project { id name slugId state } } }",
 						variables: { id: ticketKey },
-					}),
+						data: ticketProject,
+						label: "project lookup",
+						subject: ticketKey,
+					},
+				).catch((error: unknown) => {
+					if (error instanceof TrackerError) {
+						return null;
+					}
+					throw error;
 				});
-				if (!response.ok) {
-					continue;
-				}
-				const parsed = ticketProject.safeParse(await response.json());
-				const project = parsed.success ? parsed.data.data.issue?.project : null;
+				const project = read?.issue?.project;
 				if (
 					project === null ||
 					project === undefined ||

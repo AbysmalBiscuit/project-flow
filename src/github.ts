@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { currentBlockers } from "./blocker-refresh.ts";
 import type {
 	Board,
 	BotCheck,
@@ -15,6 +14,8 @@ import type {
 import {
 	closedStatusType,
 	factoryBoard,
+	heldBlockerIds,
+	refreshedBlockers,
 	reviewStateValue,
 	statusTypeOfName,
 } from "./domain.ts";
@@ -26,28 +27,26 @@ import {
 	graphqlComment,
 } from "./github-comment.ts";
 import {
+	githubGraphql,
 	graphqlConnection,
 	graphqlDependency,
 	pageInfo,
+	postGithubGraphql,
 } from "./github-graphql.ts";
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
-import type { FoundProject, GithubTracker, Viewer } from "./ports.ts";
+import { type GraphqlQuery, graphqlData } from "./graphql.ts";
+import {
+	type FoundProject,
+	type GithubTracker,
+	TrackerError,
+	type Viewer,
+} from "./ports.ts";
 import { repoParts, sameRepo } from "./project-ref.ts";
 import { githubKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 export { githubHeaders } from "./github-pages.ts";
-
-export class TrackerError extends Error {
-	readonly status: number;
-
-	constructor(message: string, status: number) {
-		super(message);
-		this.name = "TrackerError";
-		this.status = status;
-	}
-}
 
 export const missingToken =
 	'GITHUB_TOKEN is missing: set GITHUB_TOKEN or run "gh auth login".';
@@ -277,24 +276,21 @@ const projectConnection = z.object({
 });
 
 const graphqlProjects = z.object({
-	data: z.object({
-		viewer: z
-			.object({
-				login: z.string(),
-				projectsV2: projectConnection,
-				organizations: z.object({
-					nodes: z.array(z.object({ login: z.string() })),
-					pageInfo,
-				}),
-			})
-			.optional(),
-		organization: z
-			.object({
-				projectsV2: projectConnection,
-			})
-			.optional(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	viewer: z
+		.object({
+			login: z.string(),
+			projectsV2: projectConnection,
+			organizations: z.object({
+				nodes: z.array(z.object({ login: z.string() })),
+				pageInfo,
+			}),
+		})
+		.optional(),
+	organization: z
+		.object({
+			projectsV2: projectConnection,
+		})
+		.optional(),
 });
 
 const projectsQuery = `query ViewerProjects($after: String, $orgAfter: String) {
@@ -342,48 +338,16 @@ function addOpenProjects(
 	}
 }
 
-async function graphqlPage(
+function graphqlPage(
 	token: string,
 	fetchImpl: Fetch,
 	query: string,
 	variables: Record<string, string | null>,
 ): Promise<z.infer<typeof graphqlProjects>> {
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify({ query, variables }),
-	});
-	if (!response.ok) {
-		throw new Error(`GitHub find projects failed (HTTP ${response.status})`);
-	}
-	const body: unknown = await response.json();
-	if (
-		typeof body === "object" &&
-		body !== null &&
-		"errors" in body &&
-		Array.isArray(body.errors)
-	) {
-		const message = body.errors.find(
-			(item): item is { message: string } =>
-				typeof item === "object" &&
-				item !== null &&
-				"message" in item &&
-				typeof item.message === "string",
-		)?.message;
-		if (message !== undefined) {
-			throw new Error(`GitHub find projects failed: ${message}`);
-		}
-	}
-	const parsed = graphqlProjects.safeParse(body);
-	if (!parsed.success) {
-		throw new Error("GitHub find projects failed");
-	}
-	const page = parsed.data;
-	const error = page.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`GitHub find projects failed: ${error.message}`);
-	}
-	return page;
+	return githubGraphql(
+		{ token, fetchImpl },
+		{ query, variables, data: graphqlProjects, label: "find projects" },
+	);
 }
 
 async function addOrgProjects(
@@ -400,9 +364,9 @@ async function addOrgProjects(
 			login,
 			orgProjectAfter: after,
 		});
-		const projects = page.data.organization?.projectsV2;
+		const projects = page.organization?.projectsV2;
 		if (projects === undefined) {
-			throw new Error(`GitHub find projects failed: ${login}`);
+			throw new TrackerError(`GitHub find projects failed: ${login}`, 502);
 		}
 		addOpenProjects(projects.nodes, found, seen);
 		done = !projects.pageInfo.hasNextPage;
@@ -429,9 +393,9 @@ export async function findGithubProjects(
 				after,
 				orgAfter,
 			});
-			const viewer = page.data.viewer;
+			const viewer = page.viewer;
 			if (viewer === undefined) {
-				throw new Error("GitHub find projects failed");
+				throw new TrackerError("GitHub find projects failed", 502);
 			}
 			if (login === "") {
 				login = viewer.login;
@@ -474,7 +438,10 @@ export async function findGithubProjects(
 	while (url !== null) {
 		const response = await fetchImpl(url, { headers: githubHeaders(token) });
 		if (!response.ok) {
-			throw new Error(`GitHub find repos failed (HTTP ${response.status})`);
+			throw new TrackerError(
+				`GitHub find repos failed (HTTP ${response.status})`,
+				response.status,
+			);
 		}
 		const repos = z.array(githubRepo).parse(await response.json());
 		for (const repo of repos) {
@@ -487,7 +454,7 @@ export async function findGithubProjects(
 		url = nextPage(response.headers.get("link"));
 	}
 	if (projectError !== null && found.length === 0 && login === "") {
-		throw new Error(projectError);
+		throw new TrackerError(projectError, 502);
 	}
 	return {
 		projects: found,
@@ -503,14 +470,11 @@ const projectByNumberQuery = `query ProjectByNumber($owner: String!, $number: In
 }`;
 
 const projectByNumber = z.object({
-	data: z.object({
-		repositoryOwner: z
-			.object({
-				projectV2: projectNode.nullable(),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	repositoryOwner: z
+		.object({
+			projectV2: projectNode.nullable(),
+		})
+		.nullable(),
 });
 
 async function githubProjectByNumber(
@@ -519,25 +483,17 @@ async function githubProjectByNumber(
 	owner: string,
 	number: number,
 ): Promise<FoundProject | null> {
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify({
+	const page = await githubGraphql(
+		{ token, fetchImpl },
+		{
 			query: projectByNumberQuery,
 			variables: { owner, number },
-		}),
-	});
-	if (!response.ok) {
-		throw new Error(
-			`GitHub find project failed (HTTP ${response.status}): ${owner}/${number}`,
-		);
-	}
-	const page = projectByNumber.parse(await response.json());
-	const error = page.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`GitHub find project failed: ${error.message}`);
-	}
-	const node = page.data.repositoryOwner?.projectV2;
+			data: projectByNumber,
+			label: "find project",
+			subject: `${owner}/${number}`,
+		},
+	);
+	const node = page.repositoryOwner?.projectV2;
 	if (node === undefined || node === null) {
 		return null;
 	}
@@ -591,17 +547,14 @@ const closingPullsQuery = `query ClosingPulls($id: ID!, $after: String) {
 }`;
 
 const closingPulls = z.object({
-	data: z.object({
-		node: z
-			.object({
-				closedByPullRequestsReferences: z.object({
-					nodes: z.array(closingPullNode),
-					pageInfo,
-				}),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	node: z
+		.object({
+			closedByPullRequestsReferences: z.object({
+				nodes: z.array(closingPullNode),
+				pageInfo,
+			}),
+		})
+		.nullable(),
 });
 
 const projectItemsQuery = `query ProjectItems($id: ID!, $after: String) {
@@ -664,15 +617,12 @@ const dependencyConnection = z.object({
 });
 
 const dependencyPage = z.object({
-	data: z.object({
-		node: z
-			.object({
-				blockedBy: dependencyConnection.optional(),
-				blocking: dependencyConnection.optional(),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	node: z
+		.object({
+			blockedBy: dependencyConnection.optional(),
+			blocking: dependencyConnection.optional(),
+		})
+		.nullable(),
 });
 
 const githubParent = z.object({
@@ -758,17 +708,14 @@ const projectItem = z.object({
 });
 
 const projectItems = z.object({
-	data: z.object({
-		node: z
-			.object({
-				items: z.object({
-					nodes: z.array(projectItem),
-					pageInfo,
-				}),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	node: z
+		.object({
+			items: z.object({
+				nodes: z.array(projectItem),
+				pageInfo,
+			}),
+		})
+		.nullable(),
 });
 
 function githubState(state: string): "open" | "closed" | null {
@@ -855,32 +802,27 @@ async function listProjectItems(
 	const items: ProjectItem[] = [];
 	let after: string | null = null;
 	do {
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
+		const page: z.infer<typeof projectItems> = await githubGraphql(
+			{ token, fetchImpl },
+			{
 				query: projectItemsQuery,
 				variables: { id: projectId, after, projectOwner },
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`GitHub list project tickets failed (HTTP ${response.status}): ${projectId}`,
+				data: projectItems,
+				label: "list project tickets",
+				subject: projectId,
+			},
+		);
+		if (page.node === null) {
+			throw new TrackerError(
+				`GitHub list project tickets failed: ${projectId}`,
+				502,
 			);
 		}
-		const page = projectItems.parse(await response.json());
-		const error = page.errors?.[0];
-		if (error !== undefined) {
-			throw new Error(`GitHub list project tickets failed: ${error.message}`);
-		}
-		if (page.data.node === null) {
-			throw new Error(`GitHub list project tickets failed: ${projectId}`);
-		}
-		for (const item of page.data.node.items.nodes) {
+		for (const item of page.node.items.nodes) {
 			items.push(item);
 		}
-		after = page.data.node.items.pageInfo.hasNextPage
-			? page.data.node.items.pageInfo.endCursor
+		after = page.node.items.pageInfo.hasNextPage
+			? page.node.items.pageInfo.endCursor
 			: null;
 	} while (after !== null);
 	return items;
@@ -924,31 +866,28 @@ const projectFieldsQuery = `query ProjectFields($id: ID!) {
 }`;
 
 const projectFields = z.object({
-	data: z.object({
-		node: z
-			.object({
-				fields: z.object({
-					nodes: z.array(
-						z.union([
-							z.object({
-								id: z.string(),
-								name: z.string(),
-								options: z.array(
-									z.object({
-										id: z.string(),
-										name: z.string(),
-										color: z.string(),
-									}),
-								),
-							}),
-							z.object({}).strict(),
-						]),
-					),
-				}),
-			})
-			.nullable(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	node: z
+		.object({
+			fields: z.object({
+				nodes: z.array(
+					z.union([
+						z.object({
+							id: z.string(),
+							name: z.string(),
+							options: z.array(
+								z.object({
+									id: z.string(),
+									name: z.string(),
+									color: z.string(),
+								}),
+							),
+						}),
+						z.object({}).strict(),
+					]),
+				),
+			}),
+		})
+		.nullable(),
 });
 
 async function listProjectStatuses(
@@ -957,30 +896,17 @@ async function listProjectStatuses(
 	projectId: string,
 	projectOwner: string,
 ): Promise<TicketStatus[]> {
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify({
+	const page = await githubGraphql(
+		{ token, fetchImpl },
+		{
 			query: projectFieldsQuery,
 			variables: { id: projectId, projectOwner },
-		}),
-	});
-	if (!response.ok) {
-		throw new Error(
-			`GitHub list project statuses failed (HTTP ${response.status}): ${projectId}`,
-		);
-	}
-	const body = await response.json();
-	const recorded = projectFields.safeParse(body);
-	if (!recorded.success) {
-		throw new Error(`GitHub list project statuses failed: ${projectId}`);
-	}
-	const page = recorded.data;
-	const error = page.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`GitHub list project statuses failed: ${error.message}`);
-	}
-	const field = page.data.node?.fields.nodes.find(
+			data: projectFields,
+			label: "list project statuses",
+			subject: projectId,
+		},
+	);
+	const field = page.node?.fields.nodes.find(
 		(node) => "name" in node && node.name === "Status",
 	);
 	if (field === undefined) {
@@ -1022,7 +948,7 @@ function parseIssueEvents(
 ): z.infer<typeof issueEvent>[] {
 	const page = z.array(issueEvent).safeParse(item);
 	if (!page.success) {
-		throw new Error(`GitHub list issue events failed: ${repo}`);
+		throw new TrackerError(`GitHub list issue events failed: ${repo}`, 502);
 	}
 	return page.data;
 }
@@ -1051,8 +977,9 @@ async function listIssueEvents(
 		return [];
 	}
 	if (!first.ok) {
-		throw new Error(
+		throw new TrackerError(
 			`GitHub list issue events failed (HTTP ${first.status}): ${repo}`,
+			first.status,
 		);
 	}
 	const events = parseIssueEvents(await first.json(), repo);
@@ -1063,8 +990,9 @@ async function listIssueEvents(
 	for (let page = 2; page <= issueEventPageBound && url !== null; page += 1) {
 		const response = await fetchImpl(url, { headers: githubHeaders(token) });
 		if (!response.ok) {
-			throw new Error(
+			throw new TrackerError(
 				`GitHub list issue events failed (HTTP ${response.status}): ${repo}`,
+				response.status,
 			);
 		}
 		const next = parseIssueEvents(await response.json(), repo);
@@ -1102,7 +1030,7 @@ function labelHistory(
 	return history;
 }
 
-export function dependencyRefs(
+function dependencyRefs(
 	nodes: {
 		number: number;
 		title?: string | null | undefined;
@@ -1133,7 +1061,7 @@ export function dependencyRefs(
 	return refs;
 }
 
-async function connectionPages<Node>(
+async function connectionPages<Data extends z.ZodType, Node>(
 	token: string,
 	fetchImpl: Fetch,
 	issueId: string,
@@ -1141,36 +1069,31 @@ async function connectionPages<Node>(
 	query: string,
 	label: string,
 	projectOwner: string,
-	read: (body: unknown) => {
-		nodes: Node[];
-		pageInfo: z.infer<typeof pageInfo>;
-	},
+	data: Data,
+	read: (page: z.infer<Data>) =>
+		| {
+				nodes: Node[];
+				pageInfo: z.infer<typeof pageInfo>;
+		  }
+		| undefined,
 ): Promise<Node[]> {
 	const nodes: Node[] = [];
 	let after: string | null = start;
 	do {
-		const response = await fetchImpl("https://api.github.com/graphql", {
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
+		const page = await githubGraphql(
+			{ token, fetchImpl },
+			{
 				query,
 				variables: { id: issueId, after, projectOwner },
-			}),
-		});
-		if (!response.ok) {
-			throw new Error(
-				`GitHub ${label} failed (HTTP ${response.status}): ${issueId}`,
-			);
+				data,
+				label,
+				subject: issueId,
+			},
+		);
+		const connection = read(page);
+		if (connection === undefined) {
+			throw new TrackerError(`GitHub ${label} failed: ${issueId}`, 502);
 		}
-		const body: unknown = await response.json();
-		const errors = z
-			.object({ errors: z.array(z.object({ message: z.string() })).optional() })
-			.parse(body).errors;
-		const error = errors?.[0];
-		if (error !== undefined) {
-			throw new Error(`GitHub ${label} failed: ${error.message}`);
-		}
-		const connection = read(body);
 		nodes.push(...connection.nodes);
 		after = connection.pageInfo.hasNextPage
 			? connection.pageInfo.endCursor
@@ -1208,13 +1131,8 @@ async function dependencyPages(
 		query,
 		label,
 		projectOwner,
-		(body) => {
-			const connection = dependencyPage.parse(body).data.node?.[relation];
-			if (connection === undefined) {
-				throw new Error(`GitHub ${label} failed: ${issueId}`);
-			}
-			return connection;
-		},
+		dependencyPage,
+		(page) => page.node?.[relation],
 	);
 	return [...nodes, ...rest];
 }
@@ -1304,14 +1222,8 @@ function closingPullPages(
 		closingPullsQuery,
 		"list closing pulls",
 		projectOwner,
-		(body) => {
-			const connection =
-				closingPulls.parse(body).data.node?.closedByPullRequestsReferences;
-			if (connection === undefined) {
-				throw new Error(`GitHub list closing pulls failed: ${issueId}`);
-			}
-			return connection;
-		},
+		closingPulls,
+		(page) => page.node?.closedByPullRequestsReferences,
 	);
 }
 
@@ -1428,8 +1340,9 @@ async function loadOpenPull(
 		{ headers: githubHeaders(token) },
 	);
 	if (!response.ok) {
-		throw new Error(
+		throw new TrackerError(
 			`GitHub list pulls failed (HTTP ${response.status}): ${repo}`,
+			response.status,
 		);
 	}
 	const pull = githubPull.parse(await response.json());
@@ -1479,7 +1392,10 @@ async function fetchJson(
 ): Promise<unknown> {
 	const response = await fetchImpl(url, { headers: githubHeaders(token) });
 	if (!response.ok) {
-		throw new Error(`GitHub ${label} failed (HTTP ${response.status}): ${url}`);
+		throw new TrackerError(
+			`GitHub ${label} failed (HTTP ${response.status}): ${url}`,
+			response.status,
+		);
 	}
 	return response.json();
 }
@@ -1961,26 +1877,23 @@ type PullLists = {
 const graphqlLabelNode = z.object({ name: z.string(), color: z.string() });
 
 const repoReadPage = z.object({
-	data: z.object({
-		repository: z
-			.object({
-				nameWithOwner: z.string(),
-				autoMergeAllowed: z.boolean().nullable().optional().catch(null),
-				refs: graphqlConnection(
-					z.object({ name: z.string() }).nullable(),
-				).optional(),
-				labels: graphqlConnection(graphqlLabelNode).optional(),
-				issues: graphqlConnection(graphqlIssueNode).optional(),
-				openPullRequests: graphqlConnection(graphqlPullNode).optional(),
-				mergedPullRequests: graphqlConnection(graphqlPullNode).optional(),
-			})
-			.nullable(),
-		editedIssues: graphqlConnection(graphqlIssueNode.nullable()).optional(),
-	}),
-	errors: z.array(z.object({ message: z.string() })).optional(),
+	repository: z
+		.object({
+			nameWithOwner: z.string(),
+			autoMergeAllowed: z.boolean().nullable().optional().catch(null),
+			refs: graphqlConnection(
+				z.object({ name: z.string() }).nullable(),
+			).optional(),
+			labels: graphqlConnection(graphqlLabelNode).optional(),
+			issues: graphqlConnection(graphqlIssueNode).optional(),
+			openPullRequests: graphqlConnection(graphqlPullNode).optional(),
+			mergedPullRequests: graphqlConnection(graphqlPullNode).optional(),
+		})
+		.nullable(),
+	editedIssues: graphqlConnection(graphqlIssueNode.nullable()).optional(),
 });
 
-type RepoReadPage = z.infer<typeof repoReadPage>["data"];
+type RepoReadPage = z.infer<typeof repoReadPage>;
 
 type PageCursors = {
 	issues: string | null;
@@ -1994,6 +1907,22 @@ const autoMergeQuery = `query RepoRead($owner: String!, $name: String!) {
 	repository(owner: $owner, name: $name) { nameWithOwner autoMergeAllowed }
 }`;
 
+const autoMergeRead = z.object({
+	repository: z
+		.object({
+			nameWithOwner: z.string(),
+			autoMergeAllowed: z.boolean().nullable(),
+		})
+		.nullable(),
+});
+
+function notFoundAsNull(error: unknown): null {
+	if (error instanceof TrackerError && error.status === 404) {
+		return null;
+	}
+	throw error;
+}
+
 async function readAutoMerge(
 	token: string,
 	fetchImpl: Fetch,
@@ -2003,43 +1932,22 @@ async function readAutoMerge(
 	if (parts === null) {
 		return false;
 	}
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify({
+	const read = await githubGraphql(
+		{ token, fetchImpl },
+		{
 			query: autoMergeQuery,
 			variables: { owner: parts.owner, name: parts.name },
-		}),
-	});
-	if (response.status === 404) {
+			data: autoMergeRead,
+			label: "read repo",
+			subject: repo,
+		},
+	).catch(notFoundAsNull);
+	if (read === null) {
 		return false;
 	}
-	if (!response.ok) {
-		throw new Error(
-			`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-		);
-	}
-	const parsed = z
-		.object({
-			data: z.object({
-				repository: z
-					.object({
-						nameWithOwner: z.string(),
-						autoMergeAllowed: z.boolean().nullable(),
-					})
-					.nullable(),
-			}),
-			errors: z.array(z.object({ message: z.string() })).optional(),
-		})
-		.safeParse(await response.json());
-	const repository = parsed.success ? parsed.data.data.repository : null;
-	if (
-		!parsed.success ||
-		parsed.data.errors?.[0] !== undefined ||
-		repository === null ||
-		!sameRepo(repository.nameWithOwner, repo)
-	) {
-		throw new Error(`GitHub read repo failed: ${repo}`);
+	const repository = read.repository;
+	if (repository === null || !sameRepo(repository.nameWithOwner, repo)) {
+		throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 	}
 	return repository.autoMergeAllowed === true;
 }
@@ -2073,24 +1981,14 @@ async function postPollQuery(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
-	build: (size: number) => { query: string; variables: object },
+	build: (size: number) => Pick<GraphqlQuery, "query" | "variables">,
 	size = pageSize,
 ): Promise<unknown> {
-	const response = await fetchImpl("https://api.github.com/graphql", {
-		method: "POST",
-		headers: githubHeaders(token),
-		body: JSON.stringify(build(size)),
-	});
-	if (response.status === 404) {
-		return null;
-	}
-	if (!response.ok) {
-		throw new Error(
-			`GitHub read repo failed (HTTP ${response.status}): ${repo}`,
-		);
-	}
-	const body: unknown = await response.json();
-	if (size === pageSize && resourceLimited(body)) {
+	const body = await postGithubGraphql(
+		{ token, fetchImpl },
+		{ ...build(size), label: "read repo", subject: repo },
+	).catch(notFoundAsNull);
+	if (body !== null && size === pageSize && resourceLimited(body)) {
 		return postPollQuery(token, fetchImpl, repo, build, pageSize / 2);
 	}
 	return body;
@@ -2114,13 +2012,15 @@ function pollData(
 	for (const error of graphqlErrors.safeParse(body).data?.errors ?? []) {
 		const pull = error.path === undefined ? null : brokenPull(error.path);
 		if (pull === null) {
-			throw new Error(`GitHub read repo failed: ${error.message}`);
+			throw new TrackerError(`GitHub read repo failed: ${error.message}`, 502, [
+				error.message,
+			]);
 		}
 		broken.add(pull);
 	}
 	const parsed = pollPage.safeParse(body);
 	if (!parsed.success) {
-		throw new Error(`GitHub read repo failed: ${repo}`);
+		throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 	}
 	return { data: parsed.data.data, broken };
 }
@@ -2166,24 +2066,18 @@ async function readRepoPage(
 	if (body === null) {
 		return null;
 	}
-	const parsed = repoReadPage.safeParse(body);
-	if (!parsed.success) {
-		const failed = graphqlErrors.safeParse(body);
-		const failure = failed.success ? failed.data.errors[0] : undefined;
-		if (failure !== undefined) {
-			throw new Error(failure.message);
-		}
-		throw new Error(`GitHub read repo failed: ${repo}`);
+	const page = graphqlData(
+		"GitHub",
+		{ data: repoReadPage, label: "read repo", subject: repo },
+		body,
+	);
+	if (
+		page.repository === null ||
+		!sameRepo(page.repository.nameWithOwner, repo)
+	) {
+		throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 	}
-	const error = parsed.data.errors?.[0];
-	if (error !== undefined) {
-		throw new Error(`GitHub read repo failed: ${error.message}`);
-	}
-	const repository = parsed.data.data.repository;
-	if (repository === null || !sameRepo(repository.nameWithOwner, repo)) {
-		throw new Error(`GitHub read repo failed: ${repo}`);
-	}
-	return parsed.data.data;
+	return page;
 }
 
 function ticketFromGraphql(
@@ -2444,7 +2338,7 @@ async function collectConnection<T>(
 			include,
 		);
 		if (page === null || page.repository === null) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
+			throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 		}
 		const connection = read(page);
 		nodes.push(
@@ -2513,7 +2407,7 @@ async function readLists(
 					return;
 				}
 				if (nodeId.safeParse(node).data?.id !== id) {
-					throw new Error(`GitHub read repo failed: ${repo}`);
+					throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 				}
 				found[kind].set(id, node);
 			});
@@ -2569,7 +2463,10 @@ function pendingPage<Node extends z.ZodType>(
 			const holder = path.wrap === undefined ? data : child(data, path.wrap);
 			const parsed = connection.safeParse(child(holder, path.field));
 			if (!parsed.success) {
-				throw new Error(`GitHub read repo failed: ${path.field} of ${id}`);
+				throw new TrackerError(
+					`GitHub read repo failed: ${path.field} of ${id}`,
+					502,
+				);
 			}
 			target.nodes.push(...parsed.data.nodes);
 			return nextCursor(parsed.data);
@@ -2650,6 +2547,118 @@ type StoredLists = {
 	issues: Map<string, { updatedAt: string; comments: IssueComments["nodes"] }>;
 	pulls: Map<string, { updatedAt: string; evidence: ReviewEvidence }>;
 };
+
+const blockerPage = graphqlConnection(graphqlDependency);
+
+const blockerStates = z.object({
+	repository: z
+		.record(z.string(), z.object({ blockedBy: blockerPage }).nullable())
+		.nullable(),
+});
+
+async function readBlockerStates(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	numbers: number[],
+): Promise<Map<number, z.infer<typeof blockerPage>>> {
+	const parts = repoParts(repo);
+	const states = new Map<number, z.infer<typeof blockerPage>>();
+	if (parts === null || numbers.length === 0) {
+		return states;
+	}
+	const page = 40;
+	for (let start = 0; start < numbers.length; start += page) {
+		const slice = numbers.slice(start, start + page);
+		const collected = slice.map(
+			() => [] as z.infer<typeof graphqlDependency>[],
+		);
+		let cursors: (string | null)[] = slice.map(() => null);
+		let pending = true;
+		while (pending) {
+			const afterNames = slice.map((_, index) => `$after${index}: String`);
+			const variableNames = `$owner: String!, $name: String!, ${afterNames.join(", ")}`;
+			const fields = slice
+				.map(
+					(number, index) =>
+						`i${index}: issue(number: ${number}) { blockedBy(first: 20, after: $after${index}) { nodes { number title state repository { nameWithOwner } } ${connectionPage} } }`,
+				)
+				.join("\n");
+			const variables: Record<string, string | null> = {
+				owner: parts.owner,
+				name: parts.name,
+			};
+			for (const [index, cursor] of cursors.entries()) {
+				variables[`after${index}`] = cursor;
+			}
+			const read = await githubGraphql(
+				{ token, fetchImpl },
+				{
+					query: `query BlockerStates(${variableNames}) { repository(owner: $owner, name: $name) { ${fields} } }`,
+					variables,
+					data: blockerStates,
+					label: "read repo",
+					subject: repo,
+				},
+			);
+			const repository = read.repository;
+			if (repository === null) {
+				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
+			}
+			const next: (string | null)[] = [];
+			slice.forEach((number, index) => {
+				const node = repository[`i${index}`];
+				if (node === undefined || node === null) {
+					next.push(null);
+					return;
+				}
+				collected[index]?.push(
+					...node.blockedBy.nodes.flatMap((item) =>
+						item === undefined ? [] : [item],
+					),
+				);
+				const cursor = node.blockedBy.pageInfo?.endCursor ?? null;
+				next.push(
+					node.blockedBy.pageInfo?.hasNextPage === true && cursor !== null
+						? cursor
+						: null,
+				);
+				states.set(number, {
+					nodes: collected[index] ?? [],
+					pageInfo: { hasNextPage: false, endCursor: null },
+				});
+			});
+			cursors = next;
+			pending = cursors.some((cursor) => cursor !== null);
+		}
+	}
+	return states;
+}
+
+/** A closed blocker does not change the blocked ticket, so a since read omits it. */
+async function currentBlockers(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	listed: Ticket[],
+	held: Ticket[],
+): Promise<Ticket[]> {
+	const ids = heldBlockerIds(held);
+	if (ids.length === 0) {
+		return listed;
+	}
+	const states = await readBlockerStates(token, fetchImpl, repo, ids);
+	const refsById = new Map(
+		[...states].map(([id, page]) => [
+			id,
+			dependencyRefs(
+				page.nodes.flatMap((node) => (node === undefined ? [] : [node])),
+				repo,
+			),
+		]),
+	);
+	return refreshedBlockers(listed, held, refsById);
+}
 
 async function readRepo(
 	token: string,
@@ -2790,7 +2799,7 @@ async function readRepo(
 	for (const issue of changedIssues) {
 		const parsed = fullIssueLists.safeParse(lists.full.get(issue.id));
 		if (!parsed.success) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
+			throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 		}
 		commentsById.set(issue.id, parsed.data.comments);
 	}
@@ -2798,14 +2807,14 @@ async function readRepo(
 	for (const pull of changedPulls.filter((item) => !broken.has(item.id))) {
 		const parsed = fullPullLists.safeParse(lists.full.get(pull.id));
 		if (!parsed.success) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
+			throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 		}
 		listsById.set(pull.id, parsed.data);
 	}
 	for (const pull of livePulls.filter((item) => !broken.has(item.id))) {
 		const parsed = livePullLists.safeParse(lists.live.get(pull.id));
 		if (!parsed.success) {
-			throw new Error(`GitHub read repo failed: ${repo}`);
+			throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 		}
 		listsById.set(pull.id, { ...listsById.get(pull.id), ...parsed.data });
 	}
@@ -3039,7 +3048,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			}
 			const batched = await repoReadFor(repo, since);
 			if (batched === null) {
-				throw new Error(`GitHub read repo failed: ${repo}`);
+				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 			}
 			const board = factoryBoard(batched.labels);
 			const tickets = await currentBlockers(
@@ -3083,7 +3092,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			}
 			const batched = await repoReadFor(repo, null);
 			if (batched === null) {
-				throw new Error(`GitHub read repo failed: ${repo}`);
+				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 			}
 			for (const pull of batched.pulls) {
 				if (pull.merged) {
@@ -3113,7 +3122,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 		async listBranches(repo) {
 			const batched = await repoReadFor(repo, null);
 			if (batched === null) {
-				throw new Error(`GitHub read repo failed: ${repo}`);
+				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 			}
 			return batched.branches;
 		},
