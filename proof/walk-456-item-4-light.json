@@ -1,0 +1,10 @@
+{
+	"base_url": "http://127.0.0.1:47464",
+	"serve": ["bun", "proof/serve-456.ts", "47464", "light"],
+	"steps": [
+		{ "goto": "/settings" },
+		{ "click": "#colour-inReview" },
+		{ "assert_text": "Hex" },
+		{ "shot": "picker-light" }
+	]
+}

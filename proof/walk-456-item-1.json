@@ -1,0 +1,21 @@
+{
+	"base_url": "http://127.0.0.1:47461",
+	"serve": ["bun", "proof/serve-456.ts", "47461"],
+	"steps": [
+		{ "goto": "/settings" },
+		{ "click": "#colour-inProgress" },
+		{ "fill": "#colour-inProgress-hex", "text": "#ff0066" },
+		{ "click": "#save-settings" },
+		{ "assert_text": "Settings saved" },
+		{ "goto": "/projects/Colour%20Board" },
+		{ "assert_text": "Paint the board" },
+		{ "shot": "board-after-change" },
+		{ "click": "button[data-ticket='COL-3']" },
+		{ "click": "aside[data-panel='COL-3'] h2" },
+		{ "shot": "panel-after-change" },
+		{ "goto": "/projects/Colour%20Board" },
+		{ "click": "#view-graph" },
+		{ "assert_text": "Paint the graph" },
+		{ "shot": "graph-after-change" }
+	]
+}
