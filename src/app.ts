@@ -25,12 +25,7 @@ import {
 	defaultThreadReadLimitMs,
 	type Fetch,
 } from "./fetch.ts";
-import {
-	conditionalFetch,
-	githubTracker,
-	missingToken,
-	rememberValidator,
-} from "./github.ts";
+import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
 import { githubTicketKey } from "./github-thread.ts";
 import { elkWorkerPath, forceWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
@@ -361,16 +356,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		read: () => loadConfiguration(options.configPath),
 		write: (text: string) => saveConfiguration(options.configPath, text),
 	};
-	const restCache = new Map();
-	for (const validator of opened.store.readValidators()) {
-		rememberValidator(
-			restCache,
-			validator.url,
-			validator.etag,
-			JSON.parse(validator.body) as unknown,
-			validator.headers,
-		);
-	}
 	const requests = new AbortController();
 	const trackerFetch = abortableFetch(options.fetch, requests.signal);
 	let configuration: Configuration;
@@ -381,7 +366,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		throw error;
 	}
 	const fetchGithub = installationTokenFetch(
-		conditionalFetch(trackerFetch, restCache, opened.store.recordValidator),
+		conditionalFetch(trackerFetch, opened.validators),
 		() => ({
 			enabled: configuration.factoryGithubTokens,
 			dir: configuration.factoryGithubTokenDir,
@@ -408,10 +393,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		store: opened.store,
 		clock,
 		notifier,
-		token: options.token,
-		fetch: trackerFetch,
-		fetchGithub,
-		restCache,
 		listTodos: options.listTodos,
 		listCheckouts: options.listCheckouts,
 		releaseDiscovery: () => {},

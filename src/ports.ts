@@ -80,8 +80,6 @@ export type Tracker = {
 		since?: Date | null,
 		projectOwner?: string,
 	) => Promise<PullRequest[]>;
-	listBranches: (project: string) => Promise<string[]>;
-	repoAutoMerge: (project: string) => Promise<boolean>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
 		viewer: Viewer | null;
@@ -94,6 +92,16 @@ export type Tracker = {
 		signal?: AbortSignal,
 	) => Promise<FetchedThread | null>;
 	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
+};
+
+export type GithubTracker = Tracker & {
+	listBranches: (project: string) => Promise<string[]>;
+	repoAutoMerge: (project: string) => Promise<boolean>;
+	/** Find a pinned GitHub project that discovery did not list. */
+	findPinnedProject: (
+		owner: string,
+		number: number,
+	) => Promise<FoundProject | null>;
 };
 
 export type Store = {
@@ -118,22 +126,6 @@ export type Store = {
 	recordSeededIds: (ids: string[]) => void;
 	/** Drop ids that must not notify again. */
 	forgetSeededIds: (ids: string[]) => void;
-	/** Last GitHub REST response for a URL. */
-	readValidators: () => {
-		url: string;
-		etag: string;
-		body: string;
-		headers: string;
-	}[];
-	/** Keep the last GitHub REST response for a URL. */
-	recordValidator: (
-		url: string,
-		etag: string,
-		body: string,
-		headers: string,
-	) => void;
-	/** Drop the last GitHub REST response for a URL. */
-	forgetValidator: (url: string) => void;
 	/** A number that changes on each write to the tickets, polls or errors. */
 	revision: () => number;
 };
