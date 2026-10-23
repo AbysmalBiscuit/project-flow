@@ -1,12 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
-import type { NeedsYouItem, ProjectReport, ThreadComment } from "./domain.ts";
+import type {
+	GraphEnd,
+	NeedsYouItem,
+	ProjectReport,
+	ThreadComment,
+} from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
 import { CommentTree, RelationList, WhySection } from "./panel-sections.tsx";
 import { pathProject, projectPath } from "./paths.ts";
-import { pageQuery, usePostReply } from "./queries.ts";
+import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { openTicket } from "./selection.ts";
 import { toneOf } from "./state-tone.ts";
 import {
@@ -50,7 +62,38 @@ function needsYouItem(
 	);
 }
 
-/** The side panel of one ticket. It reads the ticket from the cached report of the ticket's project. */
+/**
+ * What the cached reports of other projects know about a ticket outside
+ * them: an outside parent or a graph link end. An end with a known state
+ * comes first.
+ */
+function outsideTicket(ticket: TicketRef): GraphEnd | undefined {
+	const ends = pageQueryClient
+		.getQueriesData<ProjectReport | null>({ queryKey: ["project"] })
+		.flatMap(([, report]) =>
+			report === null || report === undefined
+				? []
+				: [
+						...report.outsideParents,
+						...report.graphLinks.flatMap((link) => [link.from, link.to]),
+					],
+		)
+		.filter(
+			(end) =>
+				sameTicketKey(end.project, ticket.project) &&
+				sameTicketKey(end.key, ticket.key),
+		);
+	return ends.find((end) => end.state !== undefined) ?? ends[0];
+}
+
+function subscribeReports(listener: () => void): () => void {
+	return pageQueryClient.getQueryCache().subscribe(listener);
+}
+
+/**
+ * The side panel of one ticket. It reads the ticket from the cached report of
+ * the ticket's project, else from what other cached reports know about it.
+ */
 export function TicketPanel({
 	ticket,
 	onClose,
@@ -72,6 +115,13 @@ export function TicketPanel({
 	const view = report?.tickets.find(
 		(item) => item.key !== null && sameTicketKey(item.key, ticketKey),
 	);
+	const readOutside = useCallback(() => outsideTicket(ticket), [ticket]);
+	const outside = useSyncExternalStore(
+		subscribeReports,
+		readOutside,
+		readOutside,
+	);
+	const known = view ?? outside;
 	const item = needsYouItem(report, ticketKey);
 	useEffect(() => {
 		if (report !== null && report.tracker !== tracker) {
@@ -181,12 +231,11 @@ export function TicketPanel({
 		report === null || pathProject(window.location.pathname) === project
 			? undefined
 			: projectPath(project, ticket);
-	const state = view?.state;
+	const state = known?.state;
 	const laneName =
 		view?.lane ?? (state === undefined ? undefined : stateLabel[state]);
-	const laneState = report?.lanes.find(
-		(lane) => lane.name === view?.lane,
-	)?.statusType;
+	const laneState =
+		report?.lanes.find((lane) => lane.name === view?.lane)?.statusType ?? state;
 	const stateName = state ?? "unknown";
 	const [cover, setCover] = useState<HTMLElement | null>(null);
 	const host = useRef<HTMLDivElement | null>(null);
@@ -288,8 +337,8 @@ export function TicketPanel({
 			{loadingThread || (thread === null && !missing && !failed) ? (
 				<p className={clsx(panel.note)}>Loading thread</p>
 			) : null}
-			{thread !== null || view !== undefined ? (
-				<h2 className={clsx(panel.heading)}>{thread?.title ?? view?.title}</h2>
+			{thread !== null || known !== undefined ? (
+				<h2 className={clsx(panel.heading)}>{thread?.title ?? known?.title}</h2>
 			) : null}
 			{laneName === undefined ? null : (
 				<p className={clsx(panel.state)}>
