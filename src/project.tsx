@@ -10,7 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { board } from "./board-styles.ts";
+import { board, laneMark } from "./board-styles.ts";
 import {
 	CardHierarchyChips,
 	Chip,
@@ -64,11 +64,7 @@ import {
 	viewLabel,
 } from "./terms.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
-import {
-	lightValues,
-	phoneGutter,
-	projectHeaderLayout,
-} from "./tokens.stylex.ts";
+import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
 import {
@@ -461,33 +457,6 @@ function Card({
 
 function cardTone(statusType: StatusType | undefined) {
 	return statusType === undefined ? board.cardBacklog : cardTones[statusType];
-}
-
-const statusMarks: Record<StatusType, typeof board.markBacklog> = {
-	done: board.markDone,
-	dropped: board.markDropped,
-	backlog: board.markBacklog,
-	inProgress: board.markInProgress,
-	inReview: board.markInReview,
-	awaitingMerge: board.markAwaitingMerge,
-};
-
-const laneMarks: Record<string, typeof board.markBacklog> = {
-	[lightValues.done.toLowerCase()]: board.markDone,
-	[lightValues.dropped.toLowerCase()]: board.markDropped,
-	[lightValues.blocked.toLowerCase()]: board.markBlocked,
-	[lightValues.backlog.toLowerCase()]: board.markBacklog,
-	[lightValues.inProgress.toLowerCase()]: board.markInProgress,
-	[lightValues.inReview.toLowerCase()]: board.markInReview,
-	[lightValues.awaitingMerge.toLowerCase()]: board.markAwaitingMerge,
-};
-
-function laneMark(colour: string, statusType?: StatusType) {
-	return (
-		(statusType === undefined ? undefined : statusMarks[statusType]) ??
-		laneMarks[colour.trim().toLowerCase()] ??
-		board.markBacklog
-	);
 }
 
 function LaneCards({
@@ -1601,10 +1570,9 @@ export function Page() {
 											? {}
 											: { state: openedState })}
 									lane={selected?.lane}
-									laneColour={
-										source?.lanes.find((lane) => lane.name === selected?.lane)
-											?.colour
-									}
+									laneStyle={source?.lanes.find(
+										(lane) => lane.name === selected?.lane,
+									)}
 									blockers={incoming}
 									blocks={outgoing}
 									item={panelItem(

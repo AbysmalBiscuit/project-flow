@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { board } from "./board-styles.ts";
+import { board, laneMark } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type {
+	Lane,
 	NeedsYouItem,
 	ThreadComment,
 	TicketRelation,
@@ -24,23 +25,8 @@ import {
 	threadRetryLabel,
 	whyLabel,
 } from "./terms.ts";
-import { lightValues } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { panel, shell } from "./ui-styles.ts";
-
-const laneMarks: Record<string, typeof board.markBacklog> = {
-	[lightValues.done.toLowerCase()]: board.markDone,
-	[lightValues.dropped.toLowerCase()]: board.markDropped,
-	[lightValues.blocked.toLowerCase()]: board.markBlocked,
-	[lightValues.backlog.toLowerCase()]: board.markBacklog,
-	[lightValues.inProgress.toLowerCase()]: board.markInProgress,
-	[lightValues.inReview.toLowerCase()]: board.markInReview,
-	[lightValues.awaitingMerge.toLowerCase()]: board.markAwaitingMerge,
-};
-
-function laneMark(colour: string) {
-	return laneMarks[colour.trim().toLowerCase()] ?? board.markBacklog;
-}
 
 type ReplyTarget = {
 	parentId?: string;
@@ -56,7 +42,7 @@ export function TicketPanel({
 	projectHref,
 	state,
 	lane,
-	laneColour,
+	laneStyle,
 	blockers = [],
 	blocks = [],
 	onOpenBlocker,
@@ -74,7 +60,8 @@ export function TicketPanel({
 	projectHref?: string | undefined;
 	state?: TicketState;
 	lane?: string | undefined;
-	laneColour?: string | undefined;
+	/** The lane in the report of the ticket's own project. */
+	laneStyle?: Pick<Lane, "colour" | "statusType"> | undefined;
 	blockers?: TicketRelation[];
 	blocks?: TicketRelation[];
 	onOpenBlocker?: (blocker: TicketRelation) => void;
@@ -308,7 +295,9 @@ export function TicketPanel({
 						className={clsx(
 							board.laneMark,
 							board.laneMarkGap,
-							laneMark(laneColour ?? lightValues.backlog),
+							laneStyle === undefined
+								? board.markBacklog
+								: laneMark(laneStyle.colour, laneStyle.statusType),
 						)}
 					/>
 					{laneName}
