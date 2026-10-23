@@ -3,6 +3,7 @@ import { type FitViewOptions, useStore } from "@xyflow/react";
 import { useEffect, useState } from "react";
 import { board } from "./board-styles.ts";
 import type { TicketState } from "./domain.ts";
+import { stateTones } from "./state-tone.ts";
 import { projectGraphLabel, stateLabel } from "./terms.ts";
 import { measure, space, stack } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -112,24 +113,6 @@ export const float = stylex.create({
 	},
 });
 
-const stateTone: Record<TicketState, { label: string }> = {
-	backlog: { label: stateLabel.backlog },
-	inProgress: { label: stateLabel.inProgress },
-	inReview: { label: stateLabel.inReview },
-	awaitingMerge: { label: stateLabel.awaitingMerge },
-	done: { label: stateLabel.done },
-	dropped: { label: stateLabel.dropped },
-};
-
-const legendTone: Record<TicketState, (typeof board)["legendDone"]> = {
-	backlog: board.legendReady,
-	inProgress: board.legendProgress,
-	inReview: board.legendReview,
-	awaitingMerge: board.legendMerge,
-	done: board.legendDone,
-	dropped: board.legendDropped,
-};
-
 const legendOrder = [
 	"backlog",
 	"inProgress",
@@ -148,8 +131,11 @@ export function Legend() {
 			<ul className={clsx(board.legendRow)}>
 				{legendOrder.map((state) => (
 					<li key={state} className={clsx(board.legendItem)}>
-						<span className={clsx(board.legendDot, legendTone[state])} />
-						{stateTone[state].label}
+						<span
+							className={clsx(board.legendDot, stateTones[state])}
+							data-state={state}
+						/>
+						{stateLabel[state]}
 					</li>
 				))}
 			</ul>

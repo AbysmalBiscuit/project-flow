@@ -7,6 +7,7 @@ import {
 	scheme,
 	space,
 	stack,
+	stateTone,
 	type,
 } from "./tokens.stylex.ts";
 
@@ -609,12 +610,8 @@ export const cards = stylex.create({
 		width: space.sm,
 		height: space.sm,
 		borderRadius: radius.sm,
+		backgroundColor: stateTone.tone,
 	},
-	done: { backgroundColor: colours.done },
-	backlog: { backgroundColor: colours.ready },
-	inProgress: { backgroundColor: colours.progress },
-	inReview: { backgroundColor: colours.review },
-	awaitingMerge: { backgroundColor: colours.merge },
 	blockers: {
 		display: "flex",
 		flexShrink: 0,
@@ -1058,6 +1055,7 @@ export const cards = stylex.create({
 		height: "100%",
 		flexBasis: width,
 		flexShrink: 0,
+		backgroundColor: stateTone.tone,
 	}),
 	badge: {
 		padding: `${space.twoXs} ${space.sm}`,
@@ -1179,7 +1177,7 @@ export const needs = stylex.create({
 		borderTopColor: colours.laneLine,
 	},
 	selected: {
-		backgroundColor: colours.progressWash,
+		backgroundColor: colours.inProgressWash,
 	},
 	answered: {
 		color: colours.inkMuted,
@@ -2093,22 +2091,7 @@ export const settings = stylex.create({
 		width: measure.dot,
 		height: measure.dot,
 		borderRadius: radius.pill,
-		backgroundColor: colours.inkSoft,
-	},
-	dotBacklog: {
-		backgroundColor: colours.ready,
-	},
-	dotProgress: {
-		backgroundColor: colours.progress,
-	},
-	dotReview: {
-		backgroundColor: colours.review,
-	},
-	dotMerge: {
-		backgroundColor: colours.merge,
-	},
-	dotDone: {
-		backgroundColor: colours.done,
+		backgroundColor: stateTone.tone,
 	},
 	chips: {
 		display: "flex",
@@ -2173,7 +2156,7 @@ export const settings = stylex.create({
 		fontSize: type.meta,
 	},
 	statusOn: {
-		color: colours.merge,
+		color: colours.awaitingMerge,
 	},
 	bar: {
 		display: "flex",

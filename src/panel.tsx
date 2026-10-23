@@ -3,16 +3,15 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type {
-	Lane,
 	NeedsYouItem,
 	ThreadComment,
 	TicketRelation,
 	TicketState,
 } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
-import { laneMark } from "./lane-mark.ts";
 import { CommentTree, RelationList, WhySection } from "./panel-sections.tsx";
 import { pageQuery, usePostReply } from "./queries.ts";
+import { toneOf } from "./state-tone.ts";
 import {
 	closePanelLabel,
 	collapsePanelLabel,
@@ -43,7 +42,7 @@ export function TicketPanel({
 	projectHref,
 	state,
 	lane,
-	laneStyle,
+	laneState,
 	blockers = [],
 	blocks = [],
 	onOpenBlocker,
@@ -61,8 +60,7 @@ export function TicketPanel({
 	projectHref?: string | undefined;
 	state?: TicketState;
 	lane?: string | undefined;
-	/** The lane in the report of the ticket's own project. */
-	laneStyle?: Pick<Lane, "colour" | "statusType"> | undefined;
+	laneState?: TicketState | undefined;
 	blockers?: TicketRelation[];
 	blocks?: TicketRelation[];
 	onOpenBlocker?: (blocker: TicketRelation) => void;
@@ -296,9 +294,7 @@ export function TicketPanel({
 						className={clsx(
 							board.laneMark,
 							board.laneMarkGap,
-							laneStyle === undefined
-								? board.markBacklog
-								: laneMark(laneStyle.colour, laneStyle.statusType),
+							toneOf(laneState),
 						)}
 					/>
 					{laneName}

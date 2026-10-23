@@ -609,7 +609,7 @@ describe("tracker lanes", () => {
 					["Ready", "#4C9AFF", "backlog"],
 					["In progress", "#F2C94C", "inProgress"],
 					["In review", "#5E6AD2", "inReview"],
-					["Awaiting merge", "#b7e1cd", "awaitingMerge"],
+					["Awaiting merge", "#1f9d6a", "awaitingMerge"],
 					["Done", "#F2994A", "done"],
 				]);
 				expect(flight(report)).toEqual([
@@ -711,7 +711,7 @@ describe("tracker lanes", () => {
 					["ready", "#0E8A16", "backlog"],
 					["factory: running", "#1D76DB", "inProgress"],
 					["factory: in-review", "#FBCA04", "inReview"],
-					["Awaiting merge", "#b7e1cd", "awaitingMerge"],
+					["Awaiting merge", "#1f9d6a", "awaitingMerge"],
 					["Done", "#7c5cbf", "done"],
 					["Dropped", "#9ca3af", "dropped"],
 				]);
@@ -752,10 +752,10 @@ describe("tracker lanes", () => {
 				expect(
 					report.lanes.map((lane) => [lane.name, lane.colour, lane.statusType]),
 				).toEqual([
-					["Backlog", "#d0d7de", "backlog"],
-					["In progress", "#f0c674", "inProgress"],
-					["In review", "#9ecbff", "inReview"],
-					["Awaiting merge", "#b7e1cd", "awaitingMerge"],
+					["Backlog", "#8a8680", "backlog"],
+					["In progress", "#3b6fd8", "inProgress"],
+					["In review", "#e07a2f", "inReview"],
+					["Awaiting merge", "#1f9d6a", "awaitingMerge"],
 					["Done", "#7c5cbf", "done"],
 					["Dropped", "#9ca3af", "dropped"],
 				]);
@@ -1006,7 +1006,7 @@ describe("tracker lanes", () => {
 				});
 				const added = report.lanes.find((lane) => lane.name === "Backlog");
 				expect(added?.statusType).toBe("backlog");
-				expect(added?.colour).toBe("#d0d7de");
+				expect(added?.colour).toBe("#8a8680");
 				expect(added?.added).toBe(true);
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const empty = items.find((item) => item.key === "acme/widget#9");
@@ -1051,7 +1051,7 @@ describe("tracker lanes", () => {
 					(lane) => lane.name === "Awaiting merge",
 				);
 				expect(added?.statusType).toBe("awaitingMerge");
-				expect(added?.colour).toBe("#b7e1cd");
+				expect(added?.colour).toBe("#1f9d6a");
 				expect(added?.added).toBe(true);
 			},
 		);
@@ -1554,7 +1554,7 @@ describe("tracker lanes", () => {
 				]);
 				const added = report.lanes.find((lane) => lane.name === "In progress");
 				expect(added?.statusType).toBe("inProgress");
-				expect(added?.colour).toBe("#f0c674");
+				expect(added?.colour).toBe("#3b6fd8");
 				expect(added?.added).toBe(true);
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const building = items.find((item) => item.key === "acme/widget#20");

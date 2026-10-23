@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import type { ProjectCounts } from "./domain.ts";
+import { stateTones } from "./state-tone.ts";
 import { clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 
@@ -19,11 +20,11 @@ export function trackerName(tracker: ProjectCounts["tracker"]): string {
 }
 
 export const barSegments = [
-	{ key: "done", tone: cards.done },
-	{ key: "inProgress", tone: cards.inProgress },
-	{ key: "inReview", tone: cards.inReview },
-	{ key: "awaitingMerge", tone: cards.awaitingMerge },
-	{ key: "backlog", tone: cards.backlog },
+	{ key: "done", tone: stateTones.done },
+	{ key: "inProgress", tone: stateTones.inProgress },
+	{ key: "inReview", tone: stateTones.inReview },
+	{ key: "awaitingMerge", tone: stateTones.awaitingMerge },
+	{ key: "backlog", tone: stateTones.backlog },
 ] as const;
 
 export function SegmentedBar({ project }: { project: ProjectCounts }) {
@@ -44,6 +45,7 @@ export function SegmentedBar({ project }: { project: ProjectCounts }) {
 				project.statusTypes[item.key] === 0 ? null : (
 					<div
 						key={item.key}
+						data-state={item.key}
 						{...stylex.props(
 							cards.segment(
 								`${(project.statusTypes[item.key] / total) * 100}%`,

@@ -51,6 +51,7 @@ import {
 	useSaveSettings,
 } from "./queries.ts";
 import { PageFrame, type PageView } from "./shell.tsx";
+import { stateTones } from "./state-tone.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
@@ -348,13 +349,17 @@ function subtitle(project: ProjectCounts): string {
 }
 
 const legendSegments = [
-	{ key: "backlog", label: stateLabel.backlog, tone: cards.backlog },
-	{ key: "inProgress", label: stateLabel.inProgress, tone: cards.inProgress },
-	{ key: "inReview", label: stateLabel.inReview, tone: cards.inReview },
+	{ key: "backlog", label: stateLabel.backlog, tone: stateTones.backlog },
+	{
+		key: "inProgress",
+		label: stateLabel.inProgress,
+		tone: stateTones.inProgress,
+	},
+	{ key: "inReview", label: stateLabel.inReview, tone: stateTones.inReview },
 	{
 		key: "awaitingMerge",
 		label: stateLabel.awaitingMerge,
-		tone: cards.awaitingMerge,
+		tone: stateTones.awaitingMerge,
 	},
 ] as const;
 
@@ -364,7 +369,10 @@ function Legend({ project }: { project: ProjectCounts }) {
 			{legendSegments.map((item) =>
 				project.statusTypes[item.key] === 0 ? null : (
 					<span key={item.key} className={clsx(cards.count)}>
-						<span className={clsx(cards.swatch, item.tone)} />
+						<span
+							className={clsx(cards.swatch, item.tone)}
+							data-state={item.key}
+						/>
 						{item.label} {project.statusTypes[item.key]}
 					</span>
 				),
@@ -488,6 +496,7 @@ function ProgressBar({ project }: { project: ProjectCounts }) {
 					project.statusTypes[item.key] === 0 || total === 0 ? null : (
 						<div
 							key={item.key}
+							data-state={item.key}
 							{...stylex.props(
 								cards.segment(
 									`${(project.statusTypes[item.key] / total) * 100}%`,

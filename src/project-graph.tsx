@@ -20,7 +20,6 @@ import {
 	useState,
 } from "react";
 import { board } from "./board-styles.ts";
-import { cardTones } from "./card-tones.ts";
 import { useCollapse } from "./collapse.ts";
 import {
 	focusChain,
@@ -52,6 +51,7 @@ import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import { FrameTools, ScopeLine } from "./graph-scope.tsx";
 import type { NodeSize } from "./graph-sizes.ts";
 import { DirectionSwitch, LayoutSwitch } from "./graph-switches.tsx";
+import { stateTones } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
 	graphLayoutFailedLabel,
@@ -157,7 +157,8 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 				className={clsx(
 					board.ticketNode,
 					board.cardFocus,
-					known === undefined ? null : cardTones[known],
+					known !== undefined && board.toned,
+					known !== undefined && stateTones[known],
 					data.outside && board.ticketOutside,
 					data.outside && known === undefined && board.ticketOutsideUntoned,
 					data.open && board.ticketNodeOpen,
