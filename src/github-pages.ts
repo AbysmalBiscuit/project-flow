@@ -1,4 +1,5 @@
 import type { Fetch } from "./fetch.ts";
+import { TrackerError } from "./ports.ts";
 
 export function githubHeaders(token: string): Record<string, string> {
 	return {
@@ -53,8 +54,9 @@ export async function pages(
 			signal,
 		);
 		if (!response.ok) {
-			throw new Error(
+			throw new TrackerError(
 				`GitHub ${label} failed (HTTP ${response.status}): ${repo}`,
+				response.status,
 			);
 		}
 		bodies.push(await response.json());

@@ -1,7 +1,7 @@
 import { commentTree } from "./comment-tree.ts";
 import type { FetchedThread } from "./domain.ts";
 import { ThreadReadTimeout, withThreadLimit } from "./fetch.ts";
-import { TrackerError } from "./github.ts";
+import { isMissing } from "./ports.ts";
 import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
 export async function threadResponse(
@@ -33,10 +33,7 @@ export async function threadResponse(
 		if (error instanceof ThreadReadTimeout) {
 			return Response.json({ error: error.message }, { status: 504 });
 		}
-		if (
-			error instanceof TrackerError &&
-			(error.status === 404 || error.status === 410)
-		) {
+		if (isMissing(error)) {
 			return Response.json({ missing: true }, { status: 404 });
 		}
 		return trackerError(error);

@@ -6,8 +6,10 @@ import type {
 	ThreadComment,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { TrackerError } from "./github.ts";
+import { githubGraphql } from "./github-graphql.ts";
 import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
+import { TrackerBodyError } from "./graphql.ts";
+import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
 import { githubKeyParts } from "./ticket-key.ts";
 
@@ -62,16 +64,14 @@ const linkedPull = z.object({
 });
 
 const linkedPulls = z.object({
-	data: z.object({
-		repository: z.object({
-			issue: z
-				.object({
-					closedByPullRequestsReferences: z.object({
-						nodes: z.array(linkedPull),
-					}),
-				})
-				.nullable(),
-		}),
+	repository: z.object({
+		issue: z
+			.object({
+				closedByPullRequestsReferences: z.object({
+					nodes: z.array(linkedPull),
+				}),
+			})
+			.nullable(),
 	}),
 });
 
@@ -178,26 +178,27 @@ async function linkedReviewTargets(
 		return [];
 	}
 	const { owner, name } = parts;
-	const response = await fetchWithSignal(
-		fetchImpl,
-		"https://api.github.com/graphql",
+	const linked = await githubGraphql(
+		{ token, fetchImpl, ...(signal === undefined ? {} : { signal }) },
 		{
-			method: "POST",
-			headers: githubHeaders(token),
-			body: JSON.stringify({
-				query: linkedPullsQuery,
-				variables: { owner, name, number },
-			}),
+			query: linkedPullsQuery,
+			variables: { owner, name, number },
+			data: linkedPulls,
+			label: "fetch thread",
+			subject: repo,
 		},
-		signal,
-	);
-	if (!response.ok) {
+	).catch((error: unknown) => {
+		if (error instanceof TrackerError && !(error instanceof TrackerBodyError)) {
+			return null;
+		}
+		throw error;
+	});
+	if (linked === null) {
 		return [];
 	}
-	const linked = linkedPulls.parse(await response.json());
 	const targets: { repo: string; number: number }[] = [];
-	for (const node of linked.data.repository.issue
-		?.closedByPullRequestsReferences.nodes ?? []) {
+	for (const node of linked.repository.issue?.closedByPullRequestsReferences
+		.nodes ?? []) {
 		const pullRepo = node.repository?.nameWithOwner ?? repo;
 		if (
 			targets.some(

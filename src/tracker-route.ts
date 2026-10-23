@@ -1,5 +1,5 @@
 import type { PollOptions } from "./poll.ts";
-import type { Tracker } from "./ports.ts";
+import { type Tracker, TrackerError } from "./ports.ts";
 
 export type Trackers = Pick<PollOptions, "github" | "linear">;
 
@@ -16,13 +16,9 @@ export function trackerFor(
 	return null;
 }
 
+/** Every route answers a failed tracker call with `{ error }` and the tracker's status. */
 export function trackerError(error: unknown): Response {
-	const message = error instanceof Error ? error.message : "reply failed";
-	const status =
-		error instanceof Error &&
-		"status" in error &&
-		typeof error.status === "number"
-			? error.status
-			: 502;
+	const message = error instanceof Error ? error.message : "tracker failed";
+	const status = error instanceof TrackerError ? error.status : 502;
 	return Response.json({ error: message }, { status });
 }

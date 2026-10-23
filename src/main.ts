@@ -17,6 +17,7 @@ import type {
 	TodoSource,
 	WorkcellRun,
 } from "./ports.ts";
+import { TrackerError } from "./ports.ts";
 import { ownerRepo } from "./project-ref.ts";
 
 export { missingToken };
@@ -664,12 +665,17 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 					}
 				}
 				if (needsLinear && linearKey !== "") {
-					const viewer = await checkLinearKey(linearKey, io.fetch);
-					if (viewer.status === 401) {
+					const rejected = await checkLinearKey(linearKey, io.fetch).then(
+						() => false,
+						(error: unknown) => {
+							if (error instanceof TrackerError && error.status === 401) {
+								return true;
+							}
+							throw error;
+						},
+					);
+					if (rejected) {
 						return rejectedLinearKey;
-					}
-					if (!viewer.ok) {
-						return warn(`Linear key check failed (HTTP ${viewer.status}).`);
 					}
 				}
 				return null;
