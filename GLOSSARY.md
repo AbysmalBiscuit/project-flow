@@ -57,7 +57,7 @@ The group inside a workstream: the epic or top parent ticket, else the scope in 
 _Avoid_: Category, scope group
 
 **Parent ticket frame**:
-The box around the sub-tickets of a parent ticket on the project graph, when the graph groups by workstream or theme. The parent ticket card heads the frame. A parent ticket that a filter hides still heads the frame of its shown sub-tickets. Each group that holds a sub-ticket has its own frame, with a copy of the parent ticket card from another group.
+The box around the sub-tickets of a parent ticket on the project graph, when the graph groups by workstream or theme. The parent ticket card heads the frame. A parent ticket that a filter hides still heads the frame of its shown sub-tickets. A group that holds a sub-ticket of a parent ticket from another group heads its frame with a copy of the parent ticket card.
 _Avoid_: Parent box, epic frame
 
 ### State
