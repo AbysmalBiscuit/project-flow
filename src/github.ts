@@ -813,24 +813,32 @@ function labelColour(color: string): string {
 	return `#${hex.toUpperCase()}`;
 }
 
+function openIssues(items: ProjectItem[]) {
+	return items.flatMap(({ content }) =>
+		content === null ||
+		content.__typename !== "Issue" ||
+		content.number === undefined ||
+		content.repository === undefined ||
+		githubState(content.state ?? "") !== "open"
+			? []
+			: [
+					{
+						content,
+						repo: content.repository.nameWithOwner,
+						key: githubKey(content.repository.nameWithOwner, content.number),
+					},
+				],
+	);
+}
+
 function openLinkedKeys(items: ProjectItem[]): Set<string> {
-	const keys = new Set<string>();
-	for (const item of items) {
-		const content = item.content;
-		if (
-			content === null ||
-			content.__typename !== "Issue" ||
-			content.number === undefined ||
-			content.repository === undefined ||
-			githubState(content.state ?? "") !== "open"
-		) {
-			continue;
-		}
-		if ((content.closedByPullRequestsReferences?.nodes.length ?? 0) > 0) {
-			keys.add(githubKey(content.repository.nameWithOwner, content.number));
-		}
-	}
-	return keys;
+	return new Set(
+		openIssues(items).flatMap(({ content, key }) =>
+			(content.closedByPullRequestsReferences?.nodes.length ?? 0) > 0
+				? [key]
+				: [],
+		),
+	);
 }
 
 async function listProjectItems(
@@ -1310,21 +1318,7 @@ async function listProjectPulls(
 	projectOwner: string,
 ): Promise<PullRequest[]> {
 	const links: PullLink[] = [];
-	for (const item of items) {
-		const content = item.content;
-		if (
-			content === null ||
-			content.__typename !== "Issue" ||
-			content.number === undefined ||
-			content.repository === undefined ||
-			githubState(content.state ?? "") !== "open"
-		) {
-			continue;
-		}
-		const ticketKey = githubKey(
-			content.repository.nameWithOwner,
-			content.number,
-		);
+	for (const { content, repo, key: ticketKey } of openIssues(items)) {
 		const linkedPulls = [
 			...(content.closedByPullRequestsReferences?.nodes ?? []),
 		];
@@ -1345,8 +1339,7 @@ async function listProjectPulls(
 		}
 		for (const linked of linkedPulls) {
 			links.push({
-				repo:
-					linked.repository?.nameWithOwner ?? content.repository.nameWithOwner,
+				repo: linked.repository?.nameWithOwner ?? repo,
 				number: linked.number,
 				ticketKey,
 			});
