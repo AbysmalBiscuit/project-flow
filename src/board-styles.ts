@@ -365,6 +365,7 @@ export const board = stylex.create({
 	},
 	meta: {
 		display: "flex",
+		flexWrap: "wrap",
 		gap: space.sm,
 		alignItems: "center",
 		justifyContent: "space-between",
@@ -377,6 +378,7 @@ export const board = stylex.create({
 		fontSize: type.meta,
 	},
 	pull: {
+		overflowWrap: "anywhere",
 		color: colours.inkSoft,
 		fontSize: type.meta,
 	},

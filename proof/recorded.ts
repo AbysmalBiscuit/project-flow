@@ -35,9 +35,10 @@ export function emptyLists(url: string): boolean {
 	);
 }
 
-/** Serves the GitHub repo reads of these issues and empty answers for the rest. */
+/** Serves the GitHub repo reads of these issues and PRs and empty answers for the rest. */
 export function recordedIssues(
 	issuesByRepo: Record<string, Record<string, unknown>[]>,
+	pullsByRepo: Record<string, Record<string, unknown>[]> = {},
 ): Fetch {
 	return async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
@@ -49,7 +50,8 @@ export function recordedIssues(
 			return Response.json({ login: "lev" });
 		}
 		const listed =
-			emptyLinear(url) ?? repoReadFromLists(input, init, issuesByRepo);
+			emptyLinear(url) ??
+			repoReadFromLists(input, init, issuesByRepo, pullsByRepo);
 		if (listed !== null) {
 			return listed;
 		}

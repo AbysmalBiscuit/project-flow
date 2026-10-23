@@ -1,0 +1,12 @@
+{
+	"base_url": "http://127.0.0.1:4381",
+	"serve": ["bun", "proof/serve-381.ts", "4381"],
+	"steps": [
+		{ "goto": "/projects/AbysmalBiscuit%2Fproject-flow" },
+		{ "assert_text": "AbysmalBiscuit/project-flow#206" },
+		{ "shot": "local-card-chips" },
+		{
+			"click": "button[data-graph-node='AbysmalBiscuit/project-flow#205'][data-outside='false'] > span:first-of-type > span:nth-of-type(3)"
+		}
+	]
+}

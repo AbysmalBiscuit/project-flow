@@ -4,7 +4,7 @@ import {
 	Position,
 } from "@xyflow/react";
 import { board } from "./board-styles.ts";
-import { type ProjectReport, parentChip, type TicketState } from "./domain.ts";
+import { outsideKey, type ProjectReport, parentChip } from "./domain.ts";
 import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import type { GraphLayout, LayoutInput } from "./graph-layout.ts";
 import {
@@ -25,29 +25,12 @@ import type {
 	GroupBy,
 } from "./view-settings.ts";
 
-export type GraphTicketView = {
-	key: string | null;
-	title: string;
-	state?: TicketState;
-	pull?: string;
-	needsYou?: boolean;
-	workstream?: string;
-	workstreamKey?: string;
-	themeGroup?: string;
-	assignees?: string[];
-	parentLabel?: string;
-	subTickets?: number;
-	subTicketsDone?: number;
-	startsCollapsed?: true;
-};
-
 export type TicketNodeData = {
 	/** The node id of the ticket. A parent ticket card copied into another group keeps it. */
 	ticketId: string;
-	ticket: GraphTicketView;
-	outside: boolean;
-	project: string;
-	tracker: "github" | "linear";
+	ticket: FlowTicket;
+	/** The parent chip label, when the ticket has a parent ticket. */
+	parentLabel?: string;
 	open: boolean;
 	/** A flat grouping shows the parent ticket hierarchy as chips. */
 	hierarchyChips: boolean;
@@ -88,64 +71,18 @@ export type TicketEdgeData = {
 	straight?: string;
 };
 
-type GraphTicket = {
-	flow: FlowTicket;
-	ticket: GraphTicketView;
-	project: string;
-	tracker: "github" | "linear";
-	outside: boolean;
-};
+type GraphTicket = { ticket: FlowTicket; parentLabel?: string };
 
-function ticketView(
-	ticket: FlowTicket,
-	report: ProjectReport,
-	reports: ProjectReport[],
-): GraphTicket {
-	const home = reports.find(
-		(report) => report.name.toLowerCase() === ticket.project.toLowerCase(),
-	);
-	const known = home?.tickets.find(
-		(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
-	);
-	const state = ticket.state ?? known?.state;
+/** An outside ticket names its parent ticket in its own project. */
+function graphTicket(ticket: FlowTicket, report: ProjectReport): GraphTicket {
+	if (ticket.parent === undefined) {
+		return { ticket };
+	}
 	return {
-		flow: ticket,
-		ticket: {
-			key: ticket.key,
-			title: ticket.title,
-			...(state === undefined ? {} : { state }),
-			...(known?.pull === undefined ? {} : { pull: known.pull }),
-			...(known?.needsYou === undefined ? {} : { needsYou: known.needsYou }),
-			...(ticket.parent === undefined
-				? {}
-				: {
-						parentLabel: parentChip(report.outsideParents, ticket.parent).label,
-					}),
-			...(ticket.subTickets === undefined
-				? {}
-				: { subTickets: ticket.subTickets }),
-			...(ticket.subTicketsDone === undefined
-				? {}
-				: { subTicketsDone: ticket.subTicketsDone }),
-			...(ticket.startsCollapsed === undefined
-				? {}
-				: { startsCollapsed: ticket.startsCollapsed }),
-			...(ticket.workstream === undefined
-				? {}
-				: { workstream: ticket.workstream }),
-			...(ticket.workstreamKey === undefined
-				? {}
-				: { workstreamKey: ticket.workstreamKey }),
-			...(ticket.themeGroup === undefined
-				? {}
-				: { themeGroup: ticket.themeGroup }),
-			...(ticket.assignees === undefined
-				? {}
-				: { assignees: ticket.assignees }),
-		},
-		project: ticket.project,
-		tracker: ticket.tracker ?? home?.tracker ?? "github",
-		outside: ticket.outside,
+		ticket,
+		parentLabel: ticket.outside
+			? outsideKey(ticket.project, ticket.parent)
+			: parentChip(report.outsideParents, ticket.parent).label,
 	};
 }
 
@@ -155,7 +92,7 @@ function shownTickets(
 	input: LayoutInput,
 ): (GraphTicket & { id: string; ticketId: string; collapsed: boolean })[] {
 	const byId = new Map(
-		graphTickets(report, true).map((ticket) => [
+		graphTickets(report, true, reports).map((ticket) => [
 			projectNodeId(ticket.project, ticket.key),
 			ticket,
 		]),
@@ -166,7 +103,7 @@ function shownTickets(
 			? []
 			: [
 					{
-						...ticketView(ticket, report, reports),
+						...graphTicket(ticket, report),
 						id: card.id,
 						ticketId: card.ticket,
 						collapsed: card.collapsed,
@@ -347,18 +284,11 @@ export function graphModel(
 	const frames = frameNodes(
 		input,
 		layout,
-		new Map(
-			tickets.flatMap((item) =>
-				item.ticket.key === null ? [] : [[item.id, item.ticket.key]],
-			),
-		),
+		new Map(tickets.map((item) => [item.id, item.ticket.key])),
 	);
 	const heads = new Set(input.frames.map((frame) => frame.head));
 	const nodes = tickets.flatMap((item) => {
 		const key = item.ticket.key;
-		if (key === null) {
-			return [];
-		}
 		const id = item.id;
 		const place = layout.cards.get(id) ?? { x: 0, y: 0 };
 		const node: FlowNode<TicketNodeData, "ticket"> = sizedNode(
@@ -371,9 +301,9 @@ export function graphModel(
 				data: {
 					ticketId: item.ticketId,
 					ticket: item.ticket,
-					outside: item.outside,
-					project: item.project,
-					tracker: item.tracker,
+					...(item.parentLabel === undefined
+						? {}
+						: { parentLabel: item.parentLabel }),
 					open: openKey === key,
 					hierarchyChips: groupBy === "assignee" || groupBy === "none",
 					frame: item.collapsed ? "collapsed" : heads.has(id) ? "open" : null,
