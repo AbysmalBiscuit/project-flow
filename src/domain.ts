@@ -117,7 +117,8 @@ export type Ticket = {
 
 export type ParentDetails = {
 	title: string;
-	state: "open" | "closed";
+	/** The lane state, absent when the tracker read says only that it is open. */
+	state?: TicketState;
 	project: string;
 	url: string;
 };
@@ -189,7 +190,7 @@ export type CrossProjectBlocker = {
 
 /** A parent ticket that the project's tickets do not include. */
 export type OutsideParent = CrossProjectBlocker & {
-	state: ParentDetails["state"];
+	state?: TicketState;
 	url: string;
 	/** The parent ticket's project is a tracked project. */
 	tracked: boolean;
@@ -1258,7 +1259,11 @@ function closedLaneType(ticket: Ticket): StatusType | undefined {
 	if (ticket.state !== "closed") {
 		return undefined;
 	}
-	return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
+	return closedStatusType(ticket.stateReason);
+}
+
+export function closedStatusType(stateReason: string | null): StatusType {
+	return closedReasons.has(stateReason ?? "") ? "dropped" : "done";
 }
 
 function laneOfStatus(ticket: Ticket, lanes: Lane[]): Lane | undefined {
@@ -3327,7 +3332,7 @@ function outsideParents(
 			project: home ?? details.project,
 			key,
 			title: details.title.trim() || key,
-			state: details.state,
+			...(details.state === undefined ? {} : { state: details.state }),
 			url: details.url,
 			tracked: home !== undefined,
 		});

@@ -835,7 +835,7 @@ export function graphTickets(
 							title: parent.title,
 							project: parent.project,
 							outside: true,
-							...(parent.state === "closed" ? { state: "done" as const } : {}),
+							...(parent.state === undefined ? {} : { state: parent.state }),
 							tracker: parent.tracker,
 							blockers: [],
 							outsideBlockers: [],

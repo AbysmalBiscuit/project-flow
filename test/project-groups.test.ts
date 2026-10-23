@@ -563,7 +563,7 @@ describe("GET /api/projects/:name", () => {
 						project: "Platform",
 						key: "PLT-3",
 						title: "Platform epic",
-						state: "open",
+						state: "inProgress",
 						url: "https://linear.app/acme/issue/PLT-3/platform-epic",
 						tracked: false,
 					},
@@ -586,7 +586,7 @@ describe("GET /api/projects/:name", () => {
 						project: otherRepo,
 						key: `${otherRepo}#9`,
 						title: "Platform gate",
-						state: "closed",
+						state: "done",
 						url: `https://github.com/${otherRepo}/issues/9`,
 						tracked: false,
 					},
@@ -613,10 +613,97 @@ describe("GET /api/projects/:name", () => {
 						project: otherRepo,
 						key: `${otherRepo}#9`,
 						title: "Platform gate",
-						state: "closed",
+						state: "done",
 						url: `https://github.com/${otherRepo}/issues/9`,
 						tracked: true,
 					},
+				]);
+			},
+		);
+	});
+
+	test("an outside parent ticket carries the lane state of its workflow state", async () => {
+		const under = (
+			identifier: string,
+			parent: string,
+			state: { type: string; name: string },
+		) => ({
+			...underPlatform,
+			id: identifier,
+			identifier,
+			parent: {
+				...platformEpic,
+				identifier: parent,
+				url: `https://linear.app/acme/issue/${parent}`,
+				state,
+			},
+		});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "linear", project: linearSlug }] }),
+			linearFake({
+				project: linearProject,
+				issues: [
+					under("WID-11", "PLT-11", { type: "started", name: "In Review" }),
+					under("WID-12", "PLT-12", { type: "completed", name: "Done" }),
+					under("WID-13", "PLT-13", { type: "canceled", name: "Canceled" }),
+					under("WID-14", "PLT-14", {
+						type: "duplicate",
+						name: "Duplicate",
+					}),
+					under("WID-15", "PLT-15", { type: "unstarted", name: "Todo" }),
+				],
+			}),
+			{ LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = await reportOf(base, "Widget launch");
+				expect(
+					report.outsideParents.map((parent) => [parent.key, parent.state]),
+				).toEqual([
+					["PLT-11", "inReview"],
+					["PLT-12", "done"],
+					["PLT-13", "dropped"],
+					["PLT-14", "dropped"],
+					["PLT-15", "backlog"],
+				]);
+			},
+		);
+		const gateUnder = (
+			number: number,
+			parent: number,
+			state: string,
+			stateReason: string | null,
+		) =>
+			issue(number, `Wait on gate ${parent}`, {
+				parent: {
+					number: parent,
+					title: `Gate ${parent}`,
+					state,
+					stateReason,
+					url: `https://github.com/${otherRepo}/issues/${parent}`,
+					repository: { nameWithOwner: otherRepo },
+				},
+			});
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+			githubFetch(
+				[
+					gateUnder(31, 41, "CLOSED", "COMPLETED"),
+					gateUnder(32, 42, "CLOSED", "NOT_PLANNED"),
+					gateUnder(33, 43, "CLOSED", "DUPLICATE"),
+					gateUnder(34, 44, "OPEN", null),
+				],
+				[],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await reportOf(base, githubRepo);
+				expect(
+					report.outsideParents.map((parent) => [parent.key, parent.state]),
+				).toEqual([
+					[`${otherRepo}#41`, "done"],
+					[`${otherRepo}#42`, "dropped"],
+					[`${otherRepo}#43`, "dropped"],
+					[`${otherRepo}#44`, undefined],
 				]);
 			},
 		);
@@ -642,7 +729,7 @@ describe("GET /api/projects/:name", () => {
 		expect(issueReads.length).toBeGreaterThan(0);
 		for (const read of issueReads) {
 			expect(read.query).toContain(
-				"parent { identifier title url state { type } project { name } }",
+				"parent { identifier title url state { type name } project { name } }",
 			);
 		}
 		expect(
@@ -664,7 +751,7 @@ describe("GET /api/projects/:name", () => {
 		expect(
 			repoReads.some((read) =>
 				read.query.includes(
-					"parent { number title state url repository { nameWithOwner } }",
+					"parent { number title state stateReason url repository { nameWithOwner } }",
 				),
 			),
 		).toBe(true);
@@ -688,7 +775,7 @@ describe("GET /api/projects/:name", () => {
 		expect(itemReads.length).toBeGreaterThan(0);
 		for (const read of itemReads) {
 			expect(read.query).toContain(
-				"parent { number title state url repository { nameWithOwner } }",
+				"parent { number title state stateReason url repository { nameWithOwner } }",
 			);
 		}
 	});
