@@ -39,10 +39,11 @@ import {
 	routeEdge,
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
+import { panel } from "./panel-styles.ts";
 import { graphLayoutFailedLabel } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { classToken, clsx } from "./ui.ts";
-import { cards, panel } from "./ui-styles.ts";
+import { cards } from "./ui-styles.ts";
 
 /** A group frame, or with `head` the frame of the parent ticket with that key. */
 export type ClusterData = {

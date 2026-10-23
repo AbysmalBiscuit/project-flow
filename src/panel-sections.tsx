@@ -1,5 +1,6 @@
 import { CommentMarkdown } from "./comment-markdown.tsx";
 import type { NeedsYouItem, ThreadComment, TicketRelation } from "./domain.ts";
+import { panel } from "./panel-styles.ts";
 import {
 	mergeFactLabel,
 	openOnGitHubLabel,
@@ -8,7 +9,7 @@ import {
 } from "./terms.ts";
 import { itemId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
-import { panel, shell } from "./ui-styles.ts";
+import { shell } from "./ui-styles.ts";
 
 function commentTime(value: string): string {
 	const parsed = new Date(value);

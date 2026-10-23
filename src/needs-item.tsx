@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { NeedsYouItem } from "./domain.ts";
+import { needs } from "./needs-you-styles.ts";
 import {
 	actionLabel,
 	answeredReason,
@@ -8,7 +9,6 @@ import {
 } from "./terms.ts";
 import { phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { needs } from "./ui-styles.ts";
 
 function heldAction(item: NeedsYouItem): string | null {
 	if (item.reason === "awaitingMerge") {

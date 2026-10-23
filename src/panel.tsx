@@ -17,6 +17,7 @@ import type {
 } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
 import { CommentTree, RelationList, WhySection } from "./panel-sections.tsx";
+import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { openTicket } from "./selection.ts";
@@ -35,7 +36,7 @@ import {
 } from "./terms.ts";
 import { sameTicketKey, type TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
-import { panel, shell } from "./ui-styles.ts";
+import { shell } from "./ui-styles.ts";
 
 type ReplyTarget = {
 	parentId?: string;

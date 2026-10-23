@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { NeedsItem } from "./needs-item.tsx";
+import { needs } from "./needs-you-styles.ts";
 import { TicketPanel } from "./panel.tsx";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { pageQuery } from "./queries.ts";
@@ -25,7 +26,6 @@ import {
 } from "./terms.ts";
 import { itemId, ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
-import { needs } from "./ui-styles.ts";
 
 const allReasons = "all";
 const allProjects = "all";
