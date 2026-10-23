@@ -1,0 +1,18 @@
+{
+	"base_url": "http://127.0.0.1:4433",
+	"serve": ["bun", "proof/serve-355.ts", "4433", "dark"],
+	"steps": [
+		{ "goto": "/projects/api-kysely%20cleanup%20followup" },
+		{ "assert_text": "Retire the legacy query builder" },
+		{ "click": "#project-graph-fit" },
+		{ "assert_text": "scope-clear" },
+		{ "assert_text": "legend-clear" },
+		{ "shot": "scope-layered-dark" },
+		{ "click": "#project-graph-collapse-all" },
+		{ "click": "#project-graph-fit" },
+		{ "assert_text": "No frames open" },
+		{ "assert_text": "scope-clear" },
+		{ "assert_text": "legend-clear" },
+		{ "shot": "scope-collapsed-dark" }
+	]
+}

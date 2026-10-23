@@ -255,6 +255,11 @@ export const graphLayoutLabel = {
 	force: "Force",
 } as const;
 
+export const graphLayoutTip = {
+	layered: "Lines up the tickets in ranks along the blocker arrows.",
+	force: "Pulls linked tickets together and pushes the rest apart.",
+} as const;
+
 export const groupByLabel = {
 	workstream: "Workstream",
 	theme: "Theme",

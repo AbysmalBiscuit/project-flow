@@ -1,0 +1,31 @@
+{
+	"base_url": "http://127.0.0.1:4433",
+	"serve": ["bun", "proof/serve-355.ts", "4433", "dark"],
+	"steps": [
+		{ "goto": "/projects/api-kysely%20cleanup%20followup" },
+		{ "assert_text": "Retire the legacy query builder" },
+		{
+			"click": "#graph-layout-layered[aria-describedby='graph-layout-layered-tip']"
+		},
+		{
+			"assert_text": "Lines up the tickets in ranks along the blocker arrows."
+		},
+		{ "shot": "layered-tip-dark" },
+		{ "click": "#project-graph-fit" },
+		{
+			"click": "#project-graph-controls:not(:has([role='tooltip']:not([hidden]))) #project-graph-fit"
+		},
+		{
+			"click": "#graph-layout-force[aria-describedby='graph-layout-force-tip']"
+		},
+		{
+			"assert_text": "Pulls linked tickets together and pushes the rest apart."
+		},
+		{ "shot": "force-tip-dark" },
+		{ "click": "#project-graph-fit" },
+		{
+			"click": "#project-graph-controls:not(:has([role='tooltip']:not([hidden]))) #project-graph-fit"
+		},
+		{ "shot": "tips-hidden-dark" }
+	]
+}

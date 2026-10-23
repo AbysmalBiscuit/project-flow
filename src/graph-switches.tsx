@@ -1,4 +1,18 @@
-import { graphDirectionLabel, graphLayoutLabel } from "./terms.ts";
+import * as stylex from "@stylexjs/stylex";
+import { useState } from "react";
+import {
+	graphDirectionLabel,
+	graphLayoutLabel,
+	graphLayoutTip,
+} from "./terms.ts";
+import {
+	colours,
+	measure,
+	radius,
+	space,
+	stack,
+	type,
+} from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { cards, headerControlStyle } from "./ui-styles.ts";
 import {
@@ -8,6 +22,34 @@ import {
 	graphLayouts,
 } from "./view-settings.ts";
 
+const tip = stylex.create({
+	anchor: {
+		position: "relative",
+		display: "inline-flex",
+		height: "100%",
+	},
+	bubble: {
+		position: "absolute",
+		zIndex: stack.jump,
+		bottom: `calc(100% + ${space.sm})`,
+		left: 0,
+		width: "max-content",
+		maxWidth: measure.tip,
+		padding: `${space.xs} ${space.sm}`,
+		borderWidth: measure.hairline,
+		borderStyle: "solid",
+		borderColor: colours.laneLine,
+		borderRadius: radius.sm,
+		backgroundColor: colours.raised,
+		boxShadow: `0 0 ${space.md} ${colours.shadow}`,
+		color: colours.ink,
+		fontSize: type.meta,
+		whiteSpace: "normal",
+		pointerEvents: "none",
+	},
+});
+
+/** Each layout button shows what its layout does on hover or focus. */
 export function LayoutSwitch({
 	layout,
 	onChange,
@@ -15,23 +57,44 @@ export function LayoutSwitch({
 	layout: GraphLayoutKind;
 	onChange: (layout: GraphLayoutKind) => void;
 }) {
+	const [shown, setShown] = useState<GraphLayoutKind | null>(null);
+	const hide = () => setShown(null);
 	return (
 		<fieldset className={clsx(headerControlStyle.group)}>
 			<legend className={clsx(cards.graphProbe)}>Graph layout</legend>
 			{graphLayouts.map((item) => (
-				<button
-					key={item}
-					type="button"
-					id={`graph-layout-${item}`}
-					className={clsx(
-						headerControlStyle.segment,
-						layout === item && headerControlStyle.segmentOn,
-					)}
-					aria-pressed={layout === item}
-					onClick={() => onChange(item)}
-				>
-					{graphLayoutLabel[item]}
-				</button>
+				<span key={item} className={clsx(tip.anchor)}>
+					<button
+						type="button"
+						id={`graph-layout-${item}`}
+						className={clsx(
+							headerControlStyle.segment,
+							layout === item && headerControlStyle.segmentOn,
+						)}
+						aria-pressed={layout === item}
+						aria-describedby={`graph-layout-${item}-tip`}
+						onClick={() => onChange(item)}
+						onMouseEnter={() => setShown(item)}
+						onMouseLeave={hide}
+						onFocus={() => setShown(item)}
+						onBlur={hide}
+						onKeyDown={(event) => {
+							if (event.key === "Escape") {
+								hide();
+							}
+						}}
+					>
+						{graphLayoutLabel[item]}
+					</button>
+					<span
+						id={`graph-layout-${item}-tip`}
+						role="tooltip"
+						hidden={shown !== item}
+						className={clsx(tip.bubble)}
+					>
+						{graphLayoutTip[item]}
+					</span>
+				</span>
 			))}
 		</fieldset>
 	);
