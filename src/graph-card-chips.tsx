@@ -1,10 +1,10 @@
 import { board } from "./board-styles.ts";
 import { Chip, ServerChips } from "./card-chips.tsx";
 import type { FlowTicket } from "./graph-flow.ts";
-import { parentChipLabel, subTicketsLabel } from "./terms.ts";
+import { navLabel, parentChipLabel, subTicketsLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
-/** The hierarchy chips, when shown, and the server chips of a graph node. */
+/** The Needs you chip, the hierarchy chips when shown, and the server chips of a graph node. */
 export function GraphCardChips({
 	data,
 }: {
@@ -16,12 +16,18 @@ export function GraphCardChips({
 	if (
 		parent === undefined &&
 		subTickets === undefined &&
-		ticket.chips === undefined
+		ticket.chips === undefined &&
+		!ticket.needsYou
 	) {
 		return null;
 	}
 	return (
-		<span className={clsx(board.chips)}>
+		<span className={clsx(board.chips, board.chipsRow)}>
+			{ticket.needsYou ? (
+				<span className={clsx(board.chip, board.chipNeeds)}>
+					{navLabel.needsYou}
+				</span>
+			) : null}
 			{parent === undefined ? null : (
 				<Chip label={parentChipLabel(parent)} hierarchy />
 			)}
