@@ -25,6 +25,9 @@ export const groupHead = 28;
 /** The gap between a parent ticket frame's border and its cards. */
 export const framePad = 16;
 
+/** The least gap between two cards, when a drawn card fills the flow gap. */
+const leastCardGap = 32;
+
 export type LayoutGroup = { id: string; label: string; framed: boolean };
 
 /**
@@ -306,8 +309,8 @@ function placeOptions(
 	card: NodeSize,
 ): Record<string, string> {
 	const horizontal = direction === "left-to-right";
-	const alongGap = flowGap.along - card.width;
-	const acrossGap = flowGap.across - card.height;
+	const alongGap = Math.max(flowGap.along - card.width, leastCardGap);
+	const acrossGap = Math.max(flowGap.across - card.height, leastCardGap);
 	return {
 		"elk.algorithm": "layered",
 		"elk.direction": horizontal ? "RIGHT" : "DOWN",

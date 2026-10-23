@@ -232,6 +232,28 @@ describe("project graph layout", () => {
 		}
 	});
 
+	test("cards do not overlap when the drawn card is taller than the flow gap", async () => {
+		const tall = { width: card.width, height: card.height * 2.5 };
+		for (const direction of ["left-to-right", "top-to-bottom"] as const) {
+			const input = layoutInput(workcell, "workstream", []);
+			const layout = await layoutGraph(
+				elk,
+				input,
+				direction,
+				tall,
+				() => 0,
+				() => 0,
+			);
+			expect({
+				direction,
+				cardOverlaps: cardOverlaps(
+					layout,
+					new Map(input.cards.map((item) => [item.id, tall])),
+				),
+			}).toEqual({ direction, cardOverlaps: [] });
+		}
+	});
+
 	test("sibling parent ticket frames do not overlap", async () => {
 		const report = await hierarchyReport("");
 		for (const direction of ["left-to-right", "top-to-bottom"] as const) {
