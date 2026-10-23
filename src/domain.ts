@@ -117,7 +117,8 @@ export type Ticket = {
 
 export type ParentDetails = {
 	title: string;
-	state: "open" | "closed";
+	/** The lane state, absent when the tracker read says only that it is open. */
+	state?: TicketState;
 	project: string;
 	url: string;
 };
@@ -189,8 +190,10 @@ export type CrossProjectBlocker = {
 
 /** A parent ticket that the project's tickets do not include. */
 export type OutsideParent = CrossProjectBlocker & {
-	state: ParentDetails["state"];
+	state?: TicketState;
 	url: string;
+	/** The parent ticket's project is a tracked project. */
+	tracked: boolean;
 };
 
 export type PullRequest = {
@@ -1256,7 +1259,11 @@ function closedLaneType(ticket: Ticket): StatusType | undefined {
 	if (ticket.state !== "closed") {
 		return undefined;
 	}
-	return closedReasons.has(ticket.stateReason ?? "") ? "dropped" : "done";
+	return closedStatusType(ticket.stateReason);
+}
+
+export function closedStatusType(stateReason: string | null): StatusType {
+	return closedReasons.has(stateReason ?? "") ? "dropped" : "done";
 }
 
 function laneOfStatus(ticket: Ticket, lanes: Lane[]): Lane | undefined {
@@ -2069,7 +2076,7 @@ function ticketRelations(
 				other === undefined
 					? undefined
 					: groups.find((group) => group.tickets.includes(other))?.project;
-			const project = otherHome ?? ref.project;
+			const project = otherHome ?? (ref.projectName?.trim() || ref.project);
 			const title = other?.title.trim() || ref.title?.trim() || ref.key;
 			pushBlock(ref, project, title);
 		}
@@ -3309,18 +3316,25 @@ function outsideParents(
 		if (key === null || details === undefined || own.has(key.toLowerCase())) {
 			continue;
 		}
-		const home = all.find((group) =>
-			group.tickets.some(
-				(other) => other.key !== null && sameTicketKey(other.key, key),
-			),
-		)?.project;
+		const home =
+			all.find((group) =>
+				group.tickets.some(
+					(other) => other.key !== null && sameTicketKey(other.key, key),
+				),
+			)?.project ??
+			all.find(
+				(group) =>
+					details.project !== "" &&
+					group.project.toLowerCase() === details.project.toLowerCase(),
+			)?.project;
 		found.set(key.toLowerCase(), {
 			tracker: ticket.tracker,
 			project: home ?? details.project,
 			key,
 			title: details.title.trim() || key,
-			state: details.state,
+			...(details.state === undefined ? {} : { state: details.state }),
 			url: details.url,
+			tracked: home !== undefined,
 		});
 	}
 	return [...found.values()];

@@ -95,7 +95,7 @@ type Placed = { id: string; group: string | null; ticket: FlowTicket };
 /**
  * The parent ticket card of each card. Each group frames its cards by their
  * whole parent chain, with a copy of each parent ticket card from another
- * group. A link that would close a parent cycle is dropped.
+ * group or another project. A link that would close a parent cycle is dropped.
  */
 function parentLinks(
 	placed: readonly Placed[],
@@ -105,9 +105,7 @@ function parentLinks(
 	copies: Map<string, Placed & { of: string }>;
 } {
 	const byKey = new Map(
-		placed.flatMap((item) =>
-			item.ticket.outside ? [] : [[item.ticket.key.toLowerCase(), item]],
-		),
+		placed.map((item) => [item.ticket.key.toLowerCase(), item]),
 	);
 	const parentOf = (item: Placed) =>
 		byKey.get(item.ticket.parent?.toLowerCase() ?? "");
@@ -185,10 +183,13 @@ export function layoutInput(
 		}
 		return { id, group, ticket };
 	});
-	const hiddenParents = new Set(
-		report.graphParents.flatMap((ticket) =>
-			ticket.key === null ? [] : [projectNodeId(report.name, ticket.key)],
+	const shownTickets = new Set(
+		graphTickets(report).map((ticket) =>
+			projectNodeId(ticket.project, ticket.key),
 		),
+	);
+	const hiddenParents = new Set(
+		placed.flatMap((item) => (shownTickets.has(item.id) ? [] : [item.id])),
 	);
 	const { links, copies } = framed
 		? parentLinks(placed, hiddenParents)

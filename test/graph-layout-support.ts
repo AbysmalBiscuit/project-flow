@@ -7,7 +7,7 @@ import {
 	type Rect,
 } from "../src/graph-layout.ts";
 import { linearSlug, withApp } from "./project-harness.ts";
-import { linearFake } from "./support.ts";
+import { type LinearFake, linearFake } from "./support.ts";
 
 export const card = { width: 220, height: 96 };
 export const workcell = (await Bun.file(
@@ -72,7 +72,7 @@ export const milestones = [
 
 export async function hierarchyReport(
 	search: string,
-	issues = hierarchy,
+	issues: LinearFake["issues"] = hierarchy,
 ): Promise<ProjectReport> {
 	let report: ProjectReport | null = null;
 	await withApp(

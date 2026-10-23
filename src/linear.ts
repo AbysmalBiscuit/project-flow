@@ -86,7 +86,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			description
 			state { id name type color }
 			updatedAt
-			parent { identifier title url state { type } project { name } }
+			parent { identifier title url state { type name } project { name } }
 			projectMilestone { name }
 			labels { nodes { name } }
 			assignee { id name displayName }
@@ -198,7 +198,10 @@ const issueNode = z.object({
 			identifier: z.string(),
 			title: z.string().optional(),
 			url: z.string().optional(),
-			state: z.object({ type: z.string() }).nullable().optional(),
+			state: z
+				.object({ type: z.string(), name: z.string().optional() })
+				.nullable()
+				.optional(),
 			project: z.object({ name: z.string() }).nullable().optional(),
 		})
 		.nullable()
@@ -366,23 +369,22 @@ function blocking(node: z.infer<typeof issueNode>): TicketRef[] {
 function parentDetailsOf(
 	parent: z.infer<typeof issueNode>["parent"],
 ): Pick<Ticket, "parentDetails"> {
-	const mapped =
-		parent?.state === null || parent?.state === undefined
-			? null
-			: toState(parent.state.type);
+	const state = parent?.state;
 	if (
 		parent === null ||
 		parent === undefined ||
 		parent.title === undefined ||
 		parent.url === undefined ||
-		mapped === null
+		state === null ||
+		state === undefined ||
+		toState(state.type) === null
 	) {
 		return {};
 	}
 	return {
 		parentDetails: {
 			title: parent.title,
-			state: mapped.state,
+			state: linearStatusType(state.type, state.name ?? ""),
 			project: parent.project?.name ?? "",
 			url: parent.url,
 		},

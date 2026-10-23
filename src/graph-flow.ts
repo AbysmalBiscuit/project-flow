@@ -788,12 +788,19 @@ export type FlowTicket = {
 
 /**
  * The tickets the project graph shows. With `withParents`, the hidden parent
- * tickets that head the frames of shown sub-tickets come last.
+ * tickets and the outside parent tickets that head the frames of shown
+ * sub-tickets come last.
  */
 export function graphTickets(
 	report: ProjectReport,
 	withParents = false,
 ): FlowTicket[] {
+	const parents = new Map(
+		report.outsideParents.map((parent) => [
+			projectNodeId(parent.project, parent.key),
+			parent,
+		]),
+	);
 	const seen = new Set<string>();
 	const outside: FlowTicket[] = [];
 	for (const link of report.graphLinks) {
@@ -806,12 +813,14 @@ export function graphTickets(
 				continue;
 			}
 			seen.add(id);
+			const parent = parents.get(id);
+			const state = end.state ?? parent?.state;
 			outside.push({
 				key: end.key,
-				title: end.title,
+				title: parent?.title ?? end.title,
 				project: end.project,
 				outside: true,
-				...(end.state === undefined ? {} : { state: end.state }),
+				...(state === undefined ? {} : { state }),
 				tracker: end.tracker,
 				blockers: [],
 				outsideBlockers: [],
@@ -823,6 +832,24 @@ export function graphTickets(
 		`${left.project} ${left.key}`.localeCompare(
 			`${right.project} ${right.key}`,
 		),
+	);
+	const outsideParents = (withParents ? [...parents] : []).flatMap(
+		([id, parent]): FlowTicket[] =>
+			seen.has(id)
+				? []
+				: [
+						{
+							key: parent.key,
+							title: parent.title,
+							project: parent.project,
+							outside: true,
+							...(parent.state === undefined ? {} : { state: parent.state }),
+							tracker: parent.tracker,
+							blockers: [],
+							outsideBlockers: [],
+							blocks: [],
+						},
+					],
 	);
 	const local = [
 		...report.graphTickets,
@@ -873,7 +900,7 @@ export function graphTickets(
 			},
 		];
 	});
-	return [...outside, ...local];
+	return [...outside, ...local, ...outsideParents];
 }
 
 export const outsideBand = "\u0000outside";
