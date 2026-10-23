@@ -80,7 +80,7 @@ function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
 			className={clsx(cards.chip, cards.chipHover)}
-			href={projectPath(blocker.project, blocker.key)}
+			href={projectPath(blocker.project, blocker)}
 		>
 			Blocked by {blockerTicket(blocker)}
 		</a>
@@ -624,7 +624,7 @@ function TableView({
 														cards.blockerChip,
 														cards.chipHover,
 													)}
-													href={projectPath(blocker.project, blocker.key)}
+													href={projectPath(blocker.project, blocker)}
 												>
 													{blockerTicket(blocker)}
 												</a>
@@ -984,19 +984,19 @@ function OverviewPage({
 							>
 								<a
 									className={clsx(cards.needKey, phoneLayout.cardNeedKey)}
-									href={projectPath(item.project, item.key)}
+									href={projectPath(item.project, item)}
 								>
 									{item.project}#{ticketKey(item.key)}
 								</a>
 								<a
 									className={clsx(cards.needTitle)}
-									href={projectPath(item.project, item.key)}
+									href={projectPath(item.project, item)}
 								>
 									{item.headline}
 								</a>
 								<a
 									className={clsx(cards.pill)}
-									href={projectPath(item.project, item.key)}
+									href={projectPath(item.project, item)}
 								>
 									{actionLabel(item, "strip")}
 								</a>
