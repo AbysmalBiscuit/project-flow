@@ -15,6 +15,9 @@ import type { GraphDirection, GroupBy } from "./view-settings.ts";
 /** The page starts ELK from this script in a Web Worker. */
 export const elkWorkerPath = "/elk-worker.js";
 
+/** The page runs the Force layout from this script in a Web Worker. */
+export const forceWorkerPath = "/force-worker.js";
+
 export const groupPad = 16;
 export const groupHead = 28;
 

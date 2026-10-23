@@ -26,8 +26,10 @@ import {
 } from "./overview-view.ts";
 import {
 	defaultGraphDirection,
+	defaultGraphLayout,
 	emptyMaxAgeDays,
 	graphDirections,
+	graphLayouts,
 	groupByKeys,
 	openViews,
 	pageViews,
@@ -95,6 +97,7 @@ const projectViewSettings = z.strictObject({
 	openView: z.enum(openViews).optional(),
 	lastView: z.enum(pageViews).optional(),
 	graphDirection: z.enum(graphDirections).default(defaultGraphDirection),
+	graphLayout: z.enum(graphLayouts).default(defaultGraphLayout),
 	groupBy: z.enum(groupByKeys).optional(),
 });
 

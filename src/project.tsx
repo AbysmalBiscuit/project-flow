@@ -73,6 +73,7 @@ import { frame, headerControlStyle, shell } from "./ui-styles.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphGroupBy,
+	defaultGraphLayout,
 	defaultGroupBy,
 	emptyMaxAgeDays,
 	type GroupBy,
@@ -1350,6 +1351,7 @@ export function Page() {
 					assignees: [],
 					search: "",
 					graphDirection: defaultGraphDirection,
+					graphLayout: defaultGraphLayout,
 				};
 				projectViews[key] = { ...previous, lastView: kept.lastView };
 			}
@@ -1548,6 +1550,7 @@ export function Page() {
 									report={report}
 									reports={outsideReports}
 									direction={settings.graphDirection}
+									layout={settings.graphLayout}
 									groupBy={graphGroupBy(settings)}
 									assignees={settings.assignees}
 									openKey={open ? ticket : null}
@@ -1557,6 +1560,9 @@ export function Page() {
 									onPreviewEnd={ticketFocus.leave}
 									onDirection={(next) =>
 										saveView({ ...settings, graphDirection: next })
+									}
+									onLayout={(next) =>
+										saveView({ ...settings, graphLayout: next })
 									}
 									onOpen={(node) => {
 										if (node.outside) {

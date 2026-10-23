@@ -10,6 +10,10 @@ export const graphDirections = ["left-to-right", "top-to-bottom"] as const;
 
 export type GraphDirection = (typeof graphDirections)[number];
 
+export const graphLayouts = ["layered", "force"] as const;
+
+export type GraphLayoutKind = (typeof graphLayouts)[number];
+
 export const groupByKeys = ["workstream", "theme", "assignee", "none"] as const;
 
 export type GroupBy = (typeof groupByKeys)[number];
@@ -19,6 +23,8 @@ export const emptyMaxAgeDays: Record<string, number> = {};
 export const defaultOpenView = "last" as const;
 
 export const defaultGraphDirection = "left-to-right" as const;
+
+export const defaultGraphLayout = "layered" as const;
 
 export const defaultGroupBy = "none" as const;
 
@@ -42,6 +48,7 @@ export function viewDefaults(): ProjectViewSettings {
 		search: "",
 		openView: defaultOpenView,
 		graphDirection: defaultGraphDirection,
+		graphLayout: defaultGraphLayout,
 	};
 }
 
