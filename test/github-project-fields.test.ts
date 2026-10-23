@@ -26,15 +26,18 @@ const withoutStatus = <Item extends object>(item: Item) => ({
 	fieldValueByName: null,
 });
 
+type Sent = { url: string; body: string };
+
 const trackerFetch =
-	(projectItems: unknown[], sent: string[] = []): Fetch =>
+	(projectItems: unknown[], sent: Sent[] = []): Fetch =>
 	async (input, init) => {
+		const url = urlOf(input);
+		const body = typeof init?.body === "string" ? init.body : "";
+		sent.push({ url, body });
 		const viewer = recordedViewer(input, init);
 		if (viewer !== null) {
 			return viewer;
 		}
-		const url = urlOf(input);
-		const body = typeof init?.body === "string" ? init.body : "";
 		if (url === "https://api.github.com/graphql") {
 			if (body.includes("query RepoRead")) {
 				const [owner = "", name = ""] = repo.split("/");
@@ -54,7 +57,6 @@ const trackerFetch =
 				});
 			}
 			if (body.includes("query Blocking")) {
-				sent.push(body);
 				return Response.json(recorded.blockingNextPage);
 			}
 		}
@@ -184,7 +186,7 @@ describe("GitHub project ticket fields", () => {
 	});
 
 	test("a later page of blocked tickets reaches the project ticket", async () => {
-		const sent: string[] = [];
+		const sent: Sent[] = [];
 		const open = recorded.projectItems.find(
 			(item) => item.content.state === "OPEN",
 		);
@@ -204,7 +206,12 @@ describe("GitHub project ticket fields", () => {
 			"AbysmalBiscuit/project-flow#400",
 			"AbysmalBiscuit/project-flow#399",
 		]);
-		expect(sent).toHaveLength(1);
-		expect(sent[0]).toContain(recorded.blockingFirstPage.pageInfo.endCursor);
+		const blocking = sent.filter((request) =>
+			request.body.includes("query Blocking"),
+		);
+		expect(blocking).toHaveLength(1);
+		expect(blocking[0]?.body).toContain(
+			recorded.blockingFirstPage.pageInfo.endCursor,
+		);
 	});
 });
