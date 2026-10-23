@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { withApp } from "./project-harness.ts";
 import {
 	linearFake,
 	recordedDiscovery,
@@ -858,6 +860,53 @@ describe("PR links", () => {
 			await cleanup();
 			await rm(root, { recursive: true, force: true });
 		}
+	});
+
+	test("a project ticket carries the URL of its linked PR", async () => {
+		await withApp(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+			githubFetch({
+				issues: [issue(12), issue(13)],
+				pulls: [pull(40, { body: "Closes #12", draft: true })],
+			}),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const linkedTicket = report.tickets.find(
+					(ticket) => ticket.key === `${repo}#12`,
+				);
+				expect(linkedTicket?.pull).toBe(`${repo}#40`);
+				expect(linkedTicket?.pullUrl).toBe(
+					"https://github.com/acme/widget/pull/40",
+				);
+				const bare = report.tickets.find(
+					(ticket) => ticket.key === `${repo}#13`,
+				);
+				expect(bare).toBeDefined();
+				expect(bare?.pullUrl).toBeUndefined();
+			},
+		);
+	});
+
+	test("a Linear project ticket carries the URL of its attached PR", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [{ tracker: "linear", project: linearProject }],
+			}),
+			linearFetch(),
+			{ GITHUB_TOKEN: "recorded-token", LINEAR_API_KEY: "recorded-linear-key" },
+			async (base) => {
+				const report = (await (
+					await fetch(new URL("/api/projects/Widget%20launch", base))
+				).json()) as ProjectReport;
+				const ticket = report.tickets.find((item) => item.key === "WID-14");
+				expect(ticket?.pullUrl).toBe("https://github.com/acme/widget/pull/77");
+			},
+		);
 	});
 
 	test("a branch name links a recorded PR to its ticket", async () => {

@@ -1602,6 +1602,7 @@ export function Page() {
 											? openedParent?.url
 											: trackerUrl(panelTracker, selected.key)
 									}
+									pullUrl={selected?.pullUrl}
 									projectHref={
 										openedParent?.tracked === true
 											? projectPath(openedParent.project, openedParent.key)

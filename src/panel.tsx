@@ -15,7 +15,9 @@ import {
 	closePanelLabel,
 	collapsePanelLabel,
 	expandPanelLabel,
+	openPullLabel,
 	projectPageLabel,
+	pullButtonLabel,
 	stateLabel,
 	threadFailedLabel,
 	threadMissingLabel,
@@ -51,6 +53,7 @@ export function TicketPanel({
 	ticketKey,
 	title,
 	url,
+	pullUrl,
 	projectHref,
 	state,
 	lane,
@@ -68,6 +71,8 @@ export function TicketPanel({
 	ticketKey: string;
 	title?: string;
 	url?: string | undefined;
+	/** The linked PR of the ticket. */
+	pullUrl?: string | undefined;
 	/** The project page of a ticket in another tracked project. */
 	projectHref?: string | undefined;
 	state?: TicketState;
@@ -250,6 +255,15 @@ export function TicketPanel({
 							icon="external-link"
 							label={trackerName}
 							name={`Open on ${trackerName}`}
+						/>
+					)}
+					{pullUrl === undefined ? null : (
+						<Button
+							href={pullUrl}
+							newTab
+							icon="external-link"
+							label={pullButtonLabel}
+							name={openPullLabel}
 						/>
 					)}
 					{dock ? null : (

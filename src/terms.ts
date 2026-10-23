@@ -139,6 +139,10 @@ export const closePanelLabel = "Close";
 
 export const openOnGitHubLabel = "Open on GitHub";
 
+export const pullButtonLabel = "PR";
+
+export const openPullLabel = "Open the PR on GitHub";
+
 export const mergeFactLabel = {
 	pr: "PR",
 	ci: "CI",
