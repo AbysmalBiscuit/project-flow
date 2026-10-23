@@ -16,7 +16,6 @@ import {
 	Chip,
 	OutsideParentsContext,
 } from "./card-chips.tsx";
-import { cardTones } from "./card-tones.ts";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import {
@@ -37,7 +36,6 @@ import { Dropdown } from "./dropdown.tsx";
 import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
-import { laneMark } from "./lane-mark.ts";
 import { TicketPanel } from "./panel.tsx";
 import { projectPath } from "./paths.ts";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
@@ -47,6 +45,7 @@ import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
+import { toneOf } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
 	blockedLabel,
@@ -394,7 +393,8 @@ function Card({
 				className={clsx(
 					board.card,
 					board.cardFocus,
-					cardTone(ticket.statusType),
+					board.toned,
+					toneOf(ticket.statusType),
 				)}
 				data-ticket={key ?? ""}
 				data-faded={faded ? "true" : "false"}
@@ -451,10 +451,6 @@ function Card({
 	);
 }
 
-function cardTone(statusType: StatusType | undefined) {
-	return statusType === undefined ? board.cardBacklog : cardTones[statusType];
-}
-
 function LaneCards({
 	tickets,
 	onOpen,
@@ -480,7 +476,6 @@ function LaneCards({
 
 function Lane({
 	name,
-	colour,
 	statusType,
 	tickets,
 	fresh,
@@ -493,7 +488,6 @@ function Lane({
 	onOpenOutside,
 }: {
 	name: string;
-	colour: string;
 	statusType: StatusType;
 	tickets: TicketView[];
 	fresh: TicketView[];
@@ -522,10 +516,7 @@ function Lane({
 				data-faded={headFaded ? "true" : "false"}
 			>
 				<h2 className={clsx(board.laneTitle)}>
-					<span
-						className={clsx(board.laneMark, laneMark(colour, statusType))}
-						data-lane-colour={colour}
-					/>
+					<span className={clsx(board.laneMark, toneOf(statusType))} />
 					<span className={clsx(board.laneName)} title={name}>
 						{name}
 					</span>{" "}
@@ -820,14 +811,7 @@ function TableRow({
 			</td>
 			<td className={clsx(board.rowCell, board.rowTitle)}>{ticket.title}</td>
 			<td className={clsx(board.rowCell)}>
-				<span
-					className={clsx(
-						board.stateMark,
-						lane === undefined
-							? board.markBacklog
-							: laneMark(lane.colour, lane.statusType),
-					)}
-				/>
+				<span className={clsx(board.stateMark, toneOf(lane?.statusType))} />
 				{displayedLaneName(ticket)}
 			</td>
 			<td className={clsx(board.rowCell)}>{ticket.pull ?? ""}</td>
@@ -1077,7 +1061,6 @@ function Board({
 					<Lane
 						key={lane.id}
 						name={lane.name}
-						colour={lane.colour}
 						statusType={lane.statusType}
 						groupBy={boardGroupBy(settings)}
 						tickets={
@@ -1552,9 +1535,10 @@ export function Page() {
 											? {}
 											: { state: openedState })}
 									lane={selected?.lane}
-									laneStyle={source?.lanes.find(
-										(lane) => lane.name === selected?.lane,
-									)}
+									laneState={
+										source?.lanes.find((lane) => lane.name === selected?.lane)
+											?.statusType
+									}
 									blockers={incoming}
 									blocks={outgoing}
 									item={panelItem(
