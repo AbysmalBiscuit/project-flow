@@ -39,9 +39,10 @@ import {
 	routeEdge,
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
+import { graphLayoutFailedLabel } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { classToken, clsx } from "./ui.ts";
-import { cards } from "./ui-styles.ts";
+import { cards, panel } from "./ui-styles.ts";
 
 /** A group frame, or with `head` the frame of the parent ticket with that key. */
 export type ClusterData = {
@@ -206,6 +207,27 @@ function useMarkers() {
 			done: markerEnd(done.size, done.color),
 		};
 	}, [theme]);
+}
+
+/** The graph box before a layout lands, with an alert when the layout failed. */
+export function GraphPending({
+	root,
+	className,
+	failed,
+}: {
+	root: string;
+	className: StyleXStyles;
+	failed: boolean;
+}) {
+	return (
+		<div id={root} className={clsx(className)}>
+			{failed ? (
+				<p className={clsx(panel.error)} role="alert">
+					{graphLayoutFailedLabel}
+				</p>
+			) : null}
+		</div>
+	);
 }
 
 /**

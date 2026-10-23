@@ -33,13 +33,13 @@ import {
 	CardHandles,
 	type CardProps,
 	drawnLink,
+	GraphPending,
 	GraphView,
 	type LinkProps,
 } from "./graph-view.tsx";
 import { stateTones } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
-	graphLayoutFailedLabel,
 	navLabel,
 	openParentLabel,
 	stateLabel,
@@ -48,7 +48,7 @@ import {
 } from "./terms.ts";
 import { outsideKey, shortKey } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
-import { cards, panel } from "./ui-styles.ts";
+import { cards } from "./ui-styles.ts";
 import type {
 	GraphDirection,
 	GraphLayoutKind,
@@ -330,13 +330,11 @@ export function ProjectGraph({
 	);
 	if (laid === null) {
 		return (
-			<div id="project-graph" className={clsx(board.ticketGraph)}>
-				{failed ? (
-					<p className={clsx(panel.error)} role="alert">
-						{graphLayoutFailedLabel}
-					</p>
-				) : null}
-			</div>
+			<GraphPending
+				root="project-graph"
+				className={board.ticketGraph}
+				failed={failed}
+			/>
 		);
 	}
 	const chain =

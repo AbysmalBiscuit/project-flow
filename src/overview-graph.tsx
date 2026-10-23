@@ -14,6 +14,7 @@ import {
 	CardHandles,
 	type CardProps,
 	drawnLink,
+	GraphPending,
 	GraphView,
 	type LinkProps,
 } from "./graph-view.tsx";
@@ -171,7 +172,7 @@ export function OverviewGraph({
 	const span = useNodeSpan(cards.graphNode, "project", "Project");
 	const input = useMemo(() => overviewInput(projects), [projects]);
 	const anchor = useRef<Anchor | null>(null);
-	const { laid } = useLaidGraph(
+	const { laid, failed } = useLaidGraph(
 		projects,
 		input,
 		"left-to-right",
@@ -205,7 +206,13 @@ export function OverviewGraph({
 		[laid],
 	);
 	if (laid === null) {
-		return <div id="overview-graph" className={clsx(cards.graph)} />;
+		return (
+			<GraphPending
+				root="overview-graph"
+				className={cards.graph}
+				failed={failed}
+			/>
+		);
 	}
 	const seeds = shownSeeds(focus.focus, focus.preview);
 	const chain =
