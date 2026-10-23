@@ -106,3 +106,10 @@ export function CardHierarchyChips({
 		</>
 	);
 }
+
+/** The chips that the server computes for a ticket: stale status, "Run failed" and "Blocked". */
+export function ServerChips({ ticket }: { ticket: Pick<TicketView, "chips"> }) {
+	return [...new Set(ticket.chips)].map((chip) => (
+		<Chip key={chip} label={chip} />
+	));
+}

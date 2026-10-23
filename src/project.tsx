@@ -15,6 +15,7 @@ import {
 	CardHierarchyChips,
 	Chip,
 	OutsideParentsContext,
+	ServerChips,
 } from "./card-chips.tsx";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
@@ -47,7 +48,6 @@ import { AppShell } from "./shell.tsx";
 import { toneOf } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
-	blockedLabel,
 	filterEmptyLabel,
 	groupByLabel,
 	type HidingFilter,
@@ -302,6 +302,39 @@ function relationSplit(ticket: TicketView): {
 	};
 }
 
+/** One chip per open blocker: a local blocker by its short key, an outside blocker by its full key. */
+function BlockerChips({
+	local,
+	outside,
+	onOpen,
+	onOpenOutside,
+}: ReturnType<typeof relationSplit> & {
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
+}) {
+	return (
+		<>
+			{local.map((blocker) => (
+				<Chip
+					key={blocker}
+					label={shortKey(blocker)}
+					ticketKey={blocker}
+					onOpen={onOpen}
+				/>
+			))}
+			{outside.map((blocker) => (
+				<Chip
+					key={blocker.key}
+					label={blocker.key}
+					ticketKey={blocker.key}
+					outside
+					onOpen={() => onOpenOutside(blocker)}
+				/>
+			))}
+		</>
+	);
+}
+
 type TicketFocus = {
 	active: boolean;
 	faded: (key: string | null) => boolean;
@@ -383,6 +416,7 @@ function Card({
 				<p className={clsx(board.title)}>{ticket.title}</p>
 				{local.length === 0 &&
 				outside.length === 0 &&
+				ticket.chips === undefined &&
 				ticket.parent === undefined &&
 				ticket.subTickets === undefined &&
 				!ticket.needsYou ? null : (
@@ -392,23 +426,13 @@ function Card({
 							onOpen={onOpen}
 							onOpenOutside={onOpenOutside}
 						/>
-						{local.map((blocker) => (
-							<Chip
-								key={blocker}
-								label={`${blockedLabel} by ${shortKey(blocker)}`}
-								ticketKey={blocker}
-								onOpen={onOpen}
-							/>
-						))}
-						{outside.map((blocker) => (
-							<Chip
-								key={blocker.key}
-								label={blocker.key}
-								ticketKey={blocker.key}
-								outside
-								onOpen={() => onOpenOutside(blocker)}
-							/>
-						))}
+						<ServerChips ticket={ticket} />
+						<BlockerChips
+							local={local}
+							outside={outside}
+							onOpen={onOpen}
+							onOpenOutside={onOpenOutside}
+						/>
 						{ticket.needsYou ? (
 							<span className={clsx(board.chip, board.chipNeedsPill)}>
 								{navLabel.needsYou}
@@ -786,27 +810,21 @@ function TableRow({
 			<td className={clsx(board.rowCell)}>
 				<span className={clsx(board.stateMark, toneOf(lane?.statusType))} />
 				{displayedLaneName(ticket)}
+				{ticket.chips === undefined ? null : (
+					<span className={clsx(board.links)}>
+						<ServerChips ticket={ticket} />
+					</span>
+				)}
 			</td>
 			<td className={clsx(board.rowCell)}>{ticket.pull ?? ""}</td>
 			<td className={clsx(board.rowCell)}>
 				<span className={clsx(board.links)}>
-					{local.map((blocker) => (
-						<Chip
-							key={blocker}
-							label={shortKey(blocker)}
-							ticketKey={blocker}
-							onOpen={onOpen}
-						/>
-					))}
-					{outside.map((blocker) => (
-						<Chip
-							key={blocker.key}
-							label={blocker.key}
-							ticketKey={blocker.key}
-							outside
-							onOpen={() => onOpenOutside(blocker)}
-						/>
-					))}
+					<BlockerChips
+						local={local}
+						outside={outside}
+						onOpen={onOpen}
+						onOpenOutside={onOpenOutside}
+					/>
 				</span>
 			</td>
 			<td className={clsx(board.rowCell)}>
