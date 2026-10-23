@@ -373,6 +373,7 @@ function ProjectsTable({
 					className={clsx(fields.filterButton)}
 					aria-label={settingsCopy.filter}
 					aria-expanded={filtersOpen}
+					aria-controls="project-filters"
 					onClick={() => setFiltersOpen((open) => !open)}
 				>
 					<FilterGlyph />

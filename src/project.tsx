@@ -1554,7 +1554,7 @@ export function Page() {
 									groupBy={graphGroupBy(settings)}
 									assignees={settings.assignees}
 									openKey={open ? ticket : null}
-									chain={chain}
+									seeds={seeds}
 									onFocus={ticketFocus.toggle}
 									onPreview={ticketFocus.enter}
 									onPreviewEnd={ticketFocus.leave}

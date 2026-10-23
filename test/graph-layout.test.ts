@@ -1,7 +1,10 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import ELK from "elkjs/lib/elk-api.js";
 import { fillShare } from "../proof/elk-spike/handwritten.ts";
+import { focusChain } from "../src/domain.ts";
 import {
+	focusLinks,
+	focusSeeds,
 	groupHead,
 	groupId,
 	groupPad,
@@ -16,6 +19,7 @@ import {
 	frameOverlaps,
 	hierarchyReport,
 	inside,
+	linearTicket,
 	milestones,
 	overlap,
 	strayCards,
@@ -263,6 +267,103 @@ describe("project graph layout", () => {
 		expect(layoutInput(report, "workstream", [])).toMatchObject({
 			cards: [{ id: cardOf("WID-1"), frame: null }],
 			frames: [],
+		});
+	});
+
+	test("a collapsed frame takes the blocker arrows of its hidden sub-tickets and merges duplicate arrows", async () => {
+		// WID-2 and WID-3 under WID-1 both block WID-4, WID-2 blocks its sibling
+		// WID-3, and WID-6 blocks WID-5 under WID-1.
+		const report = await hierarchyReport("", [
+			linearTicket("WID-1", "Ship the widget", "unstarted", null),
+			linearTicket("WID-2", "Paint the list", "unstarted", "WID-1"),
+			linearTicket("WID-3", "Paint the rows", "unstarted", "WID-1", ["WID-2"]),
+			linearTicket("WID-4", "Size the cells", "unstarted", null, [
+				"WID-2",
+				"WID-3",
+			]),
+			linearTicket("WID-5", "Sort the list", "unstarted", "WID-1", ["WID-6"]),
+			linearTicket("WID-6", "Sort by name", "unstarted", null),
+		]);
+		const input = layoutInput(
+			report,
+			"workstream",
+			[],
+			(key) => key === "WID-1",
+		);
+		const layout = await layoutGraph(
+			elk,
+			input,
+			"left-to-right",
+			card,
+			() => 0,
+			() => 0,
+		);
+		expect({
+			cards: input.cards
+				.map((item) => `${item.id}${item.collapsed ? " collapsed" : ""}`)
+				.sort(),
+			frames: input.frames,
+			edges: input.edges.map((edge) => `${edge.from} -> ${edge.to}`).sort(),
+			laid: [...layout.cards.keys()].sort(),
+		}).toEqual({
+			cards: [
+				`${cardOf("WID-1")} collapsed`,
+				cardOf("WID-4"),
+				cardOf("WID-6"),
+			].sort(),
+			frames: [],
+			edges: [
+				`${cardOf("WID-1")} -> ${cardOf("WID-4")}`,
+				`${cardOf("WID-6")} -> ${cardOf("WID-1")}`,
+			].sort(),
+			laid: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
+		});
+	});
+
+	test("focus on a collapsed frame follows the arrows it takes from its hidden sub-tickets", async () => {
+		// WID-6 blocks WID-5 under WID-1, and WID-2 under WID-1 blocks WID-4.
+		const report = await hierarchyReport("", [
+			linearTicket("WID-1", "Ship the widget", "unstarted", null),
+			linearTicket("WID-2", "Paint the list", "unstarted", "WID-1"),
+			linearTicket("WID-4", "Size the cells", "unstarted", null, ["WID-2"]),
+			linearTicket("WID-5", "Sort the list", "unstarted", "WID-1", ["WID-6"]),
+			linearTicket("WID-6", "Sort by name", "unstarted", null),
+			linearTicket("WID-7", "Name the widget", "unstarted", null),
+		]);
+		const links = focusLinks(
+			layoutInput(report, "workstream", [], (key) => key === "WID-1"),
+		);
+		expect({
+			fromBlocked: [...focusChain(new Set([cardOf("WID-4")]), links)].sort(),
+			fromFrame: [...focusChain(new Set([cardOf("WID-1")]), links)].sort(),
+		}).toEqual({
+			fromBlocked: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
+			fromFrame: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
+		});
+	});
+
+	test("focus on a hidden sub-ticket moves to the collapsed card that hides it", async () => {
+		// WID-3 sits under WID-2 under WID-1, and WID-6 blocks WID-3.
+		const report = await hierarchyReport("", [
+			linearTicket("WID-1", "Ship the widget", "unstarted", null),
+			linearTicket("WID-2", "Paint the list", "unstarted", "WID-1"),
+			linearTicket("WID-3", "Sort the list", "unstarted", "WID-2", ["WID-6"]),
+			linearTicket("WID-6", "Sort by name", "unstarted", null),
+			linearTicket("WID-7", "Name the widget", "unstarted", null),
+		]);
+		const chainOf = (shut: readonly string[]) => {
+			const input = layoutInput(report, "workstream", [], (key) =>
+				shut.includes(key),
+			);
+			const seeds = focusSeeds(input, new Set([cardOf("WID-3")]));
+			return [...focusChain(seeds, focusLinks(input))].sort();
+		};
+		expect({
+			inner: chainOf(["WID-2"]),
+			both: chainOf(["WID-1", "WID-2"]),
+		}).toEqual({
+			inner: ["WID-2", "WID-6"].map(cardOf).sort(),
+			both: ["WID-1", "WID-6"].map(cardOf).sort(),
 		});
 	});
 
