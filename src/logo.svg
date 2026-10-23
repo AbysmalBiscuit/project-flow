@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Project Flow</title>
+  <rect width="64" height="64" rx="14" fill="#18181b"/>
+  <path d="M19 22 C 19 34, 32 32, 32 42 M45 22 C 45 34, 32 32, 32 42" fill="none" stroke="#ededef" stroke-width="4" stroke-linecap="round"/>
+  <rect x="9" y="11" width="20" height="13" rx="4" fill="#3b6fd8"/>
+  <rect x="35" y="11" width="20" height="13" rx="4" fill="#e07a2f"/>
+  <rect x="22" y="40" width="20" height="13" rx="4" fill="#1f9d6a"/>
+</svg>
