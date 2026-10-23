@@ -20,7 +20,7 @@ import {
 	useState,
 } from "react";
 import { board } from "./board-styles.ts";
-import { focusOrOpen } from "./focus.ts";
+import { useClickOrDouble } from "./focus.ts";
 import { float } from "./graph-float.tsx";
 import { FitLayout, type LaidGraph } from "./graph-laid.tsx";
 import type { LaidLink } from "./graph-lanes.ts";
@@ -263,6 +263,7 @@ export function GraphView<
 	const markers = useMarkers();
 	const paneId = `${probe}-pane`;
 	const fit = useCallback(() => overlayFit(paneId), [paneId]);
+	const clicks = useClickOrDouble();
 	useEffect(() => watchLayout(root, probe), [root, probe]);
 	const horizontal = laid.direction === "left-to-right";
 	const kept = (ticket: string) => chain === null || chain.has(ticket);
@@ -382,7 +383,7 @@ export function GraphView<
 					onNodeDoubleClick={(_event, node) => {
 						const ticket = ticketOf.get(node.id);
 						if (ticket !== undefined) {
-							onFocus(ticket);
+							clicks.double(() => onFocus(ticket));
 						}
 					}}
 					onNodeClick={(event, node) => {
@@ -390,7 +391,7 @@ export function GraphView<
 						if (node.type !== "card" || ticket === undefined) {
 							return;
 						}
-						focusOrOpen(
+						clicks.click(
 							event,
 							() => onFocus(ticket),
 							() => onOpen(node.data),
