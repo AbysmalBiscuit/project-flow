@@ -4,7 +4,7 @@ import {
 	Position,
 } from "@xyflow/react";
 import { board } from "./board-styles.ts";
-import { type ProjectReport, parentChip } from "./domain.ts";
+import { outsideKey, type ProjectReport, parentChip } from "./domain.ts";
 import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import type { GraphLayout, LayoutInput } from "./graph-layout.ts";
 import {
@@ -73,34 +73,16 @@ export type TicketEdgeData = {
 
 type GraphTicket = { ticket: FlowTicket; parentLabel?: string };
 
-/** An outside ticket takes its PR and Needs you chips from its own project's report. */
-function graphTicket(
-	ticket: FlowTicket,
-	report: ProjectReport,
-	reports: ProjectReport[],
-): GraphTicket {
-	const parentLabel =
-		ticket.parent === undefined
-			? undefined
-			: parentChip(report.outsideParents, ticket.parent).label;
-	const known = ticket.outside
-		? reports
-				.find(
-					(item) => item.name.toLowerCase() === ticket.project.toLowerCase(),
-				)
-				?.tickets.find(
-					(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
-				)
-		: undefined;
-	const state = ticket.state ?? known?.state;
+/** An outside ticket names its parent ticket in its own project. */
+function graphTicket(ticket: FlowTicket, report: ProjectReport): GraphTicket {
+	if (ticket.parent === undefined) {
+		return { ticket };
+	}
 	return {
-		ticket: {
-			...ticket,
-			...(state === undefined ? {} : { state }),
-			...(known?.pull === undefined ? {} : { pull: known.pull }),
-			...(known?.needsYou === undefined ? {} : { needsYou: known.needsYou }),
-		},
-		...(parentLabel === undefined ? {} : { parentLabel }),
+		ticket,
+		parentLabel: ticket.outside
+			? outsideKey(ticket.project, ticket.parent)
+			: parentChip(report.outsideParents, ticket.parent).label,
 	};
 }
 
@@ -110,7 +92,7 @@ function shownTickets(
 	input: LayoutInput,
 ): (GraphTicket & { id: string; ticketId: string; collapsed: boolean })[] {
 	const byId = new Map(
-		graphTickets(report, true).map((ticket) => [
+		graphTickets(report, true, reports).map((ticket) => [
 			projectNodeId(ticket.project, ticket.key),
 			ticket,
 		]),
@@ -121,7 +103,7 @@ function shownTickets(
 			? []
 			: [
 					{
-						...graphTicket(ticket, report, reports),
+						...graphTicket(ticket, report),
 						id: card.id,
 						ticketId: card.ticket,
 						collapsed: card.collapsed,

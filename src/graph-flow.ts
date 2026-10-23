@@ -776,14 +776,26 @@ export type FlowTicket = Omit<TicketView, "key" | "state"> & {
 	tracker: "github" | "linear";
 };
 
+function homeTicket(
+	homes: readonly ProjectReport[],
+	project: string,
+	key: string,
+): TicketView | undefined {
+	return homes
+		.find((home) => home.name.toLowerCase() === project.toLowerCase())
+		?.tickets.find((ticket) => ticket.key?.toLowerCase() === key.toLowerCase());
+}
+
 /**
  * The tickets the project graph shows. With `withParents`, the hidden parent
  * tickets and the outside parent tickets that head the frames of shown
- * sub-tickets come last.
+ * sub-tickets come last. An outside ticket carries its view from the report
+ * of its own project in `homes`, when that report holds it.
  */
 export function graphTickets(
 	report: ProjectReport,
 	withParents = false,
+	homes: readonly ProjectReport[] = [],
 ): FlowTicket[] {
 	const parents = new Map(
 		report.outsideParents.map((parent) => [
@@ -804,15 +816,17 @@ export function graphTickets(
 			}
 			seen.add(id);
 			const parent = parents.get(id);
-			const state = end.state ?? parent?.state;
+			const home = homeTicket(homes, end.project, end.key);
+			const state = end.state ?? parent?.state ?? home?.state;
 			outside.push({
+				blockers: [],
+				...home,
 				key: end.key,
 				title: parent?.title ?? end.title,
 				project: end.project,
 				outside: true,
 				...(state === undefined ? {} : { state }),
 				tracker: end.tracker,
-				blockers: [],
 			});
 		}
 	}
@@ -822,20 +836,25 @@ export function graphTickets(
 		),
 	);
 	const outsideParents = (withParents ? [...parents] : []).flatMap(
-		([id, parent]): FlowTicket[] =>
-			seen.has(id)
-				? []
-				: [
-						{
-							key: parent.key,
-							title: parent.title,
-							project: parent.project,
-							outside: true,
-							...(parent.state === undefined ? {} : { state: parent.state }),
-							tracker: parent.tracker,
-							blockers: [],
-						},
-					],
+		([id, parent]): FlowTicket[] => {
+			if (seen.has(id)) {
+				return [];
+			}
+			const home = homeTicket(homes, parent.project, parent.key);
+			const state = parent.state ?? home?.state;
+			return [
+				{
+					blockers: [],
+					...home,
+					key: parent.key,
+					title: parent.title,
+					project: parent.project,
+					outside: true,
+					...(state === undefined ? {} : { state }),
+					tracker: parent.tracker,
+				},
+			];
+		},
 	);
 	const local = [
 		...report.graphTickets,
