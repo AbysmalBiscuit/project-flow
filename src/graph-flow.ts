@@ -788,7 +788,8 @@ export type FlowTicket = {
 
 /**
  * The tickets the project graph shows. With `withParents`, the hidden parent
- * tickets that head the frames of shown sub-tickets come last.
+ * tickets and the outside parent tickets that head the frames of shown
+ * sub-tickets come last.
  */
 export function graphTickets(
 	report: ProjectReport,
@@ -823,6 +824,24 @@ export function graphTickets(
 		`${left.project} ${left.key}`.localeCompare(
 			`${right.project} ${right.key}`,
 		),
+	);
+	const outsideParents = (withParents ? report.outsideParents : []).flatMap(
+		(parent): FlowTicket[] =>
+			seen.has(projectNodeId(parent.project, parent.key))
+				? []
+				: [
+						{
+							key: parent.key,
+							title: parent.title,
+							project: parent.project,
+							outside: true,
+							...(parent.state === "closed" ? { state: "done" as const } : {}),
+							tracker: parent.tracker,
+							blockers: [],
+							outsideBlockers: [],
+							blocks: [],
+						},
+					],
 	);
 	const local = [
 		...report.graphTickets,
@@ -873,7 +892,7 @@ export function graphTickets(
 			},
 		];
 	});
-	return [...outside, ...local];
+	return [...outside, ...local, ...outsideParents];
 }
 
 export const outsideBand = "\u0000outside";

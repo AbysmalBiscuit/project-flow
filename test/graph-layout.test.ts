@@ -2,6 +2,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import ELK from "elkjs/lib/elk-api.js";
 import { fillShare } from "../proof/elk-spike/handwritten.ts";
 import { focusChain } from "../src/domain.ts";
+import { projectNodeId } from "../src/graph-flow.ts";
 import {
 	focusLinks,
 	focusSeeds,
@@ -44,6 +45,51 @@ async function workcellLayout(direction: "left-to-right" | "top-to-bottom") {
 	);
 	return { input, layout };
 }
+
+const platformEpic = {
+	identifier: "PLT-3",
+	title: "Platform epic",
+	url: "https://linear.app/acme/issue/PLT-3/platform-epic",
+	state: { type: "started" },
+	project: { name: "Platform" },
+};
+
+const loneEpic = {
+	identifier: "OPS-9",
+	title: "Ops cleanup",
+	url: "https://linear.app/acme/issue/OPS-9/ops-cleanup",
+	state: { type: "completed" },
+	project: null,
+};
+
+// WID-30 to WID-32 sit under PLT-3 from another project, across two
+// milestones, and WID-33 sits under OPS-9, which no project holds.
+const outsideParents = [
+	{
+		...linearTicket("WID-30", "Hook the platform", "unstarted", null),
+		parent: platformEpic,
+	},
+	{
+		...linearTicket("WID-31", "Gate the platform", "unstarted", null),
+		parent: platformEpic,
+	},
+	{
+		...linearTicket(
+			"WID-32",
+			"Ship the platform",
+			"unstarted",
+			null,
+			[],
+			"Gamma",
+		),
+		parent: platformEpic,
+	},
+	{
+		...linearTicket("WID-33", "Clean the logs", "unstarted", null),
+		parent: loneEpic,
+	},
+	linearTicket("WID-34", "Write the runbook", "unstarted", null),
+];
 
 describe("project graph layout", () => {
 	test("each workcell workstream frame fills at least the share the elkjs spike recorded", async () => {
@@ -244,6 +290,64 @@ describe("project graph layout", () => {
 				stray: [],
 			});
 		}
+	});
+
+	test("an outside parent ticket heads a frame in each workstream that holds its sub-tickets", async () => {
+		const report = await hierarchyReport("", outsideParents);
+		const input = layoutInput(report, "workstream", []);
+		const ticketOf = new Map(input.cards.map((item) => [item.id, item]));
+		const frameOf = new Map(input.frames.map((frame) => [frame.id, frame]));
+		const shown = (id: string) => {
+			const item = ticketOf.get(id);
+			return `${item?.ticket ?? id} in ${item?.group ?? "no group"}`;
+		};
+		const platform = projectNodeId("Platform", "PLT-3");
+		const ops = projectNodeId("", "OPS-9");
+		const layout = await layoutGraph(
+			elk,
+			input,
+			"left-to-right",
+			card,
+			() => 0,
+			() => 0,
+		);
+		const stray = input.cards.flatMap((item) => {
+			const frame =
+				item.frame === null ? undefined : layout.frames.get(item.frame);
+			const place = layout.cards.get(item.id);
+			return frame === undefined ||
+				place === undefined ||
+				inside({ ...place, ...card }, frame)
+				? []
+				: [shown(item.id)];
+		});
+		expect({
+			cards: input.cards
+				.map((item) =>
+					[
+						shown(item.id),
+						...(item.frame === null
+							? []
+							: [shown(frameOf.get(item.frame)?.head ?? "")]),
+					].join(" < "),
+				)
+				.sort(),
+			titles: input.frames.map((frame) => frame.title).sort(),
+			stray,
+		}).toEqual({
+			cards: [
+				`${platform} in ${groupId("Beta")}`,
+				`${platform} in ${groupId("Gamma")}`,
+				`${ops} in ${groupId("Beta")}`,
+				`${cardOf("WID-30")} in ${groupId("Beta")} < ${platform} in ${groupId("Beta")}`,
+				`${cardOf("WID-31")} in ${groupId("Beta")} < ${platform} in ${groupId("Beta")}`,
+				`${cardOf("WID-32")} in ${groupId("Gamma")} < ${platform} in ${groupId("Gamma")}`,
+				`${cardOf("WID-33")} in ${groupId("Beta")} < ${ops} in ${groupId("Beta")}`,
+				`${cardOf("WID-34")} in ${groupId("Beta")}`,
+			].sort(),
+			titles: ["Ops cleanup", "Platform epic", "Platform epic"],
+			stray: [],
+		});
 	});
 
 	test("a filtered-out parent ticket from another workstream leaves no empty workstream", async () => {
