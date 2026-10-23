@@ -155,6 +155,8 @@ export type TicketView = {
 	title: string;
 	state: TicketState;
 	blockers: string[];
+	/** Each open blocker, resolved to its project and title. */
+	blockedBy?: TicketRelation[];
 	links?: GraphLink[];
 	outsideBlockers?: TicketRelation[];
 	blocks?: TicketRelation[];
@@ -2007,6 +2009,7 @@ function ticketRelations(
 	groups: { project: string; tickets: Ticket[] }[],
 ): {
 	blockers: string[];
+	blockedBy: TicketRelation[];
 	links: GraphLink[];
 	outsideBlockers: TicketRelation[];
 	blocks: TicketRelation[];
@@ -2019,6 +2022,7 @@ function ticketRelations(
 		...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
 	];
 	const keys: string[] = [];
+	const blockedBy: TicketRelation[] = [];
 	const outsideBlockers: TicketRelation[] = [];
 	for (const blocker of blockers) {
 		if (blocker.key === null) {
@@ -2030,17 +2034,19 @@ function ticketRelations(
 				ref.tracker === blocker.tracker &&
 				ref.key.toLowerCase() === blocker.key?.toLowerCase(),
 		);
-		const project = blockerProject(blocker, source, groups);
-		if (
-			project === "" ||
-			home === undefined ||
-			project.toLowerCase() === home.toLowerCase()
-		) {
+		const project = blockerProject(blocker, source, groups) || home || "";
+		if (project === "") {
 			continue;
 		}
-		const outside = outsideOf(blocker, source, groups);
-		if (outside !== null) {
-			outsideBlockers.push(outside);
+		const relation: TicketRelation = {
+			tracker: blocker.tracker,
+			project,
+			key: blocker.key,
+			title: blocker.title.trim() || blocker.key,
+		};
+		blockedBy.push(relation);
+		if (home !== undefined && project.toLowerCase() !== home.toLowerCase()) {
+			outsideBlockers.push(relation);
 		}
 	}
 	const blocks: TicketRelation[] = [];
@@ -2103,6 +2109,7 @@ function ticketRelations(
 	}
 	return {
 		blockers: keys,
+		blockedBy,
 		links: graphLinks(ticket, index, parsed, groups),
 		outsideBlockers,
 		blocks,
@@ -4325,7 +4332,9 @@ export function projectReport(
 						themeGroup: placedItem.themeGroup,
 					}),
 			...(commentRun === undefined ? {} : { run: commentRun }),
-			...(relations === undefined ? {} : { blockers: relations.blockers }),
+			...(relations === undefined
+				? {}
+				: { blockers: relations.blockers, blockedBy: relations.blockedBy }),
 			...(relations === undefined || relations.links.length === 0
 				? {}
 				: { links: relations.links }),
