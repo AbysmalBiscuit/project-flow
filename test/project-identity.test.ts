@@ -48,7 +48,7 @@ function github(): Fetch {
 
 async function withApp(
 	configuration: unknown,
-	check: (base: string) => Promise<void>,
+	check: (base: string, configPath: string) => Promise<void>,
 	env: Record<string, string> = {
 		GITHUB_TOKEN: "recorded-token",
 		LINEAR_API_KEY: "recorded-linear-key",
@@ -59,7 +59,7 @@ async function withApp(
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
 		startChecks = (base) => {
-			check(base).then(resolve, reject);
+			check(base, path).then(resolve, reject);
 		};
 	});
 	try {
@@ -180,6 +180,38 @@ describe("project identity", () => {
 				).toEqual([
 					{ key: repo, repoBots: { [repo]: ["grok"] }, expectedBots: ["grok"] },
 				]);
+			},
+		);
+	});
+
+	test("a Settings save of a mixed-case expected-bot override keeps one repo key", async () => {
+		await withApp(
+			{
+				tracked: [{ tracker: "github", repo: "Acme/Widget" }],
+				expectedBots: { "Acme/Widget": ["grok"] },
+			},
+			async (base, configPath) => {
+				await settingsRows(base);
+				const current = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as Configuration;
+				const saved = await fetch(new URL("/api/settings", base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						expectedBots: { "Acme/Widget": ["codex"] },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const written = (await Bun.file(configPath).json()) as Configuration;
+				expect(written.expectedBots).toEqual({ "Acme/Widget": ["codex"] });
+				const rows = await settingsRows(base);
+				expect(
+					rows
+						.filter((row) => row.tracker === "github")
+						.map(({ key, repoBots }) => ({ key, repoBots })),
+				).toEqual([{ key: repo, repoBots: { [repo]: ["codex"] } }]);
 			},
 		);
 	});
