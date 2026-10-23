@@ -24,6 +24,9 @@
 			"assert_text": "Needs you"
 		},
 		{
+			"assert_text": "Run failed"
+		},
+		{
 			"click": "button[aria-label=\"Zoom out\"]"
 		},
 		{

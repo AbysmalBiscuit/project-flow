@@ -1,5 +1,6 @@
 /**
  * Serves acme/widget and acme/gate with Needs you and Blocked tickets, in the overview graph and the project graph.
+ * acme/widget#5 carries Needs you, "Run failed" and "Blocked" at once.
  * Usage: bun proof/serve-449.ts [PORT]
  */
 import { recordedIssues, serveRecorded } from "./recorded.ts";
@@ -31,6 +32,17 @@ const asksLev = {
 	assignee: { login: "lev" },
 };
 
+const stalledRun = {
+	commentRows: [
+		{
+			id: 1,
+			user: { login: "lev" },
+			body: "**Workcell progress**\n\n- stage 4: opening the PR",
+			created_at: "2026-10-17T00:00:00Z",
+		},
+	],
+};
+
 const port = process.argv[2]?.trim() || "4449";
 
 await serveRecorded({
@@ -54,6 +66,7 @@ await serveRecorded({
 			issue(widget, 3, "Pick the card colour", asksLev),
 			issue(widget, 5, "Draft the release notes for the launch", {
 				...asksLev,
+				...stalledRun,
 				body: `Blocked by: ${widget}#8`,
 			}),
 			issue(widget, 8, "Open the gate"),

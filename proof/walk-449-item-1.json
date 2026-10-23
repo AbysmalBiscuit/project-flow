@@ -18,6 +18,9 @@
 			"assert_text": "Needs you"
 		},
 		{
+			"assert_text": "Run failed"
+		},
+		{
 			"assert_text": "Blocked"
 		},
 		{
