@@ -1,0 +1,36 @@
+{
+	"base_url": "http://127.0.0.1:47450",
+	"serve": ["bun", "proof/serve-449.ts", "47450"],
+	"steps": [
+		{
+			"goto": "/"
+		},
+		{
+			"assert_text": "acme/widget"
+		},
+		{
+			"assert_text": "2 need you"
+		},
+		{
+			"shot": "overview-graph"
+		},
+		{
+			"goto": "/projects/acme%2Fwidget"
+		},
+		{
+			"assert_text": "Pick the card colour"
+		},
+		{
+			"assert_text": "Needs you"
+		},
+		{
+			"click": "button[aria-label=\"Zoom out\"]"
+		},
+		{
+			"assert_text": "Draft the release notes for the launch"
+		},
+		{
+			"shot": "project-graph"
+		}
+	]
+}
