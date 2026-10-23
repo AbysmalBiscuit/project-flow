@@ -10,7 +10,15 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { board } from "./board-styles.ts";
 import { cardTones } from "./card-tones.ts";
 import { useCollapse } from "./collapse.ts";
@@ -22,8 +30,9 @@ import {
 } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
+import { projectNodeId } from "./graph-flow.ts";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
-import { FitLayout, useLaidGraph } from "./graph-laid.tsx";
+import { type Anchor, FitLayout, useLaidGraph } from "./graph-laid.tsx";
 import { focusLinks, focusSeeds } from "./graph-layout.ts";
 import type {
 	ClusterNodeData,
@@ -34,6 +43,7 @@ import { graphModel, isClusterNode } from "./graph-model.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
+import { FrameTools, ScopeLine } from "./graph-scope.tsx";
 import type { NodeSize } from "./graph-sizes.ts";
 import { DirectionSwitch, LayoutSwitch } from "./graph-switches.tsx";
 import { tableTree } from "./table-tree-styles.ts";
@@ -86,14 +96,16 @@ function ClusterNode({
 }
 
 const FrameToggleContext = createContext<
-	(key: string, startsCollapsed: boolean) => void
+	(card: string, key: string, startsCollapsed: boolean) => void
 >(() => {});
 
 function FrameToggle({
+	card,
 	ticket,
 	collapsed,
 	startsCollapsed,
 }: {
+	card: string;
 	ticket: string;
 	collapsed: boolean;
 	startsCollapsed: boolean;
@@ -108,8 +120,11 @@ function FrameToggle({
 			aria-label={subTicketsToggleLabel(ticket, collapsed)}
 			onClick={(event) => {
 				event.stopPropagation();
-				toggle(ticket, startsCollapsed);
+				toggle(card, ticket, startsCollapsed);
 			}}
+			// Focus scrolls the React Flow box when the graph overflows it, which
+			// moves the toggle away before the click lands.
+			onMouseDownCapture={(event) => event.preventDefault()}
 			onDoubleClick={(event) => event.stopPropagation()}
 		>
 			<svg
@@ -188,6 +203,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 			</button>
 			{data.frame === null || data.ticket.key === null ? null : (
 				<FrameToggle
+					card={id}
 					ticket={data.ticket.key}
 					collapsed={data.frame === "collapsed"}
 					startsCollapsed={data.ticket.startsCollapsed === true}
@@ -231,17 +247,19 @@ function TicketEdge({
 	const done = data?.done === true;
 	const flowing = done && data?.flowing === true;
 	return (
-		<BaseEdge
-			id={id}
-			path={drawn}
-			data-flowing={flowing ? "true" : "false"}
-			className={
-				done
-					? clsx(board.graphEdgeDash, flowing && board.graphEdgeFlow)
-					: undefined
-			}
-			{...(markerEnd === undefined ? {} : { markerEnd })}
-		/>
+		<g key={drawn} className={clsx(board.edgeEnters)}>
+			<BaseEdge
+				id={id}
+				path={drawn}
+				data-flowing={flowing ? "true" : "false"}
+				className={
+					done
+						? clsx(board.graphEdgeDash, flowing && board.graphEdgeFlow)
+						: undefined
+				}
+				{...(markerEnd === undefined ? {} : { markerEnd })}
+			/>
+		</g>
 	);
 }
 
@@ -334,6 +352,25 @@ function watchLayout(span: NodeSize | null): () => void {
 	return () => observer.disconnect();
 }
 
+function seedLabel(
+	report: ProjectReport,
+	shown: ReadonlyMap<string, string>,
+	seed: string,
+): string {
+	const label = shown.get(seed);
+	if (label !== undefined) {
+		return label;
+	}
+	const key =
+		report.tickets.find(
+			(item) =>
+				item.key !== null && projectNodeId(report.name, item.key) === seed,
+		)?.key ?? null;
+	return key === null
+		? seed.slice(seed.indexOf("\n") + 1)
+		: shortTicket(key, report.name, false);
+}
+
 export function ProjectGraph({
 	report,
 	reports,
@@ -343,8 +380,10 @@ export function ProjectGraph({
 	assignees,
 	openKey,
 	seeds,
+	focus,
 	onOpen,
 	onFocus,
+	onClearFocus,
 	onPreview,
 	onPreviewEnd,
 	onDirection,
@@ -358,8 +397,10 @@ export function ProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	seeds: ReadonlySet<string>;
+	focus: ReadonlySet<string>;
 	onOpen: (ticket: OpenedNode) => void;
 	onFocus: (nodeId: string) => void;
+	onClearFocus: () => void;
 	onPreview: (nodeId: string) => void;
 	onPreviewEnd: () => void;
 	onDirection: (direction: GraphDirection) => void;
@@ -369,6 +410,8 @@ export function ProjectGraph({
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
 	const collapse = useCollapse();
+	const anchor = useRef<Anchor | null>(null);
+	const [refit, setRefit] = useState(0);
 	const { laid, failed } = useLaidGraph(
 		report,
 		direction,
@@ -377,6 +420,15 @@ export function ProjectGraph({
 		assignees,
 		collapse.collapsed,
 		span,
+		anchor,
+	);
+	const toggleFrame = useCallback(
+		(card: string, key: string, startsCollapsed: boolean) => {
+			const at = laid?.layout.cards.get(card);
+			anchor.current = at === undefined ? null : { card, at };
+			collapse.toggle(key, startsCollapsed);
+		},
+		[laid, collapse],
 	);
 	const model = useMemo(() => {
 		if (span === null || laid === null) {
@@ -418,12 +470,40 @@ export function ProjectGraph({
 	);
 	const fades = clsx(board.fades);
 	const faded = clsx(board.fades, board.faded);
+	const moves = clsx(board.moves);
+	const movesFaded = clsx(board.moves, board.faded);
 	const nodes = model.nodes.map((node) => {
 		const kept = isClusterNode(node)
 			? node.data.members.some((id) => chain?.has(id) === true)
 			: chain?.has(node.data.ticketId) === true;
-		return { ...node, className: chain === null || kept ? fades : faded };
+		return { ...node, className: chain === null || kept ? moves : movesFaded };
 	});
+	const shownLabels = new Map(
+		model.nodes.flatMap((node) =>
+			isClusterNode(node)
+				? []
+				: [
+						[
+							node.data.ticketId,
+							shortTicket(
+								node.data.ticket.key ?? node.data.ticket.title,
+								node.data.project,
+								node.data.outside,
+							),
+						] as const,
+					],
+		),
+	);
+	const toScope = (frames: "collapse" | "keep", clearFocus: boolean) => {
+		anchor.current = null;
+		if (frames === "collapse") {
+			collapse.setAll(laid.input.parents, true);
+		}
+		if (clearFocus) {
+			onClearFocus();
+		}
+		setRefit((count) => count + 1);
+	};
 	const edges = model.edges.map((edge) => {
 		const kept =
 			chain === null ||
@@ -535,7 +615,7 @@ export function ProjectGraph({
 				id="project-graph-pane"
 				className={clsx(board.graphPane, float.pane)}
 			>
-				<FrameToggleContext value={collapse.toggle}>
+				<FrameToggleContext value={toggleFrame}>
 					<ReactFlow
 						key={drawn}
 						nodes={nodes}
@@ -587,10 +667,25 @@ export function ProjectGraph({
 						}}
 					>
 						<Background variant={BackgroundVariant.Dots} gap={18} />
-						<FitLayout key={drawn} layout={laid.layout} />
+						<FitLayout
+							key={drawn}
+							layout={laid.layout}
+							held={laid.held}
+							refit={refit}
+						/>
 					</ReactFlow>
 				</FrameToggleContext>
 				<div className={clsx(float.overlay)}>
+					<ScopeLine
+						project={report.name}
+						openFrames={laid.input.frames.length}
+						focus={[...focus].map((seed) =>
+							seedLabel(report, shownLabels, seed),
+						)}
+						onProject={() => toScope("collapse", true)}
+						onFrames={() => toScope("keep", true)}
+						onFocus={() => toScope("keep", false)}
+					/>
 					<Legend />
 				</div>
 				<div id="project-graph-controls" className={clsx(float.corner)}>
@@ -605,6 +700,14 @@ export function ProjectGraph({
 							probeId="project-graph-viewport"
 							fitId="project-graph-fit"
 							scope="#project-graph"
+						/>
+						<FrameTools
+							parents={laid.input.parents.length}
+							onAll={(shut) => {
+								anchor.current = null;
+								collapse.setAll(laid.input.parents, shut);
+								setRefit((count) => count + 1);
+							}}
 						/>
 					</div>
 				</div>

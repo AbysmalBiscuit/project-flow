@@ -36,6 +36,23 @@ export function subTicketsToggleLabel(key: string, collapsed: boolean): string {
 	return `${collapsed ? "Expand" : "Collapse"} the sub-tickets of ${key}`;
 }
 
+export const frameToolLabel = {
+	expandAll: "Expand all",
+	collapseAll: "Collapse all",
+} as const;
+
+export const graphScopeLabel = {
+	nav: "Graph scope",
+	focus: "Focus",
+} as const;
+
+export function openFramesLabel(count: number): string {
+	if (count === 0) {
+		return "No frames open";
+	}
+	return `${count} ${count === 1 ? "frame" : "frames"} open`;
+}
+
 export const loadingLabel = "Loading";
 
 export const navLabel = {
