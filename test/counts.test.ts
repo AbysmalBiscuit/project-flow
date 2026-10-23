@@ -2,13 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	doneTicketsForLane,
-	type Overview,
-	type ProjectReport,
-	type StatusType,
-} from "../src/domain.ts";
+import type { Overview, ProjectReport, StatusType } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { doneTicketsForLane } from "../src/lanes.ts";
 import { run } from "../src/main.ts";
 import {
 	linearFake,

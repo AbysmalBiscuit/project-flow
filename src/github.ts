@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { heldBlockerIds, refreshedBlockers } from "./blockers.ts";
 import type {
 	Board,
 	BotCheck,
@@ -11,14 +12,7 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import {
-	closedStatusType,
-	factoryBoard,
-	heldBlockerIds,
-	refreshedBlockers,
-	reviewStateValue,
-	statusTypeOfName,
-} from "./domain.ts";
+import { reviewStateValue } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	commentFromGithub,
@@ -36,6 +30,7 @@ import {
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import { type GraphqlQuery, graphqlData } from "./graphql.ts";
+import { closedStatusType, factoryBoard, statusTypeOfName } from "./lanes.ts";
 import {
 	type FoundProject,
 	type GithubTracker,

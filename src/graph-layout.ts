@@ -1,5 +1,5 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
-import { type FocusLink, groupLabelOf, type ProjectReport } from "./domain.ts";
+import type { FocusLink, ProjectReport } from "./domain.ts";
 import {
 	type FlowEdge,
 	type FlowGap,
@@ -12,6 +12,7 @@ import {
 	projectNodeId,
 } from "./graph-flow.ts";
 import type { NodeSize } from "./graph-sizes.ts";
+import { groupLabelOf } from "./grouping.ts";
 import { foldKey } from "./ticket-key.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 
