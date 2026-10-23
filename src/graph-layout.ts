@@ -61,6 +61,8 @@ export type LayoutInput = {
 	edges: FlowEdge[];
 	/** The ticket of the collapsed card that hides each hidden ticket. */
 	hiddenIn: Map<string, string>;
+	/** The key of each parent ticket that heads a frame, open, collapsed or hidden. */
+	parents: string[];
 };
 
 /** Tells whether the frame of the parent ticket with this key is collapsed. */
@@ -274,6 +276,11 @@ export function layoutInput(
 		frames,
 		edges: [...edges.values()],
 		hiddenIn,
+		parents: [
+			...new Set(
+				laid.flatMap((item) => (heading.has(item.id) ? [item.ticket.key] : [])),
+			),
+		],
 	};
 }
 

@@ -36,6 +36,11 @@ export function subTicketsToggleLabel(key: string, collapsed: boolean): string {
 	return `${collapsed ? "Expand" : "Collapse"} the sub-tickets of ${key}`;
 }
 
+export const frameToolLabel = {
+	expandAll: "Expand all",
+	collapseAll: "Collapse all",
+} as const;
+
 export const loadingLabel = "Loading";
 
 export const navLabel = {

@@ -37,12 +37,13 @@ function write(next: Stored): void {
 /**
  * The per-browser collapse state of each parent ticket, keyed by its ticket
  * key. A parent ticket with no stored state takes its `startsCollapsed` value.
- * The Table and the project graph share it. Both functions change only when
+ * The Table and the project graph share it. The functions change only when
  * the stored state changes.
  */
 export function useCollapse(): {
 	collapsed: (key: string, startsCollapsed: boolean) => boolean;
 	toggle: (key: string, startsCollapsed: boolean) => void;
+	setAll: (keys: readonly string[], collapsed: boolean) => void;
 } {
 	const current = useSyncExternalStore(subscribe, () => stored);
 	return useMemo(() => {
@@ -54,6 +55,11 @@ export function useCollapse(): {
 				write({
 					...stored,
 					[key.toLowerCase()]: !collapsed(key, startsCollapsed),
+				}),
+			setAll: (keys: readonly string[], shut: boolean) =>
+				write({
+					...stored,
+					...Object.fromEntries(keys.map((key) => [key.toLowerCase(), shut])),
 				}),
 		};
 	}, [current]);

@@ -193,33 +193,39 @@ export function useLaidGraph(
 
 /**
  * Fits each new layout until the viewer moves the view away from the last
- * fit. A layout that holds an anchor card keeps the view.
+ * fit. A layout that holds an anchor card keeps the view. A change to
+ * `refit` fits the view at once.
  */
 export function FitLayout({
 	layout,
 	held,
+	refit,
 }: {
 	layout: GraphLayout;
 	held: boolean;
+	refit: number;
 }) {
 	const flow = useReactFlow();
 	const fitted = useRef<Viewport | null>(null);
+	const asked = useRef(refit);
 	useEffect(() => {
 		void layout;
+		const forced = asked.current !== refit;
 		const last = fitted.current;
 		const now = flow.getViewport();
 		const away =
 			last !== null &&
 			(last.x !== now.x || last.y !== now.y || last.zoom !== now.zoom);
-		if (held || away) {
+		if (!forced && (held || away)) {
 			return;
 		}
 		const frame = requestAnimationFrame(() => {
+			asked.current = refit;
 			void flow.fitView({ padding: fitPadding, maxZoom: 1 }).then(() => {
 				fitted.current = flow.getViewport();
 			});
 		});
 		return () => cancelAnimationFrame(frame);
-	}, [flow, layout, held]);
+	}, [flow, layout, held, refit]);
 	return null;
 }

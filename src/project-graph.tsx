@@ -46,6 +46,7 @@ import type { NodeSize } from "./graph-sizes.ts";
 import { DirectionSwitch, LayoutSwitch } from "./graph-switches.tsx";
 import { tableTree } from "./table-tree-styles.ts";
 import {
+	frameToolLabel,
 	graphLayoutFailedLabel,
 	navLabel,
 	openParentLabel,
@@ -56,7 +57,7 @@ import {
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { cards, panel } from "./ui-styles.ts";
+import { cards, panel, headerControlStyle as tools } from "./ui-styles.ts";
 import type {
 	GraphDirection,
 	GraphLayoutKind,
@@ -350,6 +351,37 @@ function watchLayout(span: NodeSize | null): () => void {
 	return () => observer.disconnect();
 }
 
+function FrameTools({
+	parents,
+	onAll,
+}: {
+	parents: number;
+	onAll: (collapsed: boolean) => void;
+}) {
+	return (
+		<div className={clsx(tools.graphTools)}>
+			<button
+				type="button"
+				id="project-graph-expand-all"
+				className={clsx(tools.graphTool)}
+				disabled={parents === 0}
+				onClick={() => onAll(false)}
+			>
+				{frameToolLabel.expandAll}
+			</button>
+			<button
+				type="button"
+				id="project-graph-collapse-all"
+				className={clsx(tools.graphTool)}
+				disabled={parents === 0}
+				onClick={() => onAll(true)}
+			>
+				{frameToolLabel.collapseAll}
+			</button>
+		</div>
+	);
+}
+
 export function ProjectGraph({
 	report,
 	reports,
@@ -386,6 +418,7 @@ export function ProjectGraph({
 	useEffect(() => watchPageTheme(setTheme), []);
 	const collapse = useCollapse();
 	const anchor = useRef<Anchor | null>(null);
+	const [refit, setRefit] = useState(0);
 	const { laid, failed } = useLaidGraph(
 		report,
 		direction,
@@ -615,7 +648,12 @@ export function ProjectGraph({
 						}}
 					>
 						<Background variant={BackgroundVariant.Dots} gap={18} />
-						<FitLayout key={drawn} layout={laid.layout} held={laid.held} />
+						<FitLayout
+							key={drawn}
+							layout={laid.layout}
+							held={laid.held}
+							refit={refit}
+						/>
 					</ReactFlow>
 				</FrameToggleContext>
 				<div className={clsx(float.overlay)}>
@@ -633,6 +671,14 @@ export function ProjectGraph({
 							probeId="project-graph-viewport"
 							fitId="project-graph-fit"
 							scope="#project-graph"
+						/>
+						<FrameTools
+							parents={laid.input.parents.length}
+							onAll={(shut) => {
+								anchor.current = null;
+								collapse.setAll(laid.input.parents, shut);
+								setRefit((count) => count + 1);
+							}}
 						/>
 					</div>
 				</div>
