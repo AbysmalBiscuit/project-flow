@@ -65,6 +65,24 @@ function mergeFound(
 	return found;
 }
 
+function emptySnapshot(
+	project: TrackedProject,
+	name: string,
+	startedKeys: string[],
+): Snapshot {
+	return {
+		key: project.key,
+		name,
+		tracker: project.tracker,
+		tickets: [],
+		pulls: [],
+		branches: [],
+		startedKeys,
+		...(project.owner === undefined ? {} : { owner: project.owner }),
+		...(project.number === undefined ? {} : { number: project.number }),
+	};
+}
+
 const fullPollPeriodMs = 10 * 60 * 1000;
 export type PollOptions = {
 	configuration: ConfigurationPort;
@@ -265,17 +283,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				ok: false,
 				error: project.tracker === "github" ? missingToken : missingLinearKey,
 				full: false,
-				row: {
-					key: project.key,
-					name: project.name ?? project.key,
-					tracker: project.tracker,
-					tickets: [],
-					pulls: [],
-					branches: [],
-					startedKeys,
-					...(project.owner === undefined ? {} : { owner: project.owner }),
-					...(project.number === undefined ? {} : { number: project.number }),
-				},
+				row: emptySnapshot(project, project.name ?? project.key, startedKeys),
 			});
 			notePollProgress(options, configuration, tracked, outcomes);
 			continue;
@@ -374,17 +382,11 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				continue;
 			}
 			const message = error instanceof Error ? error.message : "poll failed";
-			const empty: Snapshot = {
-				key: project.key,
-				name: project.name ?? stored?.name ?? project.key,
-				tracker: project.tracker,
-				tickets: [],
-				pulls: [],
-				branches: [],
+			const empty = emptySnapshot(
+				project,
+				project.name ?? stored?.name ?? project.key,
 				startedKeys,
-				...(project.owner === undefined ? {} : { owner: project.owner }),
-				...(project.number === undefined ? {} : { number: project.number }),
-			};
+			);
 			outcomes.set(project.key, {
 				key: project.key,
 				ok: false,
