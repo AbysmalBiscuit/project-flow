@@ -53,7 +53,6 @@ export function TicketPanel({
 	ticketKey,
 	title,
 	url,
-	pullUrl,
 	projectHref,
 	state,
 	lane,
@@ -71,8 +70,6 @@ export function TicketPanel({
 	ticketKey: string;
 	title?: string;
 	url?: string | undefined;
-	/** The linked PR of the ticket. */
-	pullUrl?: string | undefined;
 	/** The project page of a ticket in another tracked project. */
 	projectHref?: string | undefined;
 	state?: TicketState;
@@ -92,6 +89,10 @@ export function TicketPanel({
 	const [picked, setPicked] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
+	const reportQuery = useQuery(pageQuery.project(project, "all"));
+	const pullUrl = reportQuery.data?.tickets.find(
+		(item) => item.key === ticketKey,
+	)?.pullUrl;
 	const reply = usePostReply(tracker, project, ticketKey);
 	const pending = reply.isPending;
 	const root = useRef<HTMLElement>(null);
