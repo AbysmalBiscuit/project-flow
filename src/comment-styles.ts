@@ -97,7 +97,7 @@ export const commentBody = stylex.create({
 		borderRadius: radius.sm,
 		backgroundColor: {
 			default: colours.controlFill,
-			":checked": colours.merge,
+			":checked": colours.awaitingMerge,
 		},
 		verticalAlign: "text-bottom",
 	},

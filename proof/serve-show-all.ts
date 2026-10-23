@@ -1,5 +1,5 @@
-import { createServer } from "node:net";
 import { proofStops } from "./lifetime.ts";
+import { freePort } from "./serve-proxy.ts";
 
 const portText = process.argv[2] ?? "47387";
 const publicPort = Number(portText);
@@ -10,19 +10,7 @@ if (!/^\d+$/.test(portText) || publicPort < 1 || publicPort > 65535) {
 const phone = process.argv[3] === "390";
 const frameWidth = phone ? 390 : 1280;
 
-const appPort = await new Promise<number>((resolve, reject) => {
-	const probe = createServer();
-	probe.once("error", reject);
-	probe.listen(0, "127.0.0.1", () => {
-		const address = probe.address();
-		if (address === null || typeof address === "string") {
-			reject(new Error("show-all proof has no app port"));
-			return;
-		}
-		const chosen = address.port;
-		probe.close(() => resolve(chosen));
-	});
-});
+const appPort = await freePort();
 
 const child = Bun.spawn(["bun", "proof/serve-card-lanes.ts", String(appPort)], {
 	stdout: "inherit",

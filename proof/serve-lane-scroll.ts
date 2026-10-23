@@ -1,4 +1,3 @@
-import { createServer } from "node:net";
 import type { Fetch } from "../src/fetch.ts";
 import { recordedDiscovery, urlOf } from "../test/support.ts";
 import {
@@ -7,6 +6,7 @@ import {
 	serveRecorded,
 	unrecorded,
 } from "./recorded.ts";
+import { freePort } from "./serve-proxy.ts";
 
 const repo = "acme/widget";
 const cardCount = 24;
@@ -151,19 +151,7 @@ const recorded: Fetch = async (input, init) => {
 };
 
 const publicPort = Number(process.env.PORT ?? process.argv[2] ?? "4196");
-const appPort = await new Promise<number>((resolve, reject) => {
-	const probe = createServer();
-	probe.once("error", reject);
-	probe.listen(0, "127.0.0.1", () => {
-		const address = probe.address();
-		if (address === null || typeof address === "string") {
-			reject(new Error("lane scroll proof has no app port"));
-			return;
-		}
-		const chosen = address.port;
-		probe.close(() => resolve(chosen));
-	});
-});
+const appPort = await freePort();
 
 void serveRecorded({
 	prefix: "project-flow-lane-scroll-",

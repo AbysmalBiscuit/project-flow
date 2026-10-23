@@ -16,6 +16,7 @@ import {
 	sections,
 	type Trackers,
 } from "./settings-parts.tsx";
+import { stateTones } from "./state-tone.ts";
 import {
 	navLabel,
 	settingsCopy,
@@ -138,16 +139,7 @@ function LaneAgeRow({
 						onPatchView({ shownLanes: names });
 					}}
 				/>
-				<span
-					className={clsx(
-						fields.dot,
-						state === "backlog" && fields.dotBacklog,
-						state === "inProgress" && fields.dotProgress,
-						state === "inReview" && fields.dotReview,
-						state === "awaitingMerge" && fields.dotMerge,
-						state === "done" && fields.dotDone,
-					)}
-				/>
+				<span className={clsx(fields.dot, stateTones[state])} />
 				{stateLabel[state]}
 			</span>
 			<select

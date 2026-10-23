@@ -6,6 +6,7 @@ import {
 	radius,
 	space,
 	stack,
+	stateTone,
 	type,
 } from "./tokens.stylex.ts";
 
@@ -245,18 +246,11 @@ export const board = stylex.create({
 		width: measure.dot,
 		height: measure.dot,
 		borderRadius: radius.pill,
-		backgroundColor: colours.ready,
+		backgroundColor: stateTone.tone,
 	},
 	laneMarkGap: {
 		marginRight: space.xs,
 	},
-	markDone: { backgroundColor: colours.done },
-	markDropped: { backgroundColor: colours.dropped },
-	markBlocked: { backgroundColor: colours.blocked },
-	markBacklog: { backgroundColor: colours.ready },
-	markInProgress: { backgroundColor: colours.progress },
-	markInReview: { backgroundColor: colours.review },
-	markAwaitingMerge: { backgroundColor: colours.merge },
 	laneHead: {
 		display: "flex",
 		flexWrap: "nowrap",
@@ -355,45 +349,10 @@ export const board = stylex.create({
 		textAlign: "left",
 		cursor: "pointer",
 	},
-	cardBacklog: {
-		borderColor: colours.ready,
+	toned: {
+		borderColor: stateTone.tone,
 		backgroundColor: {
-			default: colours.readyWash,
-			":hover": colours.surfaceMuted,
-		},
-	},
-	cardProgress: {
-		borderColor: colours.progress,
-		backgroundColor: {
-			default: colours.progressWash,
-			":hover": colours.surfaceMuted,
-		},
-	},
-	cardReview: {
-		borderColor: colours.review,
-		backgroundColor: {
-			default: colours.reviewWash,
-			":hover": colours.surfaceMuted,
-		},
-	},
-	cardMerge: {
-		borderColor: colours.merge,
-		backgroundColor: {
-			default: colours.mergeWash,
-			":hover": colours.surfaceMuted,
-		},
-	},
-	cardDone: {
-		borderColor: colours.done,
-		backgroundColor: {
-			default: colours.doneWash,
-			":hover": colours.surfaceMuted,
-		},
-	},
-	cardDropped: {
-		borderColor: colours.dropped,
-		backgroundColor: {
-			default: colours.droppedWash,
+			default: stateTone.wash,
 			":hover": colours.surfaceMuted,
 		},
 	},
@@ -630,7 +589,7 @@ export const board = stylex.create({
 		height: measure.dot,
 		marginRight: space.xs,
 		borderRadius: radius.pill,
-		backgroundColor: colours.ready,
+		backgroundColor: stateTone.tone,
 		verticalAlign: "middle",
 	},
 	links: {
@@ -688,7 +647,8 @@ export const board = stylex.create({
 		height: measure.dot,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
-		borderColor: colours.lineStrong,
+		borderColor: stateTone.tone,
+		backgroundColor: stateTone.tone,
 		borderRadius: radius.pill,
 	},
 	legendNote: {
@@ -785,20 +745,5 @@ export const board = stylex.create({
 	/** An outside card whose state has no tone. */
 	ticketOutsideUntoned: {
 		borderColor: colours.inkSoft,
-	},
-	legendReady: { backgroundColor: colours.ready, borderColor: colours.ready },
-	legendProgress: {
-		backgroundColor: colours.progress,
-		borderColor: colours.progress,
-	},
-	legendReview: {
-		backgroundColor: colours.review,
-		borderColor: colours.review,
-	},
-	legendMerge: { backgroundColor: colours.merge, borderColor: colours.merge },
-	legendDone: { backgroundColor: colours.done, borderColor: colours.done },
-	legendDropped: {
-		backgroundColor: colours.dropped,
-		borderColor: colours.dropped,
 	},
 });
