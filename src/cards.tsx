@@ -38,12 +38,7 @@ import {
 	RefreshButton,
 	usePollProgress,
 } from "./poll-freshness.tsx";
-import {
-	barSegments,
-	SegmentedBar,
-	ticketTotal,
-	trackerName,
-} from "./progress-bar.tsx";
+import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import {
 	configurationOf,
 	pageQuery,
@@ -478,33 +473,10 @@ function SortMark({ direction }: { direction: "asc" | "desc" | "none" }) {
 	);
 }
 
-function ProgressBar({ project }: { project: ProjectCounts }) {
-	const total = ticketTotal(project);
+function ProgressCell({ project }: { project: ProjectCounts }) {
 	return (
 		<div className={clsx(cards.progressCell)}>
-			<div
-				className={clsx(cards.barThin)}
-				role="progressbar"
-				aria-valuenow={project.progress}
-				aria-valuemin={0}
-				aria-valuemax={100}
-				aria-label={`${project.name} progress`}
-			>
-				{barSegments.map((item) =>
-					project.statusTypes[item.key] === 0 || total === 0 ? null : (
-						<div
-							key={item.key}
-							data-state={item.key}
-							{...stylex.props(
-								cards.segment(
-									`${(project.statusTypes[item.key] / total) * 100}%`,
-								),
-								item.tone,
-							)}
-						/>
-					),
-				)}
-			</div>
+			<SegmentedBar project={project} variant="cell" />
 			<span>{project.progress}%</span>
 		</div>
 	);
@@ -588,7 +560,7 @@ function TableView({
 									{trackerLabel[project.tracker]}
 								</td>
 								<td className={clsx(cards.cell)}>
-									{loading ? loadingLabel : <ProgressBar project={project} />}
+									{loading ? loadingLabel : <ProgressCell project={project} />}
 								</td>
 								<td className={clsx(cards.cell, cards.number)}>
 									{loading ? null : project.statusTypes.backlog}
