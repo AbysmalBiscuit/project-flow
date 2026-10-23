@@ -406,4 +406,12 @@ describe("project graph layout", () => {
 			});
 		}
 	});
+
+	test("a parent ticket whose sub-tickets are all hidden shows as a plain card", async () => {
+		const report = await hierarchyReport("ship the widget");
+		expect(layoutInput(report, "workstream", [])).toMatchObject({
+			cards: [{ id: cardOf("WID-1"), frame: null }],
+			frames: [],
+		});
+	});
 });

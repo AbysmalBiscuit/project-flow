@@ -98,7 +98,7 @@ describe("GET /api/projects/:name graph parent tickets", () => {
 		});
 	});
 
-	test("a parent ticket whose sub-tickets are all hidden heads no frame", async () => {
+	test("a search that shows only a top ticket sends no parent tickets", async () => {
 		expect(await graphOf("runbook")).toEqual({
 			shown: ["WID-20"],
 			parents: [],
