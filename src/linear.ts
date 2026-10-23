@@ -15,20 +15,12 @@ import {
 	type PullLink,
 	type ReviewEvidence,
 } from "./github.ts";
-import {
-	commentAuthor,
-	linearEndpoint,
-	linearGraphql,
-	linearHeaders,
-	linearPageInfo,
-} from "./linear-api.ts";
+import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
 import { fetchLinearThread, postLinearReply } from "./linear-thread.ts";
 import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
 
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
-
-const endpoint = linearEndpoint;
 
 const pageInfo = linearPageInfo;
 
@@ -269,15 +261,20 @@ const issuePage = z.object({
 
 const viewerQuery = "query { viewer { id } }";
 
+/** Send the viewer query with this key, and throw the tracker error when Linear refuses it. */
 export async function checkLinearKey(
 	key: string,
 	fetchImpl: Fetch,
-): Promise<Response> {
-	return fetchImpl(endpoint, {
-		method: "POST",
-		headers: linearHeaders(key),
-		body: JSON.stringify({ query: viewerQuery }),
-	});
+): Promise<void> {
+	await linearGraphql(
+		{ key, fetchImpl },
+		{
+			query: viewerQuery,
+			variables: {},
+			data: z.unknown(),
+			label: "key check",
+		},
+	);
 }
 
 function toState(

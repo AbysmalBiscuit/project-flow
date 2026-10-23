@@ -7,7 +7,7 @@ import {
 	responseBody,
 } from "./graphql.ts";
 
-export const linearEndpoint = "https://api.linear.app/graphql";
+const linearEndpoint = "https://api.linear.app/graphql";
 
 export const linearPageInfo = z.object({
 	hasNextPage: z.boolean(),
@@ -32,7 +32,7 @@ export function commentAuthor(
 	return undefined;
 }
 
-export function linearHeaders(key: string): HeadersInit {
+function linearHeaders(key: string): HeadersInit {
 	return {
 		authorization: key,
 		"content-type": "application/json",
