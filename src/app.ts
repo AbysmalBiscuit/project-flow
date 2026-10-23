@@ -133,6 +133,14 @@ const readIdsBody = readMarkBody.extend({
 	ids: z.array(z.string()),
 });
 
+function invalidConfiguration(error: unknown): Response {
+	const message =
+		error instanceof Error
+			? error.message
+			: "invalid configuration: configuration";
+	return Response.json({ error: message }, { status: 400 });
+}
+
 async function readMark(request: Request): Promise<boolean> {
 	const parsed = readMarkBody.safeParse(await request.json().catch(() => null));
 	return parsed.success;
@@ -653,11 +661,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					try {
 						parsed = readSettingsWrite(rawText);
 					} catch (error) {
-						const message =
-							error instanceof Error
-								? error.message
-								: "invalid configuration: configuration";
-						return Response.json({ error: message }, { status: 400 });
+						return invalidConfiguration(error);
 					}
 					const current = await configurationPort.read();
 					const unknownBot = rejectUnknownBotKeys(
@@ -671,16 +675,14 @@ export async function start(options: StartOptions): Promise<Running> {
 					}
 					const merged = mergedSettingsWrite(current, parsed, rawText);
 					const mergedText = JSON.stringify(merged);
+					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
+					const stale = polling;
+					try {
+						configuration = await configurationPort.write(mergedText);
+					} catch (error) {
+						return invalidConfiguration(error);
+					}
 					if (viewOnlyChange(current, merged)) {
-						try {
-							configuration = await configurationPort.write(mergedText);
-						} catch (error) {
-							const message =
-								error instanceof Error
-									? error.message
-									: "invalid configuration: configuration";
-							return Response.json({ error: message }, { status: 400 });
-						}
 						pollOptions.fallback = configuration;
 						notifier.publish({
 							overview: runningOverview(pollOptions, configuration),
@@ -696,19 +698,8 @@ export async function start(options: StartOptions): Promise<Running> {
 							),
 						);
 					}
-					const trackedChanged = !sameTracked(current.tracked, merged.tracked);
-					const stale = polling;
-					try {
-						configuration = await configurationPort.write(mergedText);
-						if (trackedChanged) {
-							trackedGeneration += 1;
-						}
-					} catch (error) {
-						const message =
-							error instanceof Error
-								? error.message
-								: "invalid configuration: configuration";
-						return Response.json({ error: message }, { status: 400 });
+					if (trackedChanged) {
+						trackedGeneration += 1;
 					}
 					configuration = await configurationPort.read();
 					pollOptions.fallback = configuration;
