@@ -11,6 +11,7 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
+import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
 
@@ -54,6 +55,9 @@ export type FoundProject = {
 	configuredOnly?: boolean;
 };
 
+/** A found project that poll resolved to its ProjectRef. */
+export type TrackedProject = FoundProject & { ref: ProjectRef };
+
 export type Viewer = {
 	login: string;
 	orgs: string[];
@@ -70,15 +74,13 @@ export type Tracker = {
 	/** Drop repo reads from the previous poll, including a poll that failed. */
 	beginPoll?: () => void;
 	listTickets: (
-		project: string,
+		project: TrackedProject,
 		since: Date | null,
-		projectOwner?: string,
 		held?: Ticket[],
 	) => Promise<TicketList>;
 	listPulls: (
-		project: string,
+		project: TrackedProject,
 		since?: Date | null,
-		projectOwner?: string,
 	) => Promise<PullRequest[]>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
@@ -108,13 +110,13 @@ export type Store = {
 	replaceTickets: (rows: Snapshot[]) => void;
 	readTickets: () => Snapshot[];
 	mergeTickets: (rows: Snapshot[]) => void;
-	lastGoodPollAt: (project: string) => Date | null;
-	recordGoodPoll: (project: string, at: Date) => void;
-	forgetGoodPoll: (project: string) => void;
+	lastGoodPollAt: (project: ProjectRef) => Date | null;
+	recordGoodPoll: (project: ProjectRef, at: Date) => void;
+	forgetGoodPoll: (project: ProjectRef) => void;
 	recordFetchError: (message: string) => void;
-	recordProjectError: (project: string, message: string) => void;
-	clearProjectError: (project: string) => void;
-	projectError: (project: string) => string | null;
+	recordProjectError: (project: ProjectRef, message: string) => void;
+	clearProjectError: (project: ProjectRef) => void;
+	projectError: (project: ProjectRef) => string | null;
 	fetchStatus: () => { fetchedAt: string | null; error: string | null };
 	readNotifications: () => Notification[];
 	appendNotifications: (entries: Notification[]) => void;

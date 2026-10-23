@@ -945,9 +945,9 @@ export function linearTracker(
 			}
 			return found;
 		},
-		async listTickets(pin, since) {
+		async listTickets(tracked, since) {
 			issuesByProject.clear();
-			const project = await findLinearProject(key, pin, fetchImpl);
+			const project = await findLinearProject(key, tracked.key, fetchImpl);
 			const team = project.teams?.nodes[0];
 			const statuses =
 				team === undefined ? [] : await listTeamStates(key, team.id, fetchImpl);
@@ -997,8 +997,8 @@ export function linearTracker(
 				board,
 			};
 		},
-		async listPulls(pin, since = null) {
-			const project = await findLinearProject(key, pin, fetchImpl);
+		async listPulls(tracked, since = null) {
+			const project = await findLinearProject(key, tracked.key, fetchImpl);
 			const nodes = await issues(project.id, since ?? null);
 			return pullsForIssues(nodes, githubToken, fetchGithub, seenReviews);
 		},

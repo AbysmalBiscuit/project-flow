@@ -39,6 +39,7 @@ import {
 	usePollProgress,
 } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
+import { pinRef } from "./project-ref.ts";
 import {
 	configurationOf,
 	pageQuery,
@@ -332,13 +333,7 @@ function slug(value: string): string {
 }
 
 function subtitle(project: ProjectCounts): string {
-	if (project.ref.tracker === "linear") {
-		return `${trackerName(project.tracker)}, ${project.ref.project}`;
-	}
-	if ("repo" in project.ref) {
-		return `${trackerName(project.tracker)}, ${project.ref.repo}`;
-	}
-	return `${trackerName(project.tracker)}, ${project.ref.owner}/${project.ref.project}`;
+	return `${trackerName(project.tracker)}, ${pinRef(project.ref).key}`;
 }
 
 const legendSegments = [

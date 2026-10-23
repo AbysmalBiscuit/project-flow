@@ -24,6 +24,7 @@ import {
 	overviewSorts,
 	overviewViews,
 } from "./overview-view.ts";
+import { ownerRepo } from "./project-ref.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphLayout,
@@ -37,7 +38,7 @@ import {
 
 const githubRepoPin = z.strictObject({
 	tracker: z.literal("github"),
-	repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
+	repo: z.string().regex(ownerRepo),
 });
 
 const githubProjectPin = z.strictObject({

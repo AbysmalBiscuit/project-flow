@@ -8,18 +8,11 @@ import {
 import type { Fetch } from "./fetch.ts";
 import { dependencyRefs, githubHeaders } from "./github.ts";
 import { graphqlConnection, graphqlDependency } from "./github-graphql.ts";
+import { repoParts } from "./project-ref.ts";
 
 const connectionPage = "pageInfo { hasNextPage endCursor }";
 
 const blockerPage = graphqlConnection(graphqlDependency);
-
-function splitRepo(repo: string): { owner: string; name: string } | null {
-	const [owner, name] = repo.split("/");
-	if (owner === undefined || name === undefined || name === "") {
-		return null;
-	}
-	return { owner, name };
-}
 
 async function readBlockerStates(
 	token: string,
@@ -27,7 +20,7 @@ async function readBlockerStates(
 	repo: string,
 	numbers: number[],
 ): Promise<Map<number, z.infer<typeof blockerPage>>> {
-	const parts = splitRepo(repo);
+	const parts = repoParts(repo);
 	const states = new Map<number, z.infer<typeof blockerPage>>();
 	if (parts === null || numbers.length === 0) {
 		return states;

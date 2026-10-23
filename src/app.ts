@@ -38,6 +38,7 @@ import type {
 	Store,
 	TodoSource,
 } from "./ports.ts";
+import { listedRef } from "./project-ref.ts";
 import {
 	attentionFor,
 	overview,
@@ -892,10 +893,10 @@ export async function start(options: StartOptions): Promise<Running> {
 				const firstStatus = opened.store.fetchStatus();
 				const rows = opened.store.readTickets();
 				const fetched = rows.filter(
-					(row) => opened.store.projectError(row.key) === null,
+					(row) => opened.store.projectError(listedRef(row)) === null,
 				);
 				const projectErrors = rows.map((row) =>
-					opened.store.projectError(row.key),
+					opened.store.projectError(listedRef(row)),
 				);
 				const everyFailureIsMissingCredential =
 					projectErrors.length > 0 &&

@@ -9,7 +9,15 @@ import {
 } from "./domain.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
-import { pendingProjects, refKey } from "./settings-catalogue.ts";
+import {
+	listedRef,
+	pinRef,
+	projectId,
+	refPin,
+	refRepo,
+	sameProject,
+} from "./project-ref.ts";
+import { pendingProjects } from "./settings-catalogue.ts";
 import { commentNotificationId, needsYouSeenId } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -52,70 +60,22 @@ function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
 	};
 }
 
-function boardPin(
-	row: Snapshot,
-): Extract<Configuration["tracked"][number], { owner: string }> | null {
-	const [laneOwner, numberText] = row.board?.laneKey?.split("/") ?? [];
-	const laneNumber = Number(numberText);
-	const owner = row.owner ?? laneOwner;
-	const number = row.number ?? laneNumber;
-	if (
-		row.tracker !== "github" ||
-		owner === undefined ||
-		owner === "" ||
-		!Number.isInteger(number) ||
-		number <= 0
-	) {
-		return null;
-	}
-	return { tracker: "github", owner, project: number };
-}
-
-function sameProjectRef(
-	row: Snapshot,
-	ref: Configuration["tracked"][number],
-): boolean {
-	if (refKey(ref) === row.key) {
-		return true;
-	}
-	const board = boardPin(row);
-	return (
-		board !== null &&
-		ref.tracker === "github" &&
-		"owner" in ref &&
-		ref.owner === board.owner &&
-		ref.project === board.project
-	);
-}
-
-function projectRef(
+function trackedPin(
 	row: Snapshot,
 	tracked: Configuration["tracked"],
-): Configuration["tracked"][number] {
-	const pin = tracked.find((ref) => sameProjectRef(row, ref));
-	if (pin !== undefined) {
-		return pin;
-	}
-	const board = boardPin(row);
-	if (board !== null) {
-		return board;
-	}
-	if (row.tracker === "linear") {
-		return { tracker: "linear", project: row.key };
-	}
-	return { tracker: "github", repo: row.key };
+): Configuration["tracked"][number] | undefined {
+	const ref = listedRef(row);
+	return tracked.find((pin) => sameProject(ref, pinRef(pin)));
 }
 
 function trackedRows(options: PollOptions, configuration: Configuration) {
 	const rows = options.store
 		.readTickets()
-		.filter((row) =>
-			configuration.tracked.some((ref) => sameProjectRef(row, ref)),
-		);
-	const all = rows.map((row) => ({
-		project: row.key.includes("/") ? row.key : row.name,
-		tickets: row.tickets,
-	}));
+		.filter((row) => trackedPin(row, configuration.tracked) !== undefined);
+	const all = rows.map((row) => {
+		const repo = refRepo(listedRef(row));
+		return { project: repo ?? row.name, repo, tickets: row.tickets };
+	});
 	return { rows, all };
 }
 
@@ -127,7 +87,7 @@ function computeProjectView(
 	options: PollOptions,
 	configuration: Configuration,
 ) {
-	const goodPoll = options.store.lastGoodPollAt(row.key);
+	const goodPoll = options.store.lastGoodPollAt(listedRef(row));
 	const viewedAt = goodPoll ?? new Date(0);
 	const counted = projectCounts(
 		row.name,
@@ -147,7 +107,7 @@ function computeProjectView(
 		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 		{
 			fetchedAt: goodPoll?.toISOString() ?? null,
-			error: options.store.projectError(row.key),
+			error: options.store.projectError(listedRef(row)),
 		},
 		needsYouRules(configuration, options.viewers),
 		configuration.laneMappings,
@@ -160,7 +120,7 @@ function computeProjectView(
 		items: counted.needsYou,
 		counts: {
 			...counted.counts,
-			ref: projectRef(row, configuration.tracked),
+			ref: trackedPin(row, configuration.tracked) ?? refPin(listedRef(row)),
 		},
 		report: counted.report,
 	};
@@ -291,17 +251,18 @@ export function overview(
 				configuration.tracked,
 				counted,
 				new Set(
-					options.catalogue.flatMap((project) =>
-						options.store.lastGoodPollAt(project.key) === null
+					options.catalogue.flatMap((project) => {
+						const ref = listedRef(project);
+						return options.store.lastGoodPollAt(ref) === null
 							? []
-							: [project.key],
-					),
+							: [projectId(ref)];
+					}),
 				),
 			)
 		: [];
 	const projects = [...counted, ...pending];
 	const goodPolls = projects.flatMap((project) => {
-		const at = options.store.lastGoodPollAt(project.name);
+		const at = options.store.lastGoodPollAt(pinRef(project.ref));
 		return at === null ? [] : [at.toISOString()];
 	});
 	return {

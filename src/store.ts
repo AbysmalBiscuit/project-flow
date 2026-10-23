@@ -3,6 +3,7 @@ import type { Board, Notification, Ticket } from "./domain.ts";
 import { mergeTickets } from "./domain.ts";
 import type { ValidatorStore } from "./github.ts";
 import type { Snapshot, Store } from "./ports.ts";
+import { listedRef, projectId } from "./project-ref.ts";
 
 type StoredPayload = {
 	tickets: Ticket[];
@@ -27,7 +28,7 @@ function readRows(db: Database): Snapshot[] {
 	return rows.map((row) => {
 		const payload = JSON.parse(row.payload) as StoredPayload;
 		return {
-			key: row.snapshot_key.slice(row.tracker.length + 1),
+			key: row.snapshot_key.slice(row.snapshot_key.indexOf(":") + 1),
 			name: row.name,
 			tracker: row.tracker,
 			tickets: payload.tickets,
@@ -48,7 +49,7 @@ function writeRow(db: Database, row: Snapshot): void {
 	db.query(
 		"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?) on conflict(snapshot_key) do update set name = excluded.name, tracker = excluded.tracker, payload = excluded.payload",
 	).run(
-		`${row.tracker}:${row.key}`,
+		`${listedRef(row).kind}:${row.key}`,
 		row.name,
 		row.tracker,
 		JSON.stringify({
@@ -154,9 +155,11 @@ export function sqliteStore(path: string): {
 			mergeTickets(rows) {
 				revision += 1;
 				db.transaction(() => {
-					const stored = new Map(readRows(db).map((row) => [row.key, row]));
+					const stored = new Map(
+						readRows(db).map((row) => [projectId(listedRef(row)), row]),
+					);
 					for (const row of rows) {
-						const previous = stored.get(row.key);
+						const previous = stored.get(projectId(listedRef(row)));
 						writeRow(db, {
 							...row,
 							tickets: mergeTickets(previous?.tickets ?? [], row.tickets),
@@ -167,7 +170,7 @@ export function sqliteStore(path: string): {
 			lastGoodPollAt(project) {
 				const row = db
 					.query("select fetched_at from project_polls where project = ?")
-					.get(project) as { fetched_at: string } | null;
+					.get(projectId(project)) as { fetched_at: string } | null;
 				if (row === null) {
 					return null;
 				}
@@ -178,7 +181,7 @@ export function sqliteStore(path: string): {
 				const fetchedAt = at.toISOString();
 				db.query(
 					"insert into project_polls (project, fetched_at) values (?, ?) on conflict(project) do update set fetched_at = excluded.fetched_at",
-				).run(project, fetchedAt);
+				).run(projectId(project), fetchedAt);
 				db.query(
 					"update fetch_status set fetched_at = ?, error = null where id = 1",
 				).run(fetchedAt);
@@ -186,7 +189,7 @@ export function sqliteStore(path: string): {
 			forgetGoodPoll(project) {
 				revision += db
 					.query("delete from project_polls where project = ?")
-					.run(project).changes;
+					.run(projectId(project)).changes;
 			},
 			recordFetchError(message) {
 				revision += 1;
@@ -196,17 +199,17 @@ export function sqliteStore(path: string): {
 				revision += 1;
 				db.query(
 					"insert into project_errors (project, error) values (?, ?) on conflict(project) do update set error = excluded.error",
-				).run(project, message);
+				).run(projectId(project), message);
 			},
 			clearProjectError(project) {
 				revision += db
 					.query("delete from project_errors where project = ?")
-					.run(project).changes;
+					.run(projectId(project)).changes;
 			},
 			projectError(project) {
 				const pending = db
 					.query("select error from project_errors where project = ?")
-					.get(project) as { error: string } | null;
+					.get(projectId(project)) as { error: string } | null;
 				return pending?.error ?? null;
 			},
 			fetchStatus() {
