@@ -10,7 +10,7 @@ import {
 	layoutGraph,
 	layoutInput,
 } from "./graph-layout.ts";
-import { headGrowth } from "./graph-model.ts";
+import { headGrowth, titleGrowth } from "./graph-model.ts";
 import type { NodeSize } from "./graph-sizes.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 
@@ -50,7 +50,7 @@ export function useLaidGraph(
 		}
 		let current = true;
 		const input = layoutInput(report, groupBy, assignees);
-		layoutGraph(elk(), input, direction, span, headGrowth).then(
+		layoutGraph(elk(), input, direction, span, headGrowth, titleGrowth).then(
 			(layout) => {
 				if (current) {
 					setLaid({ report, direction, groupBy, input, layout });

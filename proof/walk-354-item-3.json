@@ -1,0 +1,19 @@
+{
+	"base_url": "http://127.0.0.1:4357",
+	"viewport": { "width": 1440, "height": 1000 },
+	"serve": ["bun", "proof/serve-354.ts", "4357"],
+	"steps": [
+		{ "goto": "/projects/Initial%20SDI%20Issues" },
+		{ "assert_text": "Stand up the SDI pipeline" },
+		{ "assert_text": "SDI-13 in SDI-4 in SDI-2 in SDI-1" },
+		{ "assert_text": "SDI-14 in SDI-4 in SDI-2 in SDI-1" },
+		{ "assert_text": "SDI-5 in SDI-1" },
+		{ "assert_text": "SDI-15 in SDI-1" },
+		{ "click": "#project-graph-fit" },
+		{ "shot": "sdi-nested-frames" },
+		{ "click": "#project-graph [data-graph-node='SDI-2']" },
+		{ "assert_text": "panel open" },
+		{ "assert_text": "Ingest the source exports" },
+		{ "shot": "sdi-frame-header-panel" }
+	]
+}
