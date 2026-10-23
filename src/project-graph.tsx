@@ -43,15 +43,13 @@ import { graphModel, isClusterNode } from "./graph-model.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
+import { FrameTools, ScopeLine } from "./graph-scope.tsx";
 import type { NodeSize } from "./graph-sizes.ts";
 import { DirectionSwitch, LayoutSwitch } from "./graph-switches.tsx";
 import { tableTree } from "./table-tree-styles.ts";
 import {
-	frameToolLabel,
 	graphLayoutFailedLabel,
-	graphScopeLabel,
 	navLabel,
-	openFramesLabel,
 	openParentLabel,
 	projectGraphLabel,
 	stateLabel,
@@ -60,7 +58,7 @@ import {
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
-import { cards, panel, headerControlStyle as tools } from "./ui-styles.ts";
+import { cards, panel } from "./ui-styles.ts";
 import type {
 	GraphDirection,
 	GraphLayoutKind,
@@ -371,94 +369,6 @@ function seedLabel(
 	return key === null
 		? seed.slice(seed.indexOf("\n") + 1)
 		: shortTicket(key, report.name, false);
-}
-
-/** Names what the graph shows. Each part returns the graph to that scope. */
-function ScopeLine({
-	project,
-	openFrames,
-	focus,
-	onProject,
-	onFrames,
-	onFocus,
-}: {
-	project: string;
-	openFrames: number;
-	focus: readonly string[];
-	onProject: () => void;
-	onFrames: () => void;
-	onFocus: () => void;
-}) {
-	const parts = [
-		{ scope: "project", label: project, onClick: onProject },
-		{ scope: "frames", label: openFramesLabel(openFrames), onClick: onFrames },
-		...(focus.length === 0
-			? []
-			: [
-					{
-						scope: "focus",
-						label: `${graphScopeLabel.focus}: ${focus.join(", ")}`,
-						onClick: onFocus,
-					},
-				]),
-	];
-	return (
-		<nav
-			id="project-graph-scope"
-			aria-label={graphScopeLabel.nav}
-			className={clsx(board.scopeLine)}
-		>
-			{parts.map((part, index) => (
-				<span key={part.scope} className={clsx(board.scopePart)}>
-					{index === 0 ? null : (
-						<span aria-hidden="true" className={clsx(board.scopeMark)}>
-							/
-						</span>
-					)}
-					<button
-						type="button"
-						className={clsx(board.scopeLink, board.cardFocus)}
-						data-scope={part.scope}
-						aria-current={index === parts.length - 1 ? "location" : undefined}
-						onClick={part.onClick}
-					>
-						{part.label}
-					</button>
-				</span>
-			))}
-		</nav>
-	);
-}
-
-function FrameTools({
-	parents,
-	onAll,
-}: {
-	parents: number;
-	onAll: (collapsed: boolean) => void;
-}) {
-	return (
-		<div className={clsx(tools.graphTools)}>
-			<button
-				type="button"
-				id="project-graph-expand-all"
-				className={clsx(tools.graphTool)}
-				disabled={parents === 0}
-				onClick={() => onAll(false)}
-			>
-				{frameToolLabel.expandAll}
-			</button>
-			<button
-				type="button"
-				id="project-graph-collapse-all"
-				className={clsx(tools.graphTool)}
-				disabled={parents === 0}
-				onClick={() => onAll(true)}
-			>
-				{frameToolLabel.collapseAll}
-			</button>
-		</div>
-	);
 }
 
 export function ProjectGraph({
