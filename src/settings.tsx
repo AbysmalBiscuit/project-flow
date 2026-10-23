@@ -5,7 +5,7 @@ import type { SettingsProject } from "./domain.ts";
 import { projectHasPmBot } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
-import { samePin } from "./project-ref.ts";
+import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import {
 	FilterGlyph,
@@ -248,8 +248,9 @@ function botsOf(
 	project: SettingsProject,
 	repo: string,
 ): KnownBot[] {
-	if (Object.hasOwn(draft.expectedBots ?? {}, repo)) {
-		return draft.expectedBots?.[repo] ?? [];
+	const saved = repoKey(draft.expectedBots ?? {}, repo);
+	if (saved !== undefined) {
+		return draft.expectedBots?.[saved] ?? [];
 	}
 	return project.repoBots[repo] ?? [];
 }
@@ -260,14 +261,17 @@ function setBots(
 	repo: string,
 	bots: KnownBot[],
 ): Configuration["expectedBots"] {
-	const seeded = Object.hasOwn(draft.expectedBots ?? {}, repo)
-		? {}
-		: Object.fromEntries(
-				project.repos
-					.filter((name) => !Object.hasOwn(draft.expectedBots ?? {}, name))
-					.map((name) => [name, project.repoBots[name] ?? []]),
-			);
-	return { ...draft.expectedBots, ...seeded, [repo]: bots };
+	const saved = draft.expectedBots ?? {};
+	const savedKey = repoKey(saved, repo);
+	const seeded =
+		savedKey === undefined
+			? Object.fromEntries(
+					project.repos
+						.filter((name) => repoKey(saved, name) === undefined)
+						.map((name) => [name, project.repoBots[name] ?? []]),
+				)
+			: {};
+	return { ...saved, ...seeded, [savedKey ?? repo]: bots };
 }
 
 function setPmBot(

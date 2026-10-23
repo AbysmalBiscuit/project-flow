@@ -22,6 +22,7 @@ import {
 	type ProjectRef,
 	projectId,
 	refRepo,
+	repoKey,
 	sameProject,
 } from "./project-ref.ts";
 import type { HidingFilter } from "./terms.ts";
@@ -2322,15 +2323,13 @@ export function expectedBotsByRepo(
 	const repos = new Set(pulls.map((pull) => pull.repo));
 	const bots = new Map<string, KnownBot[]>();
 	for (const repo of repos) {
+		const saved = repoKey(overrides, repo);
 		bots.set(
 			repo,
-			expectedBotsFromHistory(pulls.filter((pull) => pull.repo === repo)),
+			saved === undefined
+				? expectedBotsFromHistory(pulls.filter((pull) => pull.repo === repo))
+				: (overrides[saved] ?? []),
 		);
-	}
-	for (const [repo, override] of Object.entries(overrides)) {
-		if (bots.has(repo)) {
-			bots.set(repo, override);
-		}
 	}
 	return bots;
 }

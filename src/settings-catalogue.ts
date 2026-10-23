@@ -18,6 +18,7 @@ import {
 	refListed,
 	refPin,
 	refRepo,
+	repoKey,
 	repoParts,
 	samePin,
 	sameProject,
@@ -126,9 +127,11 @@ export function botsFor(
 	const inferred = expectedBotsByRepo(pulls, {});
 	const repoBots: Record<string, KnownBot[]> = {};
 	for (const repo of repos) {
-		const source = Object.hasOwn(overrides, repo)
-			? (overrides[repo] ?? [])
-			: (inferred.get(repo) ?? []);
+		const saved = repoKey(overrides, repo);
+		const source =
+			saved === undefined
+				? (inferred.get(repo) ?? [])
+				: (overrides[saved] ?? []);
 		repoBots[repo] = knownBots.filter((bot) => source.includes(bot));
 	}
 	const found = Object.values(repoBots).flat();

@@ -161,6 +161,29 @@ describe("project identity", () => {
 		);
 	});
 
+	test("a saved expected-bot override in mixed case applies to the repo that discovery finds", async () => {
+		await withApp(
+			{
+				tracked: [{ tracker: "github", repo: "Acme/Widget" }],
+				expectedBots: { "Acme/Widget": ["grok"] },
+			},
+			async (base) => {
+				const rows = await settingsRows(base);
+				expect(
+					rows
+						.filter((row) => row.tracker === "github")
+						.map(({ key, repoBots, expectedBots }) => ({
+							key,
+							repoBots,
+							expectedBots,
+						})),
+				).toEqual([
+					{ key: repo, repoBots: { [repo]: ["grok"] }, expectedBots: ["grok"] },
+				]);
+			},
+		);
+	});
+
 	test("a GitHub repo and a GitHub project with the same key stay two projects", async () => {
 		await withApp(
 			{
