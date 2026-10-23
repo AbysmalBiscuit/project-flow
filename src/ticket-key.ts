@@ -1,8 +1,6 @@
-import type { TicketState } from "./domain.ts";
+import type { TicketState, Tracker } from "./domain.ts";
 
 // Keys compare without case, so every id folds the key to lower case.
-
-export type Tracker = "github" | "linear";
 
 export type ParsedTicketKey =
 	| { tracker: "github"; repo: string; number: number }

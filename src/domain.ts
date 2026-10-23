@@ -5,6 +5,10 @@ import type { ProjectRef } from "./project-ref.ts";
 import type { HidingFilter } from "./terms.ts";
 import type { GroupBy } from "./view-settings.ts";
 
+export const trackers = ["github", "linear"] as const;
+
+export type Tracker = (typeof trackers)[number];
+
 export type WorkcellRun = {
 	key: string;
 	status: "running" | "failed";
@@ -29,7 +33,7 @@ export type StatusColours = Record<StatusType, string>;
 export type TicketState = StatusType;
 
 export type TicketRef = {
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	project: string;
 	key: string;
 	state?: "open" | "closed";
@@ -55,7 +59,7 @@ export type TicketStatus = {
 
 export type Ticket = {
 	id: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	key: string | null;
 	title: string;
 	state: "open" | "closed";
@@ -89,7 +93,7 @@ export type ParentDetails = {
 };
 
 export type TicketRelation = {
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	project: string;
 	key: string;
 	title: string;
@@ -104,7 +108,7 @@ export type GraphLink = {
 export type GraphEnd = {
 	project: string;
 	key: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	title: string;
 	state?: TicketState;
 };
@@ -151,7 +155,7 @@ export type TicketView = {
 
 export type CrossProjectBlocker = {
 	project: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	key: string;
 	title: string;
 };
@@ -225,7 +229,7 @@ export type UnlinkedPr = {
 
 export type ProjectCounts = {
 	name: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	ref: Configuration["tracked"][number];
 	done: number;
 	dropped: number;
@@ -262,7 +266,7 @@ export type ThreadComment = {
 };
 
 export type Thread = {
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	project: string;
 	key: string;
 	title: string;
@@ -275,7 +279,7 @@ export type FetchedThread = Omit<Thread, "comments"> & {
 };
 
 export type ReplyRequest = {
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	project: string;
 	key: string;
 	body: string;
@@ -305,7 +309,7 @@ export type PullStatus = {
 
 export type NeedsYouItem = {
 	project: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	key: string;
 	headline: string;
 	reason: "ask" | "awaitingMerge" | "label" | "runFailed";
@@ -353,7 +357,7 @@ export type InboxDay = "today" | "yesterday" | "earlier";
 
 export type InboxEntry = Notification & {
 	day: InboxDay;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 };
 
 export type ReportSection = {
@@ -375,7 +379,7 @@ export type Lane = {
 
 export type ProjectReport = {
 	name: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	lanes: Lane[];
 	tickets: TicketView[];
 	sections: ReportSection[];
@@ -422,7 +426,7 @@ export type Board = {
 export type Snapshot = {
 	key: string;
 	name: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	tickets: Ticket[];
 	pulls: PullRequest[];
 	branches: string[];
@@ -457,7 +461,7 @@ export type ProjectGroup = {
 export type ListedProject = {
 	key: string;
 	name?: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	owner?: string;
 	number?: number;
 	updatedAt: string | null;
@@ -491,7 +495,7 @@ export type GroupKey = Exclude<GroupBy, "none">;
 export type SettingsProject = {
 	name: string;
 	key: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	source: "found" | "configured";
 	tracked: boolean;
 	pmBot: boolean;

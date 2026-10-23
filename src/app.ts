@@ -6,7 +6,7 @@ import {
 	loadFilledConfiguration,
 	saveConfiguration,
 } from "./configuration.ts";
-import type { PostedReply, ProjectReport } from "./domain.ts";
+import { type PostedReply, type ProjectReport, trackers } from "./domain.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
@@ -118,7 +118,7 @@ function reportFor(
 }
 
 const replyBody = z.object({
-	tracker: z.enum(["github", "linear"]),
+	tracker: z.enum(trackers),
 	project: z.string().trim().min(1),
 	key: z.string().trim().min(1),
 	body: z.string().optional(),

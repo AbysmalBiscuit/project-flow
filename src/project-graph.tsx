@@ -2,7 +2,7 @@ import { BaseEdge } from "@xyflow/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
 import { useCollapse } from "./collapse.ts";
-import type { ProjectReport, TicketState } from "./domain.ts";
+import type { ProjectReport, TicketState, Tracker } from "./domain.ts";
 import { Legend } from "./graph-float.tsx";
 import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
@@ -42,7 +42,7 @@ import type {
 export type OpenedNode = {
 	key: string;
 	project: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	title: string;
 	outside: boolean;
 	state?: TicketState;

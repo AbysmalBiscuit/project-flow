@@ -47,7 +47,7 @@ export type CheckoutSource = (roots: string[]) => Promise<LocalCheckout[]>;
 export type FoundProject = {
 	key: string;
 	name?: string;
-	tracker: "github" | "linear";
+	tracker: Snapshot["tracker"];
 	updatedAt: string | null;
 	owner?: string;
 	number?: number;

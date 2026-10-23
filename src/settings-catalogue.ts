@@ -3,6 +3,7 @@ import type {
 	ProjectCounts,
 	SettingsProject,
 	SettingsSnapshot,
+	Tracker,
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
@@ -25,7 +26,7 @@ import { expectedBotsByRepo } from "./review.ts";
 export type CatalogueProject = {
 	key: string;
 	name?: string;
-	tracker: "github" | "linear";
+	tracker: Tracker;
 	owner?: string;
 	number?: number;
 	configuredOnly?: boolean;
