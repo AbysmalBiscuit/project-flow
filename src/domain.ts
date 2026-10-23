@@ -1,4 +1,13 @@
 import { z } from "zod";
+import {
+	type Ask,
+	askAnswer,
+	askId,
+	namesLev,
+	progressAnswers,
+	progressHeading,
+	readAsks,
+} from "./ask.ts";
 import type {
 	AutoMerge,
 	Configuration,
@@ -476,7 +485,7 @@ export function attentionOf(
 			);
 			const reply =
 				item.reason === "ask" && ask !== null
-					? levReply(itemComments, ask.index)
+					? (ask.answer?.comment ?? null)
 					: null;
 			const newest = newestComment(itemComments);
 			comments.set(itemId(item.project, item.key), {
@@ -2520,7 +2529,6 @@ function botCycle(
 	return { state: waiting ? "inReview" : "awaitingMerge", tags };
 }
 
-const progressHeading = "**Workcell progress**";
 const stageLine = /^stage\s+(\d+)\b/i;
 const progressStallLimitMs = 2 * 60 * 60 * 1000;
 const mergeAskLine = /^Merge PR #(\d+)\b/i;
@@ -2602,7 +2610,7 @@ function resumedAfterReport(
 		.some(
 			(line) =>
 				countsStage(line) ||
-				(reportAsk !== null && askAnsweredLine(line, reportAsk)),
+				(reportAsk !== null && progressAnswers(line, reportAsk)),
 		);
 }
 
@@ -2653,8 +2661,7 @@ function workcellRun(
 	if (found === undefined) {
 		return null;
 	}
-	const { progress, lines, later, reportAt, report } = found;
-	const reportAsk = report === undefined ? null : askId(report.body);
+	const { lines, later, reportAt, report } = found;
 	if (reportAt >= 0 || report !== undefined) {
 		if (
 			resumedAfterReport(
@@ -2664,27 +2671,17 @@ function workcellRun(
 		) {
 			return { state: "inReview", tags: [] };
 		}
-		const marker =
-			report !== undefined && commentNamesPull(report.body, pull.number);
-		if (marker && reportAsk === null) {
-			return { state: "awaitingMerge", tags: [] };
-		}
-		if (marker && reportAsk !== null) {
-			const after = later.slice(later.indexOf(report) + 1);
-			if (!askAnswered([progress, ...after], reportAsk)) {
-				return { state: "awaitingMerge", tags: [] };
-			}
-			return { state: "inReview", tags: [] };
+		if (report !== undefined && commentNamesPull(report.body, pull.number)) {
+			const open =
+				askId(report.body) === null || askAnswer(comments, report) === null;
+			return { state: open ? "awaitingMerge" : "inReview", tags: [] };
 		}
 		if (reportAt >= 0 && lineDecidesPull(lines[reportAt] ?? "", pull, lines)) {
 			return { state: "awaitingMerge", tags: [] };
 		}
 	}
 	const mergeAsk = openMergeAsk(later, pull.number);
-	if (
-		mergeAsk !== null &&
-		!askAnswered([progress, ...later.slice(mergeAsk.index + 1)], mergeAsk.id)
-	) {
+	if (mergeAsk !== undefined && askAnswer(comments, mergeAsk) === null) {
 		return { state: "awaitingMerge", tags: [] };
 	}
 	let stage: number | null = null;
@@ -2722,52 +2719,21 @@ function commentNamesPull(body: string, number: number): boolean {
 	return numbers.length === 0 || numbers.includes(number);
 }
 
-function openMergeAsk(
-	later: Comment[],
-	number: number,
-): { id: string; index: number } | null {
-	let found: { id: string; index: number } | null = null;
-	for (const [index, comment] of later.entries()) {
-		const marker = askId(comment.body);
-		if (marker === null || !commentNamesPull(comment.body, number)) {
-			continue;
+function openMergeAsk(later: Comment[], number: number): Comment | undefined {
+	return later.findLast((comment) => {
+		if (
+			askId(comment.body) === null ||
+			!commentNamesPull(comment.body, number)
+		) {
+			return false;
 		}
 		const first = comment.body.split("\n")[0]?.trim() ?? "";
-		if (
+		return (
 			first.match(mergeAskLine)?.[1] === String(number) ||
 			comment.body.includes(reportMarker) ||
 			finalReportLine.test(first)
-		) {
-			found = { id: marker, index };
-		}
-	}
-	return found;
-}
-
-function askAnswered(later: Comment[], id: string): boolean {
-	return later.some(
-		(comment) =>
-			quotesAsk(comment.body, id) ||
-			answerPrefix.test(comment.body.trim()) ||
-			progressAnswered(comment.body, id),
-	);
-}
-
-function askAnsweredLine(line: string, id: string): boolean {
-	const askNumber = id.split("-").at(-1);
-	if (askNumber === undefined) {
-		return false;
-	}
-	return new RegExp(`^ask-${askNumber}\\s+answered\\b`, "i").test(line);
-}
-
-function progressAnswered(body: string, id: string): boolean {
-	if (!body.trimStart().startsWith(progressHeading)) {
-		return false;
-	}
-	return body
-		.split("\n")
-		.some((line) => askAnsweredLine(line.trim().replace(/^-\s*/, ""), id));
+		);
+	});
 }
 
 function laterState(current: TicketState, next: TicketState): TicketState {
@@ -3359,9 +3325,6 @@ function progressRatio(
 	return Math.round((counts.done / total) * 100);
 }
 
-const askMarker = /<!--\s*workcell:ask\s+([A-Za-z0-9_.-]+)\s*-->/i;
-const workcellMarker = /<!--\s*workcell:/i;
-const answerPrefix = /^(?:senior|reply|answer)\b/i;
 const decisionRecord = /^\**\s*decision\b/i;
 const nameCue =
 	/\b(?:waits on|held for|left for|decision|verify|restore|passphrase|signing key)\b/i;
@@ -3381,51 +3344,6 @@ export function projectHasPmBot(
 		([name]) => name.toLowerCase() === key.toLowerCase(),
 	);
 	return match?.[1] ?? tracker === "github";
-}
-
-function askId(body: string): string | null {
-	return body.match(askMarker)?.[1] ?? null;
-}
-
-function quotesAsk(body: string, id: string): boolean {
-	const pattern = new RegExp(
-		`(?<![A-Za-z0-9_.-])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![A-Za-z0-9_.-])`,
-		"i",
-	);
-	return pattern.test(body);
-}
-
-const numberedOption = /^(\d+)[.)]\s+(\S.*)$/;
-
-function askOptions(body: string): AskOption[] {
-	const text = body.replace(askMarker, "");
-	const options: AskOption[] = [];
-	for (const line of text.split("\n")) {
-		const match = line.trim().match(numberedOption);
-		const number = match?.[1];
-		const label = match?.[2]?.trim();
-		if (number === undefined || label === undefined || label === "") {
-			continue;
-		}
-		options.push({ number: Number(number), label });
-	}
-	return options;
-}
-
-function askQuestion(body: string, headline: string): string {
-	const lines = body
-		.replace(askMarker, "")
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(
-			(line) =>
-				line !== "" && !line.startsWith("<!--") && !numberedOption.test(line),
-		);
-	const asked = lines.find((line) => line.endsWith("?"));
-	if (asked !== undefined) {
-		return asked;
-	}
-	return lines.at(-1) ?? headline;
 }
 
 function ciOf(pull: PullRequest): PullStatus["ci"] {
@@ -3510,61 +3428,6 @@ function pullStatus(pull: PullRequest): PullStatus {
 	};
 }
 
-function askHeadline(body: string): string {
-	const text = body.replace(askMarker, "").trim();
-	const named = text
-		.split(/(?<=[.!?])\s+|\n+/)
-		.map((part) => part.trim())
-		.find((part) => namesLev(part));
-	if (named !== undefined) {
-		return named.replace(/^senior,\s*/i, "");
-	}
-	const lines = text
-		.split("\n")
-		.map((line) => line.trim())
-		.filter((line) => line !== "" && !line.startsWith("<!--"));
-	return lines.at(-1) ?? text;
-}
-
-function quotesAskText(body: string, askBody: string): boolean {
-	const headline = askHeadline(askBody);
-	const text = askBody.replace(askMarker, "").trim();
-	if (headline === "" && text === "") {
-		return false;
-	}
-	return body.split("\n").some((line) => {
-		const quoted = line.trimStart();
-		if (!quoted.startsWith(">")) {
-			return false;
-		}
-		const content = quoted.slice(1).trim();
-		return (
-			(headline !== "" && content === headline) ||
-			(text !== "" && content.includes(text))
-		);
-	});
-}
-
-function commentTime(comment: Comment): number {
-	if (comment.createdAt === undefined) {
-		return 0;
-	}
-	const parsed = Date.parse(comment.createdAt);
-	return Number.isNaN(parsed) ? 0 : parsed;
-}
-
-function orderedComments(comments: Comment[]): Comment[] {
-	return comments.every((comment) => comment.createdAt === undefined)
-		? comments
-		: [...comments].sort(
-				(left, right) => commentTime(left) - commentTime(right),
-			);
-}
-
-function namesLev(body: string): boolean {
-	return /\blev\b/i.test(body);
-}
-
 function opensForSenior(body: string): boolean {
 	const opening = body.trim().slice(0, 240).toLowerCase();
 	return /\b(?:senior|for the senior)\b/.test(opening);
@@ -3593,22 +3456,6 @@ function addressedToLev(body: string, pmBot: boolean): boolean {
 	return true;
 }
 
-function progressPicked(body: string, id: string): boolean {
-	if (!body.trimStart().startsWith(progressHeading)) {
-		return false;
-	}
-	const line = body
-		.split("\n")
-		.find((item) => item.replace(/^\s*-?\s*/, "").startsWith(`ask-${id}:`));
-	return line !== undefined && /human picks\b/i.test(line);
-}
-
-function askClosed(later: Comment[], id: string): boolean {
-	return later.some(
-		(item) => quotesAsk(item.body, id) || progressPicked(item.body, id),
-	);
-}
-
 export function optionReplyBody(
 	ticket: Ticket | undefined,
 	option: number,
@@ -3629,87 +3476,36 @@ export function panelReplyBody(
 	parentId?: string,
 ): string {
 	const text = body.trim();
-	const comments = ticket?.comments ?? [];
-	const ask = openAsk(comments, pmBot);
-	if (ask === null) {
+	const ask = openAsk(ticket?.comments ?? [], pmBot);
+	if (ask === null || ask.answer !== null) {
 		return text;
 	}
-	const source = orderedComments(comments)[ask.index];
-	if (source === undefined || levReply(comments, ask.index) !== null) {
+	if (parentId !== undefined && parentId !== ask.comment.id) {
 		return text;
 	}
-	if (parentId !== undefined && parentId !== source.id) {
+	if (ask.headline === "") {
 		return text;
 	}
-	const headline = askHeadline(source.body);
-	if (headline === "") {
-		return text;
-	}
-	return `> ${headline}\n\n${text}`;
+	return `> ${ask.headline}\n\n${text}`;
 }
 
-type OpenAsk = {
-	headline: string;
-	question: string;
-	options: AskOption[];
-	tags: string[];
-	index: number;
-};
+type OpenAsk = Ask & { tags: string[] };
 
 function openAsk(comments: Comment[], pmBot: boolean): OpenAsk | null {
-	const ordered = orderedComments(comments);
-	const latest = new Map<string, number>();
-	ordered.forEach((comment, index) => {
-		const id = askId(comment.body);
-		if (id !== null) {
-			latest.set(id, index);
-		}
-	});
-	let found: OpenAsk | null = null;
-	for (const [id, index] of latest) {
-		const comment = ordered[index];
-		if (comment === undefined || !addressedToLev(comment.body, pmBot)) {
-			continue;
-		}
-		if (askClosed(ordered.slice(index + 1), id)) {
-			continue;
-		}
-		if (found === null || index > found.index) {
-			const headline = askHeadline(comment.body);
-			found = {
-				headline,
-				question: askQuestion(comment.body, headline),
-				options: askOptions(comment.body),
-				tags: matchedByName(comment.body) ? ["matched by name"] : [],
-				index,
-			};
-		}
-	}
-	return found;
-}
-
-function levReply(comments: Comment[], askIndex: number): Comment | null {
-	const ordered = orderedComments(comments);
-	const ask = ordered[askIndex];
+	const ask = readAsks(comments)
+		.filter(
+			(item) =>
+				item.answer?.by !== "record" &&
+				addressedToLev(item.comment.body, pmBot),
+		)
+		.at(-1);
 	if (ask === undefined) {
 		return null;
 	}
-	const id = askId(ask.body);
-	for (let index = ordered.length - 1; index > askIndex; index -= 1) {
-		const comment = ordered[index];
-		if (comment === undefined || workcellMarker.test(comment.body)) {
-			continue;
-		}
-		const opening = comment.body.trim();
-		if (
-			(id !== null && quotesAsk(opening, id)) ||
-			answerPrefix.test(opening) ||
-			quotesAskText(opening, ask.body)
-		) {
-			return comment;
-		}
-	}
-	return null;
+	return {
+		...ask,
+		tags: matchedByName(ask.comment.body) ? ["matched by name"] : [],
+	};
 }
 
 function assignedToViewer(ticket: Ticket, viewers: Set<string>): boolean {
@@ -3731,11 +3527,10 @@ function needsYouItem(
 	key: string,
 	title: string,
 	ask: OpenAsk | null,
-	comments: Comment[],
 	reason: NeedsYouItem["reason"],
 	pulls: PullRequest[] = [],
 ): NeedsYouItem {
-	const reply = ask === null ? null : levReply(comments, ask.index);
+	const reply = ask?.answer?.comment ?? null;
 	const pull = pulls.find((item) => !item.merged) ?? pulls[0];
 	return {
 		project,
@@ -3807,7 +3602,6 @@ export function needsYouItems(
 				ticket.key,
 				ticket.title,
 				ask,
-				comments,
 				ask !== null
 					? "ask"
 					: awaiting
@@ -3832,16 +3626,9 @@ export function needsYouItems(
 			continue;
 		}
 		items.push(
-			needsYouItem(
-				project,
-				"github",
-				pullKey(pull),
-				pull.title,
-				ask,
-				comments,
-				"ask",
-				[pull],
-			),
+			needsYouItem(project, "github", pullKey(pull), pull.title, ask, "ask", [
+				pull,
+			]),
 		);
 	}
 	const listed = new Set(items.map((item) => item.key));
@@ -3857,16 +3644,9 @@ export function needsYouItems(
 			continue;
 		}
 		items.push(
-			needsYouItem(
-				project,
-				"github",
-				key,
-				pull.title,
-				null,
-				[],
-				"awaitingMerge",
-				[pull],
-			),
+			needsYouItem(project, "github", key, pull.title, null, "awaitingMerge", [
+				pull,
+			]),
 		);
 	}
 	items.sort((left, right) => Number(left.answered) - Number(right.answered));
