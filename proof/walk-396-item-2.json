@@ -5,11 +5,29 @@
 		{
 			"goto": "/projects/acme%2Fflow?ticket=acme%2Fflow%231&panelTracker=github"
 		},
-		{ "click": "aside[data-panel='acme/flow#1'] h2" },
-		{ "assert_text": "Thread before the poll" },
-		{ "shot": "before-poll" },
-		{ "click": "#project-refresh" },
-		{ "assert_text": "Thread after the poll" },
-		{ "shot": "after-poll" }
+		{
+			"click": "aside[data-panel='acme/flow#1'] h2"
+		},
+		{
+			"assert_text": "Thread before the poll"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] #ticket-reply"
+		},
+		{
+			"shot": "before-poll"
+		},
+		{
+			"click": "#project-refresh"
+		},
+		{
+			"assert_text": "Thread after the poll"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] #ticket-reply"
+		},
+		{
+			"shot": "after-poll"
+		}
 	]
 }

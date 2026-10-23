@@ -1,5 +1,6 @@
 /**
  * Serves a ticket with a draft PR, a local blocker, a cross-project blocker and a blocked ticket, for the side panel.
+ * The local blocker has a done parent in the untracked project `acme/plan`.
  *
  * The second poll adds a needs-human label, which raises an inbox entry, and a second comment to the thread.
  * Usage: `bun proof/serve-396.ts [PORT]`.
@@ -40,11 +41,20 @@ function panelTicket(): Record<string, unknown> {
 	});
 }
 
+const planParent = {
+	number: 5,
+	title: "Plan the panel",
+	state: "CLOSED",
+	stateReason: "COMPLETED",
+	url: "https://github.com/acme/plan/issues/5",
+	repository: { nameWithOwner: "acme/plan" },
+};
+
 function issues(): Record<string, Record<string, unknown>[]> {
 	return {
 		[flow]: [
 			panelTicket(),
-			issue(flow, 2, "Draw the lane line"),
+			issue(flow, 2, "Draw the lane line", { parent: planParent }),
 			issue(flow, 3, "Write the release note", { body: "Blocked by: #1" }),
 		],
 		[gate]: [issue(gate, 9, "Open the platform gate")],
