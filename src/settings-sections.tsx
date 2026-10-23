@@ -1,3 +1,4 @@
+import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
@@ -410,24 +411,19 @@ export function SettingsBar({
 	return (
 		<div className={clsx(fields.bar)}>
 			<SettingsToast message={message} failed={failed} />
-			<button
+			<Button
 				id="discard-settings"
-				type="button"
-				className={clsx(shell.button, shell.buttonHover, shell.buttonFocus)}
+				label={settingsCopy.discard}
 				disabled={!dirty}
 				onClick={onDiscard}
-			>
-				{settingsCopy.discard}
-			</button>
-			<button
+			/>
+			<Button
 				id="save-settings"
-				type="button"
-				className={clsx(fields.save, shell.buttonFocus)}
+				label={settingsCopy.save}
+				primary
 				disabled={!dirty}
 				onClick={onSave}
-			>
-				{settingsCopy.save}
-			</button>
+			/>
 		</div>
 	);
 }
