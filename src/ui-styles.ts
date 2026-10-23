@@ -1678,10 +1678,6 @@ export const jump = stylex.create({
 });
 
 export const panel = stylex.create({
-	needs: {
-		flexBasis: measure.needsPanel,
-		width: measure.needsPanel,
-	},
 	panel: {
 		display: "flex",
 		flex: `0 0 ${measure.panel}`,
@@ -1706,6 +1702,7 @@ export const panel = stylex.create({
 	},
 	head: {
 		display: "flex",
+		flexWrap: "wrap",
 		gap: space.sm,
 		alignItems: "center",
 		justifyContent: "space-between",
@@ -1719,6 +1716,7 @@ export const panel = stylex.create({
 		display: "flex",
 		gap: space.xs,
 		alignItems: "center",
+		marginLeft: "auto",
 	},
 	host: {
 		display: "contents",
@@ -1729,6 +1727,9 @@ export const panel = stylex.create({
 		width: measure.panel,
 		maxWidth: "100%",
 		visibility: "hidden",
+	},
+	docked: {
+		flex: "0 1 auto",
 	},
 	expanded: {
 		flex: "1 1 auto",
@@ -1764,10 +1765,8 @@ export const panel = stylex.create({
 		fontSize: type.meta,
 	},
 	thread: {
-		flex: "1 1 auto",
-		minHeight: 0,
+		flex: "0 0 auto",
 		margin: 0,
-		overflow: "auto",
 		padding: 0,
 		listStyle: "none",
 	},
@@ -1851,6 +1850,13 @@ export const panel = stylex.create({
 		margin: `0 0 ${space.md}`,
 		padding: 0,
 		listStyle: "none",
+	},
+	relation: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "baseline",
+		marginBottom: space.xs,
+		fontSize: type.menu,
 	},
 	section: {
 		margin: 0,

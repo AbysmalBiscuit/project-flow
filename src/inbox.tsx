@@ -18,7 +18,7 @@ import {
 	navLabel,
 	triggerLabel,
 } from "./terms.ts";
-import { sameTicketKey, ticketRefId } from "./ticket-key.ts";
+import { ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { frame, inbox, shell } from "./ui-styles.ts";
 
@@ -131,19 +131,8 @@ function InboxList({
 	const [filter, setFilter] = useState<InboxFilter>("all");
 	const [unreadOnly, setUnreadOnly] = useState(false);
 	const [permission, setPermission] = useState(notificationPermission);
-	const needsQuery = useQuery(pageQuery.needsYou);
-	const needs = needsQuery.data ?? [];
 	const ticket = useActiveTicket();
 	const refreshing = fetching || polling;
-	const selected =
-		ticket === null
-			? null
-			: (needs.find(
-					(item) =>
-						item.tracker === ticket.tracker &&
-						item.project === ticket.project &&
-						sameTicketKey(item.key, ticket.key),
-				) ?? null);
 	const unread = entries.filter((entry) => !entry.read).length;
 	const shown = entries.filter(
 		(entry) =>
@@ -331,10 +320,7 @@ function InboxList({
 				{ticket === null ? null : (
 					<TicketPanel
 						key={ticketRefId(ticket)}
-						tracker={ticket.tracker}
-						project={ticket.project}
-						ticketKey={ticket.key}
-						item={selected}
+						ticket={ticket}
 						onClose={closeTicket}
 					/>
 				)}

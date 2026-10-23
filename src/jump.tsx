@@ -6,24 +6,11 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { createRoot } from "react-dom/client";
-import type { NeedsYouItem } from "./domain.ts";
-import { onAppEvent } from "./events.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { TicketPanel } from "./panel.tsx";
-import {
-	activeTicket,
-	closeTicket,
-	type OpenedTicket,
-	openTicket,
-	replaceActiveItem,
-	useActiveTicket,
-} from "./selection.ts";
+import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
-import {
-	sameTicketKey,
-	type TicketSearchHit,
-	ticketRefId,
-} from "./ticket-key.ts";
+import { type TicketSearchHit, ticketRefId } from "./ticket-key.ts";
 import { phoneGutter } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 import { jump } from "./ui-styles.ts";
@@ -56,17 +43,12 @@ export function JumpBox() {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 	const [hits, setHits] = useState<TicketSearchHit[]>([]);
-	const [needs, setNeeds] = useState<NeedsYouItem[]>([]);
-	const needsRef = useRef(needs);
-	needsRef.current = needs;
-	const pendingItem = useRef<OpenedTicket | null>(null);
 	const ticket = useActiveTicket();
 	const route = useSyncExternalStore(
 		subscribeRoute,
 		currentRoute,
 		currentRoute,
 	);
-	const opened = useRef<OpenedTicket | null>(null);
 	const queryRef = useRef<HTMLInputElement>(null);
 	const boxRef = useRef<HTMLDivElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
@@ -146,75 +128,6 @@ export function JumpBox() {
 		document.addEventListener("pointerdown", onPointerDown);
 		return () => document.removeEventListener("pointerdown", onPointerDown);
 	}, [open, closeSearch]);
-	const applyNeeds = useCallback((loaded: NeedsYouItem[]) => {
-		needsRef.current = loaded;
-		setNeeds(loaded);
-		const pending = pendingItem.current;
-		if (pending === null) {
-			return;
-		}
-		const selected = activeTicket();
-		if (
-			selected === null ||
-			selected.tracker !== pending.tracker ||
-			selected.project !== pending.project ||
-			!sameTicketKey(selected.key, pending.key)
-		) {
-			pendingItem.current = null;
-			return;
-		}
-		const item = loaded.find(
-			(candidate) =>
-				candidate.tracker === pending.tracker &&
-				candidate.project === pending.project &&
-				sameTicketKey(candidate.key, pending.key),
-		);
-		if (item !== undefined) {
-			replaceActiveItem(item);
-			pendingItem.current = null;
-		}
-	}, []);
-	const loadNeeds = useCallback(() => {
-		fetch("/api/needs-you")
-			.then(async (response) => {
-				if (!response.ok) {
-					return;
-				}
-				applyNeeds((await response.json()) as NeedsYouItem[]);
-			})
-			.catch(() => {});
-	}, [applyNeeds]);
-	useEffect(() => {
-		loadNeeds();
-		return onAppEvent("overview", () => {
-			loadNeeds();
-		});
-	}, [loadNeeds]);
-	if (ticket === null) {
-		if (opened.current !== null) {
-			pendingItem.current = null;
-			opened.current = null;
-		}
-	} else if (
-		opened.current === null ||
-		opened.current.tracker !== ticket.tracker ||
-		opened.current.project !== ticket.project ||
-		!sameTicketKey(opened.current.key, ticket.key)
-	) {
-		if (opened.current !== null) {
-			pendingItem.current = null;
-		}
-		opened.current = {
-			project: ticket.project,
-			tracker: ticket.tracker,
-			key: ticket.key,
-		};
-	}
-	useEffect(() => {
-		if (open) {
-			loadNeeds();
-		}
-	}, [open, loadNeeds]);
 	useEffect(() => {
 		if (!open) {
 			return;
@@ -244,17 +157,6 @@ export function JumpBox() {
 			clearTimeout(handle);
 		};
 	}, [open, query]);
-	const needsItem = (hit: {
-		tracker: NeedsYouItem["tracker"];
-		project: string;
-		key: string;
-	}): NeedsYouItem | undefined =>
-		needsRef.current.find(
-			(item) =>
-				item.tracker === hit.tracker &&
-				item.project === hit.project &&
-				sameTicketKey(item.key, hit.key),
-		);
 	const path = new URL(route, window.location.href).pathname;
 	const pageRendersPanel =
 		path === "/needs-you" || path === "/inbox" || path.startsWith("/projects/");
@@ -292,21 +194,11 @@ export function JumpBox() {
 										className={clsx(jump.hit)}
 										data-ticket={hit.key}
 										onClick={() => {
-											const item = needsItem(hit);
 											openTicket({
 												project: hit.project,
 												tracker: hit.tracker,
 												key: hit.key,
-												...(item === undefined ? {} : { item }),
 											});
-											pendingItem.current =
-												item === undefined
-													? {
-															project: hit.project,
-															tracker: hit.tracker,
-															key: hit.key,
-														}
-													: null;
 											closeSearch();
 										}}
 									>
@@ -323,10 +215,7 @@ export function JumpBox() {
 				<div className={clsx(jump.dock)} data-panel-dock="">
 					<TicketPanel
 						key={ticketRefId(ticket)}
-						tracker={ticket.tracker}
-						project={ticket.project}
-						ticketKey={ticket.key}
-						item={needsItem(ticket) ?? null}
+						ticket={ticket}
 						onClose={closeTicket}
 						dock
 					/>
