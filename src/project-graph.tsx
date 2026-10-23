@@ -9,7 +9,6 @@ import {
 	type NodeProps,
 	Position,
 	ReactFlow,
-	useStore,
 } from "@xyflow/react";
 import {
 	createContext,
@@ -30,7 +29,13 @@ import {
 	type TicketState,
 } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
-import { fitPadding, float, Legend, legendFit } from "./graph-float.tsx";
+import {
+	fitPadding,
+	float,
+	Legend,
+	LegendProbe,
+	legendFit,
+} from "./graph-float.tsx";
 import { projectNodeId } from "./graph-flow.ts";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import { type Anchor, FitLayout, useLaidGraph } from "./graph-laid.tsx";
@@ -299,36 +304,6 @@ function boxesMiss(left: DOMRect, right: DOMRect): boolean {
 		Math.round(left.right) <= Math.round(right.left) ||
 		Math.round(left.bottom) <= Math.round(right.top) ||
 		Math.round(right.bottom) <= Math.round(left.top)
-	);
-}
-
-function legendClear(): boolean | null {
-	const parts = layoutParts();
-	if (parts === null) {
-		return null;
-	}
-	const legendBox = parts.legend.getBoundingClientRect();
-	return [...parts.root.querySelectorAll(".react-flow__node")].every((node) => {
-		const box = node.getBoundingClientRect();
-		return boxesMiss(legendBox, box) || boxesMiss(box, legendBox);
-	});
-}
-
-/** Reports whether the legend covers a card or a frame in the current view. */
-function LegendProbe() {
-	const transform = useStore((state) => state.transform);
-	const nodes = useStore((state) => state.nodes);
-	const [clear, setClear] = useState<boolean | null>(null);
-	useEffect(() => {
-		void transform;
-		void nodes;
-		const frame = requestAnimationFrame(() => setClear(legendClear()));
-		return () => cancelAnimationFrame(frame);
-	}, [transform, nodes]);
-	return (
-		<p id="project-graph-legend" className={clsx(cards.graphProbe)}>
-			{clear === null ? "" : clear ? "legend-clear" : "legend-covers"}
-		</p>
 	);
 }
 
