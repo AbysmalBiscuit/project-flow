@@ -312,7 +312,6 @@ export const measure = stylex.defineVars({
 	lane: "16rem",
 	boardMin: "36rem",
 	dot: "0.45rem",
-	searchBox: "14.5rem",
 	reply: "5.5rem",
 	panelTop: "4.5rem",
 	spin: "1s",

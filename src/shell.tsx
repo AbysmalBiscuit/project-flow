@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import { openJumpBox } from "./jump.tsx";
 import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
@@ -42,15 +43,6 @@ function Glyph({ children }: { children: ReactNode }) {
 		>
 			{children}
 		</svg>
-	);
-}
-
-function SearchIcon() {
-	return (
-		<Glyph>
-			<circle cx="11" cy="11" r="6.5" />
-			<path d="M16 16l4 4" />
-		</Glyph>
 	);
 }
 
@@ -231,17 +223,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 					))}
 				</nav>
 				<span className={clsx(frame.spacer)} />
-				<button
-					type="button"
+				<Button
 					id="header-search"
-					className={clsx(frame.query, shell.buttonFocus)}
-					aria-label="Search tickets"
-					title="Search tickets"
+					icon="search"
+					label="Search tickets"
 					onClick={() => openJumpBox()}
-				>
-					<SearchIcon />
-					Search tickets
-				</button>
+				/>
 				<a
 					className={clsx(frame.icon, shell.linkFocus)}
 					href="/settings"

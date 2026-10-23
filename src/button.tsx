@@ -6,6 +6,7 @@ import {
 	ExternalLink,
 	ListFilter,
 	type LucideIcon,
+	Search,
 	Shrink,
 	X,
 } from "lucide-react";
@@ -21,6 +22,7 @@ const icons = {
 	expand: Expand,
 	"external-link": ExternalLink,
 	filter: ListFilter,
+	search: Search,
 	shrink: Shrink,
 	x: X,
 } satisfies Record<string, LucideIcon>;
