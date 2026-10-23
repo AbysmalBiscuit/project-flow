@@ -3,6 +3,7 @@ import ELK from "elkjs/lib/elk-api.js";
 import { fillShare } from "../proof/elk-spike/handwritten.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import { projectNodeId } from "../src/graph-flow.ts";
+import { forceLayout } from "../src/graph-force.ts";
 import {
 	frameId,
 	type GraphLayout,
@@ -188,6 +189,43 @@ function frameOverlaps(input: LayoutInput, layout: GraphLayout): string[] {
 	);
 }
 
+/** Each card that sits outside a parent ticket frame or a group frame that holds it, as `card / holder`. */
+function strayFromHolders(input: LayoutInput, layout: GraphLayout): string[] {
+	const frameOf = new Map(input.frames.map((frame) => [frame.id, frame]));
+	const holders = (frame: string | null): string[] => {
+		const found = frame === null ? undefined : frameOf.get(frame);
+		return found === undefined ? [] : [found.id, ...holders(found.parent)];
+	};
+	return input.cards.flatMap((item) => {
+		const place = layout.cards.get(item.id);
+		if (place === undefined) {
+			return [`${item.id} / no card`];
+		}
+		const box = { ...place, ...card };
+		const group = layout.groups.get(item.group ?? "");
+		return [
+			...holders(item.frame).map(
+				(frame) => [frame, layout.frames.get(frame)] as const,
+			),
+			...(group === undefined ? [] : [[item.group, group] as const]),
+		].flatMap(([holder, rect]) =>
+			rect !== undefined && inside(box, rect) ? [] : [`${item.id} / ${holder}`],
+		);
+	});
+}
+
+function cardOverlaps(layout: GraphLayout): string[] {
+	const boxes = [...layout.cards].map(
+		([id, place]) => [id, { ...place, ...card }] as const,
+	);
+	return boxes.flatMap(([id, box], index) =>
+		boxes
+			.slice(index + 1)
+			.filter(([, other]) => overlap(box, other))
+			.map(([other]) => `${id} / ${other}`),
+	);
+}
+
 function overlap(left: Rect, right: Rect): boolean {
 	return (
 		left.x < right.x + right.width &&
@@ -314,19 +352,10 @@ describe("project graph layout", () => {
 				() => 0,
 				() => 0,
 			);
-			const boxes = [...layout.cards].map(
-				([id, place]) => [id, { ...place, ...card }] as const,
-			);
-			const cardOverlaps = boxes.flatMap(([id, box], index) =>
-				boxes
-					.slice(index + 1)
-					.filter(([, other]) => overlap(box, other))
-					.map(([other]) => `${id} / ${other}`),
-			);
 			expect({
 				direction,
 				overlapping: frameOverlaps(input, layout),
-				cardOverlaps,
+				cardOverlaps: cardOverlaps(layout),
 			}).toEqual({
 				direction,
 				overlapping: [],
@@ -429,6 +458,52 @@ describe("project graph layout", () => {
 			cards: [{ id: cardOf("WID-1"), frame: null }],
 			frames: [],
 		});
+	});
+
+	test("the Force layout keeps each sub-ticket inside the frame of its parent ticket", async () => {
+		const report = await hierarchyReport("");
+		for (const groupBy of ["workstream", "theme"] as const) {
+			const input = layoutInput(report, groupBy, []);
+			const layout = forceLayout(
+				input,
+				card,
+				() => 0,
+				() => 0,
+			);
+			expect({
+				groupBy,
+				stray: strayCards(layout, Object.keys(chains)),
+				overlapping: frameOverlaps(input, layout),
+				cardOverlaps: cardOverlaps(layout),
+			}).toEqual({ groupBy, stray: [], overlapping: [], cardOverlaps: [] });
+		}
+	});
+
+	test("the Force layout keeps sibling frames apart in each workstream", async () => {
+		const report = await hierarchyReport("", milestones);
+		for (const input of [
+			layoutInput(report, "workstream", []),
+			layoutInput(workcell, "workstream", []),
+		]) {
+			const layout = forceLayout(
+				input,
+				card,
+				() => 0,
+				() => 0,
+			);
+			const groups = [...layout.groups];
+			expect({
+				stray: strayFromHolders(input, layout),
+				groups: groups.flatMap(([id, frame], index) =>
+					groups
+						.slice(index + 1)
+						.filter(([, other]) => overlap(frame, other))
+						.map(([other]) => `${id} / ${other}`),
+				),
+				overlapping: frameOverlaps(input, layout),
+				cardOverlaps: cardOverlaps(layout),
+			}).toEqual({ stray: [], groups: [], overlapping: [], cardOverlaps: [] });
+		}
 	});
 
 	test("a flat grouping frames no parent ticket", async () => {
