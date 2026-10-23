@@ -20,6 +20,7 @@ import {
 import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
+import { linkId, ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { cards, shell } from "./ui-styles.ts";
 
@@ -27,8 +28,8 @@ import { cards, shell } from "./ui-styles.ts";
 const projectGap = { along: 360, across: 168 };
 
 /** The id of the arrow for one cross-project blocker on the overview graph. */
-function blockerLinkId(blocked: string, blocker: string, key: string) {
-	return `blocker:${blocked}:${blocker}:${key}`;
+function blockerLinkId(blocked: string, blocker: CrossProjectBlocker) {
+	return linkId(blocked, ticketRefId(blocker));
 }
 
 /**
@@ -52,7 +53,7 @@ function overviewInput(projects: readonly ProjectCounts[]): LayoutInput {
 				shown.has(blocker.project) && blocker.project !== project.name
 					? [
 							{
-								id: blockerLinkId(project.name, blocker.project, blocker.key),
+								id: blockerLinkId(project.name, blocker),
 								from: blocker.project,
 								to: project.name,
 							},
@@ -190,7 +191,7 @@ export function OverviewGraph({
 					project.crossProjectBlockers.map(
 						(blocker) =>
 							[
-								blockerLinkId(project.name, blocker.project, blocker.key),
+								blockerLinkId(project.name, blocker),
 								{
 									ticket: blocker.key,
 									blocked: project.name,
