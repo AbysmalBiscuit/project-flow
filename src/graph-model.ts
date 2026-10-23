@@ -107,7 +107,7 @@ function ticketView(
 	const known = home?.tickets.find(
 		(item) => item.key?.toLowerCase() === ticket.key.toLowerCase(),
 	);
-	const state = ticket.state;
+	const state = ticket.state ?? known?.state;
 	return {
 		flow: ticket,
 		ticket: {

@@ -40,7 +40,9 @@ import { tableTree } from "./table-tree-styles.ts";
 import {
 	graphLayoutFailedLabel,
 	navLabel,
+	openParentLabel,
 	projectGraphLabel,
+	stateLabel,
 	subTicketsDoneLabel,
 	subTicketsToggleLabel,
 } from "./terms.ts";
@@ -136,6 +138,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 					board.cardFocus,
 					known === undefined ? null : cardTones[known],
 					data.outside && board.ticketOutside,
+					data.outside && known === undefined && board.ticketOutsideUntoned,
 					data.open && board.ticketNodeOpen,
 				)}
 				data-graph-node={key}
@@ -159,6 +162,11 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 					{data.ticket.pull === undefined ? null : (
 						<span className={clsx(board.pull)}>{data.ticket.pull}</span>
 					)}
+					{data.frame !== null && data.outside ? (
+						<span className={clsx(board.pull)}>
+							{known === undefined ? openParentLabel : stateLabel[known]}
+						</span>
+					) : null}
 					{data.frame !== null && data.ticket.subTickets !== undefined ? (
 						<span className={clsx(board.pull)}>
 							{subTicketsDoneLabel(

@@ -15,6 +15,11 @@ export const stateLabel: Record<TicketState, string> = {
 
 export const blockedLabel = "Blocked";
 
+/** The state of an open outside parent ticket whose lane is unknown. */
+export const openParentLabel = "Open";
+
+export const projectPageLabel = "Project page";
+
 export function parentChipLabel(key: string): string {
 	return `Parent ${key}`;
 }
