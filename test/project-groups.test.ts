@@ -565,6 +565,7 @@ describe("GET /api/projects/:name", () => {
 						title: "Platform epic",
 						state: "open",
 						url: "https://linear.app/acme/issue/PLT-3/platform-epic",
+						tracked: false,
 					},
 				]);
 			},
@@ -587,6 +588,34 @@ describe("GET /api/projects/:name", () => {
 						title: "Platform gate",
 						state: "closed",
 						url: `https://github.com/${otherRepo}/issues/9`,
+						tracked: false,
+					},
+				]);
+			},
+		);
+	});
+
+	test("an outside parent ticket in a tracked project is marked tracked", async () => {
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+			githubFetch([underPlatformGate], []),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = await reportOf(base, githubRepo);
+				expect(report.outsideParents).toEqual([
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#9`,
+						title: "Platform gate",
+						state: "closed",
+						url: `https://github.com/${otherRepo}/issues/9`,
+						tracked: true,
 					},
 				]);
 			},

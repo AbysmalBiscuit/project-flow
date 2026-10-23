@@ -191,6 +191,8 @@ export type CrossProjectBlocker = {
 export type OutsideParent = CrossProjectBlocker & {
 	state: ParentDetails["state"];
 	url: string;
+	/** The parent ticket's project is a tracked project. */
+	tracked: boolean;
 };
 
 export type PullRequest = {
@@ -3309,11 +3311,17 @@ function outsideParents(
 		if (key === null || details === undefined || own.has(key.toLowerCase())) {
 			continue;
 		}
-		const home = all.find((group) =>
-			group.tickets.some(
-				(other) => other.key !== null && sameTicketKey(other.key, key),
-			),
-		)?.project;
+		const home =
+			all.find((group) =>
+				group.tickets.some(
+					(other) => other.key !== null && sameTicketKey(other.key, key),
+				),
+			)?.project ??
+			all.find(
+				(group) =>
+					details.project !== "" &&
+					group.project.toLowerCase() === details.project.toLowerCase(),
+			)?.project;
 		found.set(key.toLowerCase(), {
 			tracker: ticket.tracker,
 			project: home ?? details.project,
@@ -3321,6 +3329,7 @@ function outsideParents(
 			title: details.title.trim() || key,
 			state: details.state,
 			url: details.url,
+			tracked: home !== undefined,
 		});
 	}
 	return [...found.values()];
