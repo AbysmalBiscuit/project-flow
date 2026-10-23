@@ -1702,6 +1702,7 @@ export const panel = stylex.create({
 	},
 	head: {
 		display: "flex",
+		flexWrap: "wrap",
 		gap: space.sm,
 		alignItems: "center",
 		justifyContent: "space-between",
@@ -1715,6 +1716,7 @@ export const panel = stylex.create({
 		display: "flex",
 		gap: space.xs,
 		alignItems: "center",
+		marginLeft: "auto",
 	},
 	host: {
 		display: "contents",
