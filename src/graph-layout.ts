@@ -1,5 +1,5 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
-import { groupLabelOf, type ProjectReport } from "./domain.ts";
+import { type FocusLink, groupLabelOf, type ProjectReport } from "./domain.ts";
 import {
 	type FlowEdge,
 	type FlowTicket,
@@ -262,6 +262,15 @@ export function layoutInput(
 		frames,
 		edges: [...edges.values()],
 	};
+}
+
+/** The blocker arrows of the laid graph as links between the tickets that their cards show. */
+export function focusLinks(input: LayoutInput): FocusLink[] {
+	const ticketOf = new Map(input.cards.map((card) => [card.id, card.ticket]));
+	return input.edges.map((edge) => ({
+		from: ticketOf.get(edge.from) ?? edge.from,
+		to: ticketOf.get(edge.to) ?? edge.to,
+	}));
 }
 
 function placeOptions(

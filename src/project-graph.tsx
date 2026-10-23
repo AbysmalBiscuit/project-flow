@@ -14,11 +14,17 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
 import { cardTones } from "./card-tones.ts";
 import { useCollapse } from "./collapse.ts";
-import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
+import {
+	focusChain,
+	outsideKey,
+	type ProjectReport,
+	type TicketState,
+} from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import { FitLayout, useLaidGraph } from "./graph-laid.tsx";
+import { focusLinks } from "./graph-layout.ts";
 import type {
 	ClusterNodeData,
 	TicketEdgeData,
@@ -328,7 +334,7 @@ export function ProjectGraph({
 	groupBy,
 	assignees,
 	openKey,
-	chain,
+	seeds,
 	onOpen,
 	onFocus,
 	onPreview,
@@ -343,7 +349,7 @@ export function ProjectGraph({
 	groupBy: GroupBy;
 	assignees: readonly string[];
 	openKey: string | null;
-	chain: ReadonlySet<string> | null;
+	seeds: ReadonlySet<string>;
 	onOpen: (ticket: OpenedNode) => void;
 	onFocus: (nodeId: string) => void;
 	onPreview: (nodeId: string) => void;
@@ -395,6 +401,11 @@ export function ProjectGraph({
 		);
 	}
 	const drawn = `${laid.kind} ${laid.direction}`;
+	const chain =
+		seeds.size === 0 ? null : focusChain(seeds, focusLinks(laid.input));
+	const ticketOf = new Map(
+		laid.input.cards.map((card) => [card.id, card.ticket]),
+	);
 	const fades = clsx(board.fades);
 	const faded = clsx(board.fades, board.faded);
 	const nodes = model.nodes.map((node) => {
@@ -405,7 +416,9 @@ export function ProjectGraph({
 	});
 	const edges = model.edges.map((edge) => {
 		const kept =
-			chain === null || (chain.has(edge.source) && chain.has(edge.target));
+			chain === null ||
+			(chain.has(ticketOf.get(edge.source) ?? edge.source) &&
+				chain.has(ticketOf.get(edge.target) ?? edge.target));
 		const className = `${edge.className ?? ""} ${kept ? fades : faded}`.trim();
 		if (chain === null || !kept || edge.data === undefined) {
 			return { ...edge, className };

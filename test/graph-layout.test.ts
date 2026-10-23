@@ -1,7 +1,9 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import ELK from "elkjs/lib/elk-api.js";
 import { fillShare } from "../proof/elk-spike/handwritten.ts";
+import { focusChain } from "../src/domain.ts";
 import {
+	focusLinks,
 	groupHead,
 	groupId,
 	groupPad,
@@ -314,6 +316,28 @@ describe("project graph layout", () => {
 				`${cardOf("WID-6")} -> ${cardOf("WID-1")}`,
 			].sort(),
 			laid: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
+		});
+	});
+
+	test("focus on a collapsed frame follows the arrows it takes from its hidden sub-tickets", async () => {
+		// WID-6 blocks WID-5 under WID-1, and WID-2 under WID-1 blocks WID-4.
+		const report = await hierarchyReport("", [
+			linearTicket("WID-1", "Ship the widget", "unstarted", null),
+			linearTicket("WID-2", "Paint the list", "unstarted", "WID-1"),
+			linearTicket("WID-4", "Size the cells", "unstarted", null, ["WID-2"]),
+			linearTicket("WID-5", "Sort the list", "unstarted", "WID-1", ["WID-6"]),
+			linearTicket("WID-6", "Sort by name", "unstarted", null),
+			linearTicket("WID-7", "Name the widget", "unstarted", null),
+		]);
+		const links = focusLinks(
+			layoutInput(report, "workstream", [], (key) => key === "WID-1"),
+		);
+		expect({
+			fromBlocked: [...focusChain(new Set([cardOf("WID-4")]), links)].sort(),
+			fromFrame: [...focusChain(new Set([cardOf("WID-1")]), links)].sort(),
+		}).toEqual({
+			fromBlocked: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
+			fromFrame: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
 		});
 	});
 
