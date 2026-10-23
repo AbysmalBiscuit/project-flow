@@ -1678,10 +1678,6 @@ export const jump = stylex.create({
 });
 
 export const panel = stylex.create({
-	needs: {
-		flexBasis: measure.needsPanel,
-		width: measure.needsPanel,
-	},
 	panel: {
 		display: "flex",
 		flex: `0 0 ${measure.panel}`,

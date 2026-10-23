@@ -2,15 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
-import type {
-	NeedsYouItem,
-	ThreadComment,
-	TicketRelation,
-	TicketState,
-} from "./domain.ts";
+import type { NeedsYouItem, ProjectReport, ThreadComment } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
 import { CommentTree, RelationList, WhySection } from "./panel-sections.tsx";
+import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, usePostReply } from "./queries.ts";
+import { openTicket } from "./selection.ts";
 import { toneOf } from "./state-tone.ts";
 import {
 	closePanelLabel,
@@ -23,8 +20,8 @@ import {
 	threadFailedLabel,
 	threadMissingLabel,
 	threadRetryLabel,
-	whyLabel,
 } from "./terms.ts";
+import { sameTicketKey, type TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { panel, shell } from "./ui-styles.ts";
 
@@ -33,42 +30,37 @@ type ReplyTarget = {
 	kind: ThreadComment["kind"];
 };
 
+function trackerUrl(ticket: TicketRef): string | undefined {
+	if (ticket.tracker === "github" && ticket.key.includes("#")) {
+		return `https://github.com/${ticket.key.replace("#", "/issues/")}`;
+	}
+	if (ticket.tracker === "linear") {
+		return `https://linear.app/issue/${ticket.key}`;
+	}
+	return undefined;
+}
+
+function needsYouItem(
+	report: ProjectReport | null,
+	key: string,
+): NeedsYouItem | null {
+	const section = report?.sections.find((item) => item.id === "needsYou");
+	return (
+		section?.needsYou?.find((item) => sameTicketKey(item.key, key)) ?? null
+	);
+}
+
+/** The side panel of one ticket. It reads the ticket from the cached report of the ticket's project. */
 export function TicketPanel({
-	tracker,
-	project,
-	ticketKey,
-	title,
-	url,
-	projectHref,
-	state,
-	lane,
-	laneState,
-	blockers = [],
-	blocks = [],
-	onOpenBlocker,
-	item = null,
+	ticket,
 	onClose,
-	why,
 	dock = false,
 }: {
-	tracker: "github" | "linear";
-	project: string;
-	ticketKey: string;
-	title?: string;
-	url?: string | undefined;
-	/** The project page of a ticket in another tracked project. */
-	projectHref?: string | undefined;
-	state?: TicketState;
-	lane?: string | undefined;
-	laneState?: TicketState | undefined;
-	blockers?: TicketRelation[];
-	blocks?: TicketRelation[];
-	onOpenBlocker?: (blocker: TicketRelation) => void;
-	item?: NeedsYouItem | null;
+	ticket: TicketRef;
 	onClose: () => void;
-	why?: string;
 	dock?: boolean;
 }) {
+	const { tracker, project, key: ticketKey } = ticket;
 	const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
 	const [draft, setDraft] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -76,9 +68,16 @@ export function TicketPanel({
 	const [expanded, setExpanded] = useState(false);
 	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
 	const reportQuery = useQuery(pageQuery.project(project, "all"));
-	const pullUrl = reportQuery.data?.tickets.find(
-		(item) => item.key === ticketKey,
-	)?.pullUrl;
+	const report = reportQuery.data ?? null;
+	const view = report?.tickets.find(
+		(item) => item.key !== null && sameTicketKey(item.key, ticketKey),
+	);
+	const item = needsYouItem(report, ticketKey);
+	useEffect(() => {
+		if (report !== null && report.tracker !== tracker) {
+			openTicket({ ...ticket, tracker: report.tracker }, "replace");
+		}
+	}, [report, tracker, ticket]);
 	const reply = usePostReply(tracker, project, ticketKey);
 	const pending = reply.isPending;
 	const root = useRef<HTMLElement>(null);
@@ -177,10 +176,18 @@ export function TicketPanel({
 		}
 	}
 	const trackerName = tracker === "linear" ? "Linear" : "GitHub";
-	const href = thread?.url ?? url;
+	const href = thread?.url ?? trackerUrl(ticket);
+	const projectHref =
+		report === null || pathProject(window.location.pathname) === project
+			? undefined
+			: projectPath(project, ticket);
+	const state = view?.state;
 	const laneName =
-		lane ?? (state === undefined ? undefined : stateLabel[state]);
-	const stateName = state === undefined ? "unknown" : state;
+		view?.lane ?? (state === undefined ? undefined : stateLabel[state]);
+	const laneState = report?.lanes.find(
+		(lane) => lane.name === view?.lane,
+	)?.statusType;
+	const stateName = state ?? "unknown";
 	const [cover, setCover] = useState<HTMLElement | null>(null);
 	const host = useRef<HTMLDivElement | null>(null);
 	useLayoutEffect(() => {
@@ -219,11 +226,7 @@ export function TicketPanel({
 
 	const aside = (
 		<aside
-			className={clsx(
-				panel.panel,
-				why === undefined ? null : panel.needs,
-				expanded && panel.expanded,
-			)}
+			className={clsx(panel.panel, expanded && panel.expanded)}
 			aria-label="Ticket thread"
 			data-panel={ticketKey}
 			data-state={stateName}
@@ -244,9 +247,9 @@ export function TicketPanel({
 							name={`Open on ${trackerName}`}
 						/>
 					)}
-					{pullUrl === undefined ? null : (
+					{view?.pullUrl === undefined ? null : (
 						<Button
-							href={pullUrl}
+							href={view.pullUrl}
 							newTab
 							icon="external-link"
 							label={pullButtonLabel}
@@ -285,8 +288,8 @@ export function TicketPanel({
 			{loadingThread || (thread === null && !missing && !failed) ? (
 				<p className={clsx(panel.note)}>Loading thread</p>
 			) : null}
-			{thread !== null || title !== undefined ? (
-				<h2 className={clsx(panel.heading)}>{thread?.title ?? title}</h2>
+			{thread !== null || view !== undefined ? (
+				<h2 className={clsx(panel.heading)}>{thread?.title ?? view?.title}</h2>
 			) : null}
 			{laneName === undefined ? null : (
 				<p className={clsx(panel.state)}>
@@ -300,14 +303,7 @@ export function TicketPanel({
 					{laneName}
 				</p>
 			)}
-			{item === null || item === undefined ? (
-				why === undefined ? null : (
-					<section className={clsx(panel.section)} aria-label={whyLabel}>
-						<h3 className={clsx(panel.sectionLabel)}>{whyLabel}</h3>
-						<p className={clsx(panel.question)}>{why}</p>
-					</section>
-				)
-			) : (
+			{item === null ? null : (
 				<WhySection
 					item={item}
 					pending={pending}
@@ -319,13 +315,13 @@ export function TicketPanel({
 			)}
 			<RelationList
 				label="Blockers"
-				relations={blockers}
-				{...(onOpenBlocker === undefined ? {} : { onOpen: onOpenBlocker })}
+				relations={view?.blockedBy ?? []}
+				onOpen={openTicket}
 			/>
 			<RelationList
 				label="Blocks"
-				relations={blocks}
-				{...(onOpenBlocker === undefined ? {} : { onOpen: onOpenBlocker })}
+				relations={view?.blocks ?? []}
+				onOpen={openTicket}
 			/>
 			{thread === null ? null : (
 				<CommentTree

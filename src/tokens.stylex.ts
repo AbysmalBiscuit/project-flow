@@ -335,7 +335,6 @@ export const measure = stylex.defineVars({
 	tickShort: "0.32rem",
 	tickTall: "0.58rem",
 	sortMark: "0.7rem",
-	needsPanel: "22.5rem",
 	needsRow: "3.125rem",
 	bar: "4.5rem",
 	contents: "11rem",

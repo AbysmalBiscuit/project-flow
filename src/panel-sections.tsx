@@ -69,7 +69,7 @@ export function RelationList({
 }: {
 	label: string;
 	relations: TicketRelation[];
-	onOpen?: (blocker: TicketRelation) => void;
+	onOpen: (blocker: TicketRelation) => void;
 }) {
 	if (relations.length === 0) {
 		return null;
@@ -88,7 +88,7 @@ export function RelationList({
 								shell.buttonFocus,
 							)}
 							data-blocker={blocker.key}
-							onClick={() => onOpen?.(blocker)}
+							onClick={() => onOpen(blocker)}
 						>
 							{blocker.key}
 						</button>

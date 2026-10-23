@@ -24,7 +24,6 @@ import {
 	doneTicketsForLane,
 	filterProjectReport,
 	focusChain,
-	type NeedsYouItem,
 	type ProjectReport,
 	type StatusType,
 	type TicketRelation,
@@ -36,7 +35,6 @@ import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { TicketPanel } from "./panel.tsx";
-import { projectPath } from "./paths.ts";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { FilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
@@ -56,15 +54,7 @@ import {
 	subTicketsToggleLabel,
 	viewLabel,
 } from "./terms.ts";
-import {
-	foldKey,
-	githubIssueUrl,
-	itemId,
-	sameTicket,
-	sameTicketKey,
-	shortKey,
-	type TicketRef,
-} from "./ticket-key.ts";
+import { foldKey, itemId, shortKey, ticketRefId } from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -105,100 +95,6 @@ function projectName(): string {
 	return decodeURIComponent(
 		window.location.pathname.slice("/projects/".length),
 	);
-}
-
-function trackerUrl(
-	tracker: "github" | "linear",
-	key: string,
-): string | undefined {
-	if (tracker === "github") {
-		return githubIssueUrl(key);
-	}
-	if (tracker === "linear") {
-		return `https://linear.app/issue/${key}`;
-	}
-	return undefined;
-}
-
-function needsYouItem(
-	report: ProjectReport | null,
-	tracker: "github" | "linear",
-	project: string,
-	key: string,
-): NeedsYouItem | null {
-	if (
-		report === null ||
-		report.tracker !== tracker ||
-		report.name !== project
-	) {
-		return null;
-	}
-	const section = report.sections.find((item) => item.id === "needsYou");
-	return (
-		section?.needsYou?.find(
-			(item) =>
-				item.tracker === tracker &&
-				item.project === project &&
-				sameTicketKey(item.key, key),
-		) ?? null
-	);
-}
-
-function panelItem(
-	report: ProjectReport | null,
-	tracker: "github" | "linear",
-	project: string,
-	key: string,
-	active: {
-		tracker: "github" | "linear";
-		project: string;
-		key: string;
-		item?: NeedsYouItem;
-	} | null,
-): NeedsYouItem | null {
-	if (report?.tracker === tracker && report.name === project) {
-		return needsYouItem(report, tracker, project, key);
-	}
-	if (
-		active?.tracker === tracker &&
-		active.project === project &&
-		sameTicketKey(active.key, key)
-	) {
-		return active.item ?? null;
-	}
-	return null;
-}
-
-function panelBlockers(
-	ticket: TicketView | undefined,
-	source: ProjectReport | null,
-	project: string,
-	tracker: "github" | "linear",
-): TicketRelation[] {
-	if (ticket === undefined) {
-		return [];
-	}
-	const outside = ticket.outsideBlockers ?? [];
-	const resolved: TicketRelation[] = [];
-	for (const key of ticket.blockers) {
-		const known = outside.find(
-			(blocker) => foldKey(blocker.key) === foldKey(key),
-		);
-		if (known !== undefined) {
-			resolved.push(known);
-			continue;
-		}
-		const local = source?.tickets.find(
-			(item) => foldKey(item.key) === foldKey(key),
-		);
-		resolved.push({
-			tracker,
-			project,
-			key,
-			title: local?.title.trim() || key,
-		});
-	}
-	return resolved;
 }
 
 function visibleLanes(
@@ -1076,10 +972,6 @@ function Board({
 export function Page() {
 	const [name, setName] = useState(projectName);
 	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
-	const [openedState, setOpenedState] = useState<{
-		ticket: TicketRef;
-		state: TicketView["state"];
-	} | null>(null);
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
@@ -1164,38 +1056,6 @@ export function Page() {
 	});
 	const outsideReports = outsideQueries.flatMap((item) => item.data ?? []);
 	const ticket = active?.key ?? null;
-	const panelProject = active?.project ?? name;
-	const panelSourceQuery = useQuery({
-		...pageQuery.project(panelProject, "all"),
-		enabled: active !== null,
-	});
-	const source = panelSourceQuery.data ?? null;
-	useEffect(() => {
-		if (
-			active !== null &&
-			source !== null &&
-			source.name === active.project &&
-			source.tracker !== active.tracker
-		) {
-			openTicket({ ...active, tracker: source.tracker }, "replace");
-		}
-	}, [active, source]);
-	const panelTracker = active?.tracker ?? "github";
-	const selected =
-		source === null || ticket === null
-			? undefined
-			: source.tickets.find((item) => item.key === ticket);
-	const openedParent =
-		ticket === null
-			? undefined
-			: report?.outsideParents.find(
-					(parent) =>
-						parent.project === panelProject &&
-						sameTicketKey(parent.key, ticket),
-				);
-	const panelTitle = selected?.title ?? openedParent?.title;
-	const incoming = panelBlockers(selected, source, panelProject, panelTracker);
-	const outgoing = selected?.blocks ?? [];
 	if (missing && !polling && pollError === null) {
 		return (
 			<AppShell>
@@ -1295,23 +1155,8 @@ export function Page() {
 		enter: (key) => ticketFocus.enter(projectNodeId(report.name, key)),
 		leave: ticketFocus.leave,
 	};
-	const openInPanel = (target: TicketRef, state?: TicketView["state"]) => {
-		const ticket = {
-			tracker: target.tracker,
-			project: target.project,
-			key: target.key,
-		};
-		setOpenedState(state === undefined ? null : { ticket, state });
-		const item = needsYouItem(
-			report,
-			ticket.tracker,
-			ticket.project,
-			ticket.key,
-		);
-		openTicket({ ...ticket, ...(item === null ? {} : { item }) });
-	};
 	const openTicketInPanel = (key: string) => {
-		openInPanel({ tracker: report.tracker, project: report.name, key });
+		openTicket({ tracker: report.tracker, project: report.name, key });
 	};
 	return (
 		<ReactFlowProvider>
@@ -1442,7 +1287,7 @@ export function Page() {
 									settings={settings}
 									selected={ticket}
 									onOpen={openTicketInPanel}
-									onOpenOutside={openInPanel}
+									onOpenOutside={openTicket}
 								/>
 							) : view === "table" ? (
 								<TicketTable
@@ -1451,7 +1296,7 @@ export function Page() {
 									searching={settings.search.trim() !== ""}
 									selected={ticket}
 									onOpen={openTicketInPanel}
-									onOpenOutside={openInPanel}
+									onOpenOutside={openTicket}
 								/>
 							) : view === "graph" ? (
 								<ProjectGraph
@@ -1476,7 +1321,7 @@ export function Page() {
 									}
 									onOpen={(node) => {
 										if (node.outside) {
-											openInPanel(node, node.state);
+											openTicket(node);
 											return;
 										}
 										openTicketInPanel(node.key);
@@ -1485,47 +1330,13 @@ export function Page() {
 							) : (
 								<p className={clsx(board.placeholder)}>{view}</p>
 							)}
-							{active !== null && ticket !== null ? (
+							{active === null ? null : (
 								<TicketPanel
-									key={`${panelTracker}:${panelProject}:${ticket}`}
-									tracker={panelTracker}
-									project={panelProject}
-									ticketKey={ticket}
-									{...(panelTitle === undefined ? {} : { title: panelTitle })}
-									url={
-										selected?.key === undefined || selected.key === null
-											? openedParent?.url
-											: trackerUrl(panelTracker, selected.key)
-									}
-									projectHref={
-										openedParent?.tracked === true
-											? projectPath(openedParent.project, openedParent)
-											: undefined
-									}
-									{...(selected?.state !== undefined
-										? { state: selected.state }
-										: openedState === null ||
-												!sameTicket(openedState.ticket, active)
-											? {}
-											: { state: openedState.state })}
-									lane={selected?.lane}
-									laneState={
-										source?.lanes.find((lane) => lane.name === selected?.lane)
-											?.statusType
-									}
-									blockers={incoming}
-									blocks={outgoing}
-									item={panelItem(
-										source,
-										panelTracker,
-										panelProject,
-										ticket,
-										active,
-									)}
-									onOpenBlocker={openInPanel}
+									key={ticketRefId(active)}
+									ticket={active}
 									onClose={closeTicket}
 								/>
-							) : null}
+							)}
 						</div>
 					</main>
 				</AppShell>

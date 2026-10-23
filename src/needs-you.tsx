@@ -9,9 +9,7 @@ import { pageQuery } from "./queries.ts";
 import {
 	activeTicket,
 	closeTicket,
-	type OpenedTicket,
 	openTicket,
-	replaceActiveItem,
 	useActiveTicket,
 } from "./selection.ts";
 import { PageFrame } from "./shell.tsx";
@@ -25,7 +23,7 @@ import {
 	reasonOrder,
 	reasonTab,
 } from "./terms.ts";
-import { itemId, sameTicketKey, ticketRefId } from "./ticket-key.ts";
+import { itemId, ticketRefId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { needs } from "./ui-styles.ts";
 
@@ -149,35 +147,6 @@ function NeedsGroups({
 	);
 }
 
-function NeedsPanel({
-	items,
-	ticket,
-}: {
-	items: NeedsYouItem[];
-	ticket: OpenedTicket | null;
-}) {
-	if (ticket === null) {
-		return null;
-	}
-	const item =
-		ticket.item ??
-		items.find(
-			(candidate) =>
-				candidate.project === ticket.project &&
-				sameTicketKey(candidate.key, ticket.key),
-		);
-	return (
-		<TicketPanel
-			key={ticketRefId(ticket)}
-			tracker={ticket.tracker}
-			project={ticket.project}
-			ticketKey={ticket.key}
-			{...(item === undefined ? {} : { title: item.headline, item })}
-			onClose={closeTicket}
-		/>
-	);
-}
-
 function summaryLine(items: NeedsYouItem[]): string {
 	const tickets =
 		items.length === 1
@@ -250,7 +219,6 @@ function NeedsList({
 			tracker: item.tracker,
 			project: item.project,
 			key: item.key,
-			item,
 		});
 	};
 	return (
@@ -317,7 +285,13 @@ function NeedsList({
 						onOpen={choose}
 					/>
 				</div>
-				<NeedsPanel items={items} ticket={ticket} />
+				{ticket === null ? null : (
+					<TicketPanel
+						key={ticketRefId(ticket)}
+						ticket={ticket}
+						onClose={closeTicket}
+					/>
+				)}
 			</div>
 		</PageFrame>
 	);
@@ -328,14 +302,6 @@ export function Page() {
 	const overview = useQuery(pageQuery.overview);
 	const items = needs.isError ? [] : needs.data;
 	const body = overview.data;
-	useEffect(() => {
-		if (items === undefined) {
-			return;
-		}
-		for (const item of items) {
-			replaceActiveItem(item);
-		}
-	}, [items]);
 	const holdsRead = body !== undefined && storeHoldsRead(body);
 	const polling = body?.polling === true;
 	if (items === undefined || (polling && items.length === 0 && !holdsRead)) {
