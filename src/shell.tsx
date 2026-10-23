@@ -1,8 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+import type { Configuration } from "./configuration.ts";
 import { openJumpBox } from "./jump.tsx";
-import { pageQuery } from "./queries.ts";
+import {
+	pageQuery,
+	pageQueryClient,
+	useSaveSettings,
+	writeSettingsCache,
+} from "./queries.ts";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
@@ -152,32 +158,6 @@ const links = [
 	{ href: "/inbox", label: navLabel.inbox },
 ] as const;
 
-let themeSave = Promise.resolve();
-
-function saveTheme(theme: "light" | "dark"): Promise<boolean> {
-	const turn = themeSave.then(async () => {
-		const loaded = await fetch("/api/settings");
-		if (!loaded.ok) {
-			return false;
-		}
-		const current: unknown = await loaded.json();
-		if (current === null || typeof current !== "object") {
-			return false;
-		}
-		const saved = await fetch("/api/settings", {
-			method: "PUT",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ ...current, theme }),
-		});
-		return saved.ok;
-	});
-	themeSave = turn.then(
-		() => undefined,
-		() => undefined,
-	);
-	return turn.catch(() => false);
-}
-
 export function AppShell({ children }: { children: ReactNode }) {
 	const needs = useQuery(pageQuery.needsYou);
 	const count = needs.data === undefined ? null : needs.data.length;
@@ -185,6 +165,24 @@ export function AppShell({ children }: { children: ReactNode }) {
 	const themeRef = useRef(theme);
 	themeRef.current = theme;
 	const [themeSaveFailed, setThemeSaveFailed] = useState(false);
+	const save = useSaveSettings({ refetchProjects: false });
+	const saveTheme = (next: "light" | "dark") => {
+		const patch = (current: Configuration) => ({ ...current, theme: next });
+		writeSettingsCache(patch);
+		void save.mutateAsync(patch).then(
+			() => {
+				if (next === themeRef.current) {
+					setThemeSaveFailed(false);
+				}
+			},
+			() => {
+				if (next === themeRef.current) {
+					setThemeSaveFailed(true);
+				}
+				void pageQueryClient.invalidateQueries(pageQuery.settings);
+			},
+		);
+	};
 	const path = window.location.pathname;
 	const current = (href: string) =>
 		href === "/" ? path === "/" : path === href || path.startsWith(`${href}/`);
@@ -252,11 +250,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 						themeRef.current = next;
 						applyPageTheme(next);
 						setTheme(next);
-						void saveTheme(next).then((saved) => {
-							if (next === themeRef.current) {
-								setThemeSaveFailed(!saved);
-							}
-						});
+						saveTheme(next);
 					}}
 				>
 					{theme === "dark" ? <SunIcon /> : <MoonIcon />}

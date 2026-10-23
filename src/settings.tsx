@@ -620,22 +620,23 @@ export function Page() {
 				if (current.data === undefined) {
 					return "Settings unavailable";
 				}
-				const live = current.data;
-				const star = next.projectViews["*"] ?? live.settings.projectViews["*"];
 				try {
-					await save.mutateAsync({
-						...live.settings,
-						...next,
-						theme: live.settings.theme,
-						overview: live.settings.overview,
-						tracked: next.tracked,
-						baselineTracked: baseline.tracked,
-						pmBot: next.pmBot,
-						expectedBots: next.expectedBots,
-						projectViews: {
-							...live.settings.projectViews,
-							...(star === undefined ? {} : { "*": star }),
-						},
+					await save.mutateAsync((live) => {
+						const star = next.projectViews["*"] ?? live.projectViews["*"];
+						return {
+							...live,
+							...next,
+							theme: live.theme,
+							overview: live.overview,
+							tracked: next.tracked,
+							baselineTracked: baseline.tracked,
+							pmBot: next.pmBot,
+							expectedBots: next.expectedBots,
+							projectViews: {
+								...live.projectViews,
+								...(star === undefined ? {} : { "*": star }),
+							},
+						};
 					});
 				} catch (cause) {
 					return cause instanceof Error ? cause.message : "save failed";

@@ -162,24 +162,24 @@ type SettingsWrite = Configuration & {
 	baselineTracked?: Configuration["tracked"];
 };
 
-export function settingsCacheWrite(
-	cached: SettingsRead | null | undefined,
-	next: Configuration,
-): SettingsRead | null {
-	if (
-		cached === null ||
-		cached === undefined ||
-		cached.projects === undefined ||
-		cached.trackers === undefined
-	) {
-		return null;
+type SettingsPatch = (current: Configuration) => SettingsWrite;
+
+export function writeSettingsCache(
+	patch: (current: Configuration) => Configuration,
+): void {
+	const key = pageQuery.settings.queryKey;
+	const cached = pageQueryClient.getQueryData(key);
+	const current = cached === undefined ? null : configurationOf(cached);
+	if (cached === undefined || cached === null || current === null) {
+		return;
 	}
-	return {
-		...cached,
-		...next,
-		projects: cached.projects,
-		trackers: cached.trackers,
-	};
+	// The write keeps the fetch time, so a seeded cache still refetches.
+	const updatedAt = pageQueryClient.getQueryState(key)?.dataUpdatedAt ?? 0;
+	pageQueryClient.setQueryData(
+		key,
+		{ ...cached, ...patch(current) },
+		{ updatedAt },
+	);
 }
 
 const saveSettingsKey = ["save-settings"];
@@ -190,7 +190,11 @@ export function useSaveSettings({ refetchProjects = true } = {}) {
 		mutationKey: saveSettingsKey,
 		// Each save sends the whole configuration, so saves run in click order.
 		scope: { id: "save-settings" },
-		mutationFn: async (next: SettingsWrite): Promise<SettingsPage> => {
+		// The patch reads the settings when its turn comes, so it keeps the
+		// choices that earlier queued saves wrote to the cache.
+		mutationFn: async (patch: SettingsPatch): Promise<SettingsPage> => {
+			const loaded = await queries.ensureQueryData(pageQuery.settings);
+			const next = patch(settingsPageOf(loaded).settings);
 			const response = await fetch("/api/settings", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
