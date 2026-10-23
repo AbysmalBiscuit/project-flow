@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { Configuration } from "./configuration.ts";
 import { openJumpBox } from "./jump.tsx";
 import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
+import { Segment } from "./segment.tsx";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
@@ -93,15 +94,6 @@ function LogoMark() {
 				className={clsx(frame.markMerge)}
 			/>
 		</svg>
-	);
-}
-
-export function SearchGlyph() {
-	return (
-		<Glyph>
-			<circle cx="11" cy="11" r="6" />
-			<path d="M16 16l4 4" />
-		</Glyph>
 	);
 }
 
@@ -319,20 +311,13 @@ export function PageHeader({
 						<fieldset className={clsx(headerControlStyle.group)}>
 							<legend className={clsx(frame.visuallyHidden)}>Views</legend>
 							{views.map((item) => (
-								<button
+								<Segment
 									key={item.id}
-									type="button"
 									id={`view-${item.id}`}
-									className={clsx(
-										headerControlStyle.segment,
-										shell.buttonFocus,
-										view === item.id && headerControlStyle.segmentOn,
-									)}
-									aria-pressed={view === item.id}
+									label={item.label}
+									on={view === item.id}
 									onClick={() => onView?.(item.id)}
-								>
-									{item.label}
-								</button>
+								/>
 							))}
 						</fieldset>
 					)}

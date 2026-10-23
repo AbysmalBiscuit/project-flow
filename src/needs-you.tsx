@@ -7,6 +7,7 @@ import { needs } from "./needs-you-styles.ts";
 import { TicketPanel } from "./panel.tsx";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { pageQuery } from "./queries.ts";
+import { Segment } from "./segment.tsx";
 import {
 	activeTicket,
 	closeTicket,
@@ -55,17 +56,14 @@ function NeedsTabs({
 						? items.length
 						: items.filter((item) => item.reason === tab.id).length;
 				return (
-					<button
+					<Segment
 						key={tab.id}
-						type="button"
 						id={`reason-${tab.id}`}
 						role="tab"
-						className={clsx(needs.tab, reason === tab.id && needs.tabOn)}
-						aria-selected={reason === tab.id}
+						label={`${tab.label} ${count}`}
+						on={reason === tab.id}
 						onClick={() => onReason(tab.id)}
-					>
-						{tab.label} {count}
-					</button>
+					/>
 				);
 			})}
 		</div>

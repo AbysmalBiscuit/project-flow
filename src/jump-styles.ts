@@ -9,7 +9,7 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 
-const focusRing = `${measure.focus} solid ${colours.focus}` as const;
+const _focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
 export const jump = stylex.create({
 	shade: {
@@ -44,26 +44,6 @@ export const jump = stylex.create({
 		backgroundColor: colours.surface,
 		color: colours.ink,
 		boxShadow: `0 0 ${space.xl} ${colours.shadow}`,
-	},
-	query: {
-		boxSizing: "border-box",
-		marginBottom: 0,
-		padding: space.md,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		outline: {
-			default: "none",
-			":focus": focusRing,
-			":focus-visible": focusRing,
-		},
-		outlineOffset: space.twoXs,
 	},
 	empty: {
 		margin: 0,

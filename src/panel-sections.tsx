@@ -1,3 +1,4 @@
+import { Button } from "./button.tsx";
 import { CommentMarkdown } from "./comment-markdown.tsx";
 import type { NeedsYouItem, ThreadComment, TicketRelation } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
@@ -42,13 +43,11 @@ export function CommentTree({
 					</p>
 					<CommentMarkdown html={comment.html} />
 					{nested || comment.kind === "review" ? (
-						<button
-							type="button"
-							className={clsx(panel.answer, shell.buttonFocus)}
+						<Button
+							label="Answer"
+							layout={panel.answer}
 							onClick={() => onReply(comment)}
-						>
-							Answer
-						</button>
+						/>
 					) : null}
 					{comment.children.length === 0 ? null : (
 						<CommentTree
@@ -84,18 +83,11 @@ export function RelationList({
 						key={itemId(blocker.project, blocker.key)}
 						className={clsx(panel.relation)}
 					>
-						<button
-							type="button"
-							className={clsx(
-								shell.button,
-								shell.buttonHover,
-								shell.buttonFocus,
-							)}
+						<Button
+							label={blocker.key}
 							data-blocker={blocker.key}
 							onClick={() => onOpen(blocker)}
-						>
-							{blocker.key}
-						</button>
+						/>
 						{blocker.title === blocker.key ? null : (
 							<span>{blocker.title}</span>
 						)}

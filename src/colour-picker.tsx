@@ -7,7 +7,9 @@ import {
 	useState,
 } from "react";
 import { type Hsv, hexOf, hexToHsv, hsvToHex } from "./colour-space.ts";
+import { control } from "./control-styles.ts";
 import { settingsCopy } from "./terms.ts";
+import { TextInput } from "./text-input.tsx";
 import {
 	colours,
 	font,
@@ -30,17 +32,8 @@ const styles = stylex.create({
 		display: "inline-flex",
 		gap: space.sm,
 		alignItems: "center",
-		padding: `${space.twoXs} ${space.sm} ${space.twoXs} ${space.twoXs}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
+		paddingLeft: space.xs,
 		fontFamily: font.mono,
-		fontSize: type.meta,
-		lineHeight: 1,
-		cursor: "pointer",
 	},
 	swatch: {
 		width: measure.swatchButton,
@@ -119,8 +112,8 @@ const styles = stylex.create({
 		alignItems: "center",
 	},
 	preview: {
-		width: measure.toggle,
-		height: measure.toggle,
+		width: measure.control,
+		height: measure.control,
 		flexShrink: 0,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -137,20 +130,7 @@ const styles = stylex.create({
 		fontSize: type.meta,
 	},
 	hexInput: {
-		boxSizing: "border-box",
 		width: "100%",
-		padding: `${space.xs} ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.mono,
-		fontSize: type.menu,
-	},
-	hexInvalid: {
-		borderColor: colours.danger,
 	},
 });
 
@@ -272,7 +252,12 @@ export function ColourPicker({
 				ref={button}
 				id={id}
 				type="button"
-				className={clsx(styles.swatchButton, shell.buttonFocus)}
+				className={clsx(
+					control.box,
+					control.off,
+					styles.swatchButton,
+					shell.buttonFocus,
+				)}
 				aria-label={`${label} ${settingsCopy.colour}`}
 				aria-expanded={open}
 				aria-controls={popoverId}
@@ -376,17 +361,14 @@ export function ColourPicker({
 							{...stylex.props(styles.preview, dynamic.fill(value))}
 							aria-hidden="true"
 						/>
-						<label className={clsx(styles.hexLabel)}>
+						<label htmlFor={`${id}-hex`} className={clsx(styles.hexLabel)}>
 							{settingsCopy.hex}
-							<input
+							<TextInput
 								id={`${id}-hex`}
-								className={clsx(
-									styles.hexInput,
-									typed === null && styles.hexInvalid,
-								)}
+								width={styles.hexInput}
 								value={text}
 								spellCheck={false}
-								aria-invalid={typed === null}
+								invalid={typed === null}
 								onChange={(event) => {
 									setText(event.target.value);
 									const hex = hexOf(event.target.value);

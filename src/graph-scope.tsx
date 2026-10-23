@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { board } from "./board-styles.ts";
+import { Segment } from "./segment.tsx";
 import { frameToolLabel, graphScopeLabel, openFramesLabel } from "./terms.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -114,24 +115,18 @@ export function FrameTools({
 }) {
 	return (
 		<div className={clsx(tools.graphTools)}>
-			<button
-				type="button"
+			<Segment
 				id="project-graph-expand-all"
-				className={clsx(tools.graphTool)}
+				label={frameToolLabel.expandAll}
 				disabled={parents === 0}
 				onClick={() => onAll(false)}
-			>
-				{frameToolLabel.expandAll}
-			</button>
-			<button
-				type="button"
+			/>
+			<Segment
 				id="project-graph-collapse-all"
-				className={clsx(tools.graphTool)}
+				label={frameToolLabel.collapseAll}
 				disabled={parents === 0}
 				onClick={() => onAll(true)}
-			>
-				{frameToolLabel.collapseAll}
-			</button>
+			/>
 		</div>
 	);
 }

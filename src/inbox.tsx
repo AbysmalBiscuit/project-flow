@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
+import { Button } from "./button.tsx";
 import type { InboxEntry, NotificationTrigger } from "./domain.ts";
 import { inbox } from "./inbox-styles.ts";
 import {
@@ -9,6 +10,7 @@ import {
 } from "./notify.tsx";
 import { TicketPanel } from "./panel.tsx";
 import { pageQuery } from "./queries.ts";
+import { Segment } from "./segment.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
@@ -68,14 +70,6 @@ function BellIcon() {
 		<Glyph>
 			<path d="M6 9a6 6 0 0 1 12 0c0 7 3 7 3 7H3s3 0 3-7" />
 			<path d="M10 20a2 2 0 0 0 4 0" />
-		</Glyph>
-	);
-}
-
-function CheckIcon() {
-	return (
-		<Glyph>
-			<path d="M5 12.5l4.5 4.5L19 7.5" />
 		</Glyph>
 	);
 }
@@ -195,47 +189,35 @@ function InboxList({
 					</p>
 					<div className={clsx(inbox.bannerActions)}>
 						{permission === "default" ? (
-							<button
-								type="button"
-								className={clsx(inbox.allow, shell.buttonFocus)}
+							<Button
+								label={inboxCopy.allow}
+								tone="primary"
 								onClick={() => {
 									void askNotificationPermission().finally(() => {
 										setPermission(notificationPermission());
 									});
 								}}
-							>
-								{inboxCopy.allow}
-							</button>
+							/>
 						) : null}
-						<button
-							type="button"
-							className={clsx(inbox.dismiss, shell.buttonFocus)}
-							aria-label={inboxCopy.dismiss}
+						<Button
+							icon="x"
+							name={inboxCopy.dismiss}
 							onClick={() => setPermission("granted")}
-						>
-							×
-						</button>
+						/>
 					</div>
 				</div>
 			) : null}
 			<div className={clsx(inbox.toolbar)}>
 				<div className={clsx(inbox.tabs)} role="tablist" aria-label="Filter">
 					{filters.map((name) => (
-						<button
+						<Segment
 							key={name}
-							type="button"
 							id={`inbox-filter-${name}`}
 							role="tab"
-							className={clsx(
-								inbox.tab,
-								shell.buttonFocus,
-								filter === name && inbox.tabOn,
-							)}
-							aria-selected={filter === name}
+							label={filterLabel[name]}
+							on={filter === name}
 							onClick={() => setFilter(name)}
-						>
-							{filterLabel[name]}
-						</button>
+						/>
 					))}
 				</div>
 				<div className={clsx(inbox.actions)}>
@@ -249,20 +231,12 @@ function InboxList({
 						/>
 						{inboxCopy.unreadOnly}
 					</label>
-					<button
-						type="button"
+					<Button
 						id="inbox-mark-all"
-						className={clsx(
-							shell.button,
-							shell.buttonHover,
-							shell.buttonFocus,
-							inbox.markAll,
-						)}
+						icon="check"
+						label={inboxCopy.markAll}
 						onClick={markShown}
-					>
-						<CheckIcon />
-						{inboxCopy.markAll}
-					</button>
+					/>
 				</div>
 			</div>
 			<div className={clsx(inbox.stage)}>

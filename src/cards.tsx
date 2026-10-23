@@ -10,6 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { Button, type IconName } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import type {
 	CrossProjectBlocker,
@@ -64,7 +65,7 @@ import {
 import { itemId, outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-import { cards, frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { cards, frame, shell } from "./ui-styles.ts";
 
 function blockerTicket(blocker: CrossProjectBlocker): string {
 	return outsideKey(blocker.project, blocker.key);
@@ -606,39 +607,22 @@ function TableView({
 	);
 }
 
-function NotifyIcon() {
-	return (
-		<svg
-			viewBox="0 0 24 24"
-			aria-hidden="true"
-			className={clsx(frame.glyph)}
-			fill="none"
-			stroke="currentColor"
-			strokeWidth="1.75"
-			strokeLinecap="round"
-			strokeLinejoin="round"
-		>
-			<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5" />
-			<path d="M5 16.5h14" />
-			<path d="M10 19a2 2 0 0 0 4 0" />
-		</svg>
-	);
-}
-
 function MenuButton({
 	id,
 	label,
+	icon,
+	count,
 	open,
 	onToggle,
 	children,
-	style = cards.control,
 }: {
 	id: string;
-	label: ReactNode;
+	label: string;
+	icon?: IconName;
+	count?: number;
 	open: boolean;
 	onToggle: () => void;
 	children: ReactNode;
-	style?: stylex.StyleXStyles;
 }) {
 	const root = useRef<HTMLDivElement>(null);
 	const gutter = useRef<HTMLSpanElement>(null);
@@ -689,16 +673,15 @@ function MenuButton({
 	return (
 		<div className={clsx(cards.menu)} ref={root}>
 			<span ref={gutter} className={clsx(cards.gutter)} aria-hidden="true" />
-			<button
-				type="button"
+			<Button
 				id={id}
-				className={clsx(style, shell.buttonFocus)}
+				label={label}
+				icon={icon}
+				count={count}
 				aria-expanded={open}
 				aria-controls={`${id}-panel`}
 				onClick={onToggle}
-			>
-				{label}
-			</button>
+			/>
 			{open ? (
 				<div
 					id={`${id}-panel`}
@@ -811,26 +794,9 @@ function OverviewPage({
 	const filterMenu = (
 		<MenuButton
 			id="overview-filter"
-			style={headerControlStyle.control}
-			label={
-				<>
-					<svg
-						viewBox="0 0 16 16"
-						aria-hidden="true"
-						className={clsx(headerControlStyle.icon)}
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="1.5"
-						strokeLinecap="round"
-					>
-						<path d="M2 3.5h12M4.5 8h7M7 12.5h2" />
-					</svg>
-					{overviewControlLabel.filter}
-					<span className={clsx(headerControlStyle.count)}>
-						{view.filter === "all" ? 0 : 1}
-					</span>
-				</>
-			}
+			icon="filter"
+			label={overviewControlLabel.filter}
+			count={view.filter === "all" ? 0 : 1}
 			open={menu === "filter"}
 			onToggle={() => setMenu(menu === "filter" ? null : "filter")}
 		>
@@ -893,23 +859,16 @@ function OverviewPage({
 					/>
 					{notifyPermission === "default" &&
 					typeof Notification !== "undefined" ? (
-						<button
-							type="button"
+						<Button
 							id="notify-permission"
-							className={clsx(
-								headerControlStyle.control,
-								headerControlStyle.notify,
-								shell.buttonFocus,
-							)}
+							icon="bell"
+							label="Allow notifications"
 							onClick={() => {
 								void askNotificationPermission().finally(() => {
 									setNotifyPermission(notificationPermission());
 								});
 							}}
-						>
-							<NotifyIcon />
-							Allow notifications
-						</button>
+						/>
 					) : null}
 					{filterMenu}
 				</div>

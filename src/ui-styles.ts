@@ -14,12 +14,16 @@ import {
 
 const focusRing = `${measure.focus} solid ${colours.focus}` as const;
 
+// A segment fills its group: the control height less the group padding and border.
+const segmentHeight =
+	`calc(${measure.control} - 2 * (${space.twoXs} + ${measure.hairline}))` as const;
+
 const headerGroup = {
 	display: "inline-flex",
 	gap: space.twoXs,
 	alignItems: "center",
 	boxSizing: "border-box",
-	height: measure.headerControl,
+	height: measure.control,
 	margin: 0,
 	padding: space.twoXs,
 	borderWidth: measure.hairline,
@@ -31,7 +35,7 @@ const headerGroup = {
 
 const controlText = {
 	fontFamily: font.sans,
-	fontSize: type.meta,
+	fontSize: type.menu,
 	fontWeight: type.regular,
 	lineHeight: 1,
 	cursor: "pointer",
@@ -49,7 +53,7 @@ const headerControl = {
 	gap: space.xs,
 	alignItems: "center",
 	boxSizing: "border-box",
-	height: measure.headerControl,
+	height: measure.control,
 	padding: `0 ${space.sm}`,
 	borderWidth: measure.hairline,
 	borderStyle: "solid",
@@ -68,7 +72,7 @@ export const headerControlStyle = stylex.create({
 		display: "inline-flex",
 		alignItems: "center",
 		boxSizing: "border-box",
-		height: "100%",
+		height: segmentHeight,
 		padding: `0 ${space.sm}`,
 		borderWidth: 0,
 		borderRadius: radius.sm,
@@ -86,47 +90,14 @@ export const headerControlStyle = stylex.create({
 		opacity: 0.5,
 		cursor: "not-allowed",
 	},
-	icon: {
-		display: "inline-flex",
-		width: measure.glyph,
-		height: measure.glyph,
-		flexShrink: 0,
-	},
-	search: {
-		...headerControl,
-		width: measure.search,
-		color: colours.inkMuted,
-		cursor: "text",
-		outline: {
-			default: "none",
-			":focus-within": focusRing,
-		},
-		outlineOffset: space.twoXs,
-	},
-	field: {
-		boxSizing: "border-box",
-		flexGrow: 1,
-		minWidth: 0,
-		padding: 0,
-		borderWidth: 0,
-		backgroundColor: "transparent",
-		color: colours.ink,
-		...controlText,
-		cursor: "text",
-		outline: {
-			default: "none",
-			":focus": "none",
-			":focus-visible": "none",
-		},
-	},
 	graphTools: headerGroup,
 	graphTool: {
 		display: "inline-flex",
 		alignItems: "center",
 		justifyContent: "center",
 		boxSizing: "border-box",
-		height: "100%",
-		minWidth: measure.headerControl,
+		height: segmentHeight,
+		minWidth: measure.control,
 		padding: `0 ${space.sm}`,
 		borderWidth: 0,
 		borderRadius: radius.sm,
@@ -137,24 +108,9 @@ export const headerControlStyle = stylex.create({
 	square: {
 		...headerControl,
 		...headerButtonFill,
-		width: measure.headerControl,
+		width: measure.control,
 		justifyContent: "center",
 		padding: 0,
-	},
-	notify: {
-		...headerButtonFill,
-	},
-	count: {
-		display: "inline-flex",
-		alignItems: "center",
-		justifyContent: "center",
-		minWidth: measure.badge,
-		padding: `0 ${space.xs}`,
-		borderRadius: radius.pill,
-		backgroundColor: colours.segment,
-		color: colours.ink,
-		fontSize: type.kicker,
-		lineHeight: 1,
 	},
 });
 
@@ -283,8 +239,8 @@ export const frame = stylex.create({
 		display: "inline-flex",
 		alignItems: "center",
 		justifyContent: "center",
-		width: measure.toggle,
-		height: measure.toggle,
+		width: measure.control,
+		height: measure.control,
 		padding: 0,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -400,7 +356,7 @@ export const frame = stylex.create({
 		alignItems: "center",
 		boxSizing: "border-box",
 		flex: "0 0 auto",
-		height: measure.toggle,
+		height: measure.control,
 		width: measure.searchBox,
 		minWidth: 0,
 		maxWidth: "100%",
@@ -424,7 +380,7 @@ export const frame = stylex.create({
 		alignItems: "center",
 		justifyContent: "space-between",
 		boxSizing: "border-box",
-		height: measure.menu,
+		height: measure.control,
 		padding: `0 ${space.md}`,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",
@@ -498,26 +454,6 @@ export const shell = stylex.create({
 			":focus-visible": focusRing,
 		},
 		outlineOffset: space.twoXs,
-	},
-	button: {
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		padding: `${space.twoXs} ${space.md}`,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		lineHeight: 1,
-		cursor: "pointer",
-	},
-	buttonHover: {
-		backgroundColor: {
-			default: colours.surface,
-			":hover": colours.surfaceMuted,
-		},
 	},
 	buttonFocus: {
 		outline: {
@@ -942,25 +878,6 @@ export const cards = stylex.create({
 		alignItems: "center",
 	},
 
-	control: {
-		display: "inline-flex",
-		gap: space.sm,
-		alignItems: "center",
-		boxSizing: "border-box",
-		height: measure.menu,
-		padding: `0 ${space.md}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		lineHeight: 1,
-		cursor: "pointer",
-	},
 	menu: {
 		position: "relative",
 	},
