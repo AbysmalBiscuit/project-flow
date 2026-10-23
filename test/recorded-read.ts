@@ -219,7 +219,8 @@ const issueCursor: Record<string, string> = {
 /**
  * Answers each alias of a `RepoPages` read with the per-item page query that
  * the recorded handlers answer: `NestedReview`, `IssueComments` or
- * `IssueRelations`.
+ * `IssueRelations`. A failed page becomes a null alias with an error on its
+ * path, as GitHub reports one broken node.
  */
 async function answerPages(fetchImpl: Fetch, body: string): Promise<Response> {
 	const sent = JSON.parse(body) as {
@@ -227,6 +228,7 @@ async function answerPages(fetchImpl: Fetch, body: string): Promise<Response> {
 		variables?: Record<string, string>;
 	};
 	const data: Record<string, unknown> = {};
+	const errors: { message: string; path: string[] }[] = [];
 	for (const match of (sent.query ?? "").matchAll(
 		/c(\d+): node\(id: \$id\d+\) \{ \.\.\. on (Issue|PullRequest) \{ (\w+)/g,
 	)) {
@@ -257,7 +259,12 @@ async function answerPages(fetchImpl: Fetch, body: string): Promise<Response> {
 			body: JSON.stringify(request),
 		});
 		if (!answered.ok) {
-			return answered;
+			data[`c${at}`] = null;
+			errors.push({
+				message: `recorded page failed (HTTP ${answered.status})`,
+				path: [`c${at}`],
+			});
+			continue;
 		}
 		const payload = (await answered.json().catch(() => null)) as {
 			data?: { repository?: { pullRequest?: Node; issue?: Node } };
@@ -278,7 +285,7 @@ async function answerPages(fetchImpl: Fetch, body: string): Promise<Response> {
 				: { [field]: node?.[field] ?? emptyList };
 		data[`c${at}`] = list;
 	}
-	return Response.json({ data });
+	return Response.json(errors.length === 0 ? { data } : { data, errors });
 }
 
 function resourceLimited(payload: unknown): boolean {

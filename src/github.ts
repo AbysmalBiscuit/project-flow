@@ -2045,7 +2045,14 @@ async function readAutoMerge(
 }
 
 const graphqlErrors = z.object({
-	errors: z.array(z.object({ message: z.string() })).min(1),
+	errors: z
+		.array(
+			z.object({
+				message: z.string(),
+				path: z.array(z.union([z.string(), z.number()])).optional(),
+			}),
+		)
+		.min(1),
 });
 
 function resourceLimited(body: unknown): boolean {
@@ -2091,17 +2098,31 @@ async function postPollQuery(
 
 const pollPage = z.object({ data: z.record(z.string(), z.unknown()) });
 
-/** The data of a poll query, or a failure for any GraphQL error. */
-function pollData(body: unknown, repo: string): Record<string, unknown> {
-	const error = graphqlErrors.safeParse(body).data?.errors[0]?.message;
-	if (error !== undefined) {
-		throw new Error(`GitHub read repo failed: ${error}`);
+type ErrorPath = (string | number)[];
+
+/**
+ * The data of a poll query, with the PRs whose own node or page has an error.
+ * `brokenPull` names the PR an error path points at. Any other error fails the
+ * read.
+ */
+function pollData(
+	body: unknown,
+	repo: string,
+	brokenPull: (path: ErrorPath) => string | null = () => null,
+): { data: Record<string, unknown>; broken: Set<string> } {
+	const broken = new Set<string>();
+	for (const error of graphqlErrors.safeParse(body).data?.errors ?? []) {
+		const pull = error.path === undefined ? null : brokenPull(error.path);
+		if (pull === null) {
+			throw new Error(`GitHub read repo failed: ${error.message}`);
+		}
+		broken.add(pull);
 	}
 	const parsed = pollPage.safeParse(body);
 	if (!parsed.success) {
 		throw new Error(`GitHub read repo failed: ${repo}`);
 	}
-	return parsed.data.data;
+	return { data: parsed.data.data, broken };
 }
 
 async function readRepoPage(
@@ -2448,13 +2469,16 @@ const nodeId = z.object({ id: z.string() });
 
 /**
  * Reads the `full` and `live` lists of each id with `nodes(ids:)` batches. A
- * missing or other node fails the read, so no item loses its lists.
+ * PR whose own node has an error goes in `broken`. Any other missing node
+ * fails the read, so no other item loses its lists.
  */
 async function readLists(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
 	ids: { full: string[]; live: string[] },
+	pulls: Set<string>,
+	broken: Set<string>,
 ): Promise<{ full: Map<string, unknown>; live: Map<string, unknown> }> {
 	const found = {
 		full: new Map<string, unknown>(),
@@ -2464,17 +2488,30 @@ async function readLists(
 	const live = chunked(ids.live, livePerBatch);
 	for (let index = 0; index < Math.max(full.length, live.length); index += 1) {
 		const batch = { full: full[index] ?? [], live: live[index] ?? [] };
-		const data = pollData(
+		const read = pollData(
 			await postPollQuery(token, fetchImpl, repo, (size) => ({
 				query: repoListsQuery(size),
 				variables: batch,
 			})),
 			repo,
+			([kind, at]) => {
+				const id =
+					(kind === "full" || kind === "live") && typeof at === "number"
+						? batch[kind][at]
+						: undefined;
+				return id !== undefined && pulls.has(id) ? id : null;
+			},
 		);
+		for (const id of read.broken) {
+			broken.add(id);
+		}
 		for (const kind of ["full", "live"] as const) {
-			const nodes = z.array(z.unknown()).safeParse(data[kind]).data ?? [];
+			const nodes = z.array(z.unknown()).safeParse(read.data[kind]).data ?? [];
 			batch[kind].forEach((id, at) => {
 				const node = nodes[at];
+				if (broken.has(id)) {
+					return;
+				}
 				if (nodeId.safeParse(node).data?.id !== id) {
 					throw new Error(`GitHub read repo failed: ${repo}`);
 				}
@@ -2488,6 +2525,7 @@ async function readLists(
 /** One more page of a list that the poll has read only in part. */
 type PendingPage = {
 	id: string;
+	pull: boolean;
 	cursor: string;
 	selection: (size: number, after: string) => string;
 	accept: (node: unknown) => string | null;
@@ -2521,6 +2559,7 @@ function pendingPage<Node extends z.ZodType>(
 	const connection = graphqlConnection(node);
 	return {
 		id,
+		pull: path.type === "PullRequest",
 		cursor,
 		selection: (size, after) => {
 			const list = `${path.field}(first: ${size}, after: ${after}${path.args ?? ""}) { ${selection} }`;
@@ -2551,18 +2590,25 @@ function repoPagesQuery(pages: PendingPage[], size: number): string {
 }`;
 }
 
-/** Reads every pending page, many items per request, until each list ends. */
+/**
+ * Reads every pending page, many items per request, until each list ends. A
+ * PR whose own page has an error goes in `broken` and gets no more pages.
+ */
 async function readPages(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
 	pages: (PendingPage | null)[],
+	broken: Set<string>,
 ): Promise<void> {
 	let open = pages.flatMap((page) => (page === null ? [] : [page]));
 	while (open.length > 0) {
 		const next: PendingPage[] = [];
-		for (const batch of chunked(open, pagesPerBatch)) {
-			const data = pollData(
+		for (const batch of chunked(
+			open.filter((page) => !broken.has(page.id)),
+			pagesPerBatch,
+		)) {
+			const read = pollData(
 				await postPollQuery(token, fetchImpl, repo, (size) => ({
 					query: repoPagesQuery(batch, size),
 					variables: Object.fromEntries(
@@ -2573,9 +2619,21 @@ async function readPages(
 					),
 				})),
 				repo,
+				([alias]) => {
+					const page = batch[Number(String(alias).slice(1))];
+					return String(alias).startsWith("c") && page?.pull === true
+						? page.id
+						: null;
+				},
 			);
+			for (const id of read.broken) {
+				broken.add(id);
+			}
 			batch.forEach((page, at) => {
-				const cursor = page.accept(data[`c${at}`]);
+				if (broken.has(page.id)) {
+					return;
+				}
+				const cursor = page.accept(read.data[`c${at}`]);
 				if (cursor !== null) {
 					next.push({ ...page, cursor });
 				}
@@ -2716,10 +2774,18 @@ async function readRepo(
 	const livePulls = readable.filter(
 		(pull) => pull.mergedAt == null || changedPulls.includes(pull),
 	);
-	const lists = await readLists(token, fetchImpl, repo, {
-		full: [...changedIssues, ...changedPulls].map((item) => item.id),
-		live: livePulls.map((pull) => pull.id),
-	});
+	const broken = new Set<string>();
+	const lists = await readLists(
+		token,
+		fetchImpl,
+		repo,
+		{
+			full: [...changedIssues, ...changedPulls].map((item) => item.id),
+			live: livePulls.map((pull) => pull.id),
+		},
+		new Set(allPulls.map((pull) => pull.id)),
+		broken,
+	);
 	const commentsById = new Map<string, IssueComments>();
 	for (const issue of changedIssues) {
 		const parsed = fullIssueLists.safeParse(lists.full.get(issue.id));
@@ -2729,102 +2795,112 @@ async function readRepo(
 		commentsById.set(issue.id, parsed.data.comments);
 	}
 	const listsById = new Map<string, PullLists>();
-	for (const pull of changedPulls) {
+	for (const pull of changedPulls.filter((item) => !broken.has(item.id))) {
 		const parsed = fullPullLists.safeParse(lists.full.get(pull.id));
 		if (!parsed.success) {
 			throw new Error(`GitHub read repo failed: ${repo}`);
 		}
 		listsById.set(pull.id, parsed.data);
 	}
-	for (const pull of livePulls) {
+	for (const pull of livePulls.filter((item) => !broken.has(item.id))) {
 		const parsed = livePullLists.safeParse(lists.live.get(pull.id));
 		if (!parsed.success) {
 			throw new Error(`GitHub read repo failed: ${repo}`);
 		}
 		listsById.set(pull.id, { ...listsById.get(pull.id), ...parsed.data });
 	}
-	await readPages(token, fetchImpl, repo, [
-		...issueNodes.flatMap((issue) => [
-			pendingPage(
-				issue.id,
-				{ type: "Issue", field: "labels" },
-				labelSelection,
-				z.object({ name: z.string() }),
-				issue.labels,
-			),
-			pendingPage(
-				issue.id,
-				{ type: "Issue", field: "blockedBy" },
-				dependencySelection,
-				graphqlDependency,
-				issue.blockedBy,
-			),
-			pendingPage(
-				issue.id,
-				{ type: "Issue", field: "blocking" },
-				dependencySelection,
-				graphqlDependency,
-				issue.blocking,
-			),
-			pendingPage(
-				issue.id,
-				{ type: "Issue", field: "comments" },
-				issueCommentSelection,
-				graphqlComment,
-				commentsById.get(issue.id),
-			),
-		]),
-		...allPulls.flatMap((pull) => {
-			const read = listsById.get(pull.id);
-			return [
+	await readPages(
+		token,
+		fetchImpl,
+		repo,
+		[
+			...issueNodes.flatMap((issue) => [
 				pendingPage(
-					pull.id,
-					{
-						type: "PullRequest",
-						field: "closingIssuesReferences",
-						args: ", userLinkedOnly: true",
-					},
-					closingSelection,
-					z.object({ number: z.number() }),
-					pull.closingIssuesReferences,
+					issue.id,
+					{ type: "Issue", field: "labels" },
+					labelSelection,
+					z.object({ name: z.string() }),
+					issue.labels,
 				),
 				pendingPage(
-					pull.id,
-					{ type: "PullRequest", field: "reviews" },
-					reviewSelection,
-					graphqlReview,
-					read?.reviews,
+					issue.id,
+					{ type: "Issue", field: "blockedBy" },
+					dependencySelection,
+					graphqlDependency,
+					issue.blockedBy,
 				),
 				pendingPage(
-					pull.id,
-					{ type: "PullRequest", field: "comments" },
-					pullCommentSelection,
-					graphqlPullComment,
-					read?.comments,
+					issue.id,
+					{ type: "Issue", field: "blocking" },
+					dependencySelection,
+					graphqlDependency,
+					issue.blocking,
 				),
 				pendingPage(
-					pull.id,
-					{ type: "PullRequest", field: "reactions" },
-					reactionSelection,
-					graphqlReaction,
-					read?.reactions,
+					issue.id,
+					{ type: "Issue", field: "comments" },
+					issueCommentSelection,
+					graphqlComment,
+					commentsById.get(issue.id),
 				),
-				pendingPage(
-					pull.id,
-					{
-						type: "PullRequest",
-						field: "contexts",
-						wrap: "statusCheckRollup",
-					},
-					checkSelection,
-					graphqlCheck,
-					read?.statusCheckRollup?.contexts,
-				),
-			];
-		}),
-	]);
+			]),
+			...allPulls.flatMap((pull) => {
+				const read = listsById.get(pull.id);
+				return [
+					pendingPage(
+						pull.id,
+						{
+							type: "PullRequest",
+							field: "closingIssuesReferences",
+							args: ", userLinkedOnly: true",
+						},
+						closingSelection,
+						z.object({ number: z.number() }),
+						pull.closingIssuesReferences,
+					),
+					pendingPage(
+						pull.id,
+						{ type: "PullRequest", field: "reviews" },
+						reviewSelection,
+						graphqlReview,
+						read?.reviews,
+					),
+					pendingPage(
+						pull.id,
+						{ type: "PullRequest", field: "comments" },
+						pullCommentSelection,
+						graphqlPullComment,
+						read?.comments,
+					),
+					pendingPage(
+						pull.id,
+						{ type: "PullRequest", field: "reactions" },
+						reactionSelection,
+						graphqlReaction,
+						read?.reactions,
+					),
+					pendingPage(
+						pull.id,
+						{
+							type: "PullRequest",
+							field: "contexts",
+							wrap: "statusCheckRollup",
+						},
+						checkSelection,
+						graphqlCheck,
+						read?.statusCheckRollup?.contexts,
+					),
+				];
+			}),
+		],
+		broken,
+	);
 	const pullOf = (pull: z.infer<typeof graphqlPullNode>) => {
 		const key = githubKey(repo, pull.number);
+		if (broken.has(pull.id)) {
+			stored.pulls.delete(key);
+			return null;
+		}
 		const kept = stored.pulls.get(key)?.evidence ?? noEvidence;
 		const read = listsById.get(pull.id) ?? {};
 		const fresh = reviewFromGraphql(read);

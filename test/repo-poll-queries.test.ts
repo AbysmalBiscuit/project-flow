@@ -375,6 +375,27 @@ describe("repo poll queries", () => {
 		expect(widget(overview)?.error).toContain("HTTP 500");
 	});
 
+	test("an error on one PR's page skips that PR, and the next poll reads only it again", async () => {
+		const { overview, sent } = await poll((item, earlier) => {
+			if (listsRepo(item)) {
+				return pagedReviews(item);
+			}
+			if (item.operation !== "RepoPages") {
+				return undefined;
+			}
+			return ofOperation(earlier, "RepoPages").length === 0
+				? {
+						data: { c0: null },
+						errors: [{ message: "recorded broken PR", path: ["c0"] }],
+					}
+				: secondReviewPage;
+		}, 2);
+		expect(widget(overview)?.error).toBeNull();
+		const lists = ofOperation(sent, "RepoLists").map((item) => item.variables);
+		expect(lists[1]).toEqual({ full: [pullIds[0]], live: pullIds });
+		expect(ofOperation(sent, "RepoPages")).toHaveLength(2);
+	});
+
 	test("the poll after a failed continuation page reads those lists again", async () => {
 		const { overview, sent } = await poll((item, earlier) => {
 			if (listsRepo(item)) {
