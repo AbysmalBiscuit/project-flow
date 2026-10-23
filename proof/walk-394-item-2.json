@@ -1,0 +1,26 @@
+{
+	"base_url": "http://127.0.0.1:4394",
+	"serve": ["bun", "proof/serve-394.ts", "4394"],
+	"steps": [
+		{ "goto": "/projects/Fleet%20rollout?ticket=OPS-3838&panelTracker=linear" },
+		{ "click": "aside[data-panel='OPS-3838'] h2" },
+		{ "assert_text": "Swap Lukas Horstmann" },
+		{ "shot": "own-project-link" },
+		{
+			"goto": "/projects/AbysmalBiscuit%2Fproject-flow?ticket=SWE-13029&panelProject=Fleet%20rollout&panelTracker=linear"
+		},
+		{ "click": "aside[data-panel='SWE-13029'] h2" },
+		{ "assert_text": "Get Macs added with Apple Configurator into Fleet" },
+		{ "shot": "other-project-link" },
+		{
+			"goto": "/inbox?ticket=SWE-13029&panelProject=Fleet%20rollout&panelTracker=linear"
+		},
+		{ "click": "aside[data-panel='SWE-13029'] h2" },
+		{ "shot": "inbox-link" },
+		{
+			"goto": "/?ticket=AbysmalBiscuit%2Fproject-flow%23205&panelProject=AbysmalBiscuit%2Fproject-flow&panelTracker=github"
+		},
+		{ "click": "aside[data-panel='AbysmalBiscuit/project-flow#205'] h2" },
+		{ "shot": "overview-link" }
+	]
+}

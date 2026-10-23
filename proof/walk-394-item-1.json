@@ -1,0 +1,38 @@
+{
+	"base_url": "http://127.0.0.1:4394",
+	"serve": ["bun", "proof/serve-394.ts", "4394"],
+	"steps": [
+		{ "goto": "/projects/Fleet%20rollout" },
+		{ "assert_text": "Get Macs added with Apple Configurator into Fleet" },
+		{ "click": "button[data-ticket='SWE-13029']" },
+		{ "click": "aside[data-panel='SWE-13029'] h2" },
+		{
+			"assert_text": "URL /projects/Fleet rollout?ticket=SWE-13029&panelTracker=linear"
+		},
+		{ "shot": "open-first" },
+		{ "click": "button[data-ticket='OPS-3838']" },
+		{ "click": "aside[data-panel='OPS-3838'] h2" },
+		{
+			"assert_text": "URL /projects/Fleet rollout?ticket=OPS-3838&panelTracker=linear"
+		},
+		{ "shot": "open-second" },
+		{ "click": "#walk-back" },
+		{ "click": "aside[data-panel='SWE-13029'] h2" },
+		{
+			"assert_text": "URL /projects/Fleet rollout?ticket=SWE-13029&panelTracker=linear"
+		},
+		{ "shot": "back-to-first" },
+		{ "click": "aside[data-panel='SWE-13029'] button[aria-label='Close']" },
+		{ "assert_text": "URL /projects/Fleet rollout | selected none" },
+		{ "shot": "closed" },
+		{ "click": "#walk-back" },
+		{ "click": "aside[data-panel='SWE-13029'] h2" },
+		{ "shot": "back-reopens" },
+		{ "click": "#walk-reload" },
+		{
+			"assert_text": "reload | URL /projects/Fleet rollout?ticket=SWE-13029&panelTracker=linear"
+		},
+		{ "click": "aside[data-panel='SWE-13029'] h2" },
+		{ "shot": "reload-reopens" }
+	]
+}
