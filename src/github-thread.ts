@@ -8,6 +8,7 @@ import type {
 import type { Fetch } from "./fetch.ts";
 import { githubGraphql } from "./github-graphql.ts";
 import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
+import { TrackerBodyError } from "./graphql.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
 import { githubKeyParts } from "./ticket-key.ts";
@@ -187,7 +188,7 @@ async function linkedReviewTargets(
 			subject: repo,
 		},
 	).catch((error: unknown) => {
-		if (error instanceof TrackerError) {
+		if (error instanceof TrackerError && !(error instanceof TrackerBodyError)) {
 			return null;
 		}
 		throw error;

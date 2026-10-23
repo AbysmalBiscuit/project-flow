@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
 import type { Fetch } from "../src/fetch.ts";
-import { githubFetch, issue, type Sent, serve } from "./replies-github-fake.ts";
+import {
+	githubFetch,
+	issue,
+	json,
+	type Sent,
+	serve,
+} from "./replies-github-fake.ts";
 import { settledOverview, urlOf } from "./support.ts";
 
 const rejected = () => new Response("Bad credentials", { status: 401 });
@@ -57,6 +63,58 @@ test("a tracker 401 on a list path and on a thread path gives one error shape", 
 		expect(thread.status).toBe(401);
 		expect(Object.keys(threadBody)).toEqual(["error"]);
 		expect(threadBody.error).toMatch(trackerErrorShape);
+	} finally {
+		await app.stop();
+	}
+});
+
+const threadUrl = "/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget";
+
+function linkedPullsAnswer(answer: () => Response, sent: Sent[] = []): Fetch {
+	return githubFetch(sent, {
+		issues: [issue(7)],
+		graphql: (query) => (query.includes("LinkedPulls") ? answer() : null),
+	});
+}
+
+test.each([
+	[
+		"fails its schema",
+		() =>
+			json({
+				data: {
+					repository: {
+						issue: { closedByPullRequestsReferences: { nodes: "none" } },
+					},
+				},
+			}),
+	],
+	["is not JSON", () => new Response("<html>", { status: 200 })],
+])("a linked-PR body that %s fails the thread with 502", async (_, answer) => {
+	const app = await serve(
+		linkedPullsAnswer(answer),
+		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+	);
+	try {
+		const thread = await fetch(new URL(threadUrl, app.base));
+		const body = (await thread.json()) as Record<string, unknown>;
+		expect(thread.status).toBe(502);
+		expect(Object.keys(body)).toEqual(["error"]);
+	} finally {
+		await app.stop();
+	}
+});
+
+test("an unavailable linked-PR read leaves the thread without review comments", async () => {
+	const sent: Sent[] = [];
+	const app = await serve(
+		linkedPullsAnswer(() => new Response("down", { status: 503 }), sent),
+		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
+	);
+	try {
+		const thread = await fetch(new URL(threadUrl, app.base));
+		expect(thread.status).toBe(200);
+		expect(sent.some((item) => item.url.includes("/pulls/"))).toBe(false);
 	} finally {
 		await app.stop();
 	}
