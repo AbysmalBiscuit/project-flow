@@ -1,8 +1,9 @@
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useStoreApi } from "@xyflow/react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
 	kindSize,
+	measuredSizes,
 	type NodeKind,
 	type NodeSize,
 	rememberNodeSize,
@@ -64,6 +65,20 @@ export function useNodeSpan(
 		return drawn;
 	}
 	return probed;
+}
+
+/** The measured size of each of these nodes, the same map until a size changes. */
+export function useNodeSizes(
+	ids: readonly string[],
+): ReadonlyMap<string, NodeSize> {
+	const read = useMemo(() => {
+		let last: ReadonlyMap<string, NodeSize> = new Map();
+		return () => {
+			last = measuredSizes(ids, last);
+			return last;
+		};
+	}, [ids]);
+	return useSyncExternalStore(subscribeNodeSizes, read);
 }
 
 export function MeasuredNode({ id, kind }: { id: string; kind: NodeKind }) {

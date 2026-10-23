@@ -8,6 +8,7 @@ import {
 	type SimulationNodeDatum,
 } from "d3-force";
 import {
+	cardSizes,
 	framePad,
 	type GraphLayout,
 	groupHead,
@@ -46,10 +47,12 @@ function cardBox(datum: CardDatum, card: NodeSize): Rect {
 	};
 }
 
-function holderBox(holder: Holder, card: NodeSize): Rect {
+type SizeOf = (id: string) => NodeSize;
+
+function holderBox(holder: Holder, sizeOf: SizeOf): Rect {
 	const inner = [
-		...holder.cards.map((datum) => cardBox(datum, card)),
-		...holder.holders.map((child) => holderBox(child, card)),
+		...holder.cards.map((datum) => cardBox(datum, sizeOf(datum.id))),
+		...holder.holders.map((child) => holderBox(child, sizeOf)),
 	];
 	const left = Math.min(...inner.map((box) => box.x));
 	const top = Math.min(...inner.map((box) => box.y));
@@ -78,17 +81,17 @@ function moveAll(members: readonly CardDatum[], dx: number, dy: number): void {
 function siblingLevels(
 	root: Holder,
 	holders: readonly Holder[],
-	card: NodeSize,
+	sizeOf: SizeOf,
 ): Item[][] {
 	return [root, ...holders].map((holder) => [
 		...holder.cards.map((datum) => ({
-			box: () => cardBox(datum, card),
+			box: () => cardBox(datum, sizeOf(datum.id)),
 			move: (dx: number, dy: number) => moveAll([datum], dx, dy),
 		})),
 		...holder.holders.map((child) => {
 			const members = membersOf(child);
 			return {
-				box: () => holderBox(child, card),
+				box: () => holderBox(child, sizeOf),
 				move: (dx: number, dy: number) => moveAll(members, dx, dy),
 			};
 		}),
@@ -166,14 +169,16 @@ function settle(levels: readonly Item[][]): void {
 
 /**
  * Lays out the project graph with d3-force, and removes the overlaps of
- * sibling cards and frames at the end. `titleGrowth` works as in `layoutGraph`.
- * `growGroups` adds the height of wrapped group labels.
+ * sibling cards and frames at the end. `titleGrowth` and `sizes` work as in
+ * `layoutGraph`. `growGroups` adds the height of wrapped group labels.
  */
 export function forceLayout(
 	input: LayoutInput,
 	card: NodeSize,
 	titleGrowth: (title: string) => number,
+	sizes: ReadonlyMap<string, NodeSize> = new Map(),
 ): GraphLayout {
+	const { sizeOf, headOf } = cardSizes(card, sizes, titleGrowth);
 	const root: Holder = {
 		id: "root",
 		cards: [],
@@ -194,13 +199,14 @@ export function forceLayout(
 		});
 	}
 	for (const frame of input.frames) {
+		const head = headOf(frame);
 		holders.set(frame.id, {
 			id: frame.id,
 			cards: [],
 			holders: [],
-			top: framePad * 2 + card.height + titleGrowth(frame.title),
+			top: framePad * 2 + head.height,
 			side: framePad,
-			minWidth: card.width + framePad * 2,
+			minWidth: head.width + framePad * 2,
 		});
 	}
 	const holderOf = (id: string | null): Holder => holders.get(id ?? "") ?? root;
@@ -224,7 +230,7 @@ export function forceLayout(
 		datum.x = (index % columns) * (card.width + siblingGap * 2);
 		datum.y = Math.floor(index / columns) * (card.height + siblingGap * 2);
 	}
-	const levels = siblingLevels(root, [...holders.values()], card);
+	const levels = siblingLevels(root, [...holders.values()], sizeOf);
 	const ids = new Set(nodes.map((node) => node.id));
 	const links = input.edges
 		.filter((edge) => ids.has(edge.from) && ids.has(edge.to))
@@ -257,17 +263,17 @@ export function forceLayout(
 		frames: new Map(),
 	};
 	for (const datum of nodes) {
-		const { x, y } = cardBox(datum, card);
+		const { x, y } = cardBox(datum, sizeOf(datum.id));
 		layout.cards.set(datum.id, { x, y });
 	}
 	for (const frame of input.frames) {
-		const box = holderBox(holderOf(frame.id), card);
+		const box = holderBox(holderOf(frame.id), sizeOf);
 		layout.frames.set(frame.id, box);
 		layout.cards.set(frame.head, { x: box.x + framePad, y: box.y + framePad });
 	}
 	for (const group of input.groups) {
 		if (group.framed) {
-			layout.groups.set(group.id, holderBox(holderOf(group.id), card));
+			layout.groups.set(group.id, holderBox(holderOf(group.id), sizeOf));
 		}
 	}
 	return layout;
@@ -294,6 +300,7 @@ export function growGroups(
 	layout: GraphLayout,
 	card: NodeSize,
 	headGrowth: (label: string, width: number) => number,
+	sizes: ReadonlyMap<string, NodeSize> = new Map(),
 ): GraphLayout {
 	const items = input.groups.flatMap((group): Item[] => {
 		const cards = input.cards.filter((item) => item.group === group.id);
@@ -302,7 +309,9 @@ export function growGroups(
 		const placed = [
 			...cards.flatMap((item) => {
 				const place = layout.cards.get(item.id);
-				return place === undefined ? [] : [{ ...place, ...card }];
+				return place === undefined
+					? []
+					: [{ ...place, ...(sizes.get(item.id) ?? card) }];
 			}),
 			...frames.flatMap((frame) => {
 				const box = layout.frames.get(frame.id);

@@ -24,6 +24,8 @@ import {
 	milestones,
 	overlap,
 	strayCards,
+	strayFromHolders,
+	tallCards,
 	workcell,
 } from "./graph-layout-support.ts";
 
@@ -194,6 +196,40 @@ describe("project graph layout", () => {
 			cards: ["WID-1", "WID-2", "WID-3", "WID-5"].map(cardOf).sort(),
 			stray: [],
 		});
+	});
+
+	test("each frame holds its cards at their measured sizes", async () => {
+		const reports = { hierarchy: await hierarchyReport(""), workcell };
+		for (const [name, report] of Object.entries(reports)) {
+			for (const groupBy of ["workstream", "theme"] as const) {
+				for (const direction of ["left-to-right", "top-to-bottom"] as const) {
+					const input = layoutInput(report, groupBy, []);
+					const sizes = tallCards(input);
+					const layout = await layoutGraph(
+						elk,
+						input,
+						direction,
+						card,
+						() => 0,
+						() => 0,
+						sizes,
+					);
+					expect({
+						name,
+						groupBy,
+						direction,
+						stray: strayFromHolders(input, layout, sizes),
+						cardOverlaps: cardOverlaps(layout, sizes),
+					}).toEqual({
+						name,
+						groupBy,
+						direction,
+						stray: [],
+						cardOverlaps: [],
+					});
+				}
+			}
+		}
 	});
 
 	test("sibling parent ticket frames do not overlap", async () => {

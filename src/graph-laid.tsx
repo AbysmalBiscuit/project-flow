@@ -1,6 +1,6 @@
 import { useReactFlow, type Viewport } from "@xyflow/react";
 import ElkConstructor, { type ELK } from "elkjs/lib/elk-api.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProjectReport } from "./domain.ts";
 import { fitPadding } from "./graph-float.tsx";
 import { growGroups } from "./graph-force.ts";
@@ -15,6 +15,7 @@ import {
 	layoutInput,
 } from "./graph-layout.ts";
 import { headGrowth, titleGrowth } from "./graph-model.ts";
+import { useNodeSizes } from "./graph-node-size.tsx";
 import type { NodeSize } from "./graph-sizes.ts";
 import type {
 	GraphDirection,
@@ -35,6 +36,7 @@ function elk(): ELK {
 async function forceInWorker(
 	input: LayoutInput,
 	card: NodeSize,
+	sizes: ReadonlyMap<string, NodeSize>,
 ): Promise<GraphLayout> {
 	const worker = new Worker(forceWorkerPath, { type: "module" });
 	const request: ForceRequest = {
@@ -43,6 +45,7 @@ async function forceInWorker(
 		titles: new Map(
 			input.frames.map((frame) => [frame.title, titleGrowth(frame.title)]),
 		),
+		sizes,
 	};
 	const layout = await new Promise<GraphLayout>((resolve, reject) => {
 		worker.onmessage = (event: MessageEvent<GraphLayout>) =>
@@ -50,7 +53,7 @@ async function forceInWorker(
 		worker.onerror = (event) => reject(new Error(event.message));
 		worker.postMessage(request);
 	}).finally(() => worker.terminate());
-	return growGroups(input, layout, card, headGrowth);
+	return growGroups(input, layout, card, headGrowth, sizes);
 }
 
 export type LaidGraph = {
@@ -60,11 +63,15 @@ export type LaidGraph = {
 	groupBy: GroupBy;
 	input: LayoutInput;
 	layout: GraphLayout;
+	/** The measured size of each card that the layout used. */
+	sizes: ReadonlyMap<string, NodeSize>;
 };
 
 /**
  * Lays out the graph in a Web Worker, and keeps the last layout until the
  * next one lands. `failed` tells whether the latest layout was rejected.
+ * A card is laid out at `span` until the page measures it, and a change to
+ * a measured size lays out the graph again.
  */
 export function useLaidGraph(
 	report: ProjectReport,
@@ -77,20 +84,34 @@ export function useLaidGraph(
 ): { laid: LaidGraph | null; failed: boolean } {
 	const [laid, setLaid] = useState<LaidGraph | null>(null);
 	const [failed, setFailed] = useState(false);
+	const input = useMemo(
+		() => layoutInput(report, groupBy, assignees, collapsed),
+		[report, groupBy, assignees, collapsed],
+	);
+	const sizes = useNodeSizes(
+		useMemo(() => input.cards.map((card) => card.id), [input]),
+	);
 	useEffect(() => {
 		if (span === null) {
 			return;
 		}
 		let current = true;
-		const input = layoutInput(report, groupBy, assignees, collapsed);
 		const laying =
 			kind === "force"
-				? forceInWorker(input, span)
-				: layoutGraph(elk(), input, direction, span, headGrowth, titleGrowth);
+				? forceInWorker(input, span, sizes)
+				: layoutGraph(
+						elk(),
+						input,
+						direction,
+						span,
+						headGrowth,
+						titleGrowth,
+						sizes,
+					);
 		laying.then(
 			(layout) => {
 				if (current) {
-					setLaid({ report, direction, kind, groupBy, input, layout });
+					setLaid({ report, direction, kind, groupBy, input, layout, sizes });
 					setFailed(false);
 				}
 			},
@@ -104,7 +125,7 @@ export function useLaidGraph(
 		return () => {
 			current = false;
 		};
-	}, [report, direction, kind, groupBy, assignees, collapsed, span]);
+	}, [report, direction, kind, groupBy, input, sizes, span]);
 	return { laid, failed };
 }
 
