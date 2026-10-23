@@ -2076,7 +2076,7 @@ function ticketRelations(
 				other === undefined
 					? undefined
 					: groups.find((group) => group.tickets.includes(other))?.project;
-			const project = otherHome ?? ref.project;
+			const project = otherHome ?? (ref.projectName?.trim() || ref.project);
 			const title = other?.title.trim() || ref.title?.trim() || ref.key;
 			pushBlock(ref, project, title);
 		}
