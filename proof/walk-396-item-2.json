@@ -1,0 +1,15 @@
+{
+	"base_url": "http://127.0.0.1:47100",
+	"serve": ["bun", "proof/serve-396.ts", "47100"],
+	"steps": [
+		{
+			"goto": "/projects/acme%2Fflow?ticket=acme%2Fflow%231&panelTracker=github"
+		},
+		{ "click": "aside[data-panel='acme/flow#1'] h2" },
+		{ "assert_text": "Thread before the poll" },
+		{ "shot": "before-poll" },
+		{ "click": "#project-refresh" },
+		{ "assert_text": "Thread after the poll" },
+		{ "shot": "after-poll" }
+	]
+}
