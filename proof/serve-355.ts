@@ -4,7 +4,7 @@
  * project that holds one of those parent tickets. The tickets use the
  * workflow states of a recorded Linear team.
  *
- * Usage: bun proof/serve-355.ts [PORT]
+ * Usage: bun proof/serve-355.ts [PORT] [light|dark]
  */
 import type { Fetch } from "../src/fetch.ts";
 import recordedTeam from "../test/fixtures/linear-team-states.json";
@@ -155,7 +155,7 @@ await serveRecorded({
 		],
 		checkoutRoots: [],
 		pollIntervalSeconds: 3600,
-		theme: "light",
+		theme: process.argv[3] === "dark" ? "dark" : "light",
 		projectViews: {
 			[followup.name]: {
 				openView: "graph",
