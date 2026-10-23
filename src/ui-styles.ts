@@ -707,24 +707,13 @@ export const cards = stylex.create({
 		borderColor: colours.ink,
 		borderWidth: measure.focus,
 	},
-	graphHead: {
-		display: "flex",
-		gap: space.sm,
-		alignItems: "center",
-		justifyContent: "space-between",
-	},
 	graphTitle: {
 		margin: 0,
 		fontSize: type.card,
 		fontWeight: type.weight,
 	},
-	graphBadge: {
-		padding: `${space.twoXs} ${space.sm}`,
-		borderRadius: radius.pill,
-		backgroundColor: colours.needs,
-		color: colours.needsInk,
-		fontSize: type.meta,
-		whiteSpace: "nowrap",
+	graphChips: {
+		marginTop: space.xs,
 	},
 	graphMeta: {
 		margin: `${space.twoXs} 0 ${space.sm}`,
