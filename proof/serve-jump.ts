@@ -1,4 +1,3 @@
-import { createServer } from "node:net";
 import type { Fetch } from "../src/fetch.ts";
 import {
 	recordedDiscovery,
@@ -11,6 +10,7 @@ import {
 	serveRecorded,
 	unrecorded,
 } from "./recorded.ts";
+import { freePort } from "./serve-proxy.ts";
 
 const board = "acme/board";
 const gate = "acme/gate";
@@ -87,19 +87,7 @@ const recorded: Fetch = async (input, init) => {
 };
 
 const publicPort = Number(process.env.PORT ?? process.argv[2] ?? "4188");
-const appPort = await new Promise<number>((resolve, reject) => {
-	const probe = createServer();
-	probe.once("error", reject);
-	probe.listen(0, "127.0.0.1", () => {
-		const address = probe.address();
-		if (address === null || typeof address === "string") {
-			reject(new Error("jump proof has no app port"));
-			return;
-		}
-		const chosen = address.port;
-		probe.close(() => resolve(chosen));
-	});
-});
+const appPort = await freePort();
 
 function fitPage(): string {
 	return `<!doctype html>
