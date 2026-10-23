@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+import type { FitViewOptions } from "@xyflow/react";
 import { board } from "./board-styles.ts";
 import type { TicketState } from "./domain.ts";
 import { projectGraphLabel, stateLabel } from "./terms.ts";
@@ -6,6 +7,27 @@ import { measure, space, stack } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
 export const fitPadding = 0.28;
+
+/**
+ * Fits the project graph below the legend. The top padding is the legend
+ * height plus the fit padding, so no card or frame lies under the legend.
+ */
+export function legendFit(): FitViewOptions {
+	const pane = document.getElementById("project-graph-pane");
+	const legend = pane?.querySelector(
+		`[aria-label="${projectGraphLabel.legend}"]`,
+	);
+	if (pane == null || legend == null) {
+		return { padding: fitPadding, maxZoom: 1 };
+	}
+	const box = pane.getBoundingClientRect();
+	const margin = (box.height - box.height / (1 + fitPadding)) / 2;
+	const top = legend.getBoundingClientRect().bottom - box.top + margin;
+	return {
+		padding: { top: `${top}px`, x: fitPadding, bottom: fitPadding },
+		maxZoom: 1,
+	};
+}
 
 export const float = stylex.create({
 	pane: {

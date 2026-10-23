@@ -1,4 +1,8 @@
-import { useReactFlow, type Viewport } from "@xyflow/react";
+import {
+	type FitViewOptions,
+	useReactFlow,
+	type Viewport,
+} from "@xyflow/react";
 import { useEffect, useState } from "react";
 import { overviewControlLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";
@@ -89,10 +93,12 @@ export function GraphTools({
 	probeId = "graph-viewport",
 	fitId,
 	scope = "",
+	fitOptions,
 }: {
 	probeId?: string;
 	fitId?: string;
 	scope?: string;
+	fitOptions?: () => FitViewOptions;
 }) {
 	const flow = useReactFlow();
 	const [viewport, setViewport] = useState<Viewport | null>(null);
@@ -127,7 +133,7 @@ export function GraphTools({
 				className={clsx(tools.graphTool)}
 				aria-label={overviewControlLabel.fit}
 				onClick={() => {
-					void flow.fitView().then(show);
+					void flow.fitView(fitOptions?.()).then(show);
 				}}
 			>
 				{overviewControlLabel.fit}
