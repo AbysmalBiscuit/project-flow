@@ -53,7 +53,7 @@ const styles = stylex.create({
 	},
 	popover: {
 		position: "absolute",
-		zIndex: stack.toast,
+		zIndex: stack.popover,
 		top: `calc(100% + ${space.xs})`,
 		right: 0,
 		display: "flex",
