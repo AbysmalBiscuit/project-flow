@@ -15,7 +15,9 @@ import {
 	closePanelLabel,
 	collapsePanelLabel,
 	expandPanelLabel,
+	openPullLabel,
 	projectPageLabel,
+	pullButtonLabel,
 	stateLabel,
 	threadFailedLabel,
 	threadMissingLabel,
@@ -87,6 +89,10 @@ export function TicketPanel({
 	const [picked, setPicked] = useState(false);
 	const [expanded, setExpanded] = useState(false);
 	const threadQuery = useQuery(pageQuery.thread(tracker, project, ticketKey));
+	const reportQuery = useQuery(pageQuery.project(project, "all"));
+	const pullUrl = reportQuery.data?.tickets.find(
+		(item) => item.key === ticketKey,
+	)?.pullUrl;
 	const reply = usePostReply(tracker, project, ticketKey);
 	const pending = reply.isPending;
 	const root = useRef<HTMLElement>(null);
@@ -250,6 +256,15 @@ export function TicketPanel({
 							icon="external-link"
 							label={trackerName}
 							name={`Open on ${trackerName}`}
+						/>
+					)}
+					{pullUrl === undefined ? null : (
+						<Button
+							href={pullUrl}
+							newTab
+							icon="external-link"
+							label={pullButtonLabel}
+							name={openPullLabel}
 						/>
 					)}
 					{dock ? null : (

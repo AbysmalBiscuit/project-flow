@@ -59,7 +59,9 @@ type Content =
 	| { icon: IconName; label?: never; name: string }
 	| { label: string; icon?: IconName; name?: string };
 
-type Action = { href: string; onClick?: never } | { onClick: () => void };
+type Action =
+	| { href: string; newTab?: boolean; onClick?: never }
+	| { onClick: () => void };
 
 type ButtonProps = Content &
 	Action & {
@@ -89,7 +91,15 @@ export function Button(props: ButtonProps) {
 	);
 	if ("href" in props) {
 		return (
-			<a className={className} href={props.href} aria-label={name} title={name}>
+			<a
+				className={className}
+				href={props.href}
+				aria-label={name}
+				title={name}
+				{...(props.newTab === true
+					? { target: "_blank", rel: "noopener noreferrer" }
+					: {})}
+			>
 				{content}
 			</a>
 		);
