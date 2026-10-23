@@ -4,15 +4,21 @@
 	"steps": [
 		{ "goto": "/" },
 		{ "assert_text": "focus none" },
-		{ "fill": "#walk-ctrl", "text": "on" },
+		{ "fill": "#walk-double", "text": "on" },
 		{ "click": "#overview-graph a[data-project='acme/gamma']" },
 		{ "assert_text": "focus acme/alpha | acme/beta | acme/gamma" },
 		{ "click": "#overview-graph #graph-fit" },
 		{ "assert_text": "canvas-flush floats-apart page-fits controls-corner" },
 		{ "shot": "overview-focus-fit" },
-		{ "fill": "#walk-ctrl", "text": "on" },
+		{
+			"assert_text": "acme/alpha 12,180 | acme/beta 372,180 | acme/gamma 732,180"
+		},
+		{ "fill": "#walk-double", "text": "on" },
 		{ "click": "#overview-graph a[data-project='acme/gamma']" },
 		{ "assert_text": "focus none" },
+		{
+			"assert_text": "acme/alpha 12,180 | acme/beta 372,180 | acme/gamma 732,180"
+		},
 		{
 			"fill": "#walk-hover",
 			"text": "#overview-graph a[data-project='acme/alpha']"
@@ -29,8 +35,7 @@
 		{ "fill": "#walk-hover", "text": "leave" },
 		{ "assert_text": "focus none" },
 		{ "goto": "/projects/acme%2Fwidget" },
-		{ "assert_text": "focus none" },
-		{ "fill": "#walk-ctrl", "text": "on" },
+		{ "fill": "#walk-double", "text": "on" },
 		{ "click": "#project-graph [data-graph-node='acme/widget#3']" },
 		{
 			"assert_text": "focus acme/widget acme/widget#1 | acme/widget acme/widget#2 | acme/widget acme/widget#3"
@@ -38,7 +43,8 @@
 		{ "click": "#project-graph #project-graph-fit" },
 		{ "assert_text": "legend-clear" },
 		{ "shot": "project-focus-fit" },
-		{ "fill": "#walk-ctrl", "text": "on" },
+		{ "assert_text": "acme/widget acme/widget#90 12,12" },
+		{ "fill": "#walk-double", "text": "on" },
 		{ "click": "#project-graph [data-graph-node='acme/widget#3']" },
 		{ "assert_text": "focus none" },
 		{

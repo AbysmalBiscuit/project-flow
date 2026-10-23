@@ -110,7 +110,7 @@ const walkScript = `<script id="walk-theme">(function () {
 			markFocus();
 		});
 	}
-})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style><button type="button" id="walk-ctrl-k" hidden></button><input type="text" id="walk-esc" tabindex="-1" aria-label="Escape" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-ctrl" tabindex="-1" aria-label="Control" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-dbl" tabindex="-1" aria-label="Double" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-hover" tabindex="-1" aria-label="Hover" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-style" tabindex="-1" aria-label="Style" style="position:fixed;right:0;bottom:0;opacity:0"><p id="walk-style-out" style="position:fixed;left:0;bottom:0;margin:0;z-index:2147483647"></p><input type="text" id="walk-boxes" tabindex="-1" aria-label="Boxes" style="position:fixed;right:0;bottom:0;opacity:0"><p id="walk-boxes-out" style="position:fixed;top:0;right:0;margin:0;z-index:2147483647"></p><script id="walk-keys">(function () {
+})();</script><style id="walk-focus">[data-walk-focus]{outline:3px solid #e5484d !important;outline-offset:-3px !important;box-shadow:inset 0 0 0 3px #e5484d !important}</style><button type="button" id="walk-ctrl-k" hidden></button><input type="text" id="walk-esc" tabindex="-1" aria-label="Escape" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-ctrl" tabindex="-1" aria-label="Control" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-dbl" tabindex="-1" aria-label="Double" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-double" tabindex="-1" aria-label="Double click" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-hover" tabindex="-1" aria-label="Hover" style="position:fixed;right:0;bottom:0;opacity:0"><input type="text" id="walk-style" tabindex="-1" aria-label="Style" style="position:fixed;right:0;bottom:0;opacity:0"><p id="walk-style-out" style="position:fixed;left:0;bottom:0;margin:0;z-index:2147483647"></p><input type="text" id="walk-boxes" tabindex="-1" aria-label="Boxes" style="position:fixed;right:0;bottom:0;opacity:0"><p id="walk-boxes-out" style="position:fixed;top:0;right:0;margin:0;z-index:2147483647"></p><script id="walk-keys">(function () {
 	var opener = document.getElementById("walk-ctrl-k");
 	if (opener) {
 		opener.addEventListener("click", function () {
@@ -175,6 +175,28 @@ const walkScript = `<script id="walk-theme">(function () {
 			setTimeout(function () {
 				target.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true, detail: 2 }));
 			}, 0);
+		}, true);
+	}
+	var walkDouble = document.getElementById("walk-double");
+	var doubleNext = false;
+	if (walkDouble) {
+		walkDouble.addEventListener("input", function () {
+			if (walkDouble.value !== "") {
+				doubleNext = true;
+			}
+			walkDouble.value = "";
+		});
+		document.addEventListener("click", function (event) {
+			if (!doubleNext || !event.isTrusted) {
+				return;
+			}
+			doubleNext = false;
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			var target = downAt !== null && downAt.isConnected ? downAt : event.target;
+			[["click", 1], ["click", 2], ["dblclick", 2]].forEach(function (step) {
+				target.dispatchEvent(new MouseEvent(step[0], { bubbles: true, cancelable: true, detail: step[1] }));
+			});
 		}, true);
 	}
 	var walkHover = document.getElementById("walk-hover");
