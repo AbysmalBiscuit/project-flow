@@ -335,7 +335,7 @@ export function graphModel(
 	openKey: string | null,
 	input: LayoutInput,
 	layout: GraphLayout,
-	ticketSizes: Map<string, TicketSize>,
+	ticketSizes: ReadonlyMap<string, TicketSize>,
 	fallback: TicketSize,
 ): {
 	nodes: ProjectNode[];

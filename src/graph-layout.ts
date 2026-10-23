@@ -409,11 +409,33 @@ function laidChildren(laid: ElkNode): Map<string, Rect> {
 }
 
 /**
+ * The size of each card: its measured size in `sizes`, else `card`. A head
+ * card with no measured size grows by `titleGrowth` of its title.
+ */
+export function cardSizes(
+	card: NodeSize,
+	sizes: ReadonlyMap<string, NodeSize>,
+	titleGrowth: (title: string) => number,
+): {
+	sizeOf: (id: string) => NodeSize;
+	headOf: (frame: LayoutFrame) => NodeSize;
+} {
+	return {
+		sizeOf: (id) => sizes.get(id) ?? card,
+		headOf: (frame) =>
+			sizes.get(frame.head) ?? {
+				width: card.width,
+				height: card.height + titleGrowth(frame.title),
+			},
+	};
+}
+
+/**
  * Lays out the project graph with ELK `layered`, one compound node per group.
  *
  * A second pass packs the group frames after `headGrowth` gives the extra
- * height of each wrapped group label at its frame width. `titleGrowth` gives
- * the extra height of a head card whose title wraps.
+ * height of each wrapped group label at its frame width. Each card takes its
+ * measured size from `sizes`, as `cardSizes` tells.
  */
 export async function layoutGraph(
 	elk: ELK,
@@ -422,7 +444,9 @@ export async function layoutGraph(
 	card: NodeSize,
 	headGrowth: (label: string, width: number) => number,
 	titleGrowth: (title: string) => number,
+	sizes: ReadonlyMap<string, NodeSize> = new Map(),
 ): Promise<GraphLayout> {
+	const { sizeOf, headOf } = cardSizes(card, sizes, titleGrowth);
 	const options = placeOptions(direction, card);
 	const tree = layoutTree(input);
 	const edges = edgesByHolder(input, tree);
@@ -430,29 +454,29 @@ export async function layoutGraph(
 	const frames = new Map(input.frames.map((frame) => [frame.id, frame]));
 	const groups = new Map(input.groups.map((group) => [group.id, group]));
 	const groupOptions = { ...options, ...compactGroups };
-	const frameOptions = (title: string) => ({
-		...groupOptions,
-		"elk.padding": padding(
-			framePad * 2 + card.height + titleGrowth(title),
-			framePad,
-		),
-		"elk.nodeSize.constraints": "MINIMUM_SIZE",
-		"elk.nodeSize.minimum": `(${card.width + framePad * 2}, ${card.height})`,
-	});
+	const frameOptions = (frame: LayoutFrame) => {
+		const head = headOf(frame);
+		return {
+			...groupOptions,
+			"elk.padding": padding(framePad * 2 + head.height, framePad),
+			"elk.nodeSize.constraints": "MINIMUM_SIZE",
+			"elk.nodeSize.minimum": `(${head.width + framePad * 2}, ${card.height})`,
+		};
+	};
 	const node = (id: string): ElkNode => {
 		const children = (held.get(id) ?? []).map(([child]) => node(child));
 		const frame = frames.get(id);
 		if (frame !== undefined) {
 			return {
 				id,
-				layoutOptions: frameOptions(frame.title),
+				layoutOptions: frameOptions(frame),
 				children,
 				edges: edges.get(id) ?? [],
 			};
 		}
 		const group = groups.get(id);
 		if (group === undefined) {
-			return { id, ...card };
+			return { id, ...sizeOf(id) };
 		}
 		return {
 			id,
