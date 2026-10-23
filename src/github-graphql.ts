@@ -6,6 +6,7 @@ import {
 	type GraphqlQuery,
 	type GraphqlRequest,
 	graphqlData,
+	responseBody,
 } from "./graphql.ts";
 
 export const pageInfo = z.object({
@@ -65,5 +66,5 @@ export async function postGithubGraphql(
 	if (!response.ok) {
 		throw failedResponse("GitHub", request, response);
 	}
-	return response.json();
+	return responseBody("GitHub", request, response);
 }

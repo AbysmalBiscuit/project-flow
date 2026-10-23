@@ -7,6 +7,9 @@ const graphqlErrors = z.object({
 
 const graphqlEnvelope = z.object({ data: z.unknown() });
 
+/** A tracker error for a response body that is not JSON, reports GraphQL errors, or fails its schema. */
+export class TrackerBodyError extends TrackerError {}
+
 /** What a request reads, as its error messages name it. */
 export type GraphqlSubject = {
 	/** The action in the error message, such as "read repo". */
@@ -40,6 +43,20 @@ function about(request: GraphqlSubject): string {
 	return request.subject === undefined ? "" : `: ${request.subject}`;
 }
 
+/** Read the JSON body of a GraphQL response. */
+export function responseBody(
+	tracker: string,
+	request: GraphqlSubject,
+	response: Response,
+): Promise<unknown> {
+	return response.json().catch(() => {
+		throw new TrackerBodyError(
+			`${tracker} ${request.label} failed: response is not JSON${about(request)}`,
+			502,
+		);
+	});
+}
+
 /** Read the `data` of a GraphQL body, or throw its first GraphQL error. */
 export function graphqlData<Data extends z.ZodType>(
 	tracker: string,
@@ -49,7 +66,7 @@ export function graphqlData<Data extends z.ZodType>(
 	const failed = graphqlErrors.safeParse(body);
 	if (failed.success) {
 		const messages = failed.data.errors.map((error) => error.message);
-		throw new TrackerError(
+		throw new TrackerBodyError(
 			`${tracker} ${request.label} failed: ${messages[0]}`,
 			502,
 			messages,
@@ -60,7 +77,7 @@ export function graphqlData<Data extends z.ZodType>(
 		envelope.success ? envelope.data.data : undefined,
 	);
 	if (!parsed.success) {
-		throw new TrackerError(
+		throw new TrackerBodyError(
 			`${tracker} ${request.label} failed${about(request)}`,
 			502,
 		);

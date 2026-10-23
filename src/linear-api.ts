@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { Fetch } from "./fetch.ts";
-import { failedResponse, type GraphqlRequest, graphqlData } from "./graphql.ts";
+import {
+	failedResponse,
+	type GraphqlRequest,
+	graphqlData,
+	responseBody,
+} from "./graphql.ts";
 
 export const linearEndpoint = "https://api.linear.app/graphql";
 
@@ -57,5 +62,9 @@ export async function linearGraphql<Data extends z.ZodType>(
 	if (!response.ok) {
 		throw failedResponse("Linear", request, response);
 	}
-	return graphqlData("Linear", request, await response.json());
+	return graphqlData(
+		"Linear",
+		request,
+		await responseBody("Linear", request, response),
+	);
 }
