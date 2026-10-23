@@ -46,9 +46,12 @@ function github(): Fetch {
 	};
 }
 
+type Check = (base: string) => Promise<void>;
+
+/** Runs each check on a fresh start of the app, on one configuration file and one store. */
 async function withApp(
 	configuration: unknown,
-	check: (base: string, configPath: string) => Promise<void>,
+	checks: Check | Check[],
 	env: Record<string, string> = {
 		GITHUB_TOKEN: "recorded-token",
 		LINEAR_API_KEY: "recorded-linear-key",
@@ -56,31 +59,33 @@ async function withApp(
 ): Promise<void> {
 	const root = await mkdtemp(join("/var/tmp", "project-flow-identity-"));
 	const { path, cleanup } = await tempConfig(JSON.stringify(configuration));
-	let startChecks: (base: string) => void = () => {};
-	const checks = new Promise<void>((resolve, reject) => {
-		startChecks = (base) => {
-			check(base, path).then(resolve, reject);
-		};
-	});
 	try {
-		const result = await run(
-			["--config", path, "--host", "127.0.0.1", "--port", "0"],
-			testIo({
-				env,
-				fetch: linearFake({
-					project: { id: "twin", name: "Linear twin", slugId: repo },
-					issues: [],
-					github: github(),
+		for (const check of [checks].flat()) {
+			let startCheck: (base: string) => void = () => {};
+			const checked = new Promise<void>((resolve, reject) => {
+				startCheck = (base) => {
+					check(base).then(resolve, reject);
+				};
+			});
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env,
+					fetch: linearFake({
+						project: { id: "twin", name: "Linear twin", slugId: repo },
+						issues: [],
+						github: github(),
+					}),
+					readGhToken: async () => null,
+					databasePath: join(root, "project-flow.sqlite"),
+					now: () => new Date("2026-08-18T12:00:00.000Z"),
+					stdout: (line) => startCheck(line),
+					waitForStop: checked,
 				}),
-				readGhToken: async () => null,
-				databasePath: join(root, "project-flow.sqlite"),
-				now: () => new Date("2026-08-18T12:00:00.000Z"),
-				stdout: (line) => startChecks(line),
-				waitForStop: checks,
-			}),
-		);
-		expect(result.stderr).toBe("");
-		expect(result.exitCode).toBe(0);
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		}
 	} finally {
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
@@ -190,29 +195,35 @@ describe("project identity", () => {
 				tracked: [{ tracker: "github", repo: "Acme/Widget" }],
 				expectedBots: { "Acme/Widget": ["grok"] },
 			},
-			async (base, configPath) => {
-				await settingsRows(base);
-				const current = (await (
-					await fetch(new URL("/api/settings", base))
-				).json()) as Configuration;
-				const saved = await fetch(new URL("/api/settings", base), {
-					method: "PUT",
-					headers: { "content-type": "application/json" },
-					body: JSON.stringify({
-						...current,
-						expectedBots: { "Acme/Widget": ["codex"] },
-					}),
-				});
-				expect(saved.status).toBe(200);
-				const written = (await Bun.file(configPath).json()) as Configuration;
-				expect(written.expectedBots).toEqual({ "Acme/Widget": ["codex"] });
-				const rows = await settingsRows(base);
-				expect(
-					rows
-						.filter((row) => row.tracker === "github")
-						.map(({ key, repoBots }) => ({ key, repoBots })),
-				).toEqual([{ key: repo, repoBots: { [repo]: ["codex"] } }]);
-			},
+			[
+				async (base) => {
+					await settingsRows(base);
+					const current = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					const saved = await fetch(new URL("/api/settings", base), {
+						method: "PUT",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({
+							...current,
+							expectedBots: { "Acme/Widget": ["codex"] },
+						}),
+					});
+					expect(saved.status).toBe(200);
+				},
+				async (base) => {
+					const restarted = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as Configuration;
+					expect(restarted.expectedBots).toEqual({ "Acme/Widget": ["codex"] });
+					const rows = await settingsRows(base);
+					expect(
+						rows
+							.filter((row) => row.tracker === "github")
+							.map(({ key, repoBots }) => ({ key, repoBots })),
+					).toEqual([{ key: repo, repoBots: { [repo]: ["codex"] } }]);
+				},
+			],
 		);
 	});
 
