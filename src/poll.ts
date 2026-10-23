@@ -103,7 +103,6 @@ export type PollOptions = {
 };
 
 export async function poll(options: PollOptions): Promise<Configuration> {
-	options.github?.holdLists?.(options.holdLists);
 	options.github?.beginPoll?.();
 	await options.holdLists;
 	if (options.stopped) {

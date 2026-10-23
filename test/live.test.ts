@@ -1637,6 +1637,7 @@ describe("live updates", () => {
 				return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 			}
 			if (listedRead(input, init)?.repo === repo) {
+				await pollHeld;
 				listReads += 1;
 				return (
 					issuesResponse(input, init, [ticket(9, "2026-04-03T00:00:00Z")]) ??
@@ -1737,9 +1738,7 @@ describe("live updates", () => {
 				["--config", path, "--host", "127.0.0.1", "--port", "0"],
 				{
 					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: Object.assign(fetchImpl, {
-						holdLists: () => pollHeld,
-					}),
+					fetch: fetchImpl,
 					readGhToken: async () => null,
 					databasePath,
 					now: () => new Date("2026-04-03T12:00:00.000Z"),

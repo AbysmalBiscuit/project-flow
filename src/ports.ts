@@ -69,7 +69,6 @@ export type TicketList = {
 export type Tracker = {
 	/** Drop repo reads from the previous poll, including a poll that failed. */
 	beginPoll?: () => void;
-	holdLists?: (held: Promise<void>) => void;
 	listTickets: (
 		project: string,
 		since: Date | null,
