@@ -1630,7 +1630,12 @@ async function mergedPullHistory(
 		const cached = seen.get(key);
 		const review =
 			cached ??
-			(await pullReview(repo, pull.number, head, false, token, fetchImpl));
+			(await pullReview(repo, pull.number, head, false, token, fetchImpl).catch(
+				() => null,
+			));
+		if (review === null) {
+			continue;
+		}
 		seen.set(key, review);
 		pulls.push({
 			repo,

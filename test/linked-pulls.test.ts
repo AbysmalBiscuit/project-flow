@@ -21,17 +21,25 @@ import {
 describe("skipped linked PRs", () => {
 	const brokenPull = "https://api.github.com/repos/acme/widget/pulls/84";
 
+	function linkedPull(number: number, ticket: number) {
+		return { ...pull(number, ticket), body: `Fixes ticket ${ticket}` };
+	}
+
+	const mergedPull = {
+		...linkedPull(84, 9),
+		state: "closed",
+		merged_at: "2026-10-02T00:00:00Z",
+	};
+
 	async function skippedThenShown(
-		pinned: Record<string, unknown>,
-		tracker: (
-			input: string | URL | Request,
-			init?: RequestInit,
-		) => Response | Promise<Response>,
+		config: Record<string, unknown>,
+		tracker: Fetch,
 		env: Record<string, string>,
+		history: "open" | "merged" = "open",
 	): Promise<void> {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
-				pinned: [pinned],
+				...config,
 				expectedBots: { [repo]: [] },
 				pollIntervalSeconds: 3600,
 			}),
@@ -39,8 +47,15 @@ describe("skipped linked PRs", () => {
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let broken = true;
 		const fetchImpl: Fetch = async (input, init) => {
-			if (broken && urlOf(input) === brokenPull) {
+			const url = urlOf(input);
+			if (broken && (url === brokenPull || url.startsWith(`${brokenPull}/`))) {
 				return new Response("recorded failure", { status: 500 });
+			}
+			if (history === "merged" && url === brokenPull) {
+				return page(mergedPull);
+			}
+			if (history === "merged" && url.includes("/pulls?state=closed")) {
+				return page([mergedPull]);
 			}
 			return tracker(input, init);
 		};
@@ -115,104 +130,108 @@ describe("skipped linked PRs", () => {
 		}
 	}
 
-	function linkedPull(number: number, ticket: number) {
-		return { ...pull(number, ticket), body: `Fixes ticket ${ticket}` };
-	}
-
-	test("a GitHub project skips a broken linked PR until the next good poll", async () => {
-		const board = projectBoard(
-			[{ number: 83 }],
-			undefined,
-			[],
-			[
-				{
-					id: "I_widget_9",
-					number: 9,
-					title: "Ticket 9",
-					pulls: [{ number: 84 }],
-					comments: [],
-				},
-			],
-		);
-		await skippedThenShown(
-			{ tracker: "github", owner: "acme", project: 7 },
-			async (input, init) => {
-				const number = urlOf(input).match(
-					/^https:\/\/api\.github\.com\/repos\/acme\/widget\/pulls\/(\d+)$/,
-				)?.[1];
-				return number === undefined
-					? board(input, init)
-					: page(linkedPull(Number(number), Number(number) - 75));
-			},
-			{ GITHUB_TOKEN: "recorded-token" },
-		);
-	});
-
-	test("a Linear project skips a broken linked PR until the next good poll", async () => {
-		const linearProject = "widget-launch-0d42ae5d46d0";
-		const attached = (ticket: number, number: number) => ({
-			identifier: `WID-${ticket}`,
-			title: `Linear ticket ${ticket}`,
-			updatedAt: "2026-10-01T00:00:00.000Z",
-			state: { type: "started" },
-			attachments: {
-				nodes: [
+	test.each(["open", "merged"] as const)(
+		"a GitHub project skips a broken %s linked PR until the next good poll",
+		async (history) => {
+			const board = projectBoard(
+				[{ number: 83 }],
+				undefined,
+				[],
+				[
 					{
-						url: `https://github.com/${repo}/pull/${number}`,
-						title: `PR ${number}`,
-						sourceType: "github",
+						id: "I_widget_9",
+						number: 9,
+						title: "Ticket 9",
+						pulls: [{ number: 84 }],
+						comments: [],
 					},
 				],
-			},
-		});
-		const linear = linearFake({
-			project: {
-				id: "project-1",
-				name: "Widget launch",
-				slugId: linearProject,
-			},
-			issues: [attached(8, 83), attached(9, 84)],
-			github: async (input, init) => {
-				const discovered = recordedDiscovery(input, init);
-				if (discovered !== null) {
-					return discovered;
-				}
-				const url = urlOf(input);
-				if (url === "https://api.github.com/user") {
-					return page({ login: "lev" });
-				}
-				const number = url.match(
-					/^https:\/\/api\.github\.com\/repos\/acme\/widget\/pulls\/(\d+)$/,
-				)?.[1];
-				if (number !== undefined) {
-					return page(linkedPull(Number(number), Number(number) - 75));
-				}
-				if (url.includes("/commits/") && url.includes("/check-runs")) {
-					return page({ check_runs: [] });
-				}
-				if (url.includes("/commits/")) {
-					return page({
-						commit: { committer: { date: "2026-10-01T00:00:00Z" } },
-					});
-				}
-				if (
-					url.includes("/pulls?state=closed") ||
-					url.includes("/comments") ||
-					url.includes("/reviews") ||
-					url.includes("/reactions")
-				) {
-					return page([]);
-				}
-				return emptyProjectFields(input, init) ?? unrecorded(input);
-			},
-		});
-		await skippedThenShown(
-			{ tracker: "linear", project: linearProject },
-			linear,
-			{
-				GITHUB_TOKEN: "recorded-token",
-				LINEAR_API_KEY: "recorded-linear-key",
-			},
-		);
-	});
+			);
+			await skippedThenShown(
+				{ pinned: [{ tracker: "github", owner: "acme", project: 7 }] },
+				async (input, init) => {
+					const number = urlOf(input).match(
+						/^https:\/\/api\.github\.com\/repos\/acme\/widget\/pulls\/(\d+)$/,
+					)?.[1];
+					return number === undefined
+						? board(input, init)
+						: page(linkedPull(Number(number), Number(number) - 75));
+				},
+				{ GITHUB_TOKEN: "recorded-token" },
+				history,
+			);
+		},
+	);
+
+	test.each(["open", "merged"] as const)(
+		"a Linear project skips a broken %s linked PR until the next good poll",
+		async (history) => {
+			const linearProject = "widget-launch-0d42ae5d46d0";
+			const attached = (ticket: number, number: number) => ({
+				identifier: `WID-${ticket}`,
+				title: `Linear ticket ${ticket}`,
+				updatedAt: "2026-10-01T00:00:00.000Z",
+				state: { type: "started" },
+				attachments: {
+					nodes: [
+						{
+							url: `https://github.com/${repo}/pull/${number}`,
+							title: `PR ${number}`,
+							sourceType: "github",
+						},
+					],
+				},
+			});
+			const linear = linearFake({
+				project: {
+					id: "project-1",
+					name: "Widget launch",
+					slugId: linearProject,
+				},
+				issues: [attached(8, 83), attached(9, 84)],
+				github: async (input, init) => {
+					const discovered = recordedDiscovery(input, init);
+					if (discovered !== null) {
+						return discovered;
+					}
+					const url = urlOf(input);
+					if (url === "https://api.github.com/user") {
+						return page({ login: "lev" });
+					}
+					const number = url.match(
+						/^https:\/\/api\.github\.com\/repos\/acme\/widget\/pulls\/(\d+)$/,
+					)?.[1];
+					if (number !== undefined) {
+						return page(linkedPull(Number(number), Number(number) - 75));
+					}
+					if (url.includes("/commits/") && url.includes("/check-runs")) {
+						return page({ check_runs: [] });
+					}
+					if (url.includes("/commits/")) {
+						return page({
+							commit: { committer: { date: "2026-10-01T00:00:00Z" } },
+						});
+					}
+					if (
+						url.includes("/pulls?state=closed") ||
+						url.includes("/comments") ||
+						url.includes("/reviews") ||
+						url.includes("/reactions")
+					) {
+						return page([]);
+					}
+					return emptyProjectFields(input, init) ?? unrecorded(input);
+				},
+			});
+			await skippedThenShown(
+				{ pinned: [{ tracker: "linear", project: linearProject }] },
+				linear,
+				{
+					GITHUB_TOKEN: "recorded-token",
+					LINEAR_API_KEY: "recorded-linear-key",
+				},
+				history,
+			);
+		},
+	);
 });
