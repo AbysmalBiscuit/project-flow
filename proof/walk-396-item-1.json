@@ -1,0 +1,127 @@
+{
+	"base_url": "http://127.0.0.1:47100",
+	"serve": ["bun", "proof/serve-396.ts", "47100"],
+	"steps": [
+		{
+			"goto": "/projects/acme%2Fflow"
+		},
+		{
+			"click": "#project-refresh"
+		},
+		{
+			"click": "button[data-ticket='acme/flow#1'] > p"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'][data-state='inProgress'] h2"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blockers'] h3"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blocks'] h3"
+		},
+		{
+			"assert_text": "Ship the side panel"
+		},
+		{
+			"shot": "project-page"
+		},
+		{
+			"goto": "/inbox"
+		},
+		{
+			"click": "button[data-inbox][data-trigger='needsYou']"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'][data-state='inProgress'] h2"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blockers'] h3"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blocks'] h3"
+		},
+		{
+			"assert_text": "Draw the lane line"
+		},
+		{
+			"assert_text": "Open the platform gate"
+		},
+		{
+			"assert_text": "Write the release note"
+		},
+		{
+			"shot": "inbox"
+		},
+		{
+			"goto": "/needs-you"
+		},
+		{
+			"click": "[data-needs='acme/flow#1'] button"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'][data-state='inProgress'] h2"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blockers'] h3"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blocks'] h3"
+		},
+		{
+			"shot": "needs-you"
+		},
+		{
+			"goto": "/"
+		},
+		{
+			"click": "#header-search"
+		},
+		{
+			"fill": "#jump-query",
+			"text": "side panel"
+		},
+		{
+			"click": "[role='dialog'] button[data-ticket='acme/flow#1']"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'][data-state='inProgress'] h2"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blockers'] h3"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] section[aria-label='Blocks'] h3"
+		},
+		{
+			"shot": "jump"
+		},
+		{
+			"click": "aside[data-panel='acme/flow#1'] button[data-blocker='acme/gate#9']"
+		},
+		{
+			"click": "aside[data-panel='acme/gate#9'] h2"
+		},
+		{
+			"assert_text": "Open the platform gate"
+		},
+		{
+			"shot": "jump-cross-project-blocker"
+		},
+		{
+			"goto": "/projects/acme%2Fflow?ticket=acme%2Fplan%235&panelProject=acme%2Fplan&panelTracker=github"
+		},
+		{
+			"click": "aside[data-panel='acme/plan#5'][data-state='done'] h2"
+		},
+		{
+			"assert_text": "Plan the panel"
+		},
+		{
+			"assert_text": "This thread could not be read."
+		},
+		{
+			"shot": "untracked-parent"
+		}
+	]
+}

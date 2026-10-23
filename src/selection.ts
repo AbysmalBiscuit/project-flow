@@ -1,17 +1,8 @@
 import { useSyncExternalStore } from "react";
-import type { NeedsYouItem } from "./domain.ts";
 import { ticketPath, urlTicket } from "./paths.ts";
 import { sameTicket, type TicketRef } from "./ticket-key.ts";
 
-/** The ticket in the side panel. The page URL holds it, so a reload, the back button and a shared link reopen it. */
-export type OpenedTicket = TicketRef & { item?: NeedsYouItem };
-
-let item: NeedsYouItem | null = null;
-let shown: {
-	href: string;
-	item: NeedsYouItem | null;
-	ticket: OpenedTicket | null;
-} | null = null;
+let shown: { href: string; ticket: TicketRef | null } | null = null;
 const listeners = new Set<() => void>();
 
 function publish(): void {
@@ -20,18 +11,14 @@ function publish(): void {
 	}
 }
 
-export function activeTicket(): OpenedTicket | null {
+/** The ticket in the side panel. The page URL holds it, so a reload, the back button and a shared link reopen it. */
+export function activeTicket(): TicketRef | null {
 	const href = `${window.location.pathname}${window.location.search}`;
-	if (shown?.href === href && shown.item === item) {
+	if (shown?.href === href) {
 		return shown.ticket;
 	}
-	const ref = urlTicket(window.location);
-	const ticket =
-		ref !== null && item !== null && sameTicket(item, ref)
-			? { ...ref, item }
-			: ref;
-	shown = { href, item, ticket };
-	return ticket;
+	shown = { href, ticket: urlTicket(window.location) };
+	return shown.ticket;
 }
 
 function writeTicket(
@@ -51,11 +38,10 @@ function writeTicket(
 
 /** Opens the ticket in the panel. A replace keeps the back button on the page before it. */
 export function openTicket(
-	ticket: OpenedTicket,
+	ticket: TicketRef,
 	history: "push" | "replace" = "push",
 ): void {
 	const current = activeTicket();
-	item = ticket.item ?? null;
 	if (current === null || !sameTicket(current, ticket)) {
 		writeTicket(
 			{ tracker: ticket.tracker, project: ticket.project, key: ticket.key },
@@ -69,16 +55,6 @@ export function closeTicket(): void {
 	if (activeTicket() !== null) {
 		writeTicket(null, "push");
 	}
-	item = null;
-	publish();
-}
-
-export function replaceActiveItem(next: NeedsYouItem): void {
-	const current = activeTicket();
-	if (current === null || !sameTicket(current, next)) {
-		return;
-	}
-	item = next;
 	publish();
 }
 
@@ -91,6 +67,6 @@ function subscribe(listener: () => void): () => void {
 	};
 }
 
-export function useActiveTicket(): OpenedTicket | null {
+export function useActiveTicket(): TicketRef | null {
 	return useSyncExternalStore(subscribe, activeTicket, activeTicket);
 }

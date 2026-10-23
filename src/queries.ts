@@ -416,6 +416,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries(pageQuery.needsYou);
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
 }
 
 function invalidatePageQueries(): void {

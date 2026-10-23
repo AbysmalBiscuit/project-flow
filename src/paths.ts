@@ -3,7 +3,8 @@ import type { TicketRef } from "./ticket-key.ts";
 const projectPrefix = "/projects/";
 const ticketParams = ["ticket", "panelProject", "panelTracker"] as const;
 
-function pathProject(pathname: string): string | null {
+/** The project that a project page path names. */
+export function pathProject(pathname: string): string | null {
 	return pathname.startsWith(projectPrefix)
 		? decodeURIComponent(pathname.slice(projectPrefix.length))
 		: null;
