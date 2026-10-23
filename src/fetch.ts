@@ -1,7 +1,7 @@
-export type Fetch = {
-	(input: string | URL | Request, init?: RequestInit): Promise<Response>;
-	holdLists?: () => Promise<void>;
-};
+export type Fetch = (
+	input: string | URL | Request,
+	init?: RequestInit,
+) => Promise<Response>;
 
 function urlOf(input: string | URL | Request): string {
 	if (typeof input === "string") {

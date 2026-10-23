@@ -454,11 +454,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	let listsHeld = false;
 	let releaseLists = () => {};
-	const testHold = options.fetch.holdLists;
-	if (hadRows && testHold !== undefined) {
-		pollOptions.holdLists = testHold();
-		pollOptions.github?.holdLists?.(pollOptions.holdLists);
-	} else if (hadRows) {
+	if (hadRows) {
 		listsHeld = true;
 		pollOptions.holdLists = new Promise<void>((resolve) => {
 			releaseLists = () => {
@@ -469,7 +465,6 @@ export async function start(options: StartOptions): Promise<Running> {
 				resolve();
 			};
 		});
-		pollOptions.github?.holdLists?.(pollOptions.holdLists);
 	}
 	let polling: Promise<void> | null = null;
 	let discovery: Promise<void> = Promise.resolve();
