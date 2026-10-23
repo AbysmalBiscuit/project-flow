@@ -10,7 +10,15 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { board } from "./board-styles.ts";
 import { cardTones } from "./card-tones.ts";
 import { useCollapse } from "./collapse.ts";
@@ -23,7 +31,7 @@ import {
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
-import { FitLayout, useLaidGraph } from "./graph-laid.tsx";
+import { type Anchor, FitLayout, useLaidGraph } from "./graph-laid.tsx";
 import { focusLinks, focusSeeds } from "./graph-layout.ts";
 import type {
 	ClusterNodeData,
@@ -86,14 +94,16 @@ function ClusterNode({
 }
 
 const FrameToggleContext = createContext<
-	(key: string, startsCollapsed: boolean) => void
+	(card: string, key: string, startsCollapsed: boolean) => void
 >(() => {});
 
 function FrameToggle({
+	card,
 	ticket,
 	collapsed,
 	startsCollapsed,
 }: {
+	card: string;
 	ticket: string;
 	collapsed: boolean;
 	startsCollapsed: boolean;
@@ -108,8 +118,11 @@ function FrameToggle({
 			aria-label={subTicketsToggleLabel(ticket, collapsed)}
 			onClick={(event) => {
 				event.stopPropagation();
-				toggle(ticket, startsCollapsed);
+				toggle(card, ticket, startsCollapsed);
 			}}
+			// Focus scrolls the React Flow box when the graph overflows it, which
+			// moves the toggle away before the click lands.
+			onMouseDownCapture={(event) => event.preventDefault()}
 			onDoubleClick={(event) => event.stopPropagation()}
 		>
 			<svg
@@ -188,6 +201,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 			</button>
 			{data.frame === null || data.ticket.key === null ? null : (
 				<FrameToggle
+					card={id}
 					ticket={data.ticket.key}
 					collapsed={data.frame === "collapsed"}
 					startsCollapsed={data.ticket.startsCollapsed === true}
@@ -369,6 +383,7 @@ export function ProjectGraph({
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
 	const collapse = useCollapse();
+	const anchor = useRef<Anchor | null>(null);
 	const { laid, failed } = useLaidGraph(
 		report,
 		direction,
@@ -377,6 +392,15 @@ export function ProjectGraph({
 		assignees,
 		collapse.collapsed,
 		span,
+		anchor,
+	);
+	const toggleFrame = useCallback(
+		(card: string, key: string, startsCollapsed: boolean) => {
+			const at = laid?.layout.cards.get(card);
+			anchor.current = at === undefined ? null : { card, at };
+			collapse.toggle(key, startsCollapsed);
+		},
+		[laid, collapse],
 	);
 	const model = useMemo(() => {
 		if (span === null || laid === null) {
@@ -535,7 +559,7 @@ export function ProjectGraph({
 				id="project-graph-pane"
 				className={clsx(board.graphPane, float.pane)}
 			>
-				<FrameToggleContext value={collapse.toggle}>
+				<FrameToggleContext value={toggleFrame}>
 					<ReactFlow
 						key={drawn}
 						nodes={nodes}
@@ -587,7 +611,7 @@ export function ProjectGraph({
 						}}
 					>
 						<Background variant={BackgroundVariant.Dots} gap={18} />
-						<FitLayout key={drawn} layout={laid.layout} />
+						<FitLayout key={drawn} layout={laid.layout} held={laid.held} />
 					</ReactFlow>
 				</FrameToggleContext>
 				<div className={clsx(float.overlay)}>
