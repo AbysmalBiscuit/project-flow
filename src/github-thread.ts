@@ -8,6 +8,7 @@ import type {
 import type { Fetch } from "./fetch.ts";
 import { TrackerError } from "./github.ts";
 import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
+import { repoParts } from "./project-ref.ts";
 import { githubKeyParts } from "./ticket-key.ts";
 
 const githubThreadComment = z.object({
@@ -172,10 +173,11 @@ async function linkedReviewTargets(
 	number: number,
 	signal?: AbortSignal,
 ): Promise<{ repo: string; number: number }[]> {
-	const [owner, name] = repo.split("/");
-	if (owner === undefined || name === undefined) {
+	const parts = repoParts(repo);
+	if (parts === null) {
 		return [];
 	}
+	const { owner, name } = parts;
 	const response = await fetchWithSignal(
 		fetchImpl,
 		"https://api.github.com/graphql",

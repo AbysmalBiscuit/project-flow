@@ -8,7 +8,6 @@ import { version } from "../package.json";
 import { start } from "./app.ts";
 import type { AutoMerge } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
-import { ownerRepo } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
 import { checkLinearKey } from "./linear.ts";
@@ -18,6 +17,7 @@ import type {
 	TodoSource,
 	WorkcellRun,
 } from "./ports.ts";
+import { ownerRepo } from "./project-ref.ts";
 
 export { missingToken };
 export const rejectedToken =

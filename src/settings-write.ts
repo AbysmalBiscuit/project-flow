@@ -5,8 +5,8 @@ import {
 	projectRef as projectRefSchema,
 } from "./configuration.ts";
 import type { SettingsProject, SettingsSnapshot } from "./domain.ts";
-import { samePin } from "./domain.ts";
 import type { FoundProject } from "./ports.ts";
+import { samePin } from "./project-ref.ts";
 import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
 
 export function settingsResponse(
@@ -93,10 +93,7 @@ function refList(value: unknown): Configuration["tracked"] | undefined {
 export function rejectUnknownBotKeys(
 	parsed: Configuration,
 	live: Configuration,
-	snapshots: {
-		key: string;
-		pulls: { repo: string }[];
-	}[],
+	snapshots: SettingsSnapshot[],
 	catalogue: FoundProject[],
 ): string | null {
 	const known = knownRepos(snapshots, catalogue);

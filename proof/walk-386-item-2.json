@@ -1,0 +1,22 @@
+{
+	"base_url": "http://127.0.0.1:4386",
+	"serve": ["bun", "proof/serve-386.ts", "4386"],
+	"steps": [
+		{ "goto": "http://127.0.0.1:4387/" },
+		{ "assert_text": "expectedBots {\"Acme/Widget\":[\"grok\"]}" },
+		{ "goto": "/settings" },
+		{ "click": "#project-row-github-acme-widget" },
+		{ "assert_text": "acme/widget" },
+		{ "shot": "override-shown" },
+		{
+			"click": "#project-row-github-acme-widget button[aria-label='Remove grok acme/widget']"
+		},
+		{ "shot": "override-before-save" },
+		{ "click": "#save-settings" },
+		{ "assert_text": "Settings saved" },
+		{ "shot": "override-saved" },
+		{ "goto": "http://127.0.0.1:4387/" },
+		{ "assert_text": "expectedBots {\"Acme/Widget\":[]}" },
+		{ "shot": "config-one-key" }
+	]
+}

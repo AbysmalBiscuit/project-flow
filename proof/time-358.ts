@@ -71,7 +71,10 @@ const databasePath = join(root, "project-flow.sqlite");
 const seeded = sqliteStore(databasePath);
 seeded.store.replaceTickets(rows);
 for (const repo of repos) {
-	seeded.store.recordGoodPoll(repo, new Date("2026-10-01T00:00:00Z"));
+	seeded.store.recordGoodPoll(
+		{ kind: "github-repo", tracker: "github", key: repo },
+		new Date("2026-10-01T00:00:00Z"),
+	);
 }
 seeded.close();
 const configPath = join(root, "config.json");

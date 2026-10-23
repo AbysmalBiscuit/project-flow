@@ -33,6 +33,7 @@ import {
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
 import type { FoundProject, GithubTracker, Viewer } from "./ports.ts";
+import { repoParts, sameRepo } from "./project-ref.ts";
 import { githubKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -1925,14 +1926,6 @@ const repoReadPage = z.object({
 
 type RepoReadPage = z.infer<typeof repoReadPage>["data"];
 
-function splitRepo(repo: string): { owner: string; name: string } | null {
-	const [owner, name] = repo.split("/");
-	if (owner === undefined || name === undefined || name === "") {
-		return null;
-	}
-	return { owner, name };
-}
-
 type PageCursors = {
 	issues: string | null;
 	pulls: string | null;
@@ -1950,7 +1943,7 @@ async function readAutoMerge(
 	fetchImpl: Fetch,
 	repo: string,
 ): Promise<boolean> {
-	const parts = splitRepo(repo);
+	const parts = repoParts(repo);
 	if (parts === null) {
 		return false;
 	}
@@ -1988,7 +1981,7 @@ async function readAutoMerge(
 		!parsed.success ||
 		parsed.data.errors?.[0] !== undefined ||
 		repository === null ||
-		repository.nameWithOwner.toLowerCase() !== repo.toLowerCase()
+		!sameRepo(repository.nameWithOwner, repo)
 	) {
 		throw new Error(`GitHub read repo failed: ${repo}`);
 	}
@@ -2003,7 +1996,7 @@ async function readRepoPage(
 	cursors: PageCursors,
 	include: RepoIncludes,
 ): Promise<RepoReadPage | null> {
-	const parts = splitRepo(repo);
+	const parts = repoParts(repo);
 	if (parts === null) {
 		return null;
 	}
@@ -2062,10 +2055,7 @@ async function readRepoPage(
 		throw new Error(`GitHub read repo failed: ${error.message}`);
 	}
 	const repository = parsed.data.data.repository;
-	if (
-		repository === null ||
-		repository.nameWithOwner.toLowerCase() !== repo.toLowerCase()
-	) {
+	if (repository === null || !sameRepo(repository.nameWithOwner, repo)) {
 		throw new Error(`GitHub read repo failed: ${repo}`);
 	}
 	return parsed.data.data;
@@ -2392,7 +2382,7 @@ async function pageNestedReviews(
 	repo: string,
 	pull: z.infer<typeof graphqlPullNode>,
 ): Promise<void> {
-	const parts = splitRepo(repo);
+	const parts = repoParts(repo);
 	if (parts === null) {
 		return;
 	}
@@ -2482,7 +2472,7 @@ async function pageIssueRelations(
 	repo: string,
 	issue: z.infer<typeof graphqlIssueNode>,
 ): Promise<void> {
-	const parts = splitRepo(repo);
+	const parts = repoParts(repo);
 	if (parts === null) {
 		return;
 	}
@@ -2581,7 +2571,7 @@ async function pageIssueComments(
 	repo: string,
 	issue: z.infer<typeof graphqlIssueNode>,
 ): Promise<void> {
-	const parts = splitRepo(repo);
+	const parts = repoParts(repo);
 	if (parts === null || nextCursor(issue.comments) === null) {
 		return;
 	}
@@ -2831,26 +2821,29 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 		findPinnedProject(owner, number) {
 			return githubProjectByNumber(token, fetchImpl, owner, number);
 		},
-		async listTickets(repo, since, projectOwner = "", held = []) {
-			if (!repo.includes("/")) {
+		async listTickets(project, since, held = []) {
+			const repo = project.key;
+			if (project.ref.kind === "github-project") {
 				projectItemsById.clear();
-				const items = await projectItems(repo, projectOwner);
+				const owner = project.ref.owner;
+				const items = await projectItems(repo, owner);
 				const openKeys = openLinkedKeys(items);
 				const tickets = await listProjectTickets(
 					token,
 					fetchImpl,
 					items,
 					openKeys,
-					projectOwner,
+					owner,
 				);
 				const statuses = await listProjectStatuses(
 					token,
 					fetchImpl,
 					repo,
-					projectOwner,
+					owner,
 				);
 				const board: Board = {
 					kind: "github-project",
+					laneKey: project.ref.key,
 					statuses,
 					factoryLabels: false,
 				};
@@ -2888,14 +2881,16 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			}
 			return { name: repo, tickets, board };
 		},
-		async listPulls(repo, _since, projectOwner = "") {
-			if (!repo.includes("/")) {
+		async listPulls(project) {
+			const repo = project.key;
+			if (project.ref.kind === "github-project") {
+				const owner = project.ref.owner;
 				return listProjectPulls(
 					token,
 					fetchImpl,
-					await projectItems(repo, projectOwner),
+					await projectItems(repo, owner),
 					seenReviews,
-					projectOwner,
+					owner,
 				);
 			}
 			const batched = await repoReadFor(repo, null);
@@ -2915,9 +2910,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			return batched.pulls;
 		},
 		async repoAutoMerge(repo) {
-			if (!repo.includes("/")) {
-				return false;
-			}
 			const cached = autoMergeByRepo.get(repo);
 			if (cached !== undefined) {
 				return cached;
@@ -2931,9 +2923,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			return read;
 		},
 		async listBranches(repo) {
-			if (!repo.includes("/")) {
-				return [];
-			}
 			const batched = await repoReadFor(repo, null);
 			if (batched === null) {
 				throw new Error(`GitHub read repo failed: ${repo}`);
