@@ -1029,7 +1029,12 @@ export function reconcilePoll(
 			!rows.some((row) => sameProject(listedRef(row), outcome.ref)),
 	);
 	const globalError = failed?.error ?? null;
-	return { rows, projectErrors, globalError };
+	const fresh = new Set(
+		outcomes.flatMap((outcome) =>
+			outcome.ok && outcome.row !== null ? outcome.row.tickets : [],
+		),
+	);
+	return { rows: claimTickets(rows, fresh), projectErrors, globalError };
 }
 
 const appLaneNames: Record<StatusType, string> = {
@@ -1690,37 +1695,28 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 			}
 		}
 	}
-	const claimed = new Set<string>();
 	const rows = [];
 	for (const project of shown) {
 		const repo = refRepo(listedRef(project));
-		const tickets = project.tickets.flatMap((ticket) => {
-			if (ticket.ref !== undefined && claimed.has(ticket.ref)) {
-				return [];
-			}
+		const tickets = project.tickets.map((ticket) => {
 			const donor =
 				ticket.ref === undefined ? undefined : carried.get(ticket.ref);
 			const outgoing = bodyLines(donor, ticket);
-			const kept =
-				donor === undefined || donor === ticket
-					? ticket
-					: {
-							...ticket,
-							body:
-								ticket.body.trim() === ""
-									? donor.body
-									: `${ticket.body}\n${outgoing}`,
-							blockedBy: mergeBlockedBy([
-								donor.blockedBy,
-								ticket.blockedBy,
-								bodyBlockers(donor, bodyRepo(donor, repo), "blockedBy"),
-								bodyBlockers(ticket, bodyRepo(ticket, repo), "blockedBy"),
-							]),
-						};
-			if (ticket.ref !== undefined) {
-				claimed.add(ticket.ref);
-			}
-			return [kept];
+			return donor === undefined || donor === ticket
+				? ticket
+				: {
+						...ticket,
+						body:
+							ticket.body.trim() === ""
+								? donor.body
+								: `${ticket.body}\n${outgoing}`,
+						blockedBy: mergeBlockedBy([
+							donor.blockedBy,
+							ticket.blockedBy,
+							bodyBlockers(donor, bodyRepo(donor, repo), "blockedBy"),
+							bodyBlockers(ticket, bodyRepo(ticket, repo), "blockedBy"),
+						]),
+					};
 		});
 		rows.push({
 			key: project.key,
@@ -1735,7 +1731,47 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 			...(project.number === undefined ? {} : { number: project.number }),
 		});
 	}
-	return rows;
+	return claimTickets(rows);
+}
+
+/**
+ * A ticket shows in one project only. A copy in `fresh` beats a stored copy,
+ * so a failed poll cannot hide the state that another project just read.
+ * Then a GitHub project row beats the other rows, and then the first row wins.
+ */
+function claimTickets(
+	rows: Snapshot[],
+	fresh: ReadonlySet<Ticket> = new Set(),
+): Snapshot[] {
+	const rank = (row: Snapshot, ticket: Ticket) =>
+		(fresh.has(ticket) ? 0 : 2) +
+		(listedRef(row).kind === "github-project" ? 0 : 1);
+	const owners = new Map<
+		string,
+		{ row: Snapshot; ticket: Ticket; rank: number }
+	>();
+	for (const row of rows) {
+		for (const ticket of row.tickets) {
+			if (ticket.ref === undefined) {
+				continue;
+			}
+			const owner = owners.get(ticket.ref);
+			const candidate = rank(row, ticket);
+			if (owner === undefined || candidate < owner.rank) {
+				owners.set(ticket.ref, { row, ticket, rank: candidate });
+			}
+		}
+	}
+	return rows.map((row) => ({
+		...row,
+		tickets: row.tickets.filter((ticket) => {
+			if (ticket.ref === undefined) {
+				return true;
+			}
+			const owner = owners.get(ticket.ref);
+			return owner?.row === row && owner.ticket === ticket;
+		}),
+	}));
 }
 
 const githubNode = /^(\d+)-/;

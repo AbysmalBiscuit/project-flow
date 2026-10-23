@@ -1,0 +1,87 @@
+{
+	"recordedAt": "2026-10-23",
+	"source": "gh api repos/AbysmalBiscuit/project-flow/issues/{205,380,391} and issues/391/dependencies/blocked_by",
+	"issues": [
+		{
+			"assignee": {
+				"login": "AbysmalBiscuit"
+			},
+			"assignees": [
+				{
+					"login": "AbysmalBiscuit"
+				}
+			],
+			"body": "The StyleX plugin imports `@babel/parser`, but the package is only a transitive dependency. An isolated `bun install` in a new worktree does not hoist it, so typecheck and tests fail on main until a reinstall with `--linker hoisted`. Declare it as a direct dependency so a clean install works.\n\n## Done when\n\n- [ ] A clean `bun install` in a new worktree, with the default linker, passes `bun run typecheck` and `bun run test` (proof: command and its output)\n\n## Context\n\nParent: #97. Found by the #199 run (PR #204), row 3.\n",
+			"closed_at": "2026-10-20T21:52:37Z",
+			"comments": 2,
+			"created_at": "2026-10-20T20:47:18Z",
+			"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/205",
+			"labels": [
+				{
+					"name": "bug"
+				},
+				{
+					"name": "ready-for-agent"
+				}
+			],
+			"number": 205,
+			"state": "closed",
+			"state_reason": "completed",
+			"title": "build: add @babel/parser as a direct dependency",
+			"updated_at": "2026-10-20T21:52:37Z"
+		},
+		{
+			"assignee": null,
+			"assignees": [],
+			"body": "A ticket read from a GitHub project shows no assignees, no \"blocks\" links to other projects, and wrong lane-entry times for closed and backlog lanes. The same ticket read from a GitHub repo shows all of them. GitHub issues carry these fields, so the gap is in Project Flow's project read.\n\nThe GitHub project items read selects assignees, the blocking links, the created time and the closed time. Project items and repo issues then go through one GitHub issue mapper, so the two paths cannot drift.\n\n## Done when\n\n- [ ] A ticket on a GitHub project carries assignees, blocks, a created time and a closed time on the project route (proof: test for GitHub project ticket fields)\n- [ ] A ticket from a GitHub project and the same ticket from its repo give the same ticket view (proof: test for GitHub project ticket fields)\n- [ ] Request-budget tests keep their counts (proof: command and its output)\n\n## Out of scope\n\n- The linked-PR loader and its error policy. A separate ticket owns them.\n\n## Context\n\nParent: #378\n",
+			"closed_at": "2026-10-23T14:25:57Z",
+			"comments": 2,
+			"created_at": "2026-10-23T05:38:54Z",
+			"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/380",
+			"labels": [
+				{
+					"name": "bug"
+				},
+				{
+					"name": "ready-for-agent"
+				}
+			],
+			"number": 380,
+			"state": "closed",
+			"state_reason": "completed",
+			"title": "fix: carry assignees, blocks and times on GitHub project tickets",
+			"updated_at": "2026-10-23T14:25:57Z"
+		},
+		{
+			"assignee": null,
+			"assignees": [],
+			"body": "One broken linked PR fails a whole GitHub project, while the same fault on Linear only skips the PR. The GitHub project path, the GitHub repo path and the Linear adapter each load linked PRs with their own code.\n\nOne linked-PR loader serves all three paths. Its error policy is to skip a broken PR. The project still loads, and the next good poll loads the PR again.\n\n## Done when\n\n- [ ] A broken linked PR is skipped on a GitHub project, and the project still loads (proof: test for skipped linked PRs)\n- [ ] A broken linked PR is skipped on Linear, and the project still loads (proof: test for skipped linked PRs)\n- [ ] The next good poll shows the skipped PR again (proof: test for skipped linked PRs)\n\n## Context\n\nParent: #378\n",
+			"closed_at": "2026-10-23T15:37:43Z",
+			"comments": 2,
+			"created_at": "2026-10-23T05:44:49Z",
+			"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/391",
+			"labels": [
+				{
+					"name": "bug"
+				},
+				{
+					"name": "ready-for-agent"
+				}
+			],
+			"number": 391,
+			"state": "closed",
+			"state_reason": "completed",
+			"title": "fix: skip a broken linked PR on every tracker",
+			"updated_at": "2026-10-23T15:38:17Z"
+		}
+	],
+	"blockedBy391": [
+		{
+			"html_url": "https://github.com/AbysmalBiscuit/project-flow/issues/380",
+			"number": 380,
+			"repository_url": "https://api.github.com/repos/AbysmalBiscuit/project-flow",
+			"state": "closed",
+			"title": "fix: carry assignees, blocks and times on GitHub project tickets"
+		}
+	]
+}
