@@ -3,7 +3,6 @@ import {
 	chmod,
 	lstat,
 	mkdtemp,
-	readFile,
 	rm,
 	symlink,
 	writeFile,
@@ -15,6 +14,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import type { LocalCheckout } from "../src/ports.ts";
 import {
+	defaultStateColours,
 	emptyProjectFields,
 	githubIssueNode,
 	linearFake,
@@ -26,6 +26,7 @@ import {
 	testIo,
 	unrecorded,
 	urlOf,
+	writtenColours,
 } from "./support.ts";
 
 const shown = "acme/shown";
@@ -2431,26 +2432,10 @@ describe("settings", () => {
 	});
 });
 
-const defaultStateColours = {
-	backlog: "#8a8680",
-	inProgress: "#3b6fd8",
-	inReview: "#e07a2f",
-	awaitingMerge: "#1f9d6a",
-	done: "#7c5cbf",
-	dropped: "#9ca3af",
-};
-
-async function fileColours(path: string): Promise<unknown> {
-	const written = JSON.parse(await readFile(path, "utf8")) as {
-		stateColours?: unknown;
-	};
-	return written.stateColours;
-}
-
 describe("state colours", () => {
 	test("the first start writes the default state colours into a fresh configuration file", async () => {
 		await withApp(JSON.stringify({}), async (base, path) => {
-			expect(await fileColours(path)).toEqual(defaultStateColours);
+			expect(await writtenColours(path)).toEqual(defaultStateColours);
 			const settings = (await (
 				await fetch(new URL("/api/settings", base))
 			).json()) as Configuration;
@@ -2462,7 +2447,7 @@ describe("state colours", () => {
 		await withApp(
 			JSON.stringify({ stateColours: { done: "#123456" } }),
 			async (_base, path) => {
-				expect(await fileColours(path)).toEqual({
+				expect(await writtenColours(path)).toEqual({
 					...defaultStateColours,
 					done: "#123456",
 				});
@@ -2502,7 +2487,7 @@ describe("state colours", () => {
 				).json()) as Configuration;
 				expect(restarted.stateColours.inProgress).toBe("#ff0066");
 			});
-			expect(await fileColours(path)).toEqual({
+			expect(await writtenColours(path)).toEqual({
 				...defaultStateColours,
 				inProgress: "#ff0066",
 			});
@@ -2529,7 +2514,7 @@ describe("state colours", () => {
 				const body = (await saved.json()) as { error: string };
 				expect(body.error).toContain("stateColours.done");
 			}
-			expect(await fileColours(path)).toEqual(defaultStateColours);
+			expect(await writtenColours(path)).toEqual(defaultStateColours);
 		});
 	});
 });
