@@ -10,7 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { board, laneMark } from "./board-styles.ts";
+import { board } from "./board-styles.ts";
 import {
 	CardHierarchyChips,
 	Chip,
@@ -37,6 +37,7 @@ import { Dropdown } from "./dropdown.tsx";
 import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
+import { laneMark } from "./lane-mark.ts";
 import { TicketPanel } from "./panel.tsx";
 import { projectPath } from "./paths.ts";
 import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";

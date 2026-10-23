@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { board, laneMark } from "./board-styles.ts";
+import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type {
 	Lane,
@@ -10,6 +10,7 @@ import type {
 	TicketState,
 } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
+import { laneMark } from "./lane-mark.ts";
 import { CommentTree, RelationList, WhySection } from "./panel-sections.tsx";
 import { pageQuery, usePostReply } from "./queries.ts";
 import {
