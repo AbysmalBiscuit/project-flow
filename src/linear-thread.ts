@@ -1,11 +1,8 @@
 import { z } from "zod";
 import type { FetchedThread, PostedReply, ReplyRequest } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import { TrackerError } from "./github.ts";
-import { linearError, linearHeaders } from "./linear.ts";
-import { commentAuthor, linearEndpoint, linearPageInfo } from "./linear-api.ts";
-
-const endpoint = linearEndpoint;
+import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
+import { TrackerError } from "./ports.ts";
 
 const pageInfo = linearPageInfo;
 
@@ -29,34 +26,32 @@ const threadQuery = `query IssueThread($id: String!, $after: String) {
 }`;
 
 const threadPage = z.object({
-	data: z.object({
-		issue: z
-			.object({
-				identifier: z.string(),
-				title: z.string(),
-				url: z.string(),
-				comments: z.object({
-					nodes: z.array(
-						z.object({
-							id: z.string(),
-							body: z.string().nullable().optional(),
-							createdAt: z.string().optional(),
-							url: z.string().optional(),
-							parent: z.object({ id: z.string() }).nullable().optional(),
-							user: z
-								.object({
-									name: z.string().nullable().optional(),
-									displayName: z.string().nullable().optional(),
-								})
-								.nullable()
-								.optional(),
-						}),
-					),
-					pageInfo,
-				}),
-			})
-			.nullable(),
-	}),
+	issue: z
+		.object({
+			identifier: z.string(),
+			title: z.string(),
+			url: z.string(),
+			comments: z.object({
+				nodes: z.array(
+					z.object({
+						id: z.string(),
+						body: z.string().nullable().optional(),
+						createdAt: z.string().optional(),
+						url: z.string().optional(),
+						parent: z.object({ id: z.string() }).nullable().optional(),
+						user: z
+							.object({
+								name: z.string().nullable().optional(),
+								displayName: z.string().nullable().optional(),
+							})
+							.nullable()
+							.optional(),
+					}),
+				),
+				pageInfo,
+			}),
+		})
+		.nullable(),
 });
 
 const commentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
@@ -67,43 +62,18 @@ const commentCreate = `mutation CommentCreate($input: CommentCreateInput!) {
 }`;
 
 const createdComment = z.object({
-	data: z.object({
-		commentCreate: z.object({
-			success: z.boolean(),
-			comment: z
-				.object({
-					id: z.string(),
-					body: z.string().nullable().optional(),
-					createdAt: z.string(),
-					url: z.string(),
-				})
-				.nullable(),
-		}),
+	commentCreate: z.object({
+		success: z.boolean(),
+		comment: z
+			.object({
+				id: z.string(),
+				body: z.string().nullable().optional(),
+				createdAt: z.string(),
+				url: z.string(),
+			})
+			.nullable(),
 	}),
 });
-
-async function linearPost(
-	key: string,
-	fetchImpl: Fetch,
-	queryText: string,
-	variables: Record<string, unknown>,
-	label: string,
-	signal?: AbortSignal,
-): Promise<unknown> {
-	const response = await fetchImpl(endpoint, {
-		method: "POST",
-		headers: linearHeaders(key),
-		body: JSON.stringify({ query: queryText, variables }),
-		...(signal === undefined ? {} : { signal }),
-	});
-	if (!response.ok) {
-		throw new TrackerError(
-			`Linear ${label} failed (HTTP ${response.status})`,
-			response.status,
-		);
-	}
-	return response.json();
-}
 
 export async function fetchLinearThread(
 	key: string,
@@ -113,24 +83,26 @@ export async function fetchLinearThread(
 	signal?: AbortSignal,
 ): Promise<FetchedThread | null> {
 	const nodes: NonNullable<
-		z.infer<typeof threadPage>["data"]["issue"]
+		z.infer<typeof threadPage>["issue"]
 	>["comments"]["nodes"] = [];
-	let issue: z.infer<typeof threadPage>["data"]["issue"] | null = null;
+	let issue: z.infer<typeof threadPage>["issue"] = null;
 	let after: string | null = null;
 	do {
-		const body = await linearPost(
-			key,
-			fetchImpl,
-			threadQuery,
-			{ id: ticketKey, after },
-			"fetch thread",
-			signal,
-		);
-		if (linearError(body, "fetch thread") !== null) {
-			return null;
-		}
-		const page = threadPage.parse(body);
-		issue = page.data.issue;
+		const page: z.infer<typeof threadPage> | null = await linearGraphql(
+			{ key, fetchImpl, ...(signal === undefined ? {} : { signal }) },
+			{
+				query: threadQuery,
+				variables: { id: ticketKey, after },
+				data: threadPage,
+				label: "fetch thread",
+			},
+		).catch((error: unknown) => {
+			if (error instanceof TrackerError && error.graphqlErrors.length > 0) {
+				return null;
+			}
+			throw error;
+		});
+		issue = page?.issue ?? null;
 		if (issue === null) {
 			return null;
 		}
@@ -178,20 +150,17 @@ export async function postLinearReply(
 		body: reply.body,
 		...(reply.parentId === undefined ? {} : { parentId: reply.parentId }),
 	};
-	const body = await linearPost(
-		key,
-		fetchImpl,
-		commentCreate,
-		{ input },
-		"reply",
+	const { commentCreate: posted } = await linearGraphql(
+		{ key, fetchImpl },
+		{
+			query: commentCreate,
+			variables: { input },
+			data: createdComment,
+			label: "reply",
+		},
 	);
-	const failed = linearError(body, "reply");
-	if (failed !== null) {
-		throw new TrackerError(failed, 502);
-	}
-	const page = createdComment.parse(body);
-	const created = page.data.commentCreate.comment;
-	if (!page.data.commentCreate.success || created === null) {
+	const created = posted.comment;
+	if (!posted.success || created === null) {
 		throw new TrackerError("Linear reply failed", 502);
 	}
 	return {

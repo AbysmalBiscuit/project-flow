@@ -149,3 +149,28 @@ export type ConfigurationPort = {
 	read: () => Promise<Configuration>;
 	write: (text: string) => Promise<Configuration>;
 };
+
+/** A failed tracker request. `status` is the tracker's HTTP status, or 502 for a bad response body. */
+export class TrackerError extends Error {
+	readonly status: number;
+	/** The messages of a GraphQL response that reported errors. */
+	readonly graphqlErrors: readonly string[];
+
+	constructor(
+		message: string,
+		status: number,
+		graphqlErrors: readonly string[] = [],
+	) {
+		super(message);
+		this.name = "TrackerError";
+		this.status = status;
+		this.graphqlErrors = graphqlErrors;
+	}
+}
+
+export function isMissing(error: unknown): boolean {
+	return (
+		error instanceof TrackerError &&
+		(error.status === 404 || error.status === 410)
+	);
+}
