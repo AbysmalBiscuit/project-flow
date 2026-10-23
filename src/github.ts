@@ -1309,8 +1309,7 @@ async function listProjectPulls(
 	seen: Map<string, ReviewEvidence>,
 	projectOwner: string,
 ): Promise<PullRequest[]> {
-	const pulls: PullRequest[] = [];
-	const seenPulls = new Set<string>();
+	const links: PullLink[] = [];
 	for (const item of items) {
 		const content = item.content;
 		if (
@@ -1345,48 +1344,72 @@ async function listProjectPulls(
 			);
 		}
 		for (const linked of linkedPulls) {
-			const pullRepo =
-				linked.repository?.nameWithOwner ?? content.repository.nameWithOwner;
-			const key = githubKey(pullRepo, linked.number);
-			const loaded = pulls.find(
-				(pull) => pull.repo === pullRepo && pull.number === linked.number,
-			);
-			if (loaded !== undefined) {
-				if (!loaded.closingKeys.includes(ticketKey)) {
-					loaded.closingKeys.push(ticketKey);
-				}
-				continue;
-			}
-			if (seenPulls.has(key)) {
-				continue;
-			}
-			seenPulls.add(key);
-			const opened = await loadOpenPull(
-				token,
-				fetchImpl,
-				pullRepo,
-				linked.number,
-				[ticketKey],
-			);
-			if (opened !== null) {
-				pulls.push(opened);
-			}
+			links.push({
+				repo:
+					linked.repository?.nameWithOwner ?? content.repository.nameWithOwner,
+				number: linked.number,
+				ticketKey,
+			});
 		}
 	}
-	const repos = new Set(pulls.map((pull) => pull.repo));
-	for (const item of items) {
-		const content = item.content;
-		if (content !== null && content.repository !== undefined) {
-			repos.add(content.repository.nameWithOwner);
+	const repos = items.flatMap(({ content }) =>
+		content?.repository === undefined ? [] : [content.repository.nameWithOwner],
+	);
+	return loadLinkedPulls(token, fetchImpl, links, repos, seen);
+}
+
+export type PullLink = { repo: string; number: number; ticketKey: string };
+
+/**
+ * Loads each linked open PR once, with the keys of every ticket that links it,
+ * then the merged history of each repo. A PR that fails to load is skipped, so
+ * one broken PR never fails the project; the next poll reads it again.
+ */
+export async function loadLinkedPulls(
+	token: string,
+	fetchImpl: Fetch,
+	links: PullLink[],
+	historyRepos: string[],
+	seen: Map<string, ReviewEvidence>,
+): Promise<PullRequest[]> {
+	const targets = new Map<
+		string,
+		{ repo: string; number: number; closingKeys: string[] }
+	>();
+	for (const link of links) {
+		const key = githubKey(link.repo, link.number);
+		const target = targets.get(key);
+		if (target === undefined) {
+			targets.set(key, {
+				repo: link.repo,
+				number: link.number,
+				closingKeys: [link.ticketKey],
+			});
+		} else if (!target.closingKeys.includes(link.ticketKey)) {
+			target.closingKeys.push(link.ticketKey);
 		}
 	}
+	const pulls: PullRequest[] = [];
+	for (const { repo, number, closingKeys } of targets.values()) {
+		const opened = await loadOpenPull(
+			token,
+			fetchImpl,
+			repo,
+			number,
+			closingKeys,
+		).catch(() => null);
+		if (opened !== null) {
+			pulls.push(opened);
+		}
+	}
+	const repos = new Set([...pulls.map((pull) => pull.repo), ...historyRepos]);
 	for (const repo of repos) {
 		pulls.push(...(await mergedPullHistory(repo, token, fetchImpl, seen)));
 	}
 	return pulls;
 }
 
-export async function loadOpenPull(
+async function loadOpenPull(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
@@ -1590,7 +1613,7 @@ export type ReviewEvidence = Pick<
 	"checks" | "comments" | "reviews" | "reactions"
 >;
 
-export async function mergedPullHistory(
+async function mergedPullHistory(
 	repo: string,
 	token: string,
 	fetchImpl: Fetch,

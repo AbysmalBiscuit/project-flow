@@ -11,8 +11,8 @@ import { linearStatusType } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
-	loadOpenPull,
-	mergedPullHistory,
+	loadLinkedPulls,
+	type PullLink,
 	type ReviewEvidence,
 } from "./github.ts";
 import { commentAuthor, linearEndpoint, linearPageInfo } from "./linear-api.ts";
@@ -737,64 +737,24 @@ async function pullsForIssues(
 	fetchGithub: Fetch,
 	seenReviews: Map<string, ReviewEvidence>,
 ): Promise<PullRequest[]> {
-	const pulls: PullRequest[] = [];
 	if (githubToken === null) {
-		return pulls;
+		return [];
 	}
+	const links: PullLink[] = [];
+	const repos: string[] = [];
 	for (const node of nodes) {
-		const identifier = node.identifier;
-		if (identifier === undefined) {
-			continue;
-		}
 		for (const attachment of node.attachments?.nodes ?? []) {
-			if (attachment.sourceType !== "github") {
-				continue;
-			}
 			const target = pullFromUrl(attachment.url);
 			if (target === null) {
 				continue;
 			}
-			const loaded = pulls.find(
-				(pull) => pull.repo === target.repo && pull.number === target.number,
-			);
-			if (loaded !== undefined) {
-				if (!loaded.closingKeys.includes(identifier)) {
-					loaded.closingKeys.push(identifier);
-				}
-				continue;
-			}
-			let opened: Awaited<ReturnType<typeof loadOpenPull>>;
-			try {
-				opened = await loadOpenPull(
-					githubToken,
-					fetchGithub,
-					target.repo,
-					target.number,
-					[identifier],
-				);
-			} catch {
-				continue;
-			}
-			if (opened !== null) {
-				pulls.push(opened);
+			repos.push(target.repo);
+			if (attachment.sourceType === "github" && node.identifier !== undefined) {
+				links.push({ ...target, ticketKey: node.identifier });
 			}
 		}
 	}
-	const repos = new Set(pulls.map((pull) => pull.repo));
-	for (const node of nodes) {
-		for (const attachment of node.attachments?.nodes ?? []) {
-			const target = pullFromUrl(attachment.url);
-			if (target !== null) {
-				repos.add(target.repo);
-			}
-		}
-	}
-	for (const repo of repos) {
-		pulls.push(
-			...(await mergedPullHistory(repo, githubToken, fetchGithub, seenReviews)),
-		);
-	}
-	return pulls;
+	return loadLinkedPulls(githubToken, fetchGithub, links, repos, seenReviews);
 }
 
 function pullFromUrl(url: string): { repo: string; number: number } | null {
