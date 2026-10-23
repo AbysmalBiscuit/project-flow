@@ -19,12 +19,18 @@ const app = await startApp("proof/serve-397-app.ts", inner);
 
 const statusScript = `<div id="proof-status" style="position:fixed;left:8px;bottom:8px;z-index:99;padding:6px 10px;background:#fff;color:#000;border:1px solid #000;font:13px monospace"></div>
 <button id="proof-quick-sorts" type="button" style="position:fixed;right:8px;bottom:48px;z-index:99;font:13px monospace">Sort by Tracker, toggle theme, then Progress</button>
+<button id="proof-filter-theme" type="button" style="position:fixed;right:8px;bottom:88px;z-index:99;font:13px monospace">Filter blocked only, then toggle theme</button>
 <script>
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const press = async (selector) => {
 	document.querySelector(selector).click();
 	await pause(100);
 };
+document.getElementById("proof-filter-theme").addEventListener("click", async () => {
+	await press("#project-filter");
+	await press("[data-blocked-only]");
+	await press("[data-theme-toggle]");
+});
 document.getElementById("proof-quick-sorts").addEventListener("click", async () => {
 	await press("#overview-sort");
 	await press("#overview-sort-tracker");
@@ -61,6 +67,9 @@ setInterval(async () => {
 	if (quiet && state.answered >= 3) {
 		lines.push("after all saves: sort labels " + labels.join(", ") + "; saved sort " + state.savedSort + ", saved theme " + state.savedTheme);
 	}
+	if (quiet && state.answered >= 2 && onProject) {
+		lines.push("after filter and theme saves: saved blocked only " + state.savedBlockedOnly + ", saved theme " + state.savedTheme);
+	}
 	if (quiet && state.answered >= 1 && onProject && Date.now() - projectSince > 1500) {
 		lines.push("project reads since the sort change: " + state.projectReads);
 	}
@@ -68,14 +77,20 @@ setInterval(async () => {
 }, 200);
 </script>`;
 
-async function saved(): Promise<{ savedSort: string; savedTheme: string }> {
+async function saved(): Promise<{
+	savedSort: string;
+	savedTheme: string;
+	savedBlockedOnly: boolean;
+}> {
 	const body = (await (await fetch(`${base}/api/settings`)).json()) as {
 		overview?: { sort?: string };
 		theme?: string;
+		projectViews?: Record<string, { blockedOnly?: boolean }>;
 	};
 	return {
 		savedSort: body.overview?.sort ?? "none",
 		savedTheme: body.theme ?? "none",
+		savedBlockedOnly: body.projectViews?.["acme/alpha"]?.blockedOnly ?? false,
 	};
 }
 
