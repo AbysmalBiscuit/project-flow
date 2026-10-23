@@ -116,6 +116,67 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
+	test("each ticket names its blockers with key, title and project", async () => {
+		const gate = issue(8, "  Open the gate  ", {}, githubRepo);
+		const drawn = issue(2, "feat(ux): draw the nodes", {
+			body: `Blocked by: #8\nBlocked by: ${otherRepo}#9\nBlocked by: ${otherRepo}#10`,
+		});
+		await withApp(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: githubRepo },
+					{ tracker: "github", repo: otherRepo },
+				],
+			}),
+			githubFetch(
+				[issue(1, "Ship the map"), drawn, gate],
+				[
+					issue(9, "Platform gate", {}, otherRepo),
+					issue(10, "   ", {}, otherRepo),
+				],
+			),
+			{ GITHUB_TOKEN: "recorded-token" },
+			async (base) => {
+				const report = (await (
+					await fetch(
+						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
+					)
+				).json()) as ProjectReport;
+				const byKey = (key: string) =>
+					report.tickets.find((item) => item.key === key);
+				expect(byKey(`${githubRepo}#2`)?.blockedBy).toEqual([
+					{
+						tracker: "github",
+						project: githubRepo,
+						key: `${githubRepo}#8`,
+						title: "Open the gate",
+					},
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#9`,
+						title: "Platform gate",
+					},
+					{
+						tracker: "github",
+						project: otherRepo,
+						key: `${otherRepo}#10`,
+						title: `${otherRepo}#10`,
+					},
+				]);
+				expect(byKey(`${githubRepo}#8`)?.blocks).toEqual([
+					{
+						tracker: "github",
+						project: githubRepo,
+						key: `${githubRepo}#2`,
+						title: "feat(ux): draw the nodes",
+					},
+				]);
+				expect(byKey(`${githubRepo}#1`)?.blockedBy).toEqual([]);
+			},
+		);
+	});
+
 	test("a closed blocker stays on the graph and off the blocked count", async () => {
 		const done = issue(
 			8,
