@@ -1,0 +1,45 @@
+{
+	"base_url": "http://127.0.0.1:47401",
+	"serve": ["bun", "proof/serve-398.ts", "47401", "dark"],
+	"steps": [
+		{
+			"goto": "/"
+		},
+		{
+			"assert_text": "Widget board"
+		},
+		{
+			"click": "#tone-probe-run"
+		},
+		{
+			"assert_text": "bar backlog rgb(138, 134, 128)"
+		},
+		{
+			"assert_text": "bar inProgress rgb(91, 141, 239)"
+		},
+		{
+			"assert_text": "bar inReview rgb(224, 138, 69)"
+		},
+		{
+			"assert_text": "bar awaitingMerge rgb(61, 190, 134)"
+		},
+		{
+			"assert_text": "bar done rgb(183, 148, 246)"
+		},
+		{
+			"assert_text": "legend backlog rgb(138, 134, 128)"
+		},
+		{
+			"assert_text": "legend inProgress rgb(91, 141, 239)"
+		},
+		{
+			"assert_text": "legend inReview rgb(224, 138, 69)"
+		},
+		{
+			"assert_text": "legend awaitingMerge rgb(61, 190, 134)"
+		},
+		{
+			"shot": "dark-overview"
+		}
+	]
+}
