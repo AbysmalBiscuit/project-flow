@@ -38,7 +38,11 @@ export const panel = stylex.create({
 		gap: space.sm,
 		alignItems: "center",
 		justifyContent: "space-between",
+		position: "sticky",
+		zIndex: stack.panel,
+		top: 0,
 		padding: `${space.md} 0 ${space.sm}`,
+		backgroundColor: colours.raised,
 	},
 	key: {
 		color: colours.inkSoft,

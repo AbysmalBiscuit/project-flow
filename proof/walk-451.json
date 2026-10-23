@@ -1,0 +1,15 @@
+{
+	"base_url": "http://127.0.0.1:4451",
+	"serve": ["bun", "proof/serve-415.ts", "4451"],
+	"steps": [
+		{ "goto": "/projects/AbysmalBiscuit%2Fproject-flow" },
+		{ "assert_text": "build: add @babel/parser as a direct dependency" },
+		{ "click": "button[data-ticket='AbysmalBiscuit/project-flow#205']" },
+		{ "click": "aside[data-panel='AbysmalBiscuit/project-flow#205'] h2" },
+		{ "shot": "panel-top" },
+		{
+			"click": "aside[data-panel='AbysmalBiscuit/project-flow#205'] #ticket-reply"
+		},
+		{ "shot": "panel-scrolled" }
+	]
+}
