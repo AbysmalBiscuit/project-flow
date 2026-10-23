@@ -1,4 +1,3 @@
-import { createServer } from "node:net";
 import type { Fetch } from "../src/fetch.ts";
 import { recordedDiscovery, urlOf } from "../test/support.ts";
 import {
@@ -22,6 +21,7 @@ import {
 	serveRecorded,
 	unrecorded,
 } from "./recorded.ts";
+import { freePort, serveInjecting } from "./serve-proxy.ts";
 
 function recordedPull(): Response {
 	return Response.json({
@@ -303,19 +303,7 @@ const recorded: Fetch = async (input, init) => {
 };
 
 const publicPort = Number(process.argv[2] ?? "4197");
-const appPort = await new Promise<number>((resolve, reject) => {
-	const probe = createServer();
-	probe.once("error", reject);
-	probe.listen(0, "127.0.0.1", () => {
-		const address = probe.address();
-		if (address === null || typeof address === "string") {
-			reject(new Error("card lane proof has no app port"));
-			return;
-		}
-		const chosen = address.port;
-		probe.close(() => resolve(chosen));
-	});
-});
+const appPort = await freePort();
 
 void serveRecorded({
 	prefix: "project-flow-card-lanes-",
@@ -350,30 +338,11 @@ void serveRecorded({
 	process.exit(1);
 });
 
-Bun.serve({
-	hostname: "127.0.0.1",
+serveInjecting({
 	port: publicPort,
-	async fetch(request) {
-		const url = new URL(request.url);
-		const target = `http://127.0.0.1:${String(appPort)}${url.pathname}${url.search}`;
-		for (let attempt = 0; attempt < 50; attempt += 1) {
-			try {
-				const response = await fetch(target);
-				const type = response.headers.get("content-type") ?? "";
-				if (!type.includes("text/html")) {
-					return response;
-				}
-				const html = await response.text();
-				const headers = new Headers(response.headers);
-				headers.delete("content-length");
-				return new Response(html.replace("</body>", `${frameScript}</body>`), {
-					status: response.status,
-					headers,
-				});
-			} catch {
-				await Bun.sleep(100);
-			}
-		}
-		return new Response("card lane proof app did not listen", { status: 503 });
-	},
+	appPort,
+	inject: frameScript,
+	attempts: 50,
+	forwardRequest: false,
+	name: "card lane proof",
 });

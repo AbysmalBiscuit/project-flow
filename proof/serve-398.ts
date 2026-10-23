@@ -1,4 +1,4 @@
-import { createServer } from "node:net";
+import { freePort, serveInjecting } from "./serve-proxy.ts";
 
 const toneProbe = `<script>
 document.addEventListener("DOMContentLoaded", () => {
@@ -39,21 +39,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 </script>`;
 
-const publicPort = process.argv[2] ?? "47398";
+const publicPort = Number(process.argv[2] ?? "47398");
 const theme = process.argv[3] === "dark" ? "dark" : "light";
-const appPort = await new Promise<number>((resolve, reject) => {
-	const probe = createServer();
-	probe.once("error", reject);
-	probe.listen(0, "127.0.0.1", () => {
-		const address = probe.address();
-		if (address === null || typeof address === "string") {
-			reject(new Error("tone proof has no app port"));
-			return;
-		}
-		const chosen = address.port;
-		probe.close(() => resolve(chosen));
-	});
-});
+const appPort = await freePort();
 
 const app = Bun.spawn(
 	["bun", `${import.meta.dir}/serve-card-lanes.ts`, String(appPort), theme],
@@ -66,34 +54,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 	});
 }
 
-Bun.serve({
-	hostname: "127.0.0.1",
-	port: Number(publicPort),
-	async fetch(request) {
-		const url = new URL(request.url);
-		const target = `http://127.0.0.1:${String(appPort)}${url.pathname}${url.search}`;
-		for (let attempt = 0; attempt < 100; attempt += 1) {
-			try {
-				const response = await fetch(target, {
-					method: request.method,
-					headers: request.headers,
-					body: request.body,
-				});
-				const type = response.headers.get("content-type") ?? "";
-				if (!type.includes("text/html")) {
-					return response;
-				}
-				const html = await response.text();
-				const headers = new Headers(response.headers);
-				headers.delete("content-length");
-				return new Response(html.replace("</body>", `${toneProbe}</body>`), {
-					status: response.status,
-					headers,
-				});
-			} catch {
-				await Bun.sleep(100);
-			}
-		}
-		return new Response("tone proof app did not listen", { status: 503 });
-	},
+serveInjecting({
+	port: publicPort,
+	appPort,
+	inject: toneProbe,
+	attempts: 100,
+	forwardRequest: true,
+	name: "tone proof",
 });

@@ -1,3 +1,4 @@
+import { createServer } from "node:net";
 import { proofStops, proofTheme } from "./lifetime.ts";
 
 type ProxyOptions = {
@@ -40,6 +41,68 @@ export async function startApp(
 		await Bun.sleep(100);
 	}
 	return app;
+}
+
+/** Find a free localhost port for an app behind a proof proxy. */
+export function freePort(): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const probe = createServer();
+		probe.once("error", reject);
+		probe.listen(0, "127.0.0.1", () => {
+			const address = probe.address();
+			if (address === null || typeof address === "string") {
+				reject(new Error("proof has no free port"));
+				return;
+			}
+			const chosen = address.port;
+			probe.close(() => resolve(chosen));
+		});
+	});
+}
+
+type InjectingOptions = {
+	port: number;
+	appPort: number;
+	/** Markup the proxy adds before `</body>` of each app page. */
+	inject: string;
+	/** Tries to reach the app, 100 ms apart, while the app starts. */
+	attempts: number;
+	/** Send the method, headers and body on, not a plain GET. */
+	forwardRequest: boolean;
+	/** The proof name in the reply when the app never listens. */
+	name: string;
+};
+
+/** Serve a proxy to an app that another call starts on `appPort`. */
+export function serveInjecting(options: InjectingOptions) {
+	Bun.serve({
+		hostname: "127.0.0.1",
+		port: options.port,
+		async fetch(request) {
+			const url = new URL(request.url);
+			const target = `http://127.0.0.1:${String(options.appPort)}${url.pathname}${url.search}`;
+			for (let attempt = 0; attempt < options.attempts; attempt += 1) {
+				try {
+					const response = await fetch(
+						target,
+						options.forwardRequest
+							? {
+									method: request.method,
+									headers: request.headers,
+									body: request.body,
+								}
+							: {},
+					);
+					return await injected(response, options.inject);
+				} catch {
+					await Bun.sleep(100);
+				}
+			}
+			return new Response(`${options.name} app did not listen`, {
+				status: 503,
+			});
+		},
+	});
 }
 
 /**
