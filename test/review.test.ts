@@ -7,20 +7,22 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import issue51Comments from "./fixtures/issue-51-comments.json";
 import {
-	card,
-	codex,
 	connection,
 	githubFetch,
+	overview,
+	page,
+} from "./review-github-fake.ts";
+import { projectBoard } from "./review-project-board.ts";
+import {
+	card,
+	codex,
 	greptile,
 	grok,
 	head,
 	issue,
 	mergedPull,
 	older,
-	overview,
-	page,
 	progress,
-	projectBoard,
 	pull,
 	repo,
 } from "./review-support.ts";
