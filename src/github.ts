@@ -2763,8 +2763,11 @@ async function readRepo(
 		...pullNodes,
 		...(first.mergedPullRequests?.nodes ?? []),
 	].flatMap((node) => (node === undefined || node === null ? [] : [node]));
+	const brokenPulls = new Set<z.infer<typeof graphqlPullNode>>();
 	for (const pull of pullPages) {
-		await pageNestedReviews(token, fetchImpl, repo, pull);
+		await pageNestedReviews(token, fetchImpl, repo, pull).catch(() =>
+			brokenPulls.add(pull),
+		);
 	}
 	const tickets = issueNodes
 		.filter((issue) => {
@@ -2773,14 +2776,14 @@ async function readRepo(
 		})
 		.map((issue) => ticketFromGraphql(issue, repo));
 	const openPulls = pullNodes.flatMap((pull) => {
-		if (pull === undefined) {
+		if (pull === undefined || brokenPulls.has(pull)) {
 			return [];
 		}
 		const mapped = pullFromGraphql(pull, repo);
 		return mapped === null || mapped.merged ? [] : [mapped];
 	});
 	const mergedKept = (first.mergedPullRequests?.nodes ?? []).flatMap((pull) => {
-		if (pull === undefined) {
+		if (pull === undefined || brokenPulls.has(pull)) {
 			return [];
 		}
 		const mapped = pullFromGraphql(pull, repo);
