@@ -1,6 +1,7 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
-import { groupLabelOf, type ProjectReport } from "./domain.ts";
+import { type FocusLink, groupLabelOf, type ProjectReport } from "./domain.ts";
 import {
+	type FlowEdge,
 	type FlowTicket,
 	flowGap,
 	graphBand,
@@ -42,12 +43,14 @@ export type LayoutFrame = {
  * A card on the project graph. `ticket` is the node id of the ticket it shows:
  * a parent ticket from another group shows again as a card of its own in each
  * group that holds its sub-tickets. `frame` is the frame of its parent ticket.
+ * A `collapsed` card heads a collapsed frame and hides its sub-tickets.
  */
 export type LayoutCard = {
 	id: string;
 	ticket: string;
 	group: string | null;
 	frame: string | null;
+	collapsed: boolean;
 };
 
 /** The cards, groups, parent ticket frames and blocker arrows that the project graph lays out. */
@@ -55,8 +58,13 @@ export type LayoutInput = {
 	cards: LayoutCard[];
 	groups: LayoutGroup[];
 	frames: LayoutFrame[];
-	edges: { from: string; to: string }[];
+	edges: FlowEdge[];
+	/** The ticket of the collapsed card that hides each hidden ticket. */
+	hiddenIn: Map<string, string>;
 };
+
+/** Tells whether the frame of the parent ticket with this key is collapsed. */
+export type Collapsed = (key: string, startsCollapsed: boolean) => boolean;
 
 export type Point = { x: number; y: number };
 export type Rect = Point & NodeSize;
@@ -148,10 +156,16 @@ function parentLinks(
 	return { links, copies };
 }
 
+/**
+ * A collapsed frame shows only its head card. A blocker arrow whose end is a
+ * hidden sub-ticket ends on that head card, and arrows that become the same
+ * arrow merge into one, which is done only when all of them are done.
+ */
 export function layoutInput(
 	report: ProjectReport,
 	groupBy: GroupBy,
 	assignees: readonly string[],
+	collapsed: Collapsed = () => false,
 ): LayoutInput {
 	const groups = new Map<string, LayoutGroup>();
 	const framed = framesParents(groupBy);
@@ -186,18 +200,38 @@ export function layoutInput(
 			.map((item) => ({ ...item, of: item.id })),
 		...copies.values(),
 	];
+	const shut = new Set(
+		laid.flatMap((item) =>
+			heading.has(item.id) &&
+			collapsed(item.ticket.key, item.ticket.startsCollapsed === true)
+				? [item.id]
+				: [],
+		),
+	);
+	const shownAs = (id: string): string => {
+		let shown = id;
+		for (let above = links.get(id); above !== undefined; ) {
+			if (shut.has(above)) {
+				shown = above;
+			}
+			above = links.get(above);
+		}
+		return shown;
+	};
+	const kept = laid.filter((item) => shownAs(item.id) === item.id);
 	const frameOf = (id: string): string | null => {
 		const parent = links.get(id);
 		return parent === undefined ? null : frameId(parent);
 	};
-	const cards = laid.map((item) => ({
+	const cards = kept.map((item) => ({
 		id: item.id,
 		ticket: item.of,
 		group: item.group,
 		frame: frameOf(item.id),
+		collapsed: shut.has(item.id),
 	}));
-	const frames = laid.flatMap((item) =>
-		heading.has(item.id)
+	const frames = kept.flatMap((item) =>
+		heading.has(item.id) && !shut.has(item.id)
 			? [
 					{
 						id: frameId(item.id),
@@ -210,9 +244,26 @@ export function layoutInput(
 			: [],
 	);
 	const shown = new Set(cards.map((card) => card.id));
-	const edges = graphEdges(report).filter(
-		(edge) => shown.has(edge.from) && shown.has(edge.to),
-	);
+	const edges = new Map<string, FlowEdge>();
+	for (const edge of graphEdges(report)) {
+		const from = shownAs(edge.from);
+		const to = shownAs(edge.to);
+		if (from === to || !shown.has(from) || !shown.has(to)) {
+			continue;
+		}
+		const id = `${from}\n->\n${to}`;
+		const done = (edges.get(id)?.done ?? true) && edge.done === true;
+		edges.set(id, { from, to, done });
+	}
+	const showing = new Set(cards.map((card) => card.ticket));
+	const ticketOf = new Map(laid.map((item) => [item.id, item.of]));
+	const hiddenIn = new Map<string, string>();
+	for (const item of laid) {
+		const by = ticketOf.get(shownAs(item.id));
+		if (by !== undefined && !showing.has(item.of) && !hiddenIn.has(item.of)) {
+			hiddenIn.set(item.of, by);
+		}
+	}
 	const filled = new Set(cards.map((card) => card.group));
 	return {
 		cards,
@@ -220,8 +271,26 @@ export function layoutInput(
 			.filter((group) => filled.has(group.id))
 			.sort((left, right) => left.label.localeCompare(right.label)),
 		frames,
-		edges,
+		edges: [...edges.values()],
+		hiddenIn,
 	};
+}
+
+/** The blocker arrows of the laid graph as links between the tickets that their cards show. */
+export function focusLinks(input: LayoutInput): FocusLink[] {
+	const ticketOf = new Map(input.cards.map((card) => [card.id, card.ticket]));
+	return input.edges.map((edge) => ({
+		from: ticketOf.get(edge.from) ?? edge.from,
+		to: ticketOf.get(edge.to) ?? edge.to,
+	}));
+}
+
+/** The focused tickets, each hidden one moved to the collapsed card that hides it. */
+export function focusSeeds(
+	input: LayoutInput,
+	seeds: ReadonlySet<string>,
+): ReadonlySet<string> {
+	return new Set([...seeds].map((id) => input.hiddenIn.get(id) ?? id));
 }
 
 function placeOptions(

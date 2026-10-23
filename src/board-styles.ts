@@ -386,6 +386,9 @@ export const board = stylex.create({
 		alignItems: "center",
 		justifyContent: "space-between",
 	},
+	metaBesideToggle: {
+		paddingRight: `calc(${space.lg} + ${space.xs})`,
+	},
 	key: {
 		color: colours.inkSoft,
 		fontSize: type.meta,
@@ -724,6 +727,25 @@ export const board = stylex.create({
 		fontWeight: type.regular,
 		lineHeight: 1,
 		textAlign: "left",
+		cursor: "pointer",
+	},
+	frameToggle: {
+		position: "absolute",
+		top: space.xs,
+		right: space.xs,
+		display: "inline-flex",
+		alignItems: "center",
+		justifyContent: "center",
+		width: space.lg,
+		height: space.lg,
+		padding: 0,
+		borderWidth: 0,
+		borderRadius: radius.sm,
+		backgroundColor: {
+			default: "transparent",
+			":hover": colours.chip,
+		},
+		color: colours.inkSoft,
 		cursor: "pointer",
 	},
 	ticketNodeOpen: {

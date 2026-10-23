@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { z } from "zod";
 
 const storageKey = "project-flow.collapsed";
@@ -37,20 +37,24 @@ function write(next: Stored): void {
 /**
  * The per-browser collapse state of each parent ticket, keyed by its ticket
  * key. A parent ticket with no stored state takes its `startsCollapsed` value.
+ * The Table and the project graph share it. Both functions change only when
+ * the stored state changes.
  */
 export function useCollapse(): {
 	collapsed: (key: string, startsCollapsed: boolean) => boolean;
 	toggle: (key: string, startsCollapsed: boolean) => void;
 } {
 	const current = useSyncExternalStore(subscribe, () => stored);
-	const collapsed = (key: string, startsCollapsed: boolean) =>
-		current[key.toLowerCase()] ?? startsCollapsed;
-	return {
-		collapsed,
-		toggle: (key, startsCollapsed) =>
-			write({
-				...stored,
-				[key.toLowerCase()]: !collapsed(key, startsCollapsed),
-			}),
-	};
+	return useMemo(() => {
+		const collapsed = (key: string, startsCollapsed: boolean) =>
+			current[key.toLowerCase()] ?? startsCollapsed;
+		return {
+			collapsed,
+			toggle: (key: string, startsCollapsed: boolean) =>
+				write({
+					...stored,
+					[key.toLowerCase()]: !collapsed(key, startsCollapsed),
+				}),
+		};
+	}, [current]);
 }

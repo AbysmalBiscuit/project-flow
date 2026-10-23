@@ -5,12 +5,7 @@ import {
 } from "@xyflow/react";
 import { board } from "./board-styles.ts";
 import { type ProjectReport, parentChip, type TicketState } from "./domain.ts";
-import {
-	type FlowTicket,
-	graphEdges,
-	graphTickets,
-	projectNodeId,
-} from "./graph-flow.ts";
+import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import type { GraphLayout, LayoutInput } from "./graph-layout.ts";
 import {
 	assignLanes,
@@ -43,6 +38,7 @@ export type GraphTicketView = {
 	parentLabel?: string;
 	subTickets?: number;
 	subTicketsDone?: number;
+	startsCollapsed?: true;
 };
 
 export type TicketNodeData = {
@@ -55,8 +51,8 @@ export type TicketNodeData = {
 	open: boolean;
 	/** A flat grouping shows the parent ticket hierarchy as chips. */
 	hierarchyChips: boolean;
-	/** The card heads the frame of its sub-tickets. */
-	framesSubTickets: boolean;
+	/** The card heads the frame of its sub-tickets, which is open or collapsed. */
+	frame: "open" | "collapsed" | null;
 };
 
 /** A group frame, or with `head` the frame of the parent ticket with that key. */
@@ -131,6 +127,9 @@ function ticketView(
 			...(ticket.subTicketsDone === undefined
 				? {}
 				: { subTicketsDone: ticket.subTicketsDone }),
+			...(ticket.startsCollapsed === undefined
+				? {}
+				: { startsCollapsed: ticket.startsCollapsed }),
 			...(ticket.workstream === undefined
 				? {}
 				: { workstream: ticket.workstream }),
@@ -154,7 +153,7 @@ function shownTickets(
 	report: ProjectReport,
 	reports: ProjectReport[],
 	input: LayoutInput,
-): (GraphTicket & { id: string; ticketId: string })[] {
+): (GraphTicket & { id: string; ticketId: string; collapsed: boolean })[] {
 	const byId = new Map(
 		graphTickets(report, true).map((ticket) => [
 			projectNodeId(ticket.project, ticket.key),
@@ -170,6 +169,7 @@ function shownTickets(
 						...ticketView(ticket, report, reports),
 						id: card.id,
 						ticketId: card.ticket,
+						collapsed: card.collapsed,
 					},
 				];
 	});
@@ -342,7 +342,6 @@ export function graphModel(
 	edges: FlowEdge<TicketEdgeData>[];
 } {
 	const tickets = shownTickets(report, reports, input);
-	const links = graphEdges(report);
 	const horizontal = direction === "left-to-right";
 	const groups = clusterNodes(input, layout);
 	const frames = frameNodes(
@@ -377,7 +376,7 @@ export function graphModel(
 					tracker: item.tracker,
 					open: openKey === key,
 					hierarchyChips: groupBy === "assignee" || groupBy === "none",
-					framesSubTickets: heads.has(id),
+					frame: item.collapsed ? "collapsed" : heads.has(id) ? "open" : null,
 				},
 			},
 			ticketSizes.get(id) ?? fallback,
@@ -390,7 +389,7 @@ export function graphModel(
 	const done = measureMarker(classToken(board.graphDoneMarker));
 	const solidMarker = markerEnd(solid.size, solid.color);
 	const doneMarker = markerEnd(done.size, done.color);
-	const pending = links.map((link) => {
+	const pending = input.edges.map((link) => {
 		const closed = link.done === true;
 		return {
 			id: `${link.from}->${link.to}`,
