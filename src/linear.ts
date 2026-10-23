@@ -7,7 +7,6 @@ import type {
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
-import { linearStatusType } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
@@ -15,6 +14,7 @@ import {
 	type PullLink,
 	type ReviewEvidence,
 } from "./github.ts";
+import { linearStatusType } from "./lanes.ts";
 import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
 import { fetchLinearThread, postLinearReply } from "./linear-thread.ts";
 import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";

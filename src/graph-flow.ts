@@ -1,9 +1,5 @@
-import {
-	groupKeysOf,
-	type ProjectReport,
-	type TicketState,
-	type TicketView,
-} from "./domain.ts";
+import type { ProjectReport, TicketState, TicketView } from "./domain.ts";
+import { groupKeysOf } from "./grouping.ts";
 import { foldKey, itemId } from "./ticket-key.ts";
 import type { GroupBy } from "./view-settings.ts";
 

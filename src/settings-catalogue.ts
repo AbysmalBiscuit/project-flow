@@ -4,13 +4,10 @@ import type {
 	SettingsProject,
 	SettingsSnapshot,
 } from "./domain.ts";
-import {
-	emptyStatusTypes,
-	expectedBotsByRepo,
-	projectHasPmBot,
-} from "./domain.ts";
+import { expectedBotsByRepo, projectHasPmBot } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
+import { emptyStatusTypes } from "./lanes.ts";
 import {
 	listedRef,
 	pinRef,

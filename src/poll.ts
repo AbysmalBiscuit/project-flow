@@ -1,4 +1,14 @@
 import type { AutoMerge, Configuration } from "./configuration.ts";
+import {
+	checkoutBasenames,
+	checkoutNamesProject,
+	githubRepoForTodo,
+	linearKeysForNames,
+	linearNamesFromCheckouts,
+	projectSnapshots,
+	startedTodoKeys,
+	todoRows,
+} from "./discovery.ts";
 import type {
 	Overview,
 	PollProgress,
@@ -10,20 +20,12 @@ import {
 	type Attention,
 	attentionIds,
 	attentionOf,
-	checkoutBasenames,
-	checkoutNamesProject,
 	departedNeedsYouIds,
-	githubRepoForTodo,
-	linearKeysForNames,
-	linearNamesFromCheckouts,
 	notificationsFor,
-	projectSnapshots,
-	reconcilePoll,
-	startedTodoKeys,
-	todoRows,
 } from "./domain.ts";
 import { missingToken } from "./github.ts";
 import { missingLinearKey } from "./linear.ts";
+import { reconcilePoll } from "./poll-merge.ts";
 import type {
 	CheckoutSource,
 	Clock,

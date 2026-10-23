@@ -14,13 +14,10 @@ import type {
 	Snapshot,
 } from "./domain.ts";
 import {
-	attachGraphStates,
-	filterProjectReport,
 	inboxEntries,
 	optionReplyBody,
 	panelReplyBody,
 	projectHasPmBot,
-	projectViewFor,
 } from "./domain.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
@@ -32,6 +29,7 @@ import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
 import { elkWorkerPath, forceWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
+import { attachGraphStates } from "./links.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import { type PollOptions, poll, runningOverview } from "./poll.ts";
@@ -49,6 +47,7 @@ import {
 	projectViewNamed,
 	projectViews,
 } from "./project-views.ts";
+import { filterProjectReport, projectViewFor } from "./report.ts";
 import {
 	mergedSettingsWrite,
 	readSettingsWrite,

@@ -5,9 +5,9 @@ import {
 	attentionOf,
 	expectedBotsByRepo,
 	projectCounts,
-	staleView,
 } from "./domain.ts";
 import type { PollOptions } from "./poll.ts";
+import { staleView } from "./poll-merge.ts";
 import type { Viewer } from "./ports.ts";
 import {
 	listedRef,
