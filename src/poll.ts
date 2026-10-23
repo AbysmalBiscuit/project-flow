@@ -1,3 +1,9 @@
+import {
+	attentionIds,
+	attentionOf,
+	departedNeedsYouIds,
+	notificationsFor,
+} from "./attention.ts";
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import {
 	checkoutBasenames,
@@ -10,18 +16,12 @@ import {
 	todoRows,
 } from "./discovery.ts";
 import type {
+	Attention,
 	Overview,
 	PollProgress,
 	ProjectPoll,
 	Snapshot,
 	WorkcellRun,
-} from "./domain.ts";
-import {
-	type Attention,
-	attentionIds,
-	attentionOf,
-	departedNeedsYouIds,
-	notificationsFor,
 } from "./domain.ts";
 import { missingToken } from "./github.ts";
 import { missingLinearKey } from "./linear.ts";

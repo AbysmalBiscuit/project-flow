@@ -4,10 +4,10 @@ import type {
 	SettingsProject,
 	SettingsSnapshot,
 } from "./domain.ts";
-import { expectedBotsByRepo, projectHasPmBot } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { emptyStatusTypes } from "./lanes.ts";
+import { projectHasPmBot } from "./open-ask.ts";
 import {
 	listedRef,
 	pinRef,
@@ -20,6 +20,7 @@ import {
 	samePin,
 	sameProject,
 } from "./project-ref.ts";
+import { expectedBotsByRepo } from "./review.ts";
 
 export type CatalogueProject = {
 	key: string;

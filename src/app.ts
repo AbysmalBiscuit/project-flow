@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { inboxEntries } from "./attention.ts";
 import type { Configuration } from "./configuration.ts";
 import {
 	loadConfiguration,
@@ -13,12 +14,6 @@ import type {
 	ReplyRequest,
 	Snapshot,
 } from "./domain.ts";
-import {
-	inboxEntries,
-	optionReplyBody,
-	panelReplyBody,
-	projectHasPmBot,
-} from "./domain.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
@@ -31,6 +26,7 @@ import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { attachGraphStates } from "./links.ts";
 import { memoryNotifier } from "./notifier.ts";
+import { projectHasPmBot } from "./open-ask.ts";
 import { paintPage } from "./page-theme.ts";
 import { type PollOptions, poll, runningOverview } from "./poll.ts";
 import type {
@@ -47,6 +43,7 @@ import {
 	projectViewNamed,
 	projectViews,
 } from "./project-views.ts";
+import { optionReplyBody, panelReplyBody } from "./replies.ts";
 import { filterProjectReport, projectViewFor } from "./report.ts";
 import {
 	mergedSettingsWrite,
