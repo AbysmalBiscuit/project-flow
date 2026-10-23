@@ -57,10 +57,16 @@ export function useFocusSet() {
 	return { focus, toggle, clear };
 }
 
-/** True while an open menu or dialog takes Escape for itself. */
+/**
+ * True while an open menu or dialog takes Escape for itself. A menu button
+ * names its popup with `aria-controls`; an expanded tree toggle names none
+ * and leaves Escape to the view.
+ */
 export function menuOwnsEscape(): boolean {
 	return (
-		document.querySelector("[aria-expanded='true'], [role='dialog']") !== null
+		document.querySelector(
+			"[aria-expanded='true'][aria-controls], [role='dialog']",
+		) !== null
 	);
 }
 
