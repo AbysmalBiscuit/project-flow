@@ -56,7 +56,7 @@ import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
 import type { TicketSearchHit } from "./ticket-key.ts";
-import { githubKeyParts, needsYouSeenId } from "./ticket-key.ts";
+import { foldKey, githubKeyParts, needsYouSeenId } from "./ticket-key.ts";
 import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
 
 const elkWorkerFile = Bun.resolveSync(
@@ -123,7 +123,7 @@ function searchTickets(
 			if (ticket.key === null) {
 				continue;
 			}
-			const key = ticket.key.toLowerCase();
+			const key = foldKey(ticket.key);
 			const title = ticket.title.toLowerCase();
 			if (!key.includes(needle) && !title.includes(needle)) {
 				continue;

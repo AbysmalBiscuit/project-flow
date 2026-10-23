@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { z } from "zod";
+import { foldKey } from "./ticket-key.ts";
 
 const storageKey = "project-flow.collapsed";
 
@@ -48,18 +49,18 @@ export function useCollapse(): {
 	const current = useSyncExternalStore(subscribe, () => stored);
 	return useMemo(() => {
 		const collapsed = (key: string, startsCollapsed: boolean) =>
-			current[key.toLowerCase()] ?? startsCollapsed;
+			current[foldKey(key)] ?? startsCollapsed;
 		return {
 			collapsed,
 			toggle: (key: string, startsCollapsed: boolean) =>
 				write({
 					...stored,
-					[key.toLowerCase()]: !collapsed(key, startsCollapsed),
+					[foldKey(key)]: !collapsed(key, startsCollapsed),
 				}),
 			setAll: (keys: readonly string[], shut: boolean) =>
 				write({
 					...stored,
-					...Object.fromEntries(keys.map((key) => [key.toLowerCase(), shut])),
+					...Object.fromEntries(keys.map((key) => [foldKey(key), shut])),
 				}),
 		};
 	}, [current]);
