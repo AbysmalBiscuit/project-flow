@@ -3,6 +3,12 @@ method = "squash"
 auto = "yes"
 rebase = "never"
 
+[roles.manager]
+prefer = [{ harness = "claude", model = "opus", effort = "low" }]
+
+[roles.implementer]
+prefer = [{ harness = "claude", model = "opus", effort = "medium" }]
+
 [roles.code-reviewer]
 prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
@@ -19,7 +25,4 @@ prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
 
 [roles.conceptual-reviewer]
-prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
-
-[roles.senior]
 prefer = [{ harness = "codex", model = "gpt-6.1-sol", effort = "medium" }]
