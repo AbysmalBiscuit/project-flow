@@ -1139,12 +1139,8 @@ export function Page() {
 	const [ticket, setTicket] = useState(highlightKey);
 	const [settings, setSettings] = useState<ProjectViewSettings>(emptyView);
 	const [panelProject, setPanelProject] = useState(panelProjectName);
-	const panelProjectRef = useRef(panelProject);
-	panelProjectRef.current = panelProject;
 	const [panelTracker, setPanelTracker] =
 		useState<CrossProjectBlocker["tracker"]>(panelTrackerName);
-	const panelTrackerRef = useRef(panelTracker);
-	panelTrackerRef.current = panelTracker;
 	const [open, setOpen] = useState(highlightKey() !== null);
 	const [openedState, setOpenedState] = useState<TicketView["state"] | null>(
 		null,
@@ -1232,14 +1228,6 @@ export function Page() {
 		setView(openedView(saved));
 		groupBySavedRef.current = groupByWasSaved(views, loaded);
 	}, [name, settingsData]);
-	useEffect(() => {
-		if (report === null || report === undefined) {
-			return;
-		}
-		setPanelTracker((current) =>
-			panelProjectRef.current === name ? report.tracker : current,
-		);
-	}, [name, report]);
 	const outsideNames = [
 		...new Set([
 			...(report?.tickets ?? []).flatMap((item) =>

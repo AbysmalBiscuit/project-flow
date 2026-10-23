@@ -212,10 +212,6 @@ export const frame = stylex.create({
 		fontWeight: type.weight,
 		textDecoration: "none",
 	},
-	mark: {
-		width: measure.icon,
-		height: measure.icon,
-	},
 	nav: {
 		display: "flex",
 		flexWrap: "nowrap",
@@ -411,19 +407,6 @@ export const frame = stylex.create({
 		textAlign: "left",
 		cursor: "pointer",
 	},
-	select: {
-		padding: `${space.twoXs} ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		lineHeight: 1,
-	},
 	menuButton: {
 		display: "inline-flex",
 		gap: space.sm,
@@ -498,37 +481,6 @@ export const frame = stylex.create({
 });
 
 export const shell = stylex.create({
-	page: {
-		boxSizing: "border-box",
-		maxWidth: measure.page,
-		margin: "0 auto",
-		padding: `${space.twoXl} ${space.lg} ${space.threeXl}`,
-		color: colours.ink,
-		fontFamily: font.sans,
-		fontSize: type.body,
-		lineHeight: type.line,
-	},
-	title: {
-		margin: `0 0 ${space.sm}`,
-		fontSize: type.title,
-		fontWeight: type.weight,
-		letterSpacing: type.track,
-	},
-	heading: {
-		margin: `0 0 ${space.sm}`,
-		fontSize: type.heading,
-	},
-	nav: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.sm,
-		alignItems: "center",
-		margin: `0 0 ${space.lg}`,
-	},
-	link: {
-		color: colours.link,
-		textUnderlineOffset: space.twoXs,
-	},
 	linkFocus: {
 		outline: {
 			default: "none",
@@ -563,16 +515,6 @@ export const shell = stylex.create({
 		},
 		outlineOffset: space.twoXs,
 	},
-	disabled: {
-		opacity: 0.5,
-		cursor: "not-allowed",
-	},
-	pressed: {
-		backgroundColor: colours.accent,
-		borderColor: colours.accent,
-		color: colours.accentInk,
-		fontWeight: type.weight,
-	},
 	stale: {
 		margin: `0 0 ${space.md}`,
 		padding: `${space.xs} ${space.sm}`,
@@ -585,9 +527,6 @@ export const shell = stylex.create({
 		overflow: "hidden",
 		textOverflow: "ellipsis",
 		whiteSpace: "nowrap",
-	},
-	theme: {
-		marginLeft: "auto",
 	},
 });
 
@@ -672,17 +611,10 @@ export const cards = stylex.create({
 		borderRadius: radius.sm,
 	},
 	done: { backgroundColor: colours.done },
-	dropped: { backgroundColor: colours.dropped },
-	blocked: { backgroundColor: colours.blocked },
 	backlog: { backgroundColor: colours.ready },
 	inProgress: { backgroundColor: colours.progress },
 	inReview: { backgroundColor: colours.review },
 	awaitingMerge: { backgroundColor: colours.merge },
-	tags: {
-		margin: `${space.sm} 0 0`,
-		color: colours.chipInk,
-		fontSize: type.small,
-	},
 	blockers: {
 		display: "flex",
 		flexShrink: 0,
@@ -1038,11 +970,6 @@ export const cards = stylex.create({
 		lineHeight: 1,
 		cursor: "pointer",
 	},
-	fresh: {
-		margin: `0 0 ${space.md}`,
-		color: colours.inkSoft,
-		fontSize: type.small,
-	},
 	menu: {
 		position: "relative",
 	},
@@ -1149,127 +1076,6 @@ export const cards = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.small,
 	},
-	unlinked: {
-		margin: `${space.sm} 0 0`,
-		fontSize: type.small,
-	},
-});
-
-export const project = stylex.create({
-	section: {
-		marginTop: space.xl,
-		paddingTop: space.md,
-		borderTopWidth: measure.hairline,
-		borderTopStyle: "solid",
-		borderTopColor: colours.line,
-	},
-	summary: {
-		maxWidth: measure.page,
-		margin: 0,
-		fontSize: type.heading,
-	},
-	legend: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: `${space.md} ${space.lg}`,
-		margin: `0 0 ${space.md}`,
-		padding: 0,
-		listStyle: "none",
-	},
-	legendItem: {
-		display: "flex",
-		alignItems: "center",
-		gap: space.xs,
-		fontSize: type.small,
-	},
-	swatch: {
-		width: measure.swatch,
-		height: measure.swatch,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.lineStrong,
-		borderRadius: radius.sm,
-		display: "inline-block",
-	},
-	done: { backgroundColor: colours.done },
-	dropped: { backgroundColor: colours.dropped },
-	blocked: { backgroundColor: colours.blocked },
-	backlog: { backgroundColor: colours.backlog },
-	inProgress: { backgroundColor: colours.inProgress },
-	inReview: { backgroundColor: colours.inReview },
-	awaitingMerge: { backgroundColor: colours.awaitingMerge },
-	theme: {
-		backgroundColor: colours.theme,
-		borderColor: colours.accent,
-	},
-	dashed: {
-		backgroundColor: colours.dashed,
-		borderStyle: "dashed",
-	},
-	tickets: {
-		margin: 0,
-		padding: 0,
-		listStyle: "none",
-	},
-	ticket: {
-		padding: `${space.xs} 0`,
-		borderBottomWidth: measure.hairline,
-		borderBottomStyle: "solid",
-		borderBottomColor: colours.line,
-	},
-	ticketOpen: {
-		padding: 0,
-		borderWidth: 0,
-		backgroundColor: "transparent",
-		color: "inherit",
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		lineHeight: 1,
-		textAlign: "left",
-		cursor: "pointer",
-	},
-	ticketHover: {
-		color: {
-			default: "inherit",
-			":hover": colours.link,
-		},
-	},
-	highlighted: {
-		outlineWidth: measure.focus,
-		outlineStyle: "solid",
-		outlineColor: colours.accent,
-		outlineOffset: space.twoXs,
-	},
-	nodes: {
-		margin: `${space.md} 0 0`,
-		padding: 0,
-		listStyle: "none",
-	},
-	dashedNode: {
-		display: "inline-block",
-		padding: `${space.twoXs} ${space.sm}`,
-		borderWidth: measure.hairline,
-		borderStyle: "dashed",
-		borderColor: colours.lineStrong,
-		borderRadius: radius.sm,
-		color: colours.link,
-	},
-	reportNav: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: `${space.md} ${space.lg}`,
-		padding: `${space.sm} 0`,
-		borderBottomWidth: measure.hairline,
-		borderBottomStyle: "solid",
-		borderBottomColor: colours.line,
-	},
-	reportLink: {
-		color: colours.link,
-		textDecoration: {
-			default: "none",
-			":hover": "underline",
-		},
-	},
 });
 
 export const needs = stylex.create({
@@ -1284,11 +1090,6 @@ export const needs = stylex.create({
 	main: {
 		flex: "1 1 auto",
 		minWidth: 0,
-	},
-	summary: {
-		margin: `0 0 ${space.lg}`,
-		color: colours.inkSoft,
-		fontSize: type.meta,
 	},
 	toolbar: {
 		display: "flex",
@@ -1330,20 +1131,6 @@ export const needs = stylex.create({
 		backgroundColor: colours.segment,
 		color: colours.ink,
 		fontWeight: type.weight,
-	},
-	menu: {
-		height: measure.toggle,
-		padding: `0 ${space.md}`,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.md,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-		lineHeight: 1,
 	},
 	list: {
 		margin: 0,
@@ -1545,45 +1332,6 @@ export const needs = stylex.create({
 		height: measure.hairline,
 		overflow: "hidden",
 		clip: "rect(0 0 0 0)",
-	},
-	panel: {
-		position: "sticky",
-		top: 0,
-		display: "flex",
-		flex: `0 0 ${measure.needsPanel}`,
-		flexDirection: "column",
-		boxSizing: "border-box",
-		width: measure.needsPanel,
-		maxHeight: "100%",
-		overflow: "auto",
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.laneLine,
-		borderRadius: radius.md,
-		backgroundColor: colours.raised,
-	},
-
-	option: {
-		display: "flex",
-		gap: space.sm,
-		alignItems: "center",
-		margin: `0 0 ${space.lg}`,
-	},
-	optionIndex: {
-		color: colours.inkSoft,
-		fontWeight: type.weight,
-	},
-	tabList: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.sm,
-		alignItems: "center",
-	},
-	actions: {
-		display: "flex",
-		flexShrink: 0,
-		gap: space.sm,
-		marginLeft: "auto",
 	},
 });
 
@@ -2106,9 +1854,6 @@ export const panel = stylex.create({
 		margin: 0,
 		color: colours.danger,
 	},
-	tracker: {
-		color: colours.link,
-	},
 	relations: {
 		margin: `0 0 ${space.md}`,
 		padding: 0,
@@ -2171,11 +1916,6 @@ export const panel = stylex.create({
 		height: measure.icon,
 		borderRadius: radius.sm,
 		backgroundColor: colours.surfaceMuted,
-		color: colours.inkMuted,
-		fontSize: type.small,
-	},
-	status: {
-		margin: `0 0 ${space.xs}`,
 		color: colours.inkMuted,
 		fontSize: type.small,
 	},
@@ -2461,54 +2201,6 @@ export const settings = stylex.create({
 		fontWeight: type.weight,
 		lineHeight: 1,
 		cursor: "pointer",
-	},
-	field: {
-		display: "block",
-		maxWidth: measure.form,
-		margin: `${space.md} 0`,
-	},
-	control: {
-		display: "block",
-		boxSizing: "border-box",
-		width: "100%",
-		marginTop: space.xs,
-		padding: space.sm,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-	},
-	refs: {
-		display: "block",
-		boxSizing: "border-box",
-		width: "100%",
-		maxWidth: measure.field,
-		minHeight: measure.fieldMin,
-		marginTop: space.xs,
-		padding: space.sm,
-		borderWidth: measure.hairline,
-		borderStyle: "solid",
-		borderColor: colours.controlLine,
-		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
-		color: colours.controlInk,
-		fontFamily: font.sans,
-		fontSize: type.menu,
-		fontWeight: type.regular,
-	},
-	note: {
-		margin: `0 0 ${space.md}`,
-		color: colours.inkMuted,
-		fontSize: type.small,
-	},
-	choice: {
-		display: "block",
-		margin: `${space.xs} 0`,
 	},
 	toast: {
 		position: "fixed",
