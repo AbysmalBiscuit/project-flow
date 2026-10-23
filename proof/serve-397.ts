@@ -1,4 +1,5 @@
 import { proofStops } from "./lifetime.ts";
+import { startApp } from "./serve-proxy.ts";
 
 // Holding the first save lets a second quick save reach the app first.
 // A walk step waits for open requests, so one proof button clicks twice.
@@ -13,20 +14,7 @@ let saves = 0;
 let answered = 0;
 let projectReads = 0;
 
-const app = Bun.spawn(["bun", "proof/serve-397-app.ts", inner], {
-	stdout: "inherit",
-	stderr: "inherit",
-});
-for (let tries = 0; tries < 200; tries += 1) {
-	const ready = await fetch(base).then(
-		() => true,
-		() => false,
-	);
-	if (ready) {
-		break;
-	}
-	await Bun.sleep(100);
-}
+const app = await startApp("proof/serve-397-app.ts", inner);
 
 const statusScript = `<div id="proof-status" style="position:fixed;left:8px;bottom:8px;z-index:99;padding:6px 10px;background:#fff;color:#000;border:1px solid #000;font:13px monospace"></div>
 <button id="proof-quick-sorts" type="button" style="position:fixed;right:8px;bottom:8px;z-index:99;font:13px monospace">Sort by Tracker, then Progress</button>
