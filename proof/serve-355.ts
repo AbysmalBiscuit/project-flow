@@ -7,6 +7,7 @@
  */
 import type { Fetch } from "../src/fetch.ts";
 import { linearFake } from "../test/support.ts";
+import { type StateName, stateOf, teamStates } from "./linear-states.ts";
 import { serveRecorded } from "./recorded.ts";
 
 const followup = {
@@ -22,19 +23,6 @@ const platform = {
 	slugId: "api-platform-3e5a9c1d7f2b",
 	teams: { nodes: [{ id: "team-plt", key: "PLT", name: "Platform" }] },
 };
-
-const states = [
-	{ id: "st-backlog", name: "Backlog", type: "backlog", color: "#bec2c8" },
-	{ id: "st-todo", name: "Todo", type: "unstarted", color: "#e2e2e2" },
-	{ id: "st-progress", name: "In Progress", type: "started", color: "#f2c94c" },
-	{ id: "st-done", name: "Done", type: "completed", color: "#5e6ad2" },
-] as const;
-
-type StateName = (typeof states)[number]["name"];
-
-function stateOf(name: StateName) {
-	return states.find((item) => item.name === name) ?? states[0];
-}
 
 function parentOf(
 	id: string,
@@ -112,12 +100,12 @@ const platformIssues = [
 
 const followupFake = linearFake({
 	project: followup,
-	states: states.map((state, position) => ({ ...state, position })),
+	states: teamStates,
 	issues: followupIssues,
 });
 const platformFake = linearFake({
 	project: platform,
-	states: states.map((state, position) => ({ ...state, position })),
+	states: teamStates,
 	issues: platformIssues,
 });
 
