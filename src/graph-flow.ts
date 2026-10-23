@@ -779,12 +779,20 @@ export type FlowTicket = {
 	assignees?: string[];
 	parent?: string;
 	subTickets?: number;
+	subTicketsDone?: number;
 	blockers: string[];
 	outsideBlockers: { project: string; key: string }[];
 	blocks: { project: string; key: string }[];
 };
 
-export function graphTickets(report: ProjectReport): FlowTicket[] {
+/**
+ * The tickets the project graph shows. With `withParents`, the hidden parent
+ * tickets that head the frames of shown sub-tickets come last.
+ */
+export function graphTickets(
+	report: ProjectReport,
+	withParents = false,
+): FlowTicket[] {
 	const seen = new Set<string>();
 	const outside: FlowTicket[] = [];
 	for (const link of report.graphLinks) {
@@ -815,7 +823,10 @@ export function graphTickets(report: ProjectReport): FlowTicket[] {
 			`${right.project} ${right.key}`,
 		),
 	);
-	const local = report.graphTickets.flatMap((ticket) => {
+	const local = [
+		...report.graphTickets,
+		...(withParents ? report.graphParents : []),
+	].flatMap((ticket) => {
 		if (ticket.key === null) {
 			return [];
 		}
@@ -843,6 +854,9 @@ export function graphTickets(report: ProjectReport): FlowTicket[] {
 				...(ticket.subTickets === undefined
 					? {}
 					: { subTickets: ticket.subTickets }),
+				...(ticket.subTicketsDone === undefined
+					? {}
+					: { subTicketsDone: ticket.subTicketsDone }),
 				blockers: ticket.blockers,
 				outsideBlockers: (ticket.outsideBlockers ?? []).map((blocker) => ({
 					project: blocker.project,

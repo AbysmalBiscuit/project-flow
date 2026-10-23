@@ -33,6 +33,7 @@ import {
 	graphLayoutFailedLabel,
 	navLabel,
 	projectGraphLabel,
+	subTicketsDoneLabel,
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
@@ -60,6 +61,9 @@ function shortTicket(key: string, project: string, outside: boolean): string {
 function ClusterNode({
 	data,
 }: NodeProps<FlowNode<ClusterNodeData, "cluster">>) {
+	if (data.head !== undefined) {
+		return <div className={clsx(board.cluster)} data-frame={data.head} />;
+	}
 	return (
 		<div className={clsx(board.cluster)} data-group={data.label}>
 			{data.label}
@@ -96,6 +100,14 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 				{data.ticket.pull === undefined ? null : (
 					<span className={clsx(board.pull)}>{data.ticket.pull}</span>
 				)}
+				{data.framesSubTickets && data.ticket.subTickets !== undefined ? (
+					<span className={clsx(board.pull)}>
+						{subTicketsDoneLabel(
+							data.ticket.subTicketsDone ?? 0,
+							data.ticket.subTickets,
+						)}
+					</span>
+				) : null}
 				{data.ticket.needsYou ? (
 					<span className={clsx(board.chip, board.chipNeeds)}>
 						{navLabel.needsYou}
@@ -317,7 +329,7 @@ export function ProjectGraph({
 	const nodes = model.nodes.map((node) => {
 		const kept = isClusterNode(node)
 			? node.data.members.some((id) => chain?.has(id) === true)
-			: chain?.has(node.id) === true;
+			: chain?.has(node.data.ticketId) === true;
 		return { ...node, className: chain === null || kept ? fades : faded };
 	});
 	const edges = model.edges.map((edge) => {
@@ -337,6 +349,45 @@ export function ProjectGraph({
 		})
 		.join(" | ");
 
+	const frameBoxes = model.nodes.flatMap((node) =>
+		isClusterNode(node) && node.data.head !== undefined
+			? [
+					{
+						head: node.data.head,
+						left: node.position.x,
+						top: node.position.y,
+						right: node.position.x + (node.width ?? 0),
+						bottom: node.position.y + (node.height ?? 0),
+					},
+				]
+			: [],
+	);
+	const framedCards = model.nodes.flatMap((node) => {
+		if (isClusterNode(node)) {
+			return [];
+		}
+		const left = node.position.x;
+		const top = node.position.y;
+		const right = left + (node.width ?? 0);
+		const bottom = top + (node.height ?? 0);
+		const key = node.data.ticket.key ?? node.id;
+		const holders = frameBoxes
+			.filter(
+				(box) =>
+					box.head !== key &&
+					box.left <= left &&
+					box.top <= top &&
+					right <= box.right &&
+					bottom <= box.bottom,
+			)
+			.sort(
+				(one, other) =>
+					(one.right - one.left) * (one.bottom - one.top) -
+					(other.right - other.left) * (other.bottom - other.top),
+			)
+			.map((box) => box.head);
+		return holders.length === 0 ? [] : [[key, ...holders].join(" in ")];
+	});
 	const outsideLabels = model.nodes.flatMap((node) =>
 		isClusterNode(node) || !node.data.outside
 			? []
@@ -361,6 +412,9 @@ export function ProjectGraph({
 			</p>
 			<p id="project-graph-direction" className={clsx(cards.graphProbe)}>
 				{drawn}
+			</p>
+			<p id="project-graph-frames" className={clsx(cards.graphProbe)}>
+				{framedCards.sort().join(" | ")}
 			</p>
 			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
 				{outsideLabels.join(" | ")}
@@ -404,13 +458,13 @@ export function ProjectGraph({
 					proOptions={{ hideAttribution: true }}
 					onNodeMouseEnter={(_event, node) => {
 						if (!isClusterNode(node)) {
-							onPreview(node.id);
+							onPreview(node.data.ticketId);
 						}
 					}}
 					onNodeMouseLeave={onPreviewEnd}
 					onNodeDoubleClick={(_event, node) => {
 						if (!isClusterNode(node)) {
-							onFocus(node.id);
+							onFocus(node.data.ticketId);
 						}
 					}}
 					onNodeClick={(event, node) => {
@@ -419,7 +473,7 @@ export function ProjectGraph({
 						}
 						focusOrOpen(
 							event,
-							() => onFocus(node.id),
+							() => onFocus(node.data.ticketId),
 							() =>
 								onOpen({
 									key: node.data.ticket.key ?? node.data.ticket.title,

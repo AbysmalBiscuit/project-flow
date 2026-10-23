@@ -37,9 +37,12 @@ export type GraphTicketView = {
 	assignees?: string[];
 	parentLabel?: string;
 	subTickets?: number;
+	subTicketsDone?: number;
 };
 
 export type TicketNodeData = {
+	/** The node id of the ticket. A parent ticket card copied into another group keeps it. */
+	ticketId: string;
 	ticket: GraphTicketView;
 	outside: boolean;
 	project: string;
@@ -47,11 +50,15 @@ export type TicketNodeData = {
 	open: boolean;
 	/** A flat grouping shows the parent ticket hierarchy as chips. */
 	hierarchyChips: boolean;
+	/** The card heads the frame of its sub-tickets. */
+	framesSubTickets: boolean;
 };
 
+/** A group frame, or with `head` the frame of the parent ticket with that key. */
 export type ClusterNodeData = {
 	label: string;
 	members: string[];
+	head?: string;
 };
 
 export type ProjectNodeData = TicketNodeData | ClusterNodeData;
@@ -114,6 +121,9 @@ function ticketView(
 			...(ticket.subTickets === undefined
 				? {}
 				: { subTickets: ticket.subTickets }),
+			...(ticket.subTicketsDone === undefined
+				? {}
+				: { subTicketsDone: ticket.subTicketsDone }),
 			...(ticket.workstream === undefined
 				? {}
 				: { workstream: ticket.workstream }),
@@ -136,10 +146,26 @@ function ticketView(
 function shownTickets(
 	report: ProjectReport,
 	reports: ProjectReport[],
-): GraphTicket[] {
-	return graphTickets(report).map((ticket) =>
-		ticketView(ticket, report, reports),
+	input: LayoutInput,
+): (GraphTicket & { id: string; ticketId: string })[] {
+	const byId = new Map(
+		graphTickets(report, true).map((ticket) => [
+			projectNodeId(ticket.project, ticket.key),
+			ticket,
+		]),
 	);
+	return input.cards.flatMap((card) => {
+		const ticket = byId.get(card.ticket);
+		return ticket === undefined
+			? []
+			: [
+					{
+						...ticketView(ticket, report, reports),
+						id: card.id,
+						ticketId: card.ticket,
+					},
+				];
+	});
 }
 
 type TicketSize = { width: number; height: number };
@@ -185,9 +211,81 @@ function labelHeight(label: string, width: number): number {
 	return height;
 }
 
+function titleHeight(title: string): number {
+	const probe = document.createElement("button");
+	probe.className = classToken(board.ticketNode);
+	// React Flow sizes each node with border-box.
+	probe.style.boxSizing = "border-box";
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	const text = document.createElement("span");
+	text.className = classToken(board.title);
+	text.textContent = title;
+	probe.append(text);
+	document.body.append(probe);
+	const height = probe.getBoundingClientRect().height;
+	probe.remove();
+	return height;
+}
+
+/** The extra height of a ticket card whose title wraps. */
+export function titleGrowth(title: string): number {
+	return Math.max(0, titleHeight(title) - titleHeight("\u00a0"));
+}
+
 /** The extra height of a group label that wraps at the frame width. */
 export function headGrowth(label: string, width: number): number {
 	return Math.max(0, labelHeight(label, width) - labelHeight("\u00a0", width));
+}
+
+function frameNodes(
+	input: LayoutInput,
+	layout: GraphLayout,
+	keyOf: Map<string, string>,
+): FlowNode<ClusterNodeData, "cluster">[] {
+	const holderOf = new Map<string, string | null>([
+		...input.cards.map((card) => [card.id, card.frame] as const),
+		...input.frames.map((frame) => [frame.id, frame.parent] as const),
+	]);
+	const holdersOf = (id: string): string[] => {
+		const holders: string[] = [];
+		for (let above = holderOf.get(id); above != null; ) {
+			holders.push(above);
+			above = holderOf.get(above);
+		}
+		return holders;
+	};
+	const outerFirst = [...input.frames].sort(
+		(left, right) => holdersOf(left.id).length - holdersOf(right.id).length,
+	);
+	return outerFirst.flatMap((frame) => {
+		const box = layout.frames.get(frame.id);
+		if (box === undefined) {
+			return [];
+		}
+		return [
+			{
+				id: frame.id,
+				type: "cluster" as const,
+				position: { x: box.x, y: box.y },
+				width: box.width,
+				height: box.height,
+				style: { width: box.width, height: box.height },
+				data: {
+					label: "",
+					head: keyOf.get(frame.head) ?? frame.head,
+					members: input.cards.flatMap((card) =>
+						card.id === frame.head || holdersOf(card.id).includes(frame.id)
+							? [card.ticket]
+							: [],
+					),
+				},
+				zIndex: -1,
+				draggable: false,
+				selectable: false,
+			},
+		];
+	});
 }
 
 function clusterNodes(
@@ -210,7 +308,7 @@ function clusterNodes(
 				data: {
 					label: group.label,
 					members: input.cards.flatMap((card) =>
-						card.group === group.id ? [card.id] : [],
+						card.group === group.id ? [card.ticket] : [],
 					),
 				},
 				zIndex: -1,
@@ -235,16 +333,26 @@ export function graphModel(
 	nodes: ProjectNode[];
 	edges: FlowEdge<TicketEdgeData>[];
 } {
-	const tickets = shownTickets(report, reports);
+	const tickets = shownTickets(report, reports, input);
 	const links = graphEdges(report);
 	const horizontal = direction === "left-to-right";
 	const groups = clusterNodes(input, layout);
+	const frames = frameNodes(
+		input,
+		layout,
+		new Map(
+			tickets.flatMap((item) =>
+				item.ticket.key === null ? [] : [[item.id, item.ticket.key]],
+			),
+		),
+	);
+	const heads = new Set(input.frames.map((frame) => frame.head));
 	const nodes = tickets.flatMap((item) => {
 		const key = item.ticket.key;
 		if (key === null) {
 			return [];
 		}
-		const id = projectNodeId(item.project, key);
+		const id = item.id;
 		const place = layout.cards.get(id) ?? { x: 0, y: 0 };
 		const node: FlowNode<TicketNodeData, "ticket"> = sizedNode(
 			{
@@ -254,12 +362,14 @@ export function graphModel(
 				sourcePosition: horizontal ? Position.Right : Position.Bottom,
 				targetPosition: horizontal ? Position.Left : Position.Top,
 				data: {
+					ticketId: item.ticketId,
 					ticket: item.ticket,
 					outside: item.outside,
 					project: item.project,
 					tracker: item.tracker,
 					open: openKey === key,
 					hierarchyChips: groupBy === "assignee" || groupBy === "none",
+					framesSubTickets: heads.has(id),
 				},
 			},
 			ticketSizes.get(id) ?? fallback,
@@ -335,7 +445,7 @@ export function graphModel(
 		},
 	}));
 	return {
-		nodes: [...groups, ...nodes],
+		nodes: [...groups, ...frames, ...nodes],
 		edges,
 	};
 }

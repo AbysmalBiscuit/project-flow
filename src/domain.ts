@@ -174,6 +174,8 @@ export type TicketView = {
 	themeGroup?: string;
 	parent?: string;
 	subTickets?: number;
+	/** How many direct sub-tickets are done. */
+	subTicketsDone?: number;
 	/** True when the ticket has sub-tickets and every descendant is done or dropped. */
 	startsCollapsed?: true;
 };
@@ -701,6 +703,8 @@ export type ProjectReport = {
 	doneTickets: TicketView[];
 	graphTickets: TicketView[];
 	graphLinks: ShownGraphLink[];
+	/** The parent tickets of graph tickets that the graph does not show itself. Each heads the frame of its shown sub-tickets. */
+	graphParents: TicketView[];
 	outsideParents: OutsideParent[];
 	/** Filters that leave no ticket on the board, graph or table. */
 	hiddenBy?: HidingFilter[];
@@ -3174,7 +3178,7 @@ export function projectCounts(
 		tracker,
 		...counts,
 		unlinkedPrs,
-		tickets: withStartsCollapsed(views),
+		tickets: withSubTicketCounts(views),
 		crossProjectBlockers: [...cross.values()],
 		needsYou: needsYouItemsForProject.length,
 		progress: progressRatio(counts),
@@ -3199,7 +3203,7 @@ export function projectCounts(
 	};
 }
 
-function withStartsCollapsed(views: TicketView[]): TicketView[] {
+function withSubTicketCounts(views: TicketView[]): TicketView[] {
 	const subTicketsByKey = new Map<string, TicketView[]>();
 	for (const view of views) {
 		const parent = view.parent?.toLowerCase();
@@ -3227,11 +3231,47 @@ function withStartsCollapsed(views: TicketView[]): TicketView[] {
 		settled.set(view, result);
 		return result;
 	};
-	return views.map((view) =>
-		subTicketsOf(view).length > 0 && allClosed(view)
-			? { ...view, startsCollapsed: true }
-			: view,
+	return views.map((view) => {
+		const below = subTicketsOf(view);
+		if (below.length === 0) {
+			return view;
+		}
+		return {
+			...view,
+			subTicketsDone: below.filter((sub) => sub.statusType === "done").length,
+			...(allClosed(view) ? { startsCollapsed: true as const } : {}),
+		};
+	});
+}
+
+/** The hidden parent tickets above the shown graph tickets, up to each top parent ticket. */
+function graphParentsOf(
+	graphTickets: readonly TicketView[],
+	tickets: readonly TicketView[],
+): TicketView[] {
+	const byKey = new Map(
+		tickets.flatMap((ticket) =>
+			ticket.key === null ? [] : [[ticket.key.toLowerCase(), ticket] as const],
+		),
 	);
+	const shown = new Set(
+		graphTickets.flatMap((ticket) =>
+			ticket.key === null ? [] : [ticket.key.toLowerCase()],
+		),
+	);
+	const found = new Map<string, TicketView>();
+	for (const ticket of graphTickets) {
+		let parent = ticket.parent?.toLowerCase();
+		while (parent !== undefined && !shown.has(parent) && !found.has(parent)) {
+			const view = byKey.get(parent);
+			if (view === undefined) {
+				break;
+			}
+			found.set(parent, view);
+			parent = view.parent?.toLowerCase();
+		}
+	}
+	return [...found.values()];
 }
 
 function subTicketCounts(tickets: Ticket[]): Map<string, number> {
@@ -4310,6 +4350,7 @@ export function projectReport(
 		doneTickets,
 		graphTickets: graph.tickets,
 		graphLinks: graph.links,
+		graphParents: graphParentsOf(graph.tickets, boardTickets),
 		outsideParents,
 	};
 }
@@ -4423,6 +4464,7 @@ export function filterProjectReport(
 		doneTickets: done,
 		graphTickets,
 		graphLinks,
+		graphParents: graphParentsOf(graphTickets, report.tickets),
 		...(hiddenBy.length === 0 ? {} : { hiddenBy }),
 	};
 }
