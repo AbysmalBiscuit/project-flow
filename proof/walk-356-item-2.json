@@ -1,0 +1,35 @@
+{
+	"base_url": "http://127.0.0.1:4756",
+	"viewport": { "width": 1440, "height": 1000 },
+	"serve": ["bun", "proof/serve-350-app.ts", "4756"],
+	"steps": [
+		{ "goto": "/projects/AbysmalBiscuit%2Fproject-flow" },
+		{ "assert_text": "82/84 done" },
+		{
+			"click": "[data-frame-toggle='AbysmalBiscuit/project-flow#97'][aria-expanded='false']"
+		},
+		{
+			"click": "body:has([data-frame-toggle='AbysmalBiscuit/project-flow#97'][aria-expanded='true']) #project-graph-fit"
+		},
+		{ "shot": "graph-97-expanded" },
+		{ "click": "#view-table" },
+		{
+			"click": "body:has([data-toggle='AbysmalBiscuit/project-flow#97'][aria-expanded='true']) #view-table"
+		},
+		{ "assert_text": "test: settle the token refresh test after a refresh" },
+		{ "shot": "table-97-expanded" },
+		{ "click": "#view-graph" },
+		{
+			"click": "[data-frame-toggle='AbysmalBiscuit/project-flow#97'][aria-expanded='true']"
+		},
+		{
+			"click": "body:has([data-frame-toggle='AbysmalBiscuit/project-flow#97'][aria-expanded='false']) #project-graph-fit"
+		},
+		{ "shot": "graph-97-collapsed" },
+		{ "click": "#view-table" },
+		{
+			"click": "body:has([data-toggle='AbysmalBiscuit/project-flow#97'][aria-expanded='false']) #view-table"
+		},
+		{ "shot": "table-97-collapsed" }
+	]
+}

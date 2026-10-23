@@ -6,6 +6,7 @@ import { fitPadding } from "./graph-float.tsx";
 import { growGroups } from "./graph-force.ts";
 import type { ForceRequest } from "./graph-force-worker.ts";
 import {
+	type Collapsed,
 	elkWorkerPath,
 	forceWorkerPath,
 	type GraphLayout,
@@ -71,6 +72,7 @@ export function useLaidGraph(
 	kind: GraphLayoutKind,
 	groupBy: GroupBy,
 	assignees: readonly string[],
+	collapsed: Collapsed,
 	span: NodeSize | null,
 ): { laid: LaidGraph | null; failed: boolean } {
 	const [laid, setLaid] = useState<LaidGraph | null>(null);
@@ -80,7 +82,7 @@ export function useLaidGraph(
 			return;
 		}
 		let current = true;
-		const input = layoutInput(report, groupBy, assignees);
+		const input = layoutInput(report, groupBy, assignees, collapsed);
 		const laying =
 			kind === "force"
 				? forceInWorker(input, span)
@@ -102,7 +104,7 @@ export function useLaidGraph(
 		return () => {
 			current = false;
 		};
-	}, [report, direction, kind, groupBy, assignees, span]);
+	}, [report, direction, kind, groupBy, assignees, collapsed, span]);
 	return { laid, failed };
 }
 

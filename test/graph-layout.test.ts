@@ -16,6 +16,7 @@ import {
 	frameOverlaps,
 	hierarchyReport,
 	inside,
+	linearTicket,
 	milestones,
 	overlap,
 	strayCards,
@@ -263,6 +264,56 @@ describe("project graph layout", () => {
 		expect(layoutInput(report, "workstream", [])).toMatchObject({
 			cards: [{ id: cardOf("WID-1"), frame: null }],
 			frames: [],
+		});
+	});
+
+	test("a collapsed frame takes the blocker arrows of its hidden sub-tickets and merges duplicate arrows", async () => {
+		// WID-2 and WID-3 under WID-1 both block WID-4, WID-2 blocks its sibling
+		// WID-3, and WID-6 blocks WID-5 under WID-1.
+		const report = await hierarchyReport("", [
+			linearTicket("WID-1", "Ship the widget", "unstarted", null),
+			linearTicket("WID-2", "Paint the list", "unstarted", "WID-1"),
+			linearTicket("WID-3", "Paint the rows", "unstarted", "WID-1", ["WID-2"]),
+			linearTicket("WID-4", "Size the cells", "unstarted", null, [
+				"WID-2",
+				"WID-3",
+			]),
+			linearTicket("WID-5", "Sort the list", "unstarted", "WID-1", ["WID-6"]),
+			linearTicket("WID-6", "Sort by name", "unstarted", null),
+		]);
+		const input = layoutInput(
+			report,
+			"workstream",
+			[],
+			(key) => key === "WID-1",
+		);
+		const layout = await layoutGraph(
+			elk,
+			input,
+			"left-to-right",
+			card,
+			() => 0,
+			() => 0,
+		);
+		expect({
+			cards: input.cards
+				.map((item) => `${item.id}${item.collapsed ? " collapsed" : ""}`)
+				.sort(),
+			frames: input.frames,
+			edges: input.edges.map((edge) => `${edge.from} -> ${edge.to}`).sort(),
+			laid: [...layout.cards.keys()].sort(),
+		}).toEqual({
+			cards: [
+				`${cardOf("WID-1")} collapsed`,
+				cardOf("WID-4"),
+				cardOf("WID-6"),
+			].sort(),
+			frames: [],
+			edges: [
+				`${cardOf("WID-1")} -> ${cardOf("WID-4")}`,
+				`${cardOf("WID-6")} -> ${cardOf("WID-1")}`,
+			].sort(),
+			laid: ["WID-1", "WID-4", "WID-6"].map(cardOf).sort(),
 		});
 	});
 

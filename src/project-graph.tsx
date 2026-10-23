@@ -10,9 +10,10 @@ import {
 	Position,
 	ReactFlow,
 } from "@xyflow/react";
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { board } from "./board-styles.ts";
 import { cardTones } from "./card-tones.ts";
+import { useCollapse } from "./collapse.ts";
 import { outsideKey, type ProjectReport, type TicketState } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
@@ -29,11 +30,13 @@ import { GraphTools } from "./graph-pane.tsx";
 import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import type { NodeSize } from "./graph-sizes.ts";
 import { DirectionSwitch, LayoutSwitch } from "./graph-switches.tsx";
+import { tableTree } from "./table-tree-styles.ts";
 import {
 	graphLayoutFailedLabel,
 	navLabel,
 	projectGraphLabel,
 	subTicketsDoneLabel,
+	subTicketsToggleLabel,
 } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
@@ -74,54 +77,109 @@ function ClusterNode({
 	);
 }
 
+const FrameToggleContext = createContext<
+	(key: string, startsCollapsed: boolean) => void
+>(() => {});
+
+function FrameToggle({
+	ticket,
+	collapsed,
+	startsCollapsed,
+}: {
+	ticket: string;
+	collapsed: boolean;
+	startsCollapsed: boolean;
+}) {
+	const toggle = useContext(FrameToggleContext);
+	return (
+		<button
+			type="button"
+			className={clsx(board.frameToggle, board.cardFocus)}
+			data-frame-toggle={ticket}
+			aria-expanded={!collapsed}
+			aria-label={subTicketsToggleLabel(ticket, collapsed)}
+			onClick={(event) => {
+				event.stopPropagation();
+				toggle(ticket, startsCollapsed);
+			}}
+			onDoubleClick={(event) => event.stopPropagation()}
+		>
+			<svg
+				viewBox="0 0 8 8"
+				aria-hidden="true"
+				className={clsx(
+					tableTree.toggleMark,
+					collapsed && tableTree.toggleShut,
+				)}
+			>
+				<path d="M2.5 1 5.5 4 2.5 7" fill="none" stroke="currentColor" />
+			</svg>
+		</button>
+	);
+}
+
 function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 	const key = data.ticket.key ?? data.ticket.title;
 	const known = data.ticket.state;
 	return (
-		<button
-			type="button"
-			className={clsx(
-				board.ticketNode,
-				board.cardFocus,
-				known === undefined ? null : cardTones[known],
-				data.outside && board.ticketOutside,
-				data.open && board.ticketNodeOpen,
-			)}
-			data-graph-node={key}
-			id={`graph-card-${id}`}
-			data-outside={data.outside ? "true" : "false"}
-			data-state={known ?? "unknown"}
-			aria-pressed={data.open}
-		>
-			<MeasuredNode id={id} kind="ticket" />
-			<Handle type="target" position={Position.Left} id="left" />
-			<Handle type="target" position={Position.Top} id="top" />
-			<span className={clsx(board.meta)}>
-				<span className={clsx(board.key)}>
-					{shortTicket(key, data.project, data.outside)}
-				</span>
-				{data.ticket.pull === undefined ? null : (
-					<span className={clsx(board.pull)}>{data.ticket.pull}</span>
+		<>
+			<button
+				type="button"
+				className={clsx(
+					board.ticketNode,
+					board.cardFocus,
+					known === undefined ? null : cardTones[known],
+					data.outside && board.ticketOutside,
+					data.open && board.ticketNodeOpen,
 				)}
-				{data.framesSubTickets && data.ticket.subTickets !== undefined ? (
-					<span className={clsx(board.pull)}>
-						{subTicketsDoneLabel(
-							data.ticket.subTicketsDone ?? 0,
-							data.ticket.subTickets,
-						)}
+				data-graph-node={key}
+				id={`graph-card-${id}`}
+				data-outside={data.outside ? "true" : "false"}
+				data-state={known ?? "unknown"}
+				aria-pressed={data.open}
+			>
+				<MeasuredNode id={id} kind="ticket" />
+				<Handle type="target" position={Position.Left} id="left" />
+				<Handle type="target" position={Position.Top} id="top" />
+				<span
+					className={clsx(
+						board.meta,
+						data.frame !== null && board.metaBesideToggle,
+					)}
+				>
+					<span className={clsx(board.key)}>
+						{shortTicket(key, data.project, data.outside)}
 					</span>
-				) : null}
-				{data.ticket.needsYou ? (
-					<span className={clsx(board.chip, board.chipNeeds)}>
-						{navLabel.needsYou}
-					</span>
-				) : null}
-			</span>
-			<span className={clsx(board.title)}>{data.ticket.title}</span>
-			{data.hierarchyChips ? <HierarchyChips ticket={data.ticket} /> : null}
-			<Handle type="source" position={Position.Right} id="right" />
-			<Handle type="source" position={Position.Bottom} id="bottom" />
-		</button>
+					{data.ticket.pull === undefined ? null : (
+						<span className={clsx(board.pull)}>{data.ticket.pull}</span>
+					)}
+					{data.frame !== null && data.ticket.subTickets !== undefined ? (
+						<span className={clsx(board.pull)}>
+							{subTicketsDoneLabel(
+								data.ticket.subTicketsDone ?? 0,
+								data.ticket.subTickets,
+							)}
+						</span>
+					) : null}
+					{data.ticket.needsYou ? (
+						<span className={clsx(board.chip, board.chipNeeds)}>
+							{navLabel.needsYou}
+						</span>
+					) : null}
+				</span>
+				<span className={clsx(board.title)}>{data.ticket.title}</span>
+				{data.hierarchyChips ? <HierarchyChips ticket={data.ticket} /> : null}
+				<Handle type="source" position={Position.Right} id="right" />
+				<Handle type="source" position={Position.Bottom} id="bottom" />
+			</button>
+			{data.frame === null || data.ticket.key === null ? null : (
+				<FrameToggle
+					ticket={data.ticket.key}
+					collapsed={data.frame === "collapsed"}
+					startsCollapsed={data.ticket.startsCollapsed === true}
+				/>
+			)}
+		</>
 	);
 }
 
@@ -296,12 +354,14 @@ export function ProjectGraph({
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
 	const [theme, setTheme] = useState(pageTheme);
 	useEffect(() => watchPageTheme(setTheme), []);
+	const collapse = useCollapse();
 	const { laid, failed } = useLaidGraph(
 		report,
 		direction,
 		layout,
 		groupBy,
 		assignees,
+		collapse.collapsed,
 		span,
 	);
 	const model = useMemo(() => {
@@ -452,59 +512,61 @@ export function ProjectGraph({
 				id="project-graph-pane"
 				className={clsx(board.graphPane, float.pane)}
 			>
-				<ReactFlow
-					key={drawn}
-					nodes={nodes}
-					edges={edges}
-					nodeTypes={nodeTypes}
-					edgeTypes={edgeTypes}
-					nodesDraggable={false}
-					nodesConnectable={false}
-					elementsSelectable={false}
-					panOnDrag
-					zoomOnDoubleClick={false}
-					fitView
-					minZoom={0.1}
-					fitViewOptions={{
-						padding: fitPadding,
-						maxZoom: 1,
-					}}
-					proOptions={{ hideAttribution: true }}
-					onNodeMouseEnter={(_event, node) => {
-						if (!isClusterNode(node)) {
-							onPreview(node.data.ticketId);
-						}
-					}}
-					onNodeMouseLeave={onPreviewEnd}
-					onNodeDoubleClick={(_event, node) => {
-						if (!isClusterNode(node)) {
-							onFocus(node.data.ticketId);
-						}
-					}}
-					onNodeClick={(event, node) => {
-						if (isClusterNode(node)) {
-							return;
-						}
-						focusOrOpen(
-							event,
-							() => onFocus(node.data.ticketId),
-							() =>
-								onOpen({
-									key: node.data.ticket.key ?? node.data.ticket.title,
-									project: node.data.project,
-									tracker: node.data.tracker,
-									title: node.data.ticket.title,
-									outside: node.data.outside,
-									...(node.data.ticket.state === undefined
-										? {}
-										: { state: node.data.ticket.state }),
-								}),
-						);
-					}}
-				>
-					<Background variant={BackgroundVariant.Dots} gap={18} />
-					<FitLayout key={drawn} layout={laid.layout} />
-				</ReactFlow>
+				<FrameToggleContext value={collapse.toggle}>
+					<ReactFlow
+						key={drawn}
+						nodes={nodes}
+						edges={edges}
+						nodeTypes={nodeTypes}
+						edgeTypes={edgeTypes}
+						nodesDraggable={false}
+						nodesConnectable={false}
+						elementsSelectable={false}
+						panOnDrag
+						zoomOnDoubleClick={false}
+						fitView
+						minZoom={0.1}
+						fitViewOptions={{
+							padding: fitPadding,
+							maxZoom: 1,
+						}}
+						proOptions={{ hideAttribution: true }}
+						onNodeMouseEnter={(_event, node) => {
+							if (!isClusterNode(node)) {
+								onPreview(node.data.ticketId);
+							}
+						}}
+						onNodeMouseLeave={onPreviewEnd}
+						onNodeDoubleClick={(_event, node) => {
+							if (!isClusterNode(node)) {
+								onFocus(node.data.ticketId);
+							}
+						}}
+						onNodeClick={(event, node) => {
+							if (isClusterNode(node)) {
+								return;
+							}
+							focusOrOpen(
+								event,
+								() => onFocus(node.data.ticketId),
+								() =>
+									onOpen({
+										key: node.data.ticket.key ?? node.data.ticket.title,
+										project: node.data.project,
+										tracker: node.data.tracker,
+										title: node.data.ticket.title,
+										outside: node.data.outside,
+										...(node.data.ticket.state === undefined
+											? {}
+											: { state: node.data.ticket.state }),
+									}),
+							);
+						}}
+					>
+						<Background variant={BackgroundVariant.Dots} gap={18} />
+						<FitLayout key={drawn} layout={laid.layout} />
+					</ReactFlow>
+				</FrameToggleContext>
 				<div className={clsx(float.overlay)}>
 					<Legend />
 				</div>

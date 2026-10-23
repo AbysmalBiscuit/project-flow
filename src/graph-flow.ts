@@ -780,6 +780,7 @@ export type FlowTicket = {
 	parent?: string;
 	subTickets?: number;
 	subTicketsDone?: number;
+	startsCollapsed?: true;
 	blockers: string[];
 	outsideBlockers: { project: string; key: string }[];
 	blocks: { project: string; key: string }[];
@@ -857,6 +858,9 @@ export function graphTickets(
 				...(ticket.subTicketsDone === undefined
 					? {}
 					: { subTicketsDone: ticket.subTicketsDone }),
+				...(ticket.startsCollapsed === undefined
+					? {}
+					: { startsCollapsed: ticket.startsCollapsed }),
 				blockers: ticket.blockers,
 				outsideBlockers: (ticket.outsideBlockers ?? []).map((blocker) => ({
 					project: blocker.project,
