@@ -41,6 +41,18 @@ export const frameToolLabel = {
 	collapseAll: "Collapse all",
 } as const;
 
+export const graphScopeLabel = {
+	nav: "Graph scope",
+	focus: "Focus",
+} as const;
+
+export function openFramesLabel(count: number): string {
+	if (count === 0) {
+		return "No frames open";
+	}
+	return `${count} ${count === 1 ? "frame" : "frames"} open`;
+}
+
 export const loadingLabel = "Loading";
 
 export const navLabel = {

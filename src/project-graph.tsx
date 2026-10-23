@@ -30,6 +30,7 @@ import {
 } from "./domain.ts";
 import { focusOrOpen } from "./focus.ts";
 import { fitPadding, float, Legend } from "./graph-float.tsx";
+import { projectNodeId } from "./graph-flow.ts";
 import { HierarchyChips } from "./graph-hierarchy-chips.tsx";
 import { type Anchor, FitLayout, useLaidGraph } from "./graph-laid.tsx";
 import { focusLinks, focusSeeds } from "./graph-layout.ts";
@@ -48,7 +49,9 @@ import { tableTree } from "./table-tree-styles.ts";
 import {
 	frameToolLabel,
 	graphLayoutFailedLabel,
+	graphScopeLabel,
 	navLabel,
+	openFramesLabel,
 	openParentLabel,
 	projectGraphLabel,
 	stateLabel,
@@ -351,6 +354,82 @@ function watchLayout(span: NodeSize | null): () => void {
 	return () => observer.disconnect();
 }
 
+function seedLabel(
+	report: ProjectReport,
+	shown: ReadonlyMap<string, string>,
+	seed: string,
+): string {
+	const label = shown.get(seed);
+	if (label !== undefined) {
+		return label;
+	}
+	const key =
+		report.tickets.find(
+			(item) =>
+				item.key !== null && projectNodeId(report.name, item.key) === seed,
+		)?.key ?? null;
+	return key === null
+		? seed.slice(seed.indexOf("\n") + 1)
+		: shortTicket(key, report.name, false);
+}
+
+/** Names what the graph shows. Each part returns the graph to that scope. */
+function ScopeLine({
+	project,
+	openFrames,
+	focus,
+	onProject,
+	onFrames,
+	onFocus,
+}: {
+	project: string;
+	openFrames: number;
+	focus: readonly string[];
+	onProject: () => void;
+	onFrames: () => void;
+	onFocus: () => void;
+}) {
+	const parts = [
+		{ scope: "project", label: project, onClick: onProject },
+		{ scope: "frames", label: openFramesLabel(openFrames), onClick: onFrames },
+		...(focus.length === 0
+			? []
+			: [
+					{
+						scope: "focus",
+						label: `${graphScopeLabel.focus}: ${focus.join(", ")}`,
+						onClick: onFocus,
+					},
+				]),
+	];
+	return (
+		<nav
+			id="project-graph-scope"
+			aria-label={graphScopeLabel.nav}
+			className={clsx(board.scopeLine)}
+		>
+			{parts.map((part, index) => (
+				<span key={part.scope} className={clsx(board.scopePart)}>
+					{index === 0 ? null : (
+						<span aria-hidden="true" className={clsx(board.scopeMark)}>
+							/
+						</span>
+					)}
+					<button
+						type="button"
+						className={clsx(board.scopeLink, board.cardFocus)}
+						data-scope={part.scope}
+						aria-current={index === parts.length - 1 ? "location" : undefined}
+						onClick={part.onClick}
+					>
+						{part.label}
+					</button>
+				</span>
+			))}
+		</nav>
+	);
+}
+
 function FrameTools({
 	parents,
 	onAll,
@@ -391,8 +470,10 @@ export function ProjectGraph({
 	assignees,
 	openKey,
 	seeds,
+	focus,
 	onOpen,
 	onFocus,
+	onClearFocus,
 	onPreview,
 	onPreviewEnd,
 	onDirection,
@@ -406,8 +487,10 @@ export function ProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	seeds: ReadonlySet<string>;
+	focus: ReadonlySet<string>;
 	onOpen: (ticket: OpenedNode) => void;
 	onFocus: (nodeId: string) => void;
+	onClearFocus: () => void;
 	onPreview: (nodeId: string) => void;
 	onPreviewEnd: () => void;
 	onDirection: (direction: GraphDirection) => void;
@@ -485,6 +568,32 @@ export function ProjectGraph({
 			: chain?.has(node.data.ticketId) === true;
 		return { ...node, className: chain === null || kept ? moves : movesFaded };
 	});
+	const shownLabels = new Map(
+		model.nodes.flatMap((node) =>
+			isClusterNode(node)
+				? []
+				: [
+						[
+							node.data.ticketId,
+							shortTicket(
+								node.data.ticket.key ?? node.data.ticket.title,
+								node.data.project,
+								node.data.outside,
+							),
+						] as const,
+					],
+		),
+	);
+	const toScope = (frames: "collapse" | "keep", clearFocus: boolean) => {
+		anchor.current = null;
+		if (frames === "collapse") {
+			collapse.setAll(laid.input.parents, true);
+		}
+		if (clearFocus) {
+			onClearFocus();
+		}
+		setRefit((count) => count + 1);
+	};
 	const edges = model.edges.map((edge) => {
 		const kept =
 			chain === null ||
@@ -657,6 +766,16 @@ export function ProjectGraph({
 					</ReactFlow>
 				</FrameToggleContext>
 				<div className={clsx(float.overlay)}>
+					<ScopeLine
+						project={report.name}
+						openFrames={laid.input.frames.length}
+						focus={[...focus].map((seed) =>
+							seedLabel(report, shownLabels, seed),
+						)}
+						onProject={() => toScope("collapse", true)}
+						onFrames={() => toScope("keep", true)}
+						onFocus={() => toScope("keep", false)}
+					/>
 					<Legend />
 				</div>
 				<div id="project-graph-controls" className={clsx(float.corner)}>
