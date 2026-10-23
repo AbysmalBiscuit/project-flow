@@ -1029,7 +1029,12 @@ export function reconcilePoll(
 			!rows.some((row) => sameProject(listedRef(row), outcome.ref)),
 	);
 	const globalError = failed?.error ?? null;
-	return { rows: claimTickets(rows), projectErrors, globalError };
+	const fresh = new Set(
+		outcomes.flatMap((outcome) =>
+			outcome.ok && outcome.row !== null ? outcome.row.tickets : [],
+		),
+	);
+	return { rows: claimTickets(rows, fresh), projectErrors, globalError };
 }
 
 const appLaneNames: Record<StatusType, string> = {
@@ -1730,31 +1735,43 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 }
 
 /**
- * A ticket shows in one project only. The first row that lists its ref keeps
- * it, and GitHub project rows come before the other rows.
+ * A ticket shows in one project only. A copy in `fresh` beats a stored copy,
+ * so a failed poll cannot hide the state that another project just read.
+ * Then a GitHub project row beats the other rows, and then the first row wins.
  */
-function claimTickets(rows: Snapshot[]): Snapshot[] {
-	const boardFirst = [
-		...rows.filter((row) => listedRef(row).kind === "github-project"),
-		...rows.filter((row) => listedRef(row).kind !== "github-project"),
-	];
-	const claimed = new Set<string>();
-	const kept = new Map(
-		boardFirst.map((row) => [
-			row,
-			row.tickets.filter((ticket) => {
-				if (ticket.ref === undefined) {
-					return true;
-				}
-				if (claimed.has(ticket.ref)) {
-					return false;
-				}
-				claimed.add(ticket.ref);
+function claimTickets(
+	rows: Snapshot[],
+	fresh: ReadonlySet<Ticket> = new Set(),
+): Snapshot[] {
+	const rank = (row: Snapshot, ticket: Ticket) =>
+		(fresh.has(ticket) ? 0 : 2) +
+		(listedRef(row).kind === "github-project" ? 0 : 1);
+	const owners = new Map<
+		string,
+		{ row: Snapshot; ticket: Ticket; rank: number }
+	>();
+	for (const row of rows) {
+		for (const ticket of row.tickets) {
+			if (ticket.ref === undefined) {
+				continue;
+			}
+			const owner = owners.get(ticket.ref);
+			const candidate = rank(row, ticket);
+			if (owner === undefined || candidate < owner.rank) {
+				owners.set(ticket.ref, { row, ticket, rank: candidate });
+			}
+		}
+	}
+	return rows.map((row) => ({
+		...row,
+		tickets: row.tickets.filter((ticket) => {
+			if (ticket.ref === undefined) {
 				return true;
-			}),
-		]),
-	);
-	return rows.map((row) => ({ ...row, tickets: kept.get(row) ?? row.tickets }));
+			}
+			const owner = owners.get(ticket.ref);
+			return owner?.row === row && owner.ticket === ticket;
+		}),
+	}));
 }
 
 const githubNode = /^(\d+)-/;

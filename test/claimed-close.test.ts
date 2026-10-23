@@ -289,6 +289,39 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 		});
 	});
 
+	test("shows in Done when the board read fails and the repo read returns the close", async () => {
+		await withTrackedBoardAndRepo(async (paths) => {
+			const tracker: Tracker = { repo: [open205], board: [open205] };
+			const requests: TrackerRequest[] = [];
+			const app = await startApp(paths, tracker, requests, {
+				now: new Date(beforeClose),
+			});
+			try {
+				expect(copiesOf(await app.overview(), 205)).toEqual([
+					{ project: boardTitle, lane: "Backlog", blockers: [] },
+				]);
+				tracker.repo = [closed205];
+				tracker.board = null;
+				const sent = requests.length;
+				expect(copiesOf(await app.refresh(afterClose), 205)).toEqual([
+					{ project: repoName, lane: "Done", blockers: [] },
+				]);
+				expect(
+					requests
+						.slice(sent)
+						.some((request) => request.query.includes("node(id:")),
+				).toBe(true);
+				expect(repoReadSince(requests)).toEqual([null, beforeClose]);
+				tracker.board = [closed205];
+				expect(
+					copiesOf(await app.refresh("2026-10-21T10:00:00.000Z"), 205),
+				).toEqual([{ project: boardTitle, lane: "Done", blockers: [] }]);
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
 	test("a ticket whose only blocker closed shows no Blocked chip after the next poll", async () => {
 		await withTrackedBoardAndRepo(
 			async (paths) => {
