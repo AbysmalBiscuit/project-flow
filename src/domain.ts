@@ -1029,7 +1029,7 @@ export function reconcilePoll(
 			!rows.some((row) => sameProject(listedRef(row), outcome.ref)),
 	);
 	const globalError = failed?.error ?? null;
-	return { rows, projectErrors, globalError };
+	return { rows: claimTickets(rows), projectErrors, globalError };
 }
 
 const appLaneNames: Record<StatusType, string> = {
@@ -1690,37 +1690,28 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 			}
 		}
 	}
-	const claimed = new Set<string>();
 	const rows = [];
 	for (const project of shown) {
 		const repo = refRepo(listedRef(project));
-		const tickets = project.tickets.flatMap((ticket) => {
-			if (ticket.ref !== undefined && claimed.has(ticket.ref)) {
-				return [];
-			}
+		const tickets = project.tickets.map((ticket) => {
 			const donor =
 				ticket.ref === undefined ? undefined : carried.get(ticket.ref);
 			const outgoing = bodyLines(donor, ticket);
-			const kept =
-				donor === undefined || donor === ticket
-					? ticket
-					: {
-							...ticket,
-							body:
-								ticket.body.trim() === ""
-									? donor.body
-									: `${ticket.body}\n${outgoing}`,
-							blockedBy: mergeBlockedBy([
-								donor.blockedBy,
-								ticket.blockedBy,
-								bodyBlockers(donor, bodyRepo(donor, repo), "blockedBy"),
-								bodyBlockers(ticket, bodyRepo(ticket, repo), "blockedBy"),
-							]),
-						};
-			if (ticket.ref !== undefined) {
-				claimed.add(ticket.ref);
-			}
-			return [kept];
+			return donor === undefined || donor === ticket
+				? ticket
+				: {
+						...ticket,
+						body:
+							ticket.body.trim() === ""
+								? donor.body
+								: `${ticket.body}\n${outgoing}`,
+						blockedBy: mergeBlockedBy([
+							donor.blockedBy,
+							ticket.blockedBy,
+							bodyBlockers(donor, bodyRepo(donor, repo), "blockedBy"),
+							bodyBlockers(ticket, bodyRepo(ticket, repo), "blockedBy"),
+						]),
+					};
 		});
 		rows.push({
 			key: project.key,
@@ -1735,7 +1726,35 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 			...(project.number === undefined ? {} : { number: project.number }),
 		});
 	}
-	return rows;
+	return claimTickets(rows);
+}
+
+/**
+ * A ticket shows in one project only. The first row that lists its ref keeps
+ * it, and GitHub project rows come before the other rows.
+ */
+function claimTickets(rows: Snapshot[]): Snapshot[] {
+	const boardFirst = [
+		...rows.filter((row) => listedRef(row).kind === "github-project"),
+		...rows.filter((row) => listedRef(row).kind !== "github-project"),
+	];
+	const claimed = new Set<string>();
+	const kept = new Map(
+		boardFirst.map((row) => [
+			row,
+			row.tickets.filter((ticket) => {
+				if (ticket.ref === undefined) {
+					return true;
+				}
+				if (claimed.has(ticket.ref)) {
+					return false;
+				}
+				claimed.add(ticket.ref);
+				return true;
+			}),
+		]),
+	);
+	return rows.map((row) => ({ ...row, tickets: kept.get(row) ?? row.tickets }));
 }
 
 const githubNode = /^(\d+)-/;
