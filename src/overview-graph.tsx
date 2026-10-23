@@ -96,7 +96,7 @@ function ProjectNode({ id, data }: CardProps<ProjectCard>) {
 			<CardHandles />
 			<p className={clsx(cards.graphTitle)}>{project.name}</p>
 			{project.needsYou > 0 ? (
-				<span className={clsx(board.chips, cards.graphChips)}>
+				<span className={clsx(board.chips, board.chipsRow, cards.graphChips)}>
 					<span className={clsx(board.chip, board.chipNeeds)}>
 						{project.needsYou === 1
 							? overviewControlLabel.needsYouOne

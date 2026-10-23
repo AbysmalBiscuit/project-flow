@@ -393,6 +393,11 @@ export const board = stylex.create({
 		flexWrap: "wrap",
 		gap: space.xs,
 	},
+	/** A graph card keeps its chips on one row and grows to fit them. */
+	chipsRow: {
+		flexWrap: "nowrap",
+		whiteSpace: "nowrap",
+	},
 	chip: {
 		padding: `${space.twoXs} ${space.sm}`,
 		borderWidth: measure.hairline,
@@ -697,7 +702,8 @@ export const board = stylex.create({
 		display: "flex",
 		flexDirection: "column",
 		gap: space.xs,
-		width: measure.node,
+		width: "min-content",
+		minWidth: measure.node,
 		padding: space.sm,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",

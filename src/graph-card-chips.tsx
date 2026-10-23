@@ -22,7 +22,7 @@ export function GraphCardChips({
 		return null;
 	}
 	return (
-		<span className={clsx(board.chips)}>
+		<span className={clsx(board.chips, board.chipsRow)}>
 			{ticket.needsYou ? (
 				<span className={clsx(board.chip, board.chipNeeds)}>
 					{navLabel.needsYou}
