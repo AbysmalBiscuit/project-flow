@@ -32,7 +32,6 @@ export const lightValues = {
 	banner: "#fff4e5",
 	bannerInk: "#9a3412",
 	done: "#7c5cbf",
-	dropped: "#9ca3af",
 	theme: "#e6f4ff",
 	dashed: "#ffffff",
 	scrollbar: "#a1a1a1",
@@ -41,16 +40,7 @@ export const lightValues = {
 	raised: "#ffffff",
 	inkSoft: "#71717a",
 	laneLine: "#e7e7e4",
-	backlog: "#8a8680",
-	backlogWash: "#f4f3f1",
-	inProgress: "#3b6fd8",
-	inProgressWash: "#eef3fc",
-	inReview: "#e07a2f",
-	inReviewWash: "#fdf3ea",
 	awaitingMerge: "#1f9d6a",
-	awaitingMergeWash: "#e8f6ef",
-	doneWash: "#f2eff9",
-	droppedWash: "#f5f6f7",
 	warn: "#b86e1a",
 	warnWash: "#f8efe4",
 	warnInk: "#8a5a12",
@@ -67,6 +57,7 @@ export const lightValues = {
 	groupLine: "#e2e2df",
 	graphEdge: "#595959",
 	graphEdgeDone: "#1f6f8a",
+	washMix: "9%",
 };
 
 export const darkValues = {
@@ -91,7 +82,6 @@ export const darkValues = {
 	banner: "#3d2a12",
 	bannerInk: "#fdba74",
 	done: "#b794f6",
-	dropped: "#5c636a",
 	theme: "#0d2137",
 	dashed: "#111111",
 	scrollbar: "#4d4d4d",
@@ -100,16 +90,7 @@ export const darkValues = {
 	raised: "#16161a",
 	inkSoft: "#a1a1aa",
 	laneLine: "#26262c",
-	backlog: "#8a8680",
-	backlogWash: "#222222",
-	inProgress: "#5b8def",
-	inProgressWash: "#1a2740",
-	inReview: "#e08a45",
-	inReviewWash: "#2c2118",
 	awaitingMerge: "#3dbe86",
-	awaitingMergeWash: "#162820",
-	doneWash: "#262330",
-	droppedWash: "#1d1e22",
 	warn: "#e0a15a",
 	warnWash: "#2a2218",
 	warnInk: "#e8c49a",
@@ -126,6 +107,7 @@ export const darkValues = {
 	groupLine: "#3a3a42",
 	graphEdge: "#c7c7c7",
 	graphEdgeDone: "#7ec8e3",
+	washMix: "16%",
 };
 
 export const colours = stylex.defineVars({
@@ -156,7 +138,6 @@ export const colours = stylex.defineVars({
 	banner: { default: lightValues.banner, [dark]: darkValues.banner },
 	bannerInk: { default: lightValues.bannerInk, [dark]: darkValues.bannerInk },
 	done: { default: lightValues.done, [dark]: darkValues.done },
-	dropped: { default: lightValues.dropped, [dark]: darkValues.dropped },
 	theme: { default: lightValues.theme, [dark]: darkValues.theme },
 	dashed: { default: lightValues.dashed, [dark]: darkValues.dashed },
 	scrollbar: { default: lightValues.scrollbar, [dark]: darkValues.scrollbar },
@@ -168,36 +149,9 @@ export const colours = stylex.defineVars({
 	raised: { default: lightValues.raised, [dark]: darkValues.raised },
 	inkSoft: { default: lightValues.inkSoft, [dark]: darkValues.inkSoft },
 	laneLine: { default: lightValues.laneLine, [dark]: darkValues.laneLine },
-	backlog: { default: lightValues.backlog, [dark]: darkValues.backlog },
-	backlogWash: {
-		default: lightValues.backlogWash,
-		[dark]: darkValues.backlogWash,
-	},
-	inProgress: {
-		default: lightValues.inProgress,
-		[dark]: darkValues.inProgress,
-	},
-	inProgressWash: {
-		default: lightValues.inProgressWash,
-		[dark]: darkValues.inProgressWash,
-	},
-	inReview: { default: lightValues.inReview, [dark]: darkValues.inReview },
-	inReviewWash: {
-		default: lightValues.inReviewWash,
-		[dark]: darkValues.inReviewWash,
-	},
 	awaitingMerge: {
 		default: lightValues.awaitingMerge,
 		[dark]: darkValues.awaitingMerge,
-	},
-	awaitingMergeWash: {
-		default: lightValues.awaitingMergeWash,
-		[dark]: darkValues.awaitingMergeWash,
-	},
-	doneWash: { default: lightValues.doneWash, [dark]: darkValues.doneWash },
-	droppedWash: {
-		default: lightValues.droppedWash,
-		[dark]: darkValues.droppedWash,
 	},
 	warn: { default: lightValues.warn, [dark]: darkValues.warn },
 	warnWash: { default: lightValues.warnWash, [dark]: darkValues.warnWash },
@@ -233,12 +187,45 @@ export const colours = stylex.defineVars({
 		default: lightValues.graphEdgeDone,
 		[dark]: darkValues.graphEdgeDone,
 	},
+	washMix: { default: lightValues.washMix, [dark]: darkValues.washMix },
+});
+
+/** The default state colours. The app writes them to a fresh configuration. */
+export const stateValues = {
+	backlog: "#8a8680",
+	inProgress: "#3b6fd8",
+	inReview: "#e07a2f",
+	awaitingMerge: "#1f9d6a",
+	done: "#7c5cbf",
+	dropped: "#9ca3af",
+};
+
+/** One colour per state in both themes. The page sets the configured values. */
+export const stateColours = stylex.defineVars({
+	backlog: stateValues.backlog,
+	inProgress: stateValues.inProgress,
+	inReview: stateValues.inReview,
+	awaitingMerge: stateValues.awaitingMerge,
+	done: stateValues.done,
+	dropped: stateValues.dropped,
 });
 
 /** The colours of one ticket state. `state-tone.ts` sets them per state. */
 export const stateTone = stylex.defineVars({
-	tone: colours.backlog,
-	wash: colours.backlogWash,
+	tone: stateColours.backlog,
+	wash: `color-mix(in srgb, ${stateColours.backlog} ${colours.washMix}, ${colours.raised})`,
+});
+
+export const pickerValues = {
+	white: "#ffffff",
+	black: "#000000",
+	hue: "linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)",
+};
+
+export const picker = stylex.defineVars({
+	white: pickerValues.white,
+	black: pickerValues.black,
+	hue: pickerValues.hue,
 });
 
 export const space = stylex.defineVars({

@@ -5,6 +5,7 @@ import { mountPage } from "./page-cache.ts";
 import { installPageLinks } from "./page-links.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { seedPageQueries, wirePageQueryEvents } from "./queries.ts";
+import { watchStateColours } from "./state-colours.ts";
 import { readStoredPage, readStoredPolling } from "./stored-page.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import "./global.css";
@@ -15,6 +16,7 @@ installPageLinks();
 wirePageQueryEvents();
 
 applyPageTheme(pageTheme());
+watchStateColours();
 const storedPage = readStoredPage();
 const storedPolling = readStoredPolling();
 seedPageQueries(window.location.pathname, storedPage, storedPolling);

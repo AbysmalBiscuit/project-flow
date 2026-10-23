@@ -5,6 +5,7 @@ import {
 	measure,
 	radius,
 	space,
+	stateColours,
 	type,
 } from "./tokens.stylex.ts";
 
@@ -109,7 +110,7 @@ export const needs = stylex.create({
 		borderTopColor: colours.laneLine,
 	},
 	selected: {
-		backgroundColor: colours.inProgressWash,
+		backgroundColor: `color-mix(in srgb, ${stateColours.inProgress} ${colours.washMix}, ${colours.raised})`,
 	},
 	answered: {
 		color: colours.inkMuted,

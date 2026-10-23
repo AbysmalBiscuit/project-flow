@@ -13,6 +13,8 @@ export const storedPageId = "project-flow-stored";
 
 export const pollingPageId = "project-flow-polling";
 
+export const stateColoursPageId = "project-flow-state-colours";
+
 export function readStoredPolling(): boolean | undefined {
 	const node = document.getElementById(pollingPageId);
 	if (node === null) {
@@ -21,8 +23,8 @@ export function readStoredPolling(): boolean | undefined {
 	return node.textContent === "true";
 }
 
-export function readStoredPage(): unknown {
-	const node = document.getElementById(storedPageId);
+function readJsonNode(id: string): unknown {
+	const node = document.getElementById(id);
 	if (node === null || node.textContent === null || node.textContent === "") {
 		return undefined;
 	}
@@ -34,4 +36,12 @@ export function storedObject(body: unknown): Record<string, unknown> | null {
 		return null;
 	}
 	return body as Record<string, unknown>;
+}
+
+export function readStoredPage(): unknown {
+	return readJsonNode(storedPageId);
+}
+
+export function readStoredStateColours(): unknown {
+	return readJsonNode(stateColoursPageId);
 }

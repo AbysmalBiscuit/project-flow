@@ -1,35 +1,36 @@
 import * as stylex from "@stylexjs/stylex";
 import type { StatusType } from "./domain.ts";
-import { colours, stateTone } from "./tokens.stylex.ts";
+import { colours, stateColours, stateTone } from "./tokens.stylex.ts";
 
 /**
  * One style per state. Each sets `stateTone.tone` and `stateTone.wash`, and
- * a view reads only those two variables.
+ * a view reads only those two variables. The wash tints the raised surface
+ * with the tone, so one configured colour serves both themes.
  */
 export const stateTones = stylex.create({
 	backlog: {
-		[stateTone.tone]: colours.backlog,
-		[stateTone.wash]: colours.backlogWash,
+		[stateTone.tone]: stateColours.backlog,
+		[stateTone.wash]: `color-mix(in srgb, ${stateColours.backlog} ${colours.washMix}, ${colours.raised})`,
 	},
 	inProgress: {
-		[stateTone.tone]: colours.inProgress,
-		[stateTone.wash]: colours.inProgressWash,
+		[stateTone.tone]: stateColours.inProgress,
+		[stateTone.wash]: `color-mix(in srgb, ${stateColours.inProgress} ${colours.washMix}, ${colours.raised})`,
 	},
 	inReview: {
-		[stateTone.tone]: colours.inReview,
-		[stateTone.wash]: colours.inReviewWash,
+		[stateTone.tone]: stateColours.inReview,
+		[stateTone.wash]: `color-mix(in srgb, ${stateColours.inReview} ${colours.washMix}, ${colours.raised})`,
 	},
 	awaitingMerge: {
-		[stateTone.tone]: colours.awaitingMerge,
-		[stateTone.wash]: colours.awaitingMergeWash,
+		[stateTone.tone]: stateColours.awaitingMerge,
+		[stateTone.wash]: `color-mix(in srgb, ${stateColours.awaitingMerge} ${colours.washMix}, ${colours.raised})`,
 	},
 	done: {
-		[stateTone.tone]: colours.done,
-		[stateTone.wash]: colours.doneWash,
+		[stateTone.tone]: stateColours.done,
+		[stateTone.wash]: `color-mix(in srgb, ${stateColours.done} ${colours.washMix}, ${colours.raised})`,
 	},
 	dropped: {
-		[stateTone.tone]: colours.dropped,
-		[stateTone.wash]: colours.droppedWash,
+		[stateTone.tone]: stateColours.dropped,
+		[stateTone.wash]: `color-mix(in srgb, ${stateColours.dropped} ${colours.washMix}, ${colours.raised})`,
 	},
 }) satisfies Record<StatusType, unknown>;
 

@@ -7,6 +7,7 @@ import {
 	scheme,
 	space,
 	stack,
+	stateColours,
 	stateTone,
 	type,
 } from "./tokens.stylex.ts";
@@ -264,13 +265,13 @@ export const frame = stylex.create({
 		flexShrink: 0,
 	},
 	markProgress: {
-		fill: colours.inProgress,
+		fill: stateColours.inProgress,
 	},
 	markReview: {
-		fill: colours.inReview,
+		fill: stateColours.inReview,
 	},
 	markMerge: {
-		fill: colours.awaitingMerge,
+		fill: stateColours.awaitingMerge,
 	},
 	themeSave: {
 		margin: 0,

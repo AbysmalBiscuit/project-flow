@@ -19,7 +19,6 @@ import {
 } from "./project-ref.ts";
 import { pendingProjects } from "./settings-catalogue.ts";
 import { commentNotificationId, needsYouSeenId } from "./ticket-key.ts";
-import { statusColours } from "./token-palette.ts";
 
 export function seededForProjects(
 	attention: Attention,
@@ -112,7 +111,7 @@ function computeProjectView(
 		needsYouRules(configuration, options.viewers),
 		configuration.laneMappings,
 		viewedAt,
-		statusColours,
+		configuration.stateColours,
 		row.board,
 	);
 	return {

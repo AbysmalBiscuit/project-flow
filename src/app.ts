@@ -1,6 +1,10 @@
 import { z } from "zod";
 import type { Configuration } from "./configuration.ts";
-import { loadConfiguration, saveConfiguration } from "./configuration.ts";
+import {
+	loadConfiguration,
+	loadFilledConfiguration,
+	saveConfiguration,
+} from "./configuration.ts";
 import type {
 	Comment,
 	PostedReply,
@@ -367,7 +371,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const trackerFetch = abortableFetch(options.fetch, requests.signal);
 	let configuration: Configuration;
 	try {
-		configuration = await configurationPort.read();
+		configuration = await loadFilledConfiguration(options.configPath);
 	} catch (error) {
 		opened.close();
 		throw error;
@@ -580,7 +584,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		const bundled = await fetch(new URL("/_page", server.url));
 		const html = paintPage(
 			await bundled.text(),
-			configuration.theme,
+			configuration,
 			storedForPage(new URL(request.url).pathname),
 			pollOptions.polling,
 		);

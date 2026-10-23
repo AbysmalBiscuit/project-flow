@@ -108,7 +108,7 @@ for await (const name of files) {
 		let depth = 0;
 		let inPalette = false;
 		for (const [index, line] of lines.entries()) {
-			if (/^export const (?:light|dark)Values = \{/.test(line)) {
+			if (/^export const (?:light|dark|state|picker)Values = \{/.test(line)) {
 				inPalette = true;
 				depth = 1;
 				continue;
