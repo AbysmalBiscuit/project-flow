@@ -1,14 +1,34 @@
 /**
  * Serves an `api-kysely cleanup followup` Linear project whose sub-tickets sit
  * under parent tickets from other projects, beside the tracked `API platform`
- * project that holds one of those parent tickets.
+ * project that holds one of those parent tickets. The tickets use the
+ * workflow states of a recorded Linear team.
  *
  * Usage: bun proof/serve-355.ts [PORT]
  */
 import type { Fetch } from "../src/fetch.ts";
+import recordedTeam from "../test/fixtures/linear-team-states.json";
 import { linearFake } from "../test/support.ts";
-import { type StateName, stateOf, teamStates } from "./linear-states.ts";
 import { serveRecorded } from "./recorded.ts";
+
+const teamStates = recordedTeam.data.team.states.nodes;
+
+type StateName =
+	| "Backlog"
+	| "Todo"
+	| "In Progress"
+	| "In Review"
+	| "Done"
+	| "Canceled";
+
+function stateOf(name: StateName) {
+	const recorded = teamStates.find((item) => item.name === name);
+	if (recorded === undefined) {
+		throw new Error(`no recorded state ${name}`);
+	}
+	const { position: _, ...state } = recorded;
+	return state;
+}
 
 const followup = {
 	id: "project-kysely",
@@ -34,7 +54,7 @@ function parentOf(
 		identifier: id,
 		title,
 		url: `https://linear.app/acme/issue/${id}`,
-		state: { type: stateOf(state).type },
+		state: { type: stateOf(state).type, name: state },
 		project: project === null ? null : { name: project },
 	};
 }
@@ -65,7 +85,7 @@ function ticket(
 
 // Invented tickets, because a proof run must not read a live tracker. PLT-12
 // sits in the tracked API platform project, DB-7 in the untracked Database
-// guild project, and OPS-4 in no project.
+// guild project, and OPS-4 and OPS-5 in no project.
 const kyselyMove = parentOf(
 	"PLT-12",
 	"Move the API to Kysely",
@@ -75,10 +95,16 @@ const kyselyMove = parentOf(
 const builderRetire = parentOf(
 	"DB-7",
 	"Retire the legacy query builder",
-	"In Progress",
+	"In Review",
 	"Database guild",
 );
 const logCleanup = parentOf("OPS-4", "Clean up the query logs", "Done", null);
+const replicaSwap = parentOf(
+	"OPS-5",
+	"Swap the read replica driver",
+	"Canceled",
+	null,
+);
 
 const followupIssues = [
 	ticket("API-41", "Port the user queries", "In Progress", kyselyMove),
@@ -91,6 +117,7 @@ const followupIssues = [
 	ticket("API-48", "Trim the slow query log", "Todo", logCleanup),
 	ticket("API-49", "Rotate the query log files", "Backlog", logCleanup),
 	ticket("API-50", "Write the Kysely runbook", "Todo", null),
+	ticket("API-51", "Point the replica at Kysely", "Backlog", replicaSwap),
 ];
 
 const platformIssues = [
