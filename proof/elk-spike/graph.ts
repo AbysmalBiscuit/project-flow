@@ -17,6 +17,22 @@ import type { GroupBy } from "../../src/view-settings.ts";
 export const card = { width: 220, height: 96 };
 export const cell = { width: flowGap.along, height: flowGap.across };
 export const framePad = { side: 16, head: 28 };
+
+/** One group frame and the share of its cells that hold a card. */
+export type FillRow = { name: string; cards: number; share: number };
+
+/** Share of the cells in a frame that hold a card, with one cell per card and gap. */
+export function fillShare(
+	cards: number,
+	inner: { width: number; height: number },
+): number {
+	const gapX = cell.width - card.width;
+	const gapY = cell.height - card.height;
+	return (
+		(cards * cell.width * cell.height) /
+		((inner.width + gapX) * (inner.height + gapY))
+	);
+}
 /** Id prefix of a parent ticket card from outside the project. */
 export const outsideParent = "outside-parent\n";
 

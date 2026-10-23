@@ -785,13 +785,7 @@ function OverviewPage({
 	};
 	const panes = {
 		cards: <CardsList projects={projects} />,
-		graph: (
-			<OverviewGraph
-				projects={projects}
-				catalogue={overview.projects}
-				focus={focus}
-			/>
-		),
+		graph: <OverviewGraph projects={projects} focus={focus} />,
 		table: (
 			<TableView
 				projects={projects}

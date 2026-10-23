@@ -2,6 +2,7 @@ import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
 import { type FocusLink, groupLabelOf, type ProjectReport } from "./domain.ts";
 import {
 	type FlowEdge,
+	type FlowGap,
 	type FlowTicket,
 	flowGap,
 	graphBand,
@@ -57,12 +58,15 @@ export type LayoutCard = {
 	collapsed: boolean;
 };
 
-/** The cards, groups, parent ticket frames and blocker arrows that the project graph lays out. */
+/** A blocker arrow between two cards. */
+export type LayoutLink = FlowEdge & { id: string };
+
+/** The cards, groups, parent ticket frames and blocker arrows that the graph lays out. */
 export type LayoutInput = {
 	cards: LayoutCard[];
 	groups: LayoutGroup[];
 	frames: LayoutFrame[];
-	edges: FlowEdge[];
+	edges: LayoutLink[];
 	/** The ticket of the collapsed card that hides each hidden ticket. */
 	hiddenIn: Map<string, string>;
 	/** The key of each parent ticket that heads a frame, open, collapsed or hidden. */
@@ -249,16 +253,16 @@ export function layoutInput(
 			: [],
 	);
 	const shown = new Set(cards.map((card) => card.id));
-	const edges = new Map<string, FlowEdge>();
+	const edges = new Map<string, LayoutLink>();
 	for (const edge of graphEdges(report)) {
 		const from = shownAs(edge.from);
 		const to = shownAs(edge.to);
 		if (from === to || !shown.has(from) || !shown.has(to)) {
 			continue;
 		}
-		const id = `${from}\n->\n${to}`;
+		const id = `${from}->${to}`;
 		const done = (edges.get(id)?.done ?? true) && edge.done === true;
-		edges.set(id, { from, to, done });
+		edges.set(id, { id, from, to, done });
 	}
 	const showing = new Set(cards.map((card) => card.ticket));
 	const ticketOf = new Map(laid.map((item) => [item.id, item.of]));
@@ -306,10 +310,11 @@ export function focusSeeds(
 function placeOptions(
 	direction: GraphDirection,
 	card: NodeSize,
+	gap: FlowGap,
 ): Record<string, string> {
 	const horizontal = direction === "left-to-right";
-	const alongGap = Math.max(flowGap.along - card.width, leastCardGap);
-	const acrossGap = Math.max(flowGap.across - card.height, leastCardGap);
+	const alongGap = Math.max(gap.along - card.width, leastCardGap);
+	const acrossGap = Math.max(gap.across - card.height, leastCardGap);
 	return {
 		"elk.algorithm": "layered",
 		"elk.direction": horizontal ? "RIGHT" : "DOWN",
@@ -444,7 +449,8 @@ export function cardSizes(
  *
  * A second pass packs the group frames after `headGrowth` gives the extra
  * height of each wrapped group label at its frame width. Each card takes its
- * measured size from `sizes`, as `cardSizes` tells.
+ * measured size from `sizes`, as `cardSizes` tells. `gap` is the distance
+ * from one card to the next, along and across the arrows.
  */
 export async function layoutGraph(
 	elk: ELK,
@@ -454,9 +460,10 @@ export async function layoutGraph(
 	headGrowth: (label: string, width: number) => number,
 	titleGrowth: (title: string) => number,
 	sizes: ReadonlyMap<string, NodeSize> = new Map(),
+	gap: FlowGap = flowGap,
 ): Promise<GraphLayout> {
 	const { sizeOf, headOf } = cardSizes(card, sizes, titleGrowth);
-	const options = placeOptions(direction, card);
+	const options = placeOptions(direction, card, gap);
 	const tree = layoutTree(input);
 	const edges = edgesByHolder(input, tree);
 	const held = Map.groupBy(tree.holderOf, ([, holder]) => holder);
