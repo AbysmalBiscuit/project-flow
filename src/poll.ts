@@ -40,6 +40,7 @@ import type {
 import {
 	listedRef,
 	pinRef,
+	projectId,
 	refListed,
 	refRepo,
 	sameProject,
@@ -251,7 +252,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		const resolved = trackedProjects.get(project);
 		return resolved === undefined ? [] : [resolved];
 	});
-	const trackedKeys = new Set(tracked.map((project) => project.key));
+	const trackedIds = new Set(tracked.map((project) => projectId(project.ref)));
 	const started: PollProgress = {
 		done: 0,
 		total: tracked.length,
@@ -269,17 +270,20 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	const outcomes = new Map<string, ProjectPoll>();
 	const awaitingFirstPoll = new Set(
 		tracked.flatMap((project) =>
-			options.store.lastGoodPollAt(project.key) === null ? [project.key] : [],
+			options.store.lastGoodPollAt(project.ref) === null
+				? [projectId(project.ref)]
+				: [],
 		),
 	);
 	const listed = [];
 	const storedRows = options.store.readTickets();
 	const fillAsPolled = storedRows.length === 0;
 	for (const project of tracked) {
+		const id = projectId(project.ref);
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
-			outcomes.set(project.key, {
-				key: project.key,
+			outcomes.set(id, {
+				ref: project.ref,
 				ok: false,
 				error: project.tracker === "github" ? missingToken : missingLinearKey,
 				full: false,
@@ -288,9 +292,11 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			notePollProgress(options, configuration, tracked, outcomes);
 			continue;
 		}
-		const lastGood = options.store.lastGoodPollAt(project.key);
-		const lastFull = options.lastFullPollAt.get(project.key) ?? null;
-		const stored = storedRows.find((row) => row.key === project.key);
+		const lastGood = options.store.lastGoodPollAt(project.ref);
+		const lastFull = options.lastFullPollAt.get(id) ?? null;
+		const stored = storedRows.find((row) =>
+			sameProject(listedRef(row), project.ref),
+		);
 		const emptyStored =
 			stored !== undefined &&
 			stored.tickets.length === 0 &&
@@ -304,7 +310,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				(lastFull === null ||
 					polledAt.getTime() - lastFull >= fullPollPeriodMs));
 		if (full) {
-			options.fullPoll.add(project.key);
+			options.fullPoll.add(id);
 		}
 		const since = full ? null : lastGood;
 		try {
@@ -349,32 +355,31 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 					: { board: listedTickets.board }),
 				...(project.closed === undefined ? {} : { closed: project.closed }),
 			});
-			outcomes.set(project.key, {
-				key: project.key,
+			outcomes.set(id, {
+				ref: project.ref,
 				ok: true,
 				error: null,
 				full,
 				row: null,
 			});
-			options.store.clearProjectError(project.key);
-			const shown = projectSnapshots(listed);
-			const visible = new Set(shown.map((item) => item.key));
-			const sourceEmpty = new Map(
-				listed.map((item) => [item.key, item.tickets.length === 0]),
+			options.store.clearProjectError(project.ref);
+			const shown = new Map(
+				projectSnapshots(listed).map((row) => [projectId(listedRef(row)), row]),
 			);
 			for (const item of listed) {
-				const outcome = outcomes.get(item.key);
+				const itemId = projectId(item.ref);
+				const outcome = outcomes.get(itemId);
 				if (outcome?.ok !== true) {
 					continue;
 				}
-				const row = shown.find((candidate) => candidate.key === item.key);
+				const row = shown.get(itemId);
 				outcome.row =
 					row === undefined
 						? null
-						: { ...row, listedEmpty: sourceEmpty.get(item.key) === true };
+						: { ...row, listedEmpty: item.tickets.length === 0 };
 			}
-			if (fillAsPolled && visible.has(project.key)) {
-				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
+			if (fillAsPolled && shown.has(id)) {
+				publishPoll(options, configuration, trackedIds, outcomes, false, null);
 			}
 			notePollProgress(options, configuration, tracked, outcomes);
 		} catch (error) {
@@ -387,29 +392,29 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				project.name ?? stored?.name ?? project.key,
 				startedKeys,
 			);
-			outcomes.set(project.key, {
-				key: project.key,
+			outcomes.set(id, {
+				ref: project.ref,
 				ok: false,
 				error: message,
 				full,
 				row: stored ?? empty,
 			});
 			if (fillAsPolled) {
-				publishPoll(options, configuration, trackedKeys, outcomes, [], null);
+				publishPoll(options, configuration, trackedIds, outcomes, false, null);
 			}
 			notePollProgress(options, configuration, tracked, outcomes);
 		}
 	}
-	const fullKeys = [...options.fullPoll];
-	for (const key of fullKeys) {
-		if (outcomes.get(key)?.ok === true) {
-			options.fullPoll.delete(key);
-			options.lastFullPollAt.set(key, polledAt.getTime());
+	const fullPolled = options.fullPoll.size > 0;
+	for (const id of [...options.fullPoll]) {
+		if (outcomes.get(id)?.ok === true) {
+			options.fullPoll.delete(id);
+			options.lastFullPollAt.set(id, polledAt.getTime());
 		}
 	}
 	for (const outcome of outcomes.values()) {
 		if (outcome.ok) {
-			options.store.recordGoodPoll(outcome.key, polledAt);
+			options.store.recordGoodPoll(outcome.ref, polledAt);
 		}
 	}
 	options.polling = false;
@@ -426,9 +431,9 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	publishPoll(
 		options,
 		configuration,
-		trackedKeys,
+		trackedIds,
 		outcomes,
-		fullKeys,
+		fullPolled,
 		failed,
 		false,
 	);
@@ -436,7 +441,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	const after = attentionOf(views, configuration.pmBot);
 	const firstGood = new Set(
 		listed.flatMap((project) =>
-			awaitingFirstPoll.has(project.key) ? [project.name] : [],
+			awaitingFirstPoll.has(projectId(project.ref)) ? [project.name] : [],
 		),
 	);
 	const seeded = seededForProjects(after, firstGood);
@@ -511,7 +516,7 @@ function notePollProgress(
 	if (!options.polling || options.stopped || !options.mayPublish()) {
 		return;
 	}
-	const next = tracked.find((project) => !outcomes.has(project.key));
+	const next = tracked.find((project) => !outcomes.has(projectId(project.ref)));
 	if (next === undefined) {
 		return;
 	}
@@ -532,26 +537,25 @@ function notePollProgress(
 function publishPoll(
 	options: PollOptions,
 	configuration: Configuration,
-	trackedKeys: ReadonlySet<string>,
+	trackedIds: ReadonlySet<string>,
 	outcomes: Map<string, ProjectPoll>,
-	fullKeys: string[],
+	fullPolled: boolean,
 	failed: string | null,
 	publish = true,
 ): void {
 	const stored = options.store.readTickets();
-	for (const row of stored) {
-		if (!trackedKeys.has(row.key)) {
-			options.store.forgetGoodPoll(row.key);
+	const kept = stored.filter((row) => {
+		const ref = listedRef(row);
+		if (trackedIds.has(projectId(ref))) {
+			return true;
 		}
-	}
-	const reconciled = reconcilePoll(
-		stored.filter((row) => trackedKeys.has(row.key)),
-		[...outcomes.values()],
-		fullKeys,
-	);
+		options.store.forgetGoodPoll(ref);
+		return false;
+	});
+	const reconciled = reconcilePoll(kept, [...outcomes.values()], fullPolled);
 	options.store.replaceTickets(reconciled.rows);
 	for (const projectError of reconciled.projectErrors) {
-		options.store.recordProjectError(projectError.key, projectError.error);
+		options.store.recordProjectError(projectError.ref, projectError.error);
 	}
 	if (reconciled.globalError !== null) {
 		options.store.recordFetchError(reconciled.globalError);

@@ -12,6 +12,7 @@ import type { Viewer } from "./ports.ts";
 import {
 	listedRef,
 	pinRef,
+	projectId,
 	refPin,
 	refRepo,
 	sameProject,
@@ -86,7 +87,7 @@ function computeProjectView(
 	options: PollOptions,
 	configuration: Configuration,
 ) {
-	const goodPoll = options.store.lastGoodPollAt(row.key);
+	const goodPoll = options.store.lastGoodPollAt(listedRef(row));
 	const viewedAt = goodPoll ?? new Date(0);
 	const counted = projectCounts(
 		row.name,
@@ -106,7 +107,7 @@ function computeProjectView(
 		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 		{
 			fetchedAt: goodPoll?.toISOString() ?? null,
-			error: options.store.projectError(row.key),
+			error: options.store.projectError(listedRef(row)),
 		},
 		needsYouRules(configuration, options.viewers),
 		configuration.laneMappings,
@@ -250,17 +251,18 @@ export function overview(
 				configuration.tracked,
 				counted,
 				new Set(
-					options.catalogue.flatMap((project) =>
-						options.store.lastGoodPollAt(project.key) === null
+					options.catalogue.flatMap((project) => {
+						const ref = listedRef(project);
+						return options.store.lastGoodPollAt(ref) === null
 							? []
-							: [project.key],
-					),
+							: [projectId(ref)];
+					}),
 				),
 			)
 		: [];
 	const projects = [...counted, ...pending];
 	const goodPolls = projects.flatMap((project) => {
-		const at = options.store.lastGoodPollAt(project.name);
+		const at = options.store.lastGoodPollAt(pinRef(project.ref));
 		return at === null ? [] : [at.toISOString()];
 	});
 	return {

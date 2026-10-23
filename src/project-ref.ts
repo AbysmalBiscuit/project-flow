@@ -109,20 +109,14 @@ export function sameRepo(left: string, right: string): boolean {
 	return foldGithub(left) === foldGithub(right);
 }
 
+/** A string that two ProjectRefs share when they name the same project. */
+export function projectId(ref: ProjectRef): string {
+	const key = ref.tracker === "github" ? foldGithub(ref.key) : ref.key;
+	return `${ref.kind}:${key}`;
+}
+
 export function sameProject(left: ProjectRef, right: ProjectRef): boolean {
-	if (left.tracker !== right.tracker || left.kind !== right.kind) {
-		return false;
-	}
-	if (left.kind === "github-project" && right.kind === "github-project") {
-		return (
-			foldGithub(left.owner) === foldGithub(right.owner) &&
-			left.number === right.number
-		);
-	}
-	if (left.kind === "github-repo") {
-		return sameRepo(left.key, right.key);
-	}
-	return left.key === right.key;
+	return projectId(left) === projectId(right);
 }
 
 export function samePin(left: ProjectPin, right: ProjectPin): boolean {

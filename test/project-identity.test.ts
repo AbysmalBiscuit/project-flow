@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview, SettingsProject } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { missingToken } from "../src/github.ts";
 import { run } from "../src/main.ts";
 import {
 	githubPullNode,
@@ -48,6 +49,10 @@ function github(): Fetch {
 async function withApp(
 	configuration: unknown,
 	check: (base: string) => Promise<void>,
+	env: Record<string, string> = {
+		GITHUB_TOKEN: "recorded-token",
+		LINEAR_API_KEY: "recorded-linear-key",
+	},
 ): Promise<void> {
 	const root = await mkdtemp(join("/var/tmp", "project-flow-identity-"));
 	const { path, cleanup } = await tempConfig(JSON.stringify(configuration));
@@ -61,10 +66,7 @@ async function withApp(
 		const result = await run(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
 			testIo({
-				env: {
-					GITHUB_TOKEN: "recorded-token",
-					LINEAR_API_KEY: "recorded-linear-key",
-				},
+				env,
 				fetch: linearFake({
 					project: { id: "twin", name: "Linear twin", slugId: repo },
 					issues: [],
@@ -156,6 +158,36 @@ describe("project identity", () => {
 					repo,
 				]);
 			},
+		);
+	});
+
+	test("a GitHub repo and a GitHub project with the same key stay two projects", async () => {
+		await withApp(
+			{
+				tracked: [
+					{ tracker: "github", repo: "acme/42" },
+					{ tracker: "github", owner: "acme", project: 42 },
+				],
+			},
+			async (base) => {
+				const overview = await settledOverview(
+					base,
+					async (url) =>
+						(await (
+							await fetch(new URL("/api/overview", url))
+						).json()) as Overview,
+				);
+				expect(
+					overview.projects.map(({ ref, error }) => ({ ref, error })),
+				).toEqual([
+					{ ref: { tracker: "github", repo: "acme/42" }, error: missingToken },
+					{
+						ref: { tracker: "github", owner: "acme", project: 42 },
+						error: missingToken,
+					},
+				]);
+			},
+			{ LINEAR_API_KEY: "recorded-linear-key" },
 		);
 	});
 });

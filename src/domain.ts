@@ -16,7 +16,14 @@ import type {
 } from "./configuration.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
-import { listedRef, ownerRepo, refRepo } from "./project-ref.ts";
+import {
+	listedRef,
+	ownerRepo,
+	type ProjectRef,
+	projectId,
+	refRepo,
+	sameProject,
+} from "./project-ref.ts";
 import type { HidingFilter } from "./terms.ts";
 import {
 	blockerClearedId,
@@ -789,7 +796,7 @@ export type Snapshot = {
 };
 
 export type ProjectPoll = {
-	key: string;
+	ref: ProjectRef;
 	ok: boolean;
 	error: string | null;
 	full: boolean;
@@ -924,7 +931,7 @@ export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 
 export type PollReconcile = {
 	rows: Snapshot[];
-	projectErrors: { key: string; error: string }[];
+	projectErrors: { ref: ProjectRef; error: string }[];
 	globalError: string | null;
 };
 
@@ -957,19 +964,20 @@ function keptPulls(
 export function reconcilePoll(
 	previous: Snapshot[],
 	outcomes: ProjectPoll[],
-	fullKeys: string[],
+	fullPolled: boolean,
 ): PollReconcile {
-	const full = new Set(fullKeys);
 	const rows: Snapshot[] = [];
-	const projectErrors: { key: string; error: string }[] = [];
+	const projectErrors: PollReconcile["projectErrors"] = [];
 	const seen = new Set<string>();
+	const priorOf = (ref: ProjectRef) =>
+		previous.find((row) => sameProject(listedRef(row), ref));
 	for (const outcome of outcomes) {
-		seen.add(outcome.key);
+		seen.add(projectId(outcome.ref));
 		if (outcome.ok) {
 			if (outcome.row === null) {
 				continue;
 			}
-			const prior = previous.find((row) => row.key === outcome.key);
+			const prior = priorOf(outcome.ref);
 			const tickets = outcome.full
 				? outcome.row.tickets
 				: mergeTickets(prior?.tickets ?? [], outcome.row.tickets);
@@ -995,9 +1003,9 @@ export function reconcilePoll(
 			continue;
 		}
 		if (outcome.error !== null) {
-			projectErrors.push({ key: outcome.key, error: outcome.error });
+			projectErrors.push({ ref: outcome.ref, error: outcome.error });
 		}
-		const prior = previous.find((row) => row.key === outcome.key);
+		const prior = priorOf(outcome.ref);
 		if (prior !== undefined) {
 			rows.push(prior);
 			continue;
@@ -1008,7 +1016,7 @@ export function reconcilePoll(
 		rows.push(outcome.row);
 	}
 	for (const row of previous) {
-		if (seen.has(row.key) || full.size > 0) {
+		if (seen.has(projectId(listedRef(row))) || fullPolled) {
 			continue;
 		}
 		rows.push(row);
@@ -1017,7 +1025,7 @@ export function reconcilePoll(
 		(outcome) =>
 			!outcome.ok &&
 			outcome.error !== null &&
-			!rows.some((row) => row.key === outcome.key),
+			!rows.some((row) => sameProject(listedRef(row), outcome.ref)),
 	);
 	const globalError = failed?.error ?? null;
 	return { rows, projectErrors, globalError };

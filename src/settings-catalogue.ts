@@ -14,6 +14,7 @@ import { knownBots } from "./known-bots.ts";
 import {
 	listedRef,
 	pinRef,
+	projectId,
 	refListed,
 	refPin,
 	refRepo,
@@ -89,11 +90,11 @@ export function pendingProjects(
 	catalogue: readonly CatalogueProject[],
 	tracked: readonly ProjectPin[],
 	counted: readonly ProjectCounts[],
-	polledKeys: ReadonlySet<string>,
+	polledIds: ReadonlySet<string>,
 ): ProjectCounts[] {
 	return catalogue.flatMap((project) => {
 		const pin = tracked.find((ref) => matchesRef(project, ref));
-		if (pin === undefined || polledKeys.has(project.key)) {
+		if (pin === undefined || polledIds.has(projectId(listedRef(project)))) {
 			return [];
 		}
 		if (counted.some((item) => samePin(item.ref, pin))) {
