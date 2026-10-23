@@ -151,12 +151,14 @@ export function viewOnlyChange(
 		projectViews: previousViews,
 		overview: previousOverview,
 		theme: previousTheme,
+		stateColours: previousColours,
 		...rest
 	} = before;
 	const {
 		projectViews: nextViews,
 		overview: nextOverview,
 		theme: nextTheme,
+		stateColours: nextColours,
 		...kept
 	} = after;
 	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
@@ -165,7 +167,12 @@ export function viewOnlyChange(
 	const overviewChanged =
 		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
 	const themeChanged = previousTheme !== nextTheme;
-	return restSame && (viewsChanged || overviewChanged || themeChanged);
+	const coloursChanged =
+		JSON.stringify(previousColours) !== JSON.stringify(nextColours);
+	return (
+		restSame &&
+		(viewsChanged || overviewChanged || themeChanged || coloursChanged)
+	);
 }
 
 export function readSettingsWrite(text: string): Configuration {

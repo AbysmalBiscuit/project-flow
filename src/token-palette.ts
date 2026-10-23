@@ -2,11 +2,11 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { StatusType } from "./domain.ts";
 
-function lightPalette(source: string): Map<string, string> {
+function statePalette(source: string): Map<string, string> {
 	const values = new Map<string, string>();
 	let open = false;
 	for (const line of source.split("\n")) {
-		if (line.startsWith("export const lightValues = {")) {
+		if (line.startsWith("export const stateValues = {")) {
 			open = true;
 			continue;
 		}
@@ -28,12 +28,12 @@ function lightPalette(source: string): Map<string, string> {
 	return values;
 }
 
-const light = lightPalette(
+const palette = statePalette(
 	readFileSync(resolve(import.meta.dir, "tokens.stylex.ts"), "utf8"),
 );
 
 function statusColour(status: StatusType): string {
-	const value = light.get(status);
+	const value = palette.get(status);
 	if (value === undefined) {
 		throw new Error(`missing status colour ${status}`);
 	}

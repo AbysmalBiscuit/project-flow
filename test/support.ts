@@ -1434,3 +1434,20 @@ export async function trackFound(base: string): Promise<void> {
 		throw new Error(`tracking found projects failed: ${await saved.text()}`);
 	}
 }
+
+/** The default state colours, as a fresh configuration file holds them. */
+export const defaultStateColours = {
+	backlog: "#8a8680",
+	inProgress: "#3b6fd8",
+	inReview: "#e07a2f",
+	awaitingMerge: "#1f9d6a",
+	done: "#7c5cbf",
+	dropped: "#9ca3af",
+};
+
+export async function writtenColours(path: string): Promise<unknown> {
+	const written = JSON.parse(await Bun.file(path).text()) as {
+		stateColours?: unknown;
+	};
+	return written.stateColours;
+}

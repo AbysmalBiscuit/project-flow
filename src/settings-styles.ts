@@ -54,6 +54,12 @@ export const settings = stylex.create({
 		borderRadius: radius.md,
 		backgroundColor: colours.raised,
 	},
+	cardHead: {
+		display: "flex",
+		gap: space.md,
+		alignItems: "flex-start",
+		justifyContent: "space-between",
+	},
 	cardTitle: {
 		margin: `0 0 ${space.md}`,
 		fontSize: type.heading,

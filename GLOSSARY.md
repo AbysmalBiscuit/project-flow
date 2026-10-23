@@ -62,6 +62,10 @@ _Avoid_: Breadcrumb trail
 The place of a ticket in its workflow. The tracker status sets the state. GitHub evidence and workcell evidence move it forward. Issue #97 holds the operating rules.
 _Avoid_: Status (when the state is meant), column
 
+**State colour**:
+The colour that draws one state on the board, the cards, the graphs, the legend and the side panel. The configuration file holds one state colour per state, and both themes use it. The app writes the default state colours on the first start. Settings edits them.
+_Avoid_: Status colour, lane colour
+
 **Lane**:
 The column a ticket sits in on a project board. Tracker statuses set the lanes. A repo without statuses uses its factory labels or the app's lanes.
 _Avoid_: Column, status column

@@ -1,5 +1,9 @@
 import type { Configuration } from "./configuration.ts";
-import { pollingPageId, storedPageId } from "./stored-page.ts";
+import {
+	pollingPageId,
+	stateColoursPageId,
+	storedPageId,
+} from "./stored-page.ts";
 import { pageThemeMeta } from "./stylex-plugin.ts";
 
 export function jsonForHtml(body: unknown): string {
@@ -13,7 +17,7 @@ export function jsonForHtml(body: unknown): string {
 
 export function paintPage(
 	html: string,
-	theme: Configuration["theme"],
+	{ theme, stateColours }: Pick<Configuration, "theme" | "stateColours">,
 	stored?: unknown,
 	polling = false,
 ): string {
@@ -26,7 +30,7 @@ export function paintPage(
 		light: `@layer priority1{:root{${themeMeta.light}}html{color-scheme:light}}${surfaces}`,
 		dark: `@layer priority1{:root{${themeMeta.dark}}html{color-scheme:dark}}${surfaces}`,
 	};
-	const style = `<style id="project-flow-theme">${blocks[theme]}</style><script>window.__projectFlowTheme=${jsonForHtml(blocks)}</script>`;
+	const style = `<style id="project-flow-theme">${blocks[theme]}</style><script>window.__projectFlowTheme=${jsonForHtml(blocks)}</script><script id="${stateColoursPageId}" type="application/json">${jsonForHtml(stateColours)}</script>`;
 	const embedded =
 		stored === undefined
 			? ""

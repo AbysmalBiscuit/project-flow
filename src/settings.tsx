@@ -7,6 +7,7 @@ import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
+import { StateColoursSection } from "./settings-colours.tsx";
 import {
 	FilterGlyph,
 	laneStates,
@@ -30,6 +31,7 @@ import {
 } from "./settings-sections.tsx";
 import { settings as fields, settingsBots } from "./settings-styles.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
+import { defaultStateColours } from "./state-colours.ts";
 import {
 	loadingLabel,
 	navLabel,
@@ -103,6 +105,7 @@ function Menu({
 	projects,
 	polling,
 	onSave,
+	onResetColours,
 }: {
 	loaded: Configuration;
 	trackers: Trackers;
@@ -112,6 +115,7 @@ function Menu({
 		next: Configuration,
 		baseline: Configuration,
 	) => Promise<string | null>;
+	onResetColours: () => Promise<string | null>;
 }) {
 	const [saved, setSaved] = useState(draftOf(loaded));
 	const [draft, setDraft] = useState(draftOf(loaded));
@@ -197,6 +201,13 @@ function Menu({
 						shown={shown}
 						onPatchView={(next) => patchStar(draft, view, patch, next)}
 					/>
+					<StateColoursSection
+						colours={draft.stateColours}
+						onChange={(stateColours) => patch({ stateColours })}
+						onReset={() => {
+							void onResetClick();
+						}}
+					/>
 					<ProjectsTable projects={projects} draft={draft} onChange={patch} />
 					<ReviewSection draft={draft} onChange={patch} />
 					<NotificationsSection
@@ -222,6 +233,19 @@ function Menu({
 			<SettingsToast message={message} failed={failed} />
 		</PageFrame>
 	);
+
+	async function onResetClick(): Promise<void> {
+		const error = await onResetColours();
+		setFailed(error !== null);
+		setMessage(error ?? settingsCopy.savedToast);
+		setToast((shown) => shown + 1);
+		if (error === null) {
+			const reset = { stateColours: defaultStateColours };
+			baseline.current = { ...baseline.current, ...reset };
+			setSaved((current) => ({ ...current, ...reset }));
+			setDraft((current) => ({ ...current, ...reset }));
+		}
+	}
 
 	async function onSaveClick(): Promise<void> {
 		const error = await onSave(draft, saved);
@@ -614,6 +638,17 @@ export function Page() {
 			trackers={loaded.trackers}
 			projects={loaded.projects}
 			polling={polling}
+			onResetColours={async () => {
+				try {
+					await save.mutateAsync((live) => ({
+						...live,
+						stateColours: defaultStateColours,
+					}));
+				} catch (cause) {
+					return cause instanceof Error ? cause.message : "save failed";
+				}
+				return null;
+			}}
 			onSave={async (next, baseline) => {
 				const current = await page.refetch();
 				if (current.isError || current.error !== null) {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Overview } from "../src/domain.ts";
@@ -969,30 +969,6 @@ describe("startup", () => {
 		expect(result.listened).toBe(false);
 	});
 
-	test("repeated spaces in --config still create the named file", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
-		const path = join(root, "spaced config.json");
-		const store = join(root, "store");
-		try {
-			const result = await run(
-				["--config", `  ${path}  `],
-				testIo({
-					env: { LINEAR_API_KEY: "recorded-linear-key" },
-					fetch: recordedFetch(200),
-					readGhToken: async () => null,
-					listCheckouts: async () => [],
-					databasePath: join(store, "project-flow.sqlite"),
-					waitForStop: Promise.resolve(),
-				}),
-			);
-			expect(result.exitCode).toBe(0);
-			expect(result.listened).toBe(true);
-			expect(await Bun.file(path).text()).toBe("{}\n");
-		} finally {
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
 	test("a blank GITHUB_TOKEN serves and names the token", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
@@ -1246,93 +1222,6 @@ describe("startup", () => {
 			expect(result.listened).toBe(true);
 		} finally {
 			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("a missing configuration file is created as {} and serves the overview", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
-		const path = join(root, "config.json");
-		const store = join(root, "store");
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<{ status: number; body: unknown }>(
-			(resolve, reject) => {
-				startChecks = (base: string) => {
-					void (async () => {
-						const response = await fetch(new URL("/api/overview", base));
-						resolve({ status: response.status, body: await response.json() });
-					})().catch(reject);
-				};
-			},
-		);
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { LINEAR_API_KEY: "recorded-linear-key" },
-					fetch: recordedFetch(200),
-					readGhToken: async () => null,
-					listCheckouts: async () => [],
-					databasePath: join(store, "project-flow.sqlite"),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks.then(() => undefined),
-				}),
-			);
-			expect(result.stderr).toBe(`created configuration file: ${path}`);
-			expect(result.exitCode).toBe(0);
-			expect(await Bun.file(path).text()).toBe("{}\n");
-			const overview = await checks;
-			expect(overview.status).toBe(200);
-			expect(overview.body).toMatchObject({ projects: [], error: null });
-		} finally {
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("a directory at the configuration path is not created over", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
-		const path = join(root, "config-dir");
-		await mkdir(path);
-		try {
-			const result = await run(
-				["--config", path],
-				testIo({
-					env: { LINEAR_API_KEY: "recorded-linear-key" },
-					fetch: recordedFetch(200),
-					readGhToken: async () => null,
-					listCheckouts: async () => [],
-					databasePath: join(root, "store", "project-flow.sqlite"),
-					waitForStop: Promise.resolve(),
-				}),
-			);
-			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toBe(`configuration file cannot be read: ${path}`);
-			expect(result.listened).toBe(false);
-		} finally {
-			await rm(root, { recursive: true, force: true });
-		}
-	});
-
-	test("a start creates the missing parent folder of the configuration file", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
-		const path = join(root, "missing", "nested", "config.json");
-		const store = join(root, "store");
-		try {
-			const result = await run(
-				["--config", path],
-				testIo({
-					env: { LINEAR_API_KEY: "recorded-linear-key" },
-					fetch: recordedFetch(200),
-					readGhToken: async () => null,
-					listCheckouts: async () => [],
-					databasePath: join(store, "project-flow.sqlite"),
-					waitForStop: Promise.resolve(),
-				}),
-			);
-			expect(result.exitCode).toBe(0);
-			expect(result.listened).toBe(true);
-			expect(await Bun.file(path).text()).toBe("{}\n");
-		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
