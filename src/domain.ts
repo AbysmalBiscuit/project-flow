@@ -4551,13 +4551,3 @@ export function focusChain(
 	walk((id) => links.filter((link) => link.from === id).map((link) => link.to));
 	return chain;
 }
-
-/** The cross-project blocker links between overview projects, blocker first. */
-export function overviewFocusLinks(projects: ProjectCounts[]): FocusLink[] {
-	return projects.flatMap((project) =>
-		project.crossProjectBlockers.map((blocker) => ({
-			from: blocker.project,
-			to: project.name,
-		})),
-	);
-}

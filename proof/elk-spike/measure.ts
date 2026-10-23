@@ -19,6 +19,8 @@ import {
 	type ElkSettings,
 	elkGraph,
 	everyTicket,
+	type FillRow,
+	fillShare,
 	frameCards,
 	framePad,
 	type Recorded,
@@ -26,12 +28,6 @@ import {
 	type SpikeGraph,
 	spikeGraph,
 } from "./graph.ts";
-import {
-	type FillRow,
-	fillShare,
-	handPage,
-	handWritten,
-} from "./handwritten.ts";
 
 const [dataDir, outDir] = process.argv.slice(2);
 if (
@@ -283,7 +279,7 @@ for (const [index, name] of projects.entries()) {
 	}
 }
 
-// 2. Group fill share on workcell: hand-written against ELK `layered` variants.
+// 2. Group fill share on workcell: ELK `layered` variants.
 const workcell = reports[1];
 if (workcell === undefined) {
 	throw new Error("workcell report missing");
@@ -292,7 +288,6 @@ console.log(
 	"\n## Group fill share on workcell (cards / cells in the group frame)\n",
 );
 for (const groupBy of ["workstream", "theme"] as const) {
-	const hand = handWritten(workcell, groupBy).groups;
 	console.log(`\n### Group by ${groupBy}\n`);
 	console.log("| Layout | Frames | All groups | Worst group | Largest group |");
 	console.log("|---|---|---|---|---|");
@@ -305,19 +300,16 @@ for (const groupBy of ["workstream", "theme"] as const) {
 			`| ${label} | ${frames} | ${percent(totalShare(rows))} | ${worst === undefined ? "" : `${percent(worst.share)} (${worst.cards} cards)`} | ${largest === undefined ? "" : `${percent(largest.share)} (${largest.cards} cards)`} |`,
 		);
 	};
-	describe("hand-written", "groups only", hand);
 	const perGroup = new Map<string, Map<string, number>>();
-	const remember = (
-		column: string,
-		rows: { name: string; share: number }[],
-	) => {
+	const cardsOf = new Map<string, number>();
+	const remember = (column: string, rows: FillRow[]) => {
 		for (const row of rows) {
+			cardsOf.set(row.name, row.cards);
 			const known = perGroup.get(row.name) ?? new Map<string, number>();
 			known.set(column, row.share);
 			perGroup.set(row.name, known);
 		}
 	};
-	remember("hand-written", hand);
 	for (const nested of [false, true]) {
 		const graph = spikeGraph(workcell, parents, groupBy, nested);
 		for (const variant of layeredVariants) {
@@ -354,10 +346,9 @@ for (const groupBy of ["workstream", "theme"] as const) {
 			}
 		}
 	}
-	const columns = ["hand-written", "default", separateCoffmanGraham.name];
+	const columns = ["default", separateCoffmanGraham.name];
 	console.log(`\n| Group | Cards | ${columns.join(" | ")} |`);
 	console.log(`|---|---|${columns.map(() => "---|").join("")}`);
-	const cardsOf = new Map(hand.map((group) => [group.name, group.cards]));
 	for (const [group, shares] of [...perGroup].sort(
 		(left, right) => (cardsOf.get(right[0]) ?? 0) - (cardsOf.get(left[0]) ?? 0),
 	)) {
@@ -370,14 +361,6 @@ for (const groupBy of ["workstream", "theme"] as const) {
 				.join(" | ")} |`,
 		);
 	}
-	await writeFile(
-		join(outDir, `workcell-handwritten-${groupBy}.html`),
-		handPage(
-			`workcell, Group by ${groupBy}, hand-written layout`,
-			workcell,
-			groupBy,
-		),
-	);
 }
 
 // 3. Fan-out of workcell#657 under each `layered` variant.

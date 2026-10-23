@@ -1,63 +1,51 @@
-import {
-	Background,
-	BackgroundVariant,
-	BaseEdge,
-	type EdgeProps,
-	type Edge as FlowEdge,
-	type Node as FlowNode,
-	Handle,
-	type NodeProps,
-	Position,
-	ReactFlow,
-} from "@xyflow/react";
+import { BaseEdge } from "@xyflow/react";
 import {
 	createContext,
 	useCallback,
 	useContext,
-	useEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { board } from "./board-styles.ts";
 import { useCollapse } from "./collapse.ts";
-import { focusChain, type ProjectReport, type TicketState } from "./domain.ts";
-import { focusOrOpen } from "./focus.ts";
-import { GraphCardChips } from "./graph-card-chips.tsx";
 import {
-	fitPadding,
-	float,
-	Legend,
-	LegendProbe,
-	legendFit,
-} from "./graph-float.tsx";
-import { projectNodeId } from "./graph-flow.ts";
-import { type Anchor, FitLayout, useLaidGraph } from "./graph-laid.tsx";
-import { focusLinks, focusSeeds } from "./graph-layout.ts";
-import type {
-	ClusterNodeData,
-	TicketEdgeData,
-	TicketNodeData,
-} from "./graph-model.ts";
-import { graphModel, isClusterNode } from "./graph-model.ts";
+	focusChain,
+	type ProjectReport,
+	parentChip,
+	type TicketState,
+} from "./domain.ts";
+import { GraphCardChips } from "./graph-card-chips.tsx";
+import { Legend } from "./graph-float.tsx";
+import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
+import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
+import {
+	focusLinks,
+	focusSeeds,
+	type LayoutCard,
+	layoutInput,
+} from "./graph-layout.ts";
 import { MeasuredNode, useNodeSpan } from "./graph-node-size.tsx";
-import { GraphTools } from "./graph-pane.tsx";
-import { type GraphRoute, routeEdge } from "./graph-routes.ts";
 import { FrameTools, ScopeLine } from "./graph-scope.tsx";
-import type { NodeSize } from "./graph-sizes.ts";
+import { nodeSize } from "./graph-sizes.ts";
 import { DirectionSwitch, LayoutSwitch } from "./graph-switches.tsx";
+import {
+	CardHandles,
+	type CardProps,
+	drawnLink,
+	GraphView,
+	type LinkProps,
+} from "./graph-view.tsx";
 import { stateTones } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
 	graphLayoutFailedLabel,
 	navLabel,
 	openParentLabel,
-	projectGraphLabel,
 	stateLabel,
 	subTicketsDoneLabel,
 	subTicketsToggleLabel,
 } from "./terms.ts";
-import { pageTheme, watchPageTheme } from "./theme.ts";
 import { outsideKey, shortKey } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 import { cards, panel } from "./ui-styles.ts";
@@ -76,21 +64,37 @@ export type OpenedNode = {
 	state?: TicketState;
 };
 
+type TicketCard = {
+	key: string;
+	/** The node id of the ticket. A parent ticket card copied into another group keeps it. */
+	ticketId: string;
+	ticket: FlowTicket;
+	/** The parent chip label, when the ticket has a parent ticket. */
+	parentLabel?: string;
+	open: boolean;
+	/** A flat grouping shows the parent ticket hierarchy as chips. */
+	hierarchyChips: boolean;
+	/** The card heads the frame of its sub-tickets, which is open or collapsed. */
+	frame: "open" | "collapsed" | null;
+};
+
+type TicketLink = { done: boolean };
+
 function shortTicket(key: string, project: string, outside: boolean): string {
 	return outside ? outsideKey(project, key) : shortKey(key);
 }
 
-function ClusterNode({
-	data,
-}: NodeProps<FlowNode<ClusterNodeData, "cluster">>) {
-	if (data.head !== undefined) {
-		return <div className={clsx(board.cluster)} data-frame={data.head} />;
+/** An outside ticket names its parent ticket in its own project. */
+function parentLabelOf(
+	ticket: FlowTicket,
+	report: ProjectReport,
+): string | undefined {
+	if (ticket.parent === undefined) {
+		return undefined;
 	}
-	return (
-		<div className={clsx(board.cluster)} data-group={data.label}>
-			{data.label}
-		</div>
-	);
+	return ticket.outside
+		? outsideKey(ticket.project, ticket.parent)
+		: parentChip(report.outsideParents, ticket.parent).label;
 }
 
 const FrameToggleContext = createContext<
@@ -139,7 +143,7 @@ function FrameToggle({
 	);
 }
 
-function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
+function TicketNode({ id, data }: CardProps<TicketCard>) {
 	const key = data.ticket.key;
 	const known = data.ticket.state;
 	return (
@@ -164,8 +168,7 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 				aria-pressed={data.open}
 			>
 				<MeasuredNode id={id} kind="ticket" />
-				<Handle type="target" position={Position.Left} id="left" />
-				<Handle type="target" position={Position.Top} id="top" />
+				<CardHandles />
 				<span
 					className={clsx(
 						board.meta,
@@ -199,8 +202,6 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 				</span>
 				<span className={clsx(board.title)}>{data.ticket.title}</span>
 				<GraphCardChips data={data} />
-				<Handle type="source" position={Position.Right} id="right" />
-				<Handle type="source" position={Position.Bottom} id="bottom" />
 			</button>
 			{data.frame === null ? null : (
 				<FrameToggle
@@ -214,39 +215,11 @@ function TicketNode({ id, data }: NodeProps<FlowNode<TicketNodeData>>) {
 	);
 }
 
-function TicketEdge({
-	id,
-	sourceX,
-	sourceY,
-	targetX,
-	targetY,
-	sourcePosition,
-	targetPosition,
-	markerEnd,
-	data,
-}: EdgeProps<FlowEdge<TicketEdgeData>>) {
-	const route: GraphRoute = {
-		sourceX,
-		sourceY,
-		targetX,
-		targetY,
-		sourcePosition,
-		targetPosition,
-	};
-	const drawn =
-		data?.straight ??
-		routeEdge(
-			route,
-			data?.lane ?? 0,
-			data?.lanes ?? 1,
-			data?.nodes ?? [],
-			data?.label ?? { x: 0, y: 0 },
-			data?.entry ?? 0,
-			data?.entries ?? 1,
-			data?.side,
-		).path;
+function TicketEdge(props: LinkProps<TicketLink>) {
+	const { id, markerEnd, data } = props;
+	const drawn = drawnLink(props).path;
 	const done = data?.done === true;
-	const flowing = done && data?.flowing === true;
+	const flowing = done && data?.lit === true;
 	return (
 		<g key={drawn} className={clsx(board.edgeEnters)}>
 			<BaseEdge
@@ -262,95 +235,6 @@ function TicketEdge({
 			/>
 		</g>
 	);
-}
-
-const nodeTypes = { ticket: TicketNode, cluster: ClusterNode };
-const edgeTypes = { ticket: TicketEdge };
-
-function layoutParts(): {
-	root: HTMLElement;
-	legend: HTMLElement;
-	controls: HTMLElement;
-	floats: HTMLElement[];
-} | null {
-	const root = document.getElementById("project-graph");
-	if (!(root instanceof HTMLElement)) {
-		return null;
-	}
-	const legend = root.querySelector(
-		`[aria-label="${projectGraphLabel.legend}"]`,
-	);
-	const controls = document.getElementById("project-graph-controls");
-	const floats = [
-		...(controls?.querySelectorAll(":scope > * > *") ?? []),
-	].filter((node): node is HTMLElement => node instanceof HTMLElement);
-	if (
-		!(legend instanceof HTMLElement) ||
-		!(controls instanceof HTMLElement) ||
-		floats.length === 0
-	) {
-		return null;
-	}
-	return { root, legend, controls, floats };
-}
-
-function boxesMiss(left: DOMRect, right: DOMRect): boolean {
-	return (
-		Math.round(left.right) <= Math.round(right.left) ||
-		Math.round(left.bottom) <= Math.round(right.top) ||
-		Math.round(right.bottom) <= Math.round(left.top)
-	);
-}
-
-function publishLayout(): void {
-	const probe = document.getElementById("project-graph-layout");
-	const parts = layoutParts();
-	const pane = document.getElementById("project-graph-pane");
-	if (probe === null || parts === null || !(pane instanceof HTMLElement)) {
-		return;
-	}
-	const paneBox = pane.getBoundingClientRect();
-	const legendBox = parts.legend.getBoundingClientRect();
-	const rootBox = parts.root.getBoundingClientRect();
-	const apart = parts.floats.every((float) =>
-		boxesMiss(legendBox, float.getBoundingClientRect()),
-	);
-	const border = Number.parseFloat(getComputedStyle(parts.root).borderTopWidth);
-	const edge = Number.isFinite(border) ? border : 0;
-	const flush =
-		Math.round(paneBox.top - edge) === Math.round(rootBox.top) &&
-		Math.round(paneBox.bottom + edge) === Math.round(rootBox.bottom);
-	const controlsBox = parts.controls.getBoundingClientRect();
-	const corner =
-		Math.round(controlsBox.left) === Math.round(paneBox.left) &&
-		Math.round(controlsBox.bottom) === Math.round(paneBox.bottom);
-	const page = document.documentElement;
-	const fits = page.scrollWidth === page.clientWidth;
-	probe.textContent = [
-		flush ? "canvas-flush" : "canvas-offset",
-		apart ? "floats-apart" : "floats-cover",
-		fits ? "page-fits" : "page-scrolls",
-		corner ? "controls-corner" : "controls-moved",
-	].join(" ");
-}
-
-function watchLayout(span: NodeSize | null): () => void {
-	if (span === null) {
-		return () => {};
-	}
-	const parts = layoutParts();
-	if (parts === null) {
-		return () => {};
-	}
-	publishLayout();
-	const observer = new ResizeObserver(publishLayout);
-	observer.observe(parts.root);
-	observer.observe(document.documentElement);
-	observer.observe(parts.legend);
-	for (const float of parts.floats) {
-		observer.observe(float);
-	}
-	return () => observer.disconnect();
 }
 
 function seedLabel(
@@ -408,18 +292,19 @@ export function ProjectGraph({
 	onLayout: (layout: GraphLayoutKind) => void;
 }) {
 	const span = useNodeSpan(board.ticketNode, "ticket", "Ticket");
-	const [theme, setTheme] = useState(pageTheme);
-	useEffect(() => watchPageTheme(setTheme), []);
 	const collapse = useCollapse();
 	const anchor = useRef<Anchor | null>(null);
 	const [refit, setRefit] = useState(0);
+	const input = useMemo(
+		() => layoutInput(report, groupBy, assignees, collapse.collapsed),
+		[report, groupBy, assignees, collapse.collapsed],
+	);
+	const source = useMemo(() => ({ report, groupBy }), [report, groupBy]);
 	const { laid, failed } = useLaidGraph(
-		report,
+		source,
+		input,
 		direction,
 		layout,
-		groupBy,
-		assignees,
-		collapse.collapsed,
 		span,
 		anchor,
 	);
@@ -431,29 +316,22 @@ export function ProjectGraph({
 		},
 		[laid, collapse],
 	);
-	const model = useMemo(() => {
-		if (span === null || laid === null) {
-			return null;
-		}
-		void theme;
-		return graphModel(
-			laid.report,
-			reports,
-			laid.direction,
-			laid.kind,
-			laid.groupBy,
-			openKey,
-			laid.input,
-			laid.layout,
-			laid.sizes,
-			span,
-		);
-	}, [laid, reports, openKey, span, theme]);
-	useEffect(() => watchLayout(span), [span]);
-	if (model === null || laid === null) {
+	const tickets = useMemo(
+		() =>
+			new Map(
+				laid === null
+					? []
+					: graphTickets(laid.of.report, true, reports).map((ticket) => [
+							projectNodeId(ticket.project, ticket.key),
+							ticket,
+						]),
+			),
+		[laid, reports],
+	);
+	if (laid === null) {
 		return (
 			<div id="project-graph" className={clsx(board.ticketGraph)}>
-				{failed && laid === null ? (
+				{failed ? (
 					<p className={clsx(panel.error)} role="alert">
 						{graphLayoutFailedLabel}
 					</p>
@@ -461,39 +339,40 @@ export function ProjectGraph({
 			</div>
 		);
 	}
-	const drawn = `${laid.kind} ${laid.direction}`;
 	const chain =
 		seeds.size === 0
 			? null
 			: focusChain(focusSeeds(laid.input, seeds), focusLinks(laid.input));
-	const ticketOf = new Map(
-		laid.input.cards.map((card) => [card.id, card.ticket]),
-	);
-	const fades = clsx(board.fades);
-	const faded = clsx(board.fades, board.faded);
-	const moves = clsx(board.moves);
-	const movesFaded = clsx(board.moves, board.faded);
-	const nodes = model.nodes.map((node) => {
-		const kept = isClusterNode(node)
-			? node.data.members.some((id) => chain?.has(id) === true)
-			: chain?.has(node.data.ticketId) === true;
-		return { ...node, className: chain === null || kept ? moves : movesFaded };
+	const heads = new Set(laid.input.frames.map((frame) => frame.head));
+	const shownCards = laid.input.cards.flatMap((card) => {
+		const ticket = tickets.get(card.ticket);
+		return ticket === undefined ? [] : [{ card, ticket }];
 	});
+	const keyOf = new Map(
+		shownCards.map(({ card, ticket }) => [card.id, ticket.key]),
+	);
+	const cardData = (card: LayoutCard): TicketCard | null => {
+		const ticket = tickets.get(card.ticket);
+		if (ticket === undefined) {
+			return null;
+		}
+		const parentLabel = parentLabelOf(ticket, laid.of.report);
+		return {
+			key: ticket.key,
+			ticketId: card.ticket,
+			ticket,
+			...(parentLabel === undefined ? {} : { parentLabel }),
+			open: openKey === ticket.key,
+			hierarchyChips:
+				laid.of.groupBy === "assignee" || laid.of.groupBy === "none",
+			frame: card.collapsed ? "collapsed" : heads.has(card.id) ? "open" : null,
+		};
+	};
 	const shownLabels = new Map(
-		model.nodes.flatMap((node) =>
-			isClusterNode(node)
-				? []
-				: [
-						[
-							node.data.ticketId,
-							shortTicket(
-								node.data.ticket.key,
-								node.data.ticket.project,
-								node.data.ticket.outside,
-							),
-						] as const,
-					],
-		),
+		shownCards.map(({ card, ticket }) => [
+			card.ticket,
+			shortTicket(ticket.key, ticket.project, ticket.outside),
+		]),
 	);
 	const toScope = (frames: "collapse" | "keep", clearFocus: boolean) => {
 		anchor.current = null;
@@ -505,55 +384,31 @@ export function ProjectGraph({
 		}
 		setRefit((count) => count + 1);
 	};
-	const edges = model.edges.map((edge) => {
-		const kept =
-			chain === null ||
-			(chain.has(ticketOf.get(edge.source) ?? edge.source) &&
-				chain.has(ticketOf.get(edge.target) ?? edge.target));
-		const className = `${edge.className ?? ""} ${kept ? fades : faded}`.trim();
-		if (chain === null || !kept || edge.data === undefined) {
-			return { ...edge, className };
-		}
-		return { ...edge, className, data: { ...edge.data, flowing: true } };
-	});
-	const places = model.nodes
-		.map((node) => {
-			const x = node.position.x;
-			const y = node.position.y;
-			return `${node.id.replaceAll("\n", " ")} ${x},${y}`;
-		})
-		.join(" | ");
-
-	const frameBoxes = model.nodes.flatMap((node) =>
-		isClusterNode(node) && node.data.head !== undefined
-			? [
+	const frameBoxes = laid.input.frames.flatMap((frame) => {
+		const box = laid.layout.frames.get(frame.id);
+		return box === undefined
+			? []
+			: [
 					{
-						head: node.data.head,
-						left: node.position.x,
-						top: node.position.y,
-						right: node.position.x + (node.width ?? 0),
-						bottom: node.position.y + (node.height ?? 0),
+						head: keyOf.get(frame.head) ?? frame.head,
+						left: box.x,
+						top: box.y,
+						right: box.x + box.width,
+						bottom: box.y + box.height,
 					},
-				]
-			: [],
-	);
-	const framedCards = model.nodes.flatMap((node) => {
-		if (isClusterNode(node)) {
-			return [];
-		}
-		const left = node.position.x;
-		const top = node.position.y;
-		const right = left + (node.width ?? 0);
-		const bottom = top + (node.height ?? 0);
-		const key = node.data.ticket.key;
+				];
+	});
+	const framedCards = shownCards.flatMap(({ card, ticket }) => {
+		const at = laid.layout.cards.get(card.id) ?? { x: 0, y: 0 };
+		const size = nodeSize(card.id, laid.sizes.get(card.id) ?? laid.card);
 		const holders = frameBoxes
 			.filter(
 				(box) =>
-					box.head !== key &&
-					box.left <= left &&
-					box.top <= top &&
-					right <= box.right &&
-					bottom <= box.bottom,
+					box.head !== ticket.key &&
+					box.left <= at.x &&
+					box.top <= at.y &&
+					at.x + size.width <= box.right &&
+					at.y + size.height <= box.bottom,
 			)
 			.sort(
 				(one, other) =>
@@ -561,160 +416,96 @@ export function ProjectGraph({
 					(other.right - other.left) * (other.bottom - other.top),
 			)
 			.map((box) => box.head);
-		return holders.length === 0 ? [] : [[key, ...holders].join(" in ")];
+		return holders.length === 0 ? [] : [[ticket.key, ...holders].join(" in ")];
 	});
-	const outsideLabels = model.nodes.flatMap((node) =>
-		isClusterNode(node) || !node.data.ticket.outside
-			? []
-			: [shortTicket(node.data.ticket.key, node.data.ticket.project, true)],
-	);
 	return (
-		<div
-			id="project-graph"
-			className={clsx(board.ticketGraph)}
-			data-group-by={laid.groupBy}
-		>
-			<p id="project-graph-focus" className={clsx(cards.graphProbe)}>
-				{chain === null
-					? "focus none"
-					: `focus ${[...chain]
-							.sort()
-							.map((id) => id.replace("\n", " "))
-							.join(" | ")}`}
-			</p>
-			<p id="project-graph-places" className={clsx(cards.graphProbe)}>
-				{places}
-			</p>
-			<p id="project-graph-direction" className={clsx(cards.graphProbe)}>
-				{laid.direction}
-			</p>
-			<p id="project-graph-engine" className={clsx(cards.graphProbe)}>
-				{laid.kind}
-			</p>
-			<p id="project-graph-frames" className={clsx(cards.graphProbe)}>
-				{framedCards.sort().join(" | ")}
-			</p>
-			<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
-				{outsideLabels.join(" | ")}
-			</p>
-			<p id="project-graph-layout" className={clsx(cards.graphProbe)} />
-			<p id="project-graph-panel" className={clsx(cards.graphProbe)}>
-				{openKey === null ? "panel closed" : "panel open"}
-			</p>
-			<p id="graph-states" className={clsx(cards.graphProbe)}>
-				{model.nodes
-					.flatMap((node) =>
-						isClusterNode(node)
-							? []
-							: [
-									`${node.data.ticket.key} ${node.data.ticket.state ?? "unknown"}`,
-								],
-					)
-					.join(" | ")}
-			</p>
-			<div
-				id="project-graph-pane"
-				className={clsx(board.graphPane, float.pane)}
-			>
-				<FrameToggleContext value={toggleFrame}>
-					<ReactFlow
-						key={drawn}
-						nodes={nodes}
-						edges={edges}
-						nodeTypes={nodeTypes}
-						edgeTypes={edgeTypes}
-						nodesDraggable={false}
-						nodesConnectable={false}
-						elementsSelectable={false}
-						panOnDrag
-						zoomOnDoubleClick={false}
-						fitView
-						minZoom={0.1}
-						fitViewOptions={{
-							padding: fitPadding,
-							maxZoom: 1,
-						}}
-						proOptions={{ hideAttribution: true }}
-						onNodeMouseEnter={(_event, node) => {
-							if (!isClusterNode(node)) {
-								onPreview(node.data.ticketId);
-							}
-						}}
-						onNodeMouseLeave={onPreviewEnd}
-						onNodeDoubleClick={(_event, node) => {
-							if (!isClusterNode(node)) {
-								onFocus(node.data.ticketId);
-							}
-						}}
-						onNodeClick={(event, node) => {
-							if (isClusterNode(node)) {
-								return;
-							}
-							focusOrOpen(
-								event,
-								() => onFocus(node.data.ticketId),
-								() =>
-									onOpen({
-										key: node.data.ticket.key,
-										project: node.data.ticket.project,
-										tracker: node.data.ticket.tracker,
-										title: node.data.ticket.title,
-										outside: node.data.ticket.outside,
-										...(node.data.ticket.state === undefined
-											? {}
-											: { state: node.data.ticket.state }),
-									}),
-							);
-						}}
-					>
-						<Background variant={BackgroundVariant.Dots} gap={18} />
-						<FitLayout
-							key={drawn}
-							layout={laid.layout}
-							held={laid.held}
-							refit={refit}
+		<FrameToggleContext value={toggleFrame}>
+			<GraphView
+				root="project-graph"
+				probe="project-graph"
+				className={board.ticketGraph}
+				laid={laid}
+				card={cardData}
+				link={(item) => ({ done: item.done === true })}
+				Card={TicketNode}
+				Link={TicketEdge}
+				chain={chain}
+				refit={refit}
+				onOpen={({ ticket }) =>
+					onOpen({
+						key: ticket.key,
+						project: ticket.project,
+						tracker: ticket.tracker,
+						title: ticket.title,
+						outside: ticket.outside,
+						...(ticket.state === undefined ? {} : { state: ticket.state }),
+					})
+				}
+				onFocus={onFocus}
+				onPreview={onPreview}
+				onPreviewEnd={onPreviewEnd}
+				probes={
+					<>
+						<p id="project-graph-frames" className={clsx(cards.graphProbe)}>
+							{framedCards.sort().join(" | ")}
+						</p>
+						<p id="project-graph-outside" className={clsx(cards.graphProbe)}>
+							{shownCards
+								.flatMap(({ ticket }) =>
+									ticket.outside
+										? [shortTicket(ticket.key, ticket.project, true)]
+										: [],
+								)
+								.join(" | ")}
+						</p>
+						<p id="project-graph-panel" className={clsx(cards.graphProbe)}>
+							{openKey === null ? "panel closed" : "panel open"}
+						</p>
+						<p id="graph-states" className={clsx(cards.graphProbe)}>
+							{shownCards
+								.map(
+									({ ticket }) => `${ticket.key} ${ticket.state ?? "unknown"}`,
+								)
+								.join(" | ")}
+						</p>
+					</>
+				}
+				overlay={
+					<>
+						<Legend />
+						<ScopeLine
+							project={report.name}
+							openFrames={laid.input.frames.length}
+							focus={[...focus].map((seed) =>
+								seedLabel(report, shownLabels, seed),
+							)}
+							onProject={() => toScope("collapse", true)}
+							onFrames={() => toScope("keep", true)}
+							onFocus={() => toScope("keep", false)}
 						/>
-						<LegendProbe />
-					</ReactFlow>
-				</FrameToggleContext>
-				<div className={clsx(float.overlay)}>
-					<Legend />
-					<ScopeLine
-						project={report.name}
-						openFrames={laid.input.frames.length}
-						focus={[...focus].map((seed) =>
-							seedLabel(report, shownLabels, seed),
-						)}
-						onProject={() => toScope("collapse", true)}
-						onFrames={() => toScope("keep", true)}
-						onFocus={() => toScope("keep", false)}
-					/>
-				</div>
-				<div id="project-graph-controls" className={clsx(float.corner)}>
-					<div className={clsx(float.group)}>
+					</>
+				}
+				tools={
+					<>
 						<LayoutSwitch layout={layout} onChange={onLayout} />
 						<DirectionSwitch
 							direction={direction}
 							disabled={layout !== "layered"}
 							onChange={onDirection}
 						/>
-						<GraphTools
-							probeId="project-graph-viewport"
-							fitId="project-graph-fit"
-							scope="#project-graph"
-							fitOptions={legendFit}
-						/>
-						<FrameTools
-							parents={laid.input.parents.length}
-							onAll={(shut) => {
-								anchor.current = null;
-								collapse.setAll(laid.input.parents, shut);
-								setRefit((count) => count + 1);
-							}}
-						/>
-					</div>
-				</div>
-			</div>
-		</div>
+					</>
+				}
+				moreTools={
+					<FrameTools
+						parents={laid.input.parents.length}
+						onAll={(shut) => {
+							anchor.current = null;
+							collapse.setAll(laid.input.parents, shut);
+							setRefit((count) => count + 1);
+						}}
+					/>
+				}
+			/>
+		</FrameToggleContext>
 	);
 }

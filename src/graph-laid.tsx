@@ -1,28 +1,27 @@
-import { useReactFlow, type Viewport } from "@xyflow/react";
+import {
+	type FitViewOptions,
+	useReactFlow,
+	type Viewport,
+} from "@xyflow/react";
 import ElkConstructor, { type ELK } from "elkjs/lib/elk-api.js";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
-import type { ProjectReport } from "./domain.ts";
-import { legendFit } from "./graph-float.tsx";
+import { board } from "./board-styles.ts";
+import { type FlowGap, flowGap } from "./graph-flow.ts";
 import { growGroups } from "./graph-force.ts";
 import type { ForceRequest } from "./graph-force-worker.ts";
 import {
-	type Collapsed,
 	elkWorkerPath,
 	forceWorkerPath,
 	type GraphLayout,
 	type LayoutInput,
 	layoutGraph,
-	layoutInput,
 	type Point,
 } from "./graph-layout.ts";
-import { headGrowth, titleGrowth } from "./graph-model.ts";
 import { useNodeSizes } from "./graph-node-size.tsx";
+import { type LaidLink, laneLinks } from "./graph-routes.ts";
 import type { NodeSize } from "./graph-sizes.ts";
-import type {
-	GraphDirection,
-	GraphLayoutKind,
-	GroupBy,
-} from "./view-settings.ts";
+import { classToken } from "./ui.ts";
+import type { GraphDirection, GraphLayoutKind } from "./view-settings.ts";
 
 let pageElk: ELK | null = null;
 
@@ -31,6 +30,47 @@ function elk(): ELK {
 		workerFactory: () => new Worker(elkWorkerPath),
 	});
 	return pageElk;
+}
+
+function labelHeight(label: string, width: number): number {
+	const probe = document.createElement("div");
+	probe.className = classToken(board.cluster);
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	probe.style.width = `${width}px`;
+	probe.style.height = "auto";
+	probe.textContent = label;
+	document.body.append(probe);
+	const height = probe.getBoundingClientRect().height;
+	probe.remove();
+	return height;
+}
+
+function titleHeight(title: string): number {
+	const probe = document.createElement("button");
+	probe.className = classToken(board.ticketNode);
+	// React Flow sizes each node with border-box.
+	probe.style.boxSizing = "border-box";
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	const text = document.createElement("span");
+	text.className = classToken(board.title);
+	text.textContent = title;
+	probe.append(text);
+	document.body.append(probe);
+	const height = probe.getBoundingClientRect().height;
+	probe.remove();
+	return height;
+}
+
+/** The extra height of a ticket card whose title wraps. */
+function titleGrowth(title: string): number {
+	return Math.max(0, titleHeight(title) - titleHeight(" "));
+}
+
+/** The extra height of a group label that wraps at the frame width. */
+function headGrowth(label: string, width: number): number {
+	return Math.max(0, labelHeight(label, width) - labelHeight(" ", width));
 }
 
 /** Runs the Force layout in a Web Worker of its own. */
@@ -57,13 +97,19 @@ async function forceInWorker(
 	return growGroups(input, layout, card, headGrowth, sizes);
 }
 
-export type LaidGraph = {
-	report: ProjectReport;
+/**
+ * One laid graph: the places of its cards and frames, and the lane and label
+ * spot of each arrow. `of` is the page data that the layout came from.
+ */
+export type LaidGraph<Source> = {
+	of: Source;
 	direction: GraphDirection;
 	kind: GraphLayoutKind;
-	groupBy: GroupBy;
 	input: LayoutInput;
 	layout: GraphLayout;
+	links: LaidLink[];
+	/** The size of a card that the page has not measured yet. */
+	card: NodeSize;
 	/** The measured size of each card that the layout used. */
 	sizes: ReadonlyMap<string, NodeSize>;
 	/** How far the layout moved to keep the anchor card in its place. */
@@ -102,7 +148,7 @@ function shifted(layout: GraphLayout, shift: Point): GraphLayout {
  */
 function anchored(
 	layout: GraphLayout,
-	last: LaidGraph | null,
+	last: Pick<LaidGraph<unknown>, "kind" | "direction" | "shift"> | null,
 	anchor: Anchor | null,
 	kind: GraphLayoutKind,
 	direction: GraphDirection,
@@ -124,24 +170,20 @@ function anchored(
  * next one lands. `failed` tells whether the latest layout was rejected.
  * A card is laid out at `span` until the page measures it, and a change to
  * a measured size lays out the graph again. Each layout keeps the `anchor`
- * card at the place that the anchor gives.
+ * card at the place that the anchor gives. `gap` is the distance from one
+ * card to the next in the Layered layout.
  */
-export function useLaidGraph(
-	report: ProjectReport,
+export function useLaidGraph<Source>(
+	of: Source,
+	input: LayoutInput,
 	direction: GraphDirection,
 	kind: GraphLayoutKind,
-	groupBy: GroupBy,
-	assignees: readonly string[],
-	collapsed: Collapsed,
 	span: NodeSize | null,
 	anchor: RefObject<Anchor | null>,
-): { laid: LaidGraph | null; failed: boolean } {
-	const [laid, setLaid] = useState<LaidGraph | null>(null);
+	gap: FlowGap = flowGap,
+): { laid: LaidGraph<Source> | null; failed: boolean } {
+	const [laid, setLaid] = useState<LaidGraph<Source> | null>(null);
 	const [failed, setFailed] = useState(false);
-	const input = useMemo(
-		() => layoutInput(report, groupBy, assignees, collapsed),
-		[report, groupBy, assignees, collapsed],
-	);
 	const sizes = useNodeSizes(
 		useMemo(() => input.cards.map((card) => card.id), [input]),
 	);
@@ -161,19 +203,37 @@ export function useLaidGraph(
 						headGrowth,
 						titleGrowth,
 						sizes,
+						gap,
 					);
 		laying.then(
 			(layout) => {
 				if (current) {
-					setLaid((last) => ({
-						report,
-						direction,
-						kind,
-						groupBy,
-						input,
-						sizes,
-						...anchored(layout, last, anchor.current, kind, direction),
-					}));
+					setLaid((last) => {
+						const placed = anchored(
+							layout,
+							last,
+							anchor.current,
+							kind,
+							direction,
+						);
+						return {
+							of,
+							direction,
+							kind,
+							input,
+							card: span,
+							sizes,
+							links: laneLinks(
+								input,
+								placed.layout,
+								direction,
+								kind,
+								span,
+								sizes,
+							),
+							...placed,
+						};
+					});
 					setFailed(false);
 				}
 			},
@@ -187,7 +247,7 @@ export function useLaidGraph(
 		return () => {
 			current = false;
 		};
-	}, [report, direction, kind, groupBy, input, sizes, span, anchor]);
+	}, [of, direction, kind, input, sizes, span, anchor, gap]);
 	return { laid, failed };
 }
 
@@ -200,10 +260,12 @@ export function FitLayout({
 	layout,
 	held,
 	refit,
+	fit,
 }: {
 	layout: GraphLayout;
 	held: boolean;
 	refit: number;
+	fit: () => FitViewOptions;
 }) {
 	const flow = useReactFlow();
 	const fitted = useRef<Viewport | null>(null);
@@ -221,11 +283,11 @@ export function FitLayout({
 		}
 		const frame = requestAnimationFrame(() => {
 			asked.current = refit;
-			void flow.fitView(legendFit()).then(() => {
+			void flow.fitView(fit()).then(() => {
 				fitted.current = flow.getViewport();
 			});
 		});
 		return () => cancelAnimationFrame(frame);
-	}, [flow, layout, held, refit]);
+	}, [flow, layout, held, refit, fit]);
 	return null;
 }
