@@ -19,9 +19,9 @@ import {
 	markerEnd,
 	measureMarker,
 	type NodeBound,
-	straightPath,
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
+import { straightPath } from "./graph-straight.ts";
 import { classToken } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
 import type {
