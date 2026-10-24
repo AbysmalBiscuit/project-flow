@@ -405,6 +405,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			polling = null;
 			if (!stopped && refreshQueued && !awaitingWrite) {
 				refreshQueued = false;
+				pollOptions.polling = true;
 				await pollAgain().catch(() => {});
 				return;
 			}
