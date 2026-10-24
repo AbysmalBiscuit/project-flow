@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, open, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadFilledConfiguration } from "../src/configuration.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
@@ -444,6 +446,104 @@ test("a refresh joining a poll held on the list gate publishes polling", async (
 		expect(result.exitCode).toBe(0);
 	} finally {
 		releasePoll();
+		await cleanup();
+		await rm(root, { recursive: true, force: true });
+	}
+}, 20_000);
+
+test("a poll stays running while it reads the configuration at its end", async () => {
+	const { path: filledPath, cleanup } = await tempConfig(
+		JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+	);
+	const root = await mkdtemp(join(tmpdir(), "project-flow-fifo-"));
+	const databasePath = join(root, "project-flow.sqlite");
+	const configPath = join(root, "config.json");
+	await loadFilledConfiguration(filledPath);
+	const configText = await readFile(filledPath, "utf8");
+	expect(Bun.spawnSync(["mkfifo", configPath]).exitCode).toBe(0);
+	let listServed = false;
+	let finished = false;
+	let markHeld: () => void = () => {};
+	const held = new Promise<void>((resolve) => {
+		markHeld = resolve;
+	});
+	let releaseRead: () => void = () => {};
+	const readReleased = new Promise<void>((resolve) => {
+		releaseRead = resolve;
+	});
+	// The writer opens the pipe only when a reader opens it, then holds the
+	// data of the first configuration read after the tracker list answers.
+	const writer = (async () => {
+		let holding = true;
+		while (!finished) {
+			const handle = await open(configPath, "w");
+			if (holding && listServed && !finished) {
+				holding = false;
+				markHeld();
+				await readReleased;
+			}
+			await handle.writeFile(configText);
+			await handle.close();
+		}
+	})();
+	const fetchImpl: Fetch = async (input, init) => {
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
+		}
+		if (listUrl(url) !== null) {
+			listServed = true;
+			return page([ticket(1, "2026-04-01T00:00:00Z")]);
+		}
+		return recordedOrEmpty(url) ?? unrecorded(input);
+	};
+	let startChecks: (base: string) => void = () => {};
+	const checks = new Promise<void>((resolve, reject) => {
+		startChecks = (base) => {
+			void (async () => {
+				await held;
+				const reading = await readOverview(base);
+				expect(reading.polling).toBe(true);
+				releaseRead();
+				const settled = await settledOverview(base, readOverview);
+				expect(settled.polling).toBeUndefined();
+				expect(settled.projects[0]?.backlog).toBe(1);
+				resolve();
+			})().catch((error: unknown) => {
+				releaseRead();
+				reject(error instanceof Error ? error : new Error("checks failed"));
+			});
+		};
+	});
+	try {
+		const result = await run(
+			["--config", configPath, "--host", "127.0.0.1", "--port", "0"],
+			testIo(
+				{
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: fetchImpl,
+					readGhToken: async () => null,
+					databasePath,
+					now: () => new Date(goodPoll),
+					stdout: (line) => startChecks(line),
+					waitForStop: checks,
+				},
+				{ first: true },
+			),
+		);
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+	} finally {
+		finished = true;
+		releaseRead();
+		const drain = await open(configPath, "r");
+		await drain.readFile();
+		await drain.close();
+		await writer;
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
 	}
