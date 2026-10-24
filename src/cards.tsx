@@ -815,10 +815,7 @@ function OverviewPage({
 			subtitle={
 				<>
 					{summary}
-					<PollAgeText
-						queryKey={pageQuery.overview.queryKey}
-						refreshing={refreshing}
-					/>
+					<PollAgeText queryKey={pageQuery.overview.queryKey} />
 				</>
 			}
 			filter={undefined}

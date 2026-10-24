@@ -226,10 +226,7 @@ function NeedsList({
 			subtitle={
 				<>
 					{summaryLine(items)}
-					<PollAgeText
-						queryKey={pageQuery.overview.queryKey}
-						refreshing={refreshing}
-					/>
+					<PollAgeText queryKey={pageQuery.overview.queryKey} />
 				</>
 			}
 			actions={

@@ -38,21 +38,15 @@ export function postRefresh(queryKey: readonly unknown[]): void {
 	void fetch("/api/refresh", { method: "POST" });
 }
 
-export function PollAgeText({
-	queryKey,
-	refreshing,
-}: {
-	queryKey: readonly unknown[];
-	refreshing: boolean;
-}) {
+export function PollAgeText({ queryKey }: { queryKey: readonly unknown[] }) {
 	const age = usePollAge(queryFetchedAt(queryKey));
-	if (!refreshing && age === null) {
+	if (age === null) {
 		return null;
 	}
 	return (
 		<>
 			{", "}
-			<PollStatus text={refreshing ? null : age} polling={refreshing} />
+			<PollStatus text={age} polling={false} />
 		</>
 	);
 }
