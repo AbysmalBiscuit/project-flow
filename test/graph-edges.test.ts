@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+
 import { Position } from "@xyflow/react";
+
 import { labelSpots, routeEdge } from "../src/graph-routes.ts";
 
 describe("graph edges", () => {

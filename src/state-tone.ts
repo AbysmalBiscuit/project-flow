@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+
 import type { StatusType } from "./domain.ts";
 import { colours, stateColours, stateTone } from "./tokens.stylex.ts";
 

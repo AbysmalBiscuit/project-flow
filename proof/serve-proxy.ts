@@ -1,4 +1,5 @@
 import { createServer } from "node:net";
+
 import { proofStops, proofTheme } from "./lifetime.ts";
 
 type ProxyOptions = {

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import { forceLayout, growGroups } from "../src/graph-force.ts";
 import {
 	type GraphLayout,

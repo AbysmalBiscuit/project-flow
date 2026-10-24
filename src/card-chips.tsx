@@ -1,10 +1,11 @@
 import { createContext, useContext } from "react";
+
 import { board } from "./board-styles.ts";
 import type { OutsideParent, TicketRelation, TicketView } from "./domain.ts";
 import { parentChip } from "./grouping.ts";
 import { parentChipLabel, subTicketsLabel } from "./terms.ts";
-import { clsx } from "./ui.ts";
 import { shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 export function Chip({
 	label,

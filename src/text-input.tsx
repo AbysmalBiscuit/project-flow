@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { Search } from "lucide-react";
 import type { ComponentPropsWithRef } from "react";
+
 import { control } from "./control-styles.ts";
 import { colours, measure, space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";

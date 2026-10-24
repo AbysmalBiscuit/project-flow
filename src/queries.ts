@@ -4,6 +4,7 @@ import {
 	useMutation,
 	useQueryClient,
 } from "@tanstack/react-query";
+
 import { readSettings, type SettingsRead } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
@@ -212,8 +213,7 @@ export function useSaveSettings({
 				body: JSON.stringify(next),
 			});
 			const body = (await response.json().catch(() => null)) as
-				| (SettingsRead & { error?: string })
-				| null;
+				(SettingsRead & { error?: string }) | null;
 			if (!response.ok) {
 				throw new Error(body?.error ?? `save failed (HTTP ${response.status})`);
 			}

@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { sqliteStore } from "../src/store.ts";
@@ -13,9 +14,9 @@ import {
 	recordedDiscovery,
 	repoReadFromLists,
 	settledOverview,
-	type TrackerRequest,
 	tempConfig,
 	testIo,
+	type TrackerRequest,
 	trackerRequest,
 	unrecorded,
 	urlOf,

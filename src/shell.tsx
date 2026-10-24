@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
+
 import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import { openJumpBox } from "./jump.tsx";
@@ -9,8 +10,8 @@ import { Segment } from "./segment.tsx";
 import { navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 export type PageView = {
 	id: string;

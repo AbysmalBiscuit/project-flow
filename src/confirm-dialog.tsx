@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useRef } from "react";
+
 import { Button } from "./button.tsx";
 import { settingsCopy } from "./terms.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";

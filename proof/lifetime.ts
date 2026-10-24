@@ -1,4 +1,4 @@
-import { type RunIo, run, waitForStop } from "../src/main.ts";
+import { run, type RunIo, waitForStop } from "../src/main.ts";
 
 /** A proof server exits after this long when nobody stops it. */
 export const proofServerLifetimeMs = 30 * 60 * 1000;

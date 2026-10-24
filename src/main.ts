@@ -3,7 +3,9 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+
 import { z } from "zod";
+
 import { version } from "../package.json";
 import { start } from "./app.ts";
 import type { AutoMerge } from "./configuration.ts";

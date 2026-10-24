@@ -9,6 +9,7 @@
  */
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { Fetch } from "../../src/fetch.ts";
 import { readGhAuthToken, run } from "../../src/main.ts";
 

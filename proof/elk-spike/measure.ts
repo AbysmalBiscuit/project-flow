@@ -8,7 +8,9 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import ELK, { type ElkNode } from "elkjs/lib/elk-api.js";
+
 import type { ProjectReport } from "../../src/domain.ts";
 import { projectNodeId } from "../../src/graph-flow.ts";
 import { checkLayout, elkPage, frameCount, type Rect, rects } from "./check.ts";
@@ -16,8 +18,8 @@ import {
 	allCards,
 	card,
 	cell,
-	type ElkSettings,
 	elkGraph,
+	type ElkSettings,
 	everyTicket,
 	type FillRow,
 	fillShare,

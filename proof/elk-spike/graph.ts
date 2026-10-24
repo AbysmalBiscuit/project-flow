@@ -3,10 +3,11 @@
  * one project report, as the elkjs spike lays them out.
  */
 import type { ElkNode } from "elkjs/lib/elk-api.js";
+
 import type { ProjectReport } from "../../src/domain.ts";
 import {
-	type FlowTicket,
 	flowGap,
+	type FlowTicket,
 	graphBand,
 	graphEdges,
 	graphTickets,

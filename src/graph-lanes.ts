@@ -1,4 +1,5 @@
 import { Position } from "@xyflow/react";
+
 import type {
 	GraphLayout,
 	LayoutInput,
@@ -8,8 +9,8 @@ import type {
 import {
 	assignLanes,
 	type GraphRoute,
-	type LaneAssignment,
 	labelSpots,
+	type LaneAssignment,
 	type NodeBound,
 } from "./graph-routes.ts";
 import type { NodeSize } from "./graph-sizes.ts";

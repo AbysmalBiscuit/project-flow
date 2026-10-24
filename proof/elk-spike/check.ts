@@ -1,5 +1,6 @@
 /** Frame check, arrow readability and SVG pages of a laid-out spike graph. */
 import type { ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
+
 import {
 	allCards,
 	cell,

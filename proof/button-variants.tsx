@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+
 import { Button, type IconName } from "../src/button.tsx";
 
 const icons: IconName[] = ["external-link", "expand", "shrink", "x"];

@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import type { FetchedThread, PostedReply, ReplyRequest } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";

@@ -1,15 +1,16 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { refreshSettled } from "./events.ts";
 import projectFields from "./fixtures/github-project-fields.json";
 import {
 	recordedDiscovery,
-	type TrackerRequest,
 	tempConfig,
 	testIo,
+	type TrackerRequest,
 	trackerRequest,
 	unrecorded,
 	urlOf,
