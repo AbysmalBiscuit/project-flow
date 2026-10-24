@@ -49,7 +49,9 @@ function membership(sent: string[]): Fetch {
 					? `${request.url} ${operation} ${JSON.stringify(request.variables)}`
 					: operation === "RepoRead"
 						? `${request.url} ${operation} ${request.variables.owner}/${request.variables.name}`
-						: `${request.url} ${operation}`,
+						: operation === "ProjectByNumber"
+							? `${request.url} ${request.query.replace(/\s+/g, " ").trim()}`
+							: `${request.url} ${operation}`,
 		);
 		const url = request.url;
 		if (url === "https://api.github.com/user") {
@@ -107,6 +109,16 @@ function membership(sent: string[]): Fetch {
 				});
 			}
 			if (operation === "ProjectByNumber") {
+				if (!/\.\.\. on User \{\s*projectV2\(/.test(request.query)) {
+					return json({
+						errors: [
+							{
+								message:
+									"Field 'projectV2' doesn't exist on type 'RepositoryOwner'",
+							},
+						],
+					});
+				}
 				return json({
 					data: {
 						repositoryOwner: {
@@ -595,6 +607,24 @@ describe("tracked projects", () => {
 		expect(
 			settings.projects.filter((project) => project.tracked).map((p) => p.key),
 		).toEqual(["PVT_closed"]);
+	});
+
+	test("a tracked github project by number resolves through User and Organization fragments", async () => {
+		const { settings, sent } = await startWith(
+			JSON.stringify({
+				tracked: [{ tracker: "github", owner: "acme", project: 9 }],
+			}),
+		);
+		expect(
+			sent.filter((request) => request.includes("ProjectByNumber")),
+		).toContain(
+			"https://api.github.com/graphql query ProjectByNumber($owner: String!, $number: Int!) { repositoryOwner(login: $owner) { ... on User { projectV2(number: $number) { id number title closed updatedAt } } ... on Organization { projectV2(number: $number) { id number title closed updatedAt } } } }",
+		);
+		expect(
+			settings.projects
+				.filter((project) => project.tracked)
+				.map((project) => [project.key, project.name]),
+		).toEqual([["PVT_closed", "Closed board"]]);
 	});
 
 	test("a configuration file with pinned and hidden loads and its pinned projects are tracked", async () => {
