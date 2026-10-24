@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import type { Configuration, ProjectPin } from "./configuration.ts";
 import type { KnownBot } from "./known-bots.ts";
 import type { ProjectRef } from "./project-ref.ts";
@@ -21,12 +22,7 @@ export type LiveRun = {
 };
 
 export type StatusType =
-	| "backlog"
-	| "inProgress"
-	| "inReview"
-	| "awaitingMerge"
-	| "done"
-	| "dropped";
+	"backlog" | "inProgress" | "inReview" | "awaitingMerge" | "done" | "dropped";
 
 export type StatusColours = Record<StatusType, string>;
 

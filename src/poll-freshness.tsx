@@ -1,12 +1,13 @@
 import { type ReactNode, useEffect, useState } from "react";
+
 import type { PollProgress } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { usePollAge } from "./poll-age.ts";
 import { pageQueryClient } from "./queries.ts";
 import { PollStatus, RefreshGlyph } from "./shell.tsx";
 import { overviewControlLabel } from "./terms.ts";
-import { clsx } from "./ui.ts";
 import { headerControlStyle, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 function queryFetchedAt(queryKey: readonly unknown[]): number {
 	return pageQueryClient.getQueryState(queryKey)?.dataUpdatedAt ?? 0;

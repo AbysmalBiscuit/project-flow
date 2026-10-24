@@ -2,8 +2,8 @@ import { attentionOf } from "./attention.ts";
 import type { Configuration } from "./configuration.ts";
 import { projectCounts } from "./counts.ts";
 import type { Attention, Overview, Snapshot } from "./domain.ts";
-import type { PollOptions } from "./poll.ts";
 import { staleView } from "./poll-merge.ts";
+import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
 import {
 	listedRef,

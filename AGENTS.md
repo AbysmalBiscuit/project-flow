@@ -6,7 +6,7 @@ Project Flow is a local web app. It shows how projects and tickets progress acro
 
 Run `bun install`, then `prek install`. The hooks run the CI checks before a commit and a push. A devkit worktree runs `bun install` when it is created.
 
-The checks are `bun run typecheck`, `bun run test` and `bun run lint`. `bun run typecheck` runs `bun check`, the Bun type checker. `bun run format` fixes format and import order.
+The checks are `bun run typecheck`, `bun run test` and `bun run lint`. `bun run typecheck` runs `bun check`, the Bun type checker. `bun fmt` is the formatter, and Biome is the linter. `bun run format` runs `bun fmt`, which fixes format and import order. `bun run lint` checks format with `bun fmt --check` and runs the Biome linter.
 
 The pre-push hook runs only the tests that the change affects. The copy of `scripts/affected-tests.ts` on `origin/main` selects them and prints the reason for each choice. A change to shared test setup, the lockfile, the package files or the hook scripts runs the full suite. Set `PROJECT_FLOW_FULL_SUITE=1` to force the full suite. `bun run test`, the `check` task and CI always run the full suite.
 

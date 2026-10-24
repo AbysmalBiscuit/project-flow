@@ -1,9 +1,10 @@
 import { z } from "zod";
+
 import type { Fetch } from "./fetch.ts";
 import {
 	failedResponse,
-	type GraphqlRequest,
 	graphqlData,
+	type GraphqlRequest,
 	responseBody,
 } from "./graphql.ts";
 

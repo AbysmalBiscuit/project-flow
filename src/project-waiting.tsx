@@ -4,8 +4,8 @@ import { pollLine, usePollProgress } from "./poll-freshness.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import { PageFrame } from "./shell.tsx";
 import { loadingLabel, overviewControlLabel } from "./terms.ts";
-import { clsx } from "./ui.ts";
 import { cards, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 function waitingCountLine(project: ProjectCounts): string {
 	const needsYou =

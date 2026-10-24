@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { TrackerError } from "./ports.ts";
 
 const graphqlErrors = z.object({

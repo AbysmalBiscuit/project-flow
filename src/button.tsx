@@ -11,10 +11,11 @@ import {
 	X,
 } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
+
 import { control } from "./control-styles.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 const icons = {
 	bell: Bell,

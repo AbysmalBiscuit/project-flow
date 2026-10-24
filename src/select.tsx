@@ -1,7 +1,8 @@
 import type { ComponentPropsWithoutRef } from "react";
+
 import { control } from "./control-styles.ts";
-import { clsx } from "./ui.ts";
 import { shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 type SelectProps<Value extends string | number> = Omit<
 	ComponentPropsWithoutRef<"select">,

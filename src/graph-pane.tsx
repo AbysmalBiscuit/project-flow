@@ -4,10 +4,11 @@ import {
 	type Viewport,
 } from "@xyflow/react";
 import { useEffect, useState } from "react";
+
 import { Segment } from "./segment.tsx";
 import { overviewControlLabel } from "./terms.ts";
-import { clsx } from "./ui.ts";
 import { cards, headerControlStyle as tools } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 function viewportElement(root: ParentNode): HTMLElement | SVGElement | null {
 	const pane = root.querySelector(".react-flow__viewport");

@@ -1,6 +1,7 @@
 import type { ComponentPropsWithoutRef } from "react";
-import { clsx } from "./ui.ts";
+
 import { headerControlStyle, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 type SegmentProps = Omit<
 	ComponentPropsWithoutRef<"button">,

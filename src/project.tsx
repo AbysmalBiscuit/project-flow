@@ -13,6 +13,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+
 import { board } from "./board-styles.ts";
 import {
 	CardHierarchyChips,
@@ -29,8 +30,8 @@ import type {
 	TicketView,
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { ClearFocusButton } from "./focus-controls.tsx";
+import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { ticketGroups } from "./grouping.ts";
 import { displayedLaneName, doneTicketsForLane } from "./lanes.ts";
@@ -59,8 +60,8 @@ import {
 import { foldKey, itemId, shortKey, ticketRefId } from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 import {
 	defaultGraphDirection,
 	defaultGraphGroupBy,

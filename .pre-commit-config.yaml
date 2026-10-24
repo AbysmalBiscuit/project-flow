@@ -5,9 +5,15 @@ default_install_hook_types: [pre-commit, commit-msg, pre-push]
 repos:
   - repo: local
     hooks:
+      - id: fmt
+        name: bun fmt
+        entry: bun fmt --ignore-unknown --no-error-on-unmatched-pattern
+        language: system
+        types: [text]
+        stages: [pre-commit]
       - id: biome
-        name: biome check
-        entry: bun run --bun biome check --write --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true
+        name: biome lint
+        entry: bun run --bun biome lint --error-on-warnings --no-errors-on-unmatched --files-ignore-unknown=true
         language: system
         types_or: [ts, tsx, javascript, jsx, json, css]
         stages: [pre-commit]

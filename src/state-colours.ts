@@ -1,4 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
+
 import type { StateColours } from "./configuration.ts";
 import { pageQuery, pageQueryClient } from "./queries.ts";
 import { readStoredStateColours, storedObject } from "./stored-page.ts";

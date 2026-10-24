@@ -2,11 +2,11 @@ import type { StyleXStyles } from "@stylexjs/stylex";
 import {
 	Background,
 	BackgroundVariant,
+	type Edge as FlowEdge,
 	type EdgeProps,
 	type EdgeTypes,
-	type Edge as FlowEdge,
-	type Node as FlowNode,
 	Handle,
+	type Node as FlowNode,
 	type NodeProps,
 	type NodeTypes,
 	Position,
@@ -19,6 +19,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+
 import { board } from "./board-styles.ts";
 import { useClickOrDouble } from "./focus.ts";
 import { float } from "./graph-float.tsx";
@@ -28,8 +29,8 @@ import type { LayoutCard } from "./graph-layout.ts";
 import { GraphTools } from "./graph-pane.tsx";
 import {
 	fitPadding,
-	OverlayProbe,
 	overlayFit,
+	OverlayProbe,
 	watchLayout,
 } from "./graph-probes.tsx";
 import {
@@ -42,8 +43,8 @@ import { sizedNode } from "./graph-sizes.ts";
 import { panel } from "./panel-styles.ts";
 import { graphLayoutFailedLabel } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
-import { classToken, clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
+import { classToken, clsx } from "./ui.ts";
 
 /** A group frame, or with `head` the frame of the parent ticket with that key. */
 export type ClusterData = {
@@ -167,7 +168,7 @@ function clusterNodes(
 	]);
 	const holdersOf = (id: string): string[] => {
 		const holders: string[] = [];
-		for (let above = holderOf.get(id); above != null; ) {
+		for (let above = holderOf.get(id); above != null;) {
 			holders.push(above);
 			above = holderOf.get(above);
 		}

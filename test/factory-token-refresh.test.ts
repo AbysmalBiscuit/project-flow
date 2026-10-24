@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview } from "../src/domain.ts";
 import { refreshSettled } from "./events.ts";

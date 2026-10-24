@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview, SettingsProject } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
