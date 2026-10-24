@@ -1339,6 +1339,92 @@ describe("startup", () => {
 		}
 	});
 
+	test("a failed refresh during the first poll leaves the cold start good", async () => {
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({
+				pinned: [
+					{ tracker: "github", repo: "acme/widget" },
+					{ tracker: "github", repo: "acme/platform" },
+				],
+			}),
+		);
+		const root = await mkdtemp(join("/var/tmp", "project-flow-cold-refresh-"));
+		let releasePlatform: () => void = () => {};
+		const platformReleased = new Promise<void>((resolve) => {
+			releasePlatform = resolve;
+		});
+		let platformAsked: () => void = () => {};
+		const platformHeld = new Promise<void>((resolve) => {
+			platformAsked = resolve;
+		});
+		let failing = false;
+		let refreshFailed: () => void = () => {};
+		const refreshRead = new Promise<void>((resolve) => {
+			refreshFailed = resolve;
+		});
+		const fetchImpl: Fetch = async (input, init) => {
+			const url = urlOf(input);
+			const body = typeof init?.body === "string" ? init.body : "";
+			if (url === "https://api.github.com/user") {
+				return recordedFetch(200)(input, init);
+			}
+			if (`${url} ${body}`.includes("acme/platform") && !failing) {
+				platformAsked();
+				await platformReleased;
+			}
+			if (failing && recordedDiscovery(input, init) === null) {
+				if (body.includes('"name":"widget"')) {
+					refreshFailed();
+				}
+				return new Response("recorded failure", { status: 500 });
+			}
+			return recordedFetch(200)(input, init);
+		};
+		let startChecks: (base: string) => void = () => {};
+		const checks = new Promise<void>((resolve, reject) => {
+			startChecks = (base: string) => {
+				(async () => {
+					await platformHeld;
+					const overview = (await (
+						await fetch(new URL("/api/overview", base))
+					).json()) as Overview;
+					expect(overview.projects.map((project) => project.name)).toContain(
+						"acme/widget",
+					);
+					const refresh = await fetch(new URL("/api/refresh", base), {
+						method: "POST",
+					});
+					expect(refresh.status).toBe(204);
+					failing = true;
+					releasePlatform();
+					await refreshRead;
+				})().then(resolve, reject);
+			};
+		});
+		try {
+			const result = await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo(
+					{
+						env: { GITHUB_TOKEN: "recorded-token" },
+						fetch: fetchImpl,
+						readGhToken: async () => null,
+						databasePath: join(root, "project-flow.sqlite"),
+						stdout: (line) => startChecks(line),
+						waitForStop: checks,
+					},
+					{ first: true },
+				),
+			);
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		} finally {
+			releasePlatform();
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	test("a thrown token check logs the error and keeps serving", async () => {
 		const { path, cleanup } = await tempConfig(valid);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-token-throw-"));
