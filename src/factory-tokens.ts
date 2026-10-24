@@ -1,6 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
 import type { Fetch } from "./fetch.ts";
+
+const hostsFile = z.object({
+	"github.com": z.object({
+		oauth_token: z.string().trim().min(1),
+		expires_at: z.string(),
+	}),
+});
 
 const tokenRenewWithinMs = 5 * 60 * 1000;
 
@@ -44,11 +52,17 @@ function hostsToken(
 	text: string,
 	now: Date,
 ): { token: string; expiresAt: number } | null {
-	const token = text.match(/^\s*oauth_token:\s*(\S+)\s*$/m)?.[1];
-	const expires = text.match(/^\s*expires_at:\s*(\S+)\s*$/m)?.[1];
-	if (token === undefined || expires === undefined) {
+	let yaml: unknown;
+	try {
+		yaml = Bun.YAML.parse(text);
+	} catch {
 		return null;
 	}
+	const hosts = hostsFile.safeParse(yaml);
+	if (!hosts.success) {
+		return null;
+	}
+	const { oauth_token: token, expires_at: expires } = hosts.data["github.com"];
 	const expiresAt = Date.parse(expires);
 	if (Number.isNaN(expiresAt) || expiresAt <= now.getTime()) {
 		return null;
