@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import type { Configuration } from "./configuration.ts";
 import {
 	parseConfiguration,

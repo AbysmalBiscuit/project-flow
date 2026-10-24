@@ -10,6 +10,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+
 import { Button, type IconName } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import type { Configuration } from "./configuration.ts";
@@ -19,17 +20,17 @@ import type {
 	PollProgress,
 	ProjectCounts,
 } from "./domain.ts";
-import { useFocusView } from "./focus.ts";
 import { OverviewSearch } from "./focus-controls.tsx";
+import { useFocusView } from "./focus.ts";
 import {
 	askNotificationPermission,
 	notificationPermission,
 } from "./notify.tsx";
 import { OverviewGraph } from "./overview-graph.tsx";
 import {
-	type OverviewView,
 	overviewFilters,
 	overviewSorts,
+	type OverviewView,
 	overviewViews,
 } from "./overview-view.ts";
 import { openProject, projectPath } from "./paths.ts";
@@ -65,8 +66,8 @@ import {
 } from "./terms.ts";
 import { itemId, outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { cards, frame, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 function blockerTicket(blocker: CrossProjectBlocker): string {
 	return outsideKey(blocker.project, blocker.key);

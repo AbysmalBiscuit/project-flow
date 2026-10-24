@@ -6,7 +6,8 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { type Hsv, hexOf, hexToHsv, hsvToHex } from "./colour-space.ts";
+
+import { hexOf, hexToHsv, type Hsv, hsvToHex } from "./colour-space.ts";
 import { control } from "./control-styles.ts";
 import { settingsCopy } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
@@ -20,8 +21,8 @@ import {
 	stack,
 	type,
 } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
 	anchor: {

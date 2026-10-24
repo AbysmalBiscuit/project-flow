@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { z } from "zod";
+
 import { foldKey } from "./ticket-key.ts";
 
 const storageKey = "project-flow.collapsed";

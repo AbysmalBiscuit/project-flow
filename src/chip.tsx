@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { X } from "lucide-react";
+
 import {
 	colours,
 	font,
@@ -8,8 +9,8 @@ import {
 	space,
 	type,
 } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
 	chip: {

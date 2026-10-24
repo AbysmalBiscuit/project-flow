@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+
 import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "4317";

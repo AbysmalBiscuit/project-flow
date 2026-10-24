@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { inboxEntries } from "./attention.ts";
 import type { Configuration } from "./configuration.ts";
 import {
@@ -20,7 +21,7 @@ import { linearTracker, missingLinearKey } from "./linear.ts";
 import { attachGraphStates } from "./links.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
-import { type PollOptions, poll, runningOverview } from "./poll.ts";
+import { poll, type PollOptions, runningOverview } from "./poll.ts";
 import type { Change, CheckoutSource, Notifier, TodoSource } from "./ports.ts";
 import { listedRef } from "./project-ref.ts";
 import {
@@ -44,7 +45,7 @@ import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
-import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
+import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 
 const elkWorkerFile = Bun.resolveSync(
 	"elkjs/lib/elk-worker.min.js",

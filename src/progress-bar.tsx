@@ -1,8 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
+
 import type { ProjectCounts } from "./domain.ts";
 import { stateTones } from "./state-tone.ts";
-import { clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 export function ticketTotal(project: ProjectCounts): number {
 	return (

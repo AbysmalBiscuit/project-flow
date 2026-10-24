@@ -1,12 +1,13 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type { ProjectReport } from "./domain.ts";
 import { TextInput } from "./text-input.tsx";
-import { clsx } from "./ui.ts";
 import { frame } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 import { laneAgeCap, visibleLaneNames } from "./view-settings.ts";
 
 function filterCount(

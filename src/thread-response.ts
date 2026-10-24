@@ -2,7 +2,7 @@ import { commentTree } from "./comment-tree.ts";
 import type { FetchedThread } from "./domain.ts";
 import { ThreadReadTimeout, withThreadLimit } from "./fetch.ts";
 import { isMissing } from "./ports.ts";
-import { type Trackers, trackerError, trackerFor } from "./tracker-route.ts";
+import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 
 export async function threadResponse(
 	trackers: Trackers,

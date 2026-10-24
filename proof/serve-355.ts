@@ -14,12 +14,7 @@ import { serveRecorded } from "./recorded.ts";
 const teamStates = recordedTeam.data.team.states.nodes;
 
 type StateName =
-	| "Backlog"
-	| "Todo"
-	| "In Progress"
-	| "In Review"
-	| "Done"
-	| "Canceled";
+	"Backlog" | "Todo" | "In Progress" | "In Review" | "Done" | "Canceled";
 
 function stateOf(name: StateName) {
 	const recorded = teamStates.find((item) => item.name === name);

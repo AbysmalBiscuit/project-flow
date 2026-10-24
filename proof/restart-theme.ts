@@ -1,6 +1,7 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+
 import { proofStops } from "./lifetime.ts";
 
 const port = process.env.PORT ?? "4174";

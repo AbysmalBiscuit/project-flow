@@ -57,26 +57,24 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 
 ```json
 {
-  "theme": "light",
-  "tracked": [
-    { "tracker": "github", "repo": "owner/name" }
-  ],
-  "pollIntervalSeconds": 300,
-  "checkoutRoots": ["/home/you/Git"],
-  "expectedBots": {
-    "owner/name": ["grok", "codex"]
-  },
-  "pmBot": { "owner/name": true },
-  "laneMappings": {
-    "WID": { "awaitingMerge": "Approved" }
-  },
-  "needsYouLabels": ["needs-human", "needs-engineer"],
-  "viewerLogins": [],
-  "notificationTriggers": {
-    "needsYou": true,
-    "comment": true,
-    "blockerCleared": true
-  }
+	"theme": "light",
+	"tracked": [{ "tracker": "github", "repo": "owner/name" }],
+	"pollIntervalSeconds": 300,
+	"checkoutRoots": ["/home/you/Git"],
+	"expectedBots": {
+		"owner/name": ["grok", "codex"]
+	},
+	"pmBot": { "owner/name": true },
+	"laneMappings": {
+		"WID": { "awaitingMerge": "Approved" }
+	},
+	"needsYouLabels": ["needs-human", "needs-engineer"],
+	"viewerLogins": [],
+	"notificationTriggers": {
+		"needsYou": true,
+		"comment": true,
+		"blockerCleared": true
+	}
 }
 ```
 
@@ -109,11 +107,11 @@ async function resolveToken(
 `readGhAuthToken` runs `gh auth token`:
 
 ```ts
-		proc = Bun.spawn([gh, "auth", "token"], {
-			stdout: "pipe",
-			stderr: "pipe",
-			env,
-		});
+proc = Bun.spawn([gh, "auth", "token"], {
+	stdout: "pipe",
+	stderr: "pipe",
+	env,
+});
 ```
 
 The app reads `LINEAR_API_KEY` from the environment. A blank value does not count. With the key set, the app finds Linear projects. With no key, each Linear project shows an error that names `LINEAR_API_KEY`. The projects of the other tracker poll. A rejected token or key exits and names that credential.
@@ -127,8 +125,8 @@ The store is a cache. Stop the app, then delete `project-flow.sqlite` with `proj
 `src/main.ts` builds that path:
 
 ```ts
-	const root = env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
-	return join(root, "project-flow", "project-flow.sqlite");
+const root = env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
+return join(root, "project-flow", "project-flow.sqlite");
 ```
 
 ## Develop

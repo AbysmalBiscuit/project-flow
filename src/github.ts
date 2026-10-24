@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import { heldBlockerIds, refreshedBlockers } from "./blockers.ts";
 import type {
 	Board,
@@ -29,7 +30,7 @@ import {
 } from "./github-graphql.ts";
 import { githubHeaders, nextPage, pages } from "./github-pages.ts";
 import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
-import { type GraphqlQuery, graphqlData } from "./graphql.ts";
+import { graphqlData, type GraphqlQuery } from "./graphql.ts";
 import { closedStatusType, factoryBoard, statusTypeOfName } from "./lanes.ts";
 import {
 	type FoundProject,

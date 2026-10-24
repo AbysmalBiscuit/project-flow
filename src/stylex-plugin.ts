@@ -1,5 +1,6 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
+
 import type { PluginItem } from "@babel/core";
 import babel from "@babel/core";
 import parser from "@babel/parser";
@@ -35,8 +36,7 @@ async function compile(code: string, filename: string): Promise<string> {
 		],
 	});
 	const metadata = result?.metadata as
-		| { stylex?: ReadonlyArray<readonly unknown[]> }
-		| undefined;
+		{ stylex?: ReadonlyArray<readonly unknown[]> } | undefined;
 	if (metadata?.stylex !== undefined && metadata.stylex.length > 0) {
 		rules.set(filename, metadata.stylex);
 	} else {

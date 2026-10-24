@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+
 import { Button } from "./button.tsx";
 import { Chip } from "./chip.tsx";
 import type { Configuration, ProjectPin } from "./configuration.ts";
@@ -13,18 +14,18 @@ import { Select } from "./select.tsx";
 import { StateColoursSection } from "./settings-colours.tsx";
 import {
 	laneStates,
-	Switch,
 	sections,
 	type stateFilters,
-	type Trackers,
+	Switch,
 	type trackerFilters,
+	type Trackers,
 } from "./settings-parts.tsx";
 import {
 	ContentsNav,
 	GeneralSection,
 	NotificationsSection,
-	ProjectViewsSection,
 	patchStar,
+	ProjectViewsSection,
 	ReviewSection,
 	SettingsBar,
 	TrackersSection,

@@ -1,10 +1,11 @@
 import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
+
 import type { FocusLink, ProjectReport } from "./domain.ts";
 import {
 	type FlowEdge,
 	type FlowGap,
-	type FlowTicket,
 	flowGap,
+	type FlowTicket,
 	graphBand,
 	graphEdges,
 	graphTickets,
@@ -121,7 +122,7 @@ function parentLinks(
 	const links = new Map<string, string>();
 	const copies = new Map<string, Placed & { of: string }>();
 	const encloses = (outer: string, inner: string): boolean => {
-		for (let at: string | undefined = outer; at !== undefined; ) {
+		for (let at: string | undefined = outer; at !== undefined;) {
 			if (at === inner) {
 				return true;
 			}
@@ -220,7 +221,7 @@ export function layoutInput(
 	);
 	const shownAs = (id: string): string => {
 		let shown = id;
-		for (let above = links.get(id); above !== undefined; ) {
+		for (let above = links.get(id); above !== undefined;) {
 			if (shut.has(above)) {
 				shown = above;
 			}
@@ -382,7 +383,7 @@ function edgesByHolder(
 ): Map<string, ElkExtendedEdge[]> {
 	const pathOf = (node: string): string[] => {
 		const path = [node];
-		for (let above = holderOf.get(node); above !== undefined; ) {
+		for (let above = holderOf.get(node); above !== undefined;) {
 			path.push(above);
 			above = holderOf.get(above);
 		}

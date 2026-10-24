@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import type { NeedsYouItem, Thread } from "../src/domain.ts";
 import { eventsOf, quietReader } from "./events.ts";
 import {

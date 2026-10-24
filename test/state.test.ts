@@ -8,6 +8,7 @@ import {
 	writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import factoryLabels from "./fixtures/github-factory-labels.json";

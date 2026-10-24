@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { NeedsYouItem, Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
@@ -680,8 +681,7 @@ describe("batched GitHub reads", () => {
 				const body = renamed(owner, name);
 				const pull = body.data.repository.openPullRequests.nodes[0];
 				const reviews = pull?.reviews as
-					| Connection<Record<string, unknown>>
-					| undefined;
+					Connection<Record<string, unknown>> | undefined;
 				if (reviews === undefined) {
 					return body;
 				}

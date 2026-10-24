@@ -1,6 +1,7 @@
 import { expect } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedIssues from "./fixtures/github-issues.json";

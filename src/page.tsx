@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+
 import { mountJumpBox } from "./jump.tsx";
 import { watchNotifications } from "./notify.tsx";
 import { mountPage } from "./page-cache.ts";

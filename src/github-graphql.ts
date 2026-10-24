@@ -1,11 +1,12 @@
 import { z } from "zod";
+
 import type { Fetch } from "./fetch.ts";
 import { fetchWithSignal, githubHeaders } from "./github-pages.ts";
 import {
 	failedResponse,
+	graphqlData,
 	type GraphqlQuery,
 	type GraphqlRequest,
-	graphqlData,
 	responseBody,
 } from "./graphql.ts";
 

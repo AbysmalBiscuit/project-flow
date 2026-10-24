@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
 import type { StatusType } from "./domain.ts";
 
 function statePalette(source: string): Map<string, string> {
