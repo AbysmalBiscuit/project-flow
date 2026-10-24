@@ -461,7 +461,8 @@ export async function findGithubProjects(
 
 const projectByNumberQuery = `query ProjectByNumber($owner: String!, $number: Int!) {
 	repositoryOwner(login: $owner) {
-		projectV2(number: $number) { id number title closed updatedAt }
+		... on User { projectV2(number: $number) { id number title closed updatedAt } }
+		... on Organization { projectV2(number: $number) { id number title closed updatedAt } }
 	}
 }`;
 
