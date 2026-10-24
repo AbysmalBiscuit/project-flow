@@ -4,7 +4,7 @@ Project Flow is a local web app. It shows how projects and tickets progress acro
 
 ## Setup
 
-Run `bun install`, then `prek install`. The hooks run the CI checks before a commit and a push. A devkit worktree runs `bun install` when it is created.
+Run `bun install`, then `prek install`. The hooks run the CI checks before a commit and a push. A devkit worktree runs `bun install` when it is created. `bunfig.toml` sets `minimumReleaseAge`, so `bun install` and `bun add` do not resolve a package version younger than three days.
 
 The checks are `bun run typecheck`, `bun run test` and `bun run lint`. `bun run typecheck` runs `bun check`, the Bun type checker. `bun fmt` is the formatter, and Biome is the linter. `bun run format` runs `bun fmt`, which fixes format and import order. `bun run lint` checks format with `bun fmt --check` and runs the Biome linter.
 
