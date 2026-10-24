@@ -1,6 +1,9 @@
 [serve.static]
 plugins = ["./src/stylex-plugin.ts"]
 
+[install]
+minimumReleaseAge = "3d"
+
 [test]
 preload = ["./test/preload.ts"]
 
