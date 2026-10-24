@@ -14,6 +14,7 @@ import {
 	serve,
 	userBearer,
 } from "./factory-token-support.ts";
+import { settledOverview } from "./support.ts";
 
 const otherToken = "ghs_other_installation";
 
@@ -33,6 +34,28 @@ describe("factory GitHub tokens", () => {
 		);
 		const recorded: Recorded[] = [];
 		const clock = { at: new Date("2026-08-18T12:00:00.000Z") };
+		const recording = recordingFetch(
+			recorded,
+			{
+				"acme/widget": [recordedIssue("acme/widget")],
+				"other/tool": [recordedIssue("other/tool")],
+			},
+			(login) =>
+				login === "acme"
+					? {
+							data: {
+								organization: {
+									projectsV2: {
+										nodes: [],
+										pageInfo: { hasNextPage: false, endCursor: null },
+									},
+								},
+							},
+						}
+					: { data: {} },
+		);
+		let pollHeld: Promise<void> | null = null;
+		let releasePoll = () => {};
 		const app = await serve({
 			config: {
 				factoryGithubTokens: true,
@@ -42,26 +65,10 @@ describe("factory GitHub tokens", () => {
 					{ tracker: "github", repo: "other/tool" },
 				],
 			},
-			fetchImpl: recordingFetch(
-				recorded,
-				{
-					"acme/widget": [recordedIssue("acme/widget")],
-					"other/tool": [recordedIssue("other/tool")],
-				},
-				(login) =>
-					login === "acme"
-						? {
-								data: {
-									organization: {
-										projectsV2: {
-											nodes: [],
-											pageInfo: { hasNextPage: false, endCursor: null },
-										},
-									},
-								},
-							}
-						: { data: {} },
-			),
+			fetchImpl: async (input, init) => {
+				await pollHeld;
+				return recording(input, init);
+			},
 			now: () => clock.at,
 			home,
 		});
@@ -129,11 +136,22 @@ describe("factory GitHub tokens", () => {
 			).toBe(true);
 
 			recorded.length = 0;
+			pollHeld = new Promise((resolve) => {
+				releasePoll = resolve;
+			});
 			const refreshed = await fetch(new URL("/api/refresh", app.base), {
 				method: "POST",
 			});
 			expect(refreshed.status).toBe(204);
-			await fetch(new URL("/api/overview", app.base));
+			// The refresh poll's tracker requests stay held until the first
+			// overview answers, so the check must wait for the settled one.
+			await settledOverview(app.base, async (base) => {
+				const body = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				releasePoll();
+				return body;
+			});
 			const poll = forOwner(githubCalls(recorded), "acme").filter(
 				(item) => item.method !== "POST" || item.url.includes("/graphql"),
 			);
