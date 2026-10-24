@@ -28,6 +28,9 @@ export type Recorded = {
 export function hostsText(token: string, expiresAt: string): string {
 	return [
 		"github.com:",
+		"    users:",
+		"        x-access-token:",
+		`            oauth_token: ${token}`,
 		`    oauth_token: ${token}`,
 		"    git_protocol: https",
 		"    user: x-access-token",
