@@ -138,13 +138,27 @@ export function sqliteStore(path: string): {
 			headers text not null
 		)
 	`);
+	const viewTables = new Set([
+		"snapshots",
+		"project_polls",
+		"project_errors",
+		"fetch_status",
+	]);
 	let revision = 0;
+	const countViewChange = (_db: Database, table: string) => {
+		if (viewTables.has(table)) {
+			revision += 1;
+		}
+	};
+	db.onInsert = countViewChange;
+	db.onUpdate = countViewChange;
+	db.onDelete = countViewChange;
 	return {
 		store: {
 			replaceTickets(rows) {
-				revision += 1;
 				db.transaction(() => {
-					db.run("delete from snapshots");
+					// An unfiltered delete skips the row hooks.
+					db.run("delete from snapshots where true");
 					for (const row of rows) {
 						writeRow(db, row);
 					}
@@ -154,7 +168,6 @@ export function sqliteStore(path: string): {
 				return readRows(db);
 			},
 			mergeTickets(rows) {
-				revision += 1;
 				db.transaction(() => {
 					const stored = new Map(
 						readRows(db).map((row) => [projectId(listedRef(row)), row]),
@@ -178,7 +191,6 @@ export function sqliteStore(path: string): {
 				return new Date(row.fetched_at);
 			},
 			recordGoodPoll(project, at) {
-				revision += 1;
 				const fetchedAt = at.toISOString();
 				db.query(
 					"insert into project_polls (project, fetched_at) values (?, ?) on conflict(project) do update set fetched_at = excluded.fetched_at",
@@ -188,24 +200,22 @@ export function sqliteStore(path: string): {
 				).run(fetchedAt);
 			},
 			forgetGoodPoll(project) {
-				revision += db
-					.query("delete from project_polls where project = ?")
-					.run(projectId(project)).changes;
+				db.query("delete from project_polls where project = ?").run(
+					projectId(project),
+				);
 			},
 			recordFetchError(message) {
-				revision += 1;
 				db.query("update fetch_status set error = ? where id = 1").run(message);
 			},
 			recordProjectError(project, message) {
-				revision += 1;
 				db.query(
 					"insert into project_errors (project, error) values (?, ?) on conflict(project) do update set error = excluded.error",
 				).run(projectId(project), message);
 			},
 			clearProjectError(project) {
-				revision += db
-					.query("delete from project_errors where project = ?")
-					.run(projectId(project)).changes;
+				db.query("delete from project_errors where project = ?").run(
+					projectId(project),
+				);
 			},
 			projectError(project) {
 				const pending = db

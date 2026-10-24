@@ -1444,6 +1444,41 @@ describe("live updates", () => {
 		});
 	});
 
+	test("a poll that changes a ticket updates the project page, and a poll that changes nothing keeps it", async () => {
+		const requests: string[] = [];
+		await withServer(changingFetch(requests), 3600, async (base) => {
+			const projectPage = async () => {
+				const response = await fetch(
+					new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+				);
+				expect(response.status).toBe(200);
+				return (await response.json()) as Record<string, unknown>;
+			};
+			const poll = async () => {
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				await settledOverview(base, readOverview);
+			};
+			const shown = (body: Record<string, unknown>) =>
+				(body.tickets as ShownTicket[]).map(({ key, state }) => ({
+					key,
+					state,
+				}));
+			const before = await projectPage();
+			expect(shown(before)).toEqual([{ key: `${repo}#1`, state: "backlog" }]);
+			await poll();
+			const changed = await projectPage();
+			expect(shown(changed)).toEqual([
+				{ key: `${repo}#1`, state: "done" },
+				{ key: `${repo}#2`, state: "backlog" },
+			]);
+			await poll();
+			expect(await projectPage()).toEqual(changed);
+		});
+	});
+
 	test("the event stream stays open past the idle timeout", async () => {
 		const requests: string[] = [];
 		await withServer(unchangedFetch(requests), 3600, async (base) => {
