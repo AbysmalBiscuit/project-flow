@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import {
 	recordedDiscovery,
 	repoReadFromHandler,
@@ -146,7 +147,7 @@ const running = await start({
 	configPath,
 	token: "recorded-token",
 	linearKey: "recorded-linear-key",
-	fetch: recorded,
+	fetch: answerRecordedRepoRead(recorded),
 	databasePath: join(dir, "project-flow.sqlite"),
 	hostname: "127.0.0.1",
 	port: 0,

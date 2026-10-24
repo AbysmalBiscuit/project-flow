@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const repo = "acme/widget";
@@ -224,7 +225,7 @@ const running = await start({
 	configPath: config,
 	token: "recorded-token",
 	linearKey: "recorded-linear-key",
-	fetch: recorded,
+	fetch: answerRecordedRepoRead(recorded),
 	databasePath: join(root, "store.sqlite"),
 	hostname: "127.0.0.1",
 	port: Number(port),

@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "47122";
@@ -86,7 +87,7 @@ try {
 			LINEAR_API_KEY: "recorded-linear-key",
 			XDG_DATA_HOME: root,
 		},
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],

@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run, waitForStop } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import {
 	recordedDiscovery,
 	repoReadFromLists,
@@ -148,7 +149,7 @@ const result = await run(
 			LINEAR_API_KEY: "recorded-linear-key",
 			XDG_DATA_HOME: dir,
 		},
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],

@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "4175";
@@ -32,7 +33,9 @@ await writeFile(
 
 await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 	env: {},
-	fetch: async () => new Response("not recorded", { status: 404 }),
+	fetch: answerRecordedRepoRead(
+		async () => new Response("not recorded", { status: 404 }),
+	),
 	readGhToken: async () => null,
 	listTodos: async () => "",
 	listCheckouts: async () => [],

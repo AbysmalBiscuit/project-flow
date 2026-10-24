@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { recordedViewer, urlOf } from "../test/support.ts";
 import { proofStops } from "./lifetime.ts";
 
@@ -210,7 +211,7 @@ let base = "";
 try {
 	await run(["--config", configPath, "--host", "127.0.0.1", "--port", "0"], {
 		env: { LINEAR_API_KEY: "recorded-linear-key" },
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],

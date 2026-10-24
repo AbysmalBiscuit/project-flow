@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { repoReadFromLists } from "../test/support.ts";
 import { proofStops, proofTheme } from "./lifetime.ts";
 
@@ -451,7 +452,7 @@ await run(["--config", config, "--host", "127.0.0.1", "--port", "0"], {
 		LINEAR_API_KEY: "recorded-linear-key",
 		XDG_DATA_HOME: root,
 	},
-	fetch: recorded,
+	fetch: answerRecordedRepoRead(recorded),
 	readGhToken: async () => null,
 	databasePath: join(root, "store.sqlite"),
 	now: () => new Date("2026-10-18T12:00:00.000Z"),
