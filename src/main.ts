@@ -102,17 +102,19 @@ async function command(
 	args: string[],
 	env: Record<string, string | undefined> = process.env,
 ): Promise<string | null> {
-	const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", env });
-	const stdout = proc.stdout;
-	if (typeof stdout === "number" || stdout === undefined) {
-		proc.kill();
-		return null;
+	try {
+		const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", env });
+		const [out, code] = await Promise.all([
+			new Response(proc.stdout).text(),
+			proc.exited,
+		]);
+		return code === 0 ? out.trim() : null;
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+			return null;
+		}
+		throw error;
 	}
-	const [out, code] = await Promise.all([
-		new Response(stdout).text(),
-		proc.exited,
-	]);
-	return code === 0 ? out.trim() : null;
 }
 
 async function readText(path: string): Promise<string | null> {
@@ -143,24 +145,11 @@ async function worktreeList(path: string): Promise<{
 	paths: string[];
 	names: string[];
 }> {
-	const proc = Bun.spawn(
+	const out = await command(
 		["git", "-C", path, "worktree", "list", "--porcelain"],
-		{
-			stdout: "pipe",
-			stderr: "pipe",
-			env: { ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
-		},
+		{ ...process.env, GIT_DIR: undefined, GIT_WORK_TREE: undefined },
 	);
-	const stdout = proc.stdout;
-	if (typeof stdout === "number" || stdout === undefined) {
-		proc.kill();
-		return { paths: [], names: [] };
-	}
-	const [out, code] = await Promise.all([
-		new Response(stdout).text(),
-		proc.exited,
-	]);
-	if (code !== 0) {
+	if (out === null) {
 		return { paths: [], names: [] };
 	}
 	const paths: string[] = [];
@@ -429,34 +418,7 @@ export async function readGhAuthToken(
 	if (gh === null) {
 		return null;
 	}
-	let proc: ReturnType<typeof Bun.spawn>;
-	try {
-		proc = Bun.spawn([gh, "auth", "token"], {
-			stdout: "pipe",
-			stderr: "pipe",
-			env,
-		});
-	} catch (error) {
-		const code =
-			error instanceof Error && "code" in error ? String(error.code) : "";
-		if (code === "ENOENT") {
-			return null;
-		}
-		throw error;
-	}
-	const stdout = proc.stdout;
-	if (typeof stdout === "number" || stdout === undefined) {
-		proc.kill();
-		return null;
-	}
-	const [out, code] = await Promise.all([
-		new Response(stdout).text(),
-		proc.exited,
-	]);
-	if (code !== 0) {
-		return null;
-	}
-	const token = out.trim();
+	const token = await command([gh, "auth", "token"], env);
 	return token === "" ? null : token;
 }
 
