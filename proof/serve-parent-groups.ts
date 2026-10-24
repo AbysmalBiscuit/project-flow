@@ -99,7 +99,7 @@ const recorded: Fetch = async (input, init) => {
 		]);
 	}
 	const chain =
-		/^https:\/\/api\.github\.com\/repos\/acme\/widget\/issues\/(1[0-3])\/dependencies\/blocked_by$/.exec(
+		/^https:\/\/api\.github\.com\/repos\/acme\/widget\/issues\/(1[0-3])\/dependencies\/blocked_by(?:\?|$)/.exec(
 			url,
 		);
 	if (chain?.[1] !== undefined) {

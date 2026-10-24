@@ -144,7 +144,9 @@ const recorded: Fetch = async (input, init) => {
 	if (url.startsWith(`https://api.github.com/repos/${gate}/issues?`)) {
 		return Response.json(gateIssues);
 	}
-	const blockedBy = url.match(/\/issues\/(\d+)\/dependencies\/blocked_by$/);
+	const blockedBy = url.match(
+		/\/issues\/(\d+)\/dependencies\/blocked_by(?:\?|$)/,
+	);
 	if (blockedBy?.[1] !== undefined) {
 		const blocker = localBlocker[blockedBy[1]];
 		if (blocker === undefined) {
