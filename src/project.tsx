@@ -1166,7 +1166,6 @@ export function Page() {
 									{countLine(report)}
 									<PollAgeText
 										queryKey={pageQuery.project(name, "all").queryKey}
-										refreshing={polling || reportQuery.isFetching}
 									/>
 								</p>
 							</div>
