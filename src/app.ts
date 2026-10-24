@@ -349,7 +349,16 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	let polling: Promise<void> | null = null;
 	let discovery: Promise<void> = Promise.resolve();
-	let noteDiscovery: () => void = () => {};
+	// A refresh queued behind a running poll holds settings reads until the
+	// next poll's discovery, so they never answer with the older catalogue.
+	let queuedDiscovery: (() => void) | null = null;
+	const nextDiscovery = (): (() => void) => {
+		let note = () => {};
+		discovery = new Promise<void>((resolve) => {
+			note = resolve;
+		});
+		return note;
+	};
 	let stopped = false;
 	let firstPollDone = false;
 	let refreshQueued = false;
@@ -357,6 +366,11 @@ export async function start(options: StartOptions): Promise<Running> {
 	let trackedGeneration = 0;
 	let settledGeneration = -1;
 	let awaitingWrite = false;
+	const dropQueuedRefresh = () => {
+		refreshQueued = false;
+		queuedDiscovery?.();
+		queuedDiscovery = null;
+	};
 	const pollAgain = (): Promise<void> => {
 		if (stopped || pollOptions.stopped) {
 			return Promise.resolve();
@@ -367,6 +381,9 @@ export async function start(options: StartOptions): Promise<Running> {
 		let rejected = false;
 		const generation = trackedGeneration;
 		pollOptions.mayPublish = () => generation === trackedGeneration;
+		const noteDiscovery = queuedDiscovery ?? nextDiscovery();
+		queuedDiscovery = null;
+		pollOptions.releaseDiscovery = noteDiscovery;
 		polling = (async () => {
 			if (generation !== trackedGeneration) {
 				refreshQueued = true;
@@ -375,10 +392,6 @@ export async function start(options: StartOptions): Promise<Running> {
 			if (!hadRows && !firstPollDone) {
 				pollOptions.polling = true;
 			}
-			discovery = new Promise<void>((resolve) => {
-				noteDiscovery = resolve;
-			});
-			pollOptions.releaseDiscovery = noteDiscovery;
 			try {
 				configuration = await poll(pollOptions);
 				if (generation !== trackedGeneration) {
@@ -446,11 +459,13 @@ export async function start(options: StartOptions): Promise<Running> {
 		// The cold-start check judges the first poll alone, so a refresh
 		// waits for it instead of joining its chain.
 		if (!firstPollDone) {
+			queuedDiscovery ??= nextDiscovery();
 			void firstPoll.finally(beginPoll).catch(() => {});
 			return;
 		}
 		if (polling !== null) {
 			refreshQueued = true;
+			queuedDiscovery ??= nextDiscovery();
 			return;
 		}
 		void pollAgain().catch(() => {});
@@ -726,7 +741,7 @@ export async function start(options: StartOptions): Promise<Running> {
 						} finally {
 							awaitingWrite = false;
 						}
-						refreshQueued = false;
+						dropQueuedRefresh();
 					} else {
 						await (stale ?? pollAgain());
 					}
@@ -818,7 +833,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		stop: async () => {
 			stopped = true;
 			pollOptions.stopped = true;
-			refreshQueued = false;
+			dropQueuedRefresh();
 			requests.abort();
 			releaseLists();
 			if (timer !== null) {
