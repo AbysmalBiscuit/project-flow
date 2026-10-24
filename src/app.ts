@@ -442,7 +442,13 @@ export async function start(options: StartOptions): Promise<Running> {
 			overview: runningOverview(pollOptions, configuration),
 			notifications: [],
 		});
-		if (polling !== null || !firstPollDone) {
+		// The cold-start check judges the first poll alone, so a refresh
+		// waits for it instead of joining its chain.
+		if (!firstPollDone) {
+			void firstPoll.finally(beginPoll).catch(() => {});
+			return;
+		}
+		if (polling !== null) {
 			refreshQueued = true;
 			return;
 		}
