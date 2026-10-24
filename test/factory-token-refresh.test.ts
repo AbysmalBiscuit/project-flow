@@ -242,17 +242,27 @@ describe("factory GitHub token refresh", () => {
 		}
 	});
 
-	test("a blank reply, a hosts file of spaces and a broken hosts file stay on the user token", async () => {
+	test("a blank reply, a hosts file of spaces, a broken or malformed hosts file and a token for another host stay on the user token", async () => {
 		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		await mkdir(join(folder, "blank"), { recursive: true });
 		await mkdir(join(folder, "spaced"), { recursive: true });
 		await mkdir(join(folder, "broken"), { recursive: true });
+		await mkdir(join(folder, "malformed"), { recursive: true });
+		await mkdir(join(folder, "elsewhere"), { recursive: true });
 		await writeFile(
 			join(folder, "spaced", "hosts.yml"),
 			"github.com:\n    oauth_token:    \n    expires_at: 2026-08-18T13:00:00.000Z\n",
 		);
 		await writeFile(join(folder, "broken", "hosts.yml"), "not a hosts file\n");
+		await writeFile(
+			join(folder, "malformed", "hosts.yml"),
+			"github.com: [\n    oauth_token: ghs_malformed\n",
+		);
+		await writeFile(
+			join(folder, "elsewhere", "hosts.yml"),
+			"ghe.example.com:\n    oauth_token: ghs_elsewhere\n    expires_at: 2026-08-18T13:00:00.000Z\n",
+		);
 		const recorded: Recorded[] = [];
 		const app = await serve({
 			config: {
@@ -262,12 +272,16 @@ describe("factory GitHub token refresh", () => {
 					{ tracker: "github", repo: "blank/widget" },
 					{ tracker: "github", repo: "spaced/widget" },
 					{ tracker: "github", repo: "broken/widget" },
+					{ tracker: "github", repo: "malformed/widget" },
+					{ tracker: "github", repo: "elsewhere/widget" },
 				],
 			},
 			fetchImpl: recordingFetch(recorded, {
 				"blank/widget": [recordedIssue("blank/widget")],
 				"spaced/widget": [recordedIssue("spaced/widget")],
 				"broken/widget": [recordedIssue("broken/widget")],
+				"malformed/widget": [recordedIssue("malformed/widget")],
+				"elsewhere/widget": [recordedIssue("elsewhere/widget")],
 			}),
 			now: () => new Date("2026-08-18T12:00:00.000Z"),
 			home,
@@ -281,6 +295,8 @@ describe("factory GitHub token refresh", () => {
 				...forOwner(githubCalls(recorded), "blank"),
 				...forOwner(githubCalls(recorded), "spaced"),
 				...forOwner(githubCalls(recorded), "broken"),
+				...forOwner(githubCalls(recorded), "malformed"),
+				...forOwner(githubCalls(recorded), "elsewhere"),
 			];
 			expect(reads.length).toBeGreaterThan(0);
 			expect(reads.every((item) => item.authorization === userBearer)).toBe(
