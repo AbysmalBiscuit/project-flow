@@ -1,7 +1,8 @@
 import { type FitViewOptions, useStore } from "@xyflow/react";
 import { useEffect, useState } from "react";
-import { clsx } from "./ui.ts";
+
 import { cards } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 export const fitPadding = 0.28;
 

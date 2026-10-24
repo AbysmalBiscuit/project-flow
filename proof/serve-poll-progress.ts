@@ -1,5 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { recordedDiscovery, unrecorded, urlOf } from "../test/support.ts";

@@ -1,4 +1,5 @@
 import { z } from "zod";
+
 import type { Comment } from "./domain.ts";
 
 export const graphqlActor = z.object({ login: z.string() }).nullable();

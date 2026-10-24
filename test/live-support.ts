@@ -2,6 +2,7 @@ import { expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
@@ -287,8 +288,7 @@ export async function withServer(
 	intervalSeconds: number,
 	checks: (base: string, advance: (ms: number) => void) => Promise<void>,
 	pinned: (
-		| { tracker: "github"; repo: string }
-		| { tracker: "linear"; project: string }
+		{ tracker: "github"; repo: string } | { tracker: "linear"; project: string }
 	)[] = [{ tracker: "github", repo }],
 	env: Record<string, string | undefined> = {
 		GITHUB_TOKEN: "recorded-token",
@@ -300,8 +300,10 @@ export async function withServer(
 	);
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
-	let startChecks: (base: string, advance: (ms: number) => void) => void =
-		() => {};
+	let startChecks: (
+		base: string,
+		advance: (ms: number) => void,
+	) => void = () => {};
 	let checksError: unknown;
 	const done = new Promise<void>((resolve, reject) => {
 		startChecks = (base: string, advance: (ms: number) => void) => {

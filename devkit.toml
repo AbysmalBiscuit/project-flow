@@ -28,20 +28,20 @@ type = "enum"
 list = true
 where = "labels"
 values = [
-  { name = "accessibility", id = "accessibility" },
-  { name = "bug", id = "bug" },
-  { name = "documentation", id = "documentation" },
-  { name = "duplicate", id = "duplicate" },
-  { name = "enhancement", id = "enhancement" },
-  { name = "good first issue", id = "good first issue" },
-  { name = "help wanted", id = "help wanted" },
-  { name = "invalid", id = "invalid" },
-  { name = "question", id = "question" },
-  { name = "wontfix", id = "wontfix" },
-  { name = "needs-triage", id = "needs-triage" },
-  { name = "needs-info", id = "needs-info" },
-  { name = "ready-for-human", id = "ready-for-human" },
-  { name = "ready-for-agent", id = "ready-for-agent" },
+	{ name = "accessibility", id = "accessibility" },
+	{ name = "bug", id = "bug" },
+	{ name = "documentation", id = "documentation" },
+	{ name = "duplicate", id = "duplicate" },
+	{ name = "enhancement", id = "enhancement" },
+	{ name = "good first issue", id = "good first issue" },
+	{ name = "help wanted", id = "help wanted" },
+	{ name = "invalid", id = "invalid" },
+	{ name = "question", id = "question" },
+	{ name = "wontfix", id = "wontfix" },
+	{ name = "needs-triage", id = "needs-triage" },
+	{ name = "needs-info", id = "needs-info" },
+	{ name = "ready-for-human", id = "ready-for-human" },
+	{ name = "ready-for-agent", id = "ready-for-agent" },
 ]
 level = "info"
 
@@ -70,7 +70,7 @@ description = "Run the HTTP-seam tests"
 run = ["sh", "scripts/test-slot.sh"]
 
 [tasks.lint]
-description = "Lint and format check with biome"
+description = "Format check with bun fmt, then lint with Biome"
 run = ["bun", "run", "lint"]
 
 [tasks.check]

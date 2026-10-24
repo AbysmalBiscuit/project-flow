@@ -1,7 +1,8 @@
 import type * as stylex from "@stylexjs/stylex";
 import { useEffect, useId, useRef, useState } from "react";
-import { clsx } from "./ui.ts";
+
 import { frame, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 export type DropdownChoice = {
 	id: string;

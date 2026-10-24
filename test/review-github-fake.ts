@@ -2,6 +2,7 @@ import { expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { repo } from "./review-support.ts";
@@ -92,8 +93,7 @@ function repoReadFromRecorded(recorded: Recorded): unknown {
 						committedDate:
 							(
 								recorded.commitsBySha?.[sha]?.commit as
-									| { committer?: { date?: string } }
-									| undefined
+									{ committer?: { date?: string } } | undefined
 							)?.committer?.date ?? null,
 					},
 				},

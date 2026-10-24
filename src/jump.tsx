@@ -6,13 +6,14 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { createRoot } from "react-dom/client";
+
 import { jump } from "./jump-styles.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { TicketPanel } from "./panel.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { stateLabel } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
-import { type TicketSearchHit, ticketRefId } from "./ticket-key.ts";
+import { ticketRefId, type TicketSearchHit } from "./ticket-key.ts";
 import { phoneGutter } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 

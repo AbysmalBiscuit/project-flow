@@ -1,15 +1,16 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
 	goodPoll,
 	issuesResponse,
 	listedRead,
-	type OverviewBody,
 	openEventStream,
 	otherRepo,
+	type OverviewBody,
 	page,
 	recordedOrEmpty,
 	repo,

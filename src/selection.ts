@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+
 import { ticketPath, urlTicket } from "./paths.ts";
 import { sameTicket, type TicketRef } from "./ticket-key.ts";
 

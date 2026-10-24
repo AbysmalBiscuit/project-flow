@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import type { Overview, ProjectCounts, ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { readGhAuthToken, run } from "../src/main.ts";

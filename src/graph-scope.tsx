@@ -1,10 +1,11 @@
 import * as stylex from "@stylexjs/stylex";
 import { Fragment } from "react";
+
 import { Segment } from "./segment.tsx";
 import { frameToolLabel, graphScopeLabel, openFramesLabel } from "./terms.ts";
 import { colours, type } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { headerControlStyle as tools } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 
 const scope = stylex.create({
 	place: {

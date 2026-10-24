@@ -7,6 +7,7 @@ import {
 	useState,
 	useSyncExternalStore,
 } from "react";
+
 import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type {

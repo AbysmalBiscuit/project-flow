@@ -9,8 +9,8 @@ import type {
 } from "./domain.ts";
 import {
 	listedRef,
-	type ProjectRef,
 	projectId,
+	type ProjectRef,
 	sameProject,
 } from "./project-ref.ts";
 import { foldKey, pullKey, ticketId } from "./ticket-key.ts";

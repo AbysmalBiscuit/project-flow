@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+
 import type { Board, Notification, Ticket } from "./domain.ts";
 import type { ValidatorStore } from "./github.ts";
 import { mergeTickets } from "./poll-merge.ts";

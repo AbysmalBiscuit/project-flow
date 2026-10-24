@@ -1,5 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
+
 import ELK from "elkjs/lib/elk-api.js";
+
 import { fillShare } from "../proof/elk-spike/graph.ts";
 import { graphTickets, projectNodeId } from "../src/graph-flow.ts";
 import {

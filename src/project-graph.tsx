@@ -1,5 +1,6 @@
 import { BaseEdge } from "@xyflow/react";
 import { useCallback, useMemo, useRef, useState } from "react";
+
 import { board } from "./board-styles.ts";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectReport, TicketState, Tracker } from "./domain.ts";
@@ -31,8 +32,8 @@ import {
 	type TicketCard,
 	TicketNode,
 } from "./ticket-node.tsx";
-import { clsx } from "./ui.ts";
 import { cards } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 import type {
 	GraphDirection,
 	GraphLayoutKind,

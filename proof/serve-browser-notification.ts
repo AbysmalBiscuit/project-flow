@@ -1,4 +1,5 @@
 import { join } from "node:path";
+
 import { proofStops } from "./lifetime.ts";
 import { releaseLinearAsk, runLinearProof } from "./serve-inbox.ts";
 

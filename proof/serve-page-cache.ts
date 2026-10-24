@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
 import { serveRecorded } from "./recorded.ts";
 
 const port = process.argv[2] ?? "0";

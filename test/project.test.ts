@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import { run } from "../src/main.ts";

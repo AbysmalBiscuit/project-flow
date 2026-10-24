@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+
 import type { NeedsYouItem, ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import recordedIssues from "./fixtures/github-issues.json";

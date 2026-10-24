@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
 import type { Fetch } from "../src/fetch.ts";
 import type { RunIo } from "../src/main.ts";
 import { answerRecordedRepoRead } from "./recorded-read.ts";
@@ -187,15 +188,14 @@ export function githubIssueNode(
 				return [];
 			})
 		: item.assignee !== null &&
-				typeof item.assignee === "object" &&
-				"login" in item.assignee
+			  typeof item.assignee === "object" &&
+			  "login" in item.assignee
 			? [{ login: String((item.assignee as { login?: unknown }).login) }]
 			: [];
 	const milestone = item.milestone;
 	const parent = item.parent;
 	const pool = item.parentPool as
-		| Record<string, Record<string, unknown>[]>
-		| undefined;
+		Record<string, Record<string, unknown>[]> | undefined;
 	const parentUrl =
 		typeof item.parent_issue_url === "string" ? item.parent_issue_url : "";
 	const parentMatch =
@@ -1077,8 +1077,7 @@ export function linearFake(options: LinearFake = {}): Fetch {
 				const name = String(sent.variables.name ?? "widget");
 				const pulls = options.issues.flatMap((issue) => {
 					const attachments = issue.attachments as
-						| { nodes?: { url?: string; title?: string }[] }
-						| undefined;
+						{ nodes?: { url?: string; title?: string }[] } | undefined;
 					return (attachments?.nodes ?? []).flatMap((node) => {
 						const match = node.url?.match(
 							/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/,
@@ -1178,8 +1177,7 @@ export function linearFake(options: LinearFake = {}): Fetch {
 							page.data.repository.issues.nodes =
 								page.data.repository.issues.nodes.map((node, index) => {
 									const source = withDeps[index] as
-										| { dependencyRows?: unknown }
-										| undefined;
+										{ dependencyRows?: unknown } | undefined;
 									const rows = source?.dependencyRows;
 									if (!Array.isArray(rows) || rows.length === 0) {
 										return node;
@@ -1314,8 +1312,7 @@ export function linearFake(options: LinearFake = {}): Fetch {
 				});
 			}
 			const comments = issue.comments as
-				| { nodes?: Record<string, unknown>[] }
-				| undefined;
+				{ nodes?: Record<string, unknown>[] } | undefined;
 			return linearJson({
 				data: {
 					issue: {
@@ -1353,8 +1350,7 @@ export function linearFake(options: LinearFake = {}): Fetch {
 					item.identifier === input?.issueId || item.id === input?.issueId,
 			);
 			const comments = issue?.comments as
-				| { nodes?: Record<string, unknown>[] }
-				| undefined;
+				{ nodes?: Record<string, unknown>[] } | undefined;
 			comments?.nodes?.push({
 				id: "comment-created",
 				body: input?.body ?? "",

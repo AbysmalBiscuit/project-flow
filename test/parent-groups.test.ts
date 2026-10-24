@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+
 import type { ProjectReport } from "../src/domain.ts";
 import {
 	githubFetch,

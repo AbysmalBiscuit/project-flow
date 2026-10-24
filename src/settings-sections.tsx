@@ -4,17 +4,17 @@ import { Dropdown } from "./dropdown.tsx";
 import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
 import { Select } from "./select.tsx";
 import {
-	AutoMergeEditor,
 	ageChoices,
 	ageLabel,
+	AutoMergeEditor,
 	Chips,
 	Credential,
 	laneStates,
 	MappingEditor,
 	openViewLabel,
 	Row,
-	Switch,
 	sections,
+	Switch,
 	type Trackers,
 } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
@@ -26,8 +26,8 @@ import {
 	settingsSection,
 	stateLabel,
 } from "./terms.ts";
-import { clsx } from "./ui.ts";
 import { shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 import {
 	defaultOpenView,
 	graphDirections,

@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
+
 import { Segment } from "./segment.tsx";
 import {
 	graphDirectionLabel,
@@ -14,12 +15,12 @@ import {
 	stack,
 	type,
 } from "./tokens.stylex.ts";
-import { clsx } from "./ui.ts";
 import { cards, headerControlStyle } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
 import {
 	type GraphDirection,
-	type GraphLayoutKind,
 	graphDirections,
+	type GraphLayoutKind,
 	graphLayouts,
 } from "./view-settings.ts";
 
