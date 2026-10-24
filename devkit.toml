@@ -70,7 +70,7 @@ description = "Run the HTTP-seam tests"
 run = ["sh", "scripts/test-slot.sh"]
 
 [tasks.lint]
-description = "Lint and format check with biome"
+description = "Format check with bun fmt, then lint with Biome"
 run = ["bun", "run", "lint"]
 
 [tasks.check]
