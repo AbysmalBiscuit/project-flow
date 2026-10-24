@@ -419,7 +419,6 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			options.store.recordGoodPoll(outcome.ref, polledAt);
 		}
 	}
-	options.polling = false;
 	const finished: PollProgress = {
 		done: tracked.length,
 		total: tracked.length,
@@ -428,6 +427,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	};
 	options.progress = finished;
 	if (options.stopped) {
+		options.polling = false;
 		return configuration;
 	}
 	publishPoll(
@@ -497,6 +497,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		throw error;
 	}
 	options.fallback = current;
+	options.polling = false;
 	if (!options.mayPublish()) {
 		return current;
 	}
