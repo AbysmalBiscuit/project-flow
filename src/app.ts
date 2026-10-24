@@ -459,6 +459,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		// The cold-start check judges the first poll alone, so a refresh
 		// waits for it instead of joining its chain.
 		if (!firstPollDone) {
+			queuedDiscovery ??= nextDiscovery();
 			void firstPoll.finally(beginPoll).catch(() => {});
 			return;
 		}
