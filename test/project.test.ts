@@ -23,6 +23,7 @@ import {
 	githubIssueNode,
 	recordedDiscovery,
 	repoReadIssues,
+	settledOverview,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -550,20 +551,16 @@ describe("GET /api/projects/:name", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				let report: ProjectReport | null = null;
-				for (let attempt = 0; attempt < 50; attempt += 1) {
-					const overview = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as { polling?: true };
-					if (overview.polling !== true) {
-						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
-						break;
-					}
-					await Bun.sleep(20);
-				}
-				if (report === null) {
-					throw new Error("the poll did not settle");
-				}
+				await settledOverview(
+					base,
+					async (url) =>
+						(await (await fetch(new URL("/api/overview", url))).json()) as {
+							polling?: true;
+						},
+				);
+				const report = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
 				const onlyClosed = report.tickets.find(
 					(item) => item.key === `${githubRepo}#245`,
 				);
@@ -748,20 +745,16 @@ describe("GET /api/projects/:name", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				let report: ProjectReport | null = null;
-				for (let attempt = 0; attempt < 50; attempt += 1) {
-					const overview = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as { polling?: true };
-					if (overview.polling !== true) {
-						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
-						break;
-					}
-					await Bun.sleep(20);
-				}
-				if (report === null) {
-					throw new Error("the poll did not settle");
-				}
+				await settledOverview(
+					base,
+					async (url) =>
+						(await (await fetch(new URL("/api/overview", url))).json()) as {
+							polling?: true;
+						},
+				);
+				const report = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
 				const card = report.tickets.find(
 					(item) => item.key === `${githubRepo}#245`,
 				);
@@ -861,22 +854,13 @@ describe("GET /api/projects/:name", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				let after: typeof before | null = null;
-				for (let attempt = 0; attempt < 50; attempt += 1) {
-					const overview = (await (
-						await fetch(overviewUrl)
-					).json()) as typeof before & {
-						polling?: true;
-					};
-					if (overview.polling !== true) {
-						after = overview;
-						break;
-					}
-					await Bun.sleep(20);
-				}
-				if (after === null) {
-					throw new Error("the poll did not settle");
-				}
+				const after = await settledOverview(
+					base,
+					async () =>
+						(await (await fetch(overviewUrl)).json()) as typeof before & {
+							polling?: true;
+						},
+				);
 				expect(after.projects[0]?.error).toContain("GitHub read repo failed");
 				const blank = await fetch(
 					new URL(`/api/projects/${encodeURIComponent("")}`, base),
@@ -1003,20 +987,16 @@ describe("GET /api/projects/:name", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				let report: ProjectReport | null = null;
-				for (let attempt = 0; attempt < 50; attempt += 1) {
-					const overview = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as { polling?: true };
-					if (overview.polling !== true) {
-						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
-						break;
-					}
-					await Bun.sleep(20);
-				}
-				if (report === null) {
-					throw new Error("the poll did not settle");
-				}
+				await settledOverview(
+					base,
+					async (url) =>
+						(await (await fetch(new URL("/api/overview", url))).json()) as {
+							polling?: true;
+						},
+				);
+				const report = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
 				expect(
 					report.tickets.find((item) => item.key === `${githubRepo}#245`)
 						?.blockers,
@@ -1145,20 +1125,16 @@ describe("GET /api/projects/:name", () => {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				let report: ProjectReport | null = null;
-				for (let attempt = 0; attempt < 50; attempt += 1) {
-					const overview = (await (
-						await fetch(new URL("/api/overview", base))
-					).json()) as { polling?: true };
-					if (overview.polling !== true) {
-						report = (await (await fetch(projectUrl)).json()) as ProjectReport;
-						break;
-					}
-					await Bun.sleep(20);
-				}
-				if (report === null) {
-					throw new Error("the poll did not settle");
-				}
+				await settledOverview(
+					base,
+					async (url) =>
+						(await (await fetch(new URL("/api/overview", url))).json()) as {
+							polling?: true;
+						},
+				);
+				const report = (await (
+					await fetch(projectUrl)
+				).json()) as ProjectReport;
 				const card = report.tickets.find(
 					(item) => item.key === `${githubRepo}#245`,
 				);
