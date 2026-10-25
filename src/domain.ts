@@ -21,6 +21,39 @@ export type LiveRun = {
 	stage?: string;
 };
 
+export const runStatusKinds = [
+	"queued",
+	"starting",
+	"running",
+	"blocked",
+	"failed",
+	"succeeded",
+] as const;
+
+export type RunStatusKind = (typeof runStatusKinds)[number];
+
+/** A workcell run that a factory reports in `GET /runs`. */
+export type FactoryRun = {
+	id: string;
+	key: string;
+	repo?: string;
+	statusKind: RunStatusKind;
+	/** The box that does the run. Null while the run waits in the hub queue. */
+	box: string | null;
+	factory: string;
+	submittedAt: string;
+	startedAt: string | null;
+	endedAt: string | null;
+	/** False when the factory did not answer its last read. */
+	coveredByFeed: boolean;
+};
+
+/** The newest factory run of a ticket. The stage comes from the progress comment. */
+export type ShownFactoryRun = Pick<
+	FactoryRun,
+	"statusKind" | "box" | "factory" | "startedAt" | "endedAt" | "coveredByFeed"
+> & { stage?: string };
+
 export type StatusType =
 	"backlog" | "inProgress" | "inReview" | "awaitingMerge" | "done" | "dropped";
 
@@ -135,6 +168,7 @@ export type TicketView = {
 	needsYou?: boolean;
 	enteredStateAt?: string;
 	run?: LiveRun;
+	factoryRun?: ShownFactoryRun;
 	updatedAt?: string;
 	assignees?: string[];
 	workstream?: string;

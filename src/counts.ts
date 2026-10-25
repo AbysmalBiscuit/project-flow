@@ -4,6 +4,7 @@ import type { Configuration } from "./configuration.ts";
 import type {
 	Board,
 	CrossProjectBlocker,
+	FactoryRun,
 	FetchStatus,
 	LiveRun,
 	NeedsYouItem,
@@ -36,7 +37,12 @@ import {
 	mergesOnItsOwn,
 	reviewState,
 } from "./review.ts";
-import { assigneesOf, chipsOf, shownTicket } from "./shown-ticket.ts";
+import {
+	assigneesOf,
+	chipsOf,
+	shownFactoryRun,
+	shownTicket,
+} from "./shown-ticket.ts";
 import { asRef, indexTickets, known, parseKey } from "./ticket-index.ts";
 import { foldKey, pullKey, sameTicketKey, ticketRefId } from "./ticket-key.ts";
 
@@ -49,6 +55,7 @@ export function projectCounts(
 	branches: string[],
 	startedKeys: string[],
 	runs: WorkcellRun[],
+	factoryRuns: FactoryRun[],
 	autoMerge: AutoMergeSources,
 	all: ProjectGroup[],
 	expectedBots: Map<string, KnownBot[]>,
@@ -166,6 +173,7 @@ export function projectCounts(
 				: { staleStatus: shown.staleStatus }),
 			...chipsOf(shown),
 			enteredStateAt: shown.enteredStateAt,
+			...shownFactoryRun(ticket, factoryRuns, now),
 			...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
 			...assigneesOf(ticket),
 			...(ticket.parent === null ? {} : { parent: ticket.parent }),

@@ -1,6 +1,8 @@
 import type {
 	NeedsYouItem,
 	NotificationTrigger,
+	RunStatusKind,
+	ShownFactoryRun,
 	TicketState,
 } from "./domain.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -14,6 +16,31 @@ export const stateLabel: Record<TicketState, string> = {
 	inReview: "In review",
 	awaitingMerge: "Awaiting merge",
 };
+
+export const runStatusLabel: Record<RunStatusKind, string> = {
+	queued: "Queued",
+	starting: "Starting",
+	running: "Running",
+	blocked: "Blocked",
+	failed: "Failed",
+	succeeded: "Succeeded",
+};
+
+/** The hover text of a card's run circle, for example "Running, stage 3, on box-a, 12 min, from work hub". */
+export function factoryRunTip(
+	run: ShownFactoryRun,
+	elapsed: string | null,
+): string {
+	return [
+		runStatusLabel[run.statusKind],
+		run.stage,
+		run.box === null ? "in the hub queue" : `on ${run.box}`,
+		elapsed,
+		`from ${run.factory}`,
+	]
+		.filter((part) => part !== undefined && part !== null)
+		.join(", ");
+}
 
 /** The state of an open outside parent ticket whose lane is unknown. */
 export const openParentLabel = "Open";
