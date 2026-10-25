@@ -279,7 +279,6 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	);
 	const listed = [];
 	const storedRows = options.store.readTickets();
-	const fillAsPolled = storedRows.length === 0;
 	for (const project of tracked) {
 		const id = projectId(project.ref);
 		const tracker = project.tracker === "github" ? github : linear;
@@ -380,7 +379,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 						? null
 						: { ...row, listedEmpty: item.tickets.length === 0 };
 			}
-			if (fillAsPolled && shown.has(id)) {
+			if (shown.has(id)) {
 				publishPoll(options, configuration, trackedIds, outcomes, false, null);
 			}
 			notePollProgress(options, configuration, tracked, outcomes);
@@ -401,9 +400,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				full,
 				row: stored ?? empty,
 			});
-			if (fillAsPolled) {
-				publishPoll(options, configuration, trackedIds, outcomes, false, null);
-			}
+			publishPoll(options, configuration, trackedIds, outcomes, false, null);
 			notePollProgress(options, configuration, tracked, outcomes);
 		}
 	}

@@ -920,7 +920,7 @@ export async function settledOverview<Body extends { polling?: true }>(
 export async function settledOverviewEvent<Body extends { polling?: true }>(
 	events: AsyncIterator<ChangeEvent>,
 	parse: (data: string) => Body,
-	limit = 4,
+	limit = 8,
 ): Promise<Body> {
 	for (let seen = 0; seen < limit; seen += 1) {
 		const received = await events.next();
