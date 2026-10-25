@@ -1,7 +1,9 @@
 [merge]
 method = "squash"
-auto = "yes"
-rebase = "never"
+
+[workflow.standard]
+merge_auto = "yes"
+merge_rebase = "never"
 
 [roles.manager]
 prefer = [{ harness = "claude", model = "opus", effort = "low" }]
