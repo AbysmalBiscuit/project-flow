@@ -5,6 +5,7 @@ import { Button } from "./button.tsx";
 import { Chip } from "./chip.tsx";
 import type { Configuration, ProjectPin } from "./configuration.ts";
 import type { SettingsProject } from "./domain.ts";
+import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { projectHasPmBot } from "./open-ask.ts";
@@ -105,6 +106,7 @@ function Menu({
 	loaded,
 	trackers,
 	projects,
+	factoryTokenReports,
 	polling,
 	onSave,
 	onResetColours,
@@ -112,6 +114,7 @@ function Menu({
 	loaded: Configuration;
 	trackers: Trackers;
 	projects: SettingsProject[];
+	factoryTokenReports: FactoryTokenReport[];
 	polling: boolean;
 	onSave: (
 		next: Configuration,
@@ -197,7 +200,12 @@ function Menu({
 			<div className={clsx(fields.layout)}>
 				<ContentsNav current={current} onSelect={setCurrent} />
 				<div>
-					<GeneralSection theme={theme} draft={draft} onChange={patch} />
+					<GeneralSection
+						theme={theme}
+						draft={draft}
+						factoryTokenReports={factoryTokenReports}
+						onChange={patch}
+					/>
 					<ProjectViewsSection
 						view={view}
 						shown={shown}
@@ -605,6 +613,7 @@ export function Page() {
 			loaded={loaded.settings}
 			trackers={loaded.trackers}
 			projects={loaded.projects}
+			factoryTokenReports={loaded.factoryTokenReports}
 			polling={polling}
 			onResetColours={async () => {
 				try {

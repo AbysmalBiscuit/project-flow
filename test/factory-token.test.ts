@@ -2,7 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { Configuration } from "../src/configuration.ts";
 import type { Overview } from "../src/domain.ts";
+import type { FactoryTokenReport } from "../src/factory-tokens.ts";
+import { refreshSettled } from "./events.ts";
 import {
 	acmeBearer,
 	acmeToken,
@@ -18,6 +21,15 @@ import {
 import { settledOverview } from "./support.ts";
 
 const otherToken = "ghs_other_installation";
+
+async function factoryTokenReports(
+	base: string,
+): Promise<FactoryTokenReport[]> {
+	const settings = (await (
+		await fetch(new URL("/api/settings", base))
+	).json()) as { factoryTokenReports: FactoryTokenReport[] };
+	return settings.factoryTokenReports;
+}
 
 describe("factory GitHub tokens", () => {
 	test("reads and polls send the owner token and a reply sends the user token", async () => {
@@ -220,8 +232,81 @@ describe("factory GitHub tokens", () => {
 			expect(
 				reads.some((item) => item.authorization === "Bearer ghs_stale"),
 			).toBe(false);
+			expect(
+				(await factoryTokenReports(app.base)).sort((left, right) =>
+					left.owner.localeCompare(right.owner),
+				),
+			).toEqual([
+				{
+					owner: "gone",
+					cause: "missing",
+					path: join(folder, "gone", "hosts.yml"),
+				},
+				{
+					owner: "locked",
+					cause: "unreadable",
+					path: join(folder, "locked", "hosts.yml"),
+				},
+				{
+					owner: "stale",
+					cause: "expired",
+					path: join(folder, "stale", "hosts.yml"),
+				},
+			]);
 		} finally {
 			await chmod(join(folder, "locked", "hosts.yml"), 0o600);
+			await app.stop();
+			await rm(home, { recursive: true, force: true });
+		}
+	});
+
+	test("turning the option on with an empty token folder reports the missing token and polls on the user token", async () => {
+		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const folder = join(home, "tokens");
+		await mkdir(folder, { recursive: true });
+		const recorded: Recorded[] = [];
+		const app = await serve({
+			config: {
+				factoryGithubTokenDir: folder,
+				tracked: [{ tracker: "github", repo: "acme/widget" }],
+			},
+			fetchImpl: recordingFetch(recorded, {
+				"acme/widget": [recordedIssue("acme/widget")],
+			}),
+			now: () => new Date("2026-08-18T12:00:00.000Z"),
+			home,
+		});
+		try {
+			expect(await factoryTokenReports(app.base)).toEqual([]);
+			const settings = (await (
+				await fetch(new URL("/api/settings", app.base))
+			).json()) as Configuration;
+			const saved = await fetch(new URL("/api/settings", app.base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ ...settings, factoryGithubTokens: true }),
+			});
+			expect(saved.status).toBe(200);
+			recorded.length = 0;
+			await refreshSettled(app.base);
+
+			const reads = forOwner(githubCalls(recorded), "acme");
+			expect(reads.length).toBeGreaterThan(0);
+			expect(reads.every((item) => item.authorization === userBearer)).toBe(
+				true,
+			);
+			expect(await factoryTokenReports(app.base)).toEqual([
+				{
+					owner: "acme",
+					cause: "missing",
+					path: join(folder, "acme", "hosts.yml"),
+				},
+			]);
+			const overview = (await (
+				await fetch(new URL("/api/overview", app.base))
+			).json()) as Overview;
+			expect(overview.error).toBeNull();
+		} finally {
 			await app.stop();
 			await rm(home, { recursive: true, force: true });
 		}

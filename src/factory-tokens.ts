@@ -12,6 +12,12 @@ const hostsFile = z.object({
 	}),
 });
 
+export type FactoryTokenReport = {
+	owner: string;
+	cause: "missing" | "unreadable" | "expired";
+	path: string;
+};
+
 const tokenRenewWithinMs = 5 * 60 * 1000;
 
 const repoInUrl =
@@ -53,21 +59,24 @@ function repoOwner(url: string, body: string): string | null {
 function hostsToken(
 	text: string,
 	now: Date,
-): { token: string; expiresAt: number } | null {
+): { token: string; expiresAt: number } | "unreadable" | "expired" {
 	let yaml: unknown;
 	try {
 		yaml = Bun.YAML.parse(text);
 	} catch {
-		return null;
+		return "unreadable";
 	}
 	const hosts = hostsFile.safeParse(yaml);
 	if (!hosts.success) {
-		return null;
+		return "unreadable";
 	}
 	const { oauth_token: token, expires_at: expires } = hosts.data["github.com"];
 	const expiresAt = Date.parse(expires);
-	if (Number.isNaN(expiresAt) || expiresAt <= now.getTime()) {
-		return null;
+	if (Number.isNaN(expiresAt)) {
+		return "unreadable";
+	}
+	if (expiresAt <= now.getTime()) {
+		return "expired";
 	}
 	return { token, expiresAt };
 }
@@ -88,6 +97,11 @@ function graphqlMutation(url: string, body: string): boolean {
 	}
 }
 
+/**
+ * Sends each GitHub read with the factory token of its repo owner. A read
+ * without a usable token goes on with the user token, and `reports` names
+ * each owner whose hosts file is missing, unreadable or expired.
+ */
 export function installationTokenFetch(
 	fetchImpl: Fetch,
 	read: () => {
@@ -95,12 +109,22 @@ export function installationTokenFetch(
 		dir: string;
 	},
 	now: () => Date,
-): Fetch {
+): { fetch: Fetch; reports: () => FactoryTokenReport[] } {
 	const cached = new Map<
 		string,
 		{ token: string; expiresAt: number; dir: string }
 	>();
-	return async (input, init) => {
+	const reported = new Map<string, FactoryTokenReport>();
+	const reports = (): FactoryTokenReport[] => {
+		const settings = read();
+		if (!settings.enabled) {
+			return [];
+		}
+		return [...reported.values()].filter(
+			(entry) => entry.path === join(settings.dir, entry.owner, "hosts.yml"),
+		);
+	};
+	const fetch: Fetch = async (input, init) => {
 		const withToken = (token: string) => {
 			const headers = new Headers(init?.headers);
 			headers.set("authorization", `Bearer ${token}`);
@@ -137,17 +161,26 @@ export function installationTokenFetch(
 			return withToken(held.token);
 		}
 		cached.delete(owner);
+		const path = join(settings.dir, owner, "hosts.yml");
+		const fallBack = (cause: FactoryTokenReport["cause"]) => {
+			reported.set(owner, { owner, cause, path });
+			return fetchImpl(input, init);
+		};
 		let text: string;
 		try {
-			text = await readFile(join(settings.dir, owner, "hosts.yml"), "utf8");
-		} catch {
-			return fetchImpl(input, init);
+			text = await readFile(path, "utf8");
+		} catch (error) {
+			const missing =
+				error instanceof Error && "code" in error && error.code === "ENOENT";
+			return fallBack(missing ? "missing" : "unreadable");
 		}
 		const parsed = hostsToken(text, current);
-		if (parsed === null) {
-			return fetchImpl(input, init);
+		if (typeof parsed === "string") {
+			return fallBack(parsed);
 		}
+		reported.delete(owner);
 		cached.set(owner, { ...parsed, dir: settings.dir });
 		return withToken(parsed.token);
 	};
+	return { fetch, reports };
 }
