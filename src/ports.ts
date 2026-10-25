@@ -14,7 +14,12 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
-import type { AnswerResult, FactoryEntry } from "./factories.ts";
+import type {
+	AnswerResult,
+	FactoryEntry,
+	Steer,
+	SteerResult,
+} from "./factories.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
@@ -138,13 +143,15 @@ export type FactoryReader = {
 	agents: (runId: string) => Promise<RunAgent[] | null>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
-	 * The answer is the one write request that the app sends to a factory.
+	 * Answers and steers are the only write requests that the app sends to a factory.
 	 */
 	answer: (
 		run: string,
 		question: string,
 		text: string,
 	) => Promise<AnswerResult>;
+	/** Post a steer to the worker of one stage of a run, on the hub that reports the run, or else on its box. */
+	steer: (run: string, steer: Steer) => Promise<SteerResult>;
 };
 
 export type GithubTracker = Tracker & {

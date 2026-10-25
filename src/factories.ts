@@ -374,6 +374,13 @@ async function questionsOf(
 
 export type AnswerResult = "answered" | "missing" | "failed";
 
+export type SteerResult = "steered" | "missing" | "ended" | "failed";
+
+export type Steer = { stage: string; text: string; interrupt: boolean };
+
+/** The factory records this sender on each steer from Project Flow. */
+const steerSender = "lev";
+
 /**
  * The event stream of one factory: connecting, open, closed since a time, or
  * "none" for a factory that answers 404 on `GET /events`.
@@ -790,6 +797,37 @@ export function factoryReader(
 			return "failed";
 		}
 	};
+	const steer = async (run: string, steer: Steer): Promise<SteerResult> => {
+		const { hubRow, row } = statusRow(
+			listed().flatMap((factory) =>
+				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
+			),
+			reachable,
+		);
+		// The hub forwards a steer to the box that does the run.
+		const target = hubRow ?? row;
+		if (target === undefined) {
+			return "missing";
+		}
+		const read = reader(fetchImpl, target.url, signal);
+		try {
+			const response = await read(`/runs/${encodeURIComponent(run)}/steer`, {
+				json: { ...steer, sender: steerSender },
+			});
+			if (response.ok) {
+				return "steered";
+			}
+			if (response.status === 409) {
+				return "ended";
+			}
+			return response.status === 404 ? "missing" : "failed";
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return "failed";
+		}
+	};
 	return {
 		check,
 		settled,
@@ -801,5 +839,6 @@ export function factoryReader(
 		checkpoint: runCheckpoint,
 		agents: runAgents,
 		answer,
+		steer,
 	};
 }

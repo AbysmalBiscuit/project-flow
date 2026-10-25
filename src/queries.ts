@@ -22,7 +22,7 @@ import {
 	type Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import type { FactoryEntry } from "./factories.ts";
+import type { FactoryEntry, Steer } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { StateSource } from "./settings-write.ts";
 import { storedObject } from "./stored-page.ts";
@@ -355,6 +355,27 @@ export function useAnswerQuestion(run: string, question: string) {
 		onSuccess: () => {
 			void queries.invalidateQueries(pageQuery.needsYou);
 			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
+export function useSteerRun(run: string) {
+	return useMutation({
+		mutationFn: async (steer: Steer): Promise<void> => {
+			const response = await fetch(
+				`/api/factory-runs/${encodeURIComponent(run)}/steer`,
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify(steer),
+				},
+			);
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Steer failed");
+			}
 		},
 	});
 }

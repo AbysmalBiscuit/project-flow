@@ -18,7 +18,7 @@ import {
 	hubUrl,
 	json,
 	laptopUrl,
-	readOrAnswer,
+	readAnswerOrSteer,
 	serve,
 } from "./factory-support.ts";
 import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
@@ -236,7 +236,9 @@ async function serveRuns(
 		...app,
 		stop: async () => {
 			await app.stop();
-			expect(requests.filter((request) => !readOrAnswer(request))).toEqual([]);
+			expect(requests.filter((request) => !readAnswerOrSteer(request))).toEqual(
+				[],
+			);
 		},
 		factories,
 		issues,
@@ -1335,6 +1337,97 @@ describe("factory questions", () => {
 					body: JSON.stringify({ text: "Add the scope." }),
 				},
 			]);
+		} finally {
+			await app.stop();
+		}
+	});
+});
+
+describe("factory steers", () => {
+	const [running41] = hubRuns.runs;
+	if (running41 === undefined) {
+		throw new Error("the hub runs fixture lost a run");
+	}
+	const steerPath = `/runs/${running41.id}/steer`;
+	const steer = { stage: "implement", text: "Use the v2 API", interrupt: true };
+	const steered = { id: 1, run_id: running41.id, ...steer, sender: "lev" };
+
+	async function servedRun(
+		hubAnswers: Answers,
+		boxAnswers?: Answers,
+	): Promise<Awaited<ReturnType<typeof serveRuns>>> {
+		const app = await serveRuns(hubAnswers, [41], {}, boxAnswers);
+		await overviewWhere(
+			app.base,
+			(seen) => factoryRunOf(seen, 41) !== undefined,
+		);
+		return app;
+	}
+
+	function sendSteer(base: string) {
+		return fetch(new URL(`/api/factory-runs/${running41?.id}/steer`, base), {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(steer),
+		});
+	}
+
+	function posts(requests: FactoryRequest[]): FactoryRequest[] {
+		return requests.filter((request) => request.method !== "GET");
+	}
+
+	const hubSteer = {
+		url: `${hubUrl}${steerPath}`,
+		unix: null,
+		method: "POST",
+		body: JSON.stringify({ ...steer, sender: "lev" }),
+	};
+
+	test("a steer sent through the API reaches the factory as one steer POST with Lev as the sender", async () => {
+		const app = await servedRun({ ...hub, [steerPath]: steered });
+		try {
+			const response = await sendSteer(app.base);
+			expect(response.status).toBe(200);
+			expect(await response.json()).toEqual({ steered: true });
+			expect(posts(app.requests)).toEqual([hubSteer]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a steer to a run that a hub and its box report goes to the hub, and the box gets no steer", async () => {
+		const app = await servedRun(
+			{ ...hub, [steerPath]: steered },
+			{
+				...daemon,
+				"/runs": { runs: [boxRow(running41, "running")] },
+				[steerPath]: steered,
+			},
+		);
+		try {
+			const response = await sendSteer(app.base);
+			expect(response.status).toBe(200);
+			expect(posts(app.requests)).toEqual([hubSteer]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a 409 from the factory for an ended run gives a clear error", async () => {
+		const app = await servedRun({
+			...hub,
+			[steerPath]: Response.json(
+				{ error: `run ${running41.id} has already ended` },
+				{ status: 409 },
+			),
+		});
+		try {
+			const response = await sendSteer(app.base);
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({
+				error: "the run has ended, so it takes no steer",
+			});
+			expect(posts(app.requests)).toEqual([hubSteer]);
 		} finally {
 			await app.stop();
 		}
