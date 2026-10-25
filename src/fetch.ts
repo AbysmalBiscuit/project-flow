@@ -21,14 +21,60 @@ function isTrackerRequest(input: string | URL | Request): boolean {
 	);
 }
 
-export function abortableFetch(fetchImpl: Fetch, signal: AbortSignal): Fetch {
+export const defaultTrackerRequestLimitMs = 30_000;
+
+export class TrackerRequestTimeout extends Error {
+	constructor(limitMs: number) {
+		super(`tracker request timed out after ${limitMs / 1000} s`);
+		this.name = "TrackerRequestTimeout";
+	}
+}
+
+async function timedFetch(
+	fetchImpl: Fetch,
+	input: string | URL | Request,
+	init: RequestInit | undefined,
+	signal: AbortSignal,
+	limitMs: number,
+): Promise<Response> {
+	const deadline = AbortSignal.timeout(limitMs);
+	const timedOut = new Promise<never>((_resolve, reject) => {
+		deadline.addEventListener(
+			"abort",
+			() => reject(new TrackerRequestTimeout(limitMs)),
+			{ once: true },
+		);
+	});
+	const sent = fetchImpl(input, {
+		...init,
+		signal: AbortSignal.any([signal, deadline]),
+	});
+	try {
+		return await Promise.race([sent, timedOut]);
+	} catch (error) {
+		if (deadline.aborted) {
+			throw new TrackerRequestTimeout(limitMs);
+		}
+		throw error;
+	}
+}
+
+/**
+ * Tracker requests end when `signal` aborts. A request without its own
+ * signal also ends after `limitMs`: thread reads carry their own deadline.
+ */
+export function abortableFetch(
+	fetchImpl: Fetch,
+	signal: AbortSignal,
+	limitMs: number,
+): Fetch {
 	return (input, init) => {
 		if (!isTrackerRequest(input)) {
 			return fetchImpl(input, init);
 		}
 		const caller = init?.signal;
 		if (caller === undefined || caller === null) {
-			return fetchImpl(input, { ...init, signal });
+			return timedFetch(fetchImpl, input, init, signal, limitMs);
 		}
 		return fetchImpl(input, {
 			...init,

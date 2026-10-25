@@ -12,6 +12,7 @@ import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
 	defaultThreadReadLimitMs,
+	defaultTrackerRequestLimitMs,
 	type Fetch,
 } from "./fetch.ts";
 import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
@@ -84,6 +85,7 @@ export type StartOptions = {
 	listCheckouts?: CheckoutSource;
 	now?: () => Date;
 	threadReadLimitMs?: number;
+	trackerRequestLimitMs?: number;
 };
 
 export type Running = {
@@ -258,7 +260,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		write: (text: string) => saveConfiguration(options.configPath, text),
 	};
 	const requests = new AbortController();
-	const trackerFetch = abortableFetch(options.fetch, requests.signal);
+	const trackerFetch = abortableFetch(
+		options.fetch,
+		requests.signal,
+		options.trackerRequestLimitMs ?? defaultTrackerRequestLimitMs,
+	);
 	let configuration: Configuration;
 	try {
 		configuration = await loadFilledConfiguration(options.configPath);
