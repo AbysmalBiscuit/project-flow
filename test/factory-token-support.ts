@@ -195,6 +195,7 @@ export async function serve(options: {
 	now: () => Date;
 	home: string;
 	mint?: FactoryTokenMint;
+	beforeFirstPoll?: boolean;
 }): Promise<{ base: string; stop: () => Promise<void> }> {
 	const { path, cleanup } = await tempConfig(JSON.stringify(options.config));
 	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
@@ -203,40 +204,39 @@ export async function serve(options: {
 	const ready = new Promise<string>((resolve) => {
 		startChecks = resolve;
 	});
+	let stop: () => void = () => {};
 	const stopped = new Promise<void>((resolve) => {
-		void ready.then(() => {
-			stop = async () => {
-				resolve();
-				await cleanup();
-				await rm(root, { recursive: true, force: true });
-			};
-		});
+		stop = resolve;
 	});
-	let stop: () => Promise<void> = async () => {};
 	const running = run(
 		["--config", path, "--host", "127.0.0.1", "--port", "0"],
-		testIo({
-			env: { GITHUB_TOKEN: userToken, HOME: options.home },
-			fetch: options.fetchImpl,
-			readGhToken: async () => null,
-			databasePath: join(root, "store.sqlite"),
-			now: options.now,
-			...(options.mint === undefined
-				? {}
-				: { mintFactoryTokens: options.mint }),
-			stdout: (line) => startChecks(line),
-			stderr: (line) => {
-				throw new Error(line);
+		testIo(
+			{
+				env: { GITHUB_TOKEN: userToken, HOME: options.home },
+				fetch: options.fetchImpl,
+				readGhToken: async () => null,
+				databasePath: join(root, "store.sqlite"),
+				now: options.now,
+				...(options.mint === undefined
+					? {}
+					: { mintFactoryTokens: options.mint, mintRetryDelayMs: 10 }),
+				stdout: (line) => startChecks(line),
+				stderr: (line) => {
+					throw new Error(line);
+				},
+				waitForStop: stopped,
 			},
-			waitForStop: stopped,
-		}),
+			{ first: options.beforeFirstPoll === true },
+		),
 	);
 	const base = await ready;
 	return {
 		base,
 		stop: async () => {
-			await stop();
+			stop();
 			const result = await running;
+			await cleanup();
+			await rm(root, { recursive: true, force: true });
 			expect(result.stderr).toBe("");
 			expect(result.exitCode).toBe(0);
 		},

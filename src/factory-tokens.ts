@@ -15,11 +15,14 @@ const hostsFile = z.object({
 /** The exit status of the mint command, or "missing" when it cannot start. */
 export type MintStatus = number | "missing";
 
+/** The exit status of one mint run and what the command wrote to stderr. */
+export type MintResult = { status: MintStatus; stderr: string };
+
 /** Runs the factory mint command, which writes one hosts file per owner. */
 export type FactoryTokenMint = (
 	command: string[],
 	dir: string,
-) => Promise<MintStatus>;
+) => Promise<MintResult>;
 
 export type FactoryTokenFileReport = {
 	owner: string;
@@ -29,9 +32,25 @@ export type FactoryTokenFileReport = {
 
 export type FactoryTokenReport =
 	| FactoryTokenFileReport
-	| { cause: "mint failed"; command: string; status: MintStatus };
+	| {
+			cause: "mint failed";
+			command: string;
+			status: MintStatus;
+			detail?: string;
+	  };
 
 const tokenRenewWithinMs = 5 * 60 * 1000;
+
+const mintTries = 3;
+
+const defaultMintRetryDelayMs = 10_000;
+
+function lastStderrLine(stderr: string): string | undefined {
+	return stderr
+		.split("\n")
+		.map((line) => line.trim())
+		.findLast((line) => line !== "");
+}
 
 const repoInUrl =
 	/^https:\/\/api\.github\.com\/repos\/([^/]+)\/[^/]+(?:\/|$|\?)/;
@@ -129,8 +148,10 @@ async function hostsAt(
  * and `reports` names each owner whose hosts file is missing, unreadable or
  * expired, and a mint that failed.
  *
- * `mint` runs at most one at a time. A read or a held token near its expiry
- * starts one at most once per renew window; `mintNow` starts one at once.
+ * `mint` runs at most one at a time. A failed run runs again after
+ * `retryDelayMs`, up to three runs in all, before `reports` names it. A read
+ * or a held token near its expiry starts a mint at most once per renew
+ * window; `mintNow` starts one at once.
  */
 export function installationTokenFetch(
 	fetchImpl: Fetch,
@@ -141,6 +162,7 @@ export function installationTokenFetch(
 	},
 	now: () => Date,
 	mint?: FactoryTokenMint,
+	retryDelayMs: number = defaultMintRetryDelayMs,
 ): {
 	fetch: Fetch;
 	reports: () => FactoryTokenReport[];
@@ -157,6 +179,28 @@ export function installationTokenFetch(
 	let lastMintAt = Number.NEGATIVE_INFINITY;
 	let renewAt: number | null = null;
 	let renewTimer: ReturnType<typeof setTimeout> | undefined;
+	let stopped = false;
+	const mintWithRetries = async (
+		run: FactoryTokenMint,
+		command: string[],
+		dir: string,
+	): Promise<MintResult> => {
+		for (let tries = 1; ; tries += 1) {
+			const result = await run(command, dir).catch((): MintResult => ({
+				status: "missing",
+				stderr: "",
+			}));
+			if (
+				result.status === 0 ||
+				result.status === "missing" ||
+				tries === mintTries ||
+				stopped
+			) {
+				return result;
+			}
+			await Bun.sleep(retryDelayMs);
+		}
+	};
 	const mintNow = (): Promise<void> => {
 		const settings = read();
 		if (mint === undefined || !settings.enabled) {
@@ -164,11 +208,18 @@ export function installationTokenFetch(
 		}
 		lastMintAt = now().getTime();
 		const command = settings.mintCommand.join(" ");
-		minting ??= mint(settings.mintCommand, settings.dir)
-			.catch((): MintStatus => "missing")
-			.then((status) => {
+		minting ??= mintWithRetries(mint, settings.mintCommand, settings.dir)
+			.then(({ status, stderr }) => {
+				const detail = lastStderrLine(stderr);
 				mintFailure =
-					status === 0 ? null : { cause: "mint failed", command, status };
+					status === 0
+						? null
+						: {
+								cause: "mint failed",
+								command,
+								status,
+								...(detail === undefined ? {} : { detail }),
+							};
 			})
 			.finally(() => {
 				minting = null;
@@ -269,6 +320,7 @@ export function installationTokenFetch(
 		return withToken(parsed.token);
 	};
 	const stop = () => {
+		stopped = true;
 		clearTimeout(renewTimer);
 	};
 	return { fetch, reports, mintNow, stop };
