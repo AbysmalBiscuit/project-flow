@@ -1,5 +1,5 @@
 import { type Ask, namesLev, readAsks } from "./ask.ts";
-import type { Comment, Tracker } from "./domain.ts";
+import type { Comment, FactoryQuestion, Tracker } from "./domain.ts";
 
 const decisionRecord = /^\**\s*decision\b/i;
 
@@ -62,4 +62,12 @@ export function openAsk(comments: Comment[], pmBot: boolean): OpenAsk | null {
 		...ask,
 		tags: matchedByName(ask.comment.body) ? ["matched by name"] : [],
 	};
+}
+
+/** The newest open factory question that goes to Lev, by the same routing as a comment ask. */
+export function routedQuestion(
+	questions: FactoryQuestion[],
+	pmBot: boolean,
+): FactoryQuestion | undefined {
+	return questions.findLast((question) => addressedToLev(question.text, pmBot));
 }

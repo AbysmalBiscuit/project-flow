@@ -102,7 +102,7 @@ export function projectCounts(
 	const pullByKey = new Map<string, PullRequest>();
 	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
-	const blockedRunKeys = new Set<string>();
+	const blockedRuns = new Map<string, FactoryRun>();
 	const runByKey = new Map<string, LiveRun>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
@@ -146,7 +146,7 @@ export function projectCounts(
 				failedKeys.add(ticket.key);
 			}
 			if (fed?.statusKind === "blocked") {
-				blockedRunKeys.add(ticket.key);
+				blockedRuns.set(ticket.key, fed);
 			}
 			if (shown.run !== undefined) {
 				runByKey.set(foldKey(ticket.key), shown.run);
@@ -246,7 +246,7 @@ export function projectCounts(
 		expectedBots,
 		shownByKey,
 		failedKeys,
-		blockedRunKeys,
+		blockedRuns,
 		{
 			labels: rules.labels,
 			viewerLogins: rules.viewerLogins,

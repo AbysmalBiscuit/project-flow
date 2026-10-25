@@ -143,6 +143,8 @@ const replyBody = z.object({
 
 const readMarkBody = z.object({ read: z.literal(true) });
 
+const answerBody = z.object({ text: z.string().trim().min(1) });
+
 const defaultSettingsReadWaitMs = 5_000;
 
 const runPollMs = 10_000;
@@ -868,6 +870,35 @@ export async function start(options: StartOptions): Promise<Running> {
 						notifier,
 						configuration,
 					),
+			},
+			"/api/factory-runs/:run/questions/:question/answer": {
+				POST: async (request) => {
+					const parsed = answerBody.safeParse(
+						await request.json().catch(() => null),
+					);
+					if (!parsed.success) {
+						return Response.json({ error: "answer is empty" }, { status: 400 });
+					}
+					const result = await factories.answer(
+						request.params.run,
+						request.params.question,
+						parsed.data.text,
+					);
+					if (result === "missing") {
+						return Response.json(
+							{ error: "the run waits on no such question" },
+							{ status: 404 },
+						);
+					}
+					if (result === "failed") {
+						return Response.json(
+							{ error: "the factory did not take the answer" },
+							{ status: 502 },
+						);
+					}
+					await readFactories(factories.readRuns);
+					return Response.json({ answered: true });
+				},
 			},
 		},
 	});
