@@ -145,8 +145,30 @@ A review bot that a repo's PRs normally get, as found in the repo's recent PRs o
 _Avoid_: Reviewer, required check
 
 **Workcell run**:
-One run of the workcell manage flow on a ticket. Its progress comment shows the run's stage.
+One run of the workcell manage flow on a ticket. The factory reports the run's status and stage. Without a factory feed, its progress comment shows the stage.
 _Avoid_: Job, session
+
+### Factory
+
+**Factory**:
+A workcell daemon that Project Flow reads runs from, with the boxes it dispatches to. A personal factory is one daemon with no boxes. Project Flow can read several factories.
+_Avoid_: Daemon, workcell daemon, fleet, server
+
+**Hub**:
+A factory daemon that takes runs and dispatches them to boxes. It knows the status of every run it dispatched.
+_Avoid_: Server, controller, orchestrator
+
+**Box**:
+A machine in the factory that does the runs the hub dispatches to it. Only the box holds the full detail of its runs.
+_Avoid_: Machine, worker, node (when the box is meant), build machine
+
+**Run stage**:
+The step of the workcell flow that a run is in: a node of the run's graph.
+_Avoid_: Phase, step, node (when the stage is meant)
+
+**Factory feed**:
+The run status and stages that Project Flow reads live from the factory. Where the factory feed and a progress comment differ, the factory feed wins.
+_Avoid_: Daemon feed, live feed
 
 ### Attention
 
@@ -155,7 +177,7 @@ A ticket or PR that only Lev can move. Reasons include an open ask to Lev, await
 _Avoid_: Waits on you, waits on Lev, needs Lev
 
 **Ask**:
-A question that an agent posts on a ticket or PR with an ask marker. It stays open until a later comment or the progress comment answers it.
+A question that an agent posts on a ticket or PR with an ask marker, or that a workcell run asks through the factory. It stays open until a later comment, the progress comment or the factory answers it.
 _Avoid_: Question, request, final report (when the ask is meant)
 
 **PM Bot**:
