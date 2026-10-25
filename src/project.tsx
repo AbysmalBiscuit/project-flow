@@ -1091,9 +1091,10 @@ export function Page() {
 		project: string,
 		generation: number,
 	) => {
+		const { openView: _openView, ...own } = next;
 		const kept = groupBySavedRef.current
-			? next
-			: (({ groupBy: _groupBy, ...rest }) => rest)(next);
+			? own
+			: (({ groupBy: _groupBy, ...rest }) => rest)(own);
 		const write = saveChain.current.then(async () => {
 			if (generation !== saveGeneration.current) {
 				return;

@@ -77,12 +77,14 @@ export function savedProjectView(
 	} = star ?? {};
 	const {
 		groupBy: savedGroupBy,
-		openView: savedOpenView,
+		openView: _savedOpenView,
 		lastView: savedLastView,
 		...savedRest
 	} = saved ?? {};
 	const groupBy = savedGroupBy ?? starGroupBy;
-	const openView = savedOpenView ?? starOpenView ?? defaultOpenView;
+	// Settings sets the open view only on the star entry. A project entry
+	// can hold an old copy of the star's value, so it never decides.
+	const openView = starOpenView ?? defaultOpenView;
 	const lastView = savedLastView ?? starLastView;
 	return {
 		...viewDefaults(),
