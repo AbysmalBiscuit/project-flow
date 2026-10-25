@@ -1481,14 +1481,38 @@ describe("live updates", () => {
 	});
 
 	test("the event stream stays open past the idle timeout", async () => {
-		const requests: string[] = [];
-		await withServer(unchangedFetch(requests), 3600, async (base) => {
-			const port = Number(new URL(base).port);
-			const started = Date.now();
+		// Bun checks idle sockets on a 4 second tick, so a 1 second idle timeout
+		// closes an idle connection 4 seconds after its last data.
+		const idleCloseMs = 4_000;
+		const { path, cleanup } = await tempConfig(
+			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
+		);
+		let stop: () => void = () => {};
+		const stopped = new Promise<void>((resolve) => {
+			stop = resolve;
+		});
+		let listening: (base: string) => void = () => {};
+		const listened = new Promise<string>((resolve) => {
+			listening = resolve;
+		});
+		const running = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: unchangedFetch([]),
+				readGhToken: async () => null,
+				databasePath: ":memory:",
+				idleTimeoutSeconds: 1,
+				stdout: (line) => listening(line),
+				waitForStop: stopped,
+			}),
+		);
+		try {
+			const base = await listened;
 			let closed = false;
 			const socket = await Bun.connect({
 				hostname: "127.0.0.1",
-				port,
+				port: Number(new URL(base).port),
 				socket: {
 					data() {},
 					close() {
@@ -1501,14 +1525,19 @@ describe("live updates", () => {
 					},
 				},
 			});
-			await Bun.sleep(11_000);
+			await Bun.sleep(idleCloseMs + 500);
 			expect(closed).toBe(false);
-			expect(Date.now() - started).toBeGreaterThan(10_000);
 			const probe = await fetch(new URL("/api/overview", base));
 			expect(probe.status).toBe(200);
 			socket.end();
-		});
-	}, 15_000);
+		} finally {
+			stop();
+			const result = await running;
+			await cleanup();
+			expect(result.stderr).toBe("");
+			expect(result.exitCode).toBe(0);
+		}
+	});
 
 	test("a failed project with no stored rows gets its own empty card", async () => {
 		const requests: string[] = [];

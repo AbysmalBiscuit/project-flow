@@ -87,7 +87,7 @@ chmod 1777 "$dir"
 take() {
 	slot=$1
 	shift
-	flock -n --conflict-exit-code 75 "$dir/slot-$slot.lock" bun test --cwd "$root" "$@"
+	flock -n --conflict-exit-code 75 "$dir/slot-$slot.lock" bun test --cwd "$root" --parallel=4 --randomize "$@"
 }
 
 i=0
