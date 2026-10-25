@@ -56,10 +56,8 @@ export const board = stylex.create({
 		},
 		animationDuration: measure.move,
 	},
-	crumb: {
-		margin: `0 0 ${space.xs}`,
-		color: colours.inkSoft,
-		fontSize: type.meta,
+	pageTop: {
+		paddingTop: space.twoXl,
 	},
 	head: {
 		display: "flex",
