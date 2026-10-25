@@ -16,6 +16,11 @@ export const defaultFactoryGithubTokenDir = join(
 	"factory-gh",
 );
 
+export const defaultFactoryMintCommand = [
+	join(homedir(), "Git", "lev", "factory", "bin", "factory"),
+	"github-auth",
+];
+
 import { z } from "zod";
 
 import { knownBots } from "./known-bots.ts";
@@ -164,6 +169,10 @@ const configurationSchema = z
 			.default({ needsYou: true, comment: true, blockerCleared: true }),
 		factoryGithubTokens: z.boolean().default(false),
 		factoryGithubTokenDir: z.string().default(defaultFactoryGithubTokenDir),
+		factoryMintCommand: z
+			.array(z.string())
+			.min(1)
+			.default(defaultFactoryMintCommand),
 		projectViews: z.record(z.string(), projectViewSettings).default({}),
 		stateColours: stateColoursSchema,
 	})

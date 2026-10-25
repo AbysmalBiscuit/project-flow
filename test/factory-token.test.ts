@@ -4,7 +4,10 @@ import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
 import type { Overview } from "../src/domain.ts";
-import type { FactoryTokenReport } from "../src/factory-tokens.ts";
+import type {
+	FactoryTokenFileReport,
+	FactoryTokenReport,
+} from "../src/factory-tokens.ts";
 import { refreshSettled } from "./events.ts";
 import {
 	acmeBearer,
@@ -24,11 +27,13 @@ const otherToken = "ghs_other_installation";
 
 async function factoryTokenReports(
 	base: string,
-): Promise<FactoryTokenReport[]> {
+): Promise<FactoryTokenFileReport[]> {
 	const settings = (await (
 		await fetch(new URL("/api/settings", base))
 	).json()) as { factoryTokenReports: FactoryTokenReport[] };
-	return settings.factoryTokenReports;
+	return settings.factoryTokenReports.filter(
+		(report) => report.cause !== "mint failed",
+	);
 }
 
 describe("factory GitHub tokens", () => {

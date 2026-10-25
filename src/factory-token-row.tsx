@@ -36,9 +36,11 @@ export function FactoryTokenRow({
 				</span>
 				{reports.map((report) => (
 					<span
-						key={report.owner}
+						key={report.cause === "mint failed" ? report.cause : report.owner}
 						className={clsx(fields.warning)}
-						data-factory-token-report={report.owner}
+						data-factory-token-report={
+							report.cause === "mint failed" ? "mint" : report.owner
+						}
 					>
 						{factoryTokenFallbackLabel(report)}
 					</span>

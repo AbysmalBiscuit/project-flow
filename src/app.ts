@@ -8,6 +8,7 @@ import {
 	saveConfiguration,
 } from "./configuration.ts";
 import { type PostedReply, type ProjectReport, trackers } from "./domain.ts";
+import type { FactoryTokenMint } from "./factory-tokens.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
@@ -86,6 +87,7 @@ export type StartOptions = {
 	now?: () => Date;
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
+	mintFactoryTokens?: FactoryTokenMint;
 };
 
 export type Running = {
@@ -277,9 +279,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		() => ({
 			enabled: configuration.factoryGithubTokens,
 			dir: configuration.factoryGithubTokenDir,
+			mintCommand: configuration.factoryMintCommand,
 		}),
 		() => clock.now(),
+		options.mintFactoryTokens,
 	);
+	void factoryTokens.mintNow();
 	const fetchGithub = factoryTokens.fetch;
 	const trackers = {
 		github:
@@ -714,6 +719,12 @@ export async function start(options: StartOptions): Promise<Running> {
 					} catch (error) {
 						return invalidConfiguration(error);
 					}
+					if (
+						!current.factoryGithubTokens &&
+						configuration.factoryGithubTokens
+					) {
+						void factoryTokens.mintNow();
+					}
 					if (viewOnlyChange(current, merged)) {
 						pollOptions.fallback = configuration;
 						notifier.publish({
@@ -847,6 +858,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			pollOptions.stopped = true;
 			dropQueuedRefresh();
 			requests.abort();
+			factoryTokens.stop();
 			releaseLists();
 			if (timer !== null) {
 				clearInterval(timer);
