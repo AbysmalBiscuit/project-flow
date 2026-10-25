@@ -88,6 +88,11 @@ export type StartOptions = {
 	now?: () => Date;
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
+	settingsReadWaitMs?: number;
+	/** How long one second of `pollIntervalSeconds` lasts on the poll timer. */
+	intervalSecondMs?: number;
+	/** Bun's idle timeout for a connection, in whole seconds. */
+	idleTimeoutSeconds?: number;
 	mintFactoryTokens?: FactoryTokenMint;
 	mintRetryDelayMs?: number;
 	/** The `--factory` list, which replaces the configured factories. */
@@ -138,7 +143,7 @@ const replyBody = z.object({
 
 const readMarkBody = z.object({ read: z.literal(true) });
 
-const settingsReadWaitMs = 5_000;
+const defaultSettingsReadWaitMs = 5_000;
 
 const runPollMs = 10_000;
 
@@ -548,9 +553,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (timer !== null) {
 			clearInterval(timer);
 		}
-		timer = setInterval(() => {
-			void pollAgain().catch(() => {});
-		}, seconds * 1_000);
+		timer = setInterval(
+			() => {
+				void pollAgain().catch(() => {});
+			},
+			seconds * (options.intervalSecondMs ?? 1_000),
+		);
 		timer.unref?.();
 	};
 	const armTimer = () => {
@@ -642,6 +650,9 @@ export async function start(options: StartOptions): Promise<Running> {
 	server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
+		...(options.idleTimeoutSeconds === undefined
+			? {}
+			: { idleTimeout: options.idleTimeoutSeconds }),
 		development: false,
 		routes: {
 			"/_page": page,
@@ -763,7 +774,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					// read gets the last catalogue before Bun's idle timeout ends it.
 					await Promise.race([
 						Promise.all([discovery, readFactories(factories.settled)]),
-						Bun.sleep(settingsReadWaitMs),
+						Bun.sleep(options.settingsReadWaitMs ?? defaultSettingsReadWaitMs),
 					]);
 					return Response.json(settingsBody());
 				},

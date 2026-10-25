@@ -323,6 +323,8 @@ export async function withServer(
 				fetch: fetchImpl,
 				readGhToken: async () => null,
 				databasePath,
+				// One second of the poll interval lasts 100 ms on the poll timer.
+				intervalSecondMs: 100,
 				now: () => new Date(Date.parse(goodPoll) + advanced + ticks++ * 1_000),
 				stdout: (line) =>
 					startChecks(line, (ms) => {
