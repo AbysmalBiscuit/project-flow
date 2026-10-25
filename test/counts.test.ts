@@ -8,6 +8,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { doneTicketsForLane } from "../src/lanes.ts";
 import { run } from "../src/main.ts";
 import {
+	defaultStates,
 	linearFake,
 	recordedDiscovery,
 	tempConfig,
@@ -572,6 +573,24 @@ describe("done counts", () => {
 				pinned: [{ tracker: "linear", project: "widget-launch" }],
 				projectViews: {
 					[project]: { maxAgeDays: { Shipped: 2, Released: 2 } },
+				},
+				states: [
+					...defaultStates.filter((state) => state.id !== "done"),
+					{
+						id: "shipped",
+						label: "Shipped",
+						colour: "#7c5cbf",
+						categories: ["done"],
+					},
+					{
+						id: "released",
+						label: "Released",
+						colour: "#5b3f9a",
+						categories: ["done"],
+					},
+				],
+				stateMappings: {
+					WID: { Shipped: "shipped", Released: "released" },
 				},
 			}),
 			linearFake({

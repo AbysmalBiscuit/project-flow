@@ -5,11 +5,11 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
-	defaultStateColours,
+	defaultStates,
 	recordedDiscovery,
 	testIo,
 	unrecorded,
-	writtenColours,
+	writtenStates,
 } from "./support.ts";
 
 const discoveryOnly: Fetch = async (input, init) =>
@@ -34,13 +34,13 @@ describe("configuration file", () => {
 			);
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
-			expect(await writtenColours(path)).toEqual(defaultStateColours);
+			expect(await writtenStates(path)).toEqual(defaultStates);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
 	});
 
-	test("a missing configuration file is created with the default state colours and serves the overview", async () => {
+	test("a missing configuration file is created with the default states and serves the overview", async () => {
 		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
 		const path = join(root, "config.json");
 		const store = join(root, "store");
@@ -70,7 +70,7 @@ describe("configuration file", () => {
 			);
 			expect(result.stderr).toBe(`created configuration file: ${path}`);
 			expect(result.exitCode).toBe(0);
-			expect(await writtenColours(path)).toEqual(defaultStateColours);
+			expect(await writtenStates(path)).toEqual(defaultStates);
 			const overview = await checks;
 			expect(overview.status).toBe(200);
 			expect(overview.body).toMatchObject({ projects: [], error: null });
@@ -121,7 +121,7 @@ describe("configuration file", () => {
 			);
 			expect(result.exitCode).toBe(0);
 			expect(result.listened).toBe(true);
-			expect(await writtenColours(path)).toEqual(defaultStateColours);
+			expect(await writtenStates(path)).toEqual(defaultStates);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

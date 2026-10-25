@@ -5,6 +5,7 @@ import {
 	parseConfiguration,
 	projectRef as projectRefSchema,
 } from "./configuration.ts";
+import { stateSourceKey } from "./counts.ts";
 import type { SettingsProject, SettingsSnapshot } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -24,6 +25,7 @@ export function settingsResponse(
 	projects: SettingsProject[];
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
+	stateSources: StateSource[];
 } {
 	return {
 		...configuration,
@@ -34,7 +36,31 @@ export function settingsResponse(
 		projects: settingsProjects(configuration, catalogue, snapshots),
 		factoryTokenReports,
 		factoryEntries,
+		stateSources: stateSources(snapshots),
 	};
+}
+
+/** The boards whose statuses and labels the user maps onto user states. */
+export type StateSource = {
+	key: string;
+	projects: string[];
+	statuses: string[];
+};
+
+function stateSources(snapshots: readonly SettingsSnapshot[]): StateSource[] {
+	const sources = new Map<string, StateSource>();
+	for (const row of snapshots) {
+		const key = stateSourceKey(row.board, row.key);
+		const source = sources.get(key) ?? { key, projects: [], statuses: [] };
+		source.projects.push(row.name);
+		for (const status of row.board?.statuses ?? []) {
+			if (!source.statuses.includes(status.name)) {
+				source.statuses.push(status.name);
+			}
+		}
+		sources.set(key, source);
+	}
+	return [...sources.values()];
 }
 
 function withoutTrackers(text: string): string {
@@ -56,6 +82,7 @@ function withoutTrackers(text: string): string {
 		projects: _projects,
 		factoryTokenReports: _factoryTokenReports,
 		factoryEntries: _factoryEntries,
+		stateSources: _stateSources,
 		baselineTracked: _baselineTracked,
 		...configuration
 	} = parsed as Record<string, unknown>;
@@ -162,14 +189,16 @@ export function viewOnlyChange(
 		projectViews: previousViews,
 		overview: previousOverview,
 		theme: previousTheme,
-		stateColours: previousColours,
+		states: previousStates,
+		stateMappings: previousMappings,
 		...rest
 	} = before;
 	const {
 		projectViews: nextViews,
 		overview: nextOverview,
 		theme: nextTheme,
-		stateColours: nextColours,
+		states: nextStates,
+		stateMappings: nextMappings,
 		...kept
 	} = after;
 	const restSame = JSON.stringify(rest) === JSON.stringify(kept);
@@ -178,11 +207,12 @@ export function viewOnlyChange(
 	const overviewChanged =
 		JSON.stringify(previousOverview) !== JSON.stringify(nextOverview);
 	const themeChanged = previousTheme !== nextTheme;
-	const coloursChanged =
-		JSON.stringify(previousColours) !== JSON.stringify(nextColours);
+	const statesChanged =
+		JSON.stringify([previousStates, previousMappings]) !==
+		JSON.stringify([nextStates, nextMappings]);
 	return (
 		restSame &&
-		(viewsChanged || overviewChanged || themeChanged || coloursChanged)
+		(viewsChanged || overviewChanged || themeChanged || statesChanged)
 	);
 }
 

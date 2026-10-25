@@ -38,3 +38,25 @@ export const stateTones = stylex.create({
 export function toneOf(state: StatusType | undefined) {
 	return stateTones[state ?? "backlog"];
 }
+
+const painted = stylex.create({
+	tone: (tone: string) => ({
+		[stateTone.tone]: tone,
+		[stateTone.wash]: `color-mix(in srgb, ${tone} ${colours.washMix}, ${colours.raised})`,
+	}),
+});
+
+/**
+ * The class and style props that tone an element in a user state colour. An
+ * element with no known colour falls back to the colour of its category.
+ */
+export function tonedProps(
+	colour: string | undefined,
+	state: StatusType | undefined,
+	...styles: stylex.StyleXStyles[]
+) {
+	return stylex.props(
+		...styles,
+		colour === undefined ? toneOf(state) : painted.tone(colour),
+	);
+}
