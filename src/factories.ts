@@ -6,6 +6,7 @@ import type {
 	FactoryRun,
 	RunAgent,
 	RunCheckpoint,
+	RunGraph,
 	RunStatusKind,
 	RunUsage,
 } from "./domain.ts";
@@ -113,6 +114,46 @@ function stagePath(answer: z.infer<typeof checkpoint>): string {
 	]
 		.filter((node) => node !== "")
 		.join("/");
+}
+
+const labelled = z.object({ label: z.string().optional() }).default({});
+
+/** The `GET /runs/{id}/graph` answer: the frozen entry graph of the run's workflow. */
+const workflowGraph = z.object({
+	nodes: z.array(z.object({ id: z.string(), attrs: labelled })),
+	edges: z.array(
+		z.object({ from: z.string(), to: z.string(), attrs: labelled }),
+	),
+});
+
+/**
+ * The graph of a run with the checkpoint state of each top-level node. A child
+ * graph runs inside its caller node, so the caller node is the current one.
+ */
+function runGraph(
+	graph: z.infer<typeof workflowGraph>,
+	answer: z.infer<typeof checkpoint>,
+): RunGraph {
+	const current = stagePath(answer).split("/")[0];
+	const completed = new Set(answer.completed_nodes);
+	return {
+		nodes: graph.nodes.map((node) => ({
+			id: node.id,
+			label: node.attrs.label ?? node.id,
+			state:
+				node.id === current
+					? "current"
+					: completed.has(node.id)
+						? "completed"
+						: "ahead",
+			retries: answer.node_retries[node.id] ?? 0,
+		})),
+		edges: graph.edges.map((edge) => ({
+			from: edge.from,
+			to: edge.to,
+			...(edge.attrs.label === undefined ? {} : { label: edge.attrs.label }),
+		})),
+	};
 }
 
 /** One frame of the hub's `GET /events`: a box event of a run, or a status change. */
@@ -741,6 +782,30 @@ export function factoryReader(
 			}),
 			stages,
 		).sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+	/** A run's workflow graph does not change while it runs, so the first good read stays. */
+	const graphs = new Map<string, z.infer<typeof workflowGraph>>();
+	const graphOf = async (
+		read: (path: string) => Promise<Response>,
+		runId: string,
+	): Promise<z.infer<typeof workflowGraph> | null> => {
+		const known = graphs.get(runId);
+		if (known !== undefined) {
+			return known;
+		}
+		try {
+			const graph = await body(
+				await read(`/runs/${encodeURIComponent(runId)}/graph`),
+				workflowGraph,
+			);
+			graphs.set(runId, graph);
+			return graph;
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return null;
+		}
+	};
 	const runCheckpoint = async (
 		runId: string,
 	): Promise<RunCheckpoint | null> => {
@@ -756,10 +821,12 @@ export function factoryReader(
 		const read = reader(fetchImpl, row.url, signal);
 		const usage = usageOf(read, runId);
 		try {
-			const answer = await body(
-				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
-				checkpoint,
-			);
+			const [answer, graph] = await Promise.all([
+				read(`/runs/${encodeURIComponent(runId)}/checkpoint`).then((response) =>
+					body(response, checkpoint),
+				),
+				graphOf(read, runId),
+			]);
 			const stage = stagePath(answer);
 			const used = await usage;
 			return {
@@ -768,6 +835,7 @@ export function factoryReader(
 				retries: answer.node_retries,
 				visits: answer.visits,
 				...(used === null ? {} : { usage: used }),
+				graph: graph === null ? null : runGraph(graph, answer),
 			};
 		} catch (error) {
 			if (!(error instanceof Unreachable)) {
