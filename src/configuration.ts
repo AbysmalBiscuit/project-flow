@@ -65,6 +65,10 @@ export type ProjectPin = z.infer<typeof projectRef>;
 
 const knownBot = z.enum(knownBots);
 
+export const autoMerge = z.enum(["yes", "ask", "no"]);
+
+export type AutoMerge = z.infer<typeof autoMerge>;
+
 const storedSorts = [
 	...overviewSorts,
 	"name",
@@ -142,7 +146,7 @@ const configurationSchema = z
 		checkoutRoots: z.array(z.string()).default([join(homedir(), "Git")]),
 		expectedBots: z.record(z.string(), z.array(knownBot)).optional(),
 		pmBot: z.record(z.string(), z.boolean()).default({}),
-		autoMerge: z.record(z.string(), z.enum(["yes", "ask", "no"])).default({}),
+		autoMerge: z.record(z.string(), autoMerge).default({}),
 		laneMappings: z
 			.record(
 				z.string(),
@@ -201,8 +205,6 @@ export type Configuration = z.infer<typeof configurationSchema>;
 export type { OverviewView } from "./overview-view.ts";
 
 export type StateColours = Configuration["stateColours"];
-
-export type AutoMerge = Configuration["autoMerge"][string];
 
 function fieldPath(issue: z.core.$ZodIssue): string {
 	const path = issue.path.map(String).join(".");
