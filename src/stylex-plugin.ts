@@ -1,5 +1,6 @@
 import { readFileSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { rename } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 
 import type { PluginItem } from "@babel/core";
 import parser from "@babel/parser";
@@ -30,9 +31,51 @@ function loadedCompilers() {
 }
 
 const rootDir = realpathSync(resolve(import.meta.dir, ".."));
-const rules = new Map<string, ReadonlyArray<readonly unknown[]>>();
 
-async function compile(code: string, filename: string): Promise<string> {
+type Rules = ReadonlyArray<readonly unknown[]>;
+type Compiled = { readonly output: string; readonly rules: Rules };
+
+const rules = new Map<string, Rules>();
+
+// Each test file runs in a fresh global, so the compile output also lives on
+// disk. The key covers the source, the lockfile and this file.
+const cacheDir = resolve(rootDir, "node_modules/.cache/project-flow-stylex");
+const cacheSalt = [
+	readFileSync(import.meta.path, "utf8"),
+	readFileSync(resolve(rootDir, "bun.lock"), "utf8"),
+].join("\0");
+
+function cacheKey(...parts: string[]): string {
+	return new Bun.CryptoHasher("sha256")
+		.update([cacheSalt, ...parts].join("\0"))
+		.digest("hex");
+}
+
+async function cached<T>(key: string, make: () => Promise<T>): Promise<T> {
+	const path = join(cacheDir, `${key}.json`);
+	try {
+		return (await Bun.file(path).json()) as T;
+	} catch {
+		const value = await make();
+		const written = `${path}.${crypto.randomUUID()}`;
+		await Bun.write(written, JSON.stringify(value));
+		await rename(written, path);
+		return value;
+	}
+}
+
+function record(filename: string, compiled: Compiled): void {
+	if (compiled.rules.length > 0) {
+		rules.set(filename, compiled.rules);
+	} else {
+		rules.delete(filename);
+	}
+	if (filename.endsWith("/tokens.stylex.ts")) {
+		themeMeta = themeFromCompile(compiled.output);
+	}
+}
+
+async function compile(code: string, filename: string): Promise<Compiled> {
 	const { babel, stylexBabelPlugin } = await loadedCompilers();
 	const result = await babel.transformAsync(code, {
 		babelrc: false,
@@ -52,17 +95,8 @@ async function compile(code: string, filename: string): Promise<string> {
 			}),
 		],
 	});
-	const metadata = result?.metadata as
-		{ stylex?: ReadonlyArray<readonly unknown[]> } | undefined;
-	if (metadata?.stylex !== undefined && metadata.stylex.length > 0) {
-		rules.set(filename, metadata.stylex);
-	} else {
-		rules.delete(filename);
-	}
-	if (filename.endsWith("/tokens.stylex.ts")) {
-		themeMeta = themeFromCompile(result?.code ?? "");
-	}
-	return result?.code ?? code;
+	const metadata = result?.metadata as { stylex?: Rules } | undefined;
+	return { output: result?.code ?? code, rules: metadata?.stylex ?? [] };
 }
 
 export type PageThemeMeta = {
@@ -170,11 +204,13 @@ async function collectedCss(): Promise<string> {
 	if (flat.length === 0) {
 		return "";
 	}
-	const { stylexBabelPlugin } = await loadedCompilers();
-	return stylexBabelPlugin.processStylexRules(
-		flat as Parameters<typeof stylexBabelPlugin.processStylexRules>[0],
-		{ useLayers: true },
-	);
+	return cached(cacheKey(JSON.stringify(flat)), async () => {
+		const { stylexBabelPlugin } = await loadedCompilers();
+		return stylexBabelPlugin.processStylexRules(
+			flat as Parameters<typeof stylexBabelPlugin.processStylexRules>[0],
+			{ useLayers: true },
+		);
+	});
 }
 
 function loaderFor(path: string): "tsx" | "ts" | "jsx" | "js" {
@@ -194,7 +230,7 @@ let compiled: Promise<Map<string, string>> | null = null;
 
 // Each server build compiles the tree again. A file whose source did not
 // change keeps its last output and rules.
-const lastCompiled = new Map<string, { code: string; output: string }>();
+const lastCompiled = new Map<string, { code: string; compiled: Compiled }>();
 
 async function compileTree(): Promise<Map<string, string>> {
 	const files = new Bun.Glob("src/**/*.{ts,tsx}").scan({
@@ -208,10 +244,18 @@ async function compileTree(): Promise<Map<string, string>> {
 		if (!code.includes("@stylexjs/stylex")) {
 			continue;
 		}
-		const last = lastCompiled.get(path);
-		const next = last?.code === code ? last.output : await compile(code, path);
-		lastCompiled.set(path, { code, output: next });
-		output.set(path, next);
+		let last = lastCompiled.get(path);
+		if (last?.code !== code) {
+			last = {
+				code,
+				compiled: await cached(cacheKey(relative(rootDir, path), code), () =>
+					compile(code, path),
+				),
+			};
+			record(path, last.compiled);
+			lastCompiled.set(path, last);
+		}
+		output.set(path, last.compiled.output);
 	}
 	for (const path of [...rules.keys(), ...lastCompiled.keys()]) {
 		if (!output.has(path)) {
