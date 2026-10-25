@@ -1,6 +1,6 @@
 export type Fetch = (
 	input: string | URL | Request,
-	init?: RequestInit,
+	init?: BunFetchRequestInit,
 ) => Promise<Response>;
 
 function urlOf(input: string | URL | Request): string {

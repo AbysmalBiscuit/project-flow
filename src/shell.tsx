@@ -7,7 +7,7 @@ import type { Configuration } from "./configuration.ts";
 import { openJumpBox } from "./jump.tsx";
 import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
 import { Segment } from "./segment.tsx";
-import { navLabel } from "./terms.ts";
+import { factoryCopy, navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
@@ -165,6 +165,7 @@ const links = [
 
 export function AppShell({ children }: { children: ReactNode }) {
 	const needs = useQuery(pageQuery.needsYou);
+	const overview = useQuery(pageQuery.overview);
 	const count = needs.data === undefined ? null : needs.data.length;
 	const [theme, setTheme] = useState(pageTheme);
 	const themeRef = useRef(theme);
@@ -224,6 +225,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 					))}
 				</nav>
 				<span className={clsx(frame.spacer)} />
+				{overview.data?.factoryUnreachable === true ? (
+					<a
+						id="factory-unreachable"
+						className={clsx(frame.factoryMarker, shell.linkFocus)}
+						href="/settings#factories"
+					>
+						{factoryCopy.headerMarker}
+					</a>
+				) : null}
 				<Button
 					id="header-search"
 					icon="search"

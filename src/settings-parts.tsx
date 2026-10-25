@@ -27,6 +27,7 @@ export const sections = [
 	{ id: "review", label: settingsSection.review },
 	{ id: "notifications", label: settingsSection.notifications },
 	{ id: "trackers", label: settingsSection.trackers },
+	{ id: "factories", label: settingsSection.factories },
 ] as const;
 
 export const trackerFilters = ["all", "github", "linear"] as const;

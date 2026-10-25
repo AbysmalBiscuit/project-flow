@@ -5,6 +5,7 @@ import { Button } from "./button.tsx";
 import { Chip } from "./chip.tsx";
 import type { Configuration, ProjectPin } from "./configuration.ts";
 import type { SettingsProject } from "./domain.ts";
+import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
@@ -13,6 +14,7 @@ import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { Select } from "./select.tsx";
 import { StateColoursSection } from "./settings-colours.tsx";
+import { FactoriesSection } from "./settings-factories.tsx";
 import {
 	laneStates,
 	sections,
@@ -107,6 +109,7 @@ function Menu({
 	trackers,
 	projects,
 	factoryTokenReports,
+	factoryEntries,
 	polling,
 	onSave,
 	onResetColours,
@@ -115,6 +118,7 @@ function Menu({
 	trackers: Trackers;
 	projects: SettingsProject[];
 	factoryTokenReports: FactoryTokenReport[];
+	factoryEntries: FactoryEntry[];
 	polling: boolean;
 	onSave: (
 		next: Configuration,
@@ -226,6 +230,11 @@ function Menu({
 						onChange={patch}
 					/>
 					<TrackersSection trackers={trackers} />
+					<FactoriesSection
+						draft={draft}
+						entries={factoryEntries}
+						onChange={patch}
+					/>
 					<SettingsBar
 						dirty={dirty}
 						message={message}
@@ -614,6 +623,7 @@ export function Page() {
 			trackers={loaded.trackers}
 			projects={loaded.projects}
 			factoryTokenReports={loaded.factoryTokenReports}
+			factoryEntries={loaded.factoryEntries}
 			polling={polling}
 			onResetColours={async () => {
 				try {

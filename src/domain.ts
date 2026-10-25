@@ -397,6 +397,8 @@ export type Overview = {
 	error: string | null;
 	polling?: true;
 	tracked?: false;
+	/** A listed factory did not answer its last check. */
+	factoryUnreachable?: true;
 };
 
 /** Projects finished in the poll that is running, out of the tracked projects. */

@@ -129,6 +129,27 @@ const stateColoursSchema = z
 	})
 	.default(statusColours);
 
+const factoryProtocols = new Set(["http:", "https:", "unix:"]);
+
+export const factoryUrl = z
+	.string()
+	.trim()
+	.refine((value) => {
+		const url = URL.parse(value);
+		return (
+			url !== null &&
+			factoryProtocols.has(url.protocol) &&
+			(url.protocol === "unix:" ? url.pathname !== "" : url.host !== "")
+		);
+	});
+
+const factory = z.strictObject({
+	name: z.string().trim().min(1),
+	url: factoryUrl,
+});
+
+export type Factory = z.infer<typeof factory>;
+
 const configurationSchema = z
 	.strictObject({
 		theme: z.enum(["light", "dark"]).default("light"),
@@ -177,6 +198,7 @@ const configurationSchema = z
 			.array(z.string())
 			.min(1)
 			.default(defaultFactoryMintCommand),
+		factories: z.array(factory).default([]),
 		projectViews: z.record(z.string(), projectViewSettings).default({}),
 		stateColours: stateColoursSchema,
 	})

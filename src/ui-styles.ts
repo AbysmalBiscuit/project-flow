@@ -202,6 +202,11 @@ export const frame = stylex.create({
 	spacer: {
 		flexGrow: 1,
 	},
+	factoryMarker: {
+		color: colours.inkSoft,
+		fontSize: type.meta,
+		whiteSpace: "nowrap",
+	},
 	glyph: {
 		width: measure.glyph,
 		height: measure.glyph,

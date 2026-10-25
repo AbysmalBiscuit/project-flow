@@ -116,6 +116,7 @@ export type PollOptions = {
 	catalogue: FoundProject[];
 	/** False when a tracked-list write landed after this poll started. */
 	mayPublish: () => boolean;
+	factoryUnreachable: () => boolean;
 };
 
 export async function poll(options: PollOptions): Promise<Configuration> {

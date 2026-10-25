@@ -9,7 +9,8 @@ import { z } from "zod";
 import { version } from "../package.json";
 import { start } from "./app.ts";
 import type { AutoMerge } from "./configuration.ts";
-import { autoMerge, loadConfiguration } from "./configuration.ts";
+import { autoMerge, factoryUrl, loadConfiguration } from "./configuration.ts";
+import { flagFactory } from "./factories.ts";
 import type { FactoryTokenMint, MintResult } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
@@ -624,6 +625,14 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		return result(1);
 	}
 
+	const factoryFlags = args.flatMap((arg, index) =>
+		arg === "--factory" ? [args[index + 1] ?? ""] : [],
+	);
+	if (factoryFlags.some((url) => !factoryUrl.safeParse(url).success)) {
+		writeErr("invalid factory: --factory needs an http, https or unix URL");
+		return result(1);
+	}
+
 	try {
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
 		if (!existsSync(configPath)) {
@@ -653,6 +662,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			listTodos: io.listTodos ?? listDevkitTodos,
 			listCheckouts:
 				io.listCheckouts ?? ((roots) => listDevkitCheckouts(roots, io.env)),
+			flagFactories: factoryFlags.map((url) => flagFactory(url.trim())),
 			...(io.now === undefined ? {} : { now: io.now }),
 			...(io.threadReadLimitMs === undefined
 				? {}
