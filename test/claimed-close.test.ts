@@ -7,6 +7,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedClosed from "./fixtures/github-closed-issues.json";
 import recordedOpen from "./fixtures/github-issues.json";
+import recordedParent from "./fixtures/github-parent-issue.json";
 import {
 	emptyProjectFields,
 	githubIssueNode,
@@ -57,6 +58,12 @@ if (open205 === undefined) {
 const closed205 = recorded(205);
 const closed380 = recorded(380);
 const open380 = reopened(closed380);
+const closedParent: Issue = recordedParent.parent;
+const openParent: Issue = {
+	...reopened(closedParent),
+	updated_at: "2026-10-19T17:13:52Z",
+};
+const subIssues: Issue[] = recordedParent.subIssues;
 const closedBlockerOf391 = recordedClosed.blockedBy391;
 const openBlockerOf391 = closedBlockerOf391.map((row) => ({
 	...row,
@@ -106,6 +113,20 @@ function trackerFetch(tracker: Tracker, requests: TrackerRequest[]): Fetch {
 		}
 		if (url !== "https://api.github.com/graphql") {
 			return unrecorded(input, init);
+		}
+		if (body.includes("query HeldIssues")) {
+			const repository = Object.fromEntries(
+				[...body.matchAll(/i(\d+): issue\(number: (\d+)\)/g)].map((match) => {
+					const item = tracker.repo.find(
+						(entry) => String(entry.number) === match[2],
+					);
+					return [
+						`i${match[1]}`,
+						item === undefined ? null : githubIssueNode(item),
+					];
+				}),
+			);
+			return Response.json({ data: { repository } });
 		}
 		if (body.includes("query RepoRead")) {
 			const since =
@@ -181,6 +202,17 @@ function repoReadSince(requests: TrackerRequest[]): unknown[] {
 	return requests
 		.filter((request) => request.query.includes("query RepoRead"))
 		.map((request) => request.variables.since ?? null);
+}
+
+/** The issue numbers that each held issue read asked for, in order. */
+function heldIssueReads(requests: TrackerRequest[]): number[][] {
+	return requests
+		.filter((request) => request.query.includes("query HeldIssues"))
+		.map((request) =>
+			[...request.query.matchAll(/issue\(number: (\d+)\)/g)].map((match) =>
+				Number(match[1]),
+			),
+		);
 }
 
 type Clock = { now: Date };
@@ -398,6 +430,40 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 						updatedAt: closed205.updated_at,
 						enteredStateAt: closed205.closed_at,
 					});
+				} finally {
+					await app.stop();
+				}
+			},
+			[repoPin],
+		);
+	});
+
+	test("a parent issue with sub-issues that a poll read open after its close shows as done after the next poll", async () => {
+		await withTrackedBoardAndRepo(
+			async (paths) => {
+				const tracker: Tracker = {
+					repo: [openParent, ...subIssues],
+					board: [],
+				};
+				const requests: TrackerRequest[] = [];
+				const app = await startApp(paths, tracker, requests, {
+					now: new Date(
+						Date.parse(String(closedParent.closed_at)) + 10 * 60 * 1000,
+					),
+				});
+				try {
+					await app.overview();
+					expect(await projectCopy(app.base, 1)).toMatchObject({
+						state: "backlog",
+						updatedAt: openParent.updated_at,
+					});
+					tracker.repo = [closedParent, ...subIssues];
+					await app.refresh("2026-10-25T09:00:00.000Z");
+					expect(await projectCopy(app.base, 1)).toMatchObject({
+						state: "done",
+						updatedAt: closedParent.updated_at,
+					});
+					expect(heldIssueReads(requests)).toEqual([[1]]);
 				} finally {
 					await app.stop();
 				}

@@ -39,7 +39,7 @@ import {
 	type Viewer,
 } from "./ports.ts";
 import { repoParts, sameRepo } from "./project-ref.ts";
-import { githubKey } from "./ticket-key.ts";
+import { githubKey, sameTicketKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
 export { githubHeaders } from "./github-pages.ts";
@@ -2663,12 +2663,82 @@ async function currentBlockers(
  */
 const sinceOverlapMs = 5 * 60 * 1000;
 
+const heldIssuePage = 50;
+
+const heldIssueAlias = /^i(\d+)$/;
+
+/**
+ * The held open issues that the since read left out and that GitHub now shows
+ * closed or changed. A since read never lists again a change that a poll missed.
+ */
+async function changedHeldIssues(
+	token: string,
+	fetchImpl: Fetch,
+	repo: string,
+	held: Ticket[],
+	listed: ReadonlySet<number>,
+): Promise<z.infer<typeof graphqlIssueNode>[]> {
+	const parts = repoParts(repo);
+	const keptUpdate = new Map(
+		held.flatMap((ticket) => {
+			const number = Number(ticket.id);
+			return ticket.state === "open" &&
+				Number.isInteger(number) &&
+				ticket.key !== null &&
+				sameTicketKey(ticket.key, githubKey(repo, number)) &&
+				!listed.has(number)
+				? [[number, ticket.updatedAt] as const]
+				: [];
+		}),
+	);
+	if (parts === null || keptUpdate.size === 0) {
+		return [];
+	}
+	const changed: z.infer<typeof graphqlIssueNode>[] = [];
+	for (const slice of chunked([...keptUpdate.keys()], heldIssuePage)) {
+		const fields = slice
+			.map(
+				(number) =>
+					`i${number}: issue(number: ${number}) { ${issueNodeFields} }`,
+			)
+			.join("\n");
+		const body = await postPollQuery(token, fetchImpl, repo, () => ({
+			query: `query HeldIssues($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { ${fields} } }`,
+			variables: { owner: parts.owner, name: parts.name },
+		}));
+		if (body === null) {
+			return [];
+		}
+		const { data } = pollData(body, repo, (path) =>
+			path[0] === "repository" && typeof path[1] === "string" ? path[1] : null,
+		);
+		const repository = z
+			.record(z.string(), graphqlIssueNode.nullable().catch(null))
+			.nullable()
+			.catch(null)
+			.parse(data.repository);
+		for (const [alias, node] of Object.entries(repository ?? {})) {
+			const number = Number(alias.match(heldIssueAlias)?.[1]);
+			if (
+				node !== null &&
+				node.number === number &&
+				(node.state.toLowerCase() !== "open" ||
+					node.updatedAt !== keptUpdate.get(number))
+			) {
+				changed.push(node);
+			}
+		}
+	}
+	return changed;
+}
+
 async function readRepo(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
 	lastPoll: Date | null,
 	stored: StoredLists,
+	held: Ticket[],
 ): Promise<{
 	tickets: Ticket[];
 	pulls: PullRequest[];
@@ -2726,8 +2796,14 @@ async function readRepo(
 	);
 	for (const issue of edited) {
 		if (!seenIssues.has(issue.number)) {
+			seenIssues.add(issue.number);
 			issues.push(issue);
 		}
+	}
+	if (since !== null) {
+		issues.push(
+			...(await changedHeldIssues(token, fetchImpl, repo, held, seenIssues)),
+		);
 	}
 	const pullNodes = await collectConnection(
 		token,
@@ -2996,19 +3072,28 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 	};
 	const autoMergeByRepo = new Map<string, Promise<boolean>>();
 	const repoSnapshots = new Map<string, ReturnType<typeof readRepo>>();
-	const repoReadFor = (repo: string, since: Date | null) => {
+	const repoReadFor = (
+		repo: string,
+		since: Date | null,
+		held: Ticket[] = [],
+	) => {
 		const cached = repoSnapshots.get(repo);
 		if (cached !== undefined) {
 			return cached;
 		}
-		const read = readRepo(token, fetchImpl, repo, since, storedLists).catch(
-			(error: unknown) => {
-				if (repoSnapshots.get(repo) === read) {
-					repoSnapshots.delete(repo);
-				}
-				throw error;
-			},
-		);
+		const read = readRepo(
+			token,
+			fetchImpl,
+			repo,
+			since,
+			storedLists,
+			held,
+		).catch((error: unknown) => {
+			if (repoSnapshots.get(repo) === read) {
+				repoSnapshots.delete(repo);
+			}
+			throw error;
+		});
 		repoSnapshots.set(repo, read);
 		return read;
 	};
@@ -3051,7 +3136,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 				};
 				return { name: repo, tickets, board };
 			}
-			const batched = await repoReadFor(repo, since);
+			const batched = await repoReadFor(repo, since, held);
 			if (batched === null) {
 				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 			}
