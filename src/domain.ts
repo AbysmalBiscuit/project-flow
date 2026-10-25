@@ -91,6 +91,24 @@ export type RunCheckpoint = {
 	visits: Record<string, number>;
 };
 
+/** The run statuses whose agents can work: the app reads a run's agents only in these. */
+export const liveRunStatusKinds = [
+	"starting",
+	"running",
+	"blocked",
+] as const satisfies readonly RunStatusKind[];
+
+/** What the agent of one stage of a live run does now, from `GET /runs/{id}/workers`. */
+export type RunAgent = {
+	/** The node path of the stage that the agent works on. */
+	stage: string;
+	/** The tool that the agent uses now. Null between tool calls and after its turn. */
+	tool: string | null;
+	/** The last line of the agent's last message. Null before its first message. */
+	lastMessage: string | null;
+	turn: "running" | "ended";
+};
+
 /** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
 export type EarlierFactoryRun = Pick<
 	FactoryRun,

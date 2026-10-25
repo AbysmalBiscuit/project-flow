@@ -13,6 +13,7 @@ import type {
 } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { spanLabel } from "./poll-age.ts";
+import { RunAgents } from "./run-agents.tsx";
 import { RunStages } from "./run-checkpoint.tsx";
 import { RunDot } from "./run-marks.tsx";
 import {
@@ -163,6 +164,7 @@ export function RunSection({
 					</RunFact>
 				)}
 			</dl>
+			<RunAgents run={run} />
 			<RunStages run={run} />
 			{earlier.length === 0 ? null : (
 				<>
