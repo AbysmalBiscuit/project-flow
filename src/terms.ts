@@ -26,7 +26,8 @@ export function factoryTokenFallbackLabel(report: FactoryTokenReport): string {
 			report.status === "missing"
 				? "could not start"
 				: `exited with status ${report.status}`;
-		return `The factory token mint ${report.command} ${status}. Reads use your token.`;
+		const detail = report.detail === undefined ? "" : `: ${report.detail}`;
+		return `The factory token mint ${report.command} ${status}${detail}. Reads use your token.`;
 	}
 	return `${report.owner} reads use your token: the factory token file ${report.path} is ${report.cause}.`;
 }

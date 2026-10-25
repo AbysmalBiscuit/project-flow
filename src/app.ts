@@ -88,6 +88,7 @@ export type StartOptions = {
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
 	mintFactoryTokens?: FactoryTokenMint;
+	mintRetryDelayMs?: number;
 };
 
 export type Running = {
@@ -133,6 +134,8 @@ const replyBody = z.object({
 });
 
 const readMarkBody = z.object({ read: z.literal(true) });
+
+const settingsReadWaitMs = 5_000;
 
 const readIdsBody = readMarkBody.extend({
 	ids: z.array(z.string()),
@@ -283,6 +286,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		}),
 		() => clock.now(),
 		options.mintFactoryTokens,
+		options.mintRetryDelayMs,
 	);
 	void factoryTokens.mintNow();
 	const fetchGithub = factoryTokens.fetch;
@@ -680,8 +684,10 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/settings": pageResponse,
 			"/api/settings": {
 				GET: async () => {
-					// A read during discovery waits, so a tracked-list write sees this poll's catalogue.
-					await discovery;
+					// A read during discovery waits, so a tracked-list write sees this
+					// poll's catalogue. A discovery held up by a slow mint or tracker
+					// read gets the last catalogue before Bun's idle timeout ends it.
+					await Promise.race([discovery, Bun.sleep(settingsReadWaitMs)]);
 					return Response.json(
 						settingsResponse(
 							configuration,

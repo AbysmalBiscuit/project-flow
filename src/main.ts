@@ -10,7 +10,7 @@ import { version } from "../package.json";
 import { start } from "./app.ts";
 import type { AutoMerge } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
-import type { FactoryTokenMint, MintStatus } from "./factory-tokens.ts";
+import type { FactoryTokenMint, MintResult } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
 import { checkLinearKey } from "./linear.ts";
@@ -48,6 +48,7 @@ export type RunIo = {
 	listCheckouts?: CheckoutSource;
 	open?: (url: string) => Promise<void>;
 	mintFactoryTokens?: FactoryTokenMint;
+	mintRetryDelayMs?: number;
 };
 
 export type RunResult = {
@@ -434,13 +435,13 @@ export async function readGhAuthToken(
 export async function runFactoryMint(
 	command: string[],
 	dir: string,
-): Promise<MintStatus> {
+): Promise<MintResult> {
 	const [program, ...args] = command;
 	const flock = Bun.which("flock");
 	const timeout = Bun.which("timeout");
 	const found = program === undefined ? null : Bun.which(program);
 	if (flock === null || timeout === null || found === null) {
-		return "missing";
+		return { status: "missing", stderr: "" };
 	}
 	await mkdir(dir, { recursive: true, mode: 0o700 });
 	const proc = Bun.spawn(
@@ -454,9 +455,13 @@ export async function runFactoryMint(
 			found,
 			...args,
 		],
-		{ stdout: "ignore", stderr: "ignore" },
+		{ stdout: "ignore", stderr: "pipe" },
 	);
-	return proc.exited;
+	const [status, stderr] = await Promise.all([
+		proc.exited,
+		new Response(proc.stderr).text(),
+	]);
+	return { status, stderr };
 }
 
 function defaultConfigPath(env: Record<string, string | undefined>): string {
@@ -645,6 +650,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.mintFactoryTokens === undefined
 				? {}
 				: { mintFactoryTokens: io.mintFactoryTokens }),
+			...(io.mintRetryDelayMs === undefined
+				? {}
+				: { mintRetryDelayMs: io.mintRetryDelayMs }),
 		});
 		listened = true;
 		writeOut(running.url.href);
