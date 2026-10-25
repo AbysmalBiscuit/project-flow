@@ -763,7 +763,12 @@ function configArgsForCheckout(args: string[], callerDir: string): string[] {
 	const next = [...args];
 	const index = next.indexOf("--config");
 	const value = next[index + 1];
-	if (index === -1 || value === undefined || value.trim() === "") {
+	if (
+		index === -1 ||
+		value === undefined ||
+		value.trim() === "" ||
+		value.startsWith("--")
+	) {
 		return next;
 	}
 	const trimmed = value.trim();
