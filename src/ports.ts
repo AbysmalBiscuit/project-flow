@@ -11,6 +11,7 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
+import type { FactoryEntry } from "./factories.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
@@ -94,6 +95,18 @@ export type Tracker = {
 		signal?: AbortSignal,
 	) => Promise<FetchedThread | null>;
 	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
+};
+
+/** Reads the factories that this launch lists. */
+export type FactoryReader = {
+	/** Check each factory again. */
+	check: () => Promise<void>;
+	/** Wait for the running check, and check a factory that has none. */
+	settled: () => Promise<void>;
+	/** Each listed factory with what its last check found. */
+	entries: () => FactoryEntry[];
+	/** True when the last check of a listed factory failed. */
+	unreachable: () => boolean;
 };
 
 export type GithubTracker = Tracker & {

@@ -268,5 +268,8 @@ export function overview(
 			goodPolls.length === 0 ? null : (goodPolls.sort()[0] ?? null),
 		),
 		...(configuration.tracked.length === 0 ? { tracked: false as const } : {}),
+		...(options.factoryUnreachable()
+			? { factoryUnreachable: true as const }
+			: {}),
 	};
 }

@@ -346,7 +346,30 @@ export const settingsSection = {
 	review: "Review",
 	notifications: "Notifications",
 	trackers: "Trackers",
+	factories: "Factories",
 } as const;
+
+export const factoryCopy = {
+	lead: "Project Flow reads workcell runs from each factory. A hub covers the runs of its boxes.",
+	flagLead:
+		"This launch reads the --factory list. The configured list applies on a launch without --factory.",
+	none: "No factory set.",
+	name: "Factory name",
+	url: "http, https or unix URL",
+	reachable: "Reachable",
+	unreachable: "Unreachable",
+	unchecked: "Not checked",
+	notRead: "Not read in this launch",
+	flag: "--factory",
+	config: "Configuration",
+	hub: "Hub",
+	daemon: "Standalone",
+	headerMarker: "factory unreachable",
+} as const;
+
+export function boxCount(boxes: number): string {
+	return boxes === 1 ? "1 box" : `${boxes} boxes`;
+}
 
 export const settingsCopy = {
 	savedTo: "Saved to the configuration file. Changes apply without a restart.",
