@@ -10,6 +10,7 @@ import recordedOpen from "./fixtures/github-issues.json";
 import {
 	emptyProjectFields,
 	githubIssueNode,
+	githubSince,
 	recordedDiscovery,
 	repoReadIssues,
 	settledOverview,
@@ -184,7 +185,20 @@ function repoReadSince(requests: TrackerRequest[]): unknown[] {
 
 type Clock = { now: Date };
 
+/** The ticket that the project report of the tracked repo shows. */
+async function projectCopy(base: string, number: number) {
+	const response = await fetch(
+		new URL(`/api/projects/${encodeURIComponent(repoName)}`, base),
+	);
+	expect(response.status).toBe(200);
+	const body = (await response.json()) as {
+		tickets: { key: string | null }[];
+	};
+	return body.tickets.find((ticket) => ticket.key === `${repoName}#${number}`);
+}
+
 type App = {
+	base: string;
 	overview: () => Promise<Overview>;
 	refresh: (at: string) => Promise<Overview>;
 	stop: () => Promise<void>;
@@ -218,6 +232,7 @@ async function startApp(
 	);
 	const base = await opened;
 	return {
+		base,
 		overview: () => settledOverview(base, readOverview),
 		async refresh(at) {
 			const before = await settledOverview(base, readOverview);
@@ -283,7 +298,10 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 				expect(copiesOf(await app.refresh(afterClose), 205)).toEqual([
 					{ project: boardTitle, lane: "Done", blockers: [] },
 				]);
-				expect(repoReadSince(requests)).toEqual([null, beforeClose]);
+				expect(repoReadSince(requests)).toEqual([
+					null,
+					githubSince(beforeClose),
+				]);
 			} finally {
 				await app.stop();
 			}
@@ -312,7 +330,10 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 						.slice(sent)
 						.some((request) => request.query.includes("node(id:")),
 				).toBe(true);
-				expect(repoReadSince(requests)).toEqual([null, beforeClose]);
+				expect(repoReadSince(requests)).toEqual([
+					null,
+					githubSince(beforeClose),
+				]);
 				tracker.board = [closed205];
 				expect(
 					copiesOf(await app.refresh("2026-10-21T10:00:00.000Z"), 205),
@@ -345,13 +366,43 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 					).toEqual([{ project: boardTitle, lane: "Backlog", blockers: [] }]);
 					expect(repoReadSince(requests)).toEqual([
 						null,
-						"2026-10-23T14:00:00.000Z",
+						githubSince("2026-10-23T14:00:00.000Z"),
 					]);
 				} finally {
 					await app.stop();
 				}
 			},
 			[repoPin, boardPin],
+		);
+	});
+
+	test("the project report takes updatedAt and enteredStateAt from the closed issue when a poll after its close stamp still read it open", async () => {
+		await withTrackedBoardAndRepo(
+			async (paths) => {
+				const tracker: Tracker = { repo: [reopened(closed205)], board: [] };
+				const requests: TrackerRequest[] = [];
+				const app = await startApp(paths, tracker, requests, {
+					now: new Date(Date.parse(String(closed205.closed_at)) + 30 * 1000),
+				});
+				try {
+					await app.overview();
+					expect(await projectCopy(app.base, 205)).toMatchObject({
+						state: "backlog",
+						updatedAt: closed205.created_at,
+						enteredStateAt: closed205.created_at,
+					});
+					tracker.repo = [closed205];
+					await app.refresh(afterClose);
+					expect(await projectCopy(app.base, 205)).toMatchObject({
+						state: "done",
+						updatedAt: closed205.updated_at,
+						enteredStateAt: closed205.closed_at,
+					});
+				} finally {
+					await app.stop();
+				}
+			},
+			[repoPin],
 		);
 	});
 
@@ -381,7 +432,10 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 				expect(copiesOf(body, 205)).toEqual([
 					{ project: boardTitle, lane: "Done", blockers: [] },
 				]);
-				expect(repoReadSince(requests)).toEqual([null, beforeClose]);
+				expect(repoReadSince(requests)).toEqual([
+					null,
+					githubSince(beforeClose),
+				]);
 			} finally {
 				await second.stop();
 			}
