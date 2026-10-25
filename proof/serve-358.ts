@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops, proofTheme } from "./lifetime.ts";
 import { recordedIssues } from "./recorded.ts";
 
@@ -68,7 +69,7 @@ const running = await start({
 	configPath,
 	token: "recorded-token",
 	linearKey: null,
-	fetch: recorded,
+	fetch: answerRecordedRepoRead(recorded),
 	databasePath: join(root, "project-flow.sqlite"),
 	hostname: "127.0.0.1",
 	port: port + 1,

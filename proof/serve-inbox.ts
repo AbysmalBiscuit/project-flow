@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const ask = "<!-- workcell:ask pf-1 -->";
@@ -111,7 +112,7 @@ export async function runLinearProof(
 			["--config", config, "--host", "127.0.0.1", "--port", proofPort],
 			{
 				env: { LINEAR_API_KEY: "recorded-linear-key" },
-				fetch: recorded,
+				fetch: answerRecordedRepoRead(recorded),
 				readGhToken: async () => null,
 				databasePath: join(root, "store.sqlite"),
 				now: () => new Date("2026-10-18T12:00:00.000Z"),

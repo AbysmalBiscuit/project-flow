@@ -5,6 +5,7 @@ import type { Notification } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { sqliteStore } from "../src/store.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const ask = "<!-- workcell:ask pf-1 -->";
@@ -232,7 +233,7 @@ await writeFile(
 try {
 	await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 		env: { LINEAR_API_KEY: "recorded-linear-key" },
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		databasePath,
 		now: () => new Date("2026-10-18T14:30:00.000Z"),

@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import type { Overview } from "../src/domain.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { recordedViewer, unrecorded } from "../test/support.ts";
 import { proofStops } from "./lifetime.ts";
 
@@ -95,7 +96,7 @@ const result = await run(
 			LINEAR_API_KEY: "recorded-linear-key",
 			XDG_DATA_HOME: data,
 		},
-		fetch: async (input, init) => {
+		fetch: answerRecordedRepoRead(async (input, init) => {
 			if (stopped.signal.aborted) {
 				throw new Error("proof server was not ready within 9s");
 			}
@@ -125,7 +126,7 @@ const result = await run(
 				});
 			}
 			return unrecorded(input);
-		},
+		}),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],

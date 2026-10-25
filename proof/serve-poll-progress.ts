@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { recordedDiscovery, unrecorded, urlOf } from "../test/support.ts";
 
 const port = process.argv.find((arg) => arg.startsWith("--port="))?.slice(7);
@@ -105,7 +106,7 @@ const result = await run(
 			XDG_DATA_HOME: dataHome,
 			GITHUB_TOKEN: "recorded-token",
 		},
-		fetch: fetchImpl,
+		fetch: answerRecordedRepoRead(fetchImpl),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],

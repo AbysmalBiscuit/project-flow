@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import {
 	recordedDiscovery,
 	repoReadFromHandler,
@@ -263,7 +264,7 @@ const heard = new Promise<string>((resolve, reject) => {
 			LINEAR_API_KEY: "recorded-linear-key",
 			XDG_DATA_HOME: dir,
 		},
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],

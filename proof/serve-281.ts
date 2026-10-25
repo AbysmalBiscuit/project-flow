@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import projectFields from "../test/fixtures/github-project-fields.json";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { recordedDiscovery, urlOf } from "../test/support.ts";
 import { proofStops } from "./lifetime.ts";
 import { emptyLinear, unrecorded } from "./recorded.ts";
@@ -304,7 +305,7 @@ const heard = new Promise<string>((resolve, reject) => {
 			LINEAR_API_KEY: "recorded-linear-key",
 			XDG_DATA_HOME: dir,
 		},
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],

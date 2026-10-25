@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2] ?? "4173";
@@ -132,7 +133,7 @@ await run(["--config", config, "--host", "127.0.0.1", "--port", port], {
 		GITHUB_TOKEN: "recorded-token",
 		LINEAR_API_KEY: "recorded-linear-key",
 	},
-	fetch: recorded,
+	fetch: answerRecordedRepoRead(recorded),
 	readGhToken: async () => null,
 	databasePath: join(root, "store.sqlite"),
 	stdout: (line) => {

@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { recordedViewer, urlOf } from "../test/support.ts";
 import { proofStops } from "./lifetime.ts";
 
@@ -42,7 +43,7 @@ const running = await start({
 	configPath: process.argv[2] ?? "",
 	token: "recorded-token",
 	linearKey: null,
-	fetch: recordedThenFailing,
+	fetch: answerRecordedRepoRead(recordedThenFailing),
 	databasePath,
 	hostname: "127.0.0.1",
 	port: 4174,

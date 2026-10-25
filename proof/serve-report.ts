@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const githubRepo = "acme/widget";
@@ -236,7 +237,7 @@ const result = await run(
 			GITHUB_TOKEN: "recorded-token",
 			LINEAR_API_KEY: "recorded-linear-key",
 		},
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		databasePath: join(dir, "store.sqlite"),
 		now: () => new Date("2026-10-18T12:00:00.000Z"),

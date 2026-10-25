@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedClosedBlockers from "../test/fixtures/github-closed-blockers.json";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { recordedViewer, repoReadIssues, urlOf } from "../test/support.ts";
 import { proofStops } from "./lifetime.ts";
 
@@ -107,7 +108,7 @@ await run(
 	["--config", configPath, "--host", "127.0.0.1", "--port", String(port)],
 	{
 		env: { GITHUB_TOKEN: "recorded-token" },
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		databasePath: join(root, "store.sqlite"),
 		stdout: (line) => {

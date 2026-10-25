@@ -1,4 +1,5 @@
 import { run, type RunIo, waitForStop } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 
 /** A proof server exits after this long when nobody stops it. */
 export const proofServerLifetimeMs = 30 * 60 * 1000;
@@ -325,6 +326,10 @@ export async function proofTheme(response: Response): Promise<Response> {
 }
 
 export async function serveProof(args: string[], io: RunIo): Promise<never> {
-	const result = await run(args, { ...io, waitForStop: proofStops() });
+	const result = await run(args, {
+		...io,
+		fetch: answerRecordedRepoRead(io.fetch),
+		waitForStop: proofStops(),
+	});
 	process.exit(result.exitCode);
 }

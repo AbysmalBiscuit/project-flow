@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "../test/recorded-read.ts";
 import { recordedViewer, repoReadFromHandler, urlOf } from "../test/support.ts";
 import { proofStops, proofTheme } from "./lifetime.ts";
 
@@ -361,7 +362,7 @@ try {
 			GITHUB_TOKEN: "recorded-token",
 			LINEAR_API_KEY: "recorded-linear-key",
 		},
-		fetch: recorded,
+		fetch: answerRecordedRepoRead(recorded),
 		readGhToken: async () => null,
 		listTodos: async () => "",
 		listCheckouts: async () => [],
