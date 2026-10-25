@@ -30,6 +30,7 @@ import runGraph from "./fixtures/factory-run-graph.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
+import steerDelivered from "./fixtures/factory-steer-delivered.json";
 import {
 	issuesResponse,
 	listedRead,
@@ -1567,6 +1568,125 @@ describe("factory steers", () => {
 				error: "the run has ended, so it takes no steer",
 			});
 			expect(posts(app.requests)).toEqual([hubSteer]);
+		} finally {
+			await app.stop();
+		}
+	});
+});
+
+describe("run thread", () => {
+	const [running41] = hubRuns.runs;
+	if (running41 === undefined) {
+		throw new Error("the hub runs fixture lost a run");
+	}
+	const [question] = runQuestions.questions;
+	if (question === undefined) {
+		throw new Error("the run questions fixture lost its question");
+	}
+	const questionsPath = `/runs/${running41.id}/questions`;
+	const answerPath = `${questionsPath}/${question.id}/answer`;
+	const steerPath = `/runs/${running41.id}/steer`;
+	const steer = steerDelivered.item.data;
+	const steerMessage = {
+		kind: "steer" as const,
+		sender: steer.sender,
+		text: steer.text,
+		at: steer.delivered_at,
+	};
+
+	function post(base: string, path: string, body: unknown) {
+		return fetch(new URL(path, base), {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(body),
+		});
+	}
+
+	test("the run gives its asks, answers and delivered steers as one thread in time order, with the sender of each", async () => {
+		const feed = new EventFeed();
+		const app = await serveRuns(
+			{
+				...hubWith41("blocked"),
+				"/events": feed,
+				[questionsPath]: runQuestions,
+				[answerPath]: { ...question, answer: "Add the scope." },
+			},
+			[41],
+		);
+		try {
+			await feed.connected(1);
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.questions !== undefined,
+			);
+			app.advance(5 * 60_000);
+			const answered = await post(
+				app.base,
+				`/api/factory-runs/${running41.id}/questions/${question.id}/answer`,
+				{ text: "Add the scope." },
+			);
+			expect(answered.status).toBe(200);
+			feed.send(steerDelivered);
+			const body = await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.thread?.length === 3,
+			);
+			expect(factoryRunOf(body, 41)?.thread).toEqual([
+				{
+					kind: "ask",
+					sender: question.node_path,
+					text: question.text,
+					at: "2026-10-25T14:20:00.000Z",
+				},
+				{
+					kind: "answer",
+					sender: "lev",
+					text: "Add the scope.",
+					at: "2026-10-25T14:25:00.000Z",
+				},
+				steerMessage,
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a steer that Lev sends joins the thread once, when the factory reports it delivered", async () => {
+		const feed = new EventFeed();
+		const app = await serveRuns(
+			{
+				...hub,
+				"/events": feed,
+				[steerPath]: { id: steer.steer, run_id: running41.id, sender: "lev" },
+			},
+			[41],
+		);
+		try {
+			await feed.connected(1);
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+			);
+			const steered = await post(
+				app.base,
+				`/api/factory-runs/${running41.id}/steer`,
+				{ stage: "implement", text: steer.text, interrupt: steer.interrupt },
+			);
+			expect(steered.status).toBe(200);
+			const sent = await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41) !== undefined,
+			);
+			expect(factoryRunOf(sent, 41)?.thread).toBeUndefined();
+			feed.send(steerDelivered);
+			feed.send(steerDelivered);
+			const [planStarted] = hubEvents;
+			feed.send(planStarted);
+			const delivered = await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.stage === "plan",
+			);
+			expect(factoryRunOf(delivered, 41)?.thread).toEqual([steerMessage]);
 		} finally {
 			await app.stop();
 		}
