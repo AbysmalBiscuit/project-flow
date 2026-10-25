@@ -208,7 +208,7 @@ export function githubFetch(
 export async function serve(
 	fetchImpl: Fetch,
 	config: string,
-	options?: { threadReadLimitMs?: number },
+	options?: { threadReadLimitMs?: number; trackerRequestLimitMs?: number },
 ): Promise<{ base: string; stop: () => Promise<void> }> {
 	const { path, cleanup } = await tempConfig(config);
 	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
@@ -238,6 +238,9 @@ export async function serve(
 			...(options?.threadReadLimitMs === undefined
 				? {}
 				: { threadReadLimitMs: options.threadReadLimitMs }),
+			...(options?.trackerRequestLimitMs === undefined
+				? {}
+				: { trackerRequestLimitMs: options.trackerRequestLimitMs }),
 			readGhToken: async () => null,
 			databasePath: join(root, "store.sqlite"),
 			stdout: (line) => startChecks(line),
