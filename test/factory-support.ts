@@ -28,6 +28,44 @@ export type FactoryRequest = {
 
 export type Answers = Record<string, unknown | null>;
 
+/** A hub `GET /events` stream that the test writes frames to and drops. */
+export class EventFeed {
+	connects = 0;
+	#open: ReadableStreamDefaultController<Uint8Array> | null = null;
+
+	answer(signal: AbortSignal | null | undefined): Response {
+		this.connects += 1;
+		const body = new ReadableStream<Uint8Array>({
+			start: (controller) => {
+				this.#open = controller;
+				signal?.addEventListener("abort", () =>
+					controller.error(signal.reason),
+				);
+			},
+		});
+		return new Response(body, {
+			headers: { "content-type": "text/event-stream" },
+		});
+	}
+
+	send(frame: unknown): void {
+		this.#open?.enqueue(
+			new TextEncoder().encode(`data: ${JSON.stringify(frame)}\n\n`),
+		);
+	}
+
+	drop(): void {
+		this.#open?.close();
+		this.#open = null;
+	}
+
+	async connected(count: number): Promise<void> {
+		while (this.connects < count) {
+			await Bun.sleep(10);
+		}
+	}
+}
+
 export const hub: Answers = {
 	"/daemon": daemonAbout,
 	"/sources": hubSources,
@@ -66,6 +104,9 @@ export function factoryFetch(
 			throw new TypeError("Unable to connect");
 		}
 		const body = answers[url.pathname];
+		if (body instanceof EventFeed) {
+			return body.answer(init?.signal);
+		}
 		return body === undefined || body === null
 			? new Response("not found", { status: 404 })
 			: json(body);

@@ -1,0 +1,38 @@
+[
+	{
+		"run_id": "20261025-140102-a1b2",
+		"machine": "box-a",
+		"seq": 14,
+		"id": "4f1c2a9e8b7d4c3fa1e2b3c4d5e6f701",
+		"recorded_at": "2026-10-25T14:21:03.512+00:00",
+		"item": {
+			"event": "stage.started",
+			"node_path": "plan",
+			"data": { "name": "plan", "index": 2 }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"machine": "box-a",
+		"seq": 15,
+		"id": "9a8b7c6d5e4f43a2b1c0d9e8f7a6b502",
+		"recorded_at": "2026-10-25T14:24:41.087+00:00",
+		"item": {
+			"event": "stage.completed",
+			"node_path": "plan",
+			"data": { "name": "plan", "index": 2, "duration": 217.6 }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"machine": "box-a",
+		"seq": 16,
+		"id": "c3d2e1f0a9b84c7d6e5f4a3b2c1d0e03",
+		"recorded_at": "2026-10-25T14:24:41.143+00:00",
+		"item": {
+			"event": "stage.started",
+			"node_path": "build",
+			"data": { "name": "build", "index": 3 }
+		}
+	}
+]

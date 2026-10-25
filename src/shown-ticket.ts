@@ -76,7 +76,7 @@ function liveRun(
 		return fromComment;
 	}
 	const status = fed === undefined ? local?.status : feedStatus[fed.statusKind];
-	const stage = fromComment?.stage;
+	const stage = fed?.streamed === true ? fed.stage : fromComment?.stage;
 	return status === undefined
 		? undefined
 		: { status, ...(stage === undefined ? {} : { stage }) };
@@ -167,7 +167,7 @@ export function shownTicket(
 }
 
 /**
- * The newest factory run of a ticket, with the stage of its progress comment,
+ * The newest factory run of a ticket, with its stage,
  * and the earlier runs of the ticket.
  */
 export function shownFactoryRun(
@@ -181,7 +181,9 @@ export function shownFactoryRun(
 	if (run === undefined) {
 		return {};
 	}
-	const stage = progressRun(ticket.comments ?? [], now)?.stage;
+	const stage = run.streamed
+		? run.stage
+		: progressRun(ticket.comments ?? [], now)?.stage;
 	return {
 		factoryRun: {
 			statusKind: run.statusKind,
