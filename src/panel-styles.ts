@@ -229,6 +229,15 @@ export const panel = stylex.create({
 	currentStage: {
 		fontWeight: type.weight,
 	},
+	agent: {
+		marginBottom: space.sm,
+	},
+	agentMessage: {
+		display: "block",
+		color: colours.inkSoft,
+		fontSize: type.meta,
+		overflowWrap: "anywhere",
+	},
 	runStatus: {
 		display: "flex",
 		gap: space.xs,

@@ -7,17 +7,19 @@ import {
 
 import { readSettings, type SettingsRead } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
-import type {
-	InboxEntry,
-	NeedsYouItem,
-	Overview,
-	PostedReply,
-	ProjectReport,
-	RunCheckpoint,
-	SettingsProject,
-	ShownFactoryRun,
-	Thread,
-	Tracker,
+import {
+	type InboxEntry,
+	liveRunStatusKinds,
+	type NeedsYouItem,
+	type Overview,
+	type PostedReply,
+	type ProjectReport,
+	type RunAgent,
+	type RunCheckpoint,
+	type SettingsProject,
+	type ShownFactoryRun,
+	type Thread,
+	type Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { FactoryEntry } from "./factories.ts";
@@ -45,6 +47,8 @@ type ReplyBody = {
 };
 
 const pageStaleTimeMs = 60_000;
+
+const agentReadMs = 5_000;
 
 export const pageQuery = {
 	overview: queryOptions({
@@ -88,6 +92,16 @@ export const pageQuery = {
 			queryFn: () => readCheckpoint(run.id),
 			placeholderData: (previous: RunCheckpoint | null | undefined) => previous,
 		}),
+	/** A live run reads its agents again on an interval while a view follows it, and an ended run reads none. */
+	agents: (run: Pick<ShownFactoryRun, "id" | "statusKind">) => {
+		const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
+		return queryOptions({
+			queryKey: ["agents", run.id, run.statusKind],
+			queryFn: () => readAgents(run.id),
+			enabled: live,
+			refetchInterval: live ? agentReadMs : false,
+		});
+	},
 };
 
 export const pageQueryClient = new QueryClient({
@@ -178,6 +192,19 @@ async function readThread(
 			: { status: "failed" };
 	}
 	return { status: "ready", thread: (await response.json()) as Thread };
+}
+
+async function readAgents(runId: string): Promise<RunAgent[]> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/agents`,
+	);
+	if (response.status === 404) {
+		return [];
+	}
+	if (!response.ok) {
+		throw new Error(`agents failed (HTTP ${response.status})`);
+	}
+	return ((await response.json()) as { agents: RunAgent[] }).agents;
 }
 
 async function readCheckpoint(runId: string): Promise<RunCheckpoint | null> {

@@ -8,6 +8,7 @@ import type {
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
+	RunAgent,
 	RunCheckpoint,
 	Snapshot,
 	Ticket,
@@ -129,6 +130,12 @@ export type FactoryReader = {
 	 * Null when no factory reported the run or the factory gave no checkpoint.
 	 */
 	checkpoint: (runId: string) => Promise<RunCheckpoint | null>;
+	/**
+	 * `GET /runs/{id}/workers` of the factory whose row gives the run its status:
+	 * each agent whose turn runs, and the agent of the current stage.
+	 * Empty without a read when the run is not live. Null when no factory reported the run.
+	 */
+	agents: (runId: string) => Promise<RunAgent[] | null>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
 	 * The answer is the one write request that the app sends to a factory.
