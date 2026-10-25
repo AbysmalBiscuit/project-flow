@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { z } from "zod";
 
@@ -26,7 +26,7 @@ export type FactoryTokenMint = (
 
 export type FactoryTokenFileReport = {
 	owner: string;
-	cause: "missing" | "unreadable" | "expired";
+	cause: "missing" | "unreadable" | "expired" | "no installation";
 	path: string;
 };
 
@@ -129,6 +129,18 @@ function graphqlMutation(url: string, body: string): boolean {
 	}
 }
 
+async function mintedOwners(dir: string): Promise<Set<string>> {
+	const owners = new Set<string>();
+	try {
+		for await (const path of new Bun.Glob("*/hosts.yml").scan({ cwd: dir })) {
+			owners.add(dirname(path));
+		}
+	} catch {
+		// A mint that writes no file can leave no folder to scan.
+	}
+	return owners;
+}
+
 async function hostsAt(
 	path: string,
 	now: Date,
@@ -146,7 +158,9 @@ async function hostsAt(
  * Sends each GitHub read with the factory token of its repo owner. A read
  * without a usable token waits for a mint, then goes on with the user token,
  * and `reports` names each owner whose hosts file is missing, unreadable or
- * expired, and a mint that failed.
+ * expired, and a mint that failed. An owner without a hosts file after the
+ * last mint that exited 0 has no factory App installation: `reports` names it
+ * apart, and its reads start no mint.
  *
  * `mint` runs at most one at a time. A failed run runs again after
  * `retryDelayMs`, up to three runs in all, before `reports` names it. A read
@@ -175,6 +189,7 @@ export function installationTokenFetch(
 	>();
 	const reported = new Map<string, FactoryTokenFileReport>();
 	let mintFailure: FactoryTokenReport | null = null;
+	let lastGoodMint: { dir: string; owners: Set<string> } | null = null;
 	let minting: Promise<void> | null = null;
 	let lastMintAt = Number.NEGATIVE_INFINITY;
 	let renewAt: number | null = null;
@@ -209,7 +224,13 @@ export function installationTokenFetch(
 		lastMintAt = now().getTime();
 		const command = settings.mintCommand.join(" ");
 		minting ??= mintWithRetries(mint, settings.mintCommand, settings.dir)
-			.then(({ status, stderr }) => {
+			.then(async ({ status, stderr }) => {
+				if (status === 0) {
+					lastGoodMint = {
+						dir: settings.dir,
+						owners: await mintedOwners(settings.dir),
+					};
+				}
 				const detail = lastStderrLine(stderr);
 				mintFailure =
 					status === 0
@@ -305,14 +326,21 @@ export function installationTokenFetch(
 			reported.set(owner, { owner, cause, path });
 			return fetchImpl(input, init);
 		};
+		const noInstallation = () =>
+			lastGoodMint !== null &&
+			lastGoodMint.dir === settings.dir &&
+			!lastGoodMint.owners.has(owner);
 		let parsed = await hostsAt(path, current);
-		const pending = typeof parsed === "string" ? mintOnce() : null;
+		const pending =
+			typeof parsed === "string" && !noInstallation() ? mintOnce() : null;
 		if (pending !== null) {
 			await pending;
 			parsed = await hostsAt(path, now());
 		}
 		if (typeof parsed === "string") {
-			return fallBack(parsed);
+			return fallBack(
+				parsed === "missing" && noInstallation() ? "no installation" : parsed,
+			);
 		}
 		reported.delete(owner);
 		cached.set(owner, { ...parsed, dir: settings.dir });

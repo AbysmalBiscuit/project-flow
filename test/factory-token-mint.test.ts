@@ -7,6 +7,7 @@ import type {
 	FactoryTokenMint,
 	FactoryTokenReport,
 } from "../src/factory-tokens.ts";
+import { refreshSettled } from "./events.ts";
 import {
 	forOwner,
 	githubCalls,
@@ -171,6 +172,122 @@ describe("factory GitHub token mint", () => {
 			expect(reads.every((item) => item.authorization === userBearer)).toBe(
 				true,
 			);
+		} finally {
+			await app.stop();
+			await rm(home, { recursive: true, force: true });
+		}
+	});
+
+	test("an owner the mint writes no file for shows as no installation, and its reads start no more mints", async () => {
+		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const folder = join(home, "tokens");
+		let runs = 0;
+		const mint: FactoryTokenMint = async (_command, dir) => {
+			runs += 1;
+			await mkdir(join(dir, "acme"), { recursive: true });
+			await writeFile(
+				join(dir, "acme", "hosts.yml"),
+				hostsText(mintedToken, "2026-08-18T20:00:00.000Z"),
+			);
+			return { status: 0, stderr: "" };
+		};
+		const recorded: Recorded[] = [];
+		const clock = { at: new Date("2026-08-18T12:00:00.000Z") };
+		const app = await serve({
+			config: {
+				factoryGithubTokens: true,
+				factoryGithubTokenDir: folder,
+				factoryMintCommand: mintCommand,
+				tracked: [
+					{ tracker: "github", repo: "acme/widget" },
+					{ tracker: "github", repo: "beta/gadget" },
+				],
+			},
+			fetchImpl: recordingFetch(recorded, {
+				"acme/widget": [recordedIssue("acme/widget")],
+				"beta/gadget": [recordedIssue("beta/gadget")],
+			}),
+			now: () => clock.at,
+			home,
+			mint,
+		});
+		try {
+			const settings = (await (
+				await fetch(new URL("/api/settings", app.base))
+			).json()) as { factoryTokenReports: FactoryTokenReport[] };
+			expect(settings.factoryTokenReports).toEqual([
+				{
+					owner: "beta",
+					cause: "no installation",
+					path: join(folder, "beta", "hosts.yml"),
+				},
+			]);
+
+			clock.at = new Date("2026-08-18T12:31:00.000Z");
+			recorded.length = 0;
+			await refreshSettled(app.base);
+			expect(runs).toBe(1);
+			const reads = forOwner(githubCalls(recorded), "beta");
+			expect(reads.length).toBeGreaterThan(0);
+			expect(reads.every((item) => item.authorization === userBearer)).toBe(
+				true,
+			);
+		} finally {
+			await app.stop();
+			await rm(home, { recursive: true, force: true });
+		}
+	});
+
+	test("an owner the last good mint wrote reports its file as missing once the file is gone", async () => {
+		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const folder = join(home, "tokens");
+		let runs = 0;
+		const mint: FactoryTokenMint = async (_command, dir) => {
+			runs += 1;
+			if (runs > 1) {
+				return { status: 1, stderr: "" };
+			}
+			for (const owner of ["acme", "beta"]) {
+				await mkdir(join(dir, owner), { recursive: true });
+				await writeFile(
+					join(dir, owner, "hosts.yml"),
+					hostsText(`ghs_${owner}_minted`, "2026-08-18T12:30:00.000Z"),
+				);
+			}
+			return { status: 0, stderr: "" };
+		};
+		const recorded: Recorded[] = [];
+		const clock = { at: new Date("2026-08-18T12:00:00.000Z") };
+		const app = await serve({
+			config: {
+				factoryGithubTokens: true,
+				factoryGithubTokenDir: folder,
+				factoryMintCommand: mintCommand,
+				tracked: [
+					{ tracker: "github", repo: "acme/widget" },
+					{ tracker: "github", repo: "beta/gadget" },
+				],
+			},
+			fetchImpl: recordingFetch(recorded, {
+				"acme/widget": [recordedIssue("acme/widget")],
+				"beta/gadget": [recordedIssue("beta/gadget")],
+			}),
+			now: () => clock.at,
+			home,
+			mint,
+		});
+		try {
+			await rm(join(folder, "beta", "hosts.yml"));
+			clock.at = new Date("2026-08-18T12:31:00.000Z");
+			await refreshSettled(app.base);
+			const settings = (await (
+				await fetch(new URL("/api/settings", app.base))
+			).json()) as { factoryTokenReports: FactoryTokenReport[] };
+			expect(settings.factoryTokenReports).toContainEqual({
+				owner: "beta",
+				cause: "missing",
+				path: join(folder, "beta", "hosts.yml"),
+			});
 		} finally {
 			await app.stop();
 			await rm(home, { recursive: true, force: true });
