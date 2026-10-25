@@ -196,6 +196,7 @@ export function shownFactoryRun(
 			endedAt: run.endedAt,
 			coveredByFeed: run.coveredByFeed,
 			...(run.questions === undefined ? {} : { questions: run.questions }),
+			...(run.thread === undefined ? {} : { thread: run.thread }),
 			...(stage === undefined ? {} : { stage }),
 		},
 		...(earlier.length === 0

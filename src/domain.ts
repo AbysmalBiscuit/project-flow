@@ -35,6 +35,16 @@ export type RunStatusKind = (typeof runStatusKinds)[number];
 /** An open question that a blocked run waits on, from `GET /runs/{id}/questions`. */
 export type FactoryQuestion = { id: string; text: string };
 
+/** One message of a run thread: an ask of the run, an answer to an ask, or a delivered steer. */
+export type RunMessage = {
+	kind: "ask" | "answer" | "steer";
+	/** The stage that asks, or the person who answers or steers. */
+	sender: string;
+	text: string;
+	/** The time of the message as an ISO string. */
+	at: string;
+};
+
 /** A workcell run that a factory reports in `GET /runs`. */
 export type FactoryRun = {
 	id: string;
@@ -59,6 +69,8 @@ export type FactoryRun = {
 	stage?: string;
 	/** The open questions of a blocked run. Absent when the factory gave no list. */
 	questions?: FactoryQuestion[];
+	/** The asks, answers and delivered steers of the run, oldest first. Absent until the run has one. */
+	thread?: RunMessage[];
 };
 
 /**
@@ -77,6 +89,7 @@ export type ShownFactoryRun = Pick<
 	| "endedAt"
 	| "coveredByFeed"
 	| "questions"
+	| "thread"
 > & { stage?: string };
 
 /** Where a factory run is in its flow, from the run checkpoint of its box. */

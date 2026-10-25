@@ -1,6 +1,7 @@
 import type {
 	NeedsYouItem,
 	NotificationTrigger,
+	RunMessage,
 	RunStatusKind,
 	ShownFactoryRun,
 	TicketState,
@@ -194,6 +195,15 @@ export const earlierRunsLabel = "Earlier runs";
 export const runQuestionsLabel = "Run questions";
 
 export const steerLabel = "Steer the run";
+
+export const runThreadLabel = "Run thread";
+
+/** The verb after the sender of each run thread message. */
+export const runMessageLabel = {
+	ask: "asks",
+	answer: "answers",
+	steer: "steers",
+} as const satisfies Record<RunMessage["kind"], string>;
 
 export const runFactLabel = {
 	status: "Status",
