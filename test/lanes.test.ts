@@ -40,6 +40,7 @@ type FlightItem = {
 	state: string;
 	blockers: string[];
 	lane: string;
+	status?: string;
 	statusType: string;
 	blocked?: boolean;
 	enteredStateAt?: string;
@@ -57,6 +58,7 @@ type ProjectBody = {
 	name: string;
 	tracker: string;
 	lanes: Lane[];
+	statuses: Lane[];
 	sections: {
 		id: string;
 		items?: FlightItem[];
@@ -73,6 +75,7 @@ type OverviewBody = {
 		tickets: {
 			key: string | null;
 			lane?: string;
+			status?: string;
 			statusType?: string;
 			state: string;
 		}[];
@@ -384,7 +387,7 @@ async function projectOf(base: string, name: string): Promise<ProjectBody> {
 }
 
 function laneNames(report: ProjectBody): Set<string> {
-	return new Set(report.lanes.map((lane) => lane.name));
+	return new Set(report.statuses.map((lane) => lane.name));
 }
 
 function expectLanesHoldTickets(
@@ -396,29 +399,35 @@ function expectLanesHoldTickets(
 	const tickets =
 		overview.projects.find((item) => item.name === project)?.tickets ?? [];
 	for (const item of tickets) {
-		expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+		expect(
+			(item.status ?? item.lane) === undefined ||
+				names.has(item.status ?? item.lane ?? ""),
+		).toBe(true);
 	}
 	for (const item of report.sections.flatMap(
 		(section) => section.items ?? [],
 	)) {
-		expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+		expect(
+			(item.status ?? item.lane) === undefined ||
+				names.has(item.status ?? item.lane ?? ""),
+		).toBe(true);
 	}
 }
 
 function flight(report: ProjectBody): FlightItem[] {
 	const lanes = new Map(
-		report.lanes.map((lane) => [lane.name, lane.statusType]),
+		report.statuses.map((lane) => [lane.name, lane.statusType]),
 	);
 	return report.sections
 		.filter((section) => section.id === "inFlight" || section.id === "backlog")
 		.flatMap((section) =>
 			(section.items ?? []).flatMap((item) => {
 				const lane =
-					item.lane === "" && section.id === "backlog"
-						? (report.lanes.find(
+					(item.status ?? item.lane) === "" && section.id === "backlog"
+						? (report.statuses.find(
 								(candidate) => candidate.statusType === "backlog",
 							)?.name ?? "")
-						: item.lane;
+						: (item.status ?? item.lane);
 				const statusType = lanes.get(lane);
 				if (lane === "" || statusType === undefined) {
 					return [];
@@ -433,6 +442,7 @@ function flight(report: ProjectBody): FlightItem[] {
 					pull: _pull,
 					chips: _chips,
 					staleStatus: _staleStatus,
+					status: _status,
 					...rest
 				} = item;
 				return [{ ...rest, lane, statusType }];
@@ -486,7 +496,7 @@ describe("tracker lanes", () => {
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Triage",
 					"In Progress",
 					"Backlog",
@@ -498,23 +508,25 @@ describe("tracker lanes", () => {
 					"In Review",
 					"Awaiting merge",
 				]);
-				expect(report.lanes.find((lane) => lane.name === "In Review")).toEqual({
+				expect(
+					report.statuses.find((lane) => lane.name === "In Review"),
+				).toEqual({
 					id: "558ba933-745c-42e2-8969-b3757c54bd5c",
 					name: "In Review",
 					colour: "#4cb782",
 					statusType: "inReview",
 				});
 				expect(
-					report.lanes.find((lane) => lane.name === "Done")?.statusType,
+					report.statuses.find((lane) => lane.name === "Done")?.statusType,
 				).toBe("done");
 				expect(
-					report.lanes.find((lane) => lane.name === "Canceled")?.statusType,
+					report.statuses.find((lane) => lane.name === "Canceled")?.statusType,
 				).toBe("dropped");
 				expect(
-					report.lanes.find((lane) => lane.name === "Duplicate")?.statusType,
+					report.statuses.find((lane) => lane.name === "Duplicate")?.statusType,
 				).toBe("dropped");
 				expect(
-					report.lanes.find((lane) => lane.name === "Triage")?.colour,
+					report.statuses.find((lane) => lane.name === "Triage")?.colour,
 				).toBe("#FC7840");
 				expect(flight(report)).toEqual([
 					placed("WID-1", "Ship the list", "In Progress", "inProgress"),
@@ -562,14 +574,14 @@ describe("tracker lanes", () => {
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
 				expect(
-					report.lanes.find((lane) => lane.name === "Ready to merge"),
+					report.statuses.find((lane) => lane.name === "Ready to merge"),
 				).toEqual({
 					id: "st-merge",
 					name: "Ready to merge",
 					colour: "#4CB782",
 					statusType: "awaitingMerge",
 				});
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Triage",
 					"In Progress",
 					"Backlog",
@@ -604,7 +616,11 @@ describe("tracker lanes", () => {
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
 				expect(
-					report.lanes.map((lane) => [lane.name, lane.colour, lane.statusType]),
+					report.statuses.map((lane) => [
+						lane.name,
+						lane.colour,
+						lane.statusType,
+					]),
 				).toEqual([
 					["Backlog", "#4CB782", "backlog"],
 					["Ready", "#4C9AFF", "backlog"],
@@ -707,7 +723,11 @@ describe("tracker lanes", () => {
 			async (base) => {
 				const report = await projectOf(base, githubRepo);
 				expect(
-					report.lanes.map((lane) => [lane.name, lane.colour, lane.statusType]),
+					report.statuses.map((lane) => [
+						lane.name,
+						lane.colour,
+						lane.statusType,
+					]),
 				).toEqual([
 					["ready", "#0E8A16", "backlog"],
 					["factory: running", "#1D76DB", "inProgress"],
@@ -716,11 +736,11 @@ describe("tracker lanes", () => {
 					["Done", "#7c5cbf", "done"],
 					["Dropped", "#9ca3af", "dropped"],
 				]);
-				expect(report.lanes.find((lane) => lane.name === "Done")?.added).toBe(
-					true,
-				);
 				expect(
-					report.lanes.find((lane) => lane.name === "Dropped")?.added,
+					report.statuses.find((lane) => lane.name === "Done")?.added,
+				).toBe(true);
+				expect(
+					report.statuses.find((lane) => lane.name === "Dropped")?.added,
 				).toBe(true);
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
@@ -728,7 +748,11 @@ describe("tracker lanes", () => {
 				expectLanesHoldTickets(report, overview, githubRepo);
 				expect(
 					flight(report)
-						.map((item) => [item.key, item.lane, item.statusType])
+						.map((item) => [
+							item.key,
+							item.status ?? item.lane,
+							item.statusType,
+						])
 						.toSorted((left, right) =>
 							(left[0] ?? "").localeCompare(right[0] ?? ""),
 						),
@@ -751,7 +775,11 @@ describe("tracker lanes", () => {
 			async (base) => {
 				const report = await projectOf(base, plainRepo);
 				expect(
-					report.lanes.map((lane) => [lane.name, lane.colour, lane.statusType]),
+					report.statuses.map((lane) => [
+						lane.name,
+						lane.colour,
+						lane.statusType,
+					]),
 				).toEqual([
 					["Backlog", "#8a8680", "backlog"],
 					["In progress", "#3b6fd8", "inProgress"],
@@ -776,7 +804,7 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Backlog",
 					"In progress",
 					"In review",
@@ -788,7 +816,7 @@ describe("tracker lanes", () => {
 					.flatMap((section) => section.items ?? [])
 					.find((item) => item.key === "acme/widget#9");
 				expect(ticket?.state).toBe("backlog");
-				expect(report.lanes[0]?.name).toBe("Backlog");
+				expect(report.statuses[0]?.name).toBe("Backlog");
 			},
 		);
 	});
@@ -819,7 +847,7 @@ describe("tracker lanes", () => {
 				const report = await projectOf(base, "Widget board");
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const waiting = items.find((item) => item.key === "acme/widget#21");
-				expect(waiting?.lane).toBe("In progress");
+				expect(waiting?.status ?? waiting?.lane).toBe("In progress");
 				expect(waiting?.statusType).toBe("inProgress");
 				expect(waiting?.state).toBe("inProgress");
 				expect(waiting?.blocked).toBe(true);
@@ -855,7 +883,7 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Backlog",
 					"Ready",
 					"In progress",
@@ -863,7 +891,7 @@ describe("tracker lanes", () => {
 					"Awaiting merge",
 					"Done",
 				]);
-				expect(report.lanes.map((lane) => lane.statusType)).toEqual([
+				expect(report.statuses.map((lane) => lane.statusType)).toEqual([
 					"backlog",
 					"backlog",
 					"inProgress",
@@ -874,9 +902,9 @@ describe("tracker lanes", () => {
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const placedItem = items.find((item) => item.key === "acme/widget#7");
 				const empty = items.find((item) => item.key === "acme/widget#9");
-				expect(placedItem?.lane).toBe("In progress");
+				expect(placedItem?.status ?? placedItem?.lane).toBe("In progress");
 				expect(placedItem?.statusType).toBe("inProgress");
-				expect(empty?.lane).toBe("Backlog");
+				expect(empty?.status ?? empty?.lane).toBe("Backlog");
 				expect(empty?.statusType).toBe("backlog");
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
@@ -929,7 +957,7 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Todo",
 					"Doing",
 					"Review",
@@ -937,19 +965,21 @@ describe("tracker lanes", () => {
 					"Shipped",
 					"Dropped",
 				]);
-				expect(report.lanes.map((lane) => lane.name)).not.toContain("Backlog");
-				expect(report.lanes.map((lane) => lane.name)).not.toContain("Done");
+				expect(report.statuses.map((lane) => lane.name)).not.toContain(
+					"Backlog",
+				);
+				expect(report.statuses.map((lane) => lane.name)).not.toContain("Done");
 				const sections = report.sections.flatMap(
 					(section) => section.items ?? [],
 				);
 				const open = sections.find((item) => item.key === "acme/widget#9");
 				const blank = sections.find((item) => item.key === "acme/widget#8");
-				expect(open?.lane).toBe("Todo");
+				expect(open?.status ?? open?.lane).toBe("Todo");
 				expect(open?.statusType).toBe("backlog");
-				expect(blank?.lane).toBe("Todo");
+				expect(blank?.status ?? blank?.lane).toBe("Todo");
 				expect(blank?.statusType).toBe("backlog");
 				expect(
-					report.lanes.find((lane) => lane.name === "Dropped")?.added,
+					report.statuses.find((lane) => lane.name === "Dropped")?.added,
 				).toBe(true);
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
@@ -957,18 +987,21 @@ describe("tracker lanes", () => {
 				const tickets =
 					overview.projects.find((item) => item.name === "Widget board")
 						?.tickets ?? [];
-				const names = new Set(report.lanes.map((lane) => lane.name));
+				const names = new Set(report.statuses.map((lane) => lane.name));
 				expect(tickets.find((item) => item.key === "acme/widget#10")).toEqual(
-					expect.objectContaining({ lane: "Shipped", statusType: "done" }),
+					expect.objectContaining({ status: "Shipped", statusType: "done" }),
 				);
 				expect(tickets.find((item) => item.key === "acme/widget#15")).toEqual(
-					expect.objectContaining({ lane: "Shipped", statusType: "done" }),
+					expect.objectContaining({ status: "Shipped", statusType: "done" }),
 				);
 				expect(tickets.find((item) => item.key === "acme/widget#12")).toEqual(
 					expect.objectContaining({ lane: "Dropped", statusType: "dropped" }),
 				);
 				for (const item of tickets) {
-					expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+					expect(
+						(item.status ?? item.lane) === undefined ||
+							names.has(item.status ?? item.lane ?? ""),
+					).toBe(true);
 				}
 			},
 		);
@@ -993,31 +1026,34 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Backlog",
 					"Doing",
 					"Review",
 					"Awaiting merge",
 				]);
-				expect(report.lanes.find((lane) => lane.name === "Doing")).toEqual({
+				expect(report.statuses.find((lane) => lane.name === "Doing")).toEqual({
 					id: "opt-doing",
 					name: "Doing",
 					colour: "#F2C94C",
 					statusType: "inProgress",
 				});
-				const added = report.lanes.find((lane) => lane.name === "Backlog");
+				const added = report.statuses.find((lane) => lane.name === "Backlog");
 				expect(added?.statusType).toBe("backlog");
 				expect(added?.colour).toBe("#8a8680");
 				expect(added?.added).toBe(true);
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const empty = items.find((item) => item.key === "acme/widget#9");
 				const placedItem = items.find((item) => item.key === "acme/widget#11");
-				expect(empty?.lane).toBe("Backlog");
+				expect(empty?.status ?? empty?.lane).toBe("Backlog");
 				expect(empty?.statusType).toBe("backlog");
-				expect(placedItem?.lane).toBe("Review");
-				const names = new Set(report.lanes.map((lane) => lane.name));
+				expect(placedItem?.status ?? placedItem?.lane).toBe("Review");
+				const names = new Set(report.statuses.map((lane) => lane.name));
 				for (const item of items) {
-					expect(item.lane === undefined || names.has(item.lane)).toBe(true);
+					expect(
+						(item.status ?? item.lane) === undefined ||
+							names.has(item.status ?? item.lane ?? ""),
+					).toBe(true);
 				}
 			},
 		);
@@ -1041,14 +1077,14 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Todo",
 					"Doing",
 					"Review",
 					"Awaiting merge",
 					"Shipped",
 				]);
-				const added = report.lanes.find(
+				const added = report.statuses.find(
 					(lane) => lane.name === "Awaiting merge",
 				);
 				expect(added?.statusType).toBe("awaitingMerge");
@@ -1075,13 +1111,13 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Todo",
 					"Doing",
 					"Awaiting merge",
 					"Shipped",
 				]);
-				const added = report.lanes.find(
+				const added = report.statuses.find(
 					(lane) => lane.name === "Awaiting merge",
 				);
 				expect(added?.statusType).toBe("awaitingMerge");
@@ -1127,12 +1163,14 @@ describe("tracker lanes", () => {
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
-				const names = report.lanes.map((lane) => lane.name);
+				const names = report.statuses.map((lane) => lane.name);
 				const review = names.indexOf("In Review");
 				const approvedAt = names.indexOf("Approved");
 				expect(approvedAt).toBeGreaterThan(review);
 				expect(names.indexOf("Awaiting merge")).toBe(-1);
-				const approved = report.lanes.find((lane) => lane.name === "Approved");
+				const approved = report.statuses.find(
+					(lane) => lane.name === "Approved",
+				);
 				expect(approved).toEqual({
 					id: "st-approved",
 					name: "Approved",
@@ -1161,10 +1199,10 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).not.toContain(
+				expect(report.statuses.map((lane) => lane.name)).not.toContain(
 					"Awaiting merge",
 				);
-				expect(report.lanes.find((lane) => lane.name === "Ready")).toEqual({
+				expect(report.statuses.find((lane) => lane.name === "Ready")).toEqual({
 					id: "61e4505c",
 					name: "Ready",
 					colour: "#4C9AFF",
@@ -1215,11 +1253,11 @@ describe("tracker lanes", () => {
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
-				expect(report.lanes.map((lane) => lane.name)).not.toContain(
+				expect(report.statuses.map((lane) => lane.name)).not.toContain(
 					"Awaiting merge",
 				);
 				expect(
-					report.lanes.find((lane) => lane.name === "Approved")?.evidence,
+					report.statuses.find((lane) => lane.name === "Approved")?.evidence,
 				).toBe("awaitingMerge");
 			},
 		);
@@ -1295,7 +1333,7 @@ describe("tracker lanes", () => {
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
-				expect(report.lanes.find((lane) => lane.id === "st-blank")).toEqual({
+				expect(report.statuses.find((lane) => lane.id === "st-blank")).toEqual({
 					id: "st-blank",
 					name: "   ",
 					colour: "#F2C94C",
@@ -1337,7 +1375,9 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toContain("In progress");
+				expect(report.statuses.map((lane) => lane.name)).toContain(
+					"In progress",
+				);
 				const refreshed = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
 				});
@@ -1352,10 +1392,10 @@ describe("tracker lanes", () => {
 				);
 				expect(project?.error).toContain("HTTP 404");
 				const stored = await projectOf(base, "Widget board");
-				expect(stored.lanes.map((lane) => lane.name)).toEqual(
-					report.lanes.map((lane) => lane.name),
+				expect(stored.statuses.map((lane) => lane.name)).toEqual(
+					report.statuses.map((lane) => lane.name),
 				);
-				expect(stored.lanes.map((lane) => lane.name)).not.toEqual([
+				expect(stored.statuses.map((lane) => lane.name)).not.toEqual([
 					"Backlog",
 					"In progress",
 					"In review",
@@ -1396,7 +1436,7 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Backlog",
 					"In progress",
 					"In review",
@@ -1451,15 +1491,19 @@ describe("tracker lanes", () => {
 						?.tickets ?? [];
 				expect(tickets.find((item) => item.key === "WID-30")).toEqual(
 					expect.objectContaining({
-						lane: "In Progress",
+						status: "In Progress",
 						statusType: "inProgress",
 					}),
 				);
 				expect(tickets.find((item) => item.key === "WID-31")).toEqual(
-					expect.objectContaining({ lane: "Triage", statusType: "backlog" }),
+					expect.objectContaining({ status: "Triage", statusType: "backlog" }),
 				);
-				expect(report.lanes.map((lane) => lane.name)).not.toContain("Building");
-				expect(report.lanes.map((lane) => lane.name)).not.toContain("Icebox");
+				expect(report.statuses.map((lane) => lane.name)).not.toContain(
+					"Building",
+				);
+				expect(report.statuses.map((lane) => lane.name)).not.toContain(
+					"Icebox",
+				);
 				expectLanesHoldTickets(report, overview, "Widget launch");
 			},
 		);
@@ -1500,7 +1544,7 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Todo",
 					"Ready",
 					"Doing",
@@ -1510,9 +1554,9 @@ describe("tracker lanes", () => {
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const icebox = items.find((item) => item.key === "acme/widget#14");
 				const building = items.find((item) => item.key === "acme/widget#18");
-				expect(icebox?.lane).toBe("Todo");
+				expect(icebox?.status ?? icebox?.lane).toBe("Todo");
 				expect(icebox?.statusType).toBe("backlog");
-				expect(building?.lane).toBe("Doing");
+				expect(building?.status ?? building?.lane).toBe("Doing");
 				expect(building?.statusType).toBe("inProgress");
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
@@ -1547,19 +1591,21 @@ describe("tracker lanes", () => {
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
-				expect(report.lanes.map((lane) => lane.name)).toEqual([
+				expect(report.statuses.map((lane) => lane.name)).toEqual([
 					"Todo",
 					"In progress",
 					"Review",
 					"Awaiting merge",
 				]);
-				const added = report.lanes.find((lane) => lane.name === "In progress");
+				const added = report.statuses.find(
+					(lane) => lane.name === "In progress",
+				);
 				expect(added?.statusType).toBe("inProgress");
 				expect(added?.colour).toBe("#3b6fd8");
 				expect(added?.added).toBe(true);
 				const items = report.sections.flatMap((section) => section.items ?? []);
 				const building = items.find((item) => item.key === "acme/widget#20");
-				expect(building?.lane).toBe("In progress");
+				expect(building?.status ?? building?.lane).toBe("In progress");
 				expect(building?.statusType).toBe("inProgress");
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
@@ -1620,7 +1666,7 @@ describe("tracker lanes", () => {
 				const ticket = project?.tickets.find(
 					(item) => item.key === "acme/widget#4",
 				);
-				expect(ticket?.lane).toBe("Done");
+				expect(ticket?.status ?? ticket?.lane).toBe("Done");
 				expect(ticket?.statusType).toBe("done");
 				expect(project?.statusTypes?.done).toBe(1);
 				expect(project?.statusTypes?.backlog).toBe(0);
@@ -1655,7 +1701,7 @@ describe("tracker lanes", () => {
 				const ticket = overview.projects
 					.find((item) => item.name === githubRepo)
 					?.tickets.find((item) => item.key === "acme/widget#5");
-				expect(ticket?.lane).toBe("Done");
+				expect(ticket?.status ?? ticket?.lane).toBe("Done");
 				expect(ticket?.statusType).toBe("done");
 			},
 		);
@@ -1684,7 +1730,7 @@ describe("tracker lanes", () => {
 			async (base) => {
 				const report = await projectOf(base, "Widget board");
 				expect(
-					report.lanes.filter((lane) => lane.statusType === "awaitingMerge"),
+					report.statuses.filter((lane) => lane.statusType === "awaitingMerge"),
 				).toEqual([
 					{
 						id: "opt-awaiting",
@@ -1770,14 +1816,14 @@ describe("tracker lanes", () => {
 			{ LINEAR_API_KEY: "recorded-linear-key" },
 			async (base) => {
 				const report = await projectOf(base, "Widget launch");
-				expect(report.lanes.map((lane) => lane.name)).toContain("Released");
+				expect(report.statuses.map((lane) => lane.name)).toContain("Released");
 				const overview = (await (
 					await fetch(new URL("/api/overview", base))
 				).json()) as OverviewBody;
 				const ticket = overview.projects
 					.find((item) => item.name === "Widget launch")
 					?.tickets.find((item) => item.key === "WID-20");
-				expect(ticket?.lane).toBe("Released");
+				expect(ticket?.status ?? ticket?.lane).toBe("Released");
 				expect(ticket?.statusType).toBe("done");
 			},
 		);

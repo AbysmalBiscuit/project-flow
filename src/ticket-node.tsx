@@ -1,3 +1,4 @@
+import * as stylex from "@stylexjs/stylex";
 import { createContext, useContext } from "react";
 
 import { board } from "./board-styles.ts";
@@ -5,7 +6,8 @@ import { GraphCardChips } from "./graph-card-chips.tsx";
 import type { FlowTicket } from "./graph-flow.ts";
 import { MeasuredNode } from "./graph-node-size.tsx";
 import { CardHandles, type CardProps } from "./graph-view.tsx";
-import { stateTones } from "./state-tone.ts";
+import { useLaneColour } from "./state-colours.ts";
+import { tonedProps } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
 	openParentLabel,
@@ -87,21 +89,22 @@ function FrameToggle({
 export function TicketNode({ id, data }: CardProps<TicketCard>) {
 	const key = data.ticket.key;
 	const known = data.ticket.state;
+	const laneColour = useLaneColour();
+	const styles = [
+		board.ticketNode,
+		board.cardFocus,
+		known !== undefined && board.toned,
+		data.ticket.outside && board.ticketOutside,
+		data.ticket.outside && known === undefined && board.ticketOutsideUntoned,
+		data.open && board.ticketNodeOpen,
+	];
 	return (
 		<>
 			<button
 				type="button"
-				className={clsx(
-					board.ticketNode,
-					board.cardFocus,
-					known !== undefined && board.toned,
-					known !== undefined && stateTones[known],
-					data.ticket.outside && board.ticketOutside,
-					data.ticket.outside &&
-						known === undefined &&
-						board.ticketOutsideUntoned,
-					data.open && board.ticketNodeOpen,
-				)}
+				{...(known === undefined
+					? stylex.props(...styles)
+					: tonedProps(laneColour(data.ticket.lane), known, ...styles))}
 				data-graph-node={key}
 				id={`graph-card-${id}`}
 				data-outside={data.ticket.outside ? "true" : "false"}

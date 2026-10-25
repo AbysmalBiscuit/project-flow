@@ -1,4 +1,5 @@
 import type { Configuration } from "./configuration.ts";
+import { categoryColours } from "./lanes.ts";
 import {
 	pollingPageId,
 	stateColoursPageId,
@@ -17,7 +18,7 @@ export function jsonForHtml(body: unknown): string {
 
 export function paintPage(
 	html: string,
-	{ theme, stateColours }: Pick<Configuration, "theme" | "stateColours">,
+	{ theme, states }: Pick<Configuration, "theme" | "states">,
 	stored?: unknown,
 	polling = false,
 ): string {
@@ -30,7 +31,7 @@ export function paintPage(
 		light: `@layer priority1{:root{${themeMeta.light}}html{color-scheme:light}}${surfaces}`,
 		dark: `@layer priority1{:root{${themeMeta.dark}}html{color-scheme:dark}}${surfaces}`,
 	};
-	const style = `<style id="project-flow-theme">${blocks[theme]}</style><script>window.__projectFlowTheme=${jsonForHtml(blocks)}</script><script id="${stateColoursPageId}" type="application/json">${jsonForHtml(stateColours)}</script>`;
+	const style = `<style id="project-flow-theme">${blocks[theme]}</style><script>window.__projectFlowTheme=${jsonForHtml(blocks)}</script><script id="${stateColoursPageId}" type="application/json">${jsonForHtml(categoryColours(states))}</script>`;
 	const embedded =
 		stored === undefined
 			? ""

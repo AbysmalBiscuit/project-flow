@@ -1,5 +1,5 @@
 import { Button } from "./button.tsx";
-import type { Configuration } from "./configuration.ts";
+import type { Configuration, UserState } from "./configuration.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -10,7 +10,6 @@ import {
 	AutoMergeEditor,
 	Chips,
 	Credential,
-	laneStates,
 	MappingEditor,
 	openViewLabel,
 	Row,
@@ -19,13 +18,12 @@ import {
 	type Trackers,
 } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
-import { stateTones } from "./state-tone.ts";
+import { tonedProps } from "./state-tone.ts";
 import {
 	graphDirectionLabel,
 	navLabel,
 	settingsCopy,
 	settingsSection,
-	stateLabel,
 } from "./terms.ts";
 import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
@@ -119,39 +117,41 @@ export function GeneralSection({
 
 function LaneAgeRow({
 	state,
+	states,
 	shown,
 	view,
 	onPatchView,
 }: {
-	state: (typeof laneStates)[number];
+	state: UserState;
+	states: readonly UserState[];
 	shown: Set<string>;
 	view: ViewDraft;
 	onPatchView: (next: Partial<ViewDraft>) => void;
 }) {
-	const on = shown.has(stateLabel[state]);
-	const days = laneAgeCap(view.maxAgeDays, stateLabel[state], state);
+	const on = shown.has(state.label);
+	const days = laneAgeCap(view.maxAgeDays, state.label, state.categories[0]);
 	return (
 		<div className={clsx(fields.row)}>
 			<span className={clsx(fields.lane)}>
 				<Switch
-					id={`lane-${state}`}
+					id={`lane-${state.id}`}
 					checked={on}
-					label={stateLabel[state]}
+					label={state.label}
 					onChange={(next) => {
-						const names = laneStates.flatMap((item) =>
-							(item === state ? next : shown.has(stateLabel[item]))
-								? [stateLabel[item]]
+						const names = states.flatMap((item) =>
+							(item.id === state.id ? next : shown.has(item.label))
+								? [item.label]
 								: [],
 						);
 						onPatchView({ shownLanes: names });
 					}}
 				/>
-				<span className={clsx(fields.dot, stateTones[state])} />
-				{stateLabel[state]}
+				<span {...tonedProps(state.colour, undefined, fields.dot)} />
+				{state.label}
 			</span>
 			<Select
-				id={`age-${state}`}
-				aria-label={`${stateLabel[state]} age`}
+				id={`age-${state.id}`}
+				aria-label={`${state.label} age`}
 				value={days}
 				options={ageChoices.map((choice) => ({
 					value: choice,
@@ -161,7 +161,7 @@ function LaneAgeRow({
 					onPatchView({
 						maxAgeDays: {
 							...view.maxAgeDays,
-							[stateLabel[state]]: choice,
+							[state.label]: choice,
 						},
 					})
 				}
@@ -172,10 +172,12 @@ function LaneAgeRow({
 
 export function ProjectViewsSection({
 	view,
+	states,
 	shown,
 	onPatchView,
 }: {
 	view: ViewDraft;
+	states: readonly UserState[];
 	shown: Set<string>;
 	onPatchView: (next: Partial<ViewDraft>) => void;
 }) {
@@ -214,10 +216,11 @@ export function ProjectViewsSection({
 			<Row title={settingsCopy.ticketFilter} hint={settingsCopy.ticketHint}>
 				<span />
 			</Row>
-			{laneStates.map((state) => (
+			{states.map((state) => (
 				<LaneAgeRow
-					key={state}
+					key={state.id}
 					state={state}
+					states={states}
 					shown={shown}
 					view={view}
 					onPatchView={onPatchView}

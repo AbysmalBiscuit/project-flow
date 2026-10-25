@@ -13,10 +13,8 @@ import { projectHasPmBot } from "./open-ask.ts";
 import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { Select } from "./select.tsx";
-import { StateColoursSection } from "./settings-colours.tsx";
 import { FactoriesSection } from "./settings-factories.tsx";
 import {
-	laneStates,
 	sections,
 	type stateFilters,
 	Switch,
@@ -33,15 +31,16 @@ import {
 	SettingsBar,
 	TrackersSection,
 } from "./settings-sections.tsx";
+import { StatesSection } from "./settings-states.tsx";
 import { settings as fields, settingsBots } from "./settings-styles.ts";
+import type { StateSource } from "./settings-write.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
-import { defaultStateColours } from "./state-colours.ts";
+import { shippedStates } from "./state-colours.ts";
 import {
 	loadingLabel,
 	navLabel,
 	settingsCopy,
 	settingsSection,
-	stateLabel,
 } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { pageTheme, watchPageTheme } from "./theme.ts";
@@ -110,21 +109,23 @@ function Menu({
 	projects,
 	factoryTokenReports,
 	factoryEntries,
+	stateSources,
 	polling,
 	onSave,
-	onResetColours,
+	onResetStates,
 }: {
 	loaded: Configuration;
 	trackers: Trackers;
 	projects: SettingsProject[];
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
+	stateSources: StateSource[];
 	polling: boolean;
 	onSave: (
 		next: Configuration,
 		baseline: Configuration,
 	) => Promise<string | null>;
-	onResetColours: () => Promise<string | null>;
+	onResetStates: () => Promise<string | null>;
 }) {
 	const [saved, setSaved] = useState(draftOf(loaded));
 	const [draft, setDraft] = useState(draftOf(loaded));
@@ -189,7 +190,13 @@ function Menu({
 	}
 
 	const shown = new Set(
-		view.shownLanes ?? laneStates.map((state) => stateLabel[state]),
+		view.shownLanes ??
+			draft.states.flatMap((state) =>
+				state.categories.every((category) => category === "dropped") &&
+				state.categories.length > 0
+					? []
+					: [state.label],
+			),
 	);
 
 	return (
@@ -212,12 +219,14 @@ function Menu({
 					/>
 					<ProjectViewsSection
 						view={view}
+						states={draft.states}
 						shown={shown}
 						onPatchView={(next) => patchStar(draft, view, patch, next)}
 					/>
-					<StateColoursSection
-						colours={draft.stateColours}
-						onChange={(stateColours) => patch({ stateColours })}
+					<StatesSection
+						draft={draft}
+						sources={stateSources}
+						onChange={patch}
 						onReset={() => {
 							void onResetClick();
 						}}
@@ -255,12 +264,12 @@ function Menu({
 	);
 
 	async function onResetClick(): Promise<void> {
-		const error = await onResetColours();
+		const error = await onResetStates();
 		setFailed(error !== null);
 		setMessage(error ?? settingsCopy.savedToast);
 		setToast((shown) => shown + 1);
 		if (error === null) {
-			const reset = { stateColours: defaultStateColours };
+			const reset = { states: shippedStates, stateMappings: {} };
 			baseline.current = { ...baseline.current, ...reset };
 			setSaved((current) => ({ ...current, ...reset }));
 			setDraft((current) => ({ ...current, ...reset }));
@@ -624,12 +633,14 @@ export function Page() {
 			projects={loaded.projects}
 			factoryTokenReports={loaded.factoryTokenReports}
 			factoryEntries={loaded.factoryEntries}
+			stateSources={loaded.stateSources}
 			polling={polling}
-			onResetColours={async () => {
+			onResetStates={async () => {
 				try {
 					await save.mutateAsync((live) => ({
 						...live,
-						stateColours: defaultStateColours,
+						states: shippedStates,
+						stateMappings: {},
 					}));
 				} catch (cause) {
 					return cause instanceof Error ? cause.message : "save failed";

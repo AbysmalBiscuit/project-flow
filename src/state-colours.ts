@@ -1,20 +1,27 @@
 import * as stylex from "@stylexjs/stylex";
+import { useQuery } from "@tanstack/react-query";
 
-import type { StateColours } from "./configuration.ts";
+import type { StatusColours } from "./domain.ts";
+import { categoryColours, defaultStates } from "./lanes.ts";
 import { pageQuery, pageQueryClient } from "./queries.ts";
 import { readStoredStateColours, storedObject } from "./stored-page.ts";
 import { stateColours, stateValues } from "./tokens.stylex.ts";
 
-export const defaultStateColours: StateColours = stateValues;
+const defaultStateColours: StatusColours = stateValues;
 
-export const colouredStates = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-] as const satisfies readonly (keyof StateColours)[];
+/** The states a fresh configuration file holds. */
+export const shippedStates = defaultStates(defaultStateColours);
+
+/** Finds the colour of a user state by its label, the name of its lane. */
+export function useLaneColour(): (
+	lane: string | undefined,
+) => string | undefined {
+	const states = useQuery(pageQuery.settings).data?.states ?? [];
+	return (lane) => {
+		const name = lane?.toLowerCase();
+		return states.find((state) => state.label.toLowerCase() === name)?.colour;
+	};
+}
 
 const paint = stylex.create({
 	states: (
@@ -36,12 +43,12 @@ const paint = stylex.create({
 
 const hex = /^#[0-9a-f]{6}$/i;
 
-function coloursOf(body: unknown): StateColours | null {
+function coloursOf(body: unknown): StatusColours | null {
 	const value = storedObject(body);
 	if (value === null) {
 		return null;
 	}
-	const read = (key: keyof StateColours): string => {
+	const read = (key: keyof StatusColours): string => {
 		const colour = value[key];
 		return typeof colour === "string" && hex.test(colour)
 			? colour
@@ -61,7 +68,7 @@ function coloursOf(body: unknown): StateColours | null {
  * Sets the state colour variables on the root element, so every view, the
  * jump box and the side panel draw each state in the configured colour.
  */
-function applyStateColours(colours: StateColours): void {
+function applyStateColours(colours: StatusColours): void {
 	const { className, style } = stylex.props(
 		paint.states(
 			colours.backlog,
@@ -97,11 +104,9 @@ export function watchStateColours(): void {
 		) {
 			return;
 		}
-		const colours = coloursOf(
-			storedObject(event.query.state.data)?.stateColours,
-		);
-		if (colours !== null) {
-			applyStateColours(colours);
+		const states = event.query.state.data?.states;
+		if (states !== undefined) {
+			applyStateColours(categoryColours(states));
 		}
 	});
 }

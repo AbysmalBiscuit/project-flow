@@ -58,16 +58,24 @@ _Avoid_: Breadcrumb trail
 
 ### State
 
+**Category**:
+One of the fixed places of a ticket in its workflow: backlog, in progress, in review, awaiting merge, done or dropped. The tracker status sets the category. GitHub evidence and workcell evidence move it forward. The domain rules read only the category. Issue #97 holds the operating rules.
+_Avoid_: Status type
+
 **State**:
-The place of a ticket in its workflow. The tracker status sets the state. GitHub evidence and workcell evidence move it forward. Issue #97 holds the operating rules.
+A place in the user's workflow, with a label and a colour. The configuration file holds the states in board order. Each state holds one or more categories. A state mapping or the ticket's category puts each ticket in one state.
 _Avoid_: Status (when the state is meant), column
 
+**State mapping**:
+The link from a tracker status or a label of one board to a state. Settings edits it.
+_Avoid_: Lane mapping (when a state is meant)
+
 **State colour**:
-The colour that draws one state on the board, the cards, the graphs, the legend and the side panel. The configuration file holds one state colour per state, and both themes use it. The app writes the default state colours on the first start. Settings edits them.
+The colour that draws one state on the board, the cards, the graphs, the legend and the side panel. Both themes use it. The first state of a category gives the colour of that category. Settings edits it.
 _Avoid_: Status colour, lane colour
 
 **Lane**:
-The column a ticket sits in on a project board. Tracker statuses set the lanes. A repo without statuses uses its factory labels or the app's lanes.
+The place of one state on a project board. Each state has one lane, in the order of the states.
 _Avoid_: Column, status column
 
 **Blocked**:

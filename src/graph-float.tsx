@@ -1,9 +1,10 @@
 import * as stylex from "@stylexjs/stylex";
+import { useQuery } from "@tanstack/react-query";
 
 import { board } from "./board-styles.ts";
-import type { TicketState } from "./domain.ts";
-import { stateTones } from "./state-tone.ts";
-import { projectGraphLabel, stateLabel } from "./terms.ts";
+import { pageQuery } from "./queries.ts";
+import { tonedProps } from "./state-tone.ts";
+import { projectGraphLabel } from "./terms.ts";
 import { measure, space, stack } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
@@ -49,29 +50,21 @@ export const float = stylex.create({
 	},
 });
 
-const legendOrder = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-] as const satisfies ReadonlyArray<TicketState>;
-
 export function Legend() {
+	const states = useQuery(pageQuery.settings).data?.states ?? [];
 	return (
 		<section
 			className={clsx(board.legendBox, float.legend)}
 			aria-label={projectGraphLabel.legend}
 		>
 			<ul className={clsx(board.legendRow)}>
-				{legendOrder.map((state) => (
-					<li key={state} className={clsx(board.legendItem)}>
+				{states.map((state) => (
+					<li key={state.id} className={clsx(board.legendItem)}>
 						<span
-							className={clsx(board.legendDot, stateTones[state])}
-							data-state={state}
+							{...tonedProps(state.colour, undefined, board.legendDot)}
+							data-state={state.id}
 						/>
-						{stateLabel[state]}
+						{state.label}
 					</li>
 				))}
 			</ul>
