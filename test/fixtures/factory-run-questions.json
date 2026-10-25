@@ -1,0 +1,16 @@
+{
+	"questions": [
+		{
+			"id": 7,
+			"node_path": "implement/senior_question",
+			"text": "This waits on Lev: the change needs the `read:org` scope on the factory token. Should the run add the scope, or drop the org check?",
+			"answer": null,
+			"channel": {
+				"kind": "github",
+				"repo": "acme/widget",
+				"number": 41,
+				"since": "2026-10-25T14:12:40+00:00"
+			}
+		}
+	]
+}
