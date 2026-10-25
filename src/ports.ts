@@ -13,7 +13,7 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
-import type { FactoryEntry } from "./factories.ts";
+import type { AnswerResult, FactoryEntry } from "./factories.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
@@ -122,10 +122,19 @@ export type FactoryReader = {
 	/** The runs of each listed factory, newest first. */
 	runs: () => FactoryRun[];
 	/**
-	 * `GET /runs/{id}/checkpoint` of the factory that reported the run.
+	 * `GET /runs/{id}/checkpoint` of the factory whose row gives the run its status.
 	 * Null when no factory reported the run or the factory gave no checkpoint.
 	 */
 	checkpoint: (runId: string) => Promise<RunCheckpoint | null>;
+	/**
+	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
+	 * The answer is the one write request that the app sends to a factory.
+	 */
+	answer: (
+		run: string,
+		question: string,
+		text: string,
+	) => Promise<AnswerResult>;
 };
 
 export type GithubTracker = Tracker & {

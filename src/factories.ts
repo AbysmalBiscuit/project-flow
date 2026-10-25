@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import type { Factory } from "./configuration.ts";
-import type { FactoryRun, RunCheckpoint, RunStatusKind } from "./domain.ts";
+import type {
+	FactoryQuestion,
+	FactoryRun,
+	RunCheckpoint,
+	RunStatusKind,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 
@@ -54,6 +59,15 @@ const runRow = z.object({
 
 const runRows = z.object({ runs: z.array(z.unknown()) });
 
+const openQuestions = z.object({
+	questions: z.array(
+		z.object({
+			id: z.union([z.number(), z.string()]).transform(String),
+			text: z.string(),
+		}),
+	),
+});
+
 const checkpoint = z.object({
 	current_node: z.string(),
 	stack: z.array(z.object({ node: z.string() })).optional(),
@@ -87,6 +101,7 @@ const localMachine = "local";
 type ReadRun = {
 	run: Omit<FactoryRun, "coveredByFeed" | "streamed" | "stage">;
 	local: boolean;
+	url: string;
 };
 
 function statusKindOf(
@@ -127,9 +142,16 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					endedAt: run.ended_at ?? null,
 				},
 				local,
+				url: factory.url,
 			},
 		];
 	});
+}
+
+/** The row that gives a run its status: the box row, or else the hub row. */
+function statusRow<Row extends ReadRun>(same: Row[]) {
+	const hubRow = same.find((row) => !row.local);
+	return { hubRow, boxRow: same.find((row) => row.local) ?? hubRow };
 }
 
 /**
@@ -142,8 +164,7 @@ function mergedRuns(
 ) {
 	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
 		(same): FactoryRun[] => {
-			const hubRow = same.find((row) => !row.local);
-			const boxRow = same.find((row) => row.local) ?? hubRow;
+			const { hubRow, boxRow } = statusRow(same);
 			if (boxRow === undefined) {
 				return [];
 			}
@@ -242,7 +263,7 @@ function reader(
 	const base = unix
 		? "http://localhost"
 		: `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
-	return async (path: string): Promise<Response> => {
+	return async (path: string, post?: { json: unknown }): Promise<Response> => {
 		try {
 			return await fetchImpl(`${base}${path}`, {
 				signal:
@@ -250,6 +271,13 @@ function reader(
 						? signal
 						: AbortSignal.any([signal, AbortSignal.timeout(limitMs)]),
 				...(unix ? { unix: parsed.pathname } : {}),
+				...(post === undefined
+					? {}
+					: {
+							method: "POST",
+							headers: { "content-type": "application/json" },
+							body: JSON.stringify(post.json),
+						}),
 			});
 		} catch {
 			throw new Unreachable();
@@ -297,6 +325,27 @@ async function boxCount(
 }
 
 type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes">;
+
+/** The open questions of a blocked run. A factory that gives no list leaves them unknown. */
+async function questionsOf(
+	read: (path: string) => Promise<Response>,
+	id: string,
+): Promise<FactoryQuestion[] | undefined> {
+	try {
+		const listed = await body(
+			await read(`/runs/${encodeURIComponent(id)}/questions`),
+			openQuestions,
+		);
+		return listed.questions;
+	} catch (error) {
+		if (!(error instanceof Unreachable)) {
+			throw error;
+		}
+		return undefined;
+	}
+}
+
+export type AnswerResult = "answered" | "missing" | "failed";
 
 /**
  * The event stream of one factory: connecting, open, closed since a time, or
@@ -412,7 +461,18 @@ export function factoryReader(
 		const known = found.get(factory.url);
 		try {
 			const answer = await body(await read("/runs"), runRows);
-			readRuns.set(factory.url, factoryRuns(answer.runs, factory));
+			const rows = await Promise.all(
+				factoryRuns(answer.runs, factory).map(async (row) => {
+					if (row.run.statusKind !== "blocked") {
+						return row;
+					}
+					const questions = await questionsOf(read, row.run.id);
+					return questions === undefined
+						? row
+						: { ...row, run: { ...row.run, questions } };
+				}),
+			);
+			readRuns.set(factory.url, rows);
 			found.set(factory.url, {
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
@@ -489,16 +549,30 @@ export function factoryReader(
 		}
 		const status = frame.status;
 		if (status !== undefined) {
+			const statusKind = statusKindOf(status.kind);
+			const questions =
+				statusKind === "blocked"
+					? await questionsOf(
+							reader(fetchImpl, factory.url, signal),
+							frame.run_id,
+						)
+					: undefined;
 			readRuns.set(
 				factory.url,
-				(readRuns.get(factory.url) ?? []).map((row) =>
-					row.run.id === frame.run_id
-						? {
-								...row,
-								run: { ...row.run, statusKind: statusKindOf(status.kind) },
-							}
-						: row,
-				),
+				(readRuns.get(factory.url) ?? []).map((row) => {
+					if (row.run.id !== frame.run_id) {
+						return row;
+					}
+					const { questions: _left, ...run } = row.run;
+					return {
+						...row,
+						run: {
+							...run,
+							statusKind,
+							...(questions === undefined ? {} : { questions }),
+						},
+					};
+				}),
 			);
 		}
 	};
@@ -573,17 +647,15 @@ export function factoryReader(
 	const runCheckpoint = async (
 		runId: string,
 	): Promise<RunCheckpoint | null> => {
-		const reporters = listed().flatMap((factory) =>
-			(readRuns.get(factory.url) ?? [])
-				.filter((row) => row.run.id === runId)
-				.map((row) => ({ factory, local: row.local })),
+		const { boxRow } = statusRow(
+			listed().flatMap((factory) =>
+				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === runId),
+			),
 		);
-		// The box holds the run, so its checkpoint wins over the hub's copy.
-		const reporter = reporters.find((row) => row.local) ?? reporters[0];
-		if (reporter === undefined) {
+		if (boxRow === undefined) {
 			return null;
 		}
-		const read = reader(fetchImpl, reporter.factory.url, signal);
+		const read = reader(fetchImpl, boxRow.url, signal);
 		try {
 			const answer = await body(
 				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
@@ -603,6 +675,35 @@ export function factoryReader(
 			return null;
 		}
 	};
+	const answer = async (
+		run: string,
+		question: string,
+		text: string,
+	): Promise<AnswerResult> => {
+		const same = listed().flatMap((factory) =>
+			(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
+		);
+		const { boxRow } = statusRow(same);
+		if (boxRow?.run.questions?.some((item) => item.id === question) !== true) {
+			return "missing";
+		}
+		const read = reader(fetchImpl, boxRow.url, signal);
+		try {
+			const response = await read(
+				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
+				{ json: { text } },
+			);
+			if (response.ok) {
+				return "answered";
+			}
+			return response.status === 404 ? "missing" : "failed";
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return "failed";
+		}
+	};
 	return {
 		check,
 		settled,
@@ -612,5 +713,6 @@ export function factoryReader(
 		follow,
 		runs,
 		checkpoint: runCheckpoint,
+		answer,
 	};
 }

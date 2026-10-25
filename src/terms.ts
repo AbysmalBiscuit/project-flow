@@ -189,6 +189,8 @@ export const runSectionLabel = "Factory run";
 
 export const earlierRunsLabel = "Earlier runs";
 
+export const runQuestionsLabel = "Run questions";
+
 export const runFactLabel = {
 	status: "Status",
 	stage: "Stage",

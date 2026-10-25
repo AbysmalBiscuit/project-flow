@@ -32,6 +32,9 @@ export const runStatusKinds = [
 
 export type RunStatusKind = (typeof runStatusKinds)[number];
 
+/** An open question that a blocked run waits on, from `GET /runs/{id}/questions`. */
+export type FactoryQuestion = { id: string; text: string };
+
 /** A workcell run that a factory reports in `GET /runs`. */
 export type FactoryRun = {
 	id: string;
@@ -54,6 +57,8 @@ export type FactoryRun = {
 	streamed: boolean;
 	/** The path of the run's current node, from the event stream. */
 	stage?: string;
+	/** The open questions of a blocked run. Absent when the factory gave no list. */
+	questions?: FactoryQuestion[];
 };
 
 /**
@@ -71,6 +76,7 @@ export type ShownFactoryRun = Pick<
 	| "startedAt"
 	| "endedAt"
 	| "coveredByFeed"
+	| "questions"
 > & { stage?: string };
 
 /** Where a factory run is in its flow, from the run checkpoint of its box. */
@@ -400,6 +406,8 @@ export type NeedsYouItem = {
 	question?: string;
 	options?: AskOption[];
 	pull?: PullStatus;
+	/** The factory question that the ask comes from, and the run that waits on it. */
+	factoryAsk?: { factory: string; run: string; question: string };
 };
 
 export type NotificationTrigger = "needsYou" | "comment" | "blockerCleared";
