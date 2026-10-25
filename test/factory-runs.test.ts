@@ -17,7 +17,6 @@ import {
 	hub,
 	hubUrl,
 	json,
-	laptopSocket,
 	laptopUrl,
 	readOrAnswer,
 	serve,
@@ -631,6 +630,62 @@ describe("factory runs", () => {
 				await app.stop();
 			}
 		});
+
+		test("an unreachable box gives the run the hub status, and the box row comes back with the box", async () => {
+			const checkpointPath = `/runs/${running41.id}/checkpoint`;
+			const boxAnswers = {
+				...daemon,
+				"/runs": { runs: [boxRow(running41, "blocked")] },
+				[checkpointPath]: hubCheckpoint,
+			};
+			const checkpointOf = () =>
+				fetch(
+					new URL(
+						`/api/factory-runs/${encodeURIComponent(running41.id)}/checkpoint`,
+						app.base,
+					),
+				);
+			const app = await serveRuns(hub, [41], {}, boxAnswers);
+			const stream = openEventStream(app.base);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				await stream.ready;
+				app.factories[laptopUrl] = "down";
+				app.advance(runPollMs);
+				const down = await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.factory === "work hub",
+				);
+				expect(factoryRunOf(down, 41)).toMatchObject({
+					statusKind: "running",
+					box: "box-a",
+					factory: "work hub",
+					coveredByFeed: true,
+				});
+				expect((await checkpointOf()).status).toBe(404);
+				app.factories[laptopUrl] = boxAnswers;
+				app.advance(runPollMs);
+				const back = await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				expect(factoryRunOf(back, 41)).toMatchObject({
+					statusKind: "blocked",
+					box: "laptop",
+					factory: "laptop",
+					coveredByFeed: true,
+				});
+				const checkpoint = await checkpointOf();
+				expect(checkpoint.status).toBe(200);
+				expect(await checkpoint.json()).toMatchObject({ stage: "review" });
+			} finally {
+				stream.close();
+				await app.stop();
+			}
+		});
 	});
 
 	describe("the hub event stream", () => {
@@ -1010,8 +1065,8 @@ describe("factory questions", () => {
 		}
 	});
 
-	test("an answer to a run that a hub and its box report goes to the box", async () => {
-		const app = await servedQuestions(hubWith41("blocked"), {
+	test("an answer to a run that a hub and its box report goes to the hub, and the box gets no answer", async () => {
+		const app = await servedQuestions(blockedHub(), {
 			...daemon,
 			"/runs": { runs: [boxRow(running41, "blocked")] },
 			[questionsPath]: runQuestions,
@@ -1026,8 +1081,8 @@ describe("factory questions", () => {
 			expect(response.status).toBe(200);
 			expect(posts(app.requests)).toEqual([
 				{
-					url: `http://localhost${answerPath}`,
-					unix: laptopSocket,
+					url: `${hubUrl}${answerPath}`,
+					unix: null,
 					method: "POST",
 					body: JSON.stringify({ text: "Add the scope." }),
 				},

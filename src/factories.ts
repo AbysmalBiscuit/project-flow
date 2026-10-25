@@ -148,15 +148,24 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 	});
 }
 
-/** The row that gives a run its status: the box row, or else the hub row. */
-function statusRow<Row extends ReadRun>(same: Row[]) {
+/**
+ * The row that gives a run its status: the box row while its box is reachable,
+ * or else the hub row. An unreachable box keeps its last row, which goes stale.
+ */
+function statusRow<Row extends ReadRun>(
+	same: Row[],
+	reachable: (row: Row) => boolean,
+) {
 	const hubRow = same.find((row) => !row.local);
-	return { hubRow, boxRow: same.find((row) => row.local) ?? hubRow };
+	const boxRow = same.find((row) => row.local);
+	const fresh =
+		boxRow !== undefined && (hubRow === undefined || reachable(boxRow));
+	return { hubRow, row: fresh ? boxRow : hubRow };
 }
 
 /**
  * One run per id. A hub and its box report the same id once the hub sends the run.
- * The box row gives the status, and the hub row gives `source` and `rule`.
+ * The status row gives the status, and the hub row gives `source` and `rule`.
  */
 function mergedRuns(
 	rows: (ReadRun & { coveredByFeed: boolean; streamed: boolean })[],
@@ -164,19 +173,19 @@ function mergedRuns(
 ) {
 	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
 		(same): FactoryRun[] => {
-			const { hubRow, boxRow } = statusRow(same);
-			if (boxRow === undefined) {
+			const { hubRow, row } = statusRow(same, (row) => row.coveredByFeed);
+			if (row === undefined) {
 				return [];
 			}
-			const { source, rule, ...status } = boxRow.run;
-			const origin = hubRow?.run ?? boxRow.run;
+			const { source, rule, ...status } = row.run;
+			const origin = hubRow?.run ?? row.run;
 			const stage = stages.get(status.id);
 			return [
 				{
 					...status,
 					...(origin.source === undefined ? {} : { source: origin.source }),
 					...(origin.rule === undefined ? {} : { rule: origin.rule }),
-					coveredByFeed: boxRow.coveredByFeed,
+					coveredByFeed: row.coveredByFeed,
 					streamed: same.some((row) => row.streamed),
 					...(stage === undefined ? {} : { stage }),
 				},
@@ -454,6 +463,7 @@ export function factoryReader(
 				...(hubName === undefined ? {} : { alsoReadThroughHub: hubName }),
 			};
 		});
+	const reachable = (row: ReadRun) => found.get(row.url)?.reachable === true;
 	const unreachable = () =>
 		listed().some((factory) => found.get(factory.url)?.reachable === false);
 	const readRunsOf = async (factory: ListedFactory): Promise<void> => {
@@ -647,15 +657,16 @@ export function factoryReader(
 	const runCheckpoint = async (
 		runId: string,
 	): Promise<RunCheckpoint | null> => {
-		const { boxRow } = statusRow(
+		const { row } = statusRow(
 			listed().flatMap((factory) =>
 				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === runId),
 			),
+			reachable,
 		);
-		if (boxRow === undefined) {
+		if (row === undefined) {
 			return null;
 		}
-		const read = reader(fetchImpl, boxRow.url, signal);
+		const read = reader(fetchImpl, row.url, signal);
 		try {
 			const answer = await body(
 				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
@@ -683,11 +694,16 @@ export function factoryReader(
 		const same = listed().flatMap((factory) =>
 			(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
 		);
-		const { boxRow } = statusRow(same);
-		if (boxRow?.run.questions?.some((item) => item.id === question) !== true) {
+		const { hubRow, row } = statusRow(same, reachable);
+		// Only the hub posts an answer to the ticket thread, so a hub-covered run answers there.
+		const target = hubRow ?? row;
+		if (
+			target === undefined ||
+			row?.run.questions?.some((item) => item.id === question) !== true
+		) {
 			return "missing";
 		}
-		const read = reader(fetchImpl, boxRow.url, signal);
+		const read = reader(fetchImpl, target.url, signal);
 		try {
 			const response = await read(
 				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
