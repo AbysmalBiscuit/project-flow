@@ -616,6 +616,13 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		writeErr("invalid port: --port needs a port number");
 		return result(1);
 	}
+	if (
+		args.includes("--host") &&
+		(hostFlag === undefined || hostFlag.startsWith("--"))
+	) {
+		writeErr("invalid host: --host needs a host name");
+		return result(1);
+	}
 
 	try {
 		const configPath = (configFlag ?? defaultConfigPath(io.env)).trim();
