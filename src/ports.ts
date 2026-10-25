@@ -131,7 +131,7 @@ export type FactoryReader = {
 	/** The runs of each listed factory, newest first. */
 	runs: () => FactoryRun[];
 	/**
-	 * `GET /runs/{id}/checkpoint` of the factory whose row gives the run its status.
+	 * `GET /runs/{id}/checkpoint` and `GET /runs/{id}/turns` of the factory whose row gives the run its status.
 	 * Null when no factory reported the run or the factory gave no checkpoint.
 	 */
 	checkpoint: (runId: string) => Promise<RunCheckpoint | null>;
