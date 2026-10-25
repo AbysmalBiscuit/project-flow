@@ -2370,7 +2370,7 @@ describe("GET /api/overview blockers", () => {
 		const githubRepo = "AbysmalBiscuit/devkit";
 		const projectId = "PVT_widget";
 		const board = "Widget board";
-		let polls = 0;
+		let refreshed = false;
 		const recordedFetch: Fetch = async (input, init) => {
 			const url = urlOf(input);
 			const body = typeof init?.body === "string" ? init.body : "";
@@ -2411,8 +2411,7 @@ describe("GET /api/overview blockers", () => {
 				url === "https://api.github.com/graphql" &&
 				body.includes("ProjectItems")
 			) {
-				const cleared = polls > 0;
-				polls += 1;
+				const cleared = refreshed;
 				return Response.json({
 					data: {
 						node: {
@@ -2548,7 +2547,7 @@ describe("GET /api/overview blockers", () => {
 			}
 			const list = `https://api.github.com/repos/${githubRepo}/issues?`;
 			if (url.startsWith(list) && url.includes("state=all")) {
-				const cleared = polls > 0;
+				const cleared = refreshed;
 				return page([
 					{
 						...issue(40, cleared ? "Blocked by: #41" : "Blocked by: #42"),
@@ -2672,6 +2671,7 @@ describe("GET /api/overview blockers", () => {
 							state: "backlog",
 							blockers: [],
 						});
+						refreshed = true;
 						const refresh = await fetch(new URL("/api/refresh", base), {
 							method: "POST",
 						});
