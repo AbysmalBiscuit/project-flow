@@ -9,7 +9,7 @@ import { z } from "zod";
 import { version } from "../package.json";
 import { start } from "./app.ts";
 import type { AutoMerge } from "./configuration.ts";
-import { loadConfiguration } from "./configuration.ts";
+import { autoMerge, loadConfiguration } from "./configuration.ts";
 import type { FactoryTokenMint, MintResult } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
@@ -218,8 +218,6 @@ async function managerNames(
 const issueToml = z.object({
 	issue: z.string(),
 });
-
-const autoMerge = z.enum(["yes", "ask", "no"]);
 
 const workcellToml = z
 	.object({
