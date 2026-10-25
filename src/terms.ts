@@ -193,6 +193,8 @@ export const earlierRunsLabel = "Earlier runs";
 
 export const runQuestionsLabel = "Run questions";
 
+export const steerLabel = "Steer the run";
+
 export const runFactLabel = {
 	status: "Status",
 	stage: "Stage",
@@ -242,6 +244,17 @@ export function toolCountsLabel(tools: Record<string, number>): string {
 		.sort(([, left], [, right]) => right - left)
 		.map(([tool, count]) => `${tool} ${count}`)
 		.join(", ");
+}
+
+export const runAgentsLabel = "Agents";
+
+export const agentTurnLabel = {
+	running: "Turn runs",
+	ended: "Turn ended",
+} as const;
+
+export function agentToolLabel(tool: string): string {
+	return `Uses ${tool}`;
 }
 
 export const hubQueueLabel = "In the hub queue";

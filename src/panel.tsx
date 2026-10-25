@@ -14,6 +14,7 @@ import type {
 	GraphEnd,
 	NeedsYouItem,
 	ProjectReport,
+	RunStatusKind,
 	ThreadComment,
 } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
@@ -27,6 +28,7 @@ import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { RunQuestions } from "./run-questions.tsx";
+import { RunSteer } from "./run-steer.tsx";
 import { openTicket } from "./selection.ts";
 import { useLaneColour } from "./state-colours.ts";
 import { tonedProps } from "./state-tone.ts";
@@ -44,6 +46,8 @@ import {
 } from "./terms.ts";
 import { sameTicketKey, type TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
+
+const endedKinds: ReadonlySet<RunStatusKind> = new Set(["failed", "succeeded"]);
 
 type ReplyTarget = {
 	parentId?: string;
@@ -389,6 +393,10 @@ export function TicketPanel({
 					run={view.factoryRun.id}
 					questions={view.factoryRun.questions}
 				/>
+			)}
+			{view?.factoryRun === undefined ||
+			endedKinds.has(view.factoryRun.statusKind) ? null : (
+				<RunSteer key={view.factoryRun.id} run={view.factoryRun} />
 			)}
 			<RelationList
 				label="Blockers"

@@ -4,10 +4,12 @@ import type { Factory } from "./configuration.ts";
 import type {
 	FactoryQuestion,
 	FactoryRun,
+	RunAgent,
 	RunCheckpoint,
 	RunStatusKind,
 	RunUsage,
 } from "./domain.ts";
+import { liveRunStatusKinds } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 import { runUsage } from "./run-usage.ts";
@@ -91,6 +93,18 @@ const turns = z.object({
 	),
 });
 
+/** The live counters of each worker of a run, by node path. */
+const workers = z.object({
+	workers: z.record(
+		z.string(),
+		z.object({
+			current_tool: z.string(),
+			last_message: z.string(),
+			turn: z.enum(["running", "ended"]),
+		}),
+	),
+});
+
 /** The current node path: the caller node of each child graph, then the current node. */
 function stagePath(answer: z.infer<typeof checkpoint>): string {
 	return [
@@ -118,6 +132,10 @@ type ReadRun = {
 	local: boolean;
 	url: string;
 };
+
+function isLive(kind: RunStatusKind): boolean {
+	return liveRunStatusKinds.some((live) => live === kind);
+}
 
 function statusKindOf(
 	kind: z.infer<typeof runRow>["status"]["kind"],
@@ -400,6 +418,13 @@ async function usageOf(
 }
 
 export type AnswerResult = "answered" | "missing" | "failed";
+
+export type SteerResult = "steered" | "missing" | "ended" | "failed";
+
+export type Steer = { stage: string; text: string; interrupt: boolean };
+
+/** The factory records this sender on each steer from Project Flow. */
+const steerSender = "lev";
 
 /**
  * The event stream of one factory: connecting, open, closed since a time, or
@@ -751,6 +776,41 @@ export function factoryReader(
 			return null;
 		}
 	};
+	const runAgents = async (runId: string): Promise<RunAgent[] | null> => {
+		const { row } = statusRow(
+			listed().flatMap((factory) =>
+				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === runId),
+			),
+			reachable,
+		);
+		if (row === undefined) {
+			return null;
+		}
+		if (!isLive(row.run.statusKind)) {
+			return [];
+		}
+		const read = reader(fetchImpl, row.url, signal);
+		try {
+			const answer = await body(
+				await read(`/runs/${encodeURIComponent(runId)}/workers`),
+				workers,
+			);
+			const stage = stages.get(runId);
+			return Object.entries(answer.workers)
+				.filter(([path, worker]) => worker.turn === "running" || path === stage)
+				.map(([path, worker]) => ({
+					stage: path,
+					tool: worker.current_tool === "" ? null : worker.current_tool,
+					lastMessage: worker.last_message === "" ? null : worker.last_message,
+					turn: worker.turn,
+				}));
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return [];
+		}
+	};
 	const answer = async (
 		run: string,
 		question: string,
@@ -785,6 +845,37 @@ export function factoryReader(
 			return "failed";
 		}
 	};
+	const steer = async (run: string, steer: Steer): Promise<SteerResult> => {
+		const { hubRow, row } = statusRow(
+			listed().flatMap((factory) =>
+				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
+			),
+			reachable,
+		);
+		// The hub forwards a steer to the box that does the run.
+		const target = hubRow ?? row;
+		if (target === undefined) {
+			return "missing";
+		}
+		const read = reader(fetchImpl, target.url, signal);
+		try {
+			const response = await read(`/runs/${encodeURIComponent(run)}/steer`, {
+				json: { ...steer, sender: steerSender },
+			});
+			if (response.ok) {
+				return "steered";
+			}
+			if (response.status === 409) {
+				return "ended";
+			}
+			return response.status === 404 ? "missing" : "failed";
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return "failed";
+		}
+	};
 	return {
 		check,
 		settled,
@@ -794,6 +885,8 @@ export function factoryReader(
 		follow,
 		runs,
 		checkpoint: runCheckpoint,
+		agents: runAgents,
 		answer,
+		steer,
 	};
 }
