@@ -1206,6 +1206,7 @@ export function Page() {
 									id="project-group"
 									label="Group by"
 									style={headerControlStyle.control}
+									steadyWidth
 									value={
 										view === "graph"
 											? graphGroupBy(settings)
