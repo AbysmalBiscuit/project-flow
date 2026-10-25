@@ -170,6 +170,10 @@ _Avoid_: Phase, step, node (when the stage is meant)
 The snapshot that a box keeps of where a run is in its flow: the current stage, the completed stages, and the retries and visits of each stage. Each visit of a review stage is one review round. Project Flow reads it from `GET /runs/{id}/checkpoint` of the factory that reports the run.
 _Avoid_: Run state, run detail
 
+**Run usage**:
+The input and output tokens, the cost, the time and the count of each tool of a run's agent turns. Project Flow gives it for each run stage and for the run. It reads it from `GET /runs/{id}/turns` of the factory that reports the run. A turn of a child graph counts toward the stage that calls the child graph.
+_Avoid_: Run cost, spend
+
 **Run agent**:
 The agent that works on one stage of a live run: its current tool, its last message and whether its turn runs or ended. Project Flow reads it from `GET /runs/{id}/workers` of the factory that reports the run, only while a view follows the run.
 _Avoid_: Worker (when the agent is meant)

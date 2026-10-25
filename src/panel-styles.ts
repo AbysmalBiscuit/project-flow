@@ -229,6 +229,14 @@ export const panel = stylex.create({
 	currentStage: {
 		fontWeight: type.weight,
 	},
+	stage: {
+		flexWrap: "wrap",
+	},
+	stageUsage: {
+		flexBasis: "100%",
+		color: colours.inkSoft,
+		fontSize: type.meta,
+	},
 	agent: {
 		marginBottom: space.sm,
 	},
