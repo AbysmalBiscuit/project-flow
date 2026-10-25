@@ -11,6 +11,7 @@ import type { Fetch } from "../src/fetch.ts";
 import {
 	type Answers,
 	daemon,
+	EventFeed,
 	factoryFetch,
 	type FactoryRequest,
 	hub,
@@ -21,6 +22,7 @@ import {
 	readOrAnswer,
 	serve,
 } from "./factory-support.ts";
+import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
 import {
@@ -236,6 +238,8 @@ async function serveRuns(
 		requests,
 		runReads: () =>
 			requests.filter((request) => request.url === `${hubUrl}/runs`).length,
+		eventReads: () =>
+			requests.filter((request) => request.url === `${hubUrl}/events`).length,
 		advance: (ms: number) => {
 			now += ms;
 		},
@@ -627,6 +631,116 @@ describe("factory runs", () => {
 			}
 		});
 	});
+
+	describe("the hub event stream", () => {
+		test("stage frames update the run stage and reach /api/events with no run poll request", async () => {
+			const feed = new EventFeed();
+			const app = await serveRuns({ ...hub, "/events": feed }, [41], {
+				41: progressAt("2026-10-25T14:10:00Z"),
+			});
+			const stream = openEventStream(app.base);
+			try {
+				await feed.connected(1);
+				// The first run poll and the connect snapshot each read /runs.
+				while (app.runReads() < 2) {
+					await Bun.sleep(10);
+				}
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+				);
+				await stream.ready;
+				const reads = app.runReads();
+				const [planStarted, planCompleted, buildStarted] = hubEvents;
+				feed.send(planStarted);
+				const planning = await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.stage === "plan",
+				);
+				expect(factoryRunOf(planning, 41)).toMatchObject({
+					statusKind: "running",
+					stage: "plan",
+				});
+				feed.send(planCompleted);
+				await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.stage === undefined,
+				);
+				feed.send(buildStarted);
+				await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.stage === "build",
+				);
+				expect(reportTicket(await reportOf(app.base), 41).run).toEqual({
+					status: "running",
+					stage: "build",
+				});
+				expect(app.runReads()).toBe(reads);
+			} finally {
+				stream.close();
+				await app.stop();
+			}
+		});
+
+		test("a dropped stream reconnects and reads a fresh /runs snapshot", async () => {
+			const feed = new EventFeed();
+			const app = await serveRuns({ ...hub, "/events": feed }, [41]);
+			const stream = openEventStream(app.base);
+			try {
+				await feed.connected(1);
+				// The first run poll and the connect snapshot each read /runs.
+				while (app.runReads() < 2) {
+					await Bun.sleep(10);
+				}
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+				);
+				await stream.ready;
+				const reads = app.runReads();
+				app.factories[hubUrl] = { ...hubWith41("blocked"), "/events": feed };
+				feed.drop();
+				await feed.connected(2);
+				const changed = await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "blocked",
+				);
+				expect(factoryRunOf(changed, 41)?.coveredByFeed).toBe(true);
+				expect(app.eventReads()).toBe(2);
+				expect(app.runReads()).toBe(reads + 1);
+			} finally {
+				stream.close();
+				await app.stop();
+			}
+		});
+
+		test("a factory that answers 404 on /events keeps the run poll", async () => {
+			const app = await serveRuns(hub, [41]);
+			const stream = openEventStream(app.base);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+				);
+				await stream.ready;
+				while (app.eventReads() === 0) {
+					await Bun.sleep(10);
+				}
+				const reads = app.runReads();
+				app.factories[hubUrl] = hubWith41("blocked");
+				app.advance(runPollMs);
+				await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "blocked",
+				);
+				expect(app.runReads()).toBe(reads + 1);
+				expect(app.eventReads()).toBe(1);
+			} finally {
+				stream.close();
+				await app.stop();
+			}
+		});
+	});
 });
 
 describe("factory questions", () => {
@@ -779,6 +893,46 @@ describe("factory questions", () => {
 			expect(response.status).toBe(404);
 			expect(posts(app.requests)).toEqual([]);
 		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a stream frame that blocks a run reads its questions, and a frame that resumes it clears them", async () => {
+		const feed = new EventFeed();
+		const app = await serveRuns(
+			{ ...hub, "/events": feed, [questionsPath]: runQuestions },
+			[41],
+		);
+		const stream = openEventStream(app.base);
+		try {
+			await feed.connected(1);
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+			);
+			await stream.ready;
+			feed.send({ run_id: running41.id, status: { kind: "blocked" } });
+			const blocked = await overviewEventWhere(
+				stream.events,
+				(seen) => factoryRunOf(seen, 41)?.questions !== undefined,
+			);
+			expect(factoryRunOf(blocked, 41)).toMatchObject({
+				statusKind: "blocked",
+				questions: [{ id: String(question.id), text: question.text }],
+			});
+			feed.send({ run_id: running41.id, status: { kind: "running" } });
+			const resumed = await overviewEventWhere(
+				stream.events,
+				(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+			);
+			expect(factoryRunOf(resumed, 41)?.questions).toBeUndefined();
+			expect(
+				(await needsYouOf(app.base)).filter(
+					(item) => item.key === `${repo}#41`,
+				),
+			).toEqual([]);
+		} finally {
+			stream.close();
 			await app.stop();
 		}
 	});

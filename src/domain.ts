@@ -53,11 +53,18 @@ export type FactoryRun = {
 	endedAt: string | null;
 	/** False when the factory did not answer its last read. */
 	coveredByFeed: boolean;
+	/** True when the factory serves an event stream, which gives the stage. */
+	streamed: boolean;
+	/** The path of the run's current node, from the event stream. */
+	stage?: string;
 	/** The open questions of a blocked run. Absent when the factory gave no list. */
 	questions?: FactoryQuestion[];
 };
 
-/** The newest factory run of a ticket. The stage comes from the progress comment. */
+/**
+ * The newest factory run of a ticket. The stage comes from the event stream,
+ * or from the progress comment when the factory serves no event stream.
+ */
 export type ShownFactoryRun = Pick<
 	FactoryRun,
 	| "id"
