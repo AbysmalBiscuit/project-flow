@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import type {
 	NeedsYouItem,
 	ProjectReport,
+	RunCheckpoint,
 	ShownFactoryRun,
 	TicketView,
 } from "../src/domain.ts";
@@ -25,6 +26,7 @@ import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
+import runTurns from "./fixtures/factory-run-turns.json";
 import {
 	issuesResponse,
 	listedRead,
@@ -983,6 +985,92 @@ describe("factory runs", () => {
 			} finally {
 				await app.stop();
 			}
+		});
+
+		describe("the run usage", () => {
+			const turnsPath = `/runs/${hubRuns.runs[0]?.id}/turns`;
+
+			test("the run checkpoint read gives the tokens, cost, time and tool counts of each stage and of the run from its recorded turns", async () => {
+				const app = await serveRuns(
+					{ ...hub, [checkpointPath]: hubCheckpoint, [turnsPath]: runTurns },
+					[41],
+				);
+				try {
+					const response = await checkpointOf(app.base);
+					expect(response.status).toBe(200);
+					const detail = (await response.json()) as RunCheckpoint;
+					expect(detail.usage).toEqual({
+						stages: {
+							plan: {
+								inputTokens: 41200,
+								outputTokens: 1830,
+								costUsd: 0.3125,
+								durationS: 94.5,
+								tools: { Read: 6, Bash: 2 },
+							},
+							build: {
+								inputTokens: 245500,
+								outputTokens: 12570,
+								costUsd: 2,
+								durationS: 813.5,
+								tools: { Read: 11, Edit: 10, Bash: 13 },
+							},
+							review: {
+								inputTokens: 24000,
+								outputTokens: 700,
+								costUsd: 0,
+								durationS: 48,
+								tools: { command_execution: 3 },
+							},
+						},
+						total: {
+							inputTokens: 310700,
+							outputTokens: 15100,
+							costUsd: 2.3125,
+							durationS: 956,
+							tools: { Read: 17, Bash: 15, Edit: 10, command_execution: 3 },
+						},
+					});
+				} finally {
+					await app.stop();
+				}
+			});
+
+			test("a run that only the hub reports reads its turns from the hub", async () => {
+				const app = await serveRuns(
+					{ ...hub, [checkpointPath]: hubCheckpoint, [turnsPath]: runTurns },
+					[41],
+				);
+				try {
+					const detail = (await (
+						await checkpointOf(app.base)
+					).json()) as RunCheckpoint;
+					expect(detail.usage?.total.costUsd).toBe(2.3125);
+					expect(
+						app.requests
+							.filter((request) => request.url.endsWith("/turns"))
+							.map((request) => request.url),
+					).toEqual([`${hubUrl}${turnsPath}`]);
+				} finally {
+					await app.stop();
+				}
+			});
+
+			test("a factory that serves no turns route gives the run checkpoint with no usage", async () => {
+				const app = await serveRuns(
+					{ ...hub, [checkpointPath]: hubCheckpoint },
+					[41],
+				);
+				try {
+					const response = await checkpointOf(app.base);
+					expect(response.status).toBe(200);
+					const detail = (await response.json()) as RunCheckpoint;
+					expect(detail.stage).toBe("review");
+					expect(detail).not.toHaveProperty("usage");
+				} finally {
+					await app.stop();
+				}
+			});
 		});
 	});
 });

@@ -89,6 +89,23 @@ export type RunCheckpoint = {
 	retries: Record<string, number>;
 	/** The visits of each stage, by stage name. A review stage visit is one review round. */
 	visits: Record<string, number>;
+	/** The usage of the run's recorded turns. Absent when the factory gave no turns. */
+	usage?: RunUsage;
+};
+
+/** The usage of some agent turns: tokens, cost in US dollars, time in seconds, and the count of each tool. */
+export type TurnUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	costUsd: number;
+	durationS: number;
+	tools: Record<string, number>;
+};
+
+/** The usage of each stage of a run, by stage name, and their sum. */
+export type RunUsage = {
+	stages: Record<string, TurnUsage>;
+	total: TurnUsage;
 };
 
 /** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
