@@ -26,6 +26,7 @@ import {
 } from "./live-support.ts";
 import {
 	githubIssueNode,
+	githubSince,
 	recordedDiscovery,
 	repoReadIssues,
 	settledOverview,
@@ -909,7 +910,7 @@ describe("live updates", () => {
 			]);
 			expect(body.error).toBeNull();
 			const second = new URL(requests[1] ?? "");
-			expect(second.searchParams.get("since")).toBe(goodPoll);
+			expect(second.searchParams.get("since")).toBe(githubSince(goodPoll));
 		});
 	});
 
@@ -1079,7 +1080,7 @@ describe("live updates", () => {
 					new URL(firstLists[0] ?? "").searchParams.get("since"),
 				).toBeNull();
 				expect(new URL(firstLists[1] ?? "").searchParams.get("since")).toBe(
-					goodPoll,
+					githubSince(goodPoll),
 				);
 				expect(
 					new URL(secondLists[0] ?? "").searchParams.get("since"),
@@ -1349,7 +1350,7 @@ describe("live updates", () => {
 					const lists = requests.filter((url) => listUrl(url) !== null);
 					expect(lists.length).toBeGreaterThan(1);
 					expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
-						goodPoll,
+						githubSince(goodPoll),
 					);
 					expect(body.fetchedAt).toBe("2026-04-01T12:00:02.000Z");
 					expect(body.error).toBeNull();
@@ -1372,7 +1373,7 @@ describe("live updates", () => {
 				const lists = requests.filter((url) => listUrl(url) !== null);
 				expect(lists.length).toBeGreaterThan(1);
 				expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
-					goodPoll,
+					githubSince(goodPoll),
 				);
 			},
 		);
@@ -1390,7 +1391,7 @@ describe("live updates", () => {
 			expect(lists.length).toBeGreaterThan(1);
 			expect(new URL(lists[0] ?? "").searchParams.get("since")).toBeNull();
 			expect(new URL(lists.at(-1) ?? "").searchParams.get("since")).toBe(
-				goodPoll,
+				githubSince(goodPoll),
 			);
 		});
 	});
@@ -1959,7 +1960,9 @@ describe("live updates", () => {
 			expect(body.error).toBeNull();
 			const lists = requests.filter((item) => listUrl(item) !== null);
 			expect(lists).toHaveLength(2);
-			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(goodPoll);
+			expect(new URL(lists[1] ?? "").searchParams.get("since")).toBe(
+				githubSince(goodPoll),
+			);
 			expect(
 				requests.some(
 					(item) =>

@@ -11,6 +11,7 @@ import { readGhAuthToken, run } from "../src/main.ts";
 import {
 	emptyProjectFields,
 	githubIssueNode,
+	githubSince,
 	linearFake,
 	recordedDiscovery,
 	repoReadFromHandler,
@@ -4772,8 +4773,12 @@ describe("GET /api/overview", () => {
 							item.body.includes("editedQuery"),
 					);
 					expect(windows.length).toBeGreaterThan(1);
-					expect(windows[0]?.body).toContain("2026-10-18T12:00:00.000Z");
-					expect(windows.at(-1)?.body).toContain("2026-10-18T12:01:00.000Z");
+					expect(windows[0]?.body).toContain(
+						githubSince("2026-10-18T12:00:00.000Z"),
+					);
+					expect(windows.at(-1)?.body).toContain(
+						githubSince("2026-10-18T12:01:00.000Z"),
+					);
 					expect(windows[0]?.body).not.toBe(windows.at(-1)?.body);
 					const otherWindows = sent.filter(
 						(item) =>
@@ -4782,9 +4787,11 @@ describe("GET /api/overview", () => {
 							item.body.includes("editedQuery"),
 					);
 					expect(otherWindows.length).toBeGreaterThan(1);
-					expect(otherWindows[0]?.body).toContain("2026-10-18T12:00:00.000Z");
+					expect(otherWindows[0]?.body).toContain(
+						githubSince("2026-10-18T12:00:00.000Z"),
+					);
 					expect(otherWindows.at(-1)?.body).toContain(
-						"2026-10-18T12:01:00.000Z",
+						githubSince("2026-10-18T12:01:00.000Z"),
 					);
 					const pullReads = sent.filter((item) =>
 						item.url.includes(`/repos/${repoName}/pulls?state=open`),
@@ -5925,7 +5932,7 @@ describe("GET /api/overview", () => {
 			if (fetchedAt == null) {
 				throw new Error("missing fetchedAt");
 			}
-			expect(repoReads[1]).toEqual({ since: fetchedAt });
+			expect(repoReads[1]).toEqual({ since: githubSince(fetchedAt) });
 			expect(repoReads[1]?.since).not.toBeNull();
 		} finally {
 			stop();

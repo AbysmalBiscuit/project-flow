@@ -2657,11 +2657,17 @@ async function currentBlockers(
 	return refreshedBlockers(listed, held, refsById);
 }
 
+/**
+ * A repo read starts this long before the last poll, because GitHub can list
+ * an issue open for a while after the `updatedAt` and `closedAt` of its close.
+ */
+const sinceOverlapMs = 5 * 60 * 1000;
+
 async function readRepo(
 	token: string,
 	fetchImpl: Fetch,
 	repo: string,
-	since: Date | null,
+	lastPoll: Date | null,
 	stored: StoredLists,
 ): Promise<{
 	tickets: Ticket[];
@@ -2670,6 +2676,8 @@ async function readRepo(
 	labels: { name: string; colour: string }[];
 	autoMerge: boolean;
 } | null> {
+	const since =
+		lastPoll === null ? null : new Date(lastPoll.getTime() - sinceOverlapMs);
 	const include = firstIncludes(since);
 	const opened = await readRepoPage(
 		token,

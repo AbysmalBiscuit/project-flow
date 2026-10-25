@@ -7,6 +7,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedRepoRead from "./fixtures/github-repo-read.json";
 import {
+	githubSince,
 	linearFake,
 	settledOverview,
 	tempConfig,
@@ -979,7 +980,7 @@ describe("batched GitHub reads", () => {
 			await settledOverview(base, readOverview);
 			const incremental = queries.slice(before);
 			expect(incremental.map((request) => request.variables.since)).toEqual([
-				"2026-08-18T12:00:00.000Z",
+				githubSince("2026-08-18T12:00:00.000Z"),
 			]);
 			expect(
 				incremental.map((request) => request.variables.afterIssues),
