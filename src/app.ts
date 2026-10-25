@@ -588,7 +588,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		}
 		runsReadAt = now;
 		readingRuns = true;
-		void readFactories(factories.readRuns)
+		void readFactories(() => factories.readRuns(now))
 			.catch(() => {})
 			.finally(() => {
 				readingRuns = false;
@@ -904,7 +904,7 @@ export async function start(options: StartOptions): Promise<Running> {
 							{ status: 502 },
 						);
 					}
-					await readFactories(factories.readRuns);
+					await readFactories(() => factories.readRuns(clock.now().getTime()));
 					return Response.json({ answered: true });
 				},
 			},

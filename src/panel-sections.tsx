@@ -23,6 +23,7 @@ import {
 	openOnGitHubLabel,
 	pullStatusLabel,
 	runFactLabel,
+	runNotLiveLabel,
 	runSectionLabel,
 	runStatusLabel,
 	whyLabel,
@@ -132,12 +133,16 @@ export function RunSection({
 			className={clsx(panel.section)}
 			aria-label={runSectionLabel}
 			data-run={run.statusKind}
+			data-run-live={run.coveredByFeed ? "true" : "false"}
 		>
 			<h3 className={clsx(panel.sectionLabel)}>{runSectionLabel}</h3>
+			{run.coveredByFeed ? null : (
+				<p className={clsx(panel.note)}>{runNotLiveLabel}</p>
+			)}
 			<dl className={clsx(panel.facts)}>
 				<RunFact label={runFactLabel.status}>
 					<span className={clsx(panel.runStatus)}>
-						<RunDot run={run} />
+						{run.coveredByFeed ? <RunDot run={run} /> : null}
 						{runStatusLabel[run.statusKind]}
 					</span>
 				</RunFact>
