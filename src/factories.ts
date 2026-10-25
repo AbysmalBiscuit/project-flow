@@ -14,6 +14,8 @@ export type FactoryEntry = Factory & {
 	kind: FactoryKind | null;
 	/** The boxes that the hub's runs name. Null for a daemon. */
 	boxes: number | null;
+	/** The hub that also reports the runs of this box. */
+	alsoReadThroughHub?: string;
 };
 
 export type ListedFactory = Factory & { source: FactoryEntry["source"] };
@@ -43,6 +45,8 @@ const runRow = z.object({
 		]),
 	}),
 	machine: z.string().nullish(),
+	source: z.string().nullish(),
+	rule: z.string().nullish(),
 	submitted_at: z.string(),
 	started_at: z.string().nullish(),
 	ended_at: z.string().nullish(),
@@ -52,7 +56,8 @@ const runRows = z.object({ runs: z.array(z.unknown()) });
 
 const localMachine = "local";
 
-type ReadRun = Omit<FactoryRun, "coveredByFeed">;
+/** A run row of one factory. A local row comes from the box that does the run. */
+type ReadRun = { run: Omit<FactoryRun, "coveredByFeed">; local: boolean };
 
 /** The runs of one `GET /runs` answer. A row that does not parse is left out. */
 function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
@@ -63,23 +68,59 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 		}
 		const run = parsed.data;
 		const machine = run.machine ?? null;
+		const local = machine === localMachine;
 		return [
 			{
-				id: run.id,
-				key: run.ticket,
-				...(run.repo === null || run.repo === undefined
-					? {}
-					: { repo: run.repo }),
-				statusKind:
-					run.status.kind === "submitted" ? "queued" : run.status.kind,
-				box: machine === localMachine ? factory.name : machine,
-				factory: factory.name,
-				submittedAt: run.submitted_at,
-				startedAt: run.started_at ?? null,
-				endedAt: run.ended_at ?? null,
+				run: {
+					id: run.id,
+					key: run.ticket,
+					...(run.repo === null || run.repo === undefined
+						? {}
+						: { repo: run.repo }),
+					statusKind:
+						run.status.kind === "submitted" ? "queued" : run.status.kind,
+					box: local ? factory.name : machine,
+					factory: factory.name,
+					...(run.source === null || run.source === undefined
+						? {}
+						: { source: run.source }),
+					...(run.rule === null || run.rule === undefined
+						? {}
+						: { rule: run.rule }),
+					submittedAt: run.submitted_at,
+					startedAt: run.started_at ?? null,
+					endedAt: run.ended_at ?? null,
+				},
+				local,
 			},
 		];
 	});
+}
+
+/**
+ * One run per id. A hub and its box report the same id once the hub sends the run.
+ * The box row gives the status, and the hub row gives `source` and `rule`.
+ */
+function mergedRuns(rows: (ReadRun & { coveredByFeed: boolean })[]) {
+	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
+		(same): FactoryRun[] => {
+			const hubRow = same.find((row) => !row.local);
+			const boxRow = same.find((row) => row.local) ?? hubRow;
+			if (boxRow === undefined) {
+				return [];
+			}
+			const { source, rule, ...status } = boxRow.run;
+			const origin = hubRow?.run ?? boxRow.run;
+			return [
+				{
+					...status,
+					...(origin.source === undefined ? {} : { source: origin.source }),
+					...(origin.rule === undefined ? {} : { rule: origin.rule }),
+					coveredByFeed: boxRow.coveredByFeed,
+				},
+			];
+		},
+	);
 }
 
 class Unreachable extends Error {}
@@ -214,15 +255,33 @@ export function factoryReader(
 			await check();
 		}
 	};
+	const hubAlsoReading = (factory: ListedFactory): string | undefined => {
+		const localIds = new Set(
+			(readRuns.get(factory.url) ?? []).flatMap((row) =>
+				row.local ? [row.run.id] : [],
+			),
+		);
+		return listed().find(
+			(other) =>
+				other.url !== factory.url &&
+				(readRuns.get(other.url) ?? []).some(
+					(row) => !row.local && localIds.has(row.run.id),
+				),
+		)?.name;
+	};
 	const entries = (): FactoryEntry[] =>
-		listed().map((factory) => ({
-			...factory,
-			...(found.get(factory.url) ?? {
-				reachable: false,
-				kind: null,
-				boxes: null,
-			}),
-		}));
+		listed().map((factory) => {
+			const hubName = hubAlsoReading(factory);
+			return {
+				...factory,
+				...(found.get(factory.url) ?? {
+					reachable: false,
+					kind: null,
+					boxes: null,
+				}),
+				...(hubName === undefined ? {} : { alsoReadThroughHub: hubName }),
+			};
+		});
 	const unreachable = () =>
 		listed().some((factory) => found.get(factory.url)?.reachable === false);
 	const readRunsOf = async (factory: ListedFactory): Promise<void> => {
@@ -251,15 +310,15 @@ export function factoryReader(
 		await Promise.all(listed().map(readRunsOf));
 	};
 	const runs = (): FactoryRun[] =>
-		listed()
-			.flatMap((factory) => {
+		mergedRuns(
+			listed().flatMap((factory) => {
 				const coveredByFeed = found.get(factory.url)?.reachable === true;
-				return (readRuns.get(factory.url) ?? []).map((run) => ({
-					...run,
+				return (readRuns.get(factory.url) ?? []).map((row) => ({
+					...row,
 					coveredByFeed,
 				}));
-			})
-			.sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+			}),
+		).sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
 	return {
 		check,
 		settled,

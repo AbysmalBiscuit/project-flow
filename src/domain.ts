@@ -41,6 +41,10 @@ export type FactoryRun = {
 	/** The box that does the run. Null while the run waits in the hub queue. */
 	box: string | null;
 	factory: string;
+	/** The hub source that started the run. */
+	source?: string;
+	/** The hub rule that started the run. */
+	rule?: string;
 	submittedAt: string;
 	startedAt: string | null;
 	endedAt: string | null;
@@ -51,7 +55,14 @@ export type FactoryRun = {
 /** The newest factory run of a ticket. The stage comes from the progress comment. */
 export type ShownFactoryRun = Pick<
 	FactoryRun,
-	"statusKind" | "box" | "factory" | "startedAt" | "endedAt" | "coveredByFeed"
+	| "statusKind"
+	| "box"
+	| "factory"
+	| "source"
+	| "rule"
+	| "startedAt"
+	| "endedAt"
+	| "coveredByFeed"
 > & { stage?: string };
 
 /** The fixed categories in workflow order. The domain rules read only these. */

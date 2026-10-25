@@ -394,6 +394,10 @@ export const factoryCopy = {
 	headerMarker: "factory unreachable",
 } as const;
 
+export function alsoReadThroughHub(hub: string): string {
+	return `also read through hub ${hub}; remove one`;
+}
+
 export function boxCount(boxes: number): string {
 	return boxes === 1 ? "1 box" : `${boxes} boxes`;
 }
