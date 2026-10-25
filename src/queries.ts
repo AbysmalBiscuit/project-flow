@@ -284,6 +284,32 @@ export function usePostReply(tracker: string, project: string, key: string) {
 	});
 }
 
+export function useAnswerQuestion(run: string, question: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (text: string): Promise<void> => {
+			const response = await fetch(
+				`/api/factory-runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ text }),
+				},
+			);
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Answer failed");
+			}
+		},
+		onSuccess: () => {
+			void queries.invalidateQueries(pageQuery.needsYou);
+			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
 let storedSeeded = false;
 
 function pollUpdatedAt(value: unknown): number {

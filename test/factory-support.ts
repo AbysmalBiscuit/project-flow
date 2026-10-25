@@ -24,7 +24,19 @@ export type FactoryRequest = {
 	url: string;
 	unix: string | null;
 	method: string;
+	body?: string;
 };
+
+const answerPath = /^\/runs\/[^/]+\/questions\/[^/]+\/answer$/;
+
+/** True for a read, and for the answer POST: the one write that the app may send to a factory. */
+export function readOrAnswer(request: FactoryRequest): boolean {
+	return (
+		request.method === "GET" ||
+		(request.method === "POST" &&
+			answerPath.test(new URL(request.url).pathname))
+	);
+}
 
 export type Answers = Record<string, unknown | null>;
 
@@ -99,7 +111,12 @@ export function factoryFetch(
 		if (answers === undefined) {
 			return other(input, init);
 		}
-		requests.push({ url: url.href, unix, method: init?.method ?? "GET" });
+		requests.push({
+			url: url.href,
+			unix,
+			method: init?.method ?? "GET",
+			...(typeof init?.body === "string" ? { body: init.body } : {}),
+		});
 		if (answers === "down") {
 			throw new TypeError("Unable to connect");
 		}
