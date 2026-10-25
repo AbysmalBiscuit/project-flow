@@ -22,6 +22,7 @@ import {
 	readOrAnswer,
 	serve,
 } from "./factory-support.ts";
+import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
@@ -737,6 +738,78 @@ describe("factory runs", () => {
 				expect(app.eventReads()).toBe(1);
 			} finally {
 				stream.close();
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the run checkpoint", () => {
+		const checkpointPath = `/runs/${hubRuns.runs[0]?.id}/checkpoint`;
+
+		async function checkpointOf(base: string): Promise<Response> {
+			const body = await overviewWhere(
+				base,
+				(seen) => factoryRunOf(seen, 41) !== undefined,
+			);
+			const id = factoryRunOf(body, 41)?.id ?? "";
+			return fetch(
+				new URL(`/api/factory-runs/${encodeURIComponent(id)}/checkpoint`, base),
+			);
+		}
+
+		test("the ticket's run carries the current stage, completed stages, retries and visits of its recorded checkpoint", async () => {
+			const app = await serveRuns(
+				{ ...hub, [checkpointPath]: hubCheckpoint },
+				[41],
+			);
+			try {
+				const response = await checkpointOf(app.base);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual({
+					stage: "review",
+					completedStages: ["start", "plan", "build", "review", "build"],
+					retries: { build: 1 },
+					visits: { start: 1, plan: 1, build: 2, review: 2 },
+				});
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that the hub and its box report reads the checkpoint of the box", async () => {
+			const [running41] = hubRuns.runs;
+			if (running41 === undefined) {
+				throw new Error("the hub runs fixture lost a run");
+			}
+			const app = await serveRuns(
+				hub,
+				[41],
+				{},
+				{
+					...daemon,
+					"/runs": { runs: [boxRow(running41, "running")] },
+					[checkpointPath]: hubCheckpoint,
+				},
+			);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				const response = await checkpointOf(app.base);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toMatchObject({ stage: "review" });
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run whose factory gives no checkpoint answers 404", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				const response = await checkpointOf(app.base);
+				expect(response.status).toBe(404);
+			} finally {
 				await app.stop();
 			}
 		});

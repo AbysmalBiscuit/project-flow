@@ -851,6 +851,14 @@ export async function start(options: StartOptions): Promise<Running> {
 					return Response.json(settingsBody());
 				},
 			},
+			"/api/factory-runs/:id/checkpoint": {
+				GET: async (request) => {
+					const found = await factories.checkpoint(request.params.id);
+					return found === null
+						? Response.json({ missing: true }, { status: 404 })
+						: Response.json(found);
+				},
+			},
 			"/api/threads/:tracker/:key": {
 				GET: (request) =>
 					threadResponse(

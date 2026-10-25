@@ -13,7 +13,9 @@ import type {
 	Overview,
 	PostedReply,
 	ProjectReport,
+	RunCheckpoint,
 	SettingsProject,
+	ShownFactoryRun,
 	Thread,
 	Tracker,
 } from "./domain.ts";
@@ -78,6 +80,13 @@ export const pageQuery = {
 			queryKey: ["thread", tracker, project, key],
 			queryFn: () => readThread(tracker, project, key),
 			placeholderData: (previous: ThreadRead | undefined) => previous,
+		}),
+	/** The key holds the run's status and stage, so a change in the factory feed reads the checkpoint again. */
+	checkpoint: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) =>
+		queryOptions({
+			queryKey: ["checkpoint", run.id, run.statusKind, run.stage ?? null],
+			queryFn: () => readCheckpoint(run.id),
+			placeholderData: (previous: RunCheckpoint | null | undefined) => previous,
 		}),
 };
 
@@ -169,6 +178,19 @@ async function readThread(
 			: { status: "failed" };
 	}
 	return { status: "ready", thread: (await response.json()) as Thread };
+}
+
+async function readCheckpoint(runId: string): Promise<RunCheckpoint | null> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/checkpoint`,
+	);
+	if (response.status === 404) {
+		return null;
+	}
+	if (!response.ok) {
+		throw new Error(`checkpoint failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as RunCheckpoint;
 }
 
 type SettingsWrite = Configuration & {

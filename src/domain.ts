@@ -79,6 +79,18 @@ export type ShownFactoryRun = Pick<
 	| "questions"
 > & { stage?: string };
 
+/** Where a factory run is in its flow, from the run checkpoint of its box. */
+export type RunCheckpoint = {
+	/** The path of the current stage. Null when the run is at no stage. */
+	stage: string | null;
+	/** The stages that the run finished, in order. */
+	completedStages: string[];
+	/** The retries of each stage, by stage name. */
+	retries: Record<string, number>;
+	/** The visits of each stage, by stage name. A review stage visit is one review round. */
+	visits: Record<string, number>;
+};
+
 /** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
 export type EarlierFactoryRun = Pick<
 	FactoryRun,
