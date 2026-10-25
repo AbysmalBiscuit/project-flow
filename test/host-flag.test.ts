@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { run, type RunIo } from "../src/main.ts";
 import {
@@ -38,15 +41,17 @@ describe("--host", () => {
 
 	test("--host 0.0.0.0 listens on 0.0.0.0", async () => {
 		const { path, cleanup } = await tempConfig(valid);
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		try {
 			const result = await run(
 				["--config", path, "--host", "0.0.0.0", "--port", "0"],
-				testIo(io),
+				testIo({ ...io, databasePath: join(root, "project-flow.sqlite") }),
 			);
 			expect(result.listened).toBe(true);
 			expect(new URL(result.stdout.trim()).hostname).toBe("0.0.0.0");
 		} finally {
 			await cleanup();
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 });
