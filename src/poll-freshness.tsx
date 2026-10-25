@@ -38,8 +38,33 @@ export function postRefresh(queryKey: readonly unknown[]): void {
 	void fetch("/api/refresh", { method: "POST" });
 }
 
+function pollPercent(progress: PollProgress): number {
+	if (progress.total === 0) {
+		return 0;
+	}
+	return Math.round((progress.done / progress.total) * 100);
+}
+
 export function PollAgeText({ queryKey }: { queryKey: readonly unknown[] }) {
 	const age = usePollAge(queryFetchedAt(queryKey));
+	const progress = usePollProgress();
+	if (progress !== null) {
+		const percent = pollPercent(progress);
+		return (
+			<>
+				{", "}
+				<span
+					id="poll-status"
+					role="progressbar"
+					aria-valuemin={0}
+					aria-valuemax={100}
+					aria-valuenow={percent}
+				>
+					{`${overviewControlLabel.updating} ${percent}%`}
+				</span>
+			</>
+		);
+	}
 	if (age === null) {
 		return null;
 	}

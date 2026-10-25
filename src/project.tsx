@@ -165,7 +165,7 @@ function countLine(report: ProjectReport): string {
 		(ticket) => (ticket.outsideBlockers ?? []).length > 0,
 	).length;
 	const need = needs === 1 ? "needs" : "need";
-	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects).`;
+	return `${done} of ${total} done, ${needs} ${need} you, ${blocked} blocked (${outside} by other projects)`;
 }
 
 function isGroupBy(value: string): value is GroupBy {

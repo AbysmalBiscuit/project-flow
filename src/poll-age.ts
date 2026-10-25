@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 
+import { overviewControlLabel } from "./terms.ts";
+
 const minuteSeconds = 60;
 const hourSeconds = 60 * minuteSeconds;
 const daySeconds = 24 * hourSeconds;
-const polled = "polled";
 
-export function polledAgo(fetchedAtMs: number, now: number): string | null {
+export function updatedAgo(fetchedAtMs: number, now: number): string | null {
 	if (fetchedAtMs <= 0) {
 		return null;
 	}
@@ -18,7 +19,7 @@ export function polledAgo(fetchedAtMs: number, now: number): string | null {
 				: seconds < daySeconds
 					? `${Math.floor(seconds / hourSeconds)} h`
 					: `${Math.floor(seconds / daySeconds)} d`;
-	return `${polled} ${age} ago`;
+	return `${overviewControlLabel.updated} ${age} ago`;
 }
 
 export function usePollAge(fetchedAtMs: number): string | null {
@@ -27,5 +28,5 @@ export function usePollAge(fetchedAtMs: number): string | null {
 		const timer = setInterval(() => setNow(Date.now()), 200);
 		return () => clearInterval(timer);
 	}, []);
-	return polledAgo(fetchedAtMs, now);
+	return updatedAgo(fetchedAtMs, now);
 }
