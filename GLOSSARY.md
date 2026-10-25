@@ -152,7 +152,7 @@ _Avoid_: Server, controller, orchestrator
 
 **Box**:
 A machine in the factory that does the runs the hub dispatches to it. Only the box holds the full detail of its runs.
-_Avoid_: Machine, worker, node, build machine
+_Avoid_: Machine, worker, node (when the box is meant), build machine
 
 **Run stage**:
 The step of the workcell flow that a run is in: a node of the run's graph.
