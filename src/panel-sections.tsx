@@ -15,6 +15,7 @@ import { panel } from "./panel-styles.ts";
 import { spanLabel } from "./poll-age.ts";
 import { RunAgents } from "./run-agents.tsx";
 import { RunStages } from "./run-checkpoint.tsx";
+import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
 import {
 	earlierRunsLabel,
@@ -166,6 +167,7 @@ export function RunSection({
 			</dl>
 			<RunAgents run={run} />
 			<RunStages run={run} />
+			<RunGraph run={run} />
 			{earlier.length === 0 ? null : (
 				<>
 					<h3 className={clsx(panel.sectionLabel)}>{earlierRunsLabel}</h3>

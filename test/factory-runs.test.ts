@@ -25,6 +25,8 @@ import {
 import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
+import runGraphCheckpoint from "./fixtures/factory-run-graph-checkpoint.json";
+import runGraph from "./fixtures/factory-run-graph.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
@@ -933,7 +935,7 @@ describe("factory runs", () => {
 			);
 		}
 
-		test("the ticket's run carries the current stage, completed stages, retries and visits of its recorded checkpoint", async () => {
+		test("the ticket's run carries the current stage, completed stages, retries and visits of its recorded checkpoint, and no graph from a factory that serves none", async () => {
 			const app = await serveRuns(
 				{ ...hub, [checkpointPath]: hubCheckpoint },
 				[41],
@@ -946,7 +948,56 @@ describe("factory runs", () => {
 					completedStages: ["start", "plan", "build", "review", "build"],
 					retries: { build: 1 },
 					visits: { start: 1, plan: 1, build: 2, review: 2 },
+					graph: null,
 				});
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("the run carries the nodes and edges of its recorded graph, each node marked from the checkpoint", async () => {
+			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
+			const app = await serveRuns(
+				{
+					...hub,
+					[checkpointPath]: {
+						...runGraphCheckpoint,
+						node_retries: { push: 1 },
+					},
+					[graphPath]: runGraph,
+				},
+				[41],
+			);
+			try {
+				const response = await checkpointOf(app.base);
+				expect(response.status).toBe(200);
+				const { stage, graph } = (await response.json()) as RunCheckpoint;
+				expect(stage).toBe("post_pr/post_pr");
+				expect(graph?.nodes.map((node) => node.id)).toEqual(
+					runGraph.nodes.map((node) => node.id),
+				);
+				const nodeOf = (id: string) =>
+					graph?.nodes.find((node) => node.id === id);
+				expect(nodeOf("post_pr")).toEqual({
+					id: "post_pr",
+					label: "Post PR",
+					state: "current",
+					retries: 0,
+				});
+				expect(nodeOf("review")).toMatchObject({ state: "completed" });
+				expect(nodeOf("push")).toMatchObject({
+					state: "completed",
+					retries: 1,
+				});
+				expect(nodeOf("report")).toMatchObject({ state: "ahead" });
+				expect(nodeOf("exit")).toMatchObject({ state: "ahead" });
+				expect(graph?.edges).toHaveLength(runGraph.edges.length);
+				expect(graph?.edges).toContainEqual({
+					from: "push",
+					to: "fan",
+					label: "pushed",
+				});
+				expect(graph?.edges).toContainEqual({ from: "fan", to: "verify" });
 			} finally {
 				await app.stop();
 			}
