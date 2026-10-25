@@ -185,6 +185,24 @@ export const pullButtonLabel = "PR";
 
 export const openPullLabel = "Open the PR on GitHub";
 
+export const runSectionLabel = "Factory run";
+
+export const earlierRunsLabel = "Earlier runs";
+
+export const runFactLabel = {
+	status: "Status",
+	stage: "Stage",
+	box: "Box",
+	factory: "Factory",
+	start: "Start time",
+	elapsed: "Elapsed",
+	pr: "PR",
+} as const;
+
+export const hubQueueLabel = "In the hub queue";
+
+export const noStartLabel = "No start time";
+
 export const mergeFactLabel = {
 	pr: "PR",
 	ci: "CI",

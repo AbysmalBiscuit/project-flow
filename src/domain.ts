@@ -54,6 +54,12 @@ export type ShownFactoryRun = Pick<
 	"statusKind" | "box" | "factory" | "startedAt" | "endedAt" | "coveredByFeed"
 > & { stage?: string };
 
+/** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
+export type EarlierFactoryRun = Pick<
+	FactoryRun,
+	"statusKind" | "startedAt" | "endedAt"
+>;
+
 export type StatusType =
 	"backlog" | "inProgress" | "inReview" | "awaitingMerge" | "done" | "dropped";
 
@@ -169,6 +175,8 @@ export type TicketView = {
 	enteredStateAt?: string;
 	run?: LiveRun;
 	factoryRun?: ShownFactoryRun;
+	/** The factory runs before `factoryRun`, newest first. */
+	earlierFactoryRuns?: EarlierFactoryRun[];
 	updatedAt?: string;
 	assignees?: string[];
 	workstream?: string;

@@ -17,7 +17,12 @@ import type {
 	ThreadComment,
 } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
-import { CommentTree, RelationList, WhySection } from "./panel-sections.tsx";
+import {
+	CommentTree,
+	RelationList,
+	RunSection,
+	WhySection,
+} from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
@@ -362,6 +367,14 @@ export function TicketPanel({
 					onPick={(option) => {
 						void pick(option);
 					}}
+				/>
+			)}
+			{view?.factoryRun === undefined ? null : (
+				<RunSection
+					run={view.factoryRun}
+					earlier={view.earlierFactoryRuns ?? []}
+					pull={view.pull}
+					pullUrl={view.pullUrl}
 				/>
 			)}
 			<RelationList

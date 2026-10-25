@@ -1,4 +1,5 @@
 import type {
+	EarlierFactoryRun,
 	FactoryRun,
 	Lane,
 	PullRequest,
@@ -10,7 +11,7 @@ import type {
 import { appLaneNames, closedLaneType, laterState } from "./lanes.ts";
 import { branchLinksTicket, closesTicket } from "./links.ts";
 import { sameTicketKey } from "./ticket-key.ts";
-import { progressRun, runFor } from "./workcell.ts";
+import { progressRun, runFor, runsFor } from "./workcell.ts";
 
 function enteredStateAt(ticket: Ticket, lane: Lane): string {
 	const history = ticket.history ?? [];
@@ -139,13 +140,18 @@ export function shownTicket(
 	};
 }
 
-/** The newest factory run of a ticket, with the stage of its progress comment. */
+/**
+ * The newest factory run of a ticket, with the stage of its progress comment,
+ * and the earlier runs of the ticket.
+ */
 export function shownFactoryRun(
 	ticket: Ticket,
 	newestFirst: FactoryRun[],
 	now: Date,
-): { factoryRun: ShownFactoryRun } | Record<string, never> {
-	const run = runFor(ticket, newestFirst);
+):
+	| { factoryRun: ShownFactoryRun; earlierFactoryRuns?: EarlierFactoryRun[] }
+	| Record<string, never> {
+	const [run, ...earlier] = runsFor(ticket, newestFirst);
 	if (run === undefined) {
 		return {};
 	}
@@ -160,6 +166,15 @@ export function shownFactoryRun(
 			coveredByFeed: run.coveredByFeed,
 			...(stage === undefined ? {} : { stage }),
 		},
+		...(earlier.length === 0
+			? {}
+			: {
+					earlierFactoryRuns: earlier.map((run) => ({
+						statusKind: run.statusKind,
+						startedAt: run.startedAt,
+						endedAt: run.endedAt,
+					})),
+				}),
 	};
 }
 
