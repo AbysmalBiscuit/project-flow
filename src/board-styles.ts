@@ -190,6 +190,7 @@ export const board = stylex.create({
 		minWidth: 0,
 		overflowX: "auto",
 		overflowY: "hidden",
+		overscrollBehaviorX: "contain",
 		borderWidth: 0,
 		boxShadow: `inset 0 0 0 ${measure.hairline} ${colours.laneLine}`,
 		borderRadius: radius.md,

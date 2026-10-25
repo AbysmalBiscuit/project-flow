@@ -367,6 +367,16 @@ export const frame = stylex.create({
 	menu: {
 		position: "relative",
 	},
+	menuLabels: {
+		display: "grid",
+	},
+	menuLabel: {
+		gridArea: "1 / 1",
+		whiteSpace: "nowrap",
+	},
+	menuLabelOff: {
+		visibility: "hidden",
+	},
 	menuList: {
 		position: "absolute",
 		zIndex: stack.jump,

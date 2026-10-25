@@ -16,6 +16,7 @@ export function Dropdown({
 	choices,
 	onChange,
 	style,
+	steadyWidth = false,
 }: {
 	id: string;
 	label: string;
@@ -23,6 +24,8 @@ export function Dropdown({
 	choices: readonly DropdownChoice[];
 	onChange: (id: string) => void;
 	style?: stylex.StyleXStyles;
+	/** Sizes the button to its widest choice, so a new value does not shift the layout. */
+	steadyWidth?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
 	const listId = useId();
@@ -65,7 +68,24 @@ export function Dropdown({
 				aria-controls={listId}
 				onClick={() => setOpen((next) => !next)}
 			>
-				{current?.label}
+				{steadyWidth ? (
+					<span className={clsx(frame.menuLabels)}>
+						{choices.map((choice) => (
+							<span
+								key={choice.id}
+								className={clsx(
+									frame.menuLabel,
+									choice !== current && frame.menuLabelOff,
+								)}
+								aria-hidden={choice !== current}
+							>
+								{choice.label}
+							</span>
+						))}
+					</span>
+				) : (
+					current?.label
+				)}
 				<span className={clsx(frame.caret)} aria-hidden="true">
 					<svg
 						viewBox="0 0 12 12"
