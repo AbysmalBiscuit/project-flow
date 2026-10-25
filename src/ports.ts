@@ -8,6 +8,7 @@ import type {
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
+	RunCheckpoint,
 	Snapshot,
 	Ticket,
 	WorkcellRun,
@@ -120,6 +121,11 @@ export type FactoryReader = {
 	) => void;
 	/** The runs of each listed factory, newest first. */
 	runs: () => FactoryRun[];
+	/**
+	 * `GET /runs/{id}/checkpoint` of the factory whose row gives the run its status.
+	 * Null when no factory reported the run or the factory gave no checkpoint.
+	 */
+	checkpoint: (runId: string) => Promise<RunCheckpoint | null>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
 	 * The answer is the one write request that the app sends to a factory.

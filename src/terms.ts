@@ -201,6 +201,18 @@ export const runFactLabel = {
 	pr: "PR",
 } as const;
 
+export const runStagesLabel = "Stages";
+
+export const currentStageLabel = "Current";
+
+export function stageVisitsLabel(visits: number): string {
+	return `${visits} ${visits === 1 ? "visit" : "visits"}`;
+}
+
+export function stageRetriesLabel(retries: number): string {
+	return `${retries} ${retries === 1 ? "retry" : "retries"}`;
+}
+
 export const hubQueueLabel = "In the hub queue";
 
 export const noStartLabel = "No start time";
