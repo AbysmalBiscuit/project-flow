@@ -5299,7 +5299,7 @@ describe("GET /api/overview", () => {
 
 	test("a warm start runs one poll until the poll interval passes", async () => {
 		const repoName = "acme/warm";
-		const intervalMs = 1_000;
+		const intervalSecondMs = 100;
 		const requests: string[] = [];
 		let releaseFirst: () => void = () => {};
 		const firstHeld = new Promise<void>((resolve) => {
@@ -5352,7 +5352,7 @@ describe("GET /api/overview", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				pinned: [{ tracker: "github", repo: repoName }],
-				pollIntervalSeconds: intervalMs / 1_000,
+				pollIntervalSeconds: 1,
 			}),
 		);
 		const root = await mkdtemp(join("/var/tmp", "project-flow-warm-"));
@@ -5417,7 +5417,7 @@ describe("GET /api/overview", () => {
 					expect(before.projects.map((project) => project.name)).toEqual([
 						repoName,
 					]);
-					await Bun.sleep(intervalMs + 250);
+					await Bun.sleep(intervalSecondMs + 250);
 					const during = repoReads;
 					expect(during).toBe(1);
 					releaseFirst();
@@ -5454,6 +5454,7 @@ describe("GET /api/overview", () => {
 						fetch: recordedFetch,
 						readGhToken: async () => null,
 						databasePath,
+						intervalSecondMs,
 						stdout: (line) => startChecks(line),
 						waitForStop: checks,
 					},
@@ -5573,12 +5574,13 @@ describe("GET /api/overview", () => {
 							databasePath,
 							stdout: (line) => {
 								void (async () => {
+									// Count the reads before the overview read, so a poll that
+									// starts during that read cannot pass for a settled one.
+									let readsBefore = repoReads.length;
 									let overviewBody = await readOverview(line);
-									while (
-										overviewBody.polling === true ||
-										repoReads.length === 0
-									) {
+									while (overviewBody.polling === true || readsBefore === 0) {
 										await Bun.sleep(20);
+										readsBefore = repoReads.length;
 										overviewBody = await readOverview(line);
 									}
 									expect(repoReads).toEqual([{ since: null }]);

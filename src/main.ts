@@ -44,6 +44,9 @@ export type RunIo = {
 	now?: () => Date;
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
+	settingsReadWaitMs?: number;
+	intervalSecondMs?: number;
+	idleTimeoutSeconds?: number;
 	waitForStop?: Promise<void>;
 	listTodos?: TodoSource;
 	listCheckouts?: CheckoutSource;
@@ -670,6 +673,15 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.trackerRequestLimitMs === undefined
 				? {}
 				: { trackerRequestLimitMs: io.trackerRequestLimitMs }),
+			...(io.settingsReadWaitMs === undefined
+				? {}
+				: { settingsReadWaitMs: io.settingsReadWaitMs }),
+			...(io.intervalSecondMs === undefined
+				? {}
+				: { intervalSecondMs: io.intervalSecondMs }),
+			...(io.idleTimeoutSeconds === undefined
+				? {}
+				: { idleTimeoutSeconds: io.idleTimeoutSeconds }),
 			...(io.mintFactoryTokens === undefined
 				? {}
 				: { mintFactoryTokens: io.mintFactoryTokens }),

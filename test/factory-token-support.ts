@@ -196,6 +196,7 @@ export async function serve(options: {
 	home: string;
 	mint?: FactoryTokenMint;
 	beforeFirstPoll?: boolean;
+	settingsReadWaitMs?: number;
 }): Promise<{ base: string; stop: () => Promise<void> }> {
 	const { path, cleanup } = await tempConfig(JSON.stringify(options.config));
 	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
@@ -220,6 +221,9 @@ export async function serve(options: {
 				...(options.mint === undefined
 					? {}
 					: { mintFactoryTokens: options.mint, mintRetryDelayMs: 10 }),
+				...(options.settingsReadWaitMs === undefined
+					? {}
+					: { settingsReadWaitMs: options.settingsReadWaitMs }),
 				stdout: (line) => startChecks(line),
 				stderr: (line) => {
 					throw new Error(line);

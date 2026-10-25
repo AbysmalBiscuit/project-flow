@@ -2,9 +2,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 
 import type { PluginItem } from "@babel/core";
-import babel from "@babel/core";
 import parser from "@babel/parser";
-import stylexBabelPlugin from "@stylexjs/babel-plugin";
 import type { BunPlugin } from "bun";
 
 const loadedPlugin = (name: string): PluginItem => {
@@ -13,10 +11,29 @@ const loadedPlugin = (name: string): PluginItem => {
 	return loaded.default ?? (loaded as PluginItem);
 };
 
+// The server imports this module for pageThemeMeta. Babel and the StyleX
+// plugin load only when a build compiles, so a server start stays cheap.
+let compilers: Promise<{
+	babel: typeof import("@babel/core");
+	stylexBabelPlugin: typeof import("@stylexjs/babel-plugin").default;
+}> | null = null;
+
+function loadedCompilers() {
+	compilers ??= Promise.all([
+		import("@babel/core"),
+		import("@stylexjs/babel-plugin"),
+	]).then(([babel, stylex]) => ({
+		babel,
+		stylexBabelPlugin: stylex.default,
+	}));
+	return compilers;
+}
+
 const rootDir = realpathSync(resolve(import.meta.dir, ".."));
 const rules = new Map<string, ReadonlyArray<readonly unknown[]>>();
 
 async function compile(code: string, filename: string): Promise<string> {
+	const { babel, stylexBabelPlugin } = await loadedCompilers();
 	const result = await babel.transformAsync(code, {
 		babelrc: false,
 		configFile: false,
@@ -148,11 +165,12 @@ function themeFromCompile(code: string): PageThemeMeta {
 	};
 }
 
-function collectedCss(): string {
+async function collectedCss(): Promise<string> {
 	const flat = [...rules.values()].flat();
 	if (flat.length === 0) {
 		return "";
 	}
+	const { stylexBabelPlugin } = await loadedCompilers();
 	return stylexBabelPlugin.processStylexRules(
 		flat as Parameters<typeof stylexBabelPlugin.processStylexRules>[0],
 		{ useLayers: true },
@@ -174,6 +192,10 @@ function loaderFor(path: string): "tsx" | "ts" | "jsx" | "js" {
 
 let compiled: Promise<Map<string, string>> | null = null;
 
+// Each server build compiles the tree again. A file whose source did not
+// change keeps its last output and rules.
+const lastCompiled = new Map<string, { code: string; output: string }>();
+
 async function compileTree(): Promise<Map<string, string>> {
 	const files = new Bun.Glob("src/**/*.{ts,tsx}").scan({
 		cwd: rootDir,
@@ -186,7 +208,16 @@ async function compileTree(): Promise<Map<string, string>> {
 		if (!code.includes("@stylexjs/stylex")) {
 			continue;
 		}
-		output.set(path, await compile(code, path));
+		const last = lastCompiled.get(path);
+		const next = last?.code === code ? last.output : await compile(code, path);
+		lastCompiled.set(path, { code, output: next });
+		output.set(path, next);
+	}
+	for (const path of [...rules.keys(), ...lastCompiled.keys()]) {
+		if (!output.has(path)) {
+			rules.delete(path);
+			lastCompiled.delete(path);
+		}
 	}
 	return output;
 }
@@ -200,11 +231,10 @@ const plugin: BunPlugin = {
 	name: "project-flow-stylex",
 	setup(build) {
 		compiled = null;
-		rules.clear();
 		build.onLoad({ filter: /\.css$/ }, async (args) => {
 			await compiledTree();
 			const source = await Bun.file(args.path).text();
-			return { contents: `${source}\n${collectedCss()}`, loader: "css" };
+			return { contents: `${source}\n${await collectedCss()}`, loader: "css" };
 		});
 		build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
 			const output = await compiledTree();
