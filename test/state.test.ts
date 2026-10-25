@@ -696,7 +696,7 @@ describe("forward state", () => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-1")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					statusType: "inProgress",
 					staleStatus: "Todo",
 					chips: ["Todo"],
@@ -769,19 +769,19 @@ describe("forward state", () => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-21")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					staleStatus: "Todo",
 					chips: ["Todo"],
 					run: { status: "running", stage: "stage 3" },
 				});
 				expect(ticketOf(report, "WID-23")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					run: { status: "running", stage: "stage 2" },
 				});
 				expect(ticketOf(report, "WID-24")).toMatchObject({
 					state: "backlog",
-					lane: "Todo",
+					status: "Todo",
 				});
 				expect(ticketOf(report, "WID-24").run).toBeUndefined();
 			},
@@ -819,7 +819,7 @@ describe("forward state", () => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-17")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					staleStatus: "Todo",
 					chips: ["Todo"],
 					run: { status: "running", stage: "stage 5" },
@@ -864,14 +864,14 @@ describe("forward state", () => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-11")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					staleStatus: "Todo",
 					chips: ["Todo"],
 					run: { status: "running", stage: "stage 5" },
 				});
 				expect(ticketOf(report, "WID-12")).toMatchObject({
 					state: "backlog",
-					lane: "Todo",
+					status: "Todo",
 				});
 				expect(ticketOf(report, "WID-12").run).toBeUndefined();
 			},
@@ -943,7 +943,7 @@ describe("forward state", () => {
 				const report = await projectOf(base, githubRepo);
 				expect(ticketOf(report, `${githubRepo}#27`)).toMatchObject({
 					state: "backlog",
-					lane: "ready",
+					status: "ready",
 					chips: ["Run failed"],
 					run: { status: "failed", stage: "stage 4" },
 				});
@@ -985,7 +985,7 @@ describe("forward state", () => {
 				const ticket = ticketOf(report, "WID-30");
 				expect(ticket).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					run: { status: "running", stage: "stage 5" },
 				});
 				expect(ticket.chips ?? []).not.toContain("Run failed");
@@ -1048,7 +1048,7 @@ describe("forward state", () => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-27")).toMatchObject({
 					state: "backlog",
-					lane: "Todo",
+					status: "Todo",
 					chips: ["Run failed"],
 					run: { status: "failed", stage: "stage 2" },
 				});
@@ -1059,7 +1059,7 @@ describe("forward state", () => {
 				).toEqual(["runFailed"]);
 				expect(ticketOf(report, "WID-28")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					staleStatus: "Todo",
 					chips: ["Todo"],
 					run: { status: "running", stage: "stage 1" },
@@ -1070,7 +1070,7 @@ describe("forward state", () => {
 				const blank = ticketOf(report, "WID-29");
 				expect(blank).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					run: { status: "running", stage: "stage 3" },
 				});
 				expect(blank.chips ?? []).not.toContain("Run failed");
@@ -1165,7 +1165,7 @@ describe("forward state", () => {
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-13")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					staleStatus: "Todo",
 					chips: ["Todo"],
 					run: { status: "running", stage: "stage 2" },
@@ -1175,7 +1175,7 @@ describe("forward state", () => {
 				).toEqual([]);
 				expect(ticketOf(report, "WID-15")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					chips: ["Todo"],
 					run: { status: "running", stage: "stage 3" },
 				});
@@ -1212,7 +1212,7 @@ describe("forward state", () => {
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-16")).toMatchObject({
 						state: "backlog",
-						lane: "Todo",
+						status: "Todo",
 						statusType: "backlog",
 						chips: ["Run failed"],
 						run: { status: "failed", stage: "stage 4" },
@@ -1281,21 +1281,21 @@ describe("forward state", () => {
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-22")).toMatchObject({
 						state: "inProgress",
-						lane: "In Progress",
+						status: "In Progress",
 						staleStatus: "Todo",
 						run: { status: "running" },
 					});
 					expect(ticketOf(report, "WID-22").run).not.toHaveProperty("stage");
 					expect(ticketOf(report, "WID-25")).toMatchObject({
 						state: "backlog",
-						lane: "Todo",
+						status: "Todo",
 						chips: ["Run failed"],
 						run: { status: "failed" },
 					});
 					expect(ticketOf(report, "WID-25").run).not.toHaveProperty("stage");
 					expect(ticketOf(report, "WID-26")).toMatchObject({
 						state: "backlog",
-						lane: "Todo",
+						status: "Todo",
 					});
 					expect(ticketOf(report, "WID-26").run).toBeUndefined();
 				},
@@ -1332,7 +1332,7 @@ describe("forward state", () => {
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-14")).toMatchObject({
 						state: "inProgress",
-						lane: "In Progress",
+						status: "In Progress",
 						staleStatus: "Todo",
 						run: { status: "running", stage: "stage 4" },
 					});
@@ -1370,7 +1370,7 @@ describe("forward state", () => {
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-1")).toMatchObject({
 						state: "inProgress",
-						lane: "In Progress",
+						status: "In Progress",
 						statusType: "inProgress",
 						staleStatus: "Todo",
 						chips: ["Todo"],
@@ -1397,7 +1397,8 @@ describe("forward state", () => {
 			{ manifest: { merge: "ask" }, ...awaiting },
 			{
 				manifest: { merge: "yes" },
-				lane: "In Review",
+				lane: "In review",
+				status: "In Review",
 				state: "inReview",
 				reason: null,
 			},
@@ -1487,6 +1488,7 @@ describe("forward state", () => {
 						expect(ticketOf(report, "WID-2")).toMatchObject({
 							state: item.state,
 							lane: item.lane,
+							...("status" in item ? { status: item.status } : {}),
 						});
 						const needs = needsYouOf(report)
 							.filter((row) => row.key === "WID-2")
@@ -1695,7 +1697,7 @@ describe("forward state", () => {
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-12")).toMatchObject({
 						state: "inProgress",
-						lane: "In Progress",
+						status: "In Progress",
 					});
 					expect(ticketOf(report, "WID-12").chips ?? []).not.toContain(
 						"Run failed",
@@ -1732,7 +1734,7 @@ console.log("not json {");
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-13")).toMatchObject({
 						state: "inProgress",
-						lane: "In Progress",
+						status: "In Progress",
 					});
 					expect(ticketOf(report, "WID-13").chips ?? []).not.toContain(
 						"Run failed",
@@ -1771,7 +1773,7 @@ console.log(JSON.stringify({ result: { agents: [] } }));
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-13")).toMatchObject({
 						state: "backlog",
-						lane: "Todo",
+						status: "Todo",
 						chips: ["Run failed"],
 					});
 					const needs = await fetch(new URL("/api/needs-you", base));
@@ -1831,7 +1833,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-9")).toMatchObject({
 						state: "backlog",
-						lane: "Todo",
+						status: "Todo",
 						chips: ["Run failed"],
 					});
 					const needs = await fetch(new URL("/api/needs-you", base));
@@ -1894,7 +1896,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-10")).toMatchObject({
 						state: "inProgress",
-						lane: "In Progress",
+						status: "In Progress",
 						staleStatus: "Todo",
 					});
 					expect(ticketOf(report, "WID-10").chips ?? []).not.toContain(
@@ -1939,7 +1941,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-4")).toMatchObject({
 						state: "backlog",
-						lane: "Todo",
+						status: "Todo",
 						statusType: "backlog",
 						chips: ["Run failed"],
 					});
@@ -2018,7 +2020,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 				const report = await projectOf(base, "Widget launch");
 				expect(ticketOf(report, "WID-5")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					statusType: "inProgress",
 					blocked: true,
 					chips: ["Blocked"],
@@ -2318,7 +2320,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 				).toEqual([]);
 				expect(ticketOf(report, "WID-20")).toMatchObject({
 					state: "inProgress",
-					lane: "In Progress",
+					status: "In Progress",
 					chips: ["Todo"],
 					run: { status: "running", stage: "stage 2" },
 				});
@@ -2349,7 +2351,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 					const report = await projectOf(base, "Widget launch");
 					expect(ticketOf(report, "WID-1")).toMatchObject({
 						state: "backlog",
-						lane: "Todo",
+						status: "Todo",
 					});
 				},
 				checkout.root,
@@ -2510,7 +2512,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 			async (base) => {
 				const report = await projectOf(base, githubRepo);
 				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
-					lane: "factory: running",
+					status: "factory: running",
 					enteredStateAt: enteredAt,
 				});
 				expect(olderAt < editedAt).toBe(true);
@@ -2645,7 +2647,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 			async (base) => {
 				const report = await projectOf(base, githubRepo);
 				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
-					lane: "factory: running",
+					status: "factory: running",
 					statusType: "inProgress",
 					enteredStateAt: enteredAt,
 				});
@@ -2700,7 +2702,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 			async (base) => {
 				const report = await projectOf(base, githubRepo);
 				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
-					lane: "factory: running",
+					status: "factory: running",
 					enteredStateAt: editedAt,
 				});
 			},
@@ -2740,7 +2742,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 				const report = await projectOf(base, githubRepo);
 				const ticket = ticketOf(report, `${githubRepo}#13`);
 				expect(ticket).toMatchObject({
-					lane: "factory: running",
+					status: "factory: running",
 					statusType: "inProgress",
 					enteredStateAt: reopenedAt,
 				});
@@ -2820,7 +2822,7 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 			async (base) => {
 				const report = await projectOf(base, githubRepo);
 				expect(ticketOf(report, `${githubRepo}#8`)).toMatchObject({
-					lane: "ready",
+					status: "ready",
 					statusType: "backlog",
 					enteredStateAt: createdAt,
 				});

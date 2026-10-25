@@ -651,14 +651,14 @@ describe("batched GitHub reads", () => {
 			await ready;
 			const report = (await (
 				await fetch(new URL("/api/projects/acme%2Fwidget", base))
-			).json()) as { lanes: { name: string; colour: string }[] };
-			expect(report.lanes.map((lane) => lane.name)).toContain("ready");
-			expect(report.lanes.map((lane) => lane.name)).toContain(
+			).json()) as { statuses: { name: string; colour: string }[] };
+			expect(report.statuses.map((lane) => lane.name)).toContain("ready");
+			expect(report.statuses.map((lane) => lane.name)).toContain(
 				"factory: in-review",
 			);
-			expect(report.lanes.find((lane) => lane.name === "ready")?.colour).toBe(
-				"#0E8A16",
-			);
+			expect(
+				report.statuses.find((lane) => lane.name === "ready")?.colour,
+			).toBe("#0E8A16");
 			expect(queries.map((request) => request.variables.afterLabels)).toEqual([
 				null,
 				"label-2",
@@ -1126,12 +1126,13 @@ describe("batched GitHub reads", () => {
 			const report = (await (
 				await fetch(new URL("/api/projects/acme%2Fwidget", base))
 			).json()) as {
-				lanes: { name: string }[];
+				statuses: { name: string }[];
 				tickets: {
 					key: string | null;
 					blockers: string[];
 					blocked?: boolean;
 					lane?: string;
+					status?: string;
 				}[];
 			};
 			const ticket = report.tickets.find(
@@ -1139,10 +1140,10 @@ describe("batched GitHub reads", () => {
 			);
 			expect(ticket?.blockers).toEqual(["acme/widget#40"]);
 			expect(ticket?.blocked).toBe(true);
-			expect(report.lanes.map((lane) => lane.name)).toContain(
+			expect(report.statuses.map((lane) => lane.name)).toContain(
 				"factory: running",
 			);
-			expect(report.tickets[0]?.lane).toBe("factory: running");
+			expect(report.tickets[0]?.status).toBe("factory: running");
 			expect(
 				queries.some((request) => request.query.includes("IssueRelations")),
 			).toBe(true);

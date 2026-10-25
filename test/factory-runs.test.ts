@@ -98,8 +98,58 @@ async function overviewEventWhere(
 	throw new Error("the event stream ended before the overview changed");
 }
 
+async function reportOf(base: string): Promise<ProjectReport> {
+	const response = await fetch(
+		new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+	);
+	expect(response.status).toBe(200);
+	return (await response.json()) as ProjectReport;
+}
+
+function reportTicket(report: ProjectReport, number: number): TicketView {
+	const found = report.tickets.find((view) => view.key === `${repo}#${number}`);
+	if (found === undefined) {
+		throw new Error(`ticket ${number} is missing from the project`);
+	}
+	return found;
+}
+
+function needsYouReasons(report: ProjectReport, number: number): string[] {
+	return (
+		report.sections.find((section) => section.id === "needsYou")?.needsYou ?? []
+	)
+		.filter((item) => item.key === `${repo}#${number}`)
+		.map((item) => item.reason);
+}
+
+/** A progress comment at stage 3, last updated at `updatedAt`. */
+function progressAt(updatedAt: string): Record<string, unknown>[] {
+	return [
+		{
+			id: 1,
+			body: "**Workcell progress**\n\n- stage 3: writing the change",
+			user: { login: "lev" },
+			created_at: "2026-10-25T09:30:00Z",
+			updated_at: updatedAt,
+		},
+	];
+}
+
+/** The hub runs, with the run of ticket 41 set to `kind`. */
+function hubWith41(kind: string): Answers {
+	const [running, ...rest] = hubRuns.runs;
+	return {
+		...hub,
+		"/runs": { runs: [{ ...running, status: { kind } }, ...rest] },
+	};
+}
+
 /** A hub and a tracked repo whose issues the test can change, on a clock the test advances. */
-async function serveRuns(hubAnswers: Answers, issueNumbers: number[]) {
+async function serveRuns(
+	hubAnswers: Answers,
+	issueNumbers: number[],
+	comments: Record<number, Record<string, unknown>[]> = {},
+) {
 	const factories: Record<string, Answers | "down"> = { [hubUrl]: hubAnswers };
 	const requests: FactoryRequest[] = [];
 	const issues = { numbers: issueNumbers };
@@ -118,9 +168,13 @@ async function serveRuns(hubAnswers: Answers, issueNumbers: number[]) {
 				issuesResponse(
 					input,
 					init,
-					issues.numbers.map((number) =>
-						ticket(number, "2026-10-25T09:00:00Z"),
-					),
+					issues.numbers.map((number) => {
+						const rows = comments[number];
+						return {
+							...ticket(number, "2026-10-25T09:00:00Z"),
+							...(rows === undefined ? {} : { commentRows: rows }),
+						};
+					}),
 				) ?? page([])
 			);
 		}
@@ -304,5 +358,108 @@ describe("factory runs", () => {
 			stream.close();
 			await app.stop();
 		}
+	});
+
+	describe("the feed wins over comment evidence", () => {
+		test("a failed factory run gives Run failed and Needs you, while the progress comment shows the run as live", async () => {
+			const app = await serveRuns(hub, [39], {
+				39: progressAt("2026-10-25T14:10:00Z"),
+			});
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 39) !== undefined,
+				);
+				const report = await reportOf(app.base);
+				expect(reportTicket(report, 39)).toMatchObject({
+					state: "backlog",
+					chips: ["Run failed"],
+					run: { status: "failed", stage: "stage 3" },
+				});
+				expect(needsYouReasons(report, 39)).toEqual(["runFailed"]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a blocked factory run gives an open ask in Needs you", async () => {
+			const app = await serveRuns(hubWith41("blocked"), [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				expect(needsYouReasons(await reportOf(app.base), 41)).toEqual(["ask"]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a running factory run gives In progress, while the tracker status is a not-started state", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const report = await reportOf(app.base);
+				expect(reportTicket(report, 41)).toMatchObject({
+					state: "inProgress",
+					statusType: "inProgress",
+				});
+				expect(needsYouReasons(report, 41)).toEqual([]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a running factory run whose progress comment is older than the stall limit does not give Run failed", async () => {
+			const app = await serveRuns(hub, [41], {
+				41: progressAt("2026-10-25T12:00:00Z"),
+			});
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const report = await reportOf(app.base);
+				const shown = reportTicket(report, 41);
+				expect(shown).toMatchObject({
+					state: "inProgress",
+					run: { status: "running", stage: "stage 3" },
+				});
+				expect(shown.chips ?? []).not.toContain("Run failed");
+				expect(needsYouReasons(report, 41)).toEqual([]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a ticket with no factory run keeps its current state and needs-you result", async () => {
+			const app = await serveRuns(hub, [41, 43, 44], {
+				43: progressAt("2026-10-25T12:00:00Z"),
+				44: progressAt("2026-10-25T14:10:00Z"),
+			});
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const report = await reportOf(app.base);
+				expect(reportTicket(report, 43)).toMatchObject({
+					state: "backlog",
+					chips: ["Run failed"],
+					run: { status: "failed", stage: "stage 3" },
+				});
+				expect(needsYouReasons(report, 43)).toEqual(["runFailed"]);
+				expect(reportTicket(report, 44)).toMatchObject({
+					state: "inProgress",
+					run: { status: "running", stage: "stage 3" },
+				});
+				expect(needsYouReasons(report, 44)).toEqual([]);
+			} finally {
+				await app.stop();
+			}
+		});
 	});
 });

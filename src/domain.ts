@@ -60,8 +60,17 @@ export type EarlierFactoryRun = Pick<
 	"statusKind" | "startedAt" | "endedAt"
 >;
 
-export type StatusType =
-	"backlog" | "inProgress" | "inReview" | "awaitingMerge" | "done" | "dropped";
+/** The fixed categories in workflow order. The domain rules read only these. */
+export const statusTypes = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+] as const;
+
+export type StatusType = (typeof statusTypes)[number];
 
 export type StatusColours = Record<StatusType, string>;
 
@@ -164,7 +173,10 @@ export type TicketView = {
 	links?: GraphLink[];
 	outsideBlockers?: TicketRelation[];
 	blocks?: TicketRelation[];
+	/** The label of the ticket's user state, which is its board column. */
 	lane?: string;
+	/** The tracker lane of the ticket, after evidence moves it forward, when its name differs from the lane. */
+	status?: string;
 	statusType?: StatusType;
 	blocked?: boolean;
 	staleStatus?: string;
@@ -418,7 +430,10 @@ export type Lane = {
 export type ProjectReport = {
 	name: string;
 	tracker: Tracker;
+	/** The user states, in board column order. */
 	lanes: Lane[];
+	/** The tracker lanes of the project's board. */
+	statuses: Lane[];
 	tickets: TicketView[];
 	sections: ReportSection[];
 	done: number;
@@ -547,7 +562,7 @@ export type SettingsProject = {
 
 export type SettingsSnapshot = Pick<
 	Snapshot,
-	"key" | "tracker" | "owner" | "number"
+	"key" | "name" | "tracker" | "owner" | "number" | "board"
 > & {
 	pulls: Pick<
 		PullRequest,

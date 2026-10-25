@@ -20,6 +20,7 @@ import type {
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
+import type { StateSource } from "./settings-write.ts";
 import { storedObject } from "./stored-page.ts";
 
 type SettingsPage = {
@@ -28,6 +29,7 @@ type SettingsPage = {
 	trackers: { github: boolean; linear: boolean };
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
+	stateSources: StateSource[];
 };
 
 type ReplyBody = {
@@ -109,6 +111,7 @@ export function configurationOf(
 		trackers: _trackers,
 		projects: _projects,
 		factoryEntries: _factoryEntries,
+		stateSources: _stateSources,
 		error: _error,
 		...configuration
 	} = body;
@@ -124,6 +127,7 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 		projects: body.projects ?? [],
 		factoryTokenReports: body.factoryTokenReports ?? [],
 		factoryEntries: body.factoryEntries ?? [],
+		stateSources: body.stateSources ?? [],
 		settings: configurationOf(body) ?? body,
 	};
 }
