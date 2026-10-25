@@ -1044,6 +1044,25 @@ describe("startup", () => {
 		}
 	});
 
+	test("a --port above 65535 exits 1 and does not listen", async () => {
+		const { path, cleanup } = await tempConfig(valid);
+		try {
+			const result = await run(
+				["--config", path, "--port", "65536"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+				}),
+			);
+			expect(result.exitCode).toBe(1);
+			expect(result.stderr).toBe("invalid port: --port needs a port number");
+			expect(result.listened).toBe(false);
+		} finally {
+			await cleanup();
+		}
+	});
+
 	test("a blank notification trigger names the field and does not listen", async () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
