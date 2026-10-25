@@ -166,6 +166,10 @@ _Avoid_: Machine, worker, node (when the box is meant), build machine
 The step of the workcell flow that a run is in: a node of the run's graph.
 _Avoid_: Phase, step, node (when the stage is meant)
 
+**Run checkpoint**:
+The snapshot that a box keeps of where a run is in its flow: the current stage, the completed stages, and the retries and visits of each stage. Each visit of a review stage is one review round. Project Flow reads it from `GET /runs/{id}/checkpoint` of the factory that reports the run.
+_Avoid_: Run state, run detail
+
 **Factory feed**:
 The run status and stages that Project Flow reads live from the factory. Project Flow follows the factory's event stream, `GET /events`, and polls `GET /runs` only when the factory serves no event stream. Where the factory feed and a progress comment differ, the factory feed wins.
 _Avoid_: Daemon feed, live feed

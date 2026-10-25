@@ -186,6 +186,7 @@ export function shownFactoryRun(
 		: progressRun(ticket.comments ?? [], now)?.stage;
 	return {
 		factoryRun: {
+			id: run.id,
 			statusKind: run.statusKind,
 			box: run.box,
 			factory: run.factory,

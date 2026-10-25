@@ -226,6 +226,9 @@ export const panel = stylex.create({
 		color: colours.ink,
 		fontSize: type.meta,
 	},
+	currentStage: {
+		fontWeight: type.weight,
+	},
 	runStatus: {
 		display: "flex",
 		gap: space.xs,

@@ -8,6 +8,7 @@ import type {
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
+	RunCheckpoint,
 	Snapshot,
 	Ticket,
 	WorkcellRun,
@@ -120,6 +121,11 @@ export type FactoryReader = {
 	) => void;
 	/** The runs of each listed factory, newest first. */
 	runs: () => FactoryRun[];
+	/**
+	 * `GET /runs/{id}/checkpoint` of the factory that reported the run.
+	 * Null when no factory reported the run or the factory gave no checkpoint.
+	 */
+	checkpoint: (runId: string) => Promise<RunCheckpoint | null>;
 };
 
 export type GithubTracker = Tracker & {

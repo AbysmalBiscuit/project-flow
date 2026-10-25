@@ -1,0 +1,17 @@
+{
+	"current_node": "review",
+	"completed_nodes": ["start", "plan", "build", "review", "build"],
+	"node_retries": { "build": 1 },
+	"context_values": { "outcome": "changes_requested" },
+	"logs": [],
+	"timestamp": "2026-10-25T15:02:11.408+00:00",
+	"visits": { "start": 1, "plan": 1, "build": 2, "review": 2 },
+	"next_node": "",
+	"status": "running",
+	"failure_reason": "",
+	"stack": [],
+	"source_path": "",
+	"questions": {},
+	"workflow_sha256": "52a73eecb2c05dc564207f34af679352d4c29eaf10632c4587d2a410e210e012",
+	"signature": "8411f9c52e522c05a82e078eef02aea4ac394b92c399bb0426a89605d65bc8b7"
+}

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Factory } from "./configuration.ts";
-import type { FactoryRun, RunStatusKind } from "./domain.ts";
+import type { FactoryRun, RunCheckpoint, RunStatusKind } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 
@@ -57,7 +57,20 @@ const runRows = z.object({ runs: z.array(z.unknown()) });
 const checkpoint = z.object({
 	current_node: z.string(),
 	stack: z.array(z.object({ node: z.string() })).optional(),
+	completed_nodes: z.array(z.string()).default([]),
+	node_retries: z.record(z.string(), z.number()).default({}),
+	visits: z.record(z.string(), z.number()).default({}),
 });
+
+/** The current node path: the caller node of each child graph, then the current node. */
+function stagePath(answer: z.infer<typeof checkpoint>): string {
+	return [
+		...(answer.stack ?? []).map((frame) => frame.node),
+		answer.current_node,
+	]
+		.filter((node) => node !== "")
+		.join("/");
+}
 
 /** One frame of the hub's `GET /events`: a box event of a run, or a status change. */
 const eventFrame = z.object({
@@ -432,12 +445,7 @@ export function factoryReader(
 				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
 				checkpoint,
 			);
-			const path = [
-				...(answer.stack ?? []).map((frame) => frame.node),
-				answer.current_node,
-			]
-				.filter((node) => node !== "")
-				.join("/");
+			const path = stagePath(answer);
 			if (path === "") {
 				stages.delete(runId);
 			} else {
@@ -562,6 +570,39 @@ export function factoryReader(
 			}),
 			stages,
 		).sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+	const runCheckpoint = async (
+		runId: string,
+	): Promise<RunCheckpoint | null> => {
+		const reporters = listed().flatMap((factory) =>
+			(readRuns.get(factory.url) ?? [])
+				.filter((row) => row.run.id === runId)
+				.map((row) => ({ factory, local: row.local })),
+		);
+		// The box holds the run, so its checkpoint wins over the hub's copy.
+		const reporter = reporters.find((row) => row.local) ?? reporters[0];
+		if (reporter === undefined) {
+			return null;
+		}
+		const read = reader(fetchImpl, reporter.factory.url, signal);
+		try {
+			const answer = await body(
+				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
+				checkpoint,
+			);
+			const stage = stagePath(answer);
+			return {
+				stage: stage === "" ? null : stage,
+				completedStages: answer.completed_nodes,
+				retries: answer.node_retries,
+				visits: answer.visits,
+			};
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return null;
+		}
+	};
 	return {
 		check,
 		settled,
@@ -570,5 +611,6 @@ export function factoryReader(
 		readRuns: readAllRuns,
 		follow,
 		runs,
+		checkpoint: runCheckpoint,
 	};
 }
