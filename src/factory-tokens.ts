@@ -12,11 +12,24 @@ const hostsFile = z.object({
 	}),
 });
 
-export type FactoryTokenReport = {
+/** The exit status of the mint command, or "missing" when it cannot start. */
+export type MintStatus = number | "missing";
+
+/** Runs the factory mint command, which writes one hosts file per owner. */
+export type FactoryTokenMint = (
+	command: string[],
+	dir: string,
+) => Promise<MintStatus>;
+
+export type FactoryTokenFileReport = {
 	owner: string;
 	cause: "missing" | "unreadable" | "expired";
 	path: string;
 };
+
+export type FactoryTokenReport =
+	| FactoryTokenFileReport
+	| { cause: "mint failed"; command: string; status: MintStatus };
 
 const tokenRenewWithinMs = 5 * 60 * 1000;
 
@@ -97,32 +110,107 @@ function graphqlMutation(url: string, body: string): boolean {
 	}
 }
 
+async function hostsAt(
+	path: string,
+	now: Date,
+): Promise<ReturnType<typeof hostsToken> | "missing"> {
+	try {
+		return hostsToken(await readFile(path, "utf8"), now);
+	} catch (error) {
+		const missing =
+			error instanceof Error && "code" in error && error.code === "ENOENT";
+		return missing ? "missing" : "unreadable";
+	}
+}
+
 /**
  * Sends each GitHub read with the factory token of its repo owner. A read
- * without a usable token goes on with the user token, and `reports` names
- * each owner whose hosts file is missing, unreadable or expired.
+ * without a usable token waits for a mint, then goes on with the user token,
+ * and `reports` names each owner whose hosts file is missing, unreadable or
+ * expired, and a mint that failed.
+ *
+ * `mint` runs at most one at a time. A read or a held token near its expiry
+ * starts one at most once per renew window; `mintNow` starts one at once.
  */
 export function installationTokenFetch(
 	fetchImpl: Fetch,
 	read: () => {
 		enabled: boolean;
 		dir: string;
+		mintCommand: string[];
 	},
 	now: () => Date,
-): { fetch: Fetch; reports: () => FactoryTokenReport[] } {
+	mint?: FactoryTokenMint,
+): {
+	fetch: Fetch;
+	reports: () => FactoryTokenReport[];
+	mintNow: () => Promise<void>;
+	stop: () => void;
+} {
 	const cached = new Map<
 		string,
 		{ token: string; expiresAt: number; dir: string }
 	>();
-	const reported = new Map<string, FactoryTokenReport>();
+	const reported = new Map<string, FactoryTokenFileReport>();
+	let mintFailure: FactoryTokenReport | null = null;
+	let minting: Promise<void> | null = null;
+	let lastMintAt = Number.NEGATIVE_INFINITY;
+	let renewAt: number | null = null;
+	let renewTimer: ReturnType<typeof setTimeout> | undefined;
+	const mintNow = (): Promise<void> => {
+		const settings = read();
+		if (mint === undefined || !settings.enabled) {
+			return Promise.resolve();
+		}
+		lastMintAt = now().getTime();
+		const command = settings.mintCommand.join(" ");
+		minting ??= mint(settings.mintCommand, settings.dir)
+			.catch((): MintStatus => "missing")
+			.then((status) => {
+				mintFailure =
+					status === 0 ? null : { cause: "mint failed", command, status };
+			})
+			.finally(() => {
+				minting = null;
+			});
+		return minting;
+	};
+	const mintOnce = (): Promise<void> | null => {
+		if (minting !== null) {
+			return minting;
+		}
+		if (
+			mint === undefined ||
+			now().getTime() - lastMintAt < tokenRenewWithinMs
+		) {
+			return null;
+		}
+		return mintNow();
+	};
+	const renewBefore = (expiresAt: number) => {
+		const at = expiresAt - tokenRenewWithinMs;
+		if (mint === undefined || (renewAt !== null && renewAt <= at)) {
+			return;
+		}
+		clearTimeout(renewTimer);
+		renewAt = at;
+		renewTimer = setTimeout(
+			() => {
+				renewAt = null;
+				void mintOnce();
+			},
+			Math.max(0, at - now().getTime()),
+		);
+	};
 	const reports = (): FactoryTokenReport[] => {
 		const settings = read();
 		if (!settings.enabled) {
 			return [];
 		}
-		return [...reported.values()].filter(
+		const files = [...reported.values()].filter(
 			(entry) => entry.path === join(settings.dir, entry.owner, "hosts.yml"),
 		);
+		return mintFailure === null ? files : [mintFailure, ...files];
 	};
 	const fetch: Fetch = async (input, init) => {
 		const withToken = (token: string) => {
@@ -162,25 +250,26 @@ export function installationTokenFetch(
 		}
 		cached.delete(owner);
 		const path = join(settings.dir, owner, "hosts.yml");
-		const fallBack = (cause: FactoryTokenReport["cause"]) => {
+		const fallBack = (cause: FactoryTokenFileReport["cause"]) => {
 			reported.set(owner, { owner, cause, path });
 			return fetchImpl(input, init);
 		};
-		let text: string;
-		try {
-			text = await readFile(path, "utf8");
-		} catch (error) {
-			const missing =
-				error instanceof Error && "code" in error && error.code === "ENOENT";
-			return fallBack(missing ? "missing" : "unreadable");
+		let parsed = await hostsAt(path, current);
+		const pending = typeof parsed === "string" ? mintOnce() : null;
+		if (pending !== null) {
+			await pending;
+			parsed = await hostsAt(path, now());
 		}
-		const parsed = hostsToken(text, current);
 		if (typeof parsed === "string") {
 			return fallBack(parsed);
 		}
 		reported.delete(owner);
 		cached.set(owner, { ...parsed, dir: settings.dir });
+		renewBefore(parsed.expiresAt);
 		return withToken(parsed.token);
 	};
-	return { fetch, reports };
+	const stop = () => {
+		clearTimeout(renewTimer);
+	};
+	return { fetch, reports, mintNow, stop };
 }

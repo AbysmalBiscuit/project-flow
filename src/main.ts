@@ -10,6 +10,7 @@ import { version } from "../package.json";
 import { start } from "./app.ts";
 import type { AutoMerge } from "./configuration.ts";
 import { loadConfiguration } from "./configuration.ts";
+import type { FactoryTokenMint, MintStatus } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
 import { checkToken, missingToken } from "./github.ts";
 import { checkLinearKey } from "./linear.ts";
@@ -46,6 +47,7 @@ export type RunIo = {
 	listTodos?: TodoSource;
 	listCheckouts?: CheckoutSource;
 	open?: (url: string) => Promise<void>;
+	mintFactoryTokens?: FactoryTokenMint;
 };
 
 export type RunResult = {
@@ -425,6 +427,38 @@ export async function readGhAuthToken(
 	return token === "" ? null : token;
 }
 
+/**
+ * Runs the factory mint command under the lock and time limit of the factory
+ * timer, so the two never overlap.
+ */
+export async function runFactoryMint(
+	command: string[],
+	dir: string,
+): Promise<MintStatus> {
+	const [program, ...args] = command;
+	const flock = Bun.which("flock");
+	const timeout = Bun.which("timeout");
+	const found = program === undefined ? null : Bun.which(program);
+	if (flock === null || timeout === null || found === null) {
+		return "missing";
+	}
+	await mkdir(dir, { recursive: true, mode: 0o700 });
+	const proc = Bun.spawn(
+		[
+			flock,
+			"-w",
+			"120",
+			join(dir, ".refresh.lock"),
+			timeout,
+			"90",
+			found,
+			...args,
+		],
+		{ stdout: "ignore", stderr: "ignore" },
+	);
+	return proc.exited;
+}
+
 function defaultConfigPath(env: Record<string, string | undefined>): string {
 	const root = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
 	return join(root, "project-flow", "config.json");
@@ -608,6 +642,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.trackerRequestLimitMs === undefined
 				? {}
 				: { trackerRequestLimitMs: io.trackerRequestLimitMs }),
+			...(io.mintFactoryTokens === undefined
+				? {}
+				: { mintFactoryTokens: io.mintFactoryTokens }),
 		});
 		listened = true;
 		writeOut(running.url.href);
@@ -717,6 +754,7 @@ if (import.meta.main) {
 		env: process.env,
 		fetch: globalThis.fetch,
 		readGhToken: readGhAuthToken,
+		mintFactoryTokens: runFactoryMint,
 		stdout: (line) => console.log(line),
 		stderr: (line) => console.error(line),
 		waitForStop: waitForStop(),

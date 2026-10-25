@@ -2,6 +2,7 @@ import { expect } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { FactoryTokenMint } from "../src/factory-tokens.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedIssues from "./fixtures/github-issues.json";
@@ -193,6 +194,7 @@ export async function serve(options: {
 	fetchImpl: Fetch;
 	now: () => Date;
 	home: string;
+	mint?: FactoryTokenMint;
 }): Promise<{ base: string; stop: () => Promise<void> }> {
 	const { path, cleanup } = await tempConfig(JSON.stringify(options.config));
 	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
@@ -219,6 +221,9 @@ export async function serve(options: {
 			readGhToken: async () => null,
 			databasePath: join(root, "store.sqlite"),
 			now: options.now,
+			...(options.mint === undefined
+				? {}
+				: { mintFactoryTokens: options.mint }),
 			stdout: (line) => startChecks(line),
 			stderr: (line) => {
 				throw new Error(line);
