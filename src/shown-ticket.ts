@@ -1,6 +1,8 @@
 import type {
+	FactoryRun,
 	Lane,
 	PullRequest,
+	ShownFactoryRun,
 	ShownTicket,
 	Ticket,
 	WorkcellRun,
@@ -134,6 +136,30 @@ export function shownTicket(
 		enteredStateAt: enteredStateAt(ticket, shownLane),
 		blocked: ticket.state === "open" && openBlockerCount > 0,
 		...(shownRun === undefined ? {} : { run: shownRun }),
+	};
+}
+
+/** The newest factory run of a ticket, with the stage of its progress comment. */
+export function shownFactoryRun(
+	ticket: Ticket,
+	newestFirst: FactoryRun[],
+	now: Date,
+): { factoryRun: ShownFactoryRun } | Record<string, never> {
+	const run = runFor(ticket, newestFirst);
+	if (run === undefined) {
+		return {};
+	}
+	const stage = progressRun(ticket.comments ?? [], now)?.stage;
+	return {
+		factoryRun: {
+			statusKind: run.statusKind,
+			box: run.box,
+			factory: run.factory,
+			startedAt: run.startedAt,
+			endedAt: run.endedAt,
+			coveredByFeed: run.coveredByFeed,
+			...(stage === undefined ? {} : { stage }),
+		},
 	};
 }
 

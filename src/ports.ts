@@ -1,5 +1,6 @@
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import type {
+	FactoryRun,
 	FetchedThread,
 	Notification,
 	Overview,
@@ -107,6 +108,10 @@ export type FactoryReader = {
 	entries: () => FactoryEntry[];
 	/** True when the last check of a listed factory failed. */
 	unreachable: () => boolean;
+	/** Read `GET /runs` of each factory again. */
+	readRuns: () => Promise<void>;
+	/** The runs of each listed factory, newest first. */
+	runs: () => FactoryRun[];
 };
 
 export type GithubTracker = Tracker & {

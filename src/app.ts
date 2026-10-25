@@ -140,6 +140,10 @@ const readMarkBody = z.object({ read: z.literal(true) });
 
 const settingsReadWaitMs = 5_000;
 
+const runPollMs = 10_000;
+
+const runTickMs = 500;
+
 const readIdsBody = readMarkBody.extend({
 	ids: z.array(z.string()),
 });
@@ -293,18 +297,19 @@ export async function start(options: StartOptions): Promise<Running> {
 	);
 	void factoryTokens.mintNow();
 	const flagFactories = options.flagFactories ?? [];
+	const listedFactories = () =>
+		flagFactories.length > 0
+			? flagFactories.map((factory) => ({
+					...factory,
+					source: "flag" as const,
+				}))
+			: configuration.factories.map((factory) => ({
+					...factory,
+					source: "config" as const,
+				}));
 	const factories = factoryReader(
 		options.fetch,
-		() =>
-			flagFactories.length > 0
-				? flagFactories.map((factory) => ({
-						...factory,
-						source: "flag" as const,
-					}))
-				: configuration.factories.map((factory) => ({
-						...factory,
-						source: "config" as const,
-					})),
+		listedFactories,
 		requests.signal,
 	);
 	const fetchGithub = factoryTokens.fetch;
@@ -338,6 +343,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		holdLists: Promise.resolve(),
 		viewers: [],
 		runs: [],
+		factoryRuns: factories.runs,
 		workcellAuto: {},
 		repoAutoMerge: {},
 		attention: {
@@ -405,10 +411,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		return note;
 	};
 	let stopped = false;
+	const factoryState = () =>
+		JSON.stringify([factories.unreachable(), factories.runs()]);
 	const readFactories = async (read: () => Promise<void>) => {
-		const before = factories.unreachable();
+		const before = factoryState();
 		await read();
-		if (!stopped && factories.unreachable() !== before) {
+		if (!stopped && factoryState() !== before) {
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration),
 				notifications: [],
@@ -549,6 +557,29 @@ export async function start(options: StartOptions): Promise<Running> {
 		schedule(configuration.pollIntervalSeconds);
 	};
 	void firstPoll.then(armTimer, armTimer).catch(() => {});
+	// The run poll checks the clock port each tick, so a test that advances
+	// the clock past the run poll interval gets the next read.
+	let runsReadAt: number | null = null;
+	let readingRuns = false;
+	const pollRuns = () => {
+		if (stopped || readingRuns || listedFactories().length === 0) {
+			return;
+		}
+		const now = clock.now().getTime();
+		if (runsReadAt !== null && now - runsReadAt < runPollMs) {
+			return;
+		}
+		runsReadAt = now;
+		readingRuns = true;
+		void readFactories(factories.readRuns)
+			.catch(() => {})
+			.finally(() => {
+				readingRuns = false;
+			});
+	};
+	const runTimer = setInterval(pollRuns, runTickMs);
+	runTimer.unref?.();
+	pollRuns();
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (request: Request): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
@@ -885,6 +916,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			if (timer !== null) {
 				clearInterval(timer);
 			}
+			clearInterval(runTimer);
 			await (polling ?? Promise.resolve());
 			await server.stop(true);
 			opened.close();
