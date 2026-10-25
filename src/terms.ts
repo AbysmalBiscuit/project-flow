@@ -193,6 +193,8 @@ export const earlierRunsLabel = "Earlier runs";
 
 export const runQuestionsLabel = "Run questions";
 
+export const steerLabel = "Steer the run";
+
 export const runFactLabel = {
 	status: "Status",
 	stage: "Stage",
