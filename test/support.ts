@@ -89,6 +89,11 @@ export function recordedViewer(
 	return null;
 }
 
+/** The `since` of a GitHub repo read: five minutes before the last good poll. */
+export function githubSince(lastPoll: string): string {
+	return new Date(Date.parse(lastPoll) - 5 * 60 * 1000).toISOString();
+}
+
 export function repoReadIssues(
 	owner: string,
 	name: string,
