@@ -8,10 +8,12 @@ import type {
 	RunCheckpoint,
 	RunMessage,
 	RunStatusKind,
+	RunUsage,
 } from "./domain.ts";
 import { liveRunStatusKinds } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
+import { runUsage } from "./run-usage.ts";
 
 export type FactoryKind = "hub" | "daemon";
 
@@ -86,6 +88,19 @@ const checkpoint = z.object({
 	completed_nodes: z.array(z.string()).default([]),
 	node_retries: z.record(z.string(), z.number()).default({}),
 	visits: z.record(z.string(), z.number()).default({}),
+});
+
+/** `GET /runs/{id}/turns`: one summary for each finished agent turn of the run. */
+const turns = z.object({
+	turns: z.array(
+		z.object({
+			node_path: z.string(),
+			tools: z.record(z.string(), z.number()),
+			tokens: z.object({ input: z.number(), output: z.number() }),
+			cost_usd: z.number(),
+			duration_s: z.number(),
+		}),
+	),
 });
 
 /** The live counters of each worker of a run, by node path. */
@@ -381,6 +396,36 @@ async function questionsOf(
 			throw error;
 		}
 		return undefined;
+	}
+}
+
+/** The usage of a run from its recorded turns. A factory that gives no turns leaves it unknown. */
+async function usageOf(
+	read: (path: string) => Promise<Response>,
+	id: string,
+): Promise<RunUsage | null> {
+	try {
+		const listed = await body(
+			await read(`/runs/${encodeURIComponent(id)}/turns`),
+			turns,
+		);
+		return runUsage(
+			listed.turns.map((turn) => ({
+				nodePath: turn.node_path,
+				usage: {
+					inputTokens: turn.tokens.input,
+					outputTokens: turn.tokens.output,
+					costUsd: turn.cost_usd,
+					durationS: turn.duration_s,
+					tools: turn.tools,
+				},
+			})),
+		);
+	} catch (error) {
+		if (!(error instanceof Unreachable)) {
+			throw error;
+		}
+		return null;
 	}
 }
 
@@ -790,17 +835,20 @@ export function factoryReader(
 			return null;
 		}
 		const read = reader(fetchImpl, row.url, signal);
+		const usage = usageOf(read, runId);
 		try {
 			const answer = await body(
 				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
 				checkpoint,
 			);
 			const stage = stagePath(answer);
+			const used = await usage;
 			return {
 				stage: stage === "" ? null : stage,
 				completedStages: answer.completed_nodes,
 				retries: answer.node_retries,
 				visits: answer.visits,
+				...(used === null ? {} : { usage: used }),
 			};
 		} catch (error) {
 			if (!(error instanceof Unreachable)) {
