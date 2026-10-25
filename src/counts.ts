@@ -45,6 +45,7 @@ import {
 } from "./shown-ticket.ts";
 import { asRef, indexTickets, known, parseKey } from "./ticket-index.ts";
 import { foldKey, pullKey, sameTicketKey, ticketRefId } from "./ticket-key.ts";
+import { runFor } from "./workcell.ts";
 
 export function projectCounts(
 	name: string,
@@ -98,6 +99,7 @@ export function projectCounts(
 	const pullByKey = new Map<string, PullRequest>();
 	const shownByKey = new Map<string, TicketState>();
 	const failedKeys = new Set<string>();
+	const blockedRunKeys = new Set<string>();
 	const runByKey = new Map<string, LiveRun>();
 	const cross = new Map<string, CrossProjectBlocker>();
 	const active = pulls.filter((pull) => !pull.merged);
@@ -119,6 +121,8 @@ export function projectCounts(
 		}
 		const lane = laneForTicket(ticket, lanes, colours);
 		const mergesAlone = mergesOnItsOwn(links, name, key, autoMerge);
+		const newestRun = runFor(ticket, factoryRuns);
+		const fed = newestRun?.coveredByFeed === true ? newestRun : undefined;
 		const shown = shownTicket(
 			ticket,
 			lane,
@@ -127,6 +131,7 @@ export function projectCounts(
 			startedKeys,
 			review,
 			runs,
+			fed,
 			mergesAlone,
 			lanes,
 			now,
@@ -136,6 +141,9 @@ export function projectCounts(
 			shownByKey.set(ticket.key, shown.state);
 			if (shown.runFailed) {
 				failedKeys.add(ticket.key);
+			}
+			if (fed?.statusKind === "blocked") {
+				blockedRunKeys.add(ticket.key);
 			}
 			if (shown.run !== undefined) {
 				runByKey.set(foldKey(ticket.key), shown.run);
@@ -226,6 +234,7 @@ export function projectCounts(
 		expectedBots,
 		shownByKey,
 		failedKeys,
+		blockedRunKeys,
 		{
 			labels: rules.labels,
 			viewerLogins: rules.viewerLogins,
