@@ -18,6 +18,7 @@ import type {
 	Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
+import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { storedObject } from "./stored-page.ts";
 
@@ -26,6 +27,7 @@ type SettingsPage = {
 	projects: SettingsProject[];
 	trackers: { github: boolean; linear: boolean };
 	factoryTokenReports: FactoryTokenReport[];
+	factoryEntries: FactoryEntry[];
 };
 
 type ReplyBody = {
@@ -106,6 +108,7 @@ export function configurationOf(
 	const {
 		trackers: _trackers,
 		projects: _projects,
+		factoryEntries: _factoryEntries,
 		error: _error,
 		...configuration
 	} = body;
@@ -120,6 +123,7 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 		trackers: body.trackers ?? { github: false, linear: false },
 		projects: body.projects ?? [],
 		factoryTokenReports: body.factoryTokenReports ?? [],
+		factoryEntries: body.factoryEntries ?? [],
 		settings: configurationOf(body) ?? body,
 	};
 }

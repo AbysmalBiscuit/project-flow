@@ -1,0 +1,72 @@
+{
+	"runs": [
+		{
+			"id": "20261025-140102-a1b2",
+			"package": "workcell",
+			"repo": "acme/widget",
+			"ticket": "41",
+			"parameters": {},
+			"author": "lev",
+			"status": { "kind": "running", "reason": null },
+			"submitted_at": "2026-10-25T14:01:02+00:00",
+			"started_at": "2026-10-25T14:01:10+00:00",
+			"ended_at": null,
+			"run_dir": null,
+			"worktree": null,
+			"source": "acme-github",
+			"rule": "ready-for-agent",
+			"machine": "box-a"
+		},
+		{
+			"id": "20261025-130511-c3d4",
+			"package": "workcell",
+			"repo": "acme/widget",
+			"ticket": "40",
+			"parameters": {},
+			"author": "lev",
+			"status": { "kind": "succeeded", "reason": null },
+			"submitted_at": "2026-10-25T13:05:11+00:00",
+			"started_at": "2026-10-25T13:05:20+00:00",
+			"ended_at": "2026-10-25T13:48:02+00:00",
+			"run_dir": null,
+			"worktree": null,
+			"source": "acme-github",
+			"rule": "ready-for-agent",
+			"machine": "box-b"
+		},
+		{
+			"id": "20261025-141500-e5f6",
+			"package": "workcell",
+			"repo": "acme/widget",
+			"ticket": "42",
+			"parameters": {},
+			"author": "lev",
+			"status": { "kind": "submitted", "reason": null },
+			"submitted_at": "2026-10-25T14:15:00+00:00",
+			"started_at": null,
+			"ended_at": null,
+			"run_dir": null,
+			"worktree": null,
+			"source": "acme-github",
+			"rule": "ready-for-agent",
+			"machine": null
+		},
+		{
+			"id": "20261025-120000-a7b8",
+			"package": "workcell",
+			"repo": "acme/widget",
+			"ticket": "39",
+			"parameters": {},
+			"author": "lev",
+			"status": { "kind": "failed", "reason": "stage review failed" },
+			"submitted_at": "2026-10-25T12:00:00+00:00",
+			"started_at": "2026-10-25T12:00:09+00:00",
+			"ended_at": "2026-10-25T12:30:00+00:00",
+			"run_dir": null,
+			"worktree": null,
+			"source": "acme-github",
+			"rule": "ready-for-agent",
+			"machine": "box-a"
+		}
+	]
+}

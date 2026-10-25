@@ -1,13 +1,14 @@
 import { z } from "zod";
 
 import { inboxEntries } from "./attention.ts";
-import type { Configuration } from "./configuration.ts";
+import type { Configuration, Factory } from "./configuration.ts";
 import {
 	loadConfiguration,
 	loadFilledConfiguration,
 	saveConfiguration,
 } from "./configuration.ts";
 import { type PostedReply, type ProjectReport, trackers } from "./domain.ts";
+import { factoryReader } from "./factories.ts";
 import type { FactoryTokenMint } from "./factory-tokens.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
@@ -89,6 +90,8 @@ export type StartOptions = {
 	trackerRequestLimitMs?: number;
 	mintFactoryTokens?: FactoryTokenMint;
 	mintRetryDelayMs?: number;
+	/** The `--factory` list, which replaces the configured factories. */
+	flagFactories?: Factory[];
 };
 
 export type Running = {
@@ -289,6 +292,21 @@ export async function start(options: StartOptions): Promise<Running> {
 		options.mintRetryDelayMs,
 	);
 	void factoryTokens.mintNow();
+	const flagFactories = options.flagFactories ?? [];
+	const factories = factoryReader(
+		options.fetch,
+		() =>
+			flagFactories.length > 0
+				? flagFactories.map((factory) => ({
+						...factory,
+						source: "flag" as const,
+					}))
+				: configuration.factories.map((factory) => ({
+						...factory,
+						source: "config" as const,
+					})),
+		requests.signal,
+	);
 	const fetchGithub = factoryTokens.fetch;
 	const trackers = {
 		github:
@@ -341,7 +359,17 @@ export async function start(options: StartOptions): Promise<Running> {
 		progress: null,
 		stopped: false,
 		catalogue: [],
+		factoryUnreachable: factories.unreachable,
 	};
+	const settingsBody = () =>
+		settingsResponse(
+			configuration,
+			options,
+			pollOptions.catalogue,
+			opened.store.readTickets(),
+			factoryTokens.reports(),
+			factories.entries(),
+		);
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(pollOptions, configuration);
 		const kept = pollOptions.attention.needsYou.map(needsYouSeenId);
@@ -377,6 +405,19 @@ export async function start(options: StartOptions): Promise<Running> {
 		return note;
 	};
 	let stopped = false;
+	const readFactories = async (read: () => Promise<void>) => {
+		const before = factories.unreachable();
+		await read();
+		if (!stopped && factories.unreachable() !== before) {
+			notifier.publish({
+				overview: runningOverview(pollOptions, configuration),
+				notifications: [],
+			});
+		}
+	};
+	const checkFactories = () => {
+		void readFactories(factories.check).catch(() => {});
+	};
 	let firstPollDone = false;
 	let refreshQueued = false;
 	// A poll that started before the last tracked-list write cannot answer for it.
@@ -401,6 +442,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		const noteDiscovery = queuedDiscovery ?? nextDiscovery();
 		queuedDiscovery = null;
 		pollOptions.releaseDiscovery = noteDiscovery;
+		checkFactories();
 		polling = (async () => {
 			if (generation !== trackedGeneration) {
 				refreshQueued = true;
@@ -548,13 +590,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			return inboxEntries(opened.store.readNotifications(), clock.now());
 		}
 		if (pathname === "/settings") {
-			return settingsResponse(
-				configuration,
-				options,
-				pollOptions.catalogue,
-				opened.store.readTickets(),
-				factoryTokens.reports(),
-			);
+			return settingsBody();
 		}
 		const body = runningOverview(pollOptions, configuration);
 		if (!storeHoldsRead(body)) {
@@ -687,16 +723,11 @@ export async function start(options: StartOptions): Promise<Running> {
 					// A read during discovery waits, so a tracked-list write sees this
 					// poll's catalogue. A discovery held up by a slow mint or tracker
 					// read gets the last catalogue before Bun's idle timeout ends it.
-					await Promise.race([discovery, Bun.sleep(settingsReadWaitMs)]);
-					return Response.json(
-						settingsResponse(
-							configuration,
-							options,
-							pollOptions.catalogue,
-							opened.store.readTickets(),
-							factoryTokens.reports(),
-						),
-					);
+					await Promise.race([
+						Promise.all([discovery, readFactories(factories.settled)]),
+						Bun.sleep(settingsReadWaitMs),
+					]);
+					return Response.json(settingsBody());
 				},
 				PUT: async (request: Request) => {
 					const rawText = await request.text();
@@ -738,15 +769,7 @@ export async function start(options: StartOptions): Promise<Running> {
 							notifications: [],
 							viewsOnly: true,
 						});
-						return Response.json(
-							settingsResponse(
-								configuration,
-								options,
-								pollOptions.catalogue,
-								opened.store.readTickets(),
-								factoryTokens.reports(),
-							),
-						);
+						return Response.json(settingsBody());
 					}
 					if (trackedChanged) {
 						trackedGeneration += 1;
@@ -773,15 +796,8 @@ export async function start(options: StartOptions): Promise<Running> {
 					} else {
 						await (stale ?? pollAgain());
 					}
-					return Response.json(
-						settingsResponse(
-							configuration,
-							options,
-							pollOptions.catalogue,
-							opened.store.readTickets(),
-							factoryTokens.reports(),
-						),
-					);
+					await readFactories(factories.settled);
+					return Response.json(settingsBody());
 				},
 			},
 			"/api/threads/:tracker/:key": {
