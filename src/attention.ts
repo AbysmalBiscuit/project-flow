@@ -372,6 +372,7 @@ export function needsYouItems(
 	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
 	failedKeys: Set<string>,
+	blockedRunKeys: Set<string>,
 	rules: NeedsYouRules,
 	autoMerge: AutoMergeSources,
 	projectKey: string,
@@ -397,7 +398,8 @@ export function needsYouItems(
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
 		const awaiting = shown === "awaitingMerge";
 		const failed = failedKeys.has(ticket.key);
-		if (ask === null && !labelled && !awaiting && !failed) {
+		const asked = ask !== null || blockedRunKeys.has(ticket.key);
+		if (!asked && !labelled && !awaiting && !failed) {
 			continue;
 		}
 		items.push(
@@ -407,7 +409,7 @@ export function needsYouItems(
 				ticket.key,
 				ticket.title,
 				ask,
-				ask !== null
+				asked
 					? "ask"
 					: awaiting
 						? "awaitingMerge"
