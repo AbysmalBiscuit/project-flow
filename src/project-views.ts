@@ -107,9 +107,8 @@ function computeProjectView(
 			error: options.store.projectError(listedRef(row)),
 		},
 		needsYouRules(configuration, options.viewers),
-		configuration.laneMappings,
+		configuration,
 		viewedAt,
-		configuration.stateColours,
 		row.board,
 	);
 	return {

@@ -22,7 +22,7 @@ export type Trackers = { github: boolean; linear: boolean };
 export const sections = [
 	{ id: "general", label: settingsSection.general },
 	{ id: "project-views", label: settingsSection.views },
-	{ id: "colours", label: settingsSection.colours },
+	{ id: "states", label: settingsSection.states },
 	{ id: "projects", label: settingsSection.projects },
 	{ id: "review", label: settingsSection.review },
 	{ id: "notifications", label: settingsSection.notifications },
@@ -32,14 +32,6 @@ export const sections = [
 
 export const trackerFilters = ["all", "github", "linear"] as const;
 export const stateFilters = ["all", "tracked"] as const;
-
-export const laneStates = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-] as const satisfies readonly TicketState[];
 
 export const ageChoices = [0, 2, 7, 14, 30] as const;
 

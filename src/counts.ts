@@ -15,7 +15,6 @@ import type {
 	ProjectGroup,
 	ProjectReport,
 	PullRequest,
-	StatusColours,
 	Ticket,
 	TicketState,
 	TicketView,
@@ -23,10 +22,13 @@ import type {
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import {
+	categoryColours,
 	emptyStatusTypes,
 	laneForTicket,
 	lanesFor,
 	placeOnBoard,
+	stateLanes,
+	stateOfTicket,
 } from "./lanes.ts";
 import { linked, ticketRelations } from "./links.ts";
 import { projectHasPmBot } from "./open-ask.ts";
@@ -63,9 +65,8 @@ export function projectCounts(
 	rules: Omit<NeedsYouRules, "pmBot"> & {
 		pmBot: Record<string, boolean>;
 	},
-	laneMappings: Configuration["laneMappings"],
+	mappings: Pick<Configuration, "laneMappings" | "states" | "stateMappings">,
 	now: Date,
-	colours: StatusColours,
 	board?: Board,
 ): {
 	counts: ProjectBody;
@@ -84,9 +85,11 @@ export function projectCounts(
 		awaitingMerge: 0,
 	};
 	const statusTypes = emptyStatusTypes();
+	const colours = categoryColours(mappings.states);
 	const mappingKey = board?.laneKey;
 	const mapping =
-		mappingKey === undefined ? {} : (laneMappings[mappingKey] ?? {});
+		mappingKey === undefined ? {} : (mappings.laneMappings[mappingKey] ?? {});
+	const stateMapping = mappings.stateMappings[stateSourceKey(board, key)] ?? {};
 	const lanes = placeOnBoard(
 		lanesFor(board, mapping, colours),
 		tickets,
@@ -156,6 +159,14 @@ export function projectCounts(
 				pullByKey.set(foldKey(ticket.key), pull);
 			}
 		}
+		const userState = stateOfTicket(
+			mappings.states,
+			stateMapping,
+			[lane.name, ...ticket.labels],
+			shown.state,
+			lane.statusType,
+		);
+		const shownLane = userState?.label ?? shown.lane.name;
 		views.push({
 			key: ticket.key,
 			title: ticket.title,
@@ -163,7 +174,8 @@ export function projectCounts(
 			blockers: blockers.flatMap((blocker) =>
 				blocker.key === null ? [] : [blocker.key],
 			),
-			lane: shown.lane.name,
+			lane: shownLane,
+			...(shown.lane.name === shownLane ? {} : { status: shown.lane.name }),
 			statusType: shown.lane.statusType,
 			...(blockers.length > 0 && ticket.state === "open"
 				? { blocked: true }
@@ -254,6 +266,7 @@ export function projectCounts(
 	const report = projectReport(
 		project,
 		tickets,
+		stateLanes(mappings.states),
 		lanes,
 		relationsByKey,
 		pullByKey,
@@ -383,4 +396,9 @@ function progressRatio(
 		return 0;
 	}
 	return Math.round((counts.done / total) * 100);
+}
+
+/** The key that `stateMappings` uses for the statuses of one board. */
+export function stateSourceKey(board: Board | undefined, key: string): string {
+	return board?.laneKey ?? key;
 }

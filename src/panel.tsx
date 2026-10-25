@@ -22,7 +22,8 @@ import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { openTicket } from "./selection.ts";
-import { toneOf } from "./state-tone.ts";
+import { useLaneColour } from "./state-colours.ts";
+import { tonedProps } from "./state-tone.ts";
 import {
 	closePanelLabel,
 	collapsePanelLabel,
@@ -237,6 +238,7 @@ export function TicketPanel({
 		view?.lane ?? (state === undefined ? undefined : stateLabel[state]);
 	const laneState =
 		report?.lanes.find((lane) => lane.name === view?.lane)?.statusType ?? state;
+	const laneColour = useLaneColour();
 	const stateName = state ?? "unknown";
 	const [cover, setCover] = useState<HTMLElement | null>(null);
 	const host = useRef<HTMLDivElement | null>(null);
@@ -345,10 +347,11 @@ export function TicketPanel({
 			{laneName === undefined ? null : (
 				<p className={clsx(panel.state)}>
 					<span
-						className={clsx(
+						{...tonedProps(
+							laneColour(laneName),
+							laneState,
 							board.laneMark,
 							board.laneMarkGap,
-							toneOf(laneState),
 						)}
 					/>
 					{laneName}
