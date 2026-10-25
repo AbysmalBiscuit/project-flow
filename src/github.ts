@@ -3101,6 +3101,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 		beginPoll() {
 			repoSnapshots.clear();
 			autoMergeByRepo.clear();
+			projectItemsById.clear();
 		},
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
@@ -3111,7 +3112,6 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 		async listTickets(project, since, held = []) {
 			const repo = project.key;
 			if (project.ref.kind === "github-project") {
-				projectItemsById.clear();
 				const owner = project.ref.owner;
 				const items = await projectItems(repo, owner);
 				const openKeys = openLinkedKeys(items);
