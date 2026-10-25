@@ -133,7 +133,8 @@ await writeFile(
 		checkoutRoots: [],
 		pollIntervalSeconds: 3600,
 		projectViews: {
-			[repo]: { openView, maxAgeDays: { Done: 30 } },
+			"*": { openView },
+			[repo]: { openView: "board", maxAgeDays: { Done: 30 } },
 		},
 	}),
 );

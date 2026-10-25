@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { ProjectViewSettings } from "../src/configuration.ts";
 import type { ProjectReport } from "../src/domain.ts";
 import { run } from "../src/main.ts";
-import { savedProjectView } from "../src/view-settings.ts";
+import { openedView, savedProjectView } from "../src/view-settings.ts";
 import recordedClosedBlockers from "./fixtures/github-closed-blockers.json";
 import {
 	githubFetch,
@@ -2161,7 +2161,7 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
-	test("a project with no own view uses the star view, and its own entry wins", async () => {
+	test("a project opens in the star's open view, even with an open view of its own", async () => {
 		await withApp(
 			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
 			githubFetch(),
@@ -2202,7 +2202,11 @@ describe("GET /api/projects/:name", () => {
 						...current,
 						projectViews: {
 							"*": { openView: "graph" },
-							[githubRepo]: { openView: "table" },
+							[githubRepo]: {
+								openView: "board",
+								lastView: "table",
+								search: "",
+							},
 						},
 					}),
 				});
@@ -2218,9 +2222,12 @@ describe("GET /api/projects/:name", () => {
 				).json()) as {
 					projectViews?: Record<string, ProjectViewSettings>;
 				};
-				expect(
-					savedProjectView(ownSettings.projectViews ?? {}, githubRepo).openView,
-				).toBe("table");
+				const ownView = savedProjectView(
+					ownSettings.projectViews ?? {},
+					githubRepo,
+				);
+				expect(ownView.openView).toBe("graph");
+				expect(openedView(ownView)).toBe("graph");
 				const spaced = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
