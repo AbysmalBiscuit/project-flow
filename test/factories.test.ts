@@ -76,16 +76,20 @@ describe("factories", () => {
 		);
 		try {
 			await factoryEntries(app.base);
-			const runsUrl = "http://localhost/runs";
-			expect(requests.filter((request) => request.url !== runsUrl)).toEqual([
+			const feedUrls = ["http://localhost/runs", "http://localhost/events"];
+			expect(
+				requests.filter((request) => !feedUrls.includes(request.url)),
+			).toEqual([
 				{ url: "http://localhost/daemon", unix: laptopSocket, method: "GET" },
 				{ url: "http://localhost/sources", unix: laptopSocket, method: "GET" },
 			]);
-			expect(requests).toContainEqual({
-				url: runsUrl,
-				unix: laptopSocket,
-				method: "GET",
-			});
+			for (const url of feedUrls) {
+				expect(requests).toContainEqual({
+					url,
+					unix: laptopSocket,
+					method: "GET",
+				});
+			}
 		} finally {
 			await app.stop();
 		}
@@ -133,7 +137,9 @@ describe("factories", () => {
 			expect(
 				requests
 					.map((request) => request.url)
-					.filter((url) => url !== `${hubUrl}/runs`),
+					.filter(
+						(url) => url !== `${hubUrl}/runs` && url !== `${hubUrl}/events`,
+					),
 			).toEqual([`${hubUrl}/daemon`]);
 		} finally {
 			await app.stop();

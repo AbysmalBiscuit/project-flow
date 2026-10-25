@@ -145,7 +145,7 @@ A review bot that a repo's PRs normally get, as found in the repo's recent PRs o
 _Avoid_: Reviewer, required check
 
 **Workcell run**:
-One run of the workcell manage flow on a ticket. The factory reports the run's status and stage. Without a factory feed, its progress comment shows the stage.
+One run of the workcell manage flow on a ticket. The factory reports the run's status and stage. When the factory serves no event stream, the progress comment shows the stage.
 _Avoid_: Job, session
 
 ### Factory
@@ -167,7 +167,7 @@ The step of the workcell flow that a run is in: a node of the run's graph.
 _Avoid_: Phase, step, node (when the stage is meant)
 
 **Factory feed**:
-The run status and stages that Project Flow reads live from the factory. Where the factory feed and a progress comment differ, the factory feed wins.
+The run status and stages that Project Flow reads live from the factory. Project Flow follows the factory's event stream, `GET /events`, and polls `GET /runs` only when the factory serves no event stream. Where the factory feed and a progress comment differ, the factory feed wins.
 _Avoid_: Daemon feed, live feed
 
 ### Attention

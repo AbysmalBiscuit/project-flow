@@ -562,7 +562,14 @@ export async function start(options: StartOptions): Promise<Running> {
 	let runsReadAt: number | null = null;
 	let readingRuns = false;
 	const pollRuns = () => {
-		if (stopped || readingRuns || listedFactories().length === 0) {
+		if (stopped || listedFactories().length === 0) {
+			return;
+		}
+		factories.follow(
+			() => clock.now().getTime(),
+			(change) => readFactories(change).catch(() => {}),
+		);
+		if (readingRuns) {
 			return;
 		}
 		const now = clock.now().getTime();
