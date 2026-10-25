@@ -760,9 +760,8 @@ export function linearTracker(
 ): Tracker {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const seenReviews = new Map<string, ReviewEvidence>();
-	let issueGeneration = 0;
 	const issues = (project: string, since: Date | null) => {
-		const cacheKey = `${issueGeneration}\0${project}\0${since?.toISOString() ?? ""}`;
+		const cacheKey = `${project}\0${since?.toISOString() ?? ""}`;
 		const cached = issuesByProject.get(cacheKey);
 		if (cached !== undefined) {
 			return cached;
@@ -783,7 +782,7 @@ export function linearTracker(
 	};
 	return {
 		beginPoll() {
-			issueGeneration += 1;
+			issuesByProject.clear();
 		},
 		findProjects() {
 			return findLinearProjects(key, fetchImpl).then((found) => ({
@@ -832,7 +831,6 @@ export function linearTracker(
 			return found;
 		},
 		async listTickets(tracked, since) {
-			issuesByProject.clear();
 			const project = await findLinearProject(key, tracked.key, fetchImpl);
 			const team = project.teams?.nodes[0];
 			const statuses =

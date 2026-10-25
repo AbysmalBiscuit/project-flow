@@ -19,7 +19,7 @@ import {
 	urlOf,
 } from "./support.ts";
 
-test("a ticket closed on GitHub shows as done while a later project read is still held", async () => {
+test("a ticket closed on GitHub shows as done while an earlier project read is still held", async () => {
 	let releaseOther: () => void = () => {};
 	const otherHeld = new Promise<void>((resolve) => {
 		releaseOther = resolve;
@@ -96,8 +96,8 @@ test("a ticket closed on GitHub shows as done while a later project read is stil
 			).toBe(1);
 		},
 		[
-			{ tracker: "github", repo },
 			{ tracker: "github", repo: otherRepo },
+			{ tracker: "github", repo },
 		],
 	);
 }, 20_000);

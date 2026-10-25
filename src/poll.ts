@@ -17,6 +17,7 @@ import {
 } from "./discovery.ts";
 import type {
 	Attention,
+	ListedProject,
 	Overview,
 	PollProgress,
 	ProjectPoll,
@@ -87,6 +88,7 @@ function emptySnapshot(
 }
 
 const fullPollPeriodMs = 10 * 60 * 1000;
+const concurrentReads = 4;
 export type PollOptions = {
 	configuration: ConfigurationPort;
 	github: GithubTracker | null;
@@ -118,6 +120,7 @@ export type PollOptions = {
 
 export async function poll(options: PollOptions): Promise<Configuration> {
 	options.github?.beginPoll?.();
+	options.linear?.beginPoll?.();
 	await options.holdLists;
 	if (options.stopped) {
 		options.polling = false;
@@ -277,9 +280,15 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				: [],
 		),
 	);
-	const listed = [];
+	const listed: (ListedProject &
+		Pick<TrackedProject, "ref"> & { name: string })[] = [];
 	const storedRows = options.store.readTickets();
-	for (const project of tracked) {
+	const trackedOrder = new Map(
+		tracked.map((project, index) => [projectId(project.ref), index]),
+	);
+	const orderOf = (ref: TrackedProject["ref"]) =>
+		trackedOrder.get(projectId(ref)) ?? tracked.length;
+	const readProject = async (project: TrackedProject): Promise<void> => {
 		const id = projectId(project.ref);
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
@@ -291,7 +300,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				row: emptySnapshot(project, project.name ?? project.key, startedKeys),
 			});
 			notePollProgress(options, configuration, tracked, outcomes);
-			continue;
+			return;
 		}
 		const lastGood = options.store.lastGoodPollAt(project.ref);
 		const lastFull = options.lastFullPollAt.get(id) ?? null;
@@ -356,6 +365,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 					: { board: listedTickets.board }),
 				...(project.closed === undefined ? {} : { closed: project.closed }),
 			});
+			listed.sort((left, right) => orderOf(left.ref) - orderOf(right.ref));
 			outcomes.set(id, {
 				ref: project.ref,
 				ok: true,
@@ -385,7 +395,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			notePollProgress(options, configuration, tracked, outcomes);
 		} catch (error) {
 			if (options.stopped) {
-				continue;
+				return;
 			}
 			const message = error instanceof Error ? error.message : "poll failed";
 			const empty = emptySnapshot(
@@ -403,7 +413,16 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			publishPoll(options, configuration, trackedIds, outcomes, false, null);
 			notePollProgress(options, configuration, tracked, outcomes);
 		}
-	}
+	};
+	const queue = [...tracked];
+	const reader = async () => {
+		for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+			await readProject(next);
+		}
+	};
+	await Promise.all(
+		Array.from({ length: Math.min(concurrentReads, queue.length) }, reader),
+	);
 	const fullPolled = options.fullPoll.size > 0;
 	for (const id of [...options.fullPoll]) {
 		if (outcomes.get(id)?.ok === true) {
@@ -552,7 +571,11 @@ function publishPoll(
 		options.store.forgetGoodPoll(ref);
 		return false;
 	});
-	const reconciled = reconcilePoll(kept, [...outcomes.values()], fullPolled);
+	const ordered = [...trackedIds].flatMap((id) => {
+		const outcome = outcomes.get(id);
+		return outcome === undefined ? [] : [outcome];
+	});
+	const reconciled = reconcilePoll(kept, ordered, fullPolled);
 	options.store.replaceTickets(reconciled.rows);
 	for (const projectError of reconciled.projectErrors) {
 		options.store.recordProjectError(projectError.ref, projectError.error);
