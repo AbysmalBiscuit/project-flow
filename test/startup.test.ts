@@ -755,7 +755,7 @@ describe("startup", () => {
 		}
 	});
 
-	test("--open= does not open a browser", async () => {
+	test("--open= is an unknown flag and does not open a browser", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const opened: string[] = [];
 		try {
@@ -774,10 +774,10 @@ describe("startup", () => {
 					},
 				}),
 			);
-			expect(result.exitCode).toBe(0);
-			expect(result.listened).toBe(true);
+			expect(result.exitCode).toBe(1);
+			expect(result.listened).toBe(false);
 			expect(opened).toEqual([]);
-			expect(result.stderr).toBe("");
+			expect(result.stderr).toBe("unknown flag: --open= (see --help)");
 		} finally {
 			await cleanup();
 		}
