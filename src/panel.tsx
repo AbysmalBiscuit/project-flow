@@ -305,6 +305,7 @@ export function TicketPanel({
 						<Button
 							href={href}
 							icon="external-link"
+							iconSide="right"
 							label={trackerName}
 							name={`Open on ${trackerName}`}
 						/>
@@ -314,6 +315,7 @@ export function TicketPanel({
 							href={view.pullUrl}
 							newTab
 							icon="external-link"
+							iconSide="right"
 							label={pullButtonLabel}
 							name={openPullLabel}
 						/>
