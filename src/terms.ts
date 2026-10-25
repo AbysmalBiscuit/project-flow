@@ -187,6 +187,8 @@ export const openPullLabel = "Open the PR on GitHub";
 
 export const runSectionLabel = "Factory run";
 
+export const runNotLiveLabel = "Not live: the factory is unreachable";
+
 export const earlierRunsLabel = "Earlier runs";
 
 export const runQuestionsLabel = "Run questions";
