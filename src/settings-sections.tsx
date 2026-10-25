@@ -2,6 +2,7 @@ import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
+import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { Select } from "./select.tsx";
 import {
 	ageChoices,
@@ -87,10 +88,12 @@ export function ContentsNav({
 export function GeneralSection({
 	theme,
 	draft,
+	factoryTokenReports,
 	onChange,
 }: {
 	theme: string;
 	draft: Configuration;
+	factoryTokenReports: FactoryTokenReport[];
 	onChange: (next: Partial<Configuration>) => void;
 }) {
 	return (
@@ -103,6 +106,7 @@ export function GeneralSection({
 			</Row>
 			<FactoryTokenRow
 				checked={draft.factoryGithubTokens}
+				reports={factoryTokenReports}
 				onChange={onChange}
 			/>
 			<PollIntervalRow

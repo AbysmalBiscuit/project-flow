@@ -18,12 +18,14 @@ import type {
 	Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
+import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { storedObject } from "./stored-page.ts";
 
 type SettingsPage = {
 	settings: Configuration;
 	projects: SettingsProject[];
 	trackers: { github: boolean; linear: boolean };
+	factoryTokenReports: FactoryTokenReport[];
 };
 
 type ReplyBody = {
@@ -117,6 +119,7 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 	return {
 		trackers: body.trackers ?? { github: false, linear: false },
 		projects: body.projects ?? [],
+		factoryTokenReports: body.factoryTokenReports ?? [],
 		settings: configurationOf(body) ?? body,
 	};
 }
@@ -235,6 +238,7 @@ export function useSaveSettings({
 				...settings,
 				trackers: saved.trackers,
 				projects: saved.projects,
+				factoryTokenReports: saved.factoryTokenReports,
 			};
 			queries.setQueryData(pageQuery.settings.queryKey, written);
 			if (refetchProjects) {

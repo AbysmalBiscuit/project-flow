@@ -6,6 +6,7 @@ import {
 	projectRef as projectRefSchema,
 } from "./configuration.ts";
 import type { SettingsProject, SettingsSnapshot } from "./domain.ts";
+import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { FoundProject } from "./ports.ts";
 import { samePin } from "./project-ref.ts";
 import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
@@ -15,9 +16,11 @@ export function settingsResponse(
 	credentials: { token: string | null; linearKey: string | null },
 	catalogue: FoundProject[],
 	snapshots: SettingsSnapshot[],
+	factoryTokenReports: FactoryTokenReport[],
 ): Configuration & {
 	trackers: { github: boolean; linear: boolean };
 	projects: SettingsProject[];
+	factoryTokenReports: FactoryTokenReport[];
 } {
 	return {
 		...configuration,
@@ -26,6 +29,7 @@ export function settingsResponse(
 			linear: credentials.linearKey !== null,
 		},
 		projects: settingsProjects(configuration, catalogue, snapshots),
+		factoryTokenReports,
 	};
 }
 
@@ -46,6 +50,7 @@ function withoutTrackers(text: string): string {
 	const {
 		trackers: _trackers,
 		projects: _projects,
+		factoryTokenReports: _factoryTokenReports,
 		baselineTracked: _baselineTracked,
 		...configuration
 	} = parsed as Record<string, unknown>;

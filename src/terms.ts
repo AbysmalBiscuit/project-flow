@@ -3,6 +3,7 @@ import type {
 	NotificationTrigger,
 	TicketState,
 } from "./domain.ts";
+import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { GraphDirection } from "./view-settings.ts";
 
 export const stateLabel: Record<TicketState, string> = {
@@ -18,6 +19,14 @@ export const stateLabel: Record<TicketState, string> = {
 export const openParentLabel = "Open";
 
 export const projectPageLabel = "Project page";
+
+export function factoryTokenFallbackLabel({
+	owner,
+	cause,
+	path,
+}: FactoryTokenReport): string {
+	return `${owner} reads use your token: the factory token file ${path} is ${cause}.`;
+}
 
 export function parentChipLabel(key: string): string {
 	return `Parent ${key}`;

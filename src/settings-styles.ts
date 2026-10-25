@@ -88,6 +88,10 @@ export const settings = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.meta,
 	},
+	warning: {
+		color: colours.warnInk,
+		fontSize: type.meta,
+	},
 	switch: {
 		position: "relative",
 		flex: "0 0 auto",

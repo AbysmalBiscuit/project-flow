@@ -272,7 +272,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		opened.close();
 		throw error;
 	}
-	const fetchGithub = installationTokenFetch(
+	const factoryTokens = installationTokenFetch(
 		conditionalFetch(trackerFetch, opened.validators),
 		() => ({
 			enabled: configuration.factoryGithubTokens,
@@ -280,6 +280,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		}),
 		() => clock.now(),
 	);
+	const fetchGithub = factoryTokens.fetch;
 	const trackers = {
 		github:
 			options.token === null ? null : githubTracker(options.token, fetchGithub),
@@ -543,6 +544,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				options,
 				pollOptions.catalogue,
 				opened.store.readTickets(),
+				factoryTokens.reports(),
 			);
 		}
 		const body = runningOverview(pollOptions, configuration);
@@ -681,6 +683,7 @@ export async function start(options: StartOptions): Promise<Running> {
 							options,
 							pollOptions.catalogue,
 							opened.store.readTickets(),
+							factoryTokens.reports(),
 						),
 					);
 				},
@@ -724,6 +727,7 @@ export async function start(options: StartOptions): Promise<Running> {
 								options,
 								pollOptions.catalogue,
 								opened.store.readTickets(),
+								factoryTokens.reports(),
 							),
 						);
 					}
@@ -758,6 +762,7 @@ export async function start(options: StartOptions): Promise<Running> {
 							options,
 							pollOptions.catalogue,
 							opened.store.readTickets(),
+							factoryTokens.reports(),
 						),
 					);
 				},
