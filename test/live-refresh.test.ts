@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, open, readFile, rm } from "node:fs/promises";
+import { constants, linkSync, renameSync } from "node:fs";
+import { mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -459,11 +460,15 @@ test("a poll stays running while it reads the configuration at its end", async (
 	const root = await mkdtemp(join(tmpdir(), "project-flow-fifo-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	const configPath = join(root, "config.json");
+	const filedPath = join(root, "filed.json");
+	const pipePath = join(root, "held.fifo");
+	const swapPath = join(root, "swap.fifo");
 	await loadFilledConfiguration(filledPath);
 	const configText = await readFile(filledPath, "utf8");
-	expect(Bun.spawnSync(["mkfifo", configPath]).exitCode).toBe(0);
-	let listServed = false;
-	let finished = false;
+	await writeFile(configPath, configText);
+	await writeFile(filedPath, configText);
+	expect(Bun.spawnSync(["mkfifo", pipePath]).exitCode).toBe(0);
+	linkSync(pipePath, swapPath);
 	let markHeld: () => void = () => {};
 	const held = new Promise<void>((resolve) => {
 		markHeld = resolve;
@@ -472,21 +477,21 @@ test("a poll stays running while it reads the configuration at its end", async (
 	const readReleased = new Promise<void>((resolve) => {
 		releaseRead = resolve;
 	});
-	// The writer opens the pipe only when a reader opens it, then holds the
-	// data of the first configuration read after the tracker list answers.
+	// When the tracker list answers, a pipe takes the place of the
+	// configuration file. The one writer holds the next configuration read on
+	// that pipe, then puts the file back before it sends the data.
 	const writer = (async () => {
-		let holding = true;
-		while (!finished) {
-			const handle = await open(configPath, "w");
-			if (holding && listServed && !finished) {
-				holding = false;
-				markHeld();
-				await readReleased;
-			}
+		const handle = await open(pipePath, "w");
+		try {
+			markHeld();
+			await readReleased;
+			renameSync(filedPath, configPath);
 			await handle.writeFile(configText);
+		} finally {
 			await handle.close();
 		}
 	})();
+	let listServed = false;
 	const fetchImpl: Fetch = async (input, init) => {
 		const discovered = recordedDiscovery(input, init);
 		if (discovered !== null) {
@@ -497,7 +502,10 @@ test("a poll stays running while it reads the configuration at its end", async (
 			return new Response(JSON.stringify({ login: "lev" }), { status: 200 });
 		}
 		if (listUrl(url) !== null) {
-			listServed = true;
+			if (!listServed) {
+				listServed = true;
+				renameSync(swapPath, configPath);
+			}
 			return page([ticket(1, "2026-04-01T00:00:00Z")]);
 		}
 		return recordedOrEmpty(url) ?? unrecorded(input);
@@ -539,12 +547,17 @@ test("a poll stays running while it reads the configuration at its end", async (
 		expect(result.stderr).toBe("");
 		expect(result.exitCode).toBe(0);
 	} finally {
-		finished = true;
 		releaseRead();
-		const drain = await open(configPath, "r");
-		await drain.readFile();
-		await drain.close();
-		await writer;
+		// A non-blocking reader frees a writer that still waits on the pipe.
+		const drain = await open(
+			pipePath,
+			constants.O_RDONLY | constants.O_NONBLOCK,
+		);
+		try {
+			await writer;
+		} finally {
+			await drain.close();
+		}
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
 	}
