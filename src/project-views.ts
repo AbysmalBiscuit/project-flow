@@ -94,6 +94,7 @@ function computeProjectView(
 		row.branches,
 		row.startedKeys,
 		options.runs,
+		options.factoryRuns(),
 		{
 			config: configuration.autoMerge,
 			workcell: options.workcellAuto,
@@ -148,6 +149,7 @@ function viewInputs(
 		configuration,
 		JSON.stringify([
 			options.runs,
+			options.factoryRuns(),
 			options.viewers,
 			options.workcellAuto,
 			options.repoAutoMerge,

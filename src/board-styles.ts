@@ -5,11 +5,22 @@ import {
 	font,
 	measure,
 	radius,
+	runStatusColours,
 	space,
 	stack,
 	stateTone,
 	type,
 } from "./tokens.stylex.ts";
+
+/** The fill of the run circle for each run status kind. */
+export const runDotTone = stylex.create({
+	queued: { backgroundColor: runStatusColours.queued },
+	starting: { backgroundColor: runStatusColours.starting },
+	running: { backgroundColor: runStatusColours.running },
+	blocked: { backgroundColor: runStatusColours.blocked },
+	failed: { backgroundColor: runStatusColours.failed },
+	succeeded: { backgroundColor: runStatusColours.succeeded },
+});
 
 const edgeFlow = stylex.keyframes({
 	from: { strokeDashoffset: `calc(${measure.edgeDash} * 2)` },
@@ -354,6 +365,22 @@ export const board = stylex.create({
 		overflowWrap: "anywhere",
 		color: colours.inkSoft,
 		fontSize: type.meta,
+	},
+	metaEnd: {
+		display: "flex",
+		gap: space.xs,
+		alignItems: "center",
+		marginLeft: "auto",
+	},
+	runDot: {
+		flexShrink: 0,
+		width: measure.runDot,
+		height: measure.runDot,
+		borderRadius: radius.pill,
+	},
+	chipStage: {
+		backgroundColor: colours.chip,
+		color: colours.chipInk,
 	},
 	title: {
 		margin: 0,

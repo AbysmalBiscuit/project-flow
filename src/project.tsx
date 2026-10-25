@@ -43,6 +43,7 @@ import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { filterProjectReport } from "./report.ts";
+import { RunDot, StageChip } from "./run-marks.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
 import { toneOf } from "./state-tone.ts";
@@ -285,6 +286,9 @@ function Card({
 	const { local, outside } = relationSplit(ticket);
 	const focus = useContext(TicketFocusContext);
 	const faded = focus.faded(key);
+	const fedRun = ticket.factoryRun?.coveredByFeed
+		? ticket.factoryRun
+		: undefined;
 	return (
 		<li className={clsx(faded && board.faded)}>
 			<button
@@ -305,9 +309,12 @@ function Card({
 					) : (
 						<span className={clsx(board.key)}>{shortKey(key)}</span>
 					)}
-					{ticket.pull === undefined ? null : (
-						<span className={clsx(board.pull)}>{ticket.pull}</span>
-					)}
+					<span className={clsx(board.metaEnd)}>
+						{ticket.pull === undefined ? null : (
+							<span className={clsx(board.pull)}>{ticket.pull}</span>
+						)}
+						{fedRun === undefined ? null : <RunDot run={fedRun} />}
+					</span>
 				</span>
 				<p className={clsx(board.title)}>{ticket.title}</p>
 				{local.length === 0 &&
@@ -315,8 +322,12 @@ function Card({
 				ticket.chips === undefined &&
 				ticket.parent === undefined &&
 				ticket.subTickets === undefined &&
+				fedRun?.stage === undefined &&
 				!ticket.needsYou ? null : (
 					<span className={clsx(board.chips)}>
+						{fedRun?.stage === undefined ? null : (
+							<StageChip stage={fedRun.stage} />
+						)}
 						<CardHierarchyChips
 							ticket={ticket}
 							onOpen={onOpen}

@@ -223,10 +223,10 @@ function openMergeAsk(later: Comment[], number: number): Comment | undefined {
 	});
 }
 
-export function runFor(
+export function runFor<Run extends Pick<WorkcellRun, "key" | "repo">>(
 	ticket: Ticket,
-	runs: WorkcellRun[],
-): WorkcellRun | undefined {
+	runs: Run[],
+): Run | undefined {
 	const key = ticket.key;
 	if (key === null) {
 		return undefined;
