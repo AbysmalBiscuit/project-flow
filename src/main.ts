@@ -605,7 +605,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	const configFlag = flagValue(args, "--config");
 	if (
 		args.includes("--config") &&
-		(configFlag === undefined || configFlag.trim() === "")
+		(configFlag === undefined ||
+			configFlag.trim() === "" ||
+			configFlag.startsWith("--"))
 	) {
 		writeErr("invalid configuration: --config needs a file path");
 		return result(1);
