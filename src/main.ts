@@ -615,7 +615,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	const hostFlag = flagValue(args, "--host");
 	if (
 		args.includes("--port") &&
-		(portFlag === undefined || !/^\d+$/.test(portFlag))
+		(portFlag === undefined ||
+			!/^\d+$/.test(portFlag) ||
+			Number(portFlag) > 65535)
 	) {
 		writeErr("invalid port: --port needs a port number");
 		return result(1);
