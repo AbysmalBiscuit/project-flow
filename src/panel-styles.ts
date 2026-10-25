@@ -226,6 +226,11 @@ export const panel = stylex.create({
 		color: colours.ink,
 		fontSize: type.meta,
 	},
+	runStatus: {
+		display: "flex",
+		gap: space.xs,
+		alignItems: "center",
+	},
 	factLink: {
 		color: colours.link,
 	},

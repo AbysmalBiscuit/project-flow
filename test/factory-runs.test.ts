@@ -233,6 +233,39 @@ describe("factory runs", () => {
 		}
 	});
 
+	test("the project report of a ticket with two runs carries its newest run and its earlier run", async () => {
+		const app = await serveRuns(
+			{ ...hub, "/runs": hubRunsWithRetry },
+			[39, 41],
+		);
+		try {
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41) !== undefined,
+			);
+			const response = await fetch(
+				new URL(`/api/projects/${encodeURIComponent(repo)}?view=all`, app.base),
+			);
+			const report = (await response.json()) as ProjectReport;
+			const views = (number: number) =>
+				report.tickets.find((view) => view.title === `Ticket ${number}`);
+			expect(views(41)?.factoryRun).toMatchObject({
+				statusKind: "running",
+				startedAt: "2026-10-25T14:01:10+00:00",
+			});
+			expect(views(41)?.earlierFactoryRuns).toEqual([
+				{
+					statusKind: "failed",
+					startedAt: "2026-10-25T10:00:05+00:00",
+					endedAt: "2026-10-25T10:40:00+00:00",
+				},
+			]);
+			expect(views(39)?.earlierFactoryRuns).toBeUndefined();
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("advancing the clock past the run poll interval reads /runs again and sends the changed run", async () => {
 		const app = await serveRuns(hub, [41]);
 		const stream = openEventStream(app.base);
