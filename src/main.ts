@@ -219,11 +219,14 @@ const issueToml = z.object({
 	issue: z.string(),
 });
 
+const autoMerge = z.enum(["yes", "ask", "no"]);
+
 const workcellToml = z
 	.object({
-		merge: z
+		merge: z.object({ auto: autoMerge.optional() }).optional(),
+		workflow: z
 			.object({
-				auto: z.enum(["yes", "ask", "no"]),
+				standard: z.object({ merge_auto: autoMerge.optional() }).optional(),
 			})
 			.optional(),
 	})
@@ -259,7 +262,12 @@ function workcellRun(
 function mergeAuto(text: string): AutoMerge | undefined {
 	try {
 		const parsed = workcellToml.safeParse(Bun.TOML.parse(text));
-		return parsed.success ? parsed.data.merge?.auto : undefined;
+		if (!parsed.success) {
+			return undefined;
+		}
+		return (
+			parsed.data.workflow?.standard?.merge_auto ?? parsed.data.merge?.auto
+		);
 	} catch {
 		return undefined;
 	}

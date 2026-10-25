@@ -9,6 +9,7 @@ import {
 } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { AutoMerge } from "../src/configuration.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import factoryLabels from "./fixtures/github-factory-labels.json";
@@ -585,7 +586,7 @@ async function git(args: string[], cwd: string): Promise<string> {
 async function devkitWorktree(options: {
 	key: string;
 	status: "running" | "starting" | "failed";
-	mergeAuto?: "yes" | "ask" | "no";
+	mergeAuto?: { merge?: AutoMerge; workflow?: AutoMerge };
 	repo?: string;
 	manager?: string;
 }): Promise<{ root: string; cleanup: () => Promise<void> }> {
@@ -637,11 +638,20 @@ async function devkitWorktree(options: {
 		}),
 	);
 	if (options.mergeAuto !== undefined) {
+		const { merge, workflow } = options.mergeAuto;
 		const manifest = await readFile(join(fixtureDir, "workcell.toml"), "utf8");
 		await mkdir(join(worktree, ".agents"), { recursive: true });
 		await writeFile(
 			join(worktree, ".agents", "workcell.toml"),
-			manifest.replace(/^auto = ".*"$/m, `auto = "${options.mergeAuto}"`),
+			manifest
+				.replace(
+					/^merge_auto = ".*"\n/m,
+					workflow === undefined ? "" : `merge_auto = "${workflow}"\n`,
+				)
+				.replace(
+					/^\[merge\]\n/m,
+					merge === undefined ? "[merge]\n" : `[merge]\nauto = "${merge}"\n`,
+				),
 		);
 	}
 	const listed = await git(["worktree", "list", "--porcelain"], main);
@@ -1377,26 +1387,28 @@ describe("forward state", () => {
 		const recorded = (await recordedJson(
 			"github-pull-auto-merge.json",
 		)) as RecordedPull;
+		const awaiting = {
+			lane: "Awaiting merge",
+			state: "awaitingMerge",
+			reason: "awaitingMerge",
+		} as const;
 		const cases = [
+			{ manifest: { merge: "no" }, ...awaiting },
+			{ manifest: { merge: "ask" }, ...awaiting },
 			{
-				auto: "no",
-				lane: "Awaiting merge",
-				state: "awaitingMerge",
-				reason: "awaitingMerge",
+				manifest: { merge: "yes" },
+				lane: "In Review",
+				state: "inReview",
+				reason: null,
 			},
-			{
-				auto: "ask",
-				lane: "Awaiting merge",
-				state: "awaitingMerge",
-				reason: "awaitingMerge",
-			},
-			{ auto: "yes", lane: "In Review", state: "inReview", reason: null },
+			{ manifest: { workflow: "no" }, ...awaiting },
+			{ manifest: { merge: "yes", workflow: "no" }, ...awaiting },
 		] as const;
 		for (const item of cases) {
 			const checkout = await devkitWorktree({
 				key: "WID-2",
 				status: "running",
-				mergeAuto: item.auto,
+				mergeAuto: item.manifest,
 			});
 			try {
 				await withApp(

@@ -1,6 +1,9 @@
 [merge]
 method = "squash"
-auto = "ask"
+
+[workflow.standard]
+merge_auto = "ask"
+merge_rebase = "never"
 
 # Grok manages and implements; Codex reviews, verifies, receives and settles design questions.
 [roles.manager]
