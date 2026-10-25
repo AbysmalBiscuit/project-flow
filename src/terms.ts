@@ -29,6 +29,9 @@ export function factoryTokenFallbackLabel(report: FactoryTokenReport): string {
 		const detail = report.detail === undefined ? "" : `: ${report.detail}`;
 		return `The factory token mint ${report.command} ${status}${detail}. Reads use your token.`;
 	}
+	if (report.cause === "no installation") {
+		return `${report.owner} reads use your token: the factory App has no installation for this owner.`;
+	}
 	return `${report.owner} reads use your token: the factory token file ${report.path} is ${report.cause}.`;
 }
 
