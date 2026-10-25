@@ -32,7 +32,7 @@ import {
 import { itemId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
-function commentTime(value: string): string {
+export function commentTime(value: string): string {
 	const parsed = new Date(value);
 	if (Number.isNaN(parsed.getTime())) {
 		return "";

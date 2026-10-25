@@ -324,6 +324,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		options.fetch,
 		listedFactories,
 		requests.signal,
+		() => clock.now(),
 	);
 	const fetchGithub = factoryTokens.fetch;
 	const trackers = {

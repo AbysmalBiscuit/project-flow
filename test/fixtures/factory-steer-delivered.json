@@ -1,0 +1,19 @@
+{
+	"run_id": "20261025-140102-a1b2",
+	"machine": "box-a",
+	"seq": 22,
+	"id": "e7d6c5b4a3f24e1d9c8b7a6f5e4d3c08",
+	"recorded_at": "2026-10-25T14:31:12.204+00:00",
+	"item": {
+		"event": "steer.delivered",
+		"node_path": "implement",
+		"data": {
+			"steer": 1,
+			"sender": "lev",
+			"text": "Use the v2 API",
+			"interrupt": true,
+			"sent_at": "2026-10-25T14:30:58.611+00:00",
+			"delivered_at": "2026-10-25T14:31:12.198+00:00"
+		}
+	}
+}

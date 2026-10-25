@@ -6,6 +6,7 @@ import type {
 	FactoryRun,
 	RunAgent,
 	RunCheckpoint,
+	RunMessage,
 	RunStatusKind,
 } from "./domain.ts";
 import { liveRunStatusKinds } from "./domain.ts";
@@ -65,9 +66,18 @@ const openQuestions = z.object({
 	questions: z.array(
 		z.object({
 			id: z.union([z.number(), z.string()]).transform(String),
+			node_path: z.string().nullish(),
 			text: z.string(),
 		}),
 	),
+});
+
+/** The `data` of a `steer.delivered` event. */
+const deliveredSteer = z.object({
+	steer: z.union([z.number(), z.string()]).transform(String),
+	sender: z.string(),
+	text: z.string(),
+	delivered_at: z.string(),
 });
 
 const checkpoint = z.object({
@@ -103,7 +113,9 @@ function stagePath(answer: z.infer<typeof checkpoint>): string {
 /** One frame of the hub's `GET /events`: a box event of a run, or a status change. */
 const eventFrame = z.object({
 	run_id: z.string(),
-	item: z.object({ event: z.string(), node_path: z.string() }).optional(),
+	item: z
+		.object({ event: z.string(), node_path: z.string(), data: z.unknown() })
+		.optional(),
 	status: runRow.shape.status.optional(),
 });
 
@@ -357,7 +369,7 @@ type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes">;
 async function questionsOf(
 	read: (path: string) => Promise<Response>,
 	id: string,
-): Promise<FactoryQuestion[] | undefined> {
+): Promise<z.infer<typeof openQuestions>["questions"] | undefined> {
 	try {
 		const listed = await body(
 			await read(`/runs/${encodeURIComponent(id)}/questions`),
@@ -378,8 +390,8 @@ export type SteerResult = "steered" | "missing" | "ended" | "failed";
 
 export type Steer = { stage: string; text: string; interrupt: boolean };
 
-/** The factory records this sender on each steer from Project Flow. */
-const steerSender = "lev";
+/** Project Flow writes to a factory as Lev: the factory records this sender on each steer. */
+const levSender = "lev";
 
 /**
  * The event stream of one factory: connecting, open, closed since a time, or
@@ -410,9 +422,51 @@ export function factoryReader(
 	fetchImpl: Fetch,
 	listed: () => ListedFactory[],
 	signal: AbortSignal,
+	now: () => Date,
 ): FactoryReader {
 	const found = new Map<string, Found>();
 	const readRuns = new Map<string, ReadRun[]>();
+	/**
+	 * The thread of each run, by run id. The factory keeps no answered asks and the
+	 * hub replays no older events, so the thread holds what this launch saw.
+	 */
+	const threads = new Map<string, RunMessage[]>();
+	/** The asks and steers already in a thread, by run id and factory id. */
+	const threaded = new Set<string>();
+	const addMessage = (
+		runId: string,
+		message: RunMessage,
+		once?: string,
+	): void => {
+		if (once !== undefined) {
+			const key = JSON.stringify([runId, once]);
+			if (threaded.has(key)) {
+				return;
+			}
+			threaded.add(key);
+		}
+		threads.set(runId, [...(threads.get(runId) ?? []), message]);
+	};
+	/** The open questions of a blocked run. Each question that is new to the thread joins it as an ask. */
+	const openQuestionsOf = async (
+		read: (path: string) => Promise<Response>,
+		runId: string,
+	): Promise<FactoryQuestion[] | undefined> => {
+		const questions = await questionsOf(read, runId);
+		return questions?.map((question) => {
+			addMessage(
+				runId,
+				{
+					kind: "ask",
+					sender: question.node_path ?? "run",
+					text: question.text,
+					at: now().toISOString(),
+				},
+				`question ${question.id}`,
+			);
+			return { id: question.id, text: question.text };
+		});
+	};
 	/** The current node of each run, by run id, from the event streams. */
 	const stages = new Map<string, string>();
 	const follows = new Map<string, Follow>();
@@ -507,7 +561,7 @@ export function factoryReader(
 					if (row.run.statusKind !== "blocked") {
 						return row;
 					}
-					const questions = await questionsOf(read, row.run.id);
+					const questions = await openQuestionsOf(read, row.run.id);
 					return questions === undefined
 						? row
 						: { ...row, run: { ...row.run, questions } };
@@ -586,6 +640,21 @@ export function factoryReader(
 		if (!rows.some((row) => row.run.id === frame.run_id)) {
 			await readRunsOf(factory);
 		}
+		if (frame.item?.event === "steer.delivered") {
+			const steer = deliveredSteer.safeParse(frame.item.data);
+			if (steer.success) {
+				addMessage(
+					frame.run_id,
+					{
+						kind: "steer",
+						sender: steer.data.sender,
+						text: steer.data.text,
+						at: steer.data.delivered_at,
+					},
+					`steer ${steer.data.steer}`,
+				);
+			}
+		}
 		if (frame.item !== undefined) {
 			const node = nodeAfter(
 				stages.get(frame.run_id),
@@ -603,7 +672,7 @@ export function factoryReader(
 			const statusKind = statusKindOf(status.kind);
 			const questions =
 				statusKind === "blocked"
-					? await questionsOf(
+					? await openQuestionsOf(
 							reader(fetchImpl, factory.url, signal),
 							frame.run_id,
 						)
@@ -695,7 +764,19 @@ export function factoryReader(
 				}));
 			}),
 			stages,
-		).sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+		)
+			.map((run) => {
+				const thread = threads.get(run.id);
+				return thread === undefined
+					? run
+					: {
+							...run,
+							thread: thread.toSorted(
+								(left, right) => Date.parse(left.at) - Date.parse(right.at),
+							),
+						};
+			})
+			.sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
 	const runCheckpoint = async (
 		runId: string,
 	): Promise<RunCheckpoint | null> => {
@@ -787,6 +868,12 @@ export function factoryReader(
 				{ json: { text } },
 			);
 			if (response.ok) {
+				addMessage(run, {
+					kind: "answer",
+					sender: levSender,
+					text,
+					at: now().toISOString(),
+				});
 				return "answered";
 			}
 			return response.status === 404 ? "missing" : "failed";
@@ -812,7 +899,7 @@ export function factoryReader(
 		const read = reader(fetchImpl, target.url, signal);
 		try {
 			const response = await read(`/runs/${encodeURIComponent(run)}/steer`, {
-				json: { ...steer, sender: steerSender },
+				json: { ...steer, sender: levSender },
 			});
 			if (response.ok) {
 				return "steered";
