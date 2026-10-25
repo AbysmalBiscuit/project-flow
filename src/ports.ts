@@ -109,8 +109,11 @@ export type FactoryReader = {
 	entries: () => FactoryEntry[];
 	/** True when the last check of a listed factory failed. */
 	unreachable: () => boolean;
-	/** Read `GET /runs` again of each factory without an open event stream. */
-	readRuns: () => Promise<void>;
+	/**
+	 * Read `GET /runs` again of each factory without an open event stream, and of
+	 * each streamed factory whose last read is older than the streamed run poll.
+	 */
+	readRuns: (now: number) => Promise<void>;
 	/**
 	 * Open the event stream of each factory that has none, and follow it.
 	 * `around` runs each change that the stream brings.

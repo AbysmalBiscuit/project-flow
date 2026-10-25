@@ -364,6 +364,9 @@ type Follow = "connecting" | "open" | "none" | { closedAt: number };
 
 const streamRetryMs = 10_000;
 
+/** The hub sends no frame for a queued run and no run times, so a streamed factory keeps this `GET /runs` read. */
+const streamedRunPollMs = 60_000;
+
 const activeKinds: ReadonlySet<RunStatusKind> = new Set([
 	"starting",
 	"running",
@@ -374,7 +377,8 @@ const activeKinds: ReadonlySet<RunStatusKind> = new Set([
  * Reads `GET /daemon` of each factory, and on connect its kind and box count.
  * Reads `GET /runs` of each factory and keeps the runs of its last good read.
  * Follows `GET /events` of each factory that serves it, and reads `GET /runs`
- * on each connect. A factory without `/events` keeps the run poll.
+ * on each connect and at a slower interval while the stream is open.
+ * A factory without `/events` keeps the run poll.
  * A failed request marks the factory unreachable until a later read succeeds.
  */
 export function factoryReader(
@@ -387,6 +391,8 @@ export function factoryReader(
 	/** The current node of each run, by run id, from the event streams. */
 	const stages = new Map<string, string>();
 	const follows = new Map<string, Follow>();
+	/** The clock time of the last `GET /runs` read of each streamed factory. */
+	const streamReadAt = new Map<string, number>();
 	/** The factories whose `GET /events` answered once. */
 	const serving = new Set<string>();
 	let checking: Promise<void> | null = null;
@@ -499,10 +505,20 @@ export function factoryReader(
 			});
 		}
 	};
-	const readAllRuns = async (): Promise<void> => {
+	const readAllRuns = async (now: number): Promise<void> => {
 		await Promise.all(
 			listed()
-				.filter((factory) => follows.get(factory.url) !== "open")
+				.filter((factory) => {
+					if (follows.get(factory.url) !== "open") {
+						return true;
+					}
+					const readAt = streamReadAt.get(factory.url);
+					if (readAt !== undefined && now - readAt < streamedRunPollMs) {
+						return false;
+					}
+					streamReadAt.set(factory.url, now);
+					return true;
+				})
 				.map(readRunsOf),
 		);
 	};
@@ -608,6 +624,7 @@ export function factoryReader(
 		}
 		follows.set(factory.url, "open");
 		serving.add(factory.url);
+		streamReadAt.set(factory.url, now());
 		// The hub replays only the events since connect, so the snapshot follows the connect.
 		await around(() => snapshot(factory));
 		try {
@@ -617,7 +634,7 @@ export function factoryReader(
 		} catch {
 			// A dropped connection ends the stream like a closed one.
 		}
-		return { closedAt: Number.NEGATIVE_INFINITY };
+		return { closedAt: now() };
 	};
 	const follow = (
 		now: () => number,
