@@ -1,12 +1,29 @@
+import type { ReactNode } from "react";
+
+import { board, runDotTone } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import { CommentMarkdown } from "./comment-markdown.tsx";
-import type { NeedsYouItem, ThreadComment, TicketRelation } from "./domain.ts";
+import type {
+	EarlierFactoryRun,
+	NeedsYouItem,
+	ShownFactoryRun,
+	ThreadComment,
+	TicketRelation,
+} from "./domain.ts";
 import { panel } from "./panel-styles.ts";
+import { spanLabel } from "./poll-age.ts";
+import { RunDot } from "./run-marks.tsx";
 import {
+	earlierRunsLabel,
+	hubQueueLabel,
 	mergeFactLabel,
+	noStartLabel,
 	openOnGitHubLabel,
 	pullStatusLabel,
+	runFactLabel,
+	runSectionLabel,
+	runStatusLabel,
 	whyLabel,
 } from "./terms.ts";
 import { itemId } from "./ticket-key.ts";
@@ -59,6 +76,110 @@ export function CommentTree({
 				</li>
 			))}
 		</ul>
+	);
+}
+
+function runTime(value: string | null): string {
+	if (value === null) {
+		return noStartLabel;
+	}
+	const parsed = new Date(value);
+	if (Number.isNaN(parsed.getTime())) {
+		return "";
+	}
+	return parsed.toLocaleString([], {
+		month: "short",
+		day: "numeric",
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
+function elapsed(run: EarlierFactoryRun): string | null {
+	const started =
+		run.startedAt === null ? Number.NaN : Date.parse(run.startedAt);
+	const ended = run.endedAt === null ? Date.now() : Date.parse(run.endedAt);
+	return Number.isNaN(started) || Number.isNaN(ended)
+		? null
+		: spanLabel(started, ended);
+}
+
+function RunFact({ label, children }: { label: string; children: ReactNode }) {
+	return (
+		<div className={clsx(panel.fact)}>
+			<dt className={clsx(panel.factLabel)}>{label}</dt>
+			<dd className={clsx(panel.factValue)}>{children}</dd>
+		</div>
+	);
+}
+
+/** The newest factory run of a ticket, then its earlier runs with status and time. */
+export function RunSection({
+	run,
+	earlier,
+	pull,
+	pullUrl,
+}: {
+	run: ShownFactoryRun;
+	earlier: EarlierFactoryRun[];
+	pull: string | undefined;
+	pullUrl: string | undefined;
+}) {
+	const span = elapsed(run);
+	return (
+		<section
+			className={clsx(panel.section)}
+			aria-label={runSectionLabel}
+			data-run={run.statusKind}
+		>
+			<h3 className={clsx(panel.sectionLabel)}>{runSectionLabel}</h3>
+			<dl className={clsx(panel.facts)}>
+				<RunFact label={runFactLabel.status}>
+					<span className={clsx(panel.runStatus)}>
+						<RunDot run={run} />
+						{runStatusLabel[run.statusKind]}
+					</span>
+				</RunFact>
+				{run.stage === undefined ? null : (
+					<RunFact label={runFactLabel.stage}>{run.stage}</RunFact>
+				)}
+				<RunFact label={runFactLabel.box}>{run.box ?? hubQueueLabel}</RunFact>
+				<RunFact label={runFactLabel.factory}>{run.factory}</RunFact>
+				<RunFact label={runFactLabel.start}>{runTime(run.startedAt)}</RunFact>
+				{span === null ? null : (
+					<RunFact label={runFactLabel.elapsed}>{span}</RunFact>
+				)}
+				{pullUrl === undefined ? null : (
+					<RunFact label={runFactLabel.pr}>
+						<a className={clsx(panel.factLink)} href={pullUrl}>
+							{pull ?? openOnGitHubLabel}
+						</a>
+					</RunFact>
+				)}
+			</dl>
+			{earlier.length === 0 ? null : (
+				<>
+					<h3 className={clsx(panel.sectionLabel)}>{earlierRunsLabel}</h3>
+					<ul className={clsx(panel.relations)} aria-label={earlierRunsLabel}>
+						{earlier.map((item) => (
+							<li
+								key={`${item.statusKind}-${item.startedAt}-${item.endedAt}`}
+								className={clsx(panel.relation)}
+								data-earlier-run={item.statusKind}
+							>
+								<span
+									className={clsx(board.runDot, runDotTone[item.statusKind])}
+								/>
+								<span>{runStatusLabel[item.statusKind]}</span>
+								<span className={clsx(panel.key)}>
+									{runTime(item.startedAt)}
+								</span>
+							</li>
+						))}
+					</ul>
+				</>
+			)}
+		</section>
 	);
 }
 
