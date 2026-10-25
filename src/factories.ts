@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Factory } from "./configuration.ts";
-import type { FactoryRun } from "./domain.ts";
+import type { FactoryQuestion, FactoryRun } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 
@@ -54,10 +54,23 @@ const runRow = z.object({
 
 const runRows = z.object({ runs: z.array(z.unknown()) });
 
+const openQuestions = z.object({
+	questions: z.array(
+		z.object({
+			id: z.union([z.number(), z.string()]).transform(String),
+			text: z.string(),
+		}),
+	),
+});
+
 const localMachine = "local";
 
 /** A run row of one factory. A local row comes from the box that does the run. */
-type ReadRun = { run: Omit<FactoryRun, "coveredByFeed">; local: boolean };
+type ReadRun = {
+	run: Omit<FactoryRun, "coveredByFeed">;
+	local: boolean;
+	url: string;
+};
 
 /** The runs of one `GET /runs` answer. A row that does not parse is left out. */
 function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
@@ -92,9 +105,16 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					endedAt: run.ended_at ?? null,
 				},
 				local,
+				url: factory.url,
 			},
 		];
 	});
+}
+
+/** The row that gives a run its status: the box row, or else the hub row. */
+function statusRow<Row extends ReadRun>(same: Row[]) {
+	const hubRow = same.find((row) => !row.local);
+	return { hubRow, boxRow: same.find((row) => row.local) ?? hubRow };
 }
 
 /**
@@ -104,8 +124,7 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 function mergedRuns(rows: (ReadRun & { coveredByFeed: boolean })[]) {
 	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
 		(same): FactoryRun[] => {
-			const hubRow = same.find((row) => !row.local);
-			const boxRow = same.find((row) => row.local) ?? hubRow;
+			const { hubRow, boxRow } = statusRow(same);
 			if (boxRow === undefined) {
 				return [];
 			}
@@ -140,7 +159,7 @@ function reader(fetchImpl: Fetch, url: string, signal: AbortSignal) {
 	const base = unix
 		? "http://localhost"
 		: `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
-	return async (path: string): Promise<Response> => {
+	return async (path: string, post?: { json: unknown }): Promise<Response> => {
 		try {
 			return await fetchImpl(`${base}${path}`, {
 				signal: AbortSignal.any([
@@ -148,6 +167,13 @@ function reader(fetchImpl: Fetch, url: string, signal: AbortSignal) {
 					AbortSignal.timeout(factoryRequestLimitMs),
 				]),
 				...(unix ? { unix: parsed.pathname } : {}),
+				...(post === undefined
+					? {}
+					: {
+							method: "POST",
+							headers: { "content-type": "application/json" },
+							body: JSON.stringify(post.json),
+						}),
 			});
 		} catch {
 			throw new Unreachable();
@@ -195,6 +221,27 @@ async function boxCount(
 }
 
 type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes">;
+
+/** The open questions of a blocked run. A factory that gives no list leaves them unknown. */
+async function questionsOf(
+	read: (path: string) => Promise<Response>,
+	id: string,
+): Promise<FactoryQuestion[] | undefined> {
+	try {
+		const listed = await body(
+			await read(`/runs/${encodeURIComponent(id)}/questions`),
+			openQuestions,
+		);
+		return listed.questions;
+	} catch (error) {
+		if (!(error instanceof Unreachable)) {
+			throw error;
+		}
+		return undefined;
+	}
+}
+
+export type AnswerResult = "answered" | "missing" | "failed";
 
 /**
  * Reads `GET /daemon` of each factory, and on connect its kind and box count.
@@ -289,7 +336,18 @@ export function factoryReader(
 		const known = found.get(factory.url);
 		try {
 			const answer = await body(await read("/runs"), runRows);
-			readRuns.set(factory.url, factoryRuns(answer.runs, factory));
+			const rows = await Promise.all(
+				factoryRuns(answer.runs, factory).map(async (row) => {
+					if (row.run.statusKind !== "blocked") {
+						return row;
+					}
+					const questions = await questionsOf(read, row.run.id);
+					return questions === undefined
+						? row
+						: { ...row, run: { ...row.run, questions } };
+				}),
+			);
+			readRuns.set(factory.url, rows);
 			found.set(factory.url, {
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
@@ -319,6 +377,35 @@ export function factoryReader(
 				}));
 			}),
 		).sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+	const answer = async (
+		run: string,
+		question: string,
+		text: string,
+	): Promise<AnswerResult> => {
+		const same = listed().flatMap((factory) =>
+			(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
+		);
+		const { boxRow } = statusRow(same);
+		if (boxRow?.run.questions?.some((item) => item.id === question) !== true) {
+			return "missing";
+		}
+		const read = reader(fetchImpl, boxRow.url, signal);
+		try {
+			const response = await read(
+				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
+				{ json: { text } },
+			);
+			if (response.ok) {
+				return "answered";
+			}
+			return response.status === 404 ? "missing" : "failed";
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return "failed";
+		}
+	};
 	return {
 		check,
 		settled,
@@ -326,5 +413,6 @@ export function factoryReader(
 		unreachable,
 		readRuns: readAllRuns,
 		runs,
+		answer,
 	};
 }

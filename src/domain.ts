@@ -32,6 +32,9 @@ export const runStatusKinds = [
 
 export type RunStatusKind = (typeof runStatusKinds)[number];
 
+/** An open question that a blocked run waits on, from `GET /runs/{id}/questions`. */
+export type FactoryQuestion = { id: string; text: string };
+
 /** A workcell run that a factory reports in `GET /runs`. */
 export type FactoryRun = {
 	id: string;
@@ -50,11 +53,14 @@ export type FactoryRun = {
 	endedAt: string | null;
 	/** False when the factory did not answer its last read. */
 	coveredByFeed: boolean;
+	/** The open questions of a blocked run. Absent when the factory gave no list. */
+	questions?: FactoryQuestion[];
 };
 
 /** The newest factory run of a ticket. The stage comes from the progress comment. */
 export type ShownFactoryRun = Pick<
 	FactoryRun,
+	| "id"
 	| "statusKind"
 	| "box"
 	| "factory"
@@ -63,6 +69,7 @@ export type ShownFactoryRun = Pick<
 	| "startedAt"
 	| "endedAt"
 	| "coveredByFeed"
+	| "questions"
 > & { stage?: string };
 
 /** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
@@ -380,6 +387,8 @@ export type NeedsYouItem = {
 	question?: string;
 	options?: AskOption[];
 	pull?: PullStatus;
+	/** The factory question that the ask comes from, and the run that waits on it. */
+	factoryAsk?: { factory: string; run: string; question: string };
 };
 
 export type NotificationTrigger = "needsYou" | "comment" | "blockerCleared";
