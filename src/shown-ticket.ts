@@ -187,6 +187,8 @@ export function shownFactoryRun(
 			statusKind: run.statusKind,
 			box: run.box,
 			factory: run.factory,
+			...(run.source === undefined ? {} : { source: run.source }),
+			...(run.rule === undefined ? {} : { rule: run.rule }),
 			startedAt: run.startedAt,
 			endedAt: run.endedAt,
 			coveredByFeed: run.coveredByFeed,

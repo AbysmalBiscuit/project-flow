@@ -5,14 +5,17 @@ import type {
 	ShownFactoryRun,
 	TicketView,
 } from "../src/domain.ts";
+import type { FactoryEntry } from "../src/factories.ts";
 import type { Fetch } from "../src/fetch.ts";
 import {
 	type Answers,
+	daemon,
 	factoryFetch,
 	type FactoryRequest,
 	hub,
 	hubUrl,
 	json,
+	laptopUrl,
 	serve,
 } from "./factory-support.ts";
 import hubRuns from "./fixtures/factory-hub-runs.json";
@@ -144,13 +147,37 @@ function hubWith41(kind: string): Answers {
 	};
 }
 
-/** A hub and a tracked repo whose issues the test can change, on a clock the test advances. */
+/** A run row as the box `laptop` reports it: no source, and `machine` is `local`. */
+function boxRow(hubRow: (typeof hubRuns.runs)[number], kind: string) {
+	return {
+		...hubRow,
+		status: { kind, reason: null },
+		source: null,
+		rule: null,
+		machine: "local",
+	};
+}
+
+async function factoryEntries(base: string): Promise<FactoryEntry[]> {
+	const response = await fetch(new URL("/api/settings", base));
+	const body = (await response.json()) as { factoryEntries: FactoryEntry[] };
+	return body.factoryEntries;
+}
+
+/**
+ * A hub, and its box when `boxAnswers` is given, with a tracked repo whose issues
+ * the test can change, on a clock the test advances.
+ */
 async function serveRuns(
 	hubAnswers: Answers,
 	issueNumbers: number[],
 	comments: Record<number, Record<string, unknown>[]> = {},
+	boxAnswers?: Answers,
 ) {
-	const factories: Record<string, Answers | "down"> = { [hubUrl]: hubAnswers };
+	const factories: Record<string, Answers | "down"> = {
+		[hubUrl]: hubAnswers,
+		...(boxAnswers === undefined ? {} : { [laptopUrl]: boxAnswers }),
+	};
 	const requests: FactoryRequest[] = [];
 	const issues = { numbers: issueNumbers };
 	let now = runClockStart;
@@ -184,7 +211,12 @@ async function serveRuns(
 		[],
 		{
 			pinned: [{ tracker: "github", repo }],
-			factories: [{ name: "work hub", url: hubUrl }],
+			factories: [
+				{ name: "work hub", url: hubUrl },
+				...(boxAnswers === undefined
+					? []
+					: [{ name: "laptop", url: laptopUrl }]),
+			],
 		},
 		factoryFetch(factories, requests, tracker),
 		{ env: { GITHUB_TOKEN: "recorded-token" }, now: () => new Date(now) },
@@ -216,6 +248,8 @@ describe("factory runs", () => {
 				statusKind: "running",
 				box: "box-a",
 				factory: "work hub",
+				source: "acme-github",
+				rule: "ready-for-agent",
 				startedAt: "2026-10-25T14:01:10+00:00",
 				endedAt: null,
 				coveredByFeed: true,
@@ -224,6 +258,8 @@ describe("factory runs", () => {
 				statusKind: "failed",
 				box: "box-a",
 				factory: "work hub",
+				source: "acme-github",
+				rule: "ready-for-agent",
 				startedAt: "2026-10-25T12:00:09+00:00",
 				endedAt: "2026-10-25T12:30:00+00:00",
 				coveredByFeed: true,
@@ -324,6 +360,8 @@ describe("factory runs", () => {
 				statusKind: "queued",
 				box: null,
 				factory: "work hub",
+				source: "acme-github",
+				rule: "ready-for-agent",
 				startedAt: null,
 				endedAt: null,
 				coveredByFeed: true,
@@ -458,6 +496,119 @@ describe("factory runs", () => {
 				});
 				expect(needsYouReasons(report, 44)).toEqual([]);
 			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("a hub and its box report the same run", () => {
+		const [running41, , queued42] = hubRuns.runs;
+		if (running41 === undefined || queued42 === undefined) {
+			throw new Error("the hub runs fixture lost a run");
+		}
+
+		test("the run shows once, with the box status and the hub source and rule", async () => {
+			const app = await serveRuns(
+				hub,
+				[41],
+				{},
+				{
+					...daemon,
+					"/runs": { runs: [boxRow(running41, "blocked")] },
+				},
+			);
+			try {
+				const body = await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				expect(factoryRunOf(body, 41)).toEqual({
+					statusKind: "blocked",
+					box: "laptop",
+					factory: "laptop",
+					source: "acme-github",
+					rule: "ready-for-agent",
+					startedAt: "2026-10-25T14:01:10+00:00",
+					endedAt: null,
+					coveredByFeed: true,
+				});
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("settings warns on the box entry that the hub also reads its runs", async () => {
+			const app = await serveRuns(
+				hub,
+				[41],
+				{},
+				{
+					...daemon,
+					"/runs": { runs: [boxRow(running41, "running")] },
+				},
+			);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				const entries = await factoryEntries(app.base);
+				expect(
+					entries.map((entry) => [entry.name, entry.alsoReadThroughHub]),
+				).toEqual([
+					["work hub", undefined],
+					["laptop", "work hub"],
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a queued run that the box accepts shows as running and not as ended", async () => {
+			const app = await serveRuns(hub, [42], {}, daemon);
+			const stream = openEventStream(app.base);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 42)?.statusKind === "queued",
+				);
+				await stream.ready;
+				const accepted = {
+					...queued42,
+					id: "20261025-141530-b9c0",
+					status: { kind: "running", reason: null },
+					started_at: "2026-10-25T14:15:30+00:00",
+					machine: "laptop",
+				};
+				app.factories[hubUrl] = {
+					...hub,
+					"/runs": {
+						runs: hubRuns.runs.map((row) =>
+							row === queued42 ? accepted : row,
+						),
+					},
+				};
+				app.factories[laptopUrl] = {
+					...daemon,
+					"/runs": { runs: [boxRow(accepted, "running")] },
+				};
+				app.advance(runPollMs);
+				const changed = await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 42)?.statusKind !== "queued",
+				);
+				expect(factoryRunOf(changed, 42)).toEqual({
+					statusKind: "running",
+					box: "laptop",
+					factory: "laptop",
+					source: "acme-github",
+					rule: "ready-for-agent",
+					startedAt: "2026-10-25T14:15:30+00:00",
+					endedAt: null,
+					coveredByFeed: true,
+				});
+			} finally {
+				stream.close();
 				await app.stop();
 			}
 		});
