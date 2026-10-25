@@ -1156,11 +1156,11 @@ export function Page() {
 							phoneGutter.page,
 							frame.wide,
 							frame.fill,
+							board.pageTop,
 						)}
 					>
 						<div className={clsx(board.head, projectHeaderLayout.head)}>
 							<div className={clsx(board.identity)}>
-								<p className={clsx(board.crumb)}>{navLabel.overview} /</p>
 								<h1 className={clsx(board.name)}>{report.name}</h1>
 								<p className={clsx(board.counts)}>
 									{countLine(report)}
