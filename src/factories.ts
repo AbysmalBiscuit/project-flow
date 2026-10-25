@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Factory } from "./configuration.ts";
-import type { FactoryRun } from "./domain.ts";
+import type { FactoryRun, RunStatusKind } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 
@@ -54,10 +54,33 @@ const runRow = z.object({
 
 const runRows = z.object({ runs: z.array(z.unknown()) });
 
+const checkpoint = z.object({
+	current_node: z.string(),
+	stack: z.array(z.object({ node: z.string() })).optional(),
+});
+
+/** One frame of the hub's `GET /events`: a box event of a run, or a status change. */
+const eventFrame = z.object({
+	run_id: z.string(),
+	item: z.object({ event: z.string(), node_path: z.string() }).optional(),
+	status: runRow.shape.status.optional(),
+});
+
+type EventFrame = z.infer<typeof eventFrame>;
+
 const localMachine = "local";
 
 /** A run row of one factory. A local row comes from the box that does the run. */
-type ReadRun = { run: Omit<FactoryRun, "coveredByFeed">; local: boolean };
+type ReadRun = {
+	run: Omit<FactoryRun, "coveredByFeed" | "streamed" | "stage">;
+	local: boolean;
+};
+
+function statusKindOf(
+	kind: z.infer<typeof runRow>["status"]["kind"],
+): RunStatusKind {
+	return kind === "submitted" ? "queued" : kind;
+}
 
 /** The runs of one `GET /runs` answer. A row that does not parse is left out. */
 function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
@@ -77,8 +100,7 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					...(run.repo === null || run.repo === undefined
 						? {}
 						: { repo: run.repo }),
-					statusKind:
-						run.status.kind === "submitted" ? "queued" : run.status.kind,
+					statusKind: statusKindOf(run.status.kind),
 					box: local ? factory.name : machine,
 					factory: factory.name,
 					...(run.source === null || run.source === undefined
@@ -101,7 +123,10 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
  * One run per id. A hub and its box report the same id once the hub sends the run.
  * The box row gives the status, and the hub row gives `source` and `rule`.
  */
-function mergedRuns(rows: (ReadRun & { coveredByFeed: boolean })[]) {
+function mergedRuns(
+	rows: (ReadRun & { coveredByFeed: boolean; streamed: boolean })[],
+	stages: ReadonlyMap<string, string>,
+) {
 	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
 		(same): FactoryRun[] => {
 			const hubRow = same.find((row) => !row.local);
@@ -111,16 +136,74 @@ function mergedRuns(rows: (ReadRun & { coveredByFeed: boolean })[]) {
 			}
 			const { source, rule, ...status } = boxRow.run;
 			const origin = hubRow?.run ?? boxRow.run;
+			const stage = stages.get(status.id);
 			return [
 				{
 					...status,
 					...(origin.source === undefined ? {} : { source: origin.source }),
 					...(origin.rule === undefined ? {} : { rule: origin.rule }),
 					coveredByFeed: boxRow.coveredByFeed,
+					streamed: same.some((row) => row.streamed),
+					...(stage === undefined ? {} : { stage }),
 				},
 			];
 		},
 	);
+}
+
+/**
+ * The current node of a run after one event. A finished node hands the run back
+ * to the node of the child graph that holds it.
+ */
+function nodeAfter(
+	current: string | undefined,
+	event: string,
+	nodePath: string,
+): string | undefined {
+	if (event === "stage.started") {
+		return nodePath;
+	}
+	const finished = event === "stage.completed" || event === "stage.failed";
+	if (
+		!finished ||
+		current === undefined ||
+		(current !== nodePath && !current.startsWith(`${nodePath}/`))
+	) {
+		return current;
+	}
+	const parent = nodePath.split("/").slice(0, -1).join("/");
+	return parent === "" ? undefined : parent;
+}
+
+function jsonOrNull(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return null;
+	}
+}
+
+/** The frames of an SSE body. A frame that does not parse is left out. */
+async function* eventFrames(body: ReadableStream<Uint8Array>) {
+	const decoder = new TextDecoder();
+	let buffer = "";
+	for await (const bytes of body) {
+		buffer += decoder.decode(bytes, { stream: true }).replaceAll("\r\n", "\n");
+		const blocks = buffer.split("\n\n");
+		buffer = blocks.pop() ?? "";
+		for (const block of blocks) {
+			const data = block
+				.split("\n")
+				.flatMap((line) =>
+					line.startsWith("data:") ? [line.slice("data:".length).trim()] : [],
+				)
+				.join("\n");
+			const parsed = eventFrame.safeParse(jsonOrNull(data));
+			if (parsed.success) {
+				yield parsed.data;
+			}
+		}
+	}
 }
 
 class Unreachable extends Error {}
@@ -134,7 +217,13 @@ export function flagFactory(url: string): Factory {
 	};
 }
 
-function reader(fetchImpl: Fetch, url: string, signal: AbortSignal) {
+/** A stream request has no time limit: it stays open while the hub sends events. */
+function reader(
+	fetchImpl: Fetch,
+	url: string,
+	signal: AbortSignal,
+	limitMs: number | null = factoryRequestLimitMs,
+) {
 	const parsed = new URL(url);
 	const unix = parsed.protocol === "unix:";
 	const base = unix
@@ -143,10 +232,10 @@ function reader(fetchImpl: Fetch, url: string, signal: AbortSignal) {
 	return async (path: string): Promise<Response> => {
 		try {
 			return await fetchImpl(`${base}${path}`, {
-				signal: AbortSignal.any([
-					signal,
-					AbortSignal.timeout(factoryRequestLimitMs),
-				]),
+				signal:
+					limitMs === null
+						? signal
+						: AbortSignal.any([signal, AbortSignal.timeout(limitMs)]),
 				...(unix ? { unix: parsed.pathname } : {}),
 			});
 		} catch {
@@ -197,8 +286,24 @@ async function boxCount(
 type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes">;
 
 /**
+ * The event stream of one factory: connecting, open, closed since a time, or
+ * "none" for a factory that answers 404 on `GET /events`.
+ */
+type Follow = "connecting" | "open" | "none" | { closedAt: number };
+
+const streamRetryMs = 10_000;
+
+const activeKinds: ReadonlySet<RunStatusKind> = new Set([
+	"starting",
+	"running",
+	"blocked",
+]);
+
+/**
  * Reads `GET /daemon` of each factory, and on connect its kind and box count.
  * Reads `GET /runs` of each factory and keeps the runs of its last good read.
+ * Follows `GET /events` of each factory that serves it, and reads `GET /runs`
+ * on each connect. A factory without `/events` keeps the run poll.
  * A failed request marks the factory unreachable until a later read succeeds.
  */
 export function factoryReader(
@@ -208,6 +313,11 @@ export function factoryReader(
 ): FactoryReader {
 	const found = new Map<string, Found>();
 	const readRuns = new Map<string, ReadRun[]>();
+	/** The current node of each run, by run id, from the event streams. */
+	const stages = new Map<string, string>();
+	const follows = new Map<string, Follow>();
+	/** The factories whose `GET /events` answered once. */
+	const serving = new Set<string>();
 	let checking: Promise<void> | null = null;
 	const checkOne = async (factory: ListedFactory): Promise<Found> => {
 		const read = reader(fetchImpl, factory.url, signal);
@@ -307,17 +417,150 @@ export function factoryReader(
 		}
 	};
 	const readAllRuns = async (): Promise<void> => {
-		await Promise.all(listed().map(readRunsOf));
+		await Promise.all(
+			listed()
+				.filter((factory) => follows.get(factory.url) !== "open")
+				.map(readRunsOf),
+		);
+	};
+	const readCurrentNode = async (
+		read: (path: string) => Promise<Response>,
+		runId: string,
+	): Promise<void> => {
+		try {
+			const answer = await body(
+				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
+				checkpoint,
+			);
+			const path = [
+				...(answer.stack ?? []).map((frame) => frame.node),
+				answer.current_node,
+			]
+				.filter((node) => node !== "")
+				.join("/");
+			if (path === "") {
+				stages.delete(runId);
+			} else {
+				stages.set(runId, path);
+			}
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+		}
+	};
+	/** `GET /runs`, then the current node of each active run from its checkpoint. */
+	const snapshot = async (factory: ListedFactory): Promise<void> => {
+		await readRunsOf(factory);
+		const read = reader(fetchImpl, factory.url, signal);
+		await Promise.all(
+			(readRuns.get(factory.url) ?? []).flatMap(({ run }) =>
+				activeKinds.has(run.statusKind) ? [readCurrentNode(read, run.id)] : [],
+			),
+		);
+	};
+	const applyFrame = async (
+		factory: ListedFactory,
+		frame: EventFrame,
+	): Promise<void> => {
+		const rows = readRuns.get(factory.url) ?? [];
+		if (!rows.some((row) => row.run.id === frame.run_id)) {
+			await readRunsOf(factory);
+		}
+		if (frame.item !== undefined) {
+			const node = nodeAfter(
+				stages.get(frame.run_id),
+				frame.item.event,
+				frame.item.node_path,
+			);
+			if (node === undefined) {
+				stages.delete(frame.run_id);
+			} else {
+				stages.set(frame.run_id, node);
+			}
+		}
+		const status = frame.status;
+		if (status !== undefined) {
+			readRuns.set(
+				factory.url,
+				(readRuns.get(factory.url) ?? []).map((row) =>
+					row.run.id === frame.run_id
+						? {
+								...row,
+								run: { ...row.run, statusKind: statusKindOf(status.kind) },
+							}
+						: row,
+				),
+			);
+		}
+	};
+	const followOne = async (
+		factory: ListedFactory,
+		now: () => number,
+		around: (change: () => Promise<void>) => Promise<void>,
+	): Promise<Follow> => {
+		let response: Response;
+		try {
+			response = await reader(fetchImpl, factory.url, signal, null)("/events");
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return { closedAt: now() };
+		}
+		if (response.status === 404) {
+			return "none";
+		}
+		if (!response.ok || response.body === null) {
+			return { closedAt: now() };
+		}
+		follows.set(factory.url, "open");
+		serving.add(factory.url);
+		// The hub replays only the events since connect, so the snapshot follows the connect.
+		await around(() => snapshot(factory));
+		try {
+			for await (const frame of eventFrames(response.body)) {
+				await around(() => applyFrame(factory, frame));
+			}
+		} catch {
+			// A dropped connection ends the stream like a closed one.
+		}
+		return { closedAt: Number.NEGATIVE_INFINITY };
+	};
+	const follow = (
+		now: () => number,
+		around: (change: () => Promise<void>) => Promise<void>,
+	): void => {
+		for (const factory of listed()) {
+			const state = follows.get(factory.url);
+			if (
+				state === "connecting" ||
+				state === "open" ||
+				state === "none" ||
+				(state !== undefined && now() - state.closedAt < streamRetryMs)
+			) {
+				continue;
+			}
+			follows.set(factory.url, "connecting");
+			void followOne(factory, now, around)
+				.catch((): Follow => ({ closedAt: now() }))
+				.then((next) => {
+					follows.set(factory.url, next);
+				});
+		}
 	};
 	const runs = (): FactoryRun[] =>
 		mergedRuns(
 			listed().flatMap((factory) => {
 				const coveredByFeed = found.get(factory.url)?.reachable === true;
+				const streamed = serving.has(factory.url);
 				return (readRuns.get(factory.url) ?? []).map((row) => ({
 					...row,
 					coveredByFeed,
+					streamed,
 				}));
 			}),
+			stages,
 		).sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
 	return {
 		check,
@@ -325,6 +568,7 @@ export function factoryReader(
 		entries,
 		unreachable,
 		readRuns: readAllRuns,
+		follow,
 		runs,
 	};
 }
