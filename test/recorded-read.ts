@@ -173,6 +173,30 @@ function rememberLists(lists: Map<string, Node>, payload: unknown): void {
 	}
 }
 
+/** Gives each issue of a `HeldIssues` answer a node id, as `rememberLists` does. */
+function rememberHeldIssues(
+	lists: Map<string, Node>,
+	payload: unknown,
+	repo: string,
+): void {
+	const repository = (payload as { data?: { repository?: unknown } } | null)
+		?.data?.repository;
+	if (typeof repository !== "object" || repository === null) {
+		return;
+	}
+	for (const issue of Object.values(repository)) {
+		if (typeof issue !== "object" || issue === null) {
+			continue;
+		}
+		const node = issue as Node;
+		node.id ??= recordedId("issue", repo, node.number);
+		lists.set(String(node.id), {
+			id: node.id,
+			comments: node.comments ?? emptyList,
+		});
+	}
+}
+
 function answerLists(lists: Map<string, Node>, body: string): Response {
 	const sent = JSON.parse(body) as {
 		variables?: { full?: string[]; live?: string[] };
@@ -319,6 +343,20 @@ export function answerRecordedRepoRead(fetchImpl: Fetch): Fetch {
 		if (body.includes("query BlockerStates")) {
 			const states = await blockerStatesFromHandler(body, fetchImpl);
 			return states ?? answered;
+		}
+		if (body.includes("query HeldIssues") && answered.ok) {
+			const payload: unknown = await answered.json().catch(() => null);
+			const variables = (
+				JSON.parse(body) as {
+					variables?: { owner?: string; name?: string };
+				}
+			).variables;
+			rememberHeldIssues(
+				lists,
+				payload,
+				`${variables?.owner ?? ""}/${variables?.name ?? ""}`,
+			);
+			return Response.json(payload);
 		}
 		if (body.includes("query RepoLists") || body.includes("query RepoPages")) {
 			const payload: unknown = answered.ok
