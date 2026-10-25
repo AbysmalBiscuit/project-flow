@@ -20,12 +20,15 @@ export const openParentLabel = "Open";
 
 export const projectPageLabel = "Project page";
 
-export function factoryTokenFallbackLabel({
-	owner,
-	cause,
-	path,
-}: FactoryTokenReport): string {
-	return `${owner} reads use your token: the factory token file ${path} is ${cause}.`;
+export function factoryTokenFallbackLabel(report: FactoryTokenReport): string {
+	if (report.cause === "mint failed") {
+		const status =
+			report.status === "missing"
+				? "could not start"
+				: `exited with status ${report.status}`;
+		return `The factory token mint ${report.command} ${status}. Reads use your token.`;
+	}
+	return `${report.owner} reads use your token: the factory token file ${report.path} is ${report.cause}.`;
 }
 
 export function parentChipLabel(key: string): string {
