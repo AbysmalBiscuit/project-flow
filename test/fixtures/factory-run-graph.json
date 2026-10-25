@@ -1,0 +1,782 @@
+{
+	"name": "PrePr",
+	"label": "",
+	"attrs": {
+		"goal": "Build the ticket until its Done when holds, then open its pull request and land it",
+		"merge_auto": "ask",
+		"merge_review": "off",
+		"merge_rebase": "open-and-merge",
+		"through": "review",
+		"rankdir": "LR"
+	},
+	"nodes": [
+		{
+			"id": "start",
+			"attrs": {
+				"shape": "Mdiamond",
+				"label": "Start"
+			},
+			"classes": [],
+			"handler": "start"
+		},
+		{
+			"id": "exit",
+			"attrs": {
+				"shape": "Msquare",
+				"label": "Exit"
+			},
+			"classes": [],
+			"handler": "exit"
+		},
+		{
+			"id": "inputs",
+			"attrs": {
+				"output": "issue, handoff, through, ticket_kind, pr_state, pr_url, stopped, verify_line, merge_sha, merge_result, comment_watermark",
+				"shape": "parallelogram",
+				"label": "Inputs",
+				"timeout": "60s",
+				"max_visits": 3,
+				"tool_command": "workcell pre-pr inputs",
+				"context": "context"
+			},
+			"classes": [],
+			"handler": "tool"
+		},
+		{
+			"id": "handoff_missing",
+			"attrs": {
+				"shape": "hexagon",
+				"timeout": "1d",
+				"human.default_choice": "operator",
+				"label": "The run has no handoff file. Place the handoff, then answer retry."
+			},
+			"classes": [],
+			"handler": "wait.human"
+		},
+		{
+			"id": "handoff_operator",
+			"attrs": {
+				"shape": "hexagon",
+				"ask": "operator",
+				"timeout": "3d",
+				"human.default_choice": "remind",
+				"max_visits": 10,
+				"label": "The run has no handoff file, and nobody placed it for a day. Place the handoff, then answer retry."
+			},
+			"classes": [],
+			"handler": "wait.human"
+		},
+		{
+			"id": "draft",
+			"attrs": {
+				"shape": "box",
+				"class": "manager",
+				"label": "Draft",
+				"max_visits": 3,
+				"prompt": "The handoff $context.handoff has no Done when. Read the tracker issue $context.issue. Write a numbered Done when section into the handoff, one item for each outcome the issue asks for. End each item in (proof: ...). Report LABEL: settled when the list only numbers the acceptance criteria of the issue. Report LABEL: ask for any other list, so that a human approves it."
+			},
+			"classes": ["manager"],
+			"handler": "codergen"
+		},
+		{
+			"id": "approve",
+			"attrs": {
+				"shape": "hexagon",
+				"timeout": "1d",
+				"human.default_choice": "operator",
+				"label": "Approve the drafted Done when in the run's handoff, or send it back to draft?"
+			},
+			"classes": [],
+			"handler": "wait.human"
+		},
+		{
+			"id": "approve_operator",
+			"attrs": {
+				"shape": "hexagon",
+				"ask": "operator",
+				"timeout": "3d",
+				"human.default_choice": "remind",
+				"max_visits": 10,
+				"label": "Nobody answered for a day. Approve the drafted Done when in the run's handoff, or send it back to draft?"
+			},
+			"classes": [],
+			"handler": "wait.human"
+		},
+		{
+			"id": "implement",
+			"attrs": {
+				"output": "evidence",
+				"shape": "box",
+				"class": "implementer",
+				"thread_id": "implementer",
+				"label": "Implement",
+				"prompt": "Build the ticket. The handoff is $context.handoff. Read it in full, and work until every item of its Done when holds. Continue from the commits already on the branch."
+			},
+			"classes": ["implementer"],
+			"handler": "codergen"
+		},
+		{
+			"id": "apply",
+			"attrs": {
+				"output": "evidence",
+				"shape": "box",
+				"class": "implementer",
+				"thread_id": "implementer",
+				"label": "Apply",
+				"max_visits": 4,
+				"prompt": "Apply the batch in $context.batch. Each row is a verifier rejection or a review finding. Commit each row, and give each rejected item fresh evidence."
+			},
+			"classes": ["implementer"],
+			"handler": "codergen"
+		},
+		{
+			"id": "push",
+			"attrs": {
+				"output": "tool_error",
+				"shape": "parallelogram",
+				"label": "Push",
+				"timeout": "300s",
+				"tool_command": "workcell branch-push --root ."
+			},
+			"classes": [],
+			"handler": "tool"
+		},
+		{
+			"id": "push_tries",
+			"attrs": {
+				"output": "stopped",
+				"shape": "parallelogram",
+				"label": "Push tries",
+				"timeout": "60s",
+				"max_visits": 6,
+				"tool_command": "workcell pre-pr visits repush 1",
+				"context": "context"
+			},
+			"classes": [],
+			"handler": "tool"
+		},
+		{
+			"id": "repush",
+			"attrs": {
+				"shape": "box",
+				"class": "implementer",
+				"thread_id": "implementer",
+				"label": "Repush",
+				"prompt": "The engine could not push the branch. The tail of its push output is:\n\n$context.tool_error\n\nFind the cause, such as a failed pre-push hook, and fix it on the branch. Commit the fix. Do not push."
+			},
+			"classes": ["implementer"],
+			"handler": "codergen"
+		},
+		{
+			"id": "push_failed",
+			"attrs": {
+				"shape": "hexagon",
+				"label": "The push failed again after one more implementer attempt. The tail of its push output is:\n\n$context.tool_error\n\nFix the cause, then answer retry, or answer stop."
+			},
+			"classes": [],
+			"handler": "wait.human"
+		},
+		{
+			"id": "fan",
+			"attrs": {
+				"shape": "component",
+				"label": "Review round",
+				"max_visits": 12
+			},
+			"classes": [],
+			"handler": "parallel"
+		},
+		{
+			"id": "verify",
+			"attrs": {
+				"output": "verdicts",
+				"shape": "box",
+				"class": "verifier",
+				"label": "Verify",
+				"prompt": "Verify the Done when of the handoff $context.handoff against the branch. The implementer's evidence is in $context.evidence."
+			},
+			"classes": ["verifier"],
+			"handler": "codergen"
+		},
+		{
+			"id": "review",
+			"attrs": {
+				"output": "review",
+				"shape": "box",
+				"class": "reviewer",
+				"label": "Review",
+				"prompt": "Review the branch against the repo's standards and against the handoff $context.handoff as its spec."
+			},
+			"classes": ["reviewer"],
+			"handler": "codergen"
+		},
+		{
+			"id": "conceptual",
+			"attrs": {
+				"output": "conceptual",
+				"shape": "box",
+				"label": "Conceptual review",
+				"prompt": "Write the Conceptual Changes section.",
+				"prompt_file": "conceptual.dot"
+			},
+			"classes": [],
+			"handler": "codergen"
+		},
+		{
+			"id": "join",
+			"attrs": {
+				"shape": "tripleoctagon",
+				"label": "Join"
+			},
+			"classes": [],
+			"handler": "parallel.fan_in"
+		},
+		{
+			"id": "check",
+			"attrs": {
+				"output": "review_check, conceptual_section, conceptual_batch, branch_failure, question_number, question",
+				"shape": "parallelogram",
+				"label": "Review check",
+				"timeout": "120s",
+				"tool_command": "workcell pre-pr check",
+				"context": "context"
+			},
+			"classes": [],
+			"handler": "tool"
+		},
+		{
+			"id": "question",
+			"attrs": {
+				"shape": "hexagon",
+				"ask": "senior",
+				"human.question_type": "freeform",
+				"label": "Important Question",
+				"prompt": "Important Question $context.question_number of the conceptual review $context.conceptual_section:\n\n$context.question\n\nAnswer it from the handoff $context.handoff and the branch. Start the answer with change: and a <file>:<line> when the branch must change."
+			},
+			"classes": [],
+			"handler": "wait.human"
+		},
+		{
+			"id": "branch_failed",
+			"attrs": {
+				"shape": "hexagon",
+				"ask": "manager",
+				"label": "Reviewer failed",
+				"max_visits": 4,
+				"prompt": "A reviewer of this round failed: $context.branch_failure. Take retry to run the review round again once the cause is gone. Take skip to receive the round without that reviewer."
+			},
+			"classes": [],
+			"handler": "wait.human"
+		},
+		{
+			"id": "settle",
+			"attrs": {
+				"output": "question_number, question",
+				"shape": "parallelogram",
+				"label": "Settle",
+				"timeout": "60s",
+				"max_visits": 12,
+				"tool_command": "workcell pre-pr settle",
+				"context": "context"
+			},
+			"classes": [],
+			"handler": "tool"
+		},
+		{
+			"id": "receive",
+			"attrs": {
+				"output": "batch, refuted",
+				"shape": "box",
+				"class": "receiver",
+				"label": "Receive",
+				"prompt": "Receive the gate of this round. The verifier's verdicts are in $context.verdicts. The code review is in $context.review. The review check is in $context.review_check. The Important Question answers that ask for a change are in $context.conceptual_batch. The handoff is $context.handoff."
+			},
+			"classes": ["receiver"],
+			"handler": "codergen"
+		},
+		{
+			"id": "reverify",
+			"attrs": {
+				"output": "verdicts",
+				"shape": "box",
+				"class": "verifier",
+				"label": "Verify again",
+				"max_visits": 3,
+				"prompt": "The receiver refuted verdicts of the verifier in $context.refuted. Verify each of those Done when items of the handoff $context.handoff again, with fresh evidence. The implementer's evidence is in $context.evidence."
+			},
+			"classes": ["verifier"],
+			"handler": "codergen"
+		},
+		{
+			"id": "gate",
+			"attrs": {
+				"output": "stopped",
+				"shape": "parallelogram",
+				"label": "Gate",
+				"timeout": "60s",
+				"tool_command": "workcell pre-pr visits receive 4",
+				"context": "context"
+			},
+			"classes": [],
+			"handler": "tool"
+		},
+		{
+			"id": "post_pr",
+			"attrs": {
+				"shape": "box",
+				"label": "Post PR",
+				"prompt": "Open the pull request and land it.",
+				"prompt_file": "post-pr.dot"
+			},
+			"classes": [],
+			"handler": "codergen"
+		},
+		{
+			"id": "report",
+			"attrs": {
+				"output": "through, batch",
+				"shape": "box",
+				"label": "Report",
+				"prompt": "Write the final report.",
+				"prompt_file": "report.dot"
+			},
+			"classes": [],
+			"handler": "codergen"
+		}
+	],
+	"edges": [
+		{
+			"from": "start",
+			"to": "inputs",
+			"attrs": {}
+		},
+		{
+			"from": "inputs",
+			"to": "handoff_missing",
+			"attrs": {
+				"condition": "preferred_label=no_handoff"
+			}
+		},
+		{
+			"from": "inputs",
+			"to": "draft",
+			"attrs": {
+				"condition": "preferred_label=draft"
+			}
+		},
+		{
+			"from": "inputs",
+			"to": "implement",
+			"attrs": {
+				"condition": "preferred_label=build"
+			}
+		},
+		{
+			"from": "inputs",
+			"to": "post_pr",
+			"attrs": {
+				"label": "pr_open",
+				"condition": "preferred_label=pr_open"
+			}
+		},
+		{
+			"from": "inputs",
+			"to": "post_pr",
+			"attrs": {
+				"label": "pr_merged",
+				"condition": "preferred_label=pr_merged"
+			}
+		},
+		{
+			"from": "inputs",
+			"to": "post_pr",
+			"attrs": {
+				"label": "pr_closed",
+				"condition": "preferred_label=pr_closed"
+			}
+		},
+		{
+			"from": "handoff_missing",
+			"to": "inputs",
+			"attrs": {
+				"label": "retry"
+			}
+		},
+		{
+			"from": "handoff_missing",
+			"to": "handoff_operator",
+			"attrs": {
+				"label": "operator"
+			}
+		},
+		{
+			"from": "handoff_operator",
+			"to": "inputs",
+			"attrs": {
+				"label": "retry"
+			}
+		},
+		{
+			"from": "handoff_operator",
+			"to": "handoff_operator",
+			"attrs": {
+				"label": "remind",
+				"condition": "preferred_label=remind"
+			}
+		},
+		{
+			"from": "draft",
+			"to": "implement",
+			"attrs": {
+				"label": "settled",
+				"condition": "preferred_label=settled"
+			}
+		},
+		{
+			"from": "draft",
+			"to": "approve",
+			"attrs": {
+				"label": "ask",
+				"condition": "preferred_label=ask"
+			}
+		},
+		{
+			"from": "approve",
+			"to": "implement",
+			"attrs": {
+				"label": "approved"
+			}
+		},
+		{
+			"from": "approve",
+			"to": "draft",
+			"attrs": {
+				"label": "redraft"
+			}
+		},
+		{
+			"from": "approve",
+			"to": "approve_operator",
+			"attrs": {
+				"label": "operator"
+			}
+		},
+		{
+			"from": "approve_operator",
+			"to": "implement",
+			"attrs": {
+				"label": "approved"
+			}
+		},
+		{
+			"from": "approve_operator",
+			"to": "draft",
+			"attrs": {
+				"label": "redraft"
+			}
+		},
+		{
+			"from": "approve_operator",
+			"to": "approve_operator",
+			"attrs": {
+				"label": "remind",
+				"condition": "preferred_label=remind"
+			}
+		},
+		{
+			"from": "implement",
+			"to": "push",
+			"attrs": {}
+		},
+		{
+			"from": "apply",
+			"to": "push",
+			"attrs": {}
+		},
+		{
+			"from": "push",
+			"to": "fan",
+			"attrs": {
+				"label": "pushed",
+				"condition": "outcome=success"
+			}
+		},
+		{
+			"from": "push",
+			"to": "push_tries",
+			"attrs": {
+				"label": "push_failed",
+				"condition": "outcome=fail"
+			}
+		},
+		{
+			"from": "push_tries",
+			"to": "repush",
+			"attrs": {
+				"label": "below",
+				"condition": "preferred_label=below"
+			}
+		},
+		{
+			"from": "push_tries",
+			"to": "push_failed",
+			"attrs": {
+				"label": "reached",
+				"condition": "preferred_label=reached"
+			}
+		},
+		{
+			"from": "repush",
+			"to": "push",
+			"attrs": {}
+		},
+		{
+			"from": "push_failed",
+			"to": "push",
+			"attrs": {
+				"label": "retry"
+			}
+		},
+		{
+			"from": "push_failed",
+			"to": "report",
+			"attrs": {
+				"label": "stop"
+			}
+		},
+		{
+			"from": "fan",
+			"to": "verify",
+			"attrs": {}
+		},
+		{
+			"from": "fan",
+			"to": "review",
+			"attrs": {}
+		},
+		{
+			"from": "fan",
+			"to": "conceptual",
+			"attrs": {}
+		},
+		{
+			"from": "verify",
+			"to": "join",
+			"attrs": {}
+		},
+		{
+			"from": "review",
+			"to": "join",
+			"attrs": {}
+		},
+		{
+			"from": "conceptual",
+			"to": "join",
+			"attrs": {}
+		},
+		{
+			"from": "join",
+			"to": "report",
+			"attrs": {
+				"label": "past_stop",
+				"condition": "outcome!=fail && context.through=implement"
+			}
+		},
+		{
+			"from": "join",
+			"to": "check",
+			"attrs": {
+				"condition": "context.through!=implement"
+			}
+		},
+		{
+			"from": "check",
+			"to": "question",
+			"attrs": {
+				"label": "question",
+				"condition": "preferred_label=question"
+			}
+		},
+		{
+			"from": "check",
+			"to": "receive",
+			"attrs": {
+				"label": "receive",
+				"condition": "preferred_label=receive"
+			}
+		},
+		{
+			"from": "check",
+			"to": "branch_failed",
+			"attrs": {
+				"label": "branch_failed",
+				"condition": "preferred_label=branch_failed"
+			}
+		},
+		{
+			"from": "branch_failed",
+			"to": "fan",
+			"attrs": {
+				"label": "retry"
+			}
+		},
+		{
+			"from": "branch_failed",
+			"to": "receive",
+			"attrs": {
+				"label": "skip"
+			}
+		},
+		{
+			"from": "question",
+			"to": "settle",
+			"attrs": {}
+		},
+		{
+			"from": "settle",
+			"to": "question",
+			"attrs": {
+				"label": "question",
+				"condition": "preferred_label=question"
+			}
+		},
+		{
+			"from": "settle",
+			"to": "receive",
+			"attrs": {
+				"label": "receive",
+				"condition": "preferred_label=receive"
+			}
+		},
+		{
+			"from": "receive",
+			"to": "reverify",
+			"attrs": {
+				"label": "reverify",
+				"condition": "preferred_label=reverify"
+			}
+		},
+		{
+			"from": "reverify",
+			"to": "receive",
+			"attrs": {}
+		},
+		{
+			"from": "receive",
+			"to": "gate",
+			"attrs": {
+				"label": "apply",
+				"condition": "preferred_label=apply"
+			}
+		},
+		{
+			"from": "gate",
+			"to": "apply",
+			"attrs": {
+				"label": "below",
+				"condition": "preferred_label=below"
+			}
+		},
+		{
+			"from": "gate",
+			"to": "report",
+			"attrs": {
+				"label": "reached",
+				"condition": "preferred_label=reached"
+			}
+		},
+		{
+			"from": "receive",
+			"to": "post_pr",
+			"attrs": {
+				"label": "done",
+				"condition": "preferred_label=done"
+			}
+		},
+		{
+			"from": "report",
+			"to": "post_pr",
+			"attrs": {
+				"label": "raised_pr",
+				"condition": "preferred_label=raised_pr"
+			}
+		},
+		{
+			"from": "report",
+			"to": "post_pr",
+			"attrs": {
+				"label": "raised_review",
+				"condition": "preferred_label=raised_review"
+			}
+		},
+		{
+			"from": "report",
+			"to": "post_pr",
+			"attrs": {
+				"label": "raised_merge",
+				"condition": "preferred_label=raised_merge"
+			}
+		},
+		{
+			"from": "report",
+			"to": "apply",
+			"attrs": {
+				"label": "squash",
+				"condition": "preferred_label=squash"
+			}
+		},
+		{
+			"from": "report",
+			"to": "apply",
+			"attrs": {
+				"label": "decided",
+				"condition": "preferred_label=decided"
+			}
+		},
+		{
+			"from": "report",
+			"to": "push",
+			"attrs": {
+				"label": "rebased",
+				"condition": "preferred_label=rebased"
+			}
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"attrs": {
+				"label": "rounds_raised",
+				"condition": "preferred_label=rounds_raised"
+			}
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"attrs": {
+				"label": "rounds_noted",
+				"condition": "preferred_label=rounds_noted"
+			}
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"attrs": {
+				"label": "limit_reached",
+				"condition": "preferred_label=limit_reached"
+			}
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"attrs": {
+				"label": "done",
+				"condition": "preferred_label=done"
+			}
+		},
+		{
+			"from": "post_pr",
+			"to": "exit",
+			"attrs": {}
+		}
+	]
+}

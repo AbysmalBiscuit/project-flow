@@ -219,6 +219,11 @@ export const runStagesLabel = "Stages";
 
 export const currentStageLabel = "Current";
 
+export const runGraphLabel = "Workflow";
+
+export const runGraphHelp =
+	"The current stage has a blue border. Completed stages are filled, stages ahead are dashed, and a retried stage shows its retries.";
+
 export function stageVisitsLabel(visits: number): string {
 	return `${visits} ${visits === 1 ? "visit" : "visits"}`;
 }

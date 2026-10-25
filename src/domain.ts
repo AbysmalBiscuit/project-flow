@@ -104,6 +104,8 @@ export type RunCheckpoint = {
 	visits: Record<string, number>;
 	/** The usage of the run's recorded turns. Absent when the factory gave no turns. */
 	usage?: RunUsage;
+	/** The run's workflow graph with the state of each stage. Null when the factory serves no graph. */
+	graph: RunGraph | null;
 };
 
 /** The usage of some agent turns: tokens, cost in US dollars, time in seconds, and the count of each tool. */
@@ -138,6 +140,21 @@ export type RunAgent = {
 	lastMessage: string | null;
 	turn: "running" | "ended";
 };
+
+/** Where a stage of a run's workflow graph is: the current stage, a completed stage, or a stage ahead. */
+export type RunGraphNodeState = "current" | "completed" | "ahead";
+
+export type RunGraphNode = {
+	id: string;
+	label: string;
+	state: RunGraphNodeState;
+	retries: number;
+};
+
+export type RunGraphEdge = { from: string; to: string; label?: string };
+
+/** The workflow graph of a factory run, from `GET /runs/{id}/graph` of its box. */
+export type RunGraph = { nodes: RunGraphNode[]; edges: RunGraphEdge[] };
 
 /** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
 export type EarlierFactoryRun = Pick<
