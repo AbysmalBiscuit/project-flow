@@ -41,6 +41,7 @@ export type RunIo = {
 	port?: number;
 	now?: () => Date;
 	threadReadLimitMs?: number;
+	trackerRequestLimitMs?: number;
 	waitForStop?: Promise<void>;
 	listTodos?: TodoSource;
 	listCheckouts?: CheckoutSource;
@@ -604,6 +605,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.threadReadLimitMs === undefined
 				? {}
 				: { threadReadLimitMs: io.threadReadLimitMs }),
+			...(io.trackerRequestLimitMs === undefined
+				? {}
+				: { trackerRequestLimitMs: io.trackerRequestLimitMs }),
 		});
 		listened = true;
 		writeOut(running.url.href);
