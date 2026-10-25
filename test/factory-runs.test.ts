@@ -25,6 +25,7 @@ import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
+import runWorkers from "./fixtures/factory-run-workers.json";
 import {
 	issuesResponse,
 	listedRead,
@@ -981,6 +982,137 @@ describe("factory runs", () => {
 			const app = await serveRuns(hub, [41]);
 			try {
 				const response = await checkpointOf(app.base);
+				expect(response.status).toBe(404);
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the run agents", () => {
+		const running41 = hubRuns.runs[0]?.id ?? "";
+		const workersPath = `/runs/${running41}/workers`;
+
+		function workerReads(requests: FactoryRequest[]): number {
+			return requests.filter(
+				(request) => new URL(request.url).pathname === workersPath,
+			).length;
+		}
+
+		async function agentsOf(base: string, runId: string): Promise<Response> {
+			return fetch(
+				new URL(`/api/factory-runs/${encodeURIComponent(runId)}/agents`, base),
+			);
+		}
+
+		test("the run detail gives the tool, last message and turn of each running agent and of the current stage", async () => {
+			const feed = new EventFeed();
+			const app = await serveRuns(
+				{ ...hub, "/events": feed, [workersPath]: runWorkers },
+				[41],
+			);
+			const stream = openEventStream(app.base);
+			try {
+				await feed.connected(1);
+				await stream.ready;
+				const [stageStarted] = hubEvents;
+				feed.send({
+					...stageStarted,
+					item: { ...stageStarted?.item, node_path: "report/report" },
+				});
+				await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.stage === "report/report",
+				);
+				const response = await agentsOf(app.base, running41);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual({
+					agents: [
+						{
+							stage: "fix",
+							tool: "Bash",
+							lastMessage: "LABEL: fixed",
+							turn: "running",
+						},
+						{
+							stage: "report/report",
+							tool: null,
+							lastMessage:
+								"When round 3 ends, the run reaches the final report node again and I write and publish the report then.",
+							turn: "ended",
+						},
+					],
+				});
+			} finally {
+				stream.close();
+				await app.stop();
+			}
+		});
+
+		test("the app reads /workers only when a client asks for the agents of a live run", async () => {
+			const app = await serveRuns({ ...hub, [workersPath]: runWorkers }, [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+				);
+				expect(workerReads(app.requests)).toBe(0);
+				await agentsOf(app.base, running41);
+				await agentsOf(app.base, running41);
+				expect(workerReads(app.requests)).toBe(2);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that ends gives no agents and reads /workers no more", async () => {
+			const app = await serveRuns({ ...hub, [workersPath]: runWorkers }, [41]);
+			const stream = openEventStream(app.base);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "running",
+				);
+				await stream.ready;
+				expect(
+					(
+						(await (await agentsOf(app.base, running41)).json()) as {
+							agents: unknown[];
+						}
+					).agents,
+				).toHaveLength(1);
+				const [running, ...rest] = hubRuns.runs;
+				app.factories[hubUrl] = {
+					...hub,
+					[workersPath]: runWorkers,
+					"/runs": {
+						runs: [{ ...running, status: { kind: "succeeded" } }, ...rest],
+					},
+				};
+				app.advance(runPollMs);
+				await overviewEventWhere(
+					stream.events,
+					(seen) => factoryRunOf(seen, 41)?.statusKind === "succeeded",
+				);
+				const reads = workerReads(app.requests);
+				const response = await agentsOf(app.base, running41);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual({ agents: [] });
+				expect(workerReads(app.requests)).toBe(reads);
+			} finally {
+				stream.close();
+				await app.stop();
+			}
+		});
+
+		test("a run that no factory reports answers 404", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const response = await agentsOf(app.base, "no-such-run");
 				expect(response.status).toBe(404);
 			} finally {
 				await app.stop();

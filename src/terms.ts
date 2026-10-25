@@ -217,6 +217,17 @@ export function stageRetriesLabel(retries: number): string {
 	return `${retries} ${retries === 1 ? "retry" : "retries"}`;
 }
 
+export const runAgentsLabel = "Agents";
+
+export const agentTurnLabel = {
+	running: "Turn runs",
+	ended: "Turn ended",
+} as const;
+
+export function agentToolLabel(tool: string): string {
+	return `Uses ${tool}`;
+}
+
 export const hubQueueLabel = "In the hub queue";
 
 export const noStartLabel = "No start time";

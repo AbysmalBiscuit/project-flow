@@ -865,6 +865,14 @@ export async function start(options: StartOptions): Promise<Running> {
 						: Response.json(found);
 				},
 			},
+			"/api/factory-runs/:id/agents": {
+				GET: async (request) => {
+					const found = await factories.agents(request.params.id);
+					return found === null
+						? Response.json({ missing: true }, { status: 404 })
+						: Response.json({ agents: found });
+				},
+			},
 			"/api/threads/:tracker/:key": {
 				GET: (request) =>
 					threadResponse(
