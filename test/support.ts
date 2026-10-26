@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { listDevkitCheckouts, type RunIo } from "../src/main.ts";
+import { pendingStatus } from "../src/stale-reads.ts";
 import { answerRecordedRepoRead } from "./recorded-read.ts";
 
 const emptyPage = {
@@ -907,6 +908,31 @@ export type ChangeEvent = {
 	event: string;
 	data: string;
 };
+
+/** Read a stale-while-revalidate route again until its first background read has answered. */
+export async function settledRead(url: URL): Promise<Response> {
+	while (true) {
+		const response = await fetch(url);
+		if (response.status !== pendingStatus) {
+			return response;
+		}
+		await Bun.sleep(5);
+	}
+}
+
+/** Read a stale-while-revalidate route again until a background read brings an answer that `accept` takes. */
+export async function readWhere<Body>(
+	url: URL,
+	accept: (body: Body) => boolean,
+): Promise<Body> {
+	while (true) {
+		const body = (await (await settledRead(url)).json()) as Body;
+		if (accept(body)) {
+			return body;
+		}
+		await Bun.sleep(5);
+	}
+}
 
 export async function settledOverview<Body extends { polling?: true }>(
 	base: string,

@@ -51,6 +51,7 @@ import {
 	settingsResponse,
 	viewOnlyChange,
 } from "./settings-write.ts";
+import { staleReads } from "./stale-reads.ts";
 import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { threadResponse } from "./thread-response.ts";
@@ -95,7 +96,6 @@ export type StartOptions = {
 	now?: () => Date;
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
-	settingsReadWaitMs?: number;
 	/** How long one second of `pollIntervalSeconds` lasts on the poll timer. */
 	intervalSecondMs?: number;
 	/** How often the run poll checks the clock and follows the factory event streams. */
@@ -159,8 +159,6 @@ const steerBody = z.object({
 	text: z.string().trim().min(1),
 	interrupt: z.boolean().default(false),
 });
-
-const defaultSettingsReadWaitMs = 5_000;
 
 const runPollMs = 10_000;
 
@@ -424,8 +422,8 @@ export async function start(options: StartOptions): Promise<Running> {
 	}
 	let polling: Promise<void> | null = null;
 	let discovery: Promise<void> = Promise.resolve();
-	// A refresh queued behind a running poll holds settings reads until the
-	// next poll's discovery, so they never answer with the older catalogue.
+	// A refresh queued behind a running poll holds settings writes until the
+	// next poll's discovery, so they never check against the older catalogue.
 	let queuedDiscovery: (() => void) | null = null;
 	const nextDiscovery = (): (() => void) => {
 		let note = () => {};
@@ -436,16 +434,35 @@ export async function start(options: StartOptions): Promise<Running> {
 	};
 	let stopped = false;
 	const factoryState = () =>
-		JSON.stringify([factories.unreachable(), factories.runs()]);
-	const readFactories = async (read: () => Promise<void>) => {
-		const before = factoryState();
-		await read();
-		if (!stopped && factoryState() !== before) {
+		JSON.stringify([
+			factories.unreachable(),
+			factories.entries(),
+			factories.runs(),
+		]);
+	const publishOverview = () => {
+		if (!stopped) {
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration),
 				notifications: [],
 			});
 		}
+	};
+	const readFactories = async (read: () => Promise<void>) => {
+		const before = factoryState();
+		await read();
+		if (factoryState() !== before) {
+			publishOverview();
+		}
+	};
+	const readWorkflow = async (runId: string) => {
+		if (await factories.readWorkflow(runId)) {
+			publishOverview();
+		}
+	};
+	const staleRead = staleReads(publishOverview);
+	const readKey = (request: Request) => {
+		const url = new URL(request.url);
+		return url.pathname + url.search;
 	};
 	const checkFactories = () => {
 		void readFactories(factories.check).catch(() => {});
@@ -819,16 +836,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			},
 			"/settings": pageResponse,
 			"/api/settings": {
-				GET: async () => {
-					// A read during discovery waits, so a tracked-list write sees this
-					// poll's catalogue. A discovery held up by a slow mint or tracker
-					// read gets the last catalogue before Bun's idle timeout ends it.
-					await Promise.race([
-						Promise.all([discovery, readFactories(factories.settled)]),
-						Bun.sleep(options.settingsReadWaitMs ?? defaultSettingsReadWaitMs),
-					]);
-					return Response.json(settingsBody());
-				},
+				GET: () => Response.json(settingsBody()),
 				PUT: async (request: Request) => {
 					const rawText = await request.text();
 					let parsed: Configuration;
@@ -837,6 +845,8 @@ export async function start(options: StartOptions): Promise<Running> {
 					} catch (error) {
 						return invalidConfiguration(error);
 					}
+					// The bot key check and a tracked-list write need this poll's catalogue.
+					await discovery;
 					const current = await configurationPort.read();
 					const unknownBot = rejectUnknownBotKeys(
 						parsed,
@@ -904,41 +914,49 @@ export async function start(options: StartOptions): Promise<Running> {
 				GET: () => Response.json(factoryRunList(pollOptions, configuration)),
 			},
 			"/api/factory-runs/:id": {
-				GET: async (request) => {
-					const found = await factories.run(request.params.id);
-					return found === null
-						? Response.json({ missing: true }, { status: 404 })
-						: Response.json(found);
-				},
-			},
-			"/api/factory-runs/:id/checkpoint": {
-				GET: async (request) => {
-					const found = await factories.checkpoint(request.params.id);
-					if (found === "missing") {
+				GET: (request) => {
+					const found = factories.run(request.params.id);
+					if (found === null) {
 						return Response.json({ missing: true }, { status: 404 });
 					}
-					if (found === "not served") {
-						return Response.json({ notServed: true }, { status: 404 });
+					if (found.workflow === undefined) {
+						void readWorkflow(found.id).catch(() => {});
 					}
 					return Response.json(found);
 				},
 			},
+			"/api/factory-runs/:id/checkpoint": {
+				GET: (request) =>
+					staleRead(readKey(request), async () => {
+						const found = await factories.checkpoint(request.params.id);
+						if (found === "missing") {
+							return Response.json({ missing: true }, { status: 404 });
+						}
+						if (found === "not served") {
+							return Response.json({ notServed: true }, { status: 404 });
+						}
+						return Response.json(found);
+					}),
+			},
 			"/api/factory-runs/:id/agents": {
-				GET: async (request) => {
-					const found = await factories.agents(request.params.id);
-					return found === null
-						? Response.json({ missing: true }, { status: 404 })
-						: Response.json({ agents: found });
-				},
+				GET: (request) =>
+					staleRead(readKey(request), async () => {
+						const found = await factories.agents(request.params.id);
+						return found === null
+							? Response.json({ missing: true }, { status: 404 })
+							: Response.json({ agents: found });
+					}),
 			},
 			"/api/threads/:tracker/:key": {
 				GET: (request) =>
-					threadResponse(
-						trackers,
-						request.params.tracker,
-						request.params.key,
-						request,
-						options.threadReadLimitMs ?? defaultThreadReadLimitMs,
+					staleRead(readKey(request), () =>
+						threadResponse(
+							trackers,
+							request.params.tracker,
+							request.params.key,
+							request,
+							options.threadReadLimitMs ?? defaultThreadReadLimitMs,
+						),
 					),
 			},
 			"/api/replies": {

@@ -11,7 +11,7 @@ import {
 	unrecorded,
 	urlOf,
 } from "./replies-github-fake.ts";
-import { linearFake } from "./support.ts";
+import { linearFake, settledRead } from "./support.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 const linearProject = {
@@ -472,7 +472,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -500,7 +500,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%2340?project=acme%2Fwidget",
 					app.base,
@@ -529,7 +529,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -556,13 +556,13 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const blank = await fetch(
+			const blank = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=%20%20",
 					app.base,
 				),
 			);
-			const empty = await fetch(
+			const empty = await settledRead(
 				new URL("/api/threads/github/acme%2Fwidget%237", app.base),
 			);
 			expect(blank.status).toBe(404);
@@ -591,7 +591,7 @@ describe("replies", () => {
 			}),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL("/api/threads/linear/PF-404?project=widget-launch", app.base),
 			);
 			expect(response.status).toBe(404);
@@ -622,7 +622,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -658,7 +658,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=Widget%20board",
 					app.base,
@@ -724,7 +724,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%238?project=acme%2Fwidget",
 					app.base,
@@ -817,7 +817,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%239?project=acme%2Fwidget",
 					app.base,
@@ -900,7 +900,7 @@ describe("replies", () => {
 			}),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL("/api/threads/linear/PF-1?project=widget-launch", app.base),
 			);
 			expect(response.status).toBe(200);
@@ -1019,7 +1019,7 @@ describe("replies", () => {
 			}),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL("/api/threads/linear/PF-51?project=widget-launch", app.base),
 			);
 			expect(response.status).toBe(200);
@@ -1044,7 +1044,7 @@ describe("replies", () => {
 		);
 		try {
 			const started = Date.now();
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -1073,7 +1073,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL("/api/threads/github/%20%20?project=acme%2Fwidget", app.base),
 			);
 			expect(response.status).toBe(404);
@@ -1094,7 +1094,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%2399?project=acme%2Fwidget",
 					app.base,
@@ -1122,7 +1122,7 @@ describe("replies", () => {
 		);
 		try {
 			const started = Date.now();
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -1154,7 +1154,7 @@ describe("replies", () => {
 				"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 				app.base,
 			);
-			const first = await fetch(path);
+			const first = await settledRead(path);
 			const second = await fetch(path);
 			expect(first.status).toBe(504);
 			expect(second.status).toBe(504);
@@ -1219,7 +1219,7 @@ describe("replies", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,

@@ -8,7 +8,7 @@ import {
 	type Sent,
 	serve,
 } from "./replies-github-fake.ts";
-import { linearFake, unrecorded } from "./support.ts";
+import { linearFake, settledRead, unrecorded } from "./support.ts";
 
 const linearProject = {
 	id: "11111111-1111-4111-8111-111111111111",
@@ -38,7 +38,7 @@ describe("thread reads", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=Widget%20board",
 					app.base,
@@ -104,7 +104,7 @@ describe("thread reads", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%238?project=acme%2Fwidget",
 					app.base,
@@ -197,7 +197,7 @@ describe("thread reads", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%239?project=acme%2Fwidget",
 					app.base,
@@ -280,7 +280,7 @@ describe("thread reads", () => {
 			}),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL("/api/threads/linear/PF-1?project=widget-launch", app.base),
 			);
 			expect(response.status).toBe(200);
@@ -399,7 +399,7 @@ describe("thread reads", () => {
 			}),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL("/api/threads/linear/PF-51?project=widget-launch", app.base),
 			);
 			expect(response.status).toBe(200);
