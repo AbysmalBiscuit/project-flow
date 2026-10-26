@@ -16,13 +16,14 @@ import {
 	type ProjectReport,
 	type RunAgent,
 	type RunCheckpoint,
+	type RunDetail,
 	type SettingsProject,
 	type ShownFactoryRun,
 	type Thread,
 	type Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import type { FactoryEntry, Steer } from "./factories.ts";
+import type { CheckpointRead, FactoryEntry, Steer } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { StateSource } from "./settings-write.ts";
 import { storedObject } from "./stored-page.ts";
@@ -85,12 +86,19 @@ export const pageQuery = {
 			queryFn: () => readThread(tracker, project, key),
 			placeholderData: (previous: ThreadRead | undefined) => previous,
 		}),
+	/** A change in the factory feed reads the run again. */
+	run: (id: string) =>
+		queryOptions({
+			queryKey: ["run", id],
+			queryFn: () => readRun(id),
+			placeholderData: (previous: RunDetail | null | undefined) => previous,
+		}),
 	/** The key holds the run's status and stage, so a change in the factory feed reads the checkpoint again. */
 	checkpoint: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) =>
 		queryOptions({
 			queryKey: ["checkpoint", run.id, run.statusKind, run.stage ?? null],
 			queryFn: () => readCheckpoint(run.id),
-			placeholderData: (previous: RunCheckpoint | null | undefined) => previous,
+			placeholderData: (previous: CheckpointRead | undefined) => previous,
 		}),
 	/** A live run reads its agents again on an interval while a view follows it, and an ended run reads none. */
 	agents: (run: Pick<ShownFactoryRun, "id" | "statusKind">) => {
@@ -207,12 +215,26 @@ async function readAgents(runId: string): Promise<RunAgent[]> {
 	return ((await response.json()) as { agents: RunAgent[] }).agents;
 }
 
-async function readCheckpoint(runId: string): Promise<RunCheckpoint | null> {
+async function readRun(id: string): Promise<RunDetail | null> {
+	const response = await fetch(`/api/factory-runs/${encodeURIComponent(id)}`);
+	if (response.status === 404) {
+		return null;
+	}
+	if (!response.ok) {
+		throw new Error(`run failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as RunDetail;
+}
+
+async function readCheckpoint(runId: string): Promise<CheckpointRead> {
 	const response = await fetch(
 		`/api/factory-runs/${encodeURIComponent(runId)}/checkpoint`,
 	);
 	if (response.status === 404) {
-		return null;
+		const body = (await response.json().catch(() => null)) as {
+			notServed?: boolean;
+		} | null;
+		return body?.notServed === true ? "not served" : "missing";
 	}
 	if (!response.ok) {
 		throw new Error(`checkpoint failed (HTTP ${response.status})`);
@@ -541,6 +563,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries(pageQuery.inbox);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
 }
 
 function invalidatePageQueries(): void {
@@ -550,6 +573,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries(pageQuery.settings);
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
 }
 
 export function wirePageQueryEvents(): void {

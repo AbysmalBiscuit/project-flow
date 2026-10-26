@@ -9,13 +9,14 @@ import type {
 	PullRequest,
 	ReplyRequest,
 	RunAgent,
-	RunCheckpoint,
+	RunDetail,
 	Snapshot,
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
 import type {
 	AnswerResult,
+	CheckpointRead,
 	FactoryEntry,
 	Steer,
 	SteerResult,
@@ -133,10 +134,17 @@ export type FactoryReader = {
 	/** The runs of each listed factory, newest first. */
 	runs: () => FactoryRun[];
 	/**
-	 * `GET /runs/{id}/checkpoint` and `GET /runs/{id}/turns` of the factory whose row gives the run its status.
-	 * Null when no factory reported the run or the factory gave no checkpoint.
+	 * The run of each listed factory with this id, with its last event and the
+	 * name of its workflow graph from the factory whose row gives the run its status.
+	 * Null when no factory reported the run.
 	 */
-	checkpoint: (runId: string) => Promise<RunCheckpoint | null>;
+	run: (runId: string) => Promise<RunDetail | null>;
+	/**
+	 * `GET /runs/{id}/checkpoint` and `GET /runs/{id}/turns` of the factory whose row gives the run its status.
+	 * "missing" when no factory reported the run or the factory gave no checkpoint,
+	 * and "not served" when the factory answered the checkpoint read with 404.
+	 */
+	checkpoint: (runId: string) => Promise<CheckpointRead>;
 	/**
 	 * `GET /runs/{id}/workers` of the factory whose row gives the run its status:
 	 * each agent whose turn runs, and the agent of the current stage.

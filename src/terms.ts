@@ -207,12 +207,59 @@ export const runMessageLabel = {
 export const runFactLabel = {
 	status: "Status",
 	stage: "Stage",
+	ticket: "Ticket",
+	project: "Project",
 	box: "Box",
 	factory: "Factory",
+	workflow: "Workflow",
 	start: "Start time",
 	elapsed: "Elapsed",
+	failureReason: "Failure reason",
+	lastEvent: "Last event",
 	pr: "PR",
 } as const;
+
+export const openRunLabel = "Open run";
+
+export const runPageLabel = "Run";
+
+export const runMissingLabel = "No factory reports this run.";
+
+/** The tabs of the run page, in order. */
+export const runTabLabel = {
+	overview: "Overview",
+	stages: "Stages",
+	events: "Events",
+	files: "Files changed",
+	artifacts: "Artifacts",
+	usage: "Usage",
+	sandbox: "Sandbox",
+	terminal: "Terminal",
+	settings: "Settings",
+	source: "Source",
+} as const;
+
+export type RunTab = keyof typeof runTabLabel;
+
+/** The data that each run page tab shows, for its empty state. */
+export const runTabData: Record<RunTab, string> = {
+	overview: "the run facts",
+	stages: "the run checkpoint",
+	events: "the run events",
+	files: "the files that the run changed",
+	artifacts: "the run artifacts",
+	usage: "the run usage",
+	sandbox: "the run sandbox",
+	terminal: "the run terminal",
+	settings: "the run settings",
+	source: "the workflow source",
+};
+
+export const noRunDataLabel = "No data yet.";
+
+export function notServedLabel(data: string): string {
+	return `This factory does not serve ${data}.`;
+}
 
 export const runStagesLabel = "Stages";
 

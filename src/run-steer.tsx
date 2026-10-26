@@ -36,7 +36,9 @@ export function RunSteer({ run }: { run: ShownFactoryRun }) {
 	const [text, setText] = useState("");
 	const [interrupt, setInterrupt] = useState(false);
 	const steer = useSteerRun(run.id);
-	const pickedStage = stageDraft ?? run.stage ?? checkpoint?.stage ?? "";
+	const checkpointStage =
+		typeof checkpoint === "object" ? checkpoint.stage : null;
+	const pickedStage = stageDraft ?? run.stage ?? checkpointStage ?? "";
 	return (
 		<section className={clsx(panel.section)} aria-label={steerLabel}>
 			<h3 className={clsx(panel.sectionLabel)}>{steerLabel}</h3>
