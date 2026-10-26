@@ -7,7 +7,8 @@ import { join } from "node:path";
 
 import type { Overview, ProjectCounts, ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
-import { readGhAuthToken, run } from "../src/main.ts";
+import { run } from "../src/main.ts";
+import { readGhAuthToken } from "../src/token-commands.ts";
 import {
 	emptyProjectFields,
 	githubIssueNode,

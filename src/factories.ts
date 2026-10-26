@@ -1,26 +1,46 @@
-import { z } from "zod";
-
 import type { Factory } from "./configuration.ts";
+import { factoryUrl } from "./configuration.ts";
 import type {
 	FactoryQuestion,
 	FactoryRun,
-	RunAgent,
-	RunCheckpoint,
-	RunDetail,
 	RunEvent,
-	RunGraph,
 	RunMessage,
-	RunPull,
-	RunStage,
 	RunStatusKind,
-	RunUsage,
 } from "./domain.ts";
-import { liveRunStatusKinds } from "./domain.ts";
+import {
+	deliveredSteer,
+	type EventFrame,
+	eventFrames,
+	type Follow,
+	nodeAfter,
+	streamedRunPollMs,
+	streamRetryMs,
+} from "./factory-events.ts";
+import { body, type Read, reader, Unreachable } from "./factory-http.ts";
+import {
+	about,
+	boxCount,
+	type FactoryKind,
+	factoryKind,
+} from "./factory-kind.ts";
+import { runActions } from "./factory-run-actions.ts";
+import {
+	checkpoint,
+	runDetailReader,
+	stagePath,
+} from "./factory-run-detail.ts";
+import { runPullReader } from "./factory-run-pulls.ts";
+import {
+	factoryRuns,
+	mergedRuns,
+	questionsOf,
+	type ReadRun,
+	runRows,
+	statusKindOf,
+	statusRow,
+} from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
-import { runUsage } from "./run-usage.ts";
-
-export type FactoryKind = "hub" | "daemon";
 
 /** A factory that this launch reads, and what its last check found. */
 export type FactoryEntry = Factory & {
@@ -36,573 +56,30 @@ export type FactoryEntry = Factory & {
 
 export type ListedFactory = Factory & { source: FactoryEntry["source"] };
 
-const factoryRequestLimitMs = 5_000;
-
-// A factory answers a cancel once the run process has stopped. The hub waits 30 seconds for
-// the box, and the box waits up to 60 seconds for the process to stop.
-const cancelLimitMs = 100_000;
-
-const about = z.object({ role: z.enum(["hub", "daemon"]).optional() });
-
-const sources = z.object({ sources: z.array(z.unknown()) });
-
-const runs = z.object({
-	runs: z.array(z.object({ machine: z.string().nullish() })),
-});
-
-const runRow = z.object({
-	id: z.string(),
-	ticket: z.string(),
-	repo: z.string().nullish(),
-	status: z.object({
-		kind: z.enum([
-			"submitted",
-			"starting",
-			"running",
-			"blocked",
-			"succeeded",
-			"failed",
-		]),
-		reason: z.string().nullish(),
-	}),
-	machine: z.string().nullish(),
-	source: z.string().nullish(),
-	rule: z.string().nullish(),
-	submitted_at: z.string(),
-	started_at: z.string().nullish(),
-	ended_at: z.string().nullish(),
-});
-
-const runRows = z.object({ runs: z.array(z.unknown()) });
-
-const openQuestions = z.object({
-	questions: z.array(
-		z.object({
-			id: z.union([z.number(), z.string()]).transform(String),
-			node_path: z.string().nullish(),
-			text: z.string(),
-		}),
-	),
-});
-
-/** The `data` of a `steer.delivered` event. */
-const deliveredSteer = z.object({
-	steer: z.union([z.number(), z.string()]).transform(String),
-	sender: z.string(),
-	text: z.string(),
-	delivered_at: z.string(),
-});
-
-const checkpoint = z.object({
-	current_node: z.string(),
-	stack: z.array(z.object({ node: z.string() })).optional(),
-	completed_nodes: z.array(z.string()).default([]),
-	node_retries: z.record(z.string(), z.number()).default({}),
-	visits: z.record(z.string(), z.number()).default({}),
-	status: z.string().optional(),
-});
-
-/** `GET /runs/{id}`: the PR that the run opened, and its outputs. */
-const runPull = z.object({
-	pr: z
-		.object({
-			owner: z.string(),
-			repo: z.string(),
-			number: z.number(),
-			url: z.string(),
-		})
-		.nullish(),
-	outputs: z.object({ merge_sha: z.string().nullish() }).nullish(),
-});
-
-/** `GET /runs/{id}/turns`: one summary for each finished agent turn of the run. */
-const turns = z.object({
-	turns: z.array(
-		z.object({
-			node_path: z.string(),
-			tools: z.record(z.string(), z.number()),
-			tokens: z.object({ input: z.number(), output: z.number() }),
-			cost_usd: z.number(),
-			duration_s: z.number(),
-		}),
-	),
-});
-
-/** The live counters of each worker of a run, by node path. */
-const workers = z.object({
-	workers: z.record(
-		z.string(),
-		z.object({
-			current_tool: z.string(),
-			last_message: z.string(),
-			turn: z.enum(["running", "ended"]),
-		}),
-	),
-});
-
-/** The current node path: the caller node of each child graph, then the current node. */
-function stagePath(answer: z.infer<typeof checkpoint>): string {
-	return [
-		...(answer.stack ?? []).map((frame) => frame.node),
-		answer.current_node,
-	]
-		.filter((node) => node !== "")
-		.join("/");
-}
-
-/** The `GET /runs/{id}/graph` answer: the frozen entry graph of the run's workflow. */
-const workflowGraph = z.object({
-	name: z.string().optional(),
-	nodes: z.array(
-		z.object({
-			id: z.string(),
-			attrs: z
-				.object({
-					label: z.string().optional(),
-					shape: z.string().optional(),
-					prompt_file: z.string().optional(),
-				})
-				.default({}),
-			handler: z.string().optional(),
-		}),
-	),
-	edges: z.array(
-		z.object({
-			from: z.string(),
-			to: z.string(),
-			attrs: z
-				.object({
-					label: z.string().optional(),
-					condition: z.string().optional(),
-				})
-				.default({}),
-		}),
-	),
-});
-
-/** Each call of a child graph opens at one of these start nodes. */
-const startNodes = new Set(["start", "Start"]);
-
 /**
- * The stages that the run reached in the live call of the outer child graph:
- * the nodes that it completed since the start of the call, then its current
- * node. The checkpoint lists the completed nodes of each graph in one list.
+ * A `--factory` value: `NAME=URL`, or a bare URL that takes its host or socket path as its name.
+ * A URL always has a `:` before its first `=`, so a name cannot hold a `:`.
  */
-function childStages(
-	answer: z.infer<typeof checkpoint>,
-	caller: string,
-	failed: boolean,
-): RunStage[] {
-	const stack = answer.stack ?? [];
-	const starts = answer.completed_nodes.flatMap((node, index) =>
-		startNodes.has(node) ? [index] : [],
-	);
-	const from = starts.at(-stack.length);
-	const to = stack.length === 1 ? undefined : starts.at(1 - stack.length);
-	const completed =
-		from === undefined ? [] : answer.completed_nodes.slice(from, to);
-	const current = stack[1]?.node ?? answer.current_node;
-	return [...new Set([...completed, current])].map((node) => ({
-		id: `${caller}/${node}`,
-		label: node,
-		state: node !== current ? "completed" : failed ? "failed" : "current",
-		visits:
-			completed.filter((done) => done === node).length +
-			(node === current ? 1 : 0),
-		retries: 0,
-	}));
-}
-
-/**
- * The graph of a run with the checkpoint state of each top-level node. A child
- * graph runs inside its caller node, so the caller node is the current one.
- */
-function runGraph(
-	graph: z.infer<typeof workflowGraph>,
-	answer: z.infer<typeof checkpoint>,
-): RunGraph {
-	const current = stagePath(answer).split("/")[0];
-	const completed = new Set(answer.completed_nodes);
-	const failed = answer.status === "fail";
-	return {
-		nodes: graph.nodes.map((node) => {
-			const calls = (node.attrs.prompt_file ?? "").trim() !== "";
-			return {
-				id: node.id,
-				label: node.attrs.label ?? node.id,
-				shape: node.attrs.shape ?? "box",
-				kind: node.handler ?? "codergen",
-				state:
-					node.id === current
-						? failed
-							? "failed"
-							: "current"
-						: completed.has(node.id)
-							? "completed"
-							: "ahead",
-				visits: answer.visits[node.id] ?? 0,
-				retries: answer.node_retries[node.id] ?? 0,
-				...(calls
-					? {
-							child:
-								node.id === current ? childStages(answer, node.id, failed) : [],
-						}
-					: {}),
-			};
-		}),
-		edges: graph.edges.map((edge) => ({
-			from: edge.from,
-			to: edge.to,
-			...(edge.attrs.label === undefined ? {} : { label: edge.attrs.label }),
-			...(edge.attrs.condition === undefined
-				? {}
-				: { condition: edge.attrs.condition }),
-		})),
-	};
-}
-
-/** One frame of the hub's `GET /events`: a box event of a run, or a status change. */
-const eventFrame = z.object({
-	run_id: z.string(),
-	item: z
-		.object({ event: z.string(), node_path: z.string(), data: z.unknown() })
-		.optional(),
-	recorded_at: z.string().optional(),
-	status: runRow.shape.status.optional(),
-});
-
-type EventFrame = z.infer<typeof eventFrame>;
-
-const localMachine = "local";
-
-/** A run row of one factory. A local row comes from the box that does the run. */
-type ReadRun = {
-	run: Omit<FactoryRun, "coveredByFeed" | "streamed" | "stage" | "pull">;
-	local: boolean;
-	url: string;
-};
-
-function isLive(kind: RunStatusKind): boolean {
-	return liveRunStatusKinds.some((live) => live === kind);
-}
-
-function statusKindOf(
-	kind: z.infer<typeof runRow>["status"]["kind"],
-): RunStatusKind {
-	return kind === "submitted" ? "queued" : kind;
-}
-
-/** The runs of one `GET /runs` answer. A row that does not parse is left out. */
-function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
-	return rows.flatMap((row) => {
-		const parsed = runRow.safeParse(row);
-		if (!parsed.success) {
-			return [];
-		}
-		const run = parsed.data;
-		const machine = run.machine ?? null;
-		const local = machine === localMachine;
-		return [
-			{
-				run: {
-					id: run.id,
-					key: run.ticket,
-					...(run.repo === null || run.repo === undefined
-						? {}
-						: { repo: run.repo }),
-					statusKind: statusKindOf(run.status.kind),
-					box: local ? factory.name : machine,
-					factory: factory.name,
-					...(run.source === null || run.source === undefined
-						? {}
-						: { source: run.source }),
-					...(run.rule === null || run.rule === undefined
-						? {}
-						: { rule: run.rule }),
-					submittedAt: run.submitted_at,
-					startedAt: run.started_at ?? null,
-					endedAt: run.ended_at ?? null,
-					...(run.status.reason === null ||
-					run.status.reason === undefined ||
-					run.status.reason === ""
-						? {}
-						: { failureReason: run.status.reason }),
-				},
-				local,
-				url: factory.url,
-			},
-		];
-	});
-}
-
-/**
- * The row that gives a run its status: the box row while its box is reachable,
- * or else the hub row. An unreachable box keeps its last row, which goes stale.
- */
-function statusRow<Row extends ReadRun>(
-	same: Row[],
-	reachable: (row: Row) => boolean,
-) {
-	const hubRow = same.find((row) => !row.local);
-	const boxRow = same.find((row) => row.local);
-	const fresh =
-		boxRow !== undefined && (hubRow === undefined || reachable(boxRow));
-	return { hubRow, row: fresh ? boxRow : hubRow };
-}
-
-/**
- * One run per id. A hub and its box report the same id once the hub sends the run.
- * The status row gives the status, and the hub row gives `source` and `rule`.
- */
-function mergedRuns(
-	rows: (ReadRun & { coveredByFeed: boolean; streamed: boolean })[],
-	stages: ReadonlyMap<string, string>,
-) {
-	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
-		(same): FactoryRun[] => {
-			const { hubRow, row } = statusRow(same, (row) => row.coveredByFeed);
-			if (row === undefined) {
-				return [];
-			}
-			const { source, rule, ...status } = row.run;
-			const origin = hubRow?.run ?? row.run;
-			const stage = stages.get(status.id);
-			return [
-				{
-					...status,
-					...(origin.source === undefined ? {} : { source: origin.source }),
-					...(origin.rule === undefined ? {} : { rule: origin.rule }),
-					coveredByFeed: row.coveredByFeed,
-					streamed: same.some((row) => row.streamed),
-					...(stage === undefined ? {} : { stage }),
-				},
-			];
-		},
-	);
-}
-
-/**
- * The current node of a run after one event. A finished node hands the run back
- * to the node of the child graph that holds it.
- */
-function nodeAfter(
-	current: string | undefined,
-	event: string,
-	nodePath: string,
-): string | undefined {
-	if (event === "stage.started") {
-		return nodePath;
+export function flagFactory(value: string): Factory | { error: string } {
+	const labelled = /^([^:=]*)=(.*)$/s.exec(value);
+	const name = labelled?.[1]?.trim();
+	const url = (labelled?.[2] ?? value).trim();
+	if (name === "") {
+		return { error: "invalid factory: --factory needs a name before =" };
 	}
-	const finished = event === "stage.completed" || event === "stage.failed";
-	if (
-		!finished ||
-		current === undefined ||
-		(current !== nodePath && !current.startsWith(`${nodePath}/`))
-	) {
-		return current;
+	if (!factoryUrl.safeParse(url).success) {
+		return {
+			error: "invalid factory: --factory needs an http, https or unix URL",
+		};
 	}
-	const parent = nodePath.split("/").slice(0, -1).join("/");
-	return parent === "" ? undefined : parent;
-}
-
-function jsonOrNull(text: string): unknown {
-	try {
-		return JSON.parse(text);
-	} catch {
-		return null;
-	}
-}
-
-/** The frames of an SSE body. A frame that does not parse is left out. */
-async function* eventFrames(body: ReadableStream<Uint8Array>) {
-	const decoder = new TextDecoder();
-	let buffer = "";
-	for await (const bytes of body) {
-		buffer += decoder.decode(bytes, { stream: true }).replaceAll("\r\n", "\n");
-		const blocks = buffer.split("\n\n");
-		buffer = blocks.pop() ?? "";
-		for (const block of blocks) {
-			const data = block
-				.split("\n")
-				.flatMap((line) =>
-					line.startsWith("data:") ? [line.slice("data:".length).trim()] : [],
-				)
-				.join("\n");
-			const parsed = eventFrame.safeParse(jsonOrNull(data));
-			if (parsed.success) {
-				yield parsed.data;
-			}
-		}
-	}
-}
-
-class Unreachable extends Error {}
-
-/** The factory answered a read with 404: it does not serve the route. */
-class NotServed extends Unreachable {}
-
-/** The name of a `--factory` URL: its host, or its socket path. */
-export function flagFactory(url: string): Factory {
 	const parsed = new URL(url);
 	return {
-		name: parsed.protocol === "unix:" ? parsed.pathname : parsed.host,
+		name: name ?? (parsed.protocol === "unix:" ? parsed.pathname : parsed.host),
 		url,
 	};
 }
 
-/** A stream request has no time limit: it stays open while the hub sends events. */
-function reader(
-	fetchImpl: Fetch,
-	url: string,
-	signal: AbortSignal,
-	limitMs: number | null = factoryRequestLimitMs,
-) {
-	const parsed = new URL(url);
-	const unix = parsed.protocol === "unix:";
-	const base = unix
-		? "http://localhost"
-		: `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
-	return async (path: string, post?: { json: unknown }): Promise<Response> => {
-		try {
-			return await fetchImpl(`${base}${path}`, {
-				signal:
-					limitMs === null
-						? signal
-						: AbortSignal.any([signal, AbortSignal.timeout(limitMs)]),
-				...(unix ? { unix: parsed.pathname } : {}),
-				...(post === undefined
-					? {}
-					: {
-							method: "POST",
-							headers: { "content-type": "application/json" },
-							body: JSON.stringify(post.json),
-						}),
-			});
-		} catch {
-			throw new Unreachable();
-		}
-	};
-}
-
-async function body<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
-	if (response.status === 404) {
-		throw new NotServed();
-	}
-	if (!response.ok) {
-		throw new Unreachable();
-	}
-	const parsed = schema.safeParse(await response.json().catch(() => null));
-	if (!parsed.success) {
-		throw new Unreachable();
-	}
-	return parsed.data;
-}
-
-async function factoryKind(
-	read: (path: string) => Promise<Response>,
-	role: FactoryKind | undefined,
-): Promise<FactoryKind> {
-	if (role !== undefined) {
-		return role;
-	}
-	const response = await read("/sources");
-	if (response.status === 404) {
-		return "daemon";
-	}
-	// A daemon without hub sources answers `/sources` with an empty list.
-	const listed = await body(response, sources);
-	return listed.sources.length > 0 ? "hub" : "daemon";
-}
-
-async function boxCount(
-	read: (path: string) => Promise<Response>,
-): Promise<number> {
-	const listed = await body(await read("/runs"), runs);
-	const machines = listed.runs.flatMap(({ machine }) =>
-		machine === null || machine === undefined || machine === localMachine
-			? []
-			: [machine],
-	);
-	return new Set(machines).size;
-}
-
 type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes">;
-
-/** The open questions of a blocked run. A factory that gives no list leaves them unknown. */
-async function questionsOf(
-	read: (path: string) => Promise<Response>,
-	id: string,
-): Promise<z.infer<typeof openQuestions>["questions"] | undefined> {
-	try {
-		const listed = await body(
-			await read(`/runs/${encodeURIComponent(id)}/questions`),
-			openQuestions,
-		);
-		return listed.questions;
-	} catch (error) {
-		if (!(error instanceof Unreachable)) {
-			throw error;
-		}
-		return undefined;
-	}
-}
-
-/** The usage of a run from its recorded turns. A factory that gives no turns leaves it unknown. */
-async function usageOf(
-	read: (path: string) => Promise<Response>,
-	id: string,
-): Promise<RunUsage | "not served" | null> {
-	try {
-		const listed = await body(
-			await read(`/runs/${encodeURIComponent(id)}/turns`),
-			turns,
-		);
-		return runUsage(
-			listed.turns.map((turn) => ({
-				nodePath: turn.node_path,
-				usage: {
-					inputTokens: turn.tokens.input,
-					outputTokens: turn.tokens.output,
-					costUsd: turn.cost_usd,
-					durationS: turn.duration_s,
-					tools: turn.tools,
-				},
-			})),
-		);
-	} catch (error) {
-		if (error instanceof NotServed) {
-			return "not served";
-		}
-		if (!(error instanceof Unreachable)) {
-			throw error;
-		}
-		return null;
-	}
-}
-
-export type CheckpointRead = RunCheckpoint | "missing" | "not served";
-
-export type AnswerResult = "answered" | "missing" | "failed";
-
-export type SteerResult = "steered" | "missing" | "ended" | "failed";
-
-export type CancelResult = "cancelled" | "missing" | "ended" | "failed";
-
-export type Steer = { stage: string; text: string; interrupt: boolean };
-
-/** Project Flow writes to a factory as Lev: the factory records this sender on each steer. */
-const levSender = "lev";
-
-/**
- * The event stream of one factory: connecting, open, closed since a time, or
- * "none" for a factory that answers 404 on `GET /events`.
- */
-type Follow = "connecting" | "open" | "none" | { closedAt: number };
-
-const streamRetryMs = 10_000;
-
-/** The hub sends no frame for a queued run and no run times, so a streamed factory keeps this `GET /runs` read. */
-const streamedRunPollMs = 60_000;
 
 const activeKinds: ReadonlySet<RunStatusKind> = new Set([
 	"starting",
@@ -626,6 +103,7 @@ export function factoryReader(
 ): FactoryReader {
 	const found = new Map<string, Found>();
 	const readRuns = new Map<string, ReadRun[]>();
+	const { readPullsOf, pullOf } = runPullReader(fetchImpl, signal);
 	/**
 	 * The thread of each run, by run id. The factory keeps no answered asks and the
 	 * hub replays no older events, so the thread holds what this launch saw.
@@ -649,7 +127,7 @@ export function factoryReader(
 	};
 	/** The open questions of a blocked run. Each question that is new to the thread joins it as an ask. */
 	const openQuestionsOf = async (
-		read: (path: string) => Promise<Response>,
+		read: Read,
 		runId: string,
 	): Promise<FactoryQuestion[] | undefined> => {
 		const questions = await questionsOf(read, runId);
@@ -770,7 +248,7 @@ export function factoryReader(
 				}),
 			);
 			readRuns.set(factory.url, rows);
-			readPullsOf(factory);
+			readPullsOf(factory.url, rows);
 			found.set(factory.url, {
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
@@ -804,10 +282,7 @@ export function factoryReader(
 				.map(readRunsOf),
 		);
 	};
-	const readCurrentNode = async (
-		read: (path: string) => Promise<Response>,
-		runId: string,
-	): Promise<void> => {
+	const readCurrentNode = async (read: Read, runId: string): Promise<void> => {
 		try {
 			const answer = await body(
 				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
@@ -960,64 +435,7 @@ export function factoryReader(
 				});
 		}
 	};
-	/** The PR of each run that has one, by run id, with the end time of the run at the read. */
-	const pulls = new Map<string, { endedAt: string | null; pull?: RunPull }>();
-	/** The factories whose PR reads run now. */
-	const readingPulls = new Set<string>();
-	const readPull = async (
-		read: (path: string) => Promise<Response>,
-		run: ReadRun["run"],
-	): Promise<void> => {
-		try {
-			const { pr, outputs } = await body(
-				await read(`/runs/${encodeURIComponent(run.id)}`),
-				runPull,
-			);
-			pulls.set(run.id, {
-				endedAt: run.endedAt,
-				...(pr === null || pr === undefined
-					? {}
-					: {
-							pull: {
-								repo: `${pr.owner}/${pr.repo}`,
-								number: pr.number,
-								url: pr.url,
-								merged: (outputs?.merge_sha ?? "") !== "",
-							},
-						}),
-			});
-		} catch (error) {
-			if (!(error instanceof Unreachable)) {
-				throw error;
-			}
-		}
-	};
-	/**
-	 * Reads the PR of each live run, and of each ended run once. The reads go one at a
-	 * time and apart from the `GET /runs` read, so a long run history does not hold up
-	 * the run list.
-	 */
-	const readPullsOf = (factory: ListedFactory): void => {
-		const wanted = (readRuns.get(factory.url) ?? []).filter(
-			({ run }) =>
-				isLive(run.statusKind) ||
-				(run.statusKind !== "queued" &&
-					pulls.get(run.id)?.endedAt !== run.endedAt),
-		);
-		if (wanted.length === 0 || readingPulls.has(factory.url)) {
-			return;
-		}
-		readingPulls.add(factory.url);
-		const read = reader(fetchImpl, factory.url, signal);
-		void (async () => {
-			for (const { run } of wanted) {
-				await readPull(read, run);
-			}
-		})().finally(() => {
-			readingPulls.delete(factory.url);
-		});
-	};
-	const runs = (): FactoryRun[] =>
+	const runList = (): FactoryRun[] =>
 		mergedRuns(
 			listed().flatMap((factory) => {
 				const coveredByFeed = found.get(factory.url)?.reachable === true;
@@ -1032,7 +450,7 @@ export function factoryReader(
 		)
 			.map((run) => {
 				const thread = threads.get(run.id);
-				const pull = pulls.get(run.id)?.pull;
+				const pull = pullOf(run.id);
 				return {
 					...run,
 					...(pull === undefined ? {} : { pull }),
@@ -1046,30 +464,6 @@ export function factoryReader(
 				};
 			})
 			.sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
-	/** A run's workflow graph does not change while it runs, so the first good read stays. */
-	const graphs = new Map<string, z.infer<typeof workflowGraph>>();
-	const graphOf = async (
-		read: (path: string) => Promise<Response>,
-		runId: string,
-	): Promise<z.infer<typeof workflowGraph> | null> => {
-		const known = graphs.get(runId);
-		if (known !== undefined) {
-			return known;
-		}
-		try {
-			const graph = await body(
-				await read(`/runs/${encodeURIComponent(runId)}/graph`),
-				workflowGraph,
-			);
-			graphs.set(runId, graph);
-			return graph;
-		} catch (error) {
-			if (!(error instanceof Unreachable)) {
-				throw error;
-			}
-			return null;
-		}
-	};
 	const statusRowOf = (runId: string) =>
 		statusRow(
 			listed().flatMap((factory) =>
@@ -1077,185 +471,6 @@ export function factoryReader(
 			),
 			reachable,
 		);
-	const runCheckpoint = async (runId: string): Promise<CheckpointRead> => {
-		const { row } = statusRowOf(runId);
-		if (row === undefined) {
-			return "missing";
-		}
-		const read = reader(fetchImpl, row.url, signal);
-		const usage = usageOf(read, runId);
-		try {
-			const [answer, graph] = await Promise.all([
-				read(`/runs/${encodeURIComponent(runId)}/checkpoint`).then((response) =>
-					body(response, checkpoint),
-				),
-				graphOf(read, runId),
-			]);
-			const stage = stagePath(answer);
-			const used = await usage;
-			return {
-				stage: stage === "" ? null : stage,
-				completedStages: answer.completed_nodes,
-				retries: answer.node_retries,
-				visits: answer.visits,
-				...(used === null
-					? {}
-					: used === "not served"
-						? { usageNotServed: true }
-						: { usage: used }),
-				graph: graph === null ? null : runGraph(graph, answer),
-			};
-		} catch (error) {
-			if (error instanceof NotServed) {
-				return "not served";
-			}
-			if (!(error instanceof Unreachable)) {
-				throw error;
-			}
-			return "missing";
-		}
-	};
-	const runDetail = (runId: string): RunDetail | null => {
-		const run = runs().find((run) => run.id === runId);
-		const { row } = statusRowOf(runId);
-		if (run === undefined || row === undefined) {
-			return null;
-		}
-		const workflow = graphs.get(runId)?.name;
-		const lastEvent = lastEvents.get(runId);
-		return {
-			...run,
-			...(workflow === undefined ? {} : { workflow }),
-			...(lastEvent === undefined ? {} : { lastEvent }),
-		};
-	};
-	const readingWorkflows = new Set<string>();
-	const readWorkflow = async (runId: string): Promise<boolean> => {
-		const { row } = statusRowOf(runId);
-		if (
-			row === undefined ||
-			graphs.get(runId)?.name !== undefined ||
-			readingWorkflows.has(runId)
-		) {
-			return false;
-		}
-		readingWorkflows.add(runId);
-		try {
-			const graph = await graphOf(reader(fetchImpl, row.url, signal), runId);
-			return graph?.name !== undefined;
-		} finally {
-			readingWorkflows.delete(runId);
-		}
-	};
-	const runAgents = async (runId: string): Promise<RunAgent[] | null> => {
-		const { row } = statusRowOf(runId);
-		if (row === undefined) {
-			return null;
-		}
-		if (!isLive(row.run.statusKind)) {
-			return [];
-		}
-		const read = reader(fetchImpl, row.url, signal);
-		try {
-			const answer = await body(
-				await read(`/runs/${encodeURIComponent(runId)}/workers`),
-				workers,
-			);
-			const stage = stages.get(runId);
-			return Object.entries(answer.workers)
-				.filter(([path, worker]) => worker.turn === "running" || path === stage)
-				.map(([path, worker]) => ({
-					stage: path,
-					tool: worker.current_tool === "" ? null : worker.current_tool,
-					lastMessage: worker.last_message === "" ? null : worker.last_message,
-					turn: worker.turn,
-				}));
-		} catch (error) {
-			if (!(error instanceof Unreachable)) {
-				throw error;
-			}
-			return [];
-		}
-	};
-	const answer = async (
-		run: string,
-		question: string,
-		text: string,
-	): Promise<AnswerResult> => {
-		const same = listed().flatMap((factory) =>
-			(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
-		);
-		const { hubRow, row } = statusRow(same, reachable);
-		// Only the hub posts an answer to the ticket thread, so a hub-covered run answers there.
-		const target = hubRow ?? row;
-		if (
-			target === undefined ||
-			row?.run.questions?.some((item) => item.id === question) !== true
-		) {
-			return "missing";
-		}
-		const read = reader(fetchImpl, target.url, signal);
-		try {
-			const response = await read(
-				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
-				{ json: { text } },
-			);
-			if (response.ok) {
-				addMessage(run, {
-					kind: "answer",
-					sender: levSender,
-					text,
-					at: now().toISOString(),
-				});
-				return "answered";
-			}
-			return response.status === 404 ? "missing" : "failed";
-		} catch (error) {
-			if (!(error instanceof Unreachable)) {
-				throw error;
-			}
-			return "failed";
-		}
-	};
-	/**
-	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
-	 * the write to the box that does the run. A 409 means that the run has ended.
-	 */
-	const runWrite = async <Done extends string>(
-		run: string,
-		route: string,
-		done: Done,
-		json: unknown = {},
-		limitMs = factoryRequestLimitMs,
-	): Promise<Done | "missing" | "ended" | "failed"> => {
-		const { hubRow, row } = statusRowOf(run);
-		const target = hubRow ?? row;
-		if (target === undefined) {
-			return "missing";
-		}
-		const read = reader(fetchImpl, target.url, signal, limitMs);
-		try {
-			const response = await read(`/runs/${encodeURIComponent(run)}/${route}`, {
-				json,
-			});
-			if (response.ok) {
-				return done;
-			}
-			if (response.status === 409) {
-				return "ended";
-			}
-			return response.status === 404 ? "missing" : "failed";
-		} catch (error) {
-			if (!(error instanceof Unreachable)) {
-				throw error;
-			}
-			return "failed";
-		}
-	};
-	const steer = (run: string, steer: Steer): Promise<SteerResult> =>
-		runWrite(run, "steer", "steered", { ...steer, sender: levSender });
-	const cancel = (run: string): Promise<CancelResult> =>
-		runWrite(run, "cancel", "cancelled", {}, cancelLimitMs);
 	return {
 		check,
 		settled,
@@ -1263,13 +478,15 @@ export function factoryReader(
 		unreachable,
 		readRuns: readAllRuns,
 		follow,
-		runs,
-		run: runDetail,
-		readWorkflow,
-		checkpoint: runCheckpoint,
-		agents: runAgents,
-		answer,
-		steer,
-		cancel,
+		runs: runList,
+		...runDetailReader({
+			fetchImpl,
+			signal,
+			statusRowOf,
+			runs: runList,
+			stages,
+			lastEvents,
+		}),
+		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
 }

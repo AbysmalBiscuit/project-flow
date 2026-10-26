@@ -5,12 +5,8 @@ import { join } from "node:path";
 
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
-import {
-	missingToken,
-	readGhAuthToken,
-	rejectedToken,
-	run,
-} from "../src/main.ts";
+import { missingToken, rejectedToken, run } from "../src/main.ts";
+import { readGhAuthToken } from "../src/token-commands.ts";
 import {
 	linearFake,
 	recordedDiscovery,
