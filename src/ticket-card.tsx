@@ -10,11 +10,18 @@ import {
 } from "./card-chips.tsx";
 import type { OutsideParent, TicketView } from "./domain.ts";
 import { RunDot, StageChip } from "./run-marks.tsx";
-import { navLabel, parentChipLabel, subTicketsLabel } from "./terms.ts";
+import {
+	navLabel,
+	parentChipLabel,
+	pullRowLabel,
+	subTicketsLabel,
+} from "./terms.ts";
+import { pullRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
 type CardTicket = Pick<
 	TicketView,
+	| "key"
 	| "title"
 	| "blockers"
 	| "outsideBlockers"
@@ -28,7 +35,8 @@ type CardTicket = Pick<
 
 /**
  * The body of a ticket card on the board and in the graph: the key line, the
- * title and the chips. Without `open`, the chips do not open tickets.
+ * title and the chips. The reference rows wrap beside the marks, which keep
+ * the top-right corner. Without `open`, the chips do not open tickets.
  */
 export function TicketCardBody({
 	ticket,
@@ -37,7 +45,6 @@ export function TicketCardBody({
 	besideToggle = false,
 	hierarchy,
 	parent,
-	oneRow = false,
 	open,
 }: {
 	ticket: CardTicket;
@@ -48,7 +55,6 @@ export function TicketCardBody({
 	/** The card shows the parent chip and the sub-ticket count chip. */
 	hierarchy: boolean;
 	parent?: { label: string; outside?: OutsideParent };
-	oneRow?: boolean;
 	open?: ChipOpen;
 }) {
 	const { local, outside } = relationSplit(ticket);
@@ -63,15 +69,17 @@ export function TicketCardBody({
 			<span
 				className={clsx(board.meta, besideToggle && board.metaBesideToggle)}
 			>
-				{keyLabel === null ? (
-					<span />
-				) : (
-					<span className={clsx(board.key)}>{keyLabel}</span>
-				)}
-				<span className={clsx(board.metaEnd)}>
-					{ticket.pull === undefined ? null : (
-						<span className={clsx(board.pull)}>{ticket.pull}</span>
+				<span className={clsx(board.refs)}>
+					{keyLabel === null ? null : (
+						<span className={clsx(board.key)}>{keyLabel}</span>
 					)}
+					{ticket.pull === undefined ? null : (
+						<span className={clsx(board.pull)}>
+							{pullRowLabel(pullRef(ticket.pull, ticket.key))}
+						</span>
+					)}
+				</span>
+				<span className={clsx(board.metaEnd)}>
 					{labels}
 					{fedRun === undefined ? null : <RunDot run={fedRun} />}
 				</span>
@@ -84,7 +92,7 @@ export function TicketCardBody({
 			subTickets === undefined &&
 			fedRun?.stage === undefined &&
 			!ticket.needsYou ? null : (
-				<span className={clsx(board.chips, oneRow && board.chipsRow)}>
+				<span className={clsx(board.chips)}>
 					{fedRun?.stage === undefined ? null : (
 						<StageChip stage={fedRun.stage} />
 					)}

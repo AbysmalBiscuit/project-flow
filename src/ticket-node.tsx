@@ -140,7 +140,6 @@ export function TicketNode({ id, data }: CardProps<TicketCard>) {
 					{...(data.parentLabel === undefined
 						? {}
 						: { parent: { label: data.parentLabel } })}
-					oneRow
 				/>
 			</button>
 			{data.frame === null ? null : (
