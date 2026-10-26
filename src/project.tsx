@@ -16,9 +16,10 @@ import {
 
 import { board } from "./board-styles.ts";
 import {
-	CardHierarchyChips,
+	BlockerChips,
 	Chip,
 	OutsideParentsContext,
+	relationSplit,
 	ServerChips,
 } from "./card-chips.tsx";
 import { useCollapse } from "./collapse.ts";
@@ -33,7 +34,7 @@ import { Dropdown } from "./dropdown.tsx";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
-import { ticketGroups } from "./grouping.ts";
+import { parentChip, ticketGroups } from "./grouping.ts";
 import { displayedLaneName, doneTicketsForLane } from "./lanes.ts";
 import { focusChain } from "./links.ts";
 import { TicketPanel } from "./panel.tsx";
@@ -43,7 +44,6 @@ import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { filterProjectReport } from "./report.ts";
-import { RunDot, StageChip } from "./run-marks.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
 import { useLaneColour } from "./state-colours.ts";
@@ -59,6 +59,7 @@ import {
 	subTicketsToggleLabel,
 	viewLabel,
 } from "./terms.ts";
+import { TicketCardBody } from "./ticket-card.tsx";
 import { foldKey, itemId, shortKey, ticketRefId } from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
@@ -186,53 +187,6 @@ function laneTickets(report: ProjectReport, lane: string): TicketView[] {
 	return report.tickets.filter((ticket) => displayedLaneName(ticket) === lane);
 }
 
-function relationSplit(ticket: TicketView): {
-	local: string[];
-	outside: TicketRelation[];
-} {
-	const outside = ticket.outsideBlockers ?? [];
-	const outsideKeys = new Set(outside.map((blocker) => foldKey(blocker.key)));
-	return {
-		local: ticket.blockers.filter(
-			(blocker) => !outsideKeys.has(foldKey(blocker)),
-		),
-		outside,
-	};
-}
-
-/** One chip per open blocker: a local blocker by its short key, an outside blocker by its full key. */
-function BlockerChips({
-	local,
-	outside,
-	onOpen,
-	onOpenOutside,
-}: ReturnType<typeof relationSplit> & {
-	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: TicketRelation) => void;
-}) {
-	return (
-		<>
-			{local.map((blocker) => (
-				<Chip
-					key={blocker}
-					label={shortKey(blocker)}
-					ticketKey={blocker}
-					onOpen={onOpen}
-				/>
-			))}
-			{outside.map((blocker) => (
-				<Chip
-					key={blocker.key}
-					label={blocker.key}
-					ticketKey={blocker.key}
-					outside
-					onOpen={() => onOpenOutside(blocker)}
-				/>
-			))}
-		</>
-	);
-}
-
 type TicketFocus = {
 	active: boolean;
 	faded: (key: string | null) => boolean;
@@ -284,13 +238,10 @@ function Card({
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const key = ticket.key;
-	const { local, outside } = relationSplit(ticket);
 	const focus = useContext(TicketFocusContext);
 	const faded = focus.faded(key);
-	const fedRun = ticket.factoryRun?.coveredByFeed
-		? ticket.factoryRun
-		: undefined;
 	const laneColour = useLaneColour();
+	const outsideParents = useContext(OutsideParentsContext);
 	return (
 		<li className={clsx(faded && board.faded)}>
 			<button
@@ -306,50 +257,15 @@ function Card({
 				data-faded={faded ? "true" : "false"}
 				{...focusPointer(focus, key, onOpen)}
 			>
-				<span className={clsx(board.meta)}>
-					{key === null ? (
-						<span />
-					) : (
-						<span className={clsx(board.key)}>{shortKey(key)}</span>
-					)}
-					<span className={clsx(board.metaEnd)}>
-						{ticket.pull === undefined ? null : (
-							<span className={clsx(board.pull)}>{ticket.pull}</span>
-						)}
-						{fedRun === undefined ? null : <RunDot run={fedRun} />}
-					</span>
-				</span>
-				<p className={clsx(board.title)}>{ticket.title}</p>
-				{local.length === 0 &&
-				outside.length === 0 &&
-				ticket.chips === undefined &&
-				ticket.parent === undefined &&
-				ticket.subTickets === undefined &&
-				fedRun?.stage === undefined &&
-				!ticket.needsYou ? null : (
-					<span className={clsx(board.chips)}>
-						{fedRun?.stage === undefined ? null : (
-							<StageChip stage={fedRun.stage} />
-						)}
-						<CardHierarchyChips
-							ticket={ticket}
-							onOpen={onOpen}
-							onOpenOutside={onOpenOutside}
-						/>
-						<ServerChips ticket={ticket} />
-						<BlockerChips
-							local={local}
-							outside={outside}
-							onOpen={onOpen}
-							onOpenOutside={onOpenOutside}
-						/>
-						{ticket.needsYou ? (
-							<span className={clsx(board.chip, board.chipNeedsPill)}>
-								{navLabel.needsYou}
-							</span>
-						) : null}
-					</span>
-				)}
+				<TicketCardBody
+					ticket={ticket}
+					keyLabel={key === null ? null : shortKey(key)}
+					hierarchy
+					{...(ticket.parent === undefined
+						? {}
+						: { parent: parentChip(outsideParents, ticket.parent) })}
+					open={{ onOpen, onOpenOutside }}
+				/>
 			</button>
 		</li>
 	);
@@ -724,8 +640,7 @@ function TableRow({
 					<BlockerChips
 						local={local}
 						outside={outside}
-						onOpen={onOpen}
-						onOpenOutside={onOpenOutside}
+						open={{ onOpen, onOpenOutside }}
 					/>
 				</span>
 			</td>
