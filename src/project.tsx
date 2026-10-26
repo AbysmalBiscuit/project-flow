@@ -351,10 +351,7 @@ function Lane({
 					<Button label="Show all" data-show-all={name} onClick={onShowAll} />
 				) : null}
 			</div>
-			<div
-				className={clsx(board.laneBody, capped && !shown && board.cardsClip)}
-				data-lane-cards={name}
-			>
+			<div className={clsx(board.laneBody)} data-lane-cards={name}>
 				{groupBy === "none" ? (
 					<LaneCards
 						tickets={visible}

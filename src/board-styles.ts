@@ -313,9 +313,6 @@ export const board = stylex.create({
 		overflowX: "hidden",
 		overflowY: "auto",
 	},
-	cardsClip: {
-		maxHeight: measure.boardMin,
-	},
 	card: {
 		display: "flex",
 		flexDirection: "column",
