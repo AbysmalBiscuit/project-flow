@@ -196,11 +196,11 @@ _Avoid_: Run view, run dashboard, run detail
 
 **Resume**:
 Lev continues a blocked or failed workcell run from its run checkpoint. The run keeps its id, its run thread and its run usage.
-_Avoid_: Retry (a retry is a repeat of one run stage), rerun
+_Avoid_: Retry (when a whole run is meant), rerun
 
 **Restart**:
 Lev starts a new workcell run on the ticket of a blocked or failed run, from the first run stage. The new run names the run it restarted from. The restart cancels a blocked old run, and a failed old run stays as it was.
-_Avoid_: Retry, rerun, resume (when a restart is meant)
+_Avoid_: Retry (when a whole run is meant), rerun, resume (when a restart is meant)
 
 **Runs list**:
 The table of every workcell run that the factories report, with search and filters. Each row links to its run page.
