@@ -1,6 +1,14 @@
-import type { ELK, ElkExtendedEdge, ElkNode } from "elkjs/lib/elk-api.js";
+import type { ELK, ElkNode } from "elkjs/lib/elk-api.js";
 
 import type { FocusLink, ProjectReport } from "./domain.ts";
+import {
+	directionOptions,
+	frameTree,
+	padding,
+	placeTree,
+	type Point,
+	type Rect,
+} from "./graph-core.ts";
 import {
 	type FlowEdge,
 	type FlowGap,
@@ -17,9 +25,6 @@ import { groupLabelOf } from "./grouping.ts";
 import { foldKey } from "./ticket-key.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 
-/** The page starts ELK from this script in a Web Worker. */
-export const elkWorkerPath = "/elk-worker.js";
-
 /** The page runs the Force layout from this script in a Web Worker. */
 export const forceWorkerPath = "/force-worker.js";
 
@@ -28,9 +33,6 @@ export const groupHead = 28;
 
 /** The gap between a parent ticket frame's border and its cards. */
 export const framePad = 16;
-
-/** The least gap between two cards, when a drawn card fills the flow gap. */
-const leastCardGap = 32;
 
 export type LayoutGroup = { id: string; label: string; framed: boolean };
 
@@ -78,8 +80,7 @@ export type LayoutInput = {
 /** Tells whether the frame of the parent ticket with this key is collapsed. */
 export type Collapsed = (key: string, startsCollapsed: boolean) => boolean;
 
-export type Point = { x: number; y: number };
-export type Rect = Point & NodeSize;
+export type { Point, Rect };
 
 export type GraphLayout = {
 	cards: Map<string, Point>;
@@ -309,25 +310,6 @@ export function focusSeeds(
 	return new Set([...seeds].map((id) => input.hiddenIn.get(id) ?? id));
 }
 
-function placeOptions(
-	direction: GraphDirection,
-	card: NodeSize,
-	gap: FlowGap,
-): Record<string, string> {
-	const horizontal = direction === "left-to-right";
-	const alongGap = Math.max(gap.along - card.width, leastCardGap);
-	const acrossGap = Math.max(gap.across - card.height, leastCardGap);
-	return {
-		"elk.algorithm": "layered",
-		"elk.direction": horizontal ? "RIGHT" : "DOWN",
-		"elk.spacing.nodeNode": String(horizontal ? acrossGap : alongGap),
-		"elk.layered.spacing.nodeNodeBetweenLayers": String(
-			horizontal ? alongGap : acrossGap,
-		),
-		"elk.spacing.componentComponent": String(acrossGap),
-	};
-}
-
 /**
  * The ELK options that fill a group frame best, from the elkjs spike tables
  * that `proof/elk-spike/measure.ts` prints.
@@ -341,22 +323,16 @@ const compactGroups = {
 	"elk.layered.layering.coffmanGraham.layerBound": "4",
 };
 
-function padding(top: number, side: number): string {
-	return `[top=${top},left=${side},bottom=${side},right=${side}]`;
-}
-
 const rootId = "root";
 
 /**
- * The ELK node tree: the root holds the groups, a group or a frame holds its
- * cards and frames. A frame stands in for its head card.
+ * The holder of each ELK node: the root holds the groups, and a group or a
+ * frame holds its cards and frames. A frame stands in for its head card.
  */
-type LayoutTree = {
+function layoutTree(input: LayoutInput): {
 	holderOf: Map<string, string>;
 	nodeOf: (card: string) => string;
-};
-
-function layoutTree(input: LayoutInput): LayoutTree {
+} {
 	const headed = new Map(input.frames.map((frame) => [frame.head, frame.id]));
 	const holderOf = new Map<string, string>();
 	for (const group of input.groups) {
@@ -371,57 +347,6 @@ function layoutTree(input: LayoutInput): LayoutTree {
 		}
 	}
 	return { holderOf, nodeOf: (card) => headed.get(card) ?? card };
-}
-
-/**
- * Each blocker arrow joins the two nodes that hold its ends right below their
- * nearest shared holder, and ELK lays it out inside that holder.
- */
-function edgesByHolder(
-	input: LayoutInput,
-	{ holderOf, nodeOf }: LayoutTree,
-): Map<string, ElkExtendedEdge[]> {
-	const pathOf = (node: string): string[] => {
-		const path = [node];
-		for (let above = holderOf.get(node); above !== undefined;) {
-			path.push(above);
-			above = holderOf.get(above);
-		}
-		return path;
-	};
-	const edges = new Map<string, ElkExtendedEdge[]>();
-	for (const [index, edge] of input.edges.entries()) {
-		const from = pathOf(nodeOf(edge.from));
-		const to = pathOf(nodeOf(edge.to));
-		const shared = from.find((node) => to.includes(node));
-		if (shared === undefined) {
-			continue;
-		}
-		const source = from[from.indexOf(shared) - 1];
-		const target = to[to.indexOf(shared) - 1];
-		if (source === undefined || target === undefined || source === target) {
-			continue;
-		}
-		edges.set(shared, [
-			...(edges.get(shared) ?? []),
-			{ id: `edge${index}`, sources: [source], targets: [target] },
-		]);
-	}
-	return edges;
-}
-
-function laidChildren(laid: ElkNode): Map<string, Rect> {
-	return new Map(
-		(laid.children ?? []).map((child) => [
-			child.id,
-			{
-				x: child.x ?? 0,
-				y: child.y ?? 0,
-				width: child.width ?? 0,
-				height: child.height ?? 0,
-			},
-		]),
-	);
 }
 
 /**
@@ -465,64 +390,53 @@ export async function layoutGraph(
 	gap: FlowGap = flowGap,
 ): Promise<GraphLayout> {
 	const { sizeOf, headOf } = cardSizes(card, sizes, titleGrowth);
-	const options = placeOptions(direction, card, gap);
-	const tree = layoutTree(input);
-	const edges = edgesByHolder(input, tree);
-	const held = Map.groupBy(tree.holderOf, ([, holder]) => holder);
+	const options = directionOptions(direction, card, gap);
 	const frames = new Map(input.frames.map((frame) => [frame.id, frame]));
 	const groups = new Map(input.groups.map((group) => [group.id, group]));
 	const groupOptions = { ...options, ...compactGroups };
-	const frameOptions = (frame: LayoutFrame) => {
-		const head = headOf(frame);
-		return {
-			...groupOptions,
-			"elk.padding": padding(framePad * 2 + head.height, framePad),
-			"elk.nodeSize.constraints": "MINIMUM_SIZE",
-			"elk.nodeSize.minimum": `(${head.width + framePad * 2}, ${card.height})`,
-		};
-	};
-	const node = (id: string): ElkNode => {
-		const children = (held.get(id) ?? []).map(([child]) => node(child));
-		const frame = frames.get(id);
-		if (frame !== undefined) {
-			return {
-				id,
-				layoutOptions: frameOptions(frame),
-				children,
-				edges: edges.get(id) ?? [],
-			};
-		}
-		const group = groups.get(id);
-		if (group === undefined) {
-			return { id, ...sizeOf(id) };
-		}
-		return {
-			id,
-			layoutOptions: {
-				...groupOptions,
-				"elk.padding": group.framed
-					? padding(groupHead, groupPad)
-					: padding(0, 0),
-			},
-			children,
-			edges: edges.get(id) ?? [],
-		};
-	};
+	const { holderOf, nodeOf } = layoutTree(input);
+	const tree = frameTree({
+		holderOf,
+		optionsOf: (id) => {
+			const frame = frames.get(id);
+			if (frame !== undefined) {
+				const head = headOf(frame);
+				return {
+					...groupOptions,
+					"elk.padding": padding(framePad * 2 + head.height, framePad),
+					"elk.nodeSize.constraints": "MINIMUM_SIZE",
+					"elk.nodeSize.minimum": `(${head.width + framePad * 2}, ${card.height})`,
+				};
+			}
+			const group = groups.get(id);
+			return group === undefined
+				? undefined
+				: {
+						...groupOptions,
+						"elk.padding": group.framed
+							? padding(groupHead, groupPad)
+							: padding(0, 0),
+					};
+		},
+		sizeOf,
+		edges: input.edges.map((edge) => ({
+			from: nodeOf(edge.from),
+			to: nodeOf(edge.to),
+		})),
+		selfLoops: false,
+	});
 	const placeAll = (laid: ElkNode, offset: Point, layout: GraphLayout) => {
-		for (const child of laid.children ?? []) {
-			const at = { x: offset.x + (child.x ?? 0), y: offset.y + (child.y ?? 0) };
-			const frame = frames.get(child.id);
+		for (const [id, rect] of placeTree(laid, offset)) {
+			const frame = frames.get(id);
 			if (frame === undefined) {
-				layout.cards.set(child.id, at);
+				layout.cards.set(id, { x: rect.x, y: rect.y });
 				continue;
 			}
-			layout.frames.set(child.id, {
-				...at,
-				width: child.width ?? 0,
-				height: child.height ?? 0,
+			layout.frames.set(id, rect);
+			layout.cards.set(frame.head, {
+				x: rect.x + framePad,
+				y: rect.y + framePad,
 			});
-			layout.cards.set(frame.head, { x: at.x + framePad, y: at.y + framePad });
-			placeAll(child, at, layout);
 		}
 	};
 	const layout: GraphLayout = {
@@ -534,8 +448,8 @@ export async function layoutGraph(
 		const laid = await elk.layout({
 			id: rootId,
 			layoutOptions: options,
-			children: (held.get(rootId) ?? []).map(([child]) => node(child)),
-			edges: edges.get(rootId) ?? [],
+			children: tree.children(rootId),
+			edges: tree.edgesIn(rootId),
 		});
 		placeAll(laid, { x: 0, y: 0 }, layout);
 		return layout;
@@ -543,7 +457,7 @@ export async function layoutGraph(
 	const laid = await elk.layout({
 		id: rootId,
 		layoutOptions: groupOptions,
-		children: input.groups.map((group) => node(group.id)),
+		children: input.groups.map((group) => tree.node(group.id)),
 	});
 	const heads = new Map(
 		input.groups.map((group) => {
@@ -554,7 +468,7 @@ export async function layoutGraph(
 			return [group.id, { box, growth }] as const;
 		}),
 	);
-	const packed = laidChildren(
+	const packed = placeTree(
 		await elk.layout({
 			id: "root",
 			layoutOptions: options,
@@ -564,6 +478,7 @@ export async function layoutGraph(
 				height: (box?.height ?? 0) + growth,
 			})),
 		}),
+		{ x: 0, y: 0 },
 	);
 	for (const group of input.groups) {
 		const head = heads.get(group.id);
