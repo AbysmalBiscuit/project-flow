@@ -277,13 +277,6 @@ export const frame = stylex.create({
 		overflowY: "auto",
 		paddingBottom: space.lg,
 	},
-	scroll: {
-		boxSizing: "border-box",
-		flex: "1 1 auto",
-		minHeight: 0,
-		overflow: "auto",
-		padding: `0 ${space.md} ${space.lg}`,
-	},
 	wide: {
 		maxWidth: "none",
 	},
