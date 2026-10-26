@@ -1,5 +1,6 @@
 import { board, runDotTone } from "./board-styles.ts";
 import type { ShownFactoryRun } from "./domain.ts";
+import { openPage, runPagePath } from "./page-links.ts";
 import { spanLabel } from "./poll-age.ts";
 import { factoryRunTip } from "./terms.ts";
 import { clsx } from "./ui.ts";
@@ -21,6 +22,38 @@ export function RunDot({ run }: { run: ShownFactoryRun }) {
 			data-run-status={run.statusKind}
 			className={clsx(board.runDot, runDotTone[run.statusKind])}
 		/>
+	);
+}
+
+/**
+ * The run dot of a ticket card as a link to the run page. The link sits
+ * inside the card button, so it keeps its clicks from the card.
+ */
+export function RunLink({ run }: { run: ShownFactoryRun }) {
+	const href = runPagePath(run.id);
+	return (
+		<a
+			href={href}
+			data-run-link={run.id}
+			className={clsx(board.runLink, board.cardFocus)}
+			onClick={(event) => {
+				event.stopPropagation();
+				if (
+					event.button !== 0 ||
+					event.ctrlKey ||
+					event.metaKey ||
+					event.shiftKey ||
+					event.altKey
+				) {
+					return;
+				}
+				event.preventDefault();
+				openPage(href);
+			}}
+			onDoubleClick={(event) => event.stopPropagation()}
+		>
+			<RunDot run={run} />
+		</a>
 	);
 }
 

@@ -32,11 +32,17 @@ import type {
 } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { ClearFocusButton } from "./focus-controls.tsx";
-import { focusOrOpen, shownSeeds, useFocusView } from "./focus.ts";
+import {
+	clickCard,
+	type ClickKeys,
+	shownSeeds,
+	useFocusView,
+} from "./focus.ts";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
 import { parentChip, ticketGroups } from "./grouping.ts";
 import { displayedLaneName, doneTicketsForLane } from "./lanes.ts";
 import { focusChain } from "./links.ts";
+import { openPage, runPagePath } from "./page-links.ts";
 import { TicketPanel } from "./panel.tsx";
 import { PollAgeText, RefreshButton } from "./poll-freshness.tsx";
 import { FilterMenu } from "./project-filters.tsx";
@@ -211,17 +217,19 @@ function focusPointer(
 	focus: TicketFocus,
 	key: string | null,
 	onOpen: (key: string) => void,
+	runId: string | undefined,
 ) {
 	if (key === null) {
 		return {};
 	}
 	return {
-		onClick: (event: { ctrlKey: boolean; metaKey: boolean }) =>
-			focusOrOpen(
-				event,
-				() => focus.toggle(key),
-				() => onOpen(key),
-			),
+		onClick: (event: ClickKeys) =>
+			clickCard(event, {
+				focus: () => focus.toggle(key),
+				open: () => onOpen(key),
+				openRun:
+					runId === undefined ? undefined : () => openPage(runPagePath(runId)),
+			}),
 		onMouseEnter: () => focus.enter(key),
 		onMouseLeave: focus.leave,
 		onDoubleClick: () => focus.toggle(key),
@@ -255,7 +263,7 @@ function Card({
 				)}
 				data-ticket={key ?? ""}
 				data-faded={faded ? "true" : "false"}
-				{...focusPointer(focus, key, onOpen)}
+				{...focusPointer(focus, key, onOpen, ticket.factoryRun?.id)}
 			>
 				<TicketCardBody
 					ticket={ticket}

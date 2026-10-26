@@ -41,6 +41,7 @@ import {
 	routeEdge,
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
+import { openPage, runPagePath } from "./page-links.ts";
 import { panel } from "./panel-styles.ts";
 import { floatPanelLabel, graphLayoutFailedLabel } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
@@ -254,6 +255,7 @@ export function GraphView<
 	chain,
 	refit,
 	onOpen,
+	runOf,
 	onFocus,
 	onPreview,
 	onPreviewEnd,
@@ -275,6 +277,8 @@ export function GraphView<
 	chain: ReadonlySet<string> | null;
 	refit: number;
 	onOpen: (card: CardData) => void;
+	/** The id of the latest run of a card, which Ctrl-click opens. */
+	runOf?: (card: CardData) => string | undefined;
 	onFocus: (ticket: string) => void;
 	onPreview: (ticket: string) => void;
 	onPreviewEnd: () => void;
@@ -416,11 +420,15 @@ export function GraphView<
 						if (node.type !== "card" || ticket === undefined) {
 							return;
 						}
-						clicks.click(
-							event,
-							() => onFocus(ticket),
-							() => onOpen(node.data),
-						);
+						const runId = runOf?.(node.data);
+						clicks.click(event, {
+							focus: () => onFocus(ticket),
+							open: () => onOpen(node.data),
+							openRun:
+								runId === undefined
+									? undefined
+									: () => openPage(runPagePath(runId)),
+						});
 					}}
 				>
 					<Background variant={BackgroundVariant.Dots} gap={18} />
