@@ -1,10 +1,10 @@
 import { board } from "./board-styles.ts";
 import type { ProjectCounts } from "./domain.ts";
-import { pollLine, usePollProgress } from "./poll-freshness.tsx";
+import { PollLoading } from "./loading.tsx";
 import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import { PageFrame } from "./shell.tsx";
-import { loadingLabel, overviewControlLabel } from "./terms.ts";
-import { cards, shell } from "./ui-styles.ts";
+import { overviewControlLabel } from "./terms.ts";
+import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 function waitingCountLine(project: ProjectCounts): string {
@@ -25,7 +25,6 @@ export function ProjectWaiting({
 	counts: ProjectCounts | undefined;
 	error: string | null;
 }) {
-	const progress = usePollProgress();
 	return (
 		<PageFrame title={counts?.name ?? name}>
 			{counts === undefined || counts.pending === true ? null : (
@@ -37,9 +36,9 @@ export function ProjectWaiting({
 				</>
 			)}
 			{error === null ? (
-				<p id="poll-progress" className={clsx(cards.loading)}>
-					{progress === null ? loadingLabel : pollLine(progress)}
-				</p>
+				<div id="poll-progress">
+					<PollLoading />
+				</div>
 			) : (
 				<p id="project-error" className={clsx(shell.stale)}>
 					{error}

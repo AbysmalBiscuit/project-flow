@@ -20,12 +20,15 @@ export function settingsResponse(
 	snapshots: SettingsSnapshot[],
 	factoryTokenReports: FactoryTokenReport[],
 	factoryEntries: FactoryEntry[],
+	discovering: boolean,
 ): Configuration & {
 	trackers: { github: boolean; linear: boolean };
 	projects: SettingsProject[];
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
 	stateSources: StateSource[];
+	/** A discovery runs, so `projects` can still change. */
+	discovering?: true;
 } {
 	return {
 		...configuration,
@@ -37,6 +40,7 @@ export function settingsResponse(
 		factoryTokenReports,
 		factoryEntries,
 		stateSources: stateSources(snapshots),
+		...(discovering ? { discovering: true as const } : {}),
 	};
 }
 
@@ -84,6 +88,7 @@ function withoutTrackers(text: string): string {
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,
 		baselineTracked: _baselineTracked,
+		discovering: _discovering,
 		...configuration
 	} = parsed as Record<string, unknown>;
 	return JSON.stringify(configuration);

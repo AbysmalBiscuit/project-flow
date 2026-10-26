@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Button } from "./button.tsx";
 import type { InboxEntry, NotificationTrigger } from "./domain.ts";
 import { inbox } from "./inbox-styles.ts";
+import { Loading } from "./loading.tsx";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -18,7 +19,6 @@ import { storeHoldsRead } from "./stored-page.ts";
 import {
 	inboxCopy,
 	inboxFilterLabel,
-	loadingLabel,
 	navLabel,
 	triggerLabel,
 } from "./terms.ts";
@@ -317,7 +317,11 @@ export function Page() {
 		entries === undefined ||
 		(polling && entries.length === 0 && !holdsRead)
 	) {
-		return <PageFrame title={navLabel.inbox}>{loadingLabel}</PageFrame>;
+		return (
+			<PageFrame title={navLabel.inbox}>
+				<Loading />
+			</PageFrame>
+		);
 	}
 	return (
 		<InboxList

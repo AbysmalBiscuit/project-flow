@@ -556,10 +556,12 @@ describe("live updates", () => {
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
 				void (async () => {
+					// The first overview read releases the list reads, so count them
+					// before that read.
+					expect(requests.filter((url) => listUrl(url) !== null)).toEqual([]);
 					const body = (await (
 						await fetch(new URL("/api/overview", base))
 					).json()) as OverviewBody;
-					expect(requests.filter((url) => listUrl(url) !== null)).toEqual([]);
 					expect(body.projects).toEqual([
 						counts(repo, 1, 0, "github", [githubTicket(1, "backlog")]),
 					]);

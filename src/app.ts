@@ -397,6 +397,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			opened.store.readTickets(),
 			factoryTokens.reports(),
 			factories.entries(),
+			discovering,
 		);
 	if (pollOptions.primed) {
 		pollOptions.attention = attentionFor(pollOptions, configuration);
@@ -425,10 +426,18 @@ export async function start(options: StartOptions): Promise<Running> {
 	// A refresh queued behind a running poll holds settings writes until the
 	// next poll's discovery, so they never check against the older catalogue.
 	let queuedDiscovery: (() => void) | null = null;
+	let discovering = false;
 	const nextDiscovery = (): (() => void) => {
 		let note = () => {};
-		discovery = new Promise<void>((resolve) => {
+		const next = new Promise<void>((resolve) => {
 			note = resolve;
+		});
+		discovery = next;
+		discovering = true;
+		void next.then(() => {
+			if (discovery === next) {
+				discovering = false;
+			}
 		});
 		return note;
 	};
