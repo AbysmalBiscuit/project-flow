@@ -145,6 +145,12 @@ const readMarkBody = z.object({ read: z.literal(true) });
 
 const answerBody = z.object({ text: z.string().trim().min(1) });
 
+const steerBody = z.object({
+	stage: z.string().trim().min(1),
+	text: z.string().trim().min(1),
+	interrupt: z.boolean().default(false),
+});
+
 const defaultSettingsReadWaitMs = 5_000;
 
 const runPollMs = 10_000;
@@ -318,6 +324,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		options.fetch,
 		listedFactories,
 		requests.signal,
+		() => clock.now(),
 	);
 	const fetchGithub = factoryTokens.fetch;
 	const trackers = {
@@ -588,7 +595,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		}
 		runsReadAt = now;
 		readingRuns = true;
-		void readFactories(factories.readRuns)
+		void readFactories(() => factories.readRuns(now))
 			.catch(() => {})
 			.finally(() => {
 				readingRuns = false;
@@ -859,6 +866,14 @@ export async function start(options: StartOptions): Promise<Running> {
 						: Response.json(found);
 				},
 			},
+			"/api/factory-runs/:id/agents": {
+				GET: async (request) => {
+					const found = await factories.agents(request.params.id);
+					return found === null
+						? Response.json({ missing: true }, { status: 404 })
+						: Response.json({ agents: found });
+				},
+			},
 			"/api/threads/:tracker/:key": {
 				GET: (request) =>
 					threadResponse(
@@ -904,8 +919,41 @@ export async function start(options: StartOptions): Promise<Running> {
 							{ status: 502 },
 						);
 					}
-					await readFactories(factories.readRuns);
+					await readFactories(() => factories.readRuns(clock.now().getTime()));
 					return Response.json({ answered: true });
+				},
+			},
+			"/api/factory-runs/:run/steer": {
+				POST: async (request) => {
+					const parsed = steerBody.safeParse(
+						await request.json().catch(() => null),
+					);
+					if (!parsed.success) {
+						return Response.json(
+							{ error: "a steer needs a stage and a text" },
+							{ status: 400 },
+						);
+					}
+					const result = await factories.steer(request.params.run, parsed.data);
+					if (result === "missing") {
+						return Response.json(
+							{ error: "no factory reports the run" },
+							{ status: 404 },
+						);
+					}
+					if (result === "ended") {
+						return Response.json(
+							{ error: "the run has ended, so it takes no steer" },
+							{ status: 409 },
+						);
+					}
+					if (result === "failed") {
+						return Response.json(
+							{ error: "the factory did not take the steer" },
+							{ status: 502 },
+						);
+					}
+					return Response.json({ steered: true });
 				},
 			},
 		},

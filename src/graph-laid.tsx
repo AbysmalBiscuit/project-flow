@@ -26,7 +26,7 @@ import type { GraphDirection, GraphLayoutKind } from "./view-settings.ts";
 
 let pageElk: ELK | null = null;
 
-function elk(): ELK {
+export function elk(): ELK {
 	pageElk ??= new ElkConstructor({
 		workerFactory: () => new Worker(elkWorkerPath),
 	});

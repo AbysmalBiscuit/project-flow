@@ -1,6 +1,7 @@
 import type {
 	NeedsYouItem,
 	NotificationTrigger,
+	RunMessage,
 	RunStatusKind,
 	ShownFactoryRun,
 	TicketState,
@@ -187,9 +188,22 @@ export const openPullLabel = "Open the PR on GitHub";
 
 export const runSectionLabel = "Factory run";
 
+export const runNotLiveLabel = "Not live: the factory is unreachable";
+
 export const earlierRunsLabel = "Earlier runs";
 
 export const runQuestionsLabel = "Run questions";
+
+export const steerLabel = "Steer the run";
+
+export const runThreadLabel = "Run thread";
+
+/** The verb after the sender of each run thread message. */
+export const runMessageLabel = {
+	ask: "asks",
+	answer: "answers",
+	steer: "steers",
+} as const satisfies Record<RunMessage["kind"], string>;
 
 export const runFactLabel = {
 	status: "Status",
@@ -205,12 +219,57 @@ export const runStagesLabel = "Stages";
 
 export const currentStageLabel = "Current";
 
+export const runGraphLabel = "Workflow";
+
+export const runGraphHelp =
+	"The current stage has a blue border. Completed stages are filled, stages ahead are dashed, and a retried stage shows its retries.";
+
 export function stageVisitsLabel(visits: number): string {
 	return `${visits} ${visits === 1 ? "visit" : "visits"}`;
 }
 
 export function stageRetriesLabel(retries: number): string {
 	return `${retries} ${retries === 1 ? "retry" : "retries"}`;
+}
+
+export const runUsageLabel = "Run usage";
+
+export const usageFactLabel = {
+	tokens: "Tokens",
+	cost: "Cost",
+	time: "Time",
+	tools: "Tools",
+} as const;
+
+const compactCount = new Intl.NumberFormat("en", { notation: "compact" });
+
+export function tokensLabel(input: number, output: number): string {
+	return `${compactCount.format(input)} in, ${compactCount.format(output)} out`;
+}
+
+export function costLabel(costUsd: number): string {
+	return `$${costUsd.toFixed(2)}`;
+}
+
+export const usagePartSeparator = "; ";
+
+/** The count of each tool, most used first. */
+export function toolCountsLabel(tools: Record<string, number>): string {
+	return Object.entries(tools)
+		.sort(([, left], [, right]) => right - left)
+		.map(([tool, count]) => `${tool} ${count}`)
+		.join(", ");
+}
+
+export const runAgentsLabel = "Agents";
+
+export const agentTurnLabel = {
+	running: "Turn runs",
+	ended: "Turn ended",
+} as const;
+
+export function agentToolLabel(tool: string): string {
+	return `Uses ${tool}`;
 }
 
 export const hubQueueLabel = "In the hub queue";

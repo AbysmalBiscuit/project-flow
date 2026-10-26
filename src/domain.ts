@@ -35,6 +35,16 @@ export type RunStatusKind = (typeof runStatusKinds)[number];
 /** An open question that a blocked run waits on, from `GET /runs/{id}/questions`. */
 export type FactoryQuestion = { id: string; text: string };
 
+/** One message of a run thread: an ask of the run, an answer to an ask, or a delivered steer. */
+export type RunMessage = {
+	kind: "ask" | "answer" | "steer";
+	/** The stage that asks, or the person who answers or steers. */
+	sender: string;
+	text: string;
+	/** The time of the message as an ISO string. */
+	at: string;
+};
+
 /** A workcell run that a factory reports in `GET /runs`. */
 export type FactoryRun = {
 	id: string;
@@ -59,6 +69,8 @@ export type FactoryRun = {
 	stage?: string;
 	/** The open questions of a blocked run. Absent when the factory gave no list. */
 	questions?: FactoryQuestion[];
+	/** The asks, answers and delivered steers of the run, oldest first. Absent until the run has one. */
+	thread?: RunMessage[];
 };
 
 /**
@@ -77,6 +89,7 @@ export type ShownFactoryRun = Pick<
 	| "endedAt"
 	| "coveredByFeed"
 	| "questions"
+	| "thread"
 > & { stage?: string };
 
 /** Where a factory run is in its flow, from the run checkpoint of its box. */
@@ -89,7 +102,59 @@ export type RunCheckpoint = {
 	retries: Record<string, number>;
 	/** The visits of each stage, by stage name. A review stage visit is one review round. */
 	visits: Record<string, number>;
+	/** The usage of the run's recorded turns. Absent when the factory gave no turns. */
+	usage?: RunUsage;
+	/** The run's workflow graph with the state of each stage. Null when the factory serves no graph. */
+	graph: RunGraph | null;
 };
+
+/** The usage of some agent turns: tokens, cost in US dollars, time in seconds, and the count of each tool. */
+export type TurnUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	costUsd: number;
+	durationS: number;
+	tools: Record<string, number>;
+};
+
+/** The usage of each stage of a run, by stage name, and their sum. */
+export type RunUsage = {
+	stages: Record<string, TurnUsage>;
+	total: TurnUsage;
+};
+
+/** The run statuses whose agents can work: the app reads a run's agents only in these. */
+export const liveRunStatusKinds = [
+	"starting",
+	"running",
+	"blocked",
+] as const satisfies readonly RunStatusKind[];
+
+/** What the agent of one stage of a live run does now, from `GET /runs/{id}/workers`. */
+export type RunAgent = {
+	/** The node path of the stage that the agent works on. */
+	stage: string;
+	/** The tool that the agent uses now. Null between tool calls and after its turn. */
+	tool: string | null;
+	/** The last line of the agent's last message. Null before its first message. */
+	lastMessage: string | null;
+	turn: "running" | "ended";
+};
+
+/** Where a stage of a run's workflow graph is: the current stage, a completed stage, or a stage ahead. */
+export type RunGraphNodeState = "current" | "completed" | "ahead";
+
+export type RunGraphNode = {
+	id: string;
+	label: string;
+	state: RunGraphNodeState;
+	retries: number;
+};
+
+export type RunGraphEdge = { from: string; to: string; label?: string };
+
+/** The workflow graph of a factory run, from `GET /runs/{id}/graph` of its box. */
+export type RunGraph = { nodes: RunGraphNode[]; edges: RunGraphEdge[] };
 
 /** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
 export type EarlierFactoryRun = Pick<

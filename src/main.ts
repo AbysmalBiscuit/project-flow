@@ -479,6 +479,31 @@ function defaultConfigPath(env: Record<string, string | undefined>): string {
 	return join(root, "project-flow", "config.json");
 }
 
+const valueFlags = ["--config", "--host", "--port", "--factory"];
+const switchFlags = ["--help", "--version", "--open"];
+
+const usage = `Usage: project-flow [flags]
+
+  --config <file>  configuration file
+  --host <host>    host to listen on (default 127.0.0.1)
+  --port <port>    port to listen on
+  --factory <url>  factory to read workcell runs from (repeatable)
+  --open           open the printed URL in the default browser
+  --version        print the version
+  --help           print this help`;
+
+function unknownFlag(args: string[]): string | undefined {
+	for (let index = 0; index < args.length; index++) {
+		const arg = args[index] ?? "";
+		if (valueFlags.includes(arg)) {
+			index++;
+		} else if (arg.startsWith("-") && !switchFlags.includes(arg)) {
+			return arg;
+		}
+	}
+	return undefined;
+}
+
 function flagValue(args: string[], name: string): string | undefined {
 	const index = args.indexOf(name);
 	if (index === -1) {
@@ -597,9 +622,20 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		listened,
 	});
 
+	if (args.includes("--help")) {
+		writeOut(usage);
+		return result(0);
+	}
+
 	if (args.includes("--version")) {
 		writeOut(version);
 		return result(0);
+	}
+
+	const unknown = unknownFlag(args);
+	if (unknown !== undefined) {
+		writeErr(`unknown flag: ${unknown} (see --help)`);
+		return result(1);
 	}
 
 	const configFlag = flagValue(args, "--config");
@@ -617,7 +653,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	const hostFlag = flagValue(args, "--host");
 	if (
 		args.includes("--port") &&
-		(portFlag === undefined || !/^\d+$/.test(portFlag))
+		(portFlag === undefined ||
+			!/^\d+$/.test(portFlag) ||
+			Number(portFlag) > 65535)
 	) {
 		writeErr("invalid port: --port needs a port number");
 		return result(1);

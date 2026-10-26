@@ -26,7 +26,7 @@ import {
 import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
-import { RunQuestions } from "./run-questions.tsx";
+import { RunThread } from "./run-thread.tsx";
 import { openTicket } from "./selection.ts";
 import { useLaneColour } from "./state-colours.ts";
 import { tonedProps } from "./state-tone.ts";
@@ -383,12 +383,8 @@ export function TicketPanel({
 					pullUrl={view.pullUrl}
 				/>
 			)}
-			{view?.factoryRun?.questions === undefined ||
-			view.factoryRun.questions.length === 0 ? null : (
-				<RunQuestions
-					run={view.factoryRun.id}
-					questions={view.factoryRun.questions}
-				/>
+			{view?.factoryRun === undefined ? null : (
+				<RunThread key={view.factoryRun.id} run={view.factoryRun} />
 			)}
 			<RelationList
 				label="Blockers"

@@ -13,7 +13,9 @@ import type {
 } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { spanLabel } from "./poll-age.ts";
+import { RunAgents } from "./run-agents.tsx";
 import { RunStages } from "./run-checkpoint.tsx";
+import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
 import {
 	earlierRunsLabel,
@@ -23,6 +25,7 @@ import {
 	openOnGitHubLabel,
 	pullStatusLabel,
 	runFactLabel,
+	runNotLiveLabel,
 	runSectionLabel,
 	runStatusLabel,
 	whyLabel,
@@ -30,7 +33,7 @@ import {
 import { itemId } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
-function commentTime(value: string): string {
+export function commentTime(value: string): string {
 	const parsed = new Date(value);
 	if (Number.isNaN(parsed.getTime())) {
 		return "";
@@ -132,12 +135,16 @@ export function RunSection({
 			className={clsx(panel.section)}
 			aria-label={runSectionLabel}
 			data-run={run.statusKind}
+			data-run-live={run.coveredByFeed ? "true" : "false"}
 		>
 			<h3 className={clsx(panel.sectionLabel)}>{runSectionLabel}</h3>
+			{run.coveredByFeed ? null : (
+				<p className={clsx(panel.note)}>{runNotLiveLabel}</p>
+			)}
 			<dl className={clsx(panel.facts)}>
 				<RunFact label={runFactLabel.status}>
 					<span className={clsx(panel.runStatus)}>
-						<RunDot run={run} />
+						{run.coveredByFeed ? <RunDot run={run} /> : null}
 						{runStatusLabel[run.statusKind]}
 					</span>
 				</RunFact>
@@ -158,7 +165,9 @@ export function RunSection({
 					</RunFact>
 				)}
 			</dl>
+			<RunAgents run={run} />
 			<RunStages run={run} />
+			<RunGraph run={run} />
 			{earlier.length === 0 ? null : (
 				<>
 					<h3 className={clsx(panel.sectionLabel)}>{earlierRunsLabel}</h3>

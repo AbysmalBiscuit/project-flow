@@ -4,11 +4,17 @@ import type { Factory } from "./configuration.ts";
 import type {
 	FactoryQuestion,
 	FactoryRun,
+	RunAgent,
 	RunCheckpoint,
+	RunGraph,
+	RunMessage,
 	RunStatusKind,
+	RunUsage,
 } from "./domain.ts";
+import { liveRunStatusKinds } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
+import { runUsage } from "./run-usage.ts";
 
 export type FactoryKind = "hub" | "daemon";
 
@@ -63,9 +69,18 @@ const openQuestions = z.object({
 	questions: z.array(
 		z.object({
 			id: z.union([z.number(), z.string()]).transform(String),
+			node_path: z.string().nullish(),
 			text: z.string(),
 		}),
 	),
+});
+
+/** The `data` of a `steer.delivered` event. */
+const deliveredSteer = z.object({
+	steer: z.union([z.number(), z.string()]).transform(String),
+	sender: z.string(),
+	text: z.string(),
+	delivered_at: z.string(),
 });
 
 const checkpoint = z.object({
@@ -74,6 +89,31 @@ const checkpoint = z.object({
 	completed_nodes: z.array(z.string()).default([]),
 	node_retries: z.record(z.string(), z.number()).default({}),
 	visits: z.record(z.string(), z.number()).default({}),
+});
+
+/** `GET /runs/{id}/turns`: one summary for each finished agent turn of the run. */
+const turns = z.object({
+	turns: z.array(
+		z.object({
+			node_path: z.string(),
+			tools: z.record(z.string(), z.number()),
+			tokens: z.object({ input: z.number(), output: z.number() }),
+			cost_usd: z.number(),
+			duration_s: z.number(),
+		}),
+	),
+});
+
+/** The live counters of each worker of a run, by node path. */
+const workers = z.object({
+	workers: z.record(
+		z.string(),
+		z.object({
+			current_tool: z.string(),
+			last_message: z.string(),
+			turn: z.enum(["running", "ended"]),
+		}),
+	),
 });
 
 /** The current node path: the caller node of each child graph, then the current node. */
@@ -86,10 +126,52 @@ function stagePath(answer: z.infer<typeof checkpoint>): string {
 		.join("/");
 }
 
+const labelled = z.object({ label: z.string().optional() }).default({});
+
+/** The `GET /runs/{id}/graph` answer: the frozen entry graph of the run's workflow. */
+const workflowGraph = z.object({
+	nodes: z.array(z.object({ id: z.string(), attrs: labelled })),
+	edges: z.array(
+		z.object({ from: z.string(), to: z.string(), attrs: labelled }),
+	),
+});
+
+/**
+ * The graph of a run with the checkpoint state of each top-level node. A child
+ * graph runs inside its caller node, so the caller node is the current one.
+ */
+function runGraph(
+	graph: z.infer<typeof workflowGraph>,
+	answer: z.infer<typeof checkpoint>,
+): RunGraph {
+	const current = stagePath(answer).split("/")[0];
+	const completed = new Set(answer.completed_nodes);
+	return {
+		nodes: graph.nodes.map((node) => ({
+			id: node.id,
+			label: node.attrs.label ?? node.id,
+			state:
+				node.id === current
+					? "current"
+					: completed.has(node.id)
+						? "completed"
+						: "ahead",
+			retries: answer.node_retries[node.id] ?? 0,
+		})),
+		edges: graph.edges.map((edge) => ({
+			from: edge.from,
+			to: edge.to,
+			...(edge.attrs.label === undefined ? {} : { label: edge.attrs.label }),
+		})),
+	};
+}
+
 /** One frame of the hub's `GET /events`: a box event of a run, or a status change. */
 const eventFrame = z.object({
 	run_id: z.string(),
-	item: z.object({ event: z.string(), node_path: z.string() }).optional(),
+	item: z
+		.object({ event: z.string(), node_path: z.string(), data: z.unknown() })
+		.optional(),
 	status: runRow.shape.status.optional(),
 });
 
@@ -103,6 +185,10 @@ type ReadRun = {
 	local: boolean;
 	url: string;
 };
+
+function isLive(kind: RunStatusKind): boolean {
+	return liveRunStatusKinds.some((live) => live === kind);
+}
 
 function statusKindOf(
 	kind: z.infer<typeof runRow>["status"]["kind"],
@@ -148,15 +234,24 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 	});
 }
 
-/** The row that gives a run its status: the box row, or else the hub row. */
-function statusRow<Row extends ReadRun>(same: Row[]) {
+/**
+ * The row that gives a run its status: the box row while its box is reachable,
+ * or else the hub row. An unreachable box keeps its last row, which goes stale.
+ */
+function statusRow<Row extends ReadRun>(
+	same: Row[],
+	reachable: (row: Row) => boolean,
+) {
 	const hubRow = same.find((row) => !row.local);
-	return { hubRow, boxRow: same.find((row) => row.local) ?? hubRow };
+	const boxRow = same.find((row) => row.local);
+	const fresh =
+		boxRow !== undefined && (hubRow === undefined || reachable(boxRow));
+	return { hubRow, row: fresh ? boxRow : hubRow };
 }
 
 /**
  * One run per id. A hub and its box report the same id once the hub sends the run.
- * The box row gives the status, and the hub row gives `source` and `rule`.
+ * The status row gives the status, and the hub row gives `source` and `rule`.
  */
 function mergedRuns(
 	rows: (ReadRun & { coveredByFeed: boolean; streamed: boolean })[],
@@ -164,19 +259,19 @@ function mergedRuns(
 ) {
 	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
 		(same): FactoryRun[] => {
-			const { hubRow, boxRow } = statusRow(same);
-			if (boxRow === undefined) {
+			const { hubRow, row } = statusRow(same, (row) => row.coveredByFeed);
+			if (row === undefined) {
 				return [];
 			}
-			const { source, rule, ...status } = boxRow.run;
-			const origin = hubRow?.run ?? boxRow.run;
+			const { source, rule, ...status } = row.run;
+			const origin = hubRow?.run ?? row.run;
 			const stage = stages.get(status.id);
 			return [
 				{
 					...status,
 					...(origin.source === undefined ? {} : { source: origin.source }),
 					...(origin.rule === undefined ? {} : { rule: origin.rule }),
-					coveredByFeed: boxRow.coveredByFeed,
+					coveredByFeed: row.coveredByFeed,
 					streamed: same.some((row) => row.streamed),
 					...(stage === undefined ? {} : { stage }),
 				},
@@ -330,7 +425,7 @@ type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes">;
 async function questionsOf(
 	read: (path: string) => Promise<Response>,
 	id: string,
-): Promise<FactoryQuestion[] | undefined> {
+): Promise<z.infer<typeof openQuestions>["questions"] | undefined> {
 	try {
 		const listed = await body(
 			await read(`/runs/${encodeURIComponent(id)}/questions`),
@@ -345,7 +440,44 @@ async function questionsOf(
 	}
 }
 
+/** The usage of a run from its recorded turns. A factory that gives no turns leaves it unknown. */
+async function usageOf(
+	read: (path: string) => Promise<Response>,
+	id: string,
+): Promise<RunUsage | null> {
+	try {
+		const listed = await body(
+			await read(`/runs/${encodeURIComponent(id)}/turns`),
+			turns,
+		);
+		return runUsage(
+			listed.turns.map((turn) => ({
+				nodePath: turn.node_path,
+				usage: {
+					inputTokens: turn.tokens.input,
+					outputTokens: turn.tokens.output,
+					costUsd: turn.cost_usd,
+					durationS: turn.duration_s,
+					tools: turn.tools,
+				},
+			})),
+		);
+	} catch (error) {
+		if (!(error instanceof Unreachable)) {
+			throw error;
+		}
+		return null;
+	}
+}
+
 export type AnswerResult = "answered" | "missing" | "failed";
+
+export type SteerResult = "steered" | "missing" | "ended" | "failed";
+
+export type Steer = { stage: string; text: string; interrupt: boolean };
+
+/** Project Flow writes to a factory as Lev: the factory records this sender on each steer. */
+const levSender = "lev";
 
 /**
  * The event stream of one factory: connecting, open, closed since a time, or
@@ -354,6 +486,9 @@ export type AnswerResult = "answered" | "missing" | "failed";
 type Follow = "connecting" | "open" | "none" | { closedAt: number };
 
 const streamRetryMs = 10_000;
+
+/** The hub sends no frame for a queued run and no run times, so a streamed factory keeps this `GET /runs` read. */
+const streamedRunPollMs = 60_000;
 
 const activeKinds: ReadonlySet<RunStatusKind> = new Set([
 	"starting",
@@ -365,19 +500,64 @@ const activeKinds: ReadonlySet<RunStatusKind> = new Set([
  * Reads `GET /daemon` of each factory, and on connect its kind and box count.
  * Reads `GET /runs` of each factory and keeps the runs of its last good read.
  * Follows `GET /events` of each factory that serves it, and reads `GET /runs`
- * on each connect. A factory without `/events` keeps the run poll.
+ * on each connect and at a slower interval while the stream is open.
+ * A factory without `/events` keeps the run poll.
  * A failed request marks the factory unreachable until a later read succeeds.
  */
 export function factoryReader(
 	fetchImpl: Fetch,
 	listed: () => ListedFactory[],
 	signal: AbortSignal,
+	now: () => Date,
 ): FactoryReader {
 	const found = new Map<string, Found>();
 	const readRuns = new Map<string, ReadRun[]>();
+	/**
+	 * The thread of each run, by run id. The factory keeps no answered asks and the
+	 * hub replays no older events, so the thread holds what this launch saw.
+	 */
+	const threads = new Map<string, RunMessage[]>();
+	/** The asks and steers already in a thread, by run id and factory id. */
+	const threaded = new Set<string>();
+	const addMessage = (
+		runId: string,
+		message: RunMessage,
+		once?: string,
+	): void => {
+		if (once !== undefined) {
+			const key = JSON.stringify([runId, once]);
+			if (threaded.has(key)) {
+				return;
+			}
+			threaded.add(key);
+		}
+		threads.set(runId, [...(threads.get(runId) ?? []), message]);
+	};
+	/** The open questions of a blocked run. Each question that is new to the thread joins it as an ask. */
+	const openQuestionsOf = async (
+		read: (path: string) => Promise<Response>,
+		runId: string,
+	): Promise<FactoryQuestion[] | undefined> => {
+		const questions = await questionsOf(read, runId);
+		return questions?.map((question) => {
+			addMessage(
+				runId,
+				{
+					kind: "ask",
+					sender: question.node_path ?? "run",
+					text: question.text,
+					at: now().toISOString(),
+				},
+				`question ${question.id}`,
+			);
+			return { id: question.id, text: question.text };
+		});
+	};
 	/** The current node of each run, by run id, from the event streams. */
 	const stages = new Map<string, string>();
 	const follows = new Map<string, Follow>();
+	/** The clock time of the last `GET /runs` read of each streamed factory. */
+	const streamReadAt = new Map<string, number>();
 	/** The factories whose `GET /events` answered once. */
 	const serving = new Set<string>();
 	let checking: Promise<void> | null = null;
@@ -454,6 +634,7 @@ export function factoryReader(
 				...(hubName === undefined ? {} : { alsoReadThroughHub: hubName }),
 			};
 		});
+	const reachable = (row: ReadRun) => found.get(row.url)?.reachable === true;
 	const unreachable = () =>
 		listed().some((factory) => found.get(factory.url)?.reachable === false);
 	const readRunsOf = async (factory: ListedFactory): Promise<void> => {
@@ -466,7 +647,7 @@ export function factoryReader(
 					if (row.run.statusKind !== "blocked") {
 						return row;
 					}
-					const questions = await questionsOf(read, row.run.id);
+					const questions = await openQuestionsOf(read, row.run.id);
 					return questions === undefined
 						? row
 						: { ...row, run: { ...row.run, questions } };
@@ -489,10 +670,20 @@ export function factoryReader(
 			});
 		}
 	};
-	const readAllRuns = async (): Promise<void> => {
+	const readAllRuns = async (now: number): Promise<void> => {
 		await Promise.all(
 			listed()
-				.filter((factory) => follows.get(factory.url) !== "open")
+				.filter((factory) => {
+					if (follows.get(factory.url) !== "open") {
+						return true;
+					}
+					const readAt = streamReadAt.get(factory.url);
+					if (readAt !== undefined && now - readAt < streamedRunPollMs) {
+						return false;
+					}
+					streamReadAt.set(factory.url, now);
+					return true;
+				})
 				.map(readRunsOf),
 		);
 	};
@@ -535,6 +726,21 @@ export function factoryReader(
 		if (!rows.some((row) => row.run.id === frame.run_id)) {
 			await readRunsOf(factory);
 		}
+		if (frame.item?.event === "steer.delivered") {
+			const steer = deliveredSteer.safeParse(frame.item.data);
+			if (steer.success) {
+				addMessage(
+					frame.run_id,
+					{
+						kind: "steer",
+						sender: steer.data.sender,
+						text: steer.data.text,
+						at: steer.data.delivered_at,
+					},
+					`steer ${steer.data.steer}`,
+				);
+			}
+		}
 		if (frame.item !== undefined) {
 			const node = nodeAfter(
 				stages.get(frame.run_id),
@@ -552,7 +758,7 @@ export function factoryReader(
 			const statusKind = statusKindOf(status.kind);
 			const questions =
 				statusKind === "blocked"
-					? await questionsOf(
+					? await openQuestionsOf(
 							reader(fetchImpl, factory.url, signal),
 							frame.run_id,
 						)
@@ -598,6 +804,7 @@ export function factoryReader(
 		}
 		follows.set(factory.url, "open");
 		serving.add(factory.url);
+		streamReadAt.set(factory.url, now());
 		// The hub replays only the events since connect, so the snapshot follows the connect.
 		await around(() => snapshot(factory));
 		try {
@@ -607,7 +814,7 @@ export function factoryReader(
 		} catch {
 			// A dropped connection ends the stream like a closed one.
 		}
-		return { closedAt: Number.NEGATIVE_INFINITY };
+		return { closedAt: now() };
 	};
 	const follow = (
 		now: () => number,
@@ -643,36 +850,114 @@ export function factoryReader(
 				}));
 			}),
 			stages,
-		).sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+		)
+			.map((run) => {
+				const thread = threads.get(run.id);
+				return thread === undefined
+					? run
+					: {
+							...run,
+							thread: thread.toSorted(
+								(left, right) => Date.parse(left.at) - Date.parse(right.at),
+							),
+						};
+			})
+			.sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+	/** A run's workflow graph does not change while it runs, so the first good read stays. */
+	const graphs = new Map<string, z.infer<typeof workflowGraph>>();
+	const graphOf = async (
+		read: (path: string) => Promise<Response>,
+		runId: string,
+	): Promise<z.infer<typeof workflowGraph> | null> => {
+		const known = graphs.get(runId);
+		if (known !== undefined) {
+			return known;
+		}
+		try {
+			const graph = await body(
+				await read(`/runs/${encodeURIComponent(runId)}/graph`),
+				workflowGraph,
+			);
+			graphs.set(runId, graph);
+			return graph;
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return null;
+		}
+	};
 	const runCheckpoint = async (
 		runId: string,
 	): Promise<RunCheckpoint | null> => {
-		const { boxRow } = statusRow(
+		const { row } = statusRow(
 			listed().flatMap((factory) =>
 				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === runId),
 			),
+			reachable,
 		);
-		if (boxRow === undefined) {
+		if (row === undefined) {
 			return null;
 		}
-		const read = reader(fetchImpl, boxRow.url, signal);
+		const read = reader(fetchImpl, row.url, signal);
+		const usage = usageOf(read, runId);
 		try {
-			const answer = await body(
-				await read(`/runs/${encodeURIComponent(runId)}/checkpoint`),
-				checkpoint,
-			);
+			const [answer, graph] = await Promise.all([
+				read(`/runs/${encodeURIComponent(runId)}/checkpoint`).then((response) =>
+					body(response, checkpoint),
+				),
+				graphOf(read, runId),
+			]);
 			const stage = stagePath(answer);
+			const used = await usage;
 			return {
 				stage: stage === "" ? null : stage,
 				completedStages: answer.completed_nodes,
 				retries: answer.node_retries,
 				visits: answer.visits,
+				...(used === null ? {} : { usage: used }),
+				graph: graph === null ? null : runGraph(graph, answer),
 			};
 		} catch (error) {
 			if (!(error instanceof Unreachable)) {
 				throw error;
 			}
 			return null;
+		}
+	};
+	const runAgents = async (runId: string): Promise<RunAgent[] | null> => {
+		const { row } = statusRow(
+			listed().flatMap((factory) =>
+				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === runId),
+			),
+			reachable,
+		);
+		if (row === undefined) {
+			return null;
+		}
+		if (!isLive(row.run.statusKind)) {
+			return [];
+		}
+		const read = reader(fetchImpl, row.url, signal);
+		try {
+			const answer = await body(
+				await read(`/runs/${encodeURIComponent(runId)}/workers`),
+				workers,
+			);
+			const stage = stages.get(runId);
+			return Object.entries(answer.workers)
+				.filter(([path, worker]) => worker.turn === "running" || path === stage)
+				.map(([path, worker]) => ({
+					stage: path,
+					tool: worker.current_tool === "" ? null : worker.current_tool,
+					lastMessage: worker.last_message === "" ? null : worker.last_message,
+					turn: worker.turn,
+				}));
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return [];
 		}
 	};
 	const answer = async (
@@ -683,18 +968,60 @@ export function factoryReader(
 		const same = listed().flatMap((factory) =>
 			(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
 		);
-		const { boxRow } = statusRow(same);
-		if (boxRow?.run.questions?.some((item) => item.id === question) !== true) {
+		const { hubRow, row } = statusRow(same, reachable);
+		// Only the hub posts an answer to the ticket thread, so a hub-covered run answers there.
+		const target = hubRow ?? row;
+		if (
+			target === undefined ||
+			row?.run.questions?.some((item) => item.id === question) !== true
+		) {
 			return "missing";
 		}
-		const read = reader(fetchImpl, boxRow.url, signal);
+		const read = reader(fetchImpl, target.url, signal);
 		try {
 			const response = await read(
 				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
 				{ json: { text } },
 			);
 			if (response.ok) {
+				addMessage(run, {
+					kind: "answer",
+					sender: levSender,
+					text,
+					at: now().toISOString(),
+				});
 				return "answered";
+			}
+			return response.status === 404 ? "missing" : "failed";
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return "failed";
+		}
+	};
+	const steer = async (run: string, steer: Steer): Promise<SteerResult> => {
+		const { hubRow, row } = statusRow(
+			listed().flatMap((factory) =>
+				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
+			),
+			reachable,
+		);
+		// The hub forwards a steer to the box that does the run.
+		const target = hubRow ?? row;
+		if (target === undefined) {
+			return "missing";
+		}
+		const read = reader(fetchImpl, target.url, signal);
+		try {
+			const response = await read(`/runs/${encodeURIComponent(run)}/steer`, {
+				json: { ...steer, sender: levSender },
+			});
+			if (response.ok) {
+				return "steered";
+			}
+			if (response.status === 409) {
+				return "ended";
 			}
 			return response.status === 404 ? "missing" : "failed";
 		} catch (error) {
@@ -713,6 +1040,8 @@ export function factoryReader(
 		follow,
 		runs,
 		checkpoint: runCheckpoint,
+		agents: runAgents,
 		answer,
+		steer,
 	};
 }

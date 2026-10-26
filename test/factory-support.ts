@@ -27,14 +27,18 @@ export type FactoryRequest = {
 	body?: string;
 };
 
-const answerPath = /^\/runs\/[^/]+\/questions\/[^/]+\/answer$/;
+const writePaths = [
+	/^\/runs\/[^/]+\/questions\/[^/]+\/answer$/,
+	/^\/runs\/[^/]+\/steer$/,
+];
 
-/** True for a read, and for the answer POST: the one write that the app may send to a factory. */
-export function readOrAnswer(request: FactoryRequest): boolean {
+/** True for a read, and for an answer or steer POST: the only writes that the app may send to a factory. */
+export function readAnswerOrSteer(request: FactoryRequest): boolean {
+	const { pathname } = new URL(request.url);
 	return (
 		request.method === "GET" ||
 		(request.method === "POST" &&
-			answerPath.test(new URL(request.url).pathname))
+			writePaths.some((path) => path.test(pathname)))
 	);
 }
 
@@ -123,6 +127,9 @@ export function factoryFetch(
 		const body = answers[url.pathname];
 		if (body instanceof EventFeed) {
 			return body.answer(init?.signal);
+		}
+		if (body instanceof Response) {
+			return body.clone();
 		}
 		return body === undefined || body === null
 			? new Response("not found", { status: 404 })
