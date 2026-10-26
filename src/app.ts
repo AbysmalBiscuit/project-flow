@@ -35,6 +35,7 @@ import type { Change, CheckoutSource, Notifier, TodoSource } from "./ports.ts";
 import { listedRef, refListed, sameProject } from "./project-ref.ts";
 import {
 	attentionFor,
+	factoryRunList,
 	overview,
 	projectViewNamed,
 	projectViews,
@@ -656,7 +657,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (pathname === "/settings") {
 			return settingsBody();
 		}
-		if (pathname.startsWith("/runs/")) {
+		if (pathname === "/runs" || pathname.startsWith("/runs/")) {
 			return undefined;
 		}
 		const body = runningOverview(pollOptions, configuration);
@@ -683,6 +684,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			"/needs-you": pageResponse,
 			"/inbox": pageResponse,
 			"/projects/*": pageResponse,
+			"/runs": pageResponse,
 			"/runs/*": pageResponse,
 			"/api/overview": {
 				GET: () => {
@@ -897,6 +899,9 @@ export async function start(options: StartOptions): Promise<Running> {
 					await readFactories(factories.settled);
 					return Response.json(settingsBody());
 				},
+			},
+			"/api/factory-runs": {
+				GET: () => Response.json(factoryRunList(pollOptions, configuration)),
 			},
 			"/api/factory-runs/:id": {
 				GET: async (request) => {
