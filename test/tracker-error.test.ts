@@ -8,7 +8,7 @@ import {
 	type Sent,
 	serve,
 } from "./replies-github-fake.ts";
-import { settledOverview, urlOf } from "./support.ts";
+import { settledOverview, settledRead, urlOf } from "./support.ts";
 
 const rejected = () => new Response("Bad credentials", { status: 401 });
 
@@ -54,7 +54,7 @@ test("a tracker 401 on a list path and on a thread path gives one error shape", 
 		)?.error;
 		expect(listError).toMatch(trackerErrorShape);
 
-		const thread = await fetch(
+		const thread = await settledRead(
 			new URL(
 				"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 				app.base,
@@ -97,7 +97,7 @@ test.each([
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);
 	try {
-		const thread = await fetch(new URL(threadUrl, app.base));
+		const thread = await settledRead(new URL(threadUrl, app.base));
 		const body = (await thread.json()) as Record<string, unknown>;
 		expect(thread.status).toBe(502);
 		expect(Object.keys(body)).toEqual(["error"]);
@@ -113,7 +113,7 @@ test("an unavailable linked-PR read leaves the thread without review comments", 
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);
 	try {
-		const thread = await fetch(new URL(threadUrl, app.base));
+		const thread = await settledRead(new URL(threadUrl, app.base));
 		expect(thread.status).toBe(200);
 		expect(sent.some((item) => item.url.includes("/pulls/"))).toBe(false);
 	} finally {

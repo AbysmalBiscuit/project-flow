@@ -136,10 +136,15 @@ export type FactoryReader = {
 	runs: () => FactoryRun[];
 	/**
 	 * The run of each listed factory with this id, with its last event and the
-	 * name of its workflow graph from the factory whose row gives the run its status.
+	 * name of its workflow graph when a read has found it.
 	 * Null when no factory reported the run.
 	 */
-	run: (runId: string) => Promise<RunDetail | null>;
+	run: (runId: string) => RunDetail | null;
+	/**
+	 * `GET /runs/{id}/graph` of the factory whose row gives the run its status.
+	 * True when the read finds a workflow name that `run` did not give.
+	 */
+	readWorkflow: (runId: string) => Promise<boolean>;
 	/**
 	 * `GET /runs/{id}/checkpoint` and `GET /runs/{id}/turns` of the factory whose row gives the run its status.
 	 * "missing" when no factory reported the run or the factory gave no checkpoint,

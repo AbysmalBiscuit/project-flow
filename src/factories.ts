@@ -25,7 +25,8 @@ export type FactoryKind = "hub" | "daemon";
 /** A factory that this launch reads, and what its last check found. */
 export type FactoryEntry = Factory & {
 	source: "flag" | "config";
-	reachable: boolean;
+	/** Null until the first check of the factory ends. */
+	reachable: boolean | null;
 	kind: FactoryKind | null;
 	/** The boxes that the hub's runs name. Null for a daemon. */
 	boxes: number | null;
@@ -742,7 +743,7 @@ export function factoryReader(
 			return {
 				...factory,
 				...(found.get(factory.url) ?? {
-					reachable: false,
+					reachable: null,
 					kind: null,
 					boxes: null,
 				}),
@@ -1114,19 +1115,37 @@ export function factoryReader(
 			return "missing";
 		}
 	};
-	const runDetail = async (runId: string): Promise<RunDetail | null> => {
+	const runDetail = (runId: string): RunDetail | null => {
 		const run = runs().find((run) => run.id === runId);
 		const { row } = statusRowOf(runId);
 		if (run === undefined || row === undefined) {
 			return null;
 		}
-		const graph = await graphOf(reader(fetchImpl, row.url, signal), runId);
+		const workflow = graphs.get(runId)?.name;
 		const lastEvent = lastEvents.get(runId);
 		return {
 			...run,
-			...(graph?.name === undefined ? {} : { workflow: graph.name }),
+			...(workflow === undefined ? {} : { workflow }),
 			...(lastEvent === undefined ? {} : { lastEvent }),
 		};
+	};
+	const readingWorkflows = new Set<string>();
+	const readWorkflow = async (runId: string): Promise<boolean> => {
+		const { row } = statusRowOf(runId);
+		if (
+			row === undefined ||
+			graphs.get(runId)?.name !== undefined ||
+			readingWorkflows.has(runId)
+		) {
+			return false;
+		}
+		readingWorkflows.add(runId);
+		try {
+			const graph = await graphOf(reader(fetchImpl, row.url, signal), runId);
+			return graph?.name !== undefined;
+		} finally {
+			readingWorkflows.delete(runId);
+		}
 	};
 	const runAgents = async (runId: string): Promise<RunAgent[] | null> => {
 		const { row } = statusRowOf(runId);
@@ -1246,6 +1265,7 @@ export function factoryReader(
 		follow,
 		runs,
 		run: runDetail,
+		readWorkflow,
 		checkpoint: runCheckpoint,
 		agents: runAgents,
 		answer,

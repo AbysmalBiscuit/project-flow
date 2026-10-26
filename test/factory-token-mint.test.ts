@@ -329,7 +329,6 @@ describe("factory GitHub token mint", () => {
 				return { status: 1, stderr: "" };
 			},
 			beforeFirstPoll: true,
-			settingsReadWaitMs: 50,
 		});
 		try {
 			await mintStarted;

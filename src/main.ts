@@ -44,7 +44,6 @@ export type RunIo = {
 	now?: () => Date;
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
-	settingsReadWaitMs?: number;
 	intervalSecondMs?: number;
 	runTickMs?: number;
 	idleTimeoutSeconds?: number;
@@ -714,9 +713,6 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.trackerRequestLimitMs === undefined
 				? {}
 				: { trackerRequestLimitMs: io.trackerRequestLimitMs }),
-			...(io.settingsReadWaitMs === undefined
-				? {}
-				: { settingsReadWaitMs: io.settingsReadWaitMs }),
 			...(io.intervalSecondMs === undefined
 				? {}
 				: { intervalSecondMs: io.intervalSecondMs }),

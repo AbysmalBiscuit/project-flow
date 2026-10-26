@@ -7,6 +7,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
 	emptyProjectFields,
+	readWhere,
 	settledOverview,
 	tempConfig,
 	testIo,
@@ -218,7 +219,7 @@ describe("local projects", () => {
 		}
 	});
 
-	test("a settings read after a refresh sees the refresh poll's catalogue", async () => {
+	test("a settings read during a refresh answers at once, and a later read sees the refresh poll's catalogue", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const requests: string[] = [];
@@ -237,13 +238,15 @@ describe("local projects", () => {
 						method: "POST",
 					});
 					expect(refresh.status).toBe(204);
-					const read = fetch(new URL("/api/settings", base));
-					// The read reaches the server before the first poll's discovery answers.
-					await fetch(new URL("/api/overview", base));
+					const early = (await (
+						await fetch(new URL("/api/settings", base))
+					).json()) as { projects: { ref: unknown }[] };
+					expect(early.projects).toEqual([]);
 					answerFirst();
-					const settings = (await (await read).json()) as {
-						projects: { ref: unknown }[];
-					};
+					const settings = await readWhere<{ projects: { ref: unknown }[] }>(
+						new URL("/api/settings", base),
+						(body) => body.projects.length > 0,
+					);
 					expect(settings.projects.map((project) => project.ref)).toEqual([
 						{ tracker: "github", owner: "lev", project: 4 },
 					]);

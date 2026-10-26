@@ -27,6 +27,7 @@ import type { CheckpointRead, FactoryEntry, Steer } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
+import { pendingStatus } from "./stale-reads.ts";
 import { storedObject } from "./stored-page.ts";
 
 type SettingsPage = {
@@ -81,12 +82,14 @@ export const pageQuery = {
 			queryKey: ["project", name, view],
 			queryFn: () => readProject(name, view),
 		}),
-	thread: (tracker: string, project: string, key: string) =>
-		queryOptions({
-			queryKey: ["thread", tracker, project, key],
-			queryFn: () => readThread(tracker, project, key),
+	thread: (tracker: string, project: string, key: string) => {
+		const queryKey = ["thread", tracker, project, key];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readThread(tracker, project, key, queryKey),
 			placeholderData: (previous: ThreadRead | undefined) => previous,
-		}),
+		});
+	},
 	/** A change in the factory feed reads the Runs list again. */
 	runs: queryOptions({
 		queryKey: ["runs"],
@@ -101,18 +104,21 @@ export const pageQuery = {
 			placeholderData: (previous: RunDetail | null | undefined) => previous,
 		}),
 	/** The key holds the run's status and stage, so a change in the factory feed reads the checkpoint again. */
-	checkpoint: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) =>
-		queryOptions({
-			queryKey: ["checkpoint", run.id, run.statusKind, run.stage ?? null],
-			queryFn: () => readCheckpoint(run.id),
+	checkpoint: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) => {
+		const queryKey = ["checkpoint", run.id, run.statusKind, run.stage ?? null];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readCheckpoint(run.id, queryKey),
 			placeholderData: (previous: CheckpointRead | undefined) => previous,
-		}),
+		});
+	},
 	/** A live run reads its agents again on an interval while a view follows it, and an ended run reads none. */
 	agents: (run: Pick<ShownFactoryRun, "id" | "statusKind">) => {
 		const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
+		const queryKey = ["agents", run.id, run.statusKind];
 		return queryOptions({
-			queryKey: ["agents", run.id, run.statusKind],
-			queryFn: () => readAgents(run.id),
+			queryKey,
+			queryFn: () => readAgents(run.id, queryKey),
 			enabled: live,
 			refetchInterval: live ? agentReadMs : false,
 		});
@@ -186,8 +192,14 @@ async function readProject(
 	return (await response.json()) as ProjectReport;
 }
 
+/** A read that the app has not answered yet keeps what the page holds. */
+function heldData<T>(queryKey: readonly unknown[]): T | undefined {
+	return pageQueryClient.getQueryData<T>(queryKey);
+}
+
 type ThreadRead =
 	| { status: "ready"; thread: Thread }
+	| { status: "pending" }
 	| { status: "missing" }
 	| { status: "failed" };
 
@@ -195,9 +207,13 @@ async function readThread(
 	tracker: string,
 	project: string,
 	key: string,
+	queryKey: readonly unknown[],
 ): Promise<ThreadRead> {
 	const path = `/api/threads/${tracker}/${encodeURIComponent(key)}?project=${encodeURIComponent(project)}`;
 	const response = await fetch(path);
+	if (response.status === pendingStatus) {
+		return heldData<ThreadRead>(queryKey) ?? { status: "pending" };
+	}
 	if (!response.ok) {
 		const body = (await response.json().catch(() => null)) as {
 			missing?: boolean;
@@ -209,10 +225,16 @@ async function readThread(
 	return { status: "ready", thread: (await response.json()) as Thread };
 }
 
-async function readAgents(runId: string): Promise<RunAgent[]> {
+async function readAgents(
+	runId: string,
+	queryKey: readonly unknown[],
+): Promise<RunAgent[]> {
 	const response = await fetch(
 		`/api/factory-runs/${encodeURIComponent(runId)}/agents`,
 	);
+	if (response.status === pendingStatus) {
+		return heldData<RunAgent[]>(queryKey) ?? [];
+	}
 	if (response.status === 404) {
 		return [];
 	}
@@ -233,10 +255,20 @@ async function readRun(id: string): Promise<RunDetail | null> {
 	return (await response.json()) as RunDetail;
 }
 
-async function readCheckpoint(runId: string): Promise<CheckpointRead> {
+async function readCheckpoint(
+	runId: string,
+	queryKey: readonly unknown[],
+): Promise<CheckpointRead> {
 	const response = await fetch(
 		`/api/factory-runs/${encodeURIComponent(runId)}/checkpoint`,
 	);
+	if (response.status === pendingStatus) {
+		const held = heldData<CheckpointRead>(queryKey);
+		if (held === undefined) {
+			throw new Error("checkpoint pending");
+		}
+		return held;
+	}
 	if (response.status === 404) {
 		const body = (await response.json().catch(() => null)) as {
 			notServed?: boolean;
@@ -594,6 +626,8 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["checkpoint"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["agents"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
@@ -605,6 +639,8 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["checkpoint"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["agents"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
