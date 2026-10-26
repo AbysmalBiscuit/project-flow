@@ -84,17 +84,12 @@ export const frameToolLabel = {
 	collapseAll: "Collapse all",
 } as const;
 
-export const graphScopeLabel = {
-	nav: "Graph scope",
-	focus: "Focus",
+export const floatPanelLabel = {
+	legend: "Legend",
+	controls: "Controls",
+	pin: (panel: string) => `Pin ${panel.toLowerCase()} open`,
+	unpin: (panel: string) => `Unpin ${panel.toLowerCase()}`,
 } as const;
-
-export function openFramesLabel(count: number): string {
-	if (count === 0) {
-		return "No frames open";
-	}
-	return `${count} ${count === 1 ? "frame" : "frames"} open`;
-}
 
 export const loadingLabel = "Loading";
 

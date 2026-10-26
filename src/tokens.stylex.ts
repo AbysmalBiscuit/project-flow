@@ -340,6 +340,8 @@ export const measure = stylex.defineVars({
 	edgeDash: "0.35rem",
 	edgeFlow: "0.8s",
 	fade: "0.2s",
+	// A closed graph float panel shows at this opacity.
+	restOpacity: "0.6",
 	move: "0.3s",
 	switch: "2.1rem",
 	// The one height of every button, text input and select.
