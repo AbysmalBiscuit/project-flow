@@ -143,6 +143,16 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 	return (
 		<>
 			<div className={clsx(needs.toolbar)}>
+				<TextInput
+					id="runs-search"
+					type="search"
+					icon="search"
+					placeholder={runsListCopy.search}
+					aria-label={runsListCopy.search}
+					value={search}
+					width={styles.search}
+					onChange={(event) => setSearch(event.target.value)}
+				/>
 				<Dropdown
 					id="runs-status"
 					label={runsListCopy.status}
@@ -178,16 +188,6 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 					]}
 					onChange={setFactory}
 				/>
-				<TextInput
-					id="runs-search"
-					type="search"
-					icon="search"
-					placeholder={runsListCopy.search}
-					aria-label={runsListCopy.search}
-					value={search}
-					width={styles.search}
-					onChange={(event) => setSearch(event.target.value)}
-				/>
 			</div>
 			<div className={clsx(board.grid)}>
 				{shown.length === 0 ? (
@@ -221,7 +221,7 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 export function Page() {
 	const { data } = useQuery(pageQuery.runs);
 	return (
-		<PageFrame title={navLabel.runs} subtitle={runsListCopy.lead} wide>
+		<PageFrame title={navLabel.runs} subtitle={runsListCopy.lead}>
 			{data === undefined ? (
 				<p className={clsx(board.empty)}>{loadingLabel}</p>
 			) : (

@@ -234,6 +234,8 @@ export const runPageLabel = "Run";
 
 export const runMissingLabel = "No factory reports this run.";
 
+export const runReadFailedLabel = "The run did not load.";
+
 /** The columns of the Runs list, in order. */
 export const runsColumnLabel = {
 	status: runFactLabel.status,

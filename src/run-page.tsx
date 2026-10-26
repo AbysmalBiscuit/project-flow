@@ -19,6 +19,7 @@ import {
 	runFactLabel,
 	runMissingLabel,
 	runPageLabel,
+	runReadFailedLabel,
 	runStatusLabel,
 	type RunTab,
 	runTabData,
@@ -146,7 +147,7 @@ function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
 /** The run page: the detail of one workcell run, in tabs. */
 export function Page() {
 	const id = runIdOf(window.location.pathname);
-	const { data } = useQuery(pageQuery.run(id));
+	const { data, isError } = useQuery(pageQuery.run(id));
 	const [tab, setTab] = useState(tabOfUrl);
 	const pick = (next: RunTab) => {
 		setTab(next);
@@ -169,7 +170,6 @@ export function Page() {
 			{...(data === undefined || data === null
 				? {}
 				: { actions: <RunCancel run={data} /> })}
-			scroll
 		>
 			<div className={clsx(styles.body)}>
 				<div
@@ -196,7 +196,9 @@ export function Page() {
 					className={clsx(styles.panel)}
 				>
 					{data === undefined ? (
-						<p className={clsx(panel.note)}>{loadingLabel}</p>
+						<p className={clsx(panel.note)}>
+							{isError ? runReadFailedLabel : loadingLabel}
+						</p>
 					) : data === null ? (
 						<p className={clsx(panel.note)}>{runMissingLabel}</p>
 					) : (
