@@ -127,7 +127,7 @@ A ticket and every ticket upstream or downstream of it through blocker links. On
 _Avoid_: Path, lineage, dependency tree
 
 **Focus set**:
-The tickets or projects that Lev selects with Ctrl-click or a double-click. The view shows the chain of each one at full strength and fades the rest. An empty focus set ends focus mode.
+The tickets or projects that Lev selects with Shift-click or a double-click. The view shows the chain of each one at full strength and fades the rest. An empty focus set ends focus mode.
 _Avoid_: Selection, highlight
 
 **Preview**:
@@ -181,6 +181,30 @@ _Avoid_: Worker (when the agent is meant)
 **Run thread**:
 The talk with a run in time order: each ask of the run, each answer that Lev sends from Project Flow, and each steer that the factory reports delivered. Each message names its sender. Project Flow keeps the run thread only for the current launch, because the factory gives no answered asks.
 _Avoid_: Run chat, run log
+
+**Stage transcript**:
+The record of the agent of one run stage: each message of the agent, each tool call and each tool result, in time order. The run thread is not part of it.
+_Avoid_: Stage thread, stage chat, stage log
+
+**Stage pane**:
+The pane beside the run graph that shows one run stage: its facts, its stage transcript and its context. The stage pane of a live stage also has a steer box for that stage.
+_Avoid_: Details pane, stage drawer
+
+**Run page**:
+The page that shows all the detail of one workcell run, in tabs. The side panel of a ticket links to the run page of its run.
+_Avoid_: Run view, run dashboard, run detail
+
+**Resume**:
+Lev continues a blocked or failed workcell run from its run checkpoint. The run keeps its id, its run thread and its run usage.
+_Avoid_: Retry (when a whole run is meant), rerun
+
+**Restart**:
+Lev starts a new workcell run on the ticket of a blocked or failed run, from the first run stage. The new run names the run it restarted from. The restart cancels a blocked old run, and a failed old run stays as it was.
+_Avoid_: Retry (when a whole run is meant), rerun, resume (when a restart is meant)
+
+**Runs list**:
+The table of every workcell run that the factories report, with search and filters. Each row links to its run page.
+_Avoid_: Run history, run log
 
 **Factory feed**:
 The run status and stages that Project Flow reads live from the factory. Project Flow follows the factory's event stream, `GET /events`, and polls `GET /runs` only when the factory serves no event stream. Where the factory feed and a progress comment differ, the factory feed wins.
