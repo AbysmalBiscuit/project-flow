@@ -8,6 +8,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
 	recordedDiscovery,
+	settledRead,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -169,7 +170,7 @@ describe("comment html", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -223,7 +224,7 @@ describe("comment html", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,

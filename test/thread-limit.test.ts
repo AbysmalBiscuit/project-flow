@@ -8,6 +8,7 @@ import {
 	type Sent,
 	serve,
 } from "./replies-github-fake.ts";
+import { settledRead } from "./support.ts";
 
 describe("thread reads", () => {
 	test("a thread read whose tracker calls never answer returns an error", async () => {
@@ -23,7 +24,7 @@ describe("thread reads", () => {
 		);
 		try {
 			const started = Date.now();
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -52,7 +53,7 @@ describe("thread reads", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL("/api/threads/github/%20%20?project=acme%2Fwidget", app.base),
 			);
 			expect(response.status).toBe(404);
@@ -73,7 +74,7 @@ describe("thread reads", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%2399?project=acme%2Fwidget",
 					app.base,
@@ -101,7 +102,7 @@ describe("thread reads", () => {
 		);
 		try {
 			const started = Date.now();
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,
@@ -133,7 +134,7 @@ describe("thread reads", () => {
 				"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 				app.base,
 			);
-			const first = await fetch(path);
+			const first = await settledRead(path);
 			const second = await fetch(path);
 			expect(first.status).toBe(504);
 			expect(second.status).toBe(504);
@@ -198,7 +199,7 @@ describe("thread reads", () => {
 			JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
 		try {
-			const response = await fetch(
+			const response = await settledRead(
 				new URL(
 					"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 					app.base,

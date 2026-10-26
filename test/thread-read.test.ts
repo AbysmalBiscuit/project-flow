@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import type { Thread } from "../src/domain.ts";
 import { githubFetch, issue, type Sent, serve } from "./replies-github-fake.ts";
-import { linearFake } from "./support.ts";
+import { linearFake, settledRead } from "./support.ts";
 
 const linearProject = {
 	id: "11111111-1111-4111-8111-111111111111",
@@ -28,7 +28,7 @@ test("a thread longer than 100 comments keeps the newest comment", async () => {
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);
 	try {
-		const response = await fetch(
+		const response = await settledRead(
 			new URL(
 				"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 				app.base,
@@ -56,7 +56,7 @@ test("an unread PR thread is missing, not a tracker error", async () => {
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);
 	try {
-		const response = await fetch(
+		const response = await settledRead(
 			new URL(
 				"/api/threads/github/acme%2Fwidget%2340?project=acme%2Fwidget",
 				app.base,
@@ -85,7 +85,7 @@ test("a tracker failure stays an error, not a missing thread", async () => {
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);
 	try {
-		const response = await fetch(
+		const response = await settledRead(
 			new URL(
 				"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 				app.base,
@@ -112,10 +112,10 @@ test("a blank project marks the thread missing", async () => {
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);
 	try {
-		const blank = await fetch(
+		const blank = await settledRead(
 			new URL("/api/threads/github/acme%2Fwidget%237?project=%20%20", app.base),
 		);
-		const empty = await fetch(
+		const empty = await settledRead(
 			new URL("/api/threads/github/acme%2Fwidget%237", app.base),
 		);
 		expect(blank.status).toBe(404);
@@ -140,7 +140,7 @@ test("a missing Linear issue marks the thread missing", async () => {
 		}),
 	);
 	try {
-		const response = await fetch(
+		const response = await settledRead(
 			new URL("/api/threads/linear/PF-404?project=widget-launch", app.base),
 		);
 		expect(response.status).toBe(404);
@@ -171,7 +171,7 @@ test("a thread hides the workcell marker from the rendered body", async () => {
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);
 	try {
-		const response = await fetch(
+		const response = await settledRead(
 			new URL(
 				"/api/threads/github/acme%2Fwidget%237?project=acme%2Fwidget",
 				app.base,

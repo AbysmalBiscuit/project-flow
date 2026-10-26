@@ -156,7 +156,7 @@ export function TicketPanel({
 	const thread = read?.status === "ready" ? read.thread : null;
 	const missing = read?.status === "missing";
 	const failed = read?.status === "failed";
-	const loadingThread = threadQuery.isFetching;
+	const loadingThread = threadQuery.isFetching || read?.status === "pending";
 	useLayoutEffect(() => {
 		const active = document.activeElement;
 		opener.current =

@@ -39,7 +39,7 @@ function Reach({ id, entry }: { id: string; entry: FactoryEntry | undefined }) {
 				entry?.reachable === true && fields.statusOn,
 			)}
 		>
-			{entry === undefined
+			{entry === undefined || entry.reachable === null
 				? factoryCopy.unchecked
 				: entry.reachable
 					? factoryCopy.reachable
