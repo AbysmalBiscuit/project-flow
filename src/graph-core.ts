@@ -1,5 +1,6 @@
 import type {
 	ElkExtendedEdge,
+	ElkLabel,
 	ElkNode,
 	LayoutOptions,
 } from "elkjs/lib/elk-api.js";
@@ -50,13 +51,13 @@ export function padding(top: number, side: number): string {
  * Nested frames for ELK. `holderOf` names the frame or the root that holds
  * each node. A node with frame options from `optionsOf` is a frame, and each
  * other node is a leaf of size `sizeOf`. `selfLoops` keeps an edge whose two
- * ends are the same node.
+ * ends are the same node. ELK places the `labels` of each edge.
  */
 export type FrameTreeInput = {
 	holderOf: ReadonlyMap<string, string>;
 	optionsOf: (id: string) => LayoutOptions | undefined;
 	sizeOf: (id: string) => NodeSize;
-	edges: readonly { from: string; to: string }[];
+	edges: readonly { from: string; to: string; labels?: ElkLabel[] }[];
 	selfLoops: boolean;
 };
 
@@ -92,10 +93,16 @@ function holderEdges({
 		byHolder.set(holder, [...(byHolder.get(holder) ?? []), edge]);
 	for (const [index, edge] of edges.entries()) {
 		const id = `edge${index}`;
+		const labels = edge.labels === undefined ? {} : { labels: edge.labels };
 		if (edge.from === edge.to) {
 			const holder = holderOf.get(edge.from);
 			if (selfLoops && holder !== undefined) {
-				add(holder, { id, sources: [edge.from], targets: [edge.to] });
+				add(holder, {
+					id,
+					sources: [edge.from],
+					targets: [edge.to],
+					...labels,
+				});
 			}
 			continue;
 		}
@@ -110,7 +117,7 @@ function holderEdges({
 		if (source === undefined || target === undefined || source === target) {
 			continue;
 		}
-		add(shared, { id, sources: [source], targets: [target] });
+		add(shared, { id, sources: [source], targets: [target], ...labels });
 	}
 	return byHolder;
 }

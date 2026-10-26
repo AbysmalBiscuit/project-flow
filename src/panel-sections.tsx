@@ -15,6 +15,7 @@ import { runPagePath } from "./page-links.ts";
 import { panel } from "./panel-styles.ts";
 import { spanLabel } from "./poll-age.ts";
 import { RunAgents } from "./run-agents.tsx";
+import { RunCurrentStage } from "./run-checkpoint.tsx";
 import { RunDot } from "./run-marks.tsx";
 import {
 	earlierRunsLabel,
@@ -178,6 +179,7 @@ export function RunSection({
 			>
 				{openRunLabel}
 			</a>
+			<RunCurrentStage run={run} />
 			<RunAgents run={run} />
 			{earlier.length === 0 ? null : (
 				<>

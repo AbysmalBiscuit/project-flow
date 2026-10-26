@@ -1,9 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { RunCheckpoint, ShownFactoryRun, TurnUsage } from "./domain.ts";
+import type {
+	RunCheckpoint,
+	RunStage,
+	ShownFactoryRun,
+	TurnUsage,
+} from "./domain.ts";
 import { panel } from "./panel-styles.ts";
-import { spanLabel } from "./poll-age.ts";
 import { pageQuery } from "./queries.ts";
+import {
+	liveStage,
+	StageCard,
+	stageFacts,
+	stageTimeLabel,
+} from "./run-stage.tsx";
 import {
 	costLabel,
 	currentStageLabel,
@@ -13,8 +23,6 @@ import {
 	runStagesLabel,
 	runTabData,
 	runUsageLabel,
-	stageRetriesLabel,
-	stageVisitsLabel,
 	tokensLabel,
 	toolCountsLabel,
 	usageFactLabel,
@@ -33,15 +41,11 @@ function stagesOf(checkpoint: RunCheckpoint): string[] {
 	];
 }
 
-function timeLabel(usage: TurnUsage): string {
-	return spanLabel(0, usage.durationS * 1000);
-}
-
 function stageUsageLabel(usage: TurnUsage): string {
 	return [
 		tokensLabel(usage.inputTokens, usage.outputTokens),
 		costLabel(usage.costUsd),
-		timeLabel(usage),
+		stageTimeLabel(usage),
 		toolCountsLabel(usage.tools),
 	]
 		.filter((part) => part !== "")
@@ -66,7 +70,7 @@ function RunUsageTotal({ usage }: { usage: TurnUsage }) {
 	const facts = [
 		[usageFactLabel.tokens, tokensLabel(usage.inputTokens, usage.outputTokens)],
 		[usageFactLabel.cost, costLabel(usage.costUsd)],
-		[usageFactLabel.time, timeLabel(usage)],
+		[usageFactLabel.time, stageTimeLabel(usage)],
 		[usageFactLabel.tools, toolCountsLabel(usage.tools)],
 	] as const;
 	return (
@@ -86,9 +90,39 @@ function RunUsageTotal({ usage }: { usage: TurnUsage }) {
 	);
 }
 
-/** The stages of a factory run from its run checkpoint, with the visits, retries and usage of each. */
+/**
+ * The stages that the run reached, in the order that it first reached them.
+ * The stages of a child graph follow the stage that calls it. With no graph,
+ * each stage takes its name as its label.
+ */
+function reachedStages(checkpoint: RunCheckpoint): RunStage[] {
+	const nodes = new Map(
+		(checkpoint.graph?.nodes ?? []).map((node) => [node.id, node]),
+	);
+	const current = checkpoint.stage?.split("/")[0];
+	return stagesOf(checkpoint).flatMap((id): RunStage[] => {
+		const node = nodes.get(id);
+		if (node !== undefined) {
+			return [node, ...(node.child ?? [])];
+		}
+		return checkpoint.graph === null
+			? [
+					{
+						id,
+						label: id,
+						state: id === current ? "current" : "completed",
+						visits: checkpoint.visits[id] ?? 0,
+						retries: checkpoint.retries[id] ?? 0,
+					},
+				]
+			: [];
+	});
+}
+
+/** The stages of a factory run from its run checkpoint, each in the stage view. */
 export function RunStages({ run }: { run: ShownFactoryRun }) {
 	const { data } = useQuery(pageQuery.checkpoint(run));
+	const agents = useQuery(pageQuery.agents(run)).data ?? [];
 	if (data === undefined) {
 		return <p className={clsx(panel.note)}>{loadingLabel}</p>;
 	}
@@ -98,50 +132,43 @@ export function RunStages({ run }: { run: ShownFactoryRun }) {
 	if (data === "missing") {
 		return <NoData />;
 	}
-	const current = data.stage?.split("/")[0];
 	return (
 		<>
 			<h3 className={clsx(panel.sectionLabel)}>{runStagesLabel}</h3>
-			<ul className={clsx(panel.relations)} aria-label={runStagesLabel}>
-				{stagesOf(data).map((stage) => {
-					const visits = data.visits[stage] ?? 0;
-					const retries = data.retries[stage] ?? 0;
-					const usage = data.usage?.stages[stage];
-					const isCurrent = stage === current;
-					return (
-						<li
-							key={stage}
-							className={clsx(
-								panel.relation,
-								panel.stage,
-								isCurrent && panel.currentStage,
-							)}
-							data-stage={stage}
-							aria-current={isCurrent ? "step" : undefined}
-						>
-							<span>{isCurrent ? (data.stage ?? stage) : stage}</span>
-							{isCurrent ? (
-								<span className={clsx(panel.key)}>{currentStageLabel}</span>
-							) : null}
-							{visits === 0 ? null : (
-								<span className={clsx(panel.key)}>
-									{stageVisitsLabel(visits)}
-								</span>
-							)}
-							{retries === 0 ? null : (
-								<span className={clsx(panel.key)}>
-									{stageRetriesLabel(retries)}
-								</span>
-							)}
-							{usage === undefined ? null : (
-								<span className={clsx(panel.stageUsage)}>
-									{stageUsageLabel(usage)}
-								</span>
-							)}
-						</li>
-					);
-				})}
+			<ul className={clsx(panel.stages)} aria-label={runStagesLabel}>
+				{reachedStages(data).map((stage) => (
+					<li
+						key={stage.id}
+						aria-current={stage.state === "current" ? "step" : undefined}
+					>
+						<StageCard facts={stageFacts(stage, data, agents)} boxed />
+					</li>
+				))}
 			</ul>
+		</>
+	);
+}
+
+/** The stage where a factory run is now, in the stage view. */
+export function RunCurrentStage({ run }: { run: ShownFactoryRun }) {
+	const { data } = useQuery(pageQuery.checkpoint(run));
+	const agents = useQuery(pageQuery.agents(run)).data ?? [];
+	if (typeof data !== "object") {
+		return null;
+	}
+	const stage =
+		data.graph === null
+			? reachedStages(data).find((item) => item.state === "current")
+			: liveStage(data.graph);
+	if (stage === undefined) {
+		return null;
+	}
+	return (
+		<>
+			<h3 className={clsx(panel.sectionLabel)}>{currentStageLabel}</h3>
+			<div className={clsx(panel.stages)}>
+				<StageCard facts={stageFacts(stage, data, agents)} boxed />
+			</div>
 		</>
 	);
 }

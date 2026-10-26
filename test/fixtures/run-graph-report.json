@@ -1,0 +1,607 @@
+{
+	"nodes": [
+		{
+			"id": "start",
+			"label": "Start",
+			"shape": "Mdiamond",
+			"kind": "start",
+			"state": "completed",
+			"visits": 1,
+			"retries": 0
+		},
+		{
+			"id": "exit",
+			"label": "Exit",
+			"shape": "Msquare",
+			"kind": "exit",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "inputs",
+			"label": "Inputs",
+			"shape": "parallelogram",
+			"kind": "tool",
+			"state": "completed",
+			"visits": 1,
+			"retries": 0
+		},
+		{
+			"id": "handoff_missing",
+			"label": "The run has no handoff file. Place the handoff, then answer retry.",
+			"shape": "hexagon",
+			"kind": "wait.human",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "handoff_operator",
+			"label": "The run has no handoff file, and nobody placed it for a day. Place the handoff, then answer retry.",
+			"shape": "hexagon",
+			"kind": "wait.human",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "draft",
+			"label": "Draft",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "approve",
+			"label": "Approve the drafted Done when in the run's handoff, or send it back to draft?",
+			"shape": "hexagon",
+			"kind": "wait.human",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "approve_operator",
+			"label": "Nobody answered for a day. Approve the drafted Done when in the run's handoff, or send it back to draft?",
+			"shape": "hexagon",
+			"kind": "wait.human",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "implement",
+			"label": "Implement",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "completed",
+			"visits": 1,
+			"retries": 0
+		},
+		{
+			"id": "apply",
+			"label": "Apply",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "push",
+			"label": "Push",
+			"shape": "parallelogram",
+			"kind": "tool",
+			"state": "completed",
+			"visits": 1,
+			"retries": 1
+		},
+		{
+			"id": "push_tries",
+			"label": "Push tries",
+			"shape": "parallelogram",
+			"kind": "tool",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "repush",
+			"label": "Repush",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "push_failed",
+			"label": "The push failed again after one more implementer attempt. The tail of its push output is:\n\n$context.tool_error\n\nFix the cause, then answer retry, or answer stop.",
+			"shape": "hexagon",
+			"kind": "wait.human",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "fan",
+			"label": "Review round",
+			"shape": "component",
+			"kind": "parallel",
+			"state": "completed",
+			"visits": 2,
+			"retries": 0
+		},
+		{
+			"id": "verify",
+			"label": "Verify",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "completed",
+			"visits": 2,
+			"retries": 0
+		},
+		{
+			"id": "review",
+			"label": "Review",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "completed",
+			"visits": 2,
+			"retries": 0
+		},
+		{
+			"id": "conceptual",
+			"label": "Conceptual review",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "completed",
+			"visits": 2,
+			"retries": 0,
+			"child": []
+		},
+		{
+			"id": "join",
+			"label": "Join",
+			"shape": "tripleoctagon",
+			"kind": "parallel.fan_in",
+			"state": "completed",
+			"visits": 2,
+			"retries": 0
+		},
+		{
+			"id": "check",
+			"label": "Review check",
+			"shape": "parallelogram",
+			"kind": "tool",
+			"state": "completed",
+			"visits": 2,
+			"retries": 0
+		},
+		{
+			"id": "question",
+			"label": "Important Question",
+			"shape": "hexagon",
+			"kind": "wait.human",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "branch_failed",
+			"label": "Reviewer failed",
+			"shape": "hexagon",
+			"kind": "wait.human",
+			"state": "completed",
+			"visits": 1,
+			"retries": 0
+		},
+		{
+			"id": "settle",
+			"label": "Settle",
+			"shape": "parallelogram",
+			"kind": "tool",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "receive",
+			"label": "Receive",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "completed",
+			"visits": 1,
+			"retries": 0
+		},
+		{
+			"id": "reverify",
+			"label": "Verify again",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "gate",
+			"label": "Gate",
+			"shape": "parallelogram",
+			"kind": "tool",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0
+		},
+		{
+			"id": "post_pr",
+			"label": "Post PR",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "current",
+			"visits": 0,
+			"retries": 0,
+			"child": [
+				{
+					"id": "post_pr/start",
+					"label": "start",
+					"state": "completed",
+					"visits": 1,
+					"retries": 0
+				},
+				{
+					"id": "post_pr/draft_pr",
+					"label": "draft_pr",
+					"state": "completed",
+					"visits": 1,
+					"retries": 0
+				},
+				{
+					"id": "post_pr/post_pr",
+					"label": "post_pr",
+					"state": "current",
+					"visits": 2,
+					"retries": 0
+				}
+			]
+		},
+		{
+			"id": "report",
+			"label": "Report",
+			"shape": "box",
+			"kind": "codergen",
+			"state": "ahead",
+			"visits": 0,
+			"retries": 0,
+			"child": []
+		}
+	],
+	"edges": [
+		{
+			"from": "start",
+			"to": "inputs"
+		},
+		{
+			"from": "inputs",
+			"to": "handoff_missing",
+			"condition": "preferred_label=no_handoff"
+		},
+		{
+			"from": "inputs",
+			"to": "draft",
+			"condition": "preferred_label=draft"
+		},
+		{
+			"from": "inputs",
+			"to": "implement",
+			"condition": "preferred_label=build"
+		},
+		{
+			"from": "inputs",
+			"to": "post_pr",
+			"label": "pr_open",
+			"condition": "preferred_label=pr_open"
+		},
+		{
+			"from": "inputs",
+			"to": "post_pr",
+			"label": "pr_merged",
+			"condition": "preferred_label=pr_merged"
+		},
+		{
+			"from": "inputs",
+			"to": "post_pr",
+			"label": "pr_closed",
+			"condition": "preferred_label=pr_closed"
+		},
+		{
+			"from": "handoff_missing",
+			"to": "inputs",
+			"label": "retry"
+		},
+		{
+			"from": "handoff_missing",
+			"to": "handoff_operator",
+			"label": "operator"
+		},
+		{
+			"from": "handoff_operator",
+			"to": "inputs",
+			"label": "retry"
+		},
+		{
+			"from": "handoff_operator",
+			"to": "handoff_operator",
+			"label": "remind",
+			"condition": "preferred_label=remind"
+		},
+		{
+			"from": "draft",
+			"to": "implement",
+			"label": "settled",
+			"condition": "preferred_label=settled"
+		},
+		{
+			"from": "draft",
+			"to": "approve",
+			"label": "ask",
+			"condition": "preferred_label=ask"
+		},
+		{
+			"from": "approve",
+			"to": "implement",
+			"label": "approved"
+		},
+		{
+			"from": "approve",
+			"to": "draft",
+			"label": "redraft"
+		},
+		{
+			"from": "approve",
+			"to": "approve_operator",
+			"label": "operator"
+		},
+		{
+			"from": "approve_operator",
+			"to": "implement",
+			"label": "approved"
+		},
+		{
+			"from": "approve_operator",
+			"to": "draft",
+			"label": "redraft"
+		},
+		{
+			"from": "approve_operator",
+			"to": "approve_operator",
+			"label": "remind",
+			"condition": "preferred_label=remind"
+		},
+		{
+			"from": "implement",
+			"to": "push"
+		},
+		{
+			"from": "apply",
+			"to": "push"
+		},
+		{
+			"from": "push",
+			"to": "fan",
+			"label": "pushed",
+			"condition": "outcome=success"
+		},
+		{
+			"from": "push",
+			"to": "push_tries",
+			"label": "push_failed",
+			"condition": "outcome=fail"
+		},
+		{
+			"from": "push_tries",
+			"to": "repush",
+			"label": "below",
+			"condition": "preferred_label=below"
+		},
+		{
+			"from": "push_tries",
+			"to": "push_failed",
+			"label": "reached",
+			"condition": "preferred_label=reached"
+		},
+		{
+			"from": "repush",
+			"to": "push"
+		},
+		{
+			"from": "push_failed",
+			"to": "push",
+			"label": "retry"
+		},
+		{
+			"from": "push_failed",
+			"to": "report",
+			"label": "stop"
+		},
+		{
+			"from": "fan",
+			"to": "verify"
+		},
+		{
+			"from": "fan",
+			"to": "review"
+		},
+		{
+			"from": "fan",
+			"to": "conceptual"
+		},
+		{
+			"from": "verify",
+			"to": "join"
+		},
+		{
+			"from": "review",
+			"to": "join"
+		},
+		{
+			"from": "conceptual",
+			"to": "join"
+		},
+		{
+			"from": "join",
+			"to": "report",
+			"label": "past_stop",
+			"condition": "outcome!=fail && context.through=implement"
+		},
+		{
+			"from": "join",
+			"to": "check",
+			"condition": "context.through!=implement"
+		},
+		{
+			"from": "check",
+			"to": "question",
+			"label": "question",
+			"condition": "preferred_label=question"
+		},
+		{
+			"from": "check",
+			"to": "receive",
+			"label": "receive",
+			"condition": "preferred_label=receive"
+		},
+		{
+			"from": "check",
+			"to": "branch_failed",
+			"label": "branch_failed",
+			"condition": "preferred_label=branch_failed"
+		},
+		{
+			"from": "branch_failed",
+			"to": "fan",
+			"label": "retry"
+		},
+		{
+			"from": "branch_failed",
+			"to": "receive",
+			"label": "skip"
+		},
+		{
+			"from": "question",
+			"to": "settle"
+		},
+		{
+			"from": "settle",
+			"to": "question",
+			"label": "question",
+			"condition": "preferred_label=question"
+		},
+		{
+			"from": "settle",
+			"to": "receive",
+			"label": "receive",
+			"condition": "preferred_label=receive"
+		},
+		{
+			"from": "receive",
+			"to": "reverify",
+			"label": "reverify",
+			"condition": "preferred_label=reverify"
+		},
+		{
+			"from": "reverify",
+			"to": "receive"
+		},
+		{
+			"from": "receive",
+			"to": "gate",
+			"label": "apply",
+			"condition": "preferred_label=apply"
+		},
+		{
+			"from": "gate",
+			"to": "apply",
+			"label": "below",
+			"condition": "preferred_label=below"
+		},
+		{
+			"from": "gate",
+			"to": "report",
+			"label": "reached",
+			"condition": "preferred_label=reached"
+		},
+		{
+			"from": "receive",
+			"to": "post_pr",
+			"label": "done",
+			"condition": "preferred_label=done"
+		},
+		{
+			"from": "report",
+			"to": "post_pr",
+			"label": "raised_pr",
+			"condition": "preferred_label=raised_pr"
+		},
+		{
+			"from": "report",
+			"to": "post_pr",
+			"label": "raised_review",
+			"condition": "preferred_label=raised_review"
+		},
+		{
+			"from": "report",
+			"to": "post_pr",
+			"label": "raised_merge",
+			"condition": "preferred_label=raised_merge"
+		},
+		{
+			"from": "report",
+			"to": "apply",
+			"label": "squash",
+			"condition": "preferred_label=squash"
+		},
+		{
+			"from": "report",
+			"to": "apply",
+			"label": "decided",
+			"condition": "preferred_label=decided"
+		},
+		{
+			"from": "report",
+			"to": "push",
+			"label": "rebased",
+			"condition": "preferred_label=rebased"
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"label": "rounds_raised",
+			"condition": "preferred_label=rounds_raised"
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"label": "rounds_noted",
+			"condition": "preferred_label=rounds_noted"
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"label": "limit_reached",
+			"condition": "preferred_label=limit_reached"
+		},
+		{
+			"from": "report",
+			"to": "exit",
+			"label": "done",
+			"condition": "preferred_label=done"
+		},
+		{
+			"from": "post_pr",
+			"to": "exit"
+		}
+	]
+}

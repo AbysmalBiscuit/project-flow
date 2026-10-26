@@ -1016,7 +1016,7 @@ describe("factory runs", () => {
 			}
 		});
 
-		test("the run carries the nodes and edges of its recorded graph, each node marked from the checkpoint", async () => {
+		test("the run carries the nodes and edges of its recorded graph, with the shape of each node, the condition of each edge and the state of each node from the checkpoint", async () => {
 			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
 			const app = await serveRuns(
 				{
@@ -1042,9 +1042,50 @@ describe("factory runs", () => {
 				expect(nodeOf("post_pr")).toEqual({
 					id: "post_pr",
 					label: "Post PR",
+					shape: "box",
+					kind: "codergen",
 					state: "current",
+					visits: 0,
 					retries: 0,
+					child: [
+						{
+							id: "post_pr/start",
+							label: "start",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+						{
+							id: "post_pr/draft_pr",
+							label: "draft_pr",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+						{
+							id: "post_pr/post_pr",
+							label: "post_pr",
+							state: "current",
+							visits: 2,
+							retries: 0,
+						},
+					],
 				});
+				expect(nodeOf("report")).toMatchObject({ child: [] });
+				expect(
+					Object.fromEntries(
+						(graph?.nodes ?? []).map((node) => [node.shape, node.kind]),
+					),
+				).toEqual({
+					Mdiamond: "start",
+					Msquare: "exit",
+					parallelogram: "tool",
+					hexagon: "wait.human",
+					box: "codergen",
+					component: "parallel",
+					tripleoctagon: "parallel.fan_in",
+				});
+				expect(nodeOf("fan")).toMatchObject({ visits: 2 });
 				expect(nodeOf("review")).toMatchObject({ state: "completed" });
 				expect(nodeOf("push")).toMatchObject({
 					state: "completed",
@@ -1057,8 +1098,45 @@ describe("factory runs", () => {
 					from: "push",
 					to: "fan",
 					label: "pushed",
+					condition: "outcome=success",
+				});
+				expect(graph?.edges).toContainEqual({
+					from: "handoff_operator",
+					to: "handoff_operator",
+					label: "remind",
+					condition: "preferred_label=remind",
+				});
+				expect(graph?.edges).toContainEqual({
+					from: "join",
+					to: "check",
+					condition: "context.through!=implement",
 				});
 				expect(graph?.edges).toContainEqual({ from: "fan", to: "verify" });
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a failed checkpoint marks the stage where the run failed", async () => {
+			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
+			const app = await serveRuns(
+				{
+					...hub,
+					[checkpointPath]: { ...runGraphCheckpoint, status: "fail" },
+					[graphPath]: runGraph,
+				},
+				[41],
+			);
+			try {
+				const { graph } = (await (
+					await checkpointOf(app.base)
+				).json()) as RunCheckpoint;
+				const postPr = graph?.nodes.find((node) => node.id === "post_pr");
+				expect(postPr?.state).toBe("failed");
+				expect(postPr?.child?.at(-1)).toMatchObject({
+					id: "post_pr/post_pr",
+					state: "failed",
+				});
 			} finally {
 				await app.stop();
 			}
