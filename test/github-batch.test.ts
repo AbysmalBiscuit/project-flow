@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { NeedsYouItem, Overview } from "../src/domain.ts";
@@ -272,7 +273,7 @@ async function startCounted(
 	queries: GraphqlRequest[];
 	base: string;
 }> {
-	const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 	const { path, cleanup } = await tempConfig(body);
 	const sent: string[] = [];
 	const queries: GraphqlRequest[] = [];
@@ -364,7 +365,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("a blank tracked repo fails before any GitHub request", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: "   " }] }),
 		);
@@ -393,7 +394,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("a repo name with repeated spaces fails before any GitHub request", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme  repo" }] }),
 		);
@@ -422,7 +423,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("a GraphQL error on RepoRead fails the start", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme/repo-0" }] }),
 		);
@@ -484,7 +485,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("a refresh after a failed poll reads GitHub again and a later refresh reads the new title", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				tracked: [{ tracker: "github", repo: "acme/widget" }],
@@ -584,7 +585,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("an unused label page still completes the factory lanes", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
@@ -702,7 +703,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("an edited comment on an unchanged issue reaches the next incremental poll", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				tracked: [{ tracker: "github", repo: "acme/widget" }],
@@ -910,7 +911,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("an incremental refresh shares one repository snapshot", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				tracked: [{ tracker: "github", repo: "acme/widget" }],
@@ -1007,7 +1008,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("a later issue blocker, blocking link and label reach the overview", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: "acme/widget" }] }),
 		);
@@ -1157,7 +1158,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("auto-merge metadata for an unreadable pull repo does not fail the Linear poll", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				tracked: [{ tracker: "linear", project: "widget-launch-0d42ae5d46d0" }],
@@ -1290,7 +1291,7 @@ describe("batched GitHub reads", () => {
 	});
 
 	test("auto-merge metadata for an unreadable repository does not fail the poll", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-batch-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({
 				tracked: [{ tracker: "github", repo: "acme/widget" }],

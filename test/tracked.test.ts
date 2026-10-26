@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
@@ -315,7 +316,7 @@ async function read<T>(base: string, path: string): Promise<T> {
 
 async function startWith(body: string, root?: string): Promise<Started> {
 	const store =
-		root ?? (await mkdtemp(join("/var/tmp", "project-flow-tracked-")));
+		root ?? (await mkdtemp(join(tmpdir(), "project-flow-tracked-")));
 	try {
 		const { checked, sent } = await serve(body, store, (base) =>
 			Promise.all([
@@ -377,7 +378,7 @@ describe("tracked projects", () => {
 	});
 
 	test("a restart with a shorter tracked list hides the untracked stored project before the first poll ends", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-tracked-"));
 		try {
 			const first = await startWith(
 				JSON.stringify({
@@ -407,7 +408,7 @@ describe("tracked projects", () => {
 	});
 
 	test("a re-tracked project gets a full poll after an untrack", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-tracked-"));
 		const repo1 = { tracker: "github", repo: "acme/repo-1" };
 		const repo3 = { tracker: "github", repo: "acme/repo-3" };
 		const save = async (base: string, tracked: unknown[]) => {
@@ -451,7 +452,7 @@ describe("tracked projects", () => {
 	});
 
 	test("a switch turned on through the API adds the project to the next poll, and a switch turned off removes it", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-tracked-"));
 		const repo1 = { tracker: "github", repo: "acme/repo-1" };
 		const save = async (base: string, tracked: unknown[]) => {
 			const current = await read<Configuration>(base, "/api/settings");
@@ -506,7 +507,7 @@ describe("tracked projects", () => {
 	});
 
 	test("a blank switch write and a repeated off leave the next poll with no tracked project", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-tracked-"));
 		const repo1 = { tracker: "github", repo: "acme/repo-1" };
 		const save = async (base: string, tracked: unknown) => {
 			const current = await read<Configuration>(base, "/api/settings");
@@ -555,7 +556,7 @@ describe("tracked projects", () => {
 	});
 
 	test("the switch state persists across a restart", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-tracked-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-tracked-"));
 		const repo1 = { tracker: "github", repo: "acme/repo-1" };
 		const { path, cleanup } = await tempConfig("{}");
 		try {

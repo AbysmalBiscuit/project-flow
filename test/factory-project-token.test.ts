@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Overview } from "../src/domain.ts";
@@ -156,9 +157,7 @@ function recordingFetch(recorded: Recorded[]): Fetch {
 
 describe("factory tokens on pinned GitHub projects", () => {
 	test("project item pages and status reads send the configured owner token", async () => {
-		const home = await mkdtemp(
-			join("/var/tmp", "project-flow-factory-project-"),
-		);
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-project-"));
 		const folder = join(home, "tokens");
 		await mkdir(join(folder, "acme"), { recursive: true });
 		await mkdir(join(folder, "other"), { recursive: true });
@@ -181,7 +180,7 @@ describe("factory tokens on pinned GitHub projects", () => {
 				],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		await writeFile(join(root, "notes.txt"), "untracked harness file\n");
 		let startChecks: (base: string) => void = () => {};
 		const ready = new Promise<string>((resolve) => {

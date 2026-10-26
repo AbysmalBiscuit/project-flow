@@ -1720,7 +1720,7 @@ describe("GET /api/projects/:name", () => {
 			).json()) as ProjectReport;
 		let path = "";
 		let cleanup = async () => {};
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		try {
 			const temp = await tempConfig(config);
 			path = temp.path;

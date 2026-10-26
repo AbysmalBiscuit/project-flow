@@ -1208,7 +1208,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<{
 			items: NeedsYouItem[];
@@ -1344,7 +1344,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<{
 			items: NeedsYouItem[];
@@ -1515,7 +1515,7 @@ describe("needs you", () => {
 				pmBot: { [repo]: true },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {
@@ -1650,7 +1650,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {
@@ -1842,7 +1842,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {
@@ -2027,7 +2027,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {
@@ -2156,7 +2156,7 @@ describe("needs you", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ pinned: [{ tracker: "github", repo }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {
@@ -2331,7 +2331,7 @@ describe("needs you", () => {
 				pmBot: { [repo]: false },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
 			startChecks = (base) => {

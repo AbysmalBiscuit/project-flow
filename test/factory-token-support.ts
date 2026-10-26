@@ -1,5 +1,6 @@
 import { expect } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { FactoryTokenMint } from "../src/factory-tokens.ts";
@@ -199,7 +200,7 @@ export async function serve(options: {
 	settingsReadWaitMs?: number;
 }): Promise<{ base: string; stop: () => Promise<void> }> {
 	const { path, cleanup } = await tempConfig(JSON.stringify(options.config));
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	await writeFile(join(root, "notes.txt"), "untracked harness file\n");
 	let startChecks: (base: string) => void = () => {};
 	const ready = new Promise<string>((resolve) => {

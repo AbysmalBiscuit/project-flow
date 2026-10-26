@@ -1,5 +1,6 @@
 import { expect } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
@@ -148,7 +149,7 @@ export async function serve(
 	stop: () => Promise<void>;
 }> {
 	const { path, cleanup } = await tempConfig(JSON.stringify(config));
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	let listened: (base: string) => void = () => {};
 	const ready = new Promise<string>((resolve) => {
 		listened = resolve;
@@ -167,6 +168,7 @@ export async function serve(
 			databasePath: join(root, "store.sqlite"),
 			stdout: (line) => listened(line),
 			waitForStop: stopped,
+			runTickMs: 25,
 			...(io.now === undefined ? {} : { now: io.now }),
 		}),
 	);

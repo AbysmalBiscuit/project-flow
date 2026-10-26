@@ -46,6 +46,7 @@ export type RunIo = {
 	trackerRequestLimitMs?: number;
 	settingsReadWaitMs?: number;
 	intervalSecondMs?: number;
+	runTickMs?: number;
 	idleTimeoutSeconds?: number;
 	waitForStop?: Promise<void>;
 	listTodos?: TodoSource;
@@ -719,6 +720,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			...(io.intervalSecondMs === undefined
 				? {}
 				: { intervalSecondMs: io.intervalSecondMs }),
+			...(io.runTickMs === undefined ? {} : { runTickMs: io.runTickMs }),
 			...(io.idleTimeoutSeconds === undefined
 				? {}
 				: { idleTimeoutSeconds: io.idleTimeoutSeconds }),

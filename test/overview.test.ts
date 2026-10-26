@@ -624,7 +624,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-overview-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-overview-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<Overview>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -690,7 +690,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-overview-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-overview-"));
 		const rejected = linearFake({ fail: "key" });
 		try {
 			const result = await run(
@@ -3873,8 +3873,8 @@ describe("GET /api/overview", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ checkoutRoots: ["   "] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
-		const stray = await mkdtemp(join("/var/tmp", "project-flow-stray-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
+		const stray = await mkdtemp(join(tmpdir(), "project-flow-stray-"));
 		await writeFile(join(stray, "note.txt"), "untracked");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<unknown>((resolve, reject) => {
@@ -3952,7 +3952,7 @@ describe("GET /api/overview", () => {
 
 	test("an omitted poll interval is 300 seconds", async () => {
 		const { path, cleanup } = await tempConfig("{}");
-		const root = await mkdtemp(join("/var/tmp", "project-flow-poll-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-poll-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -4096,7 +4096,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-etag-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-etag-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -4242,7 +4242,7 @@ describe("GET /api/overview", () => {
 				pinned: [{ tracker: "github", repo: repoName }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-blank-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-blank-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -4386,7 +4386,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-pages-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-pages-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -4554,7 +4554,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-since-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-since-"));
 		const clock = { polls: 0, frozen: false };
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -4735,7 +4735,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-evict-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-evict-"));
 		const clockPath = join(root, "clock");
 		await writeFile(clockPath, "2026-10-18T12:00:00.000Z");
 		let startChecks: (base: string) => void = () => {};
@@ -4936,7 +4936,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-retry-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-retry-"));
 		const clockPath = join(root, "clock");
 		await writeFile(clockPath, "2026-10-18T12:00:00.000Z");
 		let startChecks: (base: string) => void = () => {};
@@ -5029,7 +5029,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-stop-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-stop-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const seeded = new Database(databasePath);
 		seeded.run(`
@@ -5210,7 +5210,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-warm-release-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-warm-release-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const seeded = new Database(databasePath);
 		seeded.run(`
@@ -5355,7 +5355,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 1,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-warm-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-warm-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const seeded = new Database(databasePath);
 		seeded.run(`
@@ -5525,7 +5525,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-empty-poll-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-empty-poll-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let stopFill: () => void = () => {};
 		const fillStopped = new Promise<void>((resolve) => {
@@ -5691,7 +5691,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-missing-row-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-missing-row-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const seeded = new Database(databasePath);
 		seeded.run(`
@@ -5875,7 +5875,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-claimed-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-claimed-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let stop: () => void = () => {};
 		const stopped = new Promise<void>((resolve) => {
@@ -5982,7 +5982,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-empty-again-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-empty-again-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let stop: () => void = () => {};
 		const stopped = new Promise<void>((resolve) => {
@@ -6100,7 +6100,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-validator-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-validator-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let stopFirst: () => void = () => {};
 		const firstStopped = new Promise<void>((resolve) => {
@@ -6200,7 +6200,7 @@ describe("GET /api/overview", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const seeded = new Database(databasePath);
 		seeded.run(`
