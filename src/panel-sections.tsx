@@ -11,6 +11,7 @@ import type {
 	ThreadComment,
 	TicketRelation,
 } from "./domain.ts";
+import { runPagePath } from "./page-links.ts";
 import { panel } from "./panel-styles.ts";
 import { spanLabel } from "./poll-age.ts";
 import { RunAgents } from "./run-agents.tsx";
@@ -172,7 +173,7 @@ export function RunSection({
 			</dl>
 			<a
 				className={clsx(panel.openRun)}
-				href={`/runs/${encodeURIComponent(run.id)}`}
+				href={runPagePath(run.id)}
 				data-open-run={run.id}
 			>
 				{openRunLabel}

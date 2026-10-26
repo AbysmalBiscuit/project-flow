@@ -282,6 +282,7 @@ export function ProjectGraph({
 						...(ticket.state === undefined ? {} : { state: ticket.state }),
 					})
 				}
+				runOf={({ ticket }) => ticket.factoryRun?.id}
 				onFocus={onFocus}
 				onPreview={onPreview}
 				onPreviewEnd={onPreviewEnd}

@@ -9,7 +9,7 @@ import {
 	ServerChips,
 } from "./card-chips.tsx";
 import type { OutsideParent, TicketView } from "./domain.ts";
-import { RunDot, StageChip } from "./run-marks.tsx";
+import { RunLink, StageChip } from "./run-marks.tsx";
 import {
 	navLabel,
 	parentChipLabel,
@@ -81,7 +81,7 @@ export function TicketCardBody({
 				</span>
 				<span className={clsx(board.metaEnd)}>
 					{labels}
-					{fedRun === undefined ? null : <RunDot run={fedRun} />}
+					{fedRun === undefined ? null : <RunLink run={fedRun} />}
 				</span>
 			</span>
 			<span className={clsx(board.title)}>{ticket.title}</span>

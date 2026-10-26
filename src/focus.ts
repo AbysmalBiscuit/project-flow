@@ -1,23 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** A focus click toggles focus; any other click runs the view's open action. */
-export function focusOrOpen(
-	event: { ctrlKey: boolean; metaKey: boolean },
-	focus: () => void,
-	open: () => void,
-): void {
-	if (isFocusClick(event)) {
-		focus();
-		return;
-	}
-	open();
-}
-
-export function isFocusClick(event: {
+export type ClickKeys = {
+	shiftKey: boolean;
 	ctrlKey: boolean;
 	metaKey: boolean;
-}): boolean {
-	return event.ctrlKey || event.metaKey;
+};
+
+/** The actions of a click on a card. A card without a run omits `openRun`. */
+export type CardClick = {
+	focus: () => void;
+	open: () => void;
+	openRun?: (() => void) | undefined;
+};
+
+/**
+ * The action of a click with a modifier key: Shift-click toggles focus, and
+ * Ctrl-click or Cmd-click opens the run page. Undefined means a plain click.
+ */
+function modifiedClick(
+	event: ClickKeys,
+	click: CardClick,
+): (() => void) | undefined {
+	if (event.shiftKey) {
+		return click.focus;
+	}
+	if (event.ctrlKey || event.metaKey) {
+		return click.openRun;
+	}
+	return undefined;
+}
+
+export function clickCard(event: ClickKeys, click: CardClick): void {
+	(modifiedClick(event, click) ?? click.open)();
 }
 
 /**
@@ -46,7 +60,7 @@ export function useFocusSet() {
 			if (event.key !== "Escape") {
 				return;
 			}
-			if (isFocusClick(event) || !escapeTaken(event)) {
+			if (event.ctrlKey || event.metaKey || !escapeTaken(event)) {
 				event.preventDefault();
 				clear();
 			}
@@ -98,14 +112,11 @@ export function useClickOrDouble() {
 		}
 	}, []);
 	const click = useCallback(
-		(
-			event: { ctrlKey: boolean; metaKey: boolean; detail: number },
-			focus: () => void,
-			open: () => void,
-		) => {
+		(event: ClickKeys & { detail: number }, click: CardClick) => {
 			cancel();
-			if (isFocusClick(event)) {
-				focus();
+			const modified = modifiedClick(event, click);
+			if (modified !== undefined) {
+				modified();
 				return;
 			}
 			if (event.detail > 1) {
@@ -113,7 +124,7 @@ export function useClickOrDouble() {
 			}
 			timer.current = setTimeout(() => {
 				timer.current = null;
-				open();
+				click.open();
 			}, doubleClickMs);
 		},
 		[cancel],
