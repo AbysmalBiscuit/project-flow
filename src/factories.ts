@@ -10,6 +10,7 @@ import type {
 	RunEvent,
 	RunGraph,
 	RunMessage,
+	RunPull,
 	RunStage,
 	RunStatusKind,
 	RunUsage,
@@ -98,6 +99,19 @@ const checkpoint = z.object({
 	node_retries: z.record(z.string(), z.number()).default({}),
 	visits: z.record(z.string(), z.number()).default({}),
 	status: z.string().optional(),
+});
+
+/** `GET /runs/{id}`: the PR that the run opened, and its outputs. */
+const runPull = z.object({
+	pr: z
+		.object({
+			owner: z.string(),
+			repo: z.string(),
+			number: z.number(),
+			url: z.string(),
+		})
+		.nullish(),
+	outputs: z.object({ merge_sha: z.string().nullish() }).nullish(),
 });
 
 /** `GET /runs/{id}/turns`: one summary for each finished agent turn of the run. */
@@ -262,7 +276,7 @@ const localMachine = "local";
 
 /** A run row of one factory. A local row comes from the box that does the run. */
 type ReadRun = {
-	run: Omit<FactoryRun, "coveredByFeed" | "streamed" | "stage">;
+	run: Omit<FactoryRun, "coveredByFeed" | "streamed" | "stage" | "pull">;
 	local: boolean;
 	url: string;
 };
@@ -755,6 +769,7 @@ export function factoryReader(
 				}),
 			);
 			readRuns.set(factory.url, rows);
+			readPullsOf(factory);
 			found.set(factory.url, {
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
@@ -944,6 +959,63 @@ export function factoryReader(
 				});
 		}
 	};
+	/** The PR of each run that has one, by run id, with the end time of the run at the read. */
+	const pulls = new Map<string, { endedAt: string | null; pull?: RunPull }>();
+	/** The factories whose PR reads run now. */
+	const readingPulls = new Set<string>();
+	const readPull = async (
+		read: (path: string) => Promise<Response>,
+		run: ReadRun["run"],
+	): Promise<void> => {
+		try {
+			const { pr, outputs } = await body(
+				await read(`/runs/${encodeURIComponent(run.id)}`),
+				runPull,
+			);
+			pulls.set(run.id, {
+				endedAt: run.endedAt,
+				...(pr === null || pr === undefined
+					? {}
+					: {
+							pull: {
+								repo: `${pr.owner}/${pr.repo}`,
+								number: pr.number,
+								url: pr.url,
+								merged: (outputs?.merge_sha ?? "") !== "",
+							},
+						}),
+			});
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+		}
+	};
+	/**
+	 * Reads the PR of each live run, and of each ended run once. The reads go one at a
+	 * time and apart from the `GET /runs` read, so a long run history does not hold up
+	 * the run list.
+	 */
+	const readPullsOf = (factory: ListedFactory): void => {
+		const wanted = (readRuns.get(factory.url) ?? []).filter(
+			({ run }) =>
+				isLive(run.statusKind) ||
+				(run.statusKind !== "queued" &&
+					pulls.get(run.id)?.endedAt !== run.endedAt),
+		);
+		if (wanted.length === 0 || readingPulls.has(factory.url)) {
+			return;
+		}
+		readingPulls.add(factory.url);
+		const read = reader(fetchImpl, factory.url, signal);
+		void (async () => {
+			for (const { run } of wanted) {
+				await readPull(read, run);
+			}
+		})().finally(() => {
+			readingPulls.delete(factory.url);
+		});
+	};
 	const runs = (): FactoryRun[] =>
 		mergedRuns(
 			listed().flatMap((factory) => {
@@ -959,14 +1031,18 @@ export function factoryReader(
 		)
 			.map((run) => {
 				const thread = threads.get(run.id);
-				return thread === undefined
-					? run
-					: {
-							...run,
-							thread: thread.toSorted(
-								(left, right) => Date.parse(left.at) - Date.parse(right.at),
-							),
-						};
+				const pull = pulls.get(run.id)?.pull;
+				return {
+					...run,
+					...(pull === undefined ? {} : { pull }),
+					...(thread === undefined
+						? {}
+						: {
+								thread: thread.toSorted(
+									(left, right) => Date.parse(left.at) - Date.parse(right.at),
+								),
+							}),
+				};
 			})
 			.sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
 	/** A run's workflow graph does not change while it runs, so the first good read stays. */

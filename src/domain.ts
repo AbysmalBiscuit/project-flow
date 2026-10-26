@@ -73,7 +73,29 @@ export type FactoryRun = {
 	thread?: RunMessage[];
 	/** Why the run failed, as the factory gives it. */
 	failureReason?: string;
+	/** The PR that the run opened, from `GET /runs/{id}`. Absent until the factory names one. */
+	pull?: RunPull;
 };
+
+/** The PR that a run opened, as the factory gives it from the run's `pr_url` output. */
+export type RunPull = {
+	repo: string;
+	number: number;
+	url: string;
+	/** True when the run recorded the merge of its PR. */
+	merged: boolean;
+};
+
+/** What the work of an ended run came to. A live or queued run has no result yet. */
+export const runResults = [
+	"merged",
+	"prOpen",
+	"noPr",
+	"failed",
+	"cancelled",
+] as const;
+
+export type RunResult = (typeof runResults)[number];
 
 /** The last box event of a run that the event stream gave. */
 export type RunEvent = {

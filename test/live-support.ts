@@ -108,6 +108,7 @@ export function issuesResponse(
 	issues: Record<string, unknown>[],
 	name = repo,
 	pulls: Record<string, unknown>[] = [],
+	mergedPulls: Record<string, unknown>[] = [],
 ): Response | null {
 	const listed = listedRead(input, init);
 	if (listed === null || listed.repo !== name) {
@@ -129,7 +130,7 @@ export function issuesResponse(
 				listed.repo.split("/")[0] ?? "acme",
 				listed.repo.split("/")[1] ?? "widget",
 				nodes,
-				{ pulls },
+				{ pulls, mergedPulls },
 			),
 		),
 		{

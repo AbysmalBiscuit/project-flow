@@ -101,6 +101,7 @@ export function repoReadIssues(
 	issues: Record<string, unknown>[],
 	options?: {
 		pulls?: Record<string, unknown>[];
+		mergedPulls?: Record<string, unknown>[];
 		edited?: Record<string, unknown>[];
 	},
 ): unknown {
@@ -113,7 +114,10 @@ export function repoReadIssues(
 				labels: emptyConnection,
 				issues: { ...emptyConnection, nodes: issues },
 				openPullRequests: { ...emptyConnection, nodes: options?.pulls ?? [] },
-				mergedPullRequests: emptyConnection,
+				mergedPullRequests: {
+					...emptyConnection,
+					nodes: options?.mergedPulls ?? [],
+				},
 			},
 			...(options?.edited === undefined
 				? {}
