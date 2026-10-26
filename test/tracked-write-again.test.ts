@@ -7,6 +7,7 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import {
 	emptyProjectFields,
+	settledOverview,
 	tempConfig,
 	testIo,
 	unrecorded,
@@ -179,6 +180,10 @@ test("a refresh during a tracked-list save joins that save's poll", async () => 
 	const freshHeld = new Promise<void>((resolve) => {
 		releaseFresh = resolve;
 	});
+	let noteFreshStarted: () => void = () => {};
+	const freshStarted = new Promise<void>((resolve) => {
+		noteFreshStarted = resolve;
+	});
 	const fetchImpl: Fetch = async (input, init) => {
 		const url = urlOf(input);
 		const body = typeof init?.body === "string" ? init.body : "";
@@ -189,6 +194,7 @@ test("a refresh during a tracked-list save joins that save's poll", async () => 
 			const index = viewerPolls;
 			viewerPolls += 1;
 			if (index > 0) {
+				noteFreshStarted();
 				await freshHeld;
 			}
 			return new Response(
@@ -254,7 +260,10 @@ test("a refresh during a tracked-list save joins that save's poll", async () => 
 		onListen = (line: string) => {
 			base = line;
 			void (async () => {
-				await Bun.sleep(40);
+				await settledOverview(base, async (url) => {
+					const response = await fetch(new URL("/api/overview", url));
+					return (await response.json()) as { polling?: true };
+				});
 				const settings = (await (
 					await fetch(new URL("/api/settings", base))
 				).json()) as { tracked: unknown[] };
@@ -268,12 +277,12 @@ test("a refresh during a tracked-list save joins that save's poll", async () => 
 						baselineTracked: settings.tracked,
 					}),
 				});
-				await Bun.sleep(20);
+				await freshStarted;
 				const refresh = await fetch(new URL("/api/refresh", base), {
 					method: "POST",
 				});
 				expect(refresh.status).toBe(204);
-				await Bun.sleep(20);
+				// The refresh route queues its poll as a microtask before it answers.
 				const during = viewerPolls;
 				expect(during).toBe(before + 1);
 				releaseFresh();
