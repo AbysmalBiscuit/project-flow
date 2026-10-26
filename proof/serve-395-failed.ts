@@ -1,4 +1,4 @@
-import { elkWorkerPath } from "../src/graph-layout.ts";
+import { elkWorkerPath } from "../src/graph-core.ts";
 import { serveProxy } from "./serve-proxy.ts";
 
 /** An elk worker that rejects each layout, the way elkjs reports an error. */

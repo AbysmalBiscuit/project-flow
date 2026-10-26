@@ -1,18 +1,12 @@
-import {
-	type FitViewOptions,
-	useReactFlow,
-	type Viewport,
-} from "@xyflow/react";
-import ElkConstructor, { type ELK } from "elkjs/lib/elk-api.js";
-import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useState } from "react";
 
 import { board } from "./board-styles.ts";
+import { elk } from "./graph-core-view.tsx";
 import { type FlowGap, flowGap } from "./graph-flow.ts";
 import type { ForceRequest } from "./graph-force-worker.ts";
 import { growGroups } from "./graph-force.ts";
 import { type LaidLink, laneLinks } from "./graph-lanes.ts";
 import {
-	elkWorkerPath,
 	forceWorkerPath,
 	type GraphLayout,
 	layoutGraph,
@@ -24,14 +18,8 @@ import type { NodeSize } from "./graph-sizes.ts";
 import { classToken } from "./ui.ts";
 import type { GraphDirection, GraphLayoutKind } from "./view-settings.ts";
 
-let pageElk: ELK | null = null;
-
-export function elk(): ELK {
-	pageElk ??= new ElkConstructor({
-		workerFactory: () => new Worker(elkWorkerPath),
-	});
-	return pageElk;
-}
+// `run-graph.tsx` reads the ELK of the page from this module.
+export { elk };
 
 function labelHeight(label: string, width: number): number {
 	const probe = document.createElement("div");
@@ -250,45 +238,4 @@ export function useLaidGraph<Source>(
 		};
 	}, [of, direction, kind, input, sizes, span, anchor, gap]);
 	return { laid, failed };
-}
-
-/**
- * Fits each new layout until the viewer moves the view away from the last
- * fit. A layout that holds an anchor card keeps the view. A change to
- * `refit` fits the view at once.
- */
-export function FitLayout({
-	layout,
-	held,
-	refit,
-	fit,
-}: {
-	layout: GraphLayout;
-	held: boolean;
-	refit: number;
-	fit: () => FitViewOptions;
-}) {
-	const flow = useReactFlow();
-	const fitted = useRef<Viewport | null>(null);
-	const asked = useRef(refit);
-	useEffect(() => {
-		void layout;
-		const forced = asked.current !== refit;
-		const last = fitted.current;
-		const now = flow.getViewport();
-		const away =
-			last !== null &&
-			(last.x !== now.x || last.y !== now.y || last.zoom !== now.zoom);
-		if (!forced && (held || away)) {
-			return;
-		}
-		const frame = requestAnimationFrame(() => {
-			asked.current = refit;
-			void flow.fitView(fit()).then(() => {
-				fitted.current = flow.getViewport();
-			});
-		});
-		return () => cancelAnimationFrame(frame);
-	}, [flow, layout, held, refit, fit]);
-	return null;
 }
