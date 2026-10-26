@@ -1,9 +1,8 @@
-import { createContext, useContext } from "react";
+import { createContext } from "react";
 
 import { board } from "./board-styles.ts";
 import type { OutsideParent, TicketRelation, TicketView } from "./domain.ts";
-import { parentChip } from "./grouping.ts";
-import { parentChipLabel, subTicketsLabel } from "./terms.ts";
+import { foldKey, shortKey } from "./ticket-key.ts";
 import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
@@ -56,57 +55,68 @@ export function Chip({
 
 export const OutsideParentsContext = createContext<OutsideParent[]>([]);
 
-function ParentChip({
-	parent,
-	onOpen,
-	onOpenOutside,
-}: {
-	parent: string;
-	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: TicketRelation) => void;
-}) {
-	const chip = parentChip(useContext(OutsideParentsContext), parent);
-	const outside = chip.outside;
-	return (
-		<Chip
-			label={parentChipLabel(chip.label)}
-			ticketKey={parent}
-			hierarchy
-			outside={outside !== undefined}
-			onOpen={outside === undefined ? onOpen : () => onOpenOutside(outside)}
-		/>
-	);
-}
-
-/** The parent chip and the sub-ticket count chip of a card. */
-export function CardHierarchyChips({
-	ticket,
-	onOpen,
-	onOpenOutside,
-}: {
-	ticket: TicketView;
-	onOpen: (key: string) => void;
-	onOpenOutside: (blocker: TicketRelation) => void;
-}) {
-	return (
-		<>
-			{ticket.parent === undefined ? null : (
-				<ParentChip
-					parent={ticket.parent}
-					onOpen={onOpen}
-					onOpenOutside={onOpenOutside}
-				/>
-			)}
-			{ticket.subTickets === undefined ? null : (
-				<Chip label={subTicketsLabel(ticket.subTickets)} hierarchy />
-			)}
-		</>
-	);
-}
-
 /** The chips that the server computes for a ticket: stale status, "Run failed" and "Blocked". */
 export function ServerChips({ ticket }: { ticket: Pick<TicketView, "chips"> }) {
 	return [...new Set(ticket.chips)].map((chip) => (
 		<Chip key={chip} label={chip} />
 	));
+}
+
+/** The chip handlers of a card or a row whose chips open tickets. */
+export type ChipOpen = {
+	onOpen: (key: string) => void;
+	onOpenOutside: (blocker: TicketRelation) => void;
+};
+
+export function relationSplit(
+	ticket: Pick<TicketView, "blockers" | "outsideBlockers">,
+): {
+	local: string[];
+	outside: TicketRelation[];
+} {
+	const outside = ticket.outsideBlockers ?? [];
+	const outsideKeys = new Set(outside.map((blocker) => foldKey(blocker.key)));
+	return {
+		local: ticket.blockers.filter(
+			(blocker) => !outsideKeys.has(foldKey(blocker)),
+		),
+		outside,
+	};
+}
+
+/**
+ * One chip per open blocker: a local blocker by its short key, an outside
+ * blocker by its full key. Without `open`, the chips do not open tickets.
+ */
+export function BlockerChips({
+	local,
+	outside,
+	open,
+}: ReturnType<typeof relationSplit> & { open: ChipOpen | undefined }) {
+	return (
+		<>
+			{local.map((blocker) => (
+				<Chip
+					key={blocker}
+					label={shortKey(blocker)}
+					{...(open === undefined
+						? {}
+						: { ticketKey: blocker, onOpen: open.onOpen })}
+				/>
+			))}
+			{outside.map((blocker) => (
+				<Chip
+					key={blocker.key}
+					label={blocker.key}
+					{...(open === undefined
+						? {}
+						: {
+								ticketKey: blocker.key,
+								outside: true,
+								onOpen: () => open.onOpenOutside(blocker),
+							})}
+				/>
+			))}
+		</>
+	);
 }

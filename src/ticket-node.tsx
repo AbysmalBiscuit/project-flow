@@ -2,7 +2,6 @@ import * as stylex from "@stylexjs/stylex";
 import { createContext, useContext } from "react";
 
 import { board } from "./board-styles.ts";
-import { GraphCardChips } from "./graph-card-chips.tsx";
 import type { FlowTicket } from "./graph-flow.ts";
 import { MeasuredNode } from "./graph-node-size.tsx";
 import { CardHandles, type CardProps } from "./graph-view.tsx";
@@ -15,6 +14,7 @@ import {
 	subTicketsDoneLabel,
 	subTicketsToggleLabel,
 } from "./terms.ts";
+import { TicketCardBody } from "./ticket-card.tsx";
 import { outsideKey, shortKey } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
@@ -113,34 +113,35 @@ export function TicketNode({ id, data }: CardProps<TicketCard>) {
 			>
 				<MeasuredNode id={id} kind="ticket" />
 				<CardHandles />
-				<span
-					className={clsx(
-						board.meta,
-						data.frame !== null && board.metaBesideToggle,
-					)}
-				>
-					<span className={clsx(board.key)}>
-						{shortTicket(key, data.ticket.project, data.ticket.outside)}
-					</span>
-					{data.ticket.pull === undefined ? null : (
-						<span className={clsx(board.pull)}>{data.ticket.pull}</span>
-					)}
-					{data.frame !== null && data.ticket.outside ? (
-						<span className={clsx(board.pull)}>
-							{known === undefined ? openParentLabel : stateLabel[known]}
-						</span>
-					) : null}
-					{data.frame !== null && data.ticket.subTickets !== undefined ? (
-						<span className={clsx(board.pull)}>
-							{subTicketsDoneLabel(
-								data.ticket.subTicketsDone ?? 0,
-								data.ticket.subTickets,
-							)}
-						</span>
-					) : null}
-				</span>
-				<span className={clsx(board.title)}>{data.ticket.title}</span>
-				<GraphCardChips data={data} />
+				<TicketCardBody
+					ticket={data.ticket}
+					keyLabel={shortTicket(key, data.ticket.project, data.ticket.outside)}
+					labels={
+						data.frame === null ? null : (
+							<>
+								{data.ticket.outside ? (
+									<span className={clsx(board.pull)}>
+										{known === undefined ? openParentLabel : stateLabel[known]}
+									</span>
+								) : null}
+								{data.ticket.subTickets === undefined ? null : (
+									<span className={clsx(board.pull)}>
+										{subTicketsDoneLabel(
+											data.ticket.subTicketsDone ?? 0,
+											data.ticket.subTickets,
+										)}
+									</span>
+								)}
+							</>
+						)
+					}
+					besideToggle={data.frame !== null}
+					hierarchy={data.hierarchyChips}
+					{...(data.parentLabel === undefined
+						? {}
+						: { parent: { label: data.parentLabel } })}
+					oneRow
+				/>
 			</button>
 			{data.frame === null ? null : (
 				<FrameToggle
