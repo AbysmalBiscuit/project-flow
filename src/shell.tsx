@@ -159,9 +159,9 @@ function SunIcon() {
 
 const links = [
 	{ href: "/", label: navLabel.overview },
+	{ href: "/runs", label: navLabel.runs },
 	{ href: "/needs-you", label: navLabel.needsYou, count: true },
 	{ href: "/inbox", label: navLabel.inbox },
-	{ href: "/runs", label: navLabel.runs },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -330,12 +330,10 @@ export function PageHeader({
 export function PageFrame({
 	children,
 	wide = false,
-	scroll = false,
 	...header
 }: PageHeaderProps & {
 	children: ReactNode;
 	wide?: boolean;
-	scroll?: boolean;
 }) {
 	return (
 		<AppShell>
@@ -344,15 +342,11 @@ export function PageFrame({
 					frame.page,
 					phoneGutter.page,
 					wide && frame.wide,
-					(wide || scroll) && frame.fill,
+					wide && frame.fill,
 				)}
 			>
 				<PageHeader {...header} />
-				{scroll ? (
-					<div className={clsx(frame.scroll)}>{children}</div>
-				) : (
-					children
-				)}
+				{children}
 			</main>
 		</AppShell>
 	);

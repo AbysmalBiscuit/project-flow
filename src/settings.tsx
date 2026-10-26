@@ -203,7 +203,6 @@ function Menu({
 		<PageFrame
 			title={navLabel.settings}
 			subtitle={<PollStatus text={null} polling={polling} />}
-			scroll
 		>
 			<p id="settings-lead" className={clsx(fields.lead)}>
 				{settingsCopy.savedTo}
