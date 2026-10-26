@@ -40,21 +40,29 @@ export function installPageLinks(): void {
 		if (next === null) {
 			return;
 		}
-		const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-		if (next === current) {
-			event.preventDefault();
-			return;
-		}
 		event.preventDefault();
-		window.history.pushState(null, "", next);
-		const hash = new URL(next, window.location.href).hash;
-		if (hash === "") {
-			window.scrollTo(0, 0);
-		} else {
-			document
-				.getElementById(decodeURIComponent(hash.slice(1)))
-				?.scrollIntoView();
-		}
-		window.dispatchEvent(new PopStateEvent("popstate"));
+		openPage(next);
 	});
+}
+
+/** Shows the page of `next` without a reload, as a click on its link does. */
+export function openPage(next: string): void {
+	const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+	if (next === current) {
+		return;
+	}
+	window.history.pushState(null, "", next);
+	const hash = new URL(next, window.location.href).hash;
+	if (hash === "") {
+		window.scrollTo(0, 0);
+	} else {
+		document
+			.getElementById(decodeURIComponent(hash.slice(1)))
+			?.scrollIntoView();
+	}
+	window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+export function runPagePath(id: string): string {
+	return `/runs/${encodeURIComponent(id)}`;
 }

@@ -377,6 +377,17 @@ export const board = stylex.create({
 		alignItems: "center",
 		marginLeft: "auto",
 	},
+	/** The square link around the run dot, larger than the dot, that keeps the dot's place in the layout. */
+	runLink: {
+		display: "flex",
+		flexShrink: 0,
+		alignItems: "center",
+		justifyContent: "center",
+		width: measure.runHit,
+		height: measure.runHit,
+		margin: `calc((${measure.runDot} - ${measure.runHit}) / 2)`,
+		borderRadius: radius.sm,
+	},
 	runDot: {
 		flexShrink: 0,
 		width: measure.runDot,
