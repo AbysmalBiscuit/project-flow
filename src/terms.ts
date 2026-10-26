@@ -268,7 +268,45 @@ export const currentStageLabel = "Current";
 export const runGraphLabel = "Workflow";
 
 export const runGraphHelp =
-	"The current stage has a blue border. Completed stages are filled, stages ahead are dashed, and a retried stage shows its retries.";
+	"Each stage has the shape of its workflow node. Drag to pan, scroll to zoom, and open the graph that a stage calls from that stage.";
+
+export const runStageStateLabel = {
+	current: "Current",
+	completed: "Completed",
+	ahead: "Ahead",
+	failed: "Failed",
+} as const;
+
+const stageKindLabels: Record<string, string> = {
+	start: "Start",
+	exit: "Exit",
+	codergen: "Agent",
+	"wait.human": "Human",
+	conditional: "Conditional",
+	parallel: "Parallel",
+	"parallel.fan_in": "Fan-in",
+	tool: "Command",
+	"stack.manager_loop": "Manager loop",
+};
+
+/** The kind of a workflow stage, from the workcell handler that it runs. */
+export function stageKindLabel(kind: string): string {
+	return stageKindLabels[kind] ?? kind;
+}
+
+export const runGraphLegendLabel = {
+	legend: "Workflow legend",
+	states: "Stage states",
+	shapes: "Stage shapes",
+	edge: "An edge with its condition or label",
+	edgeSample: "outcome=success",
+	calledGraph:
+		"A frame holds the stages that the run reached in the graph that a stage calls",
+} as const;
+
+export function calledGraphLabel(open: boolean, stage: string): string {
+	return `${open ? "Close" : "Open"} the graph that ${stage} calls`;
+}
 
 export function stageVisitsLabel(visits: number): string {
 	return `${visits} ${visits === 1 ? "visit" : "visits"}`;

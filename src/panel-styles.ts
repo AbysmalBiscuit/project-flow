@@ -237,6 +237,14 @@ export const panel = stylex.create({
 	stage: {
 		flexWrap: "wrap",
 	},
+	stages: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.xs,
+		margin: `0 0 ${space.md}`,
+		padding: 0,
+		listStyle: "none",
+	},
 	stageUsage: {
 		flexBasis: "100%",
 		color: colours.inkSoft,
