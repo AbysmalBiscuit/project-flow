@@ -31,6 +31,13 @@ const styles = stylex.create({
 		display: "flex",
 		flexDirection: "column",
 		gap: space.md,
+	},
+	panel: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.sm,
+	},
+	text: {
 		maxWidth: measure.diagram,
 	},
 	tabs: {
@@ -112,19 +119,27 @@ function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
 	if (tab === "overview") {
 		return (
 			<>
-				<RunFacts run={run} />
+				<div className={clsx(styles.text)}>
+					<RunFacts run={run} />
+				</div>
 				<RunGraph run={run} />
-				<RunThread run={run} />
+				<div className={clsx(styles.text)}>
+					<RunThread run={run} />
+				</div>
 			</>
 		);
 	}
-	if (tab === "stages") {
-		return <RunStages run={run} />;
-	}
-	if (tab === "usage") {
-		return <RunUsage run={run} />;
-	}
-	return <NotServed data={runTabData[tab]} />;
+	return (
+		<div className={clsx(styles.text)}>
+			{tab === "stages" ? (
+				<RunStages run={run} />
+			) : tab === "usage" ? (
+				<RunUsage run={run} />
+			) : (
+				<NotServed data={runTabData[tab]} />
+			)}
+		</div>
+	);
 }
 
 /** The run page: the detail of one workcell run, in tabs. */
@@ -171,7 +186,11 @@ export function Page() {
 						) : null,
 					)}
 				</div>
-				<section role="tabpanel" aria-labelledby={`run-tab-${tab}`}>
+				<section
+					role="tabpanel"
+					aria-labelledby={`run-tab-${tab}`}
+					className={clsx(styles.panel)}
+				>
 					{data === undefined ? (
 						<p className={clsx(panel.note)}>{loadingLabel}</p>
 					) : data === null ? (

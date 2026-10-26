@@ -10,6 +10,7 @@ import type {
 	RunEvent,
 	RunGraph,
 	RunMessage,
+	RunStage,
 	RunStatusKind,
 	RunUsage,
 } from "./domain.ts";
@@ -92,6 +93,7 @@ const checkpoint = z.object({
 	completed_nodes: z.array(z.string()).default([]),
 	node_retries: z.record(z.string(), z.number()).default({}),
 	visits: z.record(z.string(), z.number()).default({}),
+	status: z.string().optional(),
 });
 
 /** `GET /runs/{id}/turns`: one summary for each finished agent turn of the run. */
@@ -129,16 +131,68 @@ function stagePath(answer: z.infer<typeof checkpoint>): string {
 		.join("/");
 }
 
-const labelled = z.object({ label: z.string().optional() }).default({});
-
 /** The `GET /runs/{id}/graph` answer: the frozen entry graph of the run's workflow. */
 const workflowGraph = z.object({
 	name: z.string().optional(),
-	nodes: z.array(z.object({ id: z.string(), attrs: labelled })),
+	nodes: z.array(
+		z.object({
+			id: z.string(),
+			attrs: z
+				.object({
+					label: z.string().optional(),
+					shape: z.string().optional(),
+					prompt_file: z.string().optional(),
+				})
+				.default({}),
+			handler: z.string().optional(),
+		}),
+	),
 	edges: z.array(
-		z.object({ from: z.string(), to: z.string(), attrs: labelled }),
+		z.object({
+			from: z.string(),
+			to: z.string(),
+			attrs: z
+				.object({
+					label: z.string().optional(),
+					condition: z.string().optional(),
+				})
+				.default({}),
+		}),
 	),
 });
+
+/** Each call of a child graph opens at one of these start nodes. */
+const startNodes = new Set(["start", "Start"]);
+
+/**
+ * The stages that the run reached in the live call of the outer child graph:
+ * the nodes that it completed since the start of the call, then its current
+ * node. The checkpoint lists the completed nodes of each graph in one list.
+ */
+function childStages(
+	answer: z.infer<typeof checkpoint>,
+	caller: string,
+	failed: boolean,
+): RunStage[] {
+	const stack = answer.stack ?? [];
+	const starts = answer.completed_nodes.flatMap((node, index) =>
+		startNodes.has(node) ? [index] : [],
+	);
+	const from = starts.at(-stack.length);
+	const to = stack.length === 1 ? undefined : starts.at(1 - stack.length);
+	const completed =
+		from === undefined ? [] : answer.completed_nodes.slice(from, to);
+	const current = stack[1]?.node ?? answer.current_node;
+	return [...new Set([...completed, current])].map((node) => ({
+		id: `${caller}/${node}`,
+		label: node,
+		state: node !== current ? "completed" : failed ? "failed" : "current",
+		visits:
+			completed.filter((done) => done === node).length +
+			(node === current ? 1 : 0),
+		retries: 0,
+	}));
+}
 
 /**
  * The graph of a run with the checkpoint state of each top-level node. A child
@@ -150,22 +204,40 @@ function runGraph(
 ): RunGraph {
 	const current = stagePath(answer).split("/")[0];
 	const completed = new Set(answer.completed_nodes);
+	const failed = answer.status === "fail";
 	return {
-		nodes: graph.nodes.map((node) => ({
-			id: node.id,
-			label: node.attrs.label ?? node.id,
-			state:
-				node.id === current
-					? "current"
-					: completed.has(node.id)
-						? "completed"
-						: "ahead",
-			retries: answer.node_retries[node.id] ?? 0,
-		})),
+		nodes: graph.nodes.map((node) => {
+			const calls = (node.attrs.prompt_file ?? "").trim() !== "";
+			return {
+				id: node.id,
+				label: node.attrs.label ?? node.id,
+				shape: node.attrs.shape ?? "box",
+				kind: node.handler ?? "codergen",
+				state:
+					node.id === current
+						? failed
+							? "failed"
+							: "current"
+						: completed.has(node.id)
+							? "completed"
+							: "ahead",
+				visits: answer.visits[node.id] ?? 0,
+				retries: answer.node_retries[node.id] ?? 0,
+				...(calls
+					? {
+							child:
+								node.id === current ? childStages(answer, node.id, failed) : [],
+						}
+					: {}),
+			};
+		}),
 		edges: graph.edges.map((edge) => ({
 			from: edge.from,
 			to: edge.to,
 			...(edge.attrs.label === undefined ? {} : { label: edge.attrs.label }),
+			...(edge.attrs.condition === undefined
+				? {}
+				: { condition: edge.attrs.condition }),
 		})),
 	};
 }

@@ -161,17 +161,39 @@ export type RunAgent = {
 	turn: "running" | "ended";
 };
 
-/** Where a stage of a run's workflow graph is: the current stage, a completed stage, or a stage ahead. */
-export type RunGraphNodeState = "current" | "completed" | "ahead";
+/**
+ * Where a stage of a run's workflow graph is: the current stage, a completed
+ * stage, a stage ahead, or the stage where the run failed.
+ */
+export type RunGraphNodeState = "current" | "completed" | "ahead" | "failed";
 
-export type RunGraphNode = {
+/** One stage of a run's workflow graph. A stage of a child graph has the path `caller/stage` as its id. */
+export type RunStage = {
 	id: string;
 	label: string;
 	state: RunGraphNodeState;
+	visits: number;
 	retries: number;
 };
 
-export type RunGraphEdge = { from: string; to: string; label?: string };
+export type RunGraphNode = RunStage & {
+	/** The Graphviz shape of the workflow node. */
+	shape: string;
+	/** The workcell handler that the node runs, such as `codergen` or `wait.human`. */
+	kind: string;
+	/**
+	 * The child graph that the stage calls. The factory serves only the entry
+	 * graph, so the stages are those that the run reached in its live call.
+	 */
+	child?: RunStage[];
+};
+
+export type RunGraphEdge = {
+	from: string;
+	to: string;
+	label?: string;
+	condition?: string;
+};
 
 /** The workflow graph of a factory run, from `GET /runs/{id}/graph` of its box. */
 export type RunGraph = { nodes: RunGraphNode[]; edges: RunGraphEdge[] };
