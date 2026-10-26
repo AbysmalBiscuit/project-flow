@@ -14,8 +14,6 @@ import type {
 import { panel } from "./panel-styles.ts";
 import { spanLabel } from "./poll-age.ts";
 import { RunAgents } from "./run-agents.tsx";
-import { RunStages } from "./run-checkpoint.tsx";
-import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
 import {
 	earlierRunsLabel,
@@ -23,6 +21,7 @@ import {
 	mergeFactLabel,
 	noStartLabel,
 	openOnGitHubLabel,
+	openRunLabel,
 	pullStatusLabel,
 	runFactLabel,
 	runNotLiveLabel,
@@ -83,7 +82,7 @@ export function CommentTree({
 	);
 }
 
-function runTime(value: string | null): string {
+export function runTime(value: string | null): string {
 	if (value === null) {
 		return noStartLabel;
 	}
@@ -99,7 +98,7 @@ function runTime(value: string | null): string {
 	});
 }
 
-function elapsed(run: EarlierFactoryRun): string | null {
+export function elapsed(run: EarlierFactoryRun): string | null {
 	const started =
 		run.startedAt === null ? Number.NaN : Date.parse(run.startedAt);
 	const ended = run.endedAt === null ? Date.now() : Date.parse(run.endedAt);
@@ -108,7 +107,13 @@ function elapsed(run: EarlierFactoryRun): string | null {
 		: spanLabel(started, ended);
 }
 
-function RunFact({ label, children }: { label: string; children: ReactNode }) {
+export function RunFact({
+	label,
+	children,
+}: {
+	label: string;
+	children: ReactNode;
+}) {
 	return (
 		<div className={clsx(panel.fact)}>
 			<dt className={clsx(panel.factLabel)}>{label}</dt>
@@ -165,9 +170,14 @@ export function RunSection({
 					</RunFact>
 				)}
 			</dl>
+			<a
+				className={clsx(panel.openRun)}
+				href={`/runs/${encodeURIComponent(run.id)}`}
+				data-open-run={run.id}
+			>
+				{openRunLabel}
+			</a>
 			<RunAgents run={run} />
-			<RunStages run={run} />
-			<RunGraph run={run} />
 			{earlier.length === 0 ? null : (
 				<>
 					<h3 className={clsx(panel.sectionLabel)}>{earlierRunsLabel}</h3>

@@ -36,6 +36,9 @@ function pageLoad(path: string): () => Promise<{ Page: () => ReactNode }> {
 	if (path.startsWith("/projects/")) {
 		return () => import("./project.tsx");
 	}
+	if (path.startsWith("/runs/")) {
+		return () => import("./run-page.tsx");
+	}
 	return () => import("./cards.tsx");
 }
 
@@ -47,7 +50,10 @@ function paint(path: string): void {
 	if (Page === null) {
 		return;
 	}
-	const key = path.startsWith("/projects/") ? path : undefined;
+	const key =
+		path.startsWith("/projects/") || path.startsWith("/runs/")
+			? path
+			: undefined;
 	mountPage((root) => {
 		root.render(
 			<PageQueryRoot>

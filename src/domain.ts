@@ -71,6 +71,24 @@ export type FactoryRun = {
 	questions?: FactoryQuestion[];
 	/** The asks, answers and delivered steers of the run, oldest first. Absent until the run has one. */
 	thread?: RunMessage[];
+	/** Why the run failed, as the factory gives it. */
+	failureReason?: string;
+};
+
+/** The last box event of a run that the event stream gave. */
+export type RunEvent = {
+	event: string;
+	/** The node path that the event names. */
+	stage: string;
+	/** The time that the box recorded the event, as an ISO string. */
+	at?: string;
+};
+
+/** A workcell run with the facts that its run page shows. */
+export type RunDetail = FactoryRun & {
+	/** The name of the run's workflow graph. */
+	workflow?: string;
+	lastEvent?: RunEvent;
 };
 
 /**
@@ -104,6 +122,8 @@ export type RunCheckpoint = {
 	visits: Record<string, number>;
 	/** The usage of the run's recorded turns. Absent when the factory gave no turns. */
 	usage?: RunUsage;
+	/** True when the factory answers the turns read with 404. */
+	usageNotServed?: true;
 	/** The run's workflow graph with the state of each stage. Null when the factory serves no graph. */
 	graph: RunGraph | null;
 };

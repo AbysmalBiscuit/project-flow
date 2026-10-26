@@ -6,6 +6,8 @@ import type {
 	FactoryRun,
 	RunAgent,
 	RunCheckpoint,
+	RunDetail,
+	RunEvent,
 	RunGraph,
 	RunMessage,
 	RunStatusKind,
@@ -54,6 +56,7 @@ const runRow = z.object({
 			"succeeded",
 			"failed",
 		]),
+		reason: z.string().nullish(),
 	}),
 	machine: z.string().nullish(),
 	source: z.string().nullish(),
@@ -130,6 +133,7 @@ const labelled = z.object({ label: z.string().optional() }).default({});
 
 /** The `GET /runs/{id}/graph` answer: the frozen entry graph of the run's workflow. */
 const workflowGraph = z.object({
+	name: z.string().optional(),
 	nodes: z.array(z.object({ id: z.string(), attrs: labelled })),
 	edges: z.array(
 		z.object({ from: z.string(), to: z.string(), attrs: labelled }),
@@ -172,6 +176,7 @@ const eventFrame = z.object({
 	item: z
 		.object({ event: z.string(), node_path: z.string(), data: z.unknown() })
 		.optional(),
+	recorded_at: z.string().optional(),
 	status: runRow.shape.status.optional(),
 });
 
@@ -226,6 +231,11 @@ function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					submittedAt: run.submitted_at,
 					startedAt: run.started_at ?? null,
 					endedAt: run.ended_at ?? null,
+					...(run.status.reason === null ||
+					run.status.reason === undefined ||
+					run.status.reason === ""
+						? {}
+						: { failureReason: run.status.reason }),
 				},
 				local,
 				url: factory.url,
@@ -337,6 +347,9 @@ async function* eventFrames(body: ReadableStream<Uint8Array>) {
 
 class Unreachable extends Error {}
 
+/** The factory answered a read with 404: it does not serve the route. */
+class NotServed extends Unreachable {}
+
 /** The name of a `--factory` URL: its host, or its socket path. */
 export function flagFactory(url: string): Factory {
 	const parsed = new URL(url);
@@ -381,6 +394,9 @@ function reader(
 }
 
 async function body<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
+	if (response.status === 404) {
+		throw new NotServed();
+	}
 	if (!response.ok) {
 		throw new Unreachable();
 	}
@@ -444,7 +460,7 @@ async function questionsOf(
 async function usageOf(
 	read: (path: string) => Promise<Response>,
 	id: string,
-): Promise<RunUsage | null> {
+): Promise<RunUsage | "not served" | null> {
 	try {
 		const listed = await body(
 			await read(`/runs/${encodeURIComponent(id)}/turns`),
@@ -463,12 +479,17 @@ async function usageOf(
 			})),
 		);
 	} catch (error) {
+		if (error instanceof NotServed) {
+			return "not served";
+		}
 		if (!(error instanceof Unreachable)) {
 			throw error;
 		}
 		return null;
 	}
 }
+
+export type CheckpointRead = RunCheckpoint | "missing" | "not served";
 
 export type AnswerResult = "answered" | "missing" | "failed";
 
@@ -555,6 +576,8 @@ export function factoryReader(
 	};
 	/** The current node of each run, by run id, from the event streams. */
 	const stages = new Map<string, string>();
+	/** The last box event of each run, by run id, from the event streams. */
+	const lastEvents = new Map<string, RunEvent>();
 	const follows = new Map<string, Follow>();
 	/** The clock time of the last `GET /runs` read of each streamed factory. */
 	const streamReadAt = new Map<string, number>();
@@ -742,6 +765,11 @@ export function factoryReader(
 			}
 		}
 		if (frame.item !== undefined) {
+			lastEvents.set(frame.run_id, {
+				event: frame.item.event,
+				stage: frame.item.node_path,
+				...(frame.recorded_at === undefined ? {} : { at: frame.recorded_at }),
+			});
 			const node = nodeAfter(
 				stages.get(frame.run_id),
 				frame.item.event,
@@ -887,17 +915,17 @@ export function factoryReader(
 			return null;
 		}
 	};
-	const runCheckpoint = async (
-		runId: string,
-	): Promise<RunCheckpoint | null> => {
-		const { row } = statusRow(
+	const statusRowOf = (runId: string) =>
+		statusRow(
 			listed().flatMap((factory) =>
 				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === runId),
 			),
 			reachable,
 		);
+	const runCheckpoint = async (runId: string): Promise<CheckpointRead> => {
+		const { row } = statusRowOf(runId);
 		if (row === undefined) {
-			return null;
+			return "missing";
 		}
 		const read = reader(fetchImpl, row.url, signal);
 		const usage = usageOf(read, runId);
@@ -915,23 +943,39 @@ export function factoryReader(
 				completedStages: answer.completed_nodes,
 				retries: answer.node_retries,
 				visits: answer.visits,
-				...(used === null ? {} : { usage: used }),
+				...(used === null
+					? {}
+					: used === "not served"
+						? { usageNotServed: true }
+						: { usage: used }),
 				graph: graph === null ? null : runGraph(graph, answer),
 			};
 		} catch (error) {
+			if (error instanceof NotServed) {
+				return "not served";
+			}
 			if (!(error instanceof Unreachable)) {
 				throw error;
 			}
-			return null;
+			return "missing";
 		}
 	};
+	const runDetail = async (runId: string): Promise<RunDetail | null> => {
+		const run = runs().find((run) => run.id === runId);
+		const { row } = statusRowOf(runId);
+		if (run === undefined || row === undefined) {
+			return null;
+		}
+		const graph = await graphOf(reader(fetchImpl, row.url, signal), runId);
+		const lastEvent = lastEvents.get(runId);
+		return {
+			...run,
+			...(graph?.name === undefined ? {} : { workflow: graph.name }),
+			...(lastEvent === undefined ? {} : { lastEvent }),
+		};
+	};
 	const runAgents = async (runId: string): Promise<RunAgent[] | null> => {
-		const { row } = statusRow(
-			listed().flatMap((factory) =>
-				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === runId),
-			),
-			reachable,
-		);
+		const { row } = statusRowOf(runId);
 		if (row === undefined) {
 			return null;
 		}
@@ -1039,6 +1083,7 @@ export function factoryReader(
 		readRuns: readAllRuns,
 		follow,
 		runs,
+		run: runDetail,
 		checkpoint: runCheckpoint,
 		agents: runAgents,
 		answer,

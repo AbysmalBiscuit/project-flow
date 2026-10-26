@@ -7,7 +7,11 @@ import { pageQuery } from "./queries.ts";
 import {
 	costLabel,
 	currentStageLabel,
+	loadingLabel,
+	noRunDataLabel,
+	notServedLabel,
 	runStagesLabel,
+	runTabData,
 	runUsageLabel,
 	stageRetriesLabel,
 	stageVisitsLabel,
@@ -44,6 +48,19 @@ function stageUsageLabel(usage: TurnUsage): string {
 		.join(usagePartSeparator);
 }
 
+/** The empty state of a run page tab whose factory route answers 404, or that Project Flow does not read yet. */
+export function NotServed({ data }: { data: string }) {
+	return (
+		<p className={clsx(panel.note)} data-not-served="">
+			{notServedLabel(data)}
+		</p>
+	);
+}
+
+function NoData() {
+	return <p className={clsx(panel.note)}>{noRunDataLabel}</p>;
+}
+
 /** The usage sum of a run: tokens, cost, time and the count of each tool. */
 function RunUsageTotal({ usage }: { usage: TurnUsage }) {
 	const facts = [
@@ -72,8 +89,14 @@ function RunUsageTotal({ usage }: { usage: TurnUsage }) {
 /** The stages of a factory run from its run checkpoint, with the visits, retries and usage of each. */
 export function RunStages({ run }: { run: ShownFactoryRun }) {
 	const { data } = useQuery(pageQuery.checkpoint(run));
-	if (data === undefined || data === null) {
-		return null;
+	if (data === undefined) {
+		return <p className={clsx(panel.note)}>{loadingLabel}</p>;
+	}
+	if (data === "not served") {
+		return <NotServed data={runTabData.stages} />;
+	}
+	if (data === "missing") {
+		return <NoData />;
 	}
 	const current = data.stage?.split("/")[0];
 	return (
@@ -119,9 +142,39 @@ export function RunStages({ run }: { run: ShownFactoryRun }) {
 					);
 				})}
 			</ul>
-			{data.usage === undefined ? null : (
-				<RunUsageTotal usage={data.usage.total} />
-			)}
+		</>
+	);
+}
+
+/** The usage of a factory run from its recorded turns: the sum, then the usage of each stage. */
+export function RunUsage({ run }: { run: ShownFactoryRun }) {
+	const { data } = useQuery(pageQuery.checkpoint(run));
+	if (data === undefined) {
+		return <p className={clsx(panel.note)}>{loadingLabel}</p>;
+	}
+	if (data === "not served" || (data !== "missing" && data.usageNotServed)) {
+		return <NotServed data={runTabData.usage} />;
+	}
+	if (data === "missing" || data.usage === undefined) {
+		return <NoData />;
+	}
+	return (
+		<>
+			<RunUsageTotal usage={data.usage.total} />
+			<ul className={clsx(panel.relations)} aria-label={runStagesLabel}>
+				{Object.entries(data.usage.stages).map(([stage, usage]) => (
+					<li
+						key={stage}
+						className={clsx(panel.relation, panel.stage)}
+						data-stage={stage}
+					>
+						<span>{stage}</span>
+						<span className={clsx(panel.stageUsage)}>
+							{stageUsageLabel(usage)}
+						</span>
+					</li>
+				))}
+			</ul>
 		</>
 	);
 }
