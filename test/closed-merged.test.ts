@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
@@ -276,7 +277,7 @@ test("a stored open ticket moves to done when a later poll closes it with a merg
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const requests: TrackerRequest[] = [];
 	let now = Date.parse("2026-10-22T00:00:00.000Z");
 	let startChecks: (base: string) => void = () => {};

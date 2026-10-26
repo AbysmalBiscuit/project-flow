@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
@@ -17,7 +18,7 @@ const discoveryOnly: Fetch = async (input, init) =>
 
 describe("configuration file", () => {
 	test("repeated spaces in --config still create the named file", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-config-"));
 		const path = join(root, "spaced config.json");
 		const store = join(root, "store");
 		try {
@@ -41,7 +42,7 @@ describe("configuration file", () => {
 	});
 
 	test("a missing configuration file is created with the default states and serves the overview", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-config-"));
 		const path = join(root, "config.json");
 		const store = join(root, "store");
 		let startChecks: (base: string) => void = () => {};
@@ -80,7 +81,7 @@ describe("configuration file", () => {
 	});
 
 	test("a directory at the configuration path is not created over", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-config-"));
 		const path = join(root, "config-dir");
 		await mkdir(path);
 		try {
@@ -104,7 +105,7 @@ describe("configuration file", () => {
 	});
 
 	test("a start creates the missing parent folder of the configuration file", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-config-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-config-"));
 		const path = join(root, "missing", "nested", "config.json");
 		const store = join(root, "store");
 		try {

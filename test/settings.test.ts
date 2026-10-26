@@ -7,6 +7,7 @@ import {
 	symlink,
 	writeFile,
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
@@ -637,7 +638,7 @@ async function withAppFile(
 	listCheckouts?: (roots: string[]) => Promise<LocalCheckout[]>,
 	makeFetch: (requests: string[]) => Fetch = fetching,
 ): Promise<void> {
-	const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-settings-"));
 	const requests: string[] = [];
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
@@ -857,7 +858,7 @@ describe("settings", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: shown }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-settings-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -986,7 +987,7 @@ describe("settings", () => {
 	});
 
 	test("a symlinked 0600 config stays a symlink and its target keeps mode 0600", async () => {
-		const dir = await mkdtemp(join("/var/tmp", "project-flow-settings-link-"));
+		const dir = await mkdtemp(join(tmpdir(), "project-flow-settings-link-"));
 		const target = join(dir, "target.json");
 		const link = join(dir, "config.json");
 		await writeFile(
@@ -998,7 +999,7 @@ describe("settings", () => {
 		);
 		await chmod(target, 0o600);
 		await symlink(target, link);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-settings-"));
 		const requests: string[] = [];
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -1245,7 +1246,7 @@ describe("settings", () => {
 		const { path, cleanup } = await tempConfig(
 			JSON.stringify({ tracked: [{ tracker: "github", repo: shown }] }),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-settings-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -1805,7 +1806,7 @@ describe("settings", () => {
 	});
 
 	test("settings names a missing tracker credential and keeps the token out", async () => {
-		const root = await mkdtemp(join("/var/tmp", "project-flow-settings-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-settings-"));
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
 		const requests: string[] = [];
 		let startChecks: (base: string) => void = () => {};

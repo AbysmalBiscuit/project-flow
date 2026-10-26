@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
@@ -38,7 +39,7 @@ async function factoryTokenReports(
 
 describe("factory GitHub tokens", () => {
 	test("reads and polls send the owner token and a reply sends the user token", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		await mkdir(join(folder, "acme"), { recursive: true });
 		await mkdir(join(folder, "other"), { recursive: true });
@@ -184,7 +185,7 @@ describe("factory GitHub tokens", () => {
 	});
 
 	test("a missing, unreadable or expired token file uses the user token and the page stays clear", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		await mkdir(join(folder, "gone"), { recursive: true });
 		await mkdir(join(folder, "locked"), { recursive: true });
@@ -266,7 +267,7 @@ describe("factory GitHub tokens", () => {
 	});
 
 	test("turning the option on with an empty token folder reports the missing token and polls on the user token", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		await mkdir(folder, { recursive: true });
 		const recorded: Recorded[] = [];

@@ -350,7 +350,7 @@ test("a refresh joining a poll held on the list gate publishes polling", async (
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	const filler = await run(
 		["--config", path, "--host", "127.0.0.1", "--port", "0"],

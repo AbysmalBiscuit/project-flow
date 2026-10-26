@@ -91,6 +91,8 @@ export type StartOptions = {
 	settingsReadWaitMs?: number;
 	/** How long one second of `pollIntervalSeconds` lasts on the poll timer. */
 	intervalSecondMs?: number;
+	/** How often the run poll checks the clock and follows the factory event streams. */
+	runTickMs?: number;
 	/** Bun's idle timeout for a connection, in whole seconds. */
 	idleTimeoutSeconds?: number;
 	mintFactoryTokens?: FactoryTokenMint;
@@ -155,7 +157,7 @@ const defaultSettingsReadWaitMs = 5_000;
 
 const runPollMs = 10_000;
 
-const runTickMs = 500;
+const defaultRunTickMs = 500;
 
 const readIdsBody = readMarkBody.extend({
 	ids: z.array(z.string()),
@@ -601,7 +603,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				readingRuns = false;
 			});
 	};
-	const runTimer = setInterval(pollRuns, runTickMs);
+	const runTimer = setInterval(pollRuns, options.runTickMs ?? defaultRunTickMs);
 	runTimer.unref?.();
 	pollRuns();
 	let server: ReturnType<typeof Bun.serve>;

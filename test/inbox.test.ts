@@ -2061,7 +2061,7 @@ describe("inbox", () => {
 			return recorded(input, init);
 		};
 		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		const io = {
 			env: { LINEAR_API_KEY: "recorded-linear-key" },
@@ -2183,7 +2183,7 @@ describe("inbox", () => {
 			return recorded(input, init);
 		};
 		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		let stop: () => void = () => {};
 		const stopped = new Promise<void>((resolve) => {
@@ -2300,7 +2300,7 @@ describe("inbox", () => {
 			return recorded(input, init);
 		};
 		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		const io = {
 			env: { LINEAR_API_KEY: "recorded-linear-key" },
@@ -2421,7 +2421,7 @@ describe("inbox", () => {
 		};
 		const pinnedOffHome = { ...pinned, checkoutRoots: [] };
 		const { path, cleanup } = await tempConfig(JSON.stringify(pinnedOffHome));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		const legacy = new Database(databasePath);
 		legacy.run(`
@@ -2660,7 +2660,7 @@ describe("inbox", () => {
 			return recorded(input, init);
 		};
 		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		const io = {
 			env: { LINEAR_API_KEY: "recorded-linear-key" },
@@ -2768,7 +2768,7 @@ describe("inbox", () => {
 			return recorded(input, init);
 		};
 		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		const io = {
 			env: { LINEAR_API_KEY: "recorded-linear-key" },
@@ -2895,7 +2895,7 @@ describe("inbox", () => {
 		];
 		const recorded = linearFake({ project: linearProject });
 		const { path, cleanup } = await tempConfig(JSON.stringify(pinned));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "store.sqlite");
 		const seeded = sqliteStore(databasePath);
 		seeded.store.appendNotifications(rows);
@@ -3042,7 +3042,7 @@ describe("inbox", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		try {
 			let stop: () => void = () => {};
 			const stopped = new Promise<void>((resolve) => {
@@ -3384,7 +3384,7 @@ async function withGithubInbox(
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	let startChecks: (base: string) => void = () => {};
 	const done = new Promise<void>((resolve, reject) => {
 		startChecks = (base) => {

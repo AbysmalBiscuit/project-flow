@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Overview } from "../src/domain.ts";
@@ -77,7 +78,7 @@ async function poll(
 	answer: Answer,
 	polls = 1,
 ): Promise<{ overview: Overview; sent: Sent[] }> {
-	const root = await mkdtemp(join("/var/tmp", "project-flow-repo-poll-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-repo-poll-"));
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({ pinned: [{ tracker: "github", repo: "acme/widget" }] }),
 	);

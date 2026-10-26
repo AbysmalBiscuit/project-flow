@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Overview } from "../src/domain.ts";
@@ -166,7 +167,7 @@ describe("a missing credential marks its projects", () => {
 				],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-cred-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-cred-"));
 		const linearRequests: string[] = [];
 		try {
 			const { result, body } = await listen(
@@ -212,7 +213,7 @@ describe("a missing credential marks its projects", () => {
 				],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-cred-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-cred-"));
 		const githubRequests: string[] = [];
 		try {
 			const { result, body } = await listen(

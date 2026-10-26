@@ -92,7 +92,7 @@ describe("startup", () => {
 				expectedBots: { "acme/widget": ["grok"] },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		const authorizations: string[] = [];
 		const fetchImpl = linearFake({
 			project: {
@@ -281,7 +281,7 @@ describe("startup", () => {
 				pinned: [{ tracker: "linear", project: linearProject }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		const fetchImpl = linearFake({
 			project: {
 				id: "project-1",
@@ -479,7 +479,7 @@ describe("startup", () => {
 
 	test("a missing token serves and names GITHUB_TOKEN on the pinned project", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<Overview>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -515,8 +515,8 @@ describe("startup", () => {
 
 	test("a missing gh executable serves and names GITHUB_TOKEN", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-no-gh-"));
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const bin = await mkdtemp(join(tmpdir(), "project-flow-no-gh-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<Overview>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -708,7 +708,7 @@ describe("startup", () => {
 
 	test("--open with a failing browser command warns and the API still answers", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-bad-browser-"));
+		const bin = await mkdtemp(join(tmpdir(), "project-flow-bad-browser-"));
 		for (const name of ["powershell.exe", "wslview", "xdg-open", "open"]) {
 			const program = join(bin, name);
 			await writeFile(program, "#!/bin/sh\nexit 1\n");
@@ -814,7 +814,7 @@ describe("startup", () => {
 
 	test("--open with no browser command warns and the API still answers", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-no-browser-"));
+		const bin = await mkdtemp(join(tmpdir(), "project-flow-no-browser-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<boolean>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -860,7 +860,7 @@ describe("startup", () => {
 
 	test("--open warns when the browser command exits after the API answers", async () => {
 		const { path, cleanup } = await tempConfig(JSON.stringify({ pinned: [] }));
-		const bin = await mkdtemp(join("/var/tmp", "project-flow-slow-browser-"));
+		const bin = await mkdtemp(join(tmpdir(), "project-flow-slow-browser-"));
 		for (const name of ["powershell.exe", "wslview", "xdg-open", "open"]) {
 			const program = join(bin, name);
 			await writeFile(program, "#!/bin/sh\n/bin/sleep 0.3\nexit 1\n");
@@ -912,7 +912,7 @@ describe("startup", () => {
 
 	test("a non-ok token check logs the status and keeps listening", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<Overview>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -975,7 +975,7 @@ describe("startup", () => {
 
 	test("a blank GITHUB_TOKEN serves and names the token", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<Overview>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -1122,7 +1122,7 @@ describe("startup", () => {
 				pmBot: {},
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<number>((resolve, reject) => {
 			startChecks = (base) => {
@@ -1177,7 +1177,7 @@ describe("startup", () => {
 
 	test("a configuration with no Linear pin starts when the Linear viewer query returns HTTP 500", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-startup-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-startup-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<{ status: number; body: Overview }>(
 			(resolve, reject) => {
@@ -1275,7 +1275,7 @@ describe("startup", () => {
 
 	test("a restart serves the cached overview before a blocked tracker request completes", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-cache-open-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-cache-open-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let stopFill: () => void = () => {};
 		const fillStopped = new Promise<void>((resolve) => {
@@ -1371,7 +1371,7 @@ describe("startup", () => {
 				],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-cold-refresh-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-cold-refresh-"));
 		let releasePlatform: () => void = () => {};
 		const platformReleased = new Promise<void>((resolve) => {
 			releasePlatform = resolve;
@@ -1450,7 +1450,7 @@ describe("startup", () => {
 
 	test("a thrown token check logs the error and keeps serving", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-token-throw-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-token-throw-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<Overview>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -1492,7 +1492,7 @@ describe("startup", () => {
 
 	test("a blank token check error still logs and keeps serving", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-token-blank-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-token-blank-"));
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<number>((resolve, reject) => {
 			startChecks = (base: string) => {
@@ -1536,7 +1536,7 @@ describe("startup", () => {
 				pinned: [{ tracker: "linear", project: "widget-launch-0d42ae5d46d0" }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-linear-503-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-linear-503-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let stopFill: () => void = () => {};
 		const fillStopped = new Promise<void>((resolve) => {
@@ -1620,7 +1620,7 @@ describe("startup", () => {
 
 	test("a 503 token check keeps serving the cached overview", async () => {
 		const { path, cleanup } = await tempConfig(valid);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-token-503-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-token-503-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let stopFill: () => void = () => {};
 		const fillStopped = new Promise<void>((resolve) => {

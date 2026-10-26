@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
@@ -21,7 +21,7 @@ import {
 
 describe("factory GitHub token refresh", () => {
 	test("a token inside the renew window is read again and kept until it expires", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		const hosts = join(folder, "acme", "hosts.yml");
 		await mkdir(join(folder, "acme"), { recursive: true });
@@ -73,7 +73,7 @@ describe("factory GitHub token refresh", () => {
 	});
 
 	test("a Settings save that changes the token folder drops the cached token for that owner", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const firstFolder = join(home, "tokens");
 		const nextFolder = join(home, "moved-tokens");
 		await mkdir(join(firstFolder, "acme"), { recursive: true });
@@ -140,7 +140,7 @@ describe("factory GitHub token refresh", () => {
 	});
 
 	test("a token that expires while the app runs is read again before the next call", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		const hosts = join(folder, "acme", "hosts.yml");
 		await mkdir(join(folder, "acme"), { recursive: true });
@@ -193,7 +193,7 @@ describe("factory GitHub token refresh", () => {
 	});
 
 	test("the option is off by default and a blank folder uses the user token", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const recorded: Recorded[] = [];
 		const app = await serve({
 			config: {
@@ -244,7 +244,7 @@ describe("factory GitHub token refresh", () => {
 	});
 
 	test("a blank reply, a hosts file of spaces, a broken or malformed hosts file and a token for another host stay on the user token", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		await mkdir(join(folder, "blank"), { recursive: true });
 		await mkdir(join(folder, "spaced"), { recursive: true });

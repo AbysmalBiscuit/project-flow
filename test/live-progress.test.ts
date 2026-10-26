@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
@@ -80,7 +81,7 @@ test("an empty store answers that the poll is running before it ends", async () 
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
@@ -171,7 +172,7 @@ test("a held poll sends progress with the projects done and a final event", asyn
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
@@ -263,7 +264,7 @@ test("a poll of a blank tracked list sends a final progress event", async () => 
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({ pinned: [], pollIntervalSeconds: 3600 }),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
@@ -337,7 +338,7 @@ test("a poll that rejects still sends a final progress event", async () => {
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	let releaseStop: () => void = () => {};
 	const stop = new Promise<void>((resolve) => {
@@ -426,7 +427,7 @@ test("the overview answers while a slow first poll holds the tracker", async () 
 			pollIntervalSeconds: 3600,
 		}),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	const databasePath = join(root, "project-flow.sqlite");
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {

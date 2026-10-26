@@ -3225,7 +3225,7 @@ describe("review cycle", () => {
 				expectedBots: { [repo]: ["grok"] },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const recorded = linearFake({
 			project: {
@@ -4023,7 +4023,7 @@ describe("review cycle", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const quiet = projectBoard([{ number: 83 }]);
 		const progressed = projectBoard([{ number: 83 }], undefined, [
@@ -4122,7 +4122,7 @@ describe("review cycle", () => {
 				expectedBots: { [repo]: [], [other]: [] },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const board = projectBoard(
 			[{ number: 83, repo: other }],
@@ -4202,7 +4202,7 @@ describe("review cycle", () => {
 				expectedBots: { [repo]: [] },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const progressBody = progress(
 			"- stage 5: round 1 of 3 https://github.com/acme/widget/pull/83",
@@ -4275,7 +4275,7 @@ describe("review cycle", () => {
 				expectedBots: { [repo]: ["grok"] },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const recorded = linearFake({
 			project: {
@@ -4446,7 +4446,7 @@ describe("review cycle", () => {
 				expectedBots: { [repo]: [] },
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const board = projectBoard(
 			[{ number: 83 }],
