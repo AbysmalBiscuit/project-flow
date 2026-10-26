@@ -581,17 +581,14 @@ function TableRow({
 	const key = ticket.key;
 	const { local, outside } = relationSplit(ticket);
 	const lane = displayedLane(ticket, lanes);
-	const focus = useContext(TicketFocusContext);
-	const faded = focus.faded(key);
 	return (
 		<tr
-			className={clsx(board.row, selected && board.rowOn, faded && board.faded)}
+			className={clsx(board.row, selected && board.rowOn)}
 			data-ticket={key ?? ""}
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
-			data-faded={faded ? "true" : "false"}
 			data-depth={tree?.depth}
-			{...focusPointer(focus, key, onOpen)}
+			{...(key === null ? {} : { onClick: () => onOpen(key) })}
 			tabIndex={key === null ? undefined : 0}
 			onKeyDown={(event) => {
 				if (
@@ -688,7 +685,6 @@ function TicketTable({
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const [column, setColumn] = useState<Column>("state");
-	const focus = useContext(TicketFocusContext);
 	const [direction, setDirection] = useState<"asc" | "desc">("asc");
 	const collapse = useCollapse();
 	const [searchShut, setSearchShut] = useState<Record<string, boolean>>({});
@@ -795,13 +791,7 @@ function TicketTable({
 								groupBy === "none"
 									? []
 									: [
-											<tr
-												key={`group-${group.name}`}
-												data-group={group.label}
-												className={clsx(
-													groupFaded(focus, group.tickets) && board.faded,
-												)}
-											>
+											<tr key={`group-${group.name}`} data-group={group.label}>
 												<th
 													className={clsx(board.groupRow)}
 													colSpan={columns.length}
