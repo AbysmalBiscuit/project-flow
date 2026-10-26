@@ -7,6 +7,7 @@ import {
 	type NodeProps,
 	Position,
 	ReactFlow,
+	ReactFlowProvider,
 } from "@xyflow/react";
 import { useMemo } from "react";
 
@@ -195,26 +196,29 @@ function GraphPane({ graph }: { graph: Graph }) {
 			title={runGraphHelp}
 		>
 			{flow === null ? null : (
-				<ReactFlow
-					nodes={flow.nodes}
-					edges={flow.edges}
-					nodeTypes={nodeTypes}
-					nodesDraggable={false}
-					nodesConnectable={false}
-					nodesFocusable={false}
-					elementsSelectable={false}
-					zoomOnDoubleClick={false}
-					fitView
-					// The whole graph is too small to read in the panel, so the view opens on the current stage.
-					fitViewOptions={{
-						maxZoom: 0.75,
-						...(flow.current === undefined
-							? {}
-							: { nodes: [{ id: flow.current.id }] }),
-					}}
-					minZoom={0.1}
-					proOptions={{ hideAttribution: true }}
-				/>
+				// The project page wraps the side panel in the ticket graph's provider, and a ReactFlow under a provider uses its store.
+				<ReactFlowProvider>
+					<ReactFlow
+						nodes={flow.nodes}
+						edges={flow.edges}
+						nodeTypes={nodeTypes}
+						nodesDraggable={false}
+						nodesConnectable={false}
+						nodesFocusable={false}
+						elementsSelectable={false}
+						zoomOnDoubleClick={false}
+						fitView
+						// The whole graph is too small to read in the panel, so the view opens on the current stage.
+						fitViewOptions={{
+							maxZoom: 0.75,
+							...(flow.current === undefined
+								? {}
+								: { nodes: [{ id: flow.current.id }] }),
+						}}
+						minZoom={0.1}
+						proOptions={{ hideAttribution: true }}
+					/>
+				</ReactFlowProvider>
 			)}
 		</figure>
 	);
