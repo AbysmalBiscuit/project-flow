@@ -24,9 +24,14 @@ import { linearTracker, missingLinearKey } from "./linear.ts";
 import { attachGraphStates } from "./links.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
-import { poll, type PollOptions, runningOverview } from "./poll.ts";
+import {
+	poll,
+	type PollOptions,
+	pollProject,
+	runningOverview,
+} from "./poll.ts";
 import type { Change, CheckoutSource, Notifier, TodoSource } from "./ports.ts";
-import { listedRef } from "./project-ref.ts";
+import { listedRef, refListed, sameProject } from "./project-ref.ts";
 import {
 	attentionFor,
 	overview,
@@ -356,6 +361,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		fallback: configuration,
 		fullPoll: new Set(),
 		lastFullPollAt: new Map(),
+		projectReads: { count: 0, newest: new Map() },
 		holdLists: Promise.resolve(),
 		viewers: [],
 		runs: [],
@@ -755,6 +761,33 @@ export async function start(options: StartOptions): Promise<Running> {
 						);
 					}
 					return Response.json(report);
+				},
+			},
+			"/api/projects/:name/refresh": {
+				POST: async (request) => {
+					const name = request.params.name.toLowerCase();
+					const row = opened.store
+						.readTickets()
+						.find((item) => item.name.toLowerCase() === name);
+					if (row === undefined) {
+						return Response.json(
+							{ error: "project not found" },
+							{ status: 404 },
+						);
+					}
+					const ref = listedRef(row);
+					const found = pollOptions.catalogue.find((item) =>
+						sameProject(listedRef(item), ref),
+					);
+					await pollProject(pollOptions, configuration, {
+						...(found ?? {
+							...refListed(ref),
+							name: row.name,
+							updatedAt: null,
+						}),
+						ref,
+					});
+					return new Response(null, { status: 204 });
 				},
 			},
 			"/api/events": {

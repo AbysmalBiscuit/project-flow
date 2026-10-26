@@ -88,8 +88,121 @@ function emptySnapshot(
 	};
 }
 
+function missingTracker(
+	project: TrackedProject,
+	startedKeys: string[],
+): ProjectPoll {
+	return {
+		ref: project.ref,
+		ok: false,
+		error: project.tracker === "github" ? missingToken : missingLinearKey,
+		full: false,
+		row: emptySnapshot(project, project.name ?? project.key, startedKeys),
+	};
+}
+
 const fullPollPeriodMs = 10 * 60 * 1000;
 const concurrentReads = 4;
+
+type PolledProject = ListedProject &
+	Pick<TrackedProject, "ref"> & { name: string };
+
+/** The newest project read of each project: an older read that ends later never writes over it. */
+export type ProjectReads = {
+	count: number;
+	newest: Map<string, { read: number; outcome: ProjectPoll }>;
+};
+
+function noteRead(
+	options: PollOptions,
+	id: string,
+	read: number,
+	outcome: ProjectPoll,
+): boolean {
+	const newest = options.projectReads.newest.get(id);
+	if (newest !== undefined && newest.read > read) {
+		return false;
+	}
+	options.projectReads.newest.set(id, { read, outcome });
+	return true;
+}
+
+/** The time of the last good read to read changes since, or null for a full read. */
+function readSince(
+	options: PollOptions,
+	project: TrackedProject,
+	stored: Snapshot | undefined,
+	polledAt: Date,
+): Date | null {
+	const lastGood = options.store.lastGoodPollAt(project.ref);
+	const lastFull = options.lastFullPollAt.get(projectId(project.ref)) ?? null;
+	const emptyStored =
+		stored !== undefined &&
+		stored.tickets.length === 0 &&
+		stored.listedEmpty !== false;
+	const missingRow = stored === undefined && lastFull === null;
+	const full =
+		lastGood === null ||
+		emptyStored ||
+		missingRow ||
+		(project.tracker === "linear" &&
+			(lastFull === null || polledAt.getTime() - lastFull >= fullPollPeriodMs));
+	return full ? null : lastGood;
+}
+
+async function readListed(
+	options: PollOptions,
+	project: TrackedProject,
+	tracker: Tracker,
+	since: Date | null,
+	stored: Snapshot | undefined,
+	startedKeys: string[],
+	readRepos: Set<string>,
+): Promise<PolledProject> {
+	const github = options.github;
+	const listedTickets = await tracker.listTickets(
+		project,
+		since,
+		since === null ? [] : (stored?.tickets ?? []),
+	);
+	const pulls = await tracker.listPulls(
+		project,
+		project.tracker === "linear" ? since : null,
+	);
+	const repo = refRepo(project.ref);
+	const branches =
+		repo !== null && github !== null ? await github.listBranches(repo) : [];
+	if (github !== null) {
+		const repos = new Set([
+			...pulls.map((pull) => pull.repo),
+			...(repo === null ? [] : [repo]),
+		]);
+		for (const repo of repos) {
+			if (readRepos.has(repo)) {
+				continue;
+			}
+			readRepos.add(repo);
+			try {
+				options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+			} catch {
+				options.repoAutoMerge[repo] = false;
+			}
+		}
+	}
+	return {
+		...project,
+		name: project.name ?? listedTickets.name,
+		tickets: listedTickets.tickets,
+		pulls,
+		branches,
+		startedKeys,
+		...(listedTickets.board === undefined
+			? {}
+			: { board: listedTickets.board }),
+		...(project.closed === undefined ? {} : { closed: project.closed }),
+	};
+}
+
 export type PollOptions = {
 	configuration: ConfigurationPort;
 	github: GithubTracker | null;
@@ -103,6 +216,7 @@ export type PollOptions = {
 	fallback: Configuration;
 	fullPoll: Set<string>;
 	lastFullPollAt: Map<string, number>;
+	projectReads: ProjectReads;
 	holdLists: Promise<void>;
 	viewers: Viewer[];
 	runs: WorkcellRun[];
@@ -283,8 +397,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				: [],
 		),
 	);
-	const listed: (ListedProject &
-		Pick<TrackedProject, "ref"> & { name: string })[] = [];
+	const listed: PolledProject[] = [];
 	const storedRows = options.store.readTickets();
 	const trackedOrder = new Map(
 		tracked.map((project, index) => [projectId(project.ref), index]),
@@ -293,89 +406,45 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		trackedOrder.get(projectId(ref)) ?? tracked.length;
 	const readProject = async (project: TrackedProject): Promise<void> => {
 		const id = projectId(project.ref);
+		const read = ++options.projectReads.count;
 		const tracker = project.tracker === "github" ? github : linear;
 		if (tracker === null) {
-			outcomes.set(id, {
-				ref: project.ref,
-				ok: false,
-				error: project.tracker === "github" ? missingToken : missingLinearKey,
-				full: false,
-				row: emptySnapshot(project, project.name ?? project.key, startedKeys),
-			});
+			const outcome = missingTracker(project, startedKeys);
+			outcomes.set(id, outcome);
+			noteRead(options, id, read, outcome);
 			notePollProgress(options, configuration, tracked, outcomes);
 			return;
 		}
-		const lastGood = options.store.lastGoodPollAt(project.ref);
-		const lastFull = options.lastFullPollAt.get(id) ?? null;
 		const stored = storedRows.find((row) =>
 			sameProject(listedRef(row), project.ref),
 		);
-		const emptyStored =
-			stored !== undefined &&
-			stored.tickets.length === 0 &&
-			stored.listedEmpty !== false;
-		const missingRow = stored === undefined && lastFull === null;
-		const full =
-			lastGood === null ||
-			emptyStored ||
-			missingRow ||
-			(project.tracker === "linear" &&
-				(lastFull === null ||
-					polledAt.getTime() - lastFull >= fullPollPeriodMs));
+		const since = readSince(options, project, stored, polledAt);
+		const full = since === null;
 		if (full) {
 			options.fullPoll.add(id);
 		}
-		const since = full ? null : lastGood;
 		try {
-			const listedTickets = await tracker.listTickets(
-				project,
-				since,
-				since === null ? [] : (stored?.tickets ?? []),
+			listed.push(
+				await readListed(
+					options,
+					project,
+					tracker,
+					since,
+					stored,
+					startedKeys,
+					readRepos,
+				),
 			);
-			const pulls = await tracker.listPulls(
-				project,
-				project.tracker === "linear" ? since : null,
-			);
-			const repo = refRepo(project.ref);
-			const branches =
-				repo !== null && github !== null ? await github.listBranches(repo) : [];
-			if (github !== null) {
-				const repos = new Set([
-					...pulls.map((pull) => pull.repo),
-					...(repo === null ? [] : [repo]),
-				]);
-				for (const repo of repos) {
-					if (readRepos.has(repo)) {
-						continue;
-					}
-					readRepos.add(repo);
-					try {
-						options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
-					} catch {
-						options.repoAutoMerge[repo] = false;
-					}
-				}
-			}
-			listed.push({
-				...project,
-				name: project.name ?? listedTickets.name,
-				tickets: listedTickets.tickets,
-				pulls,
-				branches,
-				startedKeys,
-				...(listedTickets.board === undefined
-					? {}
-					: { board: listedTickets.board }),
-				...(project.closed === undefined ? {} : { closed: project.closed }),
-			});
 			listed.sort((left, right) => orderOf(left.ref) - orderOf(right.ref));
-			outcomes.set(id, {
+			const outcome: ProjectPoll = {
 				ref: project.ref,
 				ok: true,
 				error: null,
 				full,
 				row: null,
-			});
+			};
+			outcomes.set(id, outcome);
+			noteRead(options, id, read, outcome);
 			options.store.clearProjectError(project.ref);
 			const shown = new Map(
 				projectSnapshots(listed).map((row) => [projectId(listedRef(row)), row]),
@@ -406,13 +475,15 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 				project.name ?? stored?.name ?? project.key,
 				startedKeys,
 			);
-			outcomes.set(id, {
+			const outcome: ProjectPoll = {
 				ref: project.ref,
 				ok: false,
 				error: message,
 				full,
 				row: stored ?? empty,
-			});
+			};
+			outcomes.set(id, outcome);
+			noteRead(options, id, read, outcome);
 			publishPoll(options, configuration, trackedIds, outcomes, false, null);
 			notePollProgress(options, configuration, tracked, outcomes);
 		}
@@ -529,6 +600,89 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	return current;
 }
 
+/** Read one tracked project from its tracker and write its row, without a full poll. */
+export async function pollProject(
+	options: PollOptions,
+	configuration: Configuration,
+	project: TrackedProject,
+): Promise<void> {
+	const id = projectId(project.ref);
+	const read = ++options.projectReads.count;
+	const polledAt = options.clock.now();
+	const storedRows = options.store.readTickets();
+	const stored = storedRows.find((row) =>
+		sameProject(listedRef(row), project.ref),
+	);
+	const startedKeys = stored?.startedKeys ?? [];
+	const tracker =
+		project.tracker === "github" ? options.github : options.linear;
+	let outcome: ProjectPoll;
+	if (tracker === null) {
+		outcome = missingTracker(project, startedKeys);
+	} else {
+		tracker.forgetProject?.(project);
+		const since = readSince(options, project, stored, polledAt);
+		try {
+			const listing = await readListed(
+				options,
+				project,
+				tracker,
+				since,
+				stored,
+				startedKeys,
+				new Set(),
+			);
+			const donors = storedRows.flatMap((row) =>
+				sameProject(listedRef(row), project.ref)
+					? []
+					: [{ ...row, updatedAt: null }],
+			);
+			const shown = projectSnapshots([listing, ...donors]).find((row) =>
+				sameProject(listedRef(row), project.ref),
+			);
+			outcome = {
+				ref: project.ref,
+				ok: true,
+				error: null,
+				full: since === null,
+				row:
+					shown === undefined
+						? null
+						: { ...shown, listedEmpty: listing.tickets.length === 0 },
+			};
+		} catch (error) {
+			outcome = {
+				ref: project.ref,
+				ok: false,
+				error: error instanceof Error ? error.message : "poll failed",
+				full: since === null,
+				row:
+					stored ??
+					emptySnapshot(project, project.name ?? project.key, startedKeys),
+			};
+		}
+	}
+	if (options.stopped || !noteRead(options, id, read, outcome)) {
+		return;
+	}
+	if (outcome.ok) {
+		options.store.clearProjectError(project.ref);
+		options.store.recordGoodPoll(project.ref, polledAt);
+	}
+	const trackedIds = new Set([
+		...options.store.readTickets().map((row) => projectId(listedRef(row))),
+		id,
+	]);
+	publishPoll(
+		options,
+		configuration,
+		trackedIds,
+		new Map([[id, outcome]]),
+		false,
+		null,
+	);
+}
+
 function notePollProgress(
 	options: PollOptions,
 	configuration: Configuration,
@@ -576,7 +730,10 @@ function publishPoll(
 	});
 	const ordered = [...trackedIds].flatMap((id) => {
 		const outcome = outcomes.get(id);
-		return outcome === undefined ? [] : [outcome];
+		if (outcome === undefined) {
+			return [];
+		}
+		return [options.projectReads.newest.get(id)?.outcome ?? outcome];
 	});
 	const reconciled = reconcilePoll(kept, ordered, fullPolled);
 	options.store.replaceTickets(reconciled.rows);

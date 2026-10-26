@@ -3103,6 +3103,11 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			autoMergeByRepo.clear();
 			projectItemsById.clear();
 		},
+		forgetProject(project) {
+			repoSnapshots.delete(project.key);
+			autoMergeByRepo.delete(project.key);
+			projectItemsById.delete(project.key);
+		},
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
 		},

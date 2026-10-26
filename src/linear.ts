@@ -760,8 +760,8 @@ export function linearTracker(
 ): Tracker {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const seenReviews = new Map<string, ReviewEvidence>();
-	const issues = (project: string, since: Date | null) => {
-		const cacheKey = `${project}\0${since?.toISOString() ?? ""}`;
+	const issues = (tracked: string, project: string, since: Date | null) => {
+		const cacheKey = `${tracked}\0${since?.toISOString() ?? ""}`;
 		const cached = issuesByProject.get(cacheKey);
 		if (cached !== undefined) {
 			return cached;
@@ -783,6 +783,13 @@ export function linearTracker(
 	return {
 		beginPoll() {
 			issuesByProject.clear();
+		},
+		forgetProject(tracked) {
+			for (const cacheKey of issuesByProject.keys()) {
+				if (cacheKey.startsWith(`${tracked.key}\0`)) {
+					issuesByProject.delete(cacheKey);
+				}
+			}
 		},
 		findProjects() {
 			return findLinearProjects(key, fetchImpl).then((found) => ({
@@ -836,7 +843,7 @@ export function linearTracker(
 			const statuses =
 				team === undefined ? [] : await listTeamStates(key, team.id, fetchImpl);
 			const board = linearBoard(team, statuses);
-			const nodes = await issues(project.id, since);
+			const nodes = await issues(tracked.key, project.id, since);
 			const openKeys = new Set(
 				nodes.flatMap((node) =>
 					node.identifier !== undefined &&
@@ -883,7 +890,7 @@ export function linearTracker(
 		},
 		async listPulls(tracked, since = null) {
 			const project = await findLinearProject(key, tracked.key, fetchImpl);
-			const nodes = await issues(project.id, since ?? null);
+			const nodes = await issues(tracked.key, project.id, since ?? null);
 			return pullsForIssues(nodes, githubToken, fetchGithub, seenReviews);
 		},
 		fetchThread(project, ticketKey, signal) {
