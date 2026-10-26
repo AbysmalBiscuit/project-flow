@@ -22,6 +22,7 @@ import type {
 } from "./domain.ts";
 import { OverviewSearch } from "./focus-controls.tsx";
 import { useFocusView } from "./focus.ts";
+import { Loading, PollLoading } from "./loading.tsx";
 import {
 	askNotificationPermission,
 	notificationPermission,
@@ -54,7 +55,6 @@ import { stateTones } from "./state-tone.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
 	actionLabel,
-	loadingLabel,
 	navLabel,
 	overviewControlLabel,
 	overviewFilterLabel,
@@ -396,7 +396,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 				)}
 			</div>
 			{loading ? (
-				<p className={clsx(cards.loading)}>{loadingLabel}</p>
+				<Loading />
 			) : (
 				<>
 					{project.error === null ? null : (
@@ -558,7 +558,11 @@ function TableView({
 									{trackerLabel[project.tracker]}
 								</td>
 								<td className={clsx(cards.cell)}>
-									{loading ? loadingLabel : <ProgressCell project={project} />}
+									{loading ? (
+										<Loading inline />
+									) : (
+										<ProgressCell project={project} />
+									)}
 								</td>
 								<td className={clsx(cards.cell, cards.number)}>
 									{loading ? null : project.statusTypes.backlog}
@@ -961,7 +965,11 @@ export function Page() {
 		settings === null ||
 		(overview.polling === true && !stored)
 	) {
-		return <PageFrame title={navLabel.overview}>{loadingLabel}</PageFrame>;
+		return (
+			<PageFrame title={navLabel.overview}>
+				<PollLoading />
+			</PageFrame>
+		);
 	}
 	return (
 		<OverviewPage

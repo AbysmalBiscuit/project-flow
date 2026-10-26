@@ -106,6 +106,8 @@ export const floatPanelLabel = {
 
 export const loadingLabel = "Loading";
 
+export const threadLoadingLabel = "Loading thread";
+
 export const navLabel = {
 	logo: "Project Flow",
 	overview: "Overview",

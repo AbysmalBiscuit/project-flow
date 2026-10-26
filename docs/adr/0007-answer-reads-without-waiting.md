@@ -12,3 +12,5 @@ A read that the app has stored no answer for answers `202` with `{ "pending": tr
 ## Consequences
 
 A settings write waits for discovery in the write path. The bot key check and a tracked-list write then see the catalogue of the running poll. The first read of a thread, a checkpoint or the agents of a run has no data. A test of such a read reads again until the answer is not `202`.
+
+The settings read carries `discovering: true` while a discovery runs, because its catalogue can still change. A start on a stored board shows no running poll, so the overview alone does not tell a reader that discovery has ended. A test that reads the catalogue reads again until `discovering` is gone.

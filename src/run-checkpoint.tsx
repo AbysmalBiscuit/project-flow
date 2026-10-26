@@ -6,6 +6,7 @@ import type {
 	ShownFactoryRun,
 	TurnUsage,
 } from "./domain.ts";
+import { Loading } from "./loading.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import {
@@ -17,7 +18,6 @@ import {
 import {
 	costLabel,
 	currentStageLabel,
-	loadingLabel,
 	noRunDataLabel,
 	notServedLabel,
 	runStagesLabel,
@@ -124,7 +124,7 @@ export function RunStages({ run }: { run: ShownFactoryRun }) {
 	const { data } = useQuery(pageQuery.checkpoint(run));
 	const agents = useQuery(pageQuery.agents(run)).data ?? [];
 	if (data === undefined) {
-		return <p className={clsx(panel.note)}>{loadingLabel}</p>;
+		return <Loading />;
 	}
 	if (data === "not served") {
 		return <NotServed data={runTabData.stages} />;
@@ -177,7 +177,7 @@ export function RunCurrentStage({ run }: { run: ShownFactoryRun }) {
 export function RunUsage({ run }: { run: ShownFactoryRun }) {
 	const { data } = useQuery(pageQuery.checkpoint(run));
 	if (data === undefined) {
-		return <p className={clsx(panel.note)}>{loadingLabel}</p>;
+		return <Loading />;
 	}
 	if (data === "not served" || (data !== "missing" && data.usageNotServed)) {
 		return <NotServed data={runTabData.usage} />;

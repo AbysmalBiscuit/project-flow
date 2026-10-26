@@ -38,7 +38,7 @@ export function postRefresh(queryKey: readonly unknown[]): void {
 	void fetch("/api/refresh", { method: "POST" });
 }
 
-function pollPercent(progress: PollProgress): number {
+export function pollPercent(progress: PollProgress): number {
 	if (progress.total === 0) {
 		return 0;
 	}

@@ -9,6 +9,7 @@ import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
+import { Loading } from "./loading.tsx";
 import { projectHasPmBot } from "./open-ask.ts";
 import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
@@ -36,12 +37,7 @@ import { settings as fields, settingsBots } from "./settings-styles.ts";
 import type { StateSource } from "./settings-write.ts";
 import { PageFrame, PollStatus } from "./shell.tsx";
 import { shippedStates } from "./state-colours.ts";
-import {
-	loadingLabel,
-	navLabel,
-	settingsCopy,
-	settingsSection,
-} from "./terms.ts";
+import { navLabel, settingsCopy, settingsSection } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { clsx } from "./ui.ts";
@@ -623,7 +619,11 @@ export function Page() {
 		);
 	}
 	if (loaded === undefined) {
-		return <PageFrame title={navLabel.settings}>{loadingLabel}</PageFrame>;
+		return (
+			<PageFrame title={navLabel.settings}>
+				<Loading />
+			</PageFrame>
+		);
 	}
 	return (
 		<Menu

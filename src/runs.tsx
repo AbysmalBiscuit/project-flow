@@ -5,6 +5,7 @@ import { useState } from "react";
 import { board } from "./board-styles.ts";
 import { runResults, runStatusKinds } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
+import { Loading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { elapsed, runTime } from "./panel-sections.tsx";
@@ -15,7 +16,6 @@ import { RunDot } from "./run-marks.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
 	hubQueueLabel,
-	loadingLabel,
 	navLabel,
 	runResultLabel,
 	runsColumnLabel,
@@ -241,11 +241,7 @@ export function Page() {
 	const { data } = useQuery(pageQuery.runs);
 	return (
 		<PageFrame title={navLabel.runs} subtitle={runsListCopy.lead}>
-			{data === undefined ? (
-				<p className={clsx(board.empty)}>{loadingLabel}</p>
-			) : (
-				<RunsList rows={data} />
-			)}
+			{data === undefined ? <Loading /> : <RunsList rows={data} />}
 		</PageFrame>
 	);
 }
