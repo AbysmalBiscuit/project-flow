@@ -333,6 +333,21 @@ export function usePostReply(tracker: string, project: string, key: string) {
 	});
 }
 
+/** Read one project again. The event stream brings its new rows when the read ends. */
+export function useRefreshProject(name: string) {
+	return useMutation({
+		mutationFn: async (): Promise<void> => {
+			const response = await fetch(
+				`/api/projects/${encodeURIComponent(name)}/refresh`,
+				{ method: "POST" },
+			);
+			if (!response.ok) {
+				throw new Error(`refresh failed (HTTP ${response.status})`);
+			}
+		},
+	});
+}
+
 export function useAnswerQuestion(run: string, question: string) {
 	const queries = useQueryClient();
 	return useMutation({
