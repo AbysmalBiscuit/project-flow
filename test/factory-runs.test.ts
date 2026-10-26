@@ -296,6 +296,62 @@ describe("factory runs", () => {
 		}
 	});
 
+	test("with a hub and a standalone daemon, each matched ticket carries its newest run with its stage, box and factory", async () => {
+		const [running41] = hubRuns.runs;
+		if (running41 === undefined) {
+			throw new Error("the hub runs fixture lost a run");
+		}
+		const laptopRun = {
+			...boxRow(running41, "running"),
+			id: "20261025-141800-f7a8",
+			ticket: "43",
+		};
+		const app = await serveRuns(
+			hub,
+			[41, 43],
+			{
+				41: progressAt("2026-10-25T14:10:00Z"),
+				43: progressAt("2026-10-25T14:15:00Z"),
+			},
+			{ ...daemon, "/runs": { runs: [laptopRun] } },
+		);
+		try {
+			const body = await overviewWhere(
+				app.base,
+				(seen) =>
+					factoryRunOf(seen, 41) !== undefined &&
+					factoryRunOf(seen, 43) !== undefined,
+			);
+			expect(factoryRunOf(body, 41)).toMatchObject({
+				statusKind: "running",
+				stage: "stage 3",
+				box: "box-a",
+				factory: "work hub",
+				coveredByFeed: true,
+			});
+			expect(factoryRunOf(body, 43)).toMatchObject({
+				id: "20261025-141800-f7a8",
+				statusKind: "running",
+				stage: "stage 3",
+				box: "laptop",
+				factory: "laptop",
+				coveredByFeed: true,
+			});
+			expect(
+				(await factoryEntries(app.base)).map((entry) => [
+					entry.name,
+					entry.kind,
+					entry.alsoReadThroughHub,
+				]),
+			).toEqual([
+				["work hub", "hub", undefined],
+				["laptop", "daemon", undefined],
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("the project report of a ticket with two runs carries its newest run and its earlier run", async () => {
 		const app = await serveRuns(
 			{ ...hub, "/runs": hubRunsWithRetry },
@@ -451,8 +507,10 @@ describe("factory runs", () => {
 			}
 		});
 
-		test("a blocked factory run gives an open ask in Needs you", async () => {
-			const app = await serveRuns(hubWith41("blocked"), [41]);
+		test("a blocked factory run gives an open ask in Needs you, while the progress comment shows the run as live", async () => {
+			const app = await serveRuns(hubWith41("blocked"), [41], {
+				41: progressAt("2026-10-25T14:10:00Z"),
+			});
 			try {
 				await overviewWhere(
 					app.base,
