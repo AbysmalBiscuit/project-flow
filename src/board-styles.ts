@@ -536,7 +536,7 @@ export const board = stylex.create({
 	row: {
 		backgroundColor: {
 			default: "transparent",
-			":hover": colours.surfaceMuted,
+			":hover": colours.rowHover,
 		},
 		cursor: "pointer",
 		outline: {
