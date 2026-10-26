@@ -22,8 +22,9 @@ import {
 
 import { board } from "./board-styles.ts";
 import { useClickOrDouble } from "./focus.ts";
+import { FitLayout } from "./graph-core-view.tsx";
 import { float, FloatPanel } from "./graph-float.tsx";
-import { FitLayout, type LaidGraph } from "./graph-laid.tsx";
+import type { LaidGraph } from "./graph-laid.tsx";
 import type { LaidLink } from "./graph-lanes.ts";
 import type { LayoutCard } from "./graph-layout.ts";
 import { GraphTools } from "./graph-pane.tsx";

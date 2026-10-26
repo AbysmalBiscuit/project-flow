@@ -1,10 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { BaseEdge } from "@xyflow/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectReport, TicketState, Tracker } from "./domain.ts";
-import { Legend } from "./graph-float.tsx";
+import { LegendFrame } from "./graph-core-view.tsx";
 import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
 import {
@@ -25,6 +26,9 @@ import {
 } from "./graph-view.tsx";
 import { parentChip } from "./grouping.ts";
 import { focusChain } from "./links.ts";
+import { pageQuery } from "./queries.ts";
+import { tonedProps } from "./state-tone.ts";
+import { projectGraphLabel } from "./terms.ts";
 import { outsideKey } from "./ticket-key.ts";
 import {
 	FrameToggleContext,
@@ -83,6 +87,35 @@ function TicketEdge(props: LinkProps<TicketLink>) {
 				{...(markerEnd === undefined ? {} : { markerEnd })}
 			/>
 		</g>
+	);
+}
+
+/** The ticket states and arrow marks of the project graph. */
+function Legend() {
+	const states = useQuery(pageQuery.settings).data?.states ?? [];
+	return (
+		<LegendFrame id="graph-legend" label={projectGraphLabel.legend}>
+			<ul className={clsx(board.legendRow)}>
+				{states.map((state) => (
+					<li key={state.id} className={clsx(board.legendItem)}>
+						<span
+							{...tonedProps(state.colour, undefined, board.legendDot)}
+							data-state={state.id}
+						/>
+						{state.label}
+					</li>
+				))}
+			</ul>
+			<p className={clsx(board.legendNote, board.legendEdge)}>
+				<span className={clsx(board.legendSwatch)} />
+				{projectGraphLabel.arrow}
+			</p>
+			<p className={clsx(board.legendNote, board.legendEdge)}>
+				<span className={clsx(board.legendSwatch, board.legendSwatchDone)} />
+				{projectGraphLabel.done}
+			</p>
+			<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
+		</LegendFrame>
 	);
 }
 
