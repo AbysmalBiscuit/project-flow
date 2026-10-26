@@ -56,10 +56,9 @@ export const float = stylex.create({
 
 const panel = stylex.create({
 	shell: {
-		display: "flex",
-		flexDirection: "column",
-		alignItems: "flex-start",
-		gap: space.xs,
+		display: "grid",
+		alignItems: "start",
+		justifyItems: "start",
 		minWidth: 0,
 		maxWidth: "100%",
 		opacity: measure.restOpacity,
@@ -68,10 +67,15 @@ const panel = stylex.create({
 		pointerEvents: "auto",
 	},
 	up: {
-		flexDirection: "column-reverse",
+		alignItems: "end",
 	},
 	shellOpen: {
 		opacity: 1,
+	},
+	stacked: {
+		gridArea: "1 / 1",
+		minWidth: 0,
+		maxWidth: "100%",
 	},
 	reveal: {
 		display: "grid",
@@ -93,7 +97,6 @@ const panel = stylex.create({
 	},
 	body: {
 		display: "flex",
-		flexDirection: "column",
 		gap: space.xs,
 		width: "max-content",
 		maxWidth: "100%",
@@ -107,8 +110,8 @@ const panel = stylex.create({
 		color: colours.inkSoft,
 		fontSize: type.meta,
 	},
-	pinStart: {
-		alignSelf: "flex-start",
+	pinCentre: {
+		alignSelf: "center",
 	},
 	pinEnd: {
 		alignSelf: "flex-end",
@@ -155,8 +158,10 @@ function setPin(id: string, pinned: boolean): void {
 }
 
 /**
- * A faded button that opens to its panel on hover or keyboard focus, or stays open when pinned.
- * The browser keeps the pin by `id`. A `bottom` panel opens upward, with its pin top-right.
+ * A faded button that expands into its panel on hover or keyboard focus, or stays open when pinned.
+ * The open panel covers the button. The browser keeps the pin by `id`.
+ * A `top` panel opens downward, with its pin bottom-right after the content.
+ * A `bottom` panel opens upward, with its pin first in the content row.
  */
 export function FloatPanel({
 	id,
@@ -183,7 +188,7 @@ export function FloatPanel({
 			icon={pinned ? "pin-off" : "pin"}
 			name={pinned ? floatPanelLabel.unpin(label) : floatPanelLabel.pin(label)}
 			pressed={pinned}
-			layout={edge === "top" ? panel.pinStart : panel.pinEnd}
+			layout={edge === "top" ? panel.pinEnd : panel.pinCentre}
 			onClick={() => setPin(id, !pinned)}
 		/>
 	);
@@ -213,14 +218,18 @@ export function FloatPanel({
 				}
 			}}
 		>
-			<Button
-				icon={icon}
-				label={label}
-				aria-expanded={open}
-				aria-controls={bodyId}
-				onClick={() => setPin(id, !pinned)}
-			/>
-			<div className={clsx(panel.reveal, open && panel.revealOpen)}>
+			<div className={clsx(panel.stacked)}>
+				<Button
+					icon={icon}
+					label={label}
+					aria-expanded={open}
+					aria-controls={bodyId}
+					onClick={() => setPin(id, !pinned)}
+				/>
+			</div>
+			<div
+				className={clsx(panel.stacked, panel.reveal, open && panel.revealOpen)}
+			>
 				<div className={clsx(panel.clip)}>
 					<div id={bodyId} inert={!open} className={clsx(panel.body)}>
 						{edge === "bottom" ? pin : null}
