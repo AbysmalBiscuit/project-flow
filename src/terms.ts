@@ -2,6 +2,7 @@ import type {
 	NeedsYouItem,
 	NotificationTrigger,
 	RunMessage,
+	RunResult,
 	RunStatusKind,
 	ShownFactoryRun,
 	TicketState,
@@ -25,6 +26,14 @@ export const runStatusLabel: Record<RunStatusKind, string> = {
 	blocked: "Blocked",
 	failed: "Failed",
 	succeeded: "Succeeded",
+};
+
+export const runResultLabel: Record<RunResult, string> = {
+	merged: "Merged",
+	prOpen: "PR open",
+	noPr: "No PR",
+	failed: "Failed",
+	cancelled: "Cancelled",
 };
 
 /** The hover text of a card's run circle, for example "Running, stage 3, on box-a, 12 min, from work hub". */
@@ -239,6 +248,7 @@ export const runReadFailedLabel = "The run did not load.";
 /** The columns of the Runs list, in order. */
 export const runsColumnLabel = {
 	status: runFactLabel.status,
+	result: "Result",
 	ticket: runFactLabel.ticket,
 	project: runFactLabel.project,
 	stage: runFactLabel.stage,
@@ -253,11 +263,13 @@ export const runsListCopy = {
 	lead: "Every run that the factories report, newest first",
 	search: "Search by ticket key or title",
 	allStatuses: "All statuses",
+	allResults: "All results",
 	allProjects: "All projects",
 	allFactories: "All factories",
 	empty: "No run matches",
 	none: "No factory reports a run",
 	status: "Status",
+	result: "Result",
 	project: "Project",
 	factory: "Factory",
 } as const;

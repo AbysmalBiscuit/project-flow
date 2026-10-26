@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { board } from "./board-styles.ts";
-import { runStatusKinds } from "./domain.ts";
+import { runResults, runStatusKinds } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { openPage, runPagePath } from "./page-links.ts";
@@ -17,6 +17,7 @@ import {
 	hubQueueLabel,
 	loadingLabel,
 	navLabel,
+	runResultLabel,
 	runsColumnLabel,
 	runsListCopy,
 	runStatusLabel,
@@ -93,6 +94,9 @@ function RunRow({ run }: { run: RunListRow }) {
 					{runStatusLabel[run.statusKind]}
 				</span>
 			</td>
+			<td className={clsx(board.rowCell, styles.nowrap)}>
+				{run.result === undefined ? null : runResultLabel[run.result]}
+			</td>
 			<td className={clsx(board.rowCell)}>
 				<a
 					href={runPagePath(run.id)}
@@ -130,12 +134,14 @@ function RunRow({ run }: { run: RunListRow }) {
 
 function RunsList({ rows }: { rows: RunListRow[] }) {
 	const [status, setStatus] = useState(all);
+	const [result, setResult] = useState(all);
 	const [project, setProject] = useState(all);
 	const [factory, setFactory] = useState(all);
 	const [search, setSearch] = useState("");
 	const shown = rows.filter(
 		(row) =>
 			(status === all || row.statusKind === status) &&
+			(result === all || row.result === result) &&
 			(project === all || row.project === project) &&
 			(factory === all || row.factory === factory) &&
 			matches(row, search),
@@ -165,6 +171,19 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 						})),
 					]}
 					onChange={setStatus}
+				/>
+				<Dropdown
+					id="runs-result"
+					label={runsListCopy.result}
+					value={result}
+					choices={[
+						{ id: all, label: runsListCopy.allResults },
+						...runResults.map((kind) => ({
+							id: kind,
+							label: runResultLabel[kind],
+						})),
+					]}
+					onChange={setResult}
 				/>
 				<Dropdown
 					id="runs-project"
