@@ -67,6 +67,10 @@ export function parentChipLabel(key: string): string {
 	return `Parent ${key}`;
 }
 
+export function pullRowLabel(ref: string): string {
+	return `PR: ${ref}`;
+}
+
 export function subTicketsLabel(count: number): string {
 	return `${count} ${count === 1 ? "sub-ticket" : "sub-tickets"}`;
 }

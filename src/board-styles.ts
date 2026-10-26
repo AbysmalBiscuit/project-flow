@@ -346,10 +346,17 @@ export const board = stylex.create({
 	},
 	meta: {
 		display: "flex",
-		flexWrap: "wrap",
 		gap: space.sm,
-		alignItems: "center",
+		alignItems: "flex-start",
 		justifyContent: "space-between",
+	},
+	/** The ticket reference over the linked PR reference, which wrap beside the marks. */
+	refs: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.twoXs,
+		minWidth: 0,
+		overflowWrap: "anywhere",
 	},
 	metaBesideToggle: {
 		paddingRight: `calc(${space.lg} + ${space.xs})`,
@@ -365,6 +372,7 @@ export const board = stylex.create({
 	},
 	metaEnd: {
 		display: "flex",
+		flexShrink: 0,
 		gap: space.xs,
 		alignItems: "center",
 		marginLeft: "auto",
@@ -660,12 +668,13 @@ export const board = stylex.create({
 		height: measure.marker,
 		backgroundColor: colours.graphEdgeDone,
 	},
+	/** A graph card takes the width of a board card inside the lane padding and border. */
 	ticketNode: {
 		display: "flex",
 		flexDirection: "column",
 		gap: space.xs,
-		width: "min-content",
-		minWidth: measure.node,
+		width: `calc(${measure.lane} - 2 * ${space.sm} - ${measure.hairline})`,
+		overflowWrap: "anywhere",
 		padding: space.sm,
 		borderWidth: measure.hairline,
 		borderStyle: "solid",

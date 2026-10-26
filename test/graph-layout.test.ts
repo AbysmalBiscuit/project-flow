@@ -256,6 +256,51 @@ describe("project graph layout", () => {
 		}
 	});
 
+	test("cards at the board card width grow taller with their title and chips and do not overlap", async () => {
+		const boardCard = { width: 240, height: 64 };
+		const rows = new Map(
+			workcell.graphTickets.map((ticket) => {
+				const chips =
+					(ticket.chips?.length ?? 0) +
+					(ticket.blockers?.length ?? 0) +
+					(ticket.outsideBlockers?.length ?? 0);
+				return [
+					projectNodeId(workcell.name, ticket.key ?? ""),
+					Math.ceil(ticket.title.length / 30) + Math.ceil(chips / 2),
+				] as const;
+			}),
+		);
+		for (const direction of ["left-to-right", "top-to-bottom"] as const) {
+			const input = layoutInput(workcell, "workstream", []);
+			const sizes = new Map(
+				input.cards.map((item) => [
+					item.id,
+					{
+						width: boardCard.width,
+						height: boardCard.height + 20 * (rows.get(item.id) ?? 1),
+					},
+				]),
+			);
+			expect(
+				new Set([...sizes.values()].map((size) => size.height)).size,
+			).toBeGreaterThan(3);
+			const layout = await layoutGraph(
+				elk,
+				input,
+				direction,
+				boardCard,
+				() => 0,
+				() => 0,
+				sizes,
+			);
+			expect({
+				direction,
+				stray: strayFromHolders(input, layout, sizes),
+				cardOverlaps: cardOverlaps(layout, sizes),
+			}).toEqual({ direction, stray: [], cardOverlaps: [] });
+		}
+	});
+
 	test("sibling parent ticket frames do not overlap", async () => {
 		const report = await hierarchyReport("");
 		for (const direction of ["left-to-right", "top-to-bottom"] as const) {
