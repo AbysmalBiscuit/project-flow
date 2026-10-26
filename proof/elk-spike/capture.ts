@@ -11,7 +11,8 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { Fetch } from "../../src/fetch.ts";
-import { readGhAuthToken, run } from "../../src/main.ts";
+import { run } from "../../src/main.ts";
+import { readGhAuthToken } from "../../src/token-commands.ts";
 
 const capturedProjects = [
 	"AbysmalBiscuit/project-flow",

@@ -23,7 +23,9 @@ import {
 	type Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import type { CheckpointRead, FactoryEntry, Steer } from "./factories.ts";
+import type { FactoryEntry } from "./factories.ts";
+import type { Steer } from "./factory-run-actions.ts";
+import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";

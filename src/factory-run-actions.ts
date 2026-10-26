@@ -1,0 +1,107 @@
+import type { RunMessage } from "./domain.ts";
+import { factoryRequestLimitMs, reader, Unreachable } from "./factory-http.ts";
+import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
+import type { Fetch } from "./fetch.ts";
+
+export type AnswerResult = "answered" | "missing" | "failed";
+
+export type SteerResult = "steered" | "missing" | "ended" | "failed";
+
+export type CancelResult = "cancelled" | "missing" | "ended" | "failed";
+
+export type Steer = { stage: string; text: string; interrupt: boolean };
+
+// A factory answers a cancel once the run process has stopped. The hub waits 30 seconds for
+// the box, and the box waits up to 60 seconds for the process to stop.
+const cancelLimitMs = 100_000;
+
+/** Project Flow writes to a factory as Lev: the factory records this sender on each steer. */
+const levSender = "lev";
+
+/** The answer, steer and cancel writes that Lev sends to the factory that reports a run. */
+export function runActions(deps: {
+	fetchImpl: Fetch;
+	signal: AbortSignal;
+	now: () => Date;
+	statusRowOf: (runId: string) => StatusRows<ReadRun>;
+	addMessage: (runId: string, message: RunMessage) => void;
+}) {
+	const { fetchImpl, signal, now, statusRowOf, addMessage } = deps;
+	const answer = async (
+		run: string,
+		question: string,
+		text: string,
+	): Promise<AnswerResult> => {
+		const { hubRow, row } = statusRowOf(run);
+		// Only the hub posts an answer to the ticket thread, so a hub-covered run answers there.
+		const target = hubRow ?? row;
+		if (
+			target === undefined ||
+			row?.run.questions?.some((item) => item.id === question) !== true
+		) {
+			return "missing";
+		}
+		const read = reader(fetchImpl, target.url, signal);
+		try {
+			const response = await read(
+				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
+				{ json: { text } },
+			);
+			if (response.ok) {
+				addMessage(run, {
+					kind: "answer",
+					sender: levSender,
+					text,
+					at: now().toISOString(),
+				});
+				return "answered";
+			}
+			return response.status === 404 ? "missing" : "failed";
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return "failed";
+		}
+	};
+	/**
+	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
+	 * the write to the box that does the run. A 409 means that the run has ended.
+	 */
+	const runWrite = async <Done extends string>(
+		run: string,
+		route: string,
+		done: Done,
+		json: unknown = {},
+		limitMs = factoryRequestLimitMs,
+	): Promise<Done | "missing" | "ended" | "failed"> => {
+		const { hubRow, row } = statusRowOf(run);
+		const target = hubRow ?? row;
+		if (target === undefined) {
+			return "missing";
+		}
+		const read = reader(fetchImpl, target.url, signal, limitMs);
+		try {
+			const response = await read(`/runs/${encodeURIComponent(run)}/${route}`, {
+				json,
+			});
+			if (response.ok) {
+				return done;
+			}
+			if (response.status === 409) {
+				return "ended";
+			}
+			return response.status === 404 ? "missing" : "failed";
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+			return "failed";
+		}
+	};
+	const steer = (run: string, steer: Steer): Promise<SteerResult> =>
+		runWrite(run, "steer", "steered", { ...steer, sender: levSender });
+	const cancel = (run: string): Promise<CancelResult> =>
+		runWrite(run, "cancel", "cancelled", {}, cancelLimitMs);
+	return { answer, steer, cancel };
+}

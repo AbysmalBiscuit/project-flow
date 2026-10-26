@@ -202,27 +202,67 @@ describe("factories", () => {
 		}
 	});
 
-	test("an invalid --factory URL exits 1 and does not listen", async () => {
-		const { path, cleanup } = await tempConfig("{}");
+	test("--factory NAME=URL names the factory in settings and the runs list, and a bare URL keeps its host", async () => {
+		const app = await serve(
+			["--factory", `hub=${hubUrl}`, "--factory", laptopUrl],
+			configured,
+			factoryFetch({ [hubUrl]: hub, [laptopUrl]: daemon }, []),
+		);
 		try {
-			const result = await run(
-				["--config", path, "--factory", "ftp://hub.test"],
-				testIo({
-					env: {},
-					fetch: async (input, init) => unrecorded(input, init),
-					readGhToken: async () => null,
-					waitForStop: Promise.resolve(),
-				}),
-			);
-			expect(result.exitCode).toBe(1);
-			expect(result.stderr).toBe(
-				"invalid factory: --factory needs an http, https or unix URL",
-			);
-			expect(result.listened).toBe(false);
+			expect(
+				(await factoryEntries(app.base)).map(({ name, url }) => ({
+					name,
+					url,
+				})),
+			).toEqual([
+				{ name: "hub", url: hubUrl },
+				{ name: laptopSocket, url: laptopUrl },
+			]);
+			let rows: { factory: string }[] = [];
+			while (rows.length === 0) {
+				const response = await fetch(new URL("/api/factory-runs", app.base));
+				expect(response.status).toBe(200);
+				rows = (await response.json()) as { factory: string }[];
+				await Bun.sleep(20);
+			}
+			expect(new Set(rows.map((row) => row.factory))).toEqual(new Set(["hub"]));
 		} finally {
-			await cleanup();
+			await app.stop();
 		}
 	});
+
+	for (const [value, message] of [
+		[
+			"ftp://hub.test",
+			"invalid factory: --factory needs an http, https or unix URL",
+		],
+		[
+			"hub=ftp://hub.test",
+			"invalid factory: --factory needs an http, https or unix URL",
+		],
+		["hub=", "invalid factory: --factory needs an http, https or unix URL"],
+		[` =${hubUrl}`, "invalid factory: --factory needs a name before ="],
+	] as const) {
+		test(`--factory ${value} exits 1 and does not listen`, async () => {
+			const { path, cleanup } = await tempConfig("{}");
+			try {
+				const result = await run(
+					["--config", path, "--factory", value],
+					testIo({
+						env: {},
+						fetch: async (input, init) => unrecorded(input, init),
+						readGhToken: async () => null,
+						waitForStop: Promise.resolve(),
+					}),
+				);
+				expect(result.exitCode).toBe(1);
+				expect(result.stderr).toBe(message);
+				expect(result.listened).toBe(false);
+			} finally {
+				await cleanup();
+			}
+		});
+	}
 
 	test("settings adds a factory to the configured list", async () => {
 		const app = await serve(

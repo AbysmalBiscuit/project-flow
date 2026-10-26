@@ -14,14 +14,14 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
+import type { FactoryEntry } from "./factories.ts";
 import type {
 	AnswerResult,
 	CancelResult,
-	CheckpointRead,
-	FactoryEntry,
 	Steer,
 	SteerResult,
-} from "./factories.ts";
+} from "./factory-run-actions.ts";
+import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
