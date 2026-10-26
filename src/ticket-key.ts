@@ -81,6 +81,16 @@ export function shortKey(key: string): string {
 	return mark === -1 ? key : key.slice(mark);
 }
 
+/** A pull key as `#number` when the pull is in the repo of the ticket, else the whole key. */
+export function pullRef(pull: string, ticketKey: string | null): string {
+	const pullRepo = keyRepo(pull);
+	const sameRepo =
+		pullRepo !== null &&
+		ticketKey !== null &&
+		foldKey(pullRepo) === foldKey(keyRepo(ticketKey));
+	return sameRepo ? shortKey(pull) : pull;
+}
+
 /** The key named with a project: `project#number` on GitHub, the whole key on Linear. */
 export function outsideKey(project: string, key: string): string {
 	const number = keyNumber(key);
