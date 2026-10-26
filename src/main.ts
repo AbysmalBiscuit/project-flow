@@ -8,8 +8,8 @@ import { z } from "zod";
 
 import { version } from "../package.json";
 import { start } from "./app.ts";
-import type { AutoMerge } from "./configuration.ts";
-import { autoMerge, factoryUrl, loadConfiguration } from "./configuration.ts";
+import type { AutoMerge, Factory } from "./configuration.ts";
+import { autoMerge, loadConfiguration } from "./configuration.ts";
 import { flagFactory } from "./factories.ts";
 import type { FactoryTokenMint, MintResult } from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
@@ -487,7 +487,9 @@ const usage = `Usage: project-flow [flags]
   --config <file>  configuration file
   --host <host>    host to listen on (default 127.0.0.1)
   --port <port>    port to listen on
-  --factory <url>  factory to read workcell runs from (repeatable)
+  --factory [<name>=]<url>
+                   factory to read workcell runs from (repeatable);
+                   the name defaults to the URL's host
   --open           open the printed URL in the default browser
   --version        print the version
   --help           print this help`;
@@ -668,12 +670,15 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 		return result(1);
 	}
 
-	const factoryFlags = args.flatMap((arg, index) =>
-		arg === "--factory" ? [args[index + 1] ?? ""] : [],
-	);
-	if (factoryFlags.some((url) => !factoryUrl.safeParse(url).success)) {
-		writeErr("invalid factory: --factory needs an http, https or unix URL");
-		return result(1);
+	const flagFactories: Factory[] = [];
+	for (const [index, arg] of args.entries()) {
+		if (arg !== "--factory") continue;
+		const factory = flagFactory(args[index + 1] ?? "");
+		if ("error" in factory) {
+			writeErr(factory.error);
+			return result(1);
+		}
+		flagFactories.push(factory);
 	}
 
 	try {
@@ -705,7 +710,7 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 			listTodos: io.listTodos ?? listDevkitTodos,
 			listCheckouts:
 				io.listCheckouts ?? ((roots) => listDevkitCheckouts(roots, io.env)),
-			flagFactories: factoryFlags.map((url) => flagFactory(url.trim())),
+			flagFactories,
 			...(io.now === undefined ? {} : { now: io.now }),
 			...(io.threadReadLimitMs === undefined
 				? {}

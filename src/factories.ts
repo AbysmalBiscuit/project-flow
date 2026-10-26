@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Factory } from "./configuration.ts";
+import { factoryUrl } from "./configuration.ts";
 import type {
 	FactoryQuestion,
 	FactoryRun,
@@ -441,11 +442,25 @@ class Unreachable extends Error {}
 /** The factory answered a read with 404: it does not serve the route. */
 class NotServed extends Unreachable {}
 
-/** The name of a `--factory` URL: its host, or its socket path. */
-export function flagFactory(url: string): Factory {
+/**
+ * A `--factory` value: `NAME=URL`, or a bare URL that takes its host or socket path as its name.
+ * A URL always has a `:` before its first `=`, so a name cannot hold a `:`.
+ */
+export function flagFactory(value: string): Factory | { error: string } {
+	const labelled = /^([^:=]*)=(.*)$/s.exec(value);
+	const name = labelled?.[1]?.trim();
+	const url = (labelled?.[2] ?? value).trim();
+	if (name === "") {
+		return { error: "invalid factory: --factory needs a name before =" };
+	}
+	if (!factoryUrl.safeParse(url).success) {
+		return {
+			error: "invalid factory: --factory needs an http, https or unix URL",
+		};
+	}
 	const parsed = new URL(url);
 	return {
-		name: parsed.protocol === "unix:" ? parsed.pathname : parsed.host,
+		name: name ?? (parsed.protocol === "unix:" ? parsed.pathname : parsed.host),
 		url,
 	};
 }
