@@ -91,7 +91,7 @@ A ticket the tracker closed as completed, or whose merged PR closes it.
 
 **Dropped**:
 A closed ticket that was cancelled or closed as not planned.
-_Avoid_: Cancelled, won't do
+_Avoid_: Cancelled (when a ticket is meant), won't do
 
 **In progress**:
 An open ticket in started work. The tracker status can set it. A live run, a pushed branch, a started todo, or a draft PR can set it. The least advanced open PR decides.
@@ -201,6 +201,10 @@ _Avoid_: Retry (when a whole run is meant), rerun, resume (when a restart is mea
 **Runs list**:
 The table of every workcell run that the factories report, with search and filters. Each row links to its run page.
 _Avoid_: Run history, run log
+
+**Run result**:
+What the work of an ended run came to: merged, PR open, no PR, failed or cancelled. Project Flow derives it from the run status and the PR that the run opened. The factory gives that PR in `GET /runs/{id}`. A merged PR wins over the run status. A live or queued run has no run result.
+_Avoid_: Run status (when the result is meant)
 
 **Factory feed**:
 The run status and stages that Project Flow reads live from the factory. Project Flow follows the factory's event stream, `GET /events`, and polls `GET /runs` only when the factory serves no event stream. Where the factory feed and a progress comment differ, the factory feed wins.
