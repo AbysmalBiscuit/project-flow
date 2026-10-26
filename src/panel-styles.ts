@@ -35,10 +35,10 @@ export const panel = stylex.create({
 	},
 	head: {
 		display: "flex",
+		flexDirection: "row-reverse",
 		flexWrap: "wrap",
 		gap: space.sm,
-		alignItems: "center",
-		justifyContent: "space-between",
+		alignItems: "flex-start",
 		position: "sticky",
 		zIndex: stack.panel,
 		top: 0,
@@ -46,14 +46,19 @@ export const panel = stylex.create({
 		backgroundColor: colours.raised,
 	},
 	key: {
+		flex: "1 1 0",
+		minWidth: measure.narrow,
+		alignSelf: "center",
+		overflowWrap: "anywhere",
 		color: colours.inkSoft,
 		fontSize: type.meta,
 	},
 	actions: {
 		display: "flex",
+		order: -1,
+		flexShrink: 0,
 		gap: space.xs,
 		alignItems: "center",
-		marginLeft: "auto",
 	},
 	host: {
 		display: "contents",
