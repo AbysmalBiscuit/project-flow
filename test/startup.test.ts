@@ -373,6 +373,7 @@ describe("startup", () => {
 						},
 					}),
 					readGhToken: async () => "rejected-gh-token",
+					databasePath: ":memory:",
 				}),
 			);
 			expect(result.exitCode).toBe(1);
@@ -442,6 +443,7 @@ describe("startup", () => {
 					readGhToken: async () => {
 						throw new Error("gh must not run when GITHUB_TOKEN is set");
 					},
+					databasePath: ":memory:",
 				}),
 			);
 			expect(result.exitCode).toBe(1);
@@ -560,6 +562,7 @@ describe("startup", () => {
 					readGhToken: async () => {
 						throw new Error("gh must not run when GITHUB_TOKEN is set");
 					},
+					databasePath: ":memory:",
 				}),
 			);
 			expect(result.exitCode).toBe(1);
