@@ -22,7 +22,7 @@ import {
 
 import { board } from "./board-styles.ts";
 import { useClickOrDouble } from "./focus.ts";
-import { float } from "./graph-float.tsx";
+import { float, FloatPanel } from "./graph-float.tsx";
 import { FitLayout, type LaidGraph } from "./graph-laid.tsx";
 import type { LaidLink } from "./graph-lanes.ts";
 import type { LayoutCard } from "./graph-layout.ts";
@@ -41,7 +41,7 @@ import {
 } from "./graph-routes.ts";
 import { sizedNode } from "./graph-sizes.ts";
 import { panel } from "./panel-styles.ts";
-import { graphLayoutFailedLabel } from "./terms.ts";
+import { floatPanelLabel, graphLayoutFailedLabel } from "./terms.ts";
 import { pageTheme, watchPageTheme } from "./theme.ts";
 import { cards } from "./ui-styles.ts";
 import { classToken, clsx } from "./ui.ts";
@@ -438,16 +438,23 @@ export function GraphView<
 					</div>
 				)}
 				<div id={`${probe}-controls`} className={clsx(float.corner)}>
-					<div className={clsx(float.group)}>
-						{tools}
-						<GraphTools
-							probeId={`${probe}-viewport`}
-							fitId={`${probe}-fit`}
-							scope={`#${root}`}
-							fitOptions={fit}
-						/>
-						{moreTools}
-					</div>
+					<FloatPanel
+						id="graph-controls"
+						label={floatPanelLabel.controls}
+						icon="sliders"
+						edge="bottom"
+					>
+						<div className={clsx(float.group)}>
+							{tools}
+							<GraphTools
+								probeId={`${probe}-viewport`}
+								fitId={`${probe}-fit`}
+								scope={`#${root}`}
+								fitOptions={fit}
+							/>
+							{moreTools}
+						</div>
+					</FloatPanel>
 				</div>
 			</div>
 		</div>

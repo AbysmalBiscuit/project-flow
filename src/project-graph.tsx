@@ -14,7 +14,7 @@ import {
 	layoutInput,
 } from "./graph-layout.ts";
 import { useNodeSpan } from "./graph-node-size.tsx";
-import { FrameTools, ScopeLine } from "./graph-scope.tsx";
+import { FrameTools } from "./graph-scope.tsx";
 import { nodeSize } from "./graph-sizes.ts";
 import { DirectionSwitch, LayoutSwitch } from "./graph-switches.tsx";
 import {
@@ -86,25 +86,6 @@ function TicketEdge(props: LinkProps<TicketLink>) {
 	);
 }
 
-function seedLabel(
-	report: ProjectReport,
-	shown: ReadonlyMap<string, string>,
-	seed: string,
-): string {
-	const label = shown.get(seed);
-	if (label !== undefined) {
-		return label;
-	}
-	const key =
-		report.tickets.find(
-			(item) =>
-				item.key !== null && projectNodeId(report.name, item.key) === seed,
-		)?.key ?? null;
-	return key === null
-		? seed.slice(seed.indexOf("\n") + 1)
-		: shortTicket(key, report.name, false);
-}
-
 export function ProjectGraph({
 	report,
 	reports,
@@ -114,10 +95,8 @@ export function ProjectGraph({
 	assignees,
 	openKey,
 	seeds,
-	focus,
 	onOpen,
 	onFocus,
-	onClearFocus,
 	onPreview,
 	onPreviewEnd,
 	onDirection,
@@ -131,10 +110,8 @@ export function ProjectGraph({
 	assignees: readonly string[];
 	openKey: string | null;
 	seeds: ReadonlySet<string>;
-	focus: ReadonlySet<string>;
 	onOpen: (ticket: OpenedNode) => void;
 	onFocus: (nodeId: string) => void;
-	onClearFocus: () => void;
 	onPreview: (nodeId: string) => void;
 	onPreviewEnd: () => void;
 	onDirection: (direction: GraphDirection) => void;
@@ -214,22 +191,6 @@ export function ProjectGraph({
 				laid.of.groupBy === "assignee" || laid.of.groupBy === "none",
 			frame: card.collapsed ? "collapsed" : heads.has(card.id) ? "open" : null,
 		};
-	};
-	const shownLabels = new Map(
-		shownCards.map(({ card, ticket }) => [
-			card.ticket,
-			shortTicket(ticket.key, ticket.project, ticket.outside),
-		]),
-	);
-	const toScope = (frames: "collapse" | "keep", clearFocus: boolean) => {
-		anchor.current = null;
-		if (frames === "collapse") {
-			collapse.setAll(laid.input.parents, true);
-		}
-		if (clearFocus) {
-			onClearFocus();
-		}
-		setRefit((count) => count + 1);
 	};
 	const frameBoxes = laid.input.frames.flatMap((frame) => {
 		const box = laid.layout.frames.get(frame.id);
@@ -317,21 +278,7 @@ export function ProjectGraph({
 						</p>
 					</>
 				}
-				overlay={
-					<>
-						<Legend />
-						<ScopeLine
-							project={report.name}
-							openFrames={laid.input.frames.length}
-							focus={[...focus].map((seed) =>
-								seedLabel(report, shownLabels, seed),
-							)}
-							onProject={() => toScope("collapse", true)}
-							onFrames={() => toScope("keep", true)}
-							onFocus={() => toScope("keep", false)}
-						/>
-					</>
-				}
+				overlay={<Legend />}
 				tools={
 					<>
 						<LayoutSwitch layout={layout} onChange={onLayout} />
