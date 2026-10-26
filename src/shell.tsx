@@ -161,6 +161,7 @@ const links = [
 	{ href: "/", label: navLabel.overview },
 	{ href: "/needs-you", label: navLabel.needsYou, count: true },
 	{ href: "/inbox", label: navLabel.inbox },
+	{ href: "/runs", label: navLabel.runs },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {

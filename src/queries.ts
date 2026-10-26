@@ -25,6 +25,7 @@ import {
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { CheckpointRead, FactoryEntry, Steer } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
+import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { storedObject } from "./stored-page.ts";
 
@@ -86,6 +87,12 @@ export const pageQuery = {
 			queryFn: () => readThread(tracker, project, key),
 			placeholderData: (previous: ThreadRead | undefined) => previous,
 		}),
+	/** A change in the factory feed reads the Runs list again. */
+	runs: queryOptions({
+		queryKey: ["runs"],
+		queryFn: () => fetchJson<RunListRow[]>("/api/factory-runs"),
+		placeholderData: (previous: RunListRow[] | undefined) => previous,
+	}),
 	/** A change in the factory feed reads the run again. */
 	run: (id: string) =>
 		queryOptions({
@@ -564,6 +571,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
+	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
 function invalidatePageQueries(): void {
@@ -574,6 +582,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["project"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["thread"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
+	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
 export function wirePageQueryEvents(): void {
