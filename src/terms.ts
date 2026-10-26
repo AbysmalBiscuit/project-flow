@@ -103,6 +103,7 @@ export const navLabel = {
 	projects: "Projects",
 	needsYou: "Needs you",
 	inbox: "Inbox",
+	runs: "Runs",
 	refreshing: "Refreshing",
 	settings: "Settings",
 	theme: "Theme",
@@ -224,6 +225,32 @@ export const openRunLabel = "Open run";
 export const runPageLabel = "Run";
 
 export const runMissingLabel = "No factory reports this run.";
+
+/** The columns of the Runs list, in order. */
+export const runsColumnLabel = {
+	status: runFactLabel.status,
+	ticket: runFactLabel.ticket,
+	project: runFactLabel.project,
+	stage: runFactLabel.stage,
+	factory: runFactLabel.factory,
+	box: runFactLabel.box,
+	start: "Start",
+	duration: "Duration",
+	pr: runFactLabel.pr,
+} as const;
+
+export const runsListCopy = {
+	lead: "Every run that the factories report, newest first",
+	search: "Search by ticket key or title",
+	allStatuses: "All statuses",
+	allProjects: "All projects",
+	allFactories: "All factories",
+	empty: "No run matches",
+	none: "No factory reports a run",
+	status: "Status",
+	project: "Project",
+	factory: "Factory",
+} as const;
 
 /** The tabs of the run page, in order. */
 export const runTabLabel = {

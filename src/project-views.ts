@@ -14,6 +14,7 @@ import {
 	sameProject,
 } from "./project-ref.ts";
 import { expectedBotsByRepo } from "./review.ts";
+import { runList, type RunListRow } from "./run-list.ts";
 import { pendingProjects } from "./settings-catalogue.ts";
 import { commentNotificationId, needsYouSeenId } from "./ticket-key.ts";
 
@@ -226,6 +227,17 @@ export function projectViewNamed(
 		return other === undefined ? [] : [viewOf(other)];
 	});
 	return { view, linked };
+}
+
+/** Every run that the factories report, newest first, with its ticket from the tracked projects. */
+export function factoryRunList(
+	options: PollOptions,
+	configuration: Configuration,
+): RunListRow[] {
+	return runList(
+		options.factoryRuns(),
+		trackedRows(options, configuration).rows,
+	);
 }
 
 export function attentionFor(

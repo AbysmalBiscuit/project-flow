@@ -25,6 +25,7 @@ seedPageQueries(window.location.pathname, storedPage, storedPolling);
 const pages = [
 	{ path: "/needs-you", load: () => import("./needs-you.tsx") },
 	{ path: "/inbox", load: () => import("./inbox.tsx") },
+	{ path: "/runs", load: () => import("./runs.tsx") },
 	{ path: "/settings", load: () => import("./settings.tsx") },
 ] as const;
 

@@ -9,6 +9,7 @@ import type {
 } from "../src/domain.ts";
 import type { FactoryEntry } from "../src/factories.ts";
 import type { Fetch } from "../src/fetch.ts";
+import type { RunListRow } from "../src/run-list.ts";
 import {
 	type Answers,
 	daemon,
@@ -41,7 +42,13 @@ import {
 	repo,
 	ticket,
 } from "./live-support.ts";
-import { recordedDiscovery, unrecorded, urlOf } from "./support.ts";
+import { pull } from "./review-support.ts";
+import {
+	githubPullNode,
+	recordedDiscovery,
+	unrecorded,
+	urlOf,
+} from "./support.ts";
 
 type RunOverview = {
 	projects: { tickets: TicketView[] }[];
@@ -190,6 +197,7 @@ async function serveRuns(
 	issueNumbers: number[],
 	comments: Record<number, Record<string, unknown>[]> = {},
 	boxAnswers?: Answers,
+	pulls: Record<string, unknown>[] = [],
 ) {
 	const factories: Record<string, Answers | "down"> = {
 		[hubUrl]: hubAnswers,
@@ -219,6 +227,8 @@ async function serveRuns(
 							...(rows === undefined ? {} : { commentRows: rows }),
 						};
 					}),
+					repo,
+					pulls,
 				) ?? page([])
 			);
 		}
@@ -1530,6 +1540,138 @@ describe("factory runs", () => {
 				await app.stop();
 			}
 		});
+	});
+});
+
+describe("the runs list", () => {
+	const [running41] = hubRuns.runs;
+	if (running41 === undefined) {
+		throw new Error("the hub runs fixture lost a run");
+	}
+
+	async function runsWhere(
+		base: string,
+		accept: (rows: RunListRow[]) => boolean,
+	): Promise<RunListRow[]> {
+		while (true) {
+			const response = await fetch(new URL("/api/factory-runs", base));
+			expect(response.status).toBe(200);
+			const rows = (await response.json()) as RunListRow[];
+			if (accept(rows)) {
+				return rows;
+			}
+			await Bun.sleep(20);
+		}
+	}
+
+	test("lists the runs of every factory, live and ended, once for each run id, newest first", async () => {
+		const laptopRun = {
+			...boxRow(running41, "succeeded"),
+			id: "20261025-143000-d1e2",
+			ticket: "43",
+			submitted_at: "2026-10-25T14:30:00+00:00",
+			started_at: "2026-10-25T14:30:04+00:00",
+			ended_at: "2026-10-25T14:52:00+00:00",
+		};
+		const app = await serveRuns(
+			hub,
+			[39, 40, 41, 42, 43],
+			{},
+			{
+				...daemon,
+				"/runs": { runs: [laptopRun, boxRow(running41, "blocked")] },
+			},
+		);
+		try {
+			const rows = await runsWhere(
+				app.base,
+				(seen) =>
+					seen.length === 5 &&
+					seen.every((row) => row.title !== undefined) &&
+					seen.some((row) => row.id === running41.id && row.box === "laptop"),
+			);
+			expect(
+				rows.map((row) => [
+					row.id,
+					row.key,
+					row.title,
+					row.project,
+					row.statusKind,
+					row.factory,
+					row.box,
+				]),
+			).toEqual([
+				[
+					laptopRun.id,
+					`${repo}#43`,
+					"Ticket 43",
+					repo,
+					"succeeded",
+					"laptop",
+					"laptop",
+				],
+				[
+					"20261025-141500-e5f6",
+					`${repo}#42`,
+					"Ticket 42",
+					repo,
+					"queued",
+					"work hub",
+					null,
+				],
+				[
+					running41.id,
+					`${repo}#41`,
+					"Ticket 41",
+					repo,
+					"blocked",
+					"laptop",
+					"laptop",
+				],
+				[
+					"20261025-130511-c3d4",
+					`${repo}#40`,
+					"Ticket 40",
+					repo,
+					"succeeded",
+					"work hub",
+					"box-b",
+				],
+				[
+					"20261025-120000-a7b8",
+					`${repo}#39`,
+					"Ticket 39",
+					repo,
+					"failed",
+					"work hub",
+					"box-a",
+				],
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a run gives the newest PR of its ticket, and a run of an untracked ticket gives its repo key", async () => {
+		const app = await serveRuns(hub, [41], {}, undefined, [
+			githubPullNode(pull(70, 41)),
+			githubPullNode(pull(77, 41)),
+		]);
+		try {
+			const rows = await runsWhere(app.base, (seen) =>
+				seen.some((row) => row.pull !== undefined),
+			);
+			expect(rows.find((row) => row.id === running41.id)).toMatchObject({
+				key: `${repo}#41`,
+				title: "Ticket 41",
+				pull: { number: 77, url: `https://github.com/${repo}/pull/77` },
+			});
+			const untracked = rows.find((row) => row.id === "20261025-130511-c3d4");
+			expect(untracked).toMatchObject({ key: `${repo}#40`, project: repo });
+			expect(untracked).not.toHaveProperty("title");
+		} finally {
+			await app.stop();
+		}
 	});
 });
 
