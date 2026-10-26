@@ -58,16 +58,24 @@ _Avoid_: Breadcrumb trail
 
 ### State
 
+**Category**:
+One of the fixed places of a ticket in its workflow: backlog, in progress, in review, awaiting merge, done or dropped. The tracker status sets the category. GitHub evidence and workcell evidence move it forward. The domain rules read only the category. Issue #97 holds the operating rules.
+_Avoid_: Status type
+
 **State**:
-The place of a ticket in its workflow. The tracker status sets the state. GitHub evidence and workcell evidence move it forward. Issue #97 holds the operating rules.
+A place in the user's workflow, with a label and a colour. The configuration file holds the states in board order. Each state holds one or more categories. A state mapping or the ticket's category puts each ticket in one state.
 _Avoid_: Status (when the state is meant), column
 
+**State mapping**:
+The link from a tracker status or a label of one board to a state. Settings edits it.
+_Avoid_: Lane mapping (when a state is meant)
+
 **State colour**:
-The colour that draws one state on the board, the cards, the graphs, the legend and the side panel. The configuration file holds one state colour per state, and both themes use it. The app writes the default state colours on the first start. Settings edits them.
+The colour that draws one state on the board, the cards, the graphs, the legend and the side panel. Both themes use it. The first state of a category gives the colour of that category. Settings edits it.
 _Avoid_: Status colour, lane colour
 
 **Lane**:
-The column a ticket sits in on a project board. Tracker statuses set the lanes. A repo without statuses uses its factory labels or the app's lanes.
+The place of one state on a project board. Each state has one lane, in the order of the states.
 _Avoid_: Column, status column
 
 **Blocked**:
@@ -137,8 +145,46 @@ A review bot that a repo's PRs normally get, as found in the repo's recent PRs o
 _Avoid_: Reviewer, required check
 
 **Workcell run**:
-One run of the workcell manage flow on a ticket. Its progress comment shows the run's stage.
+One run of the workcell manage flow on a ticket. The factory reports the run's status and stage. When the factory serves no event stream, the progress comment shows the stage.
 _Avoid_: Job, session
+
+### Factory
+
+**Factory**:
+A workcell daemon that Project Flow reads runs from, with the boxes it dispatches to. A personal factory is one daemon with no boxes. Project Flow can read several factories.
+_Avoid_: Daemon, workcell daemon, fleet, server
+
+**Hub**:
+A factory daemon that takes runs and dispatches them to boxes. It knows the status of every run it dispatched.
+_Avoid_: Server, controller, orchestrator
+
+**Box**:
+A machine in the factory that does the runs the hub dispatches to it. Only the box holds the full detail of its runs.
+_Avoid_: Machine, worker, node (when the box is meant), build machine
+
+**Run stage**:
+The step of the workcell flow that a run is in: a node of the run's graph.
+_Avoid_: Phase, step, node (when the stage is meant)
+
+**Run checkpoint**:
+The snapshot that a box keeps of where a run is in its flow: the current stage, the completed stages, and the retries and visits of each stage. Each visit of a review stage is one review round. Project Flow reads it from `GET /runs/{id}/checkpoint` of the factory that reports the run.
+_Avoid_: Run state, run detail
+
+**Run usage**:
+The input and output tokens, the cost, the time and the count of each tool of a run's agent turns. Project Flow gives it for each run stage and for the run. It reads it from `GET /runs/{id}/turns` of the factory that reports the run. A turn of a child graph counts toward the stage that calls the child graph.
+_Avoid_: Run cost, spend
+
+**Run agent**:
+The agent that works on one stage of a live run: its current tool, its last message and whether its turn runs or ended. Project Flow reads it from `GET /runs/{id}/workers` of the factory that reports the run, only while a view follows the run.
+_Avoid_: Worker (when the agent is meant)
+
+**Run thread**:
+The talk with a run in time order: each ask of the run, each answer that Lev sends from Project Flow, and each steer that the factory reports delivered. Each message names its sender. Project Flow keeps the run thread only for the current launch, because the factory gives no answered asks.
+_Avoid_: Run chat, run log
+
+**Factory feed**:
+The run status and stages that Project Flow reads live from the factory. Project Flow follows the factory's event stream, `GET /events`, and polls `GET /runs` only when the factory serves no event stream. Where the factory feed and a progress comment differ, the factory feed wins.
+_Avoid_: Daemon feed, live feed
 
 ### Attention
 
@@ -147,7 +193,7 @@ A ticket or PR that only Lev can move. Reasons include an open ask to Lev, await
 _Avoid_: Waits on you, waits on Lev, needs Lev
 
 **Ask**:
-A question that an agent posts on a ticket or PR with an ask marker. It stays open until a later comment or the progress comment answers it.
+A question that an agent posts on a ticket or PR with an ask marker, or that a workcell run asks through the factory. It stays open until a later comment, the progress comment or the factory answers it.
 _Avoid_: Question, request, final report (when the ask is meant)
 
 **PM Bot**:

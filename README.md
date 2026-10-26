@@ -24,7 +24,7 @@ The process prints a URL on localhost. Open that URL in a browser.
 
 When the configuration file is missing, the app creates it with its parent folder. The process prints the path. When the configuration file has no state colours, the app writes the default state colours into it.
 
-`--config` sets the configuration file. `--host` sets the host. `--port` sets the port. `--open` opens the printed URL in the default browser. The default host is `127.0.0.1`. Pass flags after `--`, for example `bun start -- --port 4000`.
+`--config` sets the configuration file. `--host` sets the host. `--port` sets the port. `--open` opens the printed URL in the default browser. `--help` prints the flags. The app refuses an unknown flag and exits 1. The default host is `127.0.0.1`. Pass flags after `--`, for example `bun start -- --port 4000`.
 
 ## Configuration
 
@@ -49,6 +49,8 @@ The file can be empty `{}`. `src/configuration.ts` holds the schema. That schema
 - `pmBot` marks whether a project has a PM Bot. The key is `owner/name` for a repo pin. The key is `owner/number` for a GitHub project pin. The key is the Linear project slug for a Linear pin. `true` sends an unnamed ask to the PM Bot. `false` sends every ask to Lev. When the key is absent, a GitHub project has a PM Bot and a Linear project has none. The default is `{}`.
 - `autoMerge` overrides auto-merge for a repo or a project. The key is `owner/name`, `owner/number`, or the Linear project slug. The value is `yes`, `ask` or `no`. The app checks every configuration key first, then workcell `[workflow.standard] merge_auto` by repo, then workcell `[merge] auto` by repo, then the PR auto-merge state and the repo auto-merge setting. The default is `{}`.
 - `laneMappings` maps evidence to a named tracker status. The key is the Linear team key or `owner/number` for a GitHub project. Each value maps `backlog`, `inProgress`, `inReview`, `awaitingMerge`, `done` or `dropped` to a status name. A named status keeps its tracker type. The app adds no Awaiting merge lane when `awaitingMerge` names a status. The default is `{}`.
+- `states` lists the user's states in board lane order. Each state has an `id`, a `label`, a `colour` in `#rrggbb` form, and a list of `categories`. A category is `backlog`, `inProgress`, `inReview`, `awaitingMerge`, `done` or `dropped`. Each category must be in at least one state. Ids and labels must be unique. The default is one state per category. A file with the old `stateColours` key gets the default states in those colours, and the app writes `states` on the first start.
+- `stateMappings` maps tracker statuses and labels to states. The key is the Linear team key, `owner/number` for a GitHub project, or `owner/name` for a repo. Each value maps a status name or a label to a state `id`. A ticket goes to the state of its status, then of its first mapped label. A ticket that evidence moves past its tracker category goes to the first state of its new category, unless the mapped state holds that category. A ticket with no mapping goes to the first state of its category. The default is `{}`.
 - `needsYouLabels` names labels that mark a needs-you item when Lev is the assignee. The default is `["needs-human", "needs-engineer"]`.
 - `viewerLogins` adds logins that count as Lev. A blank entry does not count. The tracker logins always count. The default is `[]`.
 - `notificationTriggers` turns each notification on or off. `needsYou` fires for a new needs-you item. `comment` fires for a new comment. `blockerCleared` fires when a cross-project blocker clears. The default for each one is `true`.
@@ -67,6 +69,42 @@ A GitHub pin names a `repo`, or an `owner` and a `project` number. A Linear pin 
 	"pmBot": { "owner/name": true },
 	"laneMappings": {
 		"WID": { "awaitingMerge": "Approved" }
+	},
+	"states": [
+		{
+			"id": "backlog",
+			"label": "Backlog",
+			"colour": "#8a8680",
+			"categories": ["backlog"]
+		},
+		{ "id": "qa", "label": "QA", "colour": "#aa00cc", "categories": [] },
+		{
+			"id": "inProgress",
+			"label": "In progress",
+			"colour": "#3b6fd8",
+			"categories": ["inProgress"]
+		},
+		{
+			"id": "inReview",
+			"label": "In review",
+			"colour": "#e07a2f",
+			"categories": ["inReview", "awaitingMerge"]
+		},
+		{
+			"id": "done",
+			"label": "Done",
+			"colour": "#7c5cbf",
+			"categories": ["done"]
+		},
+		{
+			"id": "dropped",
+			"label": "Dropped",
+			"colour": "#9ca3af",
+			"categories": ["dropped"]
+		}
+	],
+	"stateMappings": {
+		"WID": { "QA": "qa" }
 	},
 	"needsYouLabels": ["needs-human", "needs-engineer"],
 	"viewerLogins": [],

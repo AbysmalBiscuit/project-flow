@@ -226,6 +226,31 @@ export const panel = stylex.create({
 		color: colours.ink,
 		fontSize: type.meta,
 	},
+	currentStage: {
+		fontWeight: type.weight,
+	},
+	stage: {
+		flexWrap: "wrap",
+	},
+	stageUsage: {
+		flexBasis: "100%",
+		color: colours.inkSoft,
+		fontSize: type.meta,
+	},
+	agent: {
+		marginBottom: space.sm,
+	},
+	agentMessage: {
+		display: "block",
+		color: colours.inkSoft,
+		fontSize: type.meta,
+		overflowWrap: "anywhere",
+	},
+	runStatus: {
+		display: "flex",
+		gap: space.xs,
+		alignItems: "center",
+	},
 	factLink: {
 		color: colours.link,
 	},

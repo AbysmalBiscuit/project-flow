@@ -1,6 +1,9 @@
 import type {
 	NeedsYouItem,
 	NotificationTrigger,
+	RunMessage,
+	RunStatusKind,
+	ShownFactoryRun,
 	TicketState,
 } from "./domain.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -14,6 +17,31 @@ export const stateLabel: Record<TicketState, string> = {
 	inReview: "In review",
 	awaitingMerge: "Awaiting merge",
 };
+
+export const runStatusLabel: Record<RunStatusKind, string> = {
+	queued: "Queued",
+	starting: "Starting",
+	running: "Running",
+	blocked: "Blocked",
+	failed: "Failed",
+	succeeded: "Succeeded",
+};
+
+/** The hover text of a card's run circle, for example "Running, stage 3, on box-a, 12 min, from work hub". */
+export function factoryRunTip(
+	run: ShownFactoryRun,
+	elapsed: string | null,
+): string {
+	return [
+		runStatusLabel[run.statusKind],
+		run.stage,
+		run.box === null ? "in the hub queue" : `on ${run.box}`,
+		elapsed,
+		`from ${run.factory}`,
+	]
+		.filter((part) => part !== undefined && part !== null)
+		.join(", ");
+}
 
 /** The state of an open outside parent ticket whose lane is unknown. */
 export const openParentLabel = "Open";
@@ -157,6 +185,96 @@ export const openOnGitHubLabel = "Open on GitHub";
 export const pullButtonLabel = "PR";
 
 export const openPullLabel = "Open the PR on GitHub";
+
+export const runSectionLabel = "Factory run";
+
+export const runNotLiveLabel = "Not live: the factory is unreachable";
+
+export const earlierRunsLabel = "Earlier runs";
+
+export const runQuestionsLabel = "Run questions";
+
+export const steerLabel = "Steer the run";
+
+export const runThreadLabel = "Run thread";
+
+/** The verb after the sender of each run thread message. */
+export const runMessageLabel = {
+	ask: "asks",
+	answer: "answers",
+	steer: "steers",
+} as const satisfies Record<RunMessage["kind"], string>;
+
+export const runFactLabel = {
+	status: "Status",
+	stage: "Stage",
+	box: "Box",
+	factory: "Factory",
+	start: "Start time",
+	elapsed: "Elapsed",
+	pr: "PR",
+} as const;
+
+export const runStagesLabel = "Stages";
+
+export const currentStageLabel = "Current";
+
+export const runGraphLabel = "Workflow";
+
+export const runGraphHelp =
+	"The current stage has a blue border. Completed stages are filled, stages ahead are dashed, and a retried stage shows its retries.";
+
+export function stageVisitsLabel(visits: number): string {
+	return `${visits} ${visits === 1 ? "visit" : "visits"}`;
+}
+
+export function stageRetriesLabel(retries: number): string {
+	return `${retries} ${retries === 1 ? "retry" : "retries"}`;
+}
+
+export const runUsageLabel = "Run usage";
+
+export const usageFactLabel = {
+	tokens: "Tokens",
+	cost: "Cost",
+	time: "Time",
+	tools: "Tools",
+} as const;
+
+const compactCount = new Intl.NumberFormat("en", { notation: "compact" });
+
+export function tokensLabel(input: number, output: number): string {
+	return `${compactCount.format(input)} in, ${compactCount.format(output)} out`;
+}
+
+export function costLabel(costUsd: number): string {
+	return `$${costUsd.toFixed(2)}`;
+}
+
+export const usagePartSeparator = "; ";
+
+/** The count of each tool, most used first. */
+export function toolCountsLabel(tools: Record<string, number>): string {
+	return Object.entries(tools)
+		.sort(([, left], [, right]) => right - left)
+		.map(([tool, count]) => `${tool} ${count}`)
+		.join(", ");
+}
+
+export const runAgentsLabel = "Agents";
+
+export const agentTurnLabel = {
+	running: "Turn runs",
+	ended: "Turn ended",
+} as const;
+
+export function agentToolLabel(tool: string): string {
+	return `Uses ${tool}`;
+}
+
+export const hubQueueLabel = "In the hub queue";
+
+export const noStartLabel = "No start time";
 
 export const mergeFactLabel = {
 	pr: "PR",
@@ -341,7 +459,7 @@ export function actionLabel(
 export const settingsSection = {
 	general: "General",
 	views: "Project views",
-	colours: "State colours",
+	states: "States",
 	projects: "Projects",
 	review: "Review",
 	notifications: "Notifications",
@@ -366,6 +484,10 @@ export const factoryCopy = {
 	daemon: "Standalone",
 	headerMarker: "factory unreachable",
 } as const;
+
+export function alsoReadThroughHub(hub: string): string {
+	return `also read through hub ${hub}; remove one`;
+}
 
 export function boxCount(boxes: number): string {
 	return boxes === 1 ? "1 box" : `${boxes} boxes`;
@@ -451,17 +573,31 @@ export const settingsCopy = {
 	botsUnavailable: "No repository known",
 	of: "of",
 	projects: "projects",
-	coloursLead:
-		"Each state shows in this colour on the board, cards, graphs and side panel, in both themes.",
+	statesLead:
+		"The board shows one lane per state, in this order. Each state shows in its colour on the board, cards, graphs and side panel, in both themes. The categories set which tickets a state holds when no mapping names it.",
+	stateName: "State name",
+	newState: "New state",
+	addState: "Add state",
+	moveUp: "Up",
+	moveDown: "Down",
+	remove: "Remove",
+	moveTicketsTo: "Move tickets to",
+	stateMappings: "State mapping",
+	stateMappingsLead:
+		"Map each tracker status or label of a board to a state. A status with no mapping goes to the first state of its category.",
+	byCategory: "By category",
+	mapsTo: "maps to",
+	label: "Label",
+	mapLabel: "Map a label",
 	colour: "colour",
 	saturation: "Saturation",
 	brightness: "brightness",
 	hue: "Hue",
 	hex: "Hex",
 	reset: "Reset",
-	resetTitle: "Reset the state colours?",
+	resetTitle: "Reset the states?",
 	resetBody:
-		"Every state goes back to its default colour. The app saves the default colours at once.",
-	resetConfirm: "Reset colours",
+		"The states and mappings go back to the defaults. The app saves the defaults at once.",
+	resetConfirm: "Reset states",
 	cancel: "Cancel",
 } as const;

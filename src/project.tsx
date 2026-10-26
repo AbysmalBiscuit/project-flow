@@ -43,9 +43,11 @@ import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useSaveSettings } from "./queries.ts";
 import { filterProjectReport } from "./report.ts";
+import { RunDot, StageChip } from "./run-marks.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
-import { toneOf } from "./state-tone.ts";
+import { useLaneColour } from "./state-colours.ts";
+import { tonedProps } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import {
 	filterEmptyLabel,
@@ -285,15 +287,20 @@ function Card({
 	const { local, outside } = relationSplit(ticket);
 	const focus = useContext(TicketFocusContext);
 	const faded = focus.faded(key);
+	const fedRun = ticket.factoryRun?.coveredByFeed
+		? ticket.factoryRun
+		: undefined;
+	const laneColour = useLaneColour();
 	return (
 		<li className={clsx(faded && board.faded)}>
 			<button
 				type="button"
-				className={clsx(
+				{...tonedProps(
+					laneColour(ticket.lane),
+					ticket.statusType,
 					board.card,
 					board.cardFocus,
 					board.toned,
-					toneOf(ticket.statusType),
 				)}
 				data-ticket={key ?? ""}
 				data-faded={faded ? "true" : "false"}
@@ -305,9 +312,12 @@ function Card({
 					) : (
 						<span className={clsx(board.key)}>{shortKey(key)}</span>
 					)}
-					{ticket.pull === undefined ? null : (
-						<span className={clsx(board.pull)}>{ticket.pull}</span>
-					)}
+					<span className={clsx(board.metaEnd)}>
+						{ticket.pull === undefined ? null : (
+							<span className={clsx(board.pull)}>{ticket.pull}</span>
+						)}
+						{fedRun === undefined ? null : <RunDot run={fedRun} />}
+					</span>
 				</span>
 				<p className={clsx(board.title)}>{ticket.title}</p>
 				{local.length === 0 &&
@@ -315,8 +325,12 @@ function Card({
 				ticket.chips === undefined &&
 				ticket.parent === undefined &&
 				ticket.subTickets === undefined &&
+				fedRun?.stage === undefined &&
 				!ticket.needsYou ? null : (
 					<span className={clsx(board.chips)}>
+						{fedRun?.stage === undefined ? null : (
+							<StageChip stage={fedRun.stage} />
+						)}
 						<CardHierarchyChips
 							ticket={ticket}
 							onOpen={onOpen}
@@ -366,6 +380,7 @@ function LaneCards({
 
 function Lane({
 	name,
+	colour,
 	statusType,
 	tickets,
 	fresh,
@@ -378,6 +393,7 @@ function Lane({
 	onOpenOutside,
 }: {
 	name: string;
+	colour: string;
 	statusType: StatusType;
 	tickets: TicketView[];
 	fresh: TicketView[];
@@ -407,7 +423,7 @@ function Lane({
 			>
 				<h2 className={clsx(board.laneTitle)}>
 					<span
-						className={clsx(board.laneMark, toneOf(statusType))}
+						{...tonedProps(colour, statusType, board.laneMark)}
 						data-state={statusType}
 					/>
 					<span className={clsx(board.laneName)} title={name}>
@@ -692,7 +708,9 @@ function TableRow({
 			</td>
 			<td className={clsx(board.rowCell, board.rowTitle)}>{ticket.title}</td>
 			<td className={clsx(board.rowCell)}>
-				<span className={clsx(board.stateMark, toneOf(lane?.statusType))} />
+				<span
+					{...tonedProps(lane?.colour, lane?.statusType, board.stateMark)}
+				/>
 				{displayedLaneName(ticket)}
 				{ticket.chips === undefined ? null : (
 					<span className={clsx(board.links)}>
@@ -936,6 +954,7 @@ function Board({
 					<Lane
 						key={lane.id}
 						name={lane.name}
+						colour={lane.colour}
 						statusType={lane.statusType}
 						groupBy={boardGroupBy(settings)}
 						tickets={

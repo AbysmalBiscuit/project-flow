@@ -223,15 +223,23 @@ function openMergeAsk(later: Comment[], number: number): Comment | undefined {
 	});
 }
 
-export function runFor(
+export function runFor<Run extends Pick<WorkcellRun, "key" | "repo">>(
 	ticket: Ticket,
-	runs: WorkcellRun[],
-): WorkcellRun | undefined {
+	runs: Run[],
+): Run | undefined {
+	return runsFor(ticket, runs)[0];
+}
+
+/** The runs of a ticket, in the order of `runs`. */
+export function runsFor<Run extends Pick<WorkcellRun, "key" | "repo">>(
+	ticket: Ticket,
+	runs: Run[],
+): Run[] {
 	const key = ticket.key;
 	if (key === null) {
-		return undefined;
+		return [];
 	}
-	return runs.find((run) => {
+	return runs.filter((run) => {
 		if (sameTicketKey(run.key, key)) {
 			return true;
 		}

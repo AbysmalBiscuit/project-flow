@@ -21,8 +21,158 @@ export type LiveRun = {
 	stage?: string;
 };
 
-export type StatusType =
-	"backlog" | "inProgress" | "inReview" | "awaitingMerge" | "done" | "dropped";
+export const runStatusKinds = [
+	"queued",
+	"starting",
+	"running",
+	"blocked",
+	"failed",
+	"succeeded",
+] as const;
+
+export type RunStatusKind = (typeof runStatusKinds)[number];
+
+/** An open question that a blocked run waits on, from `GET /runs/{id}/questions`. */
+export type FactoryQuestion = { id: string; text: string };
+
+/** One message of a run thread: an ask of the run, an answer to an ask, or a delivered steer. */
+export type RunMessage = {
+	kind: "ask" | "answer" | "steer";
+	/** The stage that asks, or the person who answers or steers. */
+	sender: string;
+	text: string;
+	/** The time of the message as an ISO string. */
+	at: string;
+};
+
+/** A workcell run that a factory reports in `GET /runs`. */
+export type FactoryRun = {
+	id: string;
+	key: string;
+	repo?: string;
+	statusKind: RunStatusKind;
+	/** The box that does the run. Null while the run waits in the hub queue. */
+	box: string | null;
+	factory: string;
+	/** The hub source that started the run. */
+	source?: string;
+	/** The hub rule that started the run. */
+	rule?: string;
+	submittedAt: string;
+	startedAt: string | null;
+	endedAt: string | null;
+	/** False when the factory did not answer its last read. */
+	coveredByFeed: boolean;
+	/** True when the factory serves an event stream, which gives the stage. */
+	streamed: boolean;
+	/** The path of the run's current node, from the event stream. */
+	stage?: string;
+	/** The open questions of a blocked run. Absent when the factory gave no list. */
+	questions?: FactoryQuestion[];
+	/** The asks, answers and delivered steers of the run, oldest first. Absent until the run has one. */
+	thread?: RunMessage[];
+};
+
+/**
+ * The newest factory run of a ticket. The stage comes from the event stream,
+ * or from the progress comment when the factory serves no event stream.
+ */
+export type ShownFactoryRun = Pick<
+	FactoryRun,
+	| "id"
+	| "statusKind"
+	| "box"
+	| "factory"
+	| "source"
+	| "rule"
+	| "startedAt"
+	| "endedAt"
+	| "coveredByFeed"
+	| "questions"
+	| "thread"
+> & { stage?: string };
+
+/** Where a factory run is in its flow, from the run checkpoint of its box. */
+export type RunCheckpoint = {
+	/** The path of the current stage. Null when the run is at no stage. */
+	stage: string | null;
+	/** The stages that the run finished, in order. */
+	completedStages: string[];
+	/** The retries of each stage, by stage name. */
+	retries: Record<string, number>;
+	/** The visits of each stage, by stage name. A review stage visit is one review round. */
+	visits: Record<string, number>;
+	/** The usage of the run's recorded turns. Absent when the factory gave no turns. */
+	usage?: RunUsage;
+	/** The run's workflow graph with the state of each stage. Null when the factory serves no graph. */
+	graph: RunGraph | null;
+};
+
+/** The usage of some agent turns: tokens, cost in US dollars, time in seconds, and the count of each tool. */
+export type TurnUsage = {
+	inputTokens: number;
+	outputTokens: number;
+	costUsd: number;
+	durationS: number;
+	tools: Record<string, number>;
+};
+
+/** The usage of each stage of a run, by stage name, and their sum. */
+export type RunUsage = {
+	stages: Record<string, TurnUsage>;
+	total: TurnUsage;
+};
+
+/** The run statuses whose agents can work: the app reads a run's agents only in these. */
+export const liveRunStatusKinds = [
+	"starting",
+	"running",
+	"blocked",
+] as const satisfies readonly RunStatusKind[];
+
+/** What the agent of one stage of a live run does now, from `GET /runs/{id}/workers`. */
+export type RunAgent = {
+	/** The node path of the stage that the agent works on. */
+	stage: string;
+	/** The tool that the agent uses now. Null between tool calls and after its turn. */
+	tool: string | null;
+	/** The last line of the agent's last message. Null before its first message. */
+	lastMessage: string | null;
+	turn: "running" | "ended";
+};
+
+/** Where a stage of a run's workflow graph is: the current stage, a completed stage, or a stage ahead. */
+export type RunGraphNodeState = "current" | "completed" | "ahead";
+
+export type RunGraphNode = {
+	id: string;
+	label: string;
+	state: RunGraphNodeState;
+	retries: number;
+};
+
+export type RunGraphEdge = { from: string; to: string; label?: string };
+
+/** The workflow graph of a factory run, from `GET /runs/{id}/graph` of its box. */
+export type RunGraph = { nodes: RunGraphNode[]; edges: RunGraphEdge[] };
+
+/** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
+export type EarlierFactoryRun = Pick<
+	FactoryRun,
+	"statusKind" | "startedAt" | "endedAt"
+>;
+
+/** The fixed categories in workflow order. The domain rules read only these. */
+export const statusTypes = [
+	"backlog",
+	"inProgress",
+	"inReview",
+	"awaitingMerge",
+	"done",
+	"dropped",
+] as const;
+
+export type StatusType = (typeof statusTypes)[number];
 
 export type StatusColours = Record<StatusType, string>;
 
@@ -125,7 +275,10 @@ export type TicketView = {
 	links?: GraphLink[];
 	outsideBlockers?: TicketRelation[];
 	blocks?: TicketRelation[];
+	/** The label of the ticket's user state, which is its board column. */
 	lane?: string;
+	/** The tracker lane of the ticket, after evidence moves it forward, when its name differs from the lane. */
+	status?: string;
 	statusType?: StatusType;
 	blocked?: boolean;
 	staleStatus?: string;
@@ -135,6 +288,9 @@ export type TicketView = {
 	needsYou?: boolean;
 	enteredStateAt?: string;
 	run?: LiveRun;
+	factoryRun?: ShownFactoryRun;
+	/** The factory runs before `factoryRun`, newest first. */
+	earlierFactoryRuns?: EarlierFactoryRun[];
 	updatedAt?: string;
 	assignees?: string[];
 	workstream?: string;
@@ -315,6 +471,8 @@ export type NeedsYouItem = {
 	question?: string;
 	options?: AskOption[];
 	pull?: PullStatus;
+	/** The factory question that the ask comes from, and the run that waits on it. */
+	factoryAsk?: { factory: string; run: string; question: string };
 };
 
 export type NotificationTrigger = "needsYou" | "comment" | "blockerCleared";
@@ -376,7 +534,10 @@ export type Lane = {
 export type ProjectReport = {
 	name: string;
 	tracker: Tracker;
+	/** The user states, in board column order. */
 	lanes: Lane[];
+	/** The tracker lanes of the project's board. */
+	statuses: Lane[];
 	tickets: TicketView[];
 	sections: ReportSection[];
 	done: number;
@@ -505,7 +666,7 @@ export type SettingsProject = {
 
 export type SettingsSnapshot = Pick<
 	Snapshot,
-	"key" | "tracker" | "owner" | "number"
+	"key" | "name" | "tracker" | "owner" | "number" | "board"
 > & {
 	pulls: Pick<
 		PullRequest,

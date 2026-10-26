@@ -17,6 +17,7 @@ import {
 } from "./discovery.ts";
 import type {
 	Attention,
+	FactoryRun,
 	ListedProject,
 	Overview,
 	PollProgress,
@@ -105,6 +106,7 @@ export type PollOptions = {
 	holdLists: Promise<void>;
 	viewers: Viewer[];
 	runs: WorkcellRun[];
+	factoryRuns: () => FactoryRun[];
 	workcellAuto: Record<string, AutoMerge>;
 	repoAutoMerge: Record<string, boolean>;
 	attention: Attention;

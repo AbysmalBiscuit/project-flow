@@ -2,6 +2,7 @@ import type { Configuration } from "./configuration.ts";
 import type {
 	Attention,
 	Comment,
+	FactoryRun,
 	InboxDay,
 	InboxEntry,
 	NeedsYouItem,
@@ -16,7 +17,12 @@ import type {
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { linked } from "./links.ts";
-import { type OpenAsk, openAsk, projectHasPmBot } from "./open-ask.ts";
+import {
+	type OpenAsk,
+	openAsk,
+	projectHasPmBot,
+	routedQuestion,
+} from "./open-ask.ts";
 import {
 	type AutoMergeSources,
 	mergesOnItsOwn,
@@ -334,6 +340,7 @@ function needsYouItem(
 	ask: OpenAsk | null,
 	reason: NeedsYouItem["reason"],
 	pulls: PullRequest[] = [],
+	factoryAsk?: NeedsYouItem["factoryAsk"],
 ): NeedsYouItem {
 	const reply = ask?.answer?.comment ?? null;
 	const pull = pulls.find((item) => !item.merged) ?? pulls[0];
@@ -348,6 +355,40 @@ function needsYouItem(
 		acknowledged: (reply?.reactions ?? 0) > 0,
 		...(ask === null ? {} : { question: ask.question, options: ask.options }),
 		...(pull === undefined ? {} : { pull: pullStatus(pull) }),
+		...(factoryAsk === undefined ? {} : { factoryAsk }),
+	};
+}
+
+/**
+ * The ask of a blocked run. A run whose questions are unknown asks with the ticket title.
+ * A run whose open questions all go to the PM Bot gives no ask.
+ */
+function runAsk(
+	run: FactoryRun | undefined,
+	pmBot: boolean,
+): { ask: OpenAsk | null; factoryAsk?: NeedsYouItem["factoryAsk"] } | null {
+	if (run === undefined) {
+		return null;
+	}
+	if (run.questions === undefined) {
+		return { ask: null };
+	}
+	const question = routedQuestion(run.questions, pmBot);
+	if (question === undefined) {
+		return null;
+	}
+	return {
+		ask: {
+			id: question.id,
+			comment: { body: question.text },
+			headline: question.text,
+			question: question.text,
+			options: [],
+			open: true,
+			answer: null,
+			tags: [],
+		},
+		factoryAsk: { factory: run.factory, run: run.id, question: question.id },
 	};
 }
 
@@ -372,6 +413,7 @@ export function needsYouItems(
 	expectedBots: Map<string, KnownBot[]>,
 	shownByKey: Map<string, TicketState>,
 	failedKeys: Set<string>,
+	blockedRuns: Map<string, FactoryRun>,
 	rules: NeedsYouRules,
 	autoMerge: AutoMergeSources,
 	projectKey: string,
@@ -391,13 +433,19 @@ export function needsYouItems(
 			...(ticket.comments ?? []),
 			...linkedPulls.flatMap(pullComments),
 		];
-		const ask = openAsk(comments, rules.pmBot);
+		const commentAsk = openAsk(comments, rules.pmBot);
+		const fromRun =
+			commentAsk === null
+				? runAsk(blockedRuns.get(ticket.key), rules.pmBot)
+				: null;
+		const ask = commentAsk ?? fromRun?.ask ?? null;
 		const labelled =
 			assignedToViewer(ticket, viewers) &&
 			ticket.labels.some((label) => labels.has(label.toLowerCase()));
 		const awaiting = shown === "awaitingMerge";
 		const failed = failedKeys.has(ticket.key);
-		if (ask === null && !labelled && !awaiting && !failed) {
+		const asked = ask !== null || fromRun !== null;
+		if (!asked && !labelled && !awaiting && !failed) {
 			continue;
 		}
 		items.push(
@@ -407,7 +455,7 @@ export function needsYouItems(
 				ticket.key,
 				ticket.title,
 				ask,
-				ask !== null
+				asked
 					? "ask"
 					: awaiting
 						? "awaitingMerge"
@@ -415,6 +463,7 @@ export function needsYouItems(
 							? "runFailed"
 							: "label",
 				linkedPulls,
+				fromRun?.factoryAsk,
 			),
 		);
 	}

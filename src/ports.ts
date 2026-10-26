@@ -1,5 +1,6 @@
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import type {
+	FactoryRun,
 	FetchedThread,
 	Notification,
 	Overview,
@@ -7,11 +8,18 @@ import type {
 	PostedReply,
 	PullRequest,
 	ReplyRequest,
+	RunAgent,
+	RunCheckpoint,
 	Snapshot,
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
-import type { FactoryEntry } from "./factories.ts";
+import type {
+	AnswerResult,
+	FactoryEntry,
+	Steer,
+	SteerResult,
+} from "./factories.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
@@ -107,6 +115,43 @@ export type FactoryReader = {
 	entries: () => FactoryEntry[];
 	/** True when the last check of a listed factory failed. */
 	unreachable: () => boolean;
+	/**
+	 * Read `GET /runs` again of each factory without an open event stream, and of
+	 * each streamed factory whose last read is older than the streamed run poll.
+	 */
+	readRuns: (now: number) => Promise<void>;
+	/**
+	 * Open the event stream of each factory that has none, and follow it.
+	 * `around` runs each change that the stream brings.
+	 */
+	follow: (
+		now: () => number,
+		around: (change: () => Promise<void>) => Promise<void>,
+	) => void;
+	/** The runs of each listed factory, newest first. */
+	runs: () => FactoryRun[];
+	/**
+	 * `GET /runs/{id}/checkpoint` and `GET /runs/{id}/turns` of the factory whose row gives the run its status.
+	 * Null when no factory reported the run or the factory gave no checkpoint.
+	 */
+	checkpoint: (runId: string) => Promise<RunCheckpoint | null>;
+	/**
+	 * `GET /runs/{id}/workers` of the factory whose row gives the run its status:
+	 * each agent whose turn runs, and the agent of the current stage.
+	 * Empty without a read when the run is not live. Null when no factory reported the run.
+	 */
+	agents: (runId: string) => Promise<RunAgent[] | null>;
+	/**
+	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
+	 * Answers and steers are the only write requests that the app sends to a factory.
+	 */
+	answer: (
+		run: string,
+		question: string,
+		text: string,
+	) => Promise<AnswerResult>;
+	/** Post a steer to the worker of one stage of a run, on the hub that reports the run, or else on its box. */
+	steer: (run: string, steer: Steer) => Promise<SteerResult>;
 };
 
 export type GithubTracker = Tracker & {

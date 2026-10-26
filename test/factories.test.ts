@@ -1,117 +1,22 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 
 import type { FactoryEntry } from "../src/factories.ts";
-import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import daemonSources from "./fixtures/factory-daemon-sources.json";
-import daemonAbout from "./fixtures/factory-daemon.json";
-import hubRuns from "./fixtures/factory-hub-runs.json";
-import hubSources from "./fixtures/factory-hub-sources.json";
-import { openEventStream } from "./live-support.ts";
 import {
-	recordedDiscovery,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
-
-const hubUrl = "http://hub.test:7777";
-const laptopSocket = "/run/factory/laptop.sock";
-const laptopUrl = `unix://${laptopSocket}`;
-
-type FactoryRequest = { url: string; unix: string | null; method: string };
-
-type Answers = Record<string, unknown | null>;
-
-const hub: Answers = {
-	"/daemon": daemonAbout,
-	"/sources": hubSources,
-	"/runs": hubRuns,
-};
-
-const daemon: Answers = {
-	"/daemon": daemonAbout,
-	"/sources": daemonSources,
-	"/runs": { runs: [] },
-};
-
-function json(body: unknown): Response {
-	return new Response(JSON.stringify(body), {
-		headers: { "content-type": "application/json" },
-	});
-}
-
-/** Serves each factory's answers by its origin, or by its socket path. */
-function factoryFetch(
-	factories: Record<string, Answers | "down">,
-	requests: FactoryRequest[],
-): Fetch {
-	return async (input, init) => {
-		const url = new URL(urlOf(input));
-		const unix = init?.unix ?? null;
-		const key = unix === null ? url.origin : `unix://${unix}`;
-		const answers = factories[key];
-		if (answers === undefined) {
-			return recordedDiscovery(input, init) ?? unrecorded(input, init);
-		}
-		requests.push({ url: url.href, unix, method: init?.method ?? "GET" });
-		if (answers === "down") {
-			throw new TypeError("Unable to connect");
-		}
-		const body = answers[url.pathname];
-		return body === undefined || body === null
-			? new Response("not found", { status: 404 })
-			: json(body);
-	};
-}
-
-async function serve(
-	args: string[],
-	config: Record<string, unknown>,
-	fetchImpl: Fetch,
-): Promise<{
-	base: string;
-	configPath: string;
-	stop: () => Promise<void>;
-}> {
-	const { path, cleanup } = await tempConfig(JSON.stringify(config));
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
-	let listened: (base: string) => void = () => {};
-	const ready = new Promise<string>((resolve) => {
-		listened = resolve;
-	});
-	let stop: () => void = () => {};
-	const stopped = new Promise<void>((resolve) => {
-		stop = resolve;
-	});
-	const running = run(
-		["--config", path, "--host", "127.0.0.1", "--port", "0", ...args],
-		testIo({
-			env: {},
-			fetch: fetchImpl,
-			readGhToken: async () => null,
-			listCheckouts: async () => [],
-			databasePath: join(root, "store.sqlite"),
-			stdout: (line) => listened(line),
-			waitForStop: stopped,
-		}),
-	);
-	const base = await ready;
-	return {
-		base,
-		configPath: path,
-		stop: async () => {
-			stop();
-			const result = await running;
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-			expect(result.exitCode).toBe(0);
-		},
-	};
-}
+	type Answers,
+	daemon,
+	factoryFetch,
+	type FactoryRequest,
+	hub,
+	hubUrl,
+	laptopSocket,
+	laptopUrl,
+	serve,
+} from "./factory-support.ts";
+import daemonAbout from "./fixtures/factory-daemon.json";
+import { openEventStream } from "./live-support.ts";
+import { tempConfig, testIo, unrecorded } from "./support.ts";
 
 async function factoryEntries(base: string): Promise<FactoryEntry[]> {
 	const response = await fetch(new URL("/api/settings", base));
@@ -171,10 +76,20 @@ describe("factories", () => {
 		);
 		try {
 			await factoryEntries(app.base);
-			expect(requests).toEqual([
+			const feedUrls = ["http://localhost/runs", "http://localhost/events"];
+			expect(
+				requests.filter((request) => !feedUrls.includes(request.url)),
+			).toEqual([
 				{ url: "http://localhost/daemon", unix: laptopSocket, method: "GET" },
 				{ url: "http://localhost/sources", unix: laptopSocket, method: "GET" },
 			]);
+			for (const url of feedUrls) {
+				expect(requests).toContainEqual({
+					url,
+					unix: laptopSocket,
+					method: "GET",
+				});
+			}
 		} finally {
 			await app.stop();
 		}
@@ -219,9 +134,13 @@ describe("factories", () => {
 		try {
 			const [entry] = await factoryEntries(app.base);
 			expect(entry?.kind).toBe("daemon");
-			expect(requests.map((request) => request.url)).toEqual([
-				`${hubUrl}/daemon`,
-			]);
+			expect(
+				requests
+					.map((request) => request.url)
+					.filter(
+						(url) => url !== `${hubUrl}/runs` && url !== `${hubUrl}/events`,
+					),
+			).toEqual([`${hubUrl}/daemon`]);
 		} finally {
 			await app.stop();
 		}

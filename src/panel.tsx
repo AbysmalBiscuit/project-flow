@@ -17,12 +17,19 @@ import type {
 	ThreadComment,
 } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
-import { CommentTree, RelationList, WhySection } from "./panel-sections.tsx";
+import {
+	CommentTree,
+	RelationList,
+	RunSection,
+	WhySection,
+} from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
+import { RunThread } from "./run-thread.tsx";
 import { openTicket } from "./selection.ts";
-import { toneOf } from "./state-tone.ts";
+import { useLaneColour } from "./state-colours.ts";
+import { tonedProps } from "./state-tone.ts";
 import {
 	closePanelLabel,
 	collapsePanelLabel,
@@ -237,6 +244,7 @@ export function TicketPanel({
 		view?.lane ?? (state === undefined ? undefined : stateLabel[state]);
 	const laneState =
 		report?.lanes.find((lane) => lane.name === view?.lane)?.statusType ?? state;
+	const laneColour = useLaneColour();
 	const stateName = state ?? "unknown";
 	const [cover, setCover] = useState<HTMLElement | null>(null);
 	const host = useRef<HTMLDivElement | null>(null);
@@ -297,6 +305,7 @@ export function TicketPanel({
 						<Button
 							href={href}
 							icon="external-link"
+							iconSide="right"
 							label={trackerName}
 							name={`Open on ${trackerName}`}
 						/>
@@ -306,6 +315,7 @@ export function TicketPanel({
 							href={view.pullUrl}
 							newTab
 							icon="external-link"
+							iconSide="right"
 							label={pullButtonLabel}
 							name={openPullLabel}
 						/>
@@ -345,10 +355,11 @@ export function TicketPanel({
 			{laneName === undefined ? null : (
 				<p className={clsx(panel.state)}>
 					<span
-						className={clsx(
+						{...tonedProps(
+							laneColour(laneName),
+							laneState,
 							board.laneMark,
 							board.laneMarkGap,
-							toneOf(laneState),
 						)}
 					/>
 					{laneName}
@@ -363,6 +374,17 @@ export function TicketPanel({
 						void pick(option);
 					}}
 				/>
+			)}
+			{view?.factoryRun === undefined ? null : (
+				<RunSection
+					run={view.factoryRun}
+					earlier={view.earlierFactoryRuns ?? []}
+					pull={view.pull}
+					pullUrl={view.pullUrl}
+				/>
+			)}
+			{view?.factoryRun === undefined ? null : (
+				<RunThread key={view.factoryRun.id} run={view.factoryRun} />
 			)}
 			<RelationList
 				label="Blockers"

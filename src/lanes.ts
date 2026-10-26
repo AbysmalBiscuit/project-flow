@@ -1,13 +1,14 @@
-import type { Configuration } from "./configuration.ts";
-import type {
-	Board,
-	Lane,
-	ProjectReport,
-	StatusColours,
-	StatusType,
-	Ticket,
-	TicketState,
-	TicketView,
+import type { Configuration, UserState } from "./configuration.ts";
+import {
+	type Board,
+	type Lane,
+	type ProjectReport,
+	type StatusColours,
+	type StatusType,
+	statusTypes,
+	type Ticket,
+	type TicketState,
+	type TicketView,
 } from "./domain.ts";
 
 const laneFallback: Record<TicketState, string> = {
@@ -41,14 +42,7 @@ export const appLaneNames: Record<StatusType, string> = {
 	dropped: "Dropped",
 };
 
-const statusTypeOrder: StatusType[] = [
-	"backlog",
-	"inProgress",
-	"inReview",
-	"awaitingMerge",
-	"done",
-	"dropped",
-];
+const statusTypeOrder: readonly StatusType[] = statusTypes;
 
 const factoryLabels = [
 	"ready",
@@ -354,4 +348,70 @@ export function laterState(
 	const currentAt = statusTypeOrder.indexOf(current);
 	const nextAt = statusTypeOrder.indexOf(next);
 	return nextAt > currentAt ? next : current;
+}
+
+/** One state per category, in category order. */
+export function defaultStates(colours: StatusColours): UserState[] {
+	return statusTypes.map((category) => ({
+		id: category,
+		label: appLaneNames[category],
+		colour: colours[category],
+		categories: [category],
+	}));
+}
+
+/** The first state of each category gives the colour of that category. */
+export function categoryColours(states: readonly UserState[]): StatusColours {
+	const colourOf = (category: StatusType) =>
+		states.find((state) => state.categories.includes(category))?.colour ??
+		states[0]?.colour ??
+		"";
+	return {
+		backlog: colourOf("backlog"),
+		inProgress: colourOf("inProgress"),
+		inReview: colourOf("inReview"),
+		awaitingMerge: colourOf("awaitingMerge"),
+		done: colourOf("done"),
+		dropped: colourOf("dropped"),
+	};
+}
+
+/** The board columns: one lane per user state, in the user's order. */
+export function stateLanes(states: readonly UserState[]): Lane[] {
+	return states.map((state) => ({
+		id: state.id,
+		name: state.label,
+		colour: state.colour,
+		statusType: state.categories[0] ?? "backlog",
+	}));
+}
+
+export type StateMapping = Configuration["stateMappings"][string];
+
+/**
+ * The user state of a ticket. A tracker status or label that the source maps
+ * to a state places the ticket there. Evidence that moves the ticket past its
+ * tracker category overrides a mapped state that does not hold the new
+ * category. Otherwise the first state of the ticket's category holds it.
+ */
+export function stateOfTicket(
+	states: readonly UserState[],
+	mapping: StateMapping,
+	names: readonly string[],
+	category: StatusType,
+	trackerCategory: StatusType,
+): UserState | undefined {
+	for (const name of names) {
+		const id = Object.entries(mapping).find(([mapped]) =>
+			namesMatch(mapped, name),
+		)?.[1];
+		const state = states.find((item) => item.id === id);
+		if (
+			state !== undefined &&
+			(category === trackerCategory || state.categories.includes(category))
+		) {
+			return state;
+		}
+	}
+	return states.find((state) => state.categories.includes(category));
 }

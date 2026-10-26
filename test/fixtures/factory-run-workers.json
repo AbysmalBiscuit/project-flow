@@ -1,0 +1,46 @@
+{
+	"workers": {
+		"fix": {
+			"tools": {
+				"Bash": 2,
+				"mcp__workcell__report": 1
+			},
+			"tokens": {
+				"input": 253366,
+				"output": 1412
+			},
+			"cost_usd": 1.2498468,
+			"current_tool": "Bash",
+			"last_message": "LABEL: fixed",
+			"turn": "running"
+		},
+		"report/report": {
+			"tools": {
+				"Bash": 3,
+				"mcp__workcell__report": 1
+			},
+			"tokens": {
+				"input": 168285,
+				"output": 1128
+			},
+			"cost_usd": 0.2894522,
+			"current_tool": "",
+			"last_message": "When round 3 ends, the run reaches the final report node again and I write and publish the report then.",
+			"turn": "ended"
+		},
+		"triage": {
+			"tools": {
+				"command_execution": 21,
+				"report": 1
+			},
+			"tokens": {
+				"input": 253157,
+				"output": 1889
+			},
+			"cost_usd": 0.0,
+			"current_tool": "",
+			"last_message": "Reported through the workcell MCP tool. Worktree and branch unchanged.",
+			"turn": "ended"
+		}
+	}
+}

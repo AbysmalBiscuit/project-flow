@@ -23,7 +23,9 @@ export const defaultFactoryMintCommand = [
 
 import { z } from "zod";
 
+import { statusTypes } from "./domain.ts";
 import { knownBots } from "./known-bots.ts";
+import { defaultStates } from "./lanes.ts";
 import {
 	overviewDirections,
 	overviewFilters,
@@ -118,16 +120,47 @@ const hexColour = z
 	.regex(/^#[0-9A-Fa-f]{6}$/)
 	.transform((value) => value.toLowerCase());
 
-const stateColoursSchema = z
-	.strictObject({
-		backlog: hexColour.default(statusColours.backlog),
-		inProgress: hexColour.default(statusColours.inProgress),
-		inReview: hexColour.default(statusColours.inReview),
-		awaitingMerge: hexColour.default(statusColours.awaitingMerge),
-		done: hexColour.default(statusColours.done),
-		dropped: hexColour.default(statusColours.dropped),
-	})
-	.default(statusColours);
+const legacyStateColours = z.strictObject({
+	backlog: hexColour.default(statusColours.backlog),
+	inProgress: hexColour.default(statusColours.inProgress),
+	inReview: hexColour.default(statusColours.inReview),
+	awaitingMerge: hexColour.default(statusColours.awaitingMerge),
+	done: hexColour.default(statusColours.done),
+	dropped: hexColour.default(statusColours.dropped),
+});
+
+const userState = z.strictObject({
+	id: z.string().regex(/^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/),
+	label: z.string().trim().min(1),
+	colour: hexColour,
+	categories: z.array(z.enum(statusTypes)),
+});
+
+const userStates = z
+	.array(userState)
+	.min(1)
+	.superRefine((states, context) => {
+		const ids = new Set<string>();
+		const labels = new Set<string>();
+		for (const [index, state] of states.entries()) {
+			if (ids.has(state.id)) {
+				context.addIssue({ code: "custom", path: [index, "id"] });
+			}
+			const label = state.label.toLowerCase();
+			if (labels.has(label)) {
+				context.addIssue({ code: "custom", path: [index, "label"] });
+			}
+			ids.add(state.id);
+			labels.add(label);
+		}
+		for (const category of statusTypes) {
+			if (!states.some((state) => state.categories.includes(category))) {
+				context.addIssue({ code: "custom", path: [] });
+			}
+		}
+	});
+
+export type UserState = z.infer<typeof userState>;
 
 const factoryProtocols = new Set(["http:", "https:", "unix:"]);
 
@@ -200,7 +233,11 @@ const configurationSchema = z
 			.default(defaultFactoryMintCommand),
 		factories: z.array(factory).default([]),
 		projectViews: z.record(z.string(), projectViewSettings).default({}),
-		stateColours: stateColoursSchema,
+		states: userStates.optional(),
+		stateMappings: z
+			.record(z.string(), z.record(z.string(), z.string()))
+			.default({}),
+		stateColours: legacyStateColours.optional(),
 	})
 	.transform(
 		({
@@ -209,9 +246,12 @@ const configurationSchema = z
 			hidden: _hidden,
 			activityWindowDays: _days,
 			factoryGithubTokenDir,
+			states,
+			stateColours,
 			...rest
 		}) => ({
 			...rest,
+			states: states ?? defaultStates(stateColours ?? statusColours),
 			tracked: tracked ?? pinned ?? [],
 			factoryGithubTokenDir:
 				factoryGithubTokenDir.trim() === ""
@@ -225,8 +265,6 @@ export type ProjectViewSettings = z.infer<typeof projectViewSettings>;
 export type Configuration = z.infer<typeof configurationSchema>;
 
 export type { OverviewView } from "./overview-view.ts";
-
-export type StateColours = Configuration["stateColours"];
 
 function fieldPath(issue: z.core.$ZodIssue): string {
 	const path = issue.path.map(String).join(".");
@@ -296,27 +334,20 @@ export async function saveConfiguration(
 	return configuration;
 }
 
-const storedStateColours = z.object({
-	stateColours: z.record(z.string(), z.unknown()).optional(),
-});
+const storedStates = z.object({ states: z.unknown().optional() });
 
 /**
- * Loads the configuration, and writes the default state colours into a file
- * that lacks any of them, so the file always shows every colour to edit.
+ * Loads the configuration, and writes the default states into a file that
+ * lacks them, so the file always shows every state to edit.
  */
 export async function loadFilledConfiguration(
 	path: string,
 ): Promise<Configuration> {
 	const configuration = await loadConfiguration(path);
-	const stored = storedStateColours.safeParse(
+	const stored = storedStates.safeParse(
 		JSON.parse(await readFile(path, "utf8")),
 	);
-	const written = new Set(
-		Object.keys(stored.success ? (stored.data.stateColours ?? {}) : {}),
-	);
-	if (
-		Object.keys(configuration.stateColours).every((key) => written.has(key))
-	) {
+	if (stored.success && stored.data.states !== undefined) {
 		return configuration;
 	}
 	return saveConfiguration(path, JSON.stringify(configuration));

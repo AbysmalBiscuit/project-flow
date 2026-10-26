@@ -88,6 +88,11 @@ export type StartOptions = {
 	now?: () => Date;
 	threadReadLimitMs?: number;
 	trackerRequestLimitMs?: number;
+	settingsReadWaitMs?: number;
+	/** How long one second of `pollIntervalSeconds` lasts on the poll timer. */
+	intervalSecondMs?: number;
+	/** Bun's idle timeout for a connection, in whole seconds. */
+	idleTimeoutSeconds?: number;
 	mintFactoryTokens?: FactoryTokenMint;
 	mintRetryDelayMs?: number;
 	/** The `--factory` list, which replaces the configured factories. */
@@ -138,7 +143,19 @@ const replyBody = z.object({
 
 const readMarkBody = z.object({ read: z.literal(true) });
 
-const settingsReadWaitMs = 5_000;
+const answerBody = z.object({ text: z.string().trim().min(1) });
+
+const steerBody = z.object({
+	stage: z.string().trim().min(1),
+	text: z.string().trim().min(1),
+	interrupt: z.boolean().default(false),
+});
+
+const defaultSettingsReadWaitMs = 5_000;
+
+const runPollMs = 10_000;
+
+const runTickMs = 500;
 
 const readIdsBody = readMarkBody.extend({
 	ids: z.array(z.string()),
@@ -293,19 +310,21 @@ export async function start(options: StartOptions): Promise<Running> {
 	);
 	void factoryTokens.mintNow();
 	const flagFactories = options.flagFactories ?? [];
+	const listedFactories = () =>
+		flagFactories.length > 0
+			? flagFactories.map((factory) => ({
+					...factory,
+					source: "flag" as const,
+				}))
+			: configuration.factories.map((factory) => ({
+					...factory,
+					source: "config" as const,
+				}));
 	const factories = factoryReader(
 		options.fetch,
-		() =>
-			flagFactories.length > 0
-				? flagFactories.map((factory) => ({
-						...factory,
-						source: "flag" as const,
-					}))
-				: configuration.factories.map((factory) => ({
-						...factory,
-						source: "config" as const,
-					})),
+		listedFactories,
 		requests.signal,
+		() => clock.now(),
 	);
 	const fetchGithub = factoryTokens.fetch;
 	const trackers = {
@@ -338,6 +357,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		holdLists: Promise.resolve(),
 		viewers: [],
 		runs: [],
+		factoryRuns: factories.runs,
 		workcellAuto: {},
 		repoAutoMerge: {},
 		attention: {
@@ -405,10 +425,12 @@ export async function start(options: StartOptions): Promise<Running> {
 		return note;
 	};
 	let stopped = false;
+	const factoryState = () =>
+		JSON.stringify([factories.unreachable(), factories.runs()]);
 	const readFactories = async (read: () => Promise<void>) => {
-		const before = factories.unreachable();
+		const before = factoryState();
 		await read();
-		if (!stopped && factories.unreachable() !== before) {
+		if (!stopped && factoryState() !== before) {
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration),
 				notifications: [],
@@ -540,15 +562,48 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (timer !== null) {
 			clearInterval(timer);
 		}
-		timer = setInterval(() => {
-			void pollAgain().catch(() => {});
-		}, seconds * 1_000);
+		timer = setInterval(
+			() => {
+				void pollAgain().catch(() => {});
+			},
+			seconds * (options.intervalSecondMs ?? 1_000),
+		);
 		timer.unref?.();
 	};
 	const armTimer = () => {
 		schedule(configuration.pollIntervalSeconds);
 	};
 	void firstPoll.then(armTimer, armTimer).catch(() => {});
+	// The run poll checks the clock port each tick, so a test that advances
+	// the clock past the run poll interval gets the next read.
+	let runsReadAt: number | null = null;
+	let readingRuns = false;
+	const pollRuns = () => {
+		if (stopped || listedFactories().length === 0) {
+			return;
+		}
+		factories.follow(
+			() => clock.now().getTime(),
+			(change) => readFactories(change).catch(() => {}),
+		);
+		if (readingRuns) {
+			return;
+		}
+		const now = clock.now().getTime();
+		if (runsReadAt !== null && now - runsReadAt < runPollMs) {
+			return;
+		}
+		runsReadAt = now;
+		readingRuns = true;
+		void readFactories(() => factories.readRuns(now))
+			.catch(() => {})
+			.finally(() => {
+				readingRuns = false;
+			});
+	};
+	const runTimer = setInterval(pollRuns, runTickMs);
+	runTimer.unref?.();
+	pollRuns();
 	let server: ReturnType<typeof Bun.serve>;
 	const pageResponse = async (request: Request): Promise<Response> => {
 		const bundled = await fetch(new URL("/_page", server.url));
@@ -604,6 +659,9 @@ export async function start(options: StartOptions): Promise<Running> {
 	server = Bun.serve({
 		hostname: options.hostname,
 		port: options.port,
+		...(options.idleTimeoutSeconds === undefined
+			? {}
+			: { idleTimeout: options.idleTimeoutSeconds }),
 		development: false,
 		routes: {
 			"/_page": page,
@@ -725,7 +783,7 @@ export async function start(options: StartOptions): Promise<Running> {
 					// read gets the last catalogue before Bun's idle timeout ends it.
 					await Promise.race([
 						Promise.all([discovery, readFactories(factories.settled)]),
-						Bun.sleep(settingsReadWaitMs),
+						Bun.sleep(options.settingsReadWaitMs ?? defaultSettingsReadWaitMs),
 					]);
 					return Response.json(settingsBody());
 				},
@@ -800,6 +858,22 @@ export async function start(options: StartOptions): Promise<Running> {
 					return Response.json(settingsBody());
 				},
 			},
+			"/api/factory-runs/:id/checkpoint": {
+				GET: async (request) => {
+					const found = await factories.checkpoint(request.params.id);
+					return found === null
+						? Response.json({ missing: true }, { status: 404 })
+						: Response.json(found);
+				},
+			},
+			"/api/factory-runs/:id/agents": {
+				GET: async (request) => {
+					const found = await factories.agents(request.params.id);
+					return found === null
+						? Response.json({ missing: true }, { status: 404 })
+						: Response.json({ agents: found });
+				},
+			},
 			"/api/threads/:tracker/:key": {
 				GET: (request) =>
 					threadResponse(
@@ -819,6 +893,68 @@ export async function start(options: StartOptions): Promise<Running> {
 						notifier,
 						configuration,
 					),
+			},
+			"/api/factory-runs/:run/questions/:question/answer": {
+				POST: async (request) => {
+					const parsed = answerBody.safeParse(
+						await request.json().catch(() => null),
+					);
+					if (!parsed.success) {
+						return Response.json({ error: "answer is empty" }, { status: 400 });
+					}
+					const result = await factories.answer(
+						request.params.run,
+						request.params.question,
+						parsed.data.text,
+					);
+					if (result === "missing") {
+						return Response.json(
+							{ error: "the run waits on no such question" },
+							{ status: 404 },
+						);
+					}
+					if (result === "failed") {
+						return Response.json(
+							{ error: "the factory did not take the answer" },
+							{ status: 502 },
+						);
+					}
+					await readFactories(() => factories.readRuns(clock.now().getTime()));
+					return Response.json({ answered: true });
+				},
+			},
+			"/api/factory-runs/:run/steer": {
+				POST: async (request) => {
+					const parsed = steerBody.safeParse(
+						await request.json().catch(() => null),
+					);
+					if (!parsed.success) {
+						return Response.json(
+							{ error: "a steer needs a stage and a text" },
+							{ status: 400 },
+						);
+					}
+					const result = await factories.steer(request.params.run, parsed.data);
+					if (result === "missing") {
+						return Response.json(
+							{ error: "no factory reports the run" },
+							{ status: 404 },
+						);
+					}
+					if (result === "ended") {
+						return Response.json(
+							{ error: "the run has ended, so it takes no steer" },
+							{ status: 409 },
+						);
+					}
+					if (result === "failed") {
+						return Response.json(
+							{ error: "the factory did not take the steer" },
+							{ status: 502 },
+						);
+					}
+					return Response.json({ steered: true });
+				},
 			},
 		},
 	});
@@ -885,6 +1021,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			if (timer !== null) {
 				clearInterval(timer);
 			}
+			clearInterval(runTimer);
 			await (polling ?? Promise.resolve());
 			await server.stop(true);
 			opened.close();

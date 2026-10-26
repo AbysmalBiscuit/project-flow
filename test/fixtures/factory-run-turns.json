@@ -1,0 +1,36 @@
+{
+	"turns": [
+		{
+			"node_path": "plan",
+			"session": "5b1f7c2e-0d4a-4c1e-9b61-2f7d3e8a9c10",
+			"tools": { "Read": 6, "Bash": 2 },
+			"tokens": { "input": 41200, "output": 1830 },
+			"cost_usd": 0.3125,
+			"duration_s": 94.5
+		},
+		{
+			"node_path": "build",
+			"session": "0e7c2a91-4b3d-4f8e-a1c5-7d9b2e6f0a34",
+			"tools": { "Read": 11, "Edit": 7, "Bash": 9 },
+			"tokens": { "input": 182400, "output": 9620 },
+			"cost_usd": 1.5,
+			"duration_s": 612.25
+		},
+		{
+			"node_path": "review/security",
+			"session": "0199a213-81c0-7800-8aa1-bbab2a035a53",
+			"tools": { "command_execution": 3 },
+			"tokens": { "input": 24000, "output": 700 },
+			"cost_usd": 0,
+			"duration_s": 48
+		},
+		{
+			"node_path": "build",
+			"session": "0e7c2a91-4b3d-4f8e-a1c5-7d9b2e6f0a34",
+			"tools": { "Edit": 3, "Bash": 4 },
+			"tokens": { "input": 63100, "output": 2950 },
+			"cost_usd": 0.5,
+			"duration_s": 201.25
+		}
+	]
+}

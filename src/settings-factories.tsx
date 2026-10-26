@@ -6,6 +6,7 @@ import type { FactoryEntry } from "./factories.ts";
 import { Row } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import {
+	alsoReadThroughHub,
 	boxCount,
 	factoryCopy,
 	settingsCopy,
@@ -43,6 +44,14 @@ function Reach({ id, entry }: { id: string; entry: FactoryEntry | undefined }) {
 				: entry.reachable
 					? factoryCopy.reachable
 					: factoryCopy.unreachable}
+		</span>
+	);
+}
+
+function Duplicate({ entry }: { entry: FactoryEntry | undefined }) {
+	return entry?.alsoReadThroughHub === undefined ? null : (
+		<span className={clsx(fields.warning)}>
+			{alsoReadThroughHub(entry.alsoReadThroughHub)}
 		</span>
 	);
 }
@@ -85,7 +94,10 @@ export function FactoriesSection({
 			</p>
 			{flagged.map((entry, index) => (
 				<Row key={entry.url} title={entry.name} hint={detail(entry, entry)}>
-					<Reach id={`factory-flag-${index}`} entry={entry} />
+					<span className={clsx(fields.chips)}>
+						<Duplicate entry={entry} />
+						<Reach id={`factory-flag-${index}`} entry={entry} />
+					</span>
 				</Row>
 			))}
 			{draft.factories.length === 0 && flagged.length === 0 ? (
@@ -101,7 +113,10 @@ export function FactoriesSection({
 						{flagged.length > 0 ? (
 							<span className={clsx(fields.status)}>{factoryCopy.notRead}</span>
 						) : (
-							<Reach id={`factory-${index}`} entry={configured(factory)} />
+							<>
+								<Duplicate entry={configured(factory)} />
+								<Reach id={`factory-${index}`} entry={configured(factory)} />
+							</>
 						)}
 						<Button
 							id={`factory-${index}-remove`}

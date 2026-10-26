@@ -1,9 +1,10 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { Configuration } from "../src/configuration.ts";
 import type { Fetch } from "../src/fetch.ts";
-import type { RunIo } from "../src/main.ts";
+import { listDevkitCheckouts, type RunIo } from "../src/main.ts";
 import { answerRecordedRepoRead } from "./recorded-read.ts";
 
 const emptyPage = {
@@ -913,7 +914,7 @@ export async function settledOverview<Body extends { polling?: true }>(
 		if (body.polling !== true) {
 			return body;
 		}
-		await Bun.sleep(20);
+		await Bun.sleep(5);
 	}
 }
 
@@ -966,12 +967,21 @@ export async function tempConfig(
 	return { path, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
 
+// A settings write without checkoutRoots falls back to the user's ~/Git.
+// The harness never scans the checkouts of the machine that runs the tests.
+const hostCheckoutRoot = join(homedir(), "Git");
+
 export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
 	const stdout = io.stdout;
 	const first = options?.first === true;
 	const fetchImpl = answerRecordedRepoRead(io.fetch);
 	return {
 		listTodos: async () => "",
+		listCheckouts: (roots) =>
+			listDevkitCheckouts(
+				roots.filter((root) => root !== hostCheckoutRoot),
+				io.env,
+			),
 		...io,
 		fetch: fetchImpl,
 		...(stdout === undefined
@@ -994,7 +1004,7 @@ export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
 								if (body.polling !== true) {
 									break;
 								}
-								await Bun.sleep(20);
+								await Bun.sleep(5);
 							}
 							stdout(line);
 						})();
@@ -1446,9 +1456,49 @@ export const defaultStateColours = {
 	dropped: "#9ca3af",
 };
 
-export async function writtenColours(path: string): Promise<unknown> {
+/** The default states, as a fresh configuration file holds them. */
+export const defaultStates: Configuration["states"] = [
+	{
+		id: "backlog",
+		label: "Backlog",
+		colour: defaultStateColours.backlog,
+		categories: ["backlog"],
+	},
+	{
+		id: "inProgress",
+		label: "In progress",
+		colour: defaultStateColours.inProgress,
+		categories: ["inProgress"],
+	},
+	{
+		id: "inReview",
+		label: "In review",
+		colour: defaultStateColours.inReview,
+		categories: ["inReview"],
+	},
+	{
+		id: "awaitingMerge",
+		label: "Awaiting merge",
+		colour: defaultStateColours.awaitingMerge,
+		categories: ["awaitingMerge"],
+	},
+	{
+		id: "done",
+		label: "Done",
+		colour: defaultStateColours.done,
+		categories: ["done"],
+	},
+	{
+		id: "dropped",
+		label: "Dropped",
+		colour: defaultStateColours.dropped,
+		categories: ["dropped"],
+	},
+];
+
+export async function writtenStates(path: string): Promise<unknown> {
 	const written = JSON.parse(await Bun.file(path).text()) as {
-		stateColours?: unknown;
+		states?: unknown;
 	};
-	return written.stateColours;
+	return written.states;
 }

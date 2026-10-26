@@ -210,6 +210,16 @@ export const stateColours = stylex.defineVars({
 	dropped: stateValues.dropped,
 });
 
+/** One colour per factory run status kind, for the run circle on a card. */
+export const runStatusColours = stylex.defineVars({
+	queued: stateValues.dropped,
+	starting: `color-mix(in srgb, ${stateValues.inProgress} 55%, ${lightValues.canvas})`,
+	running: stateValues.inProgress,
+	blocked: lightValues.warn,
+	failed: lightValues.danger,
+	succeeded: stateValues.awaitingMerge,
+});
+
 /** The colours of one ticket state. `state-tone.ts` sets them per state. */
 export const stateTone = stylex.defineVars({
 	tone: stateColours.backlog,
@@ -296,6 +306,7 @@ export const measure = stylex.defineVars({
 	field: "28rem",
 	fieldMin: "4rem",
 	diagram: "48rem",
+	runGraph: "26rem",
 	swatch: "0.9rem",
 	hairline: "1px",
 	none: "0",
@@ -312,6 +323,7 @@ export const measure = stylex.defineVars({
 	lane: "16rem",
 	boardMin: "36rem",
 	dot: "0.45rem",
+	runDot: "0.6rem",
 	reply: "5.5rem",
 	panelTop: "4.5rem",
 	spin: "1s",

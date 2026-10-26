@@ -1,10 +1,9 @@
 import { readFileSync, realpathSync } from "node:fs";
-import { resolve } from "node:path";
+import { rename } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 
 import type { PluginItem } from "@babel/core";
-import babel from "@babel/core";
 import parser from "@babel/parser";
-import stylexBabelPlugin from "@stylexjs/babel-plugin";
 import type { BunPlugin } from "bun";
 
 const loadedPlugin = (name: string): PluginItem => {
@@ -13,10 +12,71 @@ const loadedPlugin = (name: string): PluginItem => {
 	return loaded.default ?? (loaded as PluginItem);
 };
 
-const rootDir = realpathSync(resolve(import.meta.dir, ".."));
-const rules = new Map<string, ReadonlyArray<readonly unknown[]>>();
+// The server imports this module for pageThemeMeta. Babel and the StyleX
+// plugin load only when a build compiles, so a server start stays cheap.
+let compilers: Promise<{
+	babel: typeof import("@babel/core");
+	stylexBabelPlugin: typeof import("@stylexjs/babel-plugin").default;
+}> | null = null;
 
-async function compile(code: string, filename: string): Promise<string> {
+function loadedCompilers() {
+	compilers ??= Promise.all([
+		import("@babel/core"),
+		import("@stylexjs/babel-plugin"),
+	]).then(([babel, stylex]) => ({
+		babel,
+		stylexBabelPlugin: stylex.default,
+	}));
+	return compilers;
+}
+
+const rootDir = realpathSync(resolve(import.meta.dir, ".."));
+
+type Rules = ReadonlyArray<readonly unknown[]>;
+type Compiled = { readonly output: string; readonly rules: Rules };
+
+const rules = new Map<string, Rules>();
+
+// Each test file runs in a fresh global, so the compile output also lives on
+// disk. The key covers the source, the lockfile and this file.
+const cacheDir = resolve(rootDir, "node_modules/.cache/project-flow-stylex");
+const cacheSalt = [
+	readFileSync(import.meta.path, "utf8"),
+	readFileSync(resolve(rootDir, "bun.lock"), "utf8"),
+].join("\0");
+
+function cacheKey(...parts: string[]): string {
+	return new Bun.CryptoHasher("sha256")
+		.update([cacheSalt, ...parts].join("\0"))
+		.digest("hex");
+}
+
+async function cached<T>(key: string, make: () => Promise<T>): Promise<T> {
+	const path = join(cacheDir, `${key}.json`);
+	try {
+		return (await Bun.file(path).json()) as T;
+	} catch {
+		const value = await make();
+		const written = `${path}.${crypto.randomUUID()}`;
+		await Bun.write(written, JSON.stringify(value));
+		await rename(written, path);
+		return value;
+	}
+}
+
+function record(filename: string, compiled: Compiled): void {
+	if (compiled.rules.length > 0) {
+		rules.set(filename, compiled.rules);
+	} else {
+		rules.delete(filename);
+	}
+	if (filename.endsWith("/tokens.stylex.ts")) {
+		themeMeta = themeFromCompile(compiled.output);
+	}
+}
+
+async function compile(code: string, filename: string): Promise<Compiled> {
+	const { babel, stylexBabelPlugin } = await loadedCompilers();
 	const result = await babel.transformAsync(code, {
 		babelrc: false,
 		configFile: false,
@@ -35,17 +95,8 @@ async function compile(code: string, filename: string): Promise<string> {
 			}),
 		],
 	});
-	const metadata = result?.metadata as
-		{ stylex?: ReadonlyArray<readonly unknown[]> } | undefined;
-	if (metadata?.stylex !== undefined && metadata.stylex.length > 0) {
-		rules.set(filename, metadata.stylex);
-	} else {
-		rules.delete(filename);
-	}
-	if (filename.endsWith("/tokens.stylex.ts")) {
-		themeMeta = themeFromCompile(result?.code ?? "");
-	}
-	return result?.code ?? code;
+	const metadata = result?.metadata as { stylex?: Rules } | undefined;
+	return { output: result?.code ?? code, rules: metadata?.stylex ?? [] };
 }
 
 export type PageThemeMeta = {
@@ -148,15 +199,18 @@ function themeFromCompile(code: string): PageThemeMeta {
 	};
 }
 
-function collectedCss(): string {
+async function collectedCss(): Promise<string> {
 	const flat = [...rules.values()].flat();
 	if (flat.length === 0) {
 		return "";
 	}
-	return stylexBabelPlugin.processStylexRules(
-		flat as Parameters<typeof stylexBabelPlugin.processStylexRules>[0],
-		{ useLayers: true },
-	);
+	return cached(cacheKey(JSON.stringify(flat)), async () => {
+		const { stylexBabelPlugin } = await loadedCompilers();
+		return stylexBabelPlugin.processStylexRules(
+			flat as Parameters<typeof stylexBabelPlugin.processStylexRules>[0],
+			{ useLayers: true },
+		);
+	});
 }
 
 function loaderFor(path: string): "tsx" | "ts" | "jsx" | "js" {
@@ -174,6 +228,10 @@ function loaderFor(path: string): "tsx" | "ts" | "jsx" | "js" {
 
 let compiled: Promise<Map<string, string>> | null = null;
 
+// Each server build compiles the tree again. A file whose source did not
+// change keeps its last output and rules.
+const lastCompiled = new Map<string, { code: string; compiled: Compiled }>();
+
 async function compileTree(): Promise<Map<string, string>> {
 	const files = new Bun.Glob("src/**/*.{ts,tsx}").scan({
 		cwd: rootDir,
@@ -186,7 +244,24 @@ async function compileTree(): Promise<Map<string, string>> {
 		if (!code.includes("@stylexjs/stylex")) {
 			continue;
 		}
-		output.set(path, await compile(code, path));
+		let last = lastCompiled.get(path);
+		if (last?.code !== code) {
+			last = {
+				code,
+				compiled: await cached(cacheKey(relative(rootDir, path), code), () =>
+					compile(code, path),
+				),
+			};
+			record(path, last.compiled);
+			lastCompiled.set(path, last);
+		}
+		output.set(path, last.compiled.output);
+	}
+	for (const path of [...rules.keys(), ...lastCompiled.keys()]) {
+		if (!output.has(path)) {
+			rules.delete(path);
+			lastCompiled.delete(path);
+		}
 	}
 	return output;
 }
@@ -200,11 +275,10 @@ const plugin: BunPlugin = {
 	name: "project-flow-stylex",
 	setup(build) {
 		compiled = null;
-		rules.clear();
 		build.onLoad({ filter: /\.css$/ }, async (args) => {
 			await compiledTree();
 			const source = await Bun.file(args.path).text();
-			return { contents: `${source}\n${collectedCss()}`, loader: "css" };
+			return { contents: `${source}\n${await collectedCss()}`, loader: "css" };
 		});
 		build.onLoad({ filter: /\.[cm]?[jt]sx?$/ }, async (args) => {
 			const output = await compiledTree();

@@ -7,19 +7,24 @@ import {
 
 import { readSettings, type SettingsRead } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
-import type {
-	InboxEntry,
-	NeedsYouItem,
-	Overview,
-	PostedReply,
-	ProjectReport,
-	SettingsProject,
-	Thread,
-	Tracker,
+import {
+	type InboxEntry,
+	liveRunStatusKinds,
+	type NeedsYouItem,
+	type Overview,
+	type PostedReply,
+	type ProjectReport,
+	type RunAgent,
+	type RunCheckpoint,
+	type SettingsProject,
+	type ShownFactoryRun,
+	type Thread,
+	type Tracker,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
-import type { FactoryEntry } from "./factories.ts";
+import type { FactoryEntry, Steer } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
+import type { StateSource } from "./settings-write.ts";
 import { storedObject } from "./stored-page.ts";
 
 type SettingsPage = {
@@ -28,6 +33,7 @@ type SettingsPage = {
 	trackers: { github: boolean; linear: boolean };
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
+	stateSources: StateSource[];
 };
 
 type ReplyBody = {
@@ -41,6 +47,8 @@ type ReplyBody = {
 };
 
 const pageStaleTimeMs = 60_000;
+
+const agentReadMs = 5_000;
 
 export const pageQuery = {
 	overview: queryOptions({
@@ -77,6 +85,23 @@ export const pageQuery = {
 			queryFn: () => readThread(tracker, project, key),
 			placeholderData: (previous: ThreadRead | undefined) => previous,
 		}),
+	/** The key holds the run's status and stage, so a change in the factory feed reads the checkpoint again. */
+	checkpoint: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) =>
+		queryOptions({
+			queryKey: ["checkpoint", run.id, run.statusKind, run.stage ?? null],
+			queryFn: () => readCheckpoint(run.id),
+			placeholderData: (previous: RunCheckpoint | null | undefined) => previous,
+		}),
+	/** A live run reads its agents again on an interval while a view follows it, and an ended run reads none. */
+	agents: (run: Pick<ShownFactoryRun, "id" | "statusKind">) => {
+		const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
+		return queryOptions({
+			queryKey: ["agents", run.id, run.statusKind],
+			queryFn: () => readAgents(run.id),
+			enabled: live,
+			refetchInterval: live ? agentReadMs : false,
+		});
+	},
 };
 
 export const pageQueryClient = new QueryClient({
@@ -109,6 +134,7 @@ export function configurationOf(
 		trackers: _trackers,
 		projects: _projects,
 		factoryEntries: _factoryEntries,
+		stateSources: _stateSources,
 		error: _error,
 		...configuration
 	} = body;
@@ -124,6 +150,7 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 		projects: body.projects ?? [],
 		factoryTokenReports: body.factoryTokenReports ?? [],
 		factoryEntries: body.factoryEntries ?? [],
+		stateSources: body.stateSources ?? [],
 		settings: configurationOf(body) ?? body,
 	};
 }
@@ -165,6 +192,32 @@ async function readThread(
 			: { status: "failed" };
 	}
 	return { status: "ready", thread: (await response.json()) as Thread };
+}
+
+async function readAgents(runId: string): Promise<RunAgent[]> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/agents`,
+	);
+	if (response.status === 404) {
+		return [];
+	}
+	if (!response.ok) {
+		throw new Error(`agents failed (HTTP ${response.status})`);
+	}
+	return ((await response.json()) as { agents: RunAgent[] }).agents;
+}
+
+async function readCheckpoint(runId: string): Promise<RunCheckpoint | null> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/checkpoint`,
+	);
+	if (response.status === 404) {
+		return null;
+	}
+	if (!response.ok) {
+		throw new Error(`checkpoint failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as RunCheckpoint;
 }
 
 type SettingsWrite = Configuration & {
@@ -276,6 +329,53 @@ export function usePostReply(tracker: string, project: string, key: string) {
 			await queries.invalidateQueries(pageQuery.thread(tracker, project, key));
 			void queries.invalidateQueries(pageQuery.needsYou);
 			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
+export function useAnswerQuestion(run: string, question: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (text: string): Promise<void> => {
+			const response = await fetch(
+				`/api/factory-runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({ text }),
+				},
+			);
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Answer failed");
+			}
+		},
+		onSuccess: () => {
+			void queries.invalidateQueries(pageQuery.needsYou);
+			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
+export function useSteerRun(run: string) {
+	return useMutation({
+		mutationFn: async (steer: Steer): Promise<void> => {
+			const response = await fetch(
+				`/api/factory-runs/${encodeURIComponent(run)}/steer`,
+				{
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify(steer),
+				},
+			);
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Steer failed");
+			}
 		},
 	});
 }

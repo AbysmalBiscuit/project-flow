@@ -1,6 +1,11 @@
 import type {
+	EarlierFactoryRun,
+	FactoryRun,
 	Lane,
+	LiveRun,
 	PullRequest,
+	RunStatusKind,
+	ShownFactoryRun,
 	ShownTicket,
 	Ticket,
 	WorkcellRun,
@@ -8,7 +13,7 @@ import type {
 import { appLaneNames, closedLaneType, laterState } from "./lanes.ts";
 import { branchLinksTicket, closesTicket } from "./links.ts";
 import { sameTicketKey } from "./ticket-key.ts";
-import { progressRun, runFor } from "./workcell.ts";
+import { progressRun, runFor, runsFor } from "./workcell.ts";
 
 function enteredStateAt(ticket: Ticket, lane: Lane): string {
 	const history = ticket.history ?? [];
@@ -45,6 +50,38 @@ function enteredStateAt(ticket: Ticket, lane: Lane): string {
 	return ticket.updatedAt;
 }
 
+/** The live run status of a factory run. A queued or ended run has none. */
+const feedStatus: Record<RunStatusKind, LiveRun["status"] | undefined> = {
+	queued: undefined,
+	starting: "running",
+	running: "running",
+	blocked: "running",
+	failed: "failed",
+	succeeded: undefined,
+};
+
+/**
+ * The run evidence of a ticket. A run that the factory feed covers wins over
+ * a local run, and a local run wins over the progress comment.
+ */
+function liveRun(
+	ticket: Ticket,
+	runs: WorkcellRun[],
+	fed: FactoryRun | undefined,
+	now: Date,
+): LiveRun | undefined {
+	const fromComment = progressRun(ticket.comments ?? [], now);
+	const local = runFor(ticket, runs);
+	if (fed === undefined && local === undefined) {
+		return fromComment;
+	}
+	const status = fed === undefined ? local?.status : feedStatus[fed.statusKind];
+	const stage = fed?.streamed === true ? fed.stage : fromComment?.stage;
+	return status === undefined
+		? undefined
+		: { status, ...(stage === undefined ? {} : { stage }) };
+}
+
 export function shownTicket(
 	ticket: Ticket,
 	lane: Lane,
@@ -53,6 +90,7 @@ export function shownTicket(
 	startedKeys: string[],
 	review: { state: "inReview" | "awaitingMerge" | null },
 	runs: WorkcellRun[],
+	fed: FactoryRun | undefined,
 	autoMerge: boolean,
 	lanes: Lane[],
 	now: Date,
@@ -66,16 +104,7 @@ export function shownTicket(
 	const pushed =
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);
-	const local = runFor(ticket, runs);
-	const fromComment = progressRun(ticket.comments ?? [], now);
-	const stage = fromComment?.stage;
-	const run =
-		local === undefined
-			? fromComment
-			: {
-					status: local.status,
-					...(stage === undefined ? {} : { stage }),
-				};
+	const run = liveRun(ticket, runs, fed, now);
 	const live = run?.status === "running";
 	const mergedClose = links.some(
 		(pull) => pull.merged && closesTicket(pull, ticket),
@@ -134,6 +163,51 @@ export function shownTicket(
 		enteredStateAt: enteredStateAt(ticket, shownLane),
 		blocked: ticket.state === "open" && openBlockerCount > 0,
 		...(shownRun === undefined ? {} : { run: shownRun }),
+	};
+}
+
+/**
+ * The newest factory run of a ticket, with its stage,
+ * and the earlier runs of the ticket.
+ */
+export function shownFactoryRun(
+	ticket: Ticket,
+	newestFirst: FactoryRun[],
+	now: Date,
+):
+	| { factoryRun: ShownFactoryRun; earlierFactoryRuns?: EarlierFactoryRun[] }
+	| Record<string, never> {
+	const [run, ...earlier] = runsFor(ticket, newestFirst);
+	if (run === undefined) {
+		return {};
+	}
+	const stage = run.streamed
+		? run.stage
+		: progressRun(ticket.comments ?? [], now)?.stage;
+	return {
+		factoryRun: {
+			id: run.id,
+			statusKind: run.statusKind,
+			box: run.box,
+			factory: run.factory,
+			...(run.source === undefined ? {} : { source: run.source }),
+			...(run.rule === undefined ? {} : { rule: run.rule }),
+			startedAt: run.startedAt,
+			endedAt: run.endedAt,
+			coveredByFeed: run.coveredByFeed,
+			...(run.questions === undefined ? {} : { questions: run.questions }),
+			...(run.thread === undefined ? {} : { thread: run.thread }),
+			...(stage === undefined ? {} : { stage }),
+		},
+		...(earlier.length === 0
+			? {}
+			: {
+					earlierFactoryRuns: earlier.map((run) => ({
+						statusKind: run.statusKind,
+						startedAt: run.startedAt,
+						endedAt: run.endedAt,
+					})),
+				}),
 	};
 }
 
