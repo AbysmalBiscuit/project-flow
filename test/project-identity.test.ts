@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
@@ -58,7 +59,7 @@ async function withApp(
 		LINEAR_API_KEY: "recorded-linear-key",
 	},
 ): Promise<void> {
-	const root = await mkdtemp(join("/var/tmp", "project-flow-identity-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-identity-"));
 	const { path, cleanup } = await tempConfig(JSON.stringify(configuration));
 	try {
 		for (const check of [checks].flat()) {

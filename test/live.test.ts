@@ -397,7 +397,7 @@ describe("live updates", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -622,7 +622,7 @@ describe("live updates", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let releaseChecks: () => void = () => {};
 		const checks = new Promise<void>((resolve) => {
@@ -691,7 +691,7 @@ describe("live updates", () => {
 				],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const failing: Fetch = async (input, init) => {
 			const discovered = recordedDiscovery(input, init);
@@ -734,7 +734,7 @@ describe("live updates", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const fetchImpl: Fetch = async (input, init) => {
 			const discovered = recordedDiscovery(input, init);

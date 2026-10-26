@@ -7,6 +7,7 @@ import {
 	rm,
 	writeFile,
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AutoMerge } from "../src/configuration.ts";
@@ -500,7 +501,7 @@ async function withApp(
 	const written =
 		checkoutRoot === undefined ? config : withCheckout(config, checkoutRoot);
 	const { path, cleanup } = await tempConfig(written);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 	let startChecks: (base: string) => void = () => {};
 	const checks = new Promise<void>((resolve, reject) => {
 		startChecks = (base) => {
@@ -590,7 +591,7 @@ async function devkitWorktree(options: {
 	repo?: string;
 	manager?: string;
 }): Promise<{ root: string; cleanup: () => Promise<void> }> {
-	const root = await mkdtemp(join("/var/tmp", "project-flow-checkout-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-checkout-"));
 	const main = join(root, "acme", "widget");
 	const worktree = join(
 		root,
@@ -664,7 +665,7 @@ async function devkitWorktree(options: {
 async function fakeHerdr(
 	script: string,
 ): Promise<{ path: string; cleanup: () => Promise<void> }> {
-	const path = await mkdtemp(join("/var/tmp", "project-flow-herdr-"));
+	const path = await mkdtemp(join(tmpdir(), "project-flow-herdr-"));
 	const herdr = join(path, "herdr");
 	await writeFile(herdr, script);
 	await chmod(herdr, 0o755);

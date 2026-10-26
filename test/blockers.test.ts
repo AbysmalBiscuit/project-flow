@@ -1715,7 +1715,7 @@ describe("GET /api/overview blockers", () => {
 				],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -1875,7 +1875,7 @@ describe("GET /api/overview blockers", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -2063,7 +2063,7 @@ describe("GET /api/overview blockers", () => {
 				],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -2294,7 +2294,7 @@ describe("GET /api/overview blockers", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -2610,7 +2610,7 @@ describe("GET /api/overview blockers", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -2817,7 +2817,7 @@ describe("GET /api/overview blockers", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -2963,7 +2963,7 @@ describe("GET /api/overview blockers", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -3072,7 +3072,7 @@ describe("GET /api/overview blockers", () => {
 				pinned: [{ tracker: "github", repo: githubRepo }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const requests: string[] = [];
 		const fetching: Fetch = async (input, init) => {
@@ -3202,7 +3202,7 @@ describe("GET /api/overview blockers", () => {
 				pollIntervalSeconds: 3600,
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		let startChecks: (base: string) => void = () => {};
 		const checks = new Promise<void>((resolve, reject) => {
@@ -3346,7 +3346,7 @@ describe("GET /api/overview blockers", () => {
 				pinned: [{ tracker: "github", repo: githubRepo }],
 			}),
 		);
-		const root = await mkdtemp(join("/var/tmp", "project-flow-store-"));
+		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
 		const databasePath = join(root, "project-flow.sqlite");
 		const requests: string[] = [];
 		const fetching: Fetch = async (input, init) => {

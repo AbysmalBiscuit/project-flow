@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
@@ -24,7 +25,7 @@ const mintedToken = "ghs_acme_minted";
 
 describe("factory GitHub token mint", () => {
 	test("turning the option on runs the mint, and the poll reads carry the minted token", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		const minted: { command: string[]; dir: string }[] = [];
 		const mint: FactoryTokenMint = async (command, dir) => {
@@ -76,7 +77,7 @@ describe("factory GitHub token mint", () => {
 	});
 
 	test("a mint that fails once runs again, and the poll reads carry the minted token", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		let runs = 0;
 		const mint: FactoryTokenMint = async (_command, dir) => {
@@ -124,7 +125,7 @@ describe("factory GitHub token mint", () => {
 	});
 
 	test("a mint that fails three times shows its exit status and last stderr line in Settings, and the reads use the user token", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		const recorded: Recorded[] = [];
 		let runs = 0;
@@ -179,7 +180,7 @@ describe("factory GitHub token mint", () => {
 	});
 
 	test("an owner the mint writes no file for shows as no installation, and its reads start no more mints", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		let runs = 0;
 		const mint: FactoryTokenMint = async (_command, dir) => {
@@ -239,7 +240,7 @@ describe("factory GitHub token mint", () => {
 	});
 
 	test("an owner the last good mint wrote reports its file as missing once the file is gone", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		const folder = join(home, "tokens");
 		let runs = 0;
 		const mint: FactoryTokenMint = async (_command, dir) => {
@@ -295,7 +296,7 @@ describe("factory GitHub token mint", () => {
 	});
 
 	test("a settings read answers while the poll waits on a mint that does not finish", async () => {
-		const home = await mkdtemp(join("/var/tmp", "project-flow-factory-"));
+		const home = await mkdtemp(join(tmpdir(), "project-flow-factory-"));
 		let started: () => void = () => {};
 		const mintStarted = new Promise<void>((resolve) => {
 			started = resolve;

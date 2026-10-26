@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Overview } from "../src/domain.ts";
@@ -298,7 +299,7 @@ async function withTrackedBoardAndRepo(
 	const { path, cleanup } = await tempConfig(
 		JSON.stringify({ pinned, pollIntervalSeconds: 3600 }),
 	);
-	const root = await mkdtemp(join("/var/tmp", "project-flow-claimed-close-"));
+	const root = await mkdtemp(join(tmpdir(), "project-flow-claimed-close-"));
 	try {
 		await check({
 			config: path,
