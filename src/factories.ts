@@ -36,6 +36,10 @@ export type ListedFactory = Factory & { source: FactoryEntry["source"] };
 
 const factoryRequestLimitMs = 5_000;
 
+// A factory answers a cancel once the run process has stopped. The hub waits 30 seconds for
+// the box, and the box waits up to 60 seconds for the process to stop.
+const cancelLimitMs = 100_000;
+
 const about = z.object({ role: z.enum(["hub", "daemon"]).optional() });
 
 const sources = z.object({ sources: z.array(z.unknown()) });
@@ -566,6 +570,8 @@ export type CheckpointRead = RunCheckpoint | "missing" | "not served";
 export type AnswerResult = "answered" | "missing" | "failed";
 
 export type SteerResult = "steered" | "missing" | "ended" | "failed";
+
+export type CancelResult = "cancelled" | "missing" | "ended" | "failed";
 
 export type Steer = { stage: string; text: string; interrupt: boolean };
 
@@ -1116,25 +1122,29 @@ export function factoryReader(
 			return "failed";
 		}
 	};
-	const steer = async (run: string, steer: Steer): Promise<SteerResult> => {
-		const { hubRow, row } = statusRow(
-			listed().flatMap((factory) =>
-				(readRuns.get(factory.url) ?? []).filter((row) => row.run.id === run),
-			),
-			reachable,
-		);
-		// The hub forwards a steer to the box that does the run.
+	/**
+	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
+	 * the write to the box that does the run. A 409 means that the run has ended.
+	 */
+	const runWrite = async <Done extends string>(
+		run: string,
+		route: string,
+		done: Done,
+		json: unknown = {},
+		limitMs = factoryRequestLimitMs,
+	): Promise<Done | "missing" | "ended" | "failed"> => {
+		const { hubRow, row } = statusRowOf(run);
 		const target = hubRow ?? row;
 		if (target === undefined) {
 			return "missing";
 		}
-		const read = reader(fetchImpl, target.url, signal);
+		const read = reader(fetchImpl, target.url, signal, limitMs);
 		try {
-			const response = await read(`/runs/${encodeURIComponent(run)}/steer`, {
-				json: { ...steer, sender: levSender },
+			const response = await read(`/runs/${encodeURIComponent(run)}/${route}`, {
+				json,
 			});
 			if (response.ok) {
-				return "steered";
+				return done;
 			}
 			if (response.status === 409) {
 				return "ended";
@@ -1147,6 +1157,10 @@ export function factoryReader(
 			return "failed";
 		}
 	};
+	const steer = (run: string, steer: Steer): Promise<SteerResult> =>
+		runWrite(run, "steer", "steered", { ...steer, sender: levSender });
+	const cancel = (run: string): Promise<CancelResult> =>
+		runWrite(run, "cancel", "cancelled", {}, cancelLimitMs);
 	return {
 		check,
 		settled,
@@ -1160,5 +1174,6 @@ export function factoryReader(
 		agents: runAgents,
 		answer,
 		steer,
+		cancel,
 	};
 }

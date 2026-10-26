@@ -41,8 +41,8 @@ const styles = stylex.create({
 });
 
 /**
- * A modal dialog that asks before a change. Escape and Cancel both call
- * `onCancel`.
+ * A modal dialog that asks before a change. Escape and the dismiss button,
+ * Cancel unless `dismissLabel` names it, both call `onCancel`.
  */
 export function ConfirmDialog({
 	id,
@@ -50,6 +50,7 @@ export function ConfirmDialog({
 	title,
 	body,
 	confirmLabel,
+	dismissLabel = settingsCopy.cancel,
 	onConfirm,
 	onCancel,
 }: {
@@ -58,6 +59,7 @@ export function ConfirmDialog({
 	title: string;
 	body: string;
 	confirmLabel: string;
+	dismissLabel?: string;
 	onConfirm: () => void;
 	onCancel: () => void;
 }) {
@@ -92,11 +94,7 @@ export function ConfirmDialog({
 			</h2>
 			<p className={clsx(styles.body)}>{body}</p>
 			<div className={clsx(styles.actions)}>
-				<Button
-					id={`${id}-cancel`}
-					label={settingsCopy.cancel}
-					onClick={onCancel}
-				/>
+				<Button id={`${id}-cancel`} label={dismissLabel} onClick={onCancel} />
 				<Button
 					id={`${id}-confirm`}
 					label={confirmLabel}

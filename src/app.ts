@@ -1008,6 +1008,31 @@ export async function start(options: StartOptions): Promise<Running> {
 					return Response.json({ steered: true });
 				},
 			},
+			"/api/factory-runs/:run/cancel": {
+				POST: async (request) => {
+					const result = await factories.cancel(request.params.run);
+					if (result === "missing") {
+						return Response.json(
+							{ error: "no factory reports the run" },
+							{ status: 404 },
+						);
+					}
+					if (result === "ended") {
+						return Response.json(
+							{ error: "the run has already ended" },
+							{ status: 409 },
+						);
+					}
+					if (result === "failed") {
+						return Response.json(
+							{ error: "the factory did not take the cancel" },
+							{ status: 502 },
+						);
+					}
+					await readFactories(() => factories.readRuns(clock.now().getTime()));
+					return Response.json({ cancelled: true });
+				},
+			},
 		},
 	});
 	if (hadRows) {
