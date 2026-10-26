@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import type { RunDetail } from "./domain.ts";
+import { Loading } from "./loading.tsx";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
@@ -15,7 +16,6 @@ import { Segment } from "./segment.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
 	hubQueueLabel,
-	loadingLabel,
 	runFactLabel,
 	runMissingLabel,
 	runPageLabel,
@@ -196,9 +196,11 @@ export function Page() {
 					className={clsx(styles.panel)}
 				>
 					{data === undefined ? (
-						<p className={clsx(panel.note)}>
-							{isError ? runReadFailedLabel : loadingLabel}
-						</p>
+						isError ? (
+							<p className={clsx(panel.note)}>{runReadFailedLabel}</p>
+						) : (
+							<Loading />
+						)
 					) : data === null ? (
 						<p className={clsx(panel.note)}>{runMissingLabel}</p>
 					) : (

@@ -16,9 +16,10 @@ import {
 	type LinkProps,
 } from "./graph-view.tsx";
 import { focusChain } from "./links.ts";
+import { Loading } from "./loading.tsx";
 import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
-import { loadingLabel, overviewControlLabel } from "./terms.ts";
+import { overviewControlLabel } from "./terms.ts";
 import { linkId, ticketRefId } from "./ticket-key.ts";
 import { cards, shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
@@ -104,7 +105,7 @@ function ProjectNode({ id, data }: CardProps<ProjectCard>) {
 			) : null}
 			<p className={clsx(cards.graphMeta)}>{trackerName(project.tracker)}</p>
 			{project.pending === true ? (
-				<p className={clsx(cards.loading)}>{loadingLabel}</p>
+				<Loading />
 			) : (
 				<>
 					<SegmentedBar project={project} />

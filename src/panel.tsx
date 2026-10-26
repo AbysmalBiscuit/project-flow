@@ -17,6 +17,7 @@ import type {
 	ThreadComment,
 } from "./domain.ts";
 import { menuOwnsEscape } from "./focus.ts";
+import { Loading } from "./loading.tsx";
 import {
 	CommentTree,
 	RelationList,
@@ -39,6 +40,7 @@ import {
 	pullButtonLabel,
 	stateLabel,
 	threadFailedLabel,
+	threadLoadingLabel,
 	threadMissingLabel,
 	threadRetryLabel,
 } from "./terms.ts";
@@ -346,8 +348,8 @@ export function TicketPanel({
 					/>
 				</p>
 			) : null}
-			{loadingThread || (thread === null && !missing && !failed) ? (
-				<p className={clsx(panel.note)}>Loading thread</p>
+			{thread === null && (loadingThread || (!missing && !failed)) ? (
+				<Loading label={threadLoadingLabel} />
 			) : null}
 			{thread !== null || known !== undefined ? (
 				<h2 className={clsx(panel.heading)}>{thread?.title ?? known?.title}</h2>

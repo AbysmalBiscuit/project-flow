@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
+import { Loading } from "./loading.tsx";
 import { NeedsItem } from "./needs-item.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { TicketPanel } from "./panel.tsx";
@@ -18,7 +19,6 @@ import {
 import { PageFrame } from "./shell.tsx";
 import { storeHoldsRead } from "./stored-page.ts";
 import {
-	loadingLabel,
 	navLabel,
 	type NeedsGroup,
 	needsGroupLabel,
@@ -301,7 +301,11 @@ export function Page() {
 	const holdsRead = body !== undefined && storeHoldsRead(body);
 	const polling = body?.polling === true;
 	if (items === undefined || (polling && items.length === 0 && !holdsRead)) {
-		return <PageFrame title={navLabel.needsYou}>{loadingLabel}</PageFrame>;
+		return (
+			<PageFrame title={navLabel.needsYou}>
+				<Loading />
+			</PageFrame>
+		);
 	}
 	return (
 		<NeedsList
