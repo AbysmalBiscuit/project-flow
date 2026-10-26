@@ -1,0 +1,170 @@
+import { z } from "zod";
+
+import type { Factory } from "./configuration.ts";
+import type { FactoryRun, RunStatusKind } from "./domain.ts";
+import { liveRunStatusKinds } from "./domain.ts";
+import { body, type Read, Unreachable } from "./factory-http.ts";
+
+export const runRow = z.object({
+	id: z.string(),
+	ticket: z.string(),
+	repo: z.string().nullish(),
+	status: z.object({
+		kind: z.enum([
+			"submitted",
+			"starting",
+			"running",
+			"blocked",
+			"succeeded",
+			"failed",
+		]),
+		reason: z.string().nullish(),
+	}),
+	machine: z.string().nullish(),
+	source: z.string().nullish(),
+	rule: z.string().nullish(),
+	submitted_at: z.string(),
+	started_at: z.string().nullish(),
+	ended_at: z.string().nullish(),
+});
+
+export const runRows = z.object({ runs: z.array(z.unknown()) });
+
+const openQuestions = z.object({
+	questions: z.array(
+		z.object({
+			id: z.union([z.number(), z.string()]).transform(String),
+			node_path: z.string().nullish(),
+			text: z.string(),
+		}),
+	),
+});
+
+export const localMachine = "local";
+
+/** A run row of one factory. A local row comes from the box that does the run. */
+export type ReadRun = {
+	run: Omit<FactoryRun, "coveredByFeed" | "streamed" | "stage" | "pull">;
+	local: boolean;
+	url: string;
+};
+
+export type StatusRows<Row> = { hubRow: Row | undefined; row: Row | undefined };
+
+export function isLive(kind: RunStatusKind): boolean {
+	return liveRunStatusKinds.some((live) => live === kind);
+}
+
+export function statusKindOf(
+	kind: z.infer<typeof runRow>["status"]["kind"],
+): RunStatusKind {
+	return kind === "submitted" ? "queued" : kind;
+}
+
+/** The runs of one `GET /runs` answer. A row that does not parse is left out. */
+export function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
+	return rows.flatMap((row) => {
+		const parsed = runRow.safeParse(row);
+		if (!parsed.success) {
+			return [];
+		}
+		const run = parsed.data;
+		const machine = run.machine ?? null;
+		const local = machine === localMachine;
+		return [
+			{
+				run: {
+					id: run.id,
+					key: run.ticket,
+					...(run.repo === null || run.repo === undefined
+						? {}
+						: { repo: run.repo }),
+					statusKind: statusKindOf(run.status.kind),
+					box: local ? factory.name : machine,
+					factory: factory.name,
+					...(run.source === null || run.source === undefined
+						? {}
+						: { source: run.source }),
+					...(run.rule === null || run.rule === undefined
+						? {}
+						: { rule: run.rule }),
+					submittedAt: run.submitted_at,
+					startedAt: run.started_at ?? null,
+					endedAt: run.ended_at ?? null,
+					...(run.status.reason === null ||
+					run.status.reason === undefined ||
+					run.status.reason === ""
+						? {}
+						: { failureReason: run.status.reason }),
+				},
+				local,
+				url: factory.url,
+			},
+		];
+	});
+}
+
+/**
+ * The row that gives a run its status: the box row while its box is reachable,
+ * or else the hub row. An unreachable box keeps its last row, which goes stale.
+ */
+export function statusRow<Row extends ReadRun>(
+	same: Row[],
+	reachable: (row: Row) => boolean,
+): StatusRows<Row> {
+	const hubRow = same.find((row) => !row.local);
+	const boxRow = same.find((row) => row.local);
+	const fresh =
+		boxRow !== undefined && (hubRow === undefined || reachable(boxRow));
+	return { hubRow, row: fresh ? boxRow : hubRow };
+}
+
+/**
+ * One run per id. A hub and its box report the same id once the hub sends the run.
+ * The status row gives the status, and the hub row gives `source` and `rule`.
+ */
+export function mergedRuns(
+	rows: (ReadRun & { coveredByFeed: boolean; streamed: boolean })[],
+	stages: ReadonlyMap<string, string>,
+) {
+	return [...Map.groupBy(rows, (row) => row.run.id).values()].flatMap(
+		(same): FactoryRun[] => {
+			const { hubRow, row } = statusRow(same, (row) => row.coveredByFeed);
+			if (row === undefined) {
+				return [];
+			}
+			const { source, rule, ...status } = row.run;
+			const origin = hubRow?.run ?? row.run;
+			const stage = stages.get(status.id);
+			return [
+				{
+					...status,
+					...(origin.source === undefined ? {} : { source: origin.source }),
+					...(origin.rule === undefined ? {} : { rule: origin.rule }),
+					coveredByFeed: row.coveredByFeed,
+					streamed: same.some((row) => row.streamed),
+					...(stage === undefined ? {} : { stage }),
+				},
+			];
+		},
+	);
+}
+
+/** The open questions of a blocked run. A factory that gives no list leaves them unknown. */
+export async function questionsOf(
+	read: Read,
+	id: string,
+): Promise<z.infer<typeof openQuestions>["questions"] | undefined> {
+	try {
+		const listed = await body(
+			await read(`/runs/${encodeURIComponent(id)}/questions`),
+			openQuestions,
+		);
+		return listed.questions;
+	} catch (error) {
+		if (!(error instanceof Unreachable)) {
+			throw error;
+		}
+		return undefined;
+	}
+}

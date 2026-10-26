@@ -3,8 +3,9 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../src/configuration.ts";
+import { listDevkitCheckouts } from "../src/devkit-checkouts.ts";
 import type { Fetch } from "../src/fetch.ts";
-import { listDevkitCheckouts, type RunIo } from "../src/main.ts";
+import type { RunIo } from "../src/main.ts";
 import { pendingStatus } from "../src/stale-reads.ts";
 import { answerRecordedRepoRead } from "./recorded-read.ts";
 
