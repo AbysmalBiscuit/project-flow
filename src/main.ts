@@ -641,7 +641,9 @@ export async function run(args: string[], io: RunIo): Promise<RunResult> {
 	const configFlag = flagValue(args, "--config");
 	if (
 		args.includes("--config") &&
-		(configFlag === undefined || configFlag.trim() === "")
+		(configFlag === undefined ||
+			configFlag.trim() === "" ||
+			configFlag.startsWith("--"))
 	) {
 		writeErr("invalid configuration: --config needs a file path");
 		return result(1);
@@ -799,7 +801,12 @@ function configArgsForCheckout(args: string[], callerDir: string): string[] {
 	const next = [...args];
 	const index = next.indexOf("--config");
 	const value = next[index + 1];
-	if (index === -1 || value === undefined || value.trim() === "") {
+	if (
+		index === -1 ||
+		value === undefined ||
+		value.trim() === "" ||
+		value.startsWith("--")
+	) {
 		return next;
 	}
 	const trimmed = value.trim();
