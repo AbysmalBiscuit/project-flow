@@ -6,6 +6,7 @@ import type { RunDetail } from "./domain.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
+import { RunCancel } from "./run-cancel.tsx";
 import { NotServed, RunStages, RunUsage } from "./run-checkpoint.tsx";
 import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
@@ -165,6 +166,9 @@ export function Page() {
 					: `${runPageLabel} ${data.key}`
 			}
 			subtitle={id}
+			{...(data === undefined || data === null
+				? {}
+				: { actions: <RunCancel run={data} /> })}
 			scroll
 		>
 			<div className={clsx(styles.body)}>

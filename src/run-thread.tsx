@@ -1,6 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 
-import type { RunStatusKind, ShownFactoryRun } from "./domain.ts";
+import { endedRunStatusKinds, type ShownFactoryRun } from "./domain.ts";
 import { commentTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { RunQuestions } from "./run-questions.tsx";
@@ -8,8 +8,6 @@ import { RunSteer } from "./run-steer.tsx";
 import { runMessageLabel, runThreadLabel } from "./terms.ts";
 import { colours, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-
-const endedKinds: ReadonlySet<RunStatusKind> = new Set(["failed", "succeeded"]);
 
 const styles = stylex.create({
 	text: {
@@ -28,7 +26,7 @@ const styles = stylex.create({
 export function RunThread({ run }: { run: ShownFactoryRun }) {
 	const thread = run.thread ?? [];
 	const questions = run.questions ?? [];
-	const live = !endedKinds.has(run.statusKind);
+	const live = !endedRunStatusKinds.some((kind) => kind === run.statusKind);
 	if (thread.length === 0 && questions.length === 0 && !live) {
 		return null;
 	}

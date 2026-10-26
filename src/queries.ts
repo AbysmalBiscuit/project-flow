@@ -424,6 +424,29 @@ export function useSteerRun(run: string) {
 	});
 }
 
+export function useCancelRun(run: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (): Promise<void> => {
+			const response = await fetch(
+				`/api/factory-runs/${encodeURIComponent(run)}/cancel`,
+				{ method: "POST" },
+			);
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Cancel failed");
+			}
+		},
+		onSuccess: () => {
+			void queries.invalidateQueries(pageQuery.run(run));
+			void queries.invalidateQueries(pageQuery.needsYou);
+			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
 let storedSeeded = false;
 
 function pollUpdatedAt(value: unknown): number {

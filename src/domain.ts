@@ -143,6 +143,12 @@ export type RunUsage = {
 	total: TurnUsage;
 };
 
+/** The run statuses of a run that has ended. Lev can cancel or steer a run in any other status. */
+export const endedRunStatusKinds = [
+	"failed",
+	"succeeded",
+] as const satisfies readonly RunStatusKind[];
+
 /** The run statuses whose agents can work: the app reads a run's agents only in these. */
 export const liveRunStatusKinds = [
 	"starting",
