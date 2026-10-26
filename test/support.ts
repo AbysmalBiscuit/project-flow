@@ -1036,6 +1036,9 @@ export function testIo(io: RunIo, options?: { first?: boolean }): RunIo {
 								}
 								await Bun.sleep(5);
 							}
+							// A start on a stored board shows no running poll, but its
+							// discovery still changes the Settings catalogue.
+							await settledSettings(line).catch(() => {});
 							stdout(line);
 						})();
 					},
@@ -1459,10 +1462,20 @@ export function linearFake(options: LinearFake = {}): Fetch {
 	};
 }
 
+/** Read the settings once no discovery runs, so the catalogue is the last poll's. */
+export function settledSettings<Body = unknown>(
+	base: string,
+): Promise<Body & { discovering?: true }> {
+	return readWhere<Body & { discovering?: true }>(
+		new URL("/api/settings", base),
+		(body) => body.discovering !== true,
+	);
+}
+
 export async function trackFound(base: string): Promise<void> {
-	const settings = (await (
-		await fetch(new URL("/api/settings", base))
-	).json()) as { projects: { ref: unknown }[] };
+	const settings = await settledSettings<{ projects: { ref: unknown }[] }>(
+		base,
+	);
 	const saved = await fetch(new URL("/api/settings", base), {
 		method: "PUT",
 		headers: { "content-type": "application/json" },
