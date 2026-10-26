@@ -1,13 +1,9 @@
 import * as stylex from "@stylexjs/stylex";
-import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useId, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 
-import { board } from "./board-styles.ts";
 import { Button, type IconName } from "./button.tsx";
-import { pageQuery } from "./queries.ts";
-import { tonedProps } from "./state-tone.ts";
-import { floatPanelLabel, projectGraphLabel } from "./terms.ts";
+import { floatPanelLabel } from "./terms.ts";
 import {
 	colours,
 	measure,
@@ -115,14 +111,6 @@ const panel = stylex.create({
 	},
 	pinEnd: {
 		alignSelf: "flex-end",
-	},
-	legend: {
-		maxWidth: measure.legendCap,
-	},
-	legendList: {
-		display: "flex",
-		flexDirection: "column",
-		gap: space.xs,
 	},
 });
 
@@ -239,44 +227,5 @@ export function FloatPanel({
 				</div>
 			</div>
 		</section>
-	);
-}
-
-export function Legend() {
-	const states = useQuery(pageQuery.settings).data?.states ?? [];
-	return (
-		<FloatPanel
-			id="graph-legend"
-			label={floatPanelLabel.legend}
-			icon="map"
-			edge="top"
-			layout={panel.legend}
-		>
-			<section
-				aria-label={projectGraphLabel.legend}
-				className={clsx(panel.legendList)}
-			>
-				<ul className={clsx(board.legendRow)}>
-					{states.map((state) => (
-						<li key={state.id} className={clsx(board.legendItem)}>
-							<span
-								{...tonedProps(state.colour, undefined, board.legendDot)}
-								data-state={state.id}
-							/>
-							{state.label}
-						</li>
-					))}
-				</ul>
-				<p className={clsx(board.legendNote, board.legendEdge)}>
-					<span className={clsx(board.legendSwatch)} />
-					{projectGraphLabel.arrow}
-				</p>
-				<p className={clsx(board.legendNote, board.legendEdge)}>
-					<span className={clsx(board.legendSwatch, board.legendSwatchDone)} />
-					{projectGraphLabel.done}
-				</p>
-				<p className={clsx(board.legendNote)}>{projectGraphLabel.dashed}</p>
-			</section>
-		</FloatPanel>
 	);
 }

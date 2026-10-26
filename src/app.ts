@@ -18,7 +18,8 @@ import {
 	type Fetch,
 } from "./fetch.ts";
 import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
-import { elkWorkerPath, forceWorkerPath } from "./graph-layout.ts";
+import { elkWorkerPath } from "./graph-core.ts";
+import { forceWorkerPath } from "./graph-layout.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
 import { attachGraphStates } from "./links.ts";
