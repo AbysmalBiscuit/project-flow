@@ -6,8 +6,12 @@ import {
 	ExternalLink,
 	ListFilter,
 	type LucideIcon,
+	Map as MapIcon,
+	Pin,
+	PinOff,
 	Search,
 	Shrink,
+	SlidersHorizontal,
 	X,
 } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
@@ -23,8 +27,12 @@ const icons = {
 	expand: Expand,
 	"external-link": ExternalLink,
 	filter: ListFilter,
+	map: MapIcon,
+	pin: Pin,
+	"pin-off": PinOff,
 	search: Search,
 	shrink: Shrink,
+	sliders: SlidersHorizontal,
 	x: X,
 } satisfies Record<string, LucideIcon>;
 
