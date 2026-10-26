@@ -38,11 +38,11 @@ import { parentChip, ticketGroups } from "./grouping.ts";
 import { displayedLaneName, doneTicketsForLane } from "./lanes.ts";
 import { focusChain } from "./links.ts";
 import { TicketPanel } from "./panel.tsx";
-import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
+import { PollAgeText, RefreshButton } from "./poll-freshness.tsx";
 import { FilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
-import { pageQuery, useSaveSettings } from "./queries.ts";
+import { pageQuery, useRefreshProject, useSaveSettings } from "./queries.ts";
 import { filterProjectReport } from "./report.ts";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
@@ -901,6 +901,7 @@ export function Page() {
 		clearFocus();
 	}, [name, clearFocus]);
 	const reportQuery = useQuery(pageQuery.project(name, "all"));
+	const refresh = useRefreshProject(name);
 	const overviewQuery = useQuery(pageQuery.overview);
 	const settingsQuery = useQuery(pageQuery.settings);
 	const fullReport = reportQuery.data;
@@ -1104,10 +1105,10 @@ export function Page() {
 							<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
 								<RefreshButton
 									id="project-refresh"
-									refreshing={polling || reportQuery.isFetching}
-									onRefresh={() =>
-										postRefresh(pageQuery.project(name, "all").queryKey)
+									refreshing={
+										polling || reportQuery.isFetching || refresh.isPending
 									}
+									onRefresh={() => refresh.mutate()}
 								/>
 								<FilterMenu
 									report={report}

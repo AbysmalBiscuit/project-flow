@@ -82,6 +82,8 @@ export type TicketList = {
 export type Tracker = {
 	/** Drop repo reads from the previous poll, including a poll that failed. */
 	beginPoll?: () => void;
+	/** Drop the cached reads of one project, so the next read of it asks the tracker again. */
+	forgetProject?: (project: TrackedProject) => void;
 	listTickets: (
 		project: TrackedProject,
 		since: Date | null,
