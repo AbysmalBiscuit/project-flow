@@ -259,6 +259,11 @@ export const panel = stylex.create({
 	factLink: {
 		color: colours.link,
 	},
+	openRun: {
+		color: colours.link,
+		fontSize: type.meta,
+		fontWeight: type.weight,
+	},
 	note: {
 		margin: `0 0 ${space.sm}`,
 		color: colours.inkSoft,

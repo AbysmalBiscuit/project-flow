@@ -18,6 +18,7 @@ import {
 	hub,
 	hubUrl,
 	json,
+	laptopSocket,
 	laptopUrl,
 	readAnswerOrSteer,
 	serve,
@@ -1007,6 +1008,7 @@ describe("factory runs", () => {
 					completedStages: ["start", "plan", "build", "review", "build"],
 					retries: { build: 1 },
 					visits: { start: 1, plan: 1, build: 2, review: 2 },
+					usageNotServed: true,
 					graph: null,
 				});
 			} finally {
@@ -1090,11 +1092,12 @@ describe("factory runs", () => {
 			}
 		});
 
-		test("a run whose factory gives no checkpoint answers 404", async () => {
+		test("a run whose factory answers the checkpoint read with 404 reports it as not served", async () => {
 			const app = await serveRuns(hub, [41]);
 			try {
 				const response = await checkpointOf(app.base);
 				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ notServed: true });
 			} finally {
 				await app.stop();
 			}
@@ -1169,7 +1172,7 @@ describe("factory runs", () => {
 				}
 			});
 
-			test("a factory that serves no turns route gives the run checkpoint with no usage", async () => {
+			test("a factory that answers the turns read with 404 gives the run checkpoint with no usage, and reports the usage as not served", async () => {
 				const app = await serveRuns(
 					{ ...hub, [checkpointPath]: hubCheckpoint },
 					[41],
@@ -1180,6 +1183,7 @@ describe("factory runs", () => {
 					const detail = (await response.json()) as RunCheckpoint;
 					expect(detail.stage).toBe("review");
 					expect(detail).not.toHaveProperty("usage");
+					expect(detail.usageNotServed).toBe(true);
 				} finally {
 					await app.stop();
 				}
@@ -1312,6 +1316,138 @@ describe("factory runs", () => {
 				);
 				const response = await agentsOf(app.base, "no-such-run");
 				expect(response.status).toBe(404);
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the run detail", () => {
+		const [running41, , , failed39] = hubRuns.runs;
+		if (running41 === undefined || failed39 === undefined) {
+			throw new Error("the hub runs fixture lost a run");
+		}
+
+		function detailOf(base: string, id: string): Promise<Response> {
+			return fetch(
+				new URL(`/api/factory-runs/${encodeURIComponent(id)}`, base),
+			);
+		}
+
+		test("a run on a box gives its facts, failure reason and workflow through the hub", async () => {
+			const graphPath = `/runs/${failed39.id}/graph`;
+			const app = await serveRuns({ ...hub, [graphPath]: runGraph }, [39]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 39) !== undefined,
+				);
+				const response = await detailOf(app.base, failed39.id);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toMatchObject({
+					id: failed39.id,
+					key: "39",
+					repo: "acme/widget",
+					statusKind: "failed",
+					box: "box-a",
+					factory: "work hub",
+					startedAt: "2026-10-25T12:00:09+00:00",
+					endedAt: "2026-10-25T12:30:00+00:00",
+					failureReason: "stage review failed",
+					workflow: runGraph.name,
+				});
+				expect(
+					app.requests
+						.filter((request) => request.url.endsWith("/graph"))
+						.map((request) => request.url),
+				).toEqual([`${hubUrl}${graphPath}`]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run on a standalone factory gives its facts and workflow from that factory", async () => {
+			const laptopRun = {
+				...boxRow(running41, "running"),
+				id: "20261025-141800-f7a8",
+				ticket: "43",
+			};
+			const app = await serveRuns(
+				hub,
+				[43],
+				{},
+				{
+					...daemon,
+					"/runs": { runs: [laptopRun] },
+					[`/runs/${laptopRun.id}/graph`]: runGraph,
+				},
+			);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 43) !== undefined,
+				);
+				const response = await detailOf(app.base, laptopRun.id);
+				expect(response.status).toBe(200);
+				const detail = await response.json();
+				expect(detail).toMatchObject({
+					id: laptopRun.id,
+					key: "43",
+					statusKind: "running",
+					box: "laptop",
+					factory: "laptop",
+					workflow: runGraph.name,
+				});
+				expect(detail).not.toHaveProperty("failureReason");
+				expect(
+					app.requests
+						.filter((request) => request.url.endsWith("/graph"))
+						.map((request) => request.unix),
+				).toEqual([laptopSocket]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("the run detail gives the last event of the run from the event stream", async () => {
+			const feed = new EventFeed();
+			const app = await serveRuns({ ...hub, "/events": feed }, [41]);
+			try {
+				await feed.connected(1);
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const [planStarted] = hubEvents;
+				feed.send(planStarted);
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.stage === "plan",
+				);
+				const response = await detailOf(app.base, running41.id);
+				expect(await response.json()).toMatchObject({
+					stage: "plan",
+					lastEvent: {
+						event: "stage.started",
+						stage: "plan",
+						at: "2026-10-25T14:21:03.512+00:00",
+					},
+				});
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that no factory reports answers 404", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const response = await detailOf(app.base, "no-such-run");
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ missing: true });
 			} finally {
 				await app.stop();
 			}

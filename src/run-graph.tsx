@@ -227,8 +227,8 @@ function GraphPane({ graph }: { graph: Graph }) {
 /** The run's workflow graph, with the current, completed and retried stages marked from the run checkpoint. */
 export function RunGraph({ run }: { run: ShownFactoryRun }) {
 	const { data } = useQuery(pageQuery.checkpoint(run));
-	const graph = data?.graph;
-	if (graph === undefined || graph === null) {
+	const graph = typeof data === "object" ? data.graph : null;
+	if (graph === null) {
 		return null;
 	}
 	return (
