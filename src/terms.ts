@@ -196,6 +196,14 @@ export const runQuestionsLabel = "Run questions";
 
 export const steerLabel = "Steer the run";
 
+export const runCancelCopy = {
+	action: "Cancel run",
+	pending: "Cancelling",
+	title: "Cancel the run?",
+	body: "The factory stops the run and its agents now.",
+	dismiss: "Keep running",
+} as const;
+
 export const runThreadLabel = "Run thread";
 
 /** The verb after the sender of each run thread message. */

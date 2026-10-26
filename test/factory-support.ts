@@ -31,10 +31,11 @@ export type FactoryRequest = {
 const writePaths = [
 	/^\/runs\/[^/]+\/questions\/[^/]+\/answer$/,
 	/^\/runs\/[^/]+\/steer$/,
+	/^\/runs\/[^/]+\/cancel$/,
 ];
 
-/** True for a read, and for an answer or steer POST: the only writes that the app may send to a factory. */
-export function readAnswerOrSteer(request: FactoryRequest): boolean {
+/** True for a read, and for an answer, steer or cancel POST: the only writes that the app may send to a factory. */
+export function readOrRunWrite(request: FactoryRequest): boolean {
 	const { pathname } = new URL(request.url);
 	return (
 		request.method === "GET" ||
@@ -43,6 +44,7 @@ export function readAnswerOrSteer(request: FactoryRequest): boolean {
 	);
 }
 
+/** The answer to each path. A function answer gives its body again on each request. */
 export type Answers = Record<string, unknown | null>;
 
 /** A hub `GET /events` stream that the test writes frames to and drops. */
@@ -125,7 +127,8 @@ export function factoryFetch(
 		if (answers === "down") {
 			throw new TypeError("Unable to connect");
 		}
-		const body = answers[url.pathname];
+		const answer = answers[url.pathname];
+		const body = typeof answer === "function" ? answer() : answer;
 		if (body instanceof EventFeed) {
 			return body.answer(init?.signal);
 		}
