@@ -65,8 +65,16 @@ function jsonOrNull(text: string): unknown {
 	}
 }
 
+/** The hub `GET /events` frames of an SSE body. */
+export function eventFrames(body: ReadableStream<Uint8Array>) {
+	return sseFrames(body, eventFrame);
+}
+
 /** The frames of an SSE body. A frame that does not parse is left out. */
-export async function* eventFrames(body: ReadableStream<Uint8Array>) {
+export async function* sseFrames<T>(
+	body: ReadableStream<Uint8Array>,
+	schema: z.ZodType<T>,
+) {
 	const decoder = new TextDecoder();
 	let buffer = "";
 	for await (const bytes of body) {
@@ -80,7 +88,7 @@ export async function* eventFrames(body: ReadableStream<Uint8Array>) {
 					line.startsWith("data:") ? [line.slice("data:".length).trim()] : [],
 				)
 				.join("\n");
-			const parsed = eventFrame.safeParse(jsonOrNull(data));
+			const parsed = schema.safeParse(jsonOrNull(data));
 			if (parsed.success) {
 				yield parsed.data;
 			}

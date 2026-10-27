@@ -26,6 +26,7 @@ export type FactoryRequest = {
 	unix: string | null;
 	method: string;
 	body?: string;
+	lastEventId?: string;
 };
 
 const writePaths = [
@@ -67,9 +68,14 @@ export class EventFeed {
 		});
 	}
 
+	/** Send one frame, with an SSE `id` line when the frame has an `id`. */
 	send(frame: unknown): void {
+		const id =
+			typeof frame === "object" && frame !== null && "id" in frame
+				? `id: ${String(frame.id)}\n`
+				: "";
 		this.#open?.enqueue(
-			new TextEncoder().encode(`data: ${JSON.stringify(frame)}\n\n`),
+			new TextEncoder().encode(`${id}data: ${JSON.stringify(frame)}\n\n`),
 		);
 	}
 
@@ -118,11 +124,13 @@ export function factoryFetch(
 		if (answers === undefined) {
 			return other(input, init);
 		}
+		const lastEventId = new Headers(init?.headers).get("last-event-id");
 		requests.push({
 			url: url.href,
 			unix,
 			method: init?.method ?? "GET",
 			...(typeof init?.body === "string" ? { body: init.body } : {}),
+			...(lastEventId === null ? {} : { lastEventId }),
 		});
 		if (answers === "down") {
 			throw new TypeError("Unable to connect");
