@@ -7,7 +7,7 @@ import { Loading } from "./loading.tsx";
 import { NeedsItem } from "./needs-item.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { TicketPanel } from "./panel.tsx";
-import { PollAgeText, postRefresh, RefreshButton } from "./poll-freshness.tsx";
+import { postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { pageQuery } from "./queries.ts";
 import { Segment } from "./segment.tsx";
 import {
@@ -223,15 +223,11 @@ function NeedsList({
 	return (
 		<PageFrame
 			title={navLabel.needsYou}
-			subtitle={
-				<>
-					{summaryLine(items)}
-					<PollAgeText queryKey={pageQuery.overview.queryKey} />
-				</>
-			}
+			subtitle={summaryLine(items)}
 			actions={
 				<RefreshButton
 					id="needs-refresh"
+					queryKey={pageQuery.overview.queryKey}
 					refreshing={refreshing}
 					onRefresh={() => postRefresh(pageQuery.needsYou.queryKey)}
 				/>
