@@ -15,6 +15,7 @@ import type { RunListRow } from "./run-list.ts";
 import { RunDot } from "./run-marks.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
+	costLabel,
 	hubQueueLabel,
 	navLabel,
 	runResultLabel,
@@ -53,6 +54,53 @@ function choicesOf(rows: RunListRow[], value: (row: RunListRow) => string) {
 /** No picked value lets every row through. */
 function picks(picked: readonly string[], value: string | undefined) {
 	return picked.length === 0 || (value !== undefined && picked.includes(value));
+}
+
+type SortColumn = "start" | "cost";
+type SortDirection = "asc" | "desc";
+
+const sortColumns: readonly SortColumn[] = ["start", "cost"];
+
+function isSortColumn(column: string): column is SortColumn {
+	return sortColumns.some((item) => item === column);
+}
+
+function sortValue(row: RunListRow, column: SortColumn): number | undefined {
+	return column === "start"
+		? Date.parse(row.startedAt ?? row.submittedAt)
+		: row.usageTotals?.costUsd;
+}
+
+/** Rows without a value go last in either direction. Ties keep the order of `rows`. */
+function sortRuns(
+	rows: RunListRow[],
+	column: SortColumn,
+	direction: SortDirection,
+): RunListRow[] {
+	return rows.toSorted((left, right) => {
+		const leftValue = sortValue(left, column);
+		const rightValue = sortValue(right, column);
+		if (leftValue === undefined || rightValue === undefined) {
+			return (
+				(leftValue === undefined ? 1 : 0) - (rightValue === undefined ? 1 : 0)
+			);
+		}
+		return direction === "asc"
+			? leftValue - rightValue
+			: rightValue - leftValue;
+	});
+}
+
+function SortMark({ direction }: { direction: SortDirection }) {
+	return (
+		<svg
+			viewBox="0 0 8 8"
+			aria-hidden="true"
+			className={clsx(board.sortMark, direction === "desc" && board.sortDown)}
+		>
+			<path d="M1 5.5 4 2.5 7 5.5" fill="none" stroke="currentColor" />
+		</svg>
+	);
 }
 
 function matches(row: RunListRow, search: string): boolean {
@@ -119,6 +167,11 @@ function RunRow({ run }: { run: RunListRow }) {
 				{runTime(run.startedAt)}
 			</td>
 			<td className={clsx(board.rowCell, styles.nowrap)}>{elapsed(run)}</td>
+			<td className={clsx(board.rowCell, styles.nowrap)}>
+				{run.usageTotals === undefined
+					? null
+					: costLabel(run.usageTotals.costUsd)}
+			</td>
 			<td className={clsx(board.rowCell)}>
 				{run.pull === undefined ? null : (
 					<a
@@ -141,7 +194,9 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 	const [project, setProject] = useState<string[]>([]);
 	const [factory, setFactory] = useState<string[]>([]);
 	const [search, setSearch] = useState("");
-	const shown = rows.filter(
+	const [column, setColumn] = useState<SortColumn>("start");
+	const [direction, setDirection] = useState<SortDirection>("desc");
+	const filtered = rows.filter(
 		(row) =>
 			picks(status, row.statusKind) &&
 			picks(result, row.result) &&
@@ -149,6 +204,7 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 			picks(factory, row.factory) &&
 			matches(row, search),
 	);
+	const shown = sortRuns(filtered, column, direction);
 	return (
 		<>
 			<div className={clsx(needs.toolbar)}>
@@ -212,11 +268,56 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 					<table className={clsx(board.rows)}>
 						<thead>
 							<tr>
-								{Object.entries(runsColumnLabel).map(([key, label]) => (
-									<th key={key} className={clsx(board.headerCell)} scope="col">
-										{label}
-									</th>
-								))}
+								{Object.entries(runsColumnLabel).map(([key, label]) => {
+									if (!isSortColumn(key)) {
+										return (
+											<th
+												key={key}
+												className={clsx(board.headerCell)}
+												scope="col"
+											>
+												{label}
+											</th>
+										);
+									}
+									const active = column === key;
+									return (
+										<th
+											key={key}
+											className={clsx(board.headerCell)}
+											scope="col"
+											aria-sort={
+												active
+													? direction === "asc"
+														? "ascending"
+														: "descending"
+													: "none"
+											}
+										>
+											<button
+												type="button"
+												className={clsx(board.sort, shell.buttonFocus)}
+												data-column={key}
+												aria-label={
+													active
+														? `Sort by ${label}, ${direction === "asc" ? "ascending" : "descending"}`
+														: `Sort by ${label}`
+												}
+												onClick={() => {
+													if (active) {
+														setDirection(direction === "asc" ? "desc" : "asc");
+														return;
+													}
+													setColumn(key);
+													setDirection("desc");
+												}}
+											>
+												{label}
+												{active ? <SortMark direction={direction} /> : null}
+											</button>
+										</th>
+									);
+								})}
 							</tr>
 						</thead>
 						<tbody>

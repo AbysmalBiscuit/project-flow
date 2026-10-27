@@ -203,7 +203,7 @@ Lev starts a new workcell run on the ticket of a blocked or failed run, from the
 _Avoid_: Retry (when a whole run is meant), rerun, resume (when a restart is meant)
 
 **Runs list**:
-The table of every workcell run that the factories report, with search and filters. Each row links to its run page.
+The table of every workcell run that the factories report, with search and filters. Each row links to its run page. Each row shows the cost of the run from the usage totals in `GET /runs`, and Lev can sort the rows by start or by cost.
 _Avoid_: Run history, run log
 
 **Ticket filter**:

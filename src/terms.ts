@@ -289,6 +289,7 @@ export const runsColumnLabel = {
 	box: runFactLabel.box,
 	start: "Start",
 	duration: "Duration",
+	cost: "Cost",
 	pr: runFactLabel.pr,
 } as const;
 
