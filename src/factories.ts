@@ -43,6 +43,7 @@ import {
 	statusRow,
 } from "./factory-run-rows.ts";
 import { runSandboxReader } from "./factory-run-sandbox.ts";
+import { runSourceReader } from "./factory-run-source.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 
@@ -560,6 +561,7 @@ export function factoryReader(
 		events: runEventsReader({ fetchImpl, signal, statusRowOf }),
 		...runArtifactsReader({ fetchImpl, signal, statusRowOf }),
 		sandbox: runSandboxReader({ fetchImpl, signal, statusRowOf }),
+		...runSourceReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
 }

@@ -158,6 +158,14 @@ export type RunSandbox = {
 	changes: string[];
 };
 
+/** The graph files that a run loaded from its package, as the run loaded them. */
+export type RunSource = {
+	/** The path of the entry graph in the package, such as `pre_pr.dot`. */
+	entry: string;
+	/** The entry graph first, then each child graph that it calls, by its path in the package. */
+	graphs: { path: string; text: string }[];
+};
+
 /** A workcell run with the facts that its run page shows. */
 export type RunDetail = FactoryRun & {
 	/** The name of the run's workflow graph. */
