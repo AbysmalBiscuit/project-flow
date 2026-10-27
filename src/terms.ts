@@ -57,6 +57,8 @@ export const openParentLabel = "Open";
 
 export const projectPageLabel = "Project page";
 
+export const openProjectLabel = "Open project";
+
 export function factoryTokenFallbackLabel(report: FactoryTokenReport): string {
 	if (report.cause === "mint failed") {
 		const status =

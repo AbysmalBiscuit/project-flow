@@ -25,6 +25,7 @@ import {
 } from "./card-chips.tsx";
 import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
+import { useTicketMenu } from "./context-menu.tsx";
 import type {
 	OutsideParent,
 	ProjectReport,
@@ -301,6 +302,7 @@ function OutsideParentCard({
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	const known = parent.state;
+	const menu = useTicketMenu(parent.tracked ? parent.project : undefined);
 	const styles = [
 		board.card,
 		board.cardFocus,
@@ -318,6 +320,7 @@ function OutsideParentCard({
 				data-outside-parent={parent.key}
 				data-state={known ?? "unknown"}
 				onClick={() => onOpenOutside(parent)}
+				{...menu}
 			>
 				<TicketCardBody
 					ticket={{ key: parent.key, title: parent.title, blockers: [] }}
@@ -724,7 +727,9 @@ function TableRow({
 								key={blocker.key}
 								label={sameProject ? shortKey(blocker.key) : blocker.key}
 								ticketKey={blocker.key}
-								{...(sameProject ? {} : { outside: true })}
+								{...(sameProject
+									? {}
+									: { outside: true, project: blocker.project })}
 								onOpen={sameProject ? onOpen : () => onOpenOutside(blocker)}
 							/>
 						);

@@ -1,6 +1,7 @@
 import { createContext } from "react";
 
 import { board } from "./board-styles.ts";
+import { useTicketMenu } from "./context-menu.tsx";
 import type { OutsideParent, TicketRelation, TicketView } from "./domain.ts";
 import { foldKey, shortKey } from "./ticket-key.ts";
 import { shell } from "./ui-styles.ts";
@@ -10,15 +11,19 @@ export function Chip({
 	label,
 	ticketKey,
 	outside,
+	project,
 	hierarchy,
 	onOpen,
 }: {
 	label: string;
 	ticketKey?: string;
 	outside?: boolean;
+	/** The tracked project of an outside ticket, which its context menu opens. */
+	project?: string | undefined;
 	hierarchy?: boolean;
 	onOpen?: (key: string) => void;
 }) {
+	const menu = useTicketMenu(outside ? project : undefined);
 	if (ticketKey === undefined || onOpen === undefined) {
 		return (
 			<span
@@ -42,6 +47,7 @@ export function Chip({
 				shell.buttonFocus,
 			)}
 			data-chip={ticketKey}
+			{...menu}
 			onClick={(event) => {
 				event.stopPropagation();
 				onOpen(ticketKey);
@@ -113,6 +119,7 @@ export function BlockerChips({
 						: {
 								ticketKey: blocker.key,
 								outside: true,
+								project: blocker.project,
 								onOpen: () => open.onOpenOutside(blocker),
 							})}
 				/>

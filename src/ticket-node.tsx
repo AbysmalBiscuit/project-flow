@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { createContext, useContext } from "react";
 
 import { board } from "./board-styles.ts";
+import { useTicketMenu } from "./context-menu.tsx";
 import type { FlowTicket } from "./graph-flow.ts";
 import { MeasuredNode } from "./graph-node-size.tsx";
 import { CardHandles, type CardProps } from "./graph-view.tsx";
@@ -90,6 +91,11 @@ export function TicketNode({ id, data }: CardProps<TicketCard>) {
 	const key = data.ticket.key;
 	const known = data.ticket.state;
 	const laneColour = useLaneColour();
+	const menu = useTicketMenu(
+		data.ticket.outside && data.ticket.tracked
+			? data.ticket.project
+			: undefined,
+	);
 	const styles = [
 		board.ticketNode,
 		board.cardFocus,
@@ -110,6 +116,7 @@ export function TicketNode({ id, data }: CardProps<TicketCard>) {
 				data-outside={data.ticket.outside ? "true" : "false"}
 				data-state={known ?? "unknown"}
 				aria-pressed={data.open}
+				{...menu}
 			>
 				<MeasuredNode id={id} kind="ticket" />
 				<CardHandles />
