@@ -106,6 +106,15 @@ export type RunEvent = {
 	at?: string;
 };
 
+/** One event of the Events tab: a box event of a run, with the id that the factory gives it. */
+export type RunLogEvent = Required<RunEvent> & { id: string; data: unknown };
+
+/**
+ * Why the event stream of a run ended: the run ended, the factory does not serve
+ * the route, or the factory stopped answering.
+ */
+export type RunEventsEnd = { reason: "ended" | "not served" | "unreachable" };
+
 /** A workcell run with the facts that its run page shows. */
 export type RunDetail = FactoryRun & {
 	/** The name of the run's workflow graph. */

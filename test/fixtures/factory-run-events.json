@@ -1,0 +1,79 @@
+[
+	{
+		"run_id": "20261025-140102-a1b2",
+		"seq": 1,
+		"id": "0b6f2c1d9e8a4f7b8c3d2e1f0a9b8c01",
+		"recorded_at": "2026-10-25T14:01:10.204+00:00",
+		"item": {
+			"event": "workflow.started",
+			"node_path": "",
+			"data": { "name": "manage", "goal": "Ticket 41" }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"seq": 2,
+		"id": "1c7a3d2e0f9b4a8c9d4e3f2a1b0c9d02",
+		"recorded_at": "2026-10-25T14:01:10.311+00:00",
+		"item": {
+			"event": "stage.started",
+			"node_path": "start",
+			"data": { "name": "start", "index": 0 }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"seq": 3,
+		"id": "2d8b4e3f1a0c4b9d0e5f4a3b2c1d0e03",
+		"recorded_at": "2026-10-25T14:01:10.402+00:00",
+		"item": {
+			"event": "stage.completed",
+			"node_path": "start",
+			"data": { "name": "start", "index": 0, "duration": 0.09 }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"seq": 4,
+		"id": "3e9c5f4a2b1d4c0e1f6a5b4c3d2e1f04",
+		"recorded_at": "2026-10-25T14:01:10.455+00:00",
+		"item": {
+			"event": "checkpoint.saved",
+			"node_path": "start",
+			"data": { "current_node": "plan" }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"seq": 5,
+		"id": "4f0d6a5b3c2e4d1f2a7b6c5d4e3f2a05",
+		"recorded_at": "2026-10-25T14:01:10.517+00:00",
+		"item": {
+			"event": "stage.started",
+			"node_path": "plan",
+			"data": { "name": "plan", "index": 1 }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"seq": 6,
+		"id": "5a1e7b6c4d3f4e2a3b8c7d6e5f4a3b06",
+		"recorded_at": "2026-10-25T14:01:12.930+00:00",
+		"item": {
+			"event": "worker.turn_started",
+			"node_path": "plan",
+			"data": { "session": "plan-7f3e" }
+		}
+	},
+	{
+		"run_id": "20261025-140102-a1b2",
+		"seq": 7,
+		"id": "6b2f8c7d5e4a4f3b4c9d8e7f6a5b4c07",
+		"recorded_at": "2026-10-25T14:20:58.164+00:00",
+		"item": {
+			"event": "worker.turn_ended",
+			"node_path": "plan",
+			"data": { "session": "plan-7f3e" }
+		}
+	}
+]

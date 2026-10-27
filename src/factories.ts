@@ -29,6 +29,7 @@ import {
 	runDetailReader,
 	stagePath,
 } from "./factory-run-detail.ts";
+import { runEventsReader } from "./factory-run-events.ts";
 import { runPullReader } from "./factory-run-pulls.ts";
 import {
 	factoryRuns,
@@ -487,6 +488,7 @@ export function factoryReader(
 			stages,
 			lastEvents,
 		}),
+		events: runEventsReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
 }

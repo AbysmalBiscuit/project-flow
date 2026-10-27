@@ -158,6 +158,15 @@ export type FactoryReader = {
 	 */
 	agents: (runId: string) => Promise<RunAgent[] | null>;
 	/**
+	 * `GET /runs/{id}/events` of the hub that reports the run, or else of its box, as server-sent events.
+	 * Null when no factory reported the run.
+	 */
+	events: (
+		runId: string,
+		lastEventId: string | null,
+		client: AbortSignal,
+	) => Response | null;
+	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
 	 * Answers, steers and cancels are the only write requests that the app sends to a factory.
 	 */
