@@ -311,8 +311,8 @@ async function withTrackedBoardAndRepo(
 	}
 }
 
-const beforeClose = "2026-10-20T21:40:00.000Z";
-const afterClose = "2026-10-21T09:00:00.000Z";
+const beforeClose = "2026-10-20T21:50:00.000Z";
+const afterClose = "2026-10-20T21:55:00.000Z";
 
 describe("a GitHub issue that closes after the app stored it as open", () => {
 	test("shows in Done after the next poll, also when a tracked board lists it", async () => {
@@ -386,7 +386,7 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 				};
 				const requests: TrackerRequest[] = [];
 				const app = await startApp(paths, tracker, requests, {
-					now: new Date("2026-10-23T14:00:00.000Z"),
+					now: new Date("2026-10-23T14:20:00.000Z"),
 				});
 				try {
 					const before = copiesOf(await app.overview(), 391);
@@ -395,11 +395,11 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 					tracker.repo = [closed380, open391(closedBlockerOf391)];
 					tracker.board = [closed380, open391(closedBlockerOf391)];
 					expect(
-						copiesOf(await app.refresh("2026-10-23T15:00:00.000Z"), 391),
+						copiesOf(await app.refresh("2026-10-23T14:28:00.000Z"), 391),
 					).toEqual([{ project: boardTitle, lane: "Backlog", blockers: [] }]);
 					expect(repoReadSince(requests)).toEqual([
 						null,
-						githubSince("2026-10-23T14:00:00.000Z"),
+						githubSince("2026-10-23T14:20:00.000Z"),
 					]);
 				} finally {
 					await app.stop();
@@ -459,7 +459,7 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 						updatedAt: openParent.updated_at,
 					});
 					tracker.repo = [closedParent, ...subIssues];
-					await app.refresh("2026-10-25T09:00:00.000Z");
+					await app.refresh("2026-10-25T08:45:00.000Z");
 					expect(await projectCopy(app.base, 1)).toMatchObject({
 						state: "done",
 						updatedAt: closedParent.updated_at,
