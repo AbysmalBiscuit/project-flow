@@ -384,6 +384,8 @@ export type TicketView = {
 	subTicketsDone?: number;
 	/** True when the ticket has sub-tickets and every descendant is done or dropped. */
 	startsCollapsed?: true;
+	/** The view is an unlinked PR, not a ticket. */
+	unlinkedPr?: true;
 };
 
 export type CrossProjectBlocker = {

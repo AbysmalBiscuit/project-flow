@@ -65,6 +65,7 @@ export function projectReport(
 	needs: NeedsYouItem[] = [],
 	runByKey: Map<string, LiveRun> = new Map(),
 	outsideParents: OutsideParent[] = [],
+	unlinkedPrs: TicketView[] = [],
 ): ProjectReport {
 	const placed = placeTickets(
 		tickets,
@@ -93,10 +94,10 @@ export function projectReport(
 				(ticket.state === "done" || ticket.state === "dropped")
 			);
 		}),
-		...counts.unlinkedPrs.map((pull) => ({
-			key: pullKey(pull),
+		...unlinkedPrs.map((pull) => ({
+			key: pull.key,
 			title: pull.title,
-			state: "inProgress" as const,
+			state: pull.state,
 			blockers: [],
 		})),
 	];
@@ -119,7 +120,7 @@ export function projectReport(
 				: [[foldKey(item.ticket.key), item] as const],
 		),
 	);
-	const boardTickets = counts.tickets.map((view) => {
+	const ticketViews = counts.tickets.map((view) => {
 		const relations =
 			view.key === null ? undefined : relationsByKey.get(foldKey(view.key));
 		const pull =
@@ -157,6 +158,14 @@ export function projectReport(
 				: {}),
 		};
 	});
+	const boardTickets = [
+		...ticketViews,
+		...unlinkedPrs.map((view) =>
+			view.key !== null && needsKeys.has(foldKey(view.key))
+				? { ...view, needsYou: true as const }
+				: view,
+		),
+	];
 	const doneTickets = boardTickets.filter(
 		(ticket) => ticket.statusType === "done",
 	);

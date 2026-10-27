@@ -78,6 +78,9 @@ export function parentChipLabel(key: string): string {
 	return `Parent ${key}`;
 }
 
+/** The group of the unlinked PR cards on the board, the graph and the table. */
+export const unlinkedPrGroup = "Unlinked PRs";
+
 export function pullRowLabel(ref: string): string {
 	return `PR: ${ref}`;
 }

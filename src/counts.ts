@@ -21,6 +21,7 @@ import type {
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import {
+	appLaneNames,
 	categoryColours,
 	emptyStatusTypes,
 	laneForTicket,
@@ -45,9 +46,49 @@ import {
 	shownFactoryRun,
 	shownTicket,
 } from "./shown-ticket.ts";
+import { unlinkedPrGroup } from "./terms.ts";
 import { asRef, known, parseKey } from "./ticket-index.ts";
 import { foldKey, pullKey, sameTicketKey, ticketRefId } from "./ticket-key.ts";
 import { progressNamesPull, runFor } from "./workcell.ts";
+
+/** The state of an unlinked PR from its review cycle, as for the PR of a ticket. */
+function unlinkedPrState(
+	pull: PullRequest,
+	expectedBots: Map<string, KnownBot[]>,
+	mergesAlone: boolean,
+): "inProgress" | "inReview" | "awaitingMerge" {
+	const review = reviewState([pull], expectedBots, []).state;
+	if (review === null) {
+		return "inProgress";
+	}
+	return review === "awaitingMerge" && mergesAlone ? "inReview" : review;
+}
+
+/** The card of an unlinked PR, in the lane of its state and in the "Unlinked PRs" group. */
+function unlinkedPrView(
+	pull: PullRequest,
+	expectedBots: Map<string, KnownBot[]>,
+	mergesAlone: boolean,
+	states: Configuration["states"],
+): TicketView {
+	const state = unlinkedPrState(pull, expectedBots, mergesAlone);
+	return {
+		key: pullKey(pull),
+		title: pull.title,
+		state,
+		blockers: [],
+		lane:
+			stateOfTicket(states, {}, [], state, state)?.label ?? appLaneNames[state],
+		statusType: state,
+		pull: pullKey(pull),
+		pullUrl: pull.url,
+		unlinkedPr: true,
+		workstream: unlinkedPrGroup,
+		workstreamKey: unlinkedPrGroup,
+		theme: unlinkedPrGroup,
+		themeGroup: unlinkedPrGroup,
+	};
+}
 
 export function projectCounts(
 	name: string,
@@ -270,6 +311,14 @@ export function projectCounts(
 		workcellPulls,
 		key,
 	);
+	const unlinkedViews = unlinked.map((pull) =>
+		unlinkedPrView(
+			pull,
+			expectedBots,
+			mergesOnItsOwn([pull], name, key, autoMerge, workcellPulls),
+			mappings.states,
+		),
+	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
@@ -297,6 +346,7 @@ export function projectCounts(
 		needsYouItemsForProject,
 		runByKey,
 		outsideParents(tickets, graph.groups),
+		unlinkedViews,
 	);
 	return {
 		counts: project,

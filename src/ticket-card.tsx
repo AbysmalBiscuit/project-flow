@@ -31,6 +31,7 @@ type CardTicket = Pick<
 	| "factoryRun"
 	| "parent"
 	| "subTickets"
+	| "unlinkedPr"
 >;
 
 /**
@@ -70,7 +71,7 @@ export function TicketCardBody({
 				className={clsx(board.meta, besideToggle && board.metaBesideToggle)}
 			>
 				<span className={clsx(board.refs)}>
-					{keyLabel === null ? null : (
+					{keyLabel === null || ticket.unlinkedPr ? null : (
 						<span className={clsx(board.key)}>{keyLabel}</span>
 					)}
 					{ticket.pull === undefined ? null : (
