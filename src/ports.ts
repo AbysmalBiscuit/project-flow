@@ -184,6 +184,7 @@ export type GithubTracker = Tracker & {
 
 export type Store = {
 	replaceTickets: (rows: Snapshot[]) => void;
+	/** The stored rows, the same objects until the next write to them. Callers do not change them. */
 	readTickets: () => Snapshot[];
 	mergeTickets: (rows: Snapshot[]) => void;
 	lastGoodPollAt: (project: ProjectRef) => Date | null;
@@ -204,8 +205,6 @@ export type Store = {
 	recordSeededIds: (ids: string[]) => void;
 	/** Drop ids that must not notify again. */
 	forgetSeededIds: (ids: string[]) => void;
-	/** A number that changes on each write to the tickets, polls or errors. */
-	revision: () => number;
 };
 
 export type Change = {

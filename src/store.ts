@@ -17,55 +17,74 @@ type StoredPayload = {
 	listedEmpty?: boolean;
 };
 
+type StoredRow = {
+	snapshot_key: string;
+	name: string;
+	tracker: Snapshot["tracker"];
+	payload: string;
+};
+
+/** The payload text of each row that a store read or wrote. */
+const payloadText = new WeakMap<Snapshot, string>();
+
+function fromStored(row: StoredRow): Snapshot {
+	const payload = JSON.parse(row.payload) as StoredPayload;
+	const snapshot = {
+		key: row.snapshot_key.slice(row.snapshot_key.indexOf(":") + 1),
+		name: row.name,
+		tracker: row.tracker,
+		tickets: payload.tickets,
+		pulls: payload.pulls,
+		branches: payload.branches,
+		startedKeys: payload.startedKeys,
+		...(payload.board === undefined ? {} : { board: payload.board }),
+		...(payload.owner === undefined ? {} : { owner: payload.owner }),
+		...(payload.number === undefined ? {} : { number: payload.number }),
+		...(payload.listedEmpty === undefined
+			? {}
+			: { listedEmpty: payload.listedEmpty }),
+	};
+	payloadText.set(snapshot, row.payload);
+	return snapshot;
+}
+
 function readRows(db: Database): Snapshot[] {
 	const rows = db
 		.query("select snapshot_key, name, tracker, payload from snapshots")
-		.all() as {
-		snapshot_key: string;
-		name: string;
-		tracker: Snapshot["tracker"];
-		payload: string;
-	}[];
-	return rows.map((row) => {
-		const payload = JSON.parse(row.payload) as StoredPayload;
-		return {
-			key: row.snapshot_key.slice(row.snapshot_key.indexOf(":") + 1),
-			name: row.name,
-			tracker: row.tracker,
-			tickets: payload.tickets,
-			pulls: payload.pulls,
-			branches: payload.branches,
-			startedKeys: payload.startedKeys,
-			...(payload.board === undefined ? {} : { board: payload.board }),
-			...(payload.owner === undefined ? {} : { owner: payload.owner }),
-			...(payload.number === undefined ? {} : { number: payload.number }),
-			...(payload.listedEmpty === undefined
-				? {}
-				: { listedEmpty: payload.listedEmpty }),
-		};
-	});
+		.all() as StoredRow[];
+	return rows.map(fromStored);
 }
 
-function writeRow(db: Database, row: Snapshot): void {
+function snapshotKey(row: Snapshot): string {
+	return `${listedRef(row).kind}:${row.key}`;
+}
+
+function toStored(row: Snapshot): StoredRow {
+	return {
+		snapshot_key: snapshotKey(row),
+		name: row.name,
+		tracker: row.tracker,
+		payload:
+			payloadText.get(row) ??
+			JSON.stringify({
+				tickets: row.tickets,
+				pulls: row.pulls,
+				branches: row.branches,
+				startedKeys: row.startedKeys,
+				...(row.board === undefined ? {} : { board: row.board }),
+				...(row.owner === undefined ? {} : { owner: row.owner }),
+				...(row.number === undefined ? {} : { number: row.number }),
+				...(row.listedEmpty === undefined
+					? {}
+					: { listedEmpty: row.listedEmpty }),
+			}),
+	};
+}
+
+function writeRow(db: Database, row: StoredRow): void {
 	db.query(
 		"insert into snapshots (snapshot_key, name, tracker, payload) values (?, ?, ?, ?) on conflict(snapshot_key) do update set name = excluded.name, tracker = excluded.tracker, payload = excluded.payload",
-	).run(
-		`${listedRef(row).kind}:${row.key}`,
-		row.name,
-		row.tracker,
-		JSON.stringify({
-			tickets: row.tickets,
-			pulls: row.pulls,
-			branches: row.branches,
-			startedKeys: row.startedKeys,
-			...(row.board === undefined ? {} : { board: row.board }),
-			...(row.owner === undefined ? {} : { owner: row.owner }),
-			...(row.number === undefined ? {} : { number: row.number }),
-			...(row.listedEmpty === undefined
-				? {}
-				: { listedEmpty: row.listedEmpty }),
-		}),
-	);
+	).run(row.snapshot_key, row.name, row.tracker, row.payload);
 }
 
 const busyTimeoutMs = 5_000;
@@ -138,34 +157,60 @@ export function sqliteStore(path: string): {
 			headers text not null
 		)
 	`);
-	const viewTables = new Set([
-		"snapshots",
-		"project_polls",
-		"project_errors",
-		"fetch_status",
-	]);
-	let revision = 0;
-	const countViewChange = (_db: Database, table: string) => {
-		if (viewTables.has(table)) {
-			revision += 1;
+	let snapshotWrites = 0;
+	const countSnapshotWrite = (_db: Database, table: string) => {
+		if (table === "snapshots") {
+			snapshotWrites += 1;
 		}
 	};
-	db.onInsert = countViewChange;
-	db.onUpdate = countViewChange;
-	db.onDelete = countViewChange;
+	db.onInsert = countSnapshotWrite;
+	db.onUpdate = countSnapshotWrite;
+	db.onDelete = countSnapshotWrite;
+	let readAt: { snapshotWrites: number; rows: Snapshot[] } | null = null;
 	return {
 		store: {
 			replaceTickets(rows) {
+				const held =
+					readAt?.snapshotWrites === snapshotWrites ? readAt.rows : null;
+				const inPlace =
+					held?.length === rows.length &&
+					rows.every((row, position) => {
+						const before = held[position];
+						return (
+							before !== undefined && snapshotKey(before) === snapshotKey(row)
+						);
+					});
+				const changed = inPlace
+					? rows.filter((row, position) => row !== held[position])
+					: rows;
+				if (inPlace && changed.length === 0) {
+					return;
+				}
+				const stored = new Map(changed.map((row) => [row, toStored(row)]));
 				db.transaction(() => {
-					// An unfiltered delete skips the row hooks.
-					db.run("delete from snapshots where true");
-					for (const row of rows) {
+					if (!inPlace) {
+						// An unfiltered delete skips the row hooks.
+						db.run("delete from snapshots where true");
+					}
+					for (const row of stored.values()) {
 						writeRow(db, row);
 					}
 				})();
+				readAt = {
+					snapshotWrites,
+					rows: rows.map((row) => {
+						const written = stored.get(row);
+						return written === undefined || payloadText.has(row)
+							? row
+							: fromStored(written);
+					}),
+				};
 			},
 			readTickets() {
-				return readRows(db);
+				if (readAt?.snapshotWrites !== snapshotWrites) {
+					readAt = { snapshotWrites, rows: readRows(db) };
+				}
+				return readAt.rows;
 			},
 			mergeTickets(rows) {
 				db.transaction(() => {
@@ -174,10 +219,13 @@ export function sqliteStore(path: string): {
 					);
 					for (const row of rows) {
 						const previous = stored.get(projectId(listedRef(row)));
-						writeRow(db, {
-							...row,
-							tickets: mergeTickets(previous?.tickets ?? [], row.tickets),
-						});
+						writeRow(
+							db,
+							toStored({
+								...row,
+								tickets: mergeTickets(previous?.tickets ?? [], row.tickets),
+							}),
+						);
 					}
 				})();
 			},
@@ -308,9 +356,6 @@ export function sqliteStore(path: string): {
 						remove.run(id);
 					}
 				})();
-			},
-			revision() {
-				return revision;
 			},
 		},
 		validators: {

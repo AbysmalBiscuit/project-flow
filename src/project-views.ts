@@ -1,7 +1,8 @@
 import { attentionOf } from "./attention.ts";
+import { type TicketGraph, ticketGraph } from "./blockers.ts";
 import type { Configuration } from "./configuration.ts";
 import { projectCounts } from "./counts.ts";
-import type { Attention, Overview, Snapshot } from "./domain.ts";
+import type { Attention, FetchStatus, Overview, Snapshot } from "./domain.ts";
 import { staleView } from "./poll-merge.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
@@ -76,16 +77,21 @@ function trackedRows(options: PollOptions, configuration: Configuration) {
 	return { rows, all };
 }
 
-type TrackedRows = ReturnType<typeof trackedRows>;
+function projectStatus(options: PollOptions, row: Snapshot): FetchStatus {
+	const ref = listedRef(row);
+	return {
+		fetchedAt: options.store.lastGoodPollAt(ref)?.toISOString() ?? null,
+		error: options.store.projectError(ref),
+	};
+}
 
 function computeProjectView(
 	row: Snapshot,
-	all: TrackedRows["all"],
+	graph: TicketGraph,
+	status: FetchStatus,
 	options: PollOptions,
 	configuration: Configuration,
 ) {
-	const goodPoll = options.store.lastGoodPollAt(listedRef(row));
-	const viewedAt = goodPoll ?? new Date(0);
 	const counted = projectCounts(
 		row.name,
 		row.key,
@@ -101,15 +107,12 @@ function computeProjectView(
 			workcell: options.workcellAuto,
 			repo: options.repoAutoMerge,
 		},
-		all,
+		graph,
 		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
-		{
-			fetchedAt: goodPoll?.toISOString() ?? null,
-			error: options.store.projectError(listedRef(row)),
-		},
+		status,
 		needsYouRules(configuration, options.viewers),
 		configuration,
-		viewedAt,
+		new Date(status.fetchedAt ?? 0),
 		row.board,
 	);
 	return {
@@ -125,19 +128,25 @@ function computeProjectView(
 
 type ProjectView = ReturnType<typeof computeProjectView>;
 
-type ViewInputs = readonly [
-	revision: number,
+type ViewInputs = readonly [rows: Snapshot[], sources: string];
+
+function freshViews(
+	options: PollOptions,
 	configuration: Configuration,
-	sources: string,
-];
+	inputs: ViewInputs,
+) {
+	const tracked = trackedRows(options, configuration);
+	return {
+		inputs,
+		tracked,
+		graph: ticketGraph(tracked.all),
+		views: new Map<Snapshot, { status: FetchStatus; view: ProjectView }>(),
+	};
+}
 
 const computed = new WeakMap<
 	PollOptions["store"],
-	{
-		inputs: ViewInputs;
-		tracked: TrackedRows;
-		views: Map<Snapshot, ProjectView>;
-	}
+	ReturnType<typeof freshViews>
 >();
 
 function viewInputs(
@@ -145,9 +154,11 @@ function viewInputs(
 	configuration: Configuration,
 ): ViewInputs {
 	return [
-		options.store.revision(),
-		configuration,
+		options.store.readTickets(),
+		// The poll reads the configuration file again, so equal values can
+		// arrive as two objects.
 		JSON.stringify([
+			configuration,
 			options.runs,
 			options.factoryRuns(),
 			options.viewers,
@@ -157,7 +168,10 @@ function viewInputs(
 	];
 }
 
-/** The views computed since the last input change; each view is computed on first use. */
+/**
+ * The views computed since the last input change. Each view is computed on
+ * first use, and again when the poll status of its project changes.
+ */
 function cachedViews(options: PollOptions, configuration: Configuration) {
 	const inputs = viewInputs(options, configuration);
 	const last = computed.get(options.store);
@@ -165,24 +179,26 @@ function cachedViews(options: PollOptions, configuration: Configuration) {
 		last !== undefined &&
 		inputs.every((input, index) => input === last.inputs[index])
 			? last
-			: {
-					inputs,
-					tracked: trackedRows(options, configuration),
-					views: new Map<Snapshot, ProjectView>(),
-				};
+			: freshViews(options, configuration, inputs);
 	computed.set(options.store, entry);
 	const viewOf = (row: Snapshot): ProjectView => {
+		const status = projectStatus(options, row);
 		const known = entry.views.get(row);
-		if (known !== undefined) {
-			return known;
+		if (
+			known !== undefined &&
+			known.status.fetchedAt === status.fetchedAt &&
+			known.status.error === status.error
+		) {
+			return known.view;
 		}
 		const view = computeProjectView(
 			row,
-			entry.tracked.all,
+			entry.graph,
+			status,
 			options,
 			configuration,
 		);
-		entry.views.set(row, view);
+		entry.views.set(row, { status, view });
 		return view;
 	};
 	return { rows: entry.tracked.rows, viewOf };

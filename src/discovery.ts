@@ -106,16 +106,16 @@ export function claimTickets(
 			}
 		}
 	}
-	return rows.map((row) => ({
-		...row,
-		tickets: row.tickets.filter((ticket) => {
+	return rows.map((row) => {
+		const tickets = row.tickets.filter((ticket) => {
 			if (ticket.ref === undefined) {
 				return true;
 			}
 			const owner = owners.get(ticket.ref);
 			return owner?.row === row && owner.ticket === ticket;
-		}),
-	}));
+		});
+		return tickets.length === row.tickets.length ? row : { ...row, tickets };
+	});
 }
 
 const githubNode = /^(\d+)-/;
