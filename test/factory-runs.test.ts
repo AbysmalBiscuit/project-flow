@@ -32,6 +32,7 @@ import runDetail from "./fixtures/factory-run-detail.json";
 import runEvents from "./fixtures/factory-run-events.json";
 import runGraphCheckpoint from "./fixtures/factory-run-graph-checkpoint.json";
 import runGraph from "./fixtures/factory-run-graph.json";
+import answeredQuestions from "./fixtures/factory-run-questions-answered.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
@@ -2337,7 +2338,7 @@ describe("factory questions", () => {
 					url: `${hubUrl}${answerPath}`,
 					unix: null,
 					method: "POST",
-					body: JSON.stringify({ text: "Add the scope." }),
+					body: JSON.stringify({ text: "Add the scope.", sender: "lev" }),
 				},
 			]);
 			expect(
@@ -2420,7 +2421,7 @@ describe("factory questions", () => {
 					url: `${hubUrl}${answerPath}`,
 					unix: null,
 					method: "POST",
-					body: JSON.stringify({ text: "Add the scope." }),
+					body: JSON.stringify({ text: "Add the scope.", sender: "lev" }),
 				},
 			]);
 		} finally {
@@ -2933,6 +2934,111 @@ describe("run thread", () => {
 					at: "2026-10-25T14:25:00.000Z",
 				},
 				steerMessage,
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a run that the app sees first after a restart gives its answered asks in the thread, with the answer, sender and time of each", async () => {
+		const app = await serveRuns(
+			{ ...hubWith41("running"), [questionsPath]: answeredQuestions },
+			[41],
+		);
+		try {
+			const body = await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.thread?.length === 4,
+			);
+			const [scope, review] = answeredQuestions.answered;
+			if (scope === undefined || review === undefined) {
+				throw new Error("the answered questions fixture lost an ask");
+			}
+			expect(factoryRunOf(body, 41)?.thread).toEqual([
+				{
+					kind: "ask",
+					sender: scope.node_path,
+					text: scope.text,
+					at: "2026-10-25T14:25:00+00:00",
+				},
+				{
+					kind: "answer",
+					sender: "lev",
+					text: "Add the scope.",
+					at: "2026-10-25T14:25:00+00:00",
+				},
+				{
+					kind: "ask",
+					sender: review.node_path,
+					text: review.text,
+					at: "2026-10-25T14:40:00+00:00",
+				},
+				{
+					kind: "answer",
+					sender: "someone",
+					text: "Yes, add one.",
+					at: "2026-10-25T14:40:00+00:00",
+				},
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("an answer that Lev sends joins the thread once when the resumed run lists it as answered", async () => {
+		let resumed = false;
+		const [, ...rest] = hubRuns.runs;
+		const app = await serveRuns(
+			{
+				...hub,
+				"/runs": () => ({
+					runs: [
+						{
+							...running41,
+							status: { kind: resumed ? "running" : "blocked" },
+						},
+						...rest,
+					],
+				}),
+				[questionsPath]: () => (resumed ? answeredQuestions : runQuestions),
+				[answerPath]: () => {
+					resumed = true;
+					return { ...question, answer: "Add the scope." };
+				},
+			},
+			[41],
+		);
+		try {
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.questions !== undefined,
+			);
+			const answered = await post(
+				app.base,
+				`/api/factory-runs/${running41.id}/questions/${question.id}/answer`,
+				{ text: "Add the scope." },
+			);
+			expect(answered.status).toBe(200);
+			app.advance(60 * 60_000);
+			const body = await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41)?.thread?.length === 4,
+			);
+			expect(
+				factoryRunOf(body, 41)?.thread?.map(({ kind, sender, text }) => ({
+					kind,
+					sender,
+					text,
+				})),
+			).toEqual([
+				{ kind: "ask", sender: question.node_path, text: question.text },
+				{ kind: "answer", sender: "lev", text: "Add the scope." },
+				{
+					kind: "ask",
+					sender: "review/senior_question",
+					text: "The review found no test for the scope check. Should the run add one?",
+				},
+				{ kind: "answer", sender: "someone", text: "Yes, add one." },
 			]);
 		} finally {
 			await app.stop();
