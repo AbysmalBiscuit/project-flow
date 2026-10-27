@@ -1,6 +1,7 @@
 import type { ProjectGroup, Ticket, TicketRef } from "./domain.ts";
 import {
 	asRef,
+	indexTickets,
 	known,
 	mergeBlockedBy,
 	type ParsedBodies,
@@ -9,7 +10,7 @@ import {
 	stillOpen,
 	type TicketIndex,
 } from "./ticket-index.ts";
-import { foldKey, githubKey, keyRepo } from "./ticket-key.ts";
+import { foldKey, githubKey, keyRepo, ticketId } from "./ticket-key.ts";
 
 export function heldBlockerIds(held: Ticket[]): number[] {
 	return held.flatMap((ticket) => {
@@ -223,12 +224,75 @@ export function parseBodies(groups: ProjectGroup[]): ParsedBodies {
 	return parsed;
 }
 
-export function openBlockers(
-	ticket: Ticket,
-	index: TicketIndex,
-	parsed: ParsedBodies,
-	groups: { project: string; tickets: Ticket[] }[] = [],
-): Ticket[] {
+/**
+ * The tickets of every tracked project, indexed once so that the blocker and
+ * link rules of each ticket look up the tickets that name it.
+ */
+export type TicketGraph = {
+	groups: ProjectGroup[];
+	index: TicketIndex;
+	parsed: ParsedBodies;
+	/** The project of the first group that holds each ticket. */
+	homes: Map<Ticket, string>;
+	/** By ticket id: the tickets whose body says that they block it. */
+	bodyBlocks: Map<string, Ticket[]>;
+	/** By ticket id: the held tickets whose tracker blocks name it, with those refs. */
+	trackerBlocks: Map<string, { ticket: Ticket; refs: TicketRef[] }[]>;
+	/** By ticket id: the held tickets that name it as a blocker, with their project. */
+	blockedBy: Map<string, { ticket: Ticket; project: string }[]>;
+};
+
+function refId(ref: TicketRef): string {
+	return ticketId(ref.tracker, ref.key);
+}
+
+function append<T>(map: Map<string, T[]>, id: string, item: T): void {
+	const list = map.get(id);
+	if (list === undefined) {
+		map.set(id, [item]);
+	} else {
+		list.push(item);
+	}
+}
+
+export function ticketGraph(groups: ProjectGroup[]): TicketGraph {
+	const index = indexTickets(groups.flatMap((group) => group.tickets));
+	const parsed = parseBodies(groups);
+	const homes = new Map<Ticket, string>();
+	const bodyBlocks = new Map<string, Ticket[]>();
+	const trackerBlocks: TicketGraph["trackerBlocks"] = new Map();
+	const blockedBy: TicketGraph["blockedBy"] = new Map();
+	for (const [otherKey, lines] of parsed) {
+		const other = index.get(otherKey);
+		if (other === undefined) {
+			continue;
+		}
+		for (const id of new Set(lines.blocks.map(refId))) {
+			append(bodyBlocks, id, other);
+		}
+	}
+	for (const group of groups) {
+		for (const ticket of group.tickets) {
+			if (!homes.has(ticket)) {
+				homes.set(ticket, group.project);
+			}
+			for (const [id, refs] of Map.groupBy(ticket.blocks ?? [], refId)) {
+				append(trackerBlocks, id, { ticket, refs });
+			}
+			const blockers = [
+				...ticket.blockedBy,
+				...(parsed.get(parseKey(ticket))?.blockedBy ?? []),
+			];
+			for (const id of new Set(blockers.map(refId))) {
+				append(blockedBy, id, { ticket, project: group.project });
+			}
+		}
+	}
+	return { groups, index, parsed, homes, bodyBlocks, trackerBlocks, blockedBy };
+}
+
+export function openBlockers(ticket: Ticket, graph: TicketGraph): Ticket[] {
+	const { index, parsed } = graph;
 	const self = asRef(ticket);
 	const merged = self === null ? undefined : known(index, self);
 	const incoming = (merged?.blockedBy ?? ticket.blockedBy).filter((ref) =>
@@ -239,34 +303,25 @@ export function openBlockers(
 	);
 	const fromBlocks: TicketRef[] = [];
 	if (self !== null) {
-		for (const [otherKey, lines] of parsed) {
-			const other = index.get(otherKey);
-			if (other === undefined || other.state !== "open") {
-				continue;
+		for (const other of graph.bodyBlocks.get(refId(self)) ?? []) {
+			const ref = asRef(other);
+			if (other.state === "open" && ref !== null) {
+				fromBlocks.push(ref);
 			}
-			if (!lines.blocks.some((ref) => sameRef(ref, self))) {
+		}
+		for (const { ticket: other, refs } of graph.trackerBlocks.get(
+			refId(self),
+		) ?? []) {
+			if (
+				other.state !== "open" ||
+				other === ticket ||
+				!refs.some((ref) => stillOpen(ref, index))
+			) {
 				continue;
 			}
 			const ref = asRef(other);
 			if (ref !== null) {
 				fromBlocks.push(ref);
-			}
-		}
-		for (const group of groups) {
-			for (const other of group.tickets) {
-				if (other.state !== "open" || other === ticket) {
-					continue;
-				}
-				const native = other.blocks ?? [];
-				if (
-					!native.some((ref) => sameRef(ref, self) && stillOpen(ref, index))
-				) {
-					continue;
-				}
-				const ref = asRef(other);
-				if (ref !== null) {
-					fromBlocks.push(ref);
-				}
 			}
 		}
 	}
@@ -299,9 +354,9 @@ export function openBlockers(
 export function blockerProject(
 	blocker: Ticket,
 	ref: TicketRef | undefined,
-	groups: { project: string; tickets: Ticket[] }[],
+	graph: TicketGraph,
 ): string {
-	const home = groups.find((group) => group.tickets.includes(blocker))?.project;
+	const home = graph.homes.get(blocker);
 	if (home !== undefined) {
 		return home;
 	}

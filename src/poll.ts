@@ -127,6 +127,28 @@ function noteRead(
 	return true;
 }
 
+/** Runs `run` once for all the calls queued in one turn of the event loop. */
+function oncePerTurn(run: (publish: boolean) => void) {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let publish = false;
+	return {
+		queue(wanted: boolean) {
+			publish ||= wanted;
+			timer ??= setTimeout(() => {
+				const due = publish;
+				timer = undefined;
+				publish = false;
+				run(due);
+			}, 0);
+		},
+		cancel() {
+			clearTimeout(timer);
+			timer = undefined;
+			publish = false;
+		},
+	};
+}
+
 /** The time of the last good read to read changes since, or null for a full read. */
 function readSince(
 	options: PollOptions,
@@ -398,6 +420,17 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		),
 	);
 	const listed: PolledProject[] = [];
+	// Reads that end in one turn of the event loop publish once, so that a
+	// burst of reads does not hold the API reads behind one overview each.
+	const step = oncePerTurn((publish) => {
+		if (options.stopped) {
+			return;
+		}
+		if (publish) {
+			publishPoll(options, configuration, trackedIds, outcomes, false, null);
+		}
+		notePollProgress(options, configuration, tracked, outcomes);
+	});
 	const storedRows = options.store.readTickets();
 	const trackedOrder = new Map(
 		tracked.map((project, index) => [projectId(project.ref), index]),
@@ -461,10 +494,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 						? null
 						: { ...row, listedEmpty: item.tickets.length === 0 };
 			}
-			if (shown.has(id)) {
-				publishPoll(options, configuration, trackedIds, outcomes, false, null);
-			}
-			notePollProgress(options, configuration, tracked, outcomes);
+			step.queue(shown.has(id));
 		} catch (error) {
 			if (options.stopped) {
 				return;
@@ -484,8 +514,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 			};
 			outcomes.set(id, outcome);
 			noteRead(options, id, read, outcome);
-			publishPoll(options, configuration, trackedIds, outcomes, false, null);
-			notePollProgress(options, configuration, tracked, outcomes);
+			step.queue(true);
 		}
 	};
 	const queue = [...tracked];
@@ -497,6 +526,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	await Promise.all(
 		Array.from({ length: Math.min(concurrentReads, queue.length) }, reader),
 	);
+	step.cancel();
 	const fullPolled = options.fullPoll.size > 0;
 	for (const id of [...options.fullPoll]) {
 		if (outcomes.get(id)?.ok === true) {
@@ -736,7 +766,14 @@ function publishPoll(
 		return [options.projectReads.newest.get(id)?.outcome ?? outcome];
 	});
 	const reconciled = reconcilePoll(kept, ordered, fullPolled);
-	options.store.replaceTickets(reconciled.rows);
+	// Rows keep the tracked order while a poll runs, so that a project read
+	// rewrites only its own row.
+	const position = new Map([...trackedIds].map((id, index) => [id, index]));
+	const rank = (row: Snapshot) =>
+		position.get(projectId(listedRef(row))) ?? position.size;
+	options.store.replaceTickets(
+		reconciled.rows.toSorted((left, right) => rank(left) - rank(right)),
+	);
 	for (const projectError of reconciled.projectErrors) {
 		options.store.recordProjectError(projectError.ref, projectError.error);
 	}

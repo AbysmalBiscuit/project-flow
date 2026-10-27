@@ -1,4 +1,4 @@
-import { blockerProject } from "./blockers.ts";
+import { blockerProject, type TicketGraph } from "./blockers.ts";
 import type {
 	FocusLink,
 	GraphEnd,
@@ -17,11 +17,9 @@ import {
 	asRef,
 	known,
 	mergeBlockedBy,
-	type ParsedBodies,
 	parseKey,
 	sameRef,
 	stillOpen,
-	type TicketIndex,
 } from "./ticket-index.ts";
 import {
 	foldKey,
@@ -32,6 +30,7 @@ import {
 	linearKey,
 	linkId,
 	sameTicketKey,
+	ticketId,
 } from "./ticket-key.ts";
 
 const closing =
@@ -60,38 +59,93 @@ function closingKeys(body: string, repo: string): string[] {
 	return keys;
 }
 
+const bodyClosingKeys = new WeakMap<PullRequest, string[]>();
+
+/** The keys that the body of a pull closes, parsed once for each pull. */
+function closedByBody(pull: PullRequest): string[] {
+	const stored = bodyClosingKeys.get(pull);
+	if (stored !== undefined) {
+		return stored;
+	}
+	const keys = closingKeys(pull.body, pull.repo);
+	bodyClosingKeys.set(pull, keys);
+	return keys;
+}
+
+const leadingNumber = /^(?:[^/]+\/)?(\d+)-/;
+
 export function branchLinksTicket(branch: string, key: string): boolean {
 	const number = keyNumber(key);
-	const leading = branch.match(/^(?:[^/]+\/)?(\d+)-/)?.[1];
+	const leading = branch.match(leadingNumber)?.[1];
 	if (leading !== undefined) {
 		return number !== null && leading === number;
 	}
 	return keyTracker(key) === "github" && foldKey(branch).includes(foldKey(key));
 }
 
+/** Finds the pulls that close a ticket key or name it in their branch, in pull order. */
+function pullFinder(pulls: PullRequest[]): (key: string) => PullRequest[] {
+	const byKey = new Map<string, number[]>();
+	const byBranchNumber = new Map<string, number[]>();
+	const unnumbered: number[] = [];
+	pulls.forEach((pull, position) => {
+		const keys = new Set(
+			[...pull.closingKeys, ...closedByBody(pull)].map((key) => foldKey(key)),
+		);
+		for (const key of keys) {
+			byKey.set(key, [...(byKey.get(key) ?? []), position]);
+		}
+		const leading = pull.branch.match(leadingNumber)?.[1];
+		if (leading === undefined) {
+			unnumbered.push(position);
+		} else {
+			byBranchNumber.set(leading, [
+				...(byBranchNumber.get(leading) ?? []),
+				position,
+			]);
+		}
+	});
+	return (key) => {
+		const number = keyNumber(key);
+		const positions = new Set([
+			...(byKey.get(foldKey(key)) ?? []),
+			...(number === null ? [] : (byBranchNumber.get(number) ?? [])),
+			...unnumbered.filter((position) =>
+				branchLinksTicket(pulls[position]?.branch ?? "", key),
+			),
+		]);
+		return [...positions]
+			.sort((left, right) => left - right)
+			.flatMap((position) => pulls[position] ?? []);
+	};
+}
+
+const pullFinders = new WeakMap<
+	PullRequest[],
+	(key: string) => PullRequest[]
+>();
+
 export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 	if (ticket.key === null) {
 		return [];
 	}
-	const key = ticket.key;
-	return pulls.filter((pull) => {
-		const keys = [...pull.closingKeys, ...closingKeys(pull.body, pull.repo)];
-		return (
-			keys.some((item) => sameTicketKey(item, key)) ||
-			branchLinksTicket(pull.branch, key)
-		);
-	});
+	let find = pullFinders.get(pulls);
+	if (find === undefined) {
+		find = pullFinder(pulls);
+		pullFinders.set(pulls, find);
+	}
+	return find(ticket.key);
 }
 
 function outsideOf(
 	blocker: Ticket,
 	ref: TicketRef | undefined,
-	groups: { project: string; tickets: Ticket[] }[],
+	graph: TicketGraph,
 ): TicketRelation | null {
 	if (blocker.key === null) {
 		return null;
 	}
-	const project = blockerProject(blocker, ref, groups);
+	const project = blockerProject(blocker, ref, graph);
 	if (project === "") {
 		return null;
 	}
@@ -103,14 +157,10 @@ function outsideOf(
 	};
 }
 
-function graphLinks(
-	ticket: Ticket,
-	index: TicketIndex,
-	parsed: ParsedBodies,
-	groups: { project: string; tickets: Ticket[] }[],
-): GraphLink[] {
+function graphLinks(ticket: Ticket, graph: TicketGraph): GraphLink[] {
+	const { index, parsed } = graph;
 	const self = asRef(ticket);
-	const home = groups.find((group) => group.tickets.includes(ticket))?.project;
+	const home = graph.homes.get(ticket);
 	const merged = self === null ? undefined : known(index, self);
 	const incoming = mergeBlockedBy([
 		merged?.blockedBy ?? ticket.blockedBy,
@@ -133,14 +183,14 @@ function graphLinks(
 						? true
 						: ref.state !== undefined && ref.state !== "open");
 		const project =
-			other === undefined ? "" : blockerProject(other, ref, groups);
+			other === undefined ? "" : blockerProject(other, ref, graph);
 		const outside =
 			other === undefined ||
 			project === "" ||
 			home === undefined ||
 			project.toLowerCase() === home.toLowerCase()
 				? undefined
-				: outsideOf(other, ref, groups);
+				: outsideOf(other, ref, graph);
 		links.push({
 			key: ref.key,
 			done,
@@ -151,29 +201,17 @@ function graphLinks(
 		push(ref, known(index, ref));
 	}
 	if (self !== null) {
-		for (const [otherKey, lines] of parsed) {
-			if (!lines.blocks.some((ref) => sameRef(ref, self))) {
-				continue;
-			}
-			const other = index.get(otherKey);
-			const ref = other === undefined ? null : asRef(other);
+		const selfId = ticketId(self.tracker, self.key);
+		for (const other of graph.bodyBlocks.get(selfId) ?? []) {
+			const ref = asRef(other);
 			if (ref !== null) {
 				push(ref, other);
 			}
 		}
-		for (const group of groups) {
-			for (const other of group.tickets) {
-				if (other === ticket) {
-					continue;
-				}
-				const native = other.blocks ?? [];
-				if (!native.some((ref) => sameRef(ref, self))) {
-					continue;
-				}
-				const ref = asRef(other);
-				if (ref !== null) {
-					push(ref, other);
-				}
+		for (const { ticket: other } of graph.trackerBlocks.get(selfId) ?? []) {
+			const ref = asRef(other);
+			if (other !== ticket && ref !== null) {
+				push(ref, other);
 			}
 		}
 	}
@@ -183,9 +221,7 @@ function graphLinks(
 export function ticketRelations(
 	ticket: Ticket,
 	blockers: Ticket[],
-	index: TicketIndex,
-	parsed: ParsedBodies,
-	groups: { project: string; tickets: Ticket[] }[],
+	graph: TicketGraph,
 ): {
 	blockers: string[];
 	blockedBy: TicketRelation[];
@@ -193,8 +229,9 @@ export function ticketRelations(
 	outsideBlockers: TicketRelation[];
 	blocks: TicketRelation[];
 } {
+	const { index, parsed } = graph;
 	const self = asRef(ticket);
-	const home = groups.find((group) => group.tickets.includes(ticket))?.project;
+	const home = graph.homes.get(ticket);
 	const merged = self === null ? undefined : known(index, self);
 	const incoming = [
 		...(merged?.blockedBy ?? ticket.blockedBy),
@@ -213,7 +250,7 @@ export function ticketRelations(
 				ref.tracker === blocker.tracker &&
 				foldKey(ref.key) === foldKey(blocker.key),
 		);
-		const project = blockerProject(blocker, source, groups) || home || "";
+		const project = blockerProject(blocker, source, graph) || home || "";
 		if (project === "") {
 			continue;
 		}
@@ -255,41 +292,32 @@ export function ticketRelations(
 			}
 			const other = known(index, ref);
 			const otherHome =
-				other === undefined
-					? undefined
-					: groups.find((group) => group.tickets.includes(other))?.project;
+				other === undefined ? undefined : graph.homes.get(other);
 			const project = otherHome ?? (ref.projectName?.trim() || ref.project);
 			const title = other?.title.trim() || ref.title?.trim() || ref.key;
 			pushBlock(ref, project, title);
 		}
 	}
-	if (self !== null && ticket.state === "open") {
-		for (const group of groups) {
-			for (const other of group.tickets) {
-				const otherRef = asRef(other);
-				if (
-					other.state !== "open" ||
-					otherRef === null ||
-					other === ticket ||
-					blocks.some((item) => sameRef(item, otherRef))
-				) {
-					continue;
-				}
-				const refs = [
-					...other.blockedBy,
-					...(parsed.get(parseKey(other))?.blockedBy ?? []),
-				];
-				if (!refs.some((ref) => sameRef(ref, self) && stillOpen(self, index))) {
-					continue;
-				}
-				pushBlock(otherRef, group.project, other.title.trim() || otherRef.key);
+	if (self !== null && ticket.state === "open" && stillOpen(self, index)) {
+		for (const { ticket: other, project } of graph.blockedBy.get(
+			ticketId(self.tracker, self.key),
+		) ?? []) {
+			const otherRef = asRef(other);
+			if (
+				other.state !== "open" ||
+				otherRef === null ||
+				other === ticket ||
+				blocks.some((item) => sameRef(item, otherRef))
+			) {
+				continue;
 			}
+			pushBlock(otherRef, project, other.title.trim() || otherRef.key);
 		}
 	}
 	return {
 		blockers: keys,
 		blockedBy,
-		links: graphLinks(ticket, index, parsed, groups),
+		links: graphLinks(ticket, graph),
 		outsideBlockers,
 		blocks,
 	};
@@ -446,9 +474,7 @@ export function closesTicket(pull: PullRequest, ticket: Ticket): boolean {
 	if (key === null || !pull.merged) {
 		return false;
 	}
-	return closingKeys(pull.body, pull.repo).some((item) =>
-		sameTicketKey(item, key),
-	);
+	return closedByBody(pull).some((item) => sameTicketKey(item, key));
 }
 
 export function attachGraphStates(reports: ProjectReport[]): ProjectReport[] {

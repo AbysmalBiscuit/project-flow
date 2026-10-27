@@ -1,5 +1,5 @@
 import { needsYouItems } from "./attention.ts";
-import { blockerProject, openBlockers, parseBodies } from "./blockers.ts";
+import { blockerProject, openBlockers, type TicketGraph } from "./blockers.ts";
 import type { Configuration } from "./configuration.ts";
 import type {
 	Board,
@@ -12,7 +12,6 @@ import type {
 	OutsideParent,
 	ProjectBody,
 	ProjectCounts,
-	ProjectGroup,
 	ProjectReport,
 	PullRequest,
 	Ticket,
@@ -45,7 +44,7 @@ import {
 	shownFactoryRun,
 	shownTicket,
 } from "./shown-ticket.ts";
-import { asRef, indexTickets, known, parseKey } from "./ticket-index.ts";
+import { asRef, known, parseKey } from "./ticket-index.ts";
 import { foldKey, pullKey, sameTicketKey, ticketRefId } from "./ticket-key.ts";
 import { runFor } from "./workcell.ts";
 
@@ -60,7 +59,7 @@ export function projectCounts(
 	runs: WorkcellRun[],
 	factoryRuns: FactoryRun[],
 	autoMerge: AutoMergeSources,
-	all: ProjectGroup[],
+	graph: TicketGraph,
 	expectedBots: Map<string, KnownBot[]>,
 	status: FetchStatus,
 	rules: Omit<NeedsYouRules, "pmBot"> & {
@@ -74,8 +73,7 @@ export function projectCounts(
 	needsYou: NeedsYouItem[];
 	report: ProjectReport;
 } {
-	const index = indexTickets(all.flatMap((group) => group.tickets));
-	const parsed = parseBodies(all);
+	const { index, parsed } = graph;
 	const counts = {
 		done: 0,
 		dropped: 0,
@@ -109,8 +107,9 @@ export function projectCounts(
 	const linkedByTicket = new Map<string, PullRequest[]>();
 	const linkedKeys = new Set<string>();
 	const subTickets = subTicketCounts(tickets);
+	const started = new Set(startedKeys.map((item) => foldKey(item)));
 	for (const ticket of tickets) {
-		const blockers = openBlockers(ticket, index, parsed, all);
+		const blockers = openBlockers(ticket, graph);
 		const links = linked(ticket, pulls);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));
@@ -131,7 +130,7 @@ export function projectCounts(
 			lane,
 			links,
 			branches,
-			startedKeys,
+			started,
 			review,
 			runs,
 			fed,
@@ -160,7 +159,7 @@ export function projectCounts(
 		if (ticket.key !== null) {
 			relationsByKey.set(
 				foldKey(ticket.key),
-				ticketRelations(ticket, blockers, index, parsed, all),
+				ticketRelations(ticket, blockers, graph),
 			);
 			const pull = links[0];
 			if (pull !== undefined) {
@@ -216,7 +215,7 @@ export function projectCounts(
 					ref.tracker === blocker.tracker &&
 					foldKey(ref.key) === foldKey(blocker.key),
 			);
-			const project = blockerProject(blocker, source, all);
+			const project = blockerProject(blocker, source, graph);
 			if (project === "" || project.toLowerCase() === name.toLowerCase()) {
 				continue;
 			}
@@ -281,7 +280,7 @@ export function projectCounts(
 		pullByKey,
 		needsYouItemsForProject,
 		runByKey,
-		outsideParents(tickets, all),
+		outsideParents(tickets, graph.groups),
 	);
 	return {
 		counts: project,
