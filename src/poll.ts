@@ -156,19 +156,27 @@ function readSince(
 	stored: Snapshot | undefined,
 	polledAt: Date,
 ): Date | null {
+	const id = projectId(project.ref);
 	const lastGood = options.store.lastGoodPollAt(project.ref);
-	const lastFull = options.lastFullPollAt.get(projectId(project.ref)) ?? null;
+	// A GitHub sub-issue keeps its updatedAt when its parent link changes, so
+	// only a full read at an interval catches the change. A GitHub project with
+	// a stored row starts that interval at its first read after a restart.
+	if (project.tracker === "github" && stored !== undefined) {
+		options.lastFullPollAt.set(
+			id,
+			options.lastFullPollAt.get(id) ?? polledAt.getTime(),
+		);
+	}
+	const lastFull = options.lastFullPollAt.get(id) ?? null;
 	const emptyStored =
 		stored !== undefined &&
 		stored.tickets.length === 0 &&
 		stored.listedEmpty !== false;
-	const missingRow = stored === undefined && lastFull === null;
 	const full =
 		lastGood === null ||
 		emptyStored ||
-		missingRow ||
-		(project.tracker === "linear" &&
-			(lastFull === null || polledAt.getTime() - lastFull >= fullPollPeriodMs));
+		lastFull === null ||
+		polledAt.getTime() - lastFull >= fullPollPeriodMs;
 	return full ? null : lastGood;
 }
 
@@ -630,7 +638,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 	return current;
 }
 
-/** Read one tracked project from its tracker and write its row, without a full poll. */
+/** Read all the tickets of one tracked project and write its row, without a poll of every project. */
 export async function pollProject(
 	options: PollOptions,
 	configuration: Configuration,
@@ -651,13 +659,12 @@ export async function pollProject(
 		outcome = missingTracker(project, startedKeys);
 	} else {
 		tracker.forgetProject?.(project);
-		const since = readSince(options, project, stored, polledAt);
 		try {
 			const listing = await readListed(
 				options,
 				project,
 				tracker,
-				since,
+				null,
 				stored,
 				startedKeys,
 				new Set(),
@@ -674,7 +681,7 @@ export async function pollProject(
 				ref: project.ref,
 				ok: true,
 				error: null,
-				full: since === null,
+				full: true,
 				row:
 					shown === undefined
 						? null
@@ -685,7 +692,7 @@ export async function pollProject(
 				ref: project.ref,
 				ok: false,
 				error: error instanceof Error ? error.message : "poll failed",
-				full: since === null,
+				full: true,
 				row:
 					stored ??
 					emptySnapshot(project, project.name ?? project.key, startedKeys),
@@ -698,6 +705,7 @@ export async function pollProject(
 	if (outcome.ok) {
 		options.store.clearProjectError(project.ref);
 		options.store.recordGoodPoll(project.ref, polledAt);
+		options.lastFullPollAt.set(id, polledAt.getTime());
 	}
 	const trackedIds = new Set([
 		...options.store.readTickets().map((row) => projectId(listedRef(row))),

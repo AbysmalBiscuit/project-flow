@@ -1967,7 +1967,7 @@ describe("live updates", () => {
 			});
 			expect(first.tickets[0]?.chips ?? []).not.toContain("Run failed");
 			expect(firstOverview.error).toBeNull();
-			advance(2 * 60 * 60 * 1000);
+			advance(5 * 60 * 1000);
 			const refresh = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
