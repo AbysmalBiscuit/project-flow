@@ -497,6 +497,7 @@ async function withApp(
 	check: (base: string) => Promise<void>,
 	checkoutRoot?: string,
 	now = new Date("2026-10-21T00:00:00.000Z"),
+	todos?: string,
 ): Promise<void> {
 	const written =
 		checkoutRoot === undefined ? config : withCheckout(config, checkoutRoot);
@@ -519,6 +520,7 @@ async function withApp(
 				stdout: (line) => startChecks(line),
 				waitForStop: checks,
 				now: () => now,
+				...(todos === undefined ? {} : { listTodos: async () => todos }),
 			}),
 		);
 		expect(result.stderr).toBe("");
@@ -1987,6 +1989,115 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 							.filter((row) => row.key === `${githubRepo}#4`)
 							.map((row) => row.reason),
 					).toEqual(["runFailed"]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
+	test("a failed run with a started todo stays in its tracker lane with Run failed", async () => {
+		const checkout = await devkitWorktree({
+			key: `${githubRepo}#4`,
+			status: "failed",
+		});
+		try {
+			await withApp(
+				JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+				recordedRepo([githubIssue(4, { title: "Retry the list" })]),
+				{ GITHUB_TOKEN: "recorded-token" },
+				async (base) => {
+					const report = await projectOf(base, githubRepo);
+					expect(ticketOf(report, `${githubRepo}#4`)).toMatchObject({
+						state: "backlog",
+						lane: "Backlog",
+						chips: ["Run failed"],
+					});
+				},
+				checkout.root,
+				undefined,
+				`- [ ] Retry the list (${githubRepo}#4, in progress)\n`,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
+	test("a failed run with an open PR out of draft is In review with Run failed", async () => {
+		const recorded = (await recordedJson(
+			"github-pull-auto-merge.json",
+		)) as RecordedPull;
+		const repo = (await recordedJson("github-repo.json")) as Record<
+			string,
+			unknown
+		>;
+		const checkout = await devkitWorktree({
+			key: `${githubRepo}#4`,
+			status: "failed",
+		});
+		try {
+			await withApp(
+				JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+				recordedRepo(
+					[githubIssue(4, { title: "Retry the list" })],
+					[pullAs(recorded, { number: 40, body: "Closes #4", state: "open" })],
+					[],
+					repo,
+				),
+				{ GITHUB_TOKEN: "recorded-token" },
+				async (base) => {
+					const report = await projectOf(base, githubRepo);
+					expect(ticketOf(report, `${githubRepo}#4`)).toMatchObject({
+						state: "inReview",
+						lane: "In review",
+						chips: ["Run failed"],
+					});
+					expect(
+						needsYouOf(report)
+							.filter((row) => row.key === `${githubRepo}#4`)
+							.map((row) => row.reason),
+					).toEqual(["runFailed"]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
+	test("a failed run with an open draft PR is In progress with Run failed", async () => {
+		const recorded = (await recordedJson(
+			"github-pull-auto-merge.json",
+		)) as RecordedPull;
+		const checkout = await devkitWorktree({
+			key: `${githubRepo}#4`,
+			status: "failed",
+		});
+		try {
+			await withApp(
+				JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+				recordedRepo(
+					[githubIssue(4, { title: "Retry the list" })],
+					[
+						{
+							...pullAs(recorded, {
+								number: 40,
+								body: "Closes #4",
+								state: "open",
+							}),
+							draft: true,
+						},
+					],
+				),
+				{ GITHUB_TOKEN: "recorded-token" },
+				async (base) => {
+					const report = await projectOf(base, githubRepo);
+					expect(ticketOf(report, `${githubRepo}#4`)).toMatchObject({
+						state: "inProgress",
+						lane: "In progress",
+						chips: ["Run failed"],
+					});
 				},
 				checkout.root,
 			);
