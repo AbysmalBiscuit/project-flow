@@ -27,6 +27,7 @@ import type { FactoryEntry } from "./factories.ts";
 import type { Steer } from "./factory-run-actions.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
+import { openPage, runPagePath } from "./page-links.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
@@ -477,6 +478,35 @@ export function useCancelRun(run: string) {
 			void queries.invalidateQueries(pageQuery.run(run));
 			void queries.invalidateQueries(pageQuery.needsYou);
 			void queries.invalidateQueries({ queryKey: ["project"] });
+		},
+	});
+}
+
+/** Resume or restart a blocked or failed run. A restart opens the run page of the new run. */
+export function useStartAgain(run: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (action: "resume" | "restart"): Promise<string> => {
+			const response = await fetch(
+				`/api/factory-runs/${encodeURIComponent(run)}/${action}`,
+				{ method: "POST" },
+			);
+			const answer = (await response.json().catch(() => null)) as {
+				id?: string;
+				error?: string;
+			} | null;
+			if (!response.ok || answer?.id === undefined) {
+				throw new Error(answer?.error ?? "The factory did not start the run");
+			}
+			return answer.id;
+		},
+		onSuccess: (id) => {
+			void queries.invalidateQueries(pageQuery.run(run));
+			void queries.invalidateQueries(pageQuery.needsYou);
+			void queries.invalidateQueries({ queryKey: ["project"] });
+			if (id !== run) {
+				openPage(runPagePath(id));
+			}
 		},
 	});
 }

@@ -217,6 +217,20 @@ export const runCancelCopy = {
 	dismiss: "Keep running",
 } as const;
 
+export const runResumeCopy = {
+	action: "Resume",
+	pending: "Starting",
+	choices: "Resume choices",
+	fromCheckpoint: "From checkpoint",
+	fromBeginning: "From beginning",
+	title: "Restart the run?",
+	body: "The factory starts a new run of the ticket from the first stage. The old run stays as it was.",
+	bodyBlocked:
+		"The factory starts a new run of the ticket from the first stage. The restart cancels the old run.",
+	confirm: "Restart run",
+	dismiss: "Keep the run",
+} as const;
+
 export const runThreadLabel = "Run thread";
 
 /** The verb after the sender of each run thread message. */
@@ -239,6 +253,7 @@ export const runFactLabel = {
 	failureReason: "Failure reason",
 	lastEvent: "Last event",
 	pr: "PR",
+	restartedFrom: "Restarted from",
 } as const;
 
 export const openRunLabel = "Open run";
