@@ -12,6 +12,7 @@ import { elk } from "./graph-core-view.tsx";
 import { type FlowGap, flowGap } from "./graph-flow.ts";
 import type { ForceRequest } from "./graph-force-worker.ts";
 import { growGroups } from "./graph-force.ts";
+import { grownLayout } from "./graph-grow.ts";
 import { type LaidLink, laneLinks } from "./graph-lanes.ts";
 import {
 	forceWorkerPath,
@@ -108,11 +109,11 @@ export type LaidGraph = {
 	links: LaidLink[];
 	/** The size of a card that the page has not measured yet. */
 	card: NodeSize;
-	/** The measured size of each card that the layout used. */
+	/** The slot of each measured card: the size that the layout keeps for it. */
 	sizes: ReadonlyMap<string, NodeSize>;
 	/** How far the layout moved to keep the anchor card in its place. */
 	shift: Point;
-	/** Tells whether an anchor card held its place in this layout. */
+	/** Tells whether the cards held their places: an anchor card held, or a card grew. */
 	held: boolean;
 };
 
@@ -185,8 +186,9 @@ function useSigned<Value>(value: Value, signature: string): Value {
 /**
  * Lays out the graph in a Web Worker, and keeps the last layout until the
  * next one lands. `failed` tells whether the latest layout was rejected.
- * A card is laid out at `span` until the page measures it, and a change to
- * a measured size lays out the graph again. Each layout keeps the `anchor`
+ * A card is laid out at `span` until the page measures it. A card that grows
+ * after that pushes the cards below it apart, with no new layout, so that no
+ * card changes its layer or its order. Each layout keeps the `anchor`
  * card at the place that the anchor gives. `gap` is the distance from one
  * card to the next in the Layered layout. A new input with the same layout
  * signature keeps the last layout.
@@ -209,6 +211,12 @@ export function useLaidGraph(
 	const sizes = useNodeSizes(
 		useMemo(() => input.cards.map((card) => card.id), [input]),
 	);
+	const latestSizes = useRef(sizes);
+	latestSizes.current = sizes;
+	const measuredIds = input.cards.flatMap((card) =>
+		sizes.has(card.id) ? [card.id] : [],
+	);
+	const measured = useSigned(new Set(measuredIds), measuredIds.join("\n"));
 	const laidOnce = useRef(false);
 	const unplaced = useMemo(() => {
 		if (laid === null) {
@@ -223,6 +231,7 @@ export function useLaidGraph(
 		}
 		let current = true;
 		const lay = () => {
+			const sizes = latestSizes.current;
 			const laying =
 				kind === "force"
 					? forceInWorker(input, span, sizes)
@@ -280,7 +289,7 @@ export function useLaidGraph(
 			);
 		};
 		const unmeasured =
-			laidOnce.current && input.cards.some((card) => !sizes.has(card.id));
+			laidOnce.current && input.cards.some((card) => !measured.has(card.id));
 		const timer = unmeasured ? setTimeout(lay, measureWaitMs) : null;
 		if (timer === null) {
 			lay();
@@ -291,6 +300,38 @@ export function useLaidGraph(
 				clearTimeout(timer);
 			}
 		};
-	}, [direction, kind, input, sizes, span, anchor, gap]);
+	}, [direction, kind, input, measured, span, anchor, gap]);
+	useEffect(() => {
+		startTransition(() => {
+			setLaid((last) => {
+				if (last === null) {
+					return last;
+				}
+				const grown = grownLayout(
+					last.input,
+					last.layout,
+					last.sizes,
+					sizes,
+					last.card,
+				);
+				return grown.layout === last.layout
+					? last
+					: {
+							...last,
+							layout: grown.layout,
+							sizes: grown.slots,
+							links: laneLinks(
+								last.input,
+								grown.layout,
+								last.direction,
+								last.kind,
+								last.card,
+								grown.slots,
+							),
+							held: true,
+						};
+			});
+		});
+	}, [sizes]);
 	return { laid, failed, unplaced };
 }

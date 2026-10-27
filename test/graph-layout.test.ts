@@ -4,13 +4,16 @@ import ELK from "elkjs/lib/elk-api.js";
 
 import { fillShare } from "../proof/elk-spike/graph.ts";
 import { graphTickets, projectNodeId } from "../src/graph-flow.ts";
+import { grownLayout } from "../src/graph-grow.ts";
 import {
 	focusLinks,
 	focusSeeds,
+	type GraphLayout,
 	groupHead,
 	groupId,
 	groupPad,
 	layoutGraph,
+	type LayoutInput,
 	layoutInput,
 } from "../src/graph-layout.ts";
 import { focusChain } from "../src/links.ts";
@@ -94,6 +97,34 @@ const outsideParents = [
 	},
 	linearTicket("WID-34", "Write the runbook", "unstarted", null),
 ];
+
+/**
+ * The cards of each layer of each holder, in their order across the layer.
+ * A layer is the cards of one holder that share a place along the arrows.
+ */
+function layerOrders(
+	input: LayoutInput,
+	layout: GraphLayout,
+	direction: "left-to-right" | "top-to-bottom",
+): Record<string, string[]> {
+	const horizontal = direction === "left-to-right";
+	const at = (id: string) => layout.cards.get(id) ?? { x: 0, y: 0 };
+	const layers = Map.groupBy(input.cards, (item) => {
+		const place = at(item.id);
+		const holder = item.frame ?? item.group ?? "root";
+		return `${holder} @ ${horizontal ? place.x : place.y}`;
+	});
+	return Object.fromEntries(
+		[...layers].map(([layer, items]) => [
+			layer,
+			items
+				.map((item) => item.id)
+				.sort((one, other) =>
+					horizontal ? at(one).y - at(other).y : at(one).x - at(other).x,
+				),
+		]),
+	);
+}
 
 describe("project graph layout", () => {
 	test("each workcell workstream frame fills at least the share the elkjs spike recorded", async () => {
@@ -628,5 +659,35 @@ describe("project graph layout", () => {
 			{ groupBy: "assignee", frames: [] },
 			{ groupBy: "none", frames: [] },
 		]);
+	});
+
+	test("a card that grows keeps the order of every card in each layer", async () => {
+		const chipRow = 28;
+		for (const direction of ["left-to-right", "top-to-bottom"] as const) {
+			const { input, layout } = await workcellLayout(direction);
+			const slots = new Map(input.cards.map((item) => [item.id, card]));
+			const before = layerOrders(input, layout, direction);
+			const moved = input.cards.flatMap((item) => {
+				const sizes = new Map(slots).set(item.id, {
+					...card,
+					height: card.height + chipRow,
+				});
+				const grown = grownLayout(input, layout, slots, sizes, card);
+				const after = layerOrders(input, grown.layout, direction);
+				const problems = [
+					...Object.keys(before).flatMap((layer) =>
+						Object.values(after).some(
+							(items) => items.join() === before[layer]?.join(),
+						)
+							? []
+							: [`${layer} changed`],
+					),
+					...cardOverlaps(grown.layout, sizes),
+					...strayFromHolders(input, grown.layout, sizes),
+				];
+				return problems.length === 0 ? [] : [{ grown: item.id, problems }];
+			});
+			expect({ direction, moved }).toEqual({ direction, moved: [] });
+		}
 	});
 });

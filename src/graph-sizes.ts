@@ -25,7 +25,7 @@ export function rememberNodeSize(
 		return;
 	}
 	const idChanged = writeSize(sizes, id, size);
-	const kindChanged = writeSize(kindSizes, kind, size);
+	const kindChanged = writeKindSize(kind, size);
 	if (!idChanged && !kindChanged) {
 		return;
 	}
@@ -42,6 +42,23 @@ function writeSize<Key>(
 	const previous = store.get(key);
 	store.set(key, size);
 	return previous?.width !== size.width || previous?.height !== size.height;
+}
+
+/**
+ * Keeps the size of the shortest drawn node of a kind, so that a node that
+ * grows does not change the span that the graph layout lays out with.
+ */
+function writeKindSize(kind: NodeKind, size: NodeSize): boolean {
+	const previous = kindSizes.get(kind);
+	if (
+		previous !== undefined &&
+		previous.width === size.width &&
+		previous.height <= size.height
+	) {
+		return false;
+	}
+	kindSizes.set(kind, size);
+	return true;
 }
 
 export function nodeSize(id: string, fallback: NodeSize): NodeSize {
