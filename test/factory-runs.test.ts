@@ -29,6 +29,7 @@ import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
 import runDetail from "./fixtures/factory-run-detail.json";
+import runEvents from "./fixtures/factory-run-events.json";
 import runGraphCheckpoint from "./fixtures/factory-run-graph-checkpoint.json";
 import runGraph from "./fixtures/factory-run-graph.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
@@ -1580,6 +1581,215 @@ describe("factory runs", () => {
 				);
 				const response = await agentsOf(app.base, "no-such-run");
 				expect(response.status).toBe(404);
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the run events", () => {
+		const running41 = hubRuns.runs[0]?.id ?? "";
+		const eventsPath = `/runs/${running41}/events`;
+
+		type Sent = { id?: string; event?: string; data: unknown };
+
+		/** Each SSE event of an API stream, without its comment lines. */
+		function sentOf(text: string): Sent[] {
+			return text
+				.split("\n\n")
+				.map((block) => {
+					const fields = new Map(
+						block
+							.split("\n")
+							.filter((line) => !line.startsWith(":") && line.includes(":"))
+							.map((line) => {
+								const at = line.indexOf(":");
+								return [line.slice(0, at), line.slice(at + 1).trim()];
+							}),
+					);
+					const data = fields.get("data");
+					if (data === undefined) {
+						return null;
+					}
+					const id = fields.get("id");
+					const event = fields.get("event");
+					return {
+						...(id === undefined ? {} : { id }),
+						...(event === undefined ? {} : { event }),
+						data: JSON.parse(data),
+					};
+				})
+				.filter((sent) => sent !== null);
+		}
+
+		function shown(frame: (typeof runEvents)[number]): Sent {
+			return {
+				id: frame.id,
+				data: {
+					id: frame.id,
+					event: frame.item.event,
+					stage: frame.item.node_path,
+					at: frame.recorded_at,
+					data: frame.item.data,
+				},
+			};
+		}
+
+		async function eventsOf(
+			base: string,
+			headers: Record<string, string> = {},
+		): Promise<Response> {
+			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
+			return fetch(
+				new URL(
+					`/api/factory-runs/${encodeURIComponent(running41)}/events`,
+					base,
+				),
+				{ headers },
+			);
+		}
+
+		async function untilSent(
+			read: ReadableStreamDefaultReader<Uint8Array>,
+			accept: (sent: Sent[]) => boolean,
+		): Promise<Sent[]> {
+			const decoder = new TextDecoder();
+			let text = "";
+			while (!accept(sentOf(text))) {
+				const chunk = await read.read();
+				if (chunk.done) {
+					break;
+				}
+				text += decoder.decode(chunk.value, { stream: true });
+			}
+			return sentOf(text);
+		}
+
+		test("a run on a box streams every event of the run through the hub, then its new events, then the end of the run", async () => {
+			const feed = new EventFeed();
+			const app = await serveRuns({ ...hub, [eventsPath]: feed }, [41]);
+			try {
+				const response = await eventsOf(app.base);
+				expect(response.status).toBe(200);
+				expect(response.headers.get("content-type")).toBe("text/event-stream");
+				const read = response.body?.getReader();
+				if (read === undefined) {
+					throw new Error("the event stream has no body");
+				}
+				await feed.connected(1);
+				for (const frame of runEvents) {
+					feed.send(frame);
+				}
+				const replay = await untilSent(
+					read,
+					(sent) => sent.length === runEvents.length,
+				);
+				expect(replay).toEqual(runEvents.map(shown));
+				const [, , , , , , turnEnded] = runEvents;
+				if (turnEnded === undefined) {
+					throw new Error("the run events fixture lost an event");
+				}
+				const live = {
+					...turnEnded,
+					seq: 8,
+					id: "7c3a9d8e6f5b4a4c5d0e9f8a7b6c5d08",
+					recorded_at: "2026-10-25T14:21:03.512+00:00",
+					item: {
+						event: "stage.completed",
+						node_path: "plan",
+						data: { name: "plan", index: 1, duration: 1193.0 },
+					},
+				};
+				feed.send(live);
+				feed.drop();
+				expect(await untilSent(read, () => false)).toEqual([
+					shown(live),
+					{ event: "end", data: { reason: "ended" } },
+				]);
+				expect(
+					app.requests
+						.filter((request) => new URL(request.url).pathname === eventsPath)
+						.map((request) => request.url),
+				).toEqual([`${hubUrl}${eventsPath}`]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a Last-Event-ID sent to the app reaches the hub, so the stream starts after that event", async () => {
+			const feed = new EventFeed();
+			const app = await serveRuns({ ...hub, [eventsPath]: feed }, [41]);
+			const [, , seen] = runEvents;
+			if (seen === undefined) {
+				throw new Error("the run events fixture lost an event");
+			}
+			try {
+				const response = await eventsOf(app.base, {
+					"last-event-id": seen.id,
+				});
+				await feed.connected(1);
+				expect(
+					app.requests
+						.filter((request) => new URL(request.url).pathname === eventsPath)
+						.map((request) => request.lastEventId),
+				).toEqual([seen.id]);
+				const rest = runEvents.slice(3);
+				for (const frame of rest) {
+					feed.send(frame);
+				}
+				feed.drop();
+				expect(await response.text().then(sentOf)).toEqual([
+					...rest.map(shown),
+					{ event: "end", data: { reason: "ended" } },
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a factory that answers 404 on the run events ends the stream as not served", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				const response = await eventsOf(app.base);
+				expect(response.status).toBe(200);
+				expect(sentOf(await response.text())).toEqual([
+					{ event: "end", data: { reason: "not served" } },
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a factory that does not answer ends the stream as unreachable", async () => {
+			const app = await serveRuns(
+				{
+					...hub,
+					[eventsPath]: () => new Response("bad gateway", { status: 502 }),
+				},
+				[41],
+			);
+			try {
+				const response = await eventsOf(app.base);
+				expect(sentOf(await response.text())).toEqual([
+					{ event: "end", data: { reason: "unreachable" } },
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that no factory reports answers 404", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const response = await fetch(
+					new URL("/api/factory-runs/no-such-run/events", app.base),
+				);
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ missing: true });
 			} finally {
 				await app.stop();
 			}

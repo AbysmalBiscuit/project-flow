@@ -249,6 +249,17 @@ export const runMissingLabel = "No factory reports this run.";
 
 export const runReadFailedLabel = "The run did not load.";
 
+export const runEventsLabel = "Run events";
+
+export const noRunEventsLabel = "The run has no events yet.";
+
+/** The note under the run events when their stream ends. */
+export const runEventsEndLabel = {
+	ended: "The event stream of the run ended.",
+	unreachable:
+		"The factory stopped answering. Reload the page to read the events again.",
+} as const;
+
 /** The columns of the Runs list, in order. */
 export const runsColumnLabel = {
 	status: runFactLabel.status,

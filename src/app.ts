@@ -956,6 +956,18 @@ export async function start(options: StartOptions): Promise<Running> {
 							: Response.json({ agents: found });
 					}),
 			},
+			"/api/factory-runs/:id/events": {
+				GET: (request) => {
+					server.timeout(request, 0);
+					return (
+						factories.events(
+							request.params.id,
+							request.headers.get("last-event-id"),
+							request.signal,
+						) ?? Response.json({ missing: true }, { status: 404 })
+					);
+				},
+			},
 			"/api/threads/:tracker/:key": {
 				GET: (request) =>
 					staleRead(readKey(request), () =>

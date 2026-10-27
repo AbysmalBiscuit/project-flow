@@ -23,7 +23,11 @@ export function reader(
 	const base = unix
 		? "http://localhost"
 		: `${parsed.origin}${parsed.pathname.replace(/\/$/, "")}`;
-	return async (path: string, post?: { json: unknown }): Promise<Response> => {
+	return async (
+		path: string,
+		send: { json?: unknown; headers?: Record<string, string> } = {},
+	): Promise<Response> => {
+		const post = "json" in send;
 		try {
 			return await fetchImpl(`${base}${path}`, {
 				signal:
@@ -31,13 +35,11 @@ export function reader(
 						? signal
 						: AbortSignal.any([signal, AbortSignal.timeout(limitMs)]),
 				...(unix ? { unix: parsed.pathname } : {}),
-				...(post === undefined
-					? {}
-					: {
-							method: "POST",
-							headers: { "content-type": "application/json" },
-							body: JSON.stringify(post.json),
-						}),
+				headers: {
+					...send.headers,
+					...(post ? { "content-type": "application/json" } : {}),
+				},
+				...(post ? { method: "POST", body: JSON.stringify(send.json) } : {}),
 			});
 		} catch {
 			throw new Unreachable();
