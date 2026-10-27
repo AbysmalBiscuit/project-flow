@@ -36,7 +36,6 @@ import {
 } from "./overview-view.ts";
 import { openProject, projectPath } from "./paths.ts";
 import {
-	PollAgeText,
 	pollLine,
 	postRefresh,
 	RefreshButton,
@@ -816,12 +815,7 @@ function OverviewPage({
 	const page = (
 		<PageFrame
 			title={navLabel.overview}
-			subtitle={
-				<>
-					{summary}
-					<PollAgeText queryKey={pageQuery.overview.queryKey} />
-				</>
-			}
+			subtitle={summary}
 			filter={undefined}
 			sort={undefined}
 			search={<OverviewSearch query={query} onQuery={setQuery} focus={focus} />}
@@ -837,6 +831,7 @@ function OverviewPage({
 				<div className={clsx(frame.actions)}>
 					<RefreshButton
 						id="overview-refresh"
+						queryKey={pageQuery.overview.queryKey}
 						refreshing={refreshing}
 						onRefresh={() => postRefresh(pageQuery.overview.queryKey)}
 					/>

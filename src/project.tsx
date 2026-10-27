@@ -46,7 +46,7 @@ import { displayedLaneName, doneTicketsForLane } from "./lanes.ts";
 import { focusChain } from "./links.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { TicketPanel } from "./panel.tsx";
-import { PollAgeText, RefreshButton } from "./poll-freshness.tsx";
+import { RefreshButton } from "./poll-freshness.tsx";
 import { FilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
@@ -1158,16 +1158,12 @@ export function Page() {
 						<div className={clsx(board.head, projectHeaderLayout.head)}>
 							<div className={clsx(board.identity)}>
 								<h1 className={clsx(board.name)}>{report.name}</h1>
-								<p className={clsx(board.counts)}>
-									{countLine(report)}
-									<PollAgeText
-										queryKey={pageQuery.project(name, "all").queryKey}
-									/>
-								</p>
+								<p className={clsx(board.counts)}>{countLine(report)}</p>
 							</div>
 							<div className={clsx(board.toolbar, projectHeaderLayout.toolbar)}>
 								<RefreshButton
 									id="project-refresh"
+									queryKey={pageQuery.project(name, "all").queryKey}
 									refreshing={
 										polling || reportQuery.isFetching || refresh.isPending
 									}
