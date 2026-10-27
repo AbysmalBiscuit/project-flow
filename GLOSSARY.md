@@ -83,7 +83,7 @@ The tracker status when that status lags the state.
 _Avoid_: Stale, out of date, wrong status
 
 **Run failed**:
-A workcell run that failed or stalled. The ticket returns to the lane of its tracker status.
+A workcell run that failed or stalled. The ticket drops the evidence that the run gave: a live run, a started todo and a pushed branch. Evidence from PRs still moves the ticket forward, so an open PR can set In progress, In review or Awaiting merge. With no such PR, the ticket returns to the lane of its tracker status.
 _Avoid_: Failed, error, stalled
 
 **Done**:
