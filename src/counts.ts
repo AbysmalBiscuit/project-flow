@@ -47,7 +47,7 @@ import {
 } from "./shown-ticket.ts";
 import { asRef, known, parseKey } from "./ticket-index.ts";
 import { foldKey, pullKey, sameTicketKey, ticketRefId } from "./ticket-key.ts";
-import { runFor } from "./workcell.ts";
+import { progressNamesPull, runFor } from "./workcell.ts";
 
 export function projectCounts(
 	name: string,
@@ -109,11 +109,19 @@ export function projectCounts(
 	const linkedKeys = new Set<string>();
 	const subTickets = subTicketCounts(tickets);
 	const started = new Set(startedKeys.map((item) => foldKey(item)));
+	const workcellPulls = new Set(
+		factoryRuns.flatMap((run) =>
+			run.pull === undefined ? [] : [pullKey(run.pull)],
+		),
+	);
 	for (const ticket of tickets) {
 		const blockers = openBlockers(ticket, graph);
 		const links = linked(ticket, pulls);
 		for (const pull of links) {
 			linkedKeys.add(pullKey(pull));
+			if (progressNamesPull(ticket.comments ?? [], pull)) {
+				workcellPulls.add(pullKey(pull));
+			}
 		}
 		if (ticket.state === "open" && ticket.key !== null) {
 			linkedByTicket.set(ticket.key, links);
@@ -123,7 +131,13 @@ export function projectCounts(
 			tags.add(tag);
 		}
 		const lane = laneForTicket(ticket, lanes, colours);
-		const mergesAlone = mergesOnItsOwn(links, name, key, autoMerge);
+		const mergesAlone = mergesOnItsOwn(
+			links,
+			name,
+			key,
+			autoMerge,
+			workcellPulls,
+		);
 		const newestRun = runFor(ticket, factoryRuns);
 		const fed = newestRun?.coveredByFeed === true ? newestRun : undefined;
 		const shown = shownTicket(
@@ -253,6 +267,7 @@ export function projectCounts(
 			pmBot: projectHasPmBot(rules.pmBot, key, tracker),
 		},
 		autoMerge,
+		workcellPulls,
 		key,
 	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);

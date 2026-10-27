@@ -2,6 +2,7 @@ import type { AutoMerge } from "./configuration.ts";
 import type { BotReview, Comment, PullRequest, PullStatus } from "./domain.ts";
 import { type KnownBot, knownBots } from "./known-bots.ts";
 import { repoKey } from "./project-ref.ts";
+import { pullKey } from "./ticket-key.ts";
 import { workcellRun } from "./workcell.ts";
 
 const botLogin: Record<KnownBot, string> = {
@@ -253,11 +254,13 @@ export type AutoMergeSources = {
 	repo: Record<string, boolean>;
 };
 
+/** True when every open PR merges with no human. Workcell `merge_auto` applies only to `workcellPulls`. */
 export function mergesOnItsOwn(
 	links: PullRequest[],
 	project: string,
 	projectKey: string,
 	auto: AutoMergeSources,
+	workcellPulls: ReadonlySet<string>,
 ): boolean {
 	const open = links.filter((pull) => !pull.merged);
 	if (open.length === 0) {
@@ -269,7 +272,9 @@ export function mergesOnItsOwn(
 		if (configured !== undefined) {
 			return configured === "yes";
 		}
-		const workcell = auto.workcell[pull.repo];
+		const workcell = workcellPulls.has(pullKey(pull))
+			? auto.workcell[pull.repo]
+			: undefined;
 		if (workcell !== undefined) {
 			return workcell === "yes";
 		}
