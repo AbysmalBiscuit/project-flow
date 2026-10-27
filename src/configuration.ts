@@ -109,6 +109,7 @@ const projectViewSettings = z.strictObject({
 	assignees: z.array(z.string()).default([]),
 	search: z.string().default(""),
 	withRunsOnly: z.boolean().default(false),
+	latestRunOnly: z.boolean().default(false),
 	runStatuses: z.array(z.enum(runStatusKinds)).default([]),
 	runResults: z.array(z.enum(runResults)).default([]),
 	runFactories: z.array(z.string()).default([]),

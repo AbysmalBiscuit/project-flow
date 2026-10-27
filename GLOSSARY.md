@@ -207,7 +207,7 @@ The project page menu that hides tickets by lane, age, needs you, blocker and as
 _Avoid_: Filter (when the run filter can be meant)
 
 **Run filter**:
-The project page menu that hides tickets by their factory runs. "With runs only" keeps the tickets with a run mark. Each run status, run result and factory that Lev checks keeps the tickets with a matching run. A ticket with several runs matches when one of its runs matches.
+The project page menu that hides tickets by their factory runs. "With runs only" keeps the tickets with a run mark. Each run status, run result and factory that Lev checks keeps the tickets with a matching run. A ticket with several runs matches when one of its runs matches. With "Latest run only" on, only the latest run of each ticket can match: the run that its card shows.
 _Avoid_: Factory filter
 
 **Run result**:

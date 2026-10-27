@@ -202,7 +202,8 @@ function ageDays(entered: string | undefined, now: Date): number {
 
 /**
  * A ticket has a run when its card shows the run mark. With several runs,
- * the ticket matches when any of its runs matches every run filter.
+ * the ticket matches when any of its runs matches every run filter. With
+ * latest run only, just the run that its card shows can match.
  */
 function matchesRunFilters(
 	item: TicketView,
@@ -220,7 +221,9 @@ function matchesRunFilters(
 	if (item.factoryRun?.coveredByFeed !== true) {
 		return false;
 	}
-	const runs = [item.factoryRun, ...(item.earlierFactoryRuns ?? [])];
+	const runs = view.latestRunOnly
+		? [item.factoryRun]
+		: [item.factoryRun, ...(item.earlierFactoryRuns ?? [])];
 	return runs.some(
 		(run) =>
 			(view.runStatuses.length === 0 ||

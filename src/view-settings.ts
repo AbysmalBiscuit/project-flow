@@ -41,12 +41,17 @@ export function projectViewKey(
 
 export const clearedRunFilters = {
 	withRunsOnly: false,
+	latestRunOnly: false,
 	runStatuses: [],
 	runResults: [],
 	runFactories: [],
 } satisfies Pick<
 	ProjectViewSettings,
-	"withRunsOnly" | "runStatuses" | "runResults" | "runFactories"
+	| "withRunsOnly"
+	| "latestRunOnly"
+	| "runStatuses"
+	| "runResults"
+	| "runFactories"
 >;
 
 export function viewDefaults(): ProjectViewSettings {
