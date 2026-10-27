@@ -223,6 +223,18 @@ function openMergeAsk(later: Comment[], number: number): Comment | undefined {
 	});
 }
 
+/** True when the workcell progress comment names the PR. */
+export function progressNamesPull(
+	comments: Comment[],
+	pull: PullRequest,
+): boolean {
+	return (
+		progressComment(comments)?.lines.some((line) =>
+			pullNumbers(line).includes(pull.number),
+		) === true
+	);
+}
+
 export function runFor<Run extends Pick<WorkcellRun, "key" | "repo">>(
 	ticket: Ticket,
 	runs: Run[],

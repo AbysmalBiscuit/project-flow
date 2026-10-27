@@ -416,6 +416,7 @@ export function needsYouItems(
 	blockedRuns: Map<string, FactoryRun>,
 	rules: NeedsYouRules,
 	autoMerge: AutoMergeSources,
+	workcellPulls: ReadonlySet<string>,
 	projectKey: string,
 ): NeedsYouItem[] {
 	const labels = new Set(rules.labels.map((label) => label.toLowerCase()));
@@ -494,7 +495,7 @@ export function needsYouItems(
 		if (reviewState([pull], expectedBots, []).state !== "awaitingMerge") {
 			continue;
 		}
-		if (mergesOnItsOwn([pull], project, projectKey, autoMerge)) {
+		if (mergesOnItsOwn([pull], project, projectKey, autoMerge, workcellPulls)) {
 			continue;
 		}
 		items.push(

@@ -2390,6 +2390,159 @@ console.log(JSON.stringify({ result: { agents: JSON.parse(agents) } }));
 		);
 	});
 
+	test("workcell merge_auto yes leaves an unlinked PR that no workcell run opened in Needs you", async () => {
+		const recorded = (await recordedJson(
+			"github-pull-auto-merge.json",
+		)) as RecordedPull;
+		const checkout = await devkitWorktree({
+			key: `${githubRepo}#8`,
+			status: "running",
+			mergeAuto: { workflow: "yes" },
+		});
+		try {
+			await withApp(
+				JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
+				recordedRepo(
+					[],
+					[
+						pullAs(recorded, {
+							number: 90,
+							body: "A fix with no ticket.",
+							state: "open",
+						}),
+					],
+				),
+				{ GITHUB_TOKEN: "recorded-token" },
+				async (base) => {
+					const report = await projectOf(base, githubRepo);
+					expect(
+						needsYouOf(report).map((row) => [row.key, row.reason]),
+					).toEqual([[`${githubRepo}#90`, "awaitingMerge"]]);
+				},
+				checkout.root,
+			);
+		} finally {
+			await checkout.cleanup();
+		}
+	});
+
+	test("workcell merge_auto yes keeps only a PR that a workcell progress comment names out of Awaiting merge", async () => {
+		const recorded = (await recordedJson(
+			"github-pull-auto-merge.json",
+		)) as RecordedPull;
+		const cases = [
+			{
+				comment: progress(
+					"- stage 5: round 1 of 3\n- final report sent https://github.com/acme/widget/pull/83",
+				),
+				lane: "In review",
+				state: "inReview",
+				reasons: [],
+			},
+			{
+				comment: "Opened https://github.com/acme/widget/pull/83 by hand.",
+				lane: "Awaiting merge",
+				state: "awaitingMerge",
+				reasons: ["awaitingMerge"],
+			},
+		] as const;
+		for (const item of cases) {
+			const checkout = await devkitWorktree({
+				key: "WID-9",
+				status: "running",
+				mergeAuto: { workflow: "yes" },
+			});
+			try {
+				await withApp(
+					JSON.stringify({
+						pinned: [{ tracker: "linear", project: linearSlug }],
+					}),
+					recordedLinear(
+						[
+							linearIssue("WID-2", "Land the branch", reviewState, {
+								comments: {
+									nodes: [
+										{
+											id: "c1",
+											body: item.comment,
+											createdAt: "2026-08-18T13:00:00.000Z",
+										},
+									],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+								attachments: {
+									nodes: [
+										{
+											url: "https://github.com/acme/widget/pull/83",
+											title: "PR 83",
+											sourceType: "github",
+										},
+									],
+								},
+							}),
+						],
+						async (input) => {
+							const url = urlOf(input);
+							if (url === "https://api.github.com/user") {
+								return Response.json({ login: "lev" });
+							}
+							if (
+								url === `https://api.github.com/repos/${githubRepo}/pulls/83`
+							) {
+								return Response.json({
+									...pullAs(recorded, {
+										number: 83,
+										body: "Closes WID-2",
+										state: "open",
+									}),
+									auto_merge: null,
+								});
+							}
+							if (url.includes("/pulls?state=closed")) {
+								return page([]);
+							}
+							if (
+								url.includes("/comments") ||
+								url.includes("/reviews") ||
+								url.includes("/reactions")
+							) {
+								return page([]);
+							}
+							if (url.includes("/check-runs")) {
+								return Response.json({ check_runs: [] });
+							}
+							if (url.includes("/commits/")) {
+								return Response.json({
+									commit: { committer: { date: "2026-08-18T11:00:00.000Z" } },
+								});
+							}
+							return unrecorded(input);
+						},
+					),
+					{
+						LINEAR_API_KEY: "recorded-linear-key",
+						GITHUB_TOKEN: "recorded-token",
+					},
+					async (base) => {
+						const report = await projectOf(base, "Widget launch");
+						expect(ticketOf(report, "WID-2")).toMatchObject({
+							state: item.state,
+							lane: item.lane,
+						});
+						expect(
+							needsYouOf(report)
+								.filter((row) => row.key === "WID-2")
+								.map((row) => row.reason),
+						).toEqual([...item.reasons]);
+					},
+					checkout.root,
+				);
+			} finally {
+				await checkout.cleanup();
+			}
+		}
+	});
+
 	test("a blank stage, repeated spaces and a failed word outside a stage line invent no failed run", async () => {
 		await withApp(
 			JSON.stringify({
