@@ -200,11 +200,43 @@ function ageDays(entered: string | undefined, now: Date): number {
 	return (now.getTime() - at) / dayMs;
 }
 
+/**
+ * A ticket has a run when its card shows the run mark. With several runs,
+ * the ticket matches when any of its runs matches every run filter.
+ */
+function matchesRunFilters(
+	item: TicketView,
+	view: ProjectViewSettings,
+	factories: Set<string>,
+): boolean {
+	const filtering =
+		view.withRunsOnly ||
+		view.runStatuses.length > 0 ||
+		view.runResults.length > 0 ||
+		factories.size > 0;
+	if (!filtering) {
+		return true;
+	}
+	if (item.factoryRun?.coveredByFeed !== true) {
+		return false;
+	}
+	const runs = [item.factoryRun, ...(item.earlierFactoryRuns ?? [])];
+	return runs.some(
+		(run) =>
+			(view.runStatuses.length === 0 ||
+				view.runStatuses.includes(run.statusKind)) &&
+			(view.runResults.length === 0 ||
+				(run.result !== undefined && view.runResults.includes(run.result))) &&
+			(factories.size === 0 || factories.has(run.factory.toLowerCase())),
+	);
+}
+
 function matchesProjectView(
 	item: TicketView,
 	view: ProjectViewSettings,
 	shown: Set<string>,
 	wanted: Set<string>,
+	factories: Set<string>,
 	needle: string,
 	now: Date,
 	applyAge: boolean,
@@ -221,6 +253,9 @@ function matchesProjectView(
 		return false;
 	}
 	if (view.blockedOnly && item.blocked !== true) {
+		return false;
+	}
+	if (!matchesRunFilters(item, view, factories)) {
 		return false;
 	}
 	if (applyAge) {
@@ -252,12 +287,25 @@ export function filterProjectReport(
 			return trimmed === "" ? [] : [trimmed];
 		}),
 	);
+	const factories = new Set(
+		view.runFactories.map((name) => name.trim().toLowerCase()),
+	);
+	factories.delete("");
 	const needle = view.search.trim().toLowerCase();
 	const kept = report.tickets.filter((item) =>
-		matchesProjectView(item, view, shown, wanted, needle, now, true),
+		matchesProjectView(item, view, shown, wanted, factories, needle, now, true),
 	);
 	const done = report.doneTickets.filter((item) =>
-		matchesProjectView(item, view, shown, wanted, needle, now, false),
+		matchesProjectView(
+			item,
+			view,
+			shown,
+			wanted,
+			factories,
+			needle,
+			now,
+			false,
+		),
 	);
 	const keptKeys = new Set(
 		kept.flatMap((item) => (item.key === null ? [] : [foldKey(item.key)])),
@@ -319,6 +367,18 @@ function hidingFilters(
 	}
 	if (view.search.trim() !== "") {
 		open.push("search");
+	}
+	if (view.withRunsOnly) {
+		open.push("withRunsOnly");
+	}
+	if (view.runStatuses.length > 0) {
+		open.push("runStatuses");
+	}
+	if (view.runResults.length > 0) {
+		open.push("runResults");
+	}
+	if (view.runFactories.some((name) => name.trim() !== "")) {
+		open.push("runFactories");
 	}
 	return open;
 }
