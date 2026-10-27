@@ -47,7 +47,7 @@ import { focusChain } from "./links.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { TicketPanel } from "./panel.tsx";
 import { RefreshButton } from "./poll-freshness.tsx";
-import { FilterMenu } from "./project-filters.tsx";
+import { RunFilterMenu, TicketFilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useRefreshProject, useSaveSettings } from "./queries.ts";
@@ -83,6 +83,7 @@ import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 import {
+	clearedRunFilters,
 	defaultGraphDirection,
 	defaultGraphGroupBy,
 	defaultGraphLayout,
@@ -144,6 +145,7 @@ function clearedView(
 		blockedOnly: false,
 		assignees: [],
 		search: "",
+		...clearedRunFilters,
 	};
 }
 
@@ -958,6 +960,7 @@ export function Page() {
 	const [view, setView] = useState<PageView>("board");
 	const groupBySavedRef = useRef(false);
 	const [filterOpen, setFilterOpen] = useState(false);
+	const [runFilterOpen, setRunFilterOpen] = useState(false);
 	const ticketFocus = useFocusView();
 	const clearFocus = ticketFocus.clear;
 	useEffect(() => {
@@ -1111,6 +1114,7 @@ export function Page() {
 						blockedOnly: false,
 						assignees: [],
 						search: "",
+						...clearedRunFilters,
 						graphDirection: defaultGraphDirection,
 						graphLayout: defaultGraphLayout,
 					};
@@ -1169,11 +1173,18 @@ export function Page() {
 									}
 									onRefresh={() => refresh.mutate()}
 								/>
-								<FilterMenu
+								<TicketFilterMenu
 									report={report}
 									view={settings}
 									open={filterOpen}
 									onOpen={setFilterOpen}
+									onChange={saveView}
+								/>
+								<RunFilterMenu
+									report={fullReport ?? report}
+									view={settings}
+									open={runFilterOpen}
+									onOpen={setRunFilterOpen}
 									onChange={saveView}
 								/>
 								<TextInput

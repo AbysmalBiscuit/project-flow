@@ -307,6 +307,7 @@ describe("factory runs", () => {
 				startedAt: "2026-10-25T12:00:09+00:00",
 				endedAt: "2026-10-25T12:30:00+00:00",
 				coveredByFeed: true,
+				result: "failed",
 			});
 		} finally {
 			await app.stop();
@@ -392,11 +393,126 @@ describe("factory runs", () => {
 			expect(views(41)?.earlierFactoryRuns).toEqual([
 				{
 					statusKind: "failed",
+					factory: "work hub",
 					startedAt: "2026-10-25T10:00:05+00:00",
 					endedAt: "2026-10-25T10:40:00+00:00",
+					result: "failed",
 				},
 			]);
 			expect(views(39)?.earlierFactoryRuns).toBeUndefined();
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("the run filters of the saved project view keep the tickets with a matching run, and come back from the settings", async () => {
+		const [running41] = hubRuns.runs;
+		if (running41 === undefined) {
+			throw new Error("the hub runs fixture lost a run");
+		}
+		const laptopRun = {
+			...boxRow(running41, "running"),
+			id: "20261025-141800-f7a8",
+			ticket: "43",
+		};
+		const app = await serveRuns(
+			{ ...hub, "/runs": hubRunsWithRetry },
+			[38, 39, 40, 41, 42, 43],
+			{},
+			{ ...daemon, "/runs": { runs: [laptopRun] } },
+		);
+		try {
+			await overviewWhere(
+				app.base,
+				(seen) =>
+					factoryRunOf(seen, 41) !== undefined &&
+					factoryRunOf(seen, 43) !== undefined,
+			);
+			const shownWith = async (runFilters: Record<string, unknown>) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", app.base))
+				).json()) as Record<string, unknown>;
+				const saved = await fetch(new URL("/api/settings", app.base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: { [repo]: runFilters },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const report = await reportOf(app.base);
+				return {
+					tickets: report.tickets.map((view) => view.title),
+					graph: report.graphTickets.map((view) => view.key),
+					hiddenBy: report.hiddenBy,
+				};
+			};
+			expect((await shownWith({})).tickets).toEqual([
+				"Ticket 38",
+				"Ticket 39",
+				"Ticket 40",
+				"Ticket 41",
+				"Ticket 42",
+				"Ticket 43",
+			]);
+			expect(await shownWith({ withRunsOnly: true })).toEqual({
+				tickets: [
+					"Ticket 39",
+					"Ticket 40",
+					"Ticket 41",
+					"Ticket 42",
+					"Ticket 43",
+				],
+				graph: [39, 40, 41, 42, 43].map((number) => `${repo}#${number}`),
+				hiddenBy: undefined,
+			});
+			expect((await shownWith({ runStatuses: ["failed"] })).tickets).toEqual([
+				"Ticket 39",
+				"Ticket 41",
+			]);
+			expect((await shownWith({ runResults: ["noPr"] })).tickets).toEqual([
+				"Ticket 40",
+			]);
+			expect(
+				(
+					await shownWith({
+						runStatuses: ["running"],
+						runFactories: ["Work Hub"],
+					})
+				).tickets,
+			).toEqual(["Ticket 41"]);
+			expect(
+				(
+					await shownWith({
+						runStatuses: ["failed"],
+						runFactories: ["laptop"],
+					})
+				).hiddenBy,
+			).toEqual(["runStatuses", "runFactories"]);
+			const filters = {
+				withRunsOnly: true,
+				runStatuses: ["running", "failed"],
+				runResults: ["failed"],
+				runFactories: ["work hub"],
+			};
+			expect((await shownWith(filters)).tickets).toEqual([
+				"Ticket 39",
+				"Ticket 41",
+			]);
+			const settings = (await (
+				await fetch(new URL("/api/settings", app.base))
+			).json()) as { projectViews: Record<string, Record<string, unknown>> };
+			expect(settings.projectViews[repo]).toMatchObject(filters);
+			const rejected = await fetch(new URL("/api/settings", app.base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...settings,
+					projectViews: { [repo]: { runStatuses: ["done"] } },
+				}),
+			});
+			expect(rejected.status).toBe(400);
 		} finally {
 			await app.stop();
 		}

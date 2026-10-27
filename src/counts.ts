@@ -193,7 +193,7 @@ export function projectCounts(
 				: { staleStatus: shown.staleStatus }),
 			...chipsOf(shown),
 			enteredStateAt: shown.enteredStateAt,
-			...shownFactoryRun(ticket, factoryRuns, now),
+			...shownFactoryRun(ticket, factoryRuns, pulls, now),
 			...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
 			...assigneesOf(ticket),
 			...(ticket.parent === null ? {} : { parent: ticket.parent }),

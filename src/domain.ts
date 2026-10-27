@@ -130,7 +130,7 @@ export type ShownFactoryRun = Pick<
 	| "coveredByFeed"
 	| "questions"
 	| "thread"
-> & { stage?: string };
+> & { stage?: string; result?: RunResult };
 
 /** Where a factory run is in its flow, from the run checkpoint of its box. */
 export type RunCheckpoint = {
@@ -229,8 +229,8 @@ export type RunGraph = { nodes: RunGraphNode[]; edges: RunGraphEdge[] };
 /** A factory run of a ticket that a newer run replaced, such as a failed run before its retry. */
 export type EarlierFactoryRun = Pick<
 	FactoryRun,
-	"statusKind" | "startedAt" | "endedAt"
->;
+	"statusKind" | "factory" | "startedAt" | "endedAt"
+> & { result?: RunResult };
 
 /** The fixed categories in workflow order. The domain rules read only these. */
 export const statusTypes = [
