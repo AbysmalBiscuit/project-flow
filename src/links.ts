@@ -283,9 +283,32 @@ export function shownGraph(
 		),
 	);
 	const linked = linkedDoneKeys(name, relationsByKey);
+	const doneOnly = (view: TicketView & { key: string }) =>
+		view.state === "done" && !openKeys.has(foldKey(view.key));
+	const linkedShown = new Set(
+		withKey.filter((view) =>
+			view.state === "done"
+				? doneOnly(view) && linked.has(foldKey(view.key))
+				: true,
+		),
+	);
+	const parentOf = new Map(
+		withKey.map((view) => [foldKey(view.key), foldKey(view.parent)] as const),
+	);
+	const framed = new Set<string>();
+	for (const view of linkedShown) {
+		let parent = foldKey(view.parent);
+		while (parent !== undefined && !framed.has(parent)) {
+			framed.add(parent);
+			parent = parentOf.get(parent);
+		}
+	}
 	const shown = withKey.filter((view) => {
-		const key = foldKey(view.key);
-		return view.state !== "done" || (!openKeys.has(key) && linked.has(key));
+		const parent = foldKey(view.parent);
+		return (
+			linkedShown.has(view) ||
+			(doneOnly(view) && parent !== undefined && framed.has(parent))
+		);
 	});
 	const local = new Map(
 		shown.map((view) => [foldKey(view.key), view] as const),
