@@ -117,6 +117,26 @@ export type RunLogEvent = Required<RunEvent> & { id: string; data: unknown };
  */
 export type RunEventsEnd = { reason: "ended" | "not served" | "unreachable" };
 
+/** A file that a run stage wrote in its stage folder, or a value that it added to the artifact store. */
+export type RunArtifact = {
+	/** The path of the stage folder in the run folder, such as `implement@v1.a1`. One stage has one folder for each visit. */
+	folder: string;
+	/** The path of the stage through the child graphs, such as `review/verdict`. */
+	stage: string;
+	/** The path of the file in the stage folder, such as `response.md`. */
+	name: string;
+	/** The media type. */
+	type: string;
+	/** The size in bytes. */
+	size: number;
+};
+
+/** One run artifact with its content: text for `utf-8`, and base64 for any other file. */
+export type RunArtifactContent = RunArtifact & {
+	encoding: "utf-8" | "base64";
+	content: string;
+};
+
 /** A workcell run with the facts that its run page shows. */
 export type RunDetail = FactoryRun & {
 	/** The name of the run's workflow graph. */

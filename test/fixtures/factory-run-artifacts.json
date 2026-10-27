@@ -1,0 +1,46 @@
+{
+	"artifacts": [
+		{
+			"stage": "plan@v1.a1",
+			"node_path": "plan",
+			"name": "prompt.md",
+			"type": "text/markdown",
+			"size": 1834
+		},
+		{
+			"stage": "plan@v1.a1",
+			"node_path": "plan",
+			"name": "response.md",
+			"type": "text/markdown",
+			"size": 184
+		},
+		{
+			"stage": "plan@v1.a1",
+			"node_path": "plan",
+			"name": "status.json",
+			"type": "application/json",
+			"size": 58
+		},
+		{
+			"stage": "implement@v1.a1",
+			"node_path": "implement",
+			"name": "prompt.md",
+			"type": "text/markdown",
+			"size": 2412
+		},
+		{
+			"stage": "implement@v1.a1",
+			"node_path": "implement",
+			"name": "response.md",
+			"type": "text/markdown",
+			"size": 3187
+		},
+		{
+			"stage": "review@v1.a1/child/verdict@v1.a1",
+			"node_path": "review/verdict",
+			"name": "artifacts/verdict.json",
+			"type": "application/json",
+			"size": 32
+		}
+	]
+}

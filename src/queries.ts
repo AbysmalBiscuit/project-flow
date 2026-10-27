@@ -15,6 +15,8 @@ import {
 	type PostedReply,
 	type ProjectReport,
 	type RunAgent,
+	type RunArtifact,
+	type RunArtifactContent,
 	type RunCheckpoint,
 	type RunDetail,
 	type SettingsProject,
@@ -25,6 +27,7 @@ import {
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { Steer } from "./factory-run-actions.ts";
+import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { openPage, runPagePath } from "./page-links.ts";
@@ -115,6 +118,24 @@ export const pageQuery = {
 			placeholderData: (previous: CheckpointRead | undefined) => previous,
 		});
 	},
+	/** The key holds the run's status and stage, so a stage that ends reads the artifacts again. */
+	artifacts: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) => {
+		const queryKey = ["artifacts", run.id, run.statusKind, run.stage ?? null];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readArtifacts(run.id, queryKey),
+			...pendingRetry,
+			placeholderData: (previous: ArtifactsRead | undefined) => previous,
+		});
+	},
+	artifact: (runId: string, artifact: Pick<RunArtifact, "folder" | "name">) => {
+		const queryKey = ["artifact", runId, artifact.folder, artifact.name];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readArtifact(runId, artifact, queryKey),
+			...pendingRetry,
+		});
+	},
 	/** A live run reads its agents again on an interval while a view follows it, and an ended run reads none. */
 	agents: (run: Pick<ShownFactoryRun, "id" | "statusKind">) => {
 		const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
@@ -178,6 +199,20 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 		settings: configurationOf(body) ?? body,
 	};
 }
+
+/** The app has not answered the read yet: it answered 202 and reads in the background. */
+class PendingRead extends Error {}
+
+/**
+ * An overview event that comes while the first read of a query runs joins that
+ * read, so the query can end pending after the app has its answer. The query
+ * reads again until the app answers.
+ */
+const pendingRetry = {
+	retry: (failures: number, error: Error) =>
+		error instanceof PendingRead && failures < 40,
+	retryDelay: 250,
+};
 
 async function readProject(
 	name: string,
@@ -282,6 +317,60 @@ async function readCheckpoint(
 		throw new Error(`checkpoint failed (HTTP ${response.status})`);
 	}
 	return (await response.json()) as RunCheckpoint;
+}
+
+async function readArtifacts(
+	runId: string,
+	queryKey: readonly unknown[],
+): Promise<ArtifactsRead> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/artifacts`,
+	);
+	if (response.status === pendingStatus) {
+		const held = heldData<ArtifactsRead>(queryKey);
+		if (held === undefined) {
+			throw new PendingRead();
+		}
+		return held;
+	}
+	if (response.status === 404) {
+		const body = (await response.json().catch(() => null)) as {
+			notServed?: boolean;
+		} | null;
+		return body?.notServed === true ? "not served" : "missing";
+	}
+	if (!response.ok) {
+		throw new Error(`artifacts failed (HTTP ${response.status})`);
+	}
+	return ((await response.json()) as { artifacts: RunArtifact[] }).artifacts;
+}
+
+async function readArtifact(
+	runId: string,
+	artifact: Pick<RunArtifact, "folder" | "name">,
+	queryKey: readonly unknown[],
+): Promise<RunArtifactContent | null> {
+	const query = new URLSearchParams({
+		folder: artifact.folder,
+		name: artifact.name,
+	}).toString();
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/artifact?${query}`,
+	);
+	if (response.status === pendingStatus) {
+		const held = heldData<RunArtifactContent | null>(queryKey);
+		if (held === undefined) {
+			throw new PendingRead();
+		}
+		return held;
+	}
+	if (response.status === 404) {
+		return null;
+	}
+	if (!response.ok) {
+		throw new Error(`artifact failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as RunArtifactContent;
 }
 
 type SettingsWrite = Configuration & {
@@ -660,6 +749,8 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["checkpoint"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["agents"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["artifacts"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["artifact"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
@@ -673,6 +764,8 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["run"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["checkpoint"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["agents"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["artifacts"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["artifact"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
