@@ -53,6 +53,7 @@ export type ClusterData = {
 	label: string;
 	members: string[];
 	head?: string;
+	outside?: boolean;
 };
 
 type ClusterNode = FlowNode<ClusterData, "cluster">;
@@ -117,7 +118,16 @@ export function CardHandles() {
 
 function Cluster({ data }: NodeProps<ClusterNode>) {
 	if (data.head !== undefined) {
-		return <div className={clsx(board.cluster)} data-frame={data.head} />;
+		return (
+			<div
+				className={clsx(
+					board.cluster,
+					data.outside === true && board.clusterOutside,
+				)}
+				data-frame={data.head}
+				data-outside={data.outside}
+			/>
+		);
 	}
 	return (
 		<div className={clsx(board.cluster)} data-group={data.label}>
@@ -188,6 +198,7 @@ function clusterNodes(
 						clusterNode(frame.id, box, {
 							label: "",
 							head: keyOf.get(frame.head) ?? frame.head,
+							outside: frame.outside,
 							members: input.cards.flatMap((card) =>
 								card.id === frame.head || holdersOf(card.id).includes(frame.id)
 									? [card.ticket]

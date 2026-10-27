@@ -303,6 +303,10 @@ export const board = stylex.create({
 		textTransform: "uppercase",
 		overflowWrap: "anywhere",
 	},
+	/** The frame of an outside parent ticket, with the dash of the outside card. */
+	clusterOutside: {
+		borderStyle: "dashed",
+	},
 	cards: {
 		display: "flex",
 		flexDirection: "column",
