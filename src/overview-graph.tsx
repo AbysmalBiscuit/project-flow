@@ -171,8 +171,7 @@ export function OverviewGraph({
 	const span = useNodeSpan(cards.graphNode, "project", "Project");
 	const input = useMemo(() => overviewInput(projects), [projects]);
 	const anchor = useRef<Anchor | null>(null);
-	const { laid, failed } = useLaidGraph(
-		projects,
+	const { laid, failed, unplaced } = useLaidGraph(
 		input,
 		"left-to-right",
 		"layered",
@@ -181,13 +180,13 @@ export function OverviewGraph({
 		projectGap,
 	);
 	const byName = useMemo(
-		() => new Map(laid?.of.map((project) => [project.name, project]) ?? []),
-		[laid],
+		() => new Map(projects.map((project) => [project.name, project])),
+		[projects],
 	);
 	const blockers = useMemo(
 		() =>
 			new Map(
-				laid?.of.flatMap((project) =>
+				projects.flatMap((project) =>
 					project.crossProjectBlockers.map(
 						(blocker) =>
 							[
@@ -200,9 +199,9 @@ export function OverviewGraph({
 								},
 							] as const,
 					),
-				) ?? [],
+				),
 			),
-		[laid],
+		[projects],
 	);
 	if (laid === null) {
 		return (
@@ -222,6 +221,7 @@ export function OverviewGraph({
 			probe="graph"
 			className={cards.graph}
 			laid={laid}
+			unplaced={unplaced}
 			card={(item) => {
 				const project = byName.get(item.ticket);
 				return project === undefined ? null : { key: project.name, project };

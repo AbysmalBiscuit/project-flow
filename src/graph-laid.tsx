@@ -3,6 +3,7 @@ import {
 	startTransition,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 
@@ -15,8 +16,10 @@ import { type LaidLink, laneLinks } from "./graph-lanes.ts";
 import {
 	forceWorkerPath,
 	type GraphLayout,
+	type LayoutCard,
 	layoutGraph,
 	type LayoutInput,
+	layoutSignature,
 	type Point,
 } from "./graph-layout.ts";
 import { useNodeSizes } from "./graph-node-size.tsx";
@@ -94,10 +97,10 @@ async function forceInWorker(
 
 /**
  * One laid graph: the places of its cards and frames, and the lane and label
- * spot of each arrow. `of` is the page data that the layout came from.
+ * spot of each arrow. It holds no page data: the page draws the contents of
+ * each card and arrow from its current data, joined by id.
  */
-export type LaidGraph<Source> = {
-	of: Source;
+export type LaidGraph = {
 	direction: GraphDirection;
 	kind: GraphLayoutKind;
 	input: LayoutInput;
@@ -112,6 +115,12 @@ export type LaidGraph<Source> = {
 	/** Tells whether an anchor card held its place in this layout. */
 	held: boolean;
 };
+
+/**
+ * How long a layout waits for the page to measure a new card. A card that the
+ * page does not draw is never measured, so the layout then runs without it.
+ */
+const measureWaitMs = 500;
 
 /** A card that keeps its place on the graph when the next layout lands. */
 export type Anchor = { card: string; at: Point };
@@ -143,7 +152,7 @@ function shifted(layout: GraphLayout, shift: Point): GraphLayout {
  */
 function anchored(
 	layout: GraphLayout,
-	last: Pick<LaidGraph<unknown>, "kind" | "direction" | "shift"> | null,
+	last: Pick<LaidGraph, "kind" | "direction" | "shift"> | null,
 	anchor: Anchor | null,
 	kind: GraphLayoutKind,
 	direction: GraphDirection,
@@ -161,90 +170,127 @@ function anchored(
 }
 
 /**
+ * The value from the last render whose signature was the same, so that a new
+ * value with the same signature keeps the last identity.
+ */
+function useSigned<Value>(value: Value, signature: string): Value {
+	const [kept, setKept] = useState({ value, signature });
+	if (kept.signature === signature) {
+		return kept.value;
+	}
+	setKept({ value, signature });
+	return value;
+}
+
+/**
  * Lays out the graph in a Web Worker, and keeps the last layout until the
  * next one lands. `failed` tells whether the latest layout was rejected.
  * A card is laid out at `span` until the page measures it, and a change to
  * a measured size lays out the graph again. Each layout keeps the `anchor`
  * card at the place that the anchor gives. `gap` is the distance from one
- * card to the next in the Layered layout.
+ * card to the next in the Layered layout. A new input with the same layout
+ * signature keeps the last layout.
+ *
+ * `unplaced` holds the cards that the laid graph has no place for yet. The
+ * page draws them hidden, and after the first layout a layout waits until the
+ * page measures them, so that a new card lays out the graph once.
  */
-export function useLaidGraph<Source>(
-	of: Source,
-	input: LayoutInput,
+export function useLaidGraph(
+	next: LayoutInput,
 	direction: GraphDirection,
 	kind: GraphLayoutKind,
 	span: NodeSize | null,
 	anchor: RefObject<Anchor | null>,
 	gap: FlowGap = flowGap,
-): { laid: LaidGraph<Source> | null; failed: boolean } {
-	const [laid, setLaid] = useState<LaidGraph<Source> | null>(null);
+): { laid: LaidGraph | null; failed: boolean; unplaced: LayoutCard[] } {
+	const input = useSigned(next, layoutSignature(next));
+	const [laid, setLaid] = useState<LaidGraph | null>(null);
 	const [failed, setFailed] = useState(false);
 	const sizes = useNodeSizes(
 		useMemo(() => input.cards.map((card) => card.id), [input]),
 	);
+	const laidOnce = useRef(false);
+	const unplaced = useMemo(() => {
+		if (laid === null) {
+			return [];
+		}
+		const placed = new Set(laid.input.cards.map((card) => card.id));
+		return input.cards.filter((card) => !placed.has(card.id));
+	}, [laid, input]);
 	useEffect(() => {
 		if (span === null) {
 			return;
 		}
 		let current = true;
-		const laying =
-			kind === "force"
-				? forceInWorker(input, span, sizes)
-				: layoutGraph(
-						elk(),
-						input,
-						direction,
-						span,
-						headGrowth,
-						titleGrowth,
-						sizes,
-						gap,
-					);
-		laying.then(
-			(layout) => {
-				if (!current) {
-					return;
-				}
-				startTransition(() => {
-					setLaid((last) => {
-						const placed = anchored(
-							layout,
-							last,
-							anchor.current,
-							kind,
-							direction,
-						);
-						return {
-							of,
-							direction,
-							kind,
+		const lay = () => {
+			const laying =
+				kind === "force"
+					? forceInWorker(input, span, sizes)
+					: layoutGraph(
+							elk(),
 							input,
-							card: span,
+							direction,
+							span,
+							headGrowth,
+							titleGrowth,
 							sizes,
-							links: laneLinks(
-								input,
-								placed.layout,
+							gap,
+						);
+			laying.then(
+				(layout) => {
+					if (!current) {
+						return;
+					}
+					laidOnce.current = true;
+					startTransition(() => {
+						setLaid((last) => {
+							const placed = anchored(
+								layout,
+								last,
+								anchor.current,
+								kind,
+								direction,
+							);
+							return {
 								direction,
 								kind,
-								span,
+								input,
+								card: span,
 								sizes,
-							),
-							...placed,
-						};
+								links: laneLinks(
+									input,
+									placed.layout,
+									direction,
+									kind,
+									span,
+									sizes,
+								),
+								...placed,
+							};
+						});
+						setFailed(false);
 					});
-					setFailed(false);
-				});
-			},
-			(error: unknown) => {
-				console.error(error);
-				if (current) {
-					setFailed(true);
-				}
-			},
-		);
+				},
+				(error: unknown) => {
+					console.error(error);
+					if (current) {
+						setFailed(true);
+					}
+				},
+			);
+		};
+		const unmeasured =
+			laidOnce.current && input.cards.some((card) => !sizes.has(card.id));
+		const timer = unmeasured ? setTimeout(lay, measureWaitMs) : null;
+		if (timer === null) {
+			lay();
+		}
 		return () => {
 			current = false;
+			if (timer !== null) {
+				clearTimeout(timer);
+			}
 		};
-	}, [of, direction, kind, input, sizes, span, anchor, gap]);
-	return { laid, failed };
+	}, [direction, kind, input, sizes, span, anchor, gap]);
+	return { laid, failed, unplaced };
 }
