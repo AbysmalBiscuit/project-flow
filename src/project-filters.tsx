@@ -21,12 +21,19 @@ function filterCount(
 	view: ProjectViewSettings,
 	lanes: ProjectReport["lanes"],
 ): number {
-	const hidden =
-		view.shownLanes === undefined
-			? 0
-			: lanes.length - visibleLaneNames(lanes, view.shownLanes).length;
+	// Count only what hides more than the defaults: the Dropped lane and the Done age cap.
+	const shown = new Set(visibleLaneNames(lanes, view.shownLanes));
+	const hidden = lanes.filter(
+		(lane) => lane.statusType !== "dropped" && !shown.has(lane.name),
+	).length;
+	const aged = lanes.filter((lane) => {
+		const cap = laneAgeCap(view.maxAgeDays, lane.name, lane.statusType);
+		const fallback = laneAgeCap({}, lane.name, lane.statusType);
+		return cap > 0 && (fallback === 0 || cap < fallback);
+	}).length;
 	return (
 		hidden +
+		aged +
 		(view.needsYouOnly ? 1 : 0) +
 		(view.blockedOnly ? 1 : 0) +
 		view.assignees.filter((name) => name.trim() !== "").length
