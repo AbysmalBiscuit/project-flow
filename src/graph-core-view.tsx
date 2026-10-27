@@ -90,7 +90,8 @@ export function LegendFrame({
 			id={id}
 			label={floatPanelLabel.legend}
 			icon="map"
-			edge="top"
+			grow="down"
+			pin="last"
 			layout={legend.panel}
 		>
 			<section aria-label={label} className={clsx(legend.list)}>

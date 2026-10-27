@@ -357,7 +357,7 @@ export const measure = stylex.defineVars({
 	// Title, progress, legend and one chip row. Extra chips clip.
 	overviewCard: "13.5rem",
 	// The legend takes at most half the pane width.
-	legendCap: `calc(50% - 2 * ${space.sm})`,
+	legendCap: `calc(50cqw - 2 * ${space.sm})`,
 	tip: "16rem",
 	// chipRow holds one type.small chip line with space.twoXs padding.
 	chipRow: "1.7rem",

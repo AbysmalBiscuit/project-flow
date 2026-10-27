@@ -21,6 +21,15 @@ function overlayParts(pane: Element | null): HTMLElement[] {
 	].filter((part): part is HTMLElement => part instanceof HTMLElement);
 }
 
+/** The box of an overlay part: its float panel when open, else its button. */
+function partBox(part: HTMLElement): DOMRect {
+	const body =
+		part.dataset.open === "open"
+			? part.querySelector("[data-float-body]")
+			: null;
+	return (body ?? part).getBoundingClientRect();
+}
+
 /**
  * Fits the graph below the overlay of the pane. The top padding is the
  * overlay height plus the fit padding, so no card or frame lies under it.
@@ -33,9 +42,7 @@ export function overlayFit(paneId: string): FitViewOptions {
 	}
 	const box = pane.getBoundingClientRect();
 	const margin = (box.height - box.height / (1 + fitPadding)) / 2;
-	const bottom = Math.max(
-		...parts.map((part) => part.getBoundingClientRect().bottom),
-	);
+	const bottom = Math.max(...parts.map((part) => partBox(part).bottom));
 	return {
 		padding: {
 			top: `${bottom - box.top + margin}px`,
@@ -56,7 +63,7 @@ function overlayClear(paneId: string): boolean | null {
 		node.getBoundingClientRect(),
 	);
 	return parts.every((part) => {
-		const box = part.getBoundingClientRect();
+		const box = partBox(part);
 		return nodes.every((node) => boxesApart(box, node));
 	});
 }
