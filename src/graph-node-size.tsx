@@ -1,6 +1,12 @@
 import type { StyleXStyles } from "@stylexjs/stylex";
 import { useStoreApi } from "@xyflow/react";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+	startTransition,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 
 import {
 	kindSize,
@@ -61,7 +67,7 @@ export function useNodeSpan(
 	content: string,
 ): NodeSize | null {
 	const probed = useProbedSize(style, content);
-	const drawn = useSyncExternalStore(subscribeNodeSizes, () => kindSize(kind));
+	const drawn = useMeasured(useCallback(() => kindSize(kind), [kind]));
 	if (drawn.width > 0) {
 		return drawn;
 	}
@@ -79,13 +85,72 @@ export function useNodeSizes(
 			return last;
 		};
 	}, [ids]);
-	return useSyncExternalStore(subscribeNodeSizes, read);
+	return useMeasured(read);
+}
+
+/**
+ * Reads the measured sizes, and renders again in a transition when they change.
+ * React splits a transition into short tasks, so a large graph keeps the page responsive.
+ */
+function useMeasured<Value>(read: () => Value): Value {
+	const value = read();
+	const [, setTurn] = useState(0);
+	useEffect(() => {
+		const changed = () => startTransition(() => setTurn((turn) => turn + 1));
+		const stop = subscribeNodeSizes(changed);
+		if (read() !== value) {
+			changed();
+		}
+		return stop;
+	}, [read, value]);
+	return value;
+}
+
+type FlowStore = ReturnType<typeof useStoreApi>;
+type NodeUpdate = { id: string; nodeElement: HTMLDivElement; force: true };
+type Measured = { store: FlowStore; measure: () => NodeUpdate | null };
+
+const measuredCards = new Map<Element, Measured>();
+let cardObserver: ResizeObserver | null = null;
+
+function updateNodes(measured: Iterable<Measured>): void {
+	const updates = new Map<FlowStore, Map<string, NodeUpdate>>();
+	for (const { store, measure } of measured) {
+		const update = measure();
+		if (update !== null) {
+			updates.set(
+				store,
+				(updates.get(store) ?? new Map()).set(update.id, update),
+			);
+		}
+	}
+	for (const [store, nodes] of updates) {
+		store.getState().updateNodeInternals(nodes);
+	}
+}
+
+/**
+ * Watches every card with one ResizeObserver, so a size change renders the graph once.
+ * One callback carries every changed card, so React Flow updates once, not once per card.
+ */
+function observeCard(content: Element, measured: Measured): () => void {
+	cardObserver ??= new ResizeObserver((entries) =>
+		updateNodes(
+			entries.flatMap((entry) => measuredCards.get(entry.target) ?? []),
+		),
+	);
+	measuredCards.set(content, measured);
+	cardObserver.observe(content);
+	return () => {
+		measuredCards.delete(content);
+		cardObserver?.unobserve(content);
+	};
 }
 
 export function MeasuredNode({ id, kind }: { id: string; kind: NodeKind }) {
 	const store = useStoreApi();
 	useEffect(() => {
-		let observer: ResizeObserver | null = null;
+		let unobserve = () => {};
 		let frame = 0;
 		const attach = () => {
 			const content = document.getElementById(`graph-card-${id}`);
@@ -94,30 +159,33 @@ export function MeasuredNode({ id, kind }: { id: string; kind: NodeKind }) {
 				frame = requestAnimationFrame(attach);
 				return;
 			}
-			const measure = () => {
+			let sized = false;
+			const measure = (): NodeUpdate | null => {
 				const width = content.offsetWidth;
 				const height = content.offsetHeight;
 				if (width <= 0 || height <= 0) {
-					return;
+					return null;
 				}
 				rememberNodeSize(id, { width, height }, kind);
-				if (node.offsetWidth !== width || node.offsetHeight !== height) {
-					return;
+				// React Flow observes the node too, and updates it on the same
+				// first sized frame.
+				const first = !sized;
+				sized = true;
+				if (
+					first ||
+					node.offsetWidth !== width ||
+					node.offsetHeight !== height
+				) {
+					return null;
 				}
-				store
-					.getState()
-					.updateNodeInternals(
-						new Map([[id, { id, nodeElement: node, force: true }]]),
-					);
+				return { id, nodeElement: node, force: true };
 			};
-			measure();
-			observer = new ResizeObserver(measure);
-			observer.observe(content);
+			unobserve = observeCard(content, { store, measure });
 		};
 		attach();
 		return () => {
 			cancelAnimationFrame(frame);
-			observer?.disconnect();
+			unobserve();
 		};
 	}, [id, kind, store]);
 	return null;
