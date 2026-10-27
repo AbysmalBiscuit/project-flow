@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { type ReactNode, useId, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useState, useSyncExternalStore } from "react";
 import { z } from "zod";
 
 import { Button, type IconName } from "./button.tsx";
@@ -171,7 +171,6 @@ export function FloatPanel({
 	const pinned = useSyncExternalStore(subscribePins, () => pins[id] === true);
 	const [hovered, setHovered] = useState(false);
 	const [focused, setFocused] = useState(false);
-	const bodyId = useId();
 	const open = pinned || hovered || focused;
 	const pin = (
 		<Button
@@ -208,12 +207,10 @@ export function FloatPanel({
 					icon={icon}
 					label={label}
 					aria-expanded={open}
-					aria-controls={bodyId}
 					onClick={() => setPin(id, !pinned)}
 				/>
 			</div>
 			<div
-				id={bodyId}
 				data-float-body=""
 				inert={!open}
 				className={clsx(
