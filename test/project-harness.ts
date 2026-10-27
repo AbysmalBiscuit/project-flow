@@ -81,10 +81,23 @@ const otherIssues = [
 	issue(9, "Platform gate", { labels: [{ name: "epic" }] }, otherRepo),
 ];
 
+const githubPulls = [
+	{
+		number: 40,
+		title: "Fix the legend",
+		state: "open",
+		draft: true,
+		html_url: `https://github.com/${githubRepo}/pull/40`,
+		head: { ref: "legend" },
+		body: "",
+	},
+];
+
 export function githubFetch(
 	issues = githubIssues,
 	others = otherIssues,
 	calls?: string[],
+	pulls: Record<string, unknown>[] = githubPulls,
 ): Fetch {
 	return async (input, init) => {
 		calls?.push(urlOf(input));
@@ -116,17 +129,7 @@ export function githubFetch(
 		}
 		if (url.includes("/pulls?")) {
 			if (url.includes(githubRepo)) {
-				return page([
-					{
-						number: 40,
-						title: "Fix the legend",
-						state: "open",
-						draft: true,
-						html_url: `https://github.com/${githubRepo}/pull/40`,
-						head: { ref: "legend" },
-						body: "",
-					},
-				]);
+				return page(pulls);
 			}
 			return page([]);
 		}

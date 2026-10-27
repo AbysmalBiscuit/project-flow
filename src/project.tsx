@@ -1149,6 +1149,13 @@ export function Page() {
 		leave: ticketFocus.leave,
 	};
 	const openTicketInPanel = (key: string) => {
+		const unlinked = report.tickets.find(
+			(item) => item.unlinkedPr && item.key === key,
+		);
+		if (unlinked?.pullUrl !== undefined) {
+			window.open(unlinked.pullUrl, "_blank", "noopener");
+			return;
+		}
 		openTicket({ tracker: report.tracker, project: report.name, key });
 	};
 	return (

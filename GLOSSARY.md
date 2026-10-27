@@ -23,7 +23,7 @@ One unit of tracked work: a GitHub issue or a Linear issue.
 _Avoid_: Issue, task, item
 
 **Unlinked PR**:
-An open PR that links to no ticket, through a closing reference, a tracker attachment, or its branch name.
+An open PR that links to no ticket, through a closing reference, a tracker attachment, or its branch name. The board, the graph and the table show each unlinked PR as a card in the "Unlinked PRs" group. The card shows the PR number, the title and the link. The review cycle sets its state: In progress for a draft, In review, or Awaiting merge. The card sits in the lane of that state, and the Ticket filter applies to it as to a ticket.
 _Avoid_: Orphan PR, loose PR
 
 **Tracker**:

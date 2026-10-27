@@ -360,6 +360,7 @@ describe("GET /api/projects/:name", () => {
 				expect(report.graphTickets.map((item) => item.key)).toEqual([
 					`${githubRepo}#2`,
 					`${githubRepo}#8`,
+					`${githubRepo}#40`,
 				]);
 				const filtered = (await (
 					await fetch(
@@ -369,6 +370,7 @@ describe("GET /api/projects/:name", () => {
 				expect(filtered.tickets.map((item) => item.key)).toEqual([
 					`${githubRepo}#2`,
 					`${githubRepo}#8`,
+					`${githubRepo}#40`,
 				]);
 				expect(filtered.graphLinks).toEqual(report.graphLinks);
 				expect(filtered.graphTickets.map((item) => item.key)).toContain(
@@ -407,6 +409,7 @@ describe("GET /api/projects/:name", () => {
 				expect(report.tickets.map((item) => item.key)).toEqual([
 					`${githubRepo}#2`,
 					`${githubRepo}#8`,
+					`${githubRepo}#40`,
 				]);
 				const drawn = report.graphTickets.find(
 					(item) => item.key === `${githubRepo}#8`,
@@ -1923,6 +1926,7 @@ describe("GET /api/projects/:name", () => {
 					`${githubRepo}#1`,
 					`${githubRepo}#2`,
 					`${githubRepo}#4`,
+					`${githubRepo}#40`,
 				]);
 				const current = (await (
 					await fetch(new URL("/api/settings", base))

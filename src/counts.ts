@@ -21,6 +21,7 @@ import type {
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
 import {
+	appLaneNames,
 	categoryColours,
 	emptyStatusTypes,
 	laneForTicket,
@@ -45,9 +46,23 @@ import {
 	shownFactoryRun,
 	shownTicket,
 } from "./shown-ticket.ts";
+import { unlinkedPrGroup } from "./terms.ts";
 import { asRef, known, parseKey } from "./ticket-index.ts";
 import { foldKey, pullKey, sameTicketKey, ticketRefId } from "./ticket-key.ts";
 import { progressNamesPull, runFor } from "./workcell.ts";
+
+/** The state of an unlinked PR from its review cycle, as for the PR of a ticket. */
+function unlinkedPrState(
+	pull: PullRequest,
+	expectedBots: Map<string, KnownBot[]>,
+	mergesAlone: boolean,
+): "inProgress" | "inReview" | "awaitingMerge" {
+	const review = reviewState([pull], expectedBots, []).state;
+	if (review === null) {
+		return "inProgress";
+	}
+	return review === "awaitingMerge" && mergesAlone ? "inReview" : review;
+}
 
 export function projectCounts(
 	name: string,
@@ -270,6 +285,31 @@ export function projectCounts(
 		workcellPulls,
 		key,
 	);
+	const unlinkedViews = unlinked.map((pull): TicketView => {
+		const state = unlinkedPrState(
+			pull,
+			expectedBots,
+			mergesOnItsOwn([pull], name, key, autoMerge, workcellPulls),
+		);
+		const lane =
+			stateOfTicket(mappings.states, {}, [], state, state)?.label ??
+			appLaneNames[state];
+		return {
+			key: pullKey(pull),
+			title: pull.title,
+			state,
+			blockers: [],
+			lane,
+			statusType: state,
+			pull: pullKey(pull),
+			pullUrl: pull.url,
+			unlinkedPr: true,
+			workstream: unlinkedPrGroup,
+			workstreamKey: unlinkedPrGroup,
+			theme: unlinkedPrGroup,
+			themeGroup: unlinkedPrGroup,
+		};
+	});
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
@@ -297,6 +337,7 @@ export function projectCounts(
 		needsYouItemsForProject,
 		runByKey,
 		outsideParents(tickets, graph.groups),
+		unlinkedViews,
 	);
 	return {
 		counts: project,
