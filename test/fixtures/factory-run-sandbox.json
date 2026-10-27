@@ -1,0 +1,10 @@
+{
+	"host": "build-1",
+	"worktree": "/home/factory/.local/share/workcell/worktrees/widget-41",
+	"branch": "41-add-dry-run",
+	"base": "main",
+	"head": "3f9c2a7d41b08e5c6a1f2d9e8b7c6a5f4e3d2c1b",
+	"ahead": 2,
+	"state": "dirty",
+	"changes": [" M src/sync.ts", "?? notes.txt"]
+}

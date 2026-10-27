@@ -137,6 +137,25 @@ export type RunArtifactContent = RunArtifact & {
 	content: string;
 };
 
+/** Where a run does its work: the machine, the worktree and its git state. */
+export type RunSandbox = {
+	/** The hostname of the machine that runs the run. */
+	host: string;
+	/** Null before the run sets up a worktree. */
+	worktree: string | null;
+	branch: string | null;
+	/** The commit of the worktree. */
+	head: string | null;
+	/** The base branch of the run's PR. Null when no base resolves. */
+	base: string | null;
+	/** The commits on the branch that the remote base lacks. Null when no base resolves. */
+	ahead: number | null;
+	/** `none` before the run sets up a worktree, and `removed` after the worktree is gone. */
+	state: "none" | "removed" | "clean" | "dirty";
+	/** Each `git status --porcelain` line of the worktree. */
+	changes: string[];
+};
+
 /** A workcell run with the facts that its run page shows. */
 export type RunDetail = FactoryRun & {
 	/** The name of the run's workflow graph. */

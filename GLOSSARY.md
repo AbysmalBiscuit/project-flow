@@ -174,6 +174,10 @@ _Avoid_: Run cost, spend
 A file that a run stage writes in its stage folder, such as its prompt or its response, or a value that the stage adds to the artifact store. A stage has one stage folder for each visit. Project Flow reads the run artifacts from `GET /runs/{id}/artifacts` of the hub that reports the run, or else of its box.
 _Avoid_: Output, stage file
 
+**Run sandbox**:
+The place where a run does its work: the host of its box, its worktree, the branch and head of the worktree, the base branch of its PR, and the workspace state. The workspace state is clean, dirty, removed, or none before the run sets up a worktree. Project Flow reads the run sandbox from `GET /runs/{id}/sandbox` of the hub that reports the run, or else of its box.
+_Avoid_: Workspace (when the whole sandbox is meant), environment
+
 **Run agent**:
 The agent that works on one stage of a live run: its current tool, its last message and whether its turn runs or ended. Project Flow reads it from `GET /runs/{id}/workers` of the factory that reports the run, only while a view follows the run.
 _Avoid_: Worker (when the agent is meant)

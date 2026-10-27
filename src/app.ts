@@ -1006,6 +1006,19 @@ export async function start(options: StartOptions): Promise<Running> {
 						return Response.json({ artifacts: found });
 					}),
 			},
+			"/api/factory-runs/:id/sandbox": {
+				GET: (request) =>
+					staleRead(readKey(request), async () => {
+						const found = await factories.sandbox(request.params.id);
+						if (found === "missing") {
+							return Response.json({ missing: true }, { status: 404 });
+						}
+						if (found === "not served") {
+							return Response.json({ notServed: true }, { status: 404 });
+						}
+						return Response.json(found);
+					}),
+			},
 			"/api/factory-runs/:id/artifact": {
 				GET: (request) =>
 					staleRead(readKey(request), async () => {
