@@ -248,7 +248,7 @@ export const space = stylex.defineVars({
 	md: "0.75rem",
 	lg: "1rem",
 	xl: "1.5rem",
-	pageInset: "5rem",
+	pageInset: "2.65rem",
 	// 16px at the browser default root size. The phone gutter cap.
 	phoneInset: "1rem",
 	navGap: "0.35rem",
