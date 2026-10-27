@@ -1,0 +1,7 @@
+{
+	"entry": "pre_pr.dot",
+	"graphs": {
+		"pre_pr.dot": "digraph PrePr {\n  graph [label=\"Pre PR\"]\n  start [shape=Mdiamond]\n  exit [shape=Msquare]\n  implement [shape=box, prompt=\"@prompts/implement.md\"]\n  review [shape=house, graph=\"steps/review.dot\"]\n  start -> implement -> review -> exit\n}\n",
+		"steps/review.dot": "digraph Review {\n  start [shape=Mdiamond]\n  exit [shape=Msquare]\n  verdict [shape=box, prompt=\"@prompts/verdict.md\"]\n  start -> verdict -> exit\n}\n"
+	}
+}

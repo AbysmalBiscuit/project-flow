@@ -373,6 +373,12 @@ export function aheadLabel(commits: number): string {
 	return commits === 1 ? "1 commit" : `${commits} commits`;
 }
 
+export const runSourceLabel = "Workflow source";
+
+export const entryGraphLabel = "Entry graph";
+
+export const calledGraphFileLabel = "Called graph";
+
 export const runArtifactsLabel = "Run artifacts";
 
 export const noRunArtifactsLabel = "The run has no artifacts yet.";
