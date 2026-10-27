@@ -64,6 +64,32 @@ function unlinkedPrState(
 	return review === "awaitingMerge" && mergesAlone ? "inReview" : review;
 }
 
+/** The card of an unlinked PR, in the lane of its state and in the "Unlinked PRs" group. */
+function unlinkedPrView(
+	pull: PullRequest,
+	expectedBots: Map<string, KnownBot[]>,
+	mergesAlone: boolean,
+	states: Configuration["states"],
+): TicketView {
+	const state = unlinkedPrState(pull, expectedBots, mergesAlone);
+	return {
+		key: pullKey(pull),
+		title: pull.title,
+		state,
+		blockers: [],
+		lane:
+			stateOfTicket(states, {}, [], state, state)?.label ?? appLaneNames[state],
+		statusType: state,
+		pull: pullKey(pull),
+		pullUrl: pull.url,
+		unlinkedPr: true,
+		workstream: unlinkedPrGroup,
+		workstreamKey: unlinkedPrGroup,
+		theme: unlinkedPrGroup,
+		themeGroup: unlinkedPrGroup,
+	};
+}
+
 export function projectCounts(
 	name: string,
 	key: string,
@@ -285,31 +311,14 @@ export function projectCounts(
 		workcellPulls,
 		key,
 	);
-	const unlinkedViews = unlinked.map((pull): TicketView => {
-		const state = unlinkedPrState(
+	const unlinkedViews = unlinked.map((pull) =>
+		unlinkedPrView(
 			pull,
 			expectedBots,
 			mergesOnItsOwn([pull], name, key, autoMerge, workcellPulls),
-		);
-		const lane =
-			stateOfTicket(mappings.states, {}, [], state, state)?.label ??
-			appLaneNames[state];
-		return {
-			key: pullKey(pull),
-			title: pull.title,
-			state,
-			blockers: [],
-			lane,
-			statusType: state,
-			pull: pullKey(pull),
-			pullUrl: pull.url,
-			unlinkedPr: true,
-			workstream: unlinkedPrGroup,
-			workstreamKey: unlinkedPrGroup,
-			theme: unlinkedPrGroup,
-			themeGroup: unlinkedPrGroup,
-		};
-	});
+			mappings.states,
+		),
+	);
 	const unlinkedReview = reviewState(unlinked, expectedBots, []);
 	for (const tag of unlinkedReview.tags) {
 		tags.add(tag);
