@@ -75,6 +75,8 @@ export type FactoryRun = {
 	failureReason?: string;
 	/** The PR that the run opened, from `GET /runs/{id}`. Absent until the factory names one. */
 	pull?: RunPull;
+	/** The id of the run that this run restarted. */
+	restartedFrom?: string;
 };
 
 /** The PR that a run opened, as the factory gives it from the run's `pr_url` output. */

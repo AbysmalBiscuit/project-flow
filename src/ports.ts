@@ -18,6 +18,7 @@ import type { FactoryEntry } from "./factories.ts";
 import type {
 	AnswerResult,
 	CancelResult,
+	StartResult,
 	Steer,
 	SteerResult,
 } from "./factory-run-actions.ts";
@@ -168,7 +169,7 @@ export type FactoryReader = {
 	) => Response | null;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
-	 * Answers, steers and cancels are the only write requests that the app sends to a factory.
+	 * Answers, steers, cancels, resumes and restarts are the only write requests that the app sends to a factory.
 	 */
 	answer: (
 		run: string,
@@ -179,6 +180,10 @@ export type FactoryReader = {
 	steer: (run: string, steer: Steer) => Promise<SteerResult>;
 	/** Cancel a run, on the hub that reports the run, or else on its box. The factory stops the run as failed. */
 	cancel: (run: string) => Promise<CancelResult>;
+	/** Queue a blocked or failed run again from its run checkpoint, on the hub that reports the run, or else on its box. */
+	resume: (run: string) => Promise<StartResult>;
+	/** Start a new run on the ticket of a blocked or failed run, on the hub that reports the run, or else on its box. */
+	restart: (run: string) => Promise<StartResult>;
 };
 
 export type GithubTracker = Tracker & {

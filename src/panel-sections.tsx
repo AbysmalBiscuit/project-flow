@@ -18,6 +18,7 @@ import { RunAgents } from "./run-agents.tsx";
 import { RunCancel } from "./run-cancel.tsx";
 import { RunCurrentStage } from "./run-checkpoint.tsx";
 import { RunDot } from "./run-marks.tsx";
+import { RunResume } from "./run-resume.tsx";
 import {
 	earlierRunsLabel,
 	hubQueueLabel,
@@ -180,6 +181,7 @@ export function RunSection({
 			>
 				{openRunLabel}
 			</a>
+			<RunResume run={run} />
 			<RunCancel run={run} />
 			<RunCurrentStage run={run} />
 			<RunAgents run={run} />
