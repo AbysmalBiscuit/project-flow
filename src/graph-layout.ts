@@ -44,6 +44,7 @@ export type LayoutFrame = {
 	id: string;
 	head: string;
 	title: string;
+	outside: boolean;
 	parent: string | null;
 	group: string | null;
 };
@@ -259,6 +260,7 @@ export function layoutInput(
 						id: frameId(item.id),
 						head: item.id,
 						title: item.ticket.title,
+						outside: item.ticket.outside,
 						parent: frameOf(item.id),
 						group: item.group,
 					},
