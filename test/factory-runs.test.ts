@@ -37,6 +37,7 @@ import runGraph from "./fixtures/factory-run-graph.json";
 import answeredQuestions from "./fixtures/factory-run-questions-answered.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
 import runSandbox from "./fixtures/factory-run-sandbox.json";
+import runSource from "./fixtures/factory-run-source.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
 import steerDelivered from "./fixtures/factory-steer-delivered.json";
@@ -2085,6 +2086,117 @@ describe("factory runs", () => {
 				);
 				expect(response.status).toBe(404);
 				expect(await response.json()).toEqual({ missing: true });
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the workflow source", () => {
+		const running41 = hubRuns.runs[0]?.id ?? "";
+		const sourcePath = `/runs/${running41}/source`;
+
+		async function sourceOf(
+			base: string,
+			runId = running41,
+		): Promise<Response> {
+			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
+			return settledRead(
+				new URL(`/api/factory-runs/${encodeURIComponent(runId)}/source`, base),
+			);
+		}
+
+		const sourceRequests = (requests: FactoryRequest[]) => [
+			...new Set(
+				requests
+					.filter((request) => new URL(request.url).pathname === sourcePath)
+					.map((request) => request.url),
+			),
+		];
+
+		test("a run on a box gives the entry graph and each child graph that it calls through the hub", async () => {
+			const app = await serveRuns({ ...hub, [sourcePath]: runSource }, [41]);
+			try {
+				const response = await sourceOf(app.base);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual({
+					entry: "pre_pr.dot",
+					graphs: [
+						{
+							path: "pre_pr.dot",
+							text: runSource.graphs["pre_pr.dot"],
+						},
+						{
+							path: "steps/review.dot",
+							text: runSource.graphs["steps/review.dot"],
+						},
+					],
+				});
+				expect(sourceRequests(app.requests)).toEqual([
+					`${hubUrl}${sourcePath}`,
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that a hub and its box report reads its source from the hub, and the box gets no read", async () => {
+			const [row41] = hubRuns.runs;
+			if (row41 === undefined) {
+				throw new Error("the hub runs fixture lost a run");
+			}
+			const app = await serveRuns(
+				{ ...hub, [sourcePath]: runSource },
+				[41],
+				{},
+				{
+					...daemon,
+					"/runs": { runs: [boxRow(row41, "running")] },
+					[sourcePath]: runSource,
+				},
+			);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				expect((await sourceOf(app.base)).status).toBe(200);
+				expect(sourceRequests(app.requests)).toEqual([
+					`${hubUrl}${sourcePath}`,
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a factory that answers 404 on the source reports the source as not served", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				const response = await sourceOf(app.base);
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ notServed: true });
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that has not loaded its package, or that no factory reports, answers 404", async () => {
+			const app = await serveRuns(
+				{
+					...hub,
+					[sourcePath]: Response.json(
+						{ error: "the run has not loaded its package" },
+						{ status: 409 },
+					),
+				},
+				[41],
+			);
+			try {
+				for (const runId of [running41, "no-such-run"]) {
+					const response = await sourceOf(app.base, runId);
+					expect(response.status).toBe(404);
+					expect(await response.json()).toEqual({ missing: true });
+				}
 			} finally {
 				await app.stop();
 			}

@@ -178,6 +178,10 @@ _Avoid_: Output, stage file
 The place where a run does its work: the host of its box, its worktree, the branch and head of the worktree, the base branch of its PR, and the workspace state. The workspace state is clean, dirty, removed, or none before the run sets up a worktree. Project Flow reads the run sandbox from `GET /runs/{id}/sandbox` of the hub that reports the run, or else of its box.
 _Avoid_: Workspace (when the whole sandbox is meant), environment
 
+**Workflow source**:
+The text of the graph file that a run loaded, and of each child graph that it calls. The factory keeps the package that the run loaded, so a later edit of a graph file does not change the workflow source. Project Flow reads it from `GET /runs/{id}/source` of the hub that reports the run, or else of its box.
+_Avoid_: Workflow file, DOT file
+
 **Run agent**:
 The agent that works on one stage of a live run: its current tool, its last message and whether its turn runs or ended. Project Flow reads it from `GET /runs/{id}/workers` of the factory that reports the run, only while a view follows the run.
 _Avoid_: Worker (when the agent is meant)
