@@ -1,5 +1,12 @@
+import { z } from "zod";
+
 import type { RunMessage } from "./domain.ts";
-import { factoryRequestLimitMs, reader, Unreachable } from "./factory-http.ts";
+import {
+	body,
+	factoryRequestLimitMs,
+	reader,
+	Unreachable,
+} from "./factory-http.ts";
 import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 
@@ -9,16 +16,21 @@ export type SteerResult = "steered" | "missing" | "ended" | "failed";
 
 export type CancelResult = "cancelled" | "missing" | "ended" | "failed";
 
+/** The id of the run that a resume queued again, or of the new run that a restart started. */
+export type StartResult = { id: string } | "missing" | "ended" | "failed";
+
 export type Steer = { stage: string; text: string; interrupt: boolean };
 
 // A factory answers a cancel once the run process has stopped. The hub waits 30 seconds for
 // the box, and the box waits up to 60 seconds for the process to stop.
 const cancelLimitMs = 100_000;
 
+const startedRun = z.object({ id: z.string() });
+
 /** Project Flow writes to a factory as Lev: the factory records this sender on each steer. */
 const levSender = "lev";
 
-/** The answer, steer and cancel writes that Lev sends to the factory that reports a run. */
+/** The answer, steer, cancel, resume and restart writes that Lev sends to the factory that reports a run. */
 export function runActions(deps: {
 	fetchImpl: Fetch;
 	signal: AbortSignal;
@@ -66,12 +78,13 @@ export function runActions(deps: {
 	};
 	/**
 	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
-	 * the write to the box that does the run. A 409 means that the run has ended.
+	 * the write to the box that does the run. A 409 means that the run is not in a status that
+	 * takes the write.
 	 */
-	const runWrite = async <Done extends string>(
+	const runWrite = async <Done>(
 		run: string,
 		route: string,
-		done: Done,
+		done: (response: Response) => Done | Promise<Done>,
 		json: unknown = {},
 		limitMs = factoryRequestLimitMs,
 	): Promise<Done | "missing" | "ended" | "failed"> => {
@@ -86,7 +99,7 @@ export function runActions(deps: {
 				json,
 			});
 			if (response.ok) {
-				return done;
+				return await done(response);
 			}
 			if (response.status === 409) {
 				return "ended";
@@ -100,8 +113,19 @@ export function runActions(deps: {
 		}
 	};
 	const steer = (run: string, steer: Steer): Promise<SteerResult> =>
-		runWrite(run, "steer", "steered", { ...steer, sender: levSender });
+		runWrite(run, "steer", () => "steered" as const, {
+			...steer,
+			sender: levSender,
+		});
 	const cancel = (run: string): Promise<CancelResult> =>
-		runWrite(run, "cancel", "cancelled", {}, cancelLimitMs);
-	return { answer, steer, cancel };
+		runWrite(run, "cancel", () => "cancelled" as const, {}, cancelLimitMs);
+	const startedId = async (response: Response) => ({
+		id: (await body(response, startedRun)).id,
+	});
+	const resume = (run: string): Promise<StartResult> =>
+		runWrite(run, "resume", startedId);
+	// A restart of a blocked run cancels it first, so it waits as long as a cancel.
+	const restart = (run: string): Promise<StartResult> =>
+		runWrite(run, "restart", startedId, {}, cancelLimitMs);
+	return { answer, steer, cancel, resume, restart };
 }

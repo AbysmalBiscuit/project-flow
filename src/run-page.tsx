@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { RunDetail } from "./domain.ts";
 import { Loading } from "./loading.tsx";
+import { runPagePath } from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
@@ -12,6 +13,7 @@ import { NotServed, RunStages, RunUsage } from "./run-checkpoint.tsx";
 import { RunEvents } from "./run-events.tsx";
 import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
+import { RunResume } from "./run-resume.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { Segment } from "./segment.tsx";
 import { PageFrame } from "./shell.tsx";
@@ -87,6 +89,17 @@ function RunFacts({ run }: { run: RunDetail }) {
 					{runStatusLabel[run.statusKind]}
 				</span>
 			</RunFact>
+			{run.restartedFrom === undefined ? null : (
+				<RunFact label={runFactLabel.restartedFrom}>
+					<a
+						className={clsx(panel.factLink)}
+						href={runPagePath(run.restartedFrom)}
+						data-restarted-from={run.restartedFrom}
+					>
+						{run.restartedFrom}
+					</a>
+				</RunFact>
+			)}
 			{run.failureReason === undefined ? null : (
 				<RunFact label={runFactLabel.failureReason}>
 					{run.failureReason}
@@ -172,7 +185,14 @@ export function Page() {
 			subtitle={id}
 			{...(data === undefined || data === null
 				? {}
-				: { actions: <RunCancel run={data} /> })}
+				: {
+						actions: (
+							<>
+								<RunResume run={data} />
+								<RunCancel run={data} />
+							</>
+						),
+					})}
 		>
 			<div className={clsx(styles.body)}>
 				<div

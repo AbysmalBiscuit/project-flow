@@ -9,6 +9,7 @@ import {
 } from "./configuration.ts";
 import { type PostedReply, type ProjectReport, trackers } from "./domain.ts";
 import { factoryReader } from "./factories.ts";
+import type { StartResult } from "./factory-run-actions.ts";
 import type { FactoryTokenMint } from "./factory-tokens.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
@@ -462,6 +463,30 @@ export async function start(options: StartOptions): Promise<Running> {
 		if (factoryState() !== before) {
 			publishOverview();
 		}
+	};
+	/** The API answer to a resume or a restart: the id of the run that the factory started. */
+	const startAgain = async (started: Promise<StartResult>) => {
+		const result = await started;
+		if (result === "missing") {
+			return Response.json(
+				{ error: "no factory reports the run" },
+				{ status: 404 },
+			);
+		}
+		if (result === "ended") {
+			return Response.json(
+				{ error: "the run is not blocked or failed" },
+				{ status: 409 },
+			);
+		}
+		if (result === "failed") {
+			return Response.json(
+				{ error: "the factory did not start the run" },
+				{ status: 502 },
+			);
+		}
+		await readFactories(() => factories.readRuns(clock.now().getTime()));
+		return Response.json({ id: result.id });
 	};
 	const readWorkflow = async (runId: string) => {
 		if (await factories.readWorkflow(runId)) {
@@ -1076,6 +1101,12 @@ export async function start(options: StartOptions): Promise<Running> {
 					await readFactories(() => factories.readRuns(clock.now().getTime()));
 					return Response.json({ cancelled: true });
 				},
+			},
+			"/api/factory-runs/:run/resume": {
+				POST: (request) => startAgain(factories.resume(request.params.run)),
+			},
+			"/api/factory-runs/:run/restart": {
+				POST: (request) => startAgain(factories.restart(request.params.run)),
 			},
 		},
 	});

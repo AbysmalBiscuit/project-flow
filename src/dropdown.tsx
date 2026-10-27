@@ -20,7 +20,7 @@ export type DropdownChoice = {
 };
 
 /** Closes an open menu on a pointer down outside it or on Escape. */
-function useDismiss(
+export function useDismiss(
 	root: RefObject<HTMLDivElement | null>,
 	open: boolean,
 	setOpen: (next: boolean) => void,
@@ -52,7 +52,7 @@ function useDismiss(
 	}, [root, open, setOpen]);
 }
 
-function Caret() {
+export function Caret() {
 	return (
 		<span className={clsx(frame.caret)} aria-hidden="true">
 			<svg
