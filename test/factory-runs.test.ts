@@ -28,6 +28,8 @@ import {
 import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
+import runArtifact from "./fixtures/factory-run-artifact.json";
+import runArtifacts from "./fixtures/factory-run-artifacts.json";
 import runDetail from "./fixtures/factory-run-detail.json";
 import runEvents from "./fixtures/factory-run-events.json";
 import runGraphCheckpoint from "./fixtures/factory-run-graph-checkpoint.json";
@@ -1791,6 +1793,184 @@ describe("factory runs", () => {
 				);
 				expect(response.status).toBe(404);
 				expect(await response.json()).toEqual({ missing: true });
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the run artifacts", () => {
+		const running41 = hubRuns.runs[0]?.id ?? "";
+		const listPath = `/runs/${running41}/artifacts`;
+		const responsePath = `${listPath}/plan%40v1.a1/response.md`;
+		const verdictPath = `${listPath}/review%40v1.a1/child/verdict%40v1.a1/artifacts/verdict.json`;
+		const verdict = {
+			...runArtifacts.artifacts[5],
+			encoding: "utf-8",
+			content: '{"verdict":"ship","findings":[]}',
+		};
+
+		async function artifactRead(base: string, path: string): Promise<Response> {
+			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
+			return settledRead(
+				new URL(
+					`/api/factory-runs/${encodeURIComponent(running41)}${path}`,
+					base,
+				),
+			);
+		}
+
+		const listOf = (base: string) => artifactRead(base, "/artifacts");
+
+		const artifactOf = (base: string, folder: string, name: string) =>
+			artifactRead(
+				base,
+				`/artifact?${new URLSearchParams({ folder, name }).toString()}`,
+			);
+
+		/** Each artifact URL that the app read, once: a stale read reads again in the background. */
+		const artifactRequests = (requests: FactoryRequest[]) => [
+			...new Set(
+				requests
+					.filter((request) =>
+						new URL(request.url).pathname.startsWith(listPath),
+					)
+					.map((request) => request.url),
+			),
+		];
+
+		test("a run on a box lists its artifacts through the hub, each with its stage folder, stage, name, type and size", async () => {
+			const app = await serveRuns({ ...hub, [listPath]: runArtifacts }, [41]);
+			try {
+				const response = await listOf(app.base);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual({
+					artifacts: runArtifacts.artifacts.map((artifact) => ({
+						folder: artifact.stage,
+						stage: artifact.node_path,
+						name: artifact.name,
+						type: artifact.type,
+						size: artifact.size,
+					})),
+				});
+				expect(artifactRequests(app.requests)).toEqual([
+					`${hubUrl}${listPath}`,
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run on a box gives the content of one artifact through the hub", async () => {
+			const app = await serveRuns(
+				{ ...hub, [responsePath]: runArtifact, [verdictPath]: verdict },
+				[41],
+			);
+			try {
+				const response = await artifactOf(
+					app.base,
+					"plan@v1.a1",
+					"response.md",
+				);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual({
+					folder: "plan@v1.a1",
+					stage: "plan",
+					name: "response.md",
+					type: "text/markdown",
+					size: runArtifact.size,
+					encoding: "utf-8",
+					content: runArtifact.content,
+				});
+				const nested = await artifactOf(
+					app.base,
+					"review@v1.a1/child/verdict@v1.a1",
+					"artifacts/verdict.json",
+				);
+				expect(await nested.json()).toMatchObject({
+					stage: "review/verdict",
+					content: verdict.content,
+				});
+				expect(artifactRequests(app.requests)).toEqual([
+					`${hubUrl}${responsePath}`,
+					`${hubUrl}${verdictPath}`,
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that a hub and its box report reads its artifacts from the hub, and the box gets no read", async () => {
+			const [row41] = hubRuns.runs;
+			if (row41 === undefined) {
+				throw new Error("the hub runs fixture lost a run");
+			}
+			const app = await serveRuns(
+				{ ...hub, [listPath]: runArtifacts, [responsePath]: runArtifact },
+				[41],
+				{},
+				{
+					...daemon,
+					"/runs": { runs: [boxRow(row41, "running")] },
+					[listPath]: runArtifacts,
+					[responsePath]: runArtifact,
+				},
+			);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				expect((await listOf(app.base)).status).toBe(200);
+				expect(
+					(await artifactOf(app.base, "plan@v1.a1", "response.md")).status,
+				).toBe(200);
+				expect(artifactRequests(app.requests)).toEqual([
+					`${hubUrl}${listPath}`,
+					`${hubUrl}${responsePath}`,
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a factory that answers 404 on the artifact list reports the artifacts as not served", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				const response = await listOf(app.base);
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ notServed: true });
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("an artifact that the factory does not hold answers 404", async () => {
+			const app = await serveRuns({ ...hub, [listPath]: runArtifacts }, [41]);
+			try {
+				const response = await artifactOf(app.base, "plan@v1.a1", "nope.md");
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ missing: true });
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that no factory reports answers 404", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				for (const path of [
+					"/api/factory-runs/no-such-run/artifacts",
+					"/api/factory-runs/no-such-run/artifact?folder=plan%40v1.a1&name=response.md",
+				]) {
+					const response = await settledRead(new URL(path, app.base));
+					expect(response.status).toBe(404);
+					expect(await response.json()).toEqual({ missing: true });
+				}
 			} finally {
 				await app.stop();
 			}

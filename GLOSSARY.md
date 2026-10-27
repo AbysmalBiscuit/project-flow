@@ -170,6 +170,10 @@ _Avoid_: Run state, run detail
 The input and output tokens, the cost, the time and the count of each tool of a run's agent turns. Project Flow gives it for each run stage and for the run. It reads it from `GET /runs/{id}/turns` of the factory that reports the run. A turn of a child graph counts toward the stage that calls the child graph.
 _Avoid_: Run cost, spend
 
+**Run artifact**:
+A file that a run stage writes in its stage folder, such as its prompt or its response, or a value that the stage adds to the artifact store. A stage has one stage folder for each visit. Project Flow reads the run artifacts from `GET /runs/{id}/artifacts` of the hub that reports the run, or else of its box.
+_Avoid_: Output, stage file
+
 **Run agent**:
 The agent that works on one stage of a live run: its current tool, its last message and whether its turn runs or ended. Project Flow reads it from `GET /runs/{id}/workers` of the factory that reports the run, only while a view follows the run.
 _Avoid_: Worker (when the agent is meant)
