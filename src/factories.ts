@@ -24,6 +24,7 @@ import {
 	factoryKind,
 } from "./factory-kind.ts";
 import { runActions } from "./factory-run-actions.ts";
+import { runArtifactsReader } from "./factory-run-artifacts.ts";
 import {
 	checkpoint,
 	runDetailReader,
@@ -489,6 +490,7 @@ export function factoryReader(
 			lastEvents,
 		}),
 		events: runEventsReader({ fetchImpl, signal, statusRowOf }),
+		...runArtifactsReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
 }

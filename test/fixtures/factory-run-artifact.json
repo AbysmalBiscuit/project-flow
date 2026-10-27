@@ -1,0 +1,9 @@
+{
+	"stage": "plan@v1.a1",
+	"node_path": "plan",
+	"name": "response.md",
+	"type": "text/markdown",
+	"size": 184,
+	"encoding": "utf-8",
+	"content": "# Plan\n\nAdd the `--dry-run` flag to `widget sync`.\n\n1. Parse the flag in `cli.ts`.\n2. Skip the write in `sync.ts` when the flag is set.\n3. Test the flag through the CLI.\n\nSTATUS: done\n"
+}

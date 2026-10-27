@@ -993,6 +993,33 @@ export async function start(options: StartOptions): Promise<Running> {
 					);
 				},
 			},
+			"/api/factory-runs/:id/artifacts": {
+				GET: (request) =>
+					staleRead(readKey(request), async () => {
+						const found = await factories.artifacts(request.params.id);
+						if (found === "missing") {
+							return Response.json({ missing: true }, { status: 404 });
+						}
+						if (found === "not served") {
+							return Response.json({ notServed: true }, { status: 404 });
+						}
+						return Response.json({ artifacts: found });
+					}),
+			},
+			"/api/factory-runs/:id/artifact": {
+				GET: (request) =>
+					staleRead(readKey(request), async () => {
+						const query = new URL(request.url).searchParams;
+						const found = await factories.artifact(
+							request.params.id,
+							query.get("folder") ?? "",
+							query.get("name") ?? "",
+						);
+						return found === null
+							? Response.json({ missing: true }, { status: 404 })
+							: Response.json(found);
+					}),
+			},
 			"/api/threads/:tracker/:key": {
 				GET: (request) =>
 					staleRead(readKey(request), () =>

@@ -345,6 +345,26 @@ export function notServedLabel(data: string): string {
 
 export const runStagesLabel = "Stages";
 
+export const runArtifactsLabel = "Run artifacts";
+
+export const noRunArtifactsLabel = "The run has no artifacts yet.";
+
+export const artifactMissingLabel = "The factory did not give this artifact.";
+
+export const artifactBinaryLabel =
+	"This artifact is not text, so the page does not show it.";
+
+const fileSize = new Intl.NumberFormat("en", {
+	notation: "compact",
+	style: "unit",
+	unit: "byte",
+	unitDisplay: "narrow",
+});
+
+export function artifactSizeLabel(bytes: number): string {
+	return fileSize.format(bytes);
+}
+
 export const currentStageLabel = "Current";
 
 export const runGraphLabel = "Workflow";

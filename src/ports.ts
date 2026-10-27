@@ -9,6 +9,7 @@ import type {
 	PullRequest,
 	ReplyRequest,
 	RunAgent,
+	RunArtifactContent,
 	RunDetail,
 	Snapshot,
 	Ticket,
@@ -22,6 +23,7 @@ import type {
 	Steer,
 	SteerResult,
 } from "./factory-run-actions.ts";
+import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
@@ -167,6 +169,21 @@ export type FactoryReader = {
 		lastEventId: string | null,
 		client: AbortSignal,
 	) => Response | null;
+	/**
+	 * `GET /runs/{id}/artifacts` of the hub that reports the run, or else of its box.
+	 * "missing" when no factory reported the run or the factory did not answer,
+	 * and "not served" when the factory answered with 404.
+	 */
+	artifacts: (runId: string) => Promise<ArtifactsRead>;
+	/**
+	 * `GET /runs/{id}/artifacts/{folder}/{name}` of the hub that reports the run, or else of its box.
+	 * Null when no factory reported the run, or the factory gave no such artifact.
+	 */
+	artifact: (
+		runId: string,
+		folder: string,
+		name: string,
+	) => Promise<RunArtifactContent | null>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
 	 * Answers, steers, cancels, resumes and restarts are the only write requests that the app sends to a factory.

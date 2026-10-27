@@ -8,6 +8,7 @@ import { runPagePath } from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
+import { RunArtifacts } from "./run-artifacts.tsx";
 import { RunCancel } from "./run-cancel.tsx";
 import { NotServed, RunStages, RunUsage } from "./run-checkpoint.tsx";
 import { RunEvents } from "./run-events.tsx";
@@ -153,6 +154,8 @@ function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
 				<RunUsage run={run} />
 			) : tab === "events" ? (
 				<RunEvents run={run} />
+			) : tab === "artifacts" ? (
+				<RunArtifacts run={run} />
 			) : (
 				<NotServed data={runTabData[tab]} />
 			)}
