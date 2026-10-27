@@ -28,6 +28,8 @@ export type FlowTicket = Omit<TicketView, "key" | "state"> & {
 	state?: TicketState;
 	project: string;
 	outside: boolean;
+	/** The ticket's project is a tracked project. */
+	tracked: boolean;
 	tracker: Tracker;
 };
 
@@ -80,6 +82,7 @@ export function graphTickets(
 				title: parent?.title ?? end.title,
 				project: end.project,
 				outside: true,
+				tracked: parent?.tracked ?? true,
 				...(state === undefined ? {} : { state }),
 				tracker: end.tracker,
 			});
@@ -105,6 +108,7 @@ export function graphTickets(
 					title: parent.title,
 					project: parent.project,
 					outside: true,
+					tracked: parent.tracked,
 					...(state === undefined ? {} : { state }),
 					tracker: parent.tracker,
 				},
@@ -123,6 +127,7 @@ export function graphTickets(
 						key: ticket.key,
 						project: report.name,
 						outside: false,
+						tracked: true,
 						tracker: report.tracker,
 					},
 				],

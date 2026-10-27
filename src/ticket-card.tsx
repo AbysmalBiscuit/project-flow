@@ -105,6 +105,9 @@ export function TicketCardBody({
 								: {
 										ticketKey: parentKey,
 										outside: outsideParent !== undefined,
+										project: outsideParent?.tracked
+											? outsideParent.project
+											: undefined,
 										onOpen:
 											outsideParent === undefined
 												? open.onOpen
