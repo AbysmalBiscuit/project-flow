@@ -223,6 +223,18 @@ const TicketFocusContext = createContext<TicketFocus>({
 	leave: () => {},
 });
 
+/** Opens the PR of an unlinked PR card in a new tab, since it has no ticket for the side panel. */
+function openUnlinkedPr(report: ProjectReport, key: string): boolean {
+	const unlinked = report.tickets.find(
+		(item) => item.unlinkedPr && item.key === key,
+	);
+	if (unlinked?.pullUrl === undefined) {
+		return false;
+	}
+	window.open(unlinked.pullUrl, "_blank", "noopener");
+	return true;
+}
+
 function groupFaded(focus: TicketFocus, tickets: TicketView[]): boolean {
 	return focus.active && tickets.every((ticket) => focus.faded(ticket.key));
 }
@@ -1149,7 +1161,9 @@ export function Page() {
 		leave: ticketFocus.leave,
 	};
 	const openTicketInPanel = (key: string) => {
-		openTicket({ tracker: report.tracker, project: report.name, key });
+		if (!openUnlinkedPr(report, key)) {
+			openTicket({ tracker: report.tracker, project: report.name, key });
+		}
 	};
 	return (
 		<ReactFlowProvider>

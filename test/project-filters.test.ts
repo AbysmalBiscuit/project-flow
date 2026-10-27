@@ -152,6 +152,7 @@ describe("GET /api/projects/:name filters", () => {
 					`${githubRepo}#4`,
 					`${githubRepo}#6`,
 					`${githubRepo}#7`,
+					`${githubRepo}#40`,
 				]);
 				const before = calls.length;
 				const events = await fetch(new URL("/api/events", base), {
@@ -284,7 +285,7 @@ describe("GET /api/projects/:name filters", () => {
 					)
 				).json()) as ProjectReport;
 				expect(shown.hiddenBy).toBeUndefined();
-				expect(shown.tickets.length).toBe(2);
+				expect(shown.tickets.length).toBe(3);
 				const cleared = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
 					headers: { "content-type": "application/json" },
@@ -310,6 +311,7 @@ describe("GET /api/projects/:name filters", () => {
 				expect(open.tickets.map((ticket) => ticket.key)).toEqual([
 					`${githubRepo}#1`,
 					`${githubRepo}#2`,
+					`${githubRepo}#40`,
 				]);
 				const saved = (await (
 					await fetch(new URL("/api/settings", base))
@@ -339,7 +341,7 @@ describe("GET /api/projects/:name filters", () => {
 			JSON.stringify({
 				pinned: [{ tracker: "github", repo: githubRepo }],
 			}),
-			githubFetch(issues, []),
+			githubFetch(issues, [], undefined, []),
 			{ GITHUB_TOKEN: "recorded-token" },
 			async (base) => {
 				const hidden = (await (
@@ -410,13 +412,18 @@ describe("GET /api/projects/:name filters", () => {
 					};
 				};
 				const capped = {
-					tickets: [`${githubRepo}#2`, `${githubRepo}#9`],
+					tickets: [`${githubRepo}#2`, `${githubRepo}#9`, `${githubRepo}#40`],
 					links: [`${githubRepo}#9 -> ${githubRepo}#2`],
 				};
 				expect(await graphOf({})).toEqual(capped);
 				expect(await graphOf({ Done: 3 })).toEqual(capped);
 				expect(await graphOf({ Done: 0 })).toEqual({
-					tickets: [`${githubRepo}#2`, `${githubRepo}#8`, `${githubRepo}#9`],
+					tickets: [
+						`${githubRepo}#2`,
+						`${githubRepo}#8`,
+						`${githubRepo}#9`,
+						`${githubRepo}#40`,
+					],
 					links: [
 						`${githubRepo}#8 -> ${githubRepo}#2`,
 						`${githubRepo}#9 -> ${githubRepo}#2`,
