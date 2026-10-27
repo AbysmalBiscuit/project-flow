@@ -66,7 +66,12 @@ export function projectReport(
 	runByKey: Map<string, LiveRun> = new Map(),
 	outsideParents: OutsideParent[] = [],
 ): ProjectReport {
-	const placed = placeTickets(tickets, counts.tickets, counts.tracker);
+	const placed = placeTickets(
+		tickets,
+		counts.tickets,
+		counts.tracker,
+		outsideParents,
+	);
 	const ticketsByKey = new Map(
 		tickets.flatMap((ticket) =>
 			ticket.key === null ? [] : [[ticket.key, ticket]],

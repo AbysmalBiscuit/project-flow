@@ -263,6 +263,7 @@ export function placeTickets(
 	tickets: Ticket[],
 	views: TicketView[],
 	tracker: ProjectCounts["tracker"],
+	outsideParents: readonly OutsideParent[] = [],
 ): Placed[] {
 	const byKey = new Map<string, Ticket>();
 	for (const ticket of tickets) {
@@ -312,6 +313,18 @@ export function placeTickets(
 			),
 		);
 	};
+	const outsideWorkstream = (root: Ticket): Workstream | undefined => {
+		const key = root.parent;
+		if (tracker !== "github" || key === null) {
+			return undefined;
+		}
+		const outside = outsideParents.find((parent) =>
+			sameTicketKey(parent.key, key),
+		);
+		return outside === undefined
+			? undefined
+			: { label: outside.title, key: outside.key };
+	};
 	const rootWorkstreams = new Map<Ticket, Workstream>();
 	const rootWorkstream = (root: Ticket): Workstream => {
 		const known = rootWorkstreams.get(root);
@@ -319,6 +332,7 @@ export function placeTickets(
 			return known;
 		}
 		const workstream =
+			outsideWorkstream(root) ??
 			treeWorkstream(root) ??
 			(tracker === "github" &&
 			root.key !== null &&

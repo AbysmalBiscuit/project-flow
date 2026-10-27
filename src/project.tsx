@@ -2,6 +2,7 @@ import { Button } from "./button.tsx";
 import { Segment } from "./segment.tsx";
 import { TextInput } from "./text-input.tsx";
 import "@xyflow/react/dist/style.css";
+import * as stylex from "@stylexjs/stylex";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
 import {
@@ -25,6 +26,7 @@ import {
 import { useCollapse } from "./collapse.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type {
+	OutsideParent,
 	ProjectReport,
 	StatusType,
 	TicketRelation,
@@ -62,11 +64,20 @@ import {
 	hidingFilterIds,
 	hidingFilterLabel,
 	navLabel,
+	openParentLabel,
+	stateLabel,
 	subTicketsToggleLabel,
 	viewLabel,
 } from "./terms.ts";
 import { TicketCardBody } from "./ticket-card.tsx";
-import { foldKey, itemId, shortKey, ticketRefId } from "./ticket-key.ts";
+import {
+	foldKey,
+	itemId,
+	outsideKey,
+	sameTicketKey,
+	shortKey,
+	ticketRefId,
+} from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
@@ -279,17 +290,64 @@ function Card({
 	);
 }
 
+/** The outside parent ticket that names a workstream group, as the dashed outside card of the project graph. */
+function OutsideParentCard({
+	parent,
+	onOpenOutside,
+}: {
+	parent: OutsideParent;
+	onOpenOutside: (blocker: TicketRelation) => void;
+}) {
+	const known = parent.state;
+	const styles = [
+		board.card,
+		board.cardFocus,
+		known !== undefined && board.toned,
+		board.ticketOutside,
+		known === undefined && board.ticketOutsideUntoned,
+	];
+	return (
+		<li>
+			<button
+				type="button"
+				{...(known === undefined
+					? stylex.props(...styles)
+					: tonedProps(undefined, known, ...styles))}
+				data-outside-parent={parent.key}
+				data-state={known ?? "unknown"}
+				onClick={() => onOpenOutside(parent)}
+			>
+				<TicketCardBody
+					ticket={{ key: parent.key, title: parent.title, blockers: [] }}
+					keyLabel={outsideKey(parent.project, parent.key)}
+					labels={
+						<span className={clsx(board.pull)}>
+							{known === undefined ? openParentLabel : stateLabel[known]}
+						</span>
+					}
+					hierarchy={false}
+				/>
+			</button>
+		</li>
+	);
+}
+
 function LaneCards({
 	tickets,
+	head,
 	onOpen,
 	onOpenOutside,
 }: {
 	tickets: TicketView[];
+	head?: OutsideParent | undefined;
 	onOpen: (key: string) => void;
 	onOpenOutside: (blocker: TicketRelation) => void;
 }) {
 	return (
 		<ul className={clsx(board.cards)}>
+			{head === undefined ? null : (
+				<OutsideParentCard parent={head} onOpenOutside={onOpenOutside} />
+			)}
 			{tickets.map((ticket) => (
 				<Card
 					key={ticket.key ?? ticket.title}
@@ -338,6 +396,7 @@ function Lane({
 	const visible = [...listed, ...selected];
 	const showAll = capped && !shown && listed.length < tickets.length;
 	const focus = useContext(TicketFocusContext);
+	const outsideParents = useContext(OutsideParentsContext);
 	const headFaded = groupFaded(focus, visible);
 	return (
 		<section className={clsx(board.lane)} data-lane={name} aria-label={name}>
@@ -379,6 +438,13 @@ function Lane({
 							</h3>
 							<LaneCards
 								tickets={group.tickets}
+								head={
+									groupBy === "workstream"
+										? outsideParents.find((parent) =>
+												sameTicketKey(parent.key, group.name),
+											)
+										: undefined
+								}
 								onOpen={onOpen}
 								onOpenOutside={onOpenOutside}
 							/>

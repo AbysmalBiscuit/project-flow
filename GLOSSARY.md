@@ -41,7 +41,7 @@ A ticket that sits under a parent ticket.
 _Avoid_: Child, child ticket, subtask, sub-issue
 
 **Workstream**:
-The top group in a project map: on GitHub the root epic, else the milestone, else the top parent ticket; on Linear the project milestone. A top parent ticket with no workstream takes the most common workstream in its tree of sub-tickets. Another ticket with no workstream takes the workstream of its top parent ticket.
+The top group in a project map: on GitHub the root epic, else the milestone, else the top parent ticket; on Linear the project milestone. On GitHub, a top parent ticket with no workstream and an outside parent ticket takes the outside parent ticket as its workstream. That workstream group shows the outside parent ticket as a dashed outside card, with its title, state and link. A top parent ticket with no workstream takes the most common workstream in its tree of sub-tickets. Another ticket with no workstream takes the workstream of its top parent ticket.
 _Avoid_: Area, epic, feature area
 
 **Theme**:
