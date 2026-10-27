@@ -15,6 +15,7 @@ import { RunEvents } from "./run-events.tsx";
 import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
 import { RunResume } from "./run-resume.tsx";
+import { RunSandbox } from "./run-sandbox.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { Segment } from "./segment.tsx";
 import { PageFrame } from "./shell.tsx";
@@ -156,6 +157,8 @@ function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
 				<RunEvents run={run} />
 			) : tab === "artifacts" ? (
 				<RunArtifacts run={run} />
+			) : tab === "sandbox" ? (
+				<RunSandbox run={run} />
 			) : (
 				<NotServed data={runTabData[tab]} />
 			)}

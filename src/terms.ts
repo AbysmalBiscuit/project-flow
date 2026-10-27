@@ -346,6 +346,33 @@ export function notServedLabel(data: string): string {
 
 export const runStagesLabel = "Stages";
 
+export const runSandboxLabel = "Run sandbox";
+
+export const sandboxFactLabel = {
+	box: "Box",
+	host: "Host",
+	worktree: "Worktree",
+	branch: "Branch",
+	head: "Head",
+	base: "Base",
+	ahead: "Ahead",
+	state: "Workspace",
+	changes: "Uncommitted changes",
+} as const;
+
+export const sandboxStateLabel = {
+	none: "No worktree yet",
+	removed: "Worktree removed",
+	clean: "Clean",
+	dirty: "Uncommitted changes",
+} as const;
+
+export const noBaseLabel = "No base resolves";
+
+export function aheadLabel(commits: number): string {
+	return commits === 1 ? "1 commit" : `${commits} commits`;
+}
+
 export const runArtifactsLabel = "Run artifacts";
 
 export const noRunArtifactsLabel = "The run has no artifacts yet.";

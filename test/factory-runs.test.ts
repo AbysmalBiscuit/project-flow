@@ -36,6 +36,7 @@ import runGraphCheckpoint from "./fixtures/factory-run-graph-checkpoint.json";
 import runGraph from "./fixtures/factory-run-graph.json";
 import answeredQuestions from "./fixtures/factory-run-questions-answered.json";
 import runQuestions from "./fixtures/factory-run-questions.json";
+import runSandbox from "./fixtures/factory-run-sandbox.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
 import steerDelivered from "./fixtures/factory-steer-delivered.json";
@@ -1971,6 +1972,119 @@ describe("factory runs", () => {
 					expect(response.status).toBe(404);
 					expect(await response.json()).toEqual({ missing: true });
 				}
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the run sandbox", () => {
+		const running41 = hubRuns.runs[0]?.id ?? "";
+		const sandboxPath = `/runs/${running41}/sandbox`;
+
+		async function sandboxOf(base: string): Promise<Response> {
+			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
+			return settledRead(
+				new URL(
+					`/api/factory-runs/${encodeURIComponent(running41)}/sandbox`,
+					base,
+				),
+			);
+		}
+
+		/** Each sandbox URL that the app read, once: a stale read reads again in the background. */
+		const sandboxRequests = (requests: FactoryRequest[]) => [
+			...new Set(
+				requests
+					.filter((request) => new URL(request.url).pathname === sandboxPath)
+					.map((request) => request.url),
+			),
+		];
+
+		test("a run on a box gives its host, worktree, branch, base and workspace state through the hub", async () => {
+			const app = await serveRuns({ ...hub, [sandboxPath]: runSandbox }, [41]);
+			try {
+				const response = await sandboxOf(app.base);
+				expect(response.status).toBe(200);
+				expect(await response.json()).toEqual(runSandbox);
+				expect(sandboxRequests(app.requests)).toEqual([
+					`${hubUrl}${sandboxPath}`,
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run whose worktree is gone gives the removed state", async () => {
+			const removed = {
+				...runSandbox,
+				branch: null,
+				head: null,
+				base: null,
+				ahead: null,
+				state: "removed",
+				changes: [],
+			};
+			const app = await serveRuns({ ...hub, [sandboxPath]: removed }, [41]);
+			try {
+				expect(await (await sandboxOf(app.base)).json()).toEqual(removed);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that a hub and its box report reads its sandbox from the hub, and the box gets no read", async () => {
+			const [row41] = hubRuns.runs;
+			if (row41 === undefined) {
+				throw new Error("the hub runs fixture lost a run");
+			}
+			const app = await serveRuns(
+				{ ...hub, [sandboxPath]: runSandbox },
+				[41],
+				{},
+				{
+					...daemon,
+					"/runs": { runs: [boxRow(row41, "running")] },
+					[sandboxPath]: runSandbox,
+				},
+			);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
+				);
+				expect((await sandboxOf(app.base)).status).toBe(200);
+				expect(sandboxRequests(app.requests)).toEqual([
+					`${hubUrl}${sandboxPath}`,
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a factory that answers 404 reports the sandbox as not served", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				const response = await sandboxOf(app.base);
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ notServed: true });
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a run that no factory reports answers 404", async () => {
+			const app = await serveRuns(hub, [41]);
+			try {
+				await overviewWhere(
+					app.base,
+					(seen) => factoryRunOf(seen, 41) !== undefined,
+				);
+				const response = await settledRead(
+					new URL("/api/factory-runs/no-such-run/sandbox", app.base),
+				);
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ missing: true });
 			} finally {
 				await app.stop();
 			}
