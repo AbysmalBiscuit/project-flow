@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { runResults, runStatusKinds } from "./domain.ts";
-import { Dropdown } from "./dropdown.tsx";
+import { MultiDropdown } from "./dropdown.tsx";
 import { Loading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { openPage, runPagePath } from "./page-links.ts";
@@ -45,11 +45,14 @@ const styles = stylex.create({
 	},
 });
 
-const all = "all";
-
 /** The distinct values of one field, in their first order. */
 function choicesOf(rows: RunListRow[], value: (row: RunListRow) => string) {
 	return [...new Set(rows.map(value))].map((id) => ({ id, label: id }));
+}
+
+/** No picked value lets every row through. */
+function picks(picked: readonly string[], value: string | undefined) {
+	return picked.length === 0 || (value !== undefined && picked.includes(value));
 }
 
 function matches(row: RunListRow, search: string): boolean {
@@ -133,17 +136,17 @@ function RunRow({ run }: { run: RunListRow }) {
 }
 
 function RunsList({ rows }: { rows: RunListRow[] }) {
-	const [status, setStatus] = useState(all);
-	const [result, setResult] = useState(all);
-	const [project, setProject] = useState(all);
-	const [factory, setFactory] = useState(all);
+	const [status, setStatus] = useState<string[]>([]);
+	const [result, setResult] = useState<string[]>([]);
+	const [project, setProject] = useState<string[]>([]);
+	const [factory, setFactory] = useState<string[]>([]);
 	const [search, setSearch] = useState("");
 	const shown = rows.filter(
 		(row) =>
-			(status === all || row.statusKind === status) &&
-			(result === all || row.result === result) &&
-			(project === all || row.project === project) &&
-			(factory === all || row.factory === factory) &&
+			picks(status, row.statusKind) &&
+			picks(result, row.result) &&
+			picks(project, row.project) &&
+			picks(factory, row.factory) &&
 			matches(row, search),
 	);
 	return (
@@ -159,52 +162,44 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 					width={styles.search}
 					onChange={(event) => setSearch(event.target.value)}
 				/>
-				<Dropdown
+				<MultiDropdown
 					id="runs-status"
 					label={runsListCopy.status}
+					allLabel={runsListCopy.allStatuses}
 					value={status}
-					choices={[
-						{ id: all, label: runsListCopy.allStatuses },
-						...runStatusKinds.map((kind) => ({
-							id: kind,
-							label: runStatusLabel[kind],
-						})),
-					]}
+					choices={runStatusKinds.map((kind) => ({
+						id: kind,
+						label: runStatusLabel[kind],
+					}))}
 					onChange={setStatus}
 				/>
-				<Dropdown
+				<MultiDropdown
 					id="runs-result"
 					label={runsListCopy.result}
+					allLabel={runsListCopy.allResults}
 					value={result}
-					choices={[
-						{ id: all, label: runsListCopy.allResults },
-						...runResults.map((kind) => ({
-							id: kind,
-							label: runResultLabel[kind],
-						})),
-					]}
+					choices={runResults.map((kind) => ({
+						id: kind,
+						label: runResultLabel[kind],
+					}))}
 					onChange={setResult}
 				/>
-				<Dropdown
+				<MultiDropdown
 					id="runs-project"
 					label={runsListCopy.project}
+					allLabel={runsListCopy.allProjects}
 					value={project}
-					choices={[
-						{ id: all, label: runsListCopy.allProjects },
-						...choicesOf(rows, (row) => row.project ?? "").filter(
-							(choice) => choice.id !== "",
-						),
-					]}
+					choices={choicesOf(rows, (row) => row.project ?? "").filter(
+						(choice) => choice.id !== "",
+					)}
 					onChange={setProject}
 				/>
-				<Dropdown
+				<MultiDropdown
 					id="runs-factory"
 					label={runsListCopy.factory}
+					allLabel={runsListCopy.allFactories}
 					value={factory}
-					choices={[
-						{ id: all, label: runsListCopy.allFactories },
-						...choicesOf(rows, (row) => row.factory),
-					]}
+					choices={choicesOf(rows, (row) => row.factory)}
 					onChange={setFactory}
 				/>
 			</div>
