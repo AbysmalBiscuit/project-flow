@@ -36,14 +36,23 @@ type ProjectTickets = {
  * What an ended run came to. A merged PR wins over the run status. A stored PR that
  * is not merged is open or a draft. A PR that the store lacks is closed.
  */
-function resultOf(
+export function runResultOf(
 	run: FactoryRun,
-	stored: PullRequest | undefined,
+	pulls: PullRequest[],
 ): RunResult | undefined {
 	if (!endedRunStatusKinds.some((kind) => kind === run.statusKind)) {
 		return undefined;
 	}
-	if (stored?.merged === true || run.pull?.merged === true) {
+	const { pull } = run;
+	const stored =
+		pull === undefined
+			? undefined
+			: pulls.find(
+					(item) =>
+						item.number === pull.number &&
+						item.repo.toLowerCase() === pull.repo.toLowerCase(),
+				);
+	if (stored?.merged === true || pull?.merged === true) {
 		return "merged";
 	}
 	if (run.statusKind === "failed") {
@@ -61,15 +70,7 @@ export function runList(
 	const pulls = projects.flatMap((project) => project.pulls);
 	return runs.map((run) => {
 		const { pull } = run;
-		const stored =
-			pull === undefined
-				? undefined
-				: pulls.find(
-						(item) =>
-							item.number === pull.number &&
-							item.repo.toLowerCase() === pull.repo.toLowerCase(),
-					);
-		const result = resultOf(run, stored);
+		const result = runResultOf(run, pulls);
 		const row = {
 			id: run.id,
 			statusKind: run.statusKind,

@@ -543,6 +543,10 @@ export const hidingFilterIds = [
 	"blockedOnly",
 	"assignees",
 	"search",
+	"withRunsOnly",
+	"runStatuses",
+	"runResults",
+	"runFactories",
 ] as const;
 
 export type HidingFilter = (typeof hidingFilterIds)[number];
@@ -554,6 +558,10 @@ export const hidingFilterLabel: Record<HidingFilter, string> = {
 	blockedOnly: "Blocked only",
 	assignees: "Assignees",
 	search: "Search",
+	withRunsOnly: "With runs only",
+	runStatuses: "Run status",
+	runResults: "Run result",
+	runFactories: "Factory",
 };
 
 export const clearFocusLabel = "Clear focus";

@@ -12,6 +12,7 @@ import type {
 } from "./domain.ts";
 import { appLaneNames, closedLaneType, laterState } from "./lanes.ts";
 import { branchLinksTicket, closesTicket } from "./pull-links.ts";
+import { runResultOf } from "./run-list.ts";
 import { foldKey } from "./ticket-key.ts";
 import { progressRun, runFor, runsFor } from "./workcell.ts";
 
@@ -172,6 +173,7 @@ export function shownTicket(
 export function shownFactoryRun(
 	ticket: Ticket,
 	newestFirst: FactoryRun[],
+	pulls: PullRequest[],
 	now: Date,
 ):
 	| { factoryRun: ShownFactoryRun; earlierFactoryRuns?: EarlierFactoryRun[] }
@@ -183,6 +185,7 @@ export function shownFactoryRun(
 	const stage = run.streamed
 		? run.stage
 		: progressRun(ticket.comments ?? [], now)?.stage;
+	const result = runResultOf(run, pulls);
 	return {
 		factoryRun: {
 			id: run.id,
@@ -197,15 +200,21 @@ export function shownFactoryRun(
 			...(run.questions === undefined ? {} : { questions: run.questions }),
 			...(run.thread === undefined ? {} : { thread: run.thread }),
 			...(stage === undefined ? {} : { stage }),
+			...(result === undefined ? {} : { result }),
 		},
 		...(earlier.length === 0
 			? {}
 			: {
-					earlierFactoryRuns: earlier.map((run) => ({
-						statusKind: run.statusKind,
-						startedAt: run.startedAt,
-						endedAt: run.endedAt,
-					})),
+					earlierFactoryRuns: earlier.map((run) => {
+						const result = runResultOf(run, pulls);
+						return {
+							statusKind: run.statusKind,
+							factory: run.factory,
+							startedAt: run.startedAt,
+							endedAt: run.endedAt,
+							...(result === undefined ? {} : { result }),
+						};
+					}),
 				}),
 	};
 }

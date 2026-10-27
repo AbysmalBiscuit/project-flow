@@ -202,6 +202,14 @@ _Avoid_: Retry (when a whole run is meant), rerun, resume (when a restart is mea
 The table of every workcell run that the factories report, with search and filters. Each row links to its run page.
 _Avoid_: Run history, run log
 
+**Ticket filter**:
+The project page menu that hides tickets by lane, age, needs you, blocker and assignee. It applies to the board, the graph and the table.
+_Avoid_: Filter (when the run filter can be meant)
+
+**Run filter**:
+The project page menu that hides tickets by their factory runs. "With runs only" keeps the tickets with a run mark. Each run status, run result and factory that Lev checks keeps the tickets with a matching run. A ticket with several runs matches when one of its runs matches.
+_Avoid_: Factory filter
+
 **Run result**:
 What the work of an ended run came to: merged, PR open, no PR, failed or cancelled. Project Flow derives it from the run status and the PR that the run opened. The factory gives that PR in `GET /runs/{id}`. A merged PR wins over the run status. A live or queued run has no run result.
 _Avoid_: Run status (when the result is meant)
