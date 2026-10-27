@@ -6,6 +6,7 @@ import {
 	githubRepo,
 	issue,
 	linearSlug,
+	otherRepo,
 	withApp,
 } from "./project-harness.ts";
 import { linearFake } from "./support.ts";
@@ -75,6 +76,19 @@ const githubReport = async (
 const subTicketOf = (parent: number) => ({
 	parent_issue_url: `https://api.github.com/repos/${githubRepo}/issues/${parent}`,
 });
+
+const underPlatformSpec = {
+	parent: {
+		number: 9,
+		title: "Platform spec",
+		state: "OPEN",
+		url: `https://github.com/${otherRepo}/issues/9`,
+		repository: { nameWithOwner: otherRepo },
+	},
+};
+
+const ticketOf = (report: ProjectReport, number: number) =>
+	report.tickets.find((ticket) => ticket.key === `${githubRepo}#${number}`);
 
 describe("GET /api/projects/:name", () => {
 	test("a Linear parent with no milestone shares the group of its sub-tickets", async () => {
@@ -218,6 +232,58 @@ describe("GET /api/projects/:name", () => {
 						workstream: "October",
 						workstreamKey: "October",
 						themeGroup: "October / Write the notes",
+					});
+				}
+			},
+		);
+	});
+
+	test("a GitHub top parent under an outside parent takes the outside parent as its workstream", async () => {
+		await githubReport(
+			[
+				issue(25, "Wait on the other repo", underPlatformSpec),
+				issue(26, "Draw the gate", subTicketOf(25)),
+				issue(27, "Paint the gate", subTicketOf(26)),
+			],
+			(report) => {
+				for (const number of [25, 26, 27]) {
+					expect(ticketOf(report, number)).toMatchObject({
+						workstream: "Platform spec",
+						workstreamKey: `${otherRepo}#9`,
+					});
+				}
+			},
+		);
+	});
+
+	test("a GitHub ticket's own milestone or root epic wins over an outside parent", async () => {
+		await githubReport(
+			[
+				issue(25, "Wait on the other repo", underPlatformSpec),
+				issue(26, "Draw the gate", {
+					...subTicketOf(25),
+					milestone: { title: "October" },
+				}),
+				issue(27, "Name the gate", subTicketOf(25)),
+				issue(30, "Ship the gate", {
+					...underPlatformSpec,
+					labels: [{ name: "epic" }],
+				}),
+				issue(31, "Hang the gate", subTicketOf(30)),
+			],
+			(report) => {
+				expect(ticketOf(report, 26)).toMatchObject({
+					workstream: "October",
+					workstreamKey: "October",
+				});
+				expect(ticketOf(report, 27)).toMatchObject({
+					workstream: "Platform spec",
+					workstreamKey: `${otherRepo}#9`,
+				});
+				for (const number of [30, 31]) {
+					expect(ticketOf(report, number)).toMatchObject({
+						workstream: "Ship the gate",
+						workstreamKey: `${githubRepo}#30`,
 					});
 				}
 			},
