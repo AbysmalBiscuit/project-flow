@@ -518,6 +518,47 @@ describe("factory runs", () => {
 		}
 	});
 
+	test("latest run only matches the run filters on the run that the card shows, and an older failed run matches without it", async () => {
+		const app = await serveRuns(
+			{ ...hub, "/runs": hubRunsWithRetry },
+			[39, 41],
+		);
+		try {
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41) !== undefined,
+			);
+			const shownWith = async (runFilters: Record<string, unknown>) => {
+				const current = (await (
+					await fetch(new URL("/api/settings", app.base))
+				).json()) as Record<string, unknown>;
+				const saved = await fetch(new URL("/api/settings", app.base), {
+					method: "PUT",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						...current,
+						projectViews: { [repo]: runFilters },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				return (await reportOf(app.base)).tickets.map((view) => view.title);
+			};
+			expect(await shownWith({ runStatuses: ["failed"] })).toEqual([
+				"Ticket 39",
+				"Ticket 41",
+			]);
+			expect(
+				await shownWith({ runStatuses: ["failed"], latestRunOnly: true }),
+			).toEqual(["Ticket 39"]);
+			expect(await shownWith({ latestRunOnly: true })).toEqual([
+				"Ticket 39",
+				"Ticket 41",
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("advancing the clock past the run poll interval reads /runs again and sends the changed run", async () => {
 		const app = await serveRuns(hub, [41]);
 		const stream = openEventStream(app.base);
