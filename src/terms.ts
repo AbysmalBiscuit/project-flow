@@ -694,6 +694,7 @@ export const settingsCopy = {
 	missing: "Missing",
 	discard: "Discard",
 	save: "Save",
+	savingToast: "Saving settings...",
 	savedToast: "Settings saved",
 	ask: "Ask",
 	yes: "Yes",

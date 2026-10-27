@@ -392,12 +392,14 @@ export function TrackersSection({ trackers }: { trackers: Trackers }) {
 
 export function SettingsBar({
 	dirty,
+	saving,
 	message,
 	failed,
 	onDiscard,
 	onSave,
 }: {
 	dirty: boolean;
+	saving: boolean;
 	message: string | null;
 	failed: boolean;
 	onDiscard: () => void;
@@ -409,14 +411,14 @@ export function SettingsBar({
 			<Button
 				id="discard-settings"
 				label={settingsCopy.discard}
-				disabled={!dirty}
+				disabled={!dirty || saving}
 				onClick={onDiscard}
 			/>
 			<Button
 				id="save-settings"
 				label={settingsCopy.save}
 				tone="primary"
-				disabled={!dirty}
+				disabled={!dirty || saving}
 				onClick={onSave}
 			/>
 		</div>
