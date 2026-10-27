@@ -28,15 +28,18 @@ export const float = stylex.create({
 		flexWrap: "wrap",
 		alignItems: "flex-start",
 		gap: space.sm,
+		containerType: "inline-size",
 		pointerEvents: "none",
 	},
 	corner: {
 		position: "absolute",
 		zIndex: stack.panel,
+		right: 0,
 		bottom: 0,
 		left: 0,
 		display: "flex",
-		maxWidth: "100%",
+		alignItems: "flex-end",
+		containerType: "inline-size",
 		pointerEvents: "none",
 	},
 	group: {
@@ -52,50 +55,28 @@ export const float = stylex.create({
 
 const panel = stylex.create({
 	shell: {
-		display: "grid",
-		alignItems: "start",
-		justifyItems: "start",
-		minWidth: 0,
-		maxWidth: "100%",
+		position: "relative",
+		display: "flex",
+		pointerEvents: "auto",
+	},
+	button: {
+		display: "flex",
 		opacity: measure.restOpacity,
 		transitionProperty: "opacity",
 		transitionDuration: measure.fade,
-		pointerEvents: "auto",
 	},
-	up: {
-		alignItems: "end",
-	},
-	shellOpen: {
-		opacity: 1,
-	},
-	stacked: {
-		gridArea: "1 / 1",
-		minWidth: 0,
-		maxWidth: "100%",
-	},
-	reveal: {
-		display: "grid",
-		gridTemplateRows: "0fr",
-		gridTemplateColumns: "0fr",
-		maxWidth: "100%",
-		transitionProperty: "grid-template-rows, grid-template-columns",
-		transitionDuration: measure.fade,
-		transitionTimingFunction: "ease-out",
-	},
-	revealOpen: {
-		gridTemplateRows: "1fr",
-		gridTemplateColumns: "1fr",
-	},
-	clip: {
-		minWidth: 0,
-		minHeight: 0,
-		overflow: "hidden",
+	buttonHidden: {
+		opacity: 0,
 	},
 	body: {
+		position: "absolute",
+		left: 0,
 		display: "flex",
 		gap: space.xs,
 		width: "max-content",
-		maxWidth: "100%",
+		minWidth: "100%",
+		minHeight: "100%",
+		maxWidth: "100cqw",
 		boxSizing: "border-box",
 		padding: space.sm,
 		borderWidth: measure.hairline,
@@ -105,6 +86,24 @@ const panel = stylex.create({
 		backgroundColor: colours.raised,
 		color: colours.inkSoft,
 		fontSize: type.meta,
+		opacity: 0,
+		pointerEvents: "none",
+		transitionProperty: "opacity, clip-path",
+		transitionDuration: measure.fade,
+		transitionTimingFunction: "ease-out",
+	},
+	down: {
+		top: 0,
+		clipPath: "inset(0 100% 100% 0)",
+	},
+	up: {
+		bottom: 0,
+		clipPath: "inset(100% 100% 0 0)",
+	},
+	bodyOpen: {
+		opacity: 1,
+		clipPath: "inset(0)",
+		pointerEvents: "auto",
 	},
 	pinCentre: {
 		alignSelf: "center",
@@ -147,22 +146,25 @@ function setPin(id: string, pinned: boolean): void {
 
 /**
  * A faded button that expands into its panel on hover or keyboard focus, or stays open when pinned.
- * The open panel covers the button. The browser keeps the pin by `id`.
- * A `top` panel opens downward, with its pin bottom-right after the content.
- * A `bottom` panel opens upward, with its pin first in the content row.
+ * The browser keeps the pin by `id`.
+ * The open panel covers the button and keeps the button's corner fixed: `down` grows from the top-left corner, `up` from the bottom-left.
+ * The panel floats over the page, so the box of the panel never changes size.
+ * `pin` puts the pin button `first` in the content row, or `last` at the bottom right.
  */
 export function FloatPanel({
 	id,
 	label,
 	icon,
-	edge,
+	grow,
+	pin: pinAt,
 	layout,
 	children,
 }: {
 	id: string;
 	label: string;
 	icon: IconName;
-	edge: "top" | "bottom";
+	grow: "down" | "up";
+	pin: "first" | "last";
 	layout?: stylex.StyleXStyles;
 	children: ReactNode;
 }) {
@@ -176,7 +178,7 @@ export function FloatPanel({
 			icon={pinned ? "pin-off" : "pin"}
 			name={pinned ? floatPanelLabel.unpin(label) : floatPanelLabel.pin(label)}
 			pressed={pinned}
-			layout={edge === "top" ? panel.pinEnd : panel.pinCentre}
+			layout={pinAt === "last" ? panel.pinEnd : panel.pinCentre}
 			onClick={() => setPin(id, !pinned)}
 		/>
 	);
@@ -186,12 +188,7 @@ export function FloatPanel({
 			aria-label={label}
 			data-open={open ? "open" : "closed"}
 			data-pinned={pinned ? "pinned" : "loose"}
-			className={clsx(
-				panel.shell,
-				edge === "bottom" && panel.up,
-				open && panel.shellOpen,
-				layout,
-			)}
+			className={clsx(panel.shell)}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 			onFocus={(event) => {
@@ -206,7 +203,7 @@ export function FloatPanel({
 				}
 			}}
 		>
-			<div className={clsx(panel.stacked)}>
+			<div className={clsx(panel.button, open && panel.buttonHidden)}>
 				<Button
 					icon={icon}
 					label={label}
@@ -216,15 +213,19 @@ export function FloatPanel({
 				/>
 			</div>
 			<div
-				className={clsx(panel.stacked, panel.reveal, open && panel.revealOpen)}
+				id={bodyId}
+				data-float-body=""
+				inert={!open}
+				className={clsx(
+					panel.body,
+					grow === "down" ? panel.down : panel.up,
+					open && panel.bodyOpen,
+					layout,
+				)}
 			>
-				<div className={clsx(panel.clip)}>
-					<div id={bodyId} inert={!open} className={clsx(panel.body)}>
-						{edge === "bottom" ? pin : null}
-						{children}
-						{edge === "top" ? pin : null}
-					</div>
-				</div>
+				{pinAt === "first" ? pin : null}
+				{children}
+				{pinAt === "last" ? pin : null}
 			</div>
 		</section>
 	);

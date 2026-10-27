@@ -26,7 +26,7 @@ import type {
 } from "./domain.ts";
 import { elk, FitLayout, LegendFrame } from "./graph-core-view.tsx";
 import type { Point } from "./graph-core.ts";
-import { float } from "./graph-float.tsx";
+import { float, FloatPanel } from "./graph-float.tsx";
 import { GraphTools } from "./graph-pane.tsx";
 import { DirectionSwitch } from "./graph-switches.tsx";
 import {
@@ -47,6 +47,7 @@ import {
 } from "./run-stage.tsx";
 import {
 	calledGraphLabel,
+	floatPanelLabel,
 	runGraphHelp,
 	runGraphLabel,
 	runGraphLegendLabel,
@@ -609,12 +610,22 @@ function GraphPane({
 						<Legend graph={graph} />
 					</div>
 					<div className={clsx(float.corner)}>
-						<GraphTools
-							probeId="run-graph-viewport"
-							fitId="run-graph-fit"
-							scope={`#${paneId}`}
-							fitOptions={fitAll}
-						/>
+						<FloatPanel
+							id="run-graph-controls"
+							label={floatPanelLabel.controls}
+							icon="sliders"
+							grow="up"
+							pin="first"
+						>
+							<div className={clsx(float.group)}>
+								<GraphTools
+									probeId="run-graph-viewport"
+									fitId="run-graph-fit"
+									scope={`#${paneId}`}
+									fitOptions={fitAll}
+								/>
+							</div>
+						</FloatPanel>
 					</div>
 				</ReactFlowProvider>
 			</figure>

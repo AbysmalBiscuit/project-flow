@@ -451,7 +451,8 @@ export function GraphView<
 						id="graph-controls"
 						label={floatPanelLabel.controls}
 						icon="sliders"
-						edge="bottom"
+						grow="up"
+						pin="first"
 					>
 						<div className={clsx(float.group)}>
 							{tools}
