@@ -15,6 +15,7 @@ export type RunListRow = Pick<
 	| "startedAt"
 	| "endedAt"
 	| "coveredByFeed"
+	| "usageTotals"
 > & {
 	key: string;
 	/** Absent when no tracked project holds the ticket. */
@@ -81,6 +82,9 @@ export function runList(
 			startedAt: run.startedAt,
 			endedAt: run.endedAt,
 			coveredByFeed: run.coveredByFeed,
+			...(run.usageTotals === undefined
+				? {}
+				: { usageTotals: run.usageTotals }),
 			...(pull === undefined
 				? {}
 				: { pull: { number: pull.number, url: pull.url } }),
