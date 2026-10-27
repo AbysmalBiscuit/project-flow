@@ -43,6 +43,10 @@ export const board = stylex.create({
 	faded: {
 		opacity: 0.2,
 	},
+	measuring: {
+		visibility: "hidden",
+		pointerEvents: "none",
+	},
 	fades: {
 		transitionProperty: "opacity",
 		transitionDuration: measure.fade,

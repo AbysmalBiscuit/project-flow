@@ -147,7 +147,7 @@ function clusterNode(
 
 /** The group frames, then the parent ticket frames from the outermost in. */
 function clusterNodes(
-	laid: LaidGraph<unknown>,
+	laid: LaidGraph,
 	keyOf: ReadonlyMap<string, string>,
 ): ClusterNode[] {
 	const { input, layout } = laid;
@@ -237,10 +237,11 @@ export function GraphPending({
 /**
  * Draws a laid graph with the page's `Card` and `Link` renderers, and fades
  * what lies outside the focus `chain`. A card or arrow with no page data
- * stays off the graph.
+ * stays off the graph, and an arrow whose page data has `done` draws as done.
+ * The `unplaced` cards draw hidden, so that the page measures them before the
+ * layout places them.
  */
 export function GraphView<
-	Source,
 	CardData extends Record<string, unknown> & { key: string },
 	LinkData extends Record<string, unknown>,
 >({
@@ -248,6 +249,7 @@ export function GraphView<
 	probe,
 	className,
 	laid,
+	unplaced,
 	card,
 	link,
 	Card,
@@ -269,7 +271,8 @@ export function GraphView<
 	/** The id prefix of the probes, the pane and the controls. */
 	probe: string;
 	className: StyleXStyles;
-	laid: LaidGraph<Source>;
+	laid: LaidGraph;
+	unplaced: readonly LayoutCard[];
 	card: (card: LayoutCard) => CardData | null;
 	link: (link: LaidLink) => LinkData | null;
 	Card: NodeTypes[string];
@@ -298,11 +301,29 @@ export function GraphView<
 	const kept = (ticket: string) => chain === null || chain.has(ticket);
 	const moves = clsx(board.moves);
 	const movesFaded = clsx(board.moves, board.faded);
+	const measuring = clsx(board.measuring);
 	const shown = laid.input.cards.flatMap((item) => {
 		const data = card(item);
 		return data === null ? [] : [{ item, data }];
 	});
 	const ticketOf = new Map(shown.map(({ item }) => [item.id, item.ticket]));
+	const measured = unplaced.flatMap((item) => {
+		const data = card(item);
+		return data === null
+			? []
+			: [
+					sizedNode<FlowNode<CardData, "card">>(
+						{
+							id: item.id,
+							type: "card",
+							position: { x: 0, y: 0 },
+							data,
+							className: measuring,
+						},
+						laid.card,
+					),
+				];
+	});
 	const cardNodes = shown.map(({ item, data }) =>
 		sizedNode<FlowNode<CardData, "card">>(
 			{
@@ -338,7 +359,7 @@ export function GraphView<
 			return [];
 		}
 		const lit = kept(from) && kept(to);
-		const done = item.done === true;
+		const done = data.done === true;
 		return [
 			{
 				id: item.id,
@@ -388,7 +409,7 @@ export function GraphView<
 			<div id={paneId} className={clsx(board.graphPane, float.pane)}>
 				<ReactFlow
 					key={drawn}
-					nodes={nodes}
+					nodes={[...nodes, ...measured]}
 					edges={edges}
 					nodeTypes={nodeTypes}
 					edgeTypes={edgeTypes}
