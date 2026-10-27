@@ -77,6 +77,16 @@ export type LayoutInput = {
 	parents: string[];
 };
 
+/**
+ * Every part of the layout input that places the cards. The done state of an
+ * arrow changes only how the page draws it, so it stays out.
+ */
+export function layoutSignature(input: LayoutInput): string {
+	return JSON.stringify(input, (key, value: unknown) =>
+		key === "done" ? undefined : value instanceof Map ? [...value] : value,
+	);
+}
+
 /** Tells whether the frame of the parent ticket with this key is collapsed. */
 export type Collapsed = (key: string, startsCollapsed: boolean) => boolean;
 

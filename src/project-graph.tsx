@@ -158,9 +158,7 @@ export function ProjectGraph({
 		() => layoutInput(report, groupBy, assignees, collapse.collapsed),
 		[report, groupBy, assignees, collapse.collapsed],
 	);
-	const source = useMemo(() => ({ report, groupBy }), [report, groupBy]);
-	const { laid, failed } = useLaidGraph(
-		source,
+	const { laid, failed, unplaced } = useLaidGraph(
 		input,
 		direction,
 		layout,
@@ -178,14 +176,16 @@ export function ProjectGraph({
 	const tickets = useMemo(
 		() =>
 			new Map(
-				laid === null
-					? []
-					: graphTickets(laid.of.report, true, reports).map((ticket) => [
-							projectNodeId(ticket.project, ticket.key),
-							ticket,
-						]),
+				graphTickets(report, true, reports).map((ticket) => [
+					projectNodeId(ticket.project, ticket.key),
+					ticket,
+				]),
 			),
-		[laid, reports],
+		[report, reports],
+	);
+	const doneLinks = useMemo(
+		() => new Set(input.edges.flatMap((edge) => (edge.done ? [edge.id] : []))),
+		[input],
 	);
 	if (laid === null) {
 		return (
@@ -213,15 +213,14 @@ export function ProjectGraph({
 		if (ticket === undefined) {
 			return null;
 		}
-		const parentLabel = parentLabelOf(ticket, laid.of.report);
+		const parentLabel = parentLabelOf(ticket, report);
 		return {
 			key: ticket.key,
 			ticketId: card.ticket,
 			ticket,
 			...(parentLabel === undefined ? {} : { parentLabel }),
 			open: openKey === ticket.key,
-			hierarchyChips:
-				laid.of.groupBy === "assignee" || laid.of.groupBy === "none",
+			hierarchyChips: groupBy === "assignee" || groupBy === "none",
 			frame: card.collapsed ? "collapsed" : heads.has(card.id) ? "open" : null,
 		};
 	};
@@ -266,8 +265,9 @@ export function ProjectGraph({
 				probe="project-graph"
 				className={board.ticketGraph}
 				laid={laid}
+				unplaced={unplaced}
 				card={cardData}
-				link={(item) => ({ done: item.done === true })}
+				link={(item) => ({ done: doneLinks.has(item.id) })}
 				Card={TicketNode}
 				Link={TicketEdge}
 				chain={chain}

@@ -1003,7 +1003,7 @@ export function Page() {
 	);
 	const saveChain = useRef(Promise.resolve());
 	const saveGeneration = useRef(0);
-	const settingsData = settingsQuery.data;
+	const projectViews = settingsQuery.data?.projectViews;
 	useEffect(() => {
 		const onPop = () => {
 			if (!window.location.pathname.startsWith("/projects/")) {
@@ -1016,15 +1016,14 @@ export function Page() {
 	}, []);
 	useEffect(() => {
 		const loaded = name;
-		const views = settingsData?.projectViews;
-		if (views === undefined || saveGeneration.current !== 0) {
+		if (projectViews === undefined || saveGeneration.current !== 0) {
 			return;
 		}
-		const saved = savedProjectView(views, loaded);
+		const saved = savedProjectView(projectViews, loaded);
 		setSettings(saved);
 		setView(openedView(saved));
-		groupBySavedRef.current = groupByWasSaved(views, loaded);
-	}, [name, settingsData]);
+		groupBySavedRef.current = groupByWasSaved(projectViews, loaded);
+	}, [name, projectViews]);
 	const outsideNames = [
 		...new Set([
 			...(report?.tickets ?? []).flatMap((item) =>
