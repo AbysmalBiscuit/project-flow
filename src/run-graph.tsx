@@ -59,13 +59,6 @@ import { clsx } from "./ui.ts";
 import type { GraphDirection } from "./view-settings.ts";
 
 const styles = stylex.create({
-	head: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.sm,
-		alignItems: "center",
-		justifyContent: "space-between",
-	},
 	pane: {
 		position: "relative",
 		height: measure.runGraph,
@@ -570,16 +563,7 @@ function GraphPane({
 	const fitAll = useCallback(() => ({ padding: 0.1 }), []);
 	return (
 		<>
-			<div className={clsx(styles.head)}>
-				<h3 className={clsx(panel.sectionLabel)}>{runGraphLabel}</h3>
-				<DirectionSwitch
-					direction={direction}
-					onChange={(next) => {
-						setDirection(next);
-						setRefit((count) => count + 1);
-					}}
-				/>
-			</div>
+			<h3 className={clsx(panel.sectionLabel)}>{runGraphLabel}</h3>
 			<figure
 				id={paneId}
 				className={clsx(styles.pane)}
@@ -618,6 +602,13 @@ function GraphPane({
 							pin="first"
 						>
 							<div className={clsx(float.group)}>
+								<DirectionSwitch
+									direction={direction}
+									onChange={(next) => {
+										setDirection(next);
+										setRefit((count) => count + 1);
+									}}
+								/>
 								<GraphTools
 									probeId="run-graph-viewport"
 									fitId="run-graph-fit"
