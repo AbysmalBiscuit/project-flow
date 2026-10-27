@@ -1,4 +1,10 @@
-import { type RefObject, useEffect, useMemo, useState } from "react";
+import {
+	type RefObject,
+	startTransition,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 
 import { board } from "./board-styles.ts";
 import { elk } from "./graph-core-view.tsx";
@@ -196,7 +202,10 @@ export function useLaidGraph<Source>(
 					);
 		laying.then(
 			(layout) => {
-				if (current) {
+				if (!current) {
+					return;
+				}
+				startTransition(() => {
 					setLaid((last) => {
 						const placed = anchored(
 							layout,
@@ -224,7 +233,7 @@ export function useLaidGraph<Source>(
 						};
 					});
 					setFailed(false);
-				}
+				});
 			},
 			(error: unknown) => {
 				console.error(error);
