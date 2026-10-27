@@ -11,8 +11,8 @@ import type {
 	WorkcellRun,
 } from "./domain.ts";
 import { appLaneNames, closedLaneType, laterState } from "./lanes.ts";
-import { branchLinksTicket, closesTicket } from "./links.ts";
-import { sameTicketKey } from "./ticket-key.ts";
+import { branchLinksTicket, closesTicket } from "./pull-links.ts";
+import { foldKey } from "./ticket-key.ts";
 import { progressRun, runFor, runsFor } from "./workcell.ts";
 
 function enteredStateAt(ticket: Ticket, lane: Lane): string {
@@ -87,7 +87,7 @@ export function shownTicket(
 	lane: Lane,
 	links: PullRequest[],
 	branches: string[],
-	startedKeys: string[],
+	startedKeys: ReadonlySet<string>,
 	review: { state: "inReview" | "awaitingMerge" | null },
 	runs: WorkcellRun[],
 	fed: FactoryRun | undefined,
@@ -99,8 +99,7 @@ export function shownTicket(
 	const trackerState = lane.statusType;
 	let state = trackerState;
 	const key = ticket.key;
-	const started =
-		key !== null && startedKeys.some((item) => sameTicketKey(item, key));
+	const started = key !== null && startedKeys.has(foldKey(key));
 	const pushed =
 		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
 	const draft = links.some((pull) => pull.draft);

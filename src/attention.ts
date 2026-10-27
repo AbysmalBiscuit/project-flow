@@ -16,13 +16,13 @@ import type {
 	TicketState,
 } from "./domain.ts";
 import type { KnownBot } from "./known-bots.ts";
-import { linked } from "./links.ts";
 import {
 	type OpenAsk,
 	openAsk,
 	projectHasPmBot,
 	routedQuestion,
 } from "./open-ask.ts";
+import { linked } from "./pull-links.ts";
 import {
 	type AutoMergeSources,
 	mergesOnItsOwn,
