@@ -19,6 +19,7 @@ import {
 	type RunArtifactContent,
 	type RunCheckpoint,
 	type RunDetail,
+	type RunSandbox,
 	type SettingsProject,
 	type ShownFactoryRun,
 	type Thread,
@@ -29,6 +30,7 @@ import type { FactoryEntry } from "./factories.ts";
 import type { Steer } from "./factory-run-actions.ts";
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
+import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import type { RunListRow } from "./run-list.ts";
@@ -126,6 +128,16 @@ export const pageQuery = {
 			queryFn: () => readArtifacts(run.id, queryKey),
 			...pendingRetry,
 			placeholderData: (previous: ArtifactsRead | undefined) => previous,
+		});
+	},
+	/** The key holds the run's status and stage, so a stage that ends reads the sandbox again. */
+	sandbox: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) => {
+		const queryKey = ["sandbox", run.id, run.statusKind, run.stage ?? null];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readSandbox(run.id, queryKey),
+			...pendingRetry,
+			placeholderData: (previous: SandboxRead | undefined) => previous,
 		});
 	},
 	artifact: (runId: string, artifact: Pick<RunArtifact, "folder" | "name">) => {
@@ -343,6 +355,32 @@ async function readArtifacts(
 		throw new Error(`artifacts failed (HTTP ${response.status})`);
 	}
 	return ((await response.json()) as { artifacts: RunArtifact[] }).artifacts;
+}
+
+async function readSandbox(
+	runId: string,
+	queryKey: readonly unknown[],
+): Promise<SandboxRead> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/sandbox`,
+	);
+	if (response.status === pendingStatus) {
+		const held = heldData<SandboxRead>(queryKey);
+		if (held === undefined) {
+			throw new PendingRead();
+		}
+		return held;
+	}
+	if (response.status === 404) {
+		const body = (await response.json().catch(() => null)) as {
+			notServed?: boolean;
+		} | null;
+		return body?.notServed === true ? "not served" : "missing";
+	}
+	if (!response.ok) {
+		throw new Error(`sandbox failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as RunSandbox;
 }
 
 async function readArtifact(
@@ -751,6 +789,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["agents"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifacts"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifact"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
@@ -766,6 +805,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["agents"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifacts"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifact"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
