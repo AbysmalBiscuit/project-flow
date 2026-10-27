@@ -130,6 +130,7 @@ function Menu({
 	const [message, setMessage] = useState<string | null>(null);
 	const [failed, setFailed] = useState(false);
 	const [toast, setToast] = useState(0);
+	const [saving, setSaving] = useState(false);
 	const [permission, setPermission] = useState("default");
 	const dirty = !same(draft, saved);
 	const view = draft.projectViews["*"] ?? viewDefaults();
@@ -241,6 +242,7 @@ function Menu({
 					/>
 					<SettingsBar
 						dirty={dirty}
+						saving={saving}
 						message={message}
 						failed={failed}
 						onDiscard={() => {
@@ -272,7 +274,13 @@ function Menu({
 	}
 
 	async function onSaveClick(): Promise<void> {
+		// A save that changes more than the views waits for a full poll before it answers.
+		setSaving(true);
+		setFailed(false);
+		setMessage(settingsCopy.savingToast);
+		setToast(0);
 		const error = await onSave(draft, saved);
+		setSaving(false);
 		setFailed(error !== null);
 		setMessage(error ?? settingsCopy.savedToast);
 		setToast((shown) => shown + 1);
