@@ -111,14 +111,11 @@ export function shownTicket(
 	);
 	const failed = run?.status === "failed" && !mergedClose;
 	const open = links.filter((pull) => !pull.merged);
-	if (
-		!failed &&
-		ticket.state === "open" &&
-		(draft || pushed || started || (live && open.length === 0))
-	) {
+	const runEvidence = pushed || started || (live && open.length === 0);
+	if (ticket.state === "open" && (draft || (!failed && runEvidence))) {
 		state = laterState(state, "inProgress");
 	}
-	if (!failed && ticket.state === "open" && review.state !== null) {
+	if (ticket.state === "open" && review.state !== null) {
 		const reviewed =
 			review.state === "awaitingMerge" && autoMerge ? "inReview" : review.state;
 		state = laterState(state, reviewed);
@@ -127,7 +124,7 @@ export function shownTicket(
 		state = laterState(state, "done");
 	}
 	const shownLane =
-		failed || state === trackerState
+		state === trackerState
 			? lane
 			: (lanes.find(
 					(item) =>
