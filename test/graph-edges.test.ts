@@ -23,6 +23,34 @@ describe("graph edges", () => {
 		expect(ends.every((end) => Number.isFinite(end))).toBe(true);
 	});
 
+	test.each([
+		["right", 0.4],
+		["left", -0.4],
+	])(
+		"an arrow between cards a fraction of a pixel to the %s stays on its line",
+		(_side, offset) => {
+			const drawn = routeEdge(
+				{
+					sourceX: 200,
+					sourceY: 100,
+					targetX: 200 + offset,
+					targetY: 190,
+					sourcePosition: Position.Bottom,
+					targetPosition: Position.Top,
+				},
+				0,
+				1,
+			);
+			const xs = [...drawn.path.matchAll(/(-?[\d.]+)[ ,](-?[\d.]+)/g)].map(
+				(match) => Number(match[1]),
+			);
+			expect(xs.length).toBeGreaterThan(0);
+			expect(xs.every((x) => Math.abs(x - 200) <= Math.abs(offset) + 0.5)).toBe(
+				true,
+			);
+		},
+	);
+
 	test("two edge labels do not overlap", () => {
 		const route = {
 			sourceX: 0,
