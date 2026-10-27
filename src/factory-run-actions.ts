@@ -27,7 +27,7 @@ const cancelLimitMs = 100_000;
 
 const startedRun = z.object({ id: z.string() });
 
-/** Project Flow writes to a factory as Lev: the factory records this sender on each steer. */
+/** Project Flow writes to a factory as Lev: the factory records this sender on each answer and steer. */
 const levSender = "lev";
 
 /** The answer, steer, cancel, resume and restart writes that Lev sends to the factory that reports a run. */
@@ -36,7 +36,7 @@ export function runActions(deps: {
 	signal: AbortSignal;
 	now: () => Date;
 	statusRowOf: (runId: string) => StatusRows<ReadRun>;
-	addMessage: (runId: string, message: RunMessage) => void;
+	addMessage: (runId: string, message: RunMessage, once?: string) => void;
 }) {
 	const { fetchImpl, signal, now, statusRowOf, addMessage } = deps;
 	const answer = async (
@@ -57,15 +57,19 @@ export function runActions(deps: {
 		try {
 			const response = await read(
 				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
-				{ json: { text } },
+				{ json: { text, sender: levSender } },
 			);
 			if (response.ok) {
-				addMessage(run, {
-					kind: "answer",
-					sender: levSender,
-					text,
-					at: now().toISOString(),
-				});
+				addMessage(
+					run,
+					{
+						kind: "answer",
+						sender: levSender,
+						text,
+						at: now().toISOString(),
+					},
+					`answer ${question}`,
+				);
 				return "answered";
 			}
 			return response.status === 404 ? "missing" : "failed";

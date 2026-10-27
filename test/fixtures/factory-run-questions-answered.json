@@ -1,0 +1,21 @@
+{
+	"questions": [],
+	"answered": [
+		{
+			"id": 7,
+			"node_path": "implement/senior_question",
+			"text": "This waits on Lev: the change needs the `read:org` scope on the factory token. Should the run add the scope, or drop the org check?",
+			"answer": "Add the scope.",
+			"sender": "lev",
+			"answered_at": "2026-10-25T14:25:00+00:00"
+		},
+		{
+			"id": 8,
+			"node_path": "review/senior_question",
+			"text": "The review found no test for the scope check. Should the run add one?",
+			"answer": "Yes, add one.",
+			"sender": null,
+			"answered_at": "2026-10-25T14:40:00+00:00"
+		}
+	]
+}

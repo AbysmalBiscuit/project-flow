@@ -175,7 +175,7 @@ The agent that works on one stage of a live run: its current tool, its last mess
 _Avoid_: Worker (when the agent is meant)
 
 **Run thread**:
-The talk with a run in time order: each ask of the run, each answer that Lev sends from Project Flow, and each steer that the factory reports delivered. Each message names its sender. Project Flow keeps the run thread only for the current launch, because the factory gives no answered asks.
+The talk with a run in time order: each ask of the run, each answer that Lev sends from Project Flow, and each steer that the factory reports delivered. Each message names its sender. Project Flow reads the open and answered asks from the factory, so the run thread keeps its asks and answers after a restart.
 _Avoid_: Run chat, run log
 
 **Stage transcript**:
