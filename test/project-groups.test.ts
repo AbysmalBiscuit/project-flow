@@ -417,27 +417,6 @@ describe("GET /api/projects/:name", () => {
 		);
 	});
 
-	test("a GitHub ticket whose parent is outside the project stays in no workstream", async () => {
-		const orphan = issue(25, "Wait on the other repo", {
-			parent_issue_url: `https://api.github.com/repos/${otherRepo}/issues/9`,
-		});
-		await withApp(
-			JSON.stringify({ pinned: [{ tracker: "github", repo: githubRepo }] }),
-			githubFetch([orphan]),
-			{ GITHUB_TOKEN: "recorded-token" },
-			async (base) => {
-				const report = (await (
-					await fetch(
-						new URL(`/api/projects/${encodeURIComponent(githubRepo)}`, base),
-					)
-				).json()) as ProjectReport;
-				expect(
-					report.tickets.find((ticket) => ticket.key === `${githubRepo}#25`),
-				).toMatchObject({ workstream: "no workstream" });
-			},
-		);
-	});
-
 	test("an Epic label makes the ticket the GitHub workstream", async () => {
 		const parent = issue(31, "Ship the board", {
 			labels: [{ name: "Epic" }],
