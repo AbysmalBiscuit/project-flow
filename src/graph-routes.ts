@@ -107,18 +107,17 @@ function corner(
 	toX: number,
 	toY: number,
 ): string {
-	const radius = Math.min(
-		bend,
-		Math.hypot(x - fromX, y - fromY) / 2,
-		Math.hypot(toX - x, toY - y) / 2,
-	);
+	const into = Math.hypot(x - fromX, y - fromY);
+	const out = Math.hypot(toX - x, toY - y);
+	const radius = Math.min(bend, into / 2, out / 2);
 	if (radius < 1) {
 		return `L ${point(x, y)}`;
 	}
-	const intoX = x + Math.sign(fromX - x) * radius;
-	const intoY = y + Math.sign(fromY - y) * radius;
-	const outX = x + Math.sign(toX - x) * radius;
-	const outY = y + Math.sign(toY - y) * radius;
+	// Step along each segment, so a segment a fraction of a pixel off its axis does not bend a full radius sideways.
+	const intoX = x + ((fromX - x) / into) * radius;
+	const intoY = y + ((fromY - y) / into) * radius;
+	const outX = x + ((toX - x) / out) * radius;
+	const outY = y + ((toY - y) / out) * radius;
 	return `L ${point(intoX, intoY)} Q ${point(x, y)} ${point(outX, outY)}`;
 }
 
