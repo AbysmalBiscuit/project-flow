@@ -32,10 +32,11 @@ import {
 import { runEventsReader } from "./factory-run-events.ts";
 import { runPullReader } from "./factory-run-pulls.ts";
 import {
+	asksOf,
 	factoryRuns,
 	mergedRuns,
-	questionsOf,
 	type ReadRun,
+	type RunAsks,
 	runRows,
 	statusKindOf,
 	statusRow,
@@ -56,6 +57,9 @@ export type FactoryEntry = Factory & {
 };
 
 export type ListedFactory = Factory & { source: FactoryEntry["source"] };
+
+/** The sender of an answer that names no sender, such as an answer file on the box. */
+const unnamedSender = "someone";
 
 /**
  * A `--factory` value: `NAME=URL`, or a bare URL that takes its host or socket path as its name.
@@ -106,8 +110,8 @@ export function factoryReader(
 	const readRuns = new Map<string, ReadRun[]>();
 	const { readPullsOf, pullOf } = runPullReader(fetchImpl, signal);
 	/**
-	 * The thread of each run, by run id. The factory keeps no answered asks and the
-	 * hub replays no older events, so the thread holds what this launch saw.
+	 * The thread of each run, by run id. The factory gives the open and answered asks,
+	 * but the hub replays no older events, so the steers are what this launch saw.
 	 */
 	const threads = new Map<string, RunMessage[]>();
 	/** The asks and steers already in a thread, by run id and factory id. */
@@ -126,13 +130,32 @@ export function factoryReader(
 		}
 		threads.set(runId, [...(threads.get(runId) ?? []), message]);
 	};
-	/** The open questions of a blocked run. Each question that is new to the thread joins it as an ask. */
-	const openQuestionsOf = async (
-		read: Read,
-		runId: string,
-	): Promise<FactoryQuestion[] | undefined> => {
-		const questions = await questionsOf(read, runId);
-		return questions?.map((question) => {
+	/** Each ask and answer that is new to the thread of a run joins it. */
+	const threadAsks = (runId: string, asks: RunAsks): void => {
+		for (const ask of asks.answered) {
+			// The factory gives no ask time for an answered ask, so the ask takes the answer time.
+			addMessage(
+				runId,
+				{
+					kind: "ask",
+					sender: ask.node_path ?? "run",
+					text: ask.text,
+					at: ask.answered_at,
+				},
+				`question ${ask.id}`,
+			);
+			addMessage(
+				runId,
+				{
+					kind: "answer",
+					sender: ask.sender ?? unnamedSender,
+					text: ask.answer,
+					at: ask.answered_at,
+				},
+				`answer ${ask.id}`,
+			);
+		}
+		for (const question of asks.questions) {
 			addMessage(
 				runId,
 				{
@@ -143,7 +166,53 @@ export function factoryReader(
 				},
 				`question ${question.id}`,
 			);
-			return { id: question.id, text: question.text };
+		}
+	};
+	/** The run status at the last asks read of each run, by factory URL and run id. */
+	const askedStatus = new Map<string, RunStatusKind>();
+	const askedKey = (url: string, runId: string) => JSON.stringify([url, runId]);
+	/** The open questions of a blocked run. Its asks and answers join the thread. */
+	const openQuestionsOf = async (
+		url: string,
+		runId: string,
+	): Promise<FactoryQuestion[] | undefined> => {
+		askedStatus.set(askedKey(url, runId), "blocked");
+		const asks = await asksOf(reader(fetchImpl, url, signal), runId);
+		if (asks === undefined) {
+			return undefined;
+		}
+		threadAsks(runId, asks);
+		return asks.questions.map(({ id, text }) => ({ id, text }));
+	};
+	/** The factories whose asks reads run now. */
+	const readingAsks = new Set<string>();
+	/**
+	 * Reads the asks of each started run once per run status, so the thread of a run
+	 * holds its answered asks after a restart. The reads go one at a time and apart from
+	 * the `GET /runs` read. A blocked run reads its asks within the `GET /runs` read.
+	 */
+	const readAsksOf = (url: string, rows: ReadRun[]): void => {
+		const wanted = rows.filter(
+			({ run }) =>
+				run.statusKind !== "queued" &&
+				run.statusKind !== "blocked" &&
+				askedStatus.get(askedKey(url, run.id)) !== run.statusKind,
+		);
+		if (wanted.length === 0 || readingAsks.has(url)) {
+			return;
+		}
+		readingAsks.add(url);
+		const read = reader(fetchImpl, url, signal);
+		void (async () => {
+			for (const { run } of wanted) {
+				askedStatus.set(askedKey(url, run.id), run.statusKind);
+				const asks = await asksOf(read, run.id);
+				if (asks !== undefined) {
+					threadAsks(run.id, asks);
+				}
+			}
+		})().finally(() => {
+			readingAsks.delete(url);
 		});
 	};
 	/** The current node of each run, by run id, from the event streams. */
@@ -242,7 +311,7 @@ export function factoryReader(
 					if (row.run.statusKind !== "blocked") {
 						return row;
 					}
-					const questions = await openQuestionsOf(read, row.run.id);
+					const questions = await openQuestionsOf(factory.url, row.run.id);
 					return questions === undefined
 						? row
 						: { ...row, run: { ...row.run, questions } };
@@ -250,6 +319,7 @@ export function factoryReader(
 			);
 			readRuns.set(factory.url, rows);
 			readPullsOf(factory.url, rows);
+			readAsksOf(factory.url, rows);
 			found.set(factory.url, {
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
@@ -356,10 +426,7 @@ export function factoryReader(
 			const statusKind = statusKindOf(status.kind);
 			const questions =
 				statusKind === "blocked"
-					? await openQuestionsOf(
-							reader(fetchImpl, factory.url, signal),
-							frame.run_id,
-						)
+					? await openQuestionsOf(factory.url, frame.run_id)
 					: undefined;
 			readRuns.set(
 				factory.url,

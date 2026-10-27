@@ -31,15 +31,27 @@ export const runRow = z.object({
 
 export const runRows = z.object({ runs: z.array(z.unknown()) });
 
-const openQuestions = z.object({
-	questions: z.array(
-		z.object({
-			id: z.union([z.number(), z.string()]).transform(String),
-			node_path: z.string().nullish(),
-			text: z.string(),
-		}),
-	),
+const question = z.object({
+	id: z.union([z.number(), z.string()]).transform(String),
+	node_path: z.string().nullish(),
+	text: z.string(),
 });
+
+/** The asks of a run. A factory that keeps no answered asks gives only the open ones. */
+const runAsks = z.object({
+	questions: z.array(question),
+	answered: z
+		.array(
+			question.extend({
+				answer: z.string(),
+				sender: z.string().nullish(),
+				answered_at: z.string(),
+			}),
+		)
+		.default([]),
+});
+
+export type RunAsks = z.infer<typeof runAsks>;
 
 export const localMachine = "local";
 
@@ -154,17 +166,16 @@ export function mergedRuns(
 	);
 }
 
-/** The open questions of a blocked run. A factory that gives no list leaves them unknown. */
-export async function questionsOf(
+/** The open and answered asks of a run. A factory that gives no list leaves them unknown. */
+export async function asksOf(
 	read: Read,
 	id: string,
-): Promise<z.infer<typeof openQuestions>["questions"] | undefined> {
+): Promise<RunAsks | undefined> {
 	try {
-		const listed = await body(
+		return await body(
 			await read(`/runs/${encodeURIComponent(id)}/questions`),
-			openQuestions,
+			runAsks,
 		);
-		return listed.questions;
 	} catch (error) {
 		if (!(error instanceof Unreachable)) {
 			throw error;
