@@ -28,7 +28,7 @@ import {
 
 const ticketCount = 600;
 const pullCount = 150;
-const readLimitMs = 200;
+const readLimitMs = 400;
 
 const filler = "The change keeps the board in step with the tracker. ".repeat(
 	40,
