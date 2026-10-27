@@ -43,6 +43,7 @@ function filterCount(
 function runFilterCount(view: ProjectViewSettings): number {
 	return (
 		(view.withRunsOnly ? 1 : 0) +
+		(view.latestRunOnly ? 1 : 0) +
 		view.runStatuses.length +
 		view.runResults.length +
 		view.runFactories.filter((name) => name.trim() !== "").length
@@ -401,6 +402,18 @@ function RunFilterPanel({
 					checked={view.withRunsOnly}
 					onChange={(event) =>
 						onChange({ ...view, withRunsOnly: event.target.checked })
+					}
+				/>
+			</label>
+			<label className={clsx(board.menuRow)}>
+				<span>Latest run only</span>
+				<input
+					type="checkbox"
+					className={clsx(board.check)}
+					data-latest-run-only=""
+					checked={view.latestRunOnly}
+					onChange={(event) =>
+						onChange({ ...view, latestRunOnly: event.target.checked })
 					}
 				/>
 			</label>
