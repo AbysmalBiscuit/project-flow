@@ -77,6 +77,8 @@ export type FactoryRun = {
 	pull?: RunPull;
 	/** The id of the run that this run restarted. */
 	restartedFrom?: string;
+	/** The sums of the run's agent turns, from `GET /runs`. Absent when the factory gives none. */
+	usageTotals?: UsageTotals;
 };
 
 /** The PR that a run opened, as the factory gives it from the run's `pr_url` output. */
@@ -189,6 +191,9 @@ export type TurnUsage = {
 	durationS: number;
 	tools: Record<string, number>;
 };
+
+/** The tokens, cost and time of some agent turns, without the tool counts. */
+export type UsageTotals = Omit<TurnUsage, "tools">;
 
 /** The usage of each stage of a run, by stage name, and their sum. */
 export type RunUsage = {

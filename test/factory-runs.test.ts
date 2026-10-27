@@ -2223,6 +2223,78 @@ describe("the runs list", () => {
 		}
 	});
 
+	test("each run gives the usage totals that its factory lists, and the box row wins over the hub row", async () => {
+		const usage = (input: number, cost: number, seconds: number) => ({
+			tokens: { input, output: input / 10 },
+			cost_usd: cost,
+			duration_s: seconds,
+		});
+		const [, succeeded40, queued42, failed39] = hubRuns.runs;
+		if (
+			succeeded40 === undefined ||
+			queued42 === undefined ||
+			failed39 === undefined
+		) {
+			throw new Error("the hub runs fixture lost a run");
+		}
+		const app = await serveRuns(
+			{
+				...hub,
+				"/runs": {
+					runs: [
+						{ ...running41, usage: usage(1000, 0.25, 30) },
+						{ ...succeeded40, usage: usage(5000, 1.5, 300) },
+						{ ...queued42, usage: usage(0, 0, 0) },
+						failed39,
+					],
+				},
+			},
+			[39, 40, 41, 42],
+			{},
+			{
+				...daemon,
+				"/runs": {
+					runs: [
+						{
+							...boxRow(running41, "running"),
+							usage: usage(2000, 0.5, 60),
+						},
+					],
+				},
+			},
+		);
+		try {
+			const rows = await runsWhere(app.base, (seen) =>
+				seen.some((row) => row.id === running41.id && row.box === "laptop"),
+			);
+			expect(
+				Object.fromEntries(rows.map((row) => [row.id, row.usageTotals])),
+			).toEqual({
+				[running41.id]: {
+					inputTokens: 2000,
+					outputTokens: 200,
+					costUsd: 0.5,
+					durationS: 60,
+				},
+				[succeeded40.id]: {
+					inputTokens: 5000,
+					outputTokens: 500,
+					costUsd: 1.5,
+					durationS: 300,
+				},
+				[queued42.id]: {
+					inputTokens: 0,
+					outputTokens: 0,
+					costUsd: 0,
+					durationS: 0,
+				},
+				[failed39.id]: undefined,
+			});
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a run of an untracked ticket gives its repo key", async () => {
 		const app = await serveRuns(hub, [41]);
 		try {

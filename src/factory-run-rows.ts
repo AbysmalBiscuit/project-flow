@@ -27,6 +27,13 @@ export const runRow = z.object({
 	started_at: z.string().nullish(),
 	ended_at: z.string().nullish(),
 	restarted_from: z.string().nullish(),
+	usage: z
+		.object({
+			tokens: z.object({ input: z.number(), output: z.number() }),
+			cost_usd: z.number(),
+			duration_s: z.number(),
+		})
+		.nullish(),
 });
 
 export const runRows = z.object({ runs: z.array(z.unknown()) });
@@ -112,6 +119,16 @@ export function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					run.status.reason === ""
 						? {}
 						: { failureReason: run.status.reason }),
+					...(run.usage === null || run.usage === undefined
+						? {}
+						: {
+								usageTotals: {
+									inputTokens: run.usage.tokens.input,
+									outputTokens: run.usage.tokens.output,
+									costUsd: run.usage.cost_usd,
+									durationS: run.usage.duration_s,
+								},
+							}),
 				},
 				local,
 				url: factory.url,
