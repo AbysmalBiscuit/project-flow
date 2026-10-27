@@ -11,7 +11,7 @@ import type {
 	WorkcellRun,
 } from "./domain.ts";
 import { appLaneNames, closedLaneType, laterState } from "./lanes.ts";
-import { branchLinksTicket, closesTicket } from "./links.ts";
+import { branchLinksTicket, closesTicket } from "./pull-links.ts";
 import { foldKey } from "./ticket-key.ts";
 import { progressRun, runFor, runsFor } from "./workcell.ts";
 

@@ -29,9 +29,10 @@ import {
 	stateLanes,
 	stateOfTicket,
 } from "./lanes.ts";
-import { linked, ticketRelations } from "./links.ts";
+import { ticketRelations } from "./links.ts";
 import { projectHasPmBot } from "./open-ask.ts";
 import { staleView } from "./poll-merge.ts";
+import { linked } from "./pull-links.ts";
 import { projectReport } from "./report.ts";
 import {
 	type AutoMergeSources,
