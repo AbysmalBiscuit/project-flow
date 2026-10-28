@@ -1,4 +1,5 @@
 import { commentBody } from "./comment-styles.ts";
+import { textControl } from "./control-styles.ts";
 import { clsx } from "./ui.ts";
 
 type Tag =
@@ -34,7 +35,7 @@ const tagClass = {
 	table: clsx(commentBody.table),
 	th: clsx(commentBody.cell),
 	td: clsx(commentBody.cell),
-	a: clsx(commentBody.link),
+	a: clsx(commentBody.link, ...textControl),
 	input: clsx(commentBody.check),
 } satisfies Record<Tag, string>;
 
