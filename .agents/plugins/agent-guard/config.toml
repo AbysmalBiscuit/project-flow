@@ -55,11 +55,6 @@ accept = true
 lines = 2384
 
 [[file_length.limits]]
-pattern = "test/overview.test.ts"
-accept = true
-lines = 6538
-
-[[file_length.limits]]
 pattern = "test/project.test.ts"
 accept = true
 lines = 2647
