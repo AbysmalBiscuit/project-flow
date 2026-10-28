@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import type {
 	RunAgent,
@@ -160,18 +160,21 @@ function StageItem({
 	children?: ReactNode;
 }) {
 	const facts = stageFacts(stage, checkpoint, agents);
-	const [open, setOpen] = useState(
-		stage.state === "current" || stage.id === opened,
-	);
+	const linked = stage.id === opened;
+	const [open, setOpen] = useState(stage.state === "current" || linked);
+	const item = useRef<HTMLLIElement>(null);
+	// The link scrolls to its stage once, so a later render keeps Lev's scroll.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the scroll runs on mount only
+	useEffect(() => {
+		if (linked) {
+			item.current?.scrollIntoView({ block: "start" });
+		}
+	}, []);
 	return (
 		<li
 			aria-current={stage.state === "current" ? "step" : undefined}
 			id={stageAnchor(stage.id)}
-			ref={(item) => {
-				if (item !== null && stage.id === opened) {
-					item.scrollIntoView({ block: "start" });
-				}
-			}}
+			ref={item}
 		>
 			<details
 				className={clsx(panel.stageItem)}
