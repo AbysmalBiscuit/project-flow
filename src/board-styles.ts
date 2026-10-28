@@ -340,17 +340,6 @@ export const board = stylex.create({
 	},
 	toned: {
 		borderColor: stateTone.tone,
-		backgroundColor: {
-			default: stateTone.wash,
-			":hover": colours.surfaceMuted,
-		},
-	},
-	cardFocus: {
-		outline: {
-			default: "none",
-			":focus-visible": focusRing,
-		},
-		outlineOffset: space.twoXs,
 	},
 	meta: {
 		display: "flex",
@@ -544,7 +533,6 @@ export const board = stylex.create({
 		borderStyle: "solid",
 		borderColor: "transparent",
 		borderRadius: radius.sm,
-		backgroundColor: "transparent",
 		color: colours.inkSoft,
 		fontFamily: font.sans,
 		fontSize: type.meta,
@@ -561,20 +549,10 @@ export const board = stylex.create({
 		transform: "scaleY(-1)",
 	},
 	row: {
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.rowHover,
-		},
 		cursor: "pointer",
 		outline: {
 			default: "none",
 			":focus-visible": focusRing,
-		},
-	},
-	rowOn: {
-		backgroundColor: {
-			default: colours.rowOn,
-			":hover": colours.rowOn,
 		},
 	},
 	rowCell: {
@@ -699,10 +677,6 @@ export const board = stylex.create({
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
 		borderRadius: radius.sm,
-		backgroundColor: {
-			default: colours.page,
-			":hover": colours.surfaceMuted,
-		},
 		color: colours.ink,
 		fontFamily: font.sans,
 		fontSize: type.menu,
@@ -723,10 +697,6 @@ export const board = stylex.create({
 		padding: 0,
 		borderWidth: 0,
 		borderRadius: radius.sm,
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.chip,
-		},
 		color: colours.inkSoft,
 		cursor: "pointer",
 	},
@@ -735,10 +705,6 @@ export const board = stylex.create({
 	},
 	ticketOutside: {
 		borderStyle: "dashed",
-		backgroundColor: {
-			default: colours.page,
-			":hover": colours.surfaceMuted,
-		},
 	},
 	/** An outside card whose state has no tone. */
 	ticketOutsideUntoned: {

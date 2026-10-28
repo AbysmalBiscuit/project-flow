@@ -30,15 +30,6 @@ export const settings = stylex.create({
 		color: colours.inkMuted,
 		fontSize: type.meta,
 		textDecoration: "none",
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.surfaceMuted,
-		},
-	},
-	contentsCurrent: {
-		backgroundColor: colours.surfaceMuted,
-		color: colours.ink,
-		fontWeight: type.weight,
 	},
 	lead: {
 		margin: `0 0 ${space.lg}`,
@@ -103,6 +94,8 @@ export const settings = stylex.create({
 		borderColor: "transparent",
 		borderRadius: radius.pill,
 		backgroundColor: colours.segment,
+		// The switch has no text, so its ink only tints the hover and press veil.
+		color: colours.ink,
 		fontFamily: font.sans,
 		fontSize: type.menu,
 		fontWeight: type.regular,
@@ -111,6 +104,7 @@ export const settings = stylex.create({
 	},
 	switchOn: {
 		backgroundColor: colours.ink,
+		color: colours.page,
 	},
 	knob: {
 		position: "absolute",

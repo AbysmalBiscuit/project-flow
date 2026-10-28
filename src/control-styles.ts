@@ -6,19 +6,32 @@ import {
 	measure,
 	radius,
 	space,
+	stateTone,
 	type,
 } from "./tokens.stylex.ts";
 
-// A filled control keeps its colour, so hover and press shift its brightness.
+// A filled control keeps its fill, so hover and press lay a veil of its ink
+// over it. The ink contrasts with the fill in both themes, so the veil shows on
+// a dark fill and on a light fill.
+const hoverInk = "color-mix(in srgb, currentColor 14%, transparent)";
+const pressInk = "color-mix(in srgb, currentColor 28%, transparent)";
 const filledPress = {
 	default: null,
-	":hover": "brightness(1.12)",
-	":active": "brightness(0.88)",
+	":hover": `linear-gradient(${hoverInk}, ${hoverInk})`,
+	":active": `linear-gradient(${pressInk}, ${pressInk})`,
+} as const;
+
+// A later style that sets `backgroundColor` replaces the hover and press fills
+// too, so each fill at rest carries its own hover and press fills.
+const pressFill = {
+	":hover": colours.rowHover,
+	":active": colours.controlPress,
 } as const;
 
 /**
  * The box that `Button`, `TextInput` and `Select` share, so controls in one
- * row line up.
+ * row line up. The other styles give every clickable control its hover, press,
+ * focus and disabled looks.
  */
 export const control = stylex.create({
 	box: {
@@ -47,26 +60,68 @@ export const control = stylex.create({
 			":disabled": "not-allowed",
 		},
 	},
-	// Hover and press feedback for every clickable control.
+	/** A control with the control fill at rest. */
 	press: {
+		backgroundColor: { default: colours.controlFill, ...pressFill },
+	},
+	/** A control with no fill at rest: a menu item, a segment or a list row. */
+	clear: {
+		backgroundColor: { default: "transparent", ...pressFill },
+	},
+	/** The on state of a toggle, a tab or the current link. */
+	on: {
+		backgroundColor: { default: colours.segment, ...pressFill },
+		color: colours.ink,
+		fontWeight: type.weight,
+	},
+	/** A card that opens as a whole, on the page fill. */
+	card: {
+		backgroundColor: { default: colours.page, ...pressFill },
+	},
+	/** A card in the wash of its state. */
+	tonedCard: {
+		backgroundColor: { default: stateTone.wash, ...pressFill },
+	},
+	/** The chosen row of a table keeps its fill under the pointer. */
+	chosen: {
 		backgroundColor: {
-			default: colours.controlFill,
-			":hover": colours.rowHover,
+			default: colours.rowOn,
+			":hover": colours.rowOn,
 			":active": colours.controlPress,
 		},
+	},
+	/** A link in running text. */
+	link: {
+		color: { default: "inherit", ":hover": colours.link },
+	},
+	/** Room for the hover fill around a bare text control, with no layout shift. */
+	bleed: {
+		margin: `calc(-1 * ${space.twoXs}) calc(-1 * ${space.xs})`,
+		padding: `${space.twoXs} ${space.xs}`,
+	},
+	/** A control with a coloured fill at rest, such as a chip. */
+	tint: {
+		backgroundImage: filledPress,
+	},
+	focus: {
+		outline: {
+			default: "none",
+			":focus-visible": `${measure.focus} solid ${colours.focus}`,
+		},
+		outlineOffset: space.twoXs,
 	},
 	primary: {
 		borderColor: colours.needs,
 		backgroundColor: colours.needs,
 		color: colours.needsInk,
 		fontWeight: type.weight,
-		filter: filledPress,
+		backgroundImage: filledPress,
 	},
 	danger: {
 		borderColor: colours.danger,
 		backgroundColor: colours.danger,
 		color: colours.accentInk,
 		fontWeight: type.weight,
-		filter: filledPress,
+		backgroundImage: filledPress,
 	},
 });

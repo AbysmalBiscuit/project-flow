@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 
 import { board } from "./board-styles.ts";
+import { control } from "./control-styles.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { elapsed, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
@@ -16,7 +17,6 @@ import {
 } from "./terms.ts";
 import { shortKey } from "./ticket-key.ts";
 import { colours, space } from "./tokens.stylex.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -39,7 +39,7 @@ export function RunRow({ run }: { run: RunListRow }) {
 	const open = () => openPage(runPagePath(run.id));
 	return (
 		<tr
-			className={clsx(board.row)}
+			className={clsx(board.row, control.clear)}
 			data-run={run.id}
 			tabIndex={0}
 			onClick={(event) => {
@@ -79,7 +79,7 @@ export function RunRow({ run }: { run: RunListRow }) {
 			<td className={clsx(board.rowCell)}>
 				<a
 					href={runPagePath(run.id)}
-					className={clsx(board.rowKey, shell.linkFocus)}
+					className={clsx(board.rowKey, control.focus)}
 				>
 					{shortKey(run.key)}
 				</a>{" "}
@@ -106,7 +106,7 @@ export function RunRow({ run }: { run: RunListRow }) {
 						href={run.pull.url}
 						target="_blank"
 						rel="noreferrer"
-						className={clsx(panel.factLink, shell.linkFocus)}
+						className={clsx(panel.factLink, control.focus)}
 					>
 						#{run.pull.number}
 					</a>

@@ -8,6 +8,7 @@ import {
 	ServerChips,
 } from "./card-chips.tsx";
 import { useCollapse } from "./collapse.ts";
+import { control } from "./control-styles.ts";
 import type { ProjectReport, TicketRelation, TicketView } from "./domain.ts";
 import { ticketGroups } from "./grouping.ts";
 import { displayedLaneName } from "./lanes.ts";
@@ -16,7 +17,6 @@ import { tableTree } from "./table-tree-styles.ts";
 import { navLabel, subTicketsToggleLabel } from "./terms.ts";
 import { foldKey, itemId, shortKey } from "./ticket-key.ts";
 import { type TreeRow, treeRows } from "./ticket-tree.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 import type { GroupBy } from "./view-settings.ts";
 
@@ -173,7 +173,7 @@ function RowToggle({
 	return (
 		<button
 			type="button"
-			className={clsx(tableTree.toggle, shell.buttonFocus)}
+			className={clsx(tableTree.toggle, control.clear, control.focus)}
 			data-toggle={ticketKey}
 			aria-expanded={!toggle.collapsed}
 			aria-label={subTicketsToggleLabel(ticketKey, toggle.collapsed)}
@@ -221,7 +221,7 @@ function TableRow({
 	const lane = displayedLane(ticket, lanes);
 	return (
 		<tr
-			className={clsx(board.row, selected && board.rowOn)}
+			className={clsx(board.row, control.clear, selected && control.chosen)}
 			data-ticket={key ?? ""}
 			data-order={order}
 			data-selected={selected ? "true" : "false"}
@@ -398,7 +398,12 @@ export function TicketTable({
 								>
 									<button
 										type="button"
-										className={clsx(board.sort, shell.buttonFocus)}
+										className={clsx(
+											board.sort,
+											control.clear,
+											control.bleed,
+											control.focus,
+										)}
 										data-column={item}
 										aria-label={
 											column === item

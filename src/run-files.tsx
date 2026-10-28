@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 
+import { control } from "./control-styles.ts";
 import type { RunFile, ShownFactoryRun } from "./domain.ts";
 import { Loading } from "./loading.tsx";
 import { panel } from "./panel-styles.ts";
@@ -109,7 +110,15 @@ function FileDiff({ file }: { file: RunFile }) {
 	return (
 		<li data-file={file.path} data-status={file.status}>
 			<details open>
-				<summary className={clsx(styles.summary, styles.toggle)}>
+				<summary
+					className={clsx(
+						styles.summary,
+						styles.toggle,
+						control.clear,
+						control.bleed,
+						control.focus,
+					)}
+				>
 					<span className={clsx(styles.path)}>
 						{file.previousPath === undefined
 							? file.path

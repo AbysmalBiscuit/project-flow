@@ -10,10 +10,11 @@ import {
 	useState,
 } from "react";
 
+import { control } from "./control-styles.ts";
 import { openProject } from "./paths.ts";
 import { openProjectLabel } from "./terms.ts";
 import { colours, measure, space } from "./tokens.stylex.ts";
-import { frame, shell } from "./ui-styles.ts";
+import { frame } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 export type MenuItem = {
@@ -121,7 +122,7 @@ export function ContextMenuHost({ children }: { children: ReactNode }) {
 							key={item.label}
 							type="button"
 							role="menuitem"
-							className={clsx(frame.menuItem, shell.buttonFocus)}
+							className={clsx(frame.menuItem, control.clear, control.focus)}
 							onClick={() => {
 								setMenu(null);
 								item.run();

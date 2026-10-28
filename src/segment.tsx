@@ -1,6 +1,7 @@
 import type { ComponentPropsWithoutRef } from "react";
 
-import { headerControlStyle, shell } from "./ui-styles.ts";
+import { control } from "./control-styles.ts";
+import { headerControlStyle } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 type SegmentProps = Omit<
@@ -26,8 +27,9 @@ type SegmentProps = Omit<
 export function Segment({ label, on, role, ...native }: SegmentProps) {
 	const className = clsx(
 		headerControlStyle.segment,
-		shell.buttonFocus,
-		on === true && headerControlStyle.segmentOn,
+		control.clear,
+		control.focus,
+		on === true && control.on,
 	);
 	if (role === "tab") {
 		return (

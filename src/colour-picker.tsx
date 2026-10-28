@@ -21,7 +21,6 @@ import {
 	stack,
 	type,
 } from "./tokens.stylex.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -256,8 +255,9 @@ export function ColourPicker({
 				className={clsx(
 					control.box,
 					control.off,
+					control.press,
 					styles.swatchButton,
-					shell.buttonFocus,
+					control.focus,
 				)}
 				aria-label={`${label} ${settingsCopy.colour}`}
 				aria-expanded={open}

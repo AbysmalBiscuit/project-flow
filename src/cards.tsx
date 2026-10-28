@@ -14,6 +14,7 @@ import {
 import { Button, type IconName } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import type { Configuration } from "./configuration.ts";
+import { control } from "./control-styles.ts";
 import type {
 	CrossProjectBlocker,
 	Overview,
@@ -75,7 +76,7 @@ function blockerTicket(blocker: CrossProjectBlocker): string {
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
-			className={clsx(cards.chip, cards.chipHover)}
+			className={clsx(cards.chip, control.tint, control.focus)}
 			href={projectPath(blocker.project, blocker)}
 		>
 			Blocked by {blockerTicket(blocker)}
@@ -205,7 +206,7 @@ function MoreChip({ project, hidden }: { project: string; hidden: number }) {
 		<a
 			hidden={hidden === 0}
 			data-more=""
-			className={clsx(cards.chip, cards.chipHover)}
+			className={clsx(cards.chip, control.tint, control.focus)}
 			href={projectPath(project)}
 			aria-label={label}
 			onClick={(event) => {
@@ -379,7 +380,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 		<li id={id} className={clsx(cards.card)} aria-busy={loading}>
 			<div className={clsx(cards.cardTop)}>
 				<a
-					className={clsx(cards.projectLink)}
+					className={clsx(cards.projectLink, control.link)}
 					href={projectPath(project.name)}
 					aria-label={project.name}
 					onClick={(event) => {
@@ -516,7 +517,12 @@ function TableView({
 									<button
 										type="button"
 										id={`sort-${item.key}`}
-										className={clsx(cards.sort)}
+										className={clsx(
+											cards.sort,
+											control.clear,
+											control.bleed,
+											control.focus,
+										)}
 										onClick={() =>
 											onSort(
 												item.key,
@@ -543,7 +549,7 @@ function TableView({
 							>
 								<td className={clsx(cards.cell, cards.name)}>
 									<a
-										className={clsx(cards.projectLink)}
+										className={clsx(cards.projectLink, control.link)}
 										href={projectPath(project.name)}
 										onClick={(event) => {
 											event.preventDefault();
@@ -593,7 +599,7 @@ function TableView({
 													className={clsx(
 														cards.chip,
 														cards.blockerChip,
-														cards.chipHover,
+														control.tint,
 													)}
 													href={projectPath(blocker.project, blocker)}
 												>
@@ -920,7 +926,7 @@ function OverviewPage({
 						{overviewControlLabel.noneTrackedHint}{" "}
 						<a
 							id="overview-empty-settings"
-							className={clsx(cards.emptyLink, shell.linkFocus)}
+							className={clsx(cards.emptyLink, control.focus)}
 							href="/settings"
 						>
 							{navLabel.settings}

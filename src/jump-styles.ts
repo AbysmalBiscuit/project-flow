@@ -69,10 +69,6 @@ export const jump = stylex.create({
 		padding: space.md,
 		overflowWrap: "anywhere",
 		borderWidth: 0,
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.surfaceMuted,
-		},
 		color: colours.ink,
 		fontFamily: font.sans,
 		fontSize: type.menu,
