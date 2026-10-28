@@ -57,7 +57,7 @@ await serveRecorded({
 		factories: [{ name: "work hub", url: hubUrl }],
 		checkoutRoots: [],
 		pmBot: { [repo]: false },
-		theme: "light",
+		theme: process.argv[3] === "dark" ? "dark" : "light",
 	},
 	fetch: factoryFetch(
 		{ [hubUrl]: { ...hub, "/runs": () => ({ runs }) } },
