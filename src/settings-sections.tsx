@@ -72,7 +72,7 @@ export function ContentsNav({
 						fields.contentsLink,
 						control.clear,
 						control.focus,
-						current === section.id && control.on,
+						current === section.id && control.current,
 					)}
 					aria-current={current === section.id ? "true" : undefined}
 					onClick={() => onSelect(section.id)}

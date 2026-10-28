@@ -100,6 +100,12 @@ export const control = stylex.create({
 	card: {
 		backgroundColor: { default: colours.page, ...pressFill },
 	},
+	/** The current link of a contents list, on the muted surface fill. */
+	current: {
+		backgroundColor: { default: colours.surfaceMuted, ...pressFill },
+		color: colours.ink,
+		fontWeight: type.weight,
+	},
 	/** A card in the wash of its state. */
 	tonedCard: {
 		backgroundColor: { default: stateTone.wash, ...pressFill },
