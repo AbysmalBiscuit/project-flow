@@ -1,12 +1,17 @@
 import { expect } from "bun:test";
 
-import type { ShownFactoryRun, TicketView } from "../../src/domain.ts";
+import type {
+	ProjectReport,
+	ShownFactoryRun,
+	TicketView,
+} from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
-import type hubRuns from "../fixtures/factory-hub-runs.json";
+import hubRuns from "../fixtures/factory-hub-runs.json";
 import {
 	type Answers,
 	factoryFetch,
 	type FactoryRequest,
+	hub,
 	hubUrl,
 	laptopUrl,
 	readOrRunWrite,
@@ -150,5 +155,64 @@ export async function serveRuns(
 		advance: (ms: number) => {
 			now += ms;
 		},
+	};
+}
+
+export const runPollMs = 10_000;
+
+export async function overviewEventWhere(
+	events: AsyncIterable<{ event: string; data: string }>,
+	accept: (body: RunOverview) => boolean,
+): Promise<RunOverview> {
+	for await (const event of events) {
+		if (event.event !== "overview") {
+			continue;
+		}
+		const body = JSON.parse(event.data) as RunOverview;
+		if (accept(body)) {
+			return body;
+		}
+	}
+	throw new Error("the event stream ended before the overview changed");
+}
+
+export async function reportOf(base: string): Promise<ProjectReport> {
+	const response = await fetch(
+		new URL(`/api/projects/${encodeURIComponent(repo)}`, base),
+	);
+	expect(response.status).toBe(200);
+	return (await response.json()) as ProjectReport;
+}
+
+export function reportTicket(
+	report: ProjectReport,
+	number: number,
+): TicketView {
+	const found = report.tickets.find((view) => view.key === `${repo}#${number}`);
+	if (found === undefined) {
+		throw new Error(`ticket ${number} is missing from the project`);
+	}
+	return found;
+}
+
+/** A progress comment at stage 3, last updated at `updatedAt`. */
+export function progressAt(updatedAt: string): Record<string, unknown>[] {
+	return [
+		{
+			id: 1,
+			body: "**Workcell progress**\n\n- stage 3: writing the change",
+			user: { login: "lev" },
+			created_at: "2026-10-25T09:30:00Z",
+			updated_at: updatedAt,
+		},
+	];
+}
+
+/** The hub runs, with the run of ticket 41 set to `kind`. */
+export function hubWith41(kind: string): Answers {
+	const [running, ...rest] = hubRuns.runs;
+	return {
+		...hub,
+		"/runs": { runs: [{ ...running, status: { kind } }, ...rest] },
 	};
 }
