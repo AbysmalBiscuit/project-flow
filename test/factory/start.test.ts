@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { readFile } from "node:fs/promises";
 
 import type { ProjectReport, TicketView } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
@@ -23,6 +24,8 @@ import { linearFake } from "../support/linear.ts";
 import { runClockStart } from "./_support.ts";
 
 const readyLabel = "ready-for-agent";
+
+type Settings = Record<string, unknown>;
 
 type TrackerWrite = { url: string; body: string };
 
@@ -264,6 +267,50 @@ describe("run starts", () => {
 			const response = await startRun(app.base, "github", repo, key);
 			expect(response.status).toBe(409);
 			expect(app.writes).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a ready label saved through Settings gives the start, and a later save keeps it", async () => {
+		const key = `${repo}#43`;
+		const app = await serveGithub([43]);
+		const save = async (change: (settings: Settings) => Settings) => {
+			const settings = (await (
+				await fetch(new URL("/api/settings", app.base))
+			).json()) as Settings;
+			const saved = await fetch(new URL("/api/settings", app.base), {
+				method: "PUT",
+				body: JSON.stringify(change(settings)),
+			});
+			expect(saved.status).toBe(200);
+		};
+		try {
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			await save((settings) => ({
+				...settings,
+				factories: [{ name: "work hub", url: hubUrl, readyLabel }],
+			}));
+			await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.runStart?.label === readyLabel,
+			);
+			await save((settings) => ({ ...settings, theme: "dark" }));
+			const written = JSON.parse(await readFile(app.configPath, "utf8")) as {
+				factories: unknown;
+			};
+			expect(written.factories).toEqual([
+				{ name: "work hub", url: hubUrl, readyLabel },
+			]);
+			const kept = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.title !== "",
+			);
+			expect(kept.runStart).toEqual({ factory: "work hub", label: readyLabel });
 		} finally {
 			await app.stop();
 		}

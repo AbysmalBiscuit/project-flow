@@ -735,6 +735,8 @@ export const factoryCopy = {
 	none: "No factory set.",
 	name: "Factory name",
 	url: "http, https or unix URL",
+	readyLabel: "Run start label (optional)",
+	readyLabelOf: (label: string) => `run start label ${label}`,
 	reachable: "Reachable",
 	unreachable: "Unreachable",
 	unchecked: "Not checked",
