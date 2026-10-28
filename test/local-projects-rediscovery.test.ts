@@ -5,16 +5,10 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	emptyProjectFields,
-	readWhere,
-	settledOverview,
-	tempConfig,
-	testIo,
-	trackFound,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { emptyProjectFields, unrecorded } from "./support/github.ts";
+import { readWhere, settledOverview, trackFound } from "./support/reads.ts";
 
 const localBoard = {
 	name: "Local board",

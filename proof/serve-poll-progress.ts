@@ -4,7 +4,8 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { answerRecordedRepoRead } from "../test/recorded-read.ts";
-import { recordedDiscovery, unrecorded, urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "../test/support/github.ts";
 
 const port = process.argv.find((arg) => arg.startsWith("--port="))?.slice(7);
 if (port === undefined || !/^\d+$/.test(port)) {

@@ -5,29 +5,16 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	recordedDiscovery,
-	repoReadFromLists,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { json, urlOf } from "./support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
+import { repoReadFromLists } from "./support/repo-read.ts";
+
+export { json };
 
 export { unrecorded, urlOf };
 
 export type Sent = { url: string; method: string; body: string };
-
-export function json(
-	body: unknown,
-	status = 200,
-	headers: Record<string, string> = {},
-): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { "content-type": "application/json", ...headers },
-	});
-}
 
 export function issue(number: number, comments = 1): Record<string, unknown> {
 	return {

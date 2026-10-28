@@ -8,7 +8,7 @@ import {
 	type Sent,
 	serve,
 } from "./replies-github-fake.ts";
-import { settledRead } from "./support.ts";
+import { settledRead } from "./support/reads.ts";
 
 describe("thread reads", () => {
 	test("a thread read whose tracker calls never answer returns an error", async () => {

@@ -8,7 +8,7 @@ import recordedComments from "../test/fixtures/github-issue-comments-205.json";
 import githubIssues from "../test/fixtures/github-issues.json";
 import recordedPulls from "../test/fixtures/github-open-pulls.json";
 import outsideRelations from "../test/fixtures/outside-relations.json";
-import { urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
 import { recordedIssues, serveRecorded } from "./recorded.ts";
 
 const repo = "AbysmalBiscuit/project-flow";

@@ -5,11 +5,9 @@ import { join } from "node:path";
 import { start } from "../src/app.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { answerRecordedRepoRead } from "../test/recorded-read.ts";
-import {
-	recordedDiscovery,
-	repoReadFromHandler,
-	urlOf,
-} from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery } from "../test/support/github.ts";
+import { repoReadFromHandler } from "../test/support/repo-read.ts";
 import { proofStops } from "./lifetime.ts";
 import { unrecorded } from "./recorded.ts";
 

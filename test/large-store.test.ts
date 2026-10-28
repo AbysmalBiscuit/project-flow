@@ -5,26 +5,21 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { goodPoll, tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
-	goodPoll,
 	issuesResponse,
 	listedRead,
 	otherRepo,
 	page,
-	readOverview,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
 	ticket,
-} from "./live-support.ts";
-import {
-	githubPullNode,
-	recordedDiscovery,
-	settledOverview,
-	tempConfig,
-	testIo,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { readOverview, settledOverview } from "./support/reads.ts";
+import { githubPullNode } from "./support/repo-read.ts";
 
 const ticketCount = 600;
 const pullCount = 150;

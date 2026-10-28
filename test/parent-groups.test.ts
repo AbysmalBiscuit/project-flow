@@ -9,7 +9,7 @@ import {
 	otherRepo,
 	withApp,
 } from "./project-harness.ts";
-import { linearFake } from "./support.ts";
+import { linearFake } from "./support/linear.ts";
 
 const linearTicket = (
 	id: string,

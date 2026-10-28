@@ -7,20 +7,22 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { projectBoard } from "./review-board.ts";
 import { connection, page } from "./review-github-fake.ts";
-import { pull, repo } from "./review-support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
+	pull,
+	recordedDiscovery,
+	repo,
+	unrecorded,
+} from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledOverview } from "./support/reads.ts";
+import {
 	githubIssueNode,
 	githubPullNode,
-	linearFake,
-	recordedDiscovery,
 	repoReadIssues,
-	settledOverview,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/repo-read.ts";
 
 describe("skipped linked PRs", () => {
 	const brokenPull = "https://api.github.com/repos/acme/widget/pulls/84";

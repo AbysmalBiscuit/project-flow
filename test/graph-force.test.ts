@@ -19,7 +19,7 @@ import {
 	strayFromHolders,
 	tallCards,
 	workcell,
-} from "./graph-layout-support.ts";
+} from "./graph-layout/_support.ts";
 
 function forceLaid(
 	input: LayoutInput,

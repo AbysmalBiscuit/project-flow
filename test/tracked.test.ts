@@ -7,27 +7,17 @@ import type { Configuration } from "../src/configuration.ts";
 import type { Overview, SettingsProject } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	emptyRepoRead,
-	settledOverview,
-	tempConfig,
-	testIo,
-	trackerRequest,
-	unrecorded,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { json, trackerRequest } from "./support/fetch.ts";
+import { unrecorded } from "./support/github.ts";
+import { settledOverview } from "./support/reads.ts";
+import { emptyRepoRead } from "./support/repo-read.ts";
 
 const repos = Array.from({ length: 5 }, (_, index) => `acme/repo-${index}`);
 const linearSlugs = Array.from(
 	{ length: 5 },
 	(_, index) => `board-${index}-0d42ae5d46d0`,
 );
-
-function json(body: unknown): Response {
-	return new Response(JSON.stringify(body), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
 
 const emptyPage = {
 	nodes: [],

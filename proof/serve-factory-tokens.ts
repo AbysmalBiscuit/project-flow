@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { Overview } from "../src/domain.ts";
 import { run } from "../src/main.ts";
 import { answerRecordedRepoRead } from "../test/recorded-read.ts";
-import { recordedViewer, unrecorded } from "../test/support.ts";
+import { recordedViewer, unrecorded } from "../test/support/github.ts";
 import { proofStops } from "./lifetime.ts";
 
 const port = process.argv[2];

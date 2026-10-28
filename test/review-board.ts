@@ -1,13 +1,15 @@
 import type { Fetch } from "../src/fetch.ts";
 import { connection, page } from "./review-github-fake.ts";
-import { head, pull, repo } from "./review-support.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
+	head,
+	pull,
 	recordedDiscovery,
-	repoReadIssues,
+	repo,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { repoReadIssues } from "./support/repo-read.ts";
 
 export function projectBoard(
 	pulls: { number: number; repo?: string }[] = [{ number: 83 }],

@@ -1,5 +1,6 @@
 import type { Fetch } from "../src/fetch.ts";
-import { recordedDiscovery, urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery } from "../test/support/github.ts";
 import {
 	emptyLinear,
 	emptyLists,

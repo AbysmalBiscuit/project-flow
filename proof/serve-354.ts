@@ -4,7 +4,7 @@
  *
  * Usage: bun proof/serve-354.ts [PORT]
  */
-import { linearFake } from "../test/support.ts";
+import { linearFake } from "../test/support/linear.ts";
 import { type StateName, stateOf, teamStates } from "./linear-states.ts";
 import { serveRecorded } from "./recorded.ts";
 

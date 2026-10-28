@@ -8,12 +8,10 @@ import recordedIssues from "../test/fixtures/github-issues.json";
 import recordedPulls from "../test/fixtures/github-open-pulls.json";
 import recordedTeam from "../test/fixtures/linear-team-states.json";
 import outsideRelations from "../test/fixtures/outside-relations.json";
-import {
-	linearFake,
-	recordedDiscovery,
-	repoReadFromLists,
-	urlOf,
-} from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery } from "../test/support/github.ts";
+import { linearFake } from "../test/support/linear.ts";
+import { repoReadFromLists } from "../test/support/repo-read.ts";
 import { serveRecorded, unrecorded } from "./recorded.ts";
 
 const repo = "AbysmalBiscuit/project-flow";

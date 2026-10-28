@@ -8,7 +8,7 @@
  */
 import type { Fetch } from "../src/fetch.ts";
 import recordedTeam from "../test/fixtures/linear-team-states.json";
-import { linearFake } from "../test/support.ts";
+import { linearFake } from "../test/support/linear.ts";
 import { serveRecorded } from "./recorded.ts";
 
 const teamStates = recordedTeam.data.team.states.nodes;

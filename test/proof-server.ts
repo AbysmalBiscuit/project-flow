@@ -6,12 +6,12 @@ import { proofStops } from "../proof/lifetime.ts";
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { json, trackerRequest } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
 	recordedViewer,
-	trackerRequest,
 	unrecorded,
-} from "./support.ts";
+} from "./support/github.ts";
 
 const port = process.argv.find((arg) => arg.startsWith("--port="))?.slice(7);
 if (port === undefined || !/^\d+$/.test(port)) {
@@ -24,13 +24,6 @@ if (process.argv.some((arg) => arg.startsWith("--data="))) {
 }
 
 const fixtureDir = join(import.meta.dir, "fixtures");
-
-function json(body: unknown): Response {
-	return new Response(JSON.stringify(body), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
 
 async function fixture(name: string): Promise<unknown> {
 	return JSON.parse(await readFile(join(fixtureDir, name), "utf8"));

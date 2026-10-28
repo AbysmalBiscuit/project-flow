@@ -6,28 +6,17 @@ import { join } from "node:path";
 import type { FactoryEntry } from "../src/factories.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { daemon, factoryFetch, hubUrl } from "./factory-support.ts";
-import { openEventStream } from "./live-support.ts";
-import {
-	emptyProjectFields,
-	settledOverview,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { daemon, factoryFetch, hubUrl } from "./support/factory.ts";
+import { json, urlOf } from "./support/fetch.ts";
+import { emptyProjectFields, unrecorded } from "./support/github.ts";
+import { openEventStream, settledOverview } from "./support/reads.ts";
 
 type SettingsBody = {
 	projects: { name: string; key: string; tracked: boolean }[];
 	factoryEntries: FactoryEntry[];
 	expectedBots?: Record<string, string[]>;
 };
-
-const json = (body: unknown): Response =>
-	new Response(JSON.stringify(body), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 
 const viewerProjects = (titles: string[]): Response =>
 	json({

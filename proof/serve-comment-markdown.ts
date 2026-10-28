@@ -4,7 +4,9 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { answerRecordedRepoRead } from "../test/recorded-read.ts";
-import { recordedViewer, repoReadFromHandler, urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedViewer } from "../test/support/github.ts";
+import { repoReadFromHandler } from "../test/support/repo-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const root = await mkdtemp(join("/var/tmp", "project-flow-comment-md-"));

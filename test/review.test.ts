@@ -19,25 +19,24 @@ import {
 	codex,
 	greptile,
 	grok,
-	head,
 	issue,
 	mergedPull,
 	older,
 	progress,
-	pull,
-	repo,
-} from "./review-support.ts";
+} from "./review/_support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
-	linearFake,
+	head,
+	pull,
 	recordedDiscovery,
-	repoReadIssues,
-	settledOverview,
-	tempConfig,
-	testIo,
+	repo,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledOverview } from "./support/reads.ts";
+import { repoReadIssues } from "./support/repo-read.ts";
 
 describe("review cycle", () => {
 	test("an open PR with a changes-requested review is awaiting merge with no warning", async () => {

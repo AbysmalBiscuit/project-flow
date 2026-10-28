@@ -1,23 +1,20 @@
 import { expect, test } from "bun:test";
 
 import type { Fetch } from "../src/fetch.ts";
+import { withServer } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	issuesResponse,
 	listedRead,
 	otherRepo,
 	page,
-	readOverview,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
 	ticket,
-	withServer,
-} from "./live-support.ts";
-import {
-	recordedDiscovery,
-	settledOverview,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { readOverview, settledOverview } from "./support/reads.ts";
 
 test("a ticket closed on GitHub shows as done while an earlier project read is still held", async () => {
 	let releaseOther: () => void = () => {};

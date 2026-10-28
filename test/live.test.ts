@@ -6,36 +6,32 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedProgressComment from "./fixtures/github-progress-comment.json";
+import { goodPoll, tempConfig, testIo, withServer } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
-	goodPoll,
+	githubSince,
 	issuesResponse,
 	type ListedRead,
 	listedRead,
 	listUrl,
-	openEventStream,
 	otherRepo,
-	type OverviewBody,
-	overviewOf,
 	page,
-	readOverview,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
-	type ShownTicket,
 	ticket,
-	withServer,
-} from "./live-support.ts";
+	unrecorded,
+} from "./support/github.ts";
 import {
-	githubIssueNode,
-	githubSince,
-	recordedDiscovery,
-	repoReadIssues,
+	openEventStream,
+	type OverviewBody,
+	overviewOf,
+	readOverview,
 	settledOverview,
 	settledOverviewEvent,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+	type ShownTicket,
+} from "./support/reads.ts";
+import { githubIssueNode, repoReadIssues } from "./support/repo-read.ts";
 
 const thirdRepo = "acme/third";
 const linearProject = "widget-launch";

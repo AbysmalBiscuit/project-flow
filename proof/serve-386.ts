@@ -6,7 +6,7 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
 import { recordedIssues, serveRecorded } from "./recorded.ts";
 
 const port = process.argv[2]?.trim() || "4386";

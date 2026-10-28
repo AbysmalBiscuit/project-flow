@@ -11,6 +11,6 @@ test/overview.test.ts:(anonymous)
 test/review.test.ts:(anonymous)
 test/review.test.ts:projectBoard
 test/state.test.ts:(anonymous)
-test/support.ts:(anonymous)
-test/support.ts:repoReadFromHandler
+test/support/repo-read.ts:(anonymous)
+test/support/repo-read.ts:repoReadFromHandler
 test/tracked.test.ts:(anonymous)

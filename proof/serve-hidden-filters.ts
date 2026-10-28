@@ -1,8 +1,6 @@
-import {
-	recordedDiscovery,
-	repoReadFromLists,
-	urlOf,
-} from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery } from "../test/support/github.ts";
+import { repoReadFromLists } from "../test/support/repo-read.ts";
 import { emptyLinear, serveRecorded, unrecorded } from "./recorded.ts";
 
 const port = process.argv[2] ?? "4173";

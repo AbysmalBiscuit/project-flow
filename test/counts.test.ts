@@ -7,17 +7,12 @@ import type { Overview, ProjectReport, StatusType } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { doneTicketsForLane } from "../src/lanes.ts";
 import { run } from "../src/main.ts";
-import {
-	defaultStates,
-	linearFake,
-	recordedDiscovery,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { page, recordedDiscovery, repo, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { defaultStates } from "./support/states.ts";
 
-const repo = "acme/widget";
 const now = "2026-08-18T12:00:00.000Z";
 
 const statusTypes = [
@@ -77,13 +72,6 @@ function pull(
 		body: closing.map((item) => `Closes #${item}`).join("\n"),
 		merged_at: null,
 	};
-}
-
-function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 const openIssues = [

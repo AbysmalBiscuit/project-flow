@@ -6,7 +6,7 @@
  */
 import recordedTeam from "../test/fixtures/linear-team-states.json";
 import outsideRelations from "../test/fixtures/outside-relations.json";
-import { linearFake } from "../test/support.ts";
+import { linearFake } from "../test/support/linear.ts";
 import { serveRecorded } from "./recorded.ts";
 
 const project = {

@@ -5,13 +5,9 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	emptyProjectFields,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { emptyProjectFields, unrecorded } from "./support/github.ts";
 
 const board = {
 	id: "PVT_local",

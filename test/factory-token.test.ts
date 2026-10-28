@@ -21,8 +21,8 @@ import {
 	recordingFetch,
 	serve,
 	userBearer,
-} from "./factory-token-support.ts";
-import { settledOverview } from "./support.ts";
+} from "./factory-token/_support.ts";
+import { settledOverview } from "./support/reads.ts";
 
 const otherToken = "ghs_other_installation";
 

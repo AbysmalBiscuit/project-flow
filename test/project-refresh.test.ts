@@ -3,20 +3,19 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Overview, ProjectReport } from "../src/domain.ts";
+import type { ProjectReport } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedRepoRead from "./fixtures/github-repo-read.json";
-import { openEventStream } from "./live-support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { trackerRequest } from "./support/fetch.ts";
+import { recordedViewer, unrecorded } from "./support/github.ts";
 import {
-	emptyRepoRead,
-	recordedViewer,
+	openEventStream,
+	readOverview,
 	settledOverview,
-	tempConfig,
-	testIo,
-	trackerRequest,
-	unrecorded,
-} from "./support.ts";
+} from "./support/reads.ts";
+import { emptyRepoRead } from "./support/repo-read.ts";
 
 type Sent = { url: string; operation: string; repo: string | null };
 
@@ -124,12 +123,6 @@ async function withTwoRepos(body: (harness: Harness) => Promise<void>) {
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
 	}
-}
-
-async function readOverview(base: string): Promise<Overview> {
-	return (await (
-		await fetch(new URL("/api/overview", base))
-	).json()) as Overview;
 }
 
 async function widgetTitles(base: string): Promise<string[]> {

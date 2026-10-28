@@ -1,5 +1,7 @@
 import type { Fetch } from "../src/fetch.ts";
-import { recordedViewer, repoReadFromHandler, urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedViewer } from "../test/support/github.ts";
+import { repoReadFromHandler } from "../test/support/repo-read.ts";
 import {
 	emptyLinear,
 	emptyLists,

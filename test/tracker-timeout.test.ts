@@ -2,17 +2,13 @@ import { expect, test } from "bun:test";
 
 import type { Fetch } from "../src/fetch.ts";
 import { githubFetch, issue, type Sent, serve } from "./replies-github-fake.ts";
-import { settledOverview, urlOf } from "./support.ts";
+import { urlOf } from "./support/fetch.ts";
+import { readOverview, settledOverview } from "./support/reads.ts";
 
 type Overview = {
 	polling?: true;
 	projects: { name: string; error: string | null }[];
 };
-
-async function readOverview(base: string): Promise<Overview> {
-	const response = await fetch(new URL("/api/overview", base));
-	return (await response.json()) as Overview;
-}
 
 function widgetError(overview: Overview): string | null | undefined {
 	return overview.projects.find((project) => project.name === "acme/widget")
@@ -28,7 +24,7 @@ async function pollUntil(
 	});
 	expect(refresh.status).toBe(204);
 	while (true) {
-		const overview = await settledOverview(base, readOverview);
+		const overview = await settledOverview(base, readOverview<Overview>);
 		if (done(overview)) {
 			return overview;
 		}
@@ -55,7 +51,7 @@ test("a tracker request that never answers fails its project's poll, and a later
 		{ trackerRequestLimitMs: 200 },
 	);
 	try {
-		const first = await settledOverview(app.base, readOverview);
+		const first = await settledOverview(app.base, readOverview<Overview>);
 		expect(widgetError(first)).toBeNull();
 
 		hanging = true;

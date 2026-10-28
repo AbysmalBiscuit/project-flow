@@ -6,25 +6,10 @@ import { join } from "node:path";
 import type { Thread } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	recordedDiscovery,
-	settledRead,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
-
-function json(
-	body: unknown,
-	status = 200,
-	headers: Record<string, string> = {},
-): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { "content-type": "application/json", ...headers },
-	});
-}
+import { tempConfig, testIo } from "./support/app.ts";
+import { json, urlOf } from "./support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
+import { settledRead } from "./support/reads.ts";
 
 function comment(id: number, body: string): Record<string, unknown> {
 	return {

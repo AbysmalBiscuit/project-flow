@@ -3,7 +3,8 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
-import { recordedDiscovery, urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery } from "../test/support/github.ts";
 import { emptyLinear, serveRecorded, unrecorded } from "./recorded.ts";
 
 const board = "acme/board";

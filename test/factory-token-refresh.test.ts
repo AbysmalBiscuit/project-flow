@@ -17,7 +17,7 @@ import {
 	recordingFetch,
 	serve,
 	userBearer,
-} from "./factory-token-support.ts";
+} from "./factory-token/_support.ts";
 
 describe("factory GitHub token refresh", () => {
 	test("a token inside the renew window is read again and kept until it expires", async () => {

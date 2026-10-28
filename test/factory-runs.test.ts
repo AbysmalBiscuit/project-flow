@@ -15,17 +15,7 @@ import {
 	overviewWhere,
 	type RunOverview,
 	serveRuns,
-} from "./factory-run-support.ts";
-import {
-	type Answers,
-	daemon,
-	EventFeed,
-	type FactoryRequest,
-	hub,
-	hubUrl,
-	laptopSocket,
-	laptopUrl,
-} from "./factory-support.ts";
+} from "./factory/_support.ts";
 import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
 import hubRuns from "./fixtures/factory-hub-runs.json";
@@ -42,9 +32,19 @@ import runSource from "./fixtures/factory-run-source.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
 import steerDelivered from "./fixtures/factory-steer-delivered.json";
-import { openEventStream, repo } from "./live-support.ts";
-import { pull } from "./review-support.ts";
-import { githubPullNode, readWhere, settledRead } from "./support.ts";
+import {
+	type Answers,
+	daemon,
+	EventFeed,
+	type FactoryRequest,
+	hub,
+	hubUrl,
+	laptopSocket,
+	laptopUrl,
+} from "./support/factory.ts";
+import { pull, repo } from "./support/github.ts";
+import { openEventStream, readWhere, settledRead } from "./support/reads.ts";
+import { githubPullNode } from "./support/repo-read.ts";
 
 const runPollMs = 10_000;
 

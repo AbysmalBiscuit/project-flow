@@ -1,27 +1,28 @@
 import { expect } from "bun:test";
 
-import type { ShownFactoryRun, TicketView } from "../src/domain.ts";
-import type { Fetch } from "../src/fetch.ts";
+import type { ShownFactoryRun, TicketView } from "../../src/domain.ts";
+import type { Fetch } from "../../src/fetch.ts";
+import type hubRuns from "../fixtures/factory-hub-runs.json";
 import {
 	type Answers,
 	factoryFetch,
 	type FactoryRequest,
 	hubUrl,
-	json,
 	laptopUrl,
 	readOrRunWrite,
 	serve,
-} from "./factory-support.ts";
-import type hubRuns from "./fixtures/factory-hub-runs.json";
+} from "../support/factory.ts";
+import { json, urlOf } from "../support/fetch.ts";
 import {
 	issuesResponse,
 	listedRead,
 	page,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
 	ticket,
-} from "./live-support.ts";
-import { recordedDiscovery, unrecorded, urlOf } from "./support.ts";
+	unrecorded,
+} from "../support/github.ts";
 
 export type RunOverview = {
 	projects: { tickets: TicketView[] }[];
