@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { runResults, runStatusKinds } from "./domain.ts";
-import { MultiDropdown } from "./dropdown.tsx";
+import { Dropdown, MultiDropdown } from "./dropdown.tsx";
 import { Loading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
 import { openPage, runPagePath } from "./page-links.ts";
@@ -13,11 +13,13 @@ import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import type { RunListRow } from "./run-list.ts";
 import { RunDot } from "./run-marks.tsx";
+import { RunRemove } from "./run-remove.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
 	costLabel,
 	hubQueueLabel,
 	navLabel,
+	runRemoveCopy,
 	runResultLabel,
 	runsColumnLabel,
 	runsListCopy,
@@ -25,7 +27,7 @@ import {
 } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { shortKey } from "./ticket-key.ts";
-import { measure, space } from "./tokens.stylex.ts";
+import { colours, measure, space } from "./tokens.stylex.ts";
 import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
@@ -44,7 +46,28 @@ const styles = stylex.create({
 	nowrap: {
 		whiteSpace: "nowrap",
 	},
+	archived: {
+		color: colours.inkMuted,
+	},
 });
+
+const archiveChoices = [
+	{ id: "unarchived", label: runsListCopy.unarchived },
+	{ id: "archived", label: runsListCopy.archivedOnly },
+	{ id: "all", label: runsListCopy.allRuns },
+] as const;
+
+type ArchiveView = (typeof archiveChoices)[number]["id"];
+
+function isArchiveView(id: string): id is ArchiveView {
+	return archiveChoices.some((choice) => choice.id === id);
+}
+
+function inArchiveView(row: RunListRow, view: ArchiveView): boolean {
+	return (
+		view === "all" || (view === "archived") === (row.archivedAt !== undefined)
+	);
+}
 
 /** The distinct values of one field, in their first order. */
 function choicesOf(rows: RunListRow[], value: (row: RunListRow) => string) {
@@ -122,7 +145,7 @@ function RunRow({ run }: { run: RunListRow }) {
 			onClick={(event) => {
 				if (
 					event.target instanceof Element &&
-					event.target.closest("a") !== null
+					event.target.closest("a, button, dialog") !== null
 				) {
 					return;
 				}
@@ -143,6 +166,11 @@ function RunRow({ run }: { run: RunListRow }) {
 				<span className={clsx(styles.status)}>
 					<RunDot run={run} />
 					{runStatusLabel[run.statusKind]}
+					{run.archivedAt === undefined ? null : (
+						<span className={clsx(styles.archived)}>
+							{runRemoveCopy.archived}
+						</span>
+					)}
 				</span>
 			</td>
 			<td className={clsx(board.rowCell, styles.nowrap)}>
@@ -184,6 +212,9 @@ function RunRow({ run }: { run: RunListRow }) {
 					</a>
 				)}
 			</td>
+			<td className={clsx(board.rowCell)}>
+				<RunRemove run={run} />
+			</td>
 		</tr>
 	);
 }
@@ -193,6 +224,7 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 	const [result, setResult] = useState<string[]>([]);
 	const [project, setProject] = useState<string[]>([]);
 	const [factory, setFactory] = useState<string[]>([]);
+	const [archive, setArchive] = useState<ArchiveView>("unarchived");
 	const [search, setSearch] = useState("");
 	const [column, setColumn] = useState<SortColumn>("start");
 	const [direction, setDirection] = useState<SortDirection>("desc");
@@ -202,6 +234,7 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 			picks(result, row.result) &&
 			picks(project, row.project) &&
 			picks(factory, row.factory) &&
+			inArchiveView(row, archive) &&
 			matches(row, search),
 	);
 	const shown = sortRuns(filtered, column, direction);
@@ -257,6 +290,17 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 					value={factory}
 					choices={choicesOf(rows, (row) => row.factory)}
 					onChange={setFactory}
+				/>
+				<Dropdown
+					id="runs-archive"
+					label={runsListCopy.archive}
+					value={archive}
+					choices={archiveChoices}
+					onChange={(id) => {
+						if (isArchiveView(id)) {
+							setArchive(id);
+						}
+					}}
 				/>
 			</div>
 			<div className={clsx(board.grid)}>

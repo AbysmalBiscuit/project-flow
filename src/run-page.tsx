@@ -15,6 +15,7 @@ import { RunEvents } from "./run-events.tsx";
 import { RunFiles } from "./run-files.tsx";
 import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
+import { RunRemove } from "./run-remove.tsx";
 import { RunResume } from "./run-resume.tsx";
 import { RunSandbox } from "./run-sandbox.tsx";
 import { RunSource } from "./run-source.tsx";
@@ -210,6 +211,7 @@ export function Page() {
 							<>
 								<RunResume run={data} />
 								<RunCancel run={data} />
+								<RunRemove run={data} />
 							</>
 						),
 					})}

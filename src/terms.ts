@@ -220,6 +220,17 @@ export const runCancelCopy = {
 	dismiss: "Keep running",
 } as const;
 
+export const runRemoveCopy = {
+	delete: "Delete",
+	deleting: "Deleting",
+	archive: "Archive",
+	archiving: "Archiving",
+	title: "Delete the run?",
+	body: "The factory drops the run and its record. The worktree and the branch of the run stay.",
+	dismiss: "Keep run",
+	archived: "Archived",
+} as const;
+
 export const runResumeCopy = {
 	action: "Resume",
 	pending: "Starting",
@@ -291,6 +302,7 @@ export const runsColumnLabel = {
 	duration: "Duration",
 	cost: "Cost",
 	pr: runFactLabel.pr,
+	actions: "Actions",
 } as const;
 
 export const runsListCopy = {
@@ -306,6 +318,10 @@ export const runsListCopy = {
 	result: "Result",
 	project: "Project",
 	factory: "Factory",
+	archive: "Archived runs",
+	unarchived: "Not archived",
+	archivedOnly: "Archived",
+	allRuns: "All runs",
 } as const;
 
 /** The tabs of the run page, in order. */
