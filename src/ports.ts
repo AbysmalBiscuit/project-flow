@@ -113,6 +113,8 @@ export type Tracker = {
 		signal?: AbortSignal,
 	) => Promise<FetchedThread | null>;
 	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
+	/** Add the label to the ticket. A Linear label must exist in the ticket's team or the workspace. */
+	addLabel?: (key: string, label: string) => Promise<void>;
 };
 
 /** Reads the factories that this launch lists. */

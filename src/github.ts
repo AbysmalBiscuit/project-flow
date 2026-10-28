@@ -18,7 +18,11 @@ import {
 import type { ReviewEvidence } from "./github-pulls.ts";
 import { readAutoMerge } from "./github-repo-query.ts";
 import { currentBlockers, readRepo, type StoredLists } from "./github-repo.ts";
-import { fetchGithubThread, postGithubReply } from "./github-thread.ts";
+import {
+	addGithubLabel,
+	fetchGithubThread,
+	postGithubReply,
+} from "./github-thread.ts";
 import { factoryBoard } from "./lanes.ts";
 import { type GithubTracker, TrackerError } from "./ports.ts";
 import { githubKey } from "./ticket-key.ts";
@@ -332,6 +336,9 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 		},
 		postReply(reply) {
 			return postGithubReply(token, fetchImpl, reply);
+		},
+		addLabel(key, label) {
+			return addGithubLabel(token, fetchImpl, key, label);
 		},
 	};
 }
