@@ -175,6 +175,7 @@ describe("factory runs", () => {
 				endedAt: "2026-10-25T12:30:00+00:00",
 				coveredByFeed: true,
 				result: "failed",
+				resumable: true,
 			});
 		} finally {
 			await app.stop();
@@ -459,6 +460,31 @@ describe("factory runs", () => {
 		}
 	});
 
+	test("a failed run can resume only while its ticket is open", async () => {
+		const app = await serveRuns(hub, [39]);
+		try {
+			const open = await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 39) !== undefined,
+			);
+			expect(factoryRunOf(open, 39)).toMatchObject({
+				statusKind: "failed",
+				resumable: true,
+			});
+			app.issues.closed.add(39);
+			await fetch(new URL("/api/refresh", app.base), { method: "POST" });
+			let done = reportTicket(await reportOf(app.base), 39);
+			while (done.state !== "done") {
+				await Bun.sleep(20);
+				done = reportTicket(await reportOf(app.base), 39);
+			}
+			expect(done.factoryRun?.statusKind).toBe("failed");
+			expect(done.factoryRun?.resumable).toBeUndefined();
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a run that matches no tracked ticket is kept and stays out of the overview", async () => {
 		const app = await serveRuns(hub, [41]);
 		try {
@@ -662,6 +688,7 @@ describe("factory runs", () => {
 					startedAt: "2026-10-25T14:01:10+00:00",
 					endedAt: null,
 					coveredByFeed: true,
+					resumable: true,
 				});
 			} finally {
 				await app.stop();

@@ -82,7 +82,7 @@ export async function serveRuns(
 		...(boxAnswers === undefined ? {} : { [laptopUrl]: boxAnswers }),
 	};
 	const requests: FactoryRequest[] = [];
-	const issues = { numbers: issueNumbers };
+	const issues = { numbers: issueNumbers, closed: new Set<number>() };
 	let now = runClockStart;
 	const tracker: Fetch = async (input, init) => {
 		const url = urlOf(input);
@@ -101,7 +101,11 @@ export async function serveRuns(
 					issues.numbers.map((number) => {
 						const rows = comments[number];
 						return {
-							...ticket(number, "2026-10-25T09:00:00Z"),
+							...ticket(
+								number,
+								"2026-10-25T09:00:00Z",
+								issues.closed.has(number) ? "closed" : "open",
+							),
 							...(rows === undefined ? {} : { commentRows: rows }),
 						};
 					}),

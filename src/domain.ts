@@ -184,6 +184,8 @@ export type RunDetail = FactoryRun & {
 	/** The name of the run's workflow graph. */
 	workflow?: string;
 	lastEvent?: RunEvent;
+	/** Present when Lev can resume or restart the run. */
+	resumable?: true;
 };
 
 /**
@@ -203,7 +205,12 @@ export type ShownFactoryRun = Pick<
 	| "coveredByFeed"
 	| "questions"
 	| "thread"
-> & { stage?: string; result?: RunResult };
+> & {
+	stage?: string;
+	result?: RunResult;
+	/** Present when Lev can resume or restart the run: it is blocked or failed, and its ticket is open. */
+	resumable?: true;
+};
 
 /** Where a factory run is in its flow, from the run checkpoint of its box. */
 export type RunCheckpoint = {
@@ -245,6 +252,12 @@ export type RunUsage = {
 export const endedRunStatusKinds = [
 	"failed",
 	"succeeded",
+] as const satisfies readonly RunStatusKind[];
+
+/** The run statuses that Lev can resume from the run checkpoint, or restart from the first stage. */
+export const resumableRunStatusKinds = [
+	"blocked",
+	"failed",
 ] as const satisfies readonly RunStatusKind[];
 
 /** The run statuses whose agents can work: the app reads a run's agents only in these. */

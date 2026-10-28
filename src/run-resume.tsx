@@ -1,30 +1,25 @@
 import { useState } from "react";
 
 import { ConfirmDialog } from "./confirm-dialog.tsx";
-import type { RunStatusKind, ShownFactoryRun } from "./domain.ts";
+import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { useStartAgain } from "./queries.ts";
 import { SplitButton } from "./split-button.tsx";
 import { runResumeCopy } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
-const resumableKinds = [
-	"blocked",
-	"failed",
-] as const satisfies readonly RunStatusKind[];
-
 /**
- * Resume for a blocked or failed run. The main part resumes the run from its run checkpoint.
+ * Resume for a resumable run. The main part resumes the run from its run checkpoint.
  * The menu also offers a restart from the first stage, which Lev confirms.
  */
 export function RunResume({
 	run,
 }: {
-	run: Pick<ShownFactoryRun, "id" | "statusKind">;
+	run: Pick<ShownFactoryRun, "id" | "statusKind" | "resumable">;
 }) {
 	const [asking, setAsking] = useState(false);
 	const start = useStartAgain(run.id);
-	if (!resumableKinds.some((kind) => kind === run.statusKind)) {
+	if (run.resumable !== true) {
 		return null;
 	}
 	return (

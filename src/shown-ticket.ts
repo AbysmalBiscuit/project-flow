@@ -1,14 +1,15 @@
-import type {
-	EarlierFactoryRun,
-	FactoryRun,
-	Lane,
-	LiveRun,
-	PullRequest,
-	RunStatusKind,
-	ShownFactoryRun,
-	ShownTicket,
-	Ticket,
-	WorkcellRun,
+import {
+	type EarlierFactoryRun,
+	type FactoryRun,
+	type Lane,
+	type LiveRun,
+	type PullRequest,
+	resumableRunStatusKinds,
+	type RunStatusKind,
+	type ShownFactoryRun,
+	type ShownTicket,
+	type Ticket,
+	type WorkcellRun,
 } from "./domain.ts";
 import { appLaneNames, closedLaneType, laterState } from "./lanes.ts";
 import { branchLinksTicket, closesTicket } from "./pull-links.ts";
@@ -198,6 +199,10 @@ export function shownFactoryRun(
 			...(run.thread === undefined ? {} : { thread: run.thread }),
 			...(stage === undefined ? {} : { stage }),
 			...(result === undefined ? {} : { result }),
+			...(ticket.state === "open" &&
+			resumableRunStatusKinds.some((kind) => kind === run.statusKind)
+				? { resumable: true }
+				: {}),
 		},
 		...(earlier.length === 0
 			? {}
