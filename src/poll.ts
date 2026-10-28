@@ -4,7 +4,7 @@ import {
 	departedNeedsYouIds,
 	notificationsFor,
 } from "./attention.ts";
-import type { AutoMerge, Configuration } from "./configuration.ts";
+import type { AutoMerge, Configuration, Factory } from "./configuration.ts";
 import {
 	checkoutBasenames,
 	checkoutNamesProject,
@@ -251,6 +251,8 @@ export type PollOptions = {
 	viewers: Viewer[];
 	runs: WorkcellRun[];
 	factoryRuns: () => FactoryRun[];
+	/** The factories that this launch reads: the `--factory` list, or else the configured factories. */
+	listedFactories: () => readonly Factory[];
 	workcellAuto: Record<string, AutoMerge>;
 	repoAutoMerge: Record<string, boolean>;
 	attention: Attention;

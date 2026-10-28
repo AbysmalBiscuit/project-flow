@@ -45,7 +45,7 @@ function trackerWrites(writes: TrackerWrite[], other: Fetch): Fetch {
  */
 async function serveGithub(
 	numbers: number[],
-	options: { closed?: number[]; readyLabel?: string } = {},
+	options: { closed?: number[]; readyLabel?: string; args?: string[] } = {},
 ) {
 	const labels = new Map<number, string[]>();
 	const writes: TrackerWrite[] = [];
@@ -85,7 +85,7 @@ async function serveGithub(
 		return listed ?? recordedOrEmpty(url) ?? unrecorded(input, init);
 	};
 	const app = await serve(
-		[],
+		options.args ?? [],
 		{
 			pinned: [{ tracker: "github", repo }],
 			factories: [
@@ -218,6 +218,28 @@ describe("run starts", () => {
 
 	test("a factory without readyLabel refuses the start and sends no tracker write", async () => {
 		const app = await serveGithub([43]);
+		try {
+			const key = `${repo}#43`;
+			const view = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(item) => item.title !== "",
+			);
+			expect(view.runStart).toBeUndefined();
+			const response = await startRun(app.base, "github", repo, key);
+			expect(response.status).toBe(409);
+			expect(app.writes).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a --factory list without readyLabel refuses the start, though the configured factory has one", async () => {
+		const app = await serveGithub([43], {
+			readyLabel,
+			args: ["--factory", `flag hub=${hubUrl}`],
+		});
 		try {
 			const key = `${repo}#43`;
 			const view = await ticketWhere(

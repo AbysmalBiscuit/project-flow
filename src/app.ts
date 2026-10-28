@@ -197,6 +197,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		viewers: [],
 		runs: [],
 		factoryRuns: factories.runs,
+		listedFactories,
 		workcellAuto: {},
 		repoAutoMerge: {},
 		attention: {

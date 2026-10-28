@@ -111,7 +111,7 @@ function computeProjectView(
 		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 		status,
 		needsYouRules(configuration, options.viewers),
-		configuration,
+		{ ...configuration, factories: [...options.listedFactories()] },
 		new Date(status.fetchedAt ?? 0),
 		row.board,
 	);

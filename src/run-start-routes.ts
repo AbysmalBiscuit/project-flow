@@ -51,7 +51,7 @@ export function runStartRoutes({
 				const start = runStartOf(
 					ticket,
 					runFor(ticket, pollOptions.factoryRuns()),
-					configuration().factories,
+					pollOptions.listedFactories(),
 				);
 				if ("refused" in start) {
 					return Response.json({ error: start.refused }, { status: 409 });
