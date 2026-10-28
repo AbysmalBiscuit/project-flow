@@ -1,7 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 
 import { board } from "./board-styles.ts";
-import { control } from "./control-styles.ts";
+import { control, textControl } from "./control-styles.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { elapsed, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
@@ -79,12 +79,7 @@ export function RunRow({ run }: { run: RunListRow }) {
 			<td className={clsx(board.rowCell)}>
 				<a
 					href={runPagePath(run.id)}
-					className={clsx(
-						board.rowKey,
-						control.clear,
-						control.bleed,
-						control.focus,
-					)}
+					className={clsx(board.rowKey, ...textControl)}
 				>
 					{shortKey(run.key)}
 				</a>{" "}
@@ -111,12 +106,7 @@ export function RunRow({ run }: { run: RunListRow }) {
 						href={run.pull.url}
 						target="_blank"
 						rel="noreferrer"
-						className={clsx(
-							panel.factLink,
-							control.clear,
-							control.bleed,
-							control.focus,
-						)}
+						className={clsx(panel.factLink, ...textControl)}
 					>
 						#{run.pull.number}
 					</a>

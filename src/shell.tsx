@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import { ContextMenuHost } from "./context-menu.tsx";
-import { control } from "./control-styles.ts";
+import { control, textControl } from "./control-styles.ts";
 import { openJumpBox } from "./jump.tsx";
 import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
 import { Segment } from "./segment.tsx";
@@ -204,15 +204,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					projectPage && projectBarLayout.fit,
 				)}
 			>
-				<a
-					className={clsx(
-						control.clear,
-						control.bleed,
-						frame.logo,
-						control.focus,
-					)}
-					href="/"
-				>
+				<a className={clsx(frame.logo, ...textControl)} href="/">
 					<LogoMark />
 					{navLabel.logo}
 				</a>
@@ -240,12 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				{overview.data?.factoryUnreachable === true ? (
 					<a
 						id="factory-unreachable"
-						className={clsx(
-							frame.factoryMarker,
-							control.clear,
-							control.bleed,
-							control.focus,
-						)}
+						className={clsx(frame.factoryMarker, ...textControl)}
 						href="/settings#factories"
 					>
 						{factoryCopy.headerMarker}

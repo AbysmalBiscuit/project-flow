@@ -14,7 +14,7 @@ import {
 import { Button, type IconName } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import type { Configuration } from "./configuration.ts";
-import { control } from "./control-styles.ts";
+import { control, textControl } from "./control-styles.ts";
 import type {
 	CrossProjectBlocker,
 	Overview,
@@ -76,12 +76,7 @@ function blockerTicket(blocker: CrossProjectBlocker): string {
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
-			className={clsx(
-				cards.chip,
-				control.tint,
-				control.focus,
-				control.focusInside,
-			)}
+			className={clsx(cards.chip, control.tint, control.focusInside)}
 			href={projectPath(blocker.project, blocker)}
 		>
 			Blocked by {blockerTicket(blocker)}
@@ -211,12 +206,7 @@ function MoreChip({ project, hidden }: { project: string; hidden: number }) {
 		<a
 			hidden={hidden === 0}
 			data-more=""
-			className={clsx(
-				cards.chip,
-				control.tint,
-				control.focus,
-				control.focusInside,
-			)}
+			className={clsx(cards.chip, control.tint, control.focusInside)}
 			href={projectPath(project)}
 			aria-label={label}
 			onClick={(event) => {
@@ -390,13 +380,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 		<li id={id} className={clsx(cards.card)} aria-busy={loading}>
 			<div className={clsx(cards.cardTop)}>
 				<a
-					className={clsx(
-						cards.projectLink,
-						control.link,
-						control.clear,
-						control.bleed,
-						control.focus,
-					)}
+					className={clsx(cards.projectLink, control.link, ...textControl)}
 					href={projectPath(project.name)}
 					aria-label={project.name}
 					onClick={(event) => {
@@ -533,12 +517,7 @@ function TableView({
 									<button
 										type="button"
 										id={`sort-${item.key}`}
-										className={clsx(
-											cards.sort,
-											control.clear,
-											control.bleed,
-											control.focus,
-										)}
+										className={clsx(cards.sort, ...textControl)}
 										onClick={() =>
 											onSort(
 												item.key,
@@ -568,9 +547,7 @@ function TableView({
 										className={clsx(
 											cards.projectLink,
 											control.link,
-											control.clear,
-											control.bleed,
-											control.focus,
+											...textControl,
 										)}
 										href={projectPath(project.name)}
 										onClick={(event) => {
@@ -893,12 +870,7 @@ function OverviewPage({
 					<div className={clsx(cards.section)}>
 						<h2 className={clsx(cards.sectionLabel)}>{navLabel.needsYou}</h2>
 						<a
-							className={clsx(
-								cards.viewAll,
-								control.clear,
-								control.bleed,
-								control.focus,
-							)}
+							className={clsx(cards.viewAll, ...textControl)}
 							href="/needs-you"
 						>
 							View all
@@ -914,21 +886,14 @@ function OverviewPage({
 									className={clsx(
 										cards.needKey,
 										phoneLayout.cardNeedKey,
-										control.clear,
-										control.bleed,
-										control.focus,
+										...textControl,
 									)}
 									href={projectPath(item.project, item)}
 								>
 									{outsideKey(item.project, item.key)}
 								</a>
 								<a
-									className={clsx(
-										cards.needTitle,
-										control.clear,
-										control.bleed,
-										control.focus,
-									)}
+									className={clsx(cards.needTitle, ...textControl)}
 									href={projectPath(item.project, item)}
 								>
 									{item.headline}
@@ -968,12 +933,7 @@ function OverviewPage({
 						{overviewControlLabel.noneTrackedHint}{" "}
 						<a
 							id="overview-empty-settings"
-							className={clsx(
-								cards.emptyLink,
-								control.clear,
-								control.bleed,
-								control.focus,
-							)}
+							className={clsx(cards.emptyLink, ...textControl)}
 							href="/settings"
 						>
 							{navLabel.settings}

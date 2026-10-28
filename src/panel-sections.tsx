@@ -4,7 +4,7 @@ import { board, runDotTone } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import { CommentMarkdown } from "./comment-markdown.tsx";
-import { control } from "./control-styles.ts";
+import { textControl } from "./control-styles.ts";
 import type {
 	EarlierFactoryRun,
 	NeedsYouItem,
@@ -167,27 +167,14 @@ export function RunSection({
 				)}
 				{pullUrl === undefined ? null : (
 					<RunFact label={runFactLabel.pr}>
-						<a
-							className={clsx(
-								panel.factLink,
-								control.clear,
-								control.bleed,
-								control.focus,
-							)}
-							href={pullUrl}
-						>
+						<a className={clsx(panel.factLink, ...textControl)} href={pullUrl}>
 							{pull ?? openOnGitHubLabel}
 						</a>
 					</RunFact>
 				)}
 			</dl>
 			<a
-				className={clsx(
-					panel.openRun,
-					control.clear,
-					control.bleed,
-					control.focus,
-				)}
+				className={clsx(panel.openRun, ...textControl)}
 				href={runPagePath(run.id)}
 				data-open-run={run.id}
 			>
@@ -286,12 +273,7 @@ export function WhySection({
 						<dt className={clsx(panel.factLabel)}>{mergeFactLabel.pr}</dt>
 						<dd className={clsx(panel.factValue)}>
 							<a
-								className={clsx(
-									panel.factLink,
-									control.clear,
-									control.bleed,
-									control.focus,
-								)}
+								className={clsx(panel.factLink, ...textControl)}
 								href={pull.url}
 								aria-label={`${openOnGitHubLabel}, PR #${pull.number}`}
 							>

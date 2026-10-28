@@ -147,6 +147,10 @@ export const control = stylex.create({
 	},
 	/** The focus ring inside the box, for a control in a row that clips overflow. */
 	focusInside: {
+		outline: {
+			default: "none",
+			":focus-visible": `${measure.focus} solid ${colours.focus}`,
+		},
 		outlineOffset: `calc(-1 * ${measure.focus})`,
 	},
 	primary: {
@@ -164,3 +168,10 @@ export const control = stylex.create({
 		backgroundImage: filledPress,
 	},
 });
+
+/** The fills, bleed and focus ring of a bare text link. */
+export const textControl = [
+	control.clear,
+	control.bleed,
+	control.focus,
+] as const;

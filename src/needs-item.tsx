@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Button } from "./button.tsx";
-import { control } from "./control-styles.ts";
+import { control, textControl } from "./control-styles.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { needs } from "./needs-you-styles.ts";
 import {
@@ -148,12 +148,7 @@ export function NeedsItem({
 				</span>
 				{project === true ? (
 					<a
-						className={clsx(
-							needs.project,
-							control.clear,
-							control.bleed,
-							control.focus,
-						)}
+						className={clsx(needs.project, ...textControl)}
 						href={`/projects/${encodeURIComponent(item.project)}`}
 						data-needs-project={item.key}
 					>
