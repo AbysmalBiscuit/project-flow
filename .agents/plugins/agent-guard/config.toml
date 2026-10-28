@@ -40,11 +40,6 @@ accept = true
 lines = 4489
 
 [[file_length.limits]]
-pattern = "src/github.ts"
-accept = true
-lines = 3312
-
-[[file_length.limits]]
 pattern = "src/linear.ts"
 accept = true
 lines = 1205
