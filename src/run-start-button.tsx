@@ -41,7 +41,9 @@ export function RunStartButton({
 				id={`run-start-dialog-${ticket.key}`}
 				open={asking}
 				title={runStartCopy.title}
-				body={runStartCopy.body(start.factory, start.label)}
+				body={(ticket.tracker === "linear"
+					? runStartCopy.linearBody
+					: runStartCopy.body)(start.factory, start.label)}
 				confirmLabel={runStartCopy.action}
 				onCancel={() => setAsking(false)}
 				onConfirm={() => {

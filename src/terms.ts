@@ -241,6 +241,8 @@ export const runStartCopy = {
 	title: "Start a run?",
 	body: (factory: string, label: string) =>
 		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
+	linearBody: (factory: string, label: string) =>
+		`Project Flow adds the label ${label} to the ticket. The factory ${factory} starts a run only when the workflow state of the ticket matches a rule of its source.`,
 } as const;
 
 export const runThreadLabel = "Run thread";
