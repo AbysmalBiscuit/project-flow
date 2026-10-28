@@ -29,7 +29,7 @@ import {
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { FactoryEntry } from "./factories.ts";
-import type { Steer } from "./factory-run-actions.ts";
+import type { RemoveAction, Steer } from "./factory-run-actions.ts";
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
@@ -723,7 +723,7 @@ export function useStartAgain(run: string) {
 export function useRemoveRun(run: string) {
 	const queries = useQueryClient();
 	return useMutation({
-		mutationFn: async (action: "delete" | "archive"): Promise<void> => {
+		mutationFn: async (action: RemoveAction): Promise<void> => {
 			const response = await fetch(
 				`/api/factory-runs/${encodeURIComponent(run)}/${action}`,
 				{ method: "POST" },

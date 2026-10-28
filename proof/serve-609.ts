@@ -1,8 +1,8 @@
-import hubRuns from "../test/fixtures/factory-hub-runs.json";
 /**
  * A hub with ended runs on tickets 39, 40 and 41 and a running run on ticket 42.
  * A delete drops a run, and an archive sets its `archived_at`.
  */
+import hubRuns from "../test/fixtures/factory-hub-runs.json";
 import { factoryFetch, hub, hubUrl } from "../test/support/factory.ts";
 import { urlOf } from "../test/support/fetch.ts";
 import {
