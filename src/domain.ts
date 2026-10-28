@@ -77,6 +77,8 @@ export type FactoryRun = {
 	pull?: RunPull;
 	/** The id of the run that this run restarted. */
 	restartedFrom?: string;
+	/** When Lev archived the run. An archived run shows only in the Runs list and on its run page. */
+	archivedAt?: string;
 	/** The sums of the run's agent turns, from `GET /runs`. Absent when the factory gives none. */
 	usageTotals?: UsageTotals;
 };
