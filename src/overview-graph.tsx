@@ -83,6 +83,7 @@ function ProjectNode({ id, data }: CardProps<ProjectCard>) {
 			className={clsx(
 				cards.graphNode,
 				cards.graphCard,
+				control.graphCard,
 				control.focus,
 				project.needsYou > 0 && cards.graphNeedsYou,
 			)}

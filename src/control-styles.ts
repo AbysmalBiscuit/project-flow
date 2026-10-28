@@ -106,6 +106,10 @@ export const control = stylex.create({
 		color: colours.ink,
 		fontWeight: type.weight,
 	},
+	/** A card that opens as a whole, on the surface fill of a graph. */
+	graphCard: {
+		backgroundColor: { default: colours.surface, ...pressFill },
+	},
 	/** A card in the wash of its state. */
 	tonedCard: {
 		backgroundColor: { default: stateTone.wash, ...pressFill },
