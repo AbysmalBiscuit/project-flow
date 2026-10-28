@@ -217,10 +217,10 @@ function Outline({
 	const marks = outlines[shape] ?? outlines.box ?? [];
 	return (
 		<svg
+			aria-hidden="true"
 			className={clsx(layout)}
 			viewBox="0 0 100 100"
 			preserveAspectRatio="none"
-			aria-hidden="true"
 		>
 			{marks.map((mark, index) =>
 				mark.closed ? (
