@@ -10,6 +10,8 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 
+const focusRing = `${measure.focus} solid ${colours.focus}` as const;
+
 // A filled control keeps its fill, so hover and press lay a veil of its ink
 // over it. The ink contrasts with the fill in both themes, so the veil shows on
 // a dark fill and on a light fill.
@@ -149,7 +151,15 @@ export const control = stylex.create({
 	focus: {
 		outline: {
 			default: "none",
-			":focus-visible": `${measure.focus} solid ${colours.focus}`,
+			":focus-visible": focusRing,
+		},
+		outlineOffset: space.twoXs,
+	},
+	/** The focus ring of a frame round a field, such as a search box with a glyph. */
+	focusWithin: {
+		outline: {
+			default: "none",
+			":focus-within": focusRing,
 		},
 		outlineOffset: space.twoXs,
 	},
@@ -157,7 +167,7 @@ export const control = stylex.create({
 	focusInside: {
 		outline: {
 			default: "none",
-			":focus-visible": `${measure.focus} solid ${colours.focus}`,
+			":focus-visible": focusRing,
 		},
 		outlineOffset: `calc(-1 * ${measure.focus})`,
 	},
