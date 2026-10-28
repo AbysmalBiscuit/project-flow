@@ -31,6 +31,7 @@ import { RunCancel } from "./run-cancel.tsx";
 import { RunResume } from "./run-resume.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { openTicket } from "./selection.ts";
+import { SendButton, SendText } from "./send-box.tsx";
 import { useLaneColour } from "./state-colours.ts";
 import { tonedProps } from "./state-tone.ts";
 import {
@@ -429,21 +430,14 @@ export function TicketPanel({
 					<label className={clsx(panel.label)} htmlFor="ticket-reply">
 						Reply
 					</label>
-					<textarea
+					<SendText
 						id="ticket-reply"
-						className={clsx(panel.text)}
 						aria-label="Reply"
 						placeholder="Write a comment"
 						value={draft}
 						onChange={(event) => setDraft(event.target.value)}
 					/>
-					<Button
-						label="Comment"
-						submit
-						tone="primary"
-						layout={panel.send}
-						disabled={pending}
-					/>
+					<SendButton label="Comment" disabled={pending} />
 					{error === null ? null : <p className={clsx(panel.error)}>{error}</p>}
 				</form>
 			)}
