@@ -60,7 +60,7 @@ function Choice({ choice }: { choice: Settings["choices"][number] }) {
 	);
 }
 
-/** What a run was asked to do: its workflow and parameters, the choice of each agent node, and its request options. */
+/** What a run was asked to do: its workflow package and parameters, the choice of each agent node, and its request options. */
 export function RunSettings({
 	run,
 }: {
@@ -111,7 +111,7 @@ export function RunSettings({
 			<h3 className={clsx(panel.sectionLabel)}>{runSettingsLabel.options}</h3>
 			<dl className={clsx(panel.facts)} data-settings="options">
 				<RunFact label={runOptionLabel.workflow}>
-					<Mono value={data.workflow} />
+					<Mono value={data.workflowPackage} />
 				</RunFact>
 				<RunFact label={runOptionLabel.repo}>
 					<Mono value={options.repo} />

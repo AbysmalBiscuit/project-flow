@@ -72,7 +72,7 @@ export function runSettingsReader(deps: {
 			);
 			const { keep_worktree, ...options } = found.options;
 			return {
-				workflow: found.workflow,
+				workflowPackage: found.workflow,
 				parameters: Object.entries(found.parameters).map(([name, value]) => ({
 					name,
 					value,

@@ -37,7 +37,7 @@ describe("factory runs", () => {
 			),
 		];
 
-		test("a run on a box gives its workflow, parameters, model and backend choices and options through the hub", async () => {
+		test("a run on a box gives its workflow package, parameters, model and backend choices and options through the hub", async () => {
 			const app = await serveRuns(
 				{ ...hub, [settingsPath]: runSettings },
 				[41],
@@ -46,7 +46,7 @@ describe("factory runs", () => {
 				const response = await settingsOf(app.base);
 				expect(response.status).toBe(200);
 				expect(await response.json()).toEqual({
-					workflow: "workcell",
+					workflowPackage: "workcell",
 					parameters: [
 						{ name: "through", value: "review" },
 						{ name: "max_rounds", value: 3 },

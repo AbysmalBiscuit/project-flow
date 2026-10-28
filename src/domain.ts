@@ -190,8 +190,8 @@ export type ParameterValue =
 
 /** What a run was asked to do. The factory leaves out each token and secret. */
 export type RunSettings = {
-	/** The package that the run runs. */
-	workflow: string;
+	/** The workflow package that the run runs. */
+	workflowPackage: string;
 	/** Each package parameter that the entry graph declares, with the value that the run takes. */
 	parameters: { name: string; value: ParameterValue }[];
 	/** Why the run's package would refuse the parameters. Null when it takes them. */

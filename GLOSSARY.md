@@ -187,7 +187,7 @@ The text of the graph file that a run loaded, and of each child graph that it ca
 _Avoid_: Workflow file, DOT file
 
 **Run settings**:
-What a run was asked to do: its workflow, the value of each package parameter, the harness, model and effort that each agent node starts on, and the options of its request. The factory leaves out each token and secret. Project Flow reads the run settings from `GET /runs/{id}/settings` of the hub that reports the run, or else of its box.
+What a run was asked to do: its workflow package, the value of each package parameter, the harness, model and effort that each agent node starts on, and the options of its request. The factory leaves out each token and secret. Project Flow reads the run settings from `GET /runs/{id}/settings` of the hub that reports the run, or else of its box.
 _Avoid_: Run config, settings (alone, which names the Settings page)
 
 **Run agent**:
