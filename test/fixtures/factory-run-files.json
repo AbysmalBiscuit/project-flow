@@ -1,0 +1,33 @@
+{
+	"files": [
+		{
+			"path": "gone.txt",
+			"status": "deleted",
+			"additions": 0,
+			"deletions": 1,
+			"patch": "diff --git a/gone.txt b/gone.txt\ndeleted file mode 100644\nindex 3367afd..0000000\n--- a/gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-old\n"
+		},
+		{
+			"path": "kept.txt",
+			"status": "modified",
+			"additions": 1,
+			"deletions": 1,
+			"patch": "diff --git a/kept.txt b/kept.txt\nindex 422c2b7..de98044 100644\n--- a/kept.txt\n+++ b/kept.txt\n@@ -1,2 +1,2 @@\n a\n-b\n+c\n"
+		},
+		{
+			"path": "new.txt",
+			"status": "added",
+			"additions": 2,
+			"deletions": 0,
+			"patch": "diff --git a/new.txt b/new.txt\nnew file mode 100644\nindex 0000000..f0ba8a6\n--- /dev/null\n+++ b/new.txt\n@@ -0,0 +1,2 @@\n+x\n+y\n"
+		},
+		{
+			"path": "renamed.txt",
+			"previous_path": "moved.txt",
+			"status": "renamed",
+			"additions": 0,
+			"deletions": 0,
+			"patch": "diff --git a/moved.txt b/renamed.txt\nsimilarity index 100%\nrename from moved.txt\nrename to renamed.txt\n"
+		}
+	]
+}

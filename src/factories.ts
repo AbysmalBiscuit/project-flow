@@ -31,6 +31,7 @@ import {
 	stagePath,
 } from "./factory-run-detail.ts";
 import { runEventsReader } from "./factory-run-events.ts";
+import { runFilesReader } from "./factory-run-files.ts";
 import { runPullReader } from "./factory-run-pulls.ts";
 import {
 	asksOf,
@@ -561,6 +562,7 @@ export function factoryReader(
 		events: runEventsReader({ fetchImpl, signal, statusRowOf }),
 		...runArtifactsReader({ fetchImpl, signal, statusRowOf }),
 		sandbox: runSandboxReader({ fetchImpl, signal, statusRowOf }),
+		files: runFilesReader({ fetchImpl, signal, statusRowOf }),
 		...runSourceReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
