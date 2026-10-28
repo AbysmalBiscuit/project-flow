@@ -12,12 +12,15 @@ import type { Fetch } from "./fetch.ts";
 
 export type AnswerResult = "answered" | "missing" | "failed";
 
-export type SteerResult = "steered" | "missing" | "ended" | "failed";
+/** The factory answered a write about a run with 409, with the reason that its body names, if any. */
+export type Refused = { refused: string | undefined };
 
-export type CancelResult = "cancelled" | "missing" | "ended" | "failed";
+export type SteerResult = "steered" | "missing" | Refused | "failed";
+
+export type CancelResult = "cancelled" | "missing" | Refused | "failed";
 
 /** The id of the run that a resume queued again, or of the new run that a restart started. */
-export type StartResult = { id: string } | "missing" | "ended" | "failed";
+export type StartResult = { id: string } | "missing" | Refused | "failed";
 
 export type Steer = { stage: string; text: string; interrupt: boolean };
 
@@ -26,6 +29,8 @@ export type Steer = { stage: string; text: string; interrupt: boolean };
 const cancelLimitMs = 100_000;
 
 const startedRun = z.object({ id: z.string() });
+
+const refusal = z.object({ error: z.string().trim().min(1) });
 
 /** Project Flow writes to a factory as Lev: the factory records this sender on each answer and steer. */
 const levSender = "lev";
@@ -82,8 +87,8 @@ export function runActions(deps: {
 	};
 	/**
 	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
-	 * the write to the box that does the run. A 409 means that the run is not in a status that
-	 * takes the write.
+	 * the write to the box that does the run. A 409 means that the factory refuses the write, and
+	 * its `error` names the reason.
 	 */
 	const runWrite = async <Done>(
 		run: string,
@@ -91,7 +96,7 @@ export function runActions(deps: {
 		done: (response: Response) => Done | Promise<Done>,
 		json: unknown = {},
 		limitMs = factoryRequestLimitMs,
-	): Promise<Done | "missing" | "ended" | "failed"> => {
+	): Promise<Done | "missing" | Refused | "failed"> => {
 		const { hubRow, row } = statusRowOf(run);
 		const target = hubRow ?? row;
 		if (target === undefined) {
@@ -106,7 +111,10 @@ export function runActions(deps: {
 				return await done(response);
 			}
 			if (response.status === 409) {
-				return "ended";
+				const named = refusal.safeParse(
+					await response.json().catch(() => null),
+				);
+				return { refused: named.data?.error };
 			}
 			return response.status === 404 ? "missing" : "failed";
 		} catch (error) {

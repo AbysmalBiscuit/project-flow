@@ -315,7 +315,7 @@ describe("factory steers", () => {
 		}
 	});
 
-	test("a 409 from the factory for an ended run gives a clear error", async () => {
+	test("a 409 from the factory on a steer gives the factory's reason", async () => {
 		const app = await servedRun({
 			...hub,
 			[steerPath]: Response.json(
@@ -327,7 +327,7 @@ describe("factory steers", () => {
 			const response = await sendSteer(app.base);
 			expect(response.status).toBe(409);
 			expect(await response.json()).toEqual({
-				error: "the run has ended, so it takes no steer",
+				error: `run ${running41.id} has already ended`,
 			});
 			expect(posts(app.requests)).toEqual([hubSteer]);
 		} finally {
@@ -457,7 +457,7 @@ describe("factory cancels", () => {
 		}
 	});
 
-	test("a 409 from the factory for an ended run gives a clear error", async () => {
+	test("a 409 from the factory on a cancel gives the factory's reason", async () => {
 		const app = await servedRun({
 			...hub,
 			[cancelPath]: Response.json(
@@ -469,7 +469,7 @@ describe("factory cancels", () => {
 			const response = await sendCancel(app.base);
 			expect(response.status).toBe(409);
 			expect(await response.json()).toEqual({
-				error: "the run has already ended",
+				error: `run ${running41.id} has already ended`,
 			});
 		} finally {
 			await app.stop();
@@ -657,14 +657,33 @@ describe("factory resumes and restarts", () => {
 		}
 	});
 
-	test("a 409 from the factory for a run that is not blocked or failed gives a clear error", async () => {
+	test.each(["resume", "restart"] as const)(
+		"a 409 from the factory on a %s of a failed run gives the factory's reason",
+		async (action) => {
+			const reason = `run 7f3c9a1e of ticket 41 is open; stop it before ${action} run ${failed41.id}`;
+			const app = await servedRun({
+				...hub,
+				"/runs": { runs: [failed41] },
+				[action === "resume" ? resumePath : restartPath]: Response.json(
+					{ error: reason },
+					{ status: 409 },
+				),
+			});
+			try {
+				const response = await send(app.base, action);
+				expect(response.status).toBe(409);
+				expect(await response.json()).toEqual({ error: reason });
+			} finally {
+				await app.stop();
+			}
+		},
+	);
+
+	test("a 409 from the factory with no reason in its body gives a clear error", async () => {
 		const app = await servedRun({
 			...hub,
 			"/runs": { runs: [failed41] },
-			[resumePath]: Response.json(
-				{ error: `run ${failed41.id} is running` },
-				{ status: 409 },
-			),
+			[resumePath]: new Response(null, { status: 409 }),
 		});
 		try {
 			const response = await send(app.base, "resume");

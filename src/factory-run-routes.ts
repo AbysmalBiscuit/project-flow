@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Configuration } from "./configuration.ts";
-import type { StartResult } from "./factory-run-actions.ts";
+import type { Refused, StartResult } from "./factory-run-actions.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
 import { factoryRunList } from "./project-views.ts";
@@ -15,6 +15,11 @@ const steerBody = z.object({
 	text: z.string().trim().min(1),
 	interrupt: z.boolean().default(false),
 });
+
+/** The API answer to a write that the factory refused: its reason, or `fallback` when it named none. */
+function refusedAnswer({ refused }: Refused, fallback: string) {
+	return Response.json({ error: refused ?? fallback }, { status: 409 });
+}
 
 export type FactoryRunRouteOptions = {
 	factories: FactoryReader;
@@ -47,17 +52,14 @@ export function factoryRunRoutes({
 				{ status: 404 },
 			);
 		}
-		if (result === "ended") {
-			return Response.json(
-				{ error: "the run is not blocked or failed" },
-				{ status: 409 },
-			);
-		}
 		if (result === "failed") {
 			return Response.json(
 				{ error: "the factory did not start the run" },
 				{ status: 502 },
 			);
+		}
+		if ("refused" in result) {
+			return refusedAnswer(result, "the run is not blocked or failed");
 		}
 		await readFactories(() => factories.readRuns(clock.now().getTime()));
 		return Response.json({ id: result.id });
@@ -233,10 +235,10 @@ export function factoryRunRoutes({
 						{ status: 404 },
 					);
 				}
-				if (result === "ended") {
-					return Response.json(
-						{ error: "the run has ended, so it takes no steer" },
-						{ status: 409 },
+				if (typeof result === "object") {
+					return refusedAnswer(
+						result,
+						"the run has ended, so it takes no steer",
 					);
 				}
 				if (result === "failed") {
@@ -257,11 +259,8 @@ export function factoryRunRoutes({
 						{ status: 404 },
 					);
 				}
-				if (result === "ended") {
-					return Response.json(
-						{ error: "the run has already ended" },
-						{ status: 409 },
-					);
+				if (typeof result === "object") {
+					return refusedAnswer(result, "the run has already ended");
 				}
 				if (result === "failed") {
 					return Response.json(
