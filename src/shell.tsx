@@ -204,7 +204,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 					projectPage && projectBarLayout.fit,
 				)}
 			>
-				<a className={clsx(frame.logo, control.focus)} href="/">
+				<a
+					className={clsx(
+						control.clear,
+						control.bleed,
+						frame.logo,
+						control.focus,
+					)}
+					href="/"
+				>
 					<LogoMark />
 					{navLabel.logo}
 				</a>
@@ -232,7 +240,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 				{overview.data?.factoryUnreachable === true ? (
 					<a
 						id="factory-unreachable"
-						className={clsx(frame.factoryMarker, control.focus)}
+						className={clsx(
+							frame.factoryMarker,
+							control.clear,
+							control.bleed,
+							control.focus,
+						)}
 						href="/settings#factories"
 					>
 						{factoryCopy.headerMarker}

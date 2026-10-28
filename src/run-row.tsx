@@ -79,7 +79,12 @@ export function RunRow({ run }: { run: RunListRow }) {
 			<td className={clsx(board.rowCell)}>
 				<a
 					href={runPagePath(run.id)}
-					className={clsx(board.rowKey, control.focus)}
+					className={clsx(
+						board.rowKey,
+						control.clear,
+						control.bleed,
+						control.focus,
+					)}
 				>
 					{shortKey(run.key)}
 				</a>{" "}
@@ -106,7 +111,12 @@ export function RunRow({ run }: { run: RunListRow }) {
 						href={run.pull.url}
 						target="_blank"
 						rel="noreferrer"
-						className={clsx(panel.factLink, control.focus)}
+						className={clsx(
+							panel.factLink,
+							control.clear,
+							control.bleed,
+							control.focus,
+						)}
 					>
 						#{run.pull.number}
 					</a>

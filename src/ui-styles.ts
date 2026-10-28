@@ -131,7 +131,7 @@ export const frame = stylex.create({
 		display: "inline-flex",
 		gap: space.xs,
 		alignItems: "center",
-		marginRight: space.sm,
+		marginRight: `calc(${space.sm} - ${space.xs})`,
 		color: colours.ink,
 		fontSize: type.nav,
 		fontWeight: type.weight,
@@ -754,7 +754,6 @@ export const cards = stylex.create({
 		fontSize: type.small,
 	},
 	needKey: {
-		maxWidth: "100%",
 		overflow: "hidden",
 		color: colours.inkSoft,
 		fontFamily: font.mono,

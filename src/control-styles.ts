@@ -94,6 +94,10 @@ export const control = stylex.create({
 		color: colours.ink,
 		fontWeight: type.weight,
 	},
+	/** A control with the segment fill at rest, such as a pill. */
+	soft: {
+		backgroundColor: { default: colours.segment, ...pressFill },
+	},
 	/** A card that opens as a whole, on the page fill. */
 	card: {
 		backgroundColor: { default: colours.page, ...pressFill },
@@ -128,6 +132,7 @@ export const control = stylex.create({
 	bleed: {
 		margin: `calc(-1 * ${space.twoXs}) calc(-1 * ${space.xs})`,
 		padding: `${space.twoXs} ${space.xs}`,
+		borderRadius: radius.sm,
 	},
 	/** A control with a coloured fill at rest, such as a chip. */
 	tint: {

@@ -869,7 +869,15 @@ function OverviewPage({
 				<section>
 					<div className={clsx(cards.section)}>
 						<h2 className={clsx(cards.sectionLabel)}>{navLabel.needsYou}</h2>
-						<a className={clsx(cards.viewAll)} href="/needs-you">
+						<a
+							className={clsx(
+								cards.viewAll,
+								control.clear,
+								control.bleed,
+								control.focus,
+							)}
+							href="/needs-you"
+						>
 							View all
 						</a>
 					</div>
@@ -880,19 +888,30 @@ function OverviewPage({
 								className={clsx(cards.need, phoneLayout.cardNeed)}
 							>
 								<a
-									className={clsx(cards.needKey, phoneLayout.cardNeedKey)}
+									className={clsx(
+										cards.needKey,
+										phoneLayout.cardNeedKey,
+										control.clear,
+										control.bleed,
+										control.focus,
+									)}
 									href={projectPath(item.project, item)}
 								>
 									{outsideKey(item.project, item.key)}
 								</a>
 								<a
-									className={clsx(cards.needTitle)}
+									className={clsx(
+										cards.needTitle,
+										control.clear,
+										control.bleed,
+										control.focus,
+									)}
 									href={projectPath(item.project, item)}
 								>
 									{item.headline}
 								</a>
 								<a
-									className={clsx(cards.pill)}
+									className={clsx(cards.pill, control.soft, control.focus)}
 									href={projectPath(item.project, item)}
 								>
 									{actionLabel(item, "strip")}
@@ -926,7 +945,12 @@ function OverviewPage({
 						{overviewControlLabel.noneTrackedHint}{" "}
 						<a
 							id="overview-empty-settings"
-							className={clsx(cards.emptyLink, control.focus)}
+							className={clsx(
+								cards.emptyLink,
+								control.clear,
+								control.bleed,
+								control.focus,
+							)}
 							href="/settings"
 						>
 							{navLabel.settings}

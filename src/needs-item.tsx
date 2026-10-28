@@ -148,7 +148,12 @@ export function NeedsItem({
 				</span>
 				{project === true ? (
 					<a
-						className={clsx(needs.project)}
+						className={clsx(
+							needs.project,
+							control.clear,
+							control.bleed,
+							control.focus,
+						)}
 						href={`/projects/${encodeURIComponent(item.project)}`}
 						data-needs-project={item.key}
 					>

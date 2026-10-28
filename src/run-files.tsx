@@ -151,7 +151,12 @@ function SandboxNote({ onSandbox }: { onSandbox: () => void }) {
 		<p className={clsx(panel.note)}>
 			{uncommittedChangesLabel}{" "}
 			<a
-				className={clsx(panel.factLink)}
+				className={clsx(
+					panel.factLink,
+					control.clear,
+					control.bleed,
+					control.focus,
+				)}
 				href="?tab=sandbox"
 				onClick={(event) => {
 					event.preventDefault();
