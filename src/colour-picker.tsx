@@ -71,11 +71,6 @@ const styles = stylex.create({
 		backgroundImage: `linear-gradient(to top, ${picker.black}, transparent), linear-gradient(to right, ${picker.white}, transparent)`,
 		cursor: "crosshair",
 		touchAction: "none",
-		outline: {
-			default: "none",
-			":focus-visible": `${measure.focus} solid ${colours.focus}`,
-		},
-		outlineOffset: measure.focus,
 	},
 	hue: {
 		position: "relative",
@@ -84,11 +79,6 @@ const styles = stylex.create({
 		backgroundImage: picker.hue,
 		cursor: "pointer",
 		touchAction: "none",
-		outline: {
-			default: "none",
-			":focus-visible": `${measure.focus} solid ${colours.focus}`,
-		},
-		outlineOffset: measure.focus,
 	},
 	thumb: {
 		position: "absolute",
@@ -286,7 +276,11 @@ export function ColourPicker({
 						aria-valuemax={100}
 						aria-valuenow={Math.round(hsv.s * 100)}
 						aria-valuetext={`${Math.round(hsv.s * 100)}%, ${settingsCopy.brightness} ${Math.round(hsv.v * 100)}%`}
-						{...stylex.props(styles.area, dynamic.fill(hueColour))}
+						{...stylex.props(
+							styles.area,
+							control.focus,
+							dynamic.fill(hueColour),
+						)}
 						onPointerDown={(event) => {
 							event.currentTarget.setPointerCapture(event.pointerId);
 							dragArea(event);
@@ -325,7 +319,7 @@ export function ColourPicker({
 						aria-valuemin={0}
 						aria-valuemax={360}
 						aria-valuenow={Math.round(hsv.h)}
-						className={clsx(styles.hue)}
+						className={clsx(styles.hue, control.focus)}
 						onPointerDown={(event) => {
 							event.currentTarget.setPointerCapture(event.pointerId);
 							dragHue(event);
