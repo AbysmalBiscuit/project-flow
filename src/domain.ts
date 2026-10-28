@@ -179,6 +179,23 @@ export type RunSource = {
 	graphs: { path: string; text: string }[];
 };
 
+/** One record of the agent of a run stage: a message, or a tool call with its cut input. */
+export type TranscriptEntry = {
+	/** The cursor of the entry. A read with `after` set to it gives the entries after it. */
+	id: number;
+	/** The stage folder of the visit and attempt that recorded the entry. */
+	folder: string;
+	visit: number;
+	attempt: number;
+	at: string;
+} & (
+	| { kind: "message"; text: string }
+	| { kind: "tool_call"; name: string; input: string; truncated: boolean }
+);
+
+/** One page of a stage transcript. `next` is the cursor of the next read. */
+export type StageTranscript = { entries: TranscriptEntry[]; next: number };
+
 /** A workcell run with the facts that its run page shows. */
 export type RunDetail = FactoryRun & {
 	/** The name of the run's workflow graph. */

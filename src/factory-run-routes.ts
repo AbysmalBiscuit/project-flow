@@ -16,6 +16,11 @@ const steerBody = z.object({
 	interrupt: z.boolean().default(false),
 });
 
+const transcriptQuery = z.object({
+	stage: z.string().trim().min(1),
+	after: z.coerce.number().int().min(0).default(0),
+});
+
 export type FactoryRunRouteOptions = {
 	factories: FactoryReader;
 	pollOptions: PollOptions;
@@ -170,6 +175,46 @@ export function factoryRunRoutes({
 						return Response.json({ notServed: true }, { status: 404 });
 					}
 					return Response.json(found);
+				}),
+		},
+		"/api/factory-runs/:id/transcript": {
+			GET: (request) => {
+				const parsed = transcriptQuery.safeParse(
+					Object.fromEntries(new URL(request.url).searchParams),
+				);
+				if (!parsed.success) {
+					return Response.json(
+						{ error: "a transcript read needs a stage" },
+						{ status: 400 },
+					);
+				}
+				return staleRead(readKey(request), async () => {
+					const found = await factories.transcript(
+						request.params.id,
+						parsed.data.stage,
+						parsed.data.after,
+					);
+					if (found === "missing") {
+						return Response.json({ missing: true }, { status: 404 });
+					}
+					if (found === "not served") {
+						return Response.json({ notServed: true }, { status: 404 });
+					}
+					return Response.json(found);
+				});
+			},
+		},
+		"/api/factory-runs/:id/context": {
+			GET: (request) =>
+				staleRead(readKey(request), async () => {
+					const found = await factories.context(request.params.id);
+					if (found === "missing") {
+						return Response.json({ missing: true }, { status: 404 });
+					}
+					if (found === "not served") {
+						return Response.json({ notServed: true }, { status: 404 });
+					}
+					return Response.json({ context: found });
 				}),
 		},
 		"/api/factory-runs/:id/artifact": {

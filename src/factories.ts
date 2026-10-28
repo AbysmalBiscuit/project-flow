@@ -45,6 +45,7 @@ import {
 } from "./factory-run-rows.ts";
 import { runSandboxReader } from "./factory-run-sandbox.ts";
 import { runSourceReader } from "./factory-run-source.ts";
+import { runTranscriptReader } from "./factory-run-transcript.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 
@@ -565,6 +566,7 @@ export function factoryReader(
 		sandbox,
 		files: runFilesReader({ fetchImpl, signal, statusRowOf, sandbox }),
 		...runSourceReader({ fetchImpl, signal, statusRowOf }),
+		...runTranscriptReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
 }

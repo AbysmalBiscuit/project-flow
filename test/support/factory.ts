@@ -43,7 +43,7 @@ export function readOrRunWrite(request: FactoryRequest): boolean {
 	);
 }
 
-/** The answer to each path. A function answer gives its body again on each request. */
+/** The answer to each path. A function answer gives its body again on each request, from the request URL. */
 export type Answers = Record<string, unknown | null>;
 
 /** A hub `GET /events` stream that the test writes frames to and drops. */
@@ -128,7 +128,7 @@ export function factoryFetch(
 			throw new TypeError("Unable to connect");
 		}
 		const answer = answers[url.pathname];
-		const body = typeof answer === "function" ? answer() : answer;
+		const body = typeof answer === "function" ? answer(url) : answer;
 		if (body instanceof EventFeed) {
 			return body.answer(init?.signal);
 		}

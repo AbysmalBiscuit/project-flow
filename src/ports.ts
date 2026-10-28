@@ -28,6 +28,7 @@ import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { SourceRead } from "./factory-run-source.ts";
+import type { ContextRead, TranscriptRead } from "./factory-run-transcript.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
@@ -206,6 +207,23 @@ export type FactoryReader = {
 	 * and "not served" when the factory answered with 404.
 	 */
 	source: (runId: string) => Promise<SourceRead>;
+	/**
+	 * `GET /runs/{id}/stages/{stage}/transcript?after=` of the hub that reports the run, or else of its box:
+	 * the entries of the stage after the cursor `after`. `stage` is the node path of the stage.
+	 * "missing" when no factory reported the run or the factory did not answer,
+	 * and "not served" when the factory answered with 404.
+	 */
+	transcript: (
+		runId: string,
+		stage: string,
+		after: number,
+	) => Promise<TranscriptRead>;
+	/**
+	 * `GET /runs/{id}/context` of the hub that reports the run, or else of its box: the run context.
+	 * "missing" when no factory reported the run or the factory did not answer,
+	 * and "not served" when the factory answered with 404.
+	 */
+	context: (runId: string) => Promise<ContextRead>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
 	 * Answers, steers, cancels, resumes and restarts are the only write requests that the app sends to a factory.
