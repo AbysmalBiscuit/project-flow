@@ -221,7 +221,12 @@ function TableRow({
 	const lane = displayedLane(ticket, lanes);
 	return (
 		<tr
-			className={clsx(board.row, control.clear, selected && control.chosen)}
+			className={clsx(
+				board.row,
+				control.clear,
+				control.focus,
+				selected && control.chosen,
+			)}
 			data-ticket={key ?? ""}
 			data-order={order}
 			data-selected={selected ? "true" : "false"}

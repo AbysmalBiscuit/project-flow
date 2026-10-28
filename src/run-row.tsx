@@ -39,7 +39,7 @@ export function RunRow({ run }: { run: RunListRow }) {
 	const open = () => openPage(runPagePath(run.id));
 	return (
 		<tr
-			className={clsx(board.row, control.clear)}
+			className={clsx(board.row, control.clear, control.focus)}
 			data-run={run.id}
 			tabIndex={0}
 			onClick={(event) => {

@@ -550,10 +550,6 @@ export const board = stylex.create({
 	},
 	row: {
 		cursor: "pointer",
-		outline: {
-			default: "none",
-			":focus-visible": focusRing,
-		},
 	},
 	rowCell: {
 		padding: `${space.sm} ${space.md}`,
