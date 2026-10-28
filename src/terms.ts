@@ -375,7 +375,7 @@ export function aheadLabel(commits: number): string {
 
 export const runFilesLabel = "Files changed";
 
-export const noRunFilesLabel = "The run has changed no files yet.";
+export const noRunFilesLabel = "No committed file changes since the base.";
 
 export const runFilesGoneLabel =
 	"The worktree of the run is gone, so its changed files are not available.";
