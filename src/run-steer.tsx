@@ -27,6 +27,18 @@ const styles = stylex.create({
 });
 
 /**
+ * The path of the stage where the run is now. The run's stage from the event
+ * feed comes first, because the checkpoint read keeps its last answer until a
+ * new read lands.
+ */
+export function useCurrentStage(run: ShownFactoryRun): string | null {
+	const { data: checkpoint } = useQuery(pageQuery.checkpoint(run));
+	return (
+		run.stage ?? (typeof checkpoint === "object" ? checkpoint.stage : null)
+	);
+}
+
+/**
  * A steer box for a live run: Lev picks the stage, writes the text, and can interrupt the worker.
  * The stage follows the run's current stage until Lev edits it. A box with a
  * fixed `stage` steers only that stage, and has no stage field.
@@ -38,14 +50,12 @@ export function RunSteer({
 	run: ShownFactoryRun;
 	stage?: string;
 }) {
-	const { data: checkpoint } = useQuery(pageQuery.checkpoint(run));
+	const currentStage = useCurrentStage(run);
 	const [stageDraft, setStageDraft] = useState<string | null>(null);
 	const [text, setText] = useState("");
 	const [interrupt, setInterrupt] = useState(false);
 	const steer = useSteerRun(run.id);
-	const checkpointStage =
-		typeof checkpoint === "object" ? checkpoint.stage : null;
-	const pickedStage = stage ?? stageDraft ?? run.stage ?? checkpointStage ?? "";
+	const pickedStage = stage ?? stageDraft ?? currentStage ?? "";
 	return (
 		<section className={clsx(panel.section)} aria-label={steerLabel}>
 			<h3 className={clsx(panel.sectionLabel)}>{steerLabel}</h3>

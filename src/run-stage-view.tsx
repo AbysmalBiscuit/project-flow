@@ -207,19 +207,22 @@ export function isLiveStage(run: ShownFactoryRun, facts: StageFacts): boolean {
 /**
  * The node path that a steer from the view of `facts` reaches: the stage
  * itself, or the live stage of the child graph that it calls. Null when the
- * run is not live there.
+ * run is not live there, or when `currentStage`, the path where the run is
+ * now, has moved elsewhere.
  */
 export function steerTarget(
 	run: ShownFactoryRun,
 	facts: StageFacts,
+	currentStage: string | null,
 ): string | null {
 	if (!isLiveStage(run, facts)) {
 		return null;
 	}
-	if (facts.stage.child === undefined) {
-		return facts.stage.id;
-	}
-	return facts.stage.child.findLast(isRunAt)?.id ?? null;
+	const target =
+		facts.stage.child === undefined
+			? facts.stage.id
+			: facts.stage.child.findLast(isRunAt)?.id;
+	return target === currentStage ? target : null;
 }
 
 /**

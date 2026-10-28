@@ -658,9 +658,15 @@ export function RunGraph({
 	if (typeof data !== "object" || data.graph === null) {
 		return null;
 	}
-	const stage = data.graph.nodes
-		.flatMap((node) => [node, ...(node.child ?? [])])
-		.find((item) => item.id === picked);
+	const stages = data.graph.nodes.flatMap((node) => [
+		node,
+		...(node.child ?? []),
+	]);
+	// The checkpoint lists the child stages of the current caller only, so a
+	// picked child stage falls back to its caller once the run leaves it.
+	const stage =
+		stages.find((item) => item.id === picked) ??
+		stages.find((item) => item.id === picked?.split("/")[0]);
 	return (
 		<div className={clsx(styles.withPane)}>
 			<div className={clsx(styles.graphColumn)}>

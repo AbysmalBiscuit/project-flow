@@ -5,7 +5,7 @@ import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { StageView, steerTarget } from "./run-stage-view.tsx";
 import type { StageFacts } from "./run-stage.tsx";
-import { RunSteer } from "./run-steer.tsx";
+import { RunSteer, useCurrentStage } from "./run-steer.tsx";
 import {
 	closeStagePaneLabel,
 	openInStagesLabel,
@@ -42,7 +42,7 @@ const styles = stylex.create({
 
 /**
  * The pane beside the run graph that shows one stage in the stage view. A live
- * stage adds a steer box for that stage.
+ * stage adds a steer box for that stage while the run is still there.
  */
 export function StagePane({
 	run,
@@ -56,7 +56,7 @@ export function StagePane({
 	onOpenStage: (stage: string) => void;
 }) {
 	const stage = facts.stage.id;
-	const target = steerTarget(run, facts);
+	const target = steerTarget(run, facts, useCurrentStage(run));
 	const query = new URLSearchParams({ tab: "stages", stage }).toString();
 	return (
 		<aside

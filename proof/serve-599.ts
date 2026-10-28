@@ -13,15 +13,24 @@ const [running41] = hubRuns.runs;
 if (running41 === undefined) {
 	throw new Error("the hub runs fixture lost a run");
 }
-const run = `/runs/${running41.id}`;
+const runId = running41.id;
+const run = `/runs/${runId}`;
 
-/** `blocked` stops the run on a failed stage, and `failed` ends it there. Any other mode runs it. */
+/**
+ * `blocked` stops the run on a failed stage, and `failed` ends it there.
+ * `moves` runs it, and the hub event feed starts `join` after `MOVE_AFTER_MS`.
+ * The checkpoint leaves `conceptual/review` only `checkpointLagMs` later, as
+ * from a slow box. Any other mode runs it.
+ */
 const mode = process.env.PROOF_MODE ?? "running";
+const running = mode === "running" || mode === "moves";
+const moveAfterMs = Number(process.env.MOVE_AFTER_MS ?? "25000");
+const checkpointLagMs = 15000;
 const runs = {
 	runs: [
 		{
 			...running41,
-			status: { kind: mode === "running" ? "running" : mode, reason: null },
+			status: { kind: running ? "running" : mode, reason: null },
 		},
 		...hubRuns.runs.slice(1),
 	],
@@ -92,20 +101,69 @@ function page(entries: { id: number }[], url: URL) {
 	return { entries: found, next: found.at(-1)?.id ?? after };
 }
 
+const moved = () =>
+	mode === "moves" && Date.now() - started >= moveAfterMs + checkpointLagMs;
+
+/** The hub event feed of the `moves` mode: one `stage.started` frame for `join`. */
+function events(): Response {
+	const frame = {
+		run_id: runId,
+		recorded_at: new Date().toISOString(),
+		item: { event: "stage.started", node_path: "join", data: {} },
+	};
+	const body = new ReadableStream<Uint8Array>({
+		start: (controller) => {
+			setTimeout(
+				() =>
+					controller.enqueue(
+						new TextEncoder().encode(`data: ${JSON.stringify(frame)}\n\n`),
+					),
+				Math.max(0, started + moveAfterMs - Date.now()),
+			);
+		},
+	});
+	return new Response(body, {
+		headers: { "content-type": "text/event-stream" },
+	});
+}
+
 const answers: Record<string, (url: URL) => unknown> = {
 	"/daemon": () => daemonAbout,
 	"/sources": () => hubSources,
 	"/runs": () => runs,
 	[`${run}/graph`]: () => runGraph,
-	[`${run}/checkpoint`]: () => ({
-		current_node: "review",
-		stack: [{ node: "conceptual" }],
-		completed_nodes: ["start", "inputs", "implement", "push", "start"],
-		node_retries: {},
-		visits: { start: 1, inputs: 1, implement: 1, push: 1, conceptual: 1 },
-		status: mode === "running" ? "running" : "fail",
-		context_values: runContext,
-	}),
+	[`${run}/checkpoint`]: () =>
+		moved()
+			? {
+					current_node: "join",
+					completed_nodes: [
+						"start",
+						"inputs",
+						"implement",
+						"push",
+						"conceptual",
+					],
+					node_retries: {},
+					visits: {
+						start: 1,
+						inputs: 1,
+						implement: 1,
+						push: 1,
+						conceptual: 1,
+						join: 1,
+					},
+					status: "running",
+					context_values: runContext,
+				}
+			: {
+					current_node: "review",
+					stack: [{ node: "conceptual" }],
+					completed_nodes: ["start", "inputs", "implement", "push", "start"],
+					node_retries: {},
+					visits: { start: 1, inputs: 1, implement: 1, push: 1, conceptual: 1 },
+					status: running ? "running" : "fail",
+					context_values: runContext,
+				},
 	[`${run}/workers`]: () => ({
 		workers: {
 			"conceptual/review": {
@@ -128,6 +186,9 @@ const factory: Fetch = async (input, init) => {
 	}
 	if (init?.method === "POST") {
 		console.error(`factory POST ${url.pathname} ${String(init.body)}`);
+	}
+	if (mode === "moves" && url.pathname === "/events") {
+		return events();
 	}
 	const answer = answers[url.pathname];
 	return answer === undefined
