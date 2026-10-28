@@ -111,7 +111,11 @@ function computeProjectView(
 		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 		status,
 		needsYouRules(configuration, options.viewers),
-		{ ...configuration, factories: [...options.listedFactories()] },
+		configuration,
+		{
+			factories: options.listedFactories(),
+			requestedAt: options.runStartRequests,
+		},
 		new Date(status.fetchedAt ?? 0),
 		row.board,
 	);
@@ -164,6 +168,7 @@ function viewInputs(
 			options.viewers,
 			options.workcellAuto,
 			options.repoAutoMerge,
+			[...options.runStartRequests],
 		]),
 	];
 }

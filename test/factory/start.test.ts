@@ -45,9 +45,19 @@ function trackerWrites(writes: TrackerWrite[], other: Fetch): Fetch {
  */
 async function serveGithub(
 	numbers: number[],
-	options: { closed?: number[]; readyLabel?: string; args?: string[] } = {},
+	options: {
+		closed?: number[];
+		readyLabel?: string;
+		args?: string[];
+		labels?: Record<number, string[]>;
+	} = {},
 ) {
-	const labels = new Map<number, string[]>();
+	const labels = new Map<number, string[]>(
+		Object.entries(options.labels ?? {}).map(([number, names]) => [
+			Number(number),
+			names,
+		]),
+	);
 	const writes: TrackerWrite[] = [];
 	const requests: FactoryRequest[] = [];
 	const tracker: Fetch = async (input, init) => {
@@ -190,6 +200,68 @@ describe("run starts", () => {
 			);
 			expect(live.runStart).toBeUndefined();
 			const response = await startRun(app.base, "github", repo, `${repo}#41`);
+			expect(response.status).toBe(409);
+			expect(app.writes).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a ready label kept after a succeeded run allows a new start, and the new request refuses a second one", async () => {
+		const key = `${repo}#40`;
+		const app = await serveGithub([40], {
+			readyLabel,
+			labels: { 40: [readyLabel] },
+		});
+		try {
+			const kept = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun !== undefined,
+			);
+			expect(kept.runStart).toEqual({ factory: "work hub", label: readyLabel });
+			const started = await startRun(app.base, "github", repo, key);
+			expect(started.status).toBe(200);
+			expect(app.writes).toHaveLength(1);
+			const requested = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.runStart?.requested === true,
+			);
+			expect(requested.runStart).toEqual({
+				factory: "work hub",
+				label: readyLabel,
+				requested: true,
+			});
+			const again = await startRun(app.base, "github", repo, key);
+			expect(again.status).toBe(409);
+			expect(app.writes).toHaveLength(1);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a ready label on a ticket with no run shows the run as requested and refuses a second start", async () => {
+		const key = `${repo}#43`;
+		const app = await serveGithub([43], {
+			readyLabel,
+			labels: { 43: [readyLabel] },
+		});
+		try {
+			const view = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(item) => item.title !== "",
+			);
+			expect(view.runStart).toEqual({
+				factory: "work hub",
+				label: readyLabel,
+				requested: true,
+			});
+			const response = await startRun(app.base, "github", repo, key);
 			expect(response.status).toBe(409);
 			expect(app.writes).toEqual([]);
 		} finally {

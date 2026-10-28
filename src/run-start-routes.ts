@@ -7,7 +7,7 @@ import type { Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
 import { runStartOf } from "./run-start.ts";
-import { sameTicketKey } from "./ticket-key.ts";
+import { foldKey, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 import { runFor } from "./workcell.ts";
 
@@ -51,7 +51,10 @@ export function runStartRoutes({
 				const start = runStartOf(
 					ticket,
 					runFor(ticket, pollOptions.factoryRuns()),
-					pollOptions.listedFactories(),
+					{
+						factories: pollOptions.listedFactories(),
+						requestedAt: pollOptions.runStartRequests,
+					},
 				);
 				if ("refused" in start) {
 					return Response.json({ error: start.refused }, { status: 409 });
@@ -74,16 +77,23 @@ export function runStartRoutes({
 				} catch (error) {
 					return trackerError(error);
 				}
-				pollOptions.store.mergeTickets([
-					{
-						...row,
-						tickets: row.tickets.map((item) =>
-							item === ticket
-								? { ...item, labels: [...item.labels, start.label] }
-								: item,
-						),
-					},
+				pollOptions.runStartRequests = new Map([
+					...pollOptions.runStartRequests,
+					[foldKey(target.key), pollOptions.clock.now().toISOString()],
 				]);
+				const label = start.label.toLowerCase();
+				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
+					pollOptions.store.mergeTickets([
+						{
+							...row,
+							tickets: row.tickets.map((item) =>
+								item === ticket
+									? { ...item, labels: [...item.labels, start.label] }
+									: item,
+							),
+						},
+					]);
+				}
 				notifier.publish({
 					overview: runningOverview(pollOptions, configuration()),
 					notifications: [],

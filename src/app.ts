@@ -198,6 +198,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		runs: [],
 		factoryRuns: factories.runs,
 		listedFactories,
+		runStartRequests: new Map(),
 		workcellAuto: {},
 		repoAutoMerge: {},
 		attention: {
