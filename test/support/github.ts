@@ -143,11 +143,19 @@ export function ticket(
 	};
 }
 
-export function page(items: unknown): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
+export function page(
+	items: unknown,
+	next: string | null = null,
+	extra?: Record<string, string>,
+): Response {
+	const headers = new Headers({ "content-type": "application/json" });
+	if (next !== null) {
+		headers.set("link", `<${next}>; rel="next"`);
+	}
+	for (const [name, value] of Object.entries(extra ?? {})) {
+		headers.set(name, value);
+	}
+	return new Response(JSON.stringify(items), { status: 200, headers });
 }
 
 export function recordedOrEmpty(url: string): Response | null {
