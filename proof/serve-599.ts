@@ -104,6 +104,7 @@ const answers: Record<string, (url: URL) => unknown> = {
 		node_retries: {},
 		visits: { start: 1, inputs: 1, implement: 1, push: 1, conceptual: 1 },
 		status: mode === "running" ? "running" : "fail",
+		context_values: runContext,
 	}),
 	[`${run}/workers`]: () => ({
 		workers: {
@@ -114,7 +115,6 @@ const answers: Record<string, (url: URL) => unknown> = {
 			},
 		},
 	}),
-	[`${run}/context`]: () => runContext,
 	[`${run}/stages/implement/transcript`]: (url) => page(implementEntries, url),
 	[`${run}/stages/conceptual/review/transcript`]: (url) =>
 		page(liveEntries(), url),

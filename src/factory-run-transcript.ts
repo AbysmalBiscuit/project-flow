@@ -7,8 +7,6 @@ import type { Fetch } from "./fetch.ts";
 
 export type TranscriptRead = StageTranscript | "missing" | "not served";
 
-export type ContextRead = Record<string, unknown> | "missing" | "not served";
-
 const entryFacts = {
 	id: z.number(),
 	stage: z.string(),
@@ -34,9 +32,6 @@ const transcript = z.object({
 	next: z.number(),
 });
 
-/** `GET /runs/{id}/context`: the context values of the newest run checkpoint. */
-const context = z.record(z.string(), z.unknown());
-
 /** An entry of a kind that Project Flow does not know drops, so the rest of the page still shows. */
 function shownEntry(raw: unknown): TranscriptEntry[] {
 	const parsed = entry.safeParse(raw);
@@ -48,8 +43,8 @@ function shownEntry(raw: unknown): TranscriptEntry[] {
 }
 
 /**
- * The stage transcript and the run context of a run, from the hub that
- * reports the run, or else from its box. The hub relays each read to the box.
+ * The stage transcript of a run, from the hub that reports the run, or else
+ * from its box. The hub relays each read to the box.
  */
 export function runTranscriptReader(deps: {
 	fetchImpl: Fetch;
@@ -101,9 +96,5 @@ export function runTranscriptReader(deps: {
 			? found
 			: { entries: found.entries.flatMap(shownEntry), next: found.next };
 	};
-	return {
-		transcript: transcriptOf,
-		context: (runId: string): Promise<ContextRead> =>
-			readOf(runId, "/context", context),
-	};
+	return { transcript: transcriptOf };
 }

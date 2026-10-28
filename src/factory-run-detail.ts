@@ -31,6 +31,7 @@ export const checkpoint = z.object({
 	node_retries: z.record(z.string(), z.number()).default({}),
 	visits: z.record(z.string(), z.number()).default({}),
 	status: z.string().optional(),
+	context_values: z.record(z.string(), z.unknown()).default({}),
 });
 
 /** `GET /runs/{id}/turns`: one summary for each finished agent turn of the run. */
@@ -247,11 +248,12 @@ export function runDetailReader(deps: {
 		}
 	};
 	const runCheckpoint = async (runId: string): Promise<CheckpointRead> => {
-		const { row } = statusRowOf(runId);
-		if (row === undefined) {
+		const { hubRow, row } = statusRowOf(runId);
+		const target = hubRow ?? row;
+		if (target === undefined) {
 			return "missing";
 		}
-		const read = reader(fetchImpl, row.url, signal);
+		const read = reader(fetchImpl, target.url, signal);
 		const usage = usageOf(read, runId);
 		try {
 			const [answer, graph] = await Promise.all([
@@ -267,6 +269,7 @@ export function runDetailReader(deps: {
 				completedStages: answer.completed_nodes,
 				retries: answer.node_retries,
 				visits: answer.visits,
+				context: answer.context_values,
 				...(used === null
 					? {}
 					: used === "not served"

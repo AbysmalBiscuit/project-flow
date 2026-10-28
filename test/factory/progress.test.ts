@@ -41,7 +41,7 @@ describe("factory runs", () => {
 			);
 		}
 
-		test("the ticket's run carries the current stage, completed stages, retries and visits of its recorded checkpoint, and no graph from a factory that serves none", async () => {
+		test("the ticket's run carries the current stage, completed stages, retries, visits and run context of its recorded checkpoint, and no graph from a factory that serves none", async () => {
 			const app = await serveRuns(
 				{ ...hub, [checkpointPath]: hubCheckpoint },
 				[41],
@@ -54,6 +54,7 @@ describe("factory runs", () => {
 					completedStages: ["start", "plan", "build", "review", "build"],
 					retries: { build: 1 },
 					visits: { start: 1, plan: 1, build: 2, review: 2 },
+					context: { outcome: "changes_requested" },
 					usageNotServed: true,
 					graph: null,
 				});
@@ -188,19 +189,22 @@ describe("factory runs", () => {
 			}
 		});
 
-		test("a run that the hub and its box report reads the checkpoint of the box", async () => {
+		test("a run that the hub and its box report reads the checkpoint and its run context from the hub, and the box gets no read", async () => {
 			const [running41] = hubRuns.runs;
 			if (running41 === undefined) {
 				throw new Error("the hub runs fixture lost a run");
 			}
 			const app = await serveRuns(
-				hub,
+				{ ...hub, [checkpointPath]: hubCheckpoint },
 				[41],
 				{},
 				{
 					...daemon,
 					"/runs": { runs: [boxRow(running41, "running")] },
-					[checkpointPath]: hubCheckpoint,
+					[checkpointPath]: {
+						...hubCheckpoint,
+						context_values: { outcome: "from the box" },
+					},
 				},
 			);
 			try {
@@ -210,7 +214,19 @@ describe("factory runs", () => {
 				);
 				const response = await checkpointOf(app.base);
 				expect(response.status).toBe(200);
-				expect(await response.json()).toMatchObject({ stage: "review" });
+				expect(await response.json()).toMatchObject({
+					stage: "review",
+					context: { outcome: "changes_requested" },
+				});
+				expect(
+					new Set(
+						app.requests
+							.filter(
+								(request) => new URL(request.url).pathname === checkpointPath,
+							)
+							.map((request) => new URL(request.url).origin),
+					),
+				).toEqual(new Set([hubUrl]));
 			} finally {
 				await app.stop();
 			}

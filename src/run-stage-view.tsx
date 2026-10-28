@@ -10,6 +10,7 @@ import {
 import { Loading } from "./loading.tsx";
 import { commentTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
+import { pageQuery } from "./queries.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { isRunAt, StageCard, type StageFacts } from "./run-stage.tsx";
 import { stageQuery } from "./stage-queries.ts";
@@ -169,9 +170,9 @@ function shownValue(value: unknown): string {
 	return typeof value === "string" ? value : JSON.stringify(value, null, 2);
 }
 
-/** The context values of the run. The factory serves no context for one stage. */
+/** The context values of the run, from its checkpoint. The factory serves no context for one stage. */
 function RunContext({ run }: { run: ShownFactoryRun }) {
-	const { data } = useQuery(stageQuery.context(run));
+	const { data } = useQuery(pageQuery.checkpoint(run));
 	return (
 		<section aria-label={runContextLabel} title={runContextHelp}>
 			<h4 className={clsx(panel.sectionLabel)}>{runContextLabel}</h4>
@@ -179,11 +180,11 @@ function RunContext({ run }: { run: ShownFactoryRun }) {
 				<Loading />
 			) : data === "not served" ? (
 				<NotServed data={runContextData} />
-			) : data === "missing" || Object.keys(data).length === 0 ? (
+			) : data === "missing" || Object.keys(data.context).length === 0 ? (
 				<p className={clsx(panel.note)}>{noRunDataLabel}</p>
 			) : (
 				<dl className={clsx(styles.context)} data-run-context="">
-					{Object.entries(data).map(([key, value]) => (
+					{Object.entries(data.context).map(([key, value]) => (
 						<Fragment key={key}>
 							<dt className={clsx(styles.contextKey)}>{key}</dt>
 							<dd className={clsx(styles.contextValue)}>{shownValue(value)}</dd>

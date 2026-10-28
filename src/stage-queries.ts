@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import type { ShownFactoryRun, StageTranscript } from "./domain.ts";
-import type { ContextRead, TranscriptRead } from "./factory-run-transcript.ts";
+import type { StageTranscript } from "./domain.ts";
+import type { TranscriptRead } from "./factory-run-transcript.ts";
 import { agentReadMs, heldData, PendingRead, pendingRetry } from "./queries.ts";
 import { pendingStatus } from "./stale-reads.ts";
 
@@ -18,16 +18,6 @@ export const stageQuery = {
 			queryFn: () => readTranscript(runId, stage, queryKey),
 			...pendingRetry,
 			refetchInterval: live ? agentReadMs : false,
-		});
-	},
-	/** The key holds the run's status and stage, so a stage that ends reads the run context again. */
-	context: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) => {
-		const queryKey = ["context", run.id, run.statusKind, run.stage ?? null];
-		return queryOptions({
-			queryKey,
-			queryFn: () => readContext(run.id, queryKey),
-			...pendingRetry,
-			placeholderData: (previous: ContextRead | undefined) => previous,
 		});
 	},
 };
@@ -75,28 +65,4 @@ async function readTranscript(
 		],
 		next: page.next,
 	};
-}
-
-async function readContext(
-	runId: string,
-	queryKey: readonly unknown[],
-): Promise<ContextRead> {
-	const response = await fetch(
-		`/api/factory-runs/${encodeURIComponent(runId)}/context`,
-	);
-	if (response.status === pendingStatus) {
-		const held = heldData<ContextRead>(queryKey);
-		if (held === undefined) {
-			throw new PendingRead();
-		}
-		return held;
-	}
-	if (response.status === 404) {
-		return absentRead(response);
-	}
-	if (!response.ok) {
-		throw new Error(`context failed (HTTP ${response.status})`);
-	}
-	return ((await response.json()) as { context: Record<string, unknown> })
-		.context;
 }

@@ -874,7 +874,6 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
-	void pageQueryClient.invalidateQueries({ queryKey: ["context"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
@@ -894,7 +893,6 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
-	void pageQueryClient.invalidateQueries({ queryKey: ["context"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 

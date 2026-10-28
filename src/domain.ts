@@ -239,6 +239,8 @@ export type RunCheckpoint = {
 	retries: Record<string, number>;
 	/** The visits of each stage, by stage name. A review stage visit is one review round. */
 	visits: Record<string, number>;
+	/** The run context: the values that the run's stages wrote, by key. */
+	context: Record<string, unknown>;
 	/** The usage of the run's recorded turns. Absent when the factory gave no turns. */
 	usage?: RunUsage;
 	/** True when the factory answers the turns read with 404. */

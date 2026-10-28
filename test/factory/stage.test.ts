@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import hubRuns from "../fixtures/factory-hub-runs.json";
-import runContext from "../fixtures/factory-run-context.json";
 import stageTranscript from "../fixtures/factory-stage-transcript.json";
 import {
 	daemon,
@@ -18,7 +17,6 @@ if (running41 === undefined) {
 }
 const stage = "conceptual/review";
 const transcriptPath = `/runs/${running41.id}/stages/${stage}/transcript`;
-const contextPath = `/runs/${running41.id}/context`;
 
 const shownEntries = [
 	{
@@ -55,16 +53,6 @@ async function transcriptOf(
 			`/api/factory-runs/${encodeURIComponent(runId)}/transcript?${query}`,
 			base,
 		),
-	);
-}
-
-async function contextOf(
-	base: string,
-	runId: string = running41?.id ?? "",
-): Promise<Response> {
-	await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
-	return settledRead(
-		new URL(`/api/factory-runs/${encodeURIComponent(runId)}/context`, base),
 	);
 }
 
@@ -175,36 +163,6 @@ describe("the stage transcript", () => {
 			expect(notServed.status).toBe(404);
 			expect(await notServed.json()).toEqual({ notServed: true });
 			const missing = await transcriptOf(app.base, 0, "no-such-run");
-			expect(missing.status).toBe(404);
-			expect(await missing.json()).toEqual({ missing: true });
-		} finally {
-			await app.stop();
-		}
-	});
-});
-
-describe("the run context of a stage", () => {
-	test("a run on a box gives its context values through the hub", async () => {
-		const app = await serveRuns({ ...hub, [contextPath]: runContext }, [41]);
-		try {
-			const response = await contextOf(app.base);
-			expect(response.status).toBe(200);
-			expect(await response.json()).toEqual({ context: runContext });
-			expect(readsOf(app.requests, contextPath)).toEqual([
-				`${hubUrl}${contextPath}`,
-			]);
-		} finally {
-			await app.stop();
-		}
-	});
-
-	test("a factory that answers 404 reports the context as not served, and a run that no factory reports answers missing", async () => {
-		const app = await serveRuns(hub, [41]);
-		try {
-			const notServed = await contextOf(app.base);
-			expect(notServed.status).toBe(404);
-			expect(await notServed.json()).toEqual({ notServed: true });
-			const missing = await contextOf(app.base, "no-such-run");
 			expect(missing.status).toBe(404);
 			expect(await missing.json()).toEqual({ missing: true });
 		} finally {
