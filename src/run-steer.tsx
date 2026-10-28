@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { board } from "./board-styles.ts";
-import { Button } from "./button.tsx";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery, useSteerRun } from "./queries.ts";
+import { SendButton, SendText } from "./send-box.tsx";
 import { steerFailed, steerLabel } from "./terms.ts";
 import { actionToastHideMs, Toast } from "./toast.tsx";
 import { space } from "./tokens.stylex.ts";
@@ -72,9 +72,8 @@ export function RunSteer({ run }: { run: ShownFactoryRun }) {
 					value={pickedStage}
 					onChange={(event) => setStageDraft(event.target.value)}
 				/>
-				<textarea
+				<SendText
 					aria-label="Steer text"
-					className={clsx(panel.text)}
 					placeholder="Write a steer"
 					value={text}
 					onChange={(event) => setText(event.target.value)}
@@ -88,13 +87,7 @@ export function RunSteer({ run }: { run: ShownFactoryRun }) {
 					/>
 					<span>Interrupt the current turn</span>
 				</label>
-				<Button
-					label="Steer"
-					submit
-					tone="primary"
-					layout={panel.send}
-					disabled={steer.isPending}
-				/>
+				<SendButton label="Steer" disabled={steer.isPending} />
 				{steer.error === null ? null : (
 					<Toast
 						tone="error"
