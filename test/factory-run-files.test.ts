@@ -117,8 +117,8 @@ describe("factory runs", () => {
 			}
 		});
 
-		/** The files route of a factory answers 404, and its sandbox route answers `state`. */
-		function filesMissingWithSandbox(state: string) {
+		/** The files route of a factory answers 404, and its sandbox route answers `sandbox`. */
+		function filesMissingWithSandbox(sandbox: unknown) {
 			return serveRuns(
 				{
 					...hub,
@@ -126,14 +126,17 @@ describe("factory runs", () => {
 						{ error: "the files are not available" },
 						{ status: 404 },
 					),
-					[sandboxPath]: { ...runSandbox, state },
+					[sandboxPath]: sandbox,
 				},
 				[41],
 			);
 		}
 
 		test("a files 404 for a run whose sandbox is removed reports its files as gone", async () => {
-			const app = await filesMissingWithSandbox("removed");
+			const app = await filesMissingWithSandbox({
+				...runSandbox,
+				state: "removed",
+			});
 			try {
 				const response = await filesOf(app.base);
 				expect(response.status).toBe(404);
@@ -144,13 +147,32 @@ describe("factory runs", () => {
 		});
 
 		test("a files 404 for a run whose sandbox still has its worktree reports the files as not served", async () => {
-			const app = await filesMissingWithSandbox("clean");
+			const app = await filesMissingWithSandbox({
+				...runSandbox,
+				state: "clean",
+			});
 			try {
 				const response = await filesOf(app.base);
 				expect(response.status).toBe(404);
 				expect(await response.json()).toEqual({ notServed: true });
 			} finally {
 				await app.stop();
+			}
+		});
+
+		test("a files 404 for a run with no worktree yet, or whose sandbox read fails, reports the files as missing", async () => {
+			for (const sandbox of [
+				{ ...runSandbox, worktree: null, state: "none" },
+				Response.json({ error: "the box did not answer" }, { status: 502 }),
+			]) {
+				const app = await filesMissingWithSandbox(sandbox);
+				try {
+					const response = await filesOf(app.base);
+					expect(response.status).toBe(404);
+					expect(await response.json()).toEqual({ missing: true });
+				} finally {
+					await app.stop();
+				}
 			}
 		});
 

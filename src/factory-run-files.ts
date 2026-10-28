@@ -26,7 +26,9 @@ const files = z.object({
  * The files that a run's branch changed since it left its base, from the hub
  * that reports the run, or else from its box. The hub relays the read to the box.
  * The factory answers 404 both for a route that it does not serve and for a run
- * whose worktree is gone, so a 404 asks the run sandbox which one it is.
+ * whose worktree is gone, so a 404 asks the run sandbox which one it is. A
+ * sandbox with no worktree yet, or a sandbox that does not answer, leaves the
+ * files missing.
  */
 export function runFilesReader(deps: {
 	fetchImpl: Fetch;
@@ -58,9 +60,14 @@ export function runFilesReader(deps: {
 		} catch (error) {
 			if (error instanceof NotServed) {
 				const found = await sandbox(runId);
-				return typeof found === "object" && found.state === "removed"
+				if (found === "missing" || found === "not served") {
+					return found;
+				}
+				return found.state === "removed"
 					? "gone"
-					: "not served";
+					: found.state === "none"
+						? "missing"
+						: "not served";
 			}
 			if (!(error instanceof Unreachable)) {
 				throw error;
