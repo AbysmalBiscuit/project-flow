@@ -40,6 +40,7 @@ import { shippedStates } from "./state-colours.ts";
 import { navLabel, settingsCopy, settingsSection } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { pageTheme, watchPageTheme } from "./theme.ts";
+import { Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 import { viewDefaults } from "./view-settings.ts";
 
@@ -166,19 +167,6 @@ function Menu({
 		};
 	}, []);
 
-	useEffect(() => {
-		if (toast === 0 || failed || message === null) {
-			return;
-		}
-		const hide = window.setTimeout(() => {
-			setMessage(null);
-			setToast(0);
-		}, toastHideMs);
-		return () => {
-			window.clearTimeout(hide);
-		};
-	}, [toast, failed, message]);
-
 	function patch(next: Partial<Configuration>): void {
 		setDraft((currentDraft) => ({ ...currentDraft, ...next }));
 		setMessage(null);
@@ -243,8 +231,6 @@ function Menu({
 					<SettingsBar
 						dirty={dirty}
 						saving={saving}
-						message={message}
-						failed={failed}
 						onDiscard={() => {
 							setDraft(saved);
 							setFailed(false);
@@ -255,6 +241,19 @@ function Menu({
 							void onSaveClick();
 						}}
 					/>
+					{message === null ? null : (
+						<Toast
+							key={toast}
+							id="settings-toast"
+							message={message}
+							tone={failed ? "error" : "saved"}
+							hideMs={toast === 0 || failed ? undefined : toastHideMs}
+							onClose={() => {
+								setMessage(null);
+								setToast(0);
+							}}
+						/>
+					)}
 				</div>
 			</div>
 		</PageFrame>

@@ -322,6 +322,7 @@ export const measure = stylex.defineVars({
 	focus: "2px",
 	shell: "3.5rem",
 	menuWide: "min(16rem, calc(100vw - 1rem))",
+	toast: "min(32rem, calc(100vw - 2rem))",
 	menuTall: "min(22rem, calc(100dvh - 6rem))",
 	filterPanel: "20rem",
 	icon: "1.25rem",
@@ -380,6 +381,7 @@ export const stack = stylex.defineVars({
 	popover: 3,
 	// Covers the stage while the page view stays mounted underneath.
 	expanded: 4,
+	toast: 5,
 });
 
 // Shared shell wrapping. Each caller picks its own breakpoint and row gap.
