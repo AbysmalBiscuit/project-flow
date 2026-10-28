@@ -164,6 +164,64 @@ describe("factory runs", () => {
 			}
 		});
 
+		test("a stage that called a child graph keeps the child stages that the call completed after the run leaves it", async () => {
+			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
+			const { stack: _, ...left } = runGraphCheckpoint;
+			const app = await serveRuns(
+				{
+					...hub,
+					[checkpointPath]: {
+						...left,
+						current_node: "exit",
+						completed_nodes: [...runGraphCheckpoint.completed_nodes, "post_pr"],
+						status: "success",
+					},
+					[graphPath]: runGraph,
+				},
+				[41],
+			);
+			try {
+				const { stage, graph } = (await (
+					await checkpointOf(app.base)
+				).json()) as RunCheckpoint;
+				expect(stage).toBe("exit");
+				const nodeOf = (id: string) =>
+					graph?.nodes.find((node) => node.id === id);
+				expect(nodeOf("post_pr")).toMatchObject({
+					state: "completed",
+					child: [
+						{
+							id: "post_pr/start",
+							label: "start",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+						{
+							id: "post_pr/draft_pr",
+							label: "draft_pr",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+						{
+							id: "post_pr/post_pr",
+							label: "post_pr",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+					],
+				});
+				expect(nodeOf("conceptual")).toMatchObject({
+					state: "completed",
+					child: [],
+				});
+			} finally {
+				await app.stop();
+			}
+		});
+
 		test("a failed checkpoint marks the stage where the run failed", async () => {
 			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
 			const app = await serveRuns(
