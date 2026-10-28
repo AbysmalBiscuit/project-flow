@@ -25,31 +25,6 @@ block_lines = 1000
 # Each file on main that is already past the block limit. The check fails
 # only when that file grows past the recorded size.
 [[file_length.limits]]
-pattern = "src/cards.tsx"
-accept = true
-lines = 1093
-
-[[file_length.limits]]
-pattern = "src/domain.ts"
-accept = true
-lines = 4489
-
-[[file_length.limits]]
-pattern = "src/linear.ts"
-accept = true
-lines = 1205
-
-[[file_length.limits]]
-pattern = "src/settings.tsx"
-accept = true
-lines = 1444
-
-[[file_length.limits]]
-pattern = "src/ui-styles.ts"
-accept = true
-lines = 3417
-
-[[file_length.limits]]
 pattern = "test/blockers.test.ts"
 accept = true
 lines = 3522
@@ -73,11 +48,6 @@ lines = 1946
 pattern = "test/live.test.ts"
 accept = true
 lines = 3446
-
-[[file_length.limits]]
-pattern = "test/local-projects.test.ts"
-accept = true
-lines = 1147
 
 [[file_length.limits]]
 pattern = "test/needs-you.test.ts"
