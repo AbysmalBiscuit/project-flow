@@ -27,8 +27,7 @@ import {
 import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
-import { RunCancel } from "./run-cancel.tsx";
-import { RunResume } from "./run-resume.tsx";
+import { RunAction } from "./run-action.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { openTicket } from "./selection.ts";
 import { useLaneColour } from "./state-colours.ts";
@@ -301,10 +300,7 @@ export function TicketPanel({
 		>
 			<div className={clsx(panel.head)}>
 				{view?.factoryRun === undefined ? null : (
-					<>
-						<RunResume run={view.factoryRun} />
-						<RunCancel run={view.factoryRun} />
-					</>
+					<RunAction run={view.factoryRun} />
 				)}
 				<span className={clsx(panel.actions)}>
 					{projectHref === undefined ? null : (
