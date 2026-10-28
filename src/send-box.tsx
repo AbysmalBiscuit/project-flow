@@ -7,9 +7,9 @@ import { clsx } from "./ui.ts";
 const sendKey = "Ctrl+Enter";
 
 /** Ctrl+Enter or Cmd+Enter sends the form, the same as a click on its send button. */
-// `requestSubmit` submits even when the submitter is disabled, so check it here.
-// A held key repeats, and the repeats must not send again.
 function sendOnKey(event: KeyboardEvent<HTMLTextAreaElement>): void {
+	// `requestSubmit` submits even when the submitter is disabled, so check it here.
+	// A held key repeats, and the repeats must not send again.
 	if (
 		event.key !== "Enter" ||
 		!(event.ctrlKey || event.metaKey) ||
