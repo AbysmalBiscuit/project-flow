@@ -10,9 +10,9 @@ import {
 import { Loading } from "./loading.tsx";
 import { commentTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
-import { pageQuery } from "./queries.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { StageCard, type StageFacts } from "./run-stage.tsx";
+import { stageQuery } from "./stage-queries.ts";
 import {
 	noRunDataLabel,
 	noTranscriptLabel,
@@ -138,7 +138,7 @@ function Transcript({
 	stage: string;
 	live: boolean;
 }) {
-	const { data } = useQuery(pageQuery.transcript(runId, stage, live));
+	const { data } = useQuery(stageQuery.transcript(runId, stage, live));
 	return (
 		<section aria-label={stageTranscriptLabel}>
 			<h4 className={clsx(panel.sectionLabel)}>{stageTranscriptLabel}</h4>
@@ -171,7 +171,7 @@ function shownValue(value: unknown): string {
 
 /** The context values of the run. The factory serves no context for one stage. */
 function RunContext({ run }: { run: ShownFactoryRun }) {
-	const { data } = useQuery(pageQuery.context(run));
+	const { data } = useQuery(stageQuery.context(run));
 	return (
 		<section aria-label={runContextLabel} title={runContextHelp}>
 			<h4 className={clsx(panel.sectionLabel)}>{runContextLabel}</h4>
