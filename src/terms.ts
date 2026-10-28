@@ -211,6 +211,9 @@ export const earlierRunsLabel = "Earlier runs";
 export const runQuestionsLabel = "Run questions";
 
 export const steerLabel = "Steer the run";
+export const steerFailed = "Steer failed";
+
+export const toastCloseLabel = "Close message";
 
 export const runCancelCopy = {
 	action: "Cancel run",
@@ -218,6 +221,7 @@ export const runCancelCopy = {
 	title: "Cancel the run?",
 	body: "The factory stops the run and its agents now.",
 	dismiss: "Keep running",
+	failed: "Cancel failed",
 } as const;
 
 export const runResumeCopy = {
@@ -232,6 +236,8 @@ export const runResumeCopy = {
 		"The factory starts a new run of the ticket from the first stage. The restart cancels the old run.",
 	confirm: "Restart run",
 	dismiss: "Keep the run",
+	resumeFailed: "Resume failed",
+	restartFailed: "Restart failed",
 } as const;
 
 export const runThreadLabel = "Run thread";
