@@ -27,6 +27,7 @@ import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
+import type { SettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
@@ -206,6 +207,12 @@ export type FactoryReader = {
 	 * and "not served" when the factory answered with 404.
 	 */
 	source: (runId: string) => Promise<SourceRead>;
+	/**
+	 * `GET /runs/{id}/settings` of the hub that reports the run, or else of its box.
+	 * "missing" when no factory reported the run or the factory did not answer,
+	 * and "not served" when the factory answered with 404.
+	 */
+	settings: (runId: string) => Promise<SettingsRead>;
 	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
 	 * Answers, steers, cancels, resumes and restarts are the only write requests that the app sends to a factory.
