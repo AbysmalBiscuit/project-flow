@@ -170,19 +170,6 @@ export const settings = stylex.create({
 		borderRadius: radius.md,
 		backgroundColor: colours.raised,
 	},
-	toast: {
-		flex: "1 1 auto",
-		minWidth: 0,
-		margin: 0,
-		fontSize: type.menu,
-		fontWeight: type.weight,
-	},
-	toastSaved: {
-		color: colours.saved,
-	},
-	toastError: {
-		color: colours.danger,
-	},
 	projectsLead: {
 		margin: `0 0 ${space.md}`,
 		color: colours.inkSoft,

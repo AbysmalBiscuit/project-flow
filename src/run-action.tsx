@@ -7,6 +7,7 @@ import { panel } from "./panel-styles.ts";
 import { useCancelRun, useStartAgain } from "./queries.ts";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";
 import { runCancelCopy, runResumeCopy } from "./terms.ts";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 /**
@@ -28,7 +29,6 @@ export function RunAction({
 		return null;
 	}
 	const pending = start.isPending || cancel.isPending;
-	const error = start.error ?? cancel.error;
 	const cancelLabel = cancel.isPending
 		? runCancelCopy.pending
 		: runCancelCopy.action;
@@ -68,8 +68,21 @@ export function RunAction({
 					onClick={() => setAsking("cancel")}
 				/>
 			)}
-			{error === null ? null : (
-				<p className={clsx(panel.error)}>{error.message}</p>
+			{start.error === null ? null : (
+				<Toast
+					tone="error"
+					message={`${start.variables === "restart" ? runResumeCopy.restartFailed : runResumeCopy.resumeFailed}: ${start.error.message}`}
+					hideMs={actionToastHideMs}
+					onClose={() => start.reset()}
+				/>
+			)}
+			{cancel.error === null ? null : (
+				<Toast
+					tone="error"
+					message={`${runCancelCopy.failed}: ${cancel.error.message}`}
+					hideMs={actionToastHideMs}
+					onClose={() => cancel.reset()}
+				/>
 			)}
 			<ConfirmDialog
 				id={`run-restart-dialog-${run.id}`}
