@@ -196,7 +196,8 @@ export type FactoryReader = {
 	/**
 	 * `GET /runs/{id}/files` of the hub that reports the run, or else of its box.
 	 * "missing" when no factory reported the run or the factory did not answer,
-	 * "gone" when the run's worktree is gone, and "not served" when the factory answered with another 404.
+	 * "gone" when the factory answered 404 and the run sandbox is removed,
+	 * and "not served" when the factory answered 404 and the run sandbox is not removed.
 	 */
 	files: (runId: string) => Promise<FilesRead>;
 	/**

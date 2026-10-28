@@ -9,12 +9,14 @@ import {
 import { daemon, type FactoryRequest, hub, hubUrl } from "./factory-support.ts";
 import hubRuns from "./fixtures/factory-hub-runs.json";
 import runFiles from "./fixtures/factory-run-files.json";
+import runSandbox from "./fixtures/factory-run-sandbox.json";
 import { settledRead } from "./support.ts";
 
 describe("factory runs", () => {
 	describe("the files changed", () => {
 		const running41 = hubRuns.runs[0]?.id ?? "";
 		const filesPath = `/runs/${running41}/files`;
+		const sandboxPath = `/runs/${running41}/sandbox`;
 
 		async function filesOf(base: string, runId = running41): Promise<Response> {
 			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
@@ -115,21 +117,38 @@ describe("factory runs", () => {
 			}
 		});
 
-		test("a run whose worktree is gone reports its files as gone", async () => {
-			const app = await serveRuns(
+		/** The files route of a factory answers 404, and its sandbox route answers `state`. */
+		function filesMissingWithSandbox(state: string) {
+			return serveRuns(
 				{
 					...hub,
 					[filesPath]: Response.json(
-						{ error: `the worktree of run ${running41} is gone` },
+						{ error: "the files are not available" },
 						{ status: 404 },
 					),
+					[sandboxPath]: { ...runSandbox, state },
 				},
 				[41],
 			);
+		}
+
+		test("a files 404 for a run whose sandbox is removed reports its files as gone", async () => {
+			const app = await filesMissingWithSandbox("removed");
 			try {
 				const response = await filesOf(app.base);
 				expect(response.status).toBe(404);
 				expect(await response.json()).toEqual({ gone: true });
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a files 404 for a run whose sandbox still has its worktree reports the files as not served", async () => {
+			const app = await filesMissingWithSandbox("clean");
+			try {
+				const response = await filesOf(app.base);
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual({ notServed: true });
 			} finally {
 				await app.stop();
 			}

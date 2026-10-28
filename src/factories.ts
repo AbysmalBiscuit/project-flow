@@ -543,6 +543,7 @@ export function factoryReader(
 			),
 			reachable,
 		);
+	const sandbox = runSandboxReader({ fetchImpl, signal, statusRowOf });
 	return {
 		check,
 		settled,
@@ -561,8 +562,8 @@ export function factoryReader(
 		}),
 		events: runEventsReader({ fetchImpl, signal, statusRowOf }),
 		...runArtifactsReader({ fetchImpl, signal, statusRowOf }),
-		sandbox: runSandboxReader({ fetchImpl, signal, statusRowOf }),
-		files: runFilesReader({ fetchImpl, signal, statusRowOf }),
+		sandbox,
+		files: runFilesReader({ fetchImpl, signal, statusRowOf, sandbox }),
 		...runSourceReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
