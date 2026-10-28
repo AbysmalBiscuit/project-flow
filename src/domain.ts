@@ -158,6 +158,19 @@ export type RunSandbox = {
 	changes: string[];
 };
 
+/** A file that a run's branch changed since it left its base, as a GitHub pull request shows it. */
+export type RunFile = {
+	path: string;
+	/** The path before a rename. */
+	previousPath?: string;
+	status: "added" | "modified" | "deleted" | "renamed";
+	/** A binary file counts no lines. */
+	additions: number;
+	deletions: number;
+	/** The `git diff` of the file. */
+	patch: string;
+};
+
 /** The graph files that a run loaded from its package, as the run loaded them. */
 export type RunSource = {
 	/** The path of the entry graph in the package, such as `pre_pr.dot`. */

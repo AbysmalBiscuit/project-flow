@@ -19,6 +19,7 @@ import {
 	type RunArtifactContent,
 	type RunCheckpoint,
 	type RunDetail,
+	type RunFile,
 	type RunSandbox,
 	type RunSource,
 	type SettingsProject,
@@ -31,6 +32,7 @@ import type { FactoryEntry } from "./factories.ts";
 import type { Steer } from "./factory-run-actions.ts";
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
+import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -140,6 +142,16 @@ export const pageQuery = {
 			queryFn: () => readSandbox(run.id, queryKey),
 			...pendingRetry,
 			placeholderData: (previous: SandboxRead | undefined) => previous,
+		});
+	},
+	/** The key holds the run's status and stage, so a stage that ends reads the changed files again. */
+	files: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) => {
+		const queryKey = ["files", run.id, run.statusKind, run.stage ?? null];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readFiles(run.id, queryKey),
+			...pendingRetry,
+			placeholderData: (previous: FilesRead | undefined) => previous,
 		});
 	},
 	/** The key holds the run's status, so a queued run reads its source again once it loads its package. */
@@ -393,6 +405,37 @@ async function readSandbox(
 		throw new Error(`sandbox failed (HTTP ${response.status})`);
 	}
 	return (await response.json()) as RunSandbox;
+}
+
+async function readFiles(
+	runId: string,
+	queryKey: readonly unknown[],
+): Promise<FilesRead> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/files`,
+	);
+	if (response.status === pendingStatus) {
+		const held = heldData<FilesRead>(queryKey);
+		if (held === undefined) {
+			throw new PendingRead();
+		}
+		return held;
+	}
+	if (response.status === 404) {
+		const body = (await response.json().catch(() => null)) as {
+			notServed?: boolean;
+			gone?: boolean;
+		} | null;
+		return body?.notServed === true
+			? "not served"
+			: body?.gone === true
+				? "gone"
+				: "missing";
+	}
+	if (!response.ok) {
+		throw new Error(`files failed (HTTP ${response.status})`);
+	}
+	return ((await response.json()) as { files: RunFile[] }).files;
 }
 
 async function readSource(
@@ -828,6 +871,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifacts"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifact"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
@@ -845,6 +889,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifacts"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["artifact"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }

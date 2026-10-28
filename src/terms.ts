@@ -373,6 +373,30 @@ export function aheadLabel(commits: number): string {
 	return commits === 1 ? "1 commit" : `${commits} commits`;
 }
 
+export const runFilesLabel = "Committed changes";
+
+export const uncommittedChangesLabel = "See the uncommitted changes in";
+
+export const noRunFilesLabel = "No committed file changes since the base.";
+
+export const runFilesGoneLabel =
+	"The worktree of the run is gone, so its changed files are not available.";
+
+export const runFileStatusLabel = {
+	added: "Added",
+	modified: "Modified",
+	deleted: "Deleted",
+	renamed: "Renamed",
+} as const;
+
+export function renamedPathLabel(from: string, to: string): string {
+	return `${from} -> ${to}`;
+}
+
+export function runFilesCountLabel(count: number): string {
+	return count === 1 ? "1 file" : `${count} files`;
+}
+
 export const runSourceLabel = "Workflow source";
 
 export const entryGraphLabel = "Entry graph";

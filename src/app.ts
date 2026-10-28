@@ -1019,6 +1019,22 @@ export async function start(options: StartOptions): Promise<Running> {
 						return Response.json(found);
 					}),
 			},
+			"/api/factory-runs/:id/files": {
+				GET: (request) =>
+					staleRead(readKey(request), async () => {
+						const found = await factories.files(request.params.id);
+						if (found === "missing") {
+							return Response.json({ missing: true }, { status: 404 });
+						}
+						if (found === "gone") {
+							return Response.json({ gone: true }, { status: 404 });
+						}
+						if (found === "not served") {
+							return Response.json({ notServed: true }, { status: 404 });
+						}
+						return Response.json({ files: found });
+					}),
+			},
 			"/api/factory-runs/:id/source": {
 				GET: (request) =>
 					staleRead(readKey(request), async () => {
