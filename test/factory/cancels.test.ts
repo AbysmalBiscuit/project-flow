@@ -151,4 +151,20 @@ describe("factory cancels", () => {
 			await app.stop();
 		}
 	});
+
+	test("a 409 from the factory with no reason in its body gives a clear cancel error", async () => {
+		const app = await servedRun({
+			...hub,
+			[cancelPath]: new Response(null, { status: 409 }),
+		});
+		try {
+			const response = await sendCancel(app.base);
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({
+				error: "the run has already ended",
+			});
+		} finally {
+			await app.stop();
+		}
+	});
 });

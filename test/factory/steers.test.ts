@@ -99,4 +99,20 @@ describe("factory steers", () => {
 			await app.stop();
 		}
 	});
+
+	test("a 409 from the factory with no reason in its body gives a clear steer error", async () => {
+		const app = await servedRun({
+			...hub,
+			[steerPath]: new Response(null, { status: 409 }),
+		});
+		try {
+			const response = await sendSteer(app.base);
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({
+				error: "the run has ended, so it takes no steer",
+			});
+		} finally {
+			await app.stop();
+		}
+	});
 });

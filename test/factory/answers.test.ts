@@ -176,6 +176,26 @@ describe("factory questions", () => {
 		}
 	});
 
+	test("a 409 from the factory on an answer gives the factory's reason", async () => {
+		const reason = `question ${question.id} of run ${running41.id} is already answered`;
+		const app = await servedQuestions(blockedHub());
+		try {
+			app.factories[hubUrl] = {
+				...hub,
+				[answerPath]: Response.json({ error: reason }, { status: 409 }),
+			};
+			const response = await sendAnswer(
+				app.base,
+				String(question.id),
+				"Add the scope.",
+			);
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({ error: reason });
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a stream frame that blocks a run reads its questions, and a frame that resumes it clears them", async () => {
 		const feed = new EventFeed();
 		const app = await serveRuns(
