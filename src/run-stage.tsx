@@ -4,6 +4,7 @@ import type {
 	RunAgent,
 	RunCheckpoint,
 	RunGraph,
+	RunGraphNode,
 	RunGraphNodeState,
 	RunStage,
 	TurnUsage,
@@ -20,16 +21,19 @@ import {
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
-/** What a stage view shows: the stage, the current tool of its live agent, and the usage of an ended stage. */
+/**
+ * What a stage view shows: the stage, the current tool of its live agent, and the usage of an ended stage.
+ * A stage that calls a child graph holds the stages of that child graph.
+ */
 export type StageFacts = {
-	stage: RunStage;
+	stage: RunStage & Pick<RunGraphNode, "child">;
 	tool: string | null;
 	usage: TurnUsage | undefined;
 };
 
 /** The facts of `stage` from the run checkpoint and the run agents. */
 export function stageFacts(
-	stage: RunStage,
+	stage: StageFacts["stage"],
 	checkpoint: RunCheckpoint,
 	agents: readonly RunAgent[],
 ): StageFacts {

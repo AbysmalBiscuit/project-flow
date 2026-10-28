@@ -204,6 +204,24 @@ export function isLiveStage(run: ShownFactoryRun, facts: StageFacts): boolean {
 }
 
 /**
+ * The node path that a steer from the view of `facts` reaches: the stage
+ * itself, or the live stage of the child graph that it calls. Null when the
+ * run is not live there.
+ */
+export function steerTarget(
+	run: ShownFactoryRun,
+	facts: StageFacts,
+): string | null {
+	if (!isLiveStage(run, facts)) {
+		return null;
+	}
+	if (facts.stage.child === undefined) {
+		return facts.stage.id;
+	}
+	return facts.stage.child.findLast(isRunAt)?.id ?? null;
+}
+
+/**
  * The stage transcript and the run context of one stage, under its stage card.
  * A stage that calls a child graph has no agent of its own, so it shows no transcript.
  */
@@ -216,7 +234,7 @@ export function StageDetail({
 }) {
 	return (
 		<div className={clsx(styles.view)} data-stage-view={facts.stage.id}>
-			{"child" in facts.stage ? null : (
+			{facts.stage.child !== undefined ? null : (
 				<Transcript
 					runId={run.id}
 					stage={facts.stage.id}

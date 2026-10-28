@@ -15,6 +15,18 @@ if (running41 === undefined) {
 }
 const run = `/runs/${running41.id}`;
 
+/** `blocked` stops the run on a failed stage, and `failed` ends it there. Any other mode runs it. */
+const mode = process.env.PROOF_MODE ?? "running";
+const runs = {
+	runs: [
+		{
+			...running41,
+			status: { kind: mode === "running" ? "running" : mode, reason: null },
+		},
+		...hubRuns.runs.slice(1),
+	],
+};
+
 const tracker = recordedIssues({
 	[widget]: [
 		{
@@ -83,7 +95,7 @@ function page(entries: { id: number }[], url: URL) {
 const answers: Record<string, (url: URL) => unknown> = {
 	"/daemon": () => daemonAbout,
 	"/sources": () => hubSources,
-	"/runs": () => hubRuns,
+	"/runs": () => runs,
 	[`${run}/graph`]: () => runGraph,
 	[`${run}/checkpoint`]: () => ({
 		current_node: "review",
@@ -91,7 +103,7 @@ const answers: Record<string, (url: URL) => unknown> = {
 		completed_nodes: ["start", "inputs", "implement", "push", "start"],
 		node_retries: {},
 		visits: { start: 1, inputs: 1, implement: 1, push: 1, conceptual: 1 },
-		status: "running",
+		status: mode === "running" ? "running" : "fail",
 	}),
 	[`${run}/workers`]: () => ({
 		workers: {

@@ -3,7 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Button } from "./button.tsx";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
-import { isLiveStage, StageView } from "./run-stage-view.tsx";
+import { StageView, steerTarget } from "./run-stage-view.tsx";
 import type { StageFacts } from "./run-stage.tsx";
 import { RunSteer } from "./run-steer.tsx";
 import {
@@ -56,6 +56,7 @@ export function StagePane({
 	onOpenStage: (stage: string) => void;
 }) {
 	const stage = facts.stage.id;
+	const target = steerTarget(run, facts);
 	const query = new URLSearchParams({ tab: "stages", stage }).toString();
 	return (
 		<aside
@@ -77,7 +78,7 @@ export function StagePane({
 				<Button icon="x" name={closeStagePaneLabel} onClick={onClose} />
 			</div>
 			<StageView run={run} facts={facts} />
-			{isLiveStage(run, facts) ? <RunSteer run={run} stage={stage} /> : null}
+			{target === null ? null : <RunSteer run={run} stage={target} />}
 		</aside>
 	);
 }
