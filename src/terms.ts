@@ -250,7 +250,7 @@ export const runFactLabel = {
 	project: "Project",
 	box: "Box",
 	factory: "Factory",
-	workflow: "Workflow",
+	workflow: "Workflow graph",
 	start: "Start time",
 	elapsed: "Elapsed",
 	failureReason: "Failure reason",
@@ -414,7 +414,7 @@ export function choiceModeLabel(mode: string, launcher: string | null): string {
 }
 
 export const runOptionLabel = {
-	workflow: "Workflow",
+	workflow: "Workflow package",
 	repo: "Repo",
 	ticket: "Ticket",
 	author: "Author",
