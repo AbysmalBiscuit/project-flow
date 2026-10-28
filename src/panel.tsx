@@ -29,6 +29,7 @@ import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { RunCancel } from "./run-cancel.tsx";
 import { RunResume } from "./run-resume.tsx";
+import { RunStartButton } from "./run-start-button.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { openTicket } from "./selection.ts";
 import { useLaneColour } from "./state-colours.ts";
@@ -300,6 +301,9 @@ export function TicketPanel({
 			ref={root}
 		>
 			<div className={clsx(panel.head)}>
+				{view?.runStart === undefined ? null : (
+					<RunStartButton ticket={ticket} start={view.runStart} />
+				)}
 				{view?.factoryRun === undefined ? null : (
 					<>
 						<RunResume run={view.factoryRun} />

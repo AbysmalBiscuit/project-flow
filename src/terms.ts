@@ -234,6 +234,15 @@ export const runResumeCopy = {
 	dismiss: "Keep the run",
 } as const;
 
+export const runStartCopy = {
+	action: "Start run",
+	pending: "Starting",
+	requested: "Run requested",
+	title: "Start a run?",
+	body: (factory: string, label: string) =>
+		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
+} as const;
+
 export const runThreadLabel = "Run thread";
 
 /** The verb after the sender of each run thread message. */

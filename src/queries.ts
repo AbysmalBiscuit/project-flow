@@ -605,6 +605,27 @@ export function usePostReply(tracker: string, project: string, key: string) {
 	});
 }
 
+/** Add the ready label of a factory to a ticket, so the hub starts a run of it. */
+export function useStartRun(tracker: string, project: string, key: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (): Promise<void> => {
+			const response = await fetch("/api/run-starts", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ tracker, project, key }),
+			});
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Start failed");
+			}
+		},
+		onSuccess: () => queries.invalidateQueries({ queryKey: ["project"] }),
+	});
+}
+
 /** Read one project again. The event stream brings its new rows when the read ends. */
 export function useRefreshProject(name: string) {
 	return useMutation({
