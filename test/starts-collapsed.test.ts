@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import type { ProjectReport } from "../src/domain.ts";
 import { linearSlug, withApp } from "./project-harness.ts";
-import { linearFake } from "./support.ts";
+import { linearFake } from "./support/linear.ts";
 
 const linearTicket = (
 	id: string,

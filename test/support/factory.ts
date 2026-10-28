@@ -3,19 +3,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Fetch } from "../src/fetch.ts";
-import { run } from "../src/main.ts";
-import daemonSources from "./fixtures/factory-daemon-sources.json";
-import daemonAbout from "./fixtures/factory-daemon.json";
-import hubRuns from "./fixtures/factory-hub-runs.json";
-import hubSources from "./fixtures/factory-hub-sources.json";
-import {
-	recordedDiscovery,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import type { Fetch } from "../../src/fetch.ts";
+import { run } from "../../src/main.ts";
+import daemonSources from "../fixtures/factory-daemon-sources.json";
+import daemonAbout from "../fixtures/factory-daemon.json";
+import hubRuns from "../fixtures/factory-hub-runs.json";
+import hubSources from "../fixtures/factory-hub-sources.json";
+import { tempConfig, testIo } from "./app.ts";
+import { json, urlOf } from "./fetch.ts";
+import { recordedDiscovery, unrecorded } from "./github.ts";
 
 export const hubUrl = "http://hub.test:7777";
 export const laptopSocket = "/run/factory/laptop.sock";
@@ -104,12 +100,6 @@ export const daemon: Answers = {
 	"/sources": daemonSources,
 	"/runs": { runs: [] },
 };
-
-export function json(body: unknown): Response {
-	return new Response(JSON.stringify(body), {
-		headers: { "content-type": "application/json" },
-	});
-}
 
 /** Serves each factory's answers by its origin, or by its socket path. */
 export function factoryFetch(

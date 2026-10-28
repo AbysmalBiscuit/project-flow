@@ -6,13 +6,9 @@ import { join } from "node:path";
 import type { Configuration } from "../src/configuration.ts";
 import { run } from "../src/main.ts";
 import teamStates from "./fixtures/linear-team-states.json";
-import {
-	defaultStateColours,
-	defaultStates,
-	linearFake,
-	tempConfig,
-	testIo,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { linearFake } from "./support/linear.ts";
+import { defaultStateColours, defaultStates } from "./support/states.ts";
 
 const linearSlug = "widget-launch";
 

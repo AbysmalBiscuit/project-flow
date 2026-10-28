@@ -9,16 +9,12 @@ import factoryLabels from "./fixtures/github-factory-labels.json";
 import projectFields from "./fixtures/github-project-fields.json";
 import recordedRepoRead from "./fixtures/github-repo-read.json";
 import teamStates from "./fixtures/linear-team-states.json";
-import {
-	linearFake,
-	recordedDiscovery,
-	repoReadFromHandler,
-	settledOverview,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { page, recordedDiscovery, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledOverview } from "./support/reads.ts";
+import { repoReadFromHandler } from "./support/repo-read.ts";
 
 const linearSlug = "widget-launch";
 const githubRepo = "acme/widget";
@@ -147,13 +143,6 @@ function githubIssue(
 		labels: [],
 		...fields,
 	};
-}
-
-function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 function recordedFactoryLabelPage(): Response {

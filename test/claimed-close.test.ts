@@ -9,20 +9,16 @@ import { run } from "../src/main.ts";
 import recordedClosed from "./fixtures/github-closed-issues.json";
 import recordedOpen from "./fixtures/github-issues.json";
 import recordedParent from "./fixtures/github-parent-issue.json";
+import { tempConfig, testIo } from "./support/app.ts";
+import { type TrackerRequest, trackerRequest, urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
-	githubIssueNode,
 	githubSince,
 	recordedDiscovery,
-	repoReadIssues,
-	settledOverview,
-	tempConfig,
-	testIo,
-	type TrackerRequest,
-	trackerRequest,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { readOverview, settledOverview } from "./support/reads.ts";
+import { githubIssueNode, repoReadIssues } from "./support/repo-read.ts";
 
 const owner = "AbysmalBiscuit";
 const repoName = `${owner}/project-flow`;
@@ -179,12 +175,6 @@ function trackerFetch(tracker: Tracker, requests: TrackerRequest[]): Fetch {
 	};
 }
 
-async function readOverview(base: string): Promise<Overview> {
-	return (await (
-		await fetch(new URL("/api/overview", base))
-	).json()) as Overview;
-}
-
 /** Each copy of the ticket that the overview shows, with its project. */
 function copiesOf(body: Overview, number: number) {
 	return body.projects.flatMap((project) =>
@@ -266,16 +256,16 @@ async function startApp(
 	const base = await opened;
 	return {
 		base,
-		overview: () => settledOverview(base, readOverview),
+		overview: () => settledOverview(base, readOverview<Overview>),
 		async refresh(at) {
-			const before = await settledOverview(base, readOverview);
+			const before = await settledOverview(base, readOverview<Overview>);
 			clock.now = new Date(at);
 			const response = await fetch(new URL("/api/refresh", base), {
 				method: "POST",
 			});
 			expect(response.status).toBe(204);
 			while (true) {
-				const body = await settledOverview(base, readOverview);
+				const body = await settledOverview(base, readOverview<Overview>);
 				if (body.fetchedAt !== before.fetchedAt) {
 					return body;
 				}

@@ -18,7 +18,7 @@ import {
 	recordingFetch,
 	serve,
 	userBearer,
-} from "./factory-token-support.ts";
+} from "./factory-token/_support.ts";
 
 const mintCommand = ["/opt/factory/bin/factory", "github-auth"];
 const mintedToken = "ghs_acme_minted";

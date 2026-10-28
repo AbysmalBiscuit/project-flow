@@ -8,14 +8,10 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { refreshSettled } from "./events.ts";
 import recordedRepoRead from "./fixtures/github-repo-read.json";
-import {
-	recordedViewer,
-	settledOverview,
-	tempConfig,
-	testIo,
-	trackerRequest,
-	unrecorded,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { trackerRequest } from "./support/fetch.ts";
+import { recordedViewer, unrecorded } from "./support/github.ts";
+import { readOverview, settledOverview } from "./support/reads.ts";
 
 const parentIssue = {
 	number: 102,
@@ -120,12 +116,6 @@ async function withWidget(
 		await cleanup();
 		await rm(root, { recursive: true, force: true });
 	}
-}
-
-async function readOverview(base: string): Promise<{ polling?: true }> {
-	return (await (await fetch(new URL("/api/overview", base))).json()) as {
-		polling?: true;
-	};
 }
 
 async function parentOf101(base: string): Promise<string | undefined> {

@@ -7,17 +7,18 @@ import type { Overview, ProjectReport, StatusType } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { doneTicketsForLane } from "../src/lanes.ts";
 import { run } from "../src/main.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
-	defaultStates,
-	linearFake,
+	head,
+	page,
 	recordedDiscovery,
-	tempConfig,
-	testIo,
+	repo,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { defaultStates } from "./support/states.ts";
 
-const repo = "acme/widget";
 const now = "2026-08-18T12:00:00.000Z";
 
 const statusTypes = [
@@ -79,13 +80,6 @@ function pull(
 	};
 }
 
-function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
-
 const openIssues = [
 	issue(1, "Ship the board"),
 	issue(2, "Draw the nodes", { body: `Blocked by: ${repo}#1` }),
@@ -110,8 +104,6 @@ const everyStatus = [
 	closed(6, "Drop the widget", "2026-08-17T12:00:00.000Z", "not_planned"),
 	issue(7, "Hold the widget", { body: `Blocked by: ${repo}#1` }),
 ];
-
-const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 const pulls = [
 	pull(31, "Review it", [3], "review"),

@@ -6,15 +6,11 @@ import { join } from "node:path";
 import type { NeedsYouItem } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	linearFake,
-	recordedDiscovery,
-	repoReadFromHandler,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { page, recordedDiscovery, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { repoReadFromHandler } from "./support/repo-read.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 
@@ -43,13 +39,6 @@ function linearIssue(
 		assignee: null,
 		...fields,
 	};
-}
-
-function page(items: unknown[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 describe("needs you", () => {

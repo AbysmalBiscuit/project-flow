@@ -4,12 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { run, type RunIo } from "../src/main.ts";
-import {
-	recordedDiscovery,
-	tempConfig,
-	testIo,
-	unrecorded,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
 
 const valid = JSON.stringify({
 	pinned: [{ tracker: "github", repo: "acme/widget" }],

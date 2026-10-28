@@ -5,18 +5,22 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import { repo } from "./review-support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
-	githubIssueNode,
+	page,
 	recordedDiscovery,
+	repo,
+	unrecorded,
+} from "./support/github.ts";
+import {
+	githubIssueNode,
 	repoReadIssues,
 	repoReadResponse,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/repo-read.ts";
+
+export { page };
 
 type Recorded = {
 	issues: Record<string, unknown>[];
@@ -30,13 +34,6 @@ type Recorded = {
 	mergedPulls?: Record<string, unknown>[];
 	closedNext?: string | null;
 };
-
-export function page(items: unknown): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
 
 export function connection<T>(nodes: T[]): {
 	nodes: T[];

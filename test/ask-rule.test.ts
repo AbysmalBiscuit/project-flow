@@ -4,16 +4,8 @@ import { z } from "zod";
 
 import issue51Comments from "./fixtures/issue-51-comments.json";
 import { overview } from "./review-github-fake.ts";
-import {
-	card,
-	grok,
-	head,
-	issue,
-	mergedPull,
-	older,
-	pull,
-	repo,
-} from "./review-support.ts";
+import { card, grok, issue, mergedPull, older } from "./review/_support.ts";
+import { head, pull, repo } from "./support/github.ts";
 
 describe("the Ask rule", () => {
 	const progressComment = issue51Comments[0];

@@ -8,7 +8,8 @@ import {
 	type Sent,
 	serve,
 } from "./replies-github-fake.ts";
-import { settledOverview, settledRead, urlOf } from "./support.ts";
+import { urlOf } from "./support/fetch.ts";
+import { readOverview, settledOverview, settledRead } from "./support/reads.ts";
 
 const rejected = () => new Response("Bad credentials", { status: 401 });
 
@@ -18,11 +19,6 @@ type Overview = {
 	polling?: true;
 	projects: { name: string; error: string | null }[];
 };
-
-async function readOverview(base: string): Promise<Overview> {
-	const response = await fetch(new URL("/api/overview", base));
-	return (await response.json()) as Overview;
-}
 
 test("a tracker 401 on a list path and on a thread path gives one error shape", async () => {
 	const sent: Sent[] = [];
@@ -48,7 +44,7 @@ test("a tracker 401 on a list path and on a thread path gives one error shape", 
 		}),
 	);
 	try {
-		const overview = await settledOverview(app.base, readOverview);
+		const overview = await settledOverview(app.base, readOverview<Overview>);
 		const listError = overview.projects.find(
 			(project) => project.name === "acme/gadget",
 		)?.error;

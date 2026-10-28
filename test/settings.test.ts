@@ -15,19 +15,21 @@ import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import type { LocalCheckout } from "../src/ports.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
-	githubIssueNode,
-	linearFake,
+	page,
 	recordedDiscovery,
+	unrecorded,
+} from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledOverview } from "./support/reads.ts";
+import {
+	githubIssueNode,
 	repoReadIssues,
 	repoReadResponse,
-	settledOverview,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/repo-read.ts";
 
 const shown = "acme/shown";
 const quiet = "acme/quiet";
@@ -46,13 +48,6 @@ function issue(
 		updated_at: updatedAt,
 		body: "",
 	};
-}
-
-function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 function recordTracker(

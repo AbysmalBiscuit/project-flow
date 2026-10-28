@@ -7,13 +7,10 @@ import recordedPulls from "./fixtures/github-open-pulls.json";
 import recordedTeam from "./fixtures/linear-team-states.json";
 import outsideRelations from "./fixtures/outside-relations.json";
 import { withApp } from "./project-harness.ts";
-import {
-	linearFake,
-	recordedDiscovery,
-	repoReadFromLists,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { urlOf } from "./support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { repoReadFromLists } from "./support/repo-read.ts";
 
 const repo = "AbysmalBiscuit/project-flow";
 

@@ -48,6 +48,28 @@ The code is hexagonal.
 - React components are thin views of the API responses and have no test suite. A browser check of the running app is a proof step for each UI change.
 - Each proof, screenshot or manual run sets `XDG_DATA_HOME` to a temporary folder.
 
+#### Test layout
+
+```
+test/
+  support/           shared harness, one file per concern
+    app.ts           start the app: temporary store, configuration and fake fetch
+    fetch.ts         fake fetch basics: request URLs, JSON answers, tracker requests
+    github.ts        recorded GitHub answers: discovery, issue lists, pages, pulls
+    repo-read.ts     recorded answers to the GitHub repo read query
+    linear.ts        recorded Linear answers: issues, the Linear fake
+    factory.ts       hub and daemon fakes
+    reads.ts         API reads that wait for a state: overview, settings, events
+    states.ts        the default states of a fresh configuration file
+  fixtures/
+  <area>/            *.test.ts of one area of the API
+  <area>/_support.ts helpers that only the tests of one area share
+```
+
+- A helper that tests in two areas use lives in `test/support/`. A helper that one area uses lives in `<area>/_support.ts`. A helper that one file uses stays in that file.
+- A test file never defines an exact copy of a helper that `test/support/` exports. It imports the helper.
+- No folder holds tests below the HTTP API. The graph layout suite and the repo script tests keep their own folders.
+
 ### TypeScript
 
 - Do not use `any`. Let inference carry types, and derive types from schemas and functions.

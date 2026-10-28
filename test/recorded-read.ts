@@ -1,5 +1,6 @@
 import type { Fetch } from "../src/fetch.ts";
-import { repoReadFromHandler, urlOf } from "./support.ts";
+import { urlOf } from "./support/fetch.ts";
+import { repoReadFromHandler } from "./support/repo-read.ts";
 
 function nullRepository(body: unknown): boolean {
 	if (typeof body !== "object" || body === null || !("data" in body)) {

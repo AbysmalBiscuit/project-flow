@@ -5,18 +5,20 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
-	githubIssueNode,
+	page,
 	recordedDiscovery,
+	unrecorded,
+} from "./support/github.ts";
+import { trackFound } from "./support/reads.ts";
+import {
+	githubIssueNode,
 	repoReadIssues,
 	repoReadResponse,
-	tempConfig,
-	testIo,
-	trackFound,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/repo-read.ts";
 
 const named = "lev/local-only";
 const strangerOrigin = "stranger/local-only";
@@ -32,13 +34,6 @@ function issue(number: number, repo = named): Record<string, unknown> {
 		html_url: `https://github.com/${repo}/issues/${number}`,
 		updated_at: "2026-10-18T12:00:00.000Z",
 	};
-}
-
-function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 function localFetch(requests: string[]): Fetch {

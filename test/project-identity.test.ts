@@ -8,20 +8,12 @@ import type { Overview, SettingsProject } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { missingToken } from "../src/github.ts";
 import { run } from "../src/main.ts";
-import {
-	githubPullNode,
-	linearFake,
-	recordedViewer,
-	repoReadIssues,
-	settledOverview,
-	tempConfig,
-	testIo,
-	trackerRequest,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
-
-const repo = "acme/widget";
+import { tempConfig, testIo } from "./support/app.ts";
+import { trackerRequest, urlOf } from "./support/fetch.ts";
+import { recordedViewer, repo, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledOverview } from "./support/reads.ts";
+import { githubPullNode, repoReadIssues } from "./support/repo-read.ts";
 
 function github(): Fetch {
 	return async (input, init) => {

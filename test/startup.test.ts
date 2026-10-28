@@ -7,16 +7,11 @@ import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { missingToken, rejectedToken, run } from "../src/main.ts";
 import { readGhAuthToken } from "../src/token-commands.ts";
-import {
-	linearFake,
-	recordedDiscovery,
-	repoReadIssues,
-	repoReadResponse,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { repoReadIssues, repoReadResponse } from "./support/repo-read.ts";
 
 const valid = JSON.stringify({
 	pinned: [{ tracker: "github", repo: "acme/widget" }],

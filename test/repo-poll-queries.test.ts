@@ -7,14 +7,10 @@ import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedRepoRead from "./fixtures/github-repo-read.json";
-import {
-	recordedViewer,
-	settledOverview,
-	tempConfig,
-	testIo,
-	trackerRequest,
-	unrecorded,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { trackerRequest } from "./support/fetch.ts";
+import { recordedViewer, unrecorded } from "./support/github.ts";
+import { readOverview, settledOverview } from "./support/reads.ts";
 
 type Sent = {
 	operation: string;
@@ -36,12 +32,6 @@ const refused = {
 const issueIds = ["issue:acme/widget#101", "issue:acme/widget#102"];
 const pullIds = ["pull:acme/widget#1", "pull:acme/widget#2"];
 const mergedId = "pull:acme/widget#90";
-
-async function readOverview(base: string): Promise<Overview> {
-	return (await (
-		await fetch(new URL("/api/overview", base))
-	).json()) as Overview;
-}
 
 /**
  * The recorded `acme/widget` read with each PR at `pullUpdatedAt`. An
@@ -117,11 +107,11 @@ async function poll(
 		fail = reject;
 	});
 	const check = async (base: string) => {
-		let overview = await settledOverview(base, readOverview);
+		let overview = await settledOverview(base, readOverview<Overview>);
 		for (let count = 1; count < polls; count += 1) {
 			await fetch(new URL("/api/refresh", base), { method: "POST" });
 			await Bun.sleep(50);
-			overview = await settledOverview(base, readOverview);
+			overview = await settledOverview(base, readOverview<Overview>);
 		}
 		return overview;
 	};
