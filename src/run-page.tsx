@@ -17,6 +17,7 @@ import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
 import { RunRemove } from "./run-remove.tsx";
 import { RunSandbox } from "./run-sandbox.tsx";
+import { RunSettings } from "./run-settings.tsx";
 import { RunSource } from "./run-source.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { Segment } from "./segment.tsx";
@@ -171,6 +172,8 @@ function TabBody({
 				<RunArtifacts run={run} />
 			) : tab === "sandbox" ? (
 				<RunSandbox run={run} />
+			) : tab === "settings" ? (
+				<RunSettings run={run} />
 			) : tab === "source" ? (
 				<RunSource run={run} />
 			) : (

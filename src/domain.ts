@@ -181,6 +181,49 @@ export type RunSource = {
 	graphs: { path: string; text: string }[];
 };
 
+/** A value that a run's package parameter takes, as JSON. */
+export type ParameterValue =
+	| string
+	| number
+	| boolean
+	| null
+	| ParameterValue[]
+	| { [key: string]: ParameterValue };
+
+/** What a run was asked to do. The factory leaves out each token and secret. */
+export type RunSettings = {
+	/** The workflow package that the run runs. */
+	workflowPackage: string;
+	/** Each package parameter that the entry graph declares, with the value that the run takes. */
+	parameters: { name: string; value: ParameterValue }[];
+	/** Why the run's package would refuse the parameters. Null when it takes them. */
+	parametersError: string | null;
+	/** The harness, model and effort that each agent node of the entry graph starts on. Null takes the default. */
+	choices: {
+		node: string;
+		/** `headless` or `pane`. */
+		mode: string;
+		launcher: string | null;
+		harness: string | null;
+		model: string | null;
+		effort: string | null;
+		/** Why the node cannot start. */
+		error: string | null;
+	}[];
+	/** The options of the request that started the run. */
+	options: {
+		repo: string;
+		ticket: string;
+		author: string;
+		keepWorktree: boolean;
+		/** True when a hub sent the run to its box. */
+		sent: boolean;
+		/** The hub source and dispatch rule that started the run. */
+		source: string | null;
+		rule: string | null;
+	};
+};
+
 /** A workcell run with the facts that its run page shows. */
 export type RunDetail = FactoryRun & {
 	/** The name of the run's workflow graph. */

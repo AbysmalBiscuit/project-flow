@@ -21,6 +21,7 @@ import {
 	type RunDetail,
 	type RunFile,
 	type RunSandbox,
+	type RunSettings,
 	type RunSource,
 	type SettingsProject,
 	type ShownFactoryRun,
@@ -34,6 +35,7 @@ import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
+import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { openPage, runPagePath, runsPath } from "./page-links.ts";
@@ -162,6 +164,16 @@ export const pageQuery = {
 			queryFn: () => readSource(run.id, queryKey),
 			...pendingRetry,
 			placeholderData: (previous: SourceRead | undefined) => previous,
+		});
+	},
+	/** The key holds the run's status and stage, so a node that starts its worker reads its choice again. */
+	runSettings: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) => {
+		const queryKey = ["runSettings", run.id, run.statusKind, run.stage ?? null];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readRunSettings(run.id, queryKey),
+			...pendingRetry,
+			placeholderData: (previous: RunSettingsRead | undefined) => previous,
 		});
 	},
 	artifact: (runId: string, artifact: Pick<RunArtifact, "folder" | "name">) => {
@@ -462,6 +474,32 @@ async function readSource(
 		throw new Error(`source failed (HTTP ${response.status})`);
 	}
 	return (await response.json()) as RunSource;
+}
+
+async function readRunSettings(
+	runId: string,
+	queryKey: readonly unknown[],
+): Promise<RunSettingsRead> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/settings`,
+	);
+	if (response.status === pendingStatus) {
+		const held = heldData<RunSettingsRead>(queryKey);
+		if (held === undefined) {
+			throw new PendingRead();
+		}
+		return held;
+	}
+	if (response.status === 404) {
+		const body = (await response.json().catch(() => null)) as {
+			notServed?: boolean;
+		} | null;
+		return body?.notServed === true ? "not served" : "missing";
+	}
+	if (!response.ok) {
+		throw new Error(`run settings failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as RunSettings;
 }
 
 async function readArtifact(
@@ -903,6 +941,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
@@ -921,6 +960,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
