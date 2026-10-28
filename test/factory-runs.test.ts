@@ -5,25 +5,26 @@ import type {
 	ProjectReport,
 	RunCheckpoint,
 	RunDetail,
-	ShownFactoryRun,
 	TicketView,
 } from "../src/domain.ts";
 import type { FactoryEntry } from "../src/factories.ts";
-import type { Fetch } from "../src/fetch.ts";
 import type { RunListRow } from "../src/run-list.ts";
+import {
+	boxRow,
+	factoryRunOf,
+	overviewWhere,
+	type RunOverview,
+	serveRuns,
+} from "./factory-run-support.ts";
 import {
 	type Answers,
 	daemon,
 	EventFeed,
-	factoryFetch,
 	type FactoryRequest,
 	hub,
 	hubUrl,
-	json,
 	laptopSocket,
 	laptopUrl,
-	readOrRunWrite,
-	serve,
 } from "./factory-support.ts";
 import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
@@ -32,7 +33,6 @@ import runArtifact from "./fixtures/factory-run-artifact.json";
 import runArtifacts from "./fixtures/factory-run-artifacts.json";
 import runDetail from "./fixtures/factory-run-detail.json";
 import runEvents from "./fixtures/factory-run-events.json";
-import runFiles from "./fixtures/factory-run-files.json";
 import runGraphCheckpoint from "./fixtures/factory-run-graph-checkpoint.json";
 import runGraph from "./fixtures/factory-run-graph.json";
 import answeredQuestions from "./fixtures/factory-run-questions-answered.json";
@@ -42,32 +42,9 @@ import runSource from "./fixtures/factory-run-source.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
 import steerDelivered from "./fixtures/factory-steer-delivered.json";
-import {
-	issuesResponse,
-	listedRead,
-	openEventStream,
-	page,
-	recordedOrEmpty,
-	repo,
-	ticket,
-} from "./live-support.ts";
+import { openEventStream, repo } from "./live-support.ts";
 import { pull } from "./review-support.ts";
-import {
-	githubPullNode,
-	readWhere,
-	recordedDiscovery,
-	settledRead,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
-
-type RunOverview = {
-	projects: { tickets: TicketView[] }[];
-	polling?: true;
-	factoryUnreachable?: true;
-};
-
-const runClockStart = Date.parse("2026-10-25T14:20:00Z");
+import { githubPullNode, readWhere, settledRead } from "./support.ts";
 
 const runPollMs = 10_000;
 
@@ -91,33 +68,10 @@ const hubRunsWithRetry = {
 	],
 };
 
-function factoryRunOf(
-	body: RunOverview,
-	number: number,
-): ShownFactoryRun | undefined {
-	return body.projects
-		.flatMap((project) => project.tickets)
-		.find((view) => view.title === `Ticket ${number}`)?.factoryRun;
-}
-
 function hasTicket(body: RunOverview, number: number): boolean {
 	return body.projects.some((project) =>
 		project.tickets.some((view) => view.title === `Ticket ${number}`),
 	);
-}
-
-async function overviewWhere(
-	base: string,
-	accept: (body: RunOverview) => boolean,
-): Promise<RunOverview> {
-	while (true) {
-		const response = await fetch(new URL("/api/overview", base));
-		const body = (await response.json()) as RunOverview;
-		if (body.polling !== true && accept(body)) {
-			return body;
-		}
-		await Bun.sleep(20);
-	}
 }
 
 async function overviewEventWhere(
@@ -182,104 +136,10 @@ function hubWith41(kind: string): Answers {
 	};
 }
 
-/** A run row as the box `laptop` reports it: no source, and `machine` is `local`. */
-function boxRow(hubRow: (typeof hubRuns.runs)[number], kind: string) {
-	return {
-		...hubRow,
-		status: { kind, reason: null },
-		source: null,
-		rule: null,
-		machine: "local",
-	};
-}
-
 async function factoryEntries(base: string): Promise<FactoryEntry[]> {
 	const response = await fetch(new URL("/api/settings", base));
 	const body = (await response.json()) as { factoryEntries: FactoryEntry[] };
 	return body.factoryEntries;
-}
-
-/**
- * A hub, and its box when `boxAnswers` is given, with a tracked repo whose issues
- * the test can change, on a clock the test advances.
- */
-async function serveRuns(
-	hubAnswers: Answers,
-	issueNumbers: number[],
-	comments: Record<number, Record<string, unknown>[]> = {},
-	boxAnswers?: Answers,
-	pulls: Record<string, unknown>[] = [],
-	mergedPulls: Record<string, unknown>[] = [],
-) {
-	const factories: Record<string, Answers | "down"> = {
-		[hubUrl]: hubAnswers,
-		...(boxAnswers === undefined ? {} : { [laptopUrl]: boxAnswers }),
-	};
-	const requests: FactoryRequest[] = [];
-	const issues = { numbers: issueNumbers };
-	let now = runClockStart;
-	const tracker: Fetch = async (input, init) => {
-		const url = urlOf(input);
-		if (url === "https://api.github.com/user") {
-			return json({ login: "lev" });
-		}
-		const discovered = recordedDiscovery(input, init);
-		if (discovered !== null) {
-			return discovered;
-		}
-		if (listedRead(input, init)?.repo === repo) {
-			return (
-				issuesResponse(
-					input,
-					init,
-					issues.numbers.map((number) => {
-						const rows = comments[number];
-						return {
-							...ticket(number, "2026-10-25T09:00:00Z"),
-							...(rows === undefined ? {} : { commentRows: rows }),
-						};
-					}),
-					repo,
-					pulls,
-					mergedPulls,
-				) ?? page([])
-			);
-		}
-		return recordedOrEmpty(url) ?? unrecorded(input, init);
-	};
-	const app = await serve(
-		[],
-		{
-			pinned: [{ tracker: "github", repo }],
-			factories: [
-				{ name: "work hub", url: hubUrl },
-				...(boxAnswers === undefined
-					? []
-					: [{ name: "laptop", url: laptopUrl }]),
-			],
-		},
-		factoryFetch(factories, requests, tracker),
-		{ env: { GITHUB_TOKEN: "recorded-token" }, now: () => new Date(now) },
-	);
-	return {
-		...app,
-		stop: async () => {
-			await app.stop();
-			expect(requests.filter((request) => !readOrRunWrite(request))).toEqual(
-				[],
-			);
-		},
-		factories,
-		issues,
-		requests,
-		runReads: () =>
-			requests.filter((request) => request.url === `${hubUrl}/runs`).length,
-		eventReads: () =>
-			requests.filter((request) => request.url === `${hubUrl}/events`).length,
-		advance: (ms: number) => {
-			now += ms;
-		},
-	};
 }
 
 describe("factory runs", () => {
@@ -2085,141 +1945,6 @@ describe("factory runs", () => {
 				const response = await settledRead(
 					new URL("/api/factory-runs/no-such-run/sandbox", app.base),
 				);
-				expect(response.status).toBe(404);
-				expect(await response.json()).toEqual({ missing: true });
-			} finally {
-				await app.stop();
-			}
-		});
-	});
-
-	describe("the files changed", () => {
-		const running41 = hubRuns.runs[0]?.id ?? "";
-		const filesPath = `/runs/${running41}/files`;
-
-		async function filesOf(base: string, runId = running41): Promise<Response> {
-			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
-			return settledRead(
-				new URL(`/api/factory-runs/${encodeURIComponent(runId)}/files`, base),
-			);
-		}
-
-		/** Each files URL that the app read, once: a stale read reads again in the background. */
-		const filesRequests = (requests: FactoryRequest[]) => [
-			...new Set(
-				requests
-					.filter((request) => new URL(request.url).pathname === filesPath)
-					.map((request) => request.url),
-			),
-		];
-
-		test("a run on a box gives each changed file with its status, line counts and diff through the hub", async () => {
-			const app = await serveRuns({ ...hub, [filesPath]: runFiles }, [41]);
-			try {
-				const response = await filesOf(app.base);
-				expect(response.status).toBe(200);
-				const [gone, kept, added, renamed] = runFiles.files;
-				expect(await response.json()).toEqual({
-					files: [
-						{
-							path: "gone.txt",
-							status: "deleted",
-							additions: 0,
-							deletions: 1,
-							patch: gone?.patch,
-						},
-						{
-							path: "kept.txt",
-							status: "modified",
-							additions: 1,
-							deletions: 1,
-							patch: kept?.patch,
-						},
-						{
-							path: "new.txt",
-							status: "added",
-							additions: 2,
-							deletions: 0,
-							patch: added?.patch,
-						},
-						{
-							path: "renamed.txt",
-							previousPath: "moved.txt",
-							status: "renamed",
-							additions: 0,
-							deletions: 0,
-							patch: renamed?.patch,
-						},
-					],
-				});
-				expect(filesRequests(app.requests)).toEqual([`${hubUrl}${filesPath}`]);
-			} finally {
-				await app.stop();
-			}
-		});
-
-		test("a run that a hub and its box report reads its files from the hub, and the box gets no read", async () => {
-			const [row41] = hubRuns.runs;
-			if (row41 === undefined) {
-				throw new Error("the hub runs fixture lost a run");
-			}
-			const app = await serveRuns(
-				{ ...hub, [filesPath]: runFiles },
-				[41],
-				{},
-				{
-					...daemon,
-					"/runs": { runs: [boxRow(row41, "running")] },
-					[filesPath]: runFiles,
-				},
-			);
-			try {
-				await overviewWhere(
-					app.base,
-					(seen) => factoryRunOf(seen, 41)?.factory === "laptop",
-				);
-				expect((await filesOf(app.base)).status).toBe(200);
-				expect(filesRequests(app.requests)).toEqual([`${hubUrl}${filesPath}`]);
-			} finally {
-				await app.stop();
-			}
-		});
-
-		test("a factory that answers 404 on the files reports them as not served", async () => {
-			const app = await serveRuns(hub, [41]);
-			try {
-				const response = await filesOf(app.base);
-				expect(response.status).toBe(404);
-				expect(await response.json()).toEqual({ notServed: true });
-			} finally {
-				await app.stop();
-			}
-		});
-
-		test("a run whose worktree is gone reports its files as gone", async () => {
-			const app = await serveRuns(
-				{
-					...hub,
-					[filesPath]: Response.json(
-						{ error: `the worktree of run ${running41} is gone` },
-						{ status: 404 },
-					),
-				},
-				[41],
-			);
-			try {
-				const response = await filesOf(app.base);
-				expect(response.status).toBe(404);
-				expect(await response.json()).toEqual({ gone: true });
-			} finally {
-				await app.stop();
-			}
-		});
-
-		test("a run that no factory reports answers 404", async () => {
-			const app = await serveRuns(hub, [41]);
-			try {
-				const response = await filesOf(app.base, "no-such-run");
 				expect(response.status).toBe(404);
 				expect(await response.json()).toEqual({ missing: true });
 			} finally {
