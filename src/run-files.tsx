@@ -15,6 +15,8 @@ import {
 	runFilesLabel,
 	runFileStatusLabel,
 	runTabData,
+	runTabLabel,
+	uncommittedChangesLabel,
 } from "./terms.ts";
 import { colours, font, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -134,8 +136,33 @@ function FileDiff({ file }: { file: RunFile }) {
 	);
 }
 
-/** Each file that the run's branch changed, with its status, its line counts and its diff. */
-export function RunFiles({ run }: { run: ShownFactoryRun }) {
+/** The uncommitted changes of the worktree are in the run sandbox. */
+function SandboxNote({ onSandbox }: { onSandbox: () => void }) {
+	return (
+		<p className={clsx(panel.note)}>
+			{uncommittedChangesLabel}{" "}
+			<a
+				className={clsx(panel.factLink)}
+				href="?tab=sandbox"
+				onClick={(event) => {
+					event.preventDefault();
+					onSandbox();
+				}}
+			>
+				{runTabLabel.sandbox}
+			</a>
+		</p>
+	);
+}
+
+/** Each file that the run's branch committed since its base, with its status, its line counts and its diff. */
+export function RunFiles({
+	run,
+	onSandbox,
+}: {
+	run: ShownFactoryRun;
+	onSandbox: () => void;
+}) {
 	const { data } = useQuery(pageQuery.files(run));
 	if (data === undefined) {
 		return <Loading />;
@@ -150,7 +177,12 @@ export function RunFiles({ run }: { run: ShownFactoryRun }) {
 		return <p className={clsx(panel.note)}>{runFilesGoneLabel}</p>;
 	}
 	if (data.length === 0) {
-		return <p className={clsx(panel.note)}>{noRunFilesLabel}</p>;
+		return (
+			<>
+				<p className={clsx(panel.note)}>{noRunFilesLabel}</p>
+				<SandboxNote onSandbox={onSandbox} />
+			</>
+		);
 	}
 	return (
 		<>
@@ -164,6 +196,7 @@ export function RunFiles({ run }: { run: ShownFactoryRun }) {
 					deletions={data.reduce((sum, file) => sum + file.deletions, 0)}
 				/>
 			</p>
+			<SandboxNote onSandbox={onSandbox} />
 			<ul className={clsx(styles.files)} aria-label={runFilesLabel}>
 				{data.map((file) => (
 					<FileDiff key={file.path} file={file} />

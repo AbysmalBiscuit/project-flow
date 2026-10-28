@@ -373,7 +373,9 @@ export function aheadLabel(commits: number): string {
 	return commits === 1 ? "1 commit" : `${commits} commits`;
 }
 
-export const runFilesLabel = "Files changed";
+export const runFilesLabel = "Committed changes";
+
+export const uncommittedChangesLabel = "See the uncommitted changes in";
 
 export const noRunFilesLabel = "No committed file changes since the base.";
 

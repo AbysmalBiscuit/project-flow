@@ -135,7 +135,15 @@ function RunFacts({ run }: { run: RunDetail }) {
 	);
 }
 
-function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
+function TabBody({
+	run,
+	tab,
+	pick,
+}: {
+	run: RunDetail;
+	tab: RunTab;
+	pick: (next: RunTab) => void;
+}) {
 	if (tab === "overview") {
 		return (
 			<>
@@ -158,7 +166,7 @@ function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
 			) : tab === "events" ? (
 				<RunEvents run={run} />
 			) : tab === "files" ? (
-				<RunFiles run={run} />
+				<RunFiles run={run} onSandbox={() => pick("sandbox")} />
 			) : tab === "artifacts" ? (
 				<RunArtifacts run={run} />
 			) : tab === "sandbox" ? (
@@ -239,7 +247,7 @@ export function Page() {
 					) : data === null ? (
 						<p className={clsx(panel.note)}>{runMissingLabel}</p>
 					) : (
-						<TabBody run={data} tab={tab} />
+						<TabBody run={data} tab={tab} pick={pick} />
 					)}
 				</section>
 			</div>
