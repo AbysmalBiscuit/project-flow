@@ -1,14 +1,15 @@
 import { z } from "zod";
 
-import type {
-	FactoryRun,
-	RunAgent,
-	RunCheckpoint,
-	RunDetail,
-	RunEvent,
-	RunGraph,
-	RunStage,
-	RunUsage,
+import {
+	type FactoryRun,
+	resumableRunStatusKinds,
+	type RunAgent,
+	type RunCheckpoint,
+	type RunDetail,
+	type RunEvent,
+	type RunGraph,
+	type RunStage,
+	type RunUsage,
 } from "./domain.ts";
 import {
 	body,
@@ -295,6 +296,9 @@ export function runDetailReader(deps: {
 			...run,
 			...(workflow === undefined ? {} : { workflow }),
 			...(lastEvent === undefined ? {} : { lastEvent }),
+			...(resumableRunStatusKinds.some((kind) => kind === run.statusKind)
+				? { resumable: true }
+				: {}),
 		};
 	};
 	const readingWorkflows = new Set<string>();
