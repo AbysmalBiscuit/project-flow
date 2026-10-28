@@ -6,6 +6,7 @@ import { endedRunStatusKinds, type ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { useCancelRun } from "./queries.ts";
 import { runCancelCopy } from "./terms.ts";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 /** Cancel for a run that has not ended. Lev confirms, and the factory stops the run as failed. */
@@ -28,7 +29,12 @@ export function RunCancel({
 				onClick={() => setAsking(true)}
 			/>
 			{cancel.error === null ? null : (
-				<p className={clsx(panel.error)}>{cancel.error.message}</p>
+				<Toast
+					tone="error"
+					message={`${runCancelCopy.failed}: ${cancel.error.message}`}
+					hideMs={actionToastHideMs}
+					onClose={() => cancel.reset()}
+				/>
 			)}
 			<ConfirmDialog
 				id={`run-cancel-dialog-${run.id}`}

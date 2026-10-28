@@ -6,6 +6,7 @@ import { panel } from "./panel-styles.ts";
 import { useStartAgain } from "./queries.ts";
 import { SplitButton } from "./split-button.tsx";
 import { runResumeCopy } from "./terms.ts";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { clsx } from "./ui.ts";
 
 /**
@@ -42,7 +43,12 @@ export function RunResume({
 				]}
 			/>
 			{start.error === null ? null : (
-				<p className={clsx(panel.error)}>{start.error.message}</p>
+				<Toast
+					tone="error"
+					message={`${start.variables === "restart" ? runResumeCopy.restartFailed : runResumeCopy.resumeFailed}: ${start.error.message}`}
+					hideMs={actionToastHideMs}
+					onClose={() => start.reset()}
+				/>
 			)}
 			<ConfirmDialog
 				id={`run-restart-dialog-${run.id}`}

@@ -7,7 +7,8 @@ import { Button } from "./button.tsx";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery, useSteerRun } from "./queries.ts";
-import { steerLabel } from "./terms.ts";
+import { steerFailed, steerLabel } from "./terms.ts";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
@@ -95,7 +96,12 @@ export function RunSteer({ run }: { run: ShownFactoryRun }) {
 					disabled={steer.isPending}
 				/>
 				{steer.error === null ? null : (
-					<p className={clsx(panel.error)}>{steer.error.message}</p>
+					<Toast
+						tone="error"
+						message={`${steerFailed}: ${steer.error.message}`}
+						hideMs={actionToastHideMs}
+						onClose={() => steer.reset()}
+					/>
 				)}
 			</form>
 		</section>
