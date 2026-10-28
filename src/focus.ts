@@ -79,7 +79,7 @@ export function useFocusSet() {
 export function menuOwnsEscape(): boolean {
 	return (
 		document.querySelector(
-			"[aria-expanded='true'][aria-controls], [role='dialog'], [role='menu']",
+			"[aria-expanded='true'][aria-controls], [role='dialog'], dialog[open], [role='menu']",
 		) !== null
 	);
 }
