@@ -141,6 +141,8 @@ const answers: Record<string, (url: URL) => unknown> = {
 						"inputs",
 						"implement",
 						"push",
+						"start",
+						"review",
 						"conceptual",
 					],
 					node_retries: {},
