@@ -25,11 +25,6 @@ block_lines = 1000
 # Each file on main that is already past the block limit. The check fails
 # only when that file grows past the recorded size.
 [[file_length.limits]]
-pattern = "src/app.ts"
-accept = true
-lines = 1840
-
-[[file_length.limits]]
 pattern = "src/cards.tsx"
 accept = true
 lines = 1093
