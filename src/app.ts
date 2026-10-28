@@ -29,6 +29,7 @@ import { listedRef } from "./project-ref.ts";
 import { projectRoutes, reportFor } from "./project-routes.ts";
 import { attentionFor, overview, projectViews } from "./project-views.ts";
 import { replyRoutes } from "./reply-routes.ts";
+import { runStartRoutes } from "./run-start-routes.ts";
 import {
 	mergedSettingsWrite,
 	readSettingsWrite,
@@ -196,6 +197,8 @@ export async function start(options: StartOptions): Promise<Running> {
 		viewers: [],
 		runs: [],
 		factoryRuns: factories.runs,
+		listedFactories,
+		runStartRequests: new Map(),
 		workcellAuto: {},
 		repoAutoMerge: {},
 		attention: {
@@ -652,6 +655,12 @@ export async function start(options: StartOptions): Promise<Running> {
 				staleRead,
 				readKey,
 				threadReadLimitMs: options.threadReadLimitMs,
+			}),
+			...runStartRoutes({
+				trackers,
+				pollOptions,
+				notifier,
+				configuration: () => configuration,
 			}),
 			...factoryRunRoutes({
 				factories,

@@ -184,6 +184,8 @@ export const factoryUrl = z
 const factory = z.strictObject({
 	name: z.string().trim().min(1),
 	url: factoryUrl,
+	/** The label that a hub source rule of the factory starts a run on. */
+	readyLabel: z.string().trim().min(1).optional(),
 });
 
 export type Factory = z.infer<typeof factory>;

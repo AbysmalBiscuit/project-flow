@@ -28,6 +28,7 @@ import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { RunAction } from "./run-action.tsx";
+import { RunStartButton } from "./run-start-button.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { openTicket } from "./selection.ts";
 import { SendButton, SendText } from "./send-box.tsx";
@@ -300,6 +301,9 @@ export function TicketPanel({
 			ref={root}
 		>
 			<div className={clsx(panel.head)}>
+				{view?.runStart === undefined ? null : (
+					<RunStartButton ticket={ticket} start={view.runStart} />
+				)}
 				{view?.factoryRun === undefined ? null : (
 					<RunAction run={view.factoryRun} />
 				)}

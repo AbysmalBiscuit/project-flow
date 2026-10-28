@@ -18,8 +18,8 @@ export type ReplyDraft = ReplyTarget & {
 	kind?: ReplyRequest["kind"] | undefined;
 };
 
-/** The stored project of a reply: by its key, its name, or the repo of a GitHub ticket key. */
-function replySnapshot(
+/** The stored project of a ticket: by its key, its name, or the repo of a GitHub ticket key. */
+export function ticketSnapshot(
 	rows: Snapshot[],
 	reply: ReplyTarget,
 ): Snapshot | undefined {
@@ -74,7 +74,7 @@ export function replyRequest(
 	draft: ReplyDraft,
 	pmBots: Record<string, boolean>,
 ): { reply: ReplyRequest } | { error: string } {
-	const row = replySnapshot(rows, draft);
+	const row = ticketSnapshot(rows, draft);
 	const ticket = row?.tickets.find(
 		(item) => item.key !== null && sameTicketKey(item.key, draft.key),
 	);
@@ -112,7 +112,7 @@ export function recordedReply(
 	reply: ReplyRequest,
 	created: PostedReply,
 ): Snapshot | undefined {
-	const row = replySnapshot(rows, reply);
+	const row = ticketSnapshot(rows, reply);
 	if (row === undefined) {
 		return undefined;
 	}

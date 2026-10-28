@@ -257,6 +257,14 @@ export type ShownFactoryRun = Pick<
 	resumable?: true;
 };
 
+/** The ready label that starts a factory run of a ticket, and the factory that it names. */
+export type RunStart = {
+	factory: string;
+	label: string;
+	/** True when the ticket has the label and no run has started yet. */
+	requested?: true;
+};
+
 /** Where a factory run is in its flow, from the run checkpoint of its box. */
 export type RunCheckpoint = {
 	/** The path of the current stage. Null when the run is at no stage. */
@@ -495,6 +503,8 @@ export type TicketView = {
 	factoryRun?: ShownFactoryRun;
 	/** The factory runs before `factoryRun`, newest first. */
 	earlierFactoryRuns?: EarlierFactoryRun[];
+	/** Present when Lev can start a factory run of the ticket. */
+	runStart?: RunStart;
 	updatedAt?: string;
 	assignees?: string[];
 	workstream?: string;
