@@ -140,7 +140,7 @@ for await (const name of files) {
 	let trackerDepth = 0;
 	for (const [index, line] of sourceLines.entries()) {
 		if (
-			name === "src/github.ts" &&
+			name === "src/github-project-items.ts" &&
 			line.includes("const githubOptionColours")
 		) {
 			trackerMap = true;
