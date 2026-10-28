@@ -319,8 +319,8 @@ export type RunGraphNode = RunStage & {
 	kind: string;
 	/**
 	 * The child graph that the stage calls. The factory serves only the entry
-	 * graph, so the stages are those that the checkpoint records: the stages
-	 * of the live call, or of the calls that ended.
+	 * graph, so the stages are those that the checkpoint records over all the
+	 * calls, ended and live.
 	 */
 	child?: RunStage[];
 };

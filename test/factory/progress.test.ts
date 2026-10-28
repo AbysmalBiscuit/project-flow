@@ -222,6 +222,69 @@ describe("factory runs", () => {
 			}
 		});
 
+		test("a stage that calls its child graph again keeps the child stages of the earlier call and counts the visits of both calls", async () => {
+			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
+			const review = ["push", "fan", "verify", "review", "conceptual", "join"];
+			const app = await serveRuns(
+				{
+					...hub,
+					[checkpointPath]: {
+						...runGraphCheckpoint,
+						current_node: "summary",
+						stack: [{ node: "report" }],
+						completed_nodes: [
+							"start",
+							"inputs",
+							"implement",
+							...review,
+							"start",
+							"verdict",
+							"summary",
+							"report",
+							...review,
+							"start",
+						],
+						status: "running",
+					},
+					[graphPath]: runGraph,
+				},
+				[41],
+			);
+			try {
+				const { stage, graph } = (await (
+					await checkpointOf(app.base)
+				).json()) as RunCheckpoint;
+				expect(stage).toBe("report/summary");
+				expect(
+					graph?.nodes.find((node) => node.id === "report")?.child,
+				).toEqual([
+					{
+						id: "report/start",
+						label: "start",
+						state: "completed",
+						visits: 2,
+						retries: 0,
+					},
+					{
+						id: "report/verdict",
+						label: "verdict",
+						state: "completed",
+						visits: 1,
+						retries: 0,
+					},
+					{
+						id: "report/summary",
+						label: "summary",
+						state: "current",
+						visits: 2,
+						retries: 0,
+					},
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
 		test("a failed checkpoint marks the stage where the run failed", async () => {
 			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
 			const app = await serveRuns(

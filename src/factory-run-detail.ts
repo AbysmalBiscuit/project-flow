@@ -103,45 +103,18 @@ const workflowGraph = z.object({
 const startNodes = new Set(["start", "Start"]);
 
 /**
- * The stages that the run reached in the live call of the outer child graph:
- * the nodes that it completed since the start of the call, then its current
- * node. The checkpoint lists the completed nodes of each graph in one list.
+ * The child stages of each caller node, over all its calls. The checkpoint
+ * lists the completed nodes of each graph in one list. An ended call adds its
+ * completed nodes, then its caller node. A call closes at a caller node that
+ * ends the list or that a successor of the caller follows, because a child
+ * graph can have a node of the same name. The live call of the outer child
+ * graph runs from its start node to the end of the list, then its current node.
  */
-function childStages(
-	answer: z.infer<typeof checkpoint>,
-	caller: string,
-	failed: boolean,
-): RunStage[] {
-	const stack = answer.stack ?? [];
-	const starts = answer.completed_nodes.flatMap((node, index) =>
-		startNodes.has(node) ? [index] : [],
-	);
-	const from = starts.at(-stack.length);
-	const to = stack.length === 1 ? undefined : starts.at(1 - stack.length);
-	const completed =
-		from === undefined ? [] : answer.completed_nodes.slice(from, to);
-	const current = stack[1]?.node ?? answer.current_node;
-	return [...new Set([...completed, current])].map((node) => ({
-		id: `${caller}/${node}`,
-		label: node,
-		state: node !== current ? "completed" : failed ? "failed" : "current",
-		visits:
-			completed.filter((done) => done === node).length +
-			(node === current ? 1 : 0),
-		retries: 0,
-	}));
-}
-
-/**
- * The child stages of each call that ended before the live call. The factory
- * adds the completed nodes of a call to the list, then its caller node. A
- * call closes at a caller node that the list ends with or that a successor
- * of the caller follows, because a child graph can have a node of the same name.
- */
-function endedCallStages(
+function callStages(
 	graph: z.infer<typeof workflowGraph>,
 	answer: z.infer<typeof checkpoint>,
 	callers: ReadonlySet<string>,
+	failed: boolean,
 ): Map<string, RunStage[]> {
 	const successors = new Map<string, Set<string>>();
 	for (const edge of graph.edges) {
@@ -150,36 +123,16 @@ function endedCallStages(
 			(successors.get(edge.from) ?? new Set()).add(edge.to),
 		);
 	}
-	const stack = answer.stack ?? [];
-	const starts = answer.completed_nodes.flatMap((node, index) =>
-		startNodes.has(node) ? [index] : [],
-	);
-	const ended = answer.completed_nodes.slice(
-		0,
-		stack.length === 0 ? undefined : starts.at(-stack.length),
-	);
 	const stages = new Map<string, RunStage[]>();
-	let from: number | undefined;
-	ended.forEach((node, index) => {
-		if (from === undefined) {
-			from = index > 0 && startNodes.has(node) ? index : undefined;
-			return;
-		}
-		const next = ended[index + 1];
-		if (
-			!callers.has(node) ||
-			(next !== undefined && !successors.get(node)?.has(next))
-		) {
-			return;
-		}
-		const known = stages.get(node) ?? [];
-		for (const child of ended.slice(from, index)) {
-			const id = `${node}/${child}`;
+	const add = (caller: string, nodes: string[]) => {
+		const known = stages.get(caller) ?? [];
+		for (const node of nodes) {
+			const id = `${caller}/${node}`;
 			const seen = known.find((stage) => stage.id === id);
 			if (seen === undefined) {
 				known.push({
 					id,
-					label: child,
+					label: node,
 					state: "completed",
 					visits: 1,
 					retries: 0,
@@ -188,9 +141,45 @@ function endedCallStages(
 				seen.visits += 1;
 			}
 		}
-		stages.set(node, known);
-		from = undefined;
+		stages.set(caller, known);
+	};
+	const nodes = answer.completed_nodes;
+	const stack = answer.stack ?? [];
+	const starts = nodes.flatMap((node, index) =>
+		startNodes.has(node) ? [index] : [],
+	);
+	const liveFrom =
+		stack.length === 0
+			? nodes.length
+			: (starts.at(-stack.length) ?? nodes.length);
+	const ended = nodes.slice(0, liveFrom);
+	let from: number | undefined;
+	ended.forEach((node, index) => {
+		if (from === undefined) {
+			from = index > 0 && startNodes.has(node) ? index : undefined;
+			return;
+		}
+		const next = ended[index + 1];
+		if (
+			callers.has(node) &&
+			(next === undefined || successors.get(node)?.has(next))
+		) {
+			add(node, ended.slice(from, index));
+			from = undefined;
+		}
 	});
+	const caller = stack[0]?.node;
+	if (caller !== undefined) {
+		const current = stack[1]?.node ?? answer.current_node;
+		const to = stack.length === 1 ? undefined : starts.at(1 - stack.length);
+		add(caller, [...nodes.slice(liveFrom, to), current]);
+		const live = stages
+			.get(caller)
+			?.find((stage) => stage.id === `${caller}/${current}`);
+		if (live !== undefined) {
+			live.state = failed ? "failed" : "current";
+		}
+	}
 	return stages;
 }
 
@@ -210,7 +199,7 @@ function runGraph(
 			.filter((node) => (node.attrs.prompt_file ?? "").trim() !== "")
 			.map((node) => node.id),
 	);
-	const ended = endedCallStages(graph, answer, callers);
+	const children = callStages(graph, answer, callers, failed);
 	return {
 		nodes: graph.nodes.map((node) => {
 			const calls = callers.has(node.id);
@@ -229,14 +218,7 @@ function runGraph(
 							: "ahead",
 				visits: answer.visits[node.id] ?? 0,
 				retries: answer.node_retries[node.id] ?? 0,
-				...(calls
-					? {
-							child:
-								node.id === current
-									? childStages(answer, node.id, failed)
-									: (ended.get(node.id) ?? []),
-						}
-					: {}),
+				...(calls ? { child: children.get(node.id) ?? [] } : {}),
 			};
 		}),
 		edges: graph.edges.map((edge) => ({
