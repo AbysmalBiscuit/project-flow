@@ -9,7 +9,13 @@ import { doneTicketsForLane } from "../src/lanes.ts";
 import { run } from "../src/main.ts";
 import { tempConfig, testIo } from "./support/app.ts";
 import { urlOf } from "./support/fetch.ts";
-import { page, recordedDiscovery, repo, unrecorded } from "./support/github.ts";
+import {
+	head,
+	page,
+	recordedDiscovery,
+	repo,
+	unrecorded,
+} from "./support/github.ts";
 import { linearFake } from "./support/linear.ts";
 import { defaultStates } from "./support/states.ts";
 
@@ -98,8 +104,6 @@ const everyStatus = [
 	closed(6, "Drop the widget", "2026-08-17T12:00:00.000Z", "not_planned"),
 	issue(7, "Hold the widget", { body: `Blocked by: ${repo}#1` }),
 ];
-
-const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
 const pulls = [
 	pull(31, "Review it", [3], "review"),
