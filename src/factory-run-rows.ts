@@ -27,6 +27,7 @@ export const runRow = z.object({
 	started_at: z.string().nullish(),
 	ended_at: z.string().nullish(),
 	restarted_from: z.string().nullish(),
+	archived_at: z.string().nullish(),
 	usage: z
 		.object({
 			tokens: z.object({ input: z.number(), output: z.number() }),
@@ -114,6 +115,9 @@ export function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					...(run.restarted_from === null || run.restarted_from === undefined
 						? {}
 						: { restartedFrom: run.restarted_from }),
+					...(run.archived_at === null || run.archived_at === undefined
+						? {}
+						: { archivedAt: run.archived_at }),
 					...(run.status.reason === null ||
 					run.status.reason === undefined ||
 					run.status.reason === ""

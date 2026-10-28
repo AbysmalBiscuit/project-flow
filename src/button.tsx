@@ -104,6 +104,8 @@ type ButtonProps = Content &
 		pressed?: boolean;
 		/** A count badge after the label. */
 		count?: number | undefined;
+		/** The tooltip, when it differs from `name`. */
+		tooltip?: string;
 		/** The place of the button in its row or column. */
 		layout?: stylex.StyleXStyles<{
 			alignSelf?: "flex-start" | "center" | "flex-end";
@@ -125,6 +127,7 @@ export function Button(props: ButtonProps) {
 		tone,
 		pressed,
 		count,
+		tooltip,
 		layout,
 	} = props;
 	const Icon = icon === undefined ? null : icons[icon];
@@ -158,7 +161,7 @@ export function Button(props: ButtonProps) {
 				className={className}
 				href={props.href}
 				aria-label={name}
-				title={name}
+				title={tooltip ?? name}
 				{...(props.newTab === true
 					? { target: "_blank", rel: "noopener noreferrer" }
 					: {})}
@@ -175,6 +178,7 @@ export function Button(props: ButtonProps) {
 		tone: _tone,
 		pressed: _pressed,
 		count: _count,
+		tooltip: _tooltip,
 		layout: _layout,
 		href: _href,
 		submit,
@@ -187,7 +191,7 @@ export function Button(props: ButtonProps) {
 			className={className}
 			aria-label={name}
 			aria-pressed={pressed}
-			title={name}
+			title={tooltip ?? name}
 		>
 			{content}
 		</button>

@@ -149,7 +149,8 @@ export async function serveRuns(
 		issues,
 		requests,
 		runReads: () =>
-			requests.filter((request) => request.url === `${hubUrl}/runs`).length,
+			requests.filter((request) => request.url === `${hubUrl}/runs?archived=1`)
+				.length,
 		eventReads: () =>
 			requests.filter((request) => request.url === `${hubUrl}/events`).length,
 		advance: (ms: number) => {
