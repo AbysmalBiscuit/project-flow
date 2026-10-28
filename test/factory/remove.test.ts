@@ -12,55 +12,53 @@ import {
 } from "../support/factory.ts";
 import { boxRow, factoryRunOf, overviewWhere, serveRuns } from "./_support.ts";
 
-describe("factory deletes and archives", () => {
-	const succeeded40 = hubRuns.runs.find((row) => row.ticket === "40");
-	if (succeeded40 === undefined) {
-		throw new Error("the hub runs fixture lost the run of ticket 40");
-	}
-	const deletePath = `/runs/${succeeded40.id}/delete`;
-	const archivePath = `/runs/${succeeded40.id}/archive`;
-	const archivedAt = "2026-10-25T15:00:00+00:00";
+const found40 = hubRuns.runs.find((row) => row.ticket === "40");
+if (found40 === undefined) {
+	throw new Error("the hub runs fixture lost the run of ticket 40");
+}
+const succeeded40 = found40;
+const deletePath = `/runs/${succeeded40.id}/delete`;
+const archivePath = `/runs/${succeeded40.id}/archive`;
+const archivedAt = "2026-10-25T15:00:00+00:00";
 
-	/** A factory that reports `row` until it takes the write, and `after` then. */
-	function changeOnWrite(row: object, after: object[]) {
-		let written = false;
-		return {
-			runs: () => ({ runs: written ? after : [row] }),
-			write: () => {
-				written = true;
-				return row;
-			},
-		};
-	}
+/** A factory that reports `row` until it takes the write, and `after` then. */
+function changeOnWrite(row: object, after: object[]) {
+	let written = false;
+	return {
+		runs: () => ({ runs: written ? after : [row] }),
+		write: () => {
+			written = true;
+			return row;
+		},
+	};
+}
 
-	async function servedRun(
-		hubAnswers: Answers,
-		boxAnswers?: Answers,
-	): Promise<Awaited<ReturnType<typeof serveRuns>>> {
-		const app = await serveRuns(hubAnswers, [40], {}, boxAnswers);
-		await overviewWhere(
-			app.base,
-			(seen) => factoryRunOf(seen, 40) !== undefined,
-		);
-		return app;
-	}
+async function servedRun(
+	hubAnswers: Answers,
+	boxAnswers?: Answers,
+): Promise<Awaited<ReturnType<typeof serveRuns>>> {
+	const app = await serveRuns(hubAnswers, [40], {}, boxAnswers);
+	await overviewWhere(app.base, (seen) => factoryRunOf(seen, 40) !== undefined);
+	return app;
+}
 
-	function send(base: string, action: "delete" | "archive") {
-		return fetch(
-			new URL(`/api/factory-runs/${succeeded40?.id}/${action}`, base),
-			{ method: "POST" },
-		);
-	}
+function send(base: string, action: "delete" | "archive") {
+	return fetch(
+		new URL(`/api/factory-runs/${succeeded40?.id}/${action}`, base),
+		{ method: "POST" },
+	);
+}
 
-	async function listed(base: string): Promise<RunListRow[]> {
-		const response = await fetch(new URL("/api/factory-runs", base));
-		return (await response.json()) as RunListRow[];
-	}
+async function listed(base: string): Promise<RunListRow[]> {
+	const response = await fetch(new URL("/api/factory-runs", base));
+	return (await response.json()) as RunListRow[];
+}
 
-	function posts(requests: FactoryRequest[]): FactoryRequest[] {
-		return requests.filter((request) => request.method !== "GET");
-	}
+function posts(requests: FactoryRequest[]): FactoryRequest[] {
+	return requests.filter((request) => request.method !== "GET");
+}
 
+describe("factory deletes", () => {
 	test("a delete of a run that a hub and its box report goes to the hub, and the run then leaves the Runs list", async () => {
 		// The hub deletes the run on its box too, so the box drops its row with the hub.
 		const hubSide = changeOnWrite(succeeded40, []);
@@ -119,6 +117,40 @@ describe("factory deletes and archives", () => {
 		}
 	});
 
+	test("a 409 from the factory gives its reason, and the run stays", async () => {
+		const reason = `run ${succeeded40.id} has an open PR; archive it instead`;
+		const app = await servedRun({
+			...hub,
+			[deletePath]: Response.json({ error: reason }, { status: 409 }),
+		});
+		try {
+			const response = await send(app.base, "delete");
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({ error: reason });
+			expect(
+				(await listed(app.base)).some((row) => row.id === succeeded40.id),
+			).toBe(true);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a delete of a run that no factory reports gives 404 and sends nothing", async () => {
+		const app = await servedRun(hub);
+		try {
+			const response = await fetch(
+				new URL("/api/factory-runs/no-such-run/delete", app.base),
+				{ method: "POST" },
+			);
+			expect(response.status).toBe(404);
+			expect(posts(app.requests)).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
+});
+
+describe("factory archives", () => {
 	test("the app reads the archived runs too, and an archived run stays in the Runs list marked archived and leaves the board", async () => {
 		const hubSide = changeOnWrite(succeeded40, [
 			{ ...succeeded40, archived_at: archivedAt },
@@ -179,38 +211,6 @@ describe("factory deletes and archives", () => {
 				},
 			]);
 			expect((await listed(app.base))[0]?.archivedAt).toBe(archivedAt);
-		} finally {
-			await app.stop();
-		}
-	});
-
-	test("a 409 from the factory gives its reason, and the run stays", async () => {
-		const reason = `run ${succeeded40.id} has an open PR; archive it instead`;
-		const app = await servedRun({
-			...hub,
-			[deletePath]: Response.json({ error: reason }, { status: 409 }),
-		});
-		try {
-			const response = await send(app.base, "delete");
-			expect(response.status).toBe(409);
-			expect(await response.json()).toEqual({ error: reason });
-			expect(
-				(await listed(app.base)).some((row) => row.id === succeeded40.id),
-			).toBe(true);
-		} finally {
-			await app.stop();
-		}
-	});
-
-	test("a delete of a run that no factory reports gives 404 and sends nothing", async () => {
-		const app = await servedRun(hub);
-		try {
-			const response = await fetch(
-				new URL("/api/factory-runs/no-such-run/delete", app.base),
-				{ method: "POST" },
-			);
-			expect(response.status).toBe(404);
-			expect(posts(app.requests)).toEqual([]);
 		} finally {
 			await app.stop();
 		}
