@@ -1,5 +1,5 @@
 import type { Factory } from "./configuration.ts";
-import type { FactoryRun, RunStart, Ticket } from "./domain.ts";
+import type { FactoryRun, Queued, RunStart, Ticket } from "./domain.ts";
 import { foldKey } from "./ticket-key.ts";
 
 /** What a run start reads beyond the ticket: the listed factories, and when the app last requested a start of each ticket. */
@@ -28,21 +28,81 @@ export function runStartOf(
 	if (factory?.readyLabel === undefined) {
 		return { refused: "no factory has a ready label" };
 	}
-	const label = factory.readyLabel.toLowerCase();
-	const labelled = ticket.labels.some((item) => item.toLowerCase() === label);
-	// The hub keeps the ready label on a ticket after its run, so after a run only a
-	// start that the app sent later is a request that waits.
-	const request =
-		ticket.key === null ? undefined : requestedAt.get(foldKey(ticket.key));
 	const waits =
-		newestRun === undefined ||
-		(request !== undefined &&
-			Date.parse(request) >= Date.parse(newestRun.submittedAt));
+		hasLabel(ticket, factory.readyLabel) &&
+		waitsForRun(ticket, newestRun, requestedAt);
 	return {
 		factory: factory.name,
 		label: factory.readyLabel,
-		...(labelled && waits ? { requested: true } : {}),
+		...(waits ? { requested: true } : {}),
 	};
+}
+
+function hasLabel(ticket: Pick<Ticket, "labels">, label: string): boolean {
+	const folded = label.toLowerCase();
+	return ticket.labels.some((item) => item.toLowerCase() === folded);
+}
+
+/**
+ * True when no run of the ticket started since its ready condition asked for one.
+ * The hub keeps the ready label on a ticket after its run, so after a run only a
+ * start that the app sent later is a request that waits.
+ */
+function waitsForRun(
+	ticket: Pick<Ticket, "key">,
+	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
+	requestedAt: RunStarts["requestedAt"],
+): boolean {
+	if (newestRun === undefined) {
+		return true;
+	}
+	const request =
+		ticket.key === null ? undefined : requestedAt.get(foldKey(ticket.key));
+	return (
+		newestRun.statusKind === "succeeded" &&
+		request !== undefined &&
+		Date.parse(request) >= Date.parse(newestRun.submittedAt)
+	);
+}
+
+/**
+ * The first factory whose ready condition an open ticket meets while no run of it started.
+ * A factory with both a ready label and a ready status needs both.
+ */
+export function queuedOf(
+	ticket: Pick<Ticket, "key" | "state" | "labels" | "status">,
+	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
+	{ factories, requestedAt }: RunStarts,
+): Queued | undefined {
+	if (ticket.state !== "open" || !waitsForRun(ticket, newestRun, requestedAt)) {
+		return undefined;
+	}
+	const status = ticket.status?.name.toLowerCase();
+	const factory = factories.find(
+		({ readyLabel, readyStatus }) =>
+			(readyLabel !== undefined || readyStatus !== undefined) &&
+			(readyLabel === undefined || hasLabel(ticket, readyLabel)) &&
+			(readyStatus === undefined || readyStatus.toLowerCase() === status),
+	);
+	return factory === undefined
+		? undefined
+		: {
+				factory: factory.name,
+				...(factory.readyLabel === undefined
+					? {}
+					: { label: factory.readyLabel }),
+				...(factory.readyStatus === undefined
+					? {}
+					: { status: factory.readyStatus }),
+			};
+}
+
+/** The `queued` field of a ticket view: absent when the ticket does not wait for a run. */
+export function queuedView(
+	...args: Parameters<typeof queuedOf>
+): { queued: Queued } | Record<string, never> {
+	const queued = queuedOf(...args);
+	return queued === undefined ? {} : { queued };
 }
 
 /** The `runStart` field of a ticket view: absent when the ticket refuses a start. */

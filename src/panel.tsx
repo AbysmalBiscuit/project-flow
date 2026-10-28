@@ -28,6 +28,7 @@ import { panel } from "./panel-styles.ts";
 import { pathProject, projectPath } from "./paths.ts";
 import { pageQuery, pageQueryClient, usePostReply } from "./queries.ts";
 import { RunAction } from "./run-action.tsx";
+import { QueuedChip } from "./run-marks.tsx";
 import { RunStartButton } from "./run-start-button.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { openTicket } from "./selection.ts";
@@ -301,6 +302,9 @@ export function TicketPanel({
 			ref={root}
 		>
 			<div className={clsx(panel.head)}>
+				{view?.queued === undefined ? null : (
+					<QueuedChip queued={view.queued} />
+				)}
 				{view?.runStart === undefined ? null : (
 					<RunStartButton ticket={ticket} start={view.runStart} />
 				)}

@@ -40,7 +40,7 @@ import {
 	mergesOnItsOwn,
 	reviewState,
 } from "./review.ts";
-import { type RunStarts, runStartView } from "./run-start.ts";
+import { queuedView, type RunStarts, runStartView } from "./run-start.ts";
 import {
 	assigneesOf,
 	chipsOf,
@@ -252,6 +252,7 @@ export function projectCounts(
 			enteredStateAt: shown.enteredStateAt,
 			...shownFactoryRun(ticket, factoryRuns, pulls, now),
 			...runStartView(ticket, newestRun, runStarts),
+			...queuedView(ticket, newestRun, runStarts),
 			...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
 			...assigneesOf(ticket),
 			...(ticket.parent === null ? {} : { parent: ticket.parent }),
