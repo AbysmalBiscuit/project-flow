@@ -265,6 +265,13 @@ export type RunStart = {
 	requested?: true;
 };
 
+/** The factory whose ready label or ready status a ticket carries while it waits for its first run. */
+export type Queued = {
+	factory: string;
+	label?: string;
+	status?: string;
+};
+
 /** Where a factory run is in its flow, from the run checkpoint of its box. */
 export type RunCheckpoint = {
 	/** The path of the current stage. Null when the run is at no stage. */
@@ -505,6 +512,8 @@ export type TicketView = {
 	earlierFactoryRuns?: EarlierFactoryRun[];
 	/** Present when Lev can start a factory run of the ticket. */
 	runStart?: RunStart;
+	/** Present when the ticket waits for the hub source loop to claim it. */
+	queued?: Queued;
 	updatedAt?: string;
 	assignees?: string[];
 	workstream?: string;

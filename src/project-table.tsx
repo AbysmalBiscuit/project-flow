@@ -11,6 +11,7 @@ import { useCollapse } from "./collapse.ts";
 import type { ProjectReport, TicketRelation, TicketView } from "./domain.ts";
 import { ticketGroups } from "./grouping.ts";
 import { displayedLaneName } from "./lanes.ts";
+import { QueuedChip } from "./run-marks.tsx";
 import { tonedProps } from "./state-tone.ts";
 import { tableTree } from "./table-tree-styles.ts";
 import { navLabel, subTicketsToggleLabel } from "./terms.ts";
@@ -260,8 +261,11 @@ function TableRow({
 					{...tonedProps(lane?.colour, lane?.statusType, board.stateMark)}
 				/>
 				{displayedLaneName(ticket)}
-				{ticket.chips === undefined ? null : (
+				{ticket.chips === undefined && ticket.queued === undefined ? null : (
 					<span className={clsx(board.links)}>
+						{ticket.queued === undefined ? null : (
+							<QueuedChip queued={ticket.queued} />
+						)}
 						<ServerChips ticket={ticket} />
 					</span>
 				)}

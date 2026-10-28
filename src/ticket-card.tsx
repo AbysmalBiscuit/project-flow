@@ -9,7 +9,7 @@ import {
 	ServerChips,
 } from "./card-chips.tsx";
 import type { OutsideParent, TicketView } from "./domain.ts";
-import { RunLink, StageChip } from "./run-marks.tsx";
+import { QueuedChip, RunLink, StageChip } from "./run-marks.tsx";
 import {
 	navLabel,
 	parentChipLabel,
@@ -29,6 +29,7 @@ type CardTicket = Pick<
 	| "pull"
 	| "needsYou"
 	| "factoryRun"
+	| "queued"
 	| "parent"
 	| "subTickets"
 	| "unlinkedPr"
@@ -92,10 +93,14 @@ export function TicketCardBody({
 			parentKey === undefined &&
 			subTickets === undefined &&
 			fedRun?.stage === undefined &&
+			ticket.queued === undefined &&
 			!ticket.needsYou ? null : (
 				<span className={clsx(board.chips)}>
 					{fedRun?.stage === undefined ? null : (
 						<StageChip stage={fedRun.stage} />
+					)}
+					{ticket.queued === undefined ? null : (
+						<QueuedChip queued={ticket.queued} />
 					)}
 					{parentKey === undefined || parent === undefined ? null : (
 						<Chip

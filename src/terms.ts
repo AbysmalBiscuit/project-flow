@@ -1,6 +1,7 @@
 import type {
 	NeedsYouItem,
 	NotificationTrigger,
+	Queued,
 	RunMessage,
 	RunResult,
 	RunStatusKind,
@@ -261,6 +262,17 @@ export const runStartCopy = {
 	linearBody: (factory: string, label: string) =>
 		`Project Flow adds the label ${label} to the ticket. The factory ${factory} starts a run only when the workflow state of the ticket matches a rule of its source.`,
 } as const;
+
+export const queuedLabel = "Queued";
+
+/** The tooltip of the Queued chip: the factory, and the label or status that queued the ticket. */
+export function queuedTip({ factory, label, status }: Queued): string {
+	const reasons = [
+		...(label === undefined ? [] : [`label ${label}`]),
+		...(status === undefined ? [] : [`status ${status}`]),
+	];
+	return `Waits for factory ${factory} to start a run: ${reasons.join(" and ")}`;
+}
 
 export const runThreadLabel = "Run thread";
 
@@ -790,6 +802,7 @@ export const factoryCopy = {
 	url: "http, https or unix URL",
 	readyLabel: "Run start label (optional)",
 	readyLabelOf: (label: string) => `run start label ${label}`,
+	readyStatusOf: (status: string) => `run start status ${status}`,
 	reachable: "Reachable",
 	unreachable: "Unreachable",
 	unchecked: "Not checked",
