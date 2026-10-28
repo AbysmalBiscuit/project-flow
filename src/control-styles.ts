@@ -17,15 +17,13 @@ const hoverInk = "color-mix(in srgb, currentColor 14%, transparent)";
 const pressInk = "color-mix(in srgb, currentColor 28%, transparent)";
 const filledPress = {
 	default: null,
-	":not(:disabled):hover": `linear-gradient(${hoverInk}, ${hoverInk})`,
+	":not(:disabled):not(:active):hover": `linear-gradient(${hoverInk}, ${hoverInk})`,
 	":not(:disabled):active": `linear-gradient(${pressInk}, ${pressInk})`,
 } as const;
 
-// A later style that sets `backgroundColor` replaces the hover and press fills
-// too, so each fill at rest carries its own hover and press fills. A disabled
-// control takes no hover or press fill.
+// StyleX gives compound conditions one priority, so hover excludes `:active`.
 const pressFill = {
-	":not(:disabled):hover": colours.rowHover,
+	":not(:disabled):not(:active):hover": colours.rowHover,
 	":not(:disabled):active": colours.controlPress,
 } as const;
 
@@ -118,7 +116,7 @@ export const control = stylex.create({
 	chosen: {
 		backgroundColor: {
 			default: colours.rowOn,
-			":not(:disabled):hover": colours.rowOn,
+			":not(:disabled):not(:active):hover": colours.rowOn,
 			":not(:disabled):active": colours.controlPress,
 		},
 	},
