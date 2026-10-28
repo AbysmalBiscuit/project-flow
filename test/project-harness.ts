@@ -5,14 +5,16 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
+	page,
 	recordedDiscovery,
-	tempConfig,
-	testIo,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+
+export { page };
 
 export const githubRepo = "acme/widget";
 export const otherRepo = "acme/platform";
@@ -50,13 +52,6 @@ export function linearIssue(
 		state: { type: stateType },
 		inverseRelations: { nodes: [] },
 	};
-}
-
-export function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 export const githubIssues = [

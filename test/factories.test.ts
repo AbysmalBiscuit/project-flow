@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 
 import type { FactoryEntry } from "../src/factories.ts";
 import { run } from "../src/main.ts";
+import daemonAbout from "./fixtures/factory-daemon.json";
+import { tempConfig, testIo } from "./support/app.ts";
 import {
 	type Answers,
 	daemon,
@@ -13,10 +15,9 @@ import {
 	laptopSocket,
 	laptopUrl,
 	serve,
-} from "./factory-support.ts";
-import daemonAbout from "./fixtures/factory-daemon.json";
-import { openEventStream } from "./live-support.ts";
-import { tempConfig, testIo, unrecorded } from "./support.ts";
+} from "./support/factory.ts";
+import { unrecorded } from "./support/github.ts";
+import { openEventStream } from "./support/reads.ts";
 
 async function factoryEntries(base: string): Promise<FactoryEntry[]> {
 	const response = await fetch(new URL("/api/settings", base));

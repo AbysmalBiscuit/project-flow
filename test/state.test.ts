@@ -18,15 +18,11 @@ import projectFields from "./fixtures/github-project-fields.json";
 import approvedState from "./fixtures/linear-approved-state.json";
 import historyNode from "./fixtures/linear-history-node.json";
 import teamStates from "./fixtures/linear-team-states.json";
-import {
-	linearFake,
-	recordedDiscovery,
-	repoReadFromLists,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { page, recordedDiscovery, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { repoReadFromLists } from "./support/repo-read.ts";
 
 const fixtureDir = join(import.meta.dir, "fixtures");
 const linearSlug = "widget-launch";
@@ -120,13 +116,6 @@ type RecordedPull = {
 	merged_at?: string | null;
 	auto_merge?: unknown;
 };
-
-function page(items: unknown): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
 
 async function recordedJson(name: string): Promise<unknown> {
 	return JSON.parse(await readFile(join(fixtureDir, name), "utf8"));

@@ -1,9 +1,7 @@
 import type { Fetch } from "../src/fetch.ts";
-import {
-	recordedDiscovery,
-	repoReadFromHandler,
-	urlOf,
-} from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery } from "../test/support/github.ts";
+import { repoReadFromHandler } from "../test/support/repo-read.ts";
 import { serveRecorded, unrecorded } from "./recorded.ts";
 
 const tall = "acme/tall";

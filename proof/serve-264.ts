@@ -3,11 +3,9 @@ import { join } from "node:path";
 
 import { run } from "../src/main.ts";
 import { answerRecordedRepoRead } from "../test/recorded-read.ts";
-import {
-	recordedDiscovery,
-	repoReadFromHandler,
-	urlOf,
-} from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedDiscovery } from "../test/support/github.ts";
+import { repoReadFromHandler } from "../test/support/repo-read.ts";
 import { proofStops } from "./lifetime.ts";
 import { unrecorded } from "./recorded.ts";
 

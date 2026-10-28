@@ -7,15 +7,11 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import projectFields from "./fixtures/github-project-fields.json";
 import recorded from "./fixtures/github-project-ticket-fields.json";
-import {
-	recordedViewer,
-	repoReadIssues,
-	settledOverview,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
+import { recordedViewer, unrecorded } from "./support/github.ts";
+import { settledOverview } from "./support/reads.ts";
+import { repoReadIssues } from "./support/repo-read.ts";
 
 const repo = recorded.repository;
 const board = recorded.projectByNumber.data.repositoryOwner.projectV2.title;

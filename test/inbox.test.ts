@@ -9,18 +9,12 @@ import { run } from "../src/main.ts";
 import { sqliteStore } from "../src/store.ts";
 import { eventsOf } from "./events.ts";
 import outsideRelations from "./fixtures/outside-relations.json";
-import {
-	linearFake,
-	recordedDiscovery,
-	repoReadFromLists,
-	settledOverview,
-	tempConfig,
-	testIo,
-	type TrackerRequest,
-	trackerRequest,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { type TrackerRequest, trackerRequest, urlOf } from "./support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledOverview } from "./support/reads.ts";
+import { repoReadFromLists } from "./support/repo-read.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 

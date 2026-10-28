@@ -7,31 +7,28 @@ import { join } from "node:path";
 import { loadFilledConfiguration } from "../src/configuration.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { answerRecordedRepoRead } from "./recorded-read.ts";
+import { goodPoll, tempConfig, testIo, withServer } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
-	goodPoll,
 	issuesResponse,
 	listedRead,
 	listUrl,
-	openEventStream,
-	type OverviewBody,
-	overviewOf,
 	page,
-	readOverview,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
 	ticket,
-	withServer,
-} from "./live-support.ts";
-import { answerRecordedRepoRead } from "./recorded-read.ts";
+	unrecorded,
+} from "./support/github.ts";
 import {
-	recordedDiscovery,
+	openEventStream,
+	type OverviewBody,
+	overviewOf,
+	readOverview,
 	settledOverview,
 	settledOverviewEvent,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/reads.ts";
 
 test("a refresh during a poll longer than 10 seconds answers before that poll ends", async () => {
 	// The poll span runs on the clock port, not wall time.

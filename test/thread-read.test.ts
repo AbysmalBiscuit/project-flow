@@ -2,7 +2,8 @@ import { expect, test } from "bun:test";
 
 import type { Thread } from "../src/domain.ts";
 import { githubFetch, issue, type Sent, serve } from "./replies-github-fake.ts";
-import { linearFake, settledRead } from "./support.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledRead } from "./support/reads.ts";
 
 const linearProject = {
 	id: "11111111-1111-4111-8111-111111111111",

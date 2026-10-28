@@ -3,18 +3,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { FactoryTokenMint } from "../src/factory-tokens.ts";
-import type { Fetch } from "../src/fetch.ts";
-import { run } from "../src/main.ts";
-import recordedIssues from "./fixtures/github-issues.json";
-import {
-	recordedDiscovery,
-	repoReadFromLists,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import type { FactoryTokenMint } from "../../src/factory-tokens.ts";
+import type { Fetch } from "../../src/fetch.ts";
+import { run } from "../../src/main.ts";
+import recordedIssues from "../fixtures/github-issues.json";
+import { tempConfig, testIo } from "../support/app.ts";
+import { json, urlOf } from "../support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "../support/github.ts";
+import { repoReadFromLists } from "../support/repo-read.ts";
 
 export const userToken = "recorded-user-token";
 export const acmeToken = "ghs_acme_installation";
@@ -40,13 +36,6 @@ export function hostsText(token: string, expiresAt: string): string {
 		`    expires_at: ${expiresAt}`,
 		"",
 	].join("\n");
-}
-
-export function json(body: unknown, status = 200): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 export function recordedIssue(

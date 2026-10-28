@@ -1,5 +1,5 @@
 import type { Fetch } from "../src/fetch.ts";
-import { urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
 import {
 	end,
 	issues,

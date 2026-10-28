@@ -1,5 +1,5 @@
 import type { PollProgress } from "../src/domain.ts";
-import type { ChangeEvent } from "./support.ts";
+import type { ChangeEvent } from "./support/reads.ts";
 
 export function eventsOf(text: string): ChangeEvent[] {
 	const events: ChangeEvent[] = [];

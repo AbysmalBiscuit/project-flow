@@ -12,15 +12,13 @@ import {
 	otherRepo,
 	withApp,
 } from "./project-harness.ts";
+import { type TrackerRequest, trackerRequest, urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
-	linearFake,
 	recordedDiscovery,
-	type TrackerRequest,
-	trackerRequest,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { linearFake } from "./support/linear.ts";
 
 const linearProject = {
 	id: "project-widget",

@@ -5,25 +5,20 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
+import { goodPoll, tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
-	goodPoll,
 	issuesResponse,
 	listedRead,
-	openEventStream,
 	otherRepo,
-	type OverviewBody,
 	page,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
 	ticket,
-} from "./live-support.ts";
-import {
-	recordedDiscovery,
-	tempConfig,
-	testIo,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { openEventStream, type OverviewBody } from "./support/reads.ts";
 
 type ProgressEvent = {
 	done: number;

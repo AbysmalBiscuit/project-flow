@@ -6,13 +6,9 @@ import { join } from "node:path";
 import type { Overview } from "../src/domain.ts";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	recordedDiscovery,
-	tempConfig,
-	testIo,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { json, urlOf } from "./support/fetch.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
 
 const userToken = "recorded-user-token";
 const acmeToken = "ghs_acme_project";
@@ -38,13 +34,6 @@ function hostsText(token: string, expiresAt: string): string {
 		`    expires_at: ${expiresAt}`,
 		"",
 	].join("\n");
-}
-
-function json(body: unknown): Response {
-	return new Response(JSON.stringify(body), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 function emptyItems(): unknown {

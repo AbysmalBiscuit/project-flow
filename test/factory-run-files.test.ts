@@ -5,12 +5,12 @@ import {
 	factoryRunOf,
 	overviewWhere,
 	serveRuns,
-} from "./factory-run-support.ts";
-import { daemon, type FactoryRequest, hub, hubUrl } from "./factory-support.ts";
+} from "./factory/_support.ts";
 import hubRuns from "./fixtures/factory-hub-runs.json";
 import runFiles from "./fixtures/factory-run-files.json";
 import runSandbox from "./fixtures/factory-run-sandbox.json";
-import { settledRead } from "./support.ts";
+import { daemon, type FactoryRequest, hub, hubUrl } from "./support/factory.ts";
+import { settledRead } from "./support/reads.ts";
 
 describe("factory runs", () => {
 	describe("the files changed", () => {

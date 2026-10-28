@@ -89,8 +89,3 @@ pattern = "test/state.test.ts"
 accept = true
 lines = 2934
 
-[[file_length.limits]]
-pattern = "test/support.ts"
-accept = true
-lines = 1499
-

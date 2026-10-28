@@ -18,17 +18,15 @@ import {
 	page,
 	withApp,
 } from "./project-harness.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { urlOf } from "./support/fetch.ts";
 import {
 	emptyProjectFields,
-	githubIssueNode,
 	recordedDiscovery,
-	repoReadIssues,
-	settledOverview,
-	tempConfig,
-	testIo,
 	unrecorded,
-	urlOf,
-} from "./support.ts";
+} from "./support/github.ts";
+import { settledOverview } from "./support/reads.ts";
+import { githubIssueNode, repoReadIssues } from "./support/repo-read.ts";
 
 describe("GET /api/projects/:name", () => {
 	test("each ticket lists its blockers, outside blockers and the open tickets it blocks", async () => {

@@ -1,5 +1,5 @@
-export const repo = "acme/widget";
-export const head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+import { repo } from "../support/github.ts";
+
 export const older = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 export const codex = "chatgpt-codex-connector[bot]";
 export const grok = "grok-code-review[bot]";
@@ -121,24 +121,6 @@ export function issue(number: number): Record<string, unknown> {
 
 export function progress(lines: string): string {
 	return `**Workcell progress**\n\n${lines}`;
-}
-
-export function pull(
-	number: number,
-	ticket = 8,
-	sha = head,
-	draft = false,
-): Record<string, unknown> {
-	return {
-		number,
-		title: `PR ${number}`,
-		state: "open",
-		draft,
-		html_url: `https://github.com/${repo}/pull/${number}`,
-		head: { ref: `${number}-feat-review`, sha },
-		body: `Closes #${ticket}`,
-		merged_at: null,
-	};
 }
 
 export function mergedPull(): Record<string, unknown> {

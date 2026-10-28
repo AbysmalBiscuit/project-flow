@@ -3,14 +3,9 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	recordedDiscovery,
-	repoReadFromLists,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
-
-const repo = "acme/widget";
+import { urlOf } from "./support/fetch.ts";
+import { page, recordedDiscovery, repo, unrecorded } from "./support/github.ts";
+import { repoReadFromLists } from "./support/repo-read.ts";
 
 function flag(name: string): string | undefined {
 	const prefix = `--${name}=`;
@@ -88,13 +83,6 @@ const issues = [
 		assignees: [{ login: "ada" }],
 	}),
 ];
-
-function page(items: Record<string, unknown>[]): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
-}
 
 const recorded: Fetch = async (input, init) => {
 	const discovered = recordedDiscovery(input, init);

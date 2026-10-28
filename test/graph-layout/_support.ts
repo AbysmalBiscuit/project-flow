@@ -1,14 +1,14 @@
-import type { ProjectReport } from "../src/domain.ts";
-import { projectNodeId } from "../src/graph-flow.ts";
+import type { ProjectReport } from "../../src/domain.ts";
+import { projectNodeId } from "../../src/graph-flow.ts";
 import {
 	frameId,
 	type GraphLayout,
 	type LayoutInput,
 	type Rect,
-} from "../src/graph-layout.ts";
-import type { NodeSize } from "../src/graph-sizes.ts";
-import { linearSlug, withApp } from "./project-harness.ts";
-import { type LinearFake, linearFake } from "./support.ts";
+} from "../../src/graph-layout.ts";
+import type { NodeSize } from "../../src/graph-sizes.ts";
+import { linearSlug, withApp } from "../project-harness.ts";
+import { type LinearFake, linearFake } from "../support/linear.ts";
 
 export const card = { width: 220, height: 96 };
 
@@ -23,7 +23,7 @@ export function tallCards(input: LayoutInput): Map<string, NodeSize> {
 	);
 }
 export const workcell = (await Bun.file(
-	new URL("./fixtures/workcell-graph-report.json", import.meta.url),
+	new URL("../fixtures/workcell-graph-report.json", import.meta.url),
 ).json()) as ProjectReport;
 
 export const linearTicket = (

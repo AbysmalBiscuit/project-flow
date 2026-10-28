@@ -1,17 +1,19 @@
+import hubRuns from "../test/fixtures/factory-hub-runs.json";
 /**
  * A hub with a failed run on ticket 41 and a blocked run on ticket 42. A resume
  * starts the run again, and a restart adds a new run that names the old run.
  */
-import { factoryFetch, hub, hubUrl } from "../test/factory-support.ts";
-import hubRuns from "../test/fixtures/factory-hub-runs.json";
+import { factoryFetch, hub, hubUrl } from "../test/support/factory.ts";
+import { urlOf } from "../test/support/fetch.ts";
 import {
 	issuesResponse,
 	page,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
 	ticket,
-} from "../test/live-support.ts";
-import { recordedDiscovery, unrecorded, urlOf } from "../test/support.ts";
+	unrecorded,
+} from "../test/support/github.ts";
 import { serveRecorded } from "./recorded.ts";
 
 const started = Date.now();

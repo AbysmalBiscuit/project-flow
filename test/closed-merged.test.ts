@@ -7,15 +7,9 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { refreshSettled } from "./events.ts";
 import projectFields from "./fixtures/github-project-fields.json";
-import {
-	recordedDiscovery,
-	tempConfig,
-	testIo,
-	type TrackerRequest,
-	trackerRequest,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
+import { tempConfig, testIo } from "./support/app.ts";
+import { type TrackerRequest, trackerRequest, urlOf } from "./support/fetch.ts";
+import { page, recordedDiscovery, unrecorded } from "./support/github.ts";
 
 const fixtureDir = join(import.meta.dir, "fixtures");
 const githubRepo = "acme/widget";
@@ -38,13 +32,6 @@ function boardOptionId(name: string): string | undefined {
 	return githubStatusOptions.find(
 		(option) => option.name.trim().replace(/\s+/g, " ") === collapsed,
 	)?.id;
-}
-
-function page(items: unknown): Response {
-	return new Response(JSON.stringify(items), {
-		status: 200,
-		headers: { "content-type": "application/json" },
-	});
 }
 
 function boardItem(

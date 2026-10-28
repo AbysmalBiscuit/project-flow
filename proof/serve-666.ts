@@ -1,17 +1,19 @@
+import hubRuns from "../test/fixtures/factory-hub-runs.json";
 /**
  * A project graph whose ticket 37 gains a factory run, and with it a stage
  * chip row, `RUN_AFTER_MS` after the server starts.
  */
-import { factoryFetch, hub, hubUrl } from "../test/factory-support.ts";
-import hubRuns from "../test/fixtures/factory-hub-runs.json";
+import { factoryFetch, hub, hubUrl } from "../test/support/factory.ts";
+import { urlOf } from "../test/support/fetch.ts";
 import {
 	issuesResponse,
 	page,
+	recordedDiscovery,
 	recordedOrEmpty,
 	repo,
 	ticket,
-} from "../test/live-support.ts";
-import { recordedDiscovery, unrecorded, urlOf } from "../test/support.ts";
+	unrecorded,
+} from "../test/support/github.ts";
 import { serveRecorded } from "./recorded.ts";
 
 const runAfterMs = Number(process.env.RUN_AFTER_MS ?? "20000");

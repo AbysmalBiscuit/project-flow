@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 import type { NeedsYouItem } from "../src/domain.ts";
 import { serve } from "./replies-github-fake.ts";
-import { linearFake } from "./support.ts";
+import { linearFake } from "./support/linear.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 

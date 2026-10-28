@@ -5,7 +5,9 @@ import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import recordedClosedBlockers from "../test/fixtures/github-closed-blockers.json";
 import { answerRecordedRepoRead } from "../test/recorded-read.ts";
-import { recordedViewer, repoReadIssues, urlOf } from "../test/support.ts";
+import { urlOf } from "../test/support/fetch.ts";
+import { recordedViewer } from "../test/support/github.ts";
+import { repoReadIssues } from "../test/support/repo-read.ts";
 import { proofStops } from "./lifetime.ts";
 
 const root = await mkdtemp(join("/var/tmp", "project-flow-closed-blockers-"));

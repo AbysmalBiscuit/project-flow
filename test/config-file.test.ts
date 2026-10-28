@@ -5,13 +5,9 @@ import { join } from "node:path";
 
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
-import {
-	defaultStates,
-	recordedDiscovery,
-	testIo,
-	unrecorded,
-	writtenStates,
-} from "./support.ts";
+import { testIo } from "./support/app.ts";
+import { recordedDiscovery, unrecorded } from "./support/github.ts";
+import { defaultStates, writtenStates } from "./support/states.ts";
 
 const discoveryOnly: Fetch = async (input, init) =>
 	recordedDiscovery(input, init) ?? unrecorded(input);

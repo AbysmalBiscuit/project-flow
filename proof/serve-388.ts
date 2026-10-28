@@ -4,7 +4,7 @@
  * Usage: bun proof/serve-388.ts [PORT] [VIEW]
  */
 import teamStates from "../test/fixtures/linear-team-states.json";
-import { linearFake } from "../test/support.ts";
+import { linearFake } from "../test/support/linear.ts";
 import { serveRecorded } from "./recorded.ts";
 
 const slug = "widget-launch";

@@ -11,7 +11,8 @@ import {
 	unrecorded,
 	urlOf,
 } from "./replies-github-fake.ts";
-import { linearFake, settledRead } from "./support.ts";
+import { linearFake } from "./support/linear.ts";
+import { settledRead } from "./support/reads.ts";
 
 const ask = (id: string) => `<!-- workcell:ask ${id} -->`;
 const linearProject = {

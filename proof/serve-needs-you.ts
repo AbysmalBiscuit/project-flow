@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { Fetch } from "../src/fetch.ts";
 import { run } from "../src/main.ts";
 import { answerRecordedRepoRead } from "../test/recorded-read.ts";
-import { repoReadFromLists } from "../test/support.ts";
+import { repoReadFromLists } from "../test/support/repo-read.ts";
 import { proofStops, proofTheme } from "./lifetime.ts";
 
 const repo = "acme/widget";
