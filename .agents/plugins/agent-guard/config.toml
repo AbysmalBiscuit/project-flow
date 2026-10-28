@@ -45,11 +45,6 @@ accept = true
 lines = 1205
 
 [[file_length.limits]]
-pattern = "src/project.tsx"
-accept = true
-lines = 1742
-
-[[file_length.limits]]
 pattern = "src/settings.tsx"
 accept = true
 lines = 1444
