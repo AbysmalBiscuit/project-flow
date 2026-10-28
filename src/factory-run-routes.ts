@@ -177,8 +177,9 @@ export function factoryRunRoutes({
 					return Response.json(found);
 				}),
 		},
+		/** A cursor read gives a new page each time, so it reads the factory at once and stores nothing. */
 		"/api/factory-runs/:id/transcript": {
-			GET: (request) => {
+			GET: async (request) => {
 				const parsed = transcriptQuery.safeParse(
 					Object.fromEntries(new URL(request.url).searchParams),
 				);
@@ -188,20 +189,18 @@ export function factoryRunRoutes({
 						{ status: 400 },
 					);
 				}
-				return staleRead(readKey(request), async () => {
-					const found = await factories.transcript(
-						request.params.id,
-						parsed.data.stage,
-						parsed.data.after,
-					);
-					if (found === "missing") {
-						return Response.json({ missing: true }, { status: 404 });
-					}
-					if (found === "not served") {
-						return Response.json({ notServed: true }, { status: 404 });
-					}
-					return Response.json(found);
-				});
+				const found = await factories.transcript(
+					request.params.id,
+					parsed.data.stage,
+					parsed.data.after,
+				);
+				if (found === "missing") {
+					return Response.json({ missing: true }, { status: 404 });
+				}
+				if (found === "not served") {
+					return Response.json({ notServed: true }, { status: 404 });
+				}
+				return Response.json(found);
 			},
 		},
 		"/api/factory-runs/:id/artifact": {

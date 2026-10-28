@@ -8,7 +8,7 @@ import {
 	hub,
 	hubUrl,
 } from "../support/factory.ts";
-import { settledRead } from "../support/reads.ts";
+import { openEventStream, settledRead } from "../support/reads.ts";
 import { boxRow, factoryRunOf, overviewWhere, serveRuns } from "./_support.ts";
 
 const [running41] = hubRuns.runs;
@@ -127,6 +127,65 @@ describe("the stage transcript", () => {
 				`${hubUrl}${transcriptPath}?after=8`,
 			);
 		} finally {
+			await app.stop();
+		}
+	});
+
+	test("each cursor read answers at once from the factory, and no read publishes an overview event", async () => {
+		const entries = [...stageTranscript.entries];
+		const page = (url: URL) => {
+			const after = Number(url.searchParams.get("after") ?? "0");
+			const found = entries.filter((entry) => entry.id > after);
+			return { entries: found, next: found.at(-1)?.id ?? after };
+		};
+		const app = await serveRuns({ ...hub, [transcriptPath]: page }, [41]);
+		const stream = openEventStream(app.base);
+		try {
+			await overviewWhere(
+				app.base,
+				(seen) => factoryRunOf(seen, 41) !== undefined,
+			);
+			await stream.ready;
+			const seen: string[] = [];
+			void (async () => {
+				for await (const event of stream.events) {
+					seen.push(event.event);
+				}
+			})();
+			await Bun.sleep(50);
+			seen.length = 0;
+			const read = (after: number) =>
+				fetch(
+					new URL(
+						`/api/factory-runs/${encodeURIComponent(running41.id)}/transcript?${new URLSearchParams({ stage, after: String(after) })}`,
+						app.base,
+					),
+				);
+			const first = await read(0);
+			expect(first.status).toBe(200);
+			expect(await first.json()).toMatchObject({ next: 8 });
+			entries.push({
+				id: 9,
+				visit: 1,
+				attempt: 1,
+				stage: "conceptual@v1.a1/child/review@v1.a1",
+				kind: "message",
+				recorded_at: "2026-10-25T14:05:09+00:00",
+				text: "The diff adds one route.",
+			});
+			const second = await read(8);
+			expect(second.status).toBe(200);
+			expect(await second.json()).toMatchObject({
+				entries: [{ id: 9 }],
+				next: 9,
+			});
+			const again = await read(9);
+			expect(again.status).toBe(200);
+			expect(await again.json()).toEqual({ entries: [], next: 9 });
+			await Bun.sleep(200);
+			expect(seen).not.toContain("overview");
+		} finally {
+			stream.close();
 			await app.stop();
 		}
 	});

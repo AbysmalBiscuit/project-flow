@@ -2,8 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import type { StageTranscript } from "./domain.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
-import { agentReadMs, heldData, PendingRead, pendingRetry } from "./queries.ts";
-import { pendingStatus } from "./stale-reads.ts";
+import { agentReadMs, heldData } from "./queries.ts";
 
 /** The page queries of the stage view. An overview event reads each of them again. */
 export const stageQuery = {
@@ -16,7 +15,6 @@ export const stageQuery = {
 		return queryOptions({
 			queryKey,
 			queryFn: () => readTranscript(runId, stage, queryKey),
-			...pendingRetry,
 			refetchInterval: live ? agentReadMs : false,
 		});
 	},
@@ -45,12 +43,6 @@ async function readTranscript(
 	const response = await fetch(
 		`/api/factory-runs/${encodeURIComponent(runId)}/transcript?${query}`,
 	);
-	if (response.status === pendingStatus) {
-		if (held === undefined) {
-			throw new PendingRead();
-		}
-		return held;
-	}
 	if (response.status === 404) {
 		return absentRead(response);
 	}
