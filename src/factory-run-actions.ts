@@ -10,14 +10,17 @@ import {
 import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 
-export type AnswerResult = "answered" | "missing" | "failed";
+/** The factory answered a write about a run with 409, with the reason that its body names, if any. */
+export type Refused = { refused: string | undefined };
 
-export type SteerResult = "steered" | "missing" | "ended" | "failed";
+export type AnswerResult = "answered" | "missing" | Refused | "failed";
 
-export type CancelResult = "cancelled" | "missing" | "ended" | "failed";
+export type SteerResult = "steered" | "missing" | Refused | "failed";
+
+export type CancelResult = "cancelled" | "missing" | Refused | "failed";
 
 /** The id of the run that a resume queued again, or of the new run that a restart started. */
-export type StartResult = { id: string } | "missing" | "ended" | "failed";
+export type StartResult = { id: string } | "missing" | Refused | "failed";
 
 export type RemoveAction = "delete" | "archive";
 
@@ -32,7 +35,13 @@ const cancelLimitMs = 100_000;
 
 const startedRun = z.object({ id: z.string() });
 
-const refusal = z.object({ error: z.string() });
+const refusal = z.object({ error: z.string().trim().min(1) });
+
+/** The reason that the body of a 409 names, if any. */
+async function refusedBy(response: Response): Promise<Refused> {
+	const named = refusal.safeParse(await response.json().catch(() => null));
+	return { refused: named.data?.error };
+}
 
 /** Project Flow writes to a factory as Lev: the factory records this sender on each answer and steer. */
 const levSender = "lev";
@@ -51,43 +60,42 @@ export function runActions(deps: {
 		question: string,
 		text: string,
 	): Promise<AnswerResult> => {
-		const { hubRow, row } = statusRowOf(run);
-		// Only the hub posts an answer to the ticket thread, so a hub-covered run answers there.
-		const target = hubRow ?? row;
-		if (
-			target === undefined ||
-			row?.run.questions?.some((item) => item.id === question) !== true
-		) {
+		const { row } = statusRowOf(run);
+		if (row?.run.questions?.some((item) => item.id === question) !== true) {
 			return "missing";
 		}
-		const read = reader(fetchImpl, target.url, signal);
-		try {
-			const response = await read(
-				`/runs/${encodeURIComponent(run)}/questions/${encodeURIComponent(question)}/answer`,
-				{ json: { text, sender: levSender } },
-			);
-			if (response.ok) {
-				addMessage(
-					run,
-					{
-						kind: "answer",
-						sender: levSender,
-						text,
-						at: now().toISOString(),
-					},
-					`answer ${question}`,
-				);
-				return "answered";
-			}
-			return response.status === 404 ? "missing" : "failed";
-		} catch (error) {
-			if (!(error instanceof Unreachable)) {
-				throw error;
-			}
-			return "failed";
+		const response = await post(
+			run,
+			`questions/${encodeURIComponent(question)}/answer`,
+			{ text, sender: levSender },
+			factoryRequestLimitMs,
+		);
+		if (typeof response === "string") {
+			return response;
 		}
+		if (response.ok) {
+			addMessage(
+				run,
+				{
+					kind: "answer",
+					sender: levSender,
+					text,
+					at: now().toISOString(),
+				},
+				`answer ${question}`,
+			);
+			return "answered";
+		}
+		if (response.status === 409) {
+			return await refusedBy(response);
+		}
+		return response.status === 404 ? "missing" : "failed";
 	};
-	/** Post a write about a run to the hub that reports it, or else to its box. The hub forwards the write to the box that does the run. */
+	/**
+	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
+	 * the write to the box that does the run. Only the hub posts an answer to the ticket thread,
+	 * so a hub-covered run takes each write there.
+	 */
 	const post = async (
 		run: string,
 		route: string,
@@ -109,20 +117,20 @@ export function runActions(deps: {
 			return "failed";
 		}
 	};
-	/** A write that the factory refuses with 409 when the run is not in a status that takes it. */
+	/** A write that the factory refuses with 409, with a reason in its body, when the run is not in a status that takes it. */
 	const runWrite = async <Done>(
 		run: string,
 		route: string,
 		done: (response: Response) => Done | Promise<Done>,
 		json: unknown = {},
 		limitMs = factoryRequestLimitMs,
-	): Promise<Done | "missing" | "ended" | "failed"> => {
+	): Promise<Done | "missing" | Refused | "failed"> => {
 		const response = await post(run, route, json, limitMs);
 		if (typeof response === "string") {
 			return response;
 		}
 		if (response.status === 409) {
-			return "ended";
+			return await refusedBy(response);
 		}
 		if (!response.ok) {
 			return response.status === 404 ? "missing" : "failed";
@@ -164,14 +172,8 @@ export function runActions(deps: {
 			return "removed";
 		}
 		if (response.status === 409) {
-			const refused = refusal.safeParse(
-				await response.json().catch(() => null),
-			);
-			return {
-				refused: refused.success
-					? refused.data.error
-					: "the factory keeps the run",
-			};
+			const { refused } = await refusedBy(response);
+			return { refused: refused ?? "the factory keeps the run" };
 		}
 		return response.status === 404 ? "missing" : "failed";
 	};
