@@ -1,5 +1,3 @@
-import { z } from "zod";
-
 import { inboxEntries } from "./attention.ts";
 import type { Configuration, Factory } from "./configuration.ts";
 import {
@@ -7,43 +5,30 @@ import {
 	loadFilledConfiguration,
 	saveConfiguration,
 } from "./configuration.ts";
-import { type PostedReply, type ProjectReport, trackers } from "./domain.ts";
+import { eventStream } from "./event-stream.ts";
 import { factoryReader } from "./factories.ts";
-import type { StartResult } from "./factory-run-actions.ts";
+import { factoryRunRoutes } from "./factory-run-routes.ts";
 import type { FactoryTokenMint } from "./factory-tokens.ts";
 import { installationTokenFetch } from "./factory-tokens.ts";
 import {
 	abortableFetch,
-	defaultThreadReadLimitMs,
 	defaultTrackerRequestLimitMs,
 	type Fetch,
 } from "./fetch.ts";
 import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
 import { elkWorkerPath } from "./graph-core.ts";
 import { forceWorkerPath } from "./graph-layout.ts";
+import { inboxRoutes } from "./inbox-routes.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";
-import { attachGraphStates } from "./links.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
-import {
-	poll,
-	type PollOptions,
-	pollProject,
-	runningOverview,
-} from "./poll.ts";
-import type { Change, CheckoutSource, Notifier, TodoSource } from "./ports.ts";
-import { listedRef, refListed, sameProject } from "./project-ref.ts";
-import {
-	attentionFor,
-	factoryRunList,
-	overview,
-	projectViewNamed,
-	projectViews,
-} from "./project-views.ts";
-import { recordedReply, replyRequest } from "./replies.ts";
-import { filterProjectReport, projectViewFor } from "./report.ts";
-import { searchTickets } from "./search.ts";
+import { poll, type PollOptions, runningOverview } from "./poll.ts";
+import type { CheckoutSource, TodoSource } from "./ports.ts";
+import { listedRef } from "./project-ref.ts";
+import { projectRoutes, reportFor } from "./project-routes.ts";
+import { attentionFor, overview, projectViews } from "./project-views.ts";
+import { replyRoutes } from "./reply-routes.ts";
 import {
 	mergedSettingsWrite,
 	readSettingsWrite,
@@ -55,9 +40,7 @@ import {
 import { staleReads } from "./stale-reads.ts";
 import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
-import { threadResponse } from "./thread-response.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
-import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 
 const elkWorkerFile = Bun.resolveSync(
 	"elkjs/lib/elk-worker.min.js",
@@ -118,56 +101,9 @@ export type Running = {
 export type { SettingsProject } from "./domain.ts";
 export type { TicketSearchHit } from "./ticket-key.ts";
 
-function reportFor(
-	options: PollOptions,
-	configuration: Configuration,
-	name: string,
-	filtered: boolean,
-): ProjectReport | null {
-	const found = projectViewNamed(options, configuration, name);
-	if (found === null) {
-		return null;
-	}
-	const [match] = attachGraphStates([
-		found.view.report,
-		...found.linked.map((item) => item.report),
-	]);
-	if (match === undefined) {
-		return null;
-	}
-	const view = projectViewFor(configuration, match.name);
-	return filtered
-		? filterProjectReport(match, view, options.clock.now())
-		: match;
-}
-
-const replyBody = z.object({
-	tracker: z.enum(trackers),
-	project: z.string().trim().min(1),
-	key: z.string().trim().min(1),
-	body: z.string().optional(),
-	option: z.number().int().positive().optional(),
-	parentId: z.string().optional(),
-	kind: z.enum(["comment", "review"]).optional(),
-});
-
-const readMarkBody = z.object({ read: z.literal(true) });
-
-const answerBody = z.object({ text: z.string().trim().min(1) });
-
-const steerBody = z.object({
-	stage: z.string().trim().min(1),
-	text: z.string().trim().min(1),
-	interrupt: z.boolean().default(false),
-});
-
 const runPollMs = 10_000;
 
 const defaultRunTickMs = 500;
-
-const readIdsBody = readMarkBody.extend({
-	ids: z.array(z.string()),
-});
 
 function invalidConfiguration(error: unknown): Response {
 	const message =
@@ -175,113 +111,6 @@ function invalidConfiguration(error: unknown): Response {
 			? error.message
 			: "invalid configuration: configuration";
 	return Response.json({ error: message }, { status: 400 });
-}
-
-async function readMark(request: Request): Promise<boolean> {
-	const parsed = readMarkBody.safeParse(await request.json().catch(() => null));
-	return parsed.success;
-}
-
-async function replyResponse(
-	trackers: Trackers,
-	request: Request,
-	options: PollOptions,
-	notifier: Notifier,
-	configuration: Configuration,
-): Promise<Response> {
-	const parsed = replyBody.safeParse(await request.json().catch(() => null));
-	if (!parsed.success) {
-		return Response.json({ error: "invalid reply" }, { status: 400 });
-	}
-	const tracker = trackerFor(trackers, parsed.data.tracker);
-	if (tracker?.postReply === undefined) {
-		return Response.json({ error: "tracker unavailable" }, { status: 404 });
-	}
-	const drafted = replyRequest(
-		options.store.readTickets(),
-		parsed.data,
-		configuration.pmBot,
-	);
-	if ("error" in drafted) {
-		return Response.json({ error: drafted.error }, { status: 400 });
-	}
-	const { reply } = drafted;
-	try {
-		const created: PostedReply = await tracker.postReply(reply);
-		const recorded = recordedReply(options.store.readTickets(), reply, created);
-		if (recorded !== undefined) {
-			options.store.mergeTickets([recorded]);
-		}
-		notifier.publish({
-			overview: runningOverview(options, configuration),
-			notifications: [],
-		});
-		return Response.json(created, { status: 201 });
-	} catch (error) {
-		return trackerError(error);
-	}
-}
-
-function encodeChange(
-	encoder: TextEncoder,
-	change: Change,
-	notifications: boolean,
-): Uint8Array[] {
-	const frames = [
-		encoder.encode(
-			`event: ${change.viewsOnly === true ? "views" : "overview"}\ndata: ${JSON.stringify(change.overview)}\n\n`,
-		),
-	];
-	if (change.progress !== undefined) {
-		frames.push(
-			encoder.encode(
-				`event: progress\ndata: ${JSON.stringify(change.progress)}\n\n`,
-			),
-		);
-	}
-	if (notifications) {
-		for (const notification of change.notifications) {
-			frames.push(
-				encoder.encode(
-					`event: notification\ndata: ${JSON.stringify(notification)}\n\n`,
-				),
-			);
-		}
-	}
-	return frames;
-}
-
-function eventStream(
-	notifier: Notifier,
-	current: () => Change | null,
-): Response {
-	let unsubscribe = () => {};
-	const body = new ReadableStream<Uint8Array>({
-		start(controller) {
-			const encoder = new TextEncoder();
-			controller.enqueue(encoder.encode(": open\n\n"));
-			const open = current();
-			if (open !== null) {
-				for (const frame of encodeChange(encoder, open, false)) {
-					controller.enqueue(frame);
-				}
-			}
-			unsubscribe = notifier.subscribe((change) => {
-				for (const frame of encodeChange(encoder, change, true)) {
-					controller.enqueue(frame);
-				}
-			});
-		},
-		cancel() {
-			unsubscribe();
-		},
-	});
-	return new Response(body, {
-		headers: {
-			"content-type": "text/event-stream",
-			"cache-control": "no-cache",
-		},
-	});
 }
 
 export async function start(options: StartOptions): Promise<Running> {
@@ -461,35 +290,6 @@ export async function start(options: StartOptions): Promise<Running> {
 		const before = factoryState();
 		await read();
 		if (factoryState() !== before) {
-			publishOverview();
-		}
-	};
-	/** The API answer to a resume or a restart: the id of the run that the factory started. */
-	const startAgain = async (started: Promise<StartResult>) => {
-		const result = await started;
-		if (result === "missing") {
-			return Response.json(
-				{ error: "no factory reports the run" },
-				{ status: 404 },
-			);
-		}
-		if (result === "ended") {
-			return Response.json(
-				{ error: "the run is not blocked or failed" },
-				{ status: 409 },
-			);
-		}
-		if (result === "failed") {
-			return Response.json(
-				{ error: "the factory did not start the run" },
-				{ status: 502 },
-			);
-		}
-		await readFactories(() => factories.readRuns(clock.now().getTime()));
-		return Response.json({ id: result.id });
-	};
-	const readWorkflow = async (runId: string) => {
-		if (await factories.readWorkflow(runId)) {
 			publishOverview();
 		}
 	};
@@ -746,108 +546,6 @@ export async function start(options: StartOptions): Promise<Running> {
 					return body;
 				},
 			},
-			"/api/needs-you": {
-				GET: () =>
-					Response.json(
-						projectViews(pollOptions, configuration).flatMap(
-							(item) => item.items,
-						),
-					),
-			},
-			"/api/inbox": {
-				GET: () =>
-					Response.json(
-						inboxEntries(opened.store.readNotifications(), clock.now()),
-					),
-				POST: async (request: Request) => {
-					const parsed = readIdsBody.safeParse(
-						await request.json().catch(() => null),
-					);
-					if (!parsed.success) {
-						return Response.json(
-							{ error: "read must be true" },
-							{ status: 400 },
-						);
-					}
-					opened.store.markNotificationsRead(parsed.data.ids);
-					return new Response(null, { status: 204 });
-				},
-			},
-			"/api/inbox/:id": {
-				POST: async (request) => {
-					const marked = await readMark(request);
-					if (!marked) {
-						return Response.json(
-							{ error: "read must be true" },
-							{ status: 400 },
-						);
-					}
-					const id = request.params.id.trim();
-					if (id === "") {
-						return Response.json(
-							{ error: "notification id is blank" },
-							{ status: 400 },
-						);
-					}
-					if (!opened.store.markNotificationRead(id)) {
-						return Response.json(
-							{ error: "notification not found" },
-							{ status: 404 },
-						);
-					}
-					return new Response(null, { status: 204 });
-				},
-			},
-			"/api/search": {
-				GET: (request: Request) => {
-					const query = new URL(request.url).searchParams.get("q") ?? "";
-					return Response.json(
-						searchTickets(projectViews(pollOptions, configuration), query),
-					);
-				},
-			},
-			"/api/projects/:name": {
-				GET: (request) => {
-					const name = request.params.name;
-					const filtered =
-						new URL(request.url).searchParams.get("view") !== "all";
-					const report = reportFor(pollOptions, configuration, name, filtered);
-					if (report === null) {
-						return Response.json(
-							{ error: "project not found" },
-							{ status: 404 },
-						);
-					}
-					return Response.json(report);
-				},
-			},
-			"/api/projects/:name/refresh": {
-				POST: async (request) => {
-					const name = request.params.name.toLowerCase();
-					const row = opened.store
-						.readTickets()
-						.find((item) => item.name.toLowerCase() === name);
-					if (row === undefined) {
-						return Response.json(
-							{ error: "project not found" },
-							{ status: 404 },
-						);
-					}
-					const ref = listedRef(row);
-					const found = pollOptions.catalogue.find((item) =>
-						sameProject(listedRef(item), ref),
-					);
-					await pollProject(pollOptions, configuration, {
-						...(found ?? {
-							...refListed(ref),
-							name: row.name,
-							updatedAt: null,
-						}),
-						ref,
-					});
-					return new Response(null, { status: 204 });
-				},
-			},
 			"/api/events": {
 				GET: (request: Request) => {
 					server.timeout(request, 0);
@@ -944,239 +642,27 @@ export async function start(options: StartOptions): Promise<Running> {
 					return Response.json(settingsBody());
 				},
 			},
-			"/api/factory-runs": {
-				GET: () => Response.json(factoryRunList(pollOptions, configuration)),
-			},
-			"/api/factory-runs/:id": {
-				GET: (request) => {
-					const found = factories.run(request.params.id);
-					if (found === null) {
-						return Response.json({ missing: true }, { status: 404 });
-					}
-					if (found.workflow === undefined) {
-						void readWorkflow(found.id).catch(() => {});
-					}
-					return Response.json(found);
-				},
-			},
-			"/api/factory-runs/:id/checkpoint": {
-				GET: (request) =>
-					staleRead(readKey(request), async () => {
-						const found = await factories.checkpoint(request.params.id);
-						if (found === "missing") {
-							return Response.json({ missing: true }, { status: 404 });
-						}
-						if (found === "not served") {
-							return Response.json({ notServed: true }, { status: 404 });
-						}
-						return Response.json(found);
-					}),
-			},
-			"/api/factory-runs/:id/agents": {
-				GET: (request) =>
-					staleRead(readKey(request), async () => {
-						const found = await factories.agents(request.params.id);
-						return found === null
-							? Response.json({ missing: true }, { status: 404 })
-							: Response.json({ agents: found });
-					}),
-			},
-			"/api/factory-runs/:id/events": {
-				GET: (request) => {
-					server.timeout(request, 0);
-					return (
-						factories.events(
-							request.params.id,
-							request.headers.get("last-event-id"),
-							request.signal,
-						) ?? Response.json({ missing: true }, { status: 404 })
-					);
-				},
-			},
-			"/api/factory-runs/:id/artifacts": {
-				GET: (request) =>
-					staleRead(readKey(request), async () => {
-						const found = await factories.artifacts(request.params.id);
-						if (found === "missing") {
-							return Response.json({ missing: true }, { status: 404 });
-						}
-						if (found === "not served") {
-							return Response.json({ notServed: true }, { status: 404 });
-						}
-						return Response.json({ artifacts: found });
-					}),
-			},
-			"/api/factory-runs/:id/sandbox": {
-				GET: (request) =>
-					staleRead(readKey(request), async () => {
-						const found = await factories.sandbox(request.params.id);
-						if (found === "missing") {
-							return Response.json({ missing: true }, { status: 404 });
-						}
-						if (found === "not served") {
-							return Response.json({ notServed: true }, { status: 404 });
-						}
-						return Response.json(found);
-					}),
-			},
-			"/api/factory-runs/:id/files": {
-				GET: (request) =>
-					staleRead(readKey(request), async () => {
-						const found = await factories.files(request.params.id);
-						if (found === "missing") {
-							return Response.json({ missing: true }, { status: 404 });
-						}
-						if (found === "gone") {
-							return Response.json({ gone: true }, { status: 404 });
-						}
-						if (found === "not served") {
-							return Response.json({ notServed: true }, { status: 404 });
-						}
-						return Response.json({ files: found });
-					}),
-			},
-			"/api/factory-runs/:id/source": {
-				GET: (request) =>
-					staleRead(readKey(request), async () => {
-						const found = await factories.source(request.params.id);
-						if (found === "missing") {
-							return Response.json({ missing: true }, { status: 404 });
-						}
-						if (found === "not served") {
-							return Response.json({ notServed: true }, { status: 404 });
-						}
-						return Response.json(found);
-					}),
-			},
-			"/api/factory-runs/:id/artifact": {
-				GET: (request) =>
-					staleRead(readKey(request), async () => {
-						const query = new URL(request.url).searchParams;
-						const found = await factories.artifact(
-							request.params.id,
-							query.get("folder") ?? "",
-							query.get("name") ?? "",
-						);
-						return found === null
-							? Response.json({ missing: true }, { status: 404 })
-							: Response.json(found);
-					}),
-			},
-			"/api/threads/:tracker/:key": {
-				GET: (request) =>
-					staleRead(readKey(request), () =>
-						threadResponse(
-							trackers,
-							request.params.tracker,
-							request.params.key,
-							request,
-							options.threadReadLimitMs ?? defaultThreadReadLimitMs,
-						),
-					),
-			},
-			"/api/replies": {
-				POST: (request) =>
-					replyResponse(
-						trackers,
-						request,
-						pollOptions,
-						notifier,
-						configuration,
-					),
-			},
-			"/api/factory-runs/:run/questions/:question/answer": {
-				POST: async (request) => {
-					const parsed = answerBody.safeParse(
-						await request.json().catch(() => null),
-					);
-					if (!parsed.success) {
-						return Response.json({ error: "answer is empty" }, { status: 400 });
-					}
-					const result = await factories.answer(
-						request.params.run,
-						request.params.question,
-						parsed.data.text,
-					);
-					if (result === "missing") {
-						return Response.json(
-							{ error: "the run waits on no such question" },
-							{ status: 404 },
-						);
-					}
-					if (result === "failed") {
-						return Response.json(
-							{ error: "the factory did not take the answer" },
-							{ status: 502 },
-						);
-					}
-					await readFactories(() => factories.readRuns(clock.now().getTime()));
-					return Response.json({ answered: true });
-				},
-			},
-			"/api/factory-runs/:run/steer": {
-				POST: async (request) => {
-					const parsed = steerBody.safeParse(
-						await request.json().catch(() => null),
-					);
-					if (!parsed.success) {
-						return Response.json(
-							{ error: "a steer needs a stage and a text" },
-							{ status: 400 },
-						);
-					}
-					const result = await factories.steer(request.params.run, parsed.data);
-					if (result === "missing") {
-						return Response.json(
-							{ error: "no factory reports the run" },
-							{ status: 404 },
-						);
-					}
-					if (result === "ended") {
-						return Response.json(
-							{ error: "the run has ended, so it takes no steer" },
-							{ status: 409 },
-						);
-					}
-					if (result === "failed") {
-						return Response.json(
-							{ error: "the factory did not take the steer" },
-							{ status: 502 },
-						);
-					}
-					return Response.json({ steered: true });
-				},
-			},
-			"/api/factory-runs/:run/cancel": {
-				POST: async (request) => {
-					const result = await factories.cancel(request.params.run);
-					if (result === "missing") {
-						return Response.json(
-							{ error: "no factory reports the run" },
-							{ status: 404 },
-						);
-					}
-					if (result === "ended") {
-						return Response.json(
-							{ error: "the run has already ended" },
-							{ status: 409 },
-						);
-					}
-					if (result === "failed") {
-						return Response.json(
-							{ error: "the factory did not take the cancel" },
-							{ status: 502 },
-						);
-					}
-					await readFactories(() => factories.readRuns(clock.now().getTime()));
-					return Response.json({ cancelled: true });
-				},
-			},
-			"/api/factory-runs/:run/resume": {
-				POST: (request) => startAgain(factories.resume(request.params.run)),
-			},
-			"/api/factory-runs/:run/restart": {
-				POST: (request) => startAgain(factories.restart(request.params.run)),
-			},
+			...projectRoutes(pollOptions, () => configuration),
+			...inboxRoutes(opened.store, clock),
+			...replyRoutes({
+				trackers,
+				pollOptions,
+				notifier,
+				configuration: () => configuration,
+				staleRead,
+				readKey,
+				threadReadLimitMs: options.threadReadLimitMs,
+			}),
+			...factoryRunRoutes({
+				factories,
+				pollOptions,
+				configuration: () => configuration,
+				clock,
+				staleRead,
+				readKey,
+				readFactories,
+				publishOverview,
+			}),
 		},
 	});
 	if (hadRows) {
