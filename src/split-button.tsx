@@ -34,9 +34,17 @@ const styles = stylex.create({
 		right: "auto",
 		left: 0,
 	},
+	dangerChoice: {
+		color: colours.danger,
+	},
 });
 
-export type SplitChoice = { label: string; onPick: () => void };
+export type SplitChoice = {
+	label: string;
+	/** A danger choice stands out from the other ways to do the action, such as a cancel. */
+	tone?: "danger";
+	onPick: () => void;
+};
 
 /**
  * A button for a large action with a menu of other ways to do it. The main part
@@ -112,7 +120,11 @@ export function SplitButton({
 							key={choice.label}
 							type="button"
 							role="menuitem"
-							className={clsx(frame.menuItem, shell.buttonFocus)}
+							className={clsx(
+								frame.menuItem,
+								shell.buttonFocus,
+								choice.tone === "danger" && styles.dangerChoice,
+							)}
 							onClick={() => {
 								setOpen(false);
 								choice.onPick();
