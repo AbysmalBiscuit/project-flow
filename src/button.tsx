@@ -45,24 +45,8 @@ const styles = stylex.create({
 		gap: space.xs,
 		alignItems: "center",
 		justifyContent: "center",
-		backgroundColor: {
-			default: colours.controlFill,
-			":hover": colours.segment,
-		},
 		textDecoration: "none",
 		whiteSpace: "nowrap",
-	},
-	primary: {
-		borderColor: colours.needs,
-		backgroundColor: colours.needs,
-		color: colours.needsInk,
-		fontWeight: type.weight,
-	},
-	danger: {
-		borderColor: colours.danger,
-		backgroundColor: colours.danger,
-		color: colours.accentInk,
-		fontWeight: type.weight,
 	},
 	pressed: {
 		backgroundColor: colours.segment,
@@ -147,9 +131,10 @@ export function Button(props: ButtonProps) {
 	const className = clsx(
 		control.box,
 		control.off,
+		control.press,
 		styles.button,
-		tone === "primary" && styles.primary,
-		tone === "danger" && styles.danger,
+		tone === "primary" && control.primary,
+		tone === "danger" && control.danger,
 		pressed === true && styles.pressed,
 		label === undefined && styles.iconOnly,
 		iconSide === "right" && styles.iconRight,

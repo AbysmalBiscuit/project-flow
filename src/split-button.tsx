@@ -1,0 +1,128 @@
+import * as stylex from "@stylexjs/stylex";
+import { useId, useRef, useState } from "react";
+
+import { control } from "./control-styles.ts";
+import { Caret, useDismiss } from "./dropdown.tsx";
+import { colours, measure, space } from "./tokens.stylex.ts";
+import { frame, shell } from "./ui-styles.ts";
+import { clsx } from "./ui.ts";
+
+const styles = stylex.create({
+	split: {
+		display: "inline-flex",
+	},
+	part: {
+		display: "inline-flex",
+		alignItems: "center",
+		whiteSpace: "nowrap",
+	},
+	main: {
+		borderRightWidth: measure.none,
+		borderTopRightRadius: measure.none,
+		borderBottomRightRadius: measure.none,
+	},
+	more: {
+		paddingInline: space.sm,
+		borderTopLeftRadius: measure.none,
+		borderBottomLeftRadius: measure.none,
+	},
+	// A filled tone hides its own border, so the caret needs a visible divider.
+	divider: {
+		borderLeftColor: colours.inkSoft,
+	},
+	start: {
+		right: "auto",
+		left: 0,
+	},
+});
+
+export type SplitChoice = { label: string; onPick: () => void };
+
+/**
+ * A button for a large action with a menu of other ways to do it. The main part
+ * runs the action, and the caret opens the menu. The menu opens from the button's
+ * left edge, so the button can sit at the left of a narrow panel.
+ */
+export function SplitButton({
+	label,
+	choicesLabel,
+	choices,
+	tone,
+	disabled = false,
+	onClick,
+}: {
+	label: string;
+	/** The accessible name and tooltip of the caret. */
+	choicesLabel: string;
+	choices: readonly SplitChoice[];
+	tone?: "primary" | "danger";
+	disabled?: boolean;
+	onClick: () => void;
+}) {
+	const [open, setOpen] = useState(false);
+	const menuId = useId();
+	const root = useRef<HTMLDivElement>(null);
+	useDismiss(root, open, setOpen);
+	const part = (
+		side: typeof styles.main | typeof styles.more,
+		divider = false,
+	) =>
+		clsx(
+			control.box,
+			control.off,
+			control.press,
+			styles.part,
+			tone === "primary" && control.primary,
+			tone === "danger" && control.danger,
+			shell.buttonFocus,
+			side,
+			divider && tone !== undefined && styles.divider,
+		);
+	return (
+		<div className={clsx(frame.menu, styles.split)} ref={root}>
+			<button
+				type="button"
+				className={part(styles.main)}
+				disabled={disabled}
+				onClick={onClick}
+			>
+				{label}
+			</button>
+			<button
+				type="button"
+				className={part(styles.more, true)}
+				aria-label={choicesLabel}
+				title={choicesLabel}
+				aria-haspopup="menu"
+				aria-expanded={open}
+				aria-controls={menuId}
+				disabled={disabled}
+				onClick={() => setOpen((next) => !next)}
+			>
+				<Caret />
+			</button>
+			{open ? (
+				<div
+					id={menuId}
+					className={clsx(frame.menuList, styles.start)}
+					role="menu"
+				>
+					{choices.map((choice) => (
+						<button
+							key={choice.label}
+							type="button"
+							role="menuitem"
+							className={clsx(frame.menuItem, shell.buttonFocus)}
+							onClick={() => {
+								setOpen(false);
+								choice.onPick();
+							}}
+						>
+							{choice.label}
+						</button>
+					))}
+				</div>
+			) : null}
+		</div>
+	);
+}

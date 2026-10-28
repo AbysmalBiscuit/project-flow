@@ -42,7 +42,8 @@ const styles = stylex.create({
 
 /**
  * A modal dialog that asks before a change. Escape and the dismiss button,
- * Cancel unless `dismissLabel` names it, both call `onCancel`.
+ * Cancel unless `dismissLabel` names it, both call `onCancel`. The confirm
+ * button holds the focus when the dialog opens, so Enter confirms.
  */
 export function ConfirmDialog({
 	id,
@@ -72,11 +73,12 @@ export function ConfirmDialog({
 		}
 		if (open && !node.open) {
 			node.showModal();
+			document.getElementById(`${id}-confirm`)?.focus();
 		}
 		if (!open && node.open) {
 			node.close();
 		}
-	}, [open]);
+	}, [open, id]);
 
 	return (
 		<dialog

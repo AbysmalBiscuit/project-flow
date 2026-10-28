@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { type RefObject, useEffect, useId, useRef, useState } from "react";
 
 import { board } from "./board-styles.ts";
+import { control } from "./control-styles.ts";
 import { space } from "./tokens.stylex.ts";
 import { frame, shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
@@ -98,7 +99,12 @@ export function Dropdown({
 			<button
 				type="button"
 				id={id}
-				className={clsx(frame.menuButton, style, shell.buttonFocus)}
+				className={clsx(
+					frame.menuButton,
+					control.press,
+					style,
+					shell.buttonFocus,
+				)}
 				aria-label={label}
 				aria-haspopup="listbox"
 				aria-expanded={open}
@@ -187,7 +193,7 @@ export function MultiDropdown({
 			<button
 				type="button"
 				id={id}
-				className={clsx(frame.menuButton, shell.buttonFocus)}
+				className={clsx(frame.menuButton, control.press, shell.buttonFocus)}
 				aria-label={label}
 				aria-haspopup="true"
 				aria-expanded={open}
