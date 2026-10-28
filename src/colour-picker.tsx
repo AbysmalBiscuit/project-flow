@@ -278,6 +278,7 @@ export function ColourPicker({
 						aria-valuetext={`${Math.round(hsv.s * 100)}%, ${settingsCopy.brightness} ${Math.round(hsv.v * 100)}%`}
 						{...stylex.props(
 							styles.area,
+							control.slider,
 							control.focus,
 							dynamic.fill(hueColour),
 						)}
@@ -319,7 +320,7 @@ export function ColourPicker({
 						aria-valuemin={0}
 						aria-valuemax={360}
 						aria-valuenow={Math.round(hsv.h)}
-						className={clsx(styles.hue, control.focus)}
+						className={clsx(styles.hue, control.slider, control.focus)}
 						onPointerDown={(event) => {
 							event.currentTarget.setPointerCapture(event.pointerId);
 							dragHue(event);

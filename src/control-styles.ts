@@ -134,6 +134,14 @@ export const control = stylex.create({
 		padding: `${space.twoXs} ${space.xs}`,
 		borderRadius: radius.sm,
 	},
+	/** A slider over a colour gradient takes a ring, because a fill would change its colours. */
+	slider: {
+		boxShadow: {
+			default: null,
+			":hover": `0 0 0 ${measure.hairline} ${colours.inkSoft}`,
+			":active": `0 0 0 ${measure.focus} ${colours.inkSoft}`,
+		},
+	},
 	/** A control with a coloured fill at rest, such as a chip. */
 	tint: {
 		backgroundImage: filledPress,
