@@ -407,6 +407,7 @@ export const board = stylex.create({
 		color: colours.chipInk,
 	},
 	chipQueued: {
+		borderColor: colours.lineStrong,
 		backgroundColor: colours.surfaceMuted,
 		color: colours.inkMuted,
 	},
