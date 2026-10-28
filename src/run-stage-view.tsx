@@ -11,7 +11,7 @@ import { Loading } from "./loading.tsx";
 import { commentTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { NotServed } from "./run-checkpoint.tsx";
-import { StageCard, type StageFacts } from "./run-stage.tsx";
+import { isRunAt, StageCard, type StageFacts } from "./run-stage.tsx";
 import { stageQuery } from "./stage-queries.ts";
 import {
 	noRunDataLabel,
@@ -198,7 +198,7 @@ function RunContext({ run }: { run: ShownFactoryRun }) {
 /** True while the run is live and `facts` is the stage where it is now. */
 export function isLiveStage(run: ShownFactoryRun, facts: StageFacts): boolean {
 	return (
-		facts.stage.state === "current" &&
+		isRunAt(facts.stage) &&
 		liveRunStatusKinds.some((kind) => kind === run.statusKind)
 	);
 }

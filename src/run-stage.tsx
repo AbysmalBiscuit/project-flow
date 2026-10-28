@@ -48,12 +48,15 @@ export function stageFacts(
 	};
 }
 
+/** True when the run is at `stage`: it works there, or it stopped there on a failure. */
+export function isRunAt(stage: RunStage): boolean {
+	return stage.state === "current" || stage.state === "failed";
+}
+
 /** The stage where the run is now: the live stage of an open child graph, else the live top-level stage. */
 export function liveStage(graph: RunGraph): RunStage | undefined {
-	const isLive = (stage: RunStage) =>
-		stage.state === "current" || stage.state === "failed";
-	const node = graph.nodes.find(isLive);
-	return node?.child?.findLast(isLive) ?? node;
+	const node = graph.nodes.find(isRunAt);
+	return node?.child?.findLast(isRunAt) ?? node;
 }
 
 export function stageTimeLabel(usage: TurnUsage): string {
