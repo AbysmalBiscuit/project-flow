@@ -28,9 +28,16 @@ const styles = stylex.create({
 
 /**
  * A steer box for a live run: Lev picks the stage, writes the text, and can interrupt the worker.
- * The stage follows the run's current stage until Lev edits it.
+ * The stage follows the run's current stage until Lev edits it. A box with a
+ * fixed `stage` steers only that stage, and has no stage field.
  */
-export function RunSteer({ run }: { run: ShownFactoryRun }) {
+export function RunSteer({
+	run,
+	stage,
+}: {
+	run: ShownFactoryRun;
+	stage?: string;
+}) {
 	const { data: checkpoint } = useQuery(pageQuery.checkpoint(run));
 	const [stageDraft, setStageDraft] = useState<string | null>(null);
 	const [text, setText] = useState("");
@@ -38,13 +45,14 @@ export function RunSteer({ run }: { run: ShownFactoryRun }) {
 	const steer = useSteerRun(run.id);
 	const checkpointStage =
 		typeof checkpoint === "object" ? checkpoint.stage : null;
-	const pickedStage = stageDraft ?? run.stage ?? checkpointStage ?? "";
+	const pickedStage = stage ?? stageDraft ?? run.stage ?? checkpointStage ?? "";
 	return (
 		<section className={clsx(panel.section)} aria-label={steerLabel}>
 			<h3 className={clsx(panel.sectionLabel)}>{steerLabel}</h3>
 			<form
 				className={clsx(styles.steer)}
 				data-run-steer={run.id}
+				data-steer-stage={pickedStage}
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (pickedStage.trim() === "" || text.trim() === "") {
@@ -61,16 +69,20 @@ export function RunSteer({ run }: { run: ShownFactoryRun }) {
 					);
 				}}
 			>
-				<label className={clsx(panel.label)} htmlFor="run-steer-stage">
-					Stage
-				</label>
-				<input
-					id="run-steer-stage"
-					className={clsx(panel.text, styles.stage)}
-					placeholder="The stage to steer"
-					value={pickedStage}
-					onChange={(event) => setStageDraft(event.target.value)}
-				/>
+				{stage === undefined ? (
+					<>
+						<label className={clsx(panel.label)} htmlFor="run-steer-stage">
+							Stage
+						</label>
+						<input
+							id="run-steer-stage"
+							className={clsx(panel.text, styles.stage)}
+							placeholder="The stage to steer"
+							value={pickedStage}
+							onChange={(event) => setStageDraft(event.target.value)}
+						/>
+					</>
+				) : null}
 				<textarea
 					aria-label="Steer text"
 					className={clsx(panel.text)}

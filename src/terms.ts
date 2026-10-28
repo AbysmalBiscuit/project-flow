@@ -854,3 +854,28 @@ export const settingsCopy = {
 	resetConfirm: "Reset states",
 	cancel: "Cancel",
 } as const;
+
+export const stageTranscriptLabel = "Stage transcript";
+
+export const stageTranscriptData = "the stage transcript";
+
+export const noTranscriptLabel =
+	"The agent of this stage has recorded nothing yet.";
+
+export const runContextLabel = "Run context";
+
+export const runContextData = "the run context";
+
+export const runContextHelp =
+	"The context values of the run now. All stages of a run share them.";
+
+export const toolCallLabel = (name: string, truncated: boolean): string =>
+	truncated ? `${name} (input cut)` : name;
+
+export const stagePaneLabel = "Stage pane";
+
+export const closeStagePaneLabel = "Close the stage pane";
+
+export const openInStagesLabel = "Open in Stages";
+
+export const childStagesLabel = (label: string): string => `Stages of ${label}`;

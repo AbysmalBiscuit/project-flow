@@ -82,6 +82,11 @@ function tabOfUrl(): RunTab {
 	return isRunTab(tab) ? tab : "overview";
 }
 
+/** The stage that the Stages tab opens at, from a stage pane link. */
+function stageOfUrl(): string | null {
+	return new URLSearchParams(window.location.search).get("stage");
+}
+
 function RunFacts({ run }: { run: RunDetail }) {
 	const span = elapsed(run);
 	const event = run.lastEvent;
@@ -142,7 +147,7 @@ function TabBody({
 }: {
 	run: RunDetail;
 	tab: RunTab;
-	pick: (next: RunTab) => void;
+	pick: (next: RunTab, stage?: string) => void;
 }) {
 	if (tab === "overview") {
 		return (
@@ -150,7 +155,7 @@ function TabBody({
 				<div className={clsx(styles.text)}>
 					<RunFacts run={run} />
 				</div>
-				<RunGraph run={run} />
+				<RunGraph run={run} onOpenStage={(stage) => pick("stages", stage)} />
 				<div className={clsx(styles.text)}>
 					<RunThread run={run} />
 				</div>
@@ -160,7 +165,7 @@ function TabBody({
 	return (
 		<div className={clsx(styles.text)}>
 			{tab === "stages" ? (
-				<RunStages run={run} />
+				<RunStages run={run} opened={stageOfUrl()} />
 			) : tab === "usage" ? (
 				<RunUsage run={run} />
 			) : tab === "events" ? (
@@ -185,13 +190,18 @@ export function Page() {
 	const id = runIdOf(window.location.pathname);
 	const { data, isError } = useQuery(pageQuery.run(id));
 	const [tab, setTab] = useState(tabOfUrl);
-	const pick = (next: RunTab) => {
+	const pick = (next: RunTab, stage?: string) => {
 		setTab(next);
 		const url = new URL(window.location.href);
 		if (next === "overview") {
 			url.searchParams.delete("tab");
 		} else {
 			url.searchParams.set("tab", next);
+		}
+		if (stage === undefined) {
+			url.searchParams.delete("stage");
+		} else {
+			url.searchParams.set("stage", stage);
 		}
 		window.history.replaceState(null, "", url);
 	};
