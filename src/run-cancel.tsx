@@ -1,4 +1,3 @@
-import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 
 import { Button } from "./button.tsx";
@@ -7,17 +6,7 @@ import { endedRunStatusKinds, type ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { useCancelRun } from "./queries.ts";
 import { runCancelCopy } from "./terms.ts";
-import { space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
-
-const styles = stylex.create({
-	cancel: {
-		display: "flex",
-		flexDirection: "column",
-		alignItems: "flex-start",
-		gap: space.xs,
-	},
-});
 
 /** Cancel for a run that has not ended. Lev confirms, and the factory stops the run as failed. */
 export function RunCancel({
@@ -31,7 +20,7 @@ export function RunCancel({
 		return null;
 	}
 	return (
-		<div className={clsx(styles.cancel)} data-run-cancel={run.id}>
+		<div className={clsx(panel.runAction)} data-run-cancel={run.id}>
 			<Button
 				label={cancel.isPending ? runCancelCopy.pending : runCancelCopy.action}
 				tone="danger"
