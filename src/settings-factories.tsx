@@ -27,10 +27,14 @@ function detail(factory: Factory, entry: FactoryEntry | undefined): string {
 				: [];
 	const source =
 		entry?.source === "flag" ? factoryCopy.flag : factoryCopy.config;
-	const ready =
-		factory.readyLabel === undefined
+	const ready = [
+		...(factory.readyLabel === undefined
 			? []
-			: [factoryCopy.readyLabelOf(factory.readyLabel)];
+			: [factoryCopy.readyLabelOf(factory.readyLabel)]),
+		...(factory.readyStatus === undefined
+			? []
+			: [factoryCopy.readyStatusOf(factory.readyStatus)]),
+	];
 	return [factory.url, source, ...kind, ...ready].join(", ");
 }
 
@@ -82,13 +86,18 @@ export function FactoriesSection({
 		if (next.name === "" || next.url === "") {
 			return;
 		}
-		const kept =
-			readyLabel.trim() ||
-			draft.factories.find((factory) => factory.url === next.url)?.readyLabel;
+		const known = draft.factories.find((factory) => factory.url === next.url);
+		const kept = readyLabel.trim() || known?.readyLabel;
 		onChange({
 			factories: [
 				...draft.factories.filter((factory) => factory.url !== next.url),
-				kept === undefined ? next : { ...next, readyLabel: kept },
+				{
+					...next,
+					...(kept === undefined ? {} : { readyLabel: kept }),
+					...(known?.readyStatus === undefined
+						? {}
+						: { readyStatus: known.readyStatus }),
+				},
 			],
 		});
 		setName("");

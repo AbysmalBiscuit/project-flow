@@ -406,6 +406,11 @@ export const board = stylex.create({
 		backgroundColor: colours.chip,
 		color: colours.chipInk,
 	},
+	chipQueued: {
+		borderColor: colours.lineStrong,
+		backgroundColor: colours.surfaceMuted,
+		color: colours.inkMuted,
+	},
 	title: {
 		margin: 0,
 		fontSize: type.card,
