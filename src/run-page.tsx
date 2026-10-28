@@ -15,6 +15,7 @@ import { RunEvents } from "./run-events.tsx";
 import { RunFiles } from "./run-files.tsx";
 import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
+import { RunRemove } from "./run-remove.tsx";
 import { RunSandbox } from "./run-sandbox.tsx";
 import { RunSource } from "./run-source.tsx";
 import { RunThread } from "./run-thread.tsx";
@@ -205,7 +206,12 @@ export function Page() {
 			{...(data === undefined || data === null
 				? {}
 				: {
-						actions: <RunAction run={data} />,
+						actions: (
+							<>
+								<RunAction run={data} />
+								<RunRemove run={data} />
+							</>
+						),
 					})}
 		>
 			<div className={clsx(styles.body)}>

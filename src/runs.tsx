@@ -4,19 +4,14 @@ import { useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { runResults, runStatusKinds } from "./domain.ts";
-import { MultiDropdown } from "./dropdown.tsx";
+import { Dropdown, MultiDropdown } from "./dropdown.tsx";
 import { Loading } from "./loading.tsx";
 import { needs } from "./needs-you-styles.ts";
-import { openPage, runPagePath } from "./page-links.ts";
-import { elapsed, runTime } from "./panel-sections.tsx";
-import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import type { RunListRow } from "./run-list.ts";
-import { RunDot } from "./run-marks.tsx";
+import { RunRow } from "./run-row.tsx";
 import { PageFrame } from "./shell.tsx";
 import {
-	costLabel,
-	hubQueueLabel,
 	navLabel,
 	runResultLabel,
 	runsColumnLabel,
@@ -24,27 +19,35 @@ import {
 	runStatusLabel,
 } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
-import { shortKey } from "./ticket-key.ts";
-import { measure, space } from "./tokens.stylex.ts";
+import { measure } from "./tokens.stylex.ts";
 import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
-	status: {
-		display: "inline-flex",
-		gap: space.xs,
-		alignItems: "center",
-		whiteSpace: "nowrap",
-	},
 	search: {
 		flexGrow: 1,
 		flexBasis: measure.search,
 		maxWidth: measure.panel,
 	},
-	nowrap: {
-		whiteSpace: "nowrap",
-	},
 });
+
+const archiveChoices = [
+	{ id: "unarchived", label: runsListCopy.unarchived },
+	{ id: "archived", label: runsListCopy.archivedOnly },
+	{ id: "all", label: runsListCopy.allRuns },
+] as const;
+
+type ArchiveView = (typeof archiveChoices)[number]["id"];
+
+function isArchiveView(id: string): id is ArchiveView {
+	return archiveChoices.some((choice) => choice.id === id);
+}
+
+function inArchiveView(row: RunListRow, view: ArchiveView): boolean {
+	return (
+		view === "all" || (view === "archived") === (row.archivedAt !== undefined)
+	);
+}
 
 /** The distinct values of one field, in their first order. */
 function choicesOf(rows: RunListRow[], value: (row: RunListRow) => string) {
@@ -112,87 +115,12 @@ function matches(row: RunListRow, search: string): boolean {
 	);
 }
 
-function RunRow({ run }: { run: RunListRow }) {
-	const open = () => openPage(runPagePath(run.id));
-	return (
-		<tr
-			className={clsx(board.row)}
-			data-run={run.id}
-			tabIndex={0}
-			onClick={(event) => {
-				if (
-					event.target instanceof Element &&
-					event.target.closest("a") !== null
-				) {
-					return;
-				}
-				open();
-			}}
-			onKeyDown={(event) => {
-				if (
-					event.target !== event.currentTarget ||
-					(event.key !== "Enter" && event.key !== " ")
-				) {
-					return;
-				}
-				event.preventDefault();
-				open();
-			}}
-		>
-			<td className={clsx(board.rowCell)}>
-				<span className={clsx(styles.status)}>
-					<RunDot run={run} />
-					{runStatusLabel[run.statusKind]}
-				</span>
-			</td>
-			<td className={clsx(board.rowCell, styles.nowrap)}>
-				{run.result === undefined ? null : runResultLabel[run.result]}
-			</td>
-			<td className={clsx(board.rowCell)}>
-				<a
-					href={runPagePath(run.id)}
-					className={clsx(board.rowKey, shell.linkFocus)}
-				>
-					{shortKey(run.key)}
-				</a>{" "}
-				<span className={clsx(board.rowTitle)}>{run.title}</span>
-			</td>
-			<td className={clsx(board.rowCell, styles.nowrap)}>{run.project}</td>
-			<td className={clsx(board.rowCell)}>{run.stage}</td>
-			<td className={clsx(board.rowCell, styles.nowrap)}>{run.factory}</td>
-			<td className={clsx(board.rowCell, styles.nowrap)}>
-				{run.box ?? hubQueueLabel}
-			</td>
-			<td className={clsx(board.rowCell, styles.nowrap)}>
-				{runTime(run.startedAt)}
-			</td>
-			<td className={clsx(board.rowCell, styles.nowrap)}>{elapsed(run)}</td>
-			<td className={clsx(board.rowCell, styles.nowrap)}>
-				{run.usageTotals === undefined
-					? null
-					: costLabel(run.usageTotals.costUsd)}
-			</td>
-			<td className={clsx(board.rowCell)}>
-				{run.pull === undefined ? null : (
-					<a
-						href={run.pull.url}
-						target="_blank"
-						rel="noreferrer"
-						className={clsx(panel.factLink, shell.linkFocus)}
-					>
-						#{run.pull.number}
-					</a>
-				)}
-			</td>
-		</tr>
-	);
-}
-
 function RunsList({ rows }: { rows: RunListRow[] }) {
 	const [status, setStatus] = useState<string[]>([]);
 	const [result, setResult] = useState<string[]>([]);
 	const [project, setProject] = useState<string[]>([]);
 	const [factory, setFactory] = useState<string[]>([]);
+	const [archive, setArchive] = useState<ArchiveView>("unarchived");
 	const [search, setSearch] = useState("");
 	const [column, setColumn] = useState<SortColumn>("start");
 	const [direction, setDirection] = useState<SortDirection>("desc");
@@ -202,6 +130,7 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 			picks(result, row.result) &&
 			picks(project, row.project) &&
 			picks(factory, row.factory) &&
+			inArchiveView(row, archive) &&
 			matches(row, search),
 	);
 	const shown = sortRuns(filtered, column, direction);
@@ -257,6 +186,17 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 					value={factory}
 					choices={choicesOf(rows, (row) => row.factory)}
 					onChange={setFactory}
+				/>
+				<Dropdown
+					id="runs-archive"
+					label={runsListCopy.archive}
+					value={archive}
+					choices={archiveChoices}
+					onChange={(id) => {
+						if (isArchiveView(id)) {
+							setArchive(id);
+						}
+					}}
 				/>
 			</div>
 			<div className={clsx(board.grid)}>
