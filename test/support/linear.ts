@@ -23,6 +23,8 @@ export type LinearFake = {
 		color: string;
 	}[];
 	issues?: Record<string, unknown>[];
+	/** The labels of the workspace. A label with a null team is a workspace label. */
+	labels?: { id: string; name: string; team: { id: string } | null }[];
 	pages?: { nodes: Record<string, unknown>[]; endCursor: string | null }[];
 	fail?: "lookup" | "issues" | "key" | "reply";
 	status?: number;
@@ -275,9 +277,50 @@ export function linearFake(options: LinearFake = {}): Fetch {
 		if (
 			query.query?.includes("ProjectIssues") ||
 			query.query?.includes("commentCreate") ||
-			query.query?.includes("IssueThread")
+			query.query?.includes("IssueThread") ||
+			query.query?.includes("IssueAddLabel")
 		) {
 			options.requests?.push(body);
+		}
+		if (query.query?.includes("ReadyLabels")) {
+			const variables = (
+				query as { variables?: { id?: string; name?: string } }
+			).variables;
+			const issue = (options.issues ?? []).find(
+				(item) =>
+					item.identifier === variables?.id || item.id === variables?.id,
+			);
+			return json({
+				data: {
+					issue:
+						issue === undefined
+							? null
+							: { id: issue.id, team: issue.team ?? { id: "team-1" } },
+					issueLabels: {
+						nodes: (options.labels ?? []).filter(
+							(label) => label.name === variables?.name,
+						),
+					},
+				},
+			});
+		}
+		if (query.query?.includes("IssueAddLabel")) {
+			const variables = (
+				query as { variables?: { id?: string; labelId?: string } }
+			).variables;
+			const issue = (options.issues ?? []).find(
+				(item) => item.id === variables?.id,
+			);
+			const label = (options.labels ?? []).find(
+				(item) => item.id === variables?.labelId,
+			);
+			const held = issue?.labels as { nodes?: { name: string }[] } | undefined;
+			if (label !== undefined) {
+				held?.nodes?.push({ name: label.name });
+			}
+			return json({
+				data: { issueAddLabel: { success: issue !== undefined } },
+			});
 		}
 		if (query.query?.includes("IssueThread")) {
 			const id = (query as { variables?: { id?: string } }).variables?.id;

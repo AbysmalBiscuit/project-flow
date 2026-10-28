@@ -40,6 +40,7 @@ import {
 	mergesOnItsOwn,
 	reviewState,
 } from "./review.ts";
+import { type RunStarts, runStartView } from "./run-start.ts";
 import {
 	assigneesOf,
 	chipsOf,
@@ -108,6 +109,7 @@ export function projectCounts(
 		pmBot: Record<string, boolean>;
 	},
 	mappings: Pick<Configuration, "laneMappings" | "states" | "stateMappings">,
+	runStarts: RunStarts,
 	now: Date,
 	board?: Board,
 ): {
@@ -249,6 +251,7 @@ export function projectCounts(
 			...chipsOf(shown),
 			enteredStateAt: shown.enteredStateAt,
 			...shownFactoryRun(ticket, factoryRuns, pulls, now),
+			...runStartView(ticket, newestRun, runStarts),
 			...(ticket.updatedAt === "" ? {} : { updatedAt: ticket.updatedAt }),
 			...assigneesOf(ticket),
 			...(ticket.parent === null ? {} : { parent: ticket.parent }),

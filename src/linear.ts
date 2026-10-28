@@ -17,7 +17,11 @@ import {
 } from "./github.ts";
 import { linearStatusType } from "./lanes.ts";
 import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
-import { fetchLinearThread, postLinearReply } from "./linear-thread.ts";
+import {
+	addLinearLabel,
+	fetchLinearThread,
+	postLinearReply,
+} from "./linear-thread.ts";
 import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
 
 export const missingLinearKey =
@@ -898,6 +902,9 @@ export function linearTracker(
 		},
 		postReply(reply) {
 			return postLinearReply(key, fetchImpl, reply);
+		},
+		addLabel(ticketKey, label) {
+			return addLinearLabel(key, fetchImpl, ticketKey, label);
 		},
 	};
 }

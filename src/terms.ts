@@ -251,6 +251,17 @@ export const runResumeCopy = {
 	restartFailed: "Restart failed",
 } as const;
 
+export const runStartCopy = {
+	action: "Start run",
+	pending: "Starting",
+	requested: "Run requested",
+	title: "Start a run?",
+	body: (factory: string, label: string) =>
+		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
+	linearBody: (factory: string, label: string) =>
+		`Project Flow adds the label ${label} to the ticket. The factory ${factory} starts a run only when the workflow state of the ticket matches a rule of its source.`,
+} as const;
+
 export const runThreadLabel = "Run thread";
 
 /** The verb after the sender of each run thread message. */
@@ -777,6 +788,8 @@ export const factoryCopy = {
 	none: "No factory set.",
 	name: "Factory name",
 	url: "http, https or unix URL",
+	readyLabel: "Run start label (optional)",
+	readyLabelOf: (label: string) => `run start label ${label}`,
 	reachable: "Reachable",
 	unreachable: "Unreachable",
 	unchecked: "Not checked",
