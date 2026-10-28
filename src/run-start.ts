@@ -97,18 +97,19 @@ export function queuedOf(
 			};
 }
 
-/** The `queued` field of a ticket view: absent when the ticket does not wait for a run. */
-export function queuedView(
-	...args: Parameters<typeof queuedOf>
-): { queued: Queued } | Record<string, never> {
-	const queued = queuedOf(...args);
-	return queued === undefined ? {} : { queued };
-}
-
-/** The `runStart` field of a ticket view: absent when the ticket refuses a start. */
+/**
+ * The `runStart` and `queued` fields of a ticket view. Each is absent when the
+ * ticket refuses a start, or does not wait for a run.
+ */
 export function runStartView(
-	...args: Parameters<typeof runStartOf>
-): { runStart: RunStart } | Record<string, never> {
-	const start = runStartOf(...args);
-	return "refused" in start ? {} : { runStart: start };
+	ticket: Parameters<typeof queuedOf>[0],
+	newestRun: Parameters<typeof queuedOf>[1],
+	runStarts: RunStarts,
+): { runStart?: RunStart; queued?: Queued } {
+	const start = runStartOf(ticket, newestRun, runStarts);
+	const queued = queuedOf(ticket, newestRun, runStarts);
+	return {
+		...("refused" in start ? {} : { runStart: start }),
+		...(queued === undefined ? {} : { queued }),
+	};
 }
