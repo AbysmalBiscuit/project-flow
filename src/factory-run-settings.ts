@@ -5,7 +5,7 @@ import { body, NotServed, reader, Unreachable } from "./factory-http.ts";
 import type { ReadRun, StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 
-export type SettingsRead = RunSettings | "missing" | "not served";
+export type RunSettingsRead = RunSettings | "missing" | "not served";
 
 const parameterValue: z.ZodType<ParameterValue> = z.lazy(() =>
 	z.union([
@@ -55,7 +55,7 @@ export function runSettingsReader(deps: {
 	statusRowOf: (runId: string) => StatusRows<ReadRun>;
 }) {
 	const { fetchImpl, signal, statusRowOf } = deps;
-	return async (runId: string): Promise<SettingsRead> => {
+	return async (runId: string): Promise<RunSettingsRead> => {
 		const { hubRow, row } = statusRowOf(runId);
 		const target = hubRow ?? row;
 		if (target === undefined) {

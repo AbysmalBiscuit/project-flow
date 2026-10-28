@@ -397,6 +397,35 @@ export function runFilesCountLabel(count: number): string {
 	return count === 1 ? "1 file" : `${count} files`;
 }
 
+export const runSettingsLabel = {
+	parameters: "Parameters",
+	choices: "Agent nodes",
+	options: "Run options",
+} as const;
+
+export const noParametersLabel = "The workflow declares no parameters.";
+
+export const noChoicesLabel = "The workflow has no agent nodes.";
+
+export const defaultChoiceLabel = "default";
+
+export function choiceModeLabel(mode: string, launcher: string | null): string {
+	return launcher === null ? mode : `${mode}, launcher ${launcher}`;
+}
+
+export const runOptionLabel = {
+	workflow: "Workflow",
+	repo: "Repo",
+	ticket: "Ticket",
+	author: "Author",
+	keepWorktree: "Keep worktree",
+	sent: "Sent by the hub",
+	source: "Hub feed",
+	rule: "Dispatch rule",
+} as const;
+
+export const yesNoLabel = { true: "Yes", false: "No" } as const;
+
 export const runSourceLabel = "Workflow source";
 
 export const entryGraphLabel = "Entry graph";
