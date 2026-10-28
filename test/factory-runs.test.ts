@@ -5,25 +5,26 @@ import type {
 	ProjectReport,
 	RunCheckpoint,
 	RunDetail,
-	ShownFactoryRun,
 	TicketView,
 } from "../src/domain.ts";
 import type { FactoryEntry } from "../src/factories.ts";
-import type { Fetch } from "../src/fetch.ts";
 import type { RunListRow } from "../src/run-list.ts";
+import {
+	boxRow,
+	factoryRunOf,
+	overviewWhere,
+	type RunOverview,
+	serveRuns,
+} from "./factory-run-support.ts";
 import {
 	type Answers,
 	daemon,
 	EventFeed,
-	factoryFetch,
 	type FactoryRequest,
 	hub,
 	hubUrl,
-	json,
 	laptopSocket,
 	laptopUrl,
-	readOrRunWrite,
-	serve,
 } from "./factory-support.ts";
 import hubCheckpoint from "./fixtures/factory-hub-checkpoint.json";
 import hubEvents from "./fixtures/factory-hub-events.json";
@@ -41,32 +42,9 @@ import runSource from "./fixtures/factory-run-source.json";
 import runTurns from "./fixtures/factory-run-turns.json";
 import runWorkers from "./fixtures/factory-run-workers.json";
 import steerDelivered from "./fixtures/factory-steer-delivered.json";
-import {
-	issuesResponse,
-	listedRead,
-	openEventStream,
-	page,
-	recordedOrEmpty,
-	repo,
-	ticket,
-} from "./live-support.ts";
+import { openEventStream, repo } from "./live-support.ts";
 import { pull } from "./review-support.ts";
-import {
-	githubPullNode,
-	readWhere,
-	recordedDiscovery,
-	settledRead,
-	unrecorded,
-	urlOf,
-} from "./support.ts";
-
-type RunOverview = {
-	projects: { tickets: TicketView[] }[];
-	polling?: true;
-	factoryUnreachable?: true;
-};
-
-const runClockStart = Date.parse("2026-10-25T14:20:00Z");
+import { githubPullNode, readWhere, settledRead } from "./support.ts";
 
 const runPollMs = 10_000;
 
@@ -90,33 +68,10 @@ const hubRunsWithRetry = {
 	],
 };
 
-function factoryRunOf(
-	body: RunOverview,
-	number: number,
-): ShownFactoryRun | undefined {
-	return body.projects
-		.flatMap((project) => project.tickets)
-		.find((view) => view.title === `Ticket ${number}`)?.factoryRun;
-}
-
 function hasTicket(body: RunOverview, number: number): boolean {
 	return body.projects.some((project) =>
 		project.tickets.some((view) => view.title === `Ticket ${number}`),
 	);
-}
-
-async function overviewWhere(
-	base: string,
-	accept: (body: RunOverview) => boolean,
-): Promise<RunOverview> {
-	while (true) {
-		const response = await fetch(new URL("/api/overview", base));
-		const body = (await response.json()) as RunOverview;
-		if (body.polling !== true && accept(body)) {
-			return body;
-		}
-		await Bun.sleep(20);
-	}
 }
 
 async function overviewEventWhere(
@@ -181,104 +136,10 @@ function hubWith41(kind: string): Answers {
 	};
 }
 
-/** A run row as the box `laptop` reports it: no source, and `machine` is `local`. */
-function boxRow(hubRow: (typeof hubRuns.runs)[number], kind: string) {
-	return {
-		...hubRow,
-		status: { kind, reason: null },
-		source: null,
-		rule: null,
-		machine: "local",
-	};
-}
-
 async function factoryEntries(base: string): Promise<FactoryEntry[]> {
 	const response = await fetch(new URL("/api/settings", base));
 	const body = (await response.json()) as { factoryEntries: FactoryEntry[] };
 	return body.factoryEntries;
-}
-
-/**
- * A hub, and its box when `boxAnswers` is given, with a tracked repo whose issues
- * the test can change, on a clock the test advances.
- */
-async function serveRuns(
-	hubAnswers: Answers,
-	issueNumbers: number[],
-	comments: Record<number, Record<string, unknown>[]> = {},
-	boxAnswers?: Answers,
-	pulls: Record<string, unknown>[] = [],
-	mergedPulls: Record<string, unknown>[] = [],
-) {
-	const factories: Record<string, Answers | "down"> = {
-		[hubUrl]: hubAnswers,
-		...(boxAnswers === undefined ? {} : { [laptopUrl]: boxAnswers }),
-	};
-	const requests: FactoryRequest[] = [];
-	const issues = { numbers: issueNumbers };
-	let now = runClockStart;
-	const tracker: Fetch = async (input, init) => {
-		const url = urlOf(input);
-		if (url === "https://api.github.com/user") {
-			return json({ login: "lev" });
-		}
-		const discovered = recordedDiscovery(input, init);
-		if (discovered !== null) {
-			return discovered;
-		}
-		if (listedRead(input, init)?.repo === repo) {
-			return (
-				issuesResponse(
-					input,
-					init,
-					issues.numbers.map((number) => {
-						const rows = comments[number];
-						return {
-							...ticket(number, "2026-10-25T09:00:00Z"),
-							...(rows === undefined ? {} : { commentRows: rows }),
-						};
-					}),
-					repo,
-					pulls,
-					mergedPulls,
-				) ?? page([])
-			);
-		}
-		return recordedOrEmpty(url) ?? unrecorded(input, init);
-	};
-	const app = await serve(
-		[],
-		{
-			pinned: [{ tracker: "github", repo }],
-			factories: [
-				{ name: "work hub", url: hubUrl },
-				...(boxAnswers === undefined
-					? []
-					: [{ name: "laptop", url: laptopUrl }]),
-			],
-		},
-		factoryFetch(factories, requests, tracker),
-		{ env: { GITHUB_TOKEN: "recorded-token" }, now: () => new Date(now) },
-	);
-	return {
-		...app,
-		stop: async () => {
-			await app.stop();
-			expect(requests.filter((request) => !readOrRunWrite(request))).toEqual(
-				[],
-			);
-		},
-		factories,
-		issues,
-		requests,
-		runReads: () =>
-			requests.filter((request) => request.url === `${hubUrl}/runs`).length,
-		eventReads: () =>
-			requests.filter((request) => request.url === `${hubUrl}/events`).length,
-		advance: (ms: number) => {
-			now += ms;
-		},
-	};
 }
 
 describe("factory runs", () => {

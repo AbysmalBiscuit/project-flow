@@ -25,6 +25,7 @@ import type {
 } from "./factory-run-actions.ts";
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
+import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { ProjectRef } from "./project-ref.ts";
@@ -192,6 +193,13 @@ export type FactoryReader = {
 	 * and "not served" when the factory answered with 404.
 	 */
 	sandbox: (runId: string) => Promise<SandboxRead>;
+	/**
+	 * `GET /runs/{id}/files` of the hub that reports the run, or else of its box.
+	 * "gone" when the files answer 404 and the run sandbox is removed.
+	 * "not served" when the files answer 404 and the factory does not serve the sandbox either, or the sandbox has a worktree.
+	 * "missing" otherwise: no factory reported the run, the factory did not answer, or the run has no worktree yet.
+	 */
+	files: (runId: string) => Promise<FilesRead>;
 	/**
 	 * `GET /runs/{id}/source` of the hub that reports the run, or else of its box.
 	 * "missing" when no factory reported the run, the factory did not answer or the run has not loaded its package,

@@ -12,6 +12,7 @@ import { RunArtifacts } from "./run-artifacts.tsx";
 import { RunCancel } from "./run-cancel.tsx";
 import { NotServed, RunStages, RunUsage } from "./run-checkpoint.tsx";
 import { RunEvents } from "./run-events.tsx";
+import { RunFiles } from "./run-files.tsx";
 import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
 import { RunResume } from "./run-resume.tsx";
@@ -134,7 +135,15 @@ function RunFacts({ run }: { run: RunDetail }) {
 	);
 }
 
-function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
+function TabBody({
+	run,
+	tab,
+	pick,
+}: {
+	run: RunDetail;
+	tab: RunTab;
+	pick: (next: RunTab) => void;
+}) {
 	if (tab === "overview") {
 		return (
 			<>
@@ -156,6 +165,8 @@ function TabBody({ run, tab }: { run: RunDetail; tab: RunTab }) {
 				<RunUsage run={run} />
 			) : tab === "events" ? (
 				<RunEvents run={run} />
+			) : tab === "files" ? (
+				<RunFiles run={run} onSandbox={() => pick("sandbox")} />
 			) : tab === "artifacts" ? (
 				<RunArtifacts run={run} />
 			) : tab === "sandbox" ? (
@@ -236,7 +247,7 @@ export function Page() {
 					) : data === null ? (
 						<p className={clsx(panel.note)}>{runMissingLabel}</p>
 					) : (
-						<TabBody run={data} tab={tab} />
+						<TabBody run={data} tab={tab} pick={pick} />
 					)}
 				</section>
 			</div>
