@@ -101,7 +101,7 @@ function computeProjectView(
 		row.branches,
 		row.startedKeys,
 		options.runs,
-		options.factoryRuns().filter((run) => run.archivedAt === undefined),
+		options.factoryRuns(),
 		{
 			config: configuration.autoMerge,
 			workcell: options.workcellAuto,

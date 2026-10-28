@@ -151,7 +151,7 @@ describe("factory deletes", () => {
 });
 
 describe("factory archives", () => {
-	test("the app reads the archived runs too, and an archived run stays in the Runs list marked archived and leaves the board", async () => {
+	test("the app reads the archived runs too, and an archived run stays in the Runs list marked archived and stays the run of its ticket", async () => {
 		const hubSide = changeOnWrite(succeeded40, [
 			{ ...succeeded40, archived_at: archivedAt },
 		]);
@@ -184,7 +184,7 @@ describe("factory archives", () => {
 				(await listed(app.base)).map((row) => [row.id, row.archivedAt]),
 			).toEqual([[succeeded40.id, archivedAt]]);
 			const seen = await overviewWhere(app.base, () => true);
-			expect(factoryRunOf(seen, 40)).toBeUndefined();
+			expect(factoryRunOf(seen, 40)?.id).toBe(succeeded40.id);
 		} finally {
 			await app.stop();
 		}
