@@ -19,6 +19,11 @@ export type CancelResult = "cancelled" | "missing" | "ended" | "failed";
 /** The id of the run that a resume queued again, or of the new run that a restart started. */
 export type StartResult = { id: string } | "missing" | "ended" | "failed";
 
+export type RemoveAction = "delete" | "archive";
+
+export type RemoveResult =
+	"removed" | "missing" | { refused: string } | "failed";
+
 export type Steer = { stage: string; text: string; interrupt: boolean };
 
 // A factory answers a cancel once the run process has stopped. The hub waits 30 seconds for
@@ -27,10 +32,12 @@ const cancelLimitMs = 100_000;
 
 const startedRun = z.object({ id: z.string() });
 
+const refusal = z.object({ error: z.string() });
+
 /** Project Flow writes to a factory as Lev: the factory records this sender on each answer and steer. */
 const levSender = "lev";
 
-/** The answer, steer, cancel, resume and restart writes that Lev sends to the factory that reports a run. */
+/** The answer, steer, cancel, resume, restart, delete and archive writes that Lev sends to the factory that reports a run. */
 export function runActions(deps: {
 	fetchImpl: Fetch;
 	signal: AbortSignal;
@@ -80,18 +87,13 @@ export function runActions(deps: {
 			return "failed";
 		}
 	};
-	/**
-	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
-	 * the write to the box that does the run. A 409 means that the run is not in a status that
-	 * takes the write.
-	 */
-	const runWrite = async <Done>(
+	/** Post a write about a run to the hub that reports it, or else to its box. The hub forwards the write to the box that does the run. */
+	const post = async (
 		run: string,
 		route: string,
-		done: (response: Response) => Done | Promise<Done>,
-		json: unknown = {},
-		limitMs = factoryRequestLimitMs,
-	): Promise<Done | "missing" | "ended" | "failed"> => {
+		json: unknown,
+		limitMs: number,
+	): Promise<Response | "missing" | "failed"> => {
 		const { hubRow, row } = statusRowOf(run);
 		const target = hubRow ?? row;
 		if (target === undefined) {
@@ -99,16 +101,34 @@ export function runActions(deps: {
 		}
 		const read = reader(fetchImpl, target.url, signal, limitMs);
 		try {
-			const response = await read(`/runs/${encodeURIComponent(run)}/${route}`, {
-				json,
-			});
-			if (response.ok) {
-				return await done(response);
+			return await read(`/runs/${encodeURIComponent(run)}/${route}`, { json });
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
 			}
-			if (response.status === 409) {
-				return "ended";
-			}
+			return "failed";
+		}
+	};
+	/** A write that the factory refuses with 409 when the run is not in a status that takes it. */
+	const runWrite = async <Done>(
+		run: string,
+		route: string,
+		done: (response: Response) => Done | Promise<Done>,
+		json: unknown = {},
+		limitMs = factoryRequestLimitMs,
+	): Promise<Done | "missing" | "ended" | "failed"> => {
+		const response = await post(run, route, json, limitMs);
+		if (typeof response === "string") {
+			return response;
+		}
+		if (response.status === 409) {
+			return "ended";
+		}
+		if (!response.ok) {
 			return response.status === 404 ? "missing" : "failed";
+		}
+		try {
+			return await done(response);
 		} catch (error) {
 			if (!(error instanceof Unreachable)) {
 				throw error;
@@ -131,5 +151,29 @@ export function runActions(deps: {
 	// A restart of a blocked run cancels it first, so it waits as long as a cancel.
 	const restart = (run: string): Promise<StartResult> =>
 		runWrite(run, "restart", startedId, {}, cancelLimitMs);
-	return { answer, steer, cancel, resume, restart };
+	/** A delete or an archive of an ended run. A 409 gives the reason of the factory, such as a PR that a hub source still needs. */
+	const remove = async (
+		run: string,
+		action: RemoveAction,
+	): Promise<RemoveResult> => {
+		const response = await post(run, action, {}, factoryRequestLimitMs);
+		if (typeof response === "string") {
+			return response;
+		}
+		if (response.ok) {
+			return "removed";
+		}
+		if (response.status === 409) {
+			const refused = refusal.safeParse(
+				await response.json().catch(() => null),
+			);
+			return {
+				refused: refused.success
+					? refused.data.error
+					: "the factory keeps the run",
+			};
+		}
+		return response.status === 404 ? "missing" : "failed";
+	};
+	return { answer, steer, cancel, resume, restart, remove };
 }

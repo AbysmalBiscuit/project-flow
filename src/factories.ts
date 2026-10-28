@@ -309,7 +309,7 @@ export function factoryReader(
 		const read = reader(fetchImpl, factory.url, signal);
 		const known = found.get(factory.url);
 		try {
-			const answer = await body(await read("/runs"), runRows);
+			const answer = await body(await read("/runs?archived=1"), runRows);
 			const rows = await Promise.all(
 				factoryRuns(answer.runs, factory).map(async (row) => {
 					if (row.run.statusKind !== "blocked") {

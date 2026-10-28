@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Configuration } from "./configuration.ts";
-import type { StartResult } from "./factory-run-actions.ts";
+import type { RemoveAction, StartResult } from "./factory-run-actions.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
 import { factoryRunList } from "./project-views.ts";
@@ -61,6 +61,29 @@ export function factoryRunRoutes({
 		}
 		await readFactories(() => factories.readRuns(clock.now().getTime()));
 		return Response.json({ id: result.id });
+	};
+	/** The API answer to a delete or an archive of an ended run. */
+	const remove = async (run: string, action: RemoveAction) => {
+		const result = await factories.remove(run, action);
+		if (result === "missing") {
+			return Response.json(
+				{ error: "no factory reports the run" },
+				{ status: 404 },
+			);
+		}
+		if (result === "failed") {
+			return Response.json(
+				{ error: `the factory did not take the ${action}` },
+				{ status: 502 },
+			);
+		}
+		if (result !== "removed") {
+			return Response.json({ error: result.refused }, { status: 409 });
+		}
+		await readFactories(() => factories.readRuns(clock.now().getTime()));
+		return Response.json(
+			action === "delete" ? { deleted: true } : { archived: true },
+		);
 	};
 	const readWorkflow = async (runId: string) => {
 		if (await factories.readWorkflow(runId)) {
@@ -278,6 +301,12 @@ export function factoryRunRoutes({
 		},
 		"/api/factory-runs/:run/restart": {
 			POST: (request) => startAgain(factories.restart(request.params.run)),
+		},
+		"/api/factory-runs/:run/delete": {
+			POST: (request) => remove(request.params.run, "delete"),
+		},
+		"/api/factory-runs/:run/archive": {
+			POST: (request) => remove(request.params.run, "archive"),
 		},
 	});
 }
