@@ -72,10 +72,6 @@ export const headerControlStyle = stylex.create({
 		...controlText,
 		whiteSpace: "nowrap",
 	},
-	groupOff: {
-		opacity: 0.5,
-		cursor: "not-allowed",
-	},
 	graphTools: headerGroup,
 	square: {
 		...headerControl,

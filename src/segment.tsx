@@ -28,6 +28,7 @@ export function Segment({ label, on, role, ...native }: SegmentProps) {
 	const className = clsx(
 		headerControlStyle.segment,
 		control.clear,
+		native.disabled === true ? control.off : control.offInGroup,
 		control.focus,
 		on === true && control.on,
 	);

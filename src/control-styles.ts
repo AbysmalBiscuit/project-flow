@@ -17,15 +17,16 @@ const hoverInk = "color-mix(in srgb, currentColor 14%, transparent)";
 const pressInk = "color-mix(in srgb, currentColor 28%, transparent)";
 const filledPress = {
 	default: null,
-	":hover": `linear-gradient(${hoverInk}, ${hoverInk})`,
-	":active": `linear-gradient(${pressInk}, ${pressInk})`,
+	":not(:disabled):hover": `linear-gradient(${hoverInk}, ${hoverInk})`,
+	":not(:disabled):active": `linear-gradient(${pressInk}, ${pressInk})`,
 } as const;
 
 // A later style that sets `backgroundColor` replaces the hover and press fills
-// too, so each fill at rest carries its own hover and press fills.
+// too, so each fill at rest carries its own hover and press fills. A disabled
+// control takes no hover or press fill.
 const pressFill = {
-	":hover": colours.rowHover,
-	":active": colours.controlPress,
+	":not(:disabled):hover": colours.rowHover,
+	":not(:disabled):active": colours.controlPress,
 } as const;
 
 /**
@@ -60,6 +61,27 @@ export const control = stylex.create({
 			":disabled": "not-allowed",
 		},
 	},
+	/**
+	 * The disabled look of a control inside a group, such as a segment. The
+	 * group fades as a whole, so the control fades only on its own.
+	 */
+	offInGroup: {
+		cursor: {
+			default: "pointer",
+			":disabled": "not-allowed",
+		},
+	},
+	/** The disabled look of a control group: a `fieldset` fades with its controls. */
+	groupOff: {
+		opacity: {
+			default: null,
+			":disabled": 0.5,
+		},
+		cursor: {
+			default: null,
+			":disabled": "not-allowed",
+		},
+	},
 	/** A control with the control fill at rest. */
 	press: {
 		backgroundColor: { default: colours.controlFill, ...pressFill },
@@ -86,8 +108,8 @@ export const control = stylex.create({
 	chosen: {
 		backgroundColor: {
 			default: colours.rowOn,
-			":hover": colours.rowOn,
-			":active": colours.controlPress,
+			":not(:disabled):hover": colours.rowOn,
+			":not(:disabled):active": colours.controlPress,
 		},
 	},
 	/** A link in running text. */
