@@ -145,6 +145,10 @@ export const control = stylex.create({
 		},
 		outlineOffset: space.twoXs,
 	},
+	/** The focus ring inside the box, for a control in a row that clips overflow. */
+	focusInside: {
+		outlineOffset: `calc(-1 * ${measure.focus})`,
+	},
 	primary: {
 		borderColor: colours.needs,
 		backgroundColor: colours.needs,

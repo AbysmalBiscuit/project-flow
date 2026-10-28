@@ -76,7 +76,12 @@ function blockerTicket(blocker: CrossProjectBlocker): string {
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
 		<a
-			className={clsx(cards.chip, control.tint, control.focus)}
+			className={clsx(
+				cards.chip,
+				control.tint,
+				control.focus,
+				control.focusInside,
+			)}
 			href={projectPath(blocker.project, blocker)}
 		>
 			Blocked by {blockerTicket(blocker)}
@@ -206,7 +211,12 @@ function MoreChip({ project, hidden }: { project: string; hidden: number }) {
 		<a
 			hidden={hidden === 0}
 			data-more=""
-			className={clsx(cards.chip, control.tint, control.focus)}
+			className={clsx(
+				cards.chip,
+				control.tint,
+				control.focus,
+				control.focusInside,
+			)}
 			href={projectPath(project)}
 			aria-label={label}
 			onClick={(event) => {
@@ -380,7 +390,13 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 		<li id={id} className={clsx(cards.card)} aria-busy={loading}>
 			<div className={clsx(cards.cardTop)}>
 				<a
-					className={clsx(cards.projectLink, control.link)}
+					className={clsx(
+						cards.projectLink,
+						control.link,
+						control.clear,
+						control.bleed,
+						control.focus,
+					)}
 					href={projectPath(project.name)}
 					aria-label={project.name}
 					onClick={(event) => {
@@ -549,7 +565,13 @@ function TableView({
 							>
 								<td className={clsx(cards.cell, cards.name)}>
 									<a
-										className={clsx(cards.projectLink, control.link)}
+										className={clsx(
+											cards.projectLink,
+											control.link,
+											control.clear,
+											control.bleed,
+											control.focus,
+										)}
 										href={projectPath(project.name)}
 										onClick={(event) => {
 											event.preventDefault();
@@ -599,6 +621,7 @@ function TableView({
 													className={clsx(
 														cards.chip,
 														cards.blockerChip,
+														control.focus,
 														control.tint,
 													)}
 													href={projectPath(blocker.project, blocker)}
