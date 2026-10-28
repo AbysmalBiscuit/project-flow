@@ -360,7 +360,7 @@ export const frame = stylex.create({
 		display: "inline-flex",
 		width: measure.glyph,
 		height: measure.glyph,
-		color: colours.controlInk,
+		color: "inherit",
 	},
 	menu: {
 		position: "relative",
@@ -399,7 +399,8 @@ export const frame = stylex.create({
 		borderRadius: radius.sm,
 		backgroundColor: {
 			default: "transparent",
-			":hover": colours.surfaceMuted,
+			":hover": colours.rowHover,
+			":active": colours.controlPress,
 		},
 		color: colours.controlInk,
 		fontFamily: font.sans,
