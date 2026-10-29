@@ -5,7 +5,8 @@ import type { FactoryQuestion } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { useAnswerQuestion } from "./queries.ts";
 import { SendButton, SendText } from "./send-box.tsx";
-import { runQuestionsLabel } from "./terms.ts";
+import { answerFailed, runQuestionsLabel } from "./terms.ts";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
@@ -51,7 +52,12 @@ function QuestionAnswer({
 			/>
 			<SendButton label="Answer" disabled={answer.isPending} />
 			{answer.error === null ? null : (
-				<p className={clsx(panel.error)}>{answer.error.message}</p>
+				<Toast
+					tone="error"
+					message={`${answerFailed}: ${answer.error.message}`}
+					hideMs={actionToastHideMs}
+					onClose={() => answer.reset()}
+				/>
 			)}
 		</form>
 	);
