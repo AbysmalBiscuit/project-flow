@@ -6,15 +6,23 @@ import { clsx } from "./ui.ts";
 
 const sendKey = "Ctrl+Enter";
 
-/** Ctrl+Enter or Cmd+Enter sends the form, the same as a click on its send button. */
-function sendOnKey(event: KeyboardEvent<HTMLTextAreaElement>): void {
+/**
+ * Ctrl+Enter or Cmd+Enter sends the form, the same as a click on its send
+ * button. Escape blurs the text box and keeps the draft, so only a second
+ * Escape reaches the side panel and closes it.
+ */
+function sendBoxKeys(event: KeyboardEvent<HTMLTextAreaElement>): void {
+	if (event.nativeEvent.isComposing) {
+		return;
+	}
+	if (event.key === "Escape" && !(event.ctrlKey || event.metaKey)) {
+		event.preventDefault();
+		event.currentTarget.blur();
+		return;
+	}
 	// `requestSubmit` submits even when the submitter is disabled, so check it here.
 	// A held key repeats, and the repeats must not send again.
-	if (
-		event.key !== "Enter" ||
-		!(event.ctrlKey || event.metaKey) ||
-		event.nativeEvent.isComposing
-	) {
+	if (event.key !== "Enter" || !(event.ctrlKey || event.metaKey)) {
 		return;
 	}
 	event.preventDefault();
@@ -33,7 +41,7 @@ export function SendText(
 	props: Omit<ComponentPropsWithoutRef<"textarea">, "className" | "onKeyDown">,
 ) {
 	return (
-		<textarea {...props} className={clsx(panel.text)} onKeyDown={sendOnKey} />
+		<textarea {...props} className={clsx(panel.text)} onKeyDown={sendBoxKeys} />
 	);
 }
 
