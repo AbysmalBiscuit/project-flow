@@ -643,15 +643,23 @@ export function usePostReply(tracker: string, project: string, key: string) {
 	});
 }
 
-/** Add the ready label of a factory to a ticket, so the hub starts a run of it. */
+/**
+ * Add the ready label of a factory to a ticket, so the hub starts a run of it.
+ * A named factory claims the ticket instead, and starts or queues the run.
+ */
 export function useStartRun(tracker: string, project: string, key: string) {
 	const queries = useQueryClient();
 	return useMutation({
-		mutationFn: async (): Promise<void> => {
+		mutationFn: async (factory?: string): Promise<void> => {
 			const response = await fetch("/api/run-starts", {
 				method: "POST",
 				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ tracker, project, key }),
+				body: JSON.stringify({
+					tracker,
+					project,
+					key,
+					...(factory === undefined ? {} : { factory }),
+				}),
 			});
 			if (!response.ok) {
 				const failed = (await response.json().catch(() => null)) as {
