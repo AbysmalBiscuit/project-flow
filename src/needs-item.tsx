@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { Button } from "./button.tsx";
+import { control, textControl } from "./control-styles.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { needs } from "./needs-you-styles.ts";
 import {
@@ -122,7 +123,12 @@ export function NeedsItem({
 			) : (
 				<button
 					type="button"
-					className={clsx(needs.row, phoneLayout.needsRow)}
+					className={clsx(
+						needs.row,
+						control.clear,
+						control.focus,
+						phoneLayout.needsRow,
+					)}
 					onClick={() => onOpen(item.key)}
 				>
 					{lead}
@@ -142,7 +148,7 @@ export function NeedsItem({
 				</span>
 				{project === true ? (
 					<a
-						className={clsx(needs.project)}
+						className={clsx(needs.project, ...textControl)}
 						href={`/projects/${encodeURIComponent(item.project)}`}
 						data-needs-project={item.key}
 					>

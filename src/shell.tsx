@@ -5,13 +5,14 @@ import { useRef, useState } from "react";
 import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
 import { ContextMenuHost } from "./context-menu.tsx";
+import { control, textControl } from "./control-styles.ts";
 import { openJumpBox } from "./jump.tsx";
 import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
 import { Segment } from "./segment.tsx";
 import { factoryCopy, navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
-import { frame, headerControlStyle, shell } from "./ui-styles.ts";
+import { frame, headerControlStyle } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 export type PageView = {
@@ -203,7 +204,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					projectPage && projectBarLayout.fit,
 				)}
 			>
-				<a className={clsx(frame.logo, shell.linkFocus)} href="/">
+				<a className={clsx(frame.logo, ...textControl)} href="/">
 					<LogoMark />
 					{navLabel.logo}
 				</a>
@@ -213,8 +214,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 							key={link.href}
 							className={clsx(
 								frame.item,
-								shell.linkFocus,
-								current(link.href) && frame.current,
+								control.clear,
+								control.focus,
+								current(link.href) && control.on,
 							)}
 							href={link.href}
 							aria-current={current(link.href) ? "page" : undefined}
@@ -230,7 +232,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				{overview.data?.factoryUnreachable === true ? (
 					<a
 						id="factory-unreachable"
-						className={clsx(frame.factoryMarker, shell.linkFocus)}
+						className={clsx(frame.factoryMarker, ...textControl)}
 						href="/settings#factories"
 					>
 						{factoryCopy.headerMarker}
@@ -243,7 +245,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 					onClick={() => openJumpBox()}
 				/>
 				<a
-					className={clsx(frame.icon, shell.linkFocus)}
+					className={clsx(frame.icon, control.press, control.focus)}
 					href="/settings"
 					aria-label={navLabel.settings}
 					title={navLabel.settings}
@@ -252,7 +254,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 				</a>
 				<button
 					type="button"
-					className={clsx(frame.icon, shell.buttonFocus)}
+					className={clsx(frame.icon, control.press, control.focus)}
 					data-theme-toggle=""
 					aria-label={navLabel.theme}
 					title={theme === "dark" ? navLabel.light : navLabel.dark}

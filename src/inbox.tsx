@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Button } from "./button.tsx";
+import { control } from "./control-styles.ts";
 import type { InboxEntry, NotificationTrigger } from "./domain.ts";
 import { inbox } from "./inbox-styles.ts";
 import { Loading } from "./loading.tsx";
@@ -23,7 +24,7 @@ import {
 	triggerLabel,
 } from "./terms.ts";
 import { ticketRefId } from "./ticket-key.ts";
-import { frame, shell } from "./ui-styles.ts";
+import { frame } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const filters = ["all", "needsYou", "comment", "blockerCleared"] as const;
@@ -253,7 +254,7 @@ function InboxList({
 									<li key={entry.id}>
 										<button
 											type="button"
-											className={clsx(inbox.row, shell.buttonFocus)}
+											className={clsx(inbox.row, control.clear, control.focus)}
 											data-inbox={entry.id}
 											data-trigger={entry.trigger}
 											data-read={entry.read ? "true" : "false"}

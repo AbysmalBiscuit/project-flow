@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { board } from "./board-styles.ts";
+import { textControl } from "./control-styles.ts";
 import { runResults, runStatusKinds } from "./domain.ts";
 import { Dropdown, MultiDropdown } from "./dropdown.tsx";
 import { Loading } from "./loading.tsx";
@@ -20,7 +21,6 @@ import {
 } from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { measure } from "./tokens.stylex.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -236,7 +236,7 @@ function RunsList({ rows }: { rows: RunListRow[] }) {
 										>
 											<button
 												type="button"
-												className={clsx(board.sort, shell.buttonFocus)}
+												className={clsx(board.sort, ...textControl)}
 												data-column={key}
 												aria-label={
 													active

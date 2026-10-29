@@ -130,10 +130,6 @@ export const inbox = stylex.create({
 		borderBottomWidth: measure.hairline,
 		borderBottomStyle: "solid",
 		borderBottomColor: colours.line,
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.surfaceMuted,
-		},
 		color: "inherit",
 		fontFamily: font.sans,
 		fontSize: type.menu,

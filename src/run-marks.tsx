@@ -1,4 +1,5 @@
 import { board, runDotTone } from "./board-styles.ts";
+import { control } from "./control-styles.ts";
 import type { Queued, ShownFactoryRun } from "./domain.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { spanLabel } from "./poll-age.ts";
@@ -35,7 +36,7 @@ export function RunLink({ run }: { run: ShownFactoryRun }) {
 		<a
 			href={href}
 			data-run-link={run.id}
-			className={clsx(board.runLink, board.cardFocus)}
+			className={clsx(board.runLink, control.clear, control.focus)}
 			onClick={(event) => {
 				event.stopPropagation();
 				if (

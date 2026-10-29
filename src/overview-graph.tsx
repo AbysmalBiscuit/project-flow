@@ -2,6 +2,7 @@ import { BaseEdge, EdgeLabelRenderer } from "@xyflow/react";
 import { useEffect, useMemo, useRef } from "react";
 
 import { board } from "./board-styles.ts";
+import { control } from "./control-styles.ts";
 import type { CrossProjectBlocker, ProjectCounts } from "./domain.ts";
 import { type FocusView, shownSeeds } from "./focus.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
@@ -21,7 +22,7 @@ import { openProject, projectPath } from "./paths.ts";
 import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
 import { overviewControlLabel } from "./terms.ts";
 import { linkId, ticketRefId } from "./ticket-key.ts";
-import { cards, shell } from "./ui-styles.ts";
+import { cards } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 /** Projects sit farther apart than tickets, so each arrow label fits between them. */
@@ -82,7 +83,8 @@ function ProjectNode({ id, data }: CardProps<ProjectCard>) {
 			className={clsx(
 				cards.graphNode,
 				cards.graphCard,
-				shell.linkFocus,
+				control.graphCard,
+				control.focus,
 				project.needsYou > 0 && cards.graphNeedsYou,
 			)}
 			href={projectPath(project.name)}
@@ -136,6 +138,9 @@ function BlockerEdge(props: LinkProps<BlockerLink>) {
 					type="button"
 					className={`nopan ${clsx(
 						cards.graphEdge,
+						control.clear,
+						control.bleed,
+						control.focus,
 						cards.graphLabel,
 						board.fades,
 						data.faded && board.faded,

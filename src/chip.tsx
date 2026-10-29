@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { X } from "lucide-react";
 
+import { control } from "./control-styles.ts";
 import {
 	colours,
 	font,
@@ -9,7 +10,6 @@ import {
 	space,
 	type,
 } from "./tokens.stylex.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -37,10 +37,6 @@ const styles = stylex.create({
 		padding: 0,
 		borderWidth: 0,
 		borderRadius: radius.pill,
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.canvas,
-		},
 		color: colours.chipInk,
 		cursor: "pointer",
 	},
@@ -65,7 +61,7 @@ export function Chip({
 			{label}
 			<button
 				type="button"
-				className={clsx(styles.remove, shell.buttonFocus)}
+				className={clsx(styles.remove, control.clear, control.focus)}
 				aria-label={removeLabel}
 				onClick={onRemove}
 			>

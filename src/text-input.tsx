@@ -6,17 +6,10 @@ import { control } from "./control-styles.ts";
 import { colours, measure, space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
-const focusRing = `${measure.focus} solid ${colours.focus}` as const;
-
 const styles = stylex.create({
 	input: {
 		minWidth: 0,
 		cursor: "text",
-		outline: {
-			default: "none",
-			":focus-visible": focusRing,
-		},
-		outlineOffset: space.twoXs,
 		"::-webkit-search-decoration": {
 			appearance: "none",
 		},
@@ -31,11 +24,6 @@ const styles = stylex.create({
 		minWidth: 0,
 		color: colours.inkSoft,
 		cursor: "text",
-		outline: {
-			default: "none",
-			":focus-within": focusRing,
-		},
-		outlineOffset: space.twoXs,
 	},
 	bare: {
 		flexGrow: 1,
@@ -100,6 +88,7 @@ export function TextInput({
 				aria-invalid={invalid || undefined}
 				className={clsx(
 					control.box,
+					control.focus,
 					styles.input,
 					invalid && styles.invalid,
 					width,
@@ -111,6 +100,7 @@ export function TextInput({
 		<label
 			className={clsx(
 				control.box,
+				control.focusWithin,
 				styles.frame,
 				invalid && styles.invalid,
 				width,

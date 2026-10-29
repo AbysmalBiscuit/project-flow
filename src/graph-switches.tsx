@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 
+import { control } from "./control-styles.ts";
 import { Segment } from "./segment.tsx";
 import {
 	graphDirectionLabel,
@@ -108,10 +109,7 @@ export function DirectionSwitch({
 }) {
 	return (
 		<fieldset
-			className={clsx(
-				headerControlStyle.group,
-				disabled && headerControlStyle.groupOff,
-			)}
+			className={clsx(headerControlStyle.group, control.groupOff)}
 			disabled={disabled}
 		>
 			<legend className={clsx(cards.graphProbe)}>Graph direction</legend>

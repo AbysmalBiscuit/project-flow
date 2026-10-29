@@ -4,7 +4,7 @@ import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { board } from "./board-styles.ts";
 import { control } from "./control-styles.ts";
 import { space } from "./tokens.stylex.ts";
-import { frame, shell } from "./ui-styles.ts";
+import { frame } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -99,12 +99,7 @@ export function Dropdown({
 			<button
 				type="button"
 				id={id}
-				className={clsx(
-					frame.menuButton,
-					control.press,
-					style,
-					shell.buttonFocus,
-				)}
+				className={clsx(frame.menuButton, control.press, style, control.focus)}
 				aria-label={label}
 				aria-haspopup="listbox"
 				aria-expanded={open}
@@ -143,7 +138,7 @@ export function Dropdown({
 							key={choice.id}
 							type="button"
 							id={`${id}-choice-${index}`}
-							className={clsx(frame.menuItem, shell.buttonFocus)}
+							className={clsx(frame.menuItem, control.clear, control.focus)}
 							role="option"
 							aria-selected={choice.id === value}
 							onClick={() => {
@@ -193,7 +188,7 @@ export function MultiDropdown({
 			<button
 				type="button"
 				id={id}
-				className={clsx(frame.menuButton, control.press, shell.buttonFocus)}
+				className={clsx(frame.menuButton, control.press, control.focus)}
 				aria-label={label}
 				aria-haspopup="true"
 				aria-expanded={open}
@@ -211,7 +206,7 @@ export function MultiDropdown({
 				>
 					<button
 						type="button"
-						className={clsx(frame.menuItem, shell.buttonFocus)}
+						className={clsx(frame.menuItem, control.clear, control.focus)}
 						aria-pressed={checked.length === 0}
 						onClick={() => onChange([])}
 					>
@@ -220,7 +215,7 @@ export function MultiDropdown({
 					{choices.map((choice) => (
 						<label
 							key={choice.id}
-							className={clsx(frame.menuItem, styles.choice)}
+							className={clsx(frame.menuItem, control.clear, styles.choice)}
 						>
 							<input
 								type="checkbox"

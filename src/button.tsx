@@ -18,7 +18,6 @@ import type { ComponentPropsWithoutRef } from "react";
 
 import { control } from "./control-styles.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const icons = {
@@ -47,11 +46,6 @@ const styles = stylex.create({
 		justifyContent: "center",
 		textDecoration: "none",
 		whiteSpace: "nowrap",
-	},
-	pressed: {
-		backgroundColor: colours.segment,
-		color: colours.ink,
-		fontWeight: type.weight,
 	},
 	iconOnly: {
 		width: measure.control,
@@ -138,10 +132,10 @@ export function Button(props: ButtonProps) {
 		styles.button,
 		tone === "primary" && control.primary,
 		tone === "danger" && control.danger,
-		pressed === true && styles.pressed,
+		pressed === true && control.on,
 		label === undefined && styles.iconOnly,
 		iconSide === "right" && styles.iconRight,
-		shell.buttonFocus,
+		control.focus,
 		layout,
 	);
 	const content = (

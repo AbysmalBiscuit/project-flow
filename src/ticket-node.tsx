@@ -3,6 +3,7 @@ import { createContext, useContext } from "react";
 
 import { board } from "./board-styles.ts";
 import { useTicketMenu } from "./context-menu.tsx";
+import { control } from "./control-styles.ts";
 import type { FlowTicket } from "./graph-flow.ts";
 import { MeasuredNode } from "./graph-node-size.tsx";
 import { CardHandles, type CardProps } from "./graph-view.tsx";
@@ -60,7 +61,7 @@ function FrameToggle({
 	return (
 		<button
 			type="button"
-			className={clsx(board.frameToggle, board.cardFocus)}
+			className={clsx(board.frameToggle, control.clear, control.focus)}
 			data-frame-toggle={ticket}
 			aria-expanded={!collapsed}
 			aria-label={subTicketsToggleLabel(ticket, collapsed)}
@@ -98,8 +99,11 @@ export function TicketNode({ id, data }: CardProps<TicketCard>) {
 	);
 	const styles = [
 		board.ticketNode,
-		board.cardFocus,
+		control.focus,
 		known !== undefined && board.toned,
+		known === undefined || data.ticket.outside
+			? control.card
+			: control.tonedCard,
 		data.ticket.outside && board.ticketOutside,
 		data.ticket.outside && known === undefined && board.ticketOutsideUntoned,
 		data.open && board.ticketNodeOpen,
