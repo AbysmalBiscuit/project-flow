@@ -1,33 +1,19 @@
 import { describe, expect, test } from "bun:test";
 
 import daemonSlots from "../fixtures/factory-daemon-slots.json";
-import hubRuns from "../fixtures/factory-hub-runs.json";
-import { hub, hubUrl } from "../support/factory.ts";
+import { hubUrl } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
 import {
 	accepted,
+	hubListing,
 	hubTaking,
 	readyLabel,
 	runPosts,
 	serveGithub,
 	startRun,
+	ticket40Run,
 	ticketWhere,
 } from "./_support.ts";
-
-/** A succeeded run of ticket 40 that the hub submitted at `time` on the day of the recorded runs. */
-function ticket40Run(id: string, time: string) {
-	const known = hubRuns.runs.find((run) => run.ticket === "40");
-	if (known === undefined) {
-		throw new Error("the recorded runs have no run of ticket 40");
-	}
-	return {
-		...known,
-		id,
-		submitted_at: `2026-10-25T${time}:00+00:00`,
-		started_at: `2026-10-25T${time}:05+00:00`,
-		ended_at: `2026-10-25T${time}:50+00:00`,
-	};
-}
 
 describe("pending claimed starts", () => {
 	test("a second claimed start of a fresh ticket answers 409 while the factory has not listed the first run", async () => {
@@ -97,18 +83,11 @@ describe("pending claimed starts", () => {
 		}
 	});
 
-	test("a new run of the ticket ends the claim when the factory renames the accepted run before the first read", async () => {
-		let runs: object[] = hubRuns.runs;
+	test("a claim stays requested while another new run of the ticket shows, and ends at the run that the hub sent it as", async () => {
+		let listed: object[] = [];
 		const app = await serveGithub([40], {
 			readyLabel,
-			hubAnswers: {
-				...hub,
-				"/daemon": daemonSlots,
-				"/runs": (_url: URL, method: string) =>
-					method === "POST"
-						? accepted("hub-queued-start")
-						: { ...hubRuns, runs },
-			},
+			hubAnswers: hubListing(() => listed, accepted("hub-queued-start")),
 		});
 		try {
 			const key = `${repo}#40`;
@@ -121,7 +100,23 @@ describe("pending claimed starts", () => {
 			expect(
 				(await startRun(app.base, "github", repo, key, "work hub")).status,
 			).toBe(200);
-			runs = [ticket40Run("box-run", "14:10"), ...hubRuns.runs];
+			listed = [ticket40Run("other-run", "14:10")];
+			app.advance(60 * 60_000);
+			const other = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun?.id === "other-run",
+			);
+			expect(other.runStart).toEqual({
+				factory: "work hub",
+				label: readyLabel,
+				requested: true,
+			});
+			listed = [
+				{ ...ticket40Run("box-run", "14:12"), queued_id: "hub-queued-start" },
+				ticket40Run("other-run", "14:10"),
+			];
 			app.advance(60 * 60_000);
 			const ended = await ticketWhere(
 				app.base,
@@ -143,17 +138,10 @@ describe("pending claimed starts", () => {
 	});
 
 	test("the accepted run ends the claim, though the factory dates it before the claim and renames it once sent", async () => {
-		let runs: object[] = hubRuns.runs;
+		let listed: object[] = [];
 		const app = await serveGithub([40], {
 			readyLabel,
-			hubAnswers: {
-				...hub,
-				"/daemon": daemonSlots,
-				"/runs": (_url: URL, method: string) =>
-					method === "POST"
-						? accepted("hub-queued-start")
-						: { ...hubRuns, runs },
-			},
+			hubAnswers: hubListing(() => listed, accepted("hub-queued-start")),
 		});
 		try {
 			const key = `${repo}#40`;
@@ -166,7 +154,7 @@ describe("pending claimed starts", () => {
 			expect(
 				(await startRun(app.base, "github", repo, key, "work hub")).status,
 			).toBe(200);
-			runs = [ticket40Run("hub-queued-start", "14:10"), ...hubRuns.runs];
+			listed = [ticket40Run("hub-queued-start", "14:10")];
 			app.advance(60 * 60_000);
 			const ended = await ticketWhere(
 				app.base,
@@ -178,7 +166,9 @@ describe("pending claimed starts", () => {
 				factory: "work hub",
 				label: readyLabel,
 			});
-			runs = [ticket40Run("box-run", "14:10"), ...hubRuns.runs];
+			listed = [
+				{ ...ticket40Run("box-run", "14:10"), queued_id: "hub-queued-start" },
+			];
 			app.advance(60 * 60_000);
 			const renamed = await ticketWhere(
 				app.base,
