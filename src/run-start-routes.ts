@@ -6,10 +6,15 @@ import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
-import { pendingRequest, runStartOf, startRefusal } from "./run-start.ts";
+import {
+	pendingRequest,
+	runStartOf,
+	type StartKind,
+	startRefusal,
+} from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
-import { runFor } from "./workcell.ts";
+import { runFor, runsFor } from "./workcell.ts";
 
 const startBody = z.object({
 	tracker: z.enum(trackers),
@@ -55,15 +60,16 @@ export function runStartRoutes({
 	readFactories,
 }: RunStartRouteOptions) {
 	/** A start that the app sent, so the ticket shows the run as requested until it starts. */
-	const recordRequest = (key: string, claim: boolean) => {
+	const recordRequest = (key: string, kind: StartKind) => {
 		pollOptions.runStartRequests = new Map([
 			...pollOptions.runStartRequests,
-			[foldKey(key), { at: pollOptions.clock.now().toISOString(), claim }],
+			[foldKey(key), { at: pollOptions.clock.now().toISOString(), ...kind }],
 		]);
 	};
 	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
 	const claimed = async (ticket: Ticket, key: string, name: string) => {
-		const newestRun = runFor(ticket, pollOptions.factoryRuns());
+		const ticketRuns = runsFor(ticket, pollOptions.factoryRuns());
+		const newestRun = ticketRuns[0];
 		const refused = startRefusal(ticket, newestRun);
 		if (refused !== undefined) {
 			return Response.json({ error: refused }, { status: 409 });
@@ -100,7 +106,10 @@ export function runStartRoutes({
 			ticket: String(parts.number),
 		});
 		if (result === "claimed") {
-			recordRequest(key, true);
+			recordRequest(key, {
+				claim: true,
+				knownRuns: ticketRuns.map(({ id }) => id),
+			});
 			await readFactories(() => factories.readRuns(clock.now().getTime()));
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration()),
@@ -175,7 +184,7 @@ export function runStartRoutes({
 				} catch (error) {
 					return trackerError(error);
 				}
-				recordRequest(target.key, false);
+				recordRequest(target.key, { claim: false });
 				const label = start.label.toLowerCase();
 				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
 					pollOptions.store.mergeTickets([

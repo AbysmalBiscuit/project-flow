@@ -2,8 +2,14 @@ import type { Factory } from "./configuration.ts";
 import type { FactoryRun, Queued, RunStart, Ticket } from "./domain.ts";
 import { foldKey, githubKeyParts } from "./ticket-key.ts";
 
-/** A start that the app sent: a ready label that it added, or a claim that a factory took. */
-export type StartRequest = { at: string; claim: boolean };
+/**
+ * A start that the app sent: a ready label that it added, or a claim that a factory took.
+ * A claim names the runs of the ticket that the app knew when it sent the claim.
+ */
+export type StartRequest = { at: string } & StartKind;
+
+export type StartKind =
+	{ claim: false } | { claim: true; knownRuns: readonly string[] };
 
 /** What a run start reads beyond the ticket: the listed factories, and the last start that the app sent of each ticket. */
 export type RunStarts = {
@@ -33,7 +39,7 @@ export function startRefusal(
  */
 export function runStartOf(
 	ticket: Pick<Ticket, "key" | "state" | "labels">,
-	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
+	newestRun: Pick<FactoryRun, "id" | "statusKind" | "submittedAt"> | undefined,
 	{ factories, requests }: RunStarts,
 ): RunStart | { refused: string } {
 	const refused = startRefusal(ticket, newestRun);
@@ -75,7 +81,7 @@ function hasLabel(ticket: Pick<Ticket, "labels">, label: string): boolean {
  */
 function waitsForRun(
 	ticket: Pick<Ticket, "key">,
-	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
+	newestRun: Pick<FactoryRun, "id" | "statusKind" | "submittedAt"> | undefined,
 	requests: RunStarts["requests"],
 ): boolean {
 	return (
@@ -87,20 +93,24 @@ function waitsForRun(
 
 /**
  * The start that the app sent of the ticket when no run started since it.
- * A factory can list a claimed run some time after it takes the claim.
+ * A factory can list a claimed run some time after it takes the claim, and dates it
+ * by its own clock. So a claim ends at the first run that it did not know, and a label
+ * start ends at the first run submitted after it.
  */
 export function pendingRequest(
 	ticket: Pick<Ticket, "key">,
-	newestRun: Pick<FactoryRun, "submittedAt"> | undefined,
+	newestRun: Pick<FactoryRun, "id" | "submittedAt"> | undefined,
 	requests: RunStarts["requests"],
 ): StartRequest | undefined {
 	const request =
 		ticket.key === null ? undefined : requests.get(foldKey(ticket.key));
-	return request !== undefined &&
-		(newestRun === undefined ||
-			Date.parse(request.at) >= Date.parse(newestRun.submittedAt))
-		? request
-		: undefined;
+	if (request === undefined || newestRun === undefined) {
+		return request;
+	}
+	const waits = request.claim
+		? request.knownRuns.includes(newestRun.id)
+		: Date.parse(request.at) >= Date.parse(newestRun.submittedAt);
+	return waits ? request : undefined;
 }
 
 /**
@@ -110,7 +120,7 @@ export function pendingRequest(
  */
 export function queuedOf(
 	ticket: Pick<Ticket, "key" | "state" | "labels" | "status">,
-	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
+	newestRun: Pick<FactoryRun, "id" | "statusKind" | "submittedAt"> | undefined,
 	{ factories, requests }: RunStarts,
 ): Queued | undefined {
 	if (
