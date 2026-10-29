@@ -278,7 +278,7 @@ export type ShownFactoryRun = Pick<
 export type RunStart = (
 	{ factory: string; label: string } | { factory?: never; label?: never }
 ) & {
-	/** True when the ticket has the label and no run has started yet. */
+	/** True when a label start or an accepted claim waits for its run: no run has started since it. */
 	requested?: true;
 };
 
