@@ -11,32 +11,28 @@ import {
 import { settledRead } from "../support/reads.ts";
 import { boxRow, factoryRunOf, overviewWhere, serveRuns } from "./_support.ts";
 
+const running41 = hubRuns.runs[0]?.id ?? "";
+// The recorded settings come from the run of ticket 742. The tests serve them
+// for the run of ticket 41, because the app does not check the ticket of the settings.
+const settingsPath = `/runs/${running41}/settings`;
+
+async function settingsOf(base: string, runId = running41): Promise<Response> {
+	await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
+	return settledRead(
+		new URL(`/api/factory-runs/${encodeURIComponent(runId)}/settings`, base),
+	);
+}
+
+const settingsRequests = (requests: FactoryRequest[]) => [
+	...new Set(
+		requests
+			.filter((request) => new URL(request.url).pathname === settingsPath)
+			.map((request) => request.url),
+	),
+];
+
 describe("factory runs", () => {
 	describe("the run settings", () => {
-		const running41 = hubRuns.runs[0]?.id ?? "";
-		const settingsPath = `/runs/${running41}/settings`;
-
-		async function settingsOf(
-			base: string,
-			runId = running41,
-		): Promise<Response> {
-			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
-			return settledRead(
-				new URL(
-					`/api/factory-runs/${encodeURIComponent(runId)}/settings`,
-					base,
-				),
-			);
-		}
-
-		const settingsRequests = (requests: FactoryRequest[]) => [
-			...new Set(
-				requests
-					.filter((request) => new URL(request.url).pathname === settingsPath)
-					.map((request) => request.url),
-			),
-		];
-
 		test("a run on a box gives its workflow package, parameters, model and backend choices and options through the hub", async () => {
 			const app = await serveRuns(
 				{ ...hub, [settingsPath]: runSettings },
@@ -46,51 +42,51 @@ describe("factory runs", () => {
 				const response = await settingsOf(app.base);
 				expect(response.status).toBe(200);
 				expect(await response.json()).toEqual({
-					workflowPackage: "workcell",
+					workflowPackage: "standard",
 					parameters: [
+						{
+							name: "goal",
+							value:
+								"Build the ticket until its Done when holds, then open its pull request and land it",
+						},
+						{ name: "merge_auto", value: "yes" },
+						{ name: "merge_review", value: "off" },
+						{ name: "merge_rebase", value: "never" },
 						{ name: "through", value: "review" },
-						{ name: "max_rounds", value: 3 },
-						{ name: "draft", value: false },
-						{ name: "note", value: "[REDACTED]" },
+						{ name: "base", value: "" },
+						{ name: "extra", value: "" },
+						{ name: "rankdir", value: "LR" },
 					],
 					parametersError: null,
 					choices: [
-						{
-							node: "implement",
-							mode: "headless",
-							launcher: null,
-							harness: "claude",
-							model: "opus",
-							effort: "high",
-							error: null,
-						},
-						{
-							node: "review",
-							mode: "headless",
-							launcher: "reviewer",
-							harness: "codex",
-							model: "gpt-5.5",
-							effort: null,
-							error: null,
-						},
-						{
-							node: "watch",
-							mode: "pane",
-							launcher: null,
-							harness: null,
-							model: null,
-							effort: null,
-							error: "no launcher offers a harness that is installed",
-						},
-					],
+						"draft",
+						"implement",
+						"apply",
+						"repush",
+						"verify",
+						"review",
+						"conceptual",
+						"receive",
+						"reverify",
+						"post_pr",
+						"report",
+					].map((node) => ({
+						node,
+						mode: "headless",
+						launcher: null,
+						harness: "claude",
+						model: "opus",
+						effort: "medium",
+						error: null,
+					})),
 					options: {
-						repo: "acme/widget",
-						ticket: "41",
-						author: "lev",
+						repo: "AbysmalBiscuit/project-flow",
+						ticket: "742",
+						author: "Lev Velykoivanenko",
 						keepWorktree: true,
-						sent: true,
-						source: "acme-github",
-						rule: "ready-for-agent",
+						sent: false,
+						source: "project-flow",
+						rule: "build",
 					},
 				});
 				expect(settingsRequests(app.requests)).toEqual([
@@ -100,7 +96,82 @@ describe("factory runs", () => {
 				await app.stop();
 			}
 		});
+	});
 
+	describe("the run settings values", () => {
+		test("the settings keep number, boolean, list and object parameters, a choice with a launcher or an error, and a sent run", async () => {
+			const app = await serveRuns(
+				{
+					...hub,
+					[settingsPath]: {
+						...runSettings,
+						parameters: {
+							max_rounds: 3,
+							draft: false,
+							labels: ["ready", 2],
+							limits: { ci: null },
+						},
+						choices: {
+							review: {
+								mode: "headless",
+								launcher: "reviewer",
+								harness: "codex",
+								model: "gpt-5.5",
+								effort: null,
+								error: null,
+							},
+							watch: {
+								mode: "pane",
+								launcher: null,
+								harness: null,
+								model: null,
+								effort: null,
+								error: "no launcher offers a harness that is installed",
+							},
+						},
+						options: { ...runSettings.options, sent: true },
+					},
+				},
+				[41],
+			);
+			try {
+				const response = await settingsOf(app.base);
+				expect(response.status).toBe(200);
+				const body = await response.json();
+				expect(body.parameters).toEqual([
+					{ name: "max_rounds", value: 3 },
+					{ name: "draft", value: false },
+					{ name: "labels", value: ["ready", 2] },
+					{ name: "limits", value: { ci: null } },
+				]);
+				expect(body.choices).toEqual([
+					{
+						node: "review",
+						mode: "headless",
+						launcher: "reviewer",
+						harness: "codex",
+						model: "gpt-5.5",
+						effort: null,
+						error: null,
+					},
+					{
+						node: "watch",
+						mode: "pane",
+						launcher: null,
+						harness: null,
+						model: null,
+						effort: null,
+						error: "no launcher offers a harness that is installed",
+					},
+				]);
+				expect(body.options.sent).toBe(true);
+			} finally {
+				await app.stop();
+			}
+		});
+	});
+
+	describe("the run settings source", () => {
 		test("a run that a hub and its box report reads its settings from the hub, and the box gets no read", async () => {
 			const [row41] = hubRuns.runs;
 			if (row41 === undefined) {
