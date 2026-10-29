@@ -30,7 +30,6 @@ import { projectRoutes, reportFor } from "./project-routes.ts";
 import { attentionFor, overview, projectViews } from "./project-views.ts";
 import { replyRoutes } from "./reply-routes.ts";
 import { runStartRoutes } from "./run-start-routes.ts";
-import { liveRequests } from "./run-start.ts";
 import {
 	mergedSettingsWrite,
 	readSettingsWrite,
@@ -293,14 +292,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const readFactories = async (read: () => Promise<void>) => {
 		const before = factoryState();
 		await read();
-		const requests = liveRequests(
-			pollOptions.runStartRequests,
-			factories.entries(),
-			() => clock.now().getTime(),
-		);
-		const lapsed = requests !== pollOptions.runStartRequests;
-		pollOptions.runStartRequests = requests;
-		if (lapsed || factoryState() !== before) {
+		if (factoryState() !== before) {
 			publishOverview();
 		}
 	};

@@ -55,16 +55,10 @@ export function runStartRoutes({
 	readFactories,
 }: RunStartRouteOptions) {
 	/** A start that the app sent, so the ticket shows the run as requested until it starts. */
-	const recordRequest = (key: string, claimedBy?: string) => {
-		const at = pollOptions.clock.now().toISOString();
+	const recordRequest = (key: string, claim: boolean) => {
 		pollOptions.runStartRequests = new Map([
 			...pollOptions.runStartRequests,
-			[
-				foldKey(key),
-				claimedBy === undefined
-					? { at, claim: false }
-					: { at, claim: true, factory: claimedBy },
-			],
+			[foldKey(key), { at: pollOptions.clock.now().toISOString(), claim }],
 		]);
 	};
 	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
@@ -106,7 +100,7 @@ export function runStartRoutes({
 			ticket: String(parts.number),
 		});
 		if (result === "claimed") {
-			recordRequest(key, name);
+			recordRequest(key, true);
 			await readFactories(() => factories.readRuns(clock.now().getTime()));
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration()),
@@ -181,7 +175,7 @@ export function runStartRoutes({
 				} catch (error) {
 					return trackerError(error);
 				}
-				recordRequest(target.key);
+				recordRequest(target.key, false);
 				const label = start.label.toLowerCase();
 				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
 					pollOptions.store.mergeTickets([

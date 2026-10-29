@@ -364,7 +364,7 @@ describe("pending claimed starts", () => {
 		}
 	});
 
-	test("a claim with no run holds while its factory is full, and lapses once the factory has a free slot", async () => {
+	test("an accepted claim with no run stays requested after its factory frees a slot", async () => {
 		let slots = { total: 2, used: 2 };
 		const app = await serveGithub([43], {
 			hubAnswers: {
@@ -387,26 +387,17 @@ describe("pending claimed starts", () => {
 			expect(
 				(await startRun(app.base, "github", repo, key, "work hub")).status,
 			).toBe(200);
+			slots = { total: 2, used: 1 };
 			app.advance(60 * 60_000);
 			await refreshed();
-			const held = await startRun(app.base, "github", repo, key, "work hub");
-			expect(held.status).toBe(409);
-			expect(await held.json()).toEqual({
+			const held = await ticketWhere(app.base, repo, key, () => true);
+			expect(held.runStart).toEqual({ requested: true });
+			const again = await startRun(app.base, "github", repo, key, "work hub");
+			expect(again.status).toBe(409);
+			expect(await again.json()).toEqual({
 				error: "the run is already requested",
 			});
-			slots = { total: 2, used: 1 };
-			await refreshed();
-			const lapsed = await ticketWhere(
-				app.base,
-				repo,
-				key,
-				(view) => view.runStart?.requested === undefined,
-			);
-			expect(lapsed.runStart).toEqual({});
-			expect(
-				(await startRun(app.base, "github", repo, key, "work hub")).status,
-			).toBe(200);
-			expect(runPosts(app.requests)).toHaveLength(2);
+			expect(runPosts(app.requests)).toHaveLength(1);
 		} finally {
 			await app.stop();
 		}
