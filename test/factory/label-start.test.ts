@@ -59,15 +59,17 @@ describe("the end of a label start", () => {
 		const app = await serveGithub([40], {
 			readyLabel,
 			hubAnswers: hubListing(() => listed),
-			otherFactory: {
-				name: "laptop",
-				url: laptopUrl,
-				answers: {
-					"/daemon": daemonSlots,
-					"/sources": { sources: [] },
-					"/runs": () => ({ runs: laptopRuns }),
+			otherFactories: [
+				{
+					name: "laptop",
+					url: laptopUrl,
+					answers: {
+						"/daemon": daemonSlots,
+						"/sources": { sources: [] },
+						"/runs": () => ({ runs: laptopRuns }),
+					},
 				},
-			},
+			],
 		});
 		try {
 			await ticketWhere(
@@ -106,15 +108,17 @@ describe("the end of a label start", () => {
 		const app = await serveGithub([40], {
 			readyLabel,
 			hubAnswers: hubListing(() => listed),
-			otherFactory: {
-				name: "laptop",
-				url: laptopUrl,
-				answers: {
-					"/daemon": daemonSlots,
-					"/sources": { sources: [] },
-					"/runs": () => ({ runs: boxRuns }),
+			otherFactories: [
+				{
+					name: "laptop",
+					url: laptopUrl,
+					answers: {
+						"/daemon": daemonSlots,
+						"/sources": { sources: [] },
+						"/runs": () => ({ runs: boxRuns }),
+					},
 				},
-			},
+			],
 		});
 		try {
 			await ticketWhere(
