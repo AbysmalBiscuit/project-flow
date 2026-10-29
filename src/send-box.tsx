@@ -7,17 +7,28 @@ import { clsx } from "./ui.ts";
 const sendKey = "Ctrl+Enter";
 
 /**
- * Ctrl+Enter or Cmd+Enter sends the form, the same as a click on its send
- * button. Escape blurs the text box and keeps the draft, so only a second
- * Escape reaches the side panel and closes it.
+ * Escape blurs a panel text box and keeps its draft, so only a second Escape
+ * reaches the side panel and closes it. True when it took the key.
  */
-function sendBoxKeys(event: KeyboardEvent<HTMLTextAreaElement>): void {
-	if (event.nativeEvent.isComposing) {
-		return;
+export function blurOnEscape(
+	event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+): boolean {
+	if (
+		event.key !== "Escape" ||
+		event.ctrlKey ||
+		event.metaKey ||
+		event.nativeEvent.isComposing
+	) {
+		return false;
 	}
-	if (event.key === "Escape" && !(event.ctrlKey || event.metaKey)) {
-		event.preventDefault();
-		event.currentTarget.blur();
+	event.preventDefault();
+	event.currentTarget.blur();
+	return true;
+}
+
+/** Ctrl+Enter or Cmd+Enter sends the form, the same as a click on its send button. */
+function sendBoxKeys(event: KeyboardEvent<HTMLTextAreaElement>): void {
+	if (blurOnEscape(event) || event.nativeEvent.isComposing) {
 		return;
 	}
 	// `requestSubmit` submits even when the submitter is disabled, so check it here.
