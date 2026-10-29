@@ -1,0 +1,6 @@
+{
+	"graph.goal": "Build the ticket until its Done when holds",
+	"context.issue": "41",
+	"context.through": "review",
+	"context.retries": 2
+}

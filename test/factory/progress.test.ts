@@ -15,6 +15,7 @@ import {
 	type FactoryRequest,
 	hub,
 	hubUrl,
+	laptopSocket,
 } from "../support/factory.ts";
 import { openEventStream, readWhere, settledRead } from "../support/reads.ts";
 import {
@@ -41,7 +42,7 @@ describe("factory runs", () => {
 			);
 		}
 
-		test("the ticket's run carries the current stage, completed stages, retries and visits of its recorded checkpoint, and no graph from a factory that serves none", async () => {
+		test("the ticket's run carries the current stage, completed stages, retries, visits and run context of its recorded checkpoint, and no graph from a factory that serves none", async () => {
 			const app = await serveRuns(
 				{ ...hub, [checkpointPath]: hubCheckpoint },
 				[41],
@@ -54,6 +55,7 @@ describe("factory runs", () => {
 					completedStages: ["start", "plan", "build", "review", "build"],
 					retries: { build: 1 },
 					visits: { start: 1, plan: 1, build: 2, review: 2 },
+					context: { outcome: "changes_requested" },
 					usageNotServed: true,
 					graph: null,
 				});
@@ -163,6 +165,127 @@ describe("factory runs", () => {
 			}
 		});
 
+		test("a stage that called a child graph keeps the child stages that the call completed after the run leaves it", async () => {
+			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
+			const { stack: _, ...left } = runGraphCheckpoint;
+			const app = await serveRuns(
+				{
+					...hub,
+					[checkpointPath]: {
+						...left,
+						current_node: "exit",
+						completed_nodes: [...runGraphCheckpoint.completed_nodes, "post_pr"],
+						status: "success",
+					},
+					[graphPath]: runGraph,
+				},
+				[41],
+			);
+			try {
+				const { stage, graph } = (await (
+					await checkpointOf(app.base)
+				).json()) as RunCheckpoint;
+				expect(stage).toBe("exit");
+				const nodeOf = (id: string) =>
+					graph?.nodes.find((node) => node.id === id);
+				expect(nodeOf("post_pr")).toMatchObject({
+					state: "completed",
+					child: [
+						{
+							id: "post_pr/start",
+							label: "start",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+						{
+							id: "post_pr/draft_pr",
+							label: "draft_pr",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+						{
+							id: "post_pr/post_pr",
+							label: "post_pr",
+							state: "completed",
+							visits: 1,
+							retries: 0,
+						},
+					],
+				});
+				expect(nodeOf("conceptual")).toMatchObject({
+					state: "completed",
+					child: [],
+				});
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a stage that calls its child graph again keeps the child stages of the earlier call and counts the visits of both calls", async () => {
+			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
+			const review = ["push", "fan", "verify", "review", "conceptual", "join"];
+			const app = await serveRuns(
+				{
+					...hub,
+					[checkpointPath]: {
+						...runGraphCheckpoint,
+						current_node: "summary",
+						stack: [{ node: "report" }],
+						completed_nodes: [
+							"start",
+							"inputs",
+							"implement",
+							...review,
+							"start",
+							"verdict",
+							"summary",
+							"report",
+							...review,
+							"start",
+						],
+						status: "running",
+					},
+					[graphPath]: runGraph,
+				},
+				[41],
+			);
+			try {
+				const { stage, graph } = (await (
+					await checkpointOf(app.base)
+				).json()) as RunCheckpoint;
+				expect(stage).toBe("report/summary");
+				expect(
+					graph?.nodes.find((node) => node.id === "report")?.child,
+				).toEqual([
+					{
+						id: "report/start",
+						label: "start",
+						state: "completed",
+						visits: 2,
+						retries: 0,
+					},
+					{
+						id: "report/verdict",
+						label: "verdict",
+						state: "completed",
+						visits: 1,
+						retries: 0,
+					},
+					{
+						id: "report/summary",
+						label: "summary",
+						state: "current",
+						visits: 2,
+						retries: 0,
+					},
+				]);
+			} finally {
+				await app.stop();
+			}
+		});
+
 		test("a failed checkpoint marks the stage where the run failed", async () => {
 			const graphPath = `/runs/${hubRuns.runs[0]?.id}/graph`;
 			const app = await serveRuns(
@@ -188,19 +311,22 @@ describe("factory runs", () => {
 			}
 		});
 
-		test("a run that the hub and its box report reads the checkpoint of the box", async () => {
+		test("a run that the hub and its box report reads the checkpoint and its run context from the box, and the hub gets no read", async () => {
 			const [running41] = hubRuns.runs;
 			if (running41 === undefined) {
 				throw new Error("the hub runs fixture lost a run");
 			}
 			const app = await serveRuns(
-				hub,
+				{ ...hub, [checkpointPath]: hubCheckpoint },
 				[41],
 				{},
 				{
 					...daemon,
 					"/runs": { runs: [boxRow(running41, "running")] },
-					[checkpointPath]: hubCheckpoint,
+					[checkpointPath]: {
+						...hubCheckpoint,
+						context_values: { outcome: "from the box" },
+					},
 				},
 			);
 			try {
@@ -210,7 +336,19 @@ describe("factory runs", () => {
 				);
 				const response = await checkpointOf(app.base);
 				expect(response.status).toBe(200);
-				expect(await response.json()).toMatchObject({ stage: "review" });
+				expect(await response.json()).toMatchObject({
+					stage: "review",
+					context: { outcome: "from the box" },
+				});
+				expect(
+					new Set(
+						app.requests
+							.filter(
+								(request) => new URL(request.url).pathname === checkpointPath,
+							)
+							.map((request) => request.unix ?? new URL(request.url).origin),
+					),
+				).toEqual(new Set([laptopSocket]));
 			} finally {
 				await app.stop();
 			}

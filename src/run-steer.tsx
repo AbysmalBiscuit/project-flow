@@ -28,24 +28,42 @@ const styles = stylex.create({
 });
 
 /**
- * A steer box for a live run: Lev picks the stage, writes the text, and can interrupt the worker.
- * The stage follows the run's current stage until Lev edits it.
+ * The path of the stage where the run is now. The run's stage from the event
+ * feed comes first, because the checkpoint read keeps its last answer until a
+ * new read lands.
  */
-export function RunSteer({ run }: { run: ShownFactoryRun }) {
+export function useCurrentStage(run: ShownFactoryRun): string | null {
 	const { data: checkpoint } = useQuery(pageQuery.checkpoint(run));
+	return (
+		run.stage ?? (typeof checkpoint === "object" ? checkpoint.stage : null)
+	);
+}
+
+/**
+ * A steer box for a live run: Lev picks the stage, writes the text, and can interrupt the worker.
+ * The stage follows the run's current stage until Lev edits it. A box with a
+ * fixed `stage` steers only that stage, and has no stage field.
+ */
+export function RunSteer({
+	run,
+	stage,
+}: {
+	run: ShownFactoryRun;
+	stage?: string;
+}) {
+	const currentStage = useCurrentStage(run);
 	const [stageDraft, setStageDraft] = useState<string | null>(null);
 	const [text, setText] = useState("");
 	const [interrupt, setInterrupt] = useState(false);
 	const steer = useSteerRun(run.id);
-	const checkpointStage =
-		typeof checkpoint === "object" ? checkpoint.stage : null;
-	const pickedStage = stageDraft ?? run.stage ?? checkpointStage ?? "";
+	const pickedStage = stage ?? stageDraft ?? currentStage ?? "";
 	return (
 		<section className={clsx(panel.section)} aria-label={steerLabel}>
 			<h3 className={clsx(panel.sectionLabel)}>{steerLabel}</h3>
 			<form
 				className={clsx(styles.steer)}
 				data-run-steer={run.id}
+				data-steer-stage={pickedStage}
 				onSubmit={(event) => {
 					event.preventDefault();
 					if (pickedStage.trim() === "" || text.trim() === "") {
@@ -62,16 +80,20 @@ export function RunSteer({ run }: { run: ShownFactoryRun }) {
 					);
 				}}
 			>
-				<label className={clsx(panel.label)} htmlFor="run-steer-stage">
-					Stage
-				</label>
-				<input
-					id="run-steer-stage"
-					className={clsx(panel.text, styles.stage)}
-					placeholder="The stage to steer"
-					value={pickedStage}
-					onChange={(event) => setStageDraft(event.target.value)}
-				/>
+				{stage === undefined ? (
+					<>
+						<label className={clsx(panel.label)} htmlFor="run-steer-stage">
+							Stage
+						</label>
+						<input
+							id="run-steer-stage"
+							className={clsx(panel.text, styles.stage)}
+							placeholder="The stage to steer"
+							value={pickedStage}
+							onChange={(event) => setStageDraft(event.target.value)}
+						/>
+					</>
+				) : null}
 				<SendText
 					aria-label="Steer text"
 					placeholder="Write a steer"

@@ -4,6 +4,7 @@ import type {
 	RunAgent,
 	RunCheckpoint,
 	RunGraph,
+	RunGraphNode,
 	RunGraphNodeState,
 	RunStage,
 	TurnUsage,
@@ -20,16 +21,19 @@ import {
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
-/** What a stage view shows: the stage, the current tool of its live agent, and the usage of an ended stage. */
+/**
+ * What a stage view shows: the stage, the current tool of its live agent, and the usage of an ended stage.
+ * A stage that calls a child graph holds the stages of that child graph.
+ */
 export type StageFacts = {
-	stage: RunStage;
+	stage: RunStage & Pick<RunGraphNode, "child">;
 	tool: string | null;
 	usage: TurnUsage | undefined;
 };
 
 /** The facts of `stage` from the run checkpoint and the run agents. */
 export function stageFacts(
-	stage: RunStage,
+	stage: StageFacts["stage"],
 	checkpoint: RunCheckpoint,
 	agents: readonly RunAgent[],
 ): StageFacts {
@@ -48,12 +52,15 @@ export function stageFacts(
 	};
 }
 
+/** True when the run is at `stage`: it works there, or it stopped there on a failure. */
+export function isRunAt(stage: RunStage): boolean {
+	return stage.state === "current" || stage.state === "failed";
+}
+
 /** The stage where the run is now: the live stage of an open child graph, else the live top-level stage. */
 export function liveStage(graph: RunGraph): RunStage | undefined {
-	const isLive = (stage: RunStage) =>
-		stage.state === "current" || stage.state === "failed";
-	const node = graph.nodes.find(isLive);
-	return node?.child?.findLast(isLive) ?? node;
+	const node = graph.nodes.find(isRunAt);
+	return node?.child?.findLast(isRunAt) ?? node;
 }
 
 export function stageTimeLabel(usage: TurnUsage): string {

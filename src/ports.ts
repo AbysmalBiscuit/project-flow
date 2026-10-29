@@ -31,6 +31,7 @@ import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
+import type { TranscriptRead } from "./factory-run-transcript.ts";
 import type { ProjectRef } from "./project-ref.ts";
 
 export type { Snapshot, WorkcellRun };
@@ -211,6 +212,17 @@ export type FactoryReader = {
 	 * and "not served" when the factory answered with 404.
 	 */
 	source: (runId: string) => Promise<SourceRead>;
+	/**
+	 * `GET /runs/{id}/stages/{stage}/transcript?after=` of the hub that reports the run, or else of its box:
+	 * the entries of the stage after the cursor `after`. `stage` is the node path of the stage.
+	 * "missing" when no factory reported the run or the factory did not answer,
+	 * and "not served" when the factory answered with 404.
+	 */
+	transcript: (
+		runId: string,
+		stage: string,
+		after: number,
+	) => Promise<TranscriptRead>;
 	/**
 	 * `GET /runs/{id}/settings` of the hub that reports the run, or else of its box.
 	 * "missing" when no factory reported the run or the factory did not answer,

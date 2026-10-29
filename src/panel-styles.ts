@@ -249,6 +249,23 @@ export const panel = stylex.create({
 		padding: 0,
 		listStyle: "none",
 	},
+	childStages: {
+		marginBlock: space.xs,
+		marginInlineStart: space.lg,
+		paddingInlineStart: space.sm,
+		borderInlineStartWidth: measure.hairline,
+		borderInlineStartStyle: "solid",
+		borderInlineStartColor: colours.laneLine,
+	},
+	stageItem: {
+		display: "flex",
+		flexDirection: "column",
+		gap: space.sm,
+	},
+	stageSummary: {
+		cursor: "pointer",
+		listStyle: "none",
+	},
 	stageUsage: {
 		flexBasis: "100%",
 		color: colours.inkSoft,
