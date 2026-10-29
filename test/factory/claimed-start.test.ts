@@ -259,6 +259,16 @@ describe("pending claimed starts", () => {
 			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
 			const first = await startRun(app.base, "github", repo, key, "work hub");
 			expect(first.status).toBe(200);
+			expect(
+				(
+					await ticketWhere(
+						app.base,
+						repo,
+						key,
+						(view) => view.runStart !== undefined,
+					)
+				).runStart,
+			).toEqual({ requested: true });
 			const second = await startRun(app.base, "github", repo, key, "work hub");
 			expect(second.status).toBe(409);
 			expect(await second.json()).toEqual({

@@ -1,6 +1,6 @@
 import type { Factory } from "./configuration.ts";
 import type { FactoryRun, Queued, RunStart, Ticket } from "./domain.ts";
-import { foldKey } from "./ticket-key.ts";
+import { foldKey, githubKeyParts } from "./ticket-key.ts";
 
 /** A start that the app sent: a ready label that it added, or a claim that a factory took. */
 export type StartRequest = { at: string; claim: boolean };
@@ -27,8 +27,9 @@ export function startRefusal(
 }
 
 /**
- * The ready label that starts a run of an open ticket with no run, or whose newest run succeeded.
- * The first factory with a ready label gives it. The hub source loop then claims the ticket.
+ * How an open ticket with no run, or whose newest run succeeded, starts a run.
+ * The first factory with a ready label gives the label start. The hub source loop then claims the ticket.
+ * A GitHub ticket can also start through a claim on a factory, with or without a ready label.
  */
 export function runStartOf(
 	ticket: Pick<Ticket, "key" | "state" | "labels">,
@@ -39,14 +40,20 @@ export function runStartOf(
 	if (refused !== undefined) {
 		return { refused };
 	}
+	const claimWaits =
+		pendingRequest(ticket, newestRun, requests)?.claim === true;
 	const factory = factories.find((item) => item.readyLabel !== undefined);
 	if (factory?.readyLabel === undefined) {
-		return { refused: "no factory has a ready label" };
+		return ticket.key !== null && githubKeyParts(ticket.key) !== null
+			? claimWaits
+				? { requested: true }
+				: {}
+			: { refused: "no factory has a ready label" };
 	}
 	const waits =
 		(hasLabel(ticket, factory.readyLabel) &&
 			waitsForRun(ticket, newestRun, requests)) ||
-		pendingRequest(ticket, newestRun, requests)?.claim === true;
+		claimWaits;
 	return {
 		factory: factory.name,
 		label: factory.readyLabel,

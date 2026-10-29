@@ -201,7 +201,7 @@ describe("run starts", () => {
 		}
 	});
 
-	test("a factory without readyLabel refuses the start and sends no tracker write", async () => {
+	test("a factory without readyLabel refuses a label start, and the GitHub ticket keeps a claimed start", async () => {
 		const app = await serveGithub([43]);
 		try {
 			const key = `${repo}#43`;
@@ -211,7 +211,7 @@ describe("run starts", () => {
 				key,
 				(item) => item.title !== "",
 			);
-			expect(view.runStart).toBeUndefined();
+			expect(view.runStart).toEqual({});
 			const response = await startRun(app.base, "github", repo, key);
 			expect(response.status).toBe(409);
 			expect(app.writes).toEqual([]);
@@ -220,7 +220,7 @@ describe("run starts", () => {
 		}
 	});
 
-	test("a --factory list without readyLabel refuses the start, though the configured factory has one", async () => {
+	test("a --factory list without readyLabel refuses a label start, though the configured factory has one", async () => {
 		const app = await serveGithub([43], {
 			readyLabel,
 			args: ["--factory", `flag hub=${hubUrl}`],
@@ -233,7 +233,7 @@ describe("run starts", () => {
 				key,
 				(item) => item.title !== "",
 			);
-			expect(view.runStart).toBeUndefined();
+			expect(view.runStart).toEqual({});
 			const response = await startRun(app.base, "github", repo, key);
 			expect(response.status).toBe(409);
 			expect(app.writes).toEqual([]);

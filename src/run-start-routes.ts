@@ -157,6 +157,12 @@ export function runStartRoutes({
 						{ status: 409 },
 					);
 				}
+				if (start.label === undefined) {
+					return Response.json(
+						{ error: "no factory has a ready label" },
+						{ status: 409 },
+					);
+				}
 				const tracker = trackerFor(trackers, target.tracker);
 				if (tracker?.addLabel === undefined) {
 					return Response.json(

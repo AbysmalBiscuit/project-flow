@@ -44,6 +44,7 @@ function claimLabel({ factory, free }: ClaimChoice): string {
 /**
  * Start run for a ticket that can start one. Lev confirms, and the app adds the ready label.
  * Its menu offers Run on or Queue on each factory, which claims the ticket on that factory.
+ * With no ready label, the button only opens that menu.
  */
 export function RunStartButton({
 	ticket,
@@ -65,14 +66,19 @@ export function RunStartButton({
 	const disabled = requested || startRun.isPending;
 	const labelBody =
 		ticket.tracker === "linear" ? runStartCopy.linearBody : runStartCopy.body;
+	const labelStart =
+		start.label === undefined ? undefined : () => setAsking("label");
+	if (labelStart === undefined && choices.length === 0 && !requested) {
+		return null;
+	}
 	return (
 		<div className={clsx(panel.runAction)} data-run-start={ticket.key}>
 			{choices.length === 0 ? (
 				<Button
 					label={label}
 					tone="primary"
-					disabled={disabled}
-					onClick={() => setAsking("label")}
+					disabled={disabled || labelStart === undefined}
+					{...(labelStart === undefined ? {} : { onClick: labelStart })}
 				/>
 			) : (
 				<SplitButton
@@ -80,7 +86,7 @@ export function RunStartButton({
 					choicesLabel={runStartCopy.choices}
 					tone="primary"
 					disabled={disabled}
-					onClick={() => setAsking("label")}
+					{...(labelStart === undefined ? {} : { onClick: labelStart })}
 					choices={choices.map((choice) => ({
 						label: claimLabel(choice),
 						onPick: () => setAsking(choice),
@@ -96,7 +102,9 @@ export function RunStartButton({
 				title={runStartCopy.title}
 				body={
 					asking === null || asking === "label"
-						? labelBody(start.factory, start.label)
+						? start.label === undefined
+							? ""
+							: labelBody(start.factory, start.label)
 						: (asking.free ? runStartCopy.runOnBody : runStartCopy.queueOnBody)(
 								asking.factory,
 							)
