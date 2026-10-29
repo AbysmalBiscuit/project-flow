@@ -25,6 +25,11 @@ export type CancelResult = "cancelled" | "missing" | Refused | Failed;
 /** The id of the run that a resume queued again, or of the new run that a restart started. */
 export type StartResult = { id: string } | "missing" | Refused | Failed;
 
+/** The factory answered a claimed start with 422: no source of the factory polls the repo. */
+export type Unmatched = { unmatched: string | undefined };
+
+export type ClaimResult = "claimed" | Refused | Unmatched | Failed;
+
 export type RemoveAction = "delete" | "archive";
 
 export type RemoveResult = "removed" | "missing" | { refused: string } | Failed;
@@ -185,4 +190,41 @@ export function runActions(deps: {
 			: result;
 	};
 	return { answer, steer, cancel, resume, restart, remove };
+}
+
+/**
+ * `POST /runs` with `claim: true` to one factory. The source of the repo claims the
+ * ticket, then starts the run or queues it until a slot is free.
+ */
+export async function claimStart(
+	fetchImpl: Fetch,
+	signal: AbortSignal,
+	url: string,
+	start: { repo: string; ticket: string },
+): Promise<ClaimResult> {
+	let response: Response;
+	try {
+		response = await reader(
+			fetchImpl,
+			url,
+			signal,
+		)("/runs", {
+			json: { ...start, claim: true },
+		});
+	} catch (error) {
+		if (!(error instanceof Unreachable)) {
+			throw error;
+		}
+		return { failed: undefined };
+	}
+	if (response.ok) {
+		return "claimed";
+	}
+	if (response.status === 422) {
+		return { unmatched: await reasonOf(response) };
+	}
+	if (response.status === 409) {
+		return { refused: await reasonOf(response) };
+	}
+	return { failed: await reasonOf(response) };
 }

@@ -9,6 +9,20 @@ export type RunStarts = {
 	requestedAt: ReadonlyMap<string, string>;
 };
 
+/** Why a ticket cannot start a run: it is closed, or it has a run that did not succeed. */
+export function startRefusal(
+	ticket: Pick<Ticket, "state">,
+	newestRun: Pick<FactoryRun, "statusKind"> | undefined,
+): string | undefined {
+	if (ticket.state !== "open") {
+		return "the ticket is closed";
+	}
+	if (newestRun !== undefined && newestRun.statusKind !== "succeeded") {
+		return "the ticket already has a run";
+	}
+	return undefined;
+}
+
 /**
  * The ready label that starts a run of an open ticket with no run, or whose newest run succeeded.
  * The first factory with a ready label gives it. The hub source loop then claims the ticket.
@@ -18,11 +32,9 @@ export function runStartOf(
 	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
 	{ factories, requestedAt }: RunStarts,
 ): RunStart | { refused: string } {
-	if (ticket.state !== "open") {
-		return { refused: "the ticket is closed" };
-	}
-	if (newestRun !== undefined && newestRun.statusKind !== "succeeded") {
-		return { refused: "the ticket already has a run" };
+	const refused = startRefusal(ticket, newestRun);
+	if (refused !== undefined) {
+		return { refused };
 	}
 	const factory = factories.find((item) => item.readyLabel !== undefined);
 	if (factory?.readyLabel === undefined) {

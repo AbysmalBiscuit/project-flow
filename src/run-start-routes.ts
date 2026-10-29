@@ -1,13 +1,13 @@
 import { z } from "zod";
 
 import type { Configuration } from "./configuration.ts";
-import { trackers } from "./domain.ts";
+import { type Ticket, trackers } from "./domain.ts";
 import { type PollOptions, runningOverview } from "./poll.ts";
-import type { Notifier } from "./ports.ts";
+import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
-import { runStartOf } from "./run-start.ts";
-import { foldKey, sameTicketKey } from "./ticket-key.ts";
+import { runStartOf, startRefusal } from "./run-start.ts";
+import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 import { runFor } from "./workcell.ts";
 
@@ -15,22 +15,87 @@ const startBody = z.object({
 	tracker: z.enum(trackers),
 	project: z.string().trim().min(1),
 	key: z.string().trim().min(1),
+	/** The factory that claims the ticket. Without it, the app adds the ready label of the first factory that has one. */
+	factory: z.string().trim().min(1).optional(),
 });
+
+/** An error answer to a claimed start, with the reason of the factory when it gives one. */
+function claimError(
+	text: string,
+	reason: string | undefined,
+	status: number,
+): Response {
+	return Response.json(
+		{ error: reason === undefined ? text : `${text}: ${reason}` },
+		{ status },
+	);
+}
 
 export type RunStartRouteOptions = {
 	trackers: Trackers;
 	pollOptions: PollOptions;
 	notifier: Notifier;
 	configuration: () => Configuration;
+	factories: FactoryReader;
+	clock: Clock;
+	readFactories: (read: () => Promise<void>) => Promise<void>;
 };
 
-/** `POST /api/run-starts`: add the ready label of a factory to a ticket, so the hub starts a run of it. */
+/**
+ * `POST /api/run-starts`: add the ready label of a factory to a ticket, so the hub starts a run of it.
+ * A body that names a factory sends a claimed start to that factory instead.
+ */
 export function runStartRoutes({
 	trackers,
 	pollOptions,
 	notifier,
 	configuration,
+	factories,
+	clock,
+	readFactories,
 }: RunStartRouteOptions) {
+	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
+	const claimed = async (ticket: Ticket, key: string, name: string) => {
+		const refused = startRefusal(
+			ticket,
+			runFor(ticket, pollOptions.factoryRuns()),
+		);
+		if (refused !== undefined) {
+			return Response.json({ error: refused }, { status: 409 });
+		}
+		const factory = pollOptions
+			.listedFactories()
+			.find((item) => item.name === name);
+		if (factory === undefined) {
+			return Response.json({ error: "factory not found" }, { status: 404 });
+		}
+		const parts = githubKeyParts(key);
+		if (parts === null) {
+			return Response.json(
+				{ error: "a claimed start needs a GitHub ticket" },
+				{ status: 409 },
+			);
+		}
+		const result = await factories.claimStart(factory.url, {
+			repo: parts.repo,
+			ticket: String(parts.number),
+		});
+		if (result === "claimed") {
+			await readFactories(() => factories.readRuns(clock.now().getTime()));
+			return Response.json({ factory: name });
+		}
+		if ("refused" in result) {
+			return claimError(`${name} refused the start`, result.refused, 409);
+		}
+		if ("unmatched" in result) {
+			return claimError(
+				`${name} has no source for ${parts.repo}`,
+				result.unmatched,
+				422,
+			);
+		}
+		return claimError(`${name} did not take the start`, result.failed, 502);
+	};
 	return routeTable({
 		"/api/run-starts": {
 			POST: async (request) => {
@@ -47,6 +112,9 @@ export function runStartRoutes({
 				);
 				if (row === undefined || ticket === undefined) {
 					return Response.json({ error: "ticket not found" }, { status: 404 });
+				}
+				if (target.factory !== undefined) {
+					return claimed(ticket, ticket.key ?? target.key, target.factory);
 				}
 				const start = runStartOf(
 					ticket,

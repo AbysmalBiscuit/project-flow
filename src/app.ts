@@ -661,6 +661,9 @@ export async function start(options: StartOptions): Promise<Running> {
 				pollOptions,
 				notifier,
 				configuration: () => configuration,
+				factories,
+				clock,
+				readFactories,
 			}),
 			...factoryRunRoutes({
 				factories,

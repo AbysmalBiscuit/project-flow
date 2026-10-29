@@ -19,6 +19,7 @@ import type { FactoryEntry } from "./factories.ts";
 import type {
 	AnswerResult,
 	CancelResult,
+	ClaimResult,
 	RemoveAction,
 	RemoveResult,
 	StartResult,
@@ -251,6 +252,11 @@ export type FactoryReader = {
 	 * A delete drops the run from the factory. An archive keeps it out of the plain `GET /runs`.
 	 */
 	remove: (run: string, action: RemoveAction) => Promise<RemoveResult>;
+	/** Start a claimed run of a ticket on the factory at `url`, which starts it now or queues it. */
+	claimStart: (
+		url: string,
+		start: { repo: string; ticket: string },
+	) => Promise<ClaimResult>;
 };
 
 export type GithubTracker = Tracker & {

@@ -238,6 +238,7 @@ export function trackerWrites(writes: TrackerWrite[], other: Fetch): Fetch {
 /**
  * A hub with the recorded runs, and a tracked repo with the open issues `numbers`.
  * Issue 41 has a running run, and issue 40 a succeeded run. Issue 43 has no run.
+ * `hubAnswers` replaces the recorded answers of the hub.
  */
 export async function serveGithub(
 	numbers: number[],
@@ -246,6 +247,7 @@ export async function serveGithub(
 		readyLabel?: string;
 		args?: string[];
 		labels?: Record<number, string[]>;
+		hubAnswers?: Answers;
 	} = {},
 ) {
 	const labels = new Map<number, string[]>(
@@ -304,13 +306,17 @@ export async function serveGithub(
 				},
 			],
 		},
-		factoryFetch({ [hubUrl]: hub }, requests, trackerWrites(writes, tracker)),
+		factoryFetch(
+			{ [hubUrl]: options.hubAnswers ?? hub },
+			requests,
+			trackerWrites(writes, tracker),
+		),
 		{
 			env: { GITHUB_TOKEN: "recorded-token" },
 			now: () => new Date(runClockStart),
 		},
 	);
-	return { ...app, writes };
+	return { ...app, writes, requests };
 }
 
 export async function ticketWhere(
