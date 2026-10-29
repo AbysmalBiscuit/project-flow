@@ -662,8 +662,7 @@ export function RunGraph({
 		node,
 		...(node.child ?? []),
 	]);
-	// The checkpoint lists the child stages of the current caller only, so a
-	// picked child stage falls back to its caller once the run leaves it.
+	// A picked child stage that the checkpoint no longer lists falls back to its caller.
 	const stage =
 		stages.find((item) => item.id === picked) ??
 		stages.find((item) => item.id === picked?.split("/")[0]);

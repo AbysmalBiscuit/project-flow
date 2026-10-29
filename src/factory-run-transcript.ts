@@ -52,25 +52,29 @@ export function runTranscriptReader(deps: {
 	statusRowOf: (runId: string) => StatusRows<ReadRun>;
 }) {
 	const { fetchImpl, signal, statusRowOf } = deps;
-	const readOf = async <T>(
+	const transcriptOf = async (
 		runId: string,
-		path: string,
-		schema: z.ZodType<T>,
-	): Promise<T | "missing" | "not served"> => {
+		stage: string,
+		after: number,
+	): Promise<TranscriptRead> => {
 		const { hubRow, row } = statusRowOf(runId);
 		const target = hubRow ?? row;
 		if (target === undefined) {
 			return "missing";
 		}
+		const nodePath = stage.split("/").map(encodeURIComponent).join("/");
 		try {
-			return await body(
+			const found = await body(
 				await reader(
 					fetchImpl,
 					target.url,
 					signal,
-				)(`/runs/${encodeURIComponent(runId)}${path}`),
-				schema,
+				)(
+					`/runs/${encodeURIComponent(runId)}/stages/${nodePath}/transcript?after=${after}`,
+				),
+				transcript,
 			);
+			return { entries: found.entries.flatMap(shownEntry), next: found.next };
 		} catch (error) {
 			if (error instanceof NotServed) {
 				return "not served";
@@ -80,21 +84,6 @@ export function runTranscriptReader(deps: {
 			}
 			return "missing";
 		}
-	};
-	const transcriptOf = async (
-		runId: string,
-		stage: string,
-		after: number,
-	): Promise<TranscriptRead> => {
-		const nodePath = stage.split("/").map(encodeURIComponent).join("/");
-		const found = await readOf(
-			runId,
-			`/stages/${nodePath}/transcript?after=${after}`,
-			transcript,
-		);
-		return typeof found === "string"
-			? found
-			: { entries: found.entries.flatMap(shownEntry), next: found.next };
 	};
 	return { transcript: transcriptOf };
 }

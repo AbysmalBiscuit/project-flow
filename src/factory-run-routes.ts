@@ -214,7 +214,10 @@ export function factoryRunRoutes({
 				);
 				if (!parsed.success) {
 					return Response.json(
-						{ error: "a transcript read needs a stage" },
+						{
+							error:
+								"a transcript read needs a stage and a whole number after of 0 or more",
+						},
 						{ status: 400 },
 					);
 				}
