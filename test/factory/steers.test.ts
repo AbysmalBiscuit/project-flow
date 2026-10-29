@@ -115,6 +115,7 @@ describe("factory steers", () => {
 			await app.stop();
 		}
 	});
+
 	test("a 502 from the factory with an error body on a steer gives the factory's reason", async () => {
 		const reason = `box of run ${running41.id} did not answer`;
 		const app = await servedRun({
