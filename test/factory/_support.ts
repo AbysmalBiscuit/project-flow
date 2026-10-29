@@ -339,3 +339,23 @@ export async function ticketWhere(
 		await Bun.sleep(20);
 	}
 }
+
+/** `POST /api/run-starts`. A named factory claims the ticket, else the app adds the ready label. */
+export function startRun(
+	base: string,
+	tracker: string,
+	project: string,
+	key: string,
+	factory?: string,
+) {
+	return fetch(new URL("/api/run-starts", base), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			tracker,
+			project,
+			key,
+			...(factory === undefined ? {} : { factory }),
+		}),
+	});
+}
