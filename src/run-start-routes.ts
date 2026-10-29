@@ -145,14 +145,14 @@ export function runStartRoutes({
 				if (target.factory !== undefined) {
 					return claimed(ticket, ticket.key ?? target.key, target.factory);
 				}
-				const start = runStartOf(
-					ticket,
-					runFor(ticket, pollOptions.factoryRuns()),
-					{
-						factories: pollOptions.listedFactories(),
-						requests: pollOptions.runStartRequests,
-					},
-				);
+				// A label start ends at a run that `known` does not hold, and a poll can lag the factory.
+				// A factory that does not answer keeps the runs of its last read.
+				await readFactories(() => factories.readRuns(clock.now().getTime()));
+				const runs = runsFor(ticket, pollOptions.factoryRuns());
+				const start = runStartOf(ticket, runs[0], {
+					factories: pollOptions.listedFactories(),
+					requests: pollOptions.runStartRequests,
+				});
 				if ("refused" in start) {
 					return Response.json({ error: start.refused }, { status: 409 });
 				}
@@ -183,7 +183,7 @@ export function runStartRoutes({
 				recordRequest(target.key, {
 					claim: false,
 					factory: start.factory,
-					known: runsFor(ticket, pollOptions.factoryRuns()).map(({ id }) => id),
+					known: runs.map(({ id }) => id),
 				});
 				const label = start.label.toLowerCase();
 				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
