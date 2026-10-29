@@ -101,6 +101,77 @@ describe("factory runs", () => {
 			}
 		});
 
+		test("the settings keep number, boolean, list and object parameters, a choice with a launcher or an error, and a sent run", async () => {
+			const app = await serveRuns(
+				{
+					...hub,
+					[settingsPath]: {
+						...runSettings,
+						parameters: {
+							max_rounds: 3,
+							draft: false,
+							labels: ["ready", 2],
+							limits: { ci: null },
+						},
+						choices: {
+							review: {
+								mode: "headless",
+								launcher: "reviewer",
+								harness: "codex",
+								model: "gpt-5.5",
+								effort: null,
+								error: null,
+							},
+							watch: {
+								mode: "pane",
+								launcher: null,
+								harness: null,
+								model: null,
+								effort: null,
+								error: "no launcher offers a harness that is installed",
+							},
+						},
+						options: { ...runSettings.options, sent: true },
+					},
+				},
+				[41],
+			);
+			try {
+				const response = await settingsOf(app.base);
+				expect(response.status).toBe(200);
+				const body = await response.json();
+				expect(body.parameters).toEqual([
+					{ name: "max_rounds", value: 3 },
+					{ name: "draft", value: false },
+					{ name: "labels", value: ["ready", 2] },
+					{ name: "limits", value: { ci: null } },
+				]);
+				expect(body.choices).toEqual([
+					{
+						node: "review",
+						mode: "headless",
+						launcher: "reviewer",
+						harness: "codex",
+						model: "gpt-5.5",
+						effort: null,
+						error: null,
+					},
+					{
+						node: "watch",
+						mode: "pane",
+						launcher: null,
+						harness: null,
+						model: null,
+						effort: null,
+						error: "no launcher offers a harness that is installed",
+					},
+				]);
+				expect(body.options.sent).toBe(true);
+			} finally {
+				await app.stop();
+			}
+		});
+
 		test("a run that a hub and its box report reads its settings from the hub, and the box gets no read", async () => {
 			const [row41] = hubRuns.runs;
 			if (row41 === undefined) {
