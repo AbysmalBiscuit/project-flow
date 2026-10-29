@@ -5,6 +5,7 @@ import daemonSlots from "../fixtures/factory-daemon-slots.json";
 import hubRuns from "../fixtures/factory-hub-runs.json";
 import { type FactoryRequest, hub, hubUrl } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
+import { readWhere } from "../support/reads.ts";
 import { readyLabel, serveGithub, startRun, ticketWhere } from "./_support.ts";
 
 /** A hub with free slots that answers `POST /runs` with `start`, and the recorded runs on a read. */
@@ -24,14 +25,11 @@ function runPosts(requests: FactoryRequest[]) {
 }
 
 async function factoryEntries(base: string): Promise<FactoryEntry[]> {
-	while (true) {
-		const response = await fetch(new URL("/api/settings", base));
-		const body = (await response.json()) as { factoryEntries: FactoryEntry[] };
-		if (body.factoryEntries.every((entry) => entry.reachable !== null)) {
-			return body.factoryEntries;
-		}
-		await Bun.sleep(20);
-	}
+	const body = await readWhere<{ factoryEntries: FactoryEntry[] }>(
+		new URL("/api/settings", base),
+		(read) => read.factoryEntries.every((entry) => entry.reachable !== null),
+	);
+	return body.factoryEntries;
 }
 
 describe("claimed run starts", () => {
