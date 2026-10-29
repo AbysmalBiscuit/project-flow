@@ -132,7 +132,9 @@ describe("claimed run starts", () => {
 			await app.stop();
 		}
 	});
+});
 
+describe("claimed start eligibility", () => {
 	test("a claimed start after a label start that waits for its run answers 409 and sends no POST /runs", async () => {
 		const app = await serveGithub([43], {
 			readyLabel,
@@ -213,6 +215,9 @@ describe("claimed run starts", () => {
 			await app.stop();
 		}
 	});
+});
+
+describe("pending claimed starts", () => {
 	test("a second claimed start of a fresh ticket answers 409 while the factory has not listed the first run", async () => {
 		const app = await serveGithub([43], {
 			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
