@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { textControl } from "./control-styles.ts";
 import type { RunDetail } from "./domain.ts";
 import { Loading } from "./loading.tsx";
 import { runPagePath } from "./page-links.ts";
@@ -97,7 +98,7 @@ function RunFacts({ run }: { run: RunDetail }) {
 			{run.restartedFrom === undefined ? null : (
 				<RunFact label={runFactLabel.restartedFrom}>
 					<a
-						className={clsx(panel.factLink)}
+						className={clsx(panel.factLink, ...textControl)}
 						href={runPagePath(run.restartedFrom)}
 						data-restarted-from={run.restartedFrom}
 					>

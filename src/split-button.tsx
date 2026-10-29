@@ -4,7 +4,7 @@ import { useId, useRef, useState } from "react";
 import { control } from "./control-styles.ts";
 import { Caret, useDismiss } from "./dropdown.tsx";
 import { colours, measure, space } from "./tokens.stylex.ts";
-import { frame, shell } from "./ui-styles.ts";
+import { frame } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -82,7 +82,7 @@ export function SplitButton({
 			styles.part,
 			tone === "primary" && control.primary,
 			tone === "danger" && control.danger,
-			shell.buttonFocus,
+			control.focus,
 			side,
 			divider && tone !== undefined && styles.divider,
 		);
@@ -122,7 +122,8 @@ export function SplitButton({
 							role="menuitem"
 							className={clsx(
 								frame.menuItem,
-								shell.buttonFocus,
+								control.clear,
+								control.focus,
 								choice.tone === "danger" && styles.dangerChoice,
 							)}
 							onClick={() => {

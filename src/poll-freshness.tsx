@@ -1,12 +1,13 @@
 import { type ReactNode, useEffect, useState } from "react";
 
+import { control } from "./control-styles.ts";
 import type { PollProgress } from "./domain.ts";
 import { onAppEvent } from "./events.ts";
 import { usePollAge } from "./poll-age.ts";
 import { pageQueryClient } from "./queries.ts";
 import { RefreshGlyph } from "./shell.tsx";
 import { overviewControlLabel } from "./terms.ts";
-import { headerControlStyle, shell } from "./ui-styles.ts";
+import { headerControlStyle } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 function queryFetchedAt(queryKey: readonly unknown[]): number {
@@ -71,7 +72,7 @@ export function RefreshButton({
 		<button
 			type="button"
 			id={id}
-			className={clsx(headerControlStyle.square, shell.buttonFocus)}
+			className={clsx(headerControlStyle.square, control.press, control.focus)}
 			aria-label={overviewControlLabel.refresh}
 			aria-description={freshness ?? undefined}
 			aria-busy={refreshing}

@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useState } from "react";
 
+import { control } from "./control-styles.ts";
 import type { RunEventsEnd, RunLogEvent, ShownFactoryRun } from "./domain.ts";
 import { Loading } from "./loading.tsx";
 import { panel } from "./panel-styles.ts";
@@ -108,7 +109,17 @@ function EventRow({ event }: { event: RunLogEvent }) {
 	}
 	return (
 		<details>
-			<summary className={clsx(styles.row, styles.openable)}>{summary}</summary>
+			<summary
+				className={clsx(
+					styles.row,
+					styles.openable,
+					control.clear,
+					control.bleed,
+					control.focus,
+				)}
+			>
+				{summary}
+			</summary>
 			<pre className={clsx(styles.data)}>
 				{JSON.stringify(event.data, null, 2)}
 			</pre>

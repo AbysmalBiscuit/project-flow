@@ -21,7 +21,6 @@ import {
 	stack,
 	type,
 } from "./tokens.stylex.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -72,11 +71,6 @@ const styles = stylex.create({
 		backgroundImage: `linear-gradient(to top, ${picker.black}, transparent), linear-gradient(to right, ${picker.white}, transparent)`,
 		cursor: "crosshair",
 		touchAction: "none",
-		outline: {
-			default: "none",
-			":focus-visible": `${measure.focus} solid ${colours.focus}`,
-		},
-		outlineOffset: measure.focus,
 	},
 	hue: {
 		position: "relative",
@@ -85,11 +79,6 @@ const styles = stylex.create({
 		backgroundImage: picker.hue,
 		cursor: "pointer",
 		touchAction: "none",
-		outline: {
-			default: "none",
-			":focus-visible": `${measure.focus} solid ${colours.focus}`,
-		},
-		outlineOffset: measure.focus,
 	},
 	thumb: {
 		position: "absolute",
@@ -256,8 +245,9 @@ export function ColourPicker({
 				className={clsx(
 					control.box,
 					control.off,
+					control.press,
 					styles.swatchButton,
-					shell.buttonFocus,
+					control.focus,
 				)}
 				aria-label={`${label} ${settingsCopy.colour}`}
 				aria-expanded={open}
@@ -286,7 +276,12 @@ export function ColourPicker({
 						aria-valuemax={100}
 						aria-valuenow={Math.round(hsv.s * 100)}
 						aria-valuetext={`${Math.round(hsv.s * 100)}%, ${settingsCopy.brightness} ${Math.round(hsv.v * 100)}%`}
-						{...stylex.props(styles.area, dynamic.fill(hueColour))}
+						{...stylex.props(
+							styles.area,
+							control.slider,
+							control.focus,
+							dynamic.fill(hueColour),
+						)}
 						onPointerDown={(event) => {
 							event.currentTarget.setPointerCapture(event.pointerId);
 							dragArea(event);
@@ -325,7 +320,7 @@ export function ColourPicker({
 						aria-valuemin={0}
 						aria-valuemax={360}
 						aria-valuenow={Math.round(hsv.h)}
-						className={clsx(styles.hue)}
+						className={clsx(styles.hue, control.slider, control.focus)}
 						onPointerDown={(event) => {
 							event.currentTarget.setPointerCapture(event.pointerId);
 							dragHue(event);

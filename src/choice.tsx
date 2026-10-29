@@ -3,7 +3,6 @@ import type { ComponentPropsWithoutRef } from "react";
 
 import { control } from "./control-styles.ts";
 import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 const styles = stylex.create({
@@ -14,10 +13,6 @@ const styles = stylex.create({
 		width: "100%",
 		minWidth: 0,
 		paddingInline: space.sm,
-		backgroundColor: {
-			default: colours.controlFill,
-			":hover": colours.surfaceMuted,
-		},
 		textAlign: "left",
 		whiteSpace: "nowrap",
 	},
@@ -84,8 +79,9 @@ export function Choice({ label, on, number, ...native }: ChoiceProps) {
 			className={clsx(
 				control.box,
 				control.off,
+				control.press,
 				styles.choice,
-				shell.buttonFocus,
+				control.focus,
 			)}
 		>
 			{number === undefined ? (

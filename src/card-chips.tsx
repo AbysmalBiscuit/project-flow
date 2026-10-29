@@ -2,9 +2,9 @@ import { createContext } from "react";
 
 import { board } from "./board-styles.ts";
 import { useTicketMenu } from "./context-menu.tsx";
+import { control } from "./control-styles.ts";
 import type { OutsideParent, TicketRelation, TicketView } from "./domain.ts";
 import { foldKey, shortKey } from "./ticket-key.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 export function Chip({
@@ -42,9 +42,10 @@ export function Chip({
 			type="button"
 			className={clsx(
 				board.chip,
+				control.tint,
 				hierarchy && board.chipHierarchy,
 				outside && board.chipOutside,
-				shell.buttonFocus,
+				control.focus,
 			)}
 			data-chip={ticketKey}
 			{...menu}

@@ -6,6 +6,7 @@ import { Button } from "./button.tsx";
 import { OutsideParentsContext } from "./card-chips.tsx";
 import type { ProjectViewSettings } from "./configuration.ts";
 import { useTicketMenu } from "./context-menu.tsx";
+import { control } from "./control-styles.ts";
 import type {
 	OutsideParent,
 	ProjectReport,
@@ -116,8 +117,9 @@ function Card({
 					laneColour(ticket.lane),
 					ticket.statusType,
 					board.card,
-					board.cardFocus,
+					control.focus,
 					board.toned,
+					control.tonedCard,
 				)}
 				data-ticket={key ?? ""}
 				data-faded={faded ? "true" : "false"}
@@ -149,8 +151,9 @@ function OutsideParentCard({
 	const menu = useTicketMenu(parent.tracked ? parent.project : undefined);
 	const styles = [
 		board.card,
-		board.cardFocus,
+		control.focus,
 		known !== undefined && board.toned,
+		control.card,
 		board.ticketOutside,
 		known === undefined && board.ticketOutsideUntoned,
 	];

@@ -7,6 +7,7 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
+import { control } from "./control-styles.ts";
 import { jump } from "./jump-styles.ts";
 import { PageQueryRoot } from "./page-query.tsx";
 import { TicketPanel } from "./panel.tsx";
@@ -192,7 +193,7 @@ export function JumpBox() {
 								<li key={ticketRefId(hit)}>
 									<button
 										type="button"
-										className={clsx(jump.hit)}
+										className={clsx(jump.hit, control.clear, control.focus)}
 										data-ticket={hit.key}
 										onClick={() => {
 											openTicket({

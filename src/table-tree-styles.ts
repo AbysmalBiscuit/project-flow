@@ -21,10 +21,6 @@ export const tableTree = stylex.create({
 		padding: 0,
 		borderWidth: 0,
 		borderRadius: radius.sm,
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.chip,
-		},
 		color: colours.inkSoft,
 		cursor: "pointer",
 	},

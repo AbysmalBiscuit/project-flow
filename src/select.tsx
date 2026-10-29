@@ -1,7 +1,6 @@
 import type { ComponentPropsWithoutRef } from "react";
 
 import { control } from "./control-styles.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 type SelectProps<Value extends string | number> = Omit<
@@ -26,7 +25,7 @@ export function Select<Value extends string | number>({
 	return (
 		<select
 			{...native}
-			className={clsx(control.box, control.off, shell.buttonFocus)}
+			className={clsx(control.box, control.off, control.press, control.focus)}
 			value={value === undefined ? "" : String(value)}
 			onChange={(event) => {
 				const picked = options.find(

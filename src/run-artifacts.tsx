@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { control } from "./control-styles.ts";
 import type {
 	RunArtifact,
 	RunArtifactContent,
@@ -150,7 +151,14 @@ function ArtifactRow({
 	const [open, setOpen] = useState(false);
 	return (
 		<details onToggle={(event) => setOpen(event.currentTarget.open)}>
-			<summary className={clsx(styles.row)}>
+			<summary
+				className={clsx(
+					styles.row,
+					control.clear,
+					control.bleed,
+					control.focus,
+				)}
+			>
 				<span className={clsx(styles.name)}>{artifact.name}</span>
 				<span className={clsx(styles.meta)}>{artifact.type}</span>
 				<span className={clsx(styles.meta)}>

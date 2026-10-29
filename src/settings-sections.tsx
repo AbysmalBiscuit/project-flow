@@ -1,5 +1,6 @@
 import { Button } from "./button.tsx";
 import type { Configuration, UserState } from "./configuration.ts";
+import { control } from "./control-styles.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
@@ -25,7 +26,6 @@ import {
 	settingsCopy,
 	settingsSection,
 } from "./terms.ts";
-import { shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 import {
 	defaultOpenView,
@@ -70,8 +70,9 @@ export function ContentsNav({
 					href={`#${section.id}`}
 					className={clsx(
 						fields.contentsLink,
-						shell.linkFocus,
-						current === section.id && fields.contentsCurrent,
+						control.clear,
+						control.focus,
+						current === section.id && control.current,
 					)}
 					aria-current={current === section.id ? "true" : undefined}
 					onClick={() => onSelect(section.id)}

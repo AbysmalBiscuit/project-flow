@@ -13,8 +13,6 @@ import {
 	type,
 } from "./tokens.stylex.ts";
 
-const focusRing = `${measure.focus} solid ${colours.focus}` as const;
-
 // A segment fills its group: the control height less the group padding and border.
 const segmentHeight =
 	`calc(${measure.control} - 2 * (${space.twoXs} + ${measure.hairline}))` as const;
@@ -42,13 +40,7 @@ const controlText = {
 	cursor: "pointer",
 } as const;
 
-const headerButtonFill = {
-	backgroundColor: {
-		default: colours.controlFill,
-		":hover": colours.segment,
-	},
-} as const;
-
+// The fill comes from `control.press`, so it sits beside the hover and press fills.
 const headerControl = {
 	display: "inline-flex",
 	gap: space.xs,
@@ -60,7 +52,6 @@ const headerControl = {
 	borderStyle: "solid",
 	borderColor: colours.controlLine,
 	borderRadius: radius.md,
-	backgroundColor: colours.controlFill,
 	color: colours.controlInk,
 	...controlText,
 	whiteSpace: "nowrap",
@@ -77,24 +68,13 @@ export const headerControlStyle = stylex.create({
 		padding: `0 ${space.sm}`,
 		borderWidth: 0,
 		borderRadius: radius.sm,
-		backgroundColor: "transparent",
 		color: colours.inkSoft,
 		...controlText,
 		whiteSpace: "nowrap",
 	},
-	segmentOn: {
-		backgroundColor: colours.segment,
-		color: colours.ink,
-		fontWeight: type.weight,
-	},
-	groupOff: {
-		opacity: 0.5,
-		cursor: "not-allowed",
-	},
 	graphTools: headerGroup,
 	square: {
 		...headerControl,
-		...headerButtonFill,
 		width: measure.control,
 		justifyContent: "center",
 		padding: 0,
@@ -151,7 +131,7 @@ export const frame = stylex.create({
 		display: "inline-flex",
 		gap: space.xs,
 		alignItems: "center",
-		marginRight: space.sm,
+		marginRight: `calc(${space.sm} - ${space.xs})`,
 		color: colours.ink,
 		fontSize: type.nav,
 		fontWeight: type.weight,
@@ -173,15 +153,6 @@ export const frame = stylex.create({
 		color: colours.inkMuted,
 		fontSize: type.nav,
 		textDecoration: "none",
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.surfaceMuted,
-		},
-	},
-	current: {
-		backgroundColor: colours.segment,
-		color: colours.ink,
-		fontWeight: type.weight,
 	},
 	count: {
 		display: "inline-flex",
@@ -238,10 +209,6 @@ export const frame = stylex.create({
 		borderStyle: "solid",
 		borderColor: colours.laneLine,
 		borderRadius: radius.md,
-		backgroundColor: {
-			default: colours.raised,
-			":hover": colours.surfaceMuted,
-		},
 		color: colours.ink,
 		fontFamily: font.sans,
 		fontSize: type.menu,
@@ -347,7 +314,6 @@ export const frame = stylex.create({
 		borderStyle: "solid",
 		borderColor: colours.controlLine,
 		borderRadius: radius.menu,
-		backgroundColor: colours.controlFill,
 		color: colours.controlInk,
 		fontFamily: font.sans,
 		fontSize: type.menu,
@@ -397,11 +363,6 @@ export const frame = stylex.create({
 		padding: `${space.xs} ${space.md}`,
 		borderWidth: 0,
 		borderRadius: radius.sm,
-		backgroundColor: {
-			default: "transparent",
-			":hover": colours.rowHover,
-			":active": colours.controlPress,
-		},
 		color: colours.controlInk,
 		fontFamily: font.sans,
 		fontSize: type.menu,
@@ -420,20 +381,6 @@ export const frame = stylex.create({
 });
 
 export const shell = stylex.create({
-	linkFocus: {
-		outline: {
-			default: "none",
-			":focus-visible": focusRing,
-		},
-		outlineOffset: space.twoXs,
-	},
-	buttonFocus: {
-		outline: {
-			default: "none",
-			":focus-visible": focusRing,
-		},
-		outlineOffset: space.twoXs,
-	},
 	stale: {
 		margin: `0 0 ${space.md}`,
 		padding: `${space.xs} ${space.sm}`,
@@ -505,10 +452,6 @@ export const cards = stylex.create({
 	},
 	projectLink: {
 		minWidth: 0,
-		color: {
-			default: "inherit",
-			":hover": colours.link,
-		},
 		textDecoration: "none",
 	},
 	counts: {
@@ -565,12 +508,6 @@ export const cards = stylex.create({
 		borderColor: colours.line,
 		backgroundColor: colours.stale,
 		color: colours.staleInk,
-	},
-	chipHover: {
-		outline: {
-			default: "none",
-			":hover": focusRing,
-		},
 	},
 	graph: {
 		position: "relative",
@@ -637,7 +574,6 @@ export const cards = stylex.create({
 	graphEdge: {
 		padding: 0,
 		borderWidth: 0,
-		backgroundColor: "transparent",
 		color: colours.warnInk,
 		fontFamily: font.mono,
 		fontSize: type.meta,
@@ -725,7 +661,6 @@ export const cards = stylex.create({
 		borderStyle: "solid",
 		borderColor: "transparent",
 		borderRadius: radius.sm,
-		backgroundColor: "transparent",
 		color: "inherit",
 		fontFamily: font.sans,
 		fontSize: type.menu,
@@ -819,7 +754,6 @@ export const cards = stylex.create({
 		fontSize: type.small,
 	},
 	needKey: {
-		maxWidth: "100%",
 		overflow: "hidden",
 		color: colours.inkSoft,
 		fontFamily: font.mono,
