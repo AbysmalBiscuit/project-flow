@@ -23,6 +23,7 @@ export const runRow = z.object({
 	machine: z.string().nullish(),
 	source: z.string().nullish(),
 	rule: z.string().nullish(),
+	queued_id: z.string().nullish(),
 	submitted_at: z.string(),
 	started_at: z.string().nullish(),
 	ended_at: z.string().nullish(),
@@ -109,6 +110,9 @@ export function factoryRuns(rows: unknown[], factory: Factory): ReadRun[] {
 					...(run.rule === null || run.rule === undefined
 						? {}
 						: { rule: run.rule }),
+					...(run.queued_id === null || run.queued_id === undefined
+						? {}
+						: { queuedId: run.queued_id }),
 					submittedAt: run.submitted_at,
 					startedAt: run.started_at ?? null,
 					endedAt: run.ended_at ?? null,
@@ -158,7 +162,7 @@ export function statusRow<Row extends ReadRun>(
 
 /**
  * One run per id. A hub and its box report the same id once the hub sends the run.
- * The status row gives the status, and the hub row gives `source` and `rule`.
+ * The status row gives the status, and the hub row gives `source`, `rule` and `queuedId`.
  */
 export function mergedRuns(
 	rows: (ReadRun & { coveredByFeed: boolean; streamed: boolean })[],
@@ -170,7 +174,7 @@ export function mergedRuns(
 			if (row === undefined) {
 				return [];
 			}
-			const { source, rule, ...status } = row.run;
+			const { source, rule, queuedId, ...status } = row.run;
 			const origin = hubRow?.run ?? row.run;
 			const stage = stages.get(status.id);
 			return [
@@ -178,6 +182,9 @@ export function mergedRuns(
 					...status,
 					...(origin.source === undefined ? {} : { source: origin.source }),
 					...(origin.rule === undefined ? {} : { rule: origin.rule }),
+					...(origin.queuedId === undefined
+						? {}
+						: { queuedId: origin.queuedId }),
 					coveredByFeed: row.coveredByFeed,
 					streamed: same.some((row) => row.streamed),
 					...(stage === undefined ? {} : { stage }),

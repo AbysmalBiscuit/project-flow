@@ -8,8 +8,8 @@ import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
 import {
 	runStartOf,
-	type StartKind,
 	startRefusal,
+	type StartRequest,
 	takesClaim,
 } from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
@@ -60,10 +60,10 @@ export function runStartRoutes({
 	readFactories,
 }: RunStartRouteOptions) {
 	/** A start that the app sent, so the ticket shows the run as requested until it starts. */
-	const recordRequest = (key: string, kind: StartKind) => {
+	const recordRequest = (key: string, request: StartRequest) => {
 		pollOptions.runStartRequests = new Map([
 			...pollOptions.runStartRequests,
-			[foldKey(key), { at: pollOptions.clock.now().toISOString(), ...kind }],
+			[foldKey(key), request],
 		]);
 	};
 	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
@@ -105,11 +105,7 @@ export function runStartRoutes({
 			ticket: String(parts.number),
 		});
 		if ("claimed" in result) {
-			recordRequest(key, {
-				claim: true,
-				run: result.claimed,
-				known: runsFor(ticket, pollOptions.factoryRuns()).map(({ id }) => id),
-			});
+			recordRequest(key, { claim: true, run: result.claimed });
 			await readFactories(() => factories.readRuns(clock.now().getTime()));
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration()),
@@ -184,7 +180,11 @@ export function runStartRoutes({
 				} catch (error) {
 					return trackerError(error);
 				}
-				recordRequest(target.key, { claim: false });
+				recordRequest(target.key, {
+					claim: false,
+					factory: start.factory,
+					known: runsFor(ticket, pollOptions.factoryRuns()).map(({ id }) => id),
+				});
 				const label = start.label.toLowerCase();
 				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
 					pollOptions.store.mergeTickets([

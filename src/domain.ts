@@ -58,6 +58,8 @@ export type FactoryRun = {
 	source?: string;
 	/** The hub rule that started the run. */
 	rule?: string;
+	/** The id of the queued start that the hub sent as this run. */
+	queuedId?: string;
 	submittedAt: string;
 	startedAt: string | null;
 	endedAt: string | null;

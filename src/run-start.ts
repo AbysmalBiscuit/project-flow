@@ -6,12 +6,12 @@ import { isRunOf } from "./workcell.ts";
 
 /**
  * A start that the app sent: a ready label that it added, or a claim that a factory took.
- * A claim names the run that the factory accepted, and the runs of the ticket that the factories listed when the app sent it.
+ * A label start names the factory of the label, and the runs of the ticket that the factories listed when the app added it.
+ * A claim names the run that the factory accepted.
  */
-export type StartRequest = { at: string } & StartKind;
-
-export type StartKind =
-	{ claim: false } | { claim: true; run: string; known: readonly string[] };
+export type StartRequest =
+	| { claim: false; factory: string; known: readonly string[] }
+	| { claim: true; run: string };
 
 /** What a run start reads beyond the ticket: the listed factories, and the last start that the app sent of each ticket. */
 export type RunStarts = {
@@ -55,15 +55,14 @@ export function startRefusal(
  */
 export function runStartOf(
 	ticket: Pick<Ticket, "key" | "state" | "labels">,
-	newestRun: Pick<FactoryRun, "id" | "statusKind" | "submittedAt"> | undefined,
+	newestRun: Pick<FactoryRun, "statusKind"> | undefined,
 	{ factories, requests }: RunStarts,
 ): RunStart | { refused: string } {
 	const refused = startRefusal(ticket, newestRun);
 	if (refused !== undefined) {
 		return { refused };
 	}
-	const claimWaits =
-		pendingRequest(ticket, newestRun, requests)?.claim === true;
+	const claimWaits = pendingRequest(ticket, requests)?.claim === true;
 	const factory = factories.find((item) => item.readyLabel !== undefined);
 	if (factory?.readyLabel === undefined) {
 		return factories.length > 0 &&
@@ -97,55 +96,51 @@ function hasLabel(ticket: Pick<Ticket, "labels">, label: string): boolean {
  */
 function waitsForRun(
 	ticket: Pick<Ticket, "key">,
-	newestRun: Pick<FactoryRun, "id" | "statusKind" | "submittedAt"> | undefined,
+	newestRun: Pick<FactoryRun, "statusKind"> | undefined,
 	requests: RunStarts["requests"],
 ): boolean {
 	return (
 		newestRun === undefined ||
 		(newestRun.statusKind === "succeeded" &&
-			pendingRequest(ticket, newestRun, requests) !== undefined)
+			pendingRequest(ticket, requests) !== undefined)
 	);
 }
 
-/**
- * The start that the app sent of the ticket when no run started since it.
- * A label start ends at the first run submitted after it. A claim waits until
- * `settledRequests` drops it.
- */
+/** The start that the app sent of the ticket, until `settledRequests` drops it. */
 export function pendingRequest(
 	ticket: Pick<Ticket, "key">,
-	newestRun: Pick<FactoryRun, "id" | "submittedAt"> | undefined,
 	requests: RunStarts["requests"],
 ): StartRequest | undefined {
-	const request =
-		ticket.key === null ? undefined : requests.get(foldKey(ticket.key));
-	return request === undefined ||
-		request.claim ||
-		newestRun === undefined ||
-		Date.parse(request.at) >= Date.parse(newestRun.submittedAt)
-		? request
-		: undefined;
+	return ticket.key === null ? undefined : requests.get(foldKey(ticket.key));
 }
 
+type StartedRun = Pick<
+	FactoryRun,
+	"id" | "key" | "repo" | "factory" | "source" | "queuedId"
+>;
+
 /**
- * The start requests without the claims that a run ended: the accepted run, or
- * any run of the ticket that the factories did not list when the app sent the claim.
- * A factory dates a run by its own clock, and a hub gives a queued start a new id
- * once it sends it to a build machine, possibly before the app reads the accepted id.
- * So a claim ends the first time that a new run of its ticket shows, and stays ended after that.
+ * True when `run` is the run of the start. A claim ends at its accepted run,
+ * which a hub renames and lists with the accepted id as `queuedId` once it sends it.
+ * A label start ends at a new run of its ticket that a hub source of the label's factory started.
+ * Factories date runs by their own clocks, so the rules compare ids and no times.
  */
+function startedBy(run: StartedRun, key: string, request: StartRequest) {
+	return request.claim
+		? run.id === request.run || run.queuedId === request.run
+		: isRunOf(run, key) &&
+				run.factory === request.factory &&
+				run.source !== undefined &&
+				!request.known.includes(run.id);
+}
+
+/** The start requests without the ones that their run ended. A start stays ended after that. */
 export function settledRequests(
 	requests: ReadonlyMap<string, StartRequest>,
-	runs: readonly Pick<FactoryRun, "id" | "key" | "repo">[],
+	runs: readonly StartedRun[],
 ): ReadonlyMap<string, StartRequest> {
 	const pending = [...requests].filter(
-		([key, request]) =>
-			!request.claim ||
-			!runs.some(
-				(run) =>
-					run.id === request.run ||
-					(isRunOf(run, key) && !request.known.includes(run.id)),
-			),
+		([key, request]) => !runs.some((run) => startedBy(run, key, request)),
 	);
 	return pending.length === requests.size ? requests : new Map(pending);
 }
@@ -157,13 +152,13 @@ export function settledRequests(
  */
 export function queuedOf(
 	ticket: Pick<Ticket, "key" | "state" | "labels" | "status">,
-	newestRun: Pick<FactoryRun, "id" | "statusKind" | "submittedAt"> | undefined,
+	newestRun: Pick<FactoryRun, "statusKind"> | undefined,
 	{ factories, requests }: RunStarts,
 ): Queued | undefined {
 	if (
 		ticket.state !== "open" ||
 		!waitsForRun(ticket, newestRun, requests) ||
-		pendingRequest(ticket, newestRun, requests)?.claim === true
+		pendingRequest(ticket, requests)?.claim === true
 	) {
 		return undefined;
 	}
