@@ -12,6 +12,8 @@ import { settledRead } from "../support/reads.ts";
 import { boxRow, factoryRunOf, overviewWhere, serveRuns } from "./_support.ts";
 
 const running41 = hubRuns.runs[0]?.id ?? "";
+// The recorded settings come from the run of ticket 742. The tests serve them
+// for the run of ticket 41, because the app does not check the ticket of the settings.
 const settingsPath = `/runs/${running41}/settings`;
 
 async function settingsOf(base: string, runId = running41): Promise<Response> {
@@ -95,9 +97,7 @@ describe("factory runs", () => {
 			}
 		});
 	});
-});
 
-describe("factory runs", () => {
 	describe("the run settings values", () => {
 		test("the settings keep number, boolean, list and object parameters, a choice with a launcher or an error, and a sent run", async () => {
 			const app = await serveRuns(
@@ -170,9 +170,7 @@ describe("factory runs", () => {
 			}
 		});
 	});
-});
 
-describe("factory runs", () => {
 	describe("the run settings source", () => {
 		test("a run that a hub and its box report reads its settings from the hub, and the box gets no read", async () => {
 			const [row41] = hubRuns.runs;
