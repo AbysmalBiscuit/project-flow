@@ -4,12 +4,11 @@ import { foldKey, githubKeyParts } from "./ticket-key.ts";
 
 /**
  * A start that the app sent: a ready label that it added, or a claim that a factory took.
- * A claim names the runs of the ticket that the app knew when it sent the claim.
+ * A claim names the run that the factory accepted.
  */
 export type StartRequest = { at: string } & StartKind;
 
-export type StartKind =
-	{ claim: false } | { claim: true; knownRuns: readonly string[] };
+export type StartKind = { claim: false } | { claim: true; run: string };
 
 /** What a run start reads beyond the ticket: the listed factories, and the last start that the app sent of each ticket. */
 export type RunStarts = {
@@ -93,9 +92,8 @@ function waitsForRun(
 
 /**
  * The start that the app sent of the ticket when no run started since it.
- * A factory can list a claimed run some time after it takes the claim, and dates it
- * by its own clock. So a claim ends at the first run that it did not know, and a label
- * start ends at the first run submitted after it.
+ * A label start ends at the first run submitted after it. A claim waits until
+ * `settledRequests` drops it.
  */
 export function pendingRequest(
 	ticket: Pick<Ticket, "key">,
@@ -104,13 +102,29 @@ export function pendingRequest(
 ): StartRequest | undefined {
 	const request =
 		ticket.key === null ? undefined : requests.get(foldKey(ticket.key));
-	if (request === undefined || newestRun === undefined) {
-		return request;
-	}
-	const waits = request.claim
-		? request.knownRuns.includes(newestRun.id)
-		: Date.parse(request.at) >= Date.parse(newestRun.submittedAt);
-	return waits ? request : undefined;
+	return request === undefined ||
+		request.claim ||
+		newestRun === undefined ||
+		Date.parse(request.at) >= Date.parse(newestRun.submittedAt)
+		? request
+		: undefined;
+}
+
+/**
+ * The start requests without the claims whose accepted run a factory lists.
+ * A factory dates a run by its own clock, and a hub gives a queued start a new id
+ * once it sends it to a build machine. So a claim ends the first time that its
+ * accepted run shows, and stays ended after that.
+ */
+export function settledRequests(
+	requests: ReadonlyMap<string, StartRequest>,
+	runs: readonly Pick<FactoryRun, "id">[],
+): ReadonlyMap<string, StartRequest> {
+	const listed = new Set(runs.map(({ id }) => id));
+	const pending = [...requests].filter(
+		([, request]) => !request.claim || !listed.has(request.run),
+	);
+	return pending.length === requests.size ? requests : new Map(pending);
 }
 
 /**

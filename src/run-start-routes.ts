@@ -14,7 +14,7 @@ import {
 } from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
-import { runFor, runsFor } from "./workcell.ts";
+import { runFor } from "./workcell.ts";
 
 const startBody = z.object({
 	tracker: z.enum(trackers),
@@ -68,8 +68,7 @@ export function runStartRoutes({
 	};
 	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
 	const claimed = async (ticket: Ticket, key: string, name: string) => {
-		const ticketRuns = runsFor(ticket, pollOptions.factoryRuns());
-		const newestRun = ticketRuns[0];
+		const newestRun = runFor(ticket, pollOptions.factoryRuns());
 		const refused = startRefusal(ticket, newestRun);
 		if (refused !== undefined) {
 			return Response.json({ error: refused }, { status: 409 });
@@ -105,11 +104,8 @@ export function runStartRoutes({
 			repo: parts.repo,
 			ticket: String(parts.number),
 		});
-		if (result === "claimed") {
-			recordRequest(key, {
-				claim: true,
-				knownRuns: ticketRuns.map(({ id }) => id),
-			});
+		if ("claimed" in result) {
+			recordRequest(key, { claim: true, run: result.claimed });
 			await readFactories(() => factories.readRuns(clock.now().getTime()));
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration()),

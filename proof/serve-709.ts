@@ -64,7 +64,12 @@ await serveRecorded({
 				"/daemon": daemonSlots,
 				"/runs": runs([sentRun], () =>
 					Response.json(
-						{ id: 7, repo, ticket: "43", state: "queued" },
+						{
+							id: "hub-queued-start",
+							repo,
+							ticket: "43",
+							status: { kind: "submitted", reason: null },
+						},
 						{ status: 201 },
 					),
 				),
@@ -89,7 +94,12 @@ await serveRecorded({
 					slots: { total: 4, used: 1 },
 				},
 				"/sources": daemonSources,
-				"/runs": runs([boxRun], () => Response.json({}, { status: 201 })),
+				"/runs": runs([boxRun], () =>
+					Response.json(
+						{ id: "box-start", status: { kind: "submitted", reason: null } },
+						{ status: 201 },
+					),
+				),
 			},
 		},
 		[],

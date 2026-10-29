@@ -28,7 +28,10 @@ export type StartResult = { id: string } | "missing" | Refused | Failed;
 /** The factory answered a claimed start with 422: no source of the factory polls the repo. */
 export type Unmatched = { unmatched: string | undefined };
 
-export type ClaimResult = "claimed" | Refused | Unmatched | Failed;
+/** The factory took a claimed start: the id of the run that it accepted. */
+export type Claimed = { claimed: string };
+
+export type ClaimResult = Claimed | Refused | Unmatched | Failed;
 
 export type RemoveAction = "delete" | "archive";
 
@@ -218,7 +221,10 @@ export async function claimStart(
 		return { failed: undefined };
 	}
 	if (response.ok) {
-		return "claimed";
+		const run = startedRun.safeParse(await response.json().catch(() => null));
+		return run.success
+			? { claimed: run.data.id }
+			: { failed: "the factory did not name the run that it accepted" };
 	}
 	if (response.status === 422) {
 		return { unmatched: await reasonOf(response) };

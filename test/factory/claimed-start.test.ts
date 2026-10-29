@@ -18,10 +18,33 @@ function hubTaking(start: Response) {
 	};
 }
 
+/** The 201 answer of a factory that took a claim: the run that it accepted. */
+function accepted(id = "claimed-run") {
+	return Response.json(
+		{ id, status: { kind: "submitted", reason: null } },
+		{ status: 201 },
+	);
+}
+
 function runPosts(requests: FactoryRequest[]) {
 	return requests
 		.filter(({ method }) => method === "POST")
 		.map(({ url, body }) => ({ url, body }));
+}
+
+/** A succeeded run of ticket 40 that the hub submitted at `time` on the day of the recorded runs. */
+function ticket40Run(id: string, time: string) {
+	const known = hubRuns.runs.find((run) => run.ticket === "40");
+	if (known === undefined) {
+		throw new Error("the recorded runs have no run of ticket 40");
+	}
+	return {
+		...known,
+		id,
+		submitted_at: `2026-10-25T${time}:00+00:00`,
+		started_at: `2026-10-25T${time}:05+00:00`,
+		ended_at: `2026-10-25T${time}:50+00:00`,
+	};
 }
 
 async function factoryEntries(base: string): Promise<FactoryEntry[]> {
@@ -136,7 +159,7 @@ describe("claimed start eligibility", () => {
 	test("a claimed start after a label start that waits for its run answers 409 and sends no POST /runs", async () => {
 		const app = await serveGithub([43], {
 			readyLabel,
-			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+			hubAnswers: hubTaking(accepted()),
 		});
 		try {
 			const key = `${repo}#43`;
@@ -163,7 +186,7 @@ describe("claimed start eligibility", () => {
 		const app = await serveGithub([40], {
 			readyLabel,
 			labels: { 40: [readyLabel] },
-			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+			hubAnswers: hubTaking(accepted()),
 		});
 		try {
 			const key = `${repo}#40`;
@@ -190,7 +213,7 @@ describe("claimed start eligibility", () => {
 	test("a label start whose ready label is removed before its run allows a claimed start", async () => {
 		const app = await serveGithub([43], {
 			readyLabel,
-			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+			hubAnswers: hubTaking(accepted()),
 		});
 		try {
 			const key = `${repo}#43`;
@@ -222,7 +245,7 @@ describe("claimed start eligibility", () => {
 	test("a claimed start of a ticket with a live run sends no POST /runs", async () => {
 		const app = await serveGithub([41], {
 			readyLabel,
-			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+			hubAnswers: hubTaking(accepted()),
 		});
 		try {
 			const key = `${repo}#41`;
@@ -250,7 +273,7 @@ describe("claimed start eligibility", () => {
 describe("pending claimed starts", () => {
 	test("a second claimed start of a fresh ticket answers 409 while the factory has not listed the first run", async () => {
 		const app = await serveGithub([43], {
-			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+			hubAnswers: hubTaking(accepted()),
 		});
 		try {
 			const key = `${repo}#43`;
@@ -281,7 +304,7 @@ describe("pending claimed starts", () => {
 	test("a claimed start after a succeeded run shows the run as requested and refuses a second start", async () => {
 		const app = await serveGithub([40], {
 			readyLabel,
-			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+			hubAnswers: hubTaking(accepted()),
 		});
 		try {
 			const key = `${repo}#40`;
@@ -314,15 +337,16 @@ describe("pending claimed starts", () => {
 			await app.stop();
 		}
 	});
-	test("an accepted run that the factory dates before the claim ends the claim", async () => {
+	test("an unrelated run of the ticket keeps the claim pending while its accepted run is absent", async () => {
 		let runs: object[] = hubRuns.runs;
 		const app = await serveGithub([40], {
 			readyLabel,
 			hubAnswers: {
-				...hubTaking(Response.json({}, { status: 201 })),
+				...hub,
+				"/daemon": daemonSlots,
 				"/runs": (_url: URL, method: string) =>
 					method === "POST"
-						? Response.json({}, { status: 201 })
+						? accepted("accepted-still-queued")
 						: { ...hubRuns, runs },
 			},
 		});
@@ -337,28 +361,72 @@ describe("pending claimed starts", () => {
 			expect(
 				(await startRun(app.base, "github", repo, key, "work hub")).status,
 			).toBe(200);
-			const [known] = hubRuns.runs.filter((run) => run.ticket === "40");
-			if (known === undefined) {
-				throw new Error("the recorded runs have no run of ticket 40");
-			}
-			runs = [
-				{
-					...known,
-					id: "20261025-141000-f00d",
-					submitted_at: "2026-10-25T14:10:00+00:00",
-					started_at: "2026-10-25T14:10:05+00:00",
-					ended_at: "2026-10-25T14:12:00+00:00",
-				},
-				...hubRuns.runs,
-			];
+			runs = [ticket40Run("unrelated-success", "14:10"), ...hubRuns.runs];
+			app.advance(60 * 60_000);
+			const held = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun?.id === "unrelated-success",
+			);
+			expect(held.runStart).toEqual({
+				factory: "work hub",
+				label: readyLabel,
+				requested: true,
+			});
+			const again = await startRun(app.base, "github", repo, key, "work hub");
+			expect(again.status).toBe(409);
+			expect(runPosts(app.requests)).toHaveLength(1);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("the accepted run ends the claim, though the factory dates it before the claim and renames it once sent", async () => {
+		let runs: object[] = hubRuns.runs;
+		const app = await serveGithub([40], {
+			readyLabel,
+			hubAnswers: {
+				...hub,
+				"/daemon": daemonSlots,
+				"/runs": (_url: URL, method: string) =>
+					method === "POST"
+						? accepted("hub-queued-start")
+						: { ...hubRuns, runs },
+			},
+		});
+		try {
+			const key = `${repo}#40`;
+			await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun !== undefined,
+			);
+			expect(
+				(await startRun(app.base, "github", repo, key, "work hub")).status,
+			).toBe(200);
+			runs = [ticket40Run("hub-queued-start", "14:10"), ...hubRuns.runs];
 			app.advance(60 * 60_000);
 			const ended = await ticketWhere(
 				app.base,
 				repo,
 				key,
-				(view) => view.runStart?.requested === undefined,
+				(view) => view.factoryRun?.id === "hub-queued-start",
 			);
 			expect(ended.runStart).toEqual({
+				factory: "work hub",
+				label: readyLabel,
+			});
+			runs = [ticket40Run("box-run", "14:10"), ...hubRuns.runs];
+			app.advance(60 * 60_000);
+			const renamed = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun?.id === "box-run",
+			);
+			expect(renamed.runStart).toEqual({
 				factory: "work hub",
 				label: readyLabel,
 			});
@@ -370,6 +438,7 @@ describe("pending claimed starts", () => {
 			await app.stop();
 		}
 	});
+
 	test("a claim to another factory hides the Queued chip of a ready label kept after a succeeded run", async () => {
 		const laptop = "http://laptop.test:7777";
 		const app = await serveGithub([40], {
@@ -382,9 +451,7 @@ describe("pending claimed starts", () => {
 					"/daemon": daemonSlots,
 					"/sources": { sources: [] },
 					"/runs": (_url: URL, method: string) =>
-						method === "POST"
-							? Response.json({}, { status: 201 })
-							: { runs: [] },
+						method === "POST" ? accepted() : { runs: [] },
 				},
 			},
 		});
@@ -424,7 +491,7 @@ describe("pending claimed starts", () => {
 		let slots = { total: 2, used: 2 };
 		const app = await serveGithub([43], {
 			hubAnswers: {
-				...hubTaking(Response.json({}, { status: 201 })),
+				...hubTaking(accepted()),
 				"/daemon": () => ({ ...daemonSlots, slots }),
 			},
 		});
