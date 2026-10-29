@@ -3,6 +3,7 @@
  * a full laptop daemon. `POST /runs` of each factory answers as the factory
  * does: the hub queues the claimed start, and the laptop has no source for the repo.
  * The box `box-a` does a run that the hub also reports, so the menu leaves it out.
+ * With `--no-ready-label` after the port, no factory has a ready label, so only the claim choices start a run.
  */
 import daemonSlots from "../test/fixtures/factory-daemon-slots.json";
 import daemonSources from "../test/fixtures/factory-daemon-sources.json";
@@ -41,7 +42,13 @@ await serveRecorded({
 	config: {
 		pinned: [{ tracker: "github", repo }],
 		factories: [
-			{ name: "work hub", url: hubUrl, readyLabel: "ready-for-agent" },
+			{
+				name: "work hub",
+				url: hubUrl,
+				...(process.argv.includes("--no-ready-label")
+					? {}
+					: { readyLabel: "ready-for-agent" }),
+			},
 			{ name: "laptop", url: laptopUrl },
 			{ name: "box-a", url: boxUrl },
 		],
