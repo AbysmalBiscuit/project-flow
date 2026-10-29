@@ -11,32 +11,26 @@ import {
 import { settledRead } from "../support/reads.ts";
 import { boxRow, factoryRunOf, overviewWhere, serveRuns } from "./_support.ts";
 
+const running41 = hubRuns.runs[0]?.id ?? "";
+const settingsPath = `/runs/${running41}/settings`;
+
+async function settingsOf(base: string, runId = running41): Promise<Response> {
+	await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
+	return settledRead(
+		new URL(`/api/factory-runs/${encodeURIComponent(runId)}/settings`, base),
+	);
+}
+
+const settingsRequests = (requests: FactoryRequest[]) => [
+	...new Set(
+		requests
+			.filter((request) => new URL(request.url).pathname === settingsPath)
+			.map((request) => request.url),
+	),
+];
+
 describe("factory runs", () => {
 	describe("the run settings", () => {
-		const running41 = hubRuns.runs[0]?.id ?? "";
-		const settingsPath = `/runs/${running41}/settings`;
-
-		async function settingsOf(
-			base: string,
-			runId = running41,
-		): Promise<Response> {
-			await overviewWhere(base, (seen) => factoryRunOf(seen, 41) !== undefined);
-			return settledRead(
-				new URL(
-					`/api/factory-runs/${encodeURIComponent(runId)}/settings`,
-					base,
-				),
-			);
-		}
-
-		const settingsRequests = (requests: FactoryRequest[]) => [
-			...new Set(
-				requests
-					.filter((request) => new URL(request.url).pathname === settingsPath)
-					.map((request) => request.url),
-			),
-		];
-
 		test("a run on a box gives its workflow package, parameters, model and backend choices and options through the hub", async () => {
 			const app = await serveRuns(
 				{ ...hub, [settingsPath]: runSettings },
@@ -100,7 +94,11 @@ describe("factory runs", () => {
 				await app.stop();
 			}
 		});
+	});
+});
 
+describe("factory runs", () => {
+	describe("the run settings values", () => {
 		test("the settings keep number, boolean, list and object parameters, a choice with a launcher or an error, and a sent run", async () => {
 			const app = await serveRuns(
 				{
@@ -171,7 +169,11 @@ describe("factory runs", () => {
 				await app.stop();
 			}
 		});
+	});
+});
 
+describe("factory runs", () => {
+	describe("the run settings source", () => {
 		test("a run that a hub and its box report reads its settings from the hub, and the box gets no read", async () => {
 			const [row41] = hubRuns.runs;
 			if (row41 === undefined) {
