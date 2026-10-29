@@ -135,6 +135,21 @@ describe("factory deletes", () => {
 		}
 	});
 
+	test("a 502 from the factory with an error body on a delete gives the factory's reason", async () => {
+		const reason = `box of run ${succeeded40.id} did not answer`;
+		const app = await servedRun({
+			...hub,
+			[deletePath]: Response.json({ error: reason }, { status: 502 }),
+		});
+		try {
+			const response = await send(app.base, "delete");
+			expect(response.status).toBe(502);
+			expect(await response.json()).toEqual({ error: reason });
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a delete of a run that no factory reports gives 404 and sends nothing", async () => {
 		const app = await servedRun(hub);
 		try {
