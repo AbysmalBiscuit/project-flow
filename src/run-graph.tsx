@@ -38,6 +38,7 @@ import {
 } from "./graph-workflow.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
+import { StagePane } from "./run-stage-pane.tsx";
 import {
 	liveStage,
 	StageCard,
@@ -59,6 +60,17 @@ import { clsx } from "./ui.ts";
 import type { GraphDirection } from "./view-settings.ts";
 
 const styles = stylex.create({
+	withPane: {
+		display: "flex",
+		flexWrap: "wrap",
+		alignItems: "flex-end",
+		gap: space.md,
+	},
+	graphColumn: {
+		flexGrow: 1,
+		flexBasis: measure.diagram,
+		minWidth: 0,
+	},
 	pane: {
 		position: "relative",
 		height: measure.runGraph,
@@ -75,6 +87,7 @@ const styles = stylex.create({
 	stage: {
 		position: "relative",
 		display: "flex",
+		cursor: "pointer",
 		alignItems: "center",
 		boxSizing: "border-box",
 		width: "100%",
@@ -204,10 +217,10 @@ function Outline({
 	const marks = outlines[shape] ?? outlines.box ?? [];
 	return (
 		<svg
+			aria-hidden="true"
 			className={clsx(layout)}
 			viewBox="0 0 100 100"
 			preserveAspectRatio="none"
-			aria-hidden="true"
 		>
 			{marks.map((mark, index) =>
 				mark.closed ? (
@@ -505,10 +518,12 @@ function GraphPane({
 	graph,
 	checkpoint,
 	agents,
+	onPick,
 }: {
 	graph: Graph;
 	checkpoint: RunCheckpoint;
 	agents: readonly RunAgent[];
+	onPick: (stage: string) => void;
 }) {
 	const [direction, setDirection] = useState<GraphDirection>("top-to-bottom");
 	const [refit, setRefit] = useState(0);
@@ -584,6 +599,11 @@ function GraphPane({
 							nodesFocusable={false}
 							elementsSelectable={false}
 							zoomOnDoubleClick={false}
+							onNodeClick={(_, node) => {
+								if (node.type === "stage") {
+									onPick(node.id);
+								}
+							}}
 							minZoom={0.1}
 							proOptions={{ hideAttribution: true }}
 						>
@@ -625,11 +645,45 @@ function GraphPane({
 }
 
 /** The run's workflow graph, each stage in the shape of its workflow node and marked from the run checkpoint. */
-export function RunGraph({ run }: { run: ShownFactoryRun }) {
+export function RunGraph({
+	run,
+	onOpenStage,
+}: {
+	run: ShownFactoryRun;
+	onOpenStage: (stage: string) => void;
+}) {
 	const { data } = useQuery(pageQuery.checkpoint(run));
 	const agents = useQuery(pageQuery.agents(run)).data ?? [];
+	const [picked, setPicked] = useState<string | null>(null);
 	if (typeof data !== "object" || data.graph === null) {
 		return null;
 	}
-	return <GraphPane graph={data.graph} checkpoint={data} agents={agents} />;
+	const stages = data.graph.nodes.flatMap((node) => [
+		node,
+		...(node.child ?? []),
+	]);
+	// A picked child stage that the checkpoint no longer lists falls back to its caller.
+	const stage =
+		stages.find((item) => item.id === picked) ??
+		stages.find((item) => item.id === picked?.split("/")[0]);
+	return (
+		<div className={clsx(styles.withPane)}>
+			<div className={clsx(styles.graphColumn)}>
+				<GraphPane
+					graph={data.graph}
+					checkpoint={data}
+					agents={agents}
+					onPick={setPicked}
+				/>
+			</div>
+			{stage === undefined ? null : (
+				<StagePane
+					run={run}
+					facts={stageFacts(stage, data, agents)}
+					onClose={() => setPicked(null)}
+					onOpenStage={onOpenStage}
+				/>
+			)}
+		</div>
+	);
 }

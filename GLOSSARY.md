@@ -163,7 +163,7 @@ The step of the workcell flow that a run is in: a node of the run's graph.
 _Avoid_: Phase, step, node (when the stage is meant)
 
 **Run checkpoint**:
-The snapshot that a box keeps of where a run is in its flow: the current stage, the completed stages, and the retries and visits of each stage. Each visit of a review stage is one review round. Project Flow reads it from `GET /runs/{id}/checkpoint` of the factory that reports the run.
+The snapshot that a box keeps of where a run is in its flow: the current stage, the completed stages, the retries and visits of each stage, and the run context. Each visit of a review stage is one review round. Project Flow reads it from `GET /runs/{id}/checkpoint` of the hub that reports the run, or else of its box.
 _Avoid_: Run state, run detail
 
 **Run usage**:
@@ -211,8 +211,12 @@ The talk with a run in time order: each ask of the run, each answer that Lev sen
 _Avoid_: Run chat, run log
 
 **Stage transcript**:
-The record of the agent of one run stage: each message of the agent, each tool call and each tool result, in time order. The run thread is not part of it.
+The record of the agent of one run stage: each message of the agent and each tool call, in time order. The run thread is not part of it. Project Flow reads it from `GET /runs/{id}/stages/{node_path}/transcript` of the hub that reports the run, or else of its box. Each read gives the entries after the `after` cursor, so a view of a live stage reads only the new entries.
 _Avoid_: Stage thread, stage chat, stage log
+
+**Run context**:
+The context values of a run now, such as its goal and the values that its stages reported. All stages of a run share one run context. The stage view shows it, because the factory serves no context for one stage. Project Flow reads it from the `context_values` of the run checkpoint.
+_Avoid_: Stage context
 
 **Stage pane**:
 The pane beside the run graph that shows one run stage: its facts, its stage transcript and its context. The stage pane of a live stage also has a steer box for that stage.

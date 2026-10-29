@@ -181,6 +181,23 @@ export type RunSource = {
 	graphs: { path: string; text: string }[];
 };
 
+/** One record of the agent of a run stage: a message, or a tool call with its cut input. */
+export type TranscriptEntry = {
+	/** The cursor of the entry. A read with `after` set to it gives the entries after it. */
+	id: number;
+	/** The stage folder of the visit and attempt that recorded the entry. */
+	folder: string;
+	visit: number;
+	attempt: number;
+	at: string;
+} & (
+	| { kind: "message"; text: string }
+	| { kind: "tool_call"; name: string; input: string; truncated: boolean }
+);
+
+/** One page of a stage transcript. `next` is the cursor of the next read. */
+export type StageTranscript = { entries: TranscriptEntry[]; next: number };
+
 /** A value that a run's package parameter takes, as JSON. */
 export type ParameterValue =
 	| string
@@ -282,6 +299,8 @@ export type RunCheckpoint = {
 	retries: Record<string, number>;
 	/** The visits of each stage, by stage name. A review stage visit is one review round. */
 	visits: Record<string, number>;
+	/** The run context: the values that the run's stages wrote, by key. */
+	context: Record<string, unknown>;
 	/** The usage of the run's recorded turns. Absent when the factory gave no turns. */
 	usage?: RunUsage;
 	/** True when the factory answers the turns read with 404. */
@@ -360,7 +379,8 @@ export type RunGraphNode = RunStage & {
 	kind: string;
 	/**
 	 * The child graph that the stage calls. The factory serves only the entry
-	 * graph, so the stages are those that the run reached in its live call.
+	 * graph, so the stages are those that the checkpoint records over all the
+	 * calls, ended and live.
 	 */
 	child?: RunStage[];
 };

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import type {
+	RunAgent,
 	RunCheckpoint,
 	RunStage,
 	ShownFactoryRun,
@@ -9,6 +11,7 @@ import type {
 import { Loading } from "./loading.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
+import { StageDetail } from "./run-stage-view.tsx";
 import {
 	liveStage,
 	StageCard,
@@ -16,6 +19,7 @@ import {
 	stageTimeLabel,
 } from "./run-stage.tsx";
 import {
+	childStagesLabel,
 	costLabel,
 	currentStageLabel,
 	noRunDataLabel,
@@ -29,6 +33,11 @@ import {
 	usagePartSeparator,
 } from "./terms.ts";
 import { clsx } from "./ui.ts";
+
+/** The id of a stage in the Stages tab, so a link can open the tab at that stage. */
+export function stageAnchor(stage: string): string {
+	return `stage-${stage}`;
+}
 
 /** Each stage once, in the order the run first reached it, then the current stage. */
 function stagesOf(checkpoint: RunCheckpoint): string[] {
@@ -90,37 +99,109 @@ function RunUsageTotal({ usage }: { usage: TurnUsage }) {
 	);
 }
 
+type ReachedStage = { stage: RunStage; children: RunStage[] };
+
 /**
- * The stages that the run reached, in the order that it first reached them.
- * The stages of a child graph follow the stage that calls it. With no graph,
- * each stage takes its name as its label.
+ * The stages that the run reached, in the order that it first reached them,
+ * each with the stages of the child graph that it calls. With no graph, each
+ * stage takes its name as its label.
  */
-function reachedStages(checkpoint: RunCheckpoint): RunStage[] {
+function stageTree(checkpoint: RunCheckpoint): ReachedStage[] {
 	const nodes = new Map(
 		(checkpoint.graph?.nodes ?? []).map((node) => [node.id, node]),
 	);
 	const current = checkpoint.stage?.split("/")[0];
-	return stagesOf(checkpoint).flatMap((id): RunStage[] => {
+	return stagesOf(checkpoint).flatMap((id): ReachedStage[] => {
 		const node = nodes.get(id);
 		if (node !== undefined) {
-			return [node, ...(node.child ?? [])];
+			return [{ stage: node, children: node.child ?? [] }];
 		}
 		return checkpoint.graph === null
 			? [
 					{
-						id,
-						label: id,
-						state: id === current ? "current" : "completed",
-						visits: checkpoint.visits[id] ?? 0,
-						retries: checkpoint.retries[id] ?? 0,
+						stage: {
+							id,
+							label: id,
+							state: id === current ? "current" : "completed",
+							visits: checkpoint.visits[id] ?? 0,
+							retries: checkpoint.retries[id] ?? 0,
+						},
+						children: [],
 					},
 				]
 			: [];
 	});
 }
 
-/** The stages of a factory run from its run checkpoint, each in the stage view. */
-export function RunStages({ run }: { run: ShownFactoryRun }) {
+function reachedStages(checkpoint: RunCheckpoint): RunStage[] {
+	return stageTree(checkpoint).flatMap(({ stage, children }) => [
+		stage,
+		...children,
+	]);
+}
+
+/**
+ * One stage of the Stages tab. It opens to its stage transcript and the run
+ * context. The current stage and the stage that `opened` names start open.
+ */
+function StageItem({
+	run,
+	stage,
+	checkpoint,
+	agents,
+	opened,
+	children,
+}: {
+	run: ShownFactoryRun;
+	stage: RunStage;
+	checkpoint: RunCheckpoint;
+	agents: readonly RunAgent[];
+	opened: string | null;
+	children?: ReactNode;
+}) {
+	const facts = stageFacts(stage, checkpoint, agents);
+	const linked = stage.id === opened;
+	const [open, setOpen] = useState(stage.state === "current" || linked);
+	const item = useRef<HTMLLIElement>(null);
+	// The link scrolls to its stage once, so a later render keeps Lev's scroll.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: the scroll runs on mount only
+	useEffect(() => {
+		if (linked) {
+			item.current?.scrollIntoView({ block: "start" });
+		}
+	}, []);
+	return (
+		<li
+			aria-current={stage.state === "current" ? "step" : undefined}
+			id={stageAnchor(stage.id)}
+			ref={item}
+		>
+			<details
+				className={clsx(panel.stageItem)}
+				open={open}
+				onToggle={(event) => setOpen(event.currentTarget.open)}
+			>
+				<summary className={clsx(panel.stageSummary)}>
+					<StageCard facts={facts} boxed />
+				</summary>
+				{open ? <StageDetail run={run} facts={facts} /> : null}
+			</details>
+			{children}
+		</li>
+	);
+}
+
+/**
+ * The stages of a factory run from its run checkpoint, each in the stage view.
+ * The stages of a child graph list under the stage that calls it.
+ */
+export function RunStages({
+	run,
+	opened = null,
+}: {
+	run: ShownFactoryRun;
+	opened?: string | null;
+}) {
 	const { data } = useQuery(pageQuery.checkpoint(run));
 	const agents = useQuery(pageQuery.agents(run)).data ?? [];
 	if (data === undefined) {
@@ -132,17 +213,24 @@ export function RunStages({ run }: { run: ShownFactoryRun }) {
 	if (data === "missing") {
 		return <NoData />;
 	}
+	const shared = { run, checkpoint: data, agents, opened };
 	return (
 		<>
 			<h3 className={clsx(panel.sectionLabel)}>{runStagesLabel}</h3>
 			<ul className={clsx(panel.stages)} aria-label={runStagesLabel}>
-				{reachedStages(data).map((stage) => (
-					<li
-						key={stage.id}
-						aria-current={stage.state === "current" ? "step" : undefined}
-					>
-						<StageCard facts={stageFacts(stage, data, agents)} boxed />
-					</li>
+				{stageTree(data).map(({ stage, children }) => (
+					<StageItem key={stage.id} stage={stage} {...shared}>
+						{children.length === 0 ? null : (
+							<ul
+								className={clsx(panel.stages, panel.childStages)}
+								aria-label={childStagesLabel(stage.label)}
+							>
+								{children.map((child) => (
+									<StageItem key={child.id} stage={child} {...shared} />
+								))}
+							</ul>
+						)}
+					</StageItem>
 				))}
 			</ul>
 		</>

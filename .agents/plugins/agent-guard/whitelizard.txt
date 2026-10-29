@@ -5,7 +5,6 @@ src/github-repo.ts:readRepo
 src/graph-view.tsx:Cluster
 src/poll.ts:poll
 src/project-graph.tsx:ProjectGraph
-src/run-graph.tsx:marks.map
 src/settings-sections.tsx:LaneAgeRow
 src/store.ts:sqliteStore
 test/blockers/body-lines.test.ts:(anonymous)

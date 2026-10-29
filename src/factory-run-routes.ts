@@ -20,6 +20,11 @@ const steerBody = z.object({
 	interrupt: z.boolean().default(false),
 });
 
+const transcriptQuery = z.object({
+	stage: z.string().trim().min(1),
+	after: z.coerce.number().int().min(0).default(0),
+});
+
 /** The API answer to a write that the factory refused: its reason, or `fallback` when it named none. */
 function refusedAnswer({ refused }: Refused, fallback: string) {
 	return Response.json({ error: refused ?? fallback }, { status: 409 });
@@ -200,6 +205,35 @@ export function factoryRunRoutes({
 					}
 					return Response.json(found);
 				}),
+		},
+		/** A cursor read gives a new page each time, so it reads the factory at once and stores nothing. */
+		"/api/factory-runs/:id/transcript": {
+			GET: async (request) => {
+				const parsed = transcriptQuery.safeParse(
+					Object.fromEntries(new URL(request.url).searchParams),
+				);
+				if (!parsed.success) {
+					return Response.json(
+						{
+							error:
+								"a transcript read needs a stage and a whole number after of 0 or more",
+						},
+						{ status: 400 },
+					);
+				}
+				const found = await factories.transcript(
+					request.params.id,
+					parsed.data.stage,
+					parsed.data.after,
+				);
+				if (found === "missing") {
+					return Response.json({ missing: true }, { status: 404 });
+				}
+				if (found === "not served") {
+					return Response.json({ notServed: true }, { status: 404 });
+				}
+				return Response.json(found);
+			},
 		},
 		"/api/factory-runs/:id/settings": {
 			GET: (request) =>

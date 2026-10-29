@@ -65,7 +65,7 @@ type ReplyBody = {
 
 const pageStaleTimeMs = 60_000;
 
-const agentReadMs = 5_000;
+export const agentReadMs = 5_000;
 
 export const pageQuery = {
 	overview: queryOptions({
@@ -249,14 +249,14 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 }
 
 /** The app has not answered the read yet: it answered 202 and reads in the background. */
-class PendingRead extends Error {}
+export class PendingRead extends Error {}
 
 /**
  * An overview event that comes while the first read of a query runs joins that
  * read, so the query can end pending after the app has its answer. The query
  * reads again until the app answers.
  */
-const pendingRetry = {
+export const pendingRetry = {
 	retry: (failures: number, error: Error) =>
 		error instanceof PendingRead && failures < 40,
 	retryDelay: 250,
@@ -279,7 +279,7 @@ async function readProject(
 }
 
 /** A read that the app has not answered yet keeps what the page holds. */
-function heldData<T>(queryKey: readonly unknown[]): T | undefined {
+export function heldData<T>(queryKey: readonly unknown[]): T | undefined {
 	return pageQueryClient.getQueryData<T>(queryKey);
 }
 
@@ -962,6 +962,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
@@ -981,6 +982,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["sandbox"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
