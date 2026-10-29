@@ -26,6 +26,7 @@ export type FactoryRequest = {
 };
 
 const writePaths = [
+	/^\/runs$/,
 	/^\/runs\/[^/]+\/questions\/[^/]+\/answer$/,
 	/^\/runs\/[^/]+\/steer$/,
 	/^\/runs\/[^/]+\/cancel$/,
@@ -35,7 +36,7 @@ const writePaths = [
 	/^\/runs\/[^/]+\/archive$/,
 ];
 
-/** True for a read, and for an answer, steer, cancel, resume, restart, delete or archive POST: the only writes that the app may send to a factory. */
+/** True for a read, and for a run start, answer, steer, cancel, resume, restart, delete or archive POST: the only writes that the app may send to a factory. */
 export function readOrRunWrite(request: FactoryRequest): boolean {
 	const { pathname } = new URL(request.url);
 	return (
@@ -45,7 +46,7 @@ export function readOrRunWrite(request: FactoryRequest): boolean {
 	);
 }
 
-/** The answer to each path. A function answer gives its body again on each request, from the request URL. */
+/** The answer to each path. A function answer gives its body again on each request, from the request URL and method. */
 export type Answers = Record<string, unknown | null>;
 
 /** A hub `GET /events` stream that the test writes frames to and drops. */
@@ -130,7 +131,10 @@ export function factoryFetch(
 			throw new TypeError("Unable to connect");
 		}
 		const answer = answers[url.pathname];
-		const body = typeof answer === "function" ? answer(url) : answer;
+		const body =
+			typeof answer === "function"
+				? answer(url, init?.method ?? "GET")
+				: answer;
 		if (body instanceof EventFeed) {
 			return body.answer(init?.signal);
 		}

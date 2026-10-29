@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import type { FactoryQuestion } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
-import { useAnswerQuestion } from "./queries.ts";
+import { useAnswerQuestion } from "./run-mutations.ts";
 import { SendButton, SendText } from "./send-box.tsx";
 import { answerFailed, runQuestionsLabel } from "./terms.ts";
 import { actionToastHideMs, Toast } from "./toast.tsx";

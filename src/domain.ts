@@ -274,11 +274,11 @@ export type ShownFactoryRun = Pick<
 	resumable?: true;
 };
 
-/** The ready label that starts a factory run of a ticket, and the factory that it names. */
-export type RunStart = {
-	factory: string;
-	label: string;
-	/** True when the ticket has the label and no run has started yet. */
+/** How Lev starts a factory run: the ready label that Start run adds and its factory, or only a claim on a factory when both are absent. */
+export type RunStart = (
+	{ factory: string; label: string } | { factory?: never; label?: never }
+) & {
+	/** True when a label start or an accepted claim waits for its run: no run has started since it. */
 	requested?: true;
 };
 

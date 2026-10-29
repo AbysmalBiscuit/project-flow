@@ -1,0 +1,10 @@
+{
+	"pid": 4034786,
+	"max_runs": 12,
+	"port": null,
+	"drained": false,
+	"role": "hub",
+	"daemon_id": "0dbf8de20b1d60fe",
+	"problems": [],
+	"slots": { "total": 12, "used": 3 }
+}

@@ -5,7 +5,18 @@ import { localMachine } from "./factory-run-rows.ts";
 
 export type FactoryKind = "hub" | "daemon";
 
-export const about = z.object({ role: z.enum(["hub", "daemon"]).optional() });
+/** The run slots of a factory: a hub sums them over its build machines. */
+const slots = z.object({
+	total: z.number().int().nonnegative(),
+	used: z.number().int().nonnegative(),
+});
+
+export type Slots = z.infer<typeof slots>;
+
+export const about = z.object({
+	role: z.enum(["hub", "daemon"]).optional(),
+	slots: slots.optional(),
+});
 
 const sources = z.object({ sources: z.array(z.unknown()) });
 

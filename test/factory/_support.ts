@@ -6,6 +6,7 @@ import type {
 	TicketView,
 } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
+import daemonSlots from "../fixtures/factory-daemon-slots.json";
 import hubRuns from "../fixtures/factory-hub-runs.json";
 import {
 	type Answers,
@@ -238,6 +239,7 @@ export function trackerWrites(writes: TrackerWrite[], other: Fetch): Fetch {
 /**
  * A hub with the recorded runs, and a tracked repo with the open issues `numbers`.
  * Issue 41 has a running run, and issue 40 a succeeded run. Issue 43 has no run.
+ * `hubAnswers` replaces the recorded answers of the hub, and `otherFactory` adds a second factory.
  */
 export async function serveGithub(
 	numbers: number[],
@@ -246,6 +248,8 @@ export async function serveGithub(
 		readyLabel?: string;
 		args?: string[];
 		labels?: Record<number, string[]>;
+		hubAnswers?: Answers;
+		otherFactory?: { name: string; url: string; answers: Answers };
 	} = {},
 ) {
 	const labels = new Map<number, string[]>(
@@ -256,6 +260,7 @@ export async function serveGithub(
 	);
 	const writes: TrackerWrite[] = [];
 	const requests: FactoryRequest[] = [];
+	let now = runClockStart;
 	const tracker: Fetch = async (input, init) => {
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
@@ -302,15 +307,40 @@ export async function serveGithub(
 						? {}
 						: { readyLabel: options.readyLabel }),
 				},
+				...(options.otherFactory === undefined
+					? []
+					: [
+							{
+								name: options.otherFactory.name,
+								url: options.otherFactory.url,
+							},
+						]),
 			],
 		},
-		factoryFetch({ [hubUrl]: hub }, requests, trackerWrites(writes, tracker)),
+		factoryFetch(
+			{
+				[hubUrl]: options.hubAnswers ?? hub,
+				...(options.otherFactory === undefined
+					? {}
+					: { [options.otherFactory.url]: options.otherFactory.answers }),
+			},
+			requests,
+			trackerWrites(writes, tracker),
+		),
 		{
 			env: { GITHUB_TOKEN: "recorded-token" },
-			now: () => new Date(runClockStart),
+			now: () => new Date(now),
 		},
 	);
-	return { ...app, writes };
+	return {
+		...app,
+		writes,
+		requests,
+		labels,
+		advance: (ms: number) => {
+			now += ms;
+		},
+	};
 }
 
 export async function ticketWhere(
@@ -332,4 +362,48 @@ export async function ticketWhere(
 		}
 		await Bun.sleep(20);
 	}
+}
+
+/** `POST /api/run-starts`. A named factory claims the ticket, else the app adds the ready label. */
+export function startRun(
+	base: string,
+	tracker: string,
+	project: string,
+	key: string,
+	factory?: string,
+) {
+	return fetch(new URL("/api/run-starts", base), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			tracker,
+			project,
+			key,
+			...(factory === undefined ? {} : { factory }),
+		}),
+	});
+}
+
+/** A hub with free slots that answers `POST /runs` with `start`, and the recorded runs on a read. */
+export function hubTaking(start: Response) {
+	return {
+		...hub,
+		"/daemon": daemonSlots,
+		"/runs": (_url: URL, method: string) =>
+			method === "POST" ? start : hubRuns,
+	};
+}
+
+/** The 201 answer of a factory that took a claim: the run that it accepted. */
+export function accepted(id = "claimed-run") {
+	return Response.json(
+		{ id, status: { kind: "submitted", reason: null } },
+		{ status: 201 },
+	);
+}
+
+export function runPosts(requests: FactoryRequest[]) {
+	return requests
+		.filter(({ method }) => method === "POST")
+		.map(({ url, body }) => ({ url, body }));
 }

@@ -22,8 +22,9 @@ import {
 	boxCount,
 	type FactoryKind,
 	factoryKind,
+	type Slots,
 } from "./factory-kind.ts";
-import { runActions } from "./factory-run-actions.ts";
+import { claimStart, runActions } from "./factory-run-actions.ts";
 import { runArtifactsReader } from "./factory-run-artifacts.ts";
 import {
 	checkpoint,
@@ -58,6 +59,8 @@ export type FactoryEntry = Factory & {
 	kind: FactoryKind | null;
 	/** The boxes that the hub's runs name. Null for a daemon. */
 	boxes: number | null;
+	/** The run slots from the last `GET /daemon` read. Absent when the factory reports none. */
+	slots?: Slots;
 	/** The hub that also reports the runs of this box. */
 	alsoReadThroughHub?: string;
 };
@@ -90,7 +93,7 @@ export function flagFactory(value: string): Factory | { error: string } {
 	};
 }
 
-type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes">;
+type Found = Pick<FactoryEntry, "reachable" | "kind" | "boxes" | "slots">;
 
 const activeKinds: ReadonlySet<RunStatusKind> = new Set([
 	"starting",
@@ -235,15 +238,22 @@ export function factoryReader(
 		const read = reader(fetchImpl, factory.url, signal);
 		const known = found.get(factory.url);
 		try {
-			const { role } = await body(await read("/daemon"), about);
+			const { role, slots } = await body(await read("/daemon"), about);
+			const reported = slots === undefined ? {} : { slots };
 			if (known?.reachable === true && known.kind !== null) {
-				return known;
+				return {
+					reachable: true,
+					kind: known.kind,
+					boxes: known.boxes,
+					...reported,
+				};
 			}
 			const kind = await factoryKind(read, role);
 			return {
 				reachable: true,
 				kind,
 				boxes: kind === "hub" ? await boxCount(read) : null,
+				...reported,
 			};
 		} catch (error) {
 			if (!(error instanceof Unreachable)) {
@@ -327,6 +337,7 @@ export function factoryReader(
 			readPullsOf(factory.url, rows);
 			readAsksOf(factory.url, rows);
 			found.set(factory.url, {
+				...known,
 				kind: known?.kind ?? null,
 				boxes: known?.boxes ?? null,
 				reachable: true,
@@ -570,5 +581,6 @@ export function factoryReader(
 		...runTranscriptReader({ fetchImpl, signal, statusRowOf }),
 		settings: runSettingsReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
+		claimStart: (url, start) => claimStart(fetchImpl, signal, url, start),
 	};
 }

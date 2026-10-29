@@ -48,8 +48,9 @@ export type SplitChoice = {
 
 /**
  * A button for a large action with a menu of other ways to do it. The main part
- * runs the action, and the caret opens the menu. The menu opens from the button's
- * left edge, so the button can sit at the left of a narrow panel.
+ * runs the action, and the caret opens the menu. Without `onClick`, the main
+ * part opens the menu too. The menu opens from the button's left edge, so the
+ * button can sit at the left of a narrow panel.
  */
 export function SplitButton({
 	label,
@@ -65,7 +66,7 @@ export function SplitButton({
 	choices: readonly SplitChoice[];
 	tone?: "primary" | "danger";
 	disabled?: boolean;
-	onClick: () => void;
+	onClick?: () => void;
 }) {
 	const [open, setOpen] = useState(false);
 	const menuId = useId();
@@ -92,7 +93,7 @@ export function SplitButton({
 				type="button"
 				className={part(styles.main)}
 				disabled={disabled}
-				onClick={onClick}
+				onClick={onClick ?? (() => setOpen((next) => !next))}
 			>
 				{label}
 			</button>

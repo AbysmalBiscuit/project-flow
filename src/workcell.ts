@@ -251,13 +251,16 @@ export function runsFor<Run extends Pick<WorkcellRun, "key" | "repo">>(
 	if (key === null) {
 		return [];
 	}
-	return runs.filter((run) => {
-		if (sameTicketKey(run.key, key)) {
-			return true;
-		}
-		if (run.repo === undefined) {
-			return false;
-		}
-		return sameTicketKey(githubKey(run.repo, run.key), key);
-	});
+	return runs.filter((run) => isRunOf(run, key));
+}
+
+/** True when `run` is a run of the ticket with `key`. A GitHub run can name its ticket by number and repo. */
+export function isRunOf(
+	run: Pick<WorkcellRun, "key" | "repo">,
+	key: string,
+): boolean {
+	return (
+		sameTicketKey(run.key, key) ||
+		(run.repo !== undefined && sameTicketKey(githubKey(run.repo, run.key), key))
+	);
 }

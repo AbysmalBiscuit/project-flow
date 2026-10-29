@@ -4,7 +4,7 @@ import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { endedRunStatusKinds, type ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
-import { useCancelRun, useStartAgain } from "./queries.ts";
+import { useCancelRun, useStartAgain } from "./run-mutations.ts";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";
 import { runCancelCopy, runResumeCopy } from "./terms.ts";
 import { actionToastHideMs, Toast } from "./toast.tsx";
