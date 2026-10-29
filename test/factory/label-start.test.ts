@@ -4,6 +4,7 @@ import daemonSlots from "../fixtures/factory-daemon-slots.json";
 import { laptopUrl } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
 import {
+	boxRow,
 	hubListing,
 	readyLabel,
 	serveGithub,
@@ -94,6 +95,51 @@ describe("the end of a label start", () => {
 				(view) => view.factoryRun?.id === "sourceless-run",
 			);
 			expect(sourceless.runStart).toEqual(requested);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a label start ends at the hub's new run when its box is also listed and gives the run its status", async () => {
+		let listed: object[] = [];
+		let boxRuns: object[] = [];
+		const app = await serveGithub([40], {
+			readyLabel,
+			hubAnswers: hubListing(() => listed),
+			otherFactory: {
+				name: "laptop",
+				url: laptopUrl,
+				answers: {
+					"/daemon": daemonSlots,
+					"/sources": { sources: [] },
+					"/runs": () => ({ runs: boxRuns }),
+				},
+			},
+		});
+		try {
+			await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun !== undefined,
+			);
+			expect((await startRun(app.base, "github", repo, key)).status).toBe(200);
+			const sent = { ...ticket40Run("box-run", "14:30"), machine: "laptop" };
+			listed = [sent];
+			boxRuns = [boxRow(sent, "succeeded")];
+			app.advance(60 * 60_000);
+			const ended = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) =>
+					view.factoryRun?.id === "box-run" &&
+					view.factoryRun.factory === "laptop",
+			);
+			expect(ended.runStart).toEqual({
+				factory: "work hub",
+				label: readyLabel,
+			});
 		} finally {
 			await app.stop();
 		}

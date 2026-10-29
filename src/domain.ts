@@ -56,6 +56,8 @@ export type FactoryRun = {
 	factory: string;
 	/** The hub source that started the run. */
 	source?: string;
+	/** The factory that lists `source`. A box that does the run can give `factory` another name. */
+	sourceFactory?: string;
 	/** The hub rule that started the run. */
 	rule?: string;
 	/** The id of the queued start that the hub sent as this run. */

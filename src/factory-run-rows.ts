@@ -180,7 +180,9 @@ export function mergedRuns(
 			return [
 				{
 					...status,
-					...(origin.source === undefined ? {} : { source: origin.source }),
+					...(origin.source === undefined
+						? {}
+						: { source: origin.source, sourceFactory: origin.factory }),
 					...(origin.rule === undefined ? {} : { rule: origin.rule }),
 					...(origin.queuedId === undefined
 						? {}

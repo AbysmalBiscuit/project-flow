@@ -116,7 +116,7 @@ export function pendingRequest(
 
 type StartedRun = Pick<
 	FactoryRun,
-	"id" | "key" | "repo" | "factory" | "source" | "queuedId"
+	"id" | "key" | "repo" | "sourceFactory" | "queuedId"
 >;
 
 /**
@@ -129,8 +129,7 @@ function startedBy(run: StartedRun, key: string, request: StartRequest) {
 	return request.claim
 		? run.id === request.run || run.queuedId === request.run
 		: isRunOf(run, key) &&
-				run.factory === request.factory &&
-				run.source !== undefined &&
+				run.sourceFactory === request.factory &&
 				!request.known.includes(run.id);
 }
 
