@@ -365,4 +365,52 @@ describe("pending claimed starts", () => {
 			await app.stop();
 		}
 	});
+
+	test("a claim with no run holds while its factory is full, and lapses once the factory has a free slot", async () => {
+		let slots = { total: 2, used: 2 };
+		const app = await serveGithub([43], {
+			hubAnswers: {
+				...hubTaking(Response.json({}, { status: 201 })),
+				"/daemon": () => ({ ...daemonSlots, slots }),
+			},
+		});
+		const daemonReads = () =>
+			app.requests.filter(({ url }) => url === `${hubUrl}/daemon`).length;
+		const refreshed = async () => {
+			const before = daemonReads();
+			await fetch(new URL("/api/refresh", app.base), { method: "POST" });
+			while (daemonReads() === before) {
+				await Bun.sleep(20);
+			}
+		};
+		try {
+			const key = `${repo}#43`;
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			expect(
+				(await startRun(app.base, "github", repo, key, "work hub")).status,
+			).toBe(200);
+			app.advance(60 * 60_000);
+			await refreshed();
+			const held = await startRun(app.base, "github", repo, key, "work hub");
+			expect(held.status).toBe(409);
+			expect(await held.json()).toEqual({
+				error: "the run is already requested",
+			});
+			slots = { total: 2, used: 1 };
+			await refreshed();
+			const lapsed = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.runStart?.requested === undefined,
+			);
+			expect(lapsed.runStart).toEqual({});
+			expect(
+				(await startRun(app.base, "github", repo, key, "work hub")).status,
+			).toBe(200);
+			expect(runPosts(app.requests)).toHaveLength(2);
+		} finally {
+			await app.stop();
+		}
+	});
 });

@@ -259,6 +259,7 @@ export async function serveGithub(
 	);
 	const writes: TrackerWrite[] = [];
 	const requests: FactoryRequest[] = [];
+	let now = runClockStart;
 	const tracker: Fetch = async (input, init) => {
 		const url = urlOf(input);
 		if (url === "https://api.github.com/user") {
@@ -327,10 +328,18 @@ export async function serveGithub(
 		),
 		{
 			env: { GITHUB_TOKEN: "recorded-token" },
-			now: () => new Date(runClockStart),
+			now: () => new Date(now),
 		},
 	);
-	return { ...app, writes, requests, labels };
+	return {
+		...app,
+		writes,
+		requests,
+		labels,
+		advance: (ms: number) => {
+			now += ms;
+		},
+	};
 }
 
 export async function ticketWhere(

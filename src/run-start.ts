@@ -1,9 +1,38 @@
 import type { Factory } from "./configuration.ts";
 import type { FactoryRun, Queued, RunStart, Ticket } from "./domain.ts";
+import type { FactoryEntry } from "./factories.ts";
 import { foldKey, githubKeyParts } from "./ticket-key.ts";
 
-/** A start that the app sent: a ready label that it added, or a claim that a factory took. */
-export type StartRequest = { at: string; claim: boolean };
+/** A start that the app sent: a ready label that it added, or a claim that the named factory took. */
+export type StartRequest = { at: string } & (
+	{ claim: false } | { claim: true; factory: string }
+);
+
+/** How long a factory with a free slot has to show the run of a claim that it took. */
+const claimDispatchMs = 5 * 60_000;
+
+/**
+ * The start requests without the claims that lapsed. A claim lapses when its factory has a free
+ * slot and showed no run of it for `claimDispatchMs`. A full factory keeps its claims queued.
+ */
+export function liveRequests(
+	requests: ReadonlyMap<string, StartRequest>,
+	entries: readonly Pick<FactoryEntry, "name" | "slots">[],
+	now: () => number,
+): ReadonlyMap<string, StartRequest> {
+	const free = new Set(
+		entries.flatMap(({ name, slots }) =>
+			slots !== undefined && slots.used < slots.total ? [name] : [],
+		),
+	);
+	const live = [...requests].filter(
+		([, request]) =>
+			!request.claim ||
+			!free.has(request.factory) ||
+			now() - Date.parse(request.at) < claimDispatchMs,
+	);
+	return live.length === requests.size ? requests : new Map(live);
+}
 
 /** What a run start reads beyond the ticket: the listed factories, and the last start that the app sent of each ticket. */
 export type RunStarts = {
