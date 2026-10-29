@@ -6,6 +6,7 @@ import type {
 	TicketView,
 } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
+import daemonSlots from "../fixtures/factory-daemon-slots.json";
 import hubRuns from "../fixtures/factory-hub-runs.json";
 import {
 	type Answers,
@@ -381,4 +382,28 @@ export function startRun(
 			...(factory === undefined ? {} : { factory }),
 		}),
 	});
+}
+
+/** A hub with free slots that answers `POST /runs` with `start`, and the recorded runs on a read. */
+export function hubTaking(start: Response) {
+	return {
+		...hub,
+		"/daemon": daemonSlots,
+		"/runs": (_url: URL, method: string) =>
+			method === "POST" ? start : hubRuns,
+	};
+}
+
+/** The 201 answer of a factory that took a claim: the run that it accepted. */
+export function accepted(id = "claimed-run") {
+	return Response.json(
+		{ id, status: { kind: "submitted", reason: null } },
+		{ status: 201 },
+	);
+}
+
+export function runPosts(requests: FactoryRequest[]) {
+	return requests
+		.filter(({ method }) => method === "POST")
+		.map(({ url, body }) => ({ url, body }));
 }
