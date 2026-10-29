@@ -402,6 +402,34 @@ export function accepted(id = "claimed-run") {
 	);
 }
 
+/** A succeeded run of ticket 40 that the hub submitted at `time` on the day of the recorded runs. */
+export function ticket40Run(id: string, time: string) {
+	const known = hubRuns.runs.find((run) => run.ticket === "40");
+	if (known === undefined) {
+		throw new Error("the recorded runs have no run of ticket 40");
+	}
+	return {
+		...known,
+		id,
+		submitted_at: `2026-10-25T${time}:00+00:00`,
+		started_at: `2026-10-25T${time}:05+00:00`,
+		ended_at: `2026-10-25T${time}:50+00:00`,
+	};
+}
+
+/**
+ * A hub with free slots that answers `POST /runs` with `start`, and lists
+ * `listed()` before the recorded runs on a read.
+ */
+export function hubListing(listed: () => object[], start = accepted()) {
+	return {
+		...hub,
+		"/daemon": daemonSlots,
+		"/runs": (_url: URL, method: string) =>
+			method === "POST" ? start : { runs: [...listed(), ...hubRuns.runs] },
+	};
+}
+
 export function runPosts(requests: FactoryRequest[]) {
 	return requests
 		.filter(({ method }) => method === "POST")
