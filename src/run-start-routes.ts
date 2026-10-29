@@ -6,15 +6,10 @@ import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
-import {
-	pendingRequest,
-	runStartOf,
-	type StartKind,
-	startRefusal,
-} from "./run-start.ts";
+import { runStartOf, type StartKind, startRefusal } from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
-import { runFor } from "./workcell.ts";
+import { runFor, runsFor } from "./workcell.ts";
 
 const startBody = z.object({
 	tracker: z.enum(trackers),
@@ -77,11 +72,7 @@ export function runStartRoutes({
 			factories: pollOptions.listedFactories(),
 			requests: pollOptions.runStartRequests,
 		});
-		if (
-			(!("refused" in labelStart) && labelStart.requested === true) ||
-			pendingRequest(ticket, newestRun, pollOptions.runStartRequests)?.claim ===
-				true
-		) {
+		if (!("refused" in labelStart) && labelStart.requested === true) {
 			return Response.json(
 				{ error: "the run is already requested" },
 				{ status: 409 },
@@ -105,7 +96,11 @@ export function runStartRoutes({
 			ticket: String(parts.number),
 		});
 		if ("claimed" in result) {
-			recordRequest(key, { claim: true, run: result.claimed });
+			recordRequest(key, {
+				claim: true,
+				run: result.claimed,
+				known: runsFor(ticket, pollOptions.factoryRuns()).map(({ id }) => id),
+			});
 			await readFactories(() => factories.readRuns(clock.now().getTime()));
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration()),

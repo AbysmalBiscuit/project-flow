@@ -1,14 +1,16 @@
 import type { Factory } from "./configuration.ts";
 import type { FactoryRun, Queued, RunStart, Ticket } from "./domain.ts";
 import { foldKey, githubKeyParts } from "./ticket-key.ts";
+import { isRunOf } from "./workcell.ts";
 
 /**
  * A start that the app sent: a ready label that it added, or a claim that a factory took.
- * A claim names the run that the factory accepted.
+ * A claim names the run that the factory accepted, and the runs of the ticket that the factories listed when the app sent it.
  */
 export type StartRequest = { at: string } & StartKind;
 
-export type StartKind = { claim: false } | { claim: true; run: string };
+export type StartKind =
+	{ claim: false } | { claim: true; run: string; known: readonly string[] };
 
 /** What a run start reads beyond the ticket: the listed factories, and the last start that the app sent of each ticket. */
 export type RunStarts = {
@@ -111,18 +113,24 @@ export function pendingRequest(
 }
 
 /**
- * The start requests without the claims whose accepted run a factory lists.
+ * The start requests without the claims that a run ended: the accepted run, or
+ * any run of the ticket that the factories did not list when the app sent the claim.
  * A factory dates a run by its own clock, and a hub gives a queued start a new id
- * once it sends it to a build machine. So a claim ends the first time that its
- * accepted run shows, and stays ended after that.
+ * once it sends it to a build machine, possibly before the app reads the accepted id.
+ * So a claim ends the first time that a new run of its ticket shows, and stays ended after that.
  */
 export function settledRequests(
 	requests: ReadonlyMap<string, StartRequest>,
-	runs: readonly Pick<FactoryRun, "id">[],
+	runs: readonly Pick<FactoryRun, "id" | "key" | "repo">[],
 ): ReadonlyMap<string, StartRequest> {
-	const listed = new Set(runs.map(({ id }) => id));
 	const pending = [...requests].filter(
-		([, request]) => !request.claim || !listed.has(request.run),
+		([key, request]) =>
+			!request.claim ||
+			!runs.some(
+				(run) =>
+					run.id === request.run ||
+					(isRunOf(run, key) && !request.known.includes(run.id)),
+			),
 	);
 	return pending.length === requests.size ? requests : new Map(pending);
 }

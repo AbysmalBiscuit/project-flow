@@ -96,7 +96,8 @@ describe("pending claimed starts", () => {
 			await app.stop();
 		}
 	});
-	test("an unrelated run of the ticket keeps the claim pending while its accepted run is absent", async () => {
+
+	test("a new run of the ticket ends the claim when the factory renames the accepted run before the first read", async () => {
 		let runs: object[] = hubRuns.runs;
 		const app = await serveGithub([40], {
 			readyLabel,
@@ -105,7 +106,7 @@ describe("pending claimed starts", () => {
 				"/daemon": daemonSlots,
 				"/runs": (_url: URL, method: string) =>
 					method === "POST"
-						? accepted("accepted-still-queued")
+						? accepted("hub-queued-start")
 						: { ...hubRuns, runs },
 			},
 		});
@@ -120,22 +121,22 @@ describe("pending claimed starts", () => {
 			expect(
 				(await startRun(app.base, "github", repo, key, "work hub")).status,
 			).toBe(200);
-			runs = [ticket40Run("unrelated-success", "14:10"), ...hubRuns.runs];
+			runs = [ticket40Run("box-run", "14:10"), ...hubRuns.runs];
 			app.advance(60 * 60_000);
-			const held = await ticketWhere(
+			const ended = await ticketWhere(
 				app.base,
 				repo,
 				key,
-				(view) => view.factoryRun?.id === "unrelated-success",
+				(view) => view.factoryRun?.id === "box-run",
 			);
-			expect(held.runStart).toEqual({
+			expect(ended.runStart).toEqual({
 				factory: "work hub",
 				label: readyLabel,
-				requested: true,
 			});
-			const again = await startRun(app.base, "github", repo, key, "work hub");
-			expect(again.status).toBe(409);
-			expect(runPosts(app.requests)).toHaveLength(1);
+			expect(
+				(await startRun(app.base, "github", repo, key, "work hub")).status,
+			).toBe(200);
+			expect(runPosts(app.requests)).toHaveLength(2);
 		} finally {
 			await app.stop();
 		}
