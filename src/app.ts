@@ -30,6 +30,7 @@ import { projectRoutes, reportFor } from "./project-routes.ts";
 import { attentionFor, overview, projectViews } from "./project-views.ts";
 import { replyRoutes } from "./reply-routes.ts";
 import { runStartRoutes } from "./run-start-routes.ts";
+import { settledRequests } from "./run-start.ts";
 import {
 	mergedSettingsWrite,
 	readSettingsWrite,
@@ -292,7 +293,12 @@ export async function start(options: StartOptions): Promise<Running> {
 	const readFactories = async (read: () => Promise<void>) => {
 		const before = factoryState();
 		await read();
-		if (factoryState() !== before) {
+		const requests = pollOptions.runStartRequests;
+		pollOptions.runStartRequests = settledRequests(requests, factories.runs());
+		if (
+			factoryState() !== before ||
+			pollOptions.runStartRequests !== requests
+		) {
 			publishOverview();
 		}
 	};
@@ -661,6 +667,9 @@ export async function start(options: StartOptions): Promise<Running> {
 				pollOptions,
 				notifier,
 				configuration: () => configuration,
+				factories,
+				clock,
+				readFactories,
 			}),
 			...factoryRunRoutes({
 				factories,

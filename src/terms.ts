@@ -262,6 +262,13 @@ export const runStartCopy = {
 		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
 	linearBody: (factory: string, label: string) =>
 		`Project Flow adds the label ${label} to the ticket. The factory ${factory} starts a run only when the workflow state of the ticket matches a rule of its source.`,
+	choices: "Run start choices",
+	runOn: (factory: string) => `Run on ${factory}`,
+	queueOn: (factory: string) => `Queue on ${factory}`,
+	runOnBody: (factory: string) =>
+		`The factory ${factory} claims the ticket and starts a run of it.`,
+	queueOnBody: (factory: string) =>
+		`The factory ${factory} claims the ticket and queues a run of it. The run starts when the factory has a free slot.`,
 } as const;
 
 export const queuedLabel = "Queued";

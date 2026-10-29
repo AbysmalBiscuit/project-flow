@@ -114,7 +114,7 @@ function computeProjectView(
 		configuration,
 		{
 			factories: options.listedFactories(),
-			requestedAt: options.runStartRequests,
+			requests: options.runStartRequests,
 		},
 		new Date(status.fetchedAt ?? 0),
 		row.board,

@@ -235,7 +235,7 @@ Lev starts a new workcell run on the ticket of a blocked or failed run, from the
 _Avoid_: Retry (when a whole run is meant), rerun, resume (when a restart is meant)
 
 **Queued ticket**:
-An open ticket that meets the ready label or the ready status of a factory, and has no run that started after the request. The hub claims it on its next source pass. Its card, row and panel head show a grey "Queued" chip. A queued ticket has no run, so the run filter does not match it.
+An open ticket that meets the ready label or the ready status of a factory, and has no run that started after the request. A queued ticket waits for a source claim: the hub claims it on its next source pass. A ticket that a factory claimed through `POST /runs` is not queued, even before its run shows. Its card, row and panel head show a grey "Queued" chip. A queued ticket has no run, so the run filter does not match it.
 _Avoid_: Waiting ticket, queued run (when the ticket is meant)
 
 **Runs list**:

@@ -5,7 +5,7 @@ import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import { endedRunStatusKinds, type FactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
-import { useRemoveRun } from "./queries.ts";
+import { useRemoveRun } from "./run-mutations.ts";
 import { runRemoveCopy } from "./terms.ts";
 import { space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
