@@ -44,7 +44,9 @@ export function runStartOf(
 		pendingRequest(ticket, newestRun, requests)?.claim === true;
 	const factory = factories.find((item) => item.readyLabel !== undefined);
 	if (factory?.readyLabel === undefined) {
-		return ticket.key !== null && githubKeyParts(ticket.key) !== null
+		return factories.length > 0 &&
+			ticket.key !== null &&
+			githubKeyParts(ticket.key) !== null
 			? claimWaits
 				? { requested: true }
 				: {}
