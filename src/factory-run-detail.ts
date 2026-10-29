@@ -300,12 +300,11 @@ export function runDetailReader(deps: {
 		}
 	};
 	const runCheckpoint = async (runId: string): Promise<CheckpointRead> => {
-		const { hubRow, row } = statusRowOf(runId);
-		const target = hubRow ?? row;
-		if (target === undefined) {
+		const { row } = statusRowOf(runId);
+		if (row === undefined) {
 			return "missing";
 		}
-		const read = reader(fetchImpl, target.url, signal);
+		const read = reader(fetchImpl, row.url, signal);
 		const usage = usageOf(read, runId);
 		try {
 			const [answer, graph] = await Promise.all([

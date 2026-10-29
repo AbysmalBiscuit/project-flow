@@ -2,10 +2,11 @@ import { describe, expect, test } from "bun:test";
 
 import type { ProjectReport } from "../../src/domain.ts";
 import type { FactoryEntry } from "../../src/factories.ts";
+import hubCheckpoint from "../fixtures/factory-hub-checkpoint.json";
 import hubRuns from "../fixtures/factory-hub-runs.json";
 import { daemon, hub, hubUrl, laptopUrl } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
-import { openEventStream } from "../support/reads.ts";
+import { openEventStream, readWhere, settledRead } from "../support/reads.ts";
 import {
 	boxRow,
 	factoryRunOf,
@@ -687,10 +688,19 @@ describe("factory runs", () => {
 		});
 
 		test("an unreachable box gives the run the hub status, and the box row comes back with the box", async () => {
+			const checkpointPath = `/runs/${running41.id}/checkpoint`;
 			const boxAnswers = {
 				...daemon,
 				"/runs": { runs: [boxRow(running41, "blocked")] },
+				[checkpointPath]: hubCheckpoint,
 			};
+			const checkpointOf = () =>
+				settledRead(
+					new URL(
+						`/api/factory-runs/${encodeURIComponent(running41.id)}/checkpoint`,
+						app.base,
+					),
+				);
 			const app = await serveRuns(hub, [41], {}, boxAnswers);
 			const stream = openEventStream(app.base);
 			try {
@@ -711,6 +721,7 @@ describe("factory runs", () => {
 					factory: "work hub",
 					coveredByFeed: true,
 				});
+				expect((await checkpointOf()).status).toBe(404);
 				app.factories[laptopUrl] = boxAnswers;
 				app.advance(runPollMs);
 				const back = await overviewEventWhere(
@@ -723,6 +734,14 @@ describe("factory runs", () => {
 					factory: "laptop",
 					coveredByFeed: true,
 				});
+				const checkpoint = await readWhere<{ stage?: string }>(
+					new URL(
+						`/api/factory-runs/${encodeURIComponent(running41.id)}/checkpoint`,
+						app.base,
+					),
+					(body) => body.stage !== undefined,
+				);
+				expect(checkpoint).toMatchObject({ stage: "review" });
 			} finally {
 				stream.close();
 				await app.stop();

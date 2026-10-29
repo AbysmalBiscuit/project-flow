@@ -15,6 +15,7 @@ import {
 	type FactoryRequest,
 	hub,
 	hubUrl,
+	laptopSocket,
 } from "../support/factory.ts";
 import { openEventStream, readWhere, settledRead } from "../support/reads.ts";
 import {
@@ -310,7 +311,7 @@ describe("factory runs", () => {
 			}
 		});
 
-		test("a run that the hub and its box report reads the checkpoint and its run context from the hub, and the box gets no read", async () => {
+		test("a run that the hub and its box report reads the checkpoint and its run context from the box, and the hub gets no read", async () => {
 			const [running41] = hubRuns.runs;
 			if (running41 === undefined) {
 				throw new Error("the hub runs fixture lost a run");
@@ -337,7 +338,7 @@ describe("factory runs", () => {
 				expect(response.status).toBe(200);
 				expect(await response.json()).toMatchObject({
 					stage: "review",
-					context: { outcome: "changes_requested" },
+					context: { outcome: "from the box" },
 				});
 				expect(
 					new Set(
@@ -345,9 +346,9 @@ describe("factory runs", () => {
 							.filter(
 								(request) => new URL(request.url).pathname === checkpointPath,
 							)
-							.map((request) => new URL(request.url).origin),
+							.map((request) => request.unix ?? new URL(request.url).origin),
 					),
-				).toEqual(new Set([hubUrl]));
+				).toEqual(new Set([laptopSocket]));
 			} finally {
 				await app.stop();
 			}
