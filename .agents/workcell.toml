@@ -3,4 +3,4 @@ method = "squash"
 
 [workflow.standard]
 merge_auto = "yes"
-merge_rebase = "never"
+merge_rebase = "on-conflict"
