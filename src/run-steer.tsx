@@ -6,7 +6,7 @@ import { board } from "./board-styles.ts";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery, useSteerRun } from "./queries.ts";
-import { SendButton, SendText } from "./send-box.tsx";
+import { blurOnEscape, SendButton, SendText } from "./send-box.tsx";
 import { steerFailed, steerLabel } from "./terms.ts";
 import { actionToastHideMs, Toast } from "./toast.tsx";
 import { space } from "./tokens.stylex.ts";
@@ -91,6 +91,7 @@ export function RunSteer({
 							placeholder="The stage to steer"
 							value={pickedStage}
 							onChange={(event) => setStageDraft(event.target.value)}
+							onKeyDown={blurOnEscape}
 						/>
 					</>
 				) : null}
