@@ -1,9 +1,9 @@
 import { board, runDotTone } from "./board-styles.ts";
 import { control } from "./control-styles.ts";
-import type { ShownFactoryRun } from "./domain.ts";
+import type { Queued, ShownFactoryRun } from "./domain.ts";
 import { openPage, runPagePath } from "./page-links.ts";
 import { spanLabel } from "./poll-age.ts";
-import { factoryRunTip } from "./terms.ts";
+import { factoryRunTip, queuedLabel, queuedTip } from "./terms.ts";
 import { clsx } from "./ui.ts";
 
 /** The circle that shows the factory feed covers a card's run, coloured by its status. */
@@ -62,6 +62,19 @@ export function StageChip({ stage }: { stage: string }) {
 	return (
 		<span className={clsx(board.chip, board.chipStatic, board.chipStage)}>
 			{stage}
+		</span>
+	);
+}
+
+/** The grey chip of a ticket that waits for the hub source loop to start its run. */
+export function QueuedChip({ queued }: { queued: Queued }) {
+	return (
+		<span
+			title={queuedTip(queued)}
+			data-queued={queued.factory}
+			className={clsx(board.chip, board.chipStatic, board.chipQueued)}
+		>
+			{queuedLabel}
 		</span>
 	);
 }

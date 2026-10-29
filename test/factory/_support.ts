@@ -17,7 +17,7 @@ import {
 	readOrRunWrite,
 	serve,
 } from "../support/factory.ts";
-import { json, urlOf } from "../support/fetch.ts";
+import { json, trackerRequest, urlOf } from "../support/fetch.ts";
 import {
 	issuesResponse,
 	listedRead,
@@ -216,4 +216,120 @@ export function hubWith41(kind: string): Answers {
 		...hub,
 		"/runs": { runs: [{ ...running, status: { kind } }, ...rest] },
 	};
+}
+
+export const readyLabel = "ready-for-agent";
+
+export type TrackerWrite = { url: string; body: string };
+
+/** Records each request of the app to a tracker, except a GET and a GraphQL query. */
+export function trackerWrites(writes: TrackerWrite[], other: Fetch): Fetch {
+	return async (input, init) => {
+		const method = init?.method ?? "GET";
+		const body = typeof init?.body === "string" ? init.body : "";
+		const { query } = trackerRequest(input, init);
+		if (method !== "GET" && !/^\s*(query\b|\{)/.test(query)) {
+			writes.push({ url: urlOf(input), body });
+		}
+		return other(input, init);
+	};
+}
+
+/**
+ * A hub with the recorded runs, and a tracked repo with the open issues `numbers`.
+ * Issue 41 has a running run, and issue 40 a succeeded run. Issue 43 has no run.
+ */
+export async function serveGithub(
+	numbers: number[],
+	options: {
+		closed?: number[];
+		readyLabel?: string;
+		args?: string[];
+		labels?: Record<number, string[]>;
+	} = {},
+) {
+	const labels = new Map<number, string[]>(
+		Object.entries(options.labels ?? {}).map(([number, names]) => [
+			Number(number),
+			names,
+		]),
+	);
+	const writes: TrackerWrite[] = [];
+	const requests: FactoryRequest[] = [];
+	const tracker: Fetch = async (input, init) => {
+		const url = urlOf(input);
+		if (url === "https://api.github.com/user") {
+			return json({ login: "lev" });
+		}
+		const discovered = recordedDiscovery(input, init);
+		if (discovered !== null) {
+			return discovered;
+		}
+		const added = url.match(/\/repos\/acme\/widget\/issues\/(\d+)\/labels$/);
+		if (added !== null && init?.method === "POST") {
+			const number = Number(added[1]);
+			const sent = JSON.parse(String(init.body)) as { labels: string[] };
+			labels.set(number, [...(labels.get(number) ?? []), ...sent.labels]);
+			return json(
+				(labels.get(number) ?? []).map((name) => ({ name })),
+				200,
+			);
+		}
+		const listed = issuesResponse(
+			input,
+			init,
+			numbers.map((number) => ({
+				...ticket(
+					number,
+					"2026-10-25T09:00:00Z",
+					options.closed?.includes(number) === true ? "closed" : "open",
+				),
+				labels: labels.get(number) ?? [],
+			})),
+			repo,
+		);
+		return listed ?? recordedOrEmpty(url) ?? unrecorded(input, init);
+	};
+	const app = await serve(
+		options.args ?? [],
+		{
+			pinned: [{ tracker: "github", repo }],
+			factories: [
+				{
+					name: "work hub",
+					url: hubUrl,
+					...(options.readyLabel === undefined
+						? {}
+						: { readyLabel: options.readyLabel }),
+				},
+			],
+		},
+		factoryFetch({ [hubUrl]: hub }, requests, trackerWrites(writes, tracker)),
+		{
+			env: { GITHUB_TOKEN: "recorded-token" },
+			now: () => new Date(runClockStart),
+		},
+	);
+	return { ...app, writes };
+}
+
+export async function ticketWhere(
+	base: string,
+	project: string,
+	key: string,
+	accept: (view: TicketView) => boolean,
+): Promise<TicketView> {
+	while (true) {
+		const response = await fetch(
+			new URL(`/api/projects/${encodeURIComponent(project)}`, base),
+		);
+		if (response.ok) {
+			const report = (await response.json()) as ProjectReport;
+			const view = report.tickets.find((item) => item.key === key);
+			if (view !== undefined && accept(view)) {
+				return view;
+			}
+		}
+		await Bun.sleep(20);
+	}
 }
