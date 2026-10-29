@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import type { FactoryEntry } from "../../src/factories.ts";
+import daemonSlots from "../fixtures/factory-daemon-slots.json";
+import hubRuns from "../fixtures/factory-hub-runs.json";
 import { hubUrl } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
 import { readWhere } from "../support/reads.ts";
@@ -230,6 +232,73 @@ describe("claimed start eligibility", () => {
 				"work hub",
 			);
 			expect(response.status).toBe(409);
+			expect(runPosts(app.requests)).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a claimed start that names a box a hub also reads answers 409 and sends no POST /runs", async () => {
+		const [sentRun] = hubRuns.runs;
+		const boxUrl = "http://box-a.test:7777";
+		const app = await serveGithub([43], {
+			readyLabel,
+			hubAnswers: hubTaking(accepted()),
+			otherFactory: {
+				name: "box-a",
+				url: boxUrl,
+				answers: {
+					"/daemon": { ...daemonSlots, role: "daemon" },
+					"/runs": (_url: URL, method: string) =>
+						method === "POST"
+							? accepted("box-start")
+							: { runs: [{ ...sentRun, machine: "local" }] },
+				},
+			},
+		});
+		try {
+			const key = `${repo}#43`;
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			await readWhere<{ factoryEntries: FactoryEntry[] }>(
+				new URL("/api/settings", app.base),
+				(read) =>
+					read.factoryEntries.some(
+						(entry) =>
+							entry.name === "box-a" && entry.alsoReadThroughHub === "work hub",
+					),
+			);
+			const response = await startRun(app.base, "github", repo, key, "box-a");
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({
+				error: "box-a takes no claimed start",
+			});
+			expect(runPosts(app.requests)).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a claimed start that names an unreachable factory answers 409 and sends no POST /runs", async () => {
+		const app = await serveGithub([43], {
+			readyLabel,
+			hubAnswers: hubTaking(accepted()),
+			otherFactory: {
+				name: "laptop",
+				url: "http://laptop.test:7777",
+				answers: {
+					"/daemon": new Response(null, { status: 500 }),
+				},
+			},
+		});
+		try {
+			const key = `${repo}#43`;
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			await factoryEntries(app.base);
+			const response = await startRun(app.base, "github", repo, key, "laptop");
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({
+				error: "laptop takes no claimed start",
+			});
 			expect(runPosts(app.requests)).toEqual([]);
 		} finally {
 			await app.stop();

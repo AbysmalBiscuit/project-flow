@@ -6,7 +6,12 @@ import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
-import { runStartOf, type StartKind, startRefusal } from "./run-start.ts";
+import {
+	runStartOf,
+	type StartKind,
+	startRefusal,
+	takesClaim,
+} from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 import { runFor, runsFor } from "./workcell.ts";
@@ -78,11 +83,15 @@ export function runStartRoutes({
 				{ status: 409 },
 			);
 		}
-		const factory = pollOptions
-			.listedFactories()
-			.find((item) => item.name === name);
+		const factory = factories.entries().find((item) => item.name === name);
 		if (factory === undefined) {
 			return Response.json({ error: "factory not found" }, { status: 404 });
+		}
+		if (!takesClaim(factory)) {
+			return Response.json(
+				{ error: `${name} takes no claimed start` },
+				{ status: 409 },
+			);
 		}
 		const parts = githubKeyParts(key);
 		if (parts === null) {

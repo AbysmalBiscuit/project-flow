@@ -8,6 +8,7 @@ import type { FactoryEntry } from "./factories.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import { useStartRun } from "./run-mutations.ts";
+import { takesClaim } from "./run-start.ts";
 import { SplitButton } from "./split-button.tsx";
 import { runStartCopy } from "./terms.ts";
 import type { TicketRef } from "./ticket-key.ts";
@@ -16,11 +17,7 @@ import { clsx } from "./ui.ts";
 /** A factory that can claim the ticket, and whether a run starts now or waits for a slot. */
 type ClaimChoice = { factory: string; free: boolean };
 
-/**
- * One choice per reachable factory that reports its slots. A box that a hub also reads
- * takes its runs from that hub, so it gives no choice of its own.
- * A claimed start needs the repo of a GitHub ticket.
- */
+/** One choice per factory that takes a claimed start. A claimed start needs the repo of a GitHub ticket. */
 function claimChoices(
 	ticket: TicketRef,
 	entries: readonly FactoryEntry[],
@@ -28,11 +25,9 @@ function claimChoices(
 	if (ticket.tracker !== "github") {
 		return [];
 	}
-	return entries.flatMap(({ name, reachable, slots, alsoReadThroughHub }) =>
-		reachable === true &&
-		slots !== undefined &&
-		alsoReadThroughHub === undefined
-			? [{ factory: name, free: slots.used < slots.total }]
+	return entries.flatMap((entry) =>
+		takesClaim(entry) && entry.slots !== undefined
+			? [{ factory: entry.name, free: entry.slots.used < entry.slots.total }]
 			: [],
 	);
 }
