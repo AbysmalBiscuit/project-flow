@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Configuration } from "./configuration.ts";
 import type {
+	Failed,
 	Refused,
 	RemoveAction,
 	StartResult,
@@ -28,6 +29,11 @@ const transcriptQuery = z.object({
 /** The API answer to a write that the factory refused: its reason, or `fallback` when it named none. */
 function refusedAnswer({ refused }: Refused, fallback: string) {
 	return Response.json({ error: refused ?? fallback }, { status: 409 });
+}
+
+/** The API answer to a write that the factory did not take: its reason, or `fallback` when it named none or was unreachable. */
+function failedAnswer({ failed }: Failed, fallback: string) {
+	return Response.json({ error: failed ?? fallback }, { status: 502 });
 }
 
 export type FactoryRunRouteOptions = {
@@ -61,11 +67,8 @@ export function factoryRunRoutes({
 				{ status: 404 },
 			);
 		}
-		if (result === "failed") {
-			return Response.json(
-				{ error: "the factory did not start the run" },
-				{ status: 502 },
-			);
+		if ("failed" in result) {
+			return failedAnswer(result, "the factory did not start the run");
 		}
 		if ("refused" in result) {
 			return refusedAnswer(result, "the run is not blocked or failed");
@@ -82,11 +85,8 @@ export function factoryRunRoutes({
 				{ status: 404 },
 			);
 		}
-		if (result === "failed") {
-			return Response.json(
-				{ error: `the factory did not take the ${action}` },
-				{ status: 502 },
-			);
+		if (typeof result === "object" && "failed" in result) {
+			return failedAnswer(result, `the factory did not take the ${action}`);
 		}
 		if (result !== "removed") {
 			return Response.json({ error: result.refused }, { status: 409 });
@@ -284,11 +284,8 @@ export function factoryRunRoutes({
 				if (typeof result === "object" && "refused" in result) {
 					return refusedAnswer(result, "the run does not wait on the question");
 				}
-				if (result === "failed") {
-					return Response.json(
-						{ error: "the factory did not take the answer" },
-						{ status: 502 },
-					);
+				if (typeof result === "object" && "failed" in result) {
+					return failedAnswer(result, "the factory did not take the answer");
 				}
 				await readFactories(() => factories.readRuns(clock.now().getTime()));
 				return Response.json({ answered: true });
@@ -318,11 +315,8 @@ export function factoryRunRoutes({
 						"the run has ended, so it takes no steer",
 					);
 				}
-				if (result === "failed") {
-					return Response.json(
-						{ error: "the factory did not take the steer" },
-						{ status: 502 },
-					);
+				if (typeof result === "object" && "failed" in result) {
+					return failedAnswer(result, "the factory did not take the steer");
 				}
 				return Response.json({ steered: true });
 			},
@@ -339,11 +333,8 @@ export function factoryRunRoutes({
 				if (typeof result === "object" && "refused" in result) {
 					return refusedAnswer(result, "the run has already ended");
 				}
-				if (result === "failed") {
-					return Response.json(
-						{ error: "the factory did not take the cancel" },
-						{ status: 502 },
-					);
+				if (typeof result === "object" && "failed" in result) {
+					return failedAnswer(result, "the factory did not take the cancel");
 				}
 				await readFactories(() => factories.readRuns(clock.now().getTime()));
 				return Response.json({ cancelled: true });

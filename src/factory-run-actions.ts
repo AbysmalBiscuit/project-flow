@@ -13,19 +13,21 @@ import type { Fetch } from "./fetch.ts";
 /** The factory answered a write about a run with 409, with the reason that its body names, if any. */
 export type Refused = { refused: string | undefined };
 
-export type AnswerResult = "answered" | "missing" | Refused | "failed";
+/** The factory did not take a write about a run, with the reason that its body names, if any. An unreachable factory names none. */
+export type Failed = { failed: string | undefined };
 
-export type SteerResult = "steered" | "missing" | Refused | "failed";
+export type AnswerResult = "answered" | "missing" | Refused | Failed;
 
-export type CancelResult = "cancelled" | "missing" | Refused | "failed";
+export type SteerResult = "steered" | "missing" | Refused | Failed;
+
+export type CancelResult = "cancelled" | "missing" | Refused | Failed;
 
 /** The id of the run that a resume queued again, or of the new run that a restart started. */
-export type StartResult = { id: string } | "missing" | Refused | "failed";
+export type StartResult = { id: string } | "missing" | Refused | Failed;
 
 export type RemoveAction = "delete" | "archive";
 
-export type RemoveResult =
-	"removed" | "missing" | { refused: string } | "failed";
+export type RemoveResult = "removed" | "missing" | { refused: string } | Failed;
 
 export type Steer = { stage: string; text: string; interrupt: boolean };
 
@@ -35,12 +37,24 @@ const cancelLimitMs = 100_000;
 
 const startedRun = z.object({ id: z.string() });
 
-const refusal = z.object({ error: z.string().trim().min(1) });
+const reason = z.object({ error: z.string().trim().min(1) });
 
-/** The reason that the body of a 409 names, if any. */
-async function refusedBy(response: Response): Promise<Refused> {
-	const named = refusal.safeParse(await response.json().catch(() => null));
-	return { refused: named.data?.error };
+/** The reason that the `error` of a factory's error body names, if any. */
+async function reasonOf(response: Response): Promise<string | undefined> {
+	return reason.safeParse(await response.json().catch(() => null)).data?.error;
+}
+
+/** The result of a factory answer that is not 2xx: a 409 refusal, a 404 missing run, or a failed write. */
+async function notTaken(
+	response: Response,
+): Promise<"missing" | Refused | Failed> {
+	if (response.status === 409) {
+		return { refused: await reasonOf(response) };
+	}
+	if (response.status === 404) {
+		return "missing";
+	}
+	return { failed: await reasonOf(response) };
 }
 
 /** Project Flow writes to a factory as Lev: the factory records this sender on each answer and steer. */
@@ -70,7 +84,7 @@ export function runActions(deps: {
 			{ text, sender: levSender },
 			factoryRequestLimitMs,
 		);
-		if (typeof response === "string") {
+		if (!(response instanceof Response)) {
 			return response;
 		}
 		if (response.ok) {
@@ -86,10 +100,7 @@ export function runActions(deps: {
 			);
 			return "answered";
 		}
-		if (response.status === 409) {
-			return await refusedBy(response);
-		}
-		return response.status === 404 ? "missing" : "failed";
+		return await notTaken(response);
 	};
 	/**
 	 * Post a write about a run to the hub that reports it, or else to its box. The hub forwards
@@ -101,7 +112,7 @@ export function runActions(deps: {
 		route: string,
 		json: unknown,
 		limitMs: number,
-	): Promise<Response | "missing" | "failed"> => {
+	): Promise<Response | "missing" | Failed> => {
 		const { hubRow, row } = statusRowOf(run);
 		const target = hubRow ?? row;
 		if (target === undefined) {
@@ -114,7 +125,7 @@ export function runActions(deps: {
 			if (!(error instanceof Unreachable)) {
 				throw error;
 			}
-			return "failed";
+			return { failed: undefined };
 		}
 	};
 	/** A write that the factory refuses with 409, with a reason in its body, when the run is not in a status that takes it. */
@@ -124,16 +135,13 @@ export function runActions(deps: {
 		done: (response: Response) => Done | Promise<Done>,
 		json: unknown = {},
 		limitMs = factoryRequestLimitMs,
-	): Promise<Done | "missing" | Refused | "failed"> => {
+	): Promise<Done | "missing" | Refused | Failed> => {
 		const response = await post(run, route, json, limitMs);
-		if (typeof response === "string") {
+		if (!(response instanceof Response)) {
 			return response;
 		}
-		if (response.status === 409) {
-			return await refusedBy(response);
-		}
 		if (!response.ok) {
-			return response.status === 404 ? "missing" : "failed";
+			return await notTaken(response);
 		}
 		try {
 			return await done(response);
@@ -141,7 +149,7 @@ export function runActions(deps: {
 			if (!(error instanceof Unreachable)) {
 				throw error;
 			}
-			return "failed";
+			return { failed: undefined };
 		}
 	};
 	const steer = (run: string, steer: Steer): Promise<SteerResult> =>
@@ -165,17 +173,16 @@ export function runActions(deps: {
 		action: RemoveAction,
 	): Promise<RemoveResult> => {
 		const response = await post(run, action, {}, factoryRequestLimitMs);
-		if (typeof response === "string") {
+		if (!(response instanceof Response)) {
 			return response;
 		}
 		if (response.ok) {
 			return "removed";
 		}
-		if (response.status === 409) {
-			const { refused } = await refusedBy(response);
-			return { refused: refused ?? "the factory keeps the run" };
-		}
-		return response.status === 404 ? "missing" : "failed";
+		const result = await notTaken(response);
+		return typeof result === "object" && "refused" in result
+			? { refused: result.refused ?? "the factory keeps the run" }
+			: result;
 	};
 	return { answer, steer, cancel, resume, restart, remove };
 }

@@ -115,4 +115,35 @@ describe("factory steers", () => {
 			await app.stop();
 		}
 	});
+
+	test("a 502 from the factory with an error body on a steer gives the factory's reason", async () => {
+		const reason = `box of run ${running41.id} did not answer`;
+		const app = await servedRun({
+			...hub,
+			[steerPath]: Response.json({ error: reason }, { status: 502 }),
+		});
+		try {
+			const response = await sendSteer(app.base);
+			expect(response.status).toBe(502);
+			expect(await response.json()).toEqual({ error: reason });
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a 502 from the factory with no reason in its body gives a clear steer error", async () => {
+		const app = await servedRun({
+			...hub,
+			[steerPath]: new Response("bad gateway", { status: 502 }),
+		});
+		try {
+			const response = await sendSteer(app.base);
+			expect(response.status).toBe(502);
+			expect(await response.json()).toEqual({
+				error: "the factory did not take the steer",
+			});
+		} finally {
+			await app.stop();
+		}
+	});
 });
