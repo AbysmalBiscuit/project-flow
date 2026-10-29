@@ -6,7 +6,7 @@ import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
-import { requestWaits, runStartOf, startRefusal } from "./run-start.ts";
+import { pendingRequest, runStartOf, startRefusal } from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 import { runFor } from "./workcell.ts";
@@ -54,11 +54,11 @@ export function runStartRoutes({
 	clock,
 	readFactories,
 }: RunStartRouteOptions) {
-	/** The time of a start that the app sent, so the ticket shows the run as requested until it starts. */
-	const recordRequest = (key: string) => {
+	/** A start that the app sent, so the ticket shows the run as requested until it starts. */
+	const recordRequest = (key: string, claim: boolean) => {
 		pollOptions.runStartRequests = new Map([
 			...pollOptions.runStartRequests,
-			[foldKey(key), pollOptions.clock.now().toISOString()],
+			[foldKey(key), { at: pollOptions.clock.now().toISOString(), claim }],
 		]);
 	};
 	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
@@ -70,11 +70,12 @@ export function runStartRoutes({
 		}
 		const labelStart = runStartOf(ticket, newestRun, {
 			factories: pollOptions.listedFactories(),
-			requestedAt: pollOptions.runStartRequests,
+			requests: pollOptions.runStartRequests,
 		});
 		if (
 			(!("refused" in labelStart) && labelStart.requested === true) ||
-			requestWaits(ticket, newestRun, pollOptions.runStartRequests)
+			pendingRequest(ticket, newestRun, pollOptions.runStartRequests) !==
+				undefined
 		) {
 			return Response.json(
 				{ error: "the run is already requested" },
@@ -99,7 +100,7 @@ export function runStartRoutes({
 			ticket: String(parts.number),
 		});
 		if (result === "claimed") {
-			recordRequest(key);
+			recordRequest(key, true);
 			await readFactories(() => factories.readRuns(clock.now().getTime()));
 			notifier.publish({
 				overview: runningOverview(pollOptions, configuration()),
@@ -144,7 +145,7 @@ export function runStartRoutes({
 					runFor(ticket, pollOptions.factoryRuns()),
 					{
 						factories: pollOptions.listedFactories(),
-						requestedAt: pollOptions.runStartRequests,
+						requests: pollOptions.runStartRequests,
 					},
 				);
 				if ("refused" in start) {
@@ -168,7 +169,7 @@ export function runStartRoutes({
 				} catch (error) {
 					return trackerError(error);
 				}
-				recordRequest(target.key);
+				recordRequest(target.key, false);
 				const label = start.label.toLowerCase();
 				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
 					pollOptions.store.mergeTickets([

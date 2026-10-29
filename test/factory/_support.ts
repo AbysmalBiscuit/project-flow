@@ -238,7 +238,7 @@ export function trackerWrites(writes: TrackerWrite[], other: Fetch): Fetch {
 /**
  * A hub with the recorded runs, and a tracked repo with the open issues `numbers`.
  * Issue 41 has a running run, and issue 40 a succeeded run. Issue 43 has no run.
- * `hubAnswers` replaces the recorded answers of the hub.
+ * `hubAnswers` replaces the recorded answers of the hub, and `otherFactory` adds a second factory.
  */
 export async function serveGithub(
 	numbers: number[],
@@ -248,6 +248,7 @@ export async function serveGithub(
 		args?: string[];
 		labels?: Record<number, string[]>;
 		hubAnswers?: Answers;
+		otherFactory?: { name: string; url: string; answers: Answers };
 	} = {},
 ) {
 	const labels = new Map<number, string[]>(
@@ -304,10 +305,23 @@ export async function serveGithub(
 						? {}
 						: { readyLabel: options.readyLabel }),
 				},
+				...(options.otherFactory === undefined
+					? []
+					: [
+							{
+								name: options.otherFactory.name,
+								url: options.otherFactory.url,
+							},
+						]),
 			],
 		},
 		factoryFetch(
-			{ [hubUrl]: options.hubAnswers ?? hub },
+			{
+				[hubUrl]: options.hubAnswers ?? hub,
+				...(options.otherFactory === undefined
+					? {}
+					: { [options.otherFactory.url]: options.otherFactory.answers }),
+			},
 			requests,
 			trackerWrites(writes, tracker),
 		),

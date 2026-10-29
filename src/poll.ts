@@ -55,6 +55,7 @@ import {
 	seededForProjects,
 	viewerLogins,
 } from "./project-views.ts";
+import type { StartRequest } from "./run-start.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
 
 function mergeFound(
@@ -253,8 +254,8 @@ export type PollOptions = {
 	factoryRuns: () => FactoryRun[];
 	/** The factories that this launch reads: the `--factory` list, or else the configured factories. */
 	listedFactories: () => readonly Factory[];
-	/** The time of each start request that the app sent, by folded ticket key. The route replaces the map on each request. */
-	runStartRequests: ReadonlyMap<string, string>;
+	/** Each start request that the app sent, by folded ticket key. The route replaces the map on each request. */
+	runStartRequests: ReadonlyMap<string, StartRequest>;
 	workcellAuto: Record<string, AutoMerge>;
 	repoAutoMerge: Record<string, boolean>;
 	attention: Attention;

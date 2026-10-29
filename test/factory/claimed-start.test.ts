@@ -274,4 +274,53 @@ describe("pending claimed starts", () => {
 			await app.stop();
 		}
 	});
+	test("a claim to another factory hides the Queued chip of a ready label kept after a succeeded run", async () => {
+		const laptop = "http://laptop.test:7777";
+		const app = await serveGithub([40], {
+			readyLabel,
+			labels: { 40: [readyLabel] },
+			otherFactory: {
+				name: "laptop",
+				url: laptop,
+				answers: {
+					"/daemon": daemonSlots,
+					"/sources": { sources: [] },
+					"/runs": (_url: URL, method: string) =>
+						method === "POST"
+							? Response.json({}, { status: 201 })
+							: { runs: [] },
+				},
+			},
+		});
+		try {
+			const key = `${repo}#40`;
+			const kept = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun !== undefined,
+			);
+			expect(kept.queued).toBeUndefined();
+			const response = await startRun(app.base, "github", repo, key, "laptop");
+			expect(response.status).toBe(200);
+			expect(runPosts(app.requests)).toEqual([
+				{
+					url: `${laptop}/runs`,
+					body: JSON.stringify({ repo, ticket: "40", claim: true }),
+				},
+			]);
+			const requested = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.runStart?.requested === true,
+			);
+			expect(requested.queued).toBeUndefined();
+			const again = await startRun(app.base, "github", repo, key, "laptop");
+			expect(again.status).toBe(409);
+			expect(runPosts(app.requests)).toHaveLength(1);
+		} finally {
+			await app.stop();
+		}
+	});
 });

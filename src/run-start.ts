@@ -2,11 +2,14 @@ import type { Factory } from "./configuration.ts";
 import type { FactoryRun, Queued, RunStart, Ticket } from "./domain.ts";
 import { foldKey } from "./ticket-key.ts";
 
-/** What a run start reads beyond the ticket: the listed factories, and when the app last requested a start of each ticket. */
+/** A start that the app sent: a ready label that it added, or a claim that a factory took. */
+export type StartRequest = { at: string; claim: boolean };
+
+/** What a run start reads beyond the ticket: the listed factories, and the last start that the app sent of each ticket. */
 export type RunStarts = {
 	factories: readonly Factory[];
-	/** The time of the last start request that the app sent, by folded ticket key. */
-	requestedAt: ReadonlyMap<string, string>;
+	/** The last start request that the app sent, by folded ticket key. */
+	requests: ReadonlyMap<string, StartRequest>;
 };
 
 /** Why a ticket cannot start a run: it is closed, or it has a run that did not succeed. */
@@ -30,7 +33,7 @@ export function startRefusal(
 export function runStartOf(
 	ticket: Pick<Ticket, "key" | "state" | "labels">,
 	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
-	{ factories, requestedAt }: RunStarts,
+	{ factories, requests }: RunStarts,
 ): RunStart | { refused: string } {
 	const refused = startRefusal(ticket, newestRun);
 	if (refused !== undefined) {
@@ -42,8 +45,8 @@ export function runStartOf(
 	}
 	const waits =
 		(hasLabel(ticket, factory.readyLabel) &&
-			waitsForRun(ticket, newestRun, requestedAt)) ||
-		requestWaits(ticket, newestRun, requestedAt);
+			waitsForRun(ticket, newestRun, requests)) ||
+		pendingRequest(ticket, newestRun, requests) !== undefined;
 	return {
 		factory: factory.name,
 		label: factory.readyLabel,
@@ -64,43 +67,48 @@ function hasLabel(ticket: Pick<Ticket, "labels">, label: string): boolean {
 function waitsForRun(
 	ticket: Pick<Ticket, "key">,
 	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
-	requestedAt: RunStarts["requestedAt"],
+	requests: RunStarts["requests"],
 ): boolean {
 	return (
 		newestRun === undefined ||
 		(newestRun.statusKind === "succeeded" &&
-			requestWaits(ticket, newestRun, requestedAt))
+			pendingRequest(ticket, newestRun, requests) !== undefined)
 	);
 }
 
 /**
- * True when the app sent a start of the ticket, a ready label or a claim, and no run
- * started since. A factory can list a claimed run some time after it takes the claim.
+ * The start that the app sent of the ticket when no run started since it.
+ * A factory can list a claimed run some time after it takes the claim.
  */
-export function requestWaits(
+export function pendingRequest(
 	ticket: Pick<Ticket, "key">,
 	newestRun: Pick<FactoryRun, "submittedAt"> | undefined,
-	requestedAt: RunStarts["requestedAt"],
-): boolean {
+	requests: RunStarts["requests"],
+): StartRequest | undefined {
 	const request =
-		ticket.key === null ? undefined : requestedAt.get(foldKey(ticket.key));
-	return (
-		request !== undefined &&
+		ticket.key === null ? undefined : requests.get(foldKey(ticket.key));
+	return request !== undefined &&
 		(newestRun === undefined ||
-			Date.parse(request) >= Date.parse(newestRun.submittedAt))
-	);
+			Date.parse(request.at) >= Date.parse(newestRun.submittedAt))
+		? request
+		: undefined;
 }
 
 /**
  * The first factory whose ready condition an open ticket meets while no run of it started.
- * A factory with both a ready label and a ready status needs both.
+ * A factory with both a ready label and a ready status needs both. A pending claim names
+ * its own factory, so the ready condition of another factory does not queue the ticket.
  */
 export function queuedOf(
 	ticket: Pick<Ticket, "key" | "state" | "labels" | "status">,
 	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
-	{ factories, requestedAt }: RunStarts,
+	{ factories, requests }: RunStarts,
 ): Queued | undefined {
-	if (ticket.state !== "open" || !waitsForRun(ticket, newestRun, requestedAt)) {
+	if (
+		ticket.state !== "open" ||
+		!waitsForRun(ticket, newestRun, requests) ||
+		pendingRequest(ticket, newestRun, requests)?.claim === true
+	) {
 		return undefined;
 	}
 	const status = ticket.status?.name.toLowerCase();
