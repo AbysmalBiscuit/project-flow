@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import type { Configuration } from "./configuration.ts";
-import type { StartResult } from "./factory-run-actions.ts";
+import type {
+	Refused,
+	RemoveAction,
+	StartResult,
+} from "./factory-run-actions.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Clock, FactoryReader } from "./ports.ts";
 import { factoryRunList } from "./project-views.ts";
@@ -20,6 +24,11 @@ const transcriptQuery = z.object({
 	stage: z.string().trim().min(1),
 	after: z.coerce.number().int().min(0).default(0),
 });
+
+/** The API answer to a write that the factory refused: its reason, or `fallback` when it named none. */
+function refusedAnswer({ refused }: Refused, fallback: string) {
+	return Response.json({ error: refused ?? fallback }, { status: 409 });
+}
 
 export type FactoryRunRouteOptions = {
 	factories: FactoryReader;
@@ -52,20 +61,40 @@ export function factoryRunRoutes({
 				{ status: 404 },
 			);
 		}
-		if (result === "ended") {
-			return Response.json(
-				{ error: "the run is not blocked or failed" },
-				{ status: 409 },
-			);
-		}
 		if (result === "failed") {
 			return Response.json(
 				{ error: "the factory did not start the run" },
 				{ status: 502 },
 			);
 		}
+		if ("refused" in result) {
+			return refusedAnswer(result, "the run is not blocked or failed");
+		}
 		await readFactories(() => factories.readRuns(clock.now().getTime()));
 		return Response.json({ id: result.id });
+	};
+	/** The API answer to a delete or an archive of an ended run. */
+	const remove = async (run: string, action: RemoveAction) => {
+		const result = await factories.remove(run, action);
+		if (result === "missing") {
+			return Response.json(
+				{ error: "no factory reports the run" },
+				{ status: 404 },
+			);
+		}
+		if (result === "failed") {
+			return Response.json(
+				{ error: `the factory did not take the ${action}` },
+				{ status: 502 },
+			);
+		}
+		if (result !== "removed") {
+			return Response.json({ error: result.refused }, { status: 409 });
+		}
+		await readFactories(() => factories.readRuns(clock.now().getTime()));
+		return Response.json(
+			action === "delete" ? { deleted: true } : { archived: true },
+		);
 	};
 	const readWorkflow = async (runId: string) => {
 		if (await factories.readWorkflow(runId)) {
@@ -203,6 +232,19 @@ export function factoryRunRoutes({
 				return Response.json(found);
 			},
 		},
+		"/api/factory-runs/:id/settings": {
+			GET: (request) =>
+				staleRead(readKey(request), async () => {
+					const found = await factories.settings(request.params.id);
+					if (found === "missing") {
+						return Response.json({ missing: true }, { status: 404 });
+					}
+					if (found === "not served") {
+						return Response.json({ notServed: true }, { status: 404 });
+					}
+					return Response.json(found);
+				}),
+		},
 		"/api/factory-runs/:id/artifact": {
 			GET: (request) =>
 				staleRead(readKey(request), async () => {
@@ -236,6 +278,9 @@ export function factoryRunRoutes({
 						{ status: 404 },
 					);
 				}
+				if (typeof result === "object" && "refused" in result) {
+					return refusedAnswer(result, "the run does not wait on the question");
+				}
 				if (result === "failed") {
 					return Response.json(
 						{ error: "the factory did not take the answer" },
@@ -264,10 +309,10 @@ export function factoryRunRoutes({
 						{ status: 404 },
 					);
 				}
-				if (result === "ended") {
-					return Response.json(
-						{ error: "the run has ended, so it takes no steer" },
-						{ status: 409 },
+				if (typeof result === "object" && "refused" in result) {
+					return refusedAnswer(
+						result,
+						"the run has ended, so it takes no steer",
 					);
 				}
 				if (result === "failed") {
@@ -288,11 +333,8 @@ export function factoryRunRoutes({
 						{ status: 404 },
 					);
 				}
-				if (result === "ended") {
-					return Response.json(
-						{ error: "the run has already ended" },
-						{ status: 409 },
-					);
+				if (typeof result === "object" && "refused" in result) {
+					return refusedAnswer(result, "the run has already ended");
 				}
 				if (result === "failed") {
 					return Response.json(
@@ -309,6 +351,12 @@ export function factoryRunRoutes({
 		},
 		"/api/factory-runs/:run/restart": {
 			POST: (request) => startAgain(factories.restart(request.params.run)),
+		},
+		"/api/factory-runs/:run/delete": {
+			POST: (request) => remove(request.params.run, "delete"),
+		},
+		"/api/factory-runs/:run/archive": {
+			POST: (request) => remove(request.params.run, "archive"),
 		},
 	});
 }

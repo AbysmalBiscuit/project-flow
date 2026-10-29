@@ -269,3 +269,35 @@ export async function postGithubReply(
 		createdAt: created.created_at,
 	};
 }
+
+export async function addGithubLabel(
+	token: string,
+	fetchImpl: Fetch,
+	key: string,
+	label: string,
+): Promise<void> {
+	const parsed = githubKeyParts(key);
+	if (parsed === null) {
+		throw new TrackerError(
+			"GitHub label failed: ticket key has no number",
+			400,
+		);
+	}
+	const response = await fetchImpl(
+		`https://api.github.com/repos/${parsed.repo}/issues/${parsed.number}/labels`,
+		{
+			method: "POST",
+			headers: {
+				...githubHeaders(token),
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({ labels: [label] }),
+		},
+	);
+	if (!response.ok) {
+		throw new TrackerError(
+			`GitHub label failed (HTTP ${response.status})`,
+			response.status,
+		);
+	}
+}

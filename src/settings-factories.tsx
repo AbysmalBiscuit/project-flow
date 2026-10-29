@@ -27,7 +27,15 @@ function detail(factory: Factory, entry: FactoryEntry | undefined): string {
 				: [];
 	const source =
 		entry?.source === "flag" ? factoryCopy.flag : factoryCopy.config;
-	return [factory.url, source, ...kind].join(", ");
+	const ready = [
+		...(factory.readyLabel === undefined
+			? []
+			: [factoryCopy.readyLabelOf(factory.readyLabel)]),
+		...(factory.readyStatus === undefined
+			? []
+			: [factoryCopy.readyStatusOf(factory.readyStatus)]),
+	];
+	return [factory.url, source, ...kind, ...ready].join(", ");
 }
 
 function Reach({ id, entry }: { id: string; entry: FactoryEntry | undefined }) {
@@ -67,6 +75,7 @@ export function FactoriesSection({
 }) {
 	const [name, setName] = useState("");
 	const [url, setUrl] = useState("");
+	const [readyLabel, setReadyLabel] = useState("");
 	const flagged = entries.filter((entry) => entry.source === "flag");
 	const configured = (factory: Factory) =>
 		flagged.length > 0
@@ -77,14 +86,23 @@ export function FactoriesSection({
 		if (next.name === "" || next.url === "") {
 			return;
 		}
+		const known = draft.factories.find((factory) => factory.url === next.url);
+		const kept = readyLabel.trim() || known?.readyLabel;
 		onChange({
 			factories: [
 				...draft.factories.filter((factory) => factory.url !== next.url),
-				next,
+				{
+					...next,
+					...(kept === undefined ? {} : { readyLabel: kept }),
+					...(known?.readyStatus === undefined
+						? {}
+						: { readyStatus: known.readyStatus }),
+				},
 			],
 		});
 		setName("");
 		setUrl("");
+		setReadyLabel("");
 	}
 	return (
 		<section id="factories" className={clsx(fields.card)}>
@@ -149,6 +167,21 @@ export function FactoriesSection({
 						placeholder={factoryCopy.url}
 						value={url}
 						onChange={(event) => setUrl(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key !== "Enter") {
+								return;
+							}
+							event.preventDefault();
+							add();
+						}}
+					/>
+					<TextInput
+						id="factory-ready-label"
+						width={fields.chipInput}
+						aria-label={factoryCopy.readyLabel}
+						placeholder={factoryCopy.readyLabel}
+						value={readyLabel}
+						onChange={(event) => setReadyLabel(event.target.value)}
 						onKeyDown={(event) => {
 							if (event.key !== "Enter") {
 								return;

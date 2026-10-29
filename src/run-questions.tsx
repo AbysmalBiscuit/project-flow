@@ -1,10 +1,10 @@
 import * as stylex from "@stylexjs/stylex";
 import { useState } from "react";
 
-import { Button } from "./button.tsx";
 import type { FactoryQuestion } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { useAnswerQuestion } from "./queries.ts";
+import { SendButton, SendText } from "./send-box.tsx";
 import { runQuestionsLabel } from "./terms.ts";
 import { space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
@@ -43,20 +43,13 @@ function QuestionAnswer({
 			<label className={clsx(panel.question)} htmlFor={field}>
 				{question.text}
 			</label>
-			<textarea
+			<SendText
 				id={field}
-				className={clsx(panel.text)}
 				placeholder="Write an answer"
 				value={draft}
 				onChange={(event) => setDraft(event.target.value)}
 			/>
-			<Button
-				label="Answer"
-				submit
-				tone="primary"
-				layout={panel.send}
-				disabled={answer.isPending}
-			/>
+			<SendButton label="Answer" disabled={answer.isPending} />
 			{answer.error === null ? null : (
 				<p className={clsx(panel.error)}>{answer.error.message}</p>
 			)}

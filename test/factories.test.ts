@@ -77,7 +77,10 @@ describe("factories", () => {
 		);
 		try {
 			await factoryEntries(app.base);
-			const feedUrls = ["http://localhost/runs", "http://localhost/events"];
+			const feedUrls = [
+				"http://localhost/runs?archived=1",
+				"http://localhost/events",
+			];
 			expect(
 				requests.filter((request) => !feedUrls.includes(request.url)),
 			).toEqual([
@@ -139,7 +142,8 @@ describe("factories", () => {
 				requests
 					.map((request) => request.url)
 					.filter(
-						(url) => url !== `${hubUrl}/runs` && url !== `${hubUrl}/events`,
+						(url) =>
+							url !== `${hubUrl}/runs?archived=1` && url !== `${hubUrl}/events`,
 					),
 			).toEqual([`${hubUrl}/daemon`]);
 		} finally {

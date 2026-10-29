@@ -186,6 +186,22 @@ _Avoid_: Diff (when the whole list is meant)
 The text of the graph file that a run loaded, and of each child graph that it calls. The factory keeps the package that the run loaded, so a later edit of a graph file does not change the workflow source. Project Flow reads it from `GET /runs/{id}/source` of the hub that reports the run, or else of its box.
 _Avoid_: Workflow file, DOT file
 
+**Run settings**:
+What a run was asked to do: its workflow package, the value of each package parameter, the harness, model and effort that each agent node starts on, and the options of its request. The factory leaves out each token and secret. Project Flow reads the run settings from `GET /runs/{id}/settings` of the hub that reports the run, or else of its box.
+_Avoid_: Run config, settings (alone, which names the Settings page)
+
+**Workflow package**:
+The folder or archive that holds the graphs of a workflow and the files that they need. The factory keeps a copy of the package in the run folder, and the run reads only that copy.
+_Avoid_: Bundle, workflow folder
+
+**Package parameter**:
+A graph attribute that a workflow package declares with a default. A repo can set its value for its runs, for example when to rebase or when to ask before a merge.
+_Avoid_: Option, flag
+
+**Agent node**:
+A node of a workflow graph that starts an agent. The run settings give the harness, model and effort of each agent node.
+_Avoid_: Agent step
+
 **Run agent**:
 The agent that works on one stage of a live run: its current tool, its last message and whether its turn runs or ended. Project Flow reads it from `GET /runs/{id}/workers` of the factory that reports the run, only while a view follows the run.
 _Avoid_: Worker (when the agent is meant)
@@ -217,6 +233,10 @@ _Avoid_: Retry (when a whole run is meant), rerun
 **Restart**:
 Lev starts a new workcell run on the ticket of a blocked or failed run, from the first run stage. The new run names the run it restarted from. The restart cancels a blocked old run, and a failed old run stays as it was.
 _Avoid_: Retry (when a whole run is meant), rerun, resume (when a restart is meant)
+
+**Queued ticket**:
+An open ticket that meets the ready label or the ready status of a factory, and has no run that started after the request. The hub claims it on its next source pass. Its card, row and panel head show a grey "Queued" chip. A queued ticket has no run, so the run filter does not match it.
+_Avoid_: Waiting ticket, queued run (when the ticket is meant)
 
 **Runs list**:
 The table of every workcell run that the factories report, with search and filters. Each row links to its run page. Each row shows the cost of the run from the usage totals in `GET /runs`, and Lev can sort the rows by start or by cost.

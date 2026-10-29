@@ -19,6 +19,8 @@ import type { FactoryEntry } from "./factories.ts";
 import type {
 	AnswerResult,
 	CancelResult,
+	RemoveAction,
+	RemoveResult,
 	StartResult,
 	Steer,
 	SteerResult,
@@ -27,6 +29,7 @@ import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
+import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { TranscriptRead } from "./factory-run-transcript.ts";
 import type { ProjectRef } from "./project-ref.ts";
@@ -114,6 +117,8 @@ export type Tracker = {
 		signal?: AbortSignal,
 	) => Promise<FetchedThread | null>;
 	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
+	/** Add the label to the ticket. A Linear label must exist in the ticket's team or the workspace. */
+	addLabel?: (key: string, label: string) => Promise<void>;
 };
 
 /** Reads the factories that this launch lists. */
@@ -219,8 +224,14 @@ export type FactoryReader = {
 		after: number,
 	) => Promise<TranscriptRead>;
 	/**
+	 * `GET /runs/{id}/settings` of the hub that reports the run, or else of its box.
+	 * "missing" when no factory reported the run or the factory did not answer,
+	 * and "not served" when the factory answered with 404.
+	 */
+	settings: (runId: string) => Promise<RunSettingsRead>;
+	/**
 	 * Post an answer to an open question of a run, on the factory whose row gives the run its status.
-	 * Answers, steers, cancels, resumes and restarts are the only write requests that the app sends to a factory.
+	 * Answers, steers, cancels, resumes, restarts, deletes and archives are the only write requests that the app sends to a factory.
 	 */
 	answer: (
 		run: string,
@@ -235,6 +246,11 @@ export type FactoryReader = {
 	resume: (run: string) => Promise<StartResult>;
 	/** Start a new run on the ticket of a blocked or failed run, on the hub that reports the run, or else on its box. */
 	restart: (run: string) => Promise<StartResult>;
+	/**
+	 * Delete or archive an ended run, on the hub that reports the run, or else on its box.
+	 * A delete drops the run from the factory. An archive keeps it out of the plain `GET /runs`.
+	 */
+	remove: (run: string, action: RemoveAction) => Promise<RemoveResult>;
 };
 
 export type GithubTracker = Tracker & {

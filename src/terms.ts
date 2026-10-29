@@ -1,6 +1,7 @@
 import type {
 	NeedsYouItem,
 	NotificationTrigger,
+	Queued,
 	RunMessage,
 	RunResult,
 	RunStatusKind,
@@ -211,6 +212,9 @@ export const earlierRunsLabel = "Earlier runs";
 export const runQuestionsLabel = "Run questions";
 
 export const steerLabel = "Steer the run";
+export const steerFailed = "Steer failed";
+
+export const toastCloseLabel = "Close message";
 
 export const runCancelCopy = {
 	action: "Cancel run",
@@ -218,6 +222,18 @@ export const runCancelCopy = {
 	title: "Cancel the run?",
 	body: "The factory stops the run and its agents now.",
 	dismiss: "Keep running",
+	failed: "Cancel failed",
+} as const;
+
+export const runRemoveCopy = {
+	delete: "Delete",
+	deleting: "Deleting",
+	archive: "Archive",
+	archiving: "Archiving",
+	title: "Delete the run?",
+	body: "The factory drops the run and its record. The worktree and the branch of the run stay.",
+	dismiss: "Keep run",
+	archived: "Archived",
 } as const;
 
 export const runResumeCopy = {
@@ -232,7 +248,31 @@ export const runResumeCopy = {
 		"The factory starts a new run of the ticket from the first stage. The restart cancels the old run.",
 	confirm: "Restart run",
 	dismiss: "Keep the run",
+	resumeFailed: "Resume failed",
+	restartFailed: "Restart failed",
 } as const;
+
+export const runStartCopy = {
+	action: "Start run",
+	pending: "Starting",
+	requested: "Run requested",
+	title: "Start a run?",
+	body: (factory: string, label: string) =>
+		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
+	linearBody: (factory: string, label: string) =>
+		`Project Flow adds the label ${label} to the ticket. The factory ${factory} starts a run only when the workflow state of the ticket matches a rule of its source.`,
+} as const;
+
+export const queuedLabel = "Queued";
+
+/** The tooltip of the Queued chip: the factory, and the label or status that queued the ticket. */
+export function queuedTip({ factory, label, status }: Queued): string {
+	const reasons = [
+		...(label === undefined ? [] : [`label ${label}`]),
+		...(status === undefined ? [] : [`status ${status}`]),
+	];
+	return `Waits for factory ${factory} to start a run: ${reasons.join(" and ")}`;
+}
 
 export const runThreadLabel = "Run thread";
 
@@ -250,7 +290,7 @@ export const runFactLabel = {
 	project: "Project",
 	box: "Box",
 	factory: "Factory",
-	workflow: "Workflow",
+	workflow: "Workflow graph",
 	start: "Start time",
 	elapsed: "Elapsed",
 	failureReason: "Failure reason",
@@ -291,6 +331,7 @@ export const runsColumnLabel = {
 	duration: "Duration",
 	cost: "Cost",
 	pr: runFactLabel.pr,
+	actions: "Actions",
 } as const;
 
 export const runsListCopy = {
@@ -306,6 +347,10 @@ export const runsListCopy = {
 	result: "Result",
 	project: "Project",
 	factory: "Factory",
+	archive: "Archived runs",
+	unarchived: "Not archived",
+	archivedOnly: "Archived",
+	allRuns: "All runs",
 } as const;
 
 /** The tabs of the run page, in order. */
@@ -396,6 +441,35 @@ export function renamedPathLabel(from: string, to: string): string {
 export function runFilesCountLabel(count: number): string {
 	return count === 1 ? "1 file" : `${count} files`;
 }
+
+export const runSettingsLabel = {
+	parameters: "Parameters",
+	choices: "Agent nodes",
+	options: "Run options",
+} as const;
+
+export const noParametersLabel = "The workflow declares no parameters.";
+
+export const noChoicesLabel = "The workflow has no agent nodes.";
+
+export const defaultChoiceLabel = "default";
+
+export function choiceModeLabel(mode: string, launcher: string | null): string {
+	return launcher === null ? mode : `${mode}, launcher ${launcher}`;
+}
+
+export const runOptionLabel = {
+	workflow: "Workflow package",
+	repo: "Repo",
+	ticket: "Ticket",
+	author: "Author",
+	keepWorktree: "Keep worktree",
+	sent: "Sent by the hub",
+	source: "Hub feed",
+	rule: "Dispatch rule",
+} as const;
+
+export const yesNoLabel = { true: "Yes", false: "No" } as const;
 
 export const runSourceLabel = "Workflow source";
 
@@ -726,6 +800,9 @@ export const factoryCopy = {
 	none: "No factory set.",
 	name: "Factory name",
 	url: "http, https or unix URL",
+	readyLabel: "Run start label (optional)",
+	readyLabelOf: (label: string) => `run start label ${label}`,
+	readyStatusOf: (status: string) => `run start status ${status}`,
 	reachable: "Reachable",
 	unreachable: "Unreachable",
 	unchecked: "Not checked",

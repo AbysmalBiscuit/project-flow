@@ -31,9 +31,11 @@ const writePaths = [
 	/^\/runs\/[^/]+\/cancel$/,
 	/^\/runs\/[^/]+\/resume$/,
 	/^\/runs\/[^/]+\/restart$/,
+	/^\/runs\/[^/]+\/delete$/,
+	/^\/runs\/[^/]+\/archive$/,
 ];
 
-/** True for a read, and for an answer, steer, cancel, resume or restart POST: the only writes that the app may send to a factory. */
+/** True for a read, and for an answer, steer, cancel, resume, restart, delete or archive POST: the only writes that the app may send to a factory. */
 export function readOrRunWrite(request: FactoryRequest): boolean {
 	const { pathname } = new URL(request.url);
 	return (

@@ -3,11 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { board } from "./board-styles.ts";
-import { Button } from "./button.tsx";
 import type { ShownFactoryRun } from "./domain.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery, useSteerRun } from "./queries.ts";
-import { steerLabel } from "./terms.ts";
+import { SendButton, SendText } from "./send-box.tsx";
+import { steerFailed, steerLabel } from "./terms.ts";
+import { actionToastHideMs, Toast } from "./toast.tsx";
 import { space } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
@@ -93,9 +94,8 @@ export function RunSteer({
 						/>
 					</>
 				) : null}
-				<textarea
+				<SendText
 					aria-label="Steer text"
-					className={clsx(panel.text)}
 					placeholder="Write a steer"
 					value={text}
 					onChange={(event) => setText(event.target.value)}
@@ -109,15 +109,14 @@ export function RunSteer({
 					/>
 					<span>Interrupt the current turn</span>
 				</label>
-				<Button
-					label="Steer"
-					submit
-					tone="primary"
-					layout={panel.send}
-					disabled={steer.isPending}
-				/>
+				<SendButton label="Steer" disabled={steer.isPending} />
 				{steer.error === null ? null : (
-					<p className={clsx(panel.error)}>{steer.error.message}</p>
+					<Toast
+						tone="error"
+						message={`${steerFailed}: ${steer.error.message}`}
+						hideMs={actionToastHideMs}
+						onClose={() => steer.reset()}
+					/>
 				)}
 			</form>
 		</section>

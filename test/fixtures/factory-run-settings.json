@@ -1,0 +1,45 @@
+{
+	"workflow": "workcell",
+	"parameters": {
+		"through": "review",
+		"max_rounds": 3,
+		"draft": false,
+		"note": "[REDACTED]"
+	},
+	"parameters_error": null,
+	"choices": {
+		"implement": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "high",
+			"error": null
+		},
+		"review": {
+			"mode": "headless",
+			"launcher": "reviewer",
+			"harness": "codex",
+			"model": "gpt-5.5",
+			"effort": null,
+			"error": null
+		},
+		"watch": {
+			"mode": "pane",
+			"launcher": null,
+			"harness": null,
+			"model": null,
+			"effort": null,
+			"error": "no launcher offers a harness that is installed"
+		}
+	},
+	"options": {
+		"repo": "acme/widget",
+		"ticket": "41",
+		"author": "lev",
+		"keep_worktree": true,
+		"sent": true,
+		"source": "acme-github",
+		"rule": "ready-for-agent"
+	}
+}

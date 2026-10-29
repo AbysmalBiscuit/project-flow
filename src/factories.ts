@@ -44,6 +44,7 @@ import {
 	statusRow,
 } from "./factory-run-rows.ts";
 import { runSandboxReader } from "./factory-run-sandbox.ts";
+import { runSettingsReader } from "./factory-run-settings.ts";
 import { runSourceReader } from "./factory-run-source.ts";
 import { runTranscriptReader } from "./factory-run-transcript.ts";
 import type { Fetch } from "./fetch.ts";
@@ -310,7 +311,7 @@ export function factoryReader(
 		const read = reader(fetchImpl, factory.url, signal);
 		const known = found.get(factory.url);
 		try {
-			const answer = await body(await read("/runs"), runRows);
+			const answer = await body(await read("/runs?archived=1"), runRows);
 			const rows = await Promise.all(
 				factoryRuns(answer.runs, factory).map(async (row) => {
 					if (row.run.statusKind !== "blocked") {
@@ -567,6 +568,7 @@ export function factoryReader(
 		files: runFilesReader({ fetchImpl, signal, statusRowOf, sandbox }),
 		...runSourceReader({ fetchImpl, signal, statusRowOf }),
 		...runTranscriptReader({ fetchImpl, signal, statusRowOf }),
+		settings: runSettingsReader({ fetchImpl, signal, statusRowOf }),
 		...runActions({ fetchImpl, signal, now, statusRowOf, addMessage }),
 	};
 }

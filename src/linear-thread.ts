@@ -171,3 +171,74 @@ export async function postLinearReply(
 		createdAt: created.createdAt,
 	};
 }
+
+const readyLabels = `query ReadyLabels($id: String!, $name: String!) {
+	issue(id: $id) { id team { id } }
+	issueLabels(first: 250, filter: { name: { eq: $name } }) { nodes { id team { id } } }
+}`;
+
+const foundLabels = z.object({
+	issue: z
+		.object({ id: z.string(), team: z.object({ id: z.string() }) })
+		.nullable(),
+	issueLabels: z.object({
+		nodes: z.array(
+			z.object({
+				id: z.string(),
+				team: z.object({ id: z.string() }).nullable(),
+			}),
+		),
+	}),
+});
+
+const issueAddLabel = `mutation IssueAddLabel($id: String!, $labelId: String!) {
+	issueAddLabel(id: $id, labelId: $labelId) { success }
+}`;
+
+const addedLabel = z.object({
+	issueAddLabel: z.object({ success: z.boolean() }),
+});
+
+/** Add the label of the ticket's team, or else the workspace label, by its name. */
+export async function addLinearLabel(
+	key: string,
+	fetchImpl: Fetch,
+	ticketKey: string,
+	label: string,
+): Promise<void> {
+	const found = await linearGraphql(
+		{ key, fetchImpl },
+		{
+			query: readyLabels,
+			variables: { id: ticketKey, name: label },
+			data: foundLabels,
+			label: "find label",
+		},
+	);
+	const issue = found.issue;
+	if (issue === null) {
+		throw new TrackerError("Linear label failed: ticket not found", 404);
+	}
+	const usable = found.issueLabels.nodes.filter(
+		(node) => node.team === null || node.team.id === issue.team.id,
+	);
+	const picked = usable.find((node) => node.team !== null) ?? usable[0];
+	if (picked === undefined) {
+		throw new TrackerError(
+			`Linear label failed: the team of ${ticketKey} has no label ${label}`,
+			409,
+		);
+	}
+	const { issueAddLabel: added } = await linearGraphql(
+		{ key, fetchImpl },
+		{
+			query: issueAddLabel,
+			variables: { id: issue.id, labelId: picked.id },
+			data: addedLabel,
+			label: "add label",
+		},
+	);
+	if (!added.success) {
+		throw new TrackerError("Linear label failed", 502);
+	}
+}

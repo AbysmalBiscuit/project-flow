@@ -21,6 +21,7 @@ import {
 	type RunDetail,
 	type RunFile,
 	type RunSandbox,
+	type RunSettings,
 	type RunSource,
 	type SettingsProject,
 	type ShownFactoryRun,
@@ -29,14 +30,15 @@ import {
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { FactoryEntry } from "./factories.ts";
-import type { Steer } from "./factory-run-actions.ts";
+import type { RemoveAction, Steer } from "./factory-run-actions.ts";
 import type { ArtifactsRead } from "./factory-run-artifacts.ts";
 import type { CheckpointRead } from "./factory-run-detail.ts";
 import type { FilesRead } from "./factory-run-files.ts";
 import type { SandboxRead } from "./factory-run-sandbox.ts";
+import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
-import { openPage, runPagePath } from "./page-links.ts";
+import { openPage, runPagePath, runsPath } from "./page-links.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
@@ -162,6 +164,16 @@ export const pageQuery = {
 			queryFn: () => readSource(run.id, queryKey),
 			...pendingRetry,
 			placeholderData: (previous: SourceRead | undefined) => previous,
+		});
+	},
+	/** The key holds the run's status and stage, so a node that starts its worker reads its choice again. */
+	runSettings: (run: Pick<ShownFactoryRun, "id" | "statusKind" | "stage">) => {
+		const queryKey = ["runSettings", run.id, run.statusKind, run.stage ?? null];
+		return queryOptions({
+			queryKey,
+			queryFn: () => readRunSettings(run.id, queryKey),
+			...pendingRetry,
+			placeholderData: (previous: RunSettingsRead | undefined) => previous,
 		});
 	},
 	artifact: (runId: string, artifact: Pick<RunArtifact, "folder" | "name">) => {
@@ -464,6 +476,32 @@ async function readSource(
 	return (await response.json()) as RunSource;
 }
 
+async function readRunSettings(
+	runId: string,
+	queryKey: readonly unknown[],
+): Promise<RunSettingsRead> {
+	const response = await fetch(
+		`/api/factory-runs/${encodeURIComponent(runId)}/settings`,
+	);
+	if (response.status === pendingStatus) {
+		const held = heldData<RunSettingsRead>(queryKey);
+		if (held === undefined) {
+			throw new PendingRead();
+		}
+		return held;
+	}
+	if (response.status === 404) {
+		const body = (await response.json().catch(() => null)) as {
+			notServed?: boolean;
+		} | null;
+		return body?.notServed === true ? "not served" : "missing";
+	}
+	if (!response.ok) {
+		throw new Error(`run settings failed (HTTP ${response.status})`);
+	}
+	return (await response.json()) as RunSettings;
+}
+
 async function readArtifact(
 	runId: string,
 	artifact: Pick<RunArtifact, "folder" | "name">,
@@ -605,6 +643,27 @@ export function usePostReply(tracker: string, project: string, key: string) {
 	});
 }
 
+/** Add the ready label of a factory to a ticket, so the hub starts a run of it. */
+export function useStartRun(tracker: string, project: string, key: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (): Promise<void> => {
+			const response = await fetch("/api/run-starts", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ tracker, project, key }),
+			});
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(failed?.error ?? "Start failed");
+			}
+		},
+		onSuccess: () => queries.invalidateQueries({ queryKey: ["project"] }),
+	});
+}
+
 /** Read one project again. The event stream brings its new rows when the read ends. */
 export function useRefreshProject(name: string) {
 	return useMutation({
@@ -714,6 +773,36 @@ export function useStartAgain(run: string) {
 			void queries.invalidateQueries({ queryKey: ["project"] });
 			if (id !== run) {
 				openPage(runPagePath(id));
+			}
+		},
+	});
+}
+
+/** Delete or archive an ended run. A delete from the run page opens the Runs list. */
+export function useRemoveRun(run: string) {
+	const queries = useQueryClient();
+	return useMutation({
+		mutationFn: async (action: RemoveAction): Promise<void> => {
+			const response = await fetch(
+				`/api/factory-runs/${encodeURIComponent(run)}/${action}`,
+				{ method: "POST" },
+			);
+			if (!response.ok) {
+				const failed = (await response.json().catch(() => null)) as {
+					error?: string;
+				} | null;
+				throw new Error(
+					failed?.error ?? `The factory did not take the ${action}`,
+				);
+			}
+		},
+		onSuccess: (_done, action) => {
+			void queries.invalidateQueries(pageQuery.runs);
+			void queries.invalidateQueries({ queryKey: ["project"] });
+			if (action === "archive") {
+				void queries.invalidateQueries(pageQuery.run(run));
+			} else if (window.location.pathname === runPagePath(run)) {
+				openPage(runsPath);
 			}
 		},
 	});
@@ -874,6 +963,7 @@ function applyOverviewEvent(body: Overview): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 
@@ -893,6 +983,7 @@ function invalidatePageQueries(): void {
 	void pageQueryClient.invalidateQueries({ queryKey: ["files"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["source"] });
 	void pageQueryClient.invalidateQueries({ queryKey: ["transcript"] });
+	void pageQueryClient.invalidateQueries({ queryKey: ["runSettings"] });
 	void pageQueryClient.invalidateQueries(pageQuery.runs);
 }
 

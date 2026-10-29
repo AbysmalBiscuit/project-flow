@@ -63,6 +63,8 @@ export function openPage(next: string): void {
 	window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
+export const runsPath = "/runs";
+
 export function runPagePath(id: string): string {
-	return `/runs/${encodeURIComponent(id)}`;
+	return `${runsPath}/${encodeURIComponent(id)}`;
 }

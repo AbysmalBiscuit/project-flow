@@ -8,15 +8,16 @@ import { runPagePath } from "./page-links.ts";
 import { commentTime, elapsed, RunFact, runTime } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
+import { RunAction } from "./run-action.tsx";
 import { RunArtifacts } from "./run-artifacts.tsx";
-import { RunCancel } from "./run-cancel.tsx";
 import { NotServed, RunStages, RunUsage } from "./run-checkpoint.tsx";
 import { RunEvents } from "./run-events.tsx";
 import { RunFiles } from "./run-files.tsx";
 import { RunGraph } from "./run-graph.tsx";
 import { RunDot } from "./run-marks.tsx";
-import { RunResume } from "./run-resume.tsx";
+import { RunRemove } from "./run-remove.tsx";
 import { RunSandbox } from "./run-sandbox.tsx";
+import { RunSettings } from "./run-settings.tsx";
 import { RunSource } from "./run-source.tsx";
 import { RunThread } from "./run-thread.tsx";
 import { Segment } from "./segment.tsx";
@@ -176,6 +177,8 @@ function TabBody({
 				<RunArtifacts run={run} />
 			) : tab === "sandbox" ? (
 				<RunSandbox run={run} />
+			) : tab === "settings" ? (
+				<RunSettings run={run} />
 			) : tab === "source" ? (
 				<RunSource run={run} />
 			) : (
@@ -218,8 +221,8 @@ export function Page() {
 				: {
 						actions: (
 							<>
-								<RunResume run={data} />
-								<RunCancel run={data} />
+								<RunAction run={data} />
+								<RunRemove run={data} />
 							</>
 						),
 					})}

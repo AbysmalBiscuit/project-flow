@@ -393,21 +393,16 @@ export function TrackersSection({ trackers }: { trackers: Trackers }) {
 export function SettingsBar({
 	dirty,
 	saving,
-	message,
-	failed,
 	onDiscard,
 	onSave,
 }: {
 	dirty: boolean;
 	saving: boolean;
-	message: string | null;
-	failed: boolean;
 	onDiscard: () => void;
 	onSave: () => void;
 }) {
 	return (
 		<div className={clsx(fields.bar)}>
-			<SettingsToast message={message} failed={failed} />
 			<Button
 				id="discard-settings"
 				label={settingsCopy.discard}
@@ -422,29 +417,5 @@ export function SettingsBar({
 				onClick={onSave}
 			/>
 		</div>
-	);
-}
-
-function SettingsToast({
-	message,
-	failed,
-}: {
-	message: string | null;
-	failed: boolean;
-}) {
-	if (message === null) {
-		return null;
-	}
-	return (
-		<p
-			id="settings-toast"
-			className={clsx(
-				fields.toast,
-				failed ? fields.toastError : fields.toastSaved,
-			)}
-			role={failed ? "alert" : "status"}
-		>
-			{message}
-		</p>
 	);
 }
