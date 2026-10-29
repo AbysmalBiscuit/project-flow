@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import daemonSlots from "../fixtures/factory-daemon-slots.json";
-import { laptopUrl } from "../support/factory.ts";
+import { hub, laptopUrl } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
 import {
 	boxRow,
@@ -220,5 +220,103 @@ describe("the end of a label start", () => {
 		} finally {
 			await app.stop();
 		}
+	});
+
+	describe("on a box that a hub also reads", () => {
+		const otherHubUrl = "http://other-hub.test:7777";
+		const onBox = { factory: "laptop", label: readyLabel } as const;
+
+		/** The box `laptop` with the ready label, whose sent run `box-old` of ticket 40 the hub also lists. */
+		function boxReadThroughHub() {
+			const old = { ...ticket40Run("box-old", "13:50"), machine: "laptop" };
+			const runs = { hub: [old] as object[], box: [boxRow(old, "succeeded")] };
+			const box = {
+				name: "laptop",
+				url: laptopUrl,
+				readyLabel,
+				answers: {
+					"/daemon": daemonSlots,
+					"/sources": { sources: [] },
+					"/runs": () => ({ runs: runs.box }),
+				},
+			};
+			return { runs, box };
+		}
+
+		test("a label start ends at a new hub-source run of the ticket that shows under the name of the hub", async () => {
+			const { runs, box } = boxReadThroughHub();
+			const app = await serveGithub([40], {
+				hubAnswers: hubListing(() => runs.hub),
+				otherFactories: [box],
+			});
+			try {
+				await ticketWhere(
+					app.base,
+					repo,
+					key,
+					(view) => view.factoryRun?.id === "box-old",
+				);
+				expect((await startRun(app.base, "github", repo, key)).status).toBe(
+					200,
+				);
+				const sent = {
+					...ticket40Run("box-run", "14:30"),
+					machine: "laptop",
+				};
+				runs.hub = [sent, ...runs.hub];
+				runs.box = [boxRow(sent, "succeeded"), ...runs.box];
+				app.advance(60 * 60_000);
+				const ended = await ticketWhere(
+					app.base,
+					repo,
+					key,
+					(view) =>
+						view.factoryRun?.id === "box-run" &&
+						view.factoryRun.factory === "laptop",
+				);
+				expect(ended.runStart).toEqual(onBox);
+			} finally {
+				await app.stop();
+			}
+		});
+
+		test("a label start stays requested while the only new run of the ticket is on an unrelated factory", async () => {
+			const { runs, box } = boxReadThroughHub();
+			let otherRuns: object[] = [];
+			const app = await serveGithub([40], {
+				hubAnswers: hubListing(() => runs.hub),
+				otherFactories: [
+					box,
+					{
+						name: "other hub",
+						url: otherHubUrl,
+						answers: { ...hub, "/runs": () => ({ runs: otherRuns }) },
+					},
+				],
+			});
+			try {
+				await ticketWhere(
+					app.base,
+					repo,
+					key,
+					(view) => view.factoryRun?.id === "box-old",
+				);
+				expect((await startRun(app.base, "github", repo, key)).status).toBe(
+					200,
+				);
+				otherRuns = [ticket40Run("other-run", "14:30")];
+				app.advance(60 * 60_000);
+				const elsewhere = await ticketWhere(
+					app.base,
+					repo,
+					key,
+					(view) => view.factoryRun?.id === "other-run",
+				);
+				expect(elsewhere.factoryRun?.factory).toBe("other hub");
+				expect(elsewhere.runStart).toEqual({ ...onBox, requested: true });
+			} finally {
+				await app.stop();
+			}
+		});
 	});
 });

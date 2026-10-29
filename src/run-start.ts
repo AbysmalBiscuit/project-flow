@@ -119,27 +119,44 @@ type StartedRun = Pick<
 	"id" | "key" | "repo" | "sourceFactory" | "queuedId"
 >;
 
+type StartEntry = Pick<FactoryEntry, "name" | "alsoReadThroughHub">;
+
 /**
  * True when `run` is the run of the start. A claim ends at its accepted run,
  * which a hub renames and lists with the accepted id as `queuedId` once it sends it.
  * A label start ends at a new run of its ticket that a hub source of the label's factory started.
+ * A hub that also reads the box of the label shows the run under the name of the hub.
  * Factories date runs by their own clocks, so the rules compare ids and no times.
  */
-function startedBy(run: StartedRun, key: string, request: StartRequest) {
-	return request.claim
-		? run.id === request.run || run.queuedId === request.run
-		: isRunOf(run, key) &&
-				run.sourceFactory === request.factory &&
-				!request.known.includes(run.id);
+function startedBy(
+	run: StartedRun,
+	key: string,
+	request: StartRequest,
+	entries: readonly StartEntry[],
+) {
+	if (request.claim) {
+		return run.id === request.run || run.queuedId === request.run;
+	}
+	const hub = entries.find(
+		({ name }) => name === request.factory,
+	)?.alsoReadThroughHub;
+	return (
+		isRunOf(run, key) &&
+		run.sourceFactory !== undefined &&
+		(run.sourceFactory === request.factory || run.sourceFactory === hub) &&
+		!request.known.includes(run.id)
+	);
 }
 
 /** The start requests without the ones that their run ended. A start stays ended after that. */
 export function settledRequests(
 	requests: ReadonlyMap<string, StartRequest>,
 	runs: readonly StartedRun[],
+	entries: readonly StartEntry[],
 ): ReadonlyMap<string, StartRequest> {
 	const pending = [...requests].filter(
-		([key, request]) => !runs.some((run) => startedBy(run, key, request)),
+		([key, request]) =>
+			!runs.some((run) => startedBy(run, key, request, entries)),
 	);
 	return pending.length === requests.size ? requests : new Map(pending);
 }
