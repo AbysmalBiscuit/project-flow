@@ -189,6 +189,38 @@ describe("claimed start eligibility", () => {
 		}
 	});
 
+	test("a label start whose ready label is removed before its run allows a claimed start", async () => {
+		const app = await serveGithub([43], {
+			readyLabel,
+			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+		});
+		try {
+			const key = `${repo}#43`;
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			expect((await startRun(app.base, "github", repo, key)).status).toBe(200);
+			app.labels.set(43, []);
+			await fetch(new URL("/api/refresh", app.base), { method: "POST" });
+			const view = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(item) => item.queued === undefined,
+			);
+			expect(view.runStart?.requested).toBeUndefined();
+			const response = await startRun(
+				app.base,
+				"github",
+				repo,
+				key,
+				"work hub",
+			);
+			expect(response.status).toBe(200);
+			expect(runPosts(app.requests)).toHaveLength(1);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a claimed start of a ticket with a live run sends no POST /runs", async () => {
 		const app = await serveGithub([41], {
 			readyLabel,

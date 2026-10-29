@@ -46,7 +46,7 @@ export function runStartOf(
 	const waits =
 		(hasLabel(ticket, factory.readyLabel) &&
 			waitsForRun(ticket, newestRun, requests)) ||
-		pendingRequest(ticket, newestRun, requests) !== undefined;
+		pendingRequest(ticket, newestRun, requests)?.claim === true;
 	return {
 		factory: factory.name,
 		label: factory.readyLabel,

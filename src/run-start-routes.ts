@@ -74,8 +74,8 @@ export function runStartRoutes({
 		});
 		if (
 			(!("refused" in labelStart) && labelStart.requested === true) ||
-			pendingRequest(ticket, newestRun, pollOptions.runStartRequests) !==
-				undefined
+			pendingRequest(ticket, newestRun, pollOptions.runStartRequests)?.claim ===
+				true
 		) {
 			return Response.json(
 				{ error: "the run is already requested" },

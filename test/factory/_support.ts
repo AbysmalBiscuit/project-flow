@@ -330,7 +330,7 @@ export async function serveGithub(
 			now: () => new Date(runClockStart),
 		},
 	);
-	return { ...app, writes, requests };
+	return { ...app, writes, requests, labels };
 }
 
 export async function ticketWhere(
