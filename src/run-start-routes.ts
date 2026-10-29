@@ -56,12 +56,20 @@ export function runStartRoutes({
 }: RunStartRouteOptions) {
 	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
 	const claimed = async (ticket: Ticket, key: string, name: string) => {
-		const refused = startRefusal(
-			ticket,
-			runFor(ticket, pollOptions.factoryRuns()),
-		);
+		const newestRun = runFor(ticket, pollOptions.factoryRuns());
+		const refused = startRefusal(ticket, newestRun);
 		if (refused !== undefined) {
 			return Response.json({ error: refused }, { status: 409 });
+		}
+		const labelStart = runStartOf(ticket, newestRun, {
+			factories: pollOptions.listedFactories(),
+			requestedAt: pollOptions.runStartRequests,
+		});
+		if (!("refused" in labelStart) && labelStart.requested === true) {
+			return Response.json(
+				{ error: "the run is already requested" },
+				{ status: 409 },
+			);
 		}
 		const factory = pollOptions
 			.listedFactories()

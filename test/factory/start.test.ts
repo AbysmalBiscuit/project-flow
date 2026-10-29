@@ -169,6 +169,60 @@ describe("claimed run starts", () => {
 		}
 	});
 
+	test("a claimed start after a label start that waits for its run answers 409 and sends no POST /runs", async () => {
+		const app = await serveGithub([43], {
+			readyLabel,
+			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+		});
+		try {
+			const key = `${repo}#43`;
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			expect((await startRun(app.base, "github", repo, key)).status).toBe(200);
+			const response = await startRun(
+				app.base,
+				"github",
+				repo,
+				key,
+				"work hub",
+			);
+			expect(response.status).toBe(409);
+			expect(await response.json()).toEqual({
+				error: "the run is already requested",
+			});
+			expect(runPosts(app.requests)).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a ready label kept after a succeeded run still allows a claimed start", async () => {
+		const app = await serveGithub([40], {
+			readyLabel,
+			labels: { 40: [readyLabel] },
+			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+		});
+		try {
+			const key = `${repo}#40`;
+			await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun !== undefined,
+			);
+			const response = await startRun(
+				app.base,
+				"github",
+				repo,
+				key,
+				"work hub",
+			);
+			expect(response.status).toBe(200);
+			expect(runPosts(app.requests)).toHaveLength(1);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a claimed start of a ticket with a live run sends no POST /runs", async () => {
 		const app = await serveGithub([41], {
 			readyLabel,
