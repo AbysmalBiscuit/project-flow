@@ -6,7 +6,7 @@ import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
 import { routeTable } from "./route-table.ts";
-import { runStartOf, startRefusal } from "./run-start.ts";
+import { requestWaits, runStartOf, startRefusal } from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 import { runFor } from "./workcell.ts";
@@ -54,6 +54,13 @@ export function runStartRoutes({
 	clock,
 	readFactories,
 }: RunStartRouteOptions) {
+	/** The time of a start that the app sent, so the ticket shows the run as requested until it starts. */
+	const recordRequest = (key: string) => {
+		pollOptions.runStartRequests = new Map([
+			...pollOptions.runStartRequests,
+			[foldKey(key), pollOptions.clock.now().toISOString()],
+		]);
+	};
 	/** `POST /runs` with `claim: true` to the named factory, which starts the run now or queues it. */
 	const claimed = async (ticket: Ticket, key: string, name: string) => {
 		const newestRun = runFor(ticket, pollOptions.factoryRuns());
@@ -65,7 +72,10 @@ export function runStartRoutes({
 			factories: pollOptions.listedFactories(),
 			requestedAt: pollOptions.runStartRequests,
 		});
-		if (!("refused" in labelStart) && labelStart.requested === true) {
+		if (
+			(!("refused" in labelStart) && labelStart.requested === true) ||
+			requestWaits(ticket, newestRun, pollOptions.runStartRequests)
+		) {
 			return Response.json(
 				{ error: "the run is already requested" },
 				{ status: 409 },
@@ -89,7 +99,12 @@ export function runStartRoutes({
 			ticket: String(parts.number),
 		});
 		if (result === "claimed") {
+			recordRequest(key);
 			await readFactories(() => factories.readRuns(clock.now().getTime()));
+			notifier.publish({
+				overview: runningOverview(pollOptions, configuration()),
+				notifications: [],
+			});
 			return Response.json({ factory: name });
 		}
 		if ("refused" in result) {
@@ -153,10 +168,7 @@ export function runStartRoutes({
 				} catch (error) {
 					return trackerError(error);
 				}
-				pollOptions.runStartRequests = new Map([
-					...pollOptions.runStartRequests,
-					[foldKey(target.key), pollOptions.clock.now().toISOString()],
-				]);
+				recordRequest(target.key);
 				const label = start.label.toLowerCase();
 				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
 					pollOptions.store.mergeTickets([

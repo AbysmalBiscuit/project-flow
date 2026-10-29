@@ -41,8 +41,9 @@ export function runStartOf(
 		return { refused: "no factory has a ready label" };
 	}
 	const waits =
-		hasLabel(ticket, factory.readyLabel) &&
-		waitsForRun(ticket, newestRun, requestedAt);
+		(hasLabel(ticket, factory.readyLabel) &&
+			waitsForRun(ticket, newestRun, requestedAt)) ||
+		requestWaits(ticket, newestRun, requestedAt);
 	return {
 		factory: factory.name,
 		label: factory.readyLabel,
@@ -65,15 +66,28 @@ function waitsForRun(
 	newestRun: Pick<FactoryRun, "statusKind" | "submittedAt"> | undefined,
 	requestedAt: RunStarts["requestedAt"],
 ): boolean {
-	if (newestRun === undefined) {
-		return true;
-	}
+	return (
+		newestRun === undefined ||
+		(newestRun.statusKind === "succeeded" &&
+			requestWaits(ticket, newestRun, requestedAt))
+	);
+}
+
+/**
+ * True when the app sent a start of the ticket, a ready label or a claim, and no run
+ * started since. A factory can list a claimed run some time after it takes the claim.
+ */
+export function requestWaits(
+	ticket: Pick<Ticket, "key">,
+	newestRun: Pick<FactoryRun, "submittedAt"> | undefined,
+	requestedAt: RunStarts["requestedAt"],
+): boolean {
 	const request =
 		ticket.key === null ? undefined : requestedAt.get(foldKey(ticket.key));
 	return (
-		newestRun.statusKind === "succeeded" &&
 		request !== undefined &&
-		Date.parse(request) >= Date.parse(newestRun.submittedAt)
+		(newestRun === undefined ||
+			Date.parse(request) >= Date.parse(newestRun.submittedAt))
 	);
 }
 

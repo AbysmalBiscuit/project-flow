@@ -213,4 +213,60 @@ describe("claimed run starts", () => {
 			await app.stop();
 		}
 	});
+	test("a second claimed start of a fresh ticket answers 409 while the factory has not listed the first run", async () => {
+		const app = await serveGithub([43], {
+			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+		});
+		try {
+			const key = `${repo}#43`;
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			const first = await startRun(app.base, "github", repo, key, "work hub");
+			expect(first.status).toBe(200);
+			const second = await startRun(app.base, "github", repo, key, "work hub");
+			expect(second.status).toBe(409);
+			expect(await second.json()).toEqual({
+				error: "the run is already requested",
+			});
+			expect(runPosts(app.requests)).toHaveLength(1);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a claimed start after a succeeded run shows the run as requested and refuses a second start", async () => {
+		const app = await serveGithub([40], {
+			readyLabel,
+			hubAnswers: hubTaking(Response.json({}, { status: 201 })),
+		});
+		try {
+			const key = `${repo}#40`;
+			await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.factoryRun !== undefined,
+			);
+			const first = await startRun(app.base, "github", repo, key, "work hub");
+			expect(first.status).toBe(200);
+			const requested = await ticketWhere(
+				app.base,
+				repo,
+				key,
+				(view) => view.runStart?.requested === true,
+			);
+			expect(requested.runStart).toEqual({
+				factory: "work hub",
+				label: readyLabel,
+				requested: true,
+			});
+			const claim = await startRun(app.base, "github", repo, key, "work hub");
+			expect(claim.status).toBe(409);
+			const label = await startRun(app.base, "github", repo, key);
+			expect(label.status).toBe(409);
+			expect(runPosts(app.requests)).toHaveLength(1);
+			expect(app.writes).toEqual([]);
+		} finally {
+			await app.stop();
+		}
+	});
 });
