@@ -1,45 +1,113 @@
 {
-	"workflow": "workcell",
+	"workflow": "standard",
 	"parameters": {
+		"goal": "Build the ticket until its Done when holds, then open its pull request and land it",
+		"merge_auto": "yes",
+		"merge_review": "off",
+		"merge_rebase": "never",
 		"through": "review",
-		"max_rounds": 3,
-		"draft": false,
-		"note": "[REDACTED]"
+		"base": "",
+		"extra": "",
+		"rankdir": "LR"
 	},
 	"parameters_error": null,
 	"choices": {
+		"draft": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
+		},
 		"implement": {
 			"mode": "headless",
 			"launcher": null,
 			"harness": "claude",
 			"model": "opus",
-			"effort": "high",
+			"effort": "medium",
+			"error": null
+		},
+		"apply": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
+		},
+		"repush": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
+		},
+		"verify": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
 			"error": null
 		},
 		"review": {
 			"mode": "headless",
-			"launcher": "reviewer",
-			"harness": "codex",
-			"model": "gpt-5.5",
-			"effort": null,
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
 			"error": null
 		},
-		"watch": {
-			"mode": "pane",
+		"conceptual": {
+			"mode": "headless",
 			"launcher": null,
-			"harness": null,
-			"model": null,
-			"effort": null,
-			"error": "no launcher offers a harness that is installed"
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
+		},
+		"receive": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
+		},
+		"reverify": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
+		},
+		"post_pr": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
+		},
+		"report": {
+			"mode": "headless",
+			"launcher": null,
+			"harness": "claude",
+			"model": "opus",
+			"effort": "medium",
+			"error": null
 		}
 	},
 	"options": {
-		"repo": "acme/widget",
-		"ticket": "41",
-		"author": "lev",
+		"repo": "AbysmalBiscuit/project-flow",
+		"ticket": "742",
+		"author": "Lev Velykoivanenko",
 		"keep_worktree": true,
-		"sent": true,
-		"source": "acme-github",
-		"rule": "ready-for-agent"
+		"sent": false,
+		"source": "project-flow",
+		"rule": "build"
 	}
 }
