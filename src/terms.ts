@@ -827,7 +827,7 @@ export const factoryCopy = {
 	name: "Factory name",
 	url: "http, https or unix URL",
 	runStartLead:
-		"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. On either tracker, a ticket with the label and the queue status of a factory shows as queued.",
+		"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. A GitHub ticket with the label and the queue status of a factory shows as queued. A Linear ticket in the state and labels of its hub source's ready mapping shows as queued.",
 	readyLabel: "Start and queue label (optional)",
 	readyLabelOf: (label: string) => `start and queue label ${label}`,
 	readyStatusOf: (status: string) => `queue status ${status}`,
