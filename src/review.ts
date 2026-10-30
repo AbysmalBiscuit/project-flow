@@ -28,12 +28,12 @@ const codexRow = /^\|[^|\n]*\*\*([^*|\n]+)[^|\n]*\|([^|\n]*)\|/gm;
 function expectedBotsFromHistory(
 	pulls: Pick<
 		PullRequest,
-		"merged" | "checks" | "comments" | "reviews" | "reactions"
+		"merged" | "retained" | "checks" | "comments" | "reviews" | "reactions"
 	>[],
 ): KnownBot[] {
 	const found = new Set<KnownBot>();
 	for (const pull of pulls) {
-		if (!pull.merged) {
+		if (!pull.merged || pull.retained === true) {
 			continue;
 		}
 		for (const bot of knownBots) {
@@ -48,7 +48,13 @@ function expectedBotsFromHistory(
 export function expectedBotsByRepo(
 	pulls: Pick<
 		PullRequest,
-		"repo" | "merged" | "checks" | "comments" | "reviews" | "reactions"
+		| "repo"
+		| "merged"
+		| "retained"
+		| "checks"
+		| "comments"
+		| "reviews"
+		| "reactions"
 	>[],
 	overrides: Record<string, KnownBot[]>,
 ): Map<string, KnownBot[]> {
