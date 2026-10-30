@@ -6,11 +6,12 @@ import { repo } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
 import { readyLabel, serveGithub, ticketWhere } from "./_support.ts";
 
-/** A hub with the recorded Linear sources, whose source maps Ready to Todo with the label `factory`, and the Linear ticket PF-1. */
+/** A hub with these sources, by default the recorded ones that map Ready to Todo with the label `factory`, and the Linear ticket PF-1. */
 function serveLinear(
 	state: { id: string; name: string; type: string },
 	labels: string[],
 	readyStatus: string,
+	sources: unknown = linearSources,
 ) {
 	const tracker = linearFake({
 		project: {
@@ -38,11 +39,7 @@ function serveLinear(
 			pinned: [{ tracker: "linear", project: "widget-launch" }],
 			factories: [{ name: "work hub", url: hubUrl, readyStatus }],
 		},
-		factoryFetch(
-			{ [hubUrl]: { ...hub, "/sources": linearSources } },
-			[],
-			tracker,
-		),
+		factoryFetch({ [hubUrl]: { ...hub, "/sources": sources } }, [], tracker),
 		{ env: { LINEAR_API_KEY: "recorded-linear-key" } },
 	);
 }
@@ -93,6 +90,37 @@ describe("queued tickets", () => {
 				(item) => item.runStart !== undefined,
 			);
 			expect(view.queued).toBeUndefined();
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a Linear ticket that only a later ready rule matches is queued, and the start keeps the first rule", async () => {
+		const app = await serveLinear(todo, ["factory", "beta"], "Backlog", {
+			...linearSources,
+			sources: linearSources.sources.map((source) => ({
+				...source,
+				rules: [
+					{ name: "alpha", state: "Ready", labels: ["alpha"], without: [] },
+					{ name: "beta", state: "Ready", labels: ["beta"], without: [] },
+				],
+			})),
+		});
+		try {
+			const view = await ticketWhere(
+				app.base,
+				"Widget launch",
+				"PF-1",
+				(item) => item.runStart !== undefined,
+			);
+			expect(view.queued).toEqual({ factory: "work hub", status: "Todo" });
+			expect(view.runStart).toEqual({
+				factory: "work hub",
+				state: "Todo",
+				add: ["factory", "alpha"],
+				remove: ["factory:failed"],
+				requested: true,
+			});
 		} finally {
 			await app.stop();
 		}
