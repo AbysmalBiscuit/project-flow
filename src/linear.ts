@@ -18,7 +18,6 @@ import {
 import { linearStatusType } from "./lanes.ts";
 import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
 import {
-	addLinearLabel,
 	fetchLinearThread,
 	postLinearReply,
 	showLinearState,
@@ -903,9 +902,6 @@ export function linearTracker(
 		},
 		postReply(reply) {
 			return postLinearReply(key, fetchImpl, reply);
-		},
-		addLabel(ticketKey, label) {
-			return addLinearLabel(key, fetchImpl, ticketKey, label);
 		},
 		showState(ticketKey, shown) {
 			return showLinearState(key, fetchImpl, ticketKey, shown);
