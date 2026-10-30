@@ -104,7 +104,7 @@ export function runStartRoutes({
 				{ status: 409 },
 			);
 		}
-		const parts = githubKeyParts(key);
+		const parts = ticket.tracker === "github" ? githubKeyParts(key) : null;
 		if (parts === null) {
 			return Response.json(
 				{ error: "a claimed start needs a GitHub ticket" },

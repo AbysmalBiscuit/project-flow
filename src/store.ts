@@ -1,6 +1,6 @@
 import { Database } from "bun:sqlite";
 
-import type { Board, Notification, Ticket } from "./domain.ts";
+import type { Board, Notification, Ticket, TrackerKind } from "./domain.ts";
 import type { ValidatorStore } from "./github.ts";
 import { mergeTickets } from "./poll-merge.ts";
 import type { Snapshot, Store } from "./ports.ts";
@@ -144,6 +144,17 @@ export function sqliteStore(path: string): {
 			"alter table notifications add column read integer not null default 0",
 		);
 	}
+	if (!notificationColumns.some((column) => column.name === "tracker")) {
+		// Only GitHub and Linear wrote rows before this column, and only GitHub keys hold `#`.
+		db.transaction(() => {
+			db.run(
+				"alter table notifications add column tracker text not null default ''",
+			);
+			db.run(
+				"update notifications set tracker = case when instr(item_key, '#') > 0 then 'github' else 'linear' end",
+			);
+		})();
+	}
 	db.run(`
 		create table if not exists seeded_ids (
 			id text primary key
@@ -280,12 +291,13 @@ export function sqliteStore(path: string): {
 			readNotifications() {
 				const rows = db
 					.query(
-						"select id, trigger, project, item_key, text, at, read from notifications order by at desc, id desc",
+						"select id, trigger, project, tracker, item_key, text, at, read from notifications order by at desc, id desc",
 					)
 					.all() as {
 					id: string;
 					trigger: Notification["trigger"];
 					project: string;
+					tracker: TrackerKind;
 					item_key: string;
 					text: string;
 					at: string;
@@ -295,6 +307,7 @@ export function sqliteStore(path: string): {
 					id: row.id,
 					trigger: row.trigger,
 					project: row.project,
+					tracker: row.tracker,
 					key: row.item_key,
 					text: row.text,
 					at: row.at,
@@ -303,7 +316,7 @@ export function sqliteStore(path: string): {
 			},
 			appendNotifications(entries) {
 				const insert = db.query(
-					"insert or ignore into notifications (id, trigger, project, item_key, text, at, read) values (?, ?, ?, ?, ?, ?, ?)",
+					"insert or ignore into notifications (id, trigger, project, tracker, item_key, text, at, read) values (?, ?, ?, ?, ?, ?, ?, ?)",
 				);
 				db.transaction(() => {
 					for (const entry of entries) {
@@ -311,6 +324,7 @@ export function sqliteStore(path: string): {
 							entry.id,
 							entry.trigger,
 							entry.project,
+							entry.tracker,
 							entry.key,
 							entry.text,
 							entry.at,

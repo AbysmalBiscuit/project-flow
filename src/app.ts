@@ -1,4 +1,3 @@
-import { inboxEntries } from "./attention.ts";
 import type { Configuration, Factory } from "./configuration.ts";
 import {
 	loadConfiguration,
@@ -19,6 +18,7 @@ import { githubHost } from "./github-forge.ts";
 import { conditionalFetch, githubAdapters, missingToken } from "./github.ts";
 import { elkWorkerPath } from "./graph-core.ts";
 import { forceWorkerPath } from "./graph-layout.ts";
+import { inboxEntries } from "./inbox-entries.ts";
 import { inboxRoutes } from "./inbox-routes.ts";
 import page from "./index.html";
 import { linearTracker, missingLinearKey } from "./linear.ts";

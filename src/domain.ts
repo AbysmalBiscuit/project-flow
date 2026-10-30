@@ -764,6 +764,7 @@ export type Notification = {
 	id: string;
 	trigger: NotificationTrigger;
 	project: string;
+	tracker: TrackerKind;
 	key: string;
 	text: string;
 	at: string;
@@ -779,12 +780,13 @@ export type Attention = {
 			replyStamp: string;
 			authors: string[];
 			project: string;
+			tracker: TrackerKind;
 			key: string;
 		}
 	>;
 	blockers: Map<
 		string,
-		{ project: string; tracker: string; key: string; title: string }
+		{ project: string; tracker: TrackerKind; key: string; title: string }
 	>;
 	closed: Set<string>;
 	closedBlockers: Set<string>;
@@ -794,7 +796,6 @@ export type InboxDay = "today" | "yesterday" | "earlier";
 
 export type InboxEntry = Notification & {
 	day: InboxDay;
-	tracker: TrackerKind;
 };
 
 export type ReportSection = {
