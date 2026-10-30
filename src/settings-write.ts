@@ -88,6 +88,7 @@ function withoutTrackers(text: string): string {
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,
 		baselineTracked: _baselineTracked,
+		baselineShowNeedsYou: _baselineShowNeedsYou,
 		discovering: _discovering,
 		...configuration
 	} = parsed as Record<string, unknown>;
@@ -116,6 +117,7 @@ function applyRefEdits(
 
 const refBaseline = z.object({
 	baselineTracked: z.array(z.unknown()).optional(),
+	baselineShowNeedsYou: z.boolean().optional(),
 });
 
 function refList(value: unknown): Configuration["tracked"] | undefined {
@@ -164,8 +166,15 @@ export function mergedSettingsWrite(
 	const baseline = refBaseline.safeParse(raw);
 	const sent = baseline.success ? baseline.data : {};
 	const trackedBaseline = refList(sent.baselineTracked);
+	// A save from stale settings sends the value it loaded. Only a value that
+	// differs from that baseline is an edit of the toggle.
+	const showNeedsYou =
+		sent.baselineShowNeedsYou === parsed.overview.showNeedsYou
+			? live.overview.showNeedsYou
+			: parsed.overview.showNeedsYou;
 	return {
 		...parsed,
+		overview: { ...parsed.overview, showNeedsYou },
 		tracked:
 			trackedBaseline === undefined
 				? parsed.tracked

@@ -84,8 +84,9 @@ const overviewView = z
 		sort: z.enum(storedSorts).default("project"),
 		direction: z.enum(overviewDirections).default("asc"),
 		view: z.enum(overviewViews).default("cards"),
+		showNeedsYou: z.boolean().default(true),
 	})
-	.transform(({ filter, sort, direction, view }) => ({
+	.transform(({ filter, sort, direction, view, showNeedsYou }) => ({
 		filter: filter === "pinned" ? "all" : filter,
 		sort:
 			sort === "name"
@@ -97,6 +98,7 @@ const overviewView = z
 						: sort,
 		direction,
 		view,
+		showNeedsYou,
 	}));
 
 const projectViewSettings = z.strictObject({
@@ -200,6 +202,7 @@ const configurationSchema = z
 			sort: "project",
 			direction: "asc",
 			view: "cards",
+			showNeedsYou: true,
 		}),
 		tracked: z.array(projectRef).optional(),
 		pinned: z.array(projectRef).optional(),

@@ -103,6 +103,19 @@ export function GeneralSection({
 					{theme === "dark" ? navLabel.dark : navLabel.light}
 				</span>
 			</Row>
+			<Row
+				title={settingsCopy.showNeedsYou}
+				hint={settingsCopy.showNeedsYouHint}
+			>
+				<Switch
+					id="show-needs-you"
+					checked={draft.overview.showNeedsYou}
+					label={settingsCopy.showNeedsYou}
+					onChange={(showNeedsYou) =>
+						onChange({ overview: { ...draft.overview, showNeedsYou } })
+					}
+				/>
+			</Row>
 			<FactoryTokenRow
 				checked={draft.factoryGithubTokens}
 				reports={factoryTokenReports}

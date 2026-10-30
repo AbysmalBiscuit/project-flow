@@ -670,7 +670,13 @@ export function Page() {
 							...live,
 							...next,
 							theme: live.theme,
-							overview: live.overview,
+							overview: {
+								...live.overview,
+								showNeedsYou:
+									next.overview.showNeedsYou === baseline.overview.showNeedsYou
+										? live.overview.showNeedsYou
+										: next.overview.showNeedsYou,
+							},
 							tracked: next.tracked,
 							baselineTracked: baseline.tracked,
 							pmBot: next.pmBot,

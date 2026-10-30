@@ -336,6 +336,7 @@ describe("settings", () => {
 			sort: "blockedBy",
 			direction: "desc",
 			view: "table",
+			showNeedsYou: true,
 		} as const;
 		try {
 			await withAppFile(path, async (base) => {
@@ -347,6 +348,7 @@ describe("settings", () => {
 					sort: "project",
 					direction: "asc",
 					view: "cards",
+					showNeedsYou: true,
 				});
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
@@ -380,6 +382,7 @@ describe("settings", () => {
 			sort: "needsYou",
 			direction: "desc",
 			view: "table",
+			showNeedsYou: true,
 		} as const;
 		try {
 			await withAppFile(path, async (base) => {
@@ -391,6 +394,7 @@ describe("settings", () => {
 					sort: "project",
 					direction: "asc",
 					view: "cards",
+					showNeedsYou: true,
 				});
 				const saved = await fetch(new URL("/api/settings", base), {
 					method: "PUT",
@@ -486,6 +490,7 @@ describe("settings", () => {
 					sort: "progress",
 					direction: "asc",
 					view: "table",
+					showNeedsYou: true,
 				});
 				expect(requests.length).toBe(seen);
 
