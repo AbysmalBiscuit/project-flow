@@ -1,9 +1,10 @@
 import * as stylex from "@stylexjs/stylex";
+import type { LucideIcon } from "lucide-react";
 import { type RefObject, useEffect, useId, useRef, useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { control } from "./control-styles.ts";
-import { space } from "./tokens.stylex.ts";
+import { measure, space } from "./tokens.stylex.ts";
 import { frame } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
@@ -12,6 +13,11 @@ const styles = stylex.create({
 		display: "flex",
 		gap: space.sm,
 		alignItems: "center",
+	},
+	glyph: {
+		flexShrink: 0,
+		width: measure.glyph,
+		height: measure.glyph,
 	},
 });
 
@@ -78,6 +84,7 @@ export function Dropdown({
 	choices,
 	onChange,
 	style,
+	icon: Icon,
 	steadyWidth = false,
 }: {
 	id: string;
@@ -86,6 +93,8 @@ export function Dropdown({
 	choices: readonly DropdownChoice[];
 	onChange: (id: string) => void;
 	style?: stylex.StyleXStyles;
+	/** An icon before the label. */
+	icon?: LucideIcon;
 	/** Sizes the button to its widest choice, so a new value does not shift the layout. */
 	steadyWidth?: boolean;
 }) {
@@ -106,6 +115,9 @@ export function Dropdown({
 				aria-controls={listId}
 				onClick={() => setOpen((next) => !next)}
 			>
+				{Icon === undefined ? null : (
+					<Icon className={clsx(styles.glyph)} aria-hidden="true" />
+				)}
 				{steadyWidth ? (
 					<span className={clsx(frame.menuLabels)}>
 						{choices.map((choice) => (
