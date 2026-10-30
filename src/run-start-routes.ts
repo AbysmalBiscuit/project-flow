@@ -13,7 +13,7 @@ import {
 	takesClaim,
 } from "./run-start.ts";
 import { foldKey, githubKeyParts, sameTicketKey } from "./ticket-key.ts";
-import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
+import { trackerError, type TrackerOf } from "./tracker-route.ts";
 import { runFor, runsFor } from "./workcell.ts";
 
 const startBody = z.object({
@@ -37,7 +37,7 @@ function claimError(
 }
 
 export type RunStartRouteOptions = {
-	trackers: Trackers;
+	trackerOf: TrackerOf;
 	pollOptions: PollOptions;
 	notifier: Notifier;
 	configuration: () => Configuration;
@@ -61,7 +61,7 @@ function hasLabel(labels: string[], label: string): boolean {
  * A body that names a factory sends a claimed start to that factory instead.
  */
 export function runStartRoutes({
-	trackers,
+	trackerOf,
 	pollOptions,
 	notifier,
 	configuration,
@@ -153,6 +153,10 @@ export function runStartRoutes({
 				if (row === undefined || ticket === undefined) {
 					return Response.json({ error: "ticket not found" }, { status: 404 });
 				}
+				const tracker = trackerOf(target.tracker, target.project);
+				if (tracker === null) {
+					return trackerUnavailable();
+				}
 				if (target.factory !== undefined) {
 					return claimed(ticket, ticket.key ?? target.key, target.factory);
 				}
@@ -180,11 +184,10 @@ export function runStartRoutes({
 						{ status: 409 },
 					);
 				}
-				const tracker = trackerFor(trackers, target.tracker);
 				let written: Partial<Ticket>;
 				try {
 					if (start.label !== undefined) {
-						if (tracker?.addLabel === undefined) {
+						if (tracker.addLabel === undefined) {
 							return trackerUnavailable();
 						}
 						await tracker.addLabel(target.key, start.label);
@@ -194,7 +197,7 @@ export function runStartRoutes({
 								: [...ticket.labels, start.label],
 						};
 					} else {
-						if (tracker?.showState === undefined) {
+						if (tracker.showState === undefined) {
 							return trackerUnavailable();
 						}
 						written = await tracker.showState(target.key, start);

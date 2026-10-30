@@ -3,9 +3,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Overview } from "../../src/domain.ts";
+import type { Overview, Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
+import { pendingStatus } from "../../src/stale-reads.ts";
+import { sqliteStore } from "../../src/store.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { recordedFetch } from "./_support.ts";
@@ -107,6 +109,76 @@ function recordingFetch(
 		});
 		return recorded(input, init);
 	};
+}
+
+/** Starts the app, and runs the checks against it. */
+async function withStarted(
+	configuration: unknown,
+	checks: (base: string) => Promise<void>,
+	fetchImpl: Fetch = recordedFetch(200),
+	databasePath = ":memory:",
+): Promise<void> {
+	const { path, cleanup } = await tempConfig(JSON.stringify(configuration));
+	let release: () => void = () => {};
+	let finished: Promise<void> = Promise.resolve();
+	const asked = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	try {
+		await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: fetchImpl,
+				readGhToken: async () => null,
+				databasePath,
+				stdout: (line) => {
+					finished = checks(line);
+					release();
+				},
+				waitForStop: asked.then(() => finished),
+			}),
+		);
+		await finished;
+	} finally {
+		await cleanup();
+	}
+}
+
+const hostedName = `${host}/acme/widget`;
+
+/** Runs the checks on an app whose store holds one row of the declared host. */
+async function withHostedRow(
+	row: Pick<Snapshot, "pulls" | "tickets">,
+	configuration: Record<string, unknown>,
+	checks: (base: string) => Promise<void>,
+	fetchImpl?: Fetch,
+): Promise<void> {
+	const root = await mkdtemp(join(tmpdir(), "project-flow-hosts-"));
+	const databasePath = join(root, "project-flow.sqlite");
+	const seeded = sqliteStore(databasePath);
+	seeded.store.mergeTickets([
+		{
+			key: "acme/widget",
+			name: hostedName,
+			tracker: "github",
+			host,
+			branches: [],
+			startedKeys: [],
+			...row,
+		},
+	]);
+	seeded.close();
+	try {
+		await withStarted(
+			{ hosts, tracked: [hostedWidget], ...configuration },
+			checks,
+			fetchImpl,
+			databasePath,
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
 }
 
 describe("a declared self-hosted host", () => {
@@ -252,38 +324,6 @@ describe("the bot settings of a project on a declared host", () => {
 		const { projects } = settings as { projects: BotRow[] };
 		return Object.fromEntries(projects.map((row) => [row.key, row]));
 	};
-
-	/** Starts the app, and runs the checks against it. */
-	async function withStarted(
-		configuration: unknown,
-		checks: (base: string) => Promise<void>,
-	): Promise<void> {
-		const { path, cleanup } = await tempConfig(JSON.stringify(configuration));
-		let release: () => void = () => {};
-		let finished: Promise<void> = Promise.resolve();
-		const asked = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		try {
-			await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: recordedFetch(200),
-					readGhToken: async () => null,
-					databasePath: ":memory:",
-					stdout: (line) => {
-						finished = checks(line);
-						release();
-					},
-					waitForStop: asked.then(() => finished),
-				}),
-			);
-			await finished;
-		} finally {
-			await cleanup();
-		}
-	}
 
 	test("read apart from the settings of the same repo on github.com", async () => {
 		const { settings } = await readStarted(
@@ -475,5 +515,84 @@ describe("a rejected token stops the start and names its env var", () => {
 		} finally {
 			await cleanup();
 		}
+	});
+});
+
+describe("a route to a project on a declared host", () => {
+	const ticket = {
+		id: "1",
+		tracker: "github" as const,
+		key: "acme/widget#1",
+		title: "A ticket",
+		state: "open" as const,
+		stateReason: null,
+		updatedAt: "2026-10-01T10:00:00.000Z",
+		body: "",
+		blockedBy: [],
+		milestone: null,
+		parent: null,
+		labels: [],
+	};
+	const target = {
+		tracker: "github",
+		project: hostedName,
+		key: "acme/widget#1",
+	};
+
+	async function expectNoHomeCall(
+		ask: (base: string) => Promise<Response>,
+		expected: unknown,
+	): Promise<void> {
+		const sent: { url: string; authorization: string | null }[] = [];
+		await withHostedRow(
+			{ pulls: [], tickets: [ticket] },
+			{ tracked: [widget, hostedWidget] },
+			async (base) => {
+				const asked = sent.length;
+				const response = await ask(base);
+				expect(response.status).toBe(404);
+				expect(await response.json()).toEqual(expected);
+				expect(sent.slice(asked)).toEqual([]);
+			},
+			recordingFetch(sent),
+		);
+	}
+
+	const post = (base: string, path: string, body: unknown) =>
+		fetch(new URL(path, base), {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(body),
+		});
+
+	test("a reply does not reach the home tracker", async () => {
+		await expectNoHomeCall(
+			(base) => post(base, "/api/replies", { ...target, body: "Done." }),
+			{ error: "tracker unavailable" },
+		);
+	});
+
+	test("a thread read does not reach the home tracker", async () => {
+		await expectNoHomeCall(
+			async (base) => {
+				const url = new URL(
+					`/api/threads/github/${encodeURIComponent(target.key)}?project=${encodeURIComponent(hostedName)}`,
+					base,
+				);
+				let response = await fetch(url);
+				while (response.status === pendingStatus) {
+					await Bun.sleep(10);
+					response = await fetch(url);
+				}
+				return response;
+			},
+			{ missing: true },
+		);
+	});
+
+	test("a run start does not reach the home tracker", async () => {
+		await expectNoHomeCall((base) => post(base, "/api/run-starts", target), {
+			error: "tracker unavailable",
+		});
 	});
 });

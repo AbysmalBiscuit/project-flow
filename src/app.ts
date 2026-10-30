@@ -43,6 +43,7 @@ import { staleReads } from "./stale-reads.ts";
 import { sqliteStore } from "./store.ts";
 import { storeHoldsRead } from "./stored-page.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
+import { projectTrackers } from "./tracker-route.ts";
 
 const elkWorkerFile = Bun.resolveSync(
 	"elkjs/lib/elk-worker.min.js",
@@ -171,7 +172,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		fetch: trackerFetch,
 		repoFetch: factoryTokens.fetch,
 	});
-	const trackers = backends.trackers;
+	const trackerOf = projectTrackers(
+		backends,
+		() => opened.store.readTickets(),
+		() => configuration.hosts,
+	);
 	const hadRows = opened.store.readTickets().length > 0;
 	const pollOptions: PollOptions = {
 		configuration: configurationPort,
@@ -653,7 +658,7 @@ export async function start(options: StartOptions): Promise<Running> {
 			...projectRoutes(pollOptions, () => configuration),
 			...inboxRoutes(opened.store, clock),
 			...replyRoutes({
-				trackers,
+				trackerOf,
 				pollOptions,
 				notifier,
 				configuration: () => configuration,
@@ -662,7 +667,7 @@ export async function start(options: StartOptions): Promise<Running> {
 				threadReadLimitMs: options.threadReadLimitMs,
 			}),
 			...runStartRoutes({
-				trackers,
+				trackerOf,
 				pollOptions,
 				notifier,
 				configuration: () => configuration,

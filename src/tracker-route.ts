@@ -1,11 +1,51 @@
-import { type TrackerKind, trackerKinds } from "./domain.ts";
+import type { Backends } from "./backends.ts";
+import type { Configuration } from "./configuration.ts";
+import { type Snapshot, trackerKinds } from "./domain.ts";
 import { type Tracker, TrackerError } from "./ports.ts";
+import { listedRef, type ProjectRef } from "./project-ref.ts";
+import { namedSnapshot } from "./replies.ts";
 
-export type Trackers = ReadonlyMap<TrackerKind, Tracker>;
+/** The tracker of the project that a route names, or null when none can reach it. */
+export type TrackerOf = (name: string, project: string) => Tracker | null;
 
-export function trackerFor(trackers: Trackers, name: string): Tracker | null {
-	const kind = trackerKinds.find((known) => known === name);
-	return kind === undefined ? null : (trackers.get(kind) ?? null);
+function namedRef(
+	rows: Snapshot[],
+	tracker: Snapshot["tracker"],
+	project: string,
+	hosts: Configuration["hosts"],
+): ProjectRef {
+	const row = namedSnapshot(rows, tracker, project);
+	if (row !== undefined) {
+		return listedRef(row);
+	}
+	const named = project.toLowerCase();
+	const declared = hosts.find(({ host }) => named.startsWith(`${host}/`));
+	return declared === undefined
+		? listedRef({ key: project, tracker })
+		: listedRef({
+				key: project.slice(declared.host.length + 1),
+				tracker,
+				host: declared.host,
+			});
+}
+
+/** A project on a host that no adapter reads has no tracker, so a write never reaches the home tracker of its kind. */
+export function projectTrackers(
+	backends: Pick<Backends, "readerOf">,
+	rows: () => Snapshot[],
+	hosts: () => Configuration["hosts"],
+): TrackerOf {
+	return (name, project) => {
+		const kind = trackerKinds.find((known) => known === name);
+		if (kind === undefined) {
+			return null;
+		}
+		const reader = backends.readerOf(
+			namedRef(rows(), kind, project, hosts()),
+			hosts(),
+		);
+		return "tracker" in reader ? reader.tracker : null;
+	};
 }
 
 /** Every route answers a failed tracker call with `{ error }` and the tracker's status. */

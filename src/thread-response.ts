@@ -2,18 +2,17 @@ import { commentTree } from "./comment-tree.ts";
 import type { FetchedThread } from "./domain.ts";
 import { ThreadReadTimeout, withThreadLimit } from "./fetch.ts";
 import { isMissing } from "./ports.ts";
-import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
+import { trackerError, type TrackerOf } from "./tracker-route.ts";
 
 export async function threadResponse(
-	trackers: Trackers,
+	trackerOf: TrackerOf,
 	trackerName: string,
 	key: string,
 	request: Request,
 	threadReadLimitMs: number,
 ): Promise<Response> {
-	const tracker = trackerFor(trackers, trackerName);
 	const project = new URL(request.url).searchParams.get("project") ?? "";
-	const fetchThread = tracker?.fetchThread;
+	const fetchThread = trackerOf(trackerName, project)?.fetchThread;
 	if (fetchThread === undefined || project.trim() === "") {
 		return Response.json({ missing: true }, { status: 404 });
 	}

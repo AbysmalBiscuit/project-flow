@@ -19,28 +19,38 @@ export type ReplyDraft = ReplyTarget & {
 	kind?: ReplyRequest["kind"] | undefined;
 };
 
-/**
- * The stored project of a ticket: by its key, its name, or the repo of a GitHub ticket key.
- * A project on a declared host matches only by its name, which holds the host.
- */
+/** The stored project that a route names by its name or its settings key. */
+export function namedSnapshot(
+	rows: Snapshot[],
+	tracker: Snapshot["tracker"],
+	project: string,
+): Snapshot | undefined {
+	return rows.find(
+		(item) =>
+			item.tracker === tracker &&
+			(item.name === project || settingsKey(item.key, item.host) === project),
+	);
+}
+
+/** The stored project of a ticket: by its name or key, or the repo of a GitHub ticket key on the home host. */
 export function ticketSnapshot(
 	rows: Snapshot[],
 	reply: ReplyTarget,
 ): Snapshot | undefined {
+	const named = namedSnapshot(rows, reply.tracker, reply.project);
+	if (named !== undefined) {
+		return named;
+	}
 	const repo =
 		reply.tracker === "github" ? githubKeyParts(reply.key)?.repo : undefined;
-	return rows.find((item) => {
-		if (item.tracker !== reply.tracker) {
-			return false;
-		}
-		if (item.host !== undefined) {
-			return item.name === reply.project;
-		}
-		if (item.key === reply.project || item.name === reply.project) {
-			return true;
-		}
-		return repo !== undefined && item.key === repo;
-	});
+	return repo === undefined
+		? undefined
+		: rows.find(
+				(item) =>
+					item.tracker === reply.tracker &&
+					item.host === undefined &&
+					item.key === repo,
+			);
 }
 
 function optionReplyBody(
