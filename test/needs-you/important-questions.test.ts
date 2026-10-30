@@ -31,7 +31,9 @@ const openAndRunAnswered = `Closes #8
 
 #### First round
 
-2. duplicates box-to-hub mapping: Should startedBy match the run box? | Verdict: Ask | Answer: No branch change. Why: the handoff excludes other factories.
+2. duplicates box-to-hub mapping: Should startedBy match the run box? | Verdict: Ask | Answer: No branch change. Why:
+   1. The handoff excludes other factories.
+   2. The hub row names the factory.
 
 ## Proof
 

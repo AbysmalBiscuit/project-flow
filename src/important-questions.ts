@@ -20,7 +20,7 @@ export function openImportantQuestions(body: string): number[] {
 		),
 	].map((match) => Number(match[1]));
 	const answered = new Set(
-		[...section(body, "### Answers").matchAll(/^\s*(\d+)\.\s/gm)].map((match) =>
+		[...section(body, "### Answers").matchAll(/^(\d+)\.\s/gm)].map((match) =>
 			Number(match[1]),
 		),
 	);
