@@ -194,16 +194,18 @@ describe("pending claimed starts", () => {
 		const app = await serveGithub([40], {
 			readyLabel,
 			labels: { 40: [readyLabel] },
-			otherFactory: {
-				name: "laptop",
-				url: laptop,
-				answers: {
-					"/daemon": daemonSlots,
-					"/sources": { sources: [] },
-					"/runs": (_url: URL, method: string) =>
-						method === "POST" ? accepted() : { runs: [] },
+			otherFactories: [
+				{
+					name: "laptop",
+					url: laptop,
+					answers: {
+						"/daemon": daemonSlots,
+						"/sources": { sources: [] },
+						"/runs": (_url: URL, method: string) =>
+							method === "POST" ? accepted() : { runs: [] },
+					},
 				},
-			},
+			],
 		});
 		try {
 			const key = `${repo}#40`;

@@ -244,17 +244,19 @@ describe("claimed start eligibility", () => {
 		const app = await serveGithub([43], {
 			readyLabel,
 			hubAnswers: hubTaking(accepted()),
-			otherFactory: {
-				name: "box-a",
-				url: boxUrl,
-				answers: {
-					"/daemon": { ...daemonSlots, role: "daemon" },
-					"/runs": (_url: URL, method: string) =>
-						method === "POST"
-							? accepted("box-start")
-							: { runs: [{ ...sentRun, machine: "local" }] },
+			otherFactories: [
+				{
+					name: "box-a",
+					url: boxUrl,
+					answers: {
+						"/daemon": { ...daemonSlots, role: "daemon" },
+						"/runs": (_url: URL, method: string) =>
+							method === "POST"
+								? accepted("box-start")
+								: { runs: [{ ...sentRun, machine: "local" }] },
+					},
 				},
-			},
+			],
 		});
 		try {
 			const key = `${repo}#43`;
@@ -282,13 +284,15 @@ describe("claimed start eligibility", () => {
 		const app = await serveGithub([43], {
 			readyLabel,
 			hubAnswers: hubTaking(accepted()),
-			otherFactory: {
-				name: "laptop",
-				url: "http://laptop.test:7777",
-				answers: {
-					"/daemon": new Response(null, { status: 500 }),
+			otherFactories: [
+				{
+					name: "laptop",
+					url: "http://laptop.test:7777",
+					answers: {
+						"/daemon": new Response(null, { status: 500 }),
+					},
 				},
-			},
+			],
 		});
 		try {
 			const key = `${repo}#43`;

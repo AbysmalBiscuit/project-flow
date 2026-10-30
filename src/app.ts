@@ -294,7 +294,11 @@ export async function start(options: StartOptions): Promise<Running> {
 		const before = factoryState();
 		await read();
 		const requests = pollOptions.runStartRequests;
-		pollOptions.runStartRequests = settledRequests(requests, factories.runs());
+		pollOptions.runStartRequests = settledRequests(
+			requests,
+			factories.runs(),
+			factories.entries(),
+		);
 		if (
 			factoryState() !== before ||
 			pollOptions.runStartRequests !== requests
