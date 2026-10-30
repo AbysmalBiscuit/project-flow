@@ -9,6 +9,7 @@ import { recordedViewer } from "../test/support/github.ts";
 import { proofStops } from "./lifetime.ts";
 
 const root = await mkdtemp(join(tmpdir(), "project-flow-declared-hosts-"));
+process.env.XDG_DATA_HOME = root;
 const configPath = join(root, "config.json");
 const host = "git.acme.dev";
 await writeFile(
