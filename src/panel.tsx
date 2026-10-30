@@ -316,7 +316,7 @@ export function TicketPanel({
 					</span>
 				</div>
 				<div className={clsx(panel.keyLine)}>
-					<p className={clsx(panel.key)}>{ticketKey}</p>
+					<p className={clsx(panel.key, panel.headKey)}>{ticketKey}</p>
 					<span className={clsx(panel.actions)}>
 						{projectHref === undefined ? null : (
 							<Button href={projectHref} label={projectPageLabel} />

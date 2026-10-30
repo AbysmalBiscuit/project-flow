@@ -56,9 +56,12 @@ export const panel = stylex.create({
 		alignItems: "center",
 		justifyContent: "space-between",
 	},
-	key: {
+	headKey: {
 		minWidth: 0,
 		margin: 0,
+	},
+	key: {
+		margin: `0 0 ${space.xs}`,
 		overflowWrap: "anywhere",
 		color: colours.inkSoft,
 		fontSize: type.meta,
