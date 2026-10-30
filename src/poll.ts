@@ -36,7 +36,6 @@ import type {
 	ConfigurationPort,
 	Forge,
 	FoundProject,
-	LinkedPullReader,
 	Notifier,
 	Store,
 	TodoSource,
@@ -58,6 +57,7 @@ import {
 	seededForProjects,
 	viewerLogins,
 } from "./project-views.ts";
+import { linksByForge } from "./pull-links.ts";
 import type { StartRequest } from "./run-start.ts";
 import { needsYouSeenId } from "./ticket-key.ts";
 
@@ -190,8 +190,14 @@ async function listPulls(
 	tracker: Tracker,
 	since: Date | null,
 ): Promise<PullRequest[]> {
-	if (project.tracker === "linear") {
-		return (await options.linearPulls?.listPulls(project, since)) ?? [];
+	const refs = await tracker.pullRefs?.(project, since);
+	if (refs !== undefined) {
+		const pulls: PullRequest[] = [];
+		for (const [forge, links] of linksByForge(refs, options.forges)) {
+			const repos = links.map((link) => link.repo);
+			pulls.push(...(await forge.listLinkedPulls(links, repos)));
+		}
+		return pulls;
 	}
 	const forge = options.forge;
 	if (forge === null) {
@@ -262,7 +268,8 @@ export type PollOptions = {
 	github: Tracker | null;
 	linear: Tracker | null;
 	forge: Forge | null;
-	linearPulls: LinkedPullReader | null;
+	/** The forge of each host that a PR reference can name. */
+	forges: ReadonlyMap<string, Forge>;
 	store: Store;
 	clock: Clock;
 	notifier: Notifier;

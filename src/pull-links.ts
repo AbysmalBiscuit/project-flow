@@ -1,4 +1,5 @@
 import type { PullRequest, Ticket } from "./domain.ts";
+import type { Forge, PullLink, PullRef } from "./ports.ts";
 import {
 	foldKey,
 	githubKey,
@@ -110,6 +111,23 @@ export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 		pullFinders.set(pulls, find);
 	}
 	return find(ticket.key);
+}
+
+/** The links of each forge. The host of a URL selects its forge, and a URL that names no PR on that forge gives no link. */
+export function linksByForge(
+	refs: PullRef[],
+	forges: ReadonlyMap<string, Forge>,
+): Map<Forge, PullLink[]> {
+	const links = new Map<Forge, PullLink[]>();
+	for (const { url, ticketKey } of refs) {
+		const parsed = URL.parse(url);
+		const forge = parsed === null ? undefined : forges.get(parsed.host);
+		const target = parsed === null ? null : (forge?.pullOfUrl(parsed) ?? null);
+		if (forge !== undefined && target !== null) {
+			links.set(forge, [...(links.get(forge) ?? []), { ...target, ticketKey }]);
+		}
+	}
+	return links;
 }
 
 export function closesTicket(pull: PullRequest, ticket: Ticket): boolean {

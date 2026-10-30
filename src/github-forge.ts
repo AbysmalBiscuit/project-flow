@@ -5,6 +5,8 @@ import { readAutoMerge } from "./github-repo-query.ts";
 import { type Forge, TrackerError } from "./ports.ts";
 import { githubKey } from "./ticket-key.ts";
 
+export const githubHost = "github.com";
+
 export function githubForge(
 	token: string,
 	fetchImpl: Fetch,
@@ -61,6 +63,21 @@ export function githubForge(
 					: started.then((opened) => opened?.autoMerge ?? false);
 			autoMergeByRepo.set(repo, read);
 			return read;
+		},
+		pullOfUrl({ protocol, pathname, search, hash }) {
+			const match = pathname.match(/^\/([^/]+\/[^/]+)\/pull\/(\d+)$/);
+			const repo = match?.[1];
+			const number = match?.[2];
+			if (
+				protocol !== "https:" ||
+				search !== "" ||
+				hash !== "" ||
+				repo === undefined ||
+				number === undefined
+			) {
+				return null;
+			}
+			return { repo, number: Number(number) };
 		},
 	};
 }
