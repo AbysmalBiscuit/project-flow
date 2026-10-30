@@ -66,7 +66,7 @@ import {
 } from "./terms.ts";
 import { itemId, outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
-import { cards, frame, shell } from "./ui-styles.ts";
+import { cards, shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
 
 function blockerTicket(blocker: CrossProjectBlocker): string {
@@ -767,11 +767,12 @@ function OverviewPage({
 	const sortMenu = (
 		<MenuButton
 			id="overview-sort"
-			label={
+			icon="arrow-up-down"
+			label={`${overviewControlLabel.sort}: ${
 				view.sort === "needsYou"
 					? overviewControlLabel.needsYouFirst
 					: overviewSortLabel[view.sort]
-			}
+			}`}
 			open={menu === "sort"}
 			onToggle={() => setMenu(menu === "sort" ? null : "sort")}
 		>
@@ -822,9 +823,19 @@ function OverviewPage({
 		<PageFrame
 			title={navLabel.overview}
 			subtitle={summary}
-			filter={undefined}
-			sort={undefined}
-			search={<OverviewSearch query={query} onQuery={setQuery} focus={focus} />}
+			tools={
+				<>
+					<RefreshButton
+						id="overview-refresh"
+						queryKey={pageQuery.overview.queryKey}
+						refreshing={refreshing}
+						onRefresh={() => postRefresh(pageQuery.overview.queryKey)}
+					/>
+					<OverviewSearch query={query} onQuery={setQuery} focus={focus} />
+					{filterMenu}
+					{sortMenu}
+				</>
+			}
 			views={views}
 			view={view.view}
 			onView={(id) => {
@@ -834,28 +845,19 @@ function OverviewPage({
 				}
 			}}
 			actions={
-				<div className={clsx(frame.actions)}>
-					<RefreshButton
-						id="overview-refresh"
-						queryKey={pageQuery.overview.queryKey}
-						refreshing={refreshing}
-						onRefresh={() => postRefresh(pageQuery.overview.queryKey)}
+				notifyPermission === "default" &&
+				typeof Notification !== "undefined" ? (
+					<Button
+						id="notify-permission"
+						icon="bell"
+						label="Allow notifications"
+						onClick={() => {
+							void askNotificationPermission().finally(() => {
+								setNotifyPermission(notificationPermission());
+							});
+						}}
 					/>
-					{notifyPermission === "default" &&
-					typeof Notification !== "undefined" ? (
-						<Button
-							id="notify-permission"
-							icon="bell"
-							label="Allow notifications"
-							onClick={() => {
-								void askNotificationPermission().finally(() => {
-									setNotifyPermission(notificationPermission());
-								});
-							}}
-						/>
-					) : null}
-					{filterMenu}
-				</div>
+				) : undefined
 			}
 		>
 			{view.view === "table" ? (
@@ -912,9 +914,6 @@ function OverviewPage({
 			{view.view === "table" ? null : (
 				<div className={clsx(cards.section)}>
 					<h2 className={clsx(cards.sectionLabel)}>{sectionTitle}</h2>
-					{view.view === "graph" ? null : (
-						<div className={clsx(cards.controls)}>{sortMenu}</div>
-					)}
 				</div>
 			)}
 			{progress !== null && !progress.ended ? (
