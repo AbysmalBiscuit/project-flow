@@ -148,6 +148,14 @@ _Avoid_: Bot review, review loop
 A review bot that a repo's PRs normally get, as found in the repo's recent PRs or set in the config.
 _Avoid_: Reviewer, required check
 
+**Merge**:
+Lev merges an awaiting-merge PR from Project Flow through the PR's forge. Project Flow refuses while a check is pending or failed, or while the PR has an open Important Question.
+_Avoid_: Approve (when the merge is meant), land
+
+**Request changes**:
+Lev sends a review with text to a PR through its forge, and the review asks for changes. The run or human that owns the PR acts on the text.
+_Avoid_: Ask for changes, steer (when a review is meant)
+
 **Workcell run**:
 One run of the workcell manage flow on a ticket. The factory reports the run's status and stage. When the factory serves no event stream, the progress comment shows the stage.
 _Avoid_: Job, session
