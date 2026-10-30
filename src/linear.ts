@@ -3,17 +3,11 @@ import { z } from "zod";
 import type {
 	Board,
 	Comment,
-	PullRequest,
 	Ticket,
 	TicketRef,
 	TicketStatus,
 } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
-import {
-	conditionalFetch,
-	loadLinkedPulls,
-	type ReviewEvidence,
-} from "./github.ts";
 import { linearStatusType } from "./lanes.ts";
 import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
 import {
@@ -21,13 +15,7 @@ import {
 	postLinearReply,
 	showLinearState,
 } from "./linear-thread.ts";
-import {
-	type FoundProject,
-	type LinkedPullReader,
-	type PullLink,
-	type Tracker,
-	TrackerError,
-} from "./ports.ts";
+import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
 
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
@@ -96,7 +84,7 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 			labels { nodes { name } }
 			assignee { id name displayName }
 			attachments {
-				nodes { url title sourceType }
+				nodes { url title }
 			}
 			comments(first: 50) {
 				nodes { id body createdAt updatedAt user { name displayName } reactions { id } }
@@ -127,7 +115,6 @@ const query = `query ProjectIssues($filter: IssueFilter!, $after: String) {
 const attachmentNode = z.object({
 	url: z.string(),
 	title: z.string(),
-	sourceType: z.string().nullable(),
 });
 
 const linearTeamNode = z.object({
@@ -674,44 +661,6 @@ async function commentPages(
 	return comments;
 }
 
-async function pullsForIssues(
-	nodes: z.infer<typeof issueNode>[],
-	githubToken: string | null,
-	fetchGithub: Fetch,
-	seenReviews: Map<string, ReviewEvidence>,
-): Promise<PullRequest[]> {
-	if (githubToken === null) {
-		return [];
-	}
-	const links: PullLink[] = [];
-	const repos: string[] = [];
-	for (const node of nodes) {
-		for (const attachment of node.attachments?.nodes ?? []) {
-			const target = pullFromUrl(attachment.url);
-			if (target === null) {
-				continue;
-			}
-			repos.push(target.repo);
-			if (attachment.sourceType === "github" && node.identifier !== undefined) {
-				links.push({ ...target, ticketKey: node.identifier });
-			}
-		}
-	}
-	return loadLinkedPulls(githubToken, fetchGithub, links, repos, seenReviews);
-}
-
-function pullFromUrl(url: string): { repo: string; number: number } | null {
-	const match = url.match(
-		/^https:\/\/github\.com\/([^/]+\/[^/]+)\/pull\/(\d+)$/,
-	);
-	const repo = match?.[1];
-	const number = match?.[2];
-	if (repo === undefined || number === undefined) {
-		return null;
-	}
-	return { repo, number: Number(number) };
-}
-
 type ListedIssue = z.infer<typeof issueNode>;
 
 type IssueListFilter = {
@@ -761,15 +710,9 @@ async function issuePages(
 	return nodes;
 }
 
-/** The Linear tracker and the reader of the PRs that its tickets link. They share one list of issues. */
-export function linearAdapters(
-	key: string,
-	fetchImpl: Fetch,
-	githubToken: string | null = null,
-	fetchGithub: Fetch = conditionalFetch(fetchImpl),
-): { tracker: Tracker; pulls: LinkedPullReader } {
+/** The Linear tracker. Its tickets and its PR references share one list of issues. */
+export function linearTracker(key: string, fetchImpl: Fetch): Tracker {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
-	const seenReviews = new Map<string, ReviewEvidence>();
 	const issues = (tracked: string, project: string, since: Date | null) => {
 		const cacheKey = `${tracked}\0${since?.toISOString() ?? ""}`;
 		const cached = issuesByProject.get(cacheKey);
@@ -790,7 +733,7 @@ export function linearAdapters(
 		});
 		return listed;
 	};
-	const tracker: Tracker = {
+	return {
 		beginPoll() {
 			issuesByProject.clear();
 		},
@@ -854,18 +797,6 @@ export function linearAdapters(
 				team === undefined ? [] : await listTeamStates(key, team.id, fetchImpl);
 			const board = linearBoard(team, statuses);
 			const nodes = await issues(tracked.key, project.id, since);
-			const openKeys = new Set(
-				nodes.flatMap((node) =>
-					node.identifier !== undefined &&
-					(node.attachments?.nodes ?? []).some(
-						(attachment) =>
-							attachment.sourceType === "github" &&
-							pullFromUrl(attachment.url) !== null,
-					)
-						? [node.identifier]
-						: [],
-				),
-			);
 			const tickets: Ticket[] = [];
 			for (const node of nodes) {
 				const ticket = toTicket(node);
@@ -874,7 +805,7 @@ export function linearAdapters(
 				}
 				if (
 					ticket.key !== null &&
-					openKeys.has(ticket.key) &&
+					(node.attachments?.nodes ?? []).length > 0 &&
 					node.comments?.pageInfo?.hasNextPage === true
 				) {
 					ticket.comments = [
@@ -907,15 +838,17 @@ export function linearAdapters(
 		showState(ticketKey, shown) {
 			return showLinearState(key, fetchImpl, ticketKey, shown);
 		},
-	};
-	return {
-		tracker,
-		pulls: {
-			async listPulls(tracked, since) {
-				const project = await findLinearProject(key, tracked.key, fetchImpl);
-				const nodes = await issues(tracked.key, project.id, since);
-				return pullsForIssues(nodes, githubToken, fetchGithub, seenReviews);
-			},
+		async pullRefs(tracked, since) {
+			const project = await findLinearProject(key, tracked.key, fetchImpl);
+			const nodes = await issues(tracked.key, project.id, since);
+			return nodes.flatMap(({ identifier, attachments }) =>
+				identifier === undefined
+					? []
+					: (attachments?.nodes ?? []).map(({ url }) => ({
+							url,
+							ticketKey: identifier,
+						})),
+			);
 		},
 	};
 }

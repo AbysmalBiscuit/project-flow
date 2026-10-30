@@ -25,7 +25,6 @@ import { factoryBoard } from "./lanes.ts";
 import { type Forge, type Tracker, TrackerError } from "./ports.ts";
 
 export { githubHeaders } from "./github-pages.ts";
-export { loadLinkedPulls, type ReviewEvidence } from "./github-pulls.ts";
 export { conditionalFetch, type ValidatorStore } from "./github-rest-cache.ts";
 
 export const missingToken =
