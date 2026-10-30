@@ -308,7 +308,11 @@ export type RunStart = (
 	requested?: true;
 };
 
-/** The factory whose ready label or ready status a ticket carries while it waits for its first run. */
+/**
+ * The factory that a ticket waits for, and what queued it. A GitHub ticket carries the
+ * ready label or ready status of the factory. A Linear ticket shows the state and labels
+ * of a ready rule of its hub source, and `status` names that state.
+ */
 export type Queued = {
 	factory: string;
 	label?: string;
