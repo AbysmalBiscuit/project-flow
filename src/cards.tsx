@@ -865,7 +865,9 @@ function OverviewPage({
 					</div>
 				</div>
 			) : null}
-			{needs.length === 0 || view.view !== "cards" ? null : (
+			{needs.length === 0 ||
+			view.view !== "cards" ||
+			overview.needsYouHidden === true ? null : (
 				<section>
 					<div className={clsx(cards.section)}>
 						<h2 className={clsx(cards.sectionLabel)}>{navLabel.needsYou}</h2>
