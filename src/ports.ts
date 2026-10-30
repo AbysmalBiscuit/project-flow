@@ -126,7 +126,7 @@ export type Tracker = {
 		owner: string,
 		number: number,
 	) => Promise<FoundProject | null>;
-	/** The PR references of a project whose tickets sit on a board across repos. */
+	/** The PR links of a project whose tickets sit on a board across repos. */
 	pullLinks?: (project: TrackedProject) => Promise<PullLinks>;
 	/** The URLs on the tickets of a project that holds no PRs itself. The forge of each URL's host reads the PR. */
 	pullRefs?: (
