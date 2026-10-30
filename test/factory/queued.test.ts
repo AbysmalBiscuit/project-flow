@@ -4,7 +4,12 @@ import linearSources from "../fixtures/factory-hub-linear-sources.json";
 import { factoryFetch, hub, hubUrl, serve } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
-import { readyLabel, serveGithub, ticketWhere } from "./_support.ts";
+import {
+	readyLabel,
+	serveGithub,
+	sourcesWithRules,
+	ticketWhere,
+} from "./_support.ts";
 
 /** A hub with these sources, by default the recorded ones that map Ready to Todo with the label `factory`, and the Linear ticket PF-1. */
 function serveLinear(
@@ -96,16 +101,15 @@ describe("queued tickets", () => {
 	});
 
 	test("a Linear ticket that only a later ready rule matches is queued, and the start keeps the first rule", async () => {
-		const app = await serveLinear(todo, ["factory", "beta"], "Backlog", {
-			...linearSources,
-			sources: linearSources.sources.map((source) => ({
-				...source,
-				rules: [
-					{ name: "alpha", state: "Ready", labels: ["alpha"], without: [] },
-					{ name: "beta", state: "Ready", labels: ["beta"], without: [] },
-				],
-			})),
-		});
+		const app = await serveLinear(
+			todo,
+			["factory", "beta"],
+			"Backlog",
+			sourcesWithRules([
+				{ name: "alpha", state: "Ready", labels: ["alpha"], without: [] },
+				{ name: "beta", state: "Ready", labels: ["beta"], without: [] },
+			]),
+		);
 		try {
 			const view = await ticketWhere(
 				app.base,
@@ -121,6 +125,55 @@ describe("queued tickets", () => {
 				remove: ["factory:failed"],
 				requested: true,
 			});
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test.each([
+		[
+			"in another workflow state",
+			{ id: "state-backlog", name: "Backlog", type: "backlog" },
+			["factory"],
+		],
+		[
+			"with a label that the ready state removes",
+			todo,
+			["factory", "factory:failed"],
+		],
+	])("a Linear ticket %s is not queued", async (_name, state, labels) => {
+		const app = await serveLinear(state, labels, "Backlog");
+		try {
+			const view = await ticketWhere(
+				app.base,
+				"Widget launch",
+				"PF-1",
+				(item) => item.runStart !== undefined,
+			);
+			expect(view.queued).toBeUndefined();
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a Linear ticket that a ready rule excludes is not queued by that rule", async () => {
+		const app = await serveLinear(
+			todo,
+			["factory", "no-dispatch"],
+			"Backlog",
+			sourcesWithRules([
+				{ name: "build", state: "Ready", labels: [], without: ["no-dispatch"] },
+				{ name: "other", state: "Ready", labels: ["other"], without: [] },
+			]),
+		);
+		try {
+			const view = await ticketWhere(
+				app.base,
+				"Widget launch",
+				"PF-1",
+				(item) => item.runStart !== undefined,
+			);
+			expect(view.queued).toBeUndefined();
 		} finally {
 			await app.stop();
 		}

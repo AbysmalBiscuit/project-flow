@@ -5,20 +5,12 @@ import { factoryFetch, hub, hubUrl, serve } from "../support/factory.ts";
 import { linearFake } from "../support/linear.ts";
 import {
 	readyLabel,
+	sourcesWithRules,
 	startRun,
 	ticketWhere,
 	type TrackerWrite,
 	trackerWrites,
 } from "./_support.ts";
-
-function sourcesWithRules(
-	rules: { name: string; state: string; labels: string[]; without: string[] }[],
-) {
-	return {
-		...linearSources,
-		sources: linearSources.sources.map((source) => ({ ...source, rules })),
-	};
-}
 
 /** A hub with these sources, and the Linear ticket PF-1 in Backlog with the label `factory:failed`. */
 async function serveBacklogTicket(sources: unknown) {
