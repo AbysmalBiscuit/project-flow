@@ -259,6 +259,9 @@ export const runResumeCopy = {
 	restartFailed: "Restart failed",
 } as const;
 
+const labelList = (labels: readonly string[]) =>
+	`${labels.length === 1 ? "the label" : "the labels"} ${labels.join(", ")}`;
+
 export const runStartCopy = {
 	action: "Start run",
 	pending: "Starting",
@@ -269,10 +272,8 @@ export const runStartCopy = {
 	linearBody: (factory: string, { state, add, remove }: LinearShown) =>
 		[
 			`Project Flow moves the ticket to the workflow state ${state}.`,
-			...(add.length === 0 ? [] : [`It adds the labels ${add.join(", ")}.`]),
-			...(remove.length === 0
-				? []
-				: [`It removes the labels ${remove.join(", ")}.`]),
+			...(add.length === 0 ? [] : [`It adds ${labelList(add)}.`]),
+			...(remove.length === 0 ? [] : [`It removes ${labelList(remove)}.`]),
 			`Then the factory ${factory} starts a run of it.`,
 		].join(" "),
 	choices: "Run start choices",
