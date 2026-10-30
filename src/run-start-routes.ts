@@ -153,8 +153,12 @@ export function runStartRoutes({
 				if (row === undefined || ticket === undefined) {
 					return Response.json({ error: "ticket not found" }, { status: 404 });
 				}
-				const tracker = trackerOf(target.tracker, target.project);
-				if (tracker === null) {
+				const { tracker, declaredHost } = trackerOf(
+					target.tracker,
+					target.project,
+				);
+				// A claim names only the repo, so a ticket on a host that no adapter reads gets no claim.
+				if (declaredHost && tracker === null) {
 					return trackerUnavailable();
 				}
 				if (target.factory !== undefined) {
@@ -187,7 +191,7 @@ export function runStartRoutes({
 				let written: Partial<Ticket>;
 				try {
 					if (start.label !== undefined) {
-						if (tracker.addLabel === undefined) {
+						if (tracker?.addLabel === undefined) {
 							return trackerUnavailable();
 						}
 						await tracker.addLabel(target.key, start.label);
@@ -197,7 +201,7 @@ export function runStartRoutes({
 								: [...ticket.labels, start.label],
 						};
 					} else {
-						if (tracker.showState === undefined) {
+						if (tracker?.showState === undefined) {
 							return trackerUnavailable();
 						}
 						written = await tracker.showState(target.key, start);

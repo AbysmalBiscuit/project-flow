@@ -1,4 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import type { FactoryEntry } from "../../src/factories.ts";
 import daemonSlots from "../fixtures/factory-daemon-slots.json";
@@ -24,7 +27,86 @@ async function factoryEntries(base: string): Promise<FactoryEntry[]> {
 	return body.factoryEntries;
 }
 
+/** Starts the app with no GitHub token on a store that holds ticket 43, and runs the checks. */
+async function withoutToken(
+	checks: (app: Awaited<ReturnType<typeof serveGithub>>) => Promise<void>,
+): Promise<void> {
+	const root = await mkdtemp(join(tmpdir(), "project-flow-claim-"));
+	const databasePath = join(root, "store.sqlite");
+	try {
+		const filled = await serveGithub([43], { readyLabel, databasePath });
+		try {
+			await ticketWhere(
+				filled.base,
+				repo,
+				`${repo}#43`,
+				(view) => view.title !== "",
+			);
+		} finally {
+			await filled.stop();
+		}
+		const app = await serveGithub([43], {
+			readyLabel,
+			databasePath,
+			env: {},
+			hubAnswers: hubTaking(accepted()),
+		});
+		try {
+			await checks(app);
+		} finally {
+			await app.stop();
+		}
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
 describe("claimed run starts", () => {
+	test("a claimed start needs no tracker token", async () => {
+		await withoutToken(async (app) => {
+			const response = await startRun(
+				app.base,
+				"github",
+				repo,
+				`${repo}#43`,
+				"work hub",
+			);
+			expect(await response.json()).toEqual({ factory: "work hub" });
+			expect(response.status).toBe(200);
+			expect(runPosts(app.requests)).toEqual([
+				{
+					url: `${hubUrl}/runs`,
+					body: JSON.stringify({ repo, ticket: "43", claim: true }),
+				},
+			]);
+			expect(app.writes).toEqual([]);
+		});
+	});
+
+	test("a claimed start with no tracker token keeps the refusal of an unknown factory", async () => {
+		await withoutToken(async (app) => {
+			const response = await startRun(
+				app.base,
+				"github",
+				repo,
+				`${repo}#43`,
+				"nowhere",
+			);
+			expect(await response.json()).toEqual({ error: "factory not found" });
+			expect(response.status).toBe(404);
+			expect(runPosts(app.requests)).toEqual([]);
+		});
+	});
+
+	test("a label start with no tracker token answers that the tracker is unavailable", async () => {
+		await withoutToken(async (app) => {
+			const response = await startRun(app.base, "github", repo, `${repo}#43`);
+			expect(await response.json()).toEqual({ error: "tracker unavailable" });
+			expect(response.status).toBe(404);
+			expect(app.writes).toEqual([]);
+		});
+	});
+
 	test("Run on a factory with a free slot sends one claimed POST /runs to that factory", async () => {
 		const app = await serveGithub([43], {
 			readyLabel,

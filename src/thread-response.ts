@@ -12,7 +12,7 @@ export async function threadResponse(
 	threadReadLimitMs: number,
 ): Promise<Response> {
 	const project = new URL(request.url).searchParams.get("project") ?? "";
-	const fetchThread = trackerOf(trackerName, project)?.fetchThread;
+	const fetchThread = trackerOf(trackerName, project).tracker?.fetchThread;
 	if (fetchThread === undefined || project.trim() === "") {
 		return Response.json({ missing: true }, { status: 404 });
 	}

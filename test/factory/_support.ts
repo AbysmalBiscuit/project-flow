@@ -262,6 +262,8 @@ export async function serveGithub(
 		/** A declared host whose pin of the same repo comes before the github.com pin. */
 		declaredHostFirst?: string;
 		hubAnswers?: Answers;
+		env?: Record<string, string>;
+		databasePath?: string;
 		otherFactories?: {
 			name: string;
 			url: string;
@@ -358,8 +360,11 @@ export async function serveGithub(
 			trackerWrites(writes, tracker),
 		),
 		{
-			env: { GITHUB_TOKEN: "recorded-token" },
+			env: options.env ?? { GITHUB_TOKEN: "recorded-token" },
 			now: () => new Date(now),
+			...(options.databasePath === undefined
+				? {}
+				: { databasePath: options.databasePath }),
 		},
 	);
 	return {

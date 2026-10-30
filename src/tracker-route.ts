@@ -2,11 +2,17 @@ import type { Backends } from "./backends.ts";
 import type { Configuration } from "./configuration.ts";
 import { type Snapshot, trackerKinds } from "./domain.ts";
 import { type Tracker, TrackerError } from "./ports.ts";
-import { listedRef, type ProjectRef } from "./project-ref.ts";
+import { listedRef, type ProjectRef, refHost } from "./project-ref.ts";
 import { namedSnapshot } from "./replies.ts";
 
-/** The tracker of the project that a route names, or null when none can reach it. */
-export type TrackerOf = (name: string, project: string) => Tracker | null;
+/**
+ * The tracker of the project that a route names, or null when none can reach it.
+ * `declaredHost` is true for a project on a declared host.
+ */
+export type TrackerOf = (
+	name: string,
+	project: string,
+) => { tracker: Tracker | null; declaredHost: boolean };
 
 function namedRef(
 	rows: Snapshot[],
@@ -38,13 +44,14 @@ export function projectTrackers(
 	return (name, project) => {
 		const kind = trackerKinds.find((known) => known === name);
 		if (kind === undefined) {
-			return null;
+			return { tracker: null, declaredHost: false };
 		}
-		const reader = backends.readerOf(
-			namedRef(rows(), kind, project, hosts()),
-			hosts(),
-		);
-		return "tracker" in reader ? reader.tracker : null;
+		const ref = namedRef(rows(), kind, project, hosts());
+		const reader = backends.readerOf(ref, hosts());
+		return {
+			tracker: "tracker" in reader ? reader.tracker : null,
+			declaredHost: refHost(ref) !== undefined,
+		};
 	};
 }
 

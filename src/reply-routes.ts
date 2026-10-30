@@ -32,7 +32,7 @@ async function replyResponse(
 	if (!parsed.success) {
 		return Response.json({ error: "invalid reply" }, { status: 400 });
 	}
-	const tracker = trackerOf(parsed.data.tracker, parsed.data.project);
+	const { tracker } = trackerOf(parsed.data.tracker, parsed.data.project);
 	if (tracker?.postReply === undefined) {
 		return Response.json({ error: "tracker unavailable" }, { status: 404 });
 	}
