@@ -1,15 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
-import type { NeedsYouItem } from "../../src/domain.ts";
-import type { Fetch } from "../../src/fetch.ts";
-import { run } from "../../src/main.ts";
-import { tempConfig, testIo } from "../support/app.ts";
-import { urlOf } from "../support/fetch.ts";
-import { page, recordedDiscovery, unrecorded } from "../support/github.ts";
-import { repoReadFromHandler } from "../support/repo-read.ts";
+import {
+	githubRecorded,
+	openIssue,
+	openPull,
+	readNeedsYou,
+} from "./_support.ts";
 
 const openAndRunAnswered = `Closes #8
 
@@ -64,142 +60,27 @@ const allRunAnswered = `A fix with no ticket.
 describe("needs you", () => {
 	test("asks Lev to decide an awaiting PR with an open Important Question", async () => {
 		const repo = "acme/widget";
-		const recorded: Fetch = async (input, init) => {
-			const discovered = recordedDiscovery(input, init);
-			if (discovered !== null) {
-				return discovered;
-			}
-			const url = urlOf(input);
-			if (url === "https://api.github.com/user") {
-				return Response.json({ login: "lev" });
-			}
-			if (url === "https://api.github.com/graphql") {
-				const body = typeof init?.body === "string" ? init.body : "";
-				if (body.includes("query RepoRead")) {
-					const read = await repoReadFromHandler(input, init, recorded);
-					if (read !== null) {
-						return read;
-					}
-				}
-				return Response.json({
-					data: {
-						repository: {
-							pullRequest: { closingIssuesReferences: { nodes: [] } },
-						},
-					},
-				});
-			}
-			if (url.startsWith(`https://api.github.com/repos/${repo}/issues?`)) {
-				return page([
-					{
-						number: 8,
-						title: "Ship the widget",
-						state: "open",
-						state_reason: null,
-						updated_at: "2026-10-01T00:00:00Z",
-						body: "",
-						comments: 0,
-						assignee: null,
-						labels: [],
-					},
-				]);
-			}
-			if (
-				url ===
-				`https://api.github.com/repos/${repo}/pulls?state=open&per_page=100&page=1`
-			) {
-				return page([
-					{
-						number: 40,
-						title: "Ship the widget",
-						state: "open",
-						draft: false,
-						html_url: `https://github.com/${repo}/pull/40`,
-						head: { ref: "40-ship", sha: "sha-40" },
-						body: openAndRunAnswered,
-						merged_at: null,
-					},
-					{
-						number: 92,
-						title: "A fix with no ticket",
-						state: "open",
-						draft: false,
-						html_url: `https://github.com/${repo}/pull/92`,
-						head: { ref: "pr-92", sha: "sha-92" },
-						body: allRunAnswered,
-						merged_at: null,
-					},
-				]);
-			}
-			if (url.includes("/check-runs")) {
-				return Response.json({
-					check_runs: [
-						{ name: "ci", status: "completed", conclusion: "success" },
-					],
-				});
-			}
-			if (url.includes("/commits/")) {
-				return Response.json({
-					commit: { committer: { date: "2026-10-01T00:00:00Z" } },
-				});
-			}
-			if (
-				url.includes("/pulls?state=closed") ||
-				url.includes("/labels?") ||
-				url.includes("/branches?") ||
-				url.includes("/comments") ||
-				url.includes("/reviews") ||
-				url.includes("/reactions")
-			) {
-				return page([]);
-			}
-			return unrecorded(input);
-		};
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				pinned: [{ tracker: "github", repo }],
-				pmBot: { [repo]: false },
+		const { items } = await readNeedsYou(
+			githubRecorded(repo, {
+				issues: [openIssue(8, "Ship the widget")],
+				pulls: [
+					openPull(repo, 40, "Ship the widget", openAndRunAnswered, {
+						ref: "40-ship",
+					}),
+					openPull(repo, 92, "A fix with no ticket", allRunAnswered),
+				],
+				checkRuns: [{ name: "ci", status: "completed", conclusion: "success" }],
 			}),
+			{ pinned: [{ tracker: "github", repo }], pmBot: { [repo]: false } },
+			new Date("2026-10-18T12:00:00.000Z"),
 		);
-		const root = await mkdtemp(join(tmpdir(), "project-flow-store-"));
-		let startChecks: (base: string) => void = () => {};
-		const checks = new Promise<NeedsYouItem[]>((resolve, reject) => {
-			startChecks = (base) => {
-				fetch(new URL("/api/needs-you", base))
-					.then(async (response) => {
-						expect(response.status).toBe(200);
-						resolve((await response.json()) as NeedsYouItem[]);
-					})
-					.catch(reject);
-			};
+		expect(items.find((item) => item.key === `${repo}#8`)).toMatchObject({
+			reason: "decide",
+			openQuestions: 1,
+			pull: { number: 40 },
 		});
-		try {
-			const result = await run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: recorded,
-					readGhToken: async () => null,
-					databasePath: join(root, "store.sqlite"),
-					now: () => new Date("2026-10-18T12:00:00.000Z"),
-					stdout: (line) => startChecks(line),
-					waitForStop: checks.then(() => undefined),
-				}),
-			);
-			expect(result.stderr).toBe("");
-			expect(result.exitCode).toBe(0);
-			const items = await checks;
-			expect(items.find((item) => item.key === `${repo}#8`)).toMatchObject({
-				reason: "decide",
-				openQuestions: 1,
-				pull: { number: 40 },
-			});
-			const answered = items.find((item) => item.key === `${repo}#92`);
-			expect(answered).toMatchObject({ reason: "awaitingMerge" });
-			expect(answered).not.toHaveProperty("openQuestions");
-		} finally {
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
+		const answered = items.find((item) => item.key === `${repo}#92`);
+		expect(answered).toMatchObject({ reason: "awaitingMerge" });
+		expect(answered).not.toHaveProperty("openQuestions");
 	});
 });
