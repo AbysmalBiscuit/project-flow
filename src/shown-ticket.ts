@@ -108,7 +108,8 @@ export function shownTicket(
 	const run = liveRun(ticket, runs, fed, now);
 	const live = run?.status === "running";
 	const mergedClose = links.some(
-		(pull) => pull.merged && closesTicket(pull, ticket),
+		(pull) =>
+			pull.merged && pull.retained !== true && closesTicket(pull, ticket),
 	);
 	const failed = run?.status === "failed" && !mergedClose;
 	const open = links.filter((pull) => !pull.merged);

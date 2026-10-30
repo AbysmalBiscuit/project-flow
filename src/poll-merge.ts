@@ -13,6 +13,7 @@ import {
 	type ProjectRef,
 	sameProject,
 } from "./project-ref.ts";
+import { linked } from "./pull-links.ts";
 import { foldKey, pullKey, ticketId } from "./ticket-key.ts";
 
 export function staleView(
@@ -45,28 +46,53 @@ export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 	return [...byId.values()];
 }
 
+/**
+ * The stored merged pulls that a full read left out and that still link one
+ * of its tickets, marked `retained`. The read takes one page of merged pulls,
+ * and a merged pull does not change, so an older closed ticket keeps its link.
+ */
+function retainedPulls(
+	stored: PullRequest[],
+	incomingIds: Set<string>,
+	tickets: Ticket[],
+): PullRequest[] {
+	const missed = stored.filter(
+		(pull) => pull.merged && !incomingIds.has(foldKey(pullKey(pull))),
+	);
+	const linkedPulls = new Set(
+		tickets.flatMap((ticket) => linked(ticket, missed)),
+	);
+	return missed
+		.filter((pull) => linkedPulls.has(pull))
+		.map((pull) => ({ ...pull, retained: true as const }));
+}
+
 function keptPulls(
 	stored: PullRequest[],
 	incoming: PullRequest[],
 	returnedIds: Set<string>,
+	tickets: Ticket[],
 	full: boolean,
 ): PullRequest[] {
-	if (full) {
-		return incoming;
-	}
 	const incomingIds = new Set(incoming.map((pull) => foldKey(pullKey(pull))));
+	if (full) {
+		return [...incoming, ...retainedPulls(stored, incomingIds, tickets)];
+	}
 	const incomingKeys = new Set(
 		incoming.flatMap((pull) => pull.closingKeys.map((key) => foldKey(key))),
 	);
+	// An incremental read can leave out the merged pulls of unchanged tickets,
+	// so it keeps each stored merged pull as the store holds it.
 	return [
 		...incoming,
 		...stored.filter(
 			(pull) =>
 				!incomingIds.has(foldKey(pullKey(pull))) &&
-				!pull.closingKeys.some(
-					(key) =>
-						returnedIds.has(foldKey(key)) || incomingKeys.has(foldKey(key)),
-				),
+				(pull.merged ||
+					!pull.closingKeys.some(
+						(key) =>
+							returnedIds.has(foldKey(key)) || incomingKeys.has(foldKey(key)),
+					)),
 		),
 	];
 }
@@ -106,6 +132,7 @@ export function reconcilePoll(
 					prior?.pulls ?? [],
 					outcome.row.pulls,
 					returnedIds,
+					tickets,
 					outcome.full,
 				),
 				...(listedEmpty === undefined ? {} : { listedEmpty }),

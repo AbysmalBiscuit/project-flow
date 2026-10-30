@@ -581,6 +581,12 @@ export type PullRequest = {
 	headSha: string;
 	headCommittedAt: string | null;
 	merged: boolean;
+	/**
+	 * A merged pull from an earlier read that the current merged page left
+	 * out. It keeps the link of its ticket, but it does not make a ticket done
+	 * and does not count toward the expected bots.
+	 */
+	retained?: true;
 	autoMerge?: boolean;
 	checks: BotCheck[];
 	comments: BotComment[];
