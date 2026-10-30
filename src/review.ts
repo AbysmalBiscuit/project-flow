@@ -45,10 +45,12 @@ function expectedBotsFromHistory(
 	return knownBots.filter((bot) => found.has(bot));
 }
 
+/** The expected bots of each repo, by the `settingsKey` of the repo on the host of its PRs. */
 export function expectedBotsByRepo(
 	pulls: Pick<
 		PullRequest,
 		| "repo"
+		| "host"
 		| "merged"
 		| "retained"
 		| "checks"
@@ -58,14 +60,16 @@ export function expectedBotsByRepo(
 	>[],
 	overrides: Record<string, KnownBot[]>,
 ): Map<string, KnownBot[]> {
-	const repos = new Set(pulls.map((pull) => pull.repo));
+	const repos = new Set(pulls.map((pull) => settingsKey(pull.repo, pull.host)));
 	const bots = new Map<string, KnownBot[]>();
 	for (const repo of repos) {
 		const saved = repoKey(overrides, repo);
 		bots.set(
 			repo,
 			saved === undefined
-				? expectedBotsFromHistory(pulls.filter((pull) => pull.repo === repo))
+				? expectedBotsFromHistory(
+						pulls.filter((pull) => settingsKey(pull.repo, pull.host) === repo),
+					)
 				: (overrides[saved] ?? []),
 		);
 	}
@@ -242,7 +246,8 @@ function botCycle(
 ): { state: "inReview" | "awaitingMerge"; tags: string[] } {
 	const tags: string[] = [];
 	let waiting = false;
-	for (const bot of expectedByRepo.get(pull.repo) ?? []) {
+	for (const bot of expectedByRepo.get(settingsKey(pull.repo, pull.host)) ??
+		[]) {
 		const pass = botPass(pull, bot);
 		if (pass.warning !== null) {
 			tags.push(pass.warning);

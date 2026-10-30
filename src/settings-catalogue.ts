@@ -134,7 +134,7 @@ export function botsFor(
 		const saved = repoKey(overrides, repo);
 		const source =
 			saved === undefined
-				? (inferred.get(repo) ?? [])
+				? (inferred.get(settingsKey(repo, host)) ?? [])
 				: (overrides[saved] ?? []);
 		repoBots[settingsKey(repo, host)] = knownBots.filter((bot) =>
 			source.includes(bot),

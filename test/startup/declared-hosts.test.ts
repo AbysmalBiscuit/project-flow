@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Overview, Snapshot } from "../../src/domain.ts";
+import type { Overview, PullRequest, Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
 import { pendingStatus } from "../../src/stale-reads.ts";
@@ -147,6 +147,27 @@ async function withStarted(
 
 const hostedName = `${host}/acme/widget`;
 
+function storedPull(number: number, extra: Partial<PullRequest>): PullRequest {
+	return {
+		repo: "acme/widget",
+		number,
+		url: `https://${host}/acme/widget/pull/${number}`,
+		title: `Change ${number}`,
+		draft: false,
+		branch: `change-${number}`,
+		body: "",
+		closingKeys: [],
+		headSha: "head",
+		headCommittedAt: null,
+		merged: false,
+		checks: [],
+		comments: [],
+		reviews: [],
+		reactions: [],
+		...extra,
+	};
+}
+
 /** Runs the checks on an app whose store holds one row of the declared host. */
 async function withHostedRow(
 	row: Pick<Snapshot, "pulls" | "tickets">,
@@ -179,6 +200,22 @@ async function withHostedRow(
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}
+}
+
+/** The state of each card of the project on the declared host, by the number of its PR. */
+async function hostedPullStates(base: string): Promise<Record<string, string>> {
+	const response = await fetch(
+		new URL(`/api/projects/${encodeURIComponent(hostedName)}`, base),
+	);
+	expect(response.status).toBe(200);
+	const report = (await response.json()) as {
+		tickets: { pull?: string; state: string }[];
+	};
+	return Object.fromEntries(
+		report.tickets.flatMap((ticket) =>
+			ticket.pull === undefined ? [] : [[ticket.pull, ticket.state]],
+		),
+	);
 }
 
 describe("a declared self-hosted host", () => {
@@ -594,5 +631,26 @@ describe("a route to a project on a declared host", () => {
 		await expectNoHomeCall((base) => post(base, "/api/run-starts", target), {
 			error: "tracker unavailable",
 		});
+	});
+});
+
+describe("the review rules of a PR on a declared host", () => {
+	const finished = "awaitingMerge";
+	const waiting = "inReview";
+
+	test("the expected bots of the PR come from the key of its own host", async () => {
+		await withHostedRow(
+			{
+				pulls: [storedPull(1, { host }), storedPull(2, {})],
+				tickets: [],
+			},
+			{ expectedBots: { [hostedName]: ["grok"] } },
+			async (base) => {
+				expect(await hostedPullStates(base)).toEqual({
+					"acme/widget#1": waiting,
+					"acme/widget#2": finished,
+				});
+			},
+		);
 	});
 });

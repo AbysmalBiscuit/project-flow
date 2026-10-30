@@ -8,7 +8,6 @@ import { staleView } from "./poll-merge.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
 import {
-	hostEntries,
 	listedRef,
 	pinRef,
 	projectId,
@@ -119,10 +118,7 @@ function computeProjectView(
 			repo: options.repoAutoMerge,
 		},
 		graph,
-		expectedBotsByRepo(
-			row.pulls,
-			hostEntries(configuration.expectedBots ?? {}, row.host),
-		),
+		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
 		status,
 		needsYouRules(row, configuration, options.viewers),
 		configuration,
