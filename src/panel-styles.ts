@@ -35,15 +35,30 @@ export const panel = stylex.create({
 	},
 	head: {
 		display: "flex",
-		flexWrap: "wrap",
+		flexDirection: "column",
 		gap: space.sm,
-		alignItems: "flex-start",
-		justifyContent: "space-between",
 		position: "sticky",
 		zIndex: stack.panel,
 		top: 0,
 		padding: `${space.md} 0 ${space.sm}`,
 		backgroundColor: colours.raised,
+	},
+	headRow: {
+		display: "flex",
+		flexWrap: "wrap",
+		gap: space.sm,
+		alignItems: "flex-start",
+		justifyContent: "space-between",
+	},
+	keyLine: {
+		display: "flex",
+		gap: space.sm,
+		alignItems: "center",
+		justifyContent: "space-between",
+	},
+	headKey: {
+		minWidth: 0,
+		margin: 0,
 	},
 	key: {
 		margin: `0 0 ${space.xs}`,
