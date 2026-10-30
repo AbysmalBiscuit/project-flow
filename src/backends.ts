@@ -52,41 +52,93 @@ type CredentialRule = {
 	check: (token: string, fetchImpl: Fetch) => Promise<TokenCheck>;
 };
 
-const credentialRules: Record<BackendKind, CredentialRule> = {
-	github: {
-		env: "GITHUB_TOKEN",
-		fallback: (io) => io.readGhToken(io.env),
-		missing: missingToken,
-		rejected: rejectedToken,
-		checked: () => true,
-		async check(token, fetchImpl) {
-			const user = await checkToken(token, fetchImpl);
-			if (user.status === 401) {
-				return "rejected";
-			}
-			return user.ok
-				? "accepted"
-				: { warning: `GitHub token check failed (HTTP ${user.status}).` };
-		},
-	},
-	linear: {
-		env: "LINEAR_API_KEY",
-		missing: missingLinearKey,
-		rejected: rejectedLinearKey,
-		checked: ({ tracked }) => tracked.some((pin) => pin.tracker === "linear"),
-		async check(key, fetchImpl) {
-			try {
-				await checkLinearKey(key, fetchImpl);
-				return "accepted";
-			} catch (error) {
-				if (error instanceof TrackerError && error.status === 401) {
-					return "rejected";
-				}
-				throw error;
-			}
-		},
-	},
+type AdapterContext = {
+	host: string;
+	token: string;
+	fetch: Fetch;
+	/** The fetch of the repo reads, which the factory tokens and the validators cover. */
+	repoFetch: Fetch;
 };
+
+/** A factory answers null for a host that its adapter cannot read. */
+type Factory<Adapter> = (context: AdapterContext) => Adapter | null;
+
+type Backend<Kind extends BackendKind> = {
+	credential: CredentialRule;
+	/** The host of a project whose pin names no host. */
+	homeHost: string;
+} & (Kind extends TrackerKind ? { tracker: Factory<Tracker> } : unknown) &
+	(Kind extends ForgeKind ? { forge: Factory<Forge> } : unknown);
+
+/**
+ * The one record that names each backend. A registry holds the adapters of one
+ * app start, so that the tracker and the forge of a kind share one client.
+ */
+function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
+	let github: ReturnType<typeof githubAdapters> | undefined;
+	const githubOf = ({ host, token, repoFetch }: AdapterContext) => {
+		if (host !== githubHost) {
+			return null;
+		}
+		github ??= githubAdapters(token, repoFetch);
+		return github;
+	};
+	return {
+		github: {
+			credential: {
+				env: "GITHUB_TOKEN",
+				fallback: (io) => io.readGhToken(io.env),
+				missing: missingToken,
+				rejected: rejectedToken,
+				checked: () => true,
+				async check(token, fetchImpl) {
+					const user = await checkToken(token, fetchImpl);
+					if (user.status === 401) {
+						return "rejected";
+					}
+					return user.ok
+						? "accepted"
+						: { warning: `GitHub token check failed (HTTP ${user.status}).` };
+				},
+			},
+			homeHost: githubHost,
+			tracker: (context) => githubOf(context)?.tracker ?? null,
+			forge: (context) => githubOf(context)?.forge ?? null,
+		},
+		linear: {
+			credential: {
+				env: "LINEAR_API_KEY",
+				missing: missingLinearKey,
+				rejected: rejectedLinearKey,
+				checked: ({ tracked }) =>
+					tracked.some((pin) => pin.tracker === "linear"),
+				async check(key, fetchImpl) {
+					try {
+						await checkLinearKey(key, fetchImpl);
+						return "accepted";
+					} catch (error) {
+						if (error instanceof TrackerError && error.status === 401) {
+							return "rejected";
+						}
+						throw error;
+					}
+				},
+			},
+			homeHost: "linear.app",
+			tracker: ({ token, fetch }) => linearTracker(token, fetch),
+		},
+	};
+}
+
+function byKind<Kind extends string, Value>(
+	kinds: readonly Kind[],
+	value: (kind: Kind) => Value,
+): Record<Kind, Value> {
+	return Object.fromEntries(kinds.map((kind) => [kind, value(kind)])) as Record<
+		Kind,
+		Value
+	>;
+}
 
 function usable(token: string | null | undefined): string | null {
 	const trimmed = token?.trim() ?? "";
@@ -95,11 +147,18 @@ function usable(token: string | null | undefined): string | null {
 
 /** Reads the token of each backend kind from its env var, or else from its fallback. */
 export async function readCredentials(io: TokenIo): Promise<Credentials> {
-	const read = async (kind: BackendKind) => {
-		const rule = credentialRules[kind];
-		return usable(io.env[rule.env]) ?? usable(await rule.fallback?.(io));
-	};
-	return { github: await read("github"), linear: await read("linear") };
+	const registry = backendRegistry();
+	const tokens = new Map(
+		await Promise.all(
+			backendKinds.map(async (kind) => {
+				const rule = registry[kind].credential;
+				const token =
+					usable(io.env[rule.env]) ?? usable(await rule.fallback?.(io));
+				return [kind, token] as const;
+			}),
+		),
+	);
+	return byKind(backendKinds, (kind) => tokens.get(kind) ?? null);
 }
 
 /** Checks each token that the configuration needs. Answers the message that stops the start, or null. */
@@ -109,8 +168,9 @@ export async function rejectedCredential(
 	fetchImpl: Fetch,
 	warn: (message: string) => void,
 ): Promise<string | null> {
+	const registry = backendRegistry();
 	for (const kind of backendKinds) {
-		const rule = credentialRules[kind];
+		const rule = registry[kind].credential;
 		const token = credentials[kind];
 		if (token === null || !rule.checked(configuration)) {
 			continue;
@@ -126,46 +186,6 @@ export async function rejectedCredential(
 	}
 	return null;
 }
-
-type AdapterContext = {
-	host: string;
-	token: string;
-	fetch: Fetch;
-	/** The fetch of the repo reads, which the factory tokens and the validators cover. */
-	repoFetch: Fetch;
-};
-
-type Factory<Adapter> = (context: AdapterContext) => Adapter | null;
-
-/** The factories of one app start. A factory answers null for a host that its adapter cannot read. */
-function adapterFactories(): {
-	trackers: Record<TrackerKind, Factory<Tracker>>;
-	forges: Record<ForgeKind, Factory<Forge>>;
-} {
-	let github: ReturnType<typeof githubAdapters> | undefined;
-	const githubOf = ({ host, token, repoFetch }: AdapterContext) => {
-		if (host !== githubHost) {
-			return null;
-		}
-		github ??= githubAdapters(token, repoFetch);
-		return github;
-	};
-	return {
-		trackers: {
-			github: (context) => githubOf(context)?.tracker ?? null,
-			linear: ({ token, fetch }) => linearTracker(token, fetch),
-		},
-		forges: {
-			github: (context) => githubOf(context)?.forge ?? null,
-		},
-	};
-}
-
-/** The host of a project whose pin names no host. */
-const homeHosts: Record<BackendKind, string> = {
-	github: githubHost,
-	linear: "linear.app",
-};
 
 export type ProjectReader = { tracker: Tracker } | { error: string };
 
@@ -192,17 +212,17 @@ export function buildBackends(options: {
 	repoFetch: Fetch;
 }): Backends {
 	const { credentials, env, fetch, repoFetch } = options;
-	const factories = adapterFactories();
+	const registry = backendRegistry();
 	const homeContext = (kind: BackendKind): AdapterContext | null => {
 		const token = credentials[kind];
 		return token === null
 			? null
-			: { host: homeHosts[kind], token, fetch, repoFetch };
+			: { host: registry[kind].homeHost, token, fetch, repoFetch };
 	};
 	const trackers = new Map<TrackerKind, Tracker>();
 	for (const kind of trackerKinds) {
 		const context = homeContext(kind);
-		const tracker = context === null ? null : factories.trackers[kind](context);
+		const tracker = context === null ? null : registry[kind].tracker(context);
 		if (tracker !== null) {
 			trackers.set(kind, tracker);
 		}
@@ -210,9 +230,9 @@ export function buildBackends(options: {
 	const forges = new Map<string, Forge>();
 	for (const kind of forgeKinds) {
 		const context = homeContext(kind);
-		const forge = context === null ? null : factories.forges[kind](context);
+		const forge = context === null ? null : registry[kind].forge(context);
 		if (forge !== null) {
-			forges.set(homeHosts[kind], forge);
+			forges.set(registry[kind].homeHost, forge);
 		}
 	}
 	const explained = new Set<string>();
@@ -236,8 +256,8 @@ export function buildBackends(options: {
 			);
 		}
 		const context = { host, token, fetch, repoFetch };
-		const forge = factories.forges[declared.forge](context);
-		const tracker = forge === null ? null : factories.trackers[kind](context);
+		const forge = registry[declared.forge].forge(context);
+		const tracker = forge === null ? null : registry[kind].tracker(context);
 		if (forge === null || tracker === null) {
 			return unreadable(`the ${declared.forge} forge cannot read ${host} yet.`);
 		}
@@ -247,10 +267,7 @@ export function buildBackends(options: {
 	return {
 		trackers,
 		forges,
-		configured: {
-			github: credentials.github !== null,
-			linear: credentials.linear !== null,
-		},
+		configured: byKind(trackerKinds, (kind) => credentials[kind] !== null),
 		readerOf(ref, hosts) {
 			const host = refHost(ref);
 			if (host !== undefined) {
@@ -258,13 +275,13 @@ export function buildBackends(options: {
 			}
 			const tracker = trackers.get(ref.tracker);
 			return tracker === undefined
-				? unreadable(credentialRules[ref.tracker].missing)
+				? unreadable(registry[ref.tracker].credential.missing)
 				: { tracker };
 		},
 		forgeOf: (ref) =>
-			forges.get(refHost(ref) ?? homeHosts[ref.tracker]) ?? null,
+			forges.get(refHost(ref) ?? registry[ref.tracker].homeHost) ?? null,
 		declaredHostOf(forge) {
-			const home = new Set<string>(Object.values(homeHosts));
+			const home = new Set(backendKinds.map((kind) => registry[kind].homeHost));
 			for (const [host, held] of forges) {
 				if (held === forge && !home.has(host)) {
 					return host;
