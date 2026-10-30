@@ -13,103 +13,203 @@ import {
 	membership,
 	operationName,
 	renamed,
+	type RepoBody,
 } from "./_support.ts";
 
-type ProjectTickets = { doneTickets: { key: string; pullUrl?: string }[] };
+type TicketView = { key: string; pullUrl?: string; statusType?: string };
+type ProjectTickets = { tickets: TicketView[]; doneTickets: TicketView[] };
 
 const closedKey = "acme/widget#103";
 const mergedUrl = "https://github.com/acme/widget/pull/90";
+const fullPollGapMs = 11 * 60 * 1000;
+
+type Poll = {
+	/** The number of the repo read, from 1. */
+	read: number;
+	repository: RepoBody["data"]["repository"];
+};
+
+/**
+ * Serves the recorded repo read with a closed ticket #103. The first read
+ * lists merged PR #90 as the PR that closes #103. `edit` changes each read.
+ */
+function closedTicketRead(edit: (poll: Poll) => void) {
+	let reads = 0;
+	return (owner: string, name: string, request: GraphqlRequest) => {
+		const body = renamed(owner, name);
+		if (operationName(request.query) !== "RepoRead") {
+			return body;
+		}
+		reads += 1;
+		const repository = body.data.repository;
+		const closed = structuredClone(repository.issues.nodes[0] ?? {});
+		closed.id = "I_103";
+		closed.number = 103;
+		closed.title = "Ticket 103";
+		closed.state = "CLOSED";
+		closed.updatedAt = "2026-01-01T00:00:00.000Z";
+		repository.issues.nodes.push(closed);
+		const merged = repository.mergedPullRequests.nodes[0];
+		if (merged !== undefined) {
+			merged.body = "Closes #103";
+			const closing = merged.closingIssuesReferences as Connection<{
+				number: number;
+			}>;
+			closing.nodes = [{ number: 103 }];
+		}
+		if (reads > 1) {
+			repository.mergedPullRequests.nodes = [];
+		}
+		edit({ read: reads, repository });
+		return body;
+	};
+}
+
+type App = {
+	requests: GraphqlRequest[];
+	project: () => Promise<ProjectTickets>;
+	overview: () => Promise<Overview>;
+	/** Moves the clock by `ms`, refreshes, and waits for the poll to settle. */
+	poll: (ms: number) => Promise<GraphqlRequest[]>;
+};
+
+async function withApp(
+	read: ReturnType<typeof closedTicketRead>,
+	check: (app: App) => Promise<void>,
+): Promise<void> {
+	const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
+	const { path, cleanup } = await tempConfig(
+		JSON.stringify({
+			tracked: [{ tracker: "github", repo: "acme/widget" }],
+			pollIntervalSeconds: 3600,
+		}),
+	);
+	const requests: GraphqlRequest[] = [];
+	let clock = Date.parse("2026-08-18T12:00:00.000Z");
+	let releaseReady: () => void = () => {};
+	const ready = new Promise<void>((resolve) => {
+		releaseReady = resolve;
+	});
+	let stop = () => {};
+	const stopped = new Promise<void>((resolve) => {
+		stop = resolve;
+	});
+	try {
+		let base = "";
+		const running = run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: membership([], (owner, name, request) => {
+					requests.push(request);
+					return read(owner, name, request);
+				}),
+				readGhToken: async () => null,
+				databasePath: join(root, "project-flow.sqlite"),
+				now: () => new Date(clock),
+				stdout: (line) => {
+					base = line;
+					releaseReady();
+				},
+				waitForStop: stopped,
+			}),
+		);
+		await ready;
+		await check({
+			requests,
+			project: async () =>
+				(await (
+					await fetch(new URL("/api/projects/acme%2Fwidget", base))
+				).json()) as ProjectTickets,
+			overview: () => readOverview<Overview>(base),
+			poll: async (ms) => {
+				const before = requests.length;
+				clock += ms;
+				const refresh = await fetch(new URL("/api/refresh", base), {
+					method: "POST",
+				});
+				expect(refresh.status).toBe(204);
+				await settledOverview(base, readOverview<Overview>);
+				return requests.slice(before);
+			},
+		});
+		stop();
+		await running;
+	} finally {
+		stop();
+		await cleanup();
+		await rm(root, { recursive: true, force: true });
+	}
+}
+
+const pullUrlOf = (body: ProjectTickets) =>
+	body.doneTickets.find((ticket) => ticket.key === closedKey)?.pullUrl;
 
 describe("merged pulls across full polls", () => {
 	test("a full poll keeps a stored merged PR that its merged page left out, with no request for it", async () => {
-		const root = await mkdtemp(join(tmpdir(), "project-flow-batch-"));
-		const { path, cleanup } = await tempConfig(
-			JSON.stringify({
-				tracked: [{ tracker: "github", repo: "acme/widget" }],
-				pollIntervalSeconds: 3600,
-			}),
+		await withApp(
+			closedTicketRead(() => {}),
+			async (app) => {
+				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				const later = await app.poll(fullPollGapMs);
+				expect(later.map((request) => request.variables.since)).toEqual([null]);
+				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				expect(later.map((request) => operationName(request.query))).toEqual([
+					"RepoRead",
+				]);
+			},
 		);
-		const requests: GraphqlRequest[] = [];
-		let reads = 0;
-		let clock = Date.parse("2026-08-18T12:00:00.000Z");
-		let releaseReady: () => void = () => {};
-		const ready = new Promise<void>((resolve) => {
-			releaseReady = resolve;
-		});
-		let stop = () => {};
-		const stopped = new Promise<void>((resolve) => {
-			stop = resolve;
-		});
-		try {
-			let base = "";
-			const running = run(
-				["--config", path, "--host", "127.0.0.1", "--port", "0"],
-				testIo({
-					env: { GITHUB_TOKEN: "recorded-token" },
-					fetch: membership([], (owner, name, request) => {
-						requests.push(request);
-						const body = renamed(owner, name);
-						if (operationName(request.query) !== "RepoRead") {
-							return body;
-						}
-						reads += 1;
-						const repository = body.data.repository;
-						const closed = structuredClone(repository.issues.nodes[0] ?? {});
-						closed.number = 103;
-						closed.id = "I_103";
-						closed.title = "Ticket 103";
-						closed.state = "CLOSED";
-						closed.updatedAt = "2026-01-01T00:00:00.000Z";
-						repository.issues.nodes.push(closed);
-						const merged = repository.mergedPullRequests.nodes[0];
-						if (merged === undefined || reads > 1) {
-							repository.mergedPullRequests.nodes = [];
-							return body;
-						}
-						merged.body = "Closes #103";
-						const closing = merged.closingIssuesReferences as Connection<{
-							number: number;
-						}>;
-						closing.nodes = [{ number: 103 }];
-						return body;
-					}),
-					readGhToken: async () => null,
-					databasePath: join(root, "project-flow.sqlite"),
-					now: () => new Date(clock),
-					stdout: (line) => {
-						base = line;
-						releaseReady();
-					},
-					waitForStop: stopped,
-				}),
-			);
-			await ready;
-			const project = async () =>
-				(await (
-					await fetch(new URL("/api/projects/acme%2Fwidget", base))
-				).json()) as ProjectTickets;
-			const pullUrlOf = (body: ProjectTickets) =>
-				body.doneTickets.find((ticket) => ticket.key === closedKey)?.pullUrl;
-			expect(pullUrlOf(await project())).toBe(mergedUrl);
-			const firstPoll = requests.length;
-			clock += 11 * 60 * 1000;
-			const refresh = await fetch(new URL("/api/refresh", base), {
-				method: "POST",
-			});
-			expect(refresh.status).toBe(204);
-			await settledOverview(base, readOverview<Overview>);
-			const later = requests.slice(firstPoll);
-			expect(later.map((request) => request.variables.since)).toEqual([null]);
-			expect(pullUrlOf(await project())).toBe(mergedUrl);
-			expect(later.map((request) => operationName(request.query))).toEqual([
-				"RepoRead",
-			]);
-			stop();
-			await running;
-		} finally {
-			stop();
-			await cleanup();
-			await rm(root, { recursive: true, force: true });
-		}
+	});
+
+	test("an incremental poll that returns the updated closed ticket keeps its merged PR for the next full poll", async () => {
+		await withApp(
+			closedTicketRead(({ read, repository }) => {
+				const closed = repository.issues.nodes.find(
+					(issue) => issue.number === 103,
+				);
+				if (closed !== undefined && read > 1) {
+					closed.updatedAt = `2026-08-18T12:0${read}:00.000Z`;
+				}
+			}),
+			async (app) => {
+				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				const incremental = await app.poll(60 * 1000);
+				expect(
+					incremental.map((request) => request.variables.since ?? null),
+				).not.toContain(null);
+				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				const full = await app.poll(fullPollGapMs);
+				expect(full.map((request) => request.variables.since)).toEqual([null]);
+				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+			},
+		);
+	});
+
+	test("a reopened ticket whose merged closing PR is only in the store stays open", async () => {
+		await withApp(
+			closedTicketRead(({ read, repository }) => {
+				const ticket = repository.issues.nodes.find(
+					(issue) => issue.number === 103,
+				);
+				if (ticket !== undefined && read > 1) {
+					ticket.state = "OPEN";
+					ticket.stateReason = "REOPENED";
+					ticket.closedAt = null;
+					ticket.updatedAt = "2026-08-18T12:11:00.000Z";
+				}
+			}),
+			async (app) => {
+				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				await app.poll(fullPollGapMs);
+				const body = await app.project();
+				expect(body.doneTickets.map((ticket) => ticket.key)).not.toContain(
+					closedKey,
+				);
+				const reopened = body.tickets.find(
+					(ticket) => ticket.key === closedKey,
+				);
+				expect(reopened?.statusType).not.toBe("done");
+			},
+		);
 	});
 });
