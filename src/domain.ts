@@ -809,6 +809,8 @@ export type Overview = {
 	tracked?: false;
 	/** A listed factory did not answer its last check. */
 	factoryUnreachable?: true;
+	/** The settings turn off the Needs you block of the overview. */
+	needsYouHidden?: true;
 };
 
 /** Projects finished in the poll that is running, out of the tracked projects. */

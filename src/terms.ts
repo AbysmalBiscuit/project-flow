@@ -841,6 +841,9 @@ export const settingsCopy = {
 	theme: "Theme",
 	themeHint:
 		"The theme button in the header switches light and dark. The app writes the choice to the configuration file at once, and starts in it next time.",
+	showNeedsYou: "Show Needs you on the overview",
+	showNeedsYouHint:
+		"The overview lists the first tickets that wait for you above the projects.",
 	pollInterval: "Poll interval",
 	pollHint: "How often each tracker is read.",
 	factoryTokens: "Factory GitHub tokens",

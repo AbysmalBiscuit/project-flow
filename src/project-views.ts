@@ -305,5 +305,8 @@ export function overview(
 		...(options.factoryUnreachable()
 			? { factoryUnreachable: true as const }
 			: {}),
+		...(configuration.overview.showNeedsYou
+			? {}
+			: { needsYouHidden: true as const }),
 	};
 }
