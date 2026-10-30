@@ -1,11 +1,17 @@
 import { describe, expect, test } from "bun:test";
 
-import { daemon, factoryFetch, hubUrl, serve } from "../support/factory.ts";
+import linearSources from "../fixtures/factory-hub-linear-sources.json";
+import { factoryFetch, hub, hubUrl, serve } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
 import { readyLabel, serveGithub, ticketWhere } from "./_support.ts";
 
-function serveLinear(state: { id: string; name: string; type: string }) {
+/** A hub with the recorded Linear sources, whose source maps Ready to Todo with the label `factory`, and the Linear ticket PF-1. */
+function serveLinear(
+	state: { id: string; name: string; type: string },
+	labels: string[],
+	readyStatus: string,
+) {
 	const tracker = linearFake({
 		project: {
 			id: "11111111-1111-4111-8111-111111111111",
@@ -20,7 +26,7 @@ function serveLinear(state: { id: string; name: string; type: string }) {
 				description: "Body",
 				state: { ...state, color: "#bec2c8" },
 				updatedAt: "2026-08-18T12:00:00.000Z",
-				labels: { nodes: [] },
+				labels: { nodes: labels.map((name) => ({ name })) },
 				comments: { nodes: [] },
 				team: { id: "team-pf" },
 			},
@@ -30,12 +36,18 @@ function serveLinear(state: { id: string; name: string; type: string }) {
 		[],
 		{
 			pinned: [{ tracker: "linear", project: "widget-launch" }],
-			factories: [{ name: "work hub", url: hubUrl, readyStatus: "Todo" }],
+			factories: [{ name: "work hub", url: hubUrl, readyStatus }],
 		},
-		factoryFetch({ [hubUrl]: daemon }, [], tracker),
+		factoryFetch(
+			{ [hubUrl]: { ...hub, "/sources": linearSources } },
+			[],
+			tracker,
+		),
 		{ env: { LINEAR_API_KEY: "recorded-linear-key" } },
 	);
 }
+
+const todo = { id: "state-todo", name: "Todo", type: "unstarted" };
 
 describe("queued tickets", () => {
 	test("an open GitHub ticket with the ready label and no run is queued on the factory", async () => {
@@ -56,38 +68,33 @@ describe("queued tickets", () => {
 		}
 	});
 
-	test("a Linear ticket in the ready status of the factory is queued, and one in another status is not", async () => {
-		const ready = await serveLinear({
-			id: "state-todo",
-			name: "Todo",
-			type: "unstarted",
-		});
+	test("a Linear ticket in the state and labels that its hub source maps to ready is queued, though the ready status differs", async () => {
+		const app = await serveLinear(todo, ["factory"], "Backlog");
 		try {
 			const view = await ticketWhere(
-				ready.base,
+				app.base,
 				"Widget launch",
 				"PF-1",
-				(item) => item.title !== "",
+				(item) => item.runStart !== undefined,
 			);
 			expect(view.queued).toEqual({ factory: "work hub", status: "Todo" });
 		} finally {
-			await ready.stop();
+			await app.stop();
 		}
-		const backlog = await serveLinear({
-			id: "state-backlog",
-			name: "Backlog",
-			type: "backlog",
-		});
+	});
+
+	test("a Linear ticket that meets only the ready status, not the hub source rule, is not queued", async () => {
+		const app = await serveLinear(todo, [], "Todo");
 		try {
 			const view = await ticketWhere(
-				backlog.base,
+				app.base,
 				"Widget launch",
 				"PF-1",
-				(item) => item.title !== "",
+				(item) => item.runStart !== undefined,
 			);
 			expect(view.queued).toBeUndefined();
 		} finally {
-			await backlog.stop();
+			await app.stop();
 		}
 	});
 

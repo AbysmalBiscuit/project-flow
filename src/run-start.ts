@@ -236,14 +236,17 @@ export function settledRequests(
 }
 
 /**
- * The first factory whose ready condition an open ticket meets while no run of it started.
- * A factory with both a ready label and a ready status needs both. A pending claim names
- * its own factory, so the ready condition of another factory does not queue the ticket.
+ * The factory that claims an open ticket while no run of it started.
+ * A Linear ticket is queued when it shows what the Linear start writes, so the
+ * hub source rule decides it. On GitHub, the first factory whose ready condition
+ * the ticket meets queues it. A factory with both a ready label and a ready status
+ * needs both. A pending claim names its own factory, so the ready condition of
+ * another factory does not queue the ticket.
  */
 export function queuedOf(
-	ticket: Pick<Ticket, "key" | "state" | "labels" | "status">,
+	ticket: StartTicket,
 	newestRun: Pick<FactoryRun, "statusKind"> | undefined,
-	{ factories, requests }: RunStarts,
+	{ factories, linearSources, requests }: RunStarts,
 ): Queued | undefined {
 	if (
 		ticket.state !== "open" ||
@@ -251,6 +254,12 @@ export function queuedOf(
 		pendingRequest(ticket, requests)?.claim === true
 	) {
 		return undefined;
+	}
+	if (ticket.tracker === "linear") {
+		const start = linearStart(ticket, linearSources);
+		return "refused" in start || !shows(ticket, start)
+			? undefined
+			: { factory: start.factory, status: start.state };
 	}
 	const status = ticket.status?.name.toLowerCase();
 	const factory = factories.find(
