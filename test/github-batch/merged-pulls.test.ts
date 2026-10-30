@@ -6,6 +6,7 @@ import { join } from "node:path";
 import type { Overview } from "../../src/domain.ts";
 import { run } from "../../src/main.ts";
 import { tempConfig, testIo } from "../support/app.ts";
+import { trackerRequest } from "../support/fetch.ts";
 import { readOverview, settledOverview } from "../support/reads.ts";
 import {
 	type Connection,
@@ -21,6 +22,7 @@ type ProjectTickets = { tickets: TicketView[]; doneTickets: TicketView[] };
 
 const closedKey = "acme/widget#103";
 const mergedUrl = "https://github.com/acme/widget/pull/90";
+const mergedId = "PR_90";
 const fullPollGapMs = 11 * 60 * 1000;
 
 type Poll = {
@@ -51,6 +53,7 @@ function closedTicketRead(edit: (poll: Poll) => void) {
 		repository.issues.nodes.push(closed);
 		const merged = repository.mergedPullRequests.nodes[0];
 		if (merged !== undefined) {
+			merged.id = mergedId;
 			merged.body = "Closes #103";
 			const closing = merged.closingIssuesReferences as Connection<{
 				number: number;
@@ -66,10 +69,14 @@ function closedTicketRead(edit: (poll: Poll) => void) {
 }
 
 type App = {
-	requests: GraphqlRequest[];
+	/** Each request that the app sent, with its GraphQL body. */
+	sent: () => GraphqlRequest[];
 	project: () => Promise<ProjectTickets>;
 	overview: () => Promise<Overview>;
-	/** Moves the clock by `ms`, refreshes, and waits for the poll to settle. */
+	/**
+	 * Moves the clock by `ms`, refreshes, and waits for the poll to settle.
+	 * Returns each request that the poll sent, with its GraphQL body.
+	 */
 	poll: (ms: number) => Promise<GraphqlRequest[]>;
 };
 
@@ -85,6 +92,7 @@ async function withApp(
 		}),
 	);
 	const requests: GraphqlRequest[] = [];
+	const answer = membership([], read);
 	let clock = Date.parse("2026-08-18T12:00:00.000Z");
 	let releaseReady: () => void = () => {};
 	const ready = new Promise<void>((resolve) => {
@@ -100,10 +108,10 @@ async function withApp(
 			["--config", path, "--host", "127.0.0.1", "--port", "0"],
 			testIo({
 				env: { GITHUB_TOKEN: "recorded-token" },
-				fetch: membership([], (owner, name, request) => {
-					requests.push(request);
-					return read(owner, name, request);
-				}),
+				fetch: (input, init) => {
+					requests.push(trackerRequest(input, init));
+					return answer(input, init);
+				},
 				readGhToken: async () => null,
 				databasePath: join(root, "project-flow.sqlite"),
 				now: () => new Date(clock),
@@ -116,7 +124,7 @@ async function withApp(
 		);
 		await ready;
 		await check({
-			requests,
+			sent: () => [...requests],
 			project: async () =>
 				(await (
 					await fetch(new URL("/api/projects/acme%2Fwidget", base))
@@ -145,18 +153,33 @@ async function withApp(
 const pullUrlOf = (body: ProjectTickets) =>
 	body.doneTickets.find((ticket) => ticket.key === closedKey)?.pullUrl;
 
+const repoReadsSince = (requests: GraphqlRequest[]) =>
+	requests
+		.filter((request) => operationName(request.query) === "RepoRead")
+		.map((request) => request.variables.since ?? null);
+
+/** The requests that name merged PR #90 by its node id, URL or number. */
+const mergedPullRequests = (requests: GraphqlRequest[]) =>
+	requests.filter((request) => {
+		const sent = JSON.stringify(request);
+		return (
+			sent.includes(mergedId) ||
+			/\/pulls?\/90\b/.test(sent) ||
+			request.variables.number === 90
+		);
+	});
+
 describe("merged pulls across full polls", () => {
 	test("a full poll keeps a stored merged PR that its merged page left out, with no request for it", async () => {
 		await withApp(
 			closedTicketRead(() => {}),
 			async (app) => {
 				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				expect(mergedPullRequests(app.sent())).not.toEqual([]);
 				const later = await app.poll(fullPollGapMs);
-				expect(later.map((request) => request.variables.since)).toEqual([null]);
+				expect(repoReadsSince(later)).toEqual([null]);
 				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
-				expect(later.map((request) => operationName(request.query))).toEqual([
-					"RepoRead",
-				]);
+				expect(mergedPullRequests(later)).toEqual([]);
 			},
 		);
 	});
@@ -174,13 +197,14 @@ describe("merged pulls across full polls", () => {
 			async (app) => {
 				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
 				const incremental = await app.poll(60 * 1000);
-				expect(
-					incremental.map((request) => request.variables.since ?? null),
-				).not.toContain(null);
+				expect(repoReadsSince(incremental)).toHaveLength(1);
+				expect(repoReadsSince(incremental)).not.toContain(null);
 				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				expect(mergedPullRequests(incremental)).toEqual([]);
 				const full = await app.poll(fullPollGapMs);
-				expect(full.map((request) => request.variables.since)).toEqual([null]);
+				expect(repoReadsSince(full)).toEqual([null]);
 				expect(pullUrlOf(await app.project())).toBe(mergedUrl);
+				expect(mergedPullRequests(full)).toEqual([]);
 			},
 		);
 	});
