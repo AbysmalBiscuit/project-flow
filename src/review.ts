@@ -1,7 +1,7 @@
 import type { AutoMerge } from "./configuration.ts";
 import type { BotReview, Comment, PullRequest, PullStatus } from "./domain.ts";
 import { type KnownBot, knownBots } from "./known-bots.ts";
-import { repoKey } from "./project-ref.ts";
+import { repoKey, settingsKey } from "./project-ref.ts";
 import { pullKey } from "./ticket-key.ts";
 import { workcellRun } from "./workcell.ts";
 
@@ -284,7 +284,10 @@ export function mergesOnItsOwn(
 		if (workcell !== undefined) {
 			return workcell === "yes";
 		}
-		return pull.autoMerge === true || auto.repo[pull.repo] === true;
+		return (
+			pull.autoMerge === true ||
+			auto.repo[settingsKey(pull.repo, pull.host)] === true
+		);
 	});
 }
 

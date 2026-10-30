@@ -50,6 +50,7 @@ import {
 	refListed,
 	refRepo,
 	sameProject,
+	settingsKey,
 } from "./project-ref.ts";
 import {
 	overview,
@@ -242,30 +243,43 @@ async function readListed(
 	const repo = refRepo(project.ref);
 	const branches =
 		repo !== null && forge !== null ? await forge.listBranches(repo) : [];
-	const forgeOfRepo = new Map(
+	const { declaredHostOf } = options.backends;
+	const pulls = lists.flatMap((list) => {
+		const host = declaredHostOf(list.forge);
+		return host === undefined
+			? list.pulls
+			: list.pulls.map((pull) => ({ ...pull, host }));
+	});
+	const repoReads = new Map(
 		lists.flatMap((list) =>
-			list.pulls.map((pull) => [pull.repo, list.forge] as const),
+			list.pulls.map(
+				(pull) =>
+					[
+						settingsKey(pull.repo, declaredHostOf(list.forge)),
+						{ repo: pull.repo, forge: list.forge },
+					] as const,
+			),
 		),
 	);
 	if (repo !== null && forge !== null) {
-		forgeOfRepo.set(repo, forge);
+		repoReads.set(settingsKey(repo, declaredHostOf(forge)), { repo, forge });
 	}
-	for (const [repo, forge] of forgeOfRepo) {
-		if (readRepos.has(repo)) {
+	for (const [id, read] of repoReads) {
+		if (readRepos.has(id)) {
 			continue;
 		}
-		readRepos.add(repo);
+		readRepos.add(id);
 		try {
-			options.repoAutoMerge[repo] = await forge.repoAutoMerge(repo);
+			options.repoAutoMerge[id] = await read.forge.repoAutoMerge(read.repo);
 		} catch {
-			options.repoAutoMerge[repo] = false;
+			options.repoAutoMerge[id] = false;
 		}
 	}
 	return {
 		...project,
 		name: project.name ?? listedTickets.name,
 		tickets: listedTickets.tickets,
-		pulls: lists.flatMap((list) => list.pulls),
+		pulls,
 		branches,
 		startedKeys,
 		...(listedTickets.board === undefined

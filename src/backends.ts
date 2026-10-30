@@ -179,6 +179,8 @@ export type Backends = {
 	readerOf: (ref: ProjectRef, hosts: Configuration["hosts"]) => ProjectReader;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
+	/** The declared host of a forge, or undefined for a forge on its own home host. */
+	declaredHostOf: (forge: Forge) => string | undefined;
 	/** True for an error that `readerOf` gave: the project waits for a setting and no read failed. */
 	explains: (error: string) => boolean;
 };
@@ -261,6 +263,15 @@ export function buildBackends(options: {
 		},
 		forgeOf: (ref) =>
 			forges.get(refHost(ref) ?? homeHosts[ref.tracker]) ?? null,
+		declaredHostOf(forge) {
+			const home = new Set<string>(Object.values(homeHosts));
+			for (const [host, held] of forges) {
+				if (held === forge && !home.has(host)) {
+					return host;
+				}
+			}
+			return undefined;
+		},
 		explains: (error) => explained.has(error),
 	};
 }

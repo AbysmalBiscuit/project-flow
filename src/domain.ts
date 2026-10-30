@@ -597,6 +597,8 @@ export type OutsideParent = CrossProjectBlocker & {
 
 export type PullRequest = {
 	repo: string;
+	/** The declared host of the repo. A PR on the home host of its forge has none. */
+	host?: string;
 	number: number;
 	url: string;
 	title: string;
