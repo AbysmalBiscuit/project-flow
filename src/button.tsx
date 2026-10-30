@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import {
+	ArrowUpDown,
 	Bell,
 	Check,
 	Expand,
@@ -21,6 +22,7 @@ import { colours, measure, radius, space, type } from "./tokens.stylex.ts";
 import { clsx } from "./ui.ts";
 
 const icons = {
+	"arrow-up-down": ArrowUpDown,
 	bell: Bell,
 	check: Check,
 	expand: Expand,
