@@ -672,7 +672,10 @@ export function Page() {
 							theme: live.theme,
 							overview: {
 								...live.overview,
-								showNeedsYou: next.overview.showNeedsYou,
+								showNeedsYou:
+									next.overview.showNeedsYou === baseline.overview.showNeedsYou
+										? live.overview.showNeedsYou
+										: next.overview.showNeedsYou,
 							},
 							tracked: next.tracked,
 							baselineTracked: baseline.tracked,

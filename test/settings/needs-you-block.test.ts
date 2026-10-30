@@ -30,9 +30,52 @@ describe("the Needs you block setting", () => {
 				body: JSON.stringify({
 					...loaded,
 					overview: { ...loaded.overview, showNeedsYou: false },
+					baselineShowNeedsYou: loaded.overview.showNeedsYou,
 				}),
 			});
 			expect(saved.status).toBe(200);
+			const overview = (await (
+				await fetch(new URL("/api/overview", base))
+			).json()) as Overview;
+			expect(overview.needsYouHidden).toBe(true);
+			const file = JSON.parse(await readFile(configPath, "utf8")) as {
+				overview: { showNeedsYou: boolean };
+			};
+			expect(file.overview.showNeedsYou).toBe(false);
+		});
+	});
+
+	test("an overview save from stale settings keeps Needs you off", async () => {
+		await withApp(JSON.stringify({ pinned: [] }), async (base, configPath) => {
+			const stale = (await (
+				await fetch(new URL("/api/settings", base))
+			).json()) as Configuration;
+			const hidden = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...stale,
+					overview: { ...stale.overview, showNeedsYou: false },
+					baselineShowNeedsYou: stale.overview.showNeedsYou,
+				}),
+			});
+			expect(hidden.status).toBe(200);
+			const sorted = await fetch(new URL("/api/settings", base), {
+				method: "PUT",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					...stale,
+					overview: { ...stale.overview, sort: "progress" },
+					baselineShowNeedsYou: stale.overview.showNeedsYou,
+				}),
+			});
+			expect(sorted.status).toBe(200);
+			const written = (await sorted.json()) as Configuration;
+			expect(written.overview).toEqual({
+				...stale.overview,
+				sort: "progress",
+				showNeedsYou: false,
+			});
 			const overview = (await (
 				await fetch(new URL("/api/overview", base))
 			).json()) as Overview;

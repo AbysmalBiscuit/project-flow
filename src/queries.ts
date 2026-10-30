@@ -574,7 +574,11 @@ export function useSaveSettings({
 		// choices that earlier saves wrote to the cache.
 		mutationFn: async (patch: SettingsPatch): Promise<SettingsPage> => {
 			const loaded = await queries.ensureQueryData(pageQuery.settings);
-			const next = patch(settingsPageOf(loaded).settings);
+			const base = settingsPageOf(loaded).settings;
+			const next = {
+				...patch(base),
+				baselineShowNeedsYou: base.overview.showNeedsYou,
+			};
 			const response = await fetch("/api/settings", {
 				method: "PUT",
 				headers: { "content-type": "application/json" },
