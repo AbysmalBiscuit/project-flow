@@ -278,11 +278,29 @@ export type ShownFactoryRun = Pick<
 	resumable?: true;
 };
 
-/** How Lev starts a factory run: the ready label that Start run adds and its factory, or only a claim on a factory when both are absent. */
+/** How a Linear ticket shows a state name of a hub source: its workflow state, and the labels to add and to remove. */
+export type LinearShown = { state: string; add: string[]; remove: string[] };
+
+/** A Linear source of a listed hub: its team, how it shows each state name, and the match of each dispatch rule. */
+export type LinearSource = {
+	factory: string;
+	team: string;
+	linearStates: Record<string, LinearShown>;
+	rules: { state: string; labels: string[]; without: string[] }[];
+};
+
+/**
+ * How Lev starts a factory run, and the factory that it names.
+ * A GitHub ticket gets the ready label. A Linear ticket gets the workflow state
+ * and the labels that its hub source maps to the state of a dispatch rule.
+ * Only a claim on a factory is left when a GitHub ticket has no ready label.
+ */
 export type RunStart = (
-	{ factory: string; label: string } | { factory?: never; label?: never }
+	| { factory: string; label: string }
+	| ({ factory: string; label?: never } & LinearShown)
+	| { factory?: never; label?: never }
 ) & {
-	/** True when a label start or an accepted claim waits for its run: no run has started since it. */
+	/** True when a start or an accepted claim waits for its run: no run has started since it. */
 	requested?: true;
 };
 

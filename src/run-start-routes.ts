@@ -46,8 +46,18 @@ export type RunStartRouteOptions = {
 	readFactories: (read: () => Promise<void>) => Promise<void>;
 };
 
+function trackerUnavailable(): Response {
+	return Response.json({ error: "tracker unavailable" }, { status: 404 });
+}
+
+function hasLabel(labels: string[], label: string): boolean {
+	const folded = label.toLowerCase();
+	return labels.some((item) => item.toLowerCase() === folded);
+}
+
 /**
- * `POST /api/run-starts`: add the ready label of a factory to a ticket, so the hub starts a run of it.
+ * `POST /api/run-starts`: write the run start to a ticket, so the hub starts a run of it.
+ * A GitHub ticket gets the ready label, and a Linear ticket the state and labels of its hub source.
  * A body that names a factory sends a claimed start to that factory instead.
  */
 export function runStartRoutes({
@@ -75,6 +85,7 @@ export function runStartRoutes({
 		}
 		const labelStart = runStartOf(ticket, newestRun, {
 			factories: pollOptions.listedFactories(),
+			linearSources: pollOptions.linearSources(),
 			requests: pollOptions.runStartRequests,
 		});
 		if (!("refused" in labelStart) && labelStart.requested === true) {
@@ -145,12 +156,13 @@ export function runStartRoutes({
 				if (target.factory !== undefined) {
 					return claimed(ticket, ticket.key ?? target.key, target.factory);
 				}
-				// A label start ends at a run that `known` does not hold, and a poll can lag the factory.
+				// A start ends at a run that `known` does not hold, and a poll can lag the factory.
 				// A factory that does not answer keeps the runs of its last read.
 				await readFactories(() => factories.readRuns(clock.now().getTime()));
 				const runs = runsFor(ticket, pollOptions.factoryRuns());
 				const start = runStartOf(ticket, runs[0], {
 					factories: pollOptions.listedFactories(),
+					linearSources: pollOptions.linearSources(),
 					requests: pollOptions.runStartRequests,
 				});
 				if ("refused" in start) {
@@ -162,21 +174,31 @@ export function runStartRoutes({
 						{ status: 409 },
 					);
 				}
-				if (start.label === undefined) {
+				if (start.factory === undefined) {
 					return Response.json(
 						{ error: "no factory has a ready label" },
 						{ status: 409 },
 					);
 				}
 				const tracker = trackerFor(trackers, target.tracker);
-				if (tracker?.addLabel === undefined) {
-					return Response.json(
-						{ error: "tracker unavailable" },
-						{ status: 404 },
-					);
-				}
+				let written: Partial<Ticket>;
 				try {
-					await tracker.addLabel(target.key, start.label);
+					if (start.label !== undefined) {
+						if (tracker?.addLabel === undefined) {
+							return trackerUnavailable();
+						}
+						await tracker.addLabel(target.key, start.label);
+						written = {
+							labels: hasLabel(ticket.labels, start.label)
+								? ticket.labels
+								: [...ticket.labels, start.label],
+						};
+					} else {
+						if (tracker?.showState === undefined) {
+							return trackerUnavailable();
+						}
+						written = await tracker.showState(target.key, start);
+					}
 				} catch (error) {
 					return trackerError(error);
 				}
@@ -185,24 +207,19 @@ export function runStartRoutes({
 					factory: start.factory,
 					known: runs.map(({ id }) => id),
 				});
-				const label = start.label.toLowerCase();
-				if (!ticket.labels.some((item) => item.toLowerCase() === label)) {
-					pollOptions.store.mergeTickets([
-						{
-							...row,
-							tickets: row.tickets.map((item) =>
-								item === ticket
-									? { ...item, labels: [...item.labels, start.label] }
-									: item,
-							),
-						},
-					]);
-				}
+				pollOptions.store.mergeTickets([
+					{
+						...row,
+						tickets: row.tickets.map((item) =>
+							item === ticket ? { ...item, ...written } : item,
+						),
+					},
+				]);
 				notifier.publish({
 					overview: runningOverview(pollOptions, configuration()),
 					notifications: [],
 				});
-				return Response.json({ factory: start.factory, label: start.label });
+				return Response.json(start);
 			},
 		},
 	});

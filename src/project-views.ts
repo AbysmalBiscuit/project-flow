@@ -114,6 +114,7 @@ function computeProjectView(
 		configuration,
 		{
 			factories: options.listedFactories(),
+			linearSources: options.linearSources(),
 			requests: options.runStartRequests,
 		},
 		new Date(status.fetchedAt ?? 0),
@@ -168,6 +169,7 @@ function viewInputs(
 			options.viewers,
 			options.workcellAuto,
 			options.repoAutoMerge,
+			options.linearSources(),
 			[...options.runStartRequests],
 		]),
 	];

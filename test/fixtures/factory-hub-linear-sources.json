@@ -1,0 +1,41 @@
+{
+	"sources": [
+		{
+			"name": "widget-launch",
+			"last_poll": "2026-10-29T15:40:00+00:00",
+			"last_duration": 0.8,
+			"polling_since": null,
+			"backoff": 0.0,
+			"last_error": null,
+			"problems": [],
+			"queue": [],
+			"tracker": "linear",
+			"repo": "acme/widget",
+			"team": "PF",
+			"linear_states": {
+				"Ready": {
+					"state": "Todo",
+					"add": ["factory"],
+					"remove": ["factory:failed"]
+				},
+				"Building": {
+					"state": "In Progress",
+					"add": ["factory:running"],
+					"remove": ["factory"]
+				},
+				"In Review": { "state": "In Review", "add": [], "remove": [] },
+				"Done": { "state": "Done", "add": [], "remove": [] },
+				"Canceled": { "state": "Canceled", "add": [], "remove": [] }
+			},
+			"rules": [
+				{
+					"name": "build",
+					"state": "Ready",
+					"labels": [],
+					"without": ["no-dispatch"]
+				}
+			]
+		}
+	],
+	"unwatched": []
+}

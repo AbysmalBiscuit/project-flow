@@ -18,9 +18,9 @@ import {
 import { linearStatusType } from "./lanes.ts";
 import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
 import {
-	addLinearLabel,
 	fetchLinearThread,
 	postLinearReply,
+	showLinearState,
 } from "./linear-thread.ts";
 import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
 
@@ -903,8 +903,8 @@ export function linearTracker(
 		postReply(reply) {
 			return postLinearReply(key, fetchImpl, reply);
 		},
-		addLabel(ticketKey, label) {
-			return addLinearLabel(key, fetchImpl, ticketKey, label);
+		showState(ticketKey, shown) {
+			return showLinearState(key, fetchImpl, ticketKey, shown);
 		},
 	};
 }

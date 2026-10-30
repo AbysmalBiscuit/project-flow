@@ -1,7 +1,14 @@
 import { z } from "zod";
 
-import type { FetchedThread, PostedReply, ReplyRequest } from "./domain.ts";
+import type {
+	FetchedThread,
+	LinearShown,
+	PostedReply,
+	ReplyRequest,
+	Ticket,
+} from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import { linearStatusType } from "./lanes.ts";
 import { commentAuthor, linearGraphql, linearPageInfo } from "./linear-api.ts";
 import { TrackerError } from "./ports.ts";
 
@@ -172,73 +179,146 @@ export async function postLinearReply(
 	};
 }
 
-const readyLabels = `query ReadyLabels($id: String!, $name: String!) {
-	issue(id: $id) { id team { id } }
-	issueLabels(first: 250, filter: { name: { eq: $name } }) { nodes { id team { id } } }
+/** The label of the team, or else the workspace label. */
+function teamLabel<Label extends { team: { id: string } | null }>(
+	labels: Label[],
+	teamId: string,
+): Label | undefined {
+	const usable = labels.filter(
+		(node) => node.team === null || node.team.id === teamId,
+	);
+	return usable.find((node) => node.team !== null) ?? usable[0];
+}
+
+const shownStateIds = `query ShownStateIds($id: String!, $labels: [String!]!) {
+	issue(id: $id) { id team { id states { nodes { id name } } } }
+	issueLabels(first: 250, filter: { name: { in: $labels } }) { nodes { id name team { id } } }
 }`;
 
-const foundLabels = z.object({
+const foundShownIds = z.object({
 	issue: z
-		.object({ id: z.string(), team: z.object({ id: z.string() }) })
+		.object({
+			id: z.string(),
+			team: z.object({
+				id: z.string(),
+				states: z.object({
+					nodes: z.array(z.object({ id: z.string(), name: z.string() })),
+				}),
+			}),
+		})
 		.nullable(),
 	issueLabels: z.object({
 		nodes: z.array(
 			z.object({
 				id: z.string(),
+				name: z.string(),
 				team: z.object({ id: z.string() }).nullable(),
 			}),
 		),
 	}),
 });
 
-const issueAddLabel = `mutation IssueAddLabel($id: String!, $labelId: String!) {
-	issueAddLabel(id: $id, labelId: $labelId) { success }
+const issueShowState = `mutation IssueShowState($id: String!, $input: IssueUpdateInput!) {
+	issueUpdate(id: $id, input: $input) {
+		success
+		issue { state { id name type color } labels(first: 250) { nodes { name } } }
+	}
 }`;
 
-const addedLabel = z.object({
-	issueAddLabel: z.object({ success: z.boolean() }),
+const shownState = z.object({
+	issueUpdate: z.object({
+		success: z.boolean(),
+		issue: z
+			.object({
+				state: z.object({
+					id: z.string(),
+					name: z.string(),
+					type: z.string(),
+					color: z.string(),
+				}),
+				labels: z.object({ nodes: z.array(z.object({ name: z.string() })) }),
+			})
+			.nullable(),
+	}),
 });
 
-/** Add the label of the ticket's team, or else the workspace label, by its name. */
-export async function addLinearLabel(
+/**
+ * Move the ticket into the workflow state of its team, add and remove the labels, in one update.
+ * A label to remove that neither the team nor the workspace has is skipped.
+ * Answers the status and the labels of the ticket after the update.
+ */
+export async function showLinearState(
 	key: string,
 	fetchImpl: Fetch,
 	ticketKey: string,
-	label: string,
-): Promise<void> {
+	shown: LinearShown,
+): Promise<Required<Pick<Ticket, "status" | "labels">>> {
 	const found = await linearGraphql(
 		{ key, fetchImpl },
 		{
-			query: readyLabels,
-			variables: { id: ticketKey, name: label },
-			data: foundLabels,
-			label: "find label",
+			query: shownStateIds,
+			variables: { id: ticketKey, labels: [...shown.add, ...shown.remove] },
+			data: foundShownIds,
+			label: "find state",
 		},
 	);
 	const issue = found.issue;
 	if (issue === null) {
-		throw new TrackerError("Linear label failed: ticket not found", 404);
+		throw new TrackerError("Linear move failed: ticket not found", 404);
 	}
-	const usable = found.issueLabels.nodes.filter(
-		(node) => node.team === null || node.team.id === issue.team.id,
+	const state = issue.team.states.nodes.find(
+		(node) => node.name.toLowerCase() === shown.state.toLowerCase(),
 	);
-	const picked = usable.find((node) => node.team !== null) ?? usable[0];
-	if (picked === undefined) {
+	if (state === undefined) {
 		throw new TrackerError(
-			`Linear label failed: the team of ${ticketKey} has no label ${label}`,
+			`Linear move failed: the team of ${ticketKey} has no workflow state ${shown.state}`,
 			409,
 		);
 	}
-	const { issueAddLabel: added } = await linearGraphql(
+	const labelIds = (names: string[]) =>
+		names.flatMap((name) => {
+			const label = teamLabel(
+				found.issueLabels.nodes.filter((node) => node.name === name),
+				issue.team.id,
+			);
+			return label === undefined ? [] : [label.id];
+		});
+	const missing = shown.add.filter((name) => labelIds([name]).length === 0);
+	if (missing.length > 0) {
+		throw new TrackerError(
+			`Linear move failed: the team of ${ticketKey} has no label ${missing.join(", ")}`,
+			409,
+		);
+	}
+	const added = labelIds(shown.add);
+	const removed = labelIds(shown.remove);
+	const { issueUpdate: updated } = await linearGraphql(
 		{ key, fetchImpl },
 		{
-			query: issueAddLabel,
-			variables: { id: issue.id, labelId: picked.id },
-			data: addedLabel,
-			label: "add label",
+			query: issueShowState,
+			variables: {
+				id: issue.id,
+				input: {
+					stateId: state.id,
+					...(added.length === 0 ? {} : { addedLabelIds: added }),
+					...(removed.length === 0 ? {} : { removedLabelIds: removed }),
+				},
+			},
+			data: shownState,
+			label: "move",
 		},
 	);
-	if (!added.success) {
-		throw new TrackerError("Linear label failed", 502);
+	if (!updated.success || updated.issue === null) {
+		throw new TrackerError("Linear move failed", 502);
 	}
+	const moved = updated.issue.state;
+	return {
+		status: {
+			id: moved.id,
+			name: moved.name,
+			statusType: linearStatusType(moved.type, moved.name),
+			colour: moved.color,
+		},
+		labels: updated.issue.labels.nodes.map((node) => node.name),
+	};
 }

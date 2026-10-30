@@ -2,6 +2,8 @@ import type { AutoMerge, Configuration } from "./configuration.ts";
 import type {
 	FactoryRun,
 	FetchedThread,
+	LinearShown,
+	LinearSource,
 	Notification,
 	Overview,
 	PollProgress,
@@ -120,6 +122,11 @@ export type Tracker = {
 	postReply?: (reply: ReplyRequest) => Promise<PostedReply>;
 	/** Add the label to the ticket. A Linear label must exist in the ticket's team or the workspace. */
 	addLabel?: (key: string, label: string) => Promise<void>;
+	/** Move a Linear ticket into the workflow state, add and remove the labels, in one update. Answers its new status and labels. */
+	showState?: (
+		key: string,
+		shown: LinearShown,
+	) => Promise<Required<Pick<Ticket, "status" | "labels">>>;
 };
 
 /** Reads the factories that this launch lists. */
@@ -130,6 +137,8 @@ export type FactoryReader = {
 	settled: () => Promise<void>;
 	/** Each listed factory with what its last check found. */
 	entries: () => FactoryEntry[];
+	/** The Linear sources of each listed hub, from its last good `GET /sources`. */
+	linearSources: () => LinearSource[];
 	/** True when the last check of a listed factory failed. */
 	unreachable: () => boolean;
 	/**

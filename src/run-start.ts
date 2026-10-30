@@ -1,24 +1,39 @@
 import type { Factory } from "./configuration.ts";
-import type { FactoryRun, Queued, RunStart, Ticket } from "./domain.ts";
+import type {
+	FactoryRun,
+	LinearShown,
+	LinearSource,
+	Queued,
+	RunStart,
+	Ticket,
+} from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import { foldKey, githubKeyParts } from "./ticket-key.ts";
 import { isRunOf } from "./workcell.ts";
 
 /**
- * A start that the app sent: a ready label that it added, or a claim that a factory took.
- * A label start names the factory of the label, and the runs of the ticket that the factories listed when the app added it.
+ * A start that the app sent: a ready label or a Linear state that it wrote, or a claim that a factory took.
+ * A written start names the factory of the start, and the runs of the ticket that the factories listed when the app wrote it.
  * A claim names the run that the factory accepted.
  */
 export type StartRequest =
 	| { claim: false; factory: string; known: readonly string[] }
 	| { claim: true; run: string };
 
-/** What a run start reads beyond the ticket: the listed factories, and the last start that the app sent of each ticket. */
+/** What a run start reads beyond the ticket: the listed factories, the Linear sources of the hubs, and the last start that the app sent of each ticket. */
 export type RunStarts = {
 	factories: readonly Factory[];
+	linearSources: readonly LinearSource[];
 	/** The last start request that the app sent, by folded ticket key. */
 	requests: ReadonlyMap<string, StartRequest>;
 };
+
+type StartTicket = Pick<
+	Ticket,
+	"tracker" | "key" | "state" | "labels" | "status"
+>;
+
+type Refused = { refused: string };
 
 /**
  * True when a factory takes a claimed start: it answers, it reports its run slots,
@@ -50,17 +65,27 @@ export function startRefusal(
 
 /**
  * How an open ticket with no run, or whose newest run succeeded, starts a run.
- * The first factory with a ready label gives the label start. The hub source loop then claims the ticket.
+ * A Linear ticket gets the state and labels of its hub source. On GitHub, the first
+ * factory with a ready label gives the label start. The hub source loop then claims the ticket.
  * A GitHub ticket can also start through a claim on a factory, with or without a ready label.
  */
 export function runStartOf(
-	ticket: Pick<Ticket, "key" | "state" | "labels">,
+	ticket: StartTicket,
 	newestRun: Pick<FactoryRun, "statusKind"> | undefined,
-	{ factories, requests }: RunStarts,
-): RunStart | { refused: string } {
+	{ factories, linearSources, requests }: RunStarts,
+): RunStart | Refused {
 	const refused = startRefusal(ticket, newestRun);
 	if (refused !== undefined) {
 		return { refused };
+	}
+	if (ticket.tracker === "linear") {
+		const start = linearStart(ticket, linearSources);
+		if ("refused" in start) {
+			return start;
+		}
+		const waits =
+			shows(ticket, start) && waitsForRun(ticket, newestRun, requests);
+		return { ...start, ...(waits ? { requested: true } : {}) };
 	}
 	const claimWaits = pendingRequest(ticket, requests)?.claim === true;
 	const factory = factories.find((item) => item.readyLabel !== undefined);
@@ -82,6 +107,55 @@ export function runStartOf(
 		label: factory.readyLabel,
 		...(waits ? { requested: true } : {}),
 	};
+}
+
+type LinearStart = { factory: string } & LinearShown;
+
+/** The state name that a hub source reads as ready for a run. */
+const readyState = "Ready";
+
+/**
+ * The ready state, as the hub source of the ticket's team shows it, plus the
+ * labels of the first ready rule that does not exclude the ticket.
+ */
+function linearStart(
+	ticket: StartTicket,
+	sources: RunStarts["linearSources"],
+): LinearStart | Refused {
+	const team = ticket.key?.split("-")[0]?.toLowerCase();
+	const [source, ...others] = sources.filter(
+		(item) => item.team.toLowerCase() === team,
+	);
+	if (source === undefined || others.length > 0) {
+		return { refused: "no one hub source has the team of the ticket" };
+	}
+	const rule = source.rules.find(
+		({ state, without }) =>
+			state === readyState && !without.some((label) => hasLabel(ticket, label)),
+	);
+	if (rule === undefined) {
+		return { refused: "no ready rule of the hub source takes the ticket" };
+	}
+	const shown = source.linearStates[readyState] ?? {
+		state: readyState,
+		add: [],
+		remove: [],
+	};
+	return {
+		factory: source.factory,
+		state: shown.state,
+		add: [...new Set([...shown.add, ...rule.labels])],
+		remove: shown.remove,
+	};
+}
+
+/** True when the ticket already shows what the Linear start writes. */
+function shows(ticket: StartTicket, start: LinearStart): boolean {
+	return (
+		ticket.status?.name.toLowerCase() === start.state.toLowerCase() &&
+		start.add.every((label) => hasLabel(ticket, label)) &&
+		!start.remove.some((label) => hasLabel(ticket, label))
+	);
 }
 
 function hasLabel(ticket: Pick<Ticket, "labels">, label: string): boolean {
@@ -203,7 +277,7 @@ export function queuedOf(
  * ticket refuses a start, or does not wait for a run.
  */
 export function runStartView(
-	ticket: Parameters<typeof queuedOf>[0],
+	ticket: StartTicket,
 	newestRun: Parameters<typeof queuedOf>[1],
 	runStarts: RunStarts,
 ): { runStart?: RunStart; queued?: Queued } {

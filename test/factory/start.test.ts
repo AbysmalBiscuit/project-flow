@@ -1,17 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 
-import { daemon, factoryFetch, hubUrl, serve } from "../support/factory.ts";
+import { hubUrl } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
-import { linearFake } from "../support/linear.ts";
-import {
-	readyLabel,
-	serveGithub,
-	startRun,
-	ticketWhere,
-	type TrackerWrite,
-	trackerWrites,
-} from "./_support.ts";
+import { readyLabel, serveGithub, startRun, ticketWhere } from "./_support.ts";
 
 type Settings = Record<string, unknown>;
 
@@ -161,7 +153,7 @@ describe("run starts", () => {
 				app.base,
 				repo,
 				key,
-				(view) => view.runStart?.label === readyLabel,
+				(view) => view.runStart !== undefined,
 			);
 			await save((settings) => ({ ...settings, theme: "dark" }));
 			const written = JSON.parse(await readFile(app.configPath, "utf8")) as {
@@ -237,73 +229,6 @@ describe("run starts", () => {
 			const response = await startRun(app.base, "github", repo, key);
 			expect(response.status).toBe(409);
 			expect(app.writes).toEqual([]);
-		} finally {
-			await app.stop();
-		}
-	});
-
-	test("Start run on a Linear ticket adds the team's ready label", async () => {
-		const writes: TrackerWrite[] = [];
-		const issue = {
-			id: "issue-pf-1",
-			identifier: "PF-1",
-			title: "Ready ticket",
-			description: "Body",
-			state: { type: "unstarted" },
-			updatedAt: "2026-08-18T12:00:00.000Z",
-			labels: { nodes: [] },
-			comments: { nodes: [] },
-			team: { id: "team-pf" },
-		};
-		const tracker = linearFake({
-			project: {
-				id: "11111111-1111-4111-8111-111111111111",
-				name: "Widget launch",
-				slugId: "widget-launch",
-			},
-			issues: [issue],
-			labels: [
-				{ id: "label-other-team", name: readyLabel, team: { id: "team-xx" } },
-				{ id: "label-pf", name: readyLabel, team: { id: "team-pf" } },
-			],
-		});
-		const app = await serve(
-			[],
-			{
-				pinned: [{ tracker: "linear", project: "widget-launch" }],
-				factories: [{ name: "work hub", url: hubUrl, readyLabel }],
-			},
-			factoryFetch({ [hubUrl]: daemon }, [], trackerWrites(writes, tracker)),
-			{ env: { LINEAR_API_KEY: "recorded-linear-key" } },
-		);
-		try {
-			const view = await ticketWhere(
-				app.base,
-				"Widget launch",
-				"PF-1",
-				(item) => item.title !== "",
-			);
-			expect(view.runStart).toEqual({ factory: "work hub", label: readyLabel });
-			const response = await startRun(
-				app.base,
-				"linear",
-				"Widget launch",
-				"PF-1",
-			);
-			expect(response.status).toBe(200);
-			expect(
-				writes.map(
-					(write) =>
-						(JSON.parse(write.body) as { variables: unknown }).variables,
-				),
-			).toEqual([{ id: "issue-pf-1", labelId: "label-pf" }]);
-			const requested = await ticketWhere(
-				app.base,
-				"Widget launch",
-				"PF-1",
-				(item) => item.runStart?.requested === true,
-			);
-			expect(requested.runStart?.label).toBe(readyLabel);
 		} finally {
 			await app.stop();
 		}

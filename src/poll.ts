@@ -18,6 +18,7 @@ import {
 import type {
 	Attention,
 	FactoryRun,
+	LinearSource,
 	ListedProject,
 	Overview,
 	PollProgress,
@@ -254,6 +255,8 @@ export type PollOptions = {
 	factoryRuns: () => FactoryRun[];
 	/** The factories that this launch reads: the `--factory` list, or else the configured factories. */
 	listedFactories: () => readonly Factory[];
+	/** The Linear sources of the listed hubs, which map the start of a Linear ticket. */
+	linearSources: () => readonly LinearSource[];
 	/** Each start request that the app sent, by folded ticket key. The route replaces the map on each request. */
 	runStartRequests: ReadonlyMap<string, StartRequest>;
 	workcellAuto: Record<string, AutoMerge>;
