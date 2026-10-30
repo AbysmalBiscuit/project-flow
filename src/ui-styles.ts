@@ -215,11 +215,6 @@ export const frame = stylex.create({
 		lineHeight: 1,
 		cursor: "pointer",
 	},
-	actions: {
-		display: "flex",
-		gap: space.sm,
-		alignItems: "center",
-	},
 	page: {
 		position: "relative",
 		boxSizing: "border-box",
@@ -777,13 +772,6 @@ export const cards = stylex.create({
 		textDecoration: "none",
 		whiteSpace: "nowrap",
 	},
-	controls: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: space.xs,
-		alignItems: "center",
-	},
-
 	menu: {
 		position: "relative",
 	},

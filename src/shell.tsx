@@ -23,9 +23,7 @@ export type PageView = {
 export type PageHeaderProps = {
 	title: string;
 	subtitle?: ReactNode;
-	filter?: ReactNode;
-	sort?: ReactNode;
-	search?: ReactNode;
+	tools?: ReactNode;
 	views?: readonly PageView[];
 	view?: string;
 	onView?: (id: string) => void;
@@ -282,18 +280,14 @@ export function AppShell({ children }: { children: ReactNode }) {
 export function PageHeader({
 	title,
 	subtitle,
-	filter,
-	sort,
-	search,
+	tools,
 	views,
 	view,
 	onView,
 	actions,
 }: PageHeaderProps) {
 	const showTools =
-		filter !== undefined ||
-		sort !== undefined ||
-		search !== undefined ||
+		tools !== undefined ||
 		actions !== undefined ||
 		(views !== undefined && views.length > 0);
 	return (
@@ -306,9 +300,7 @@ export function PageHeader({
 			</div>
 			{showTools ? (
 				<div className={clsx(frame.tools)}>
-					{filter}
-					{sort}
-					{search}
+					{tools}
 					{views === undefined || views.length === 0 ? null : (
 						<fieldset className={clsx(headerControlStyle.group)}>
 							<legend className={clsx(frame.visuallyHidden)}>Views</legend>
