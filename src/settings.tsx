@@ -19,7 +19,7 @@ import {
 	sections,
 	type stateFilters,
 	Switch,
-	type trackerFilters,
+	trackerFilters,
 	type Trackers,
 } from "./settings-parts.tsx";
 import {
@@ -441,17 +441,11 @@ function ProjectsTable({
 				<div id="project-filters" className={clsx(fields.filterPanel)}>
 					<div id="tracker-filter" className={clsx(fields.filterLabel)}>
 						<span>{settingsCopy.tracker}</span>
-						{(
-							[
-								["all", settingsCopy.all],
-								["github", settingsCopy.github],
-								["linear", settingsCopy.linear],
-							] as const
-						).map(([value, label]) => (
+						{trackerFilters.map((value) => (
 							<Button
 								key={value}
 								id={`tracker-${value}`}
-								label={label}
+								label={settingsCopy[value]}
 								pressed={tracker === value}
 								onClick={() => setTracker(value)}
 							/>

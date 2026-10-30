@@ -1,5 +1,5 @@
 import { type Ask, namesLev, readAsks } from "./ask.ts";
-import type { Comment, FactoryQuestion, Tracker } from "./domain.ts";
+import type { Comment, FactoryQuestion, TrackerKind } from "./domain.ts";
 
 const decisionRecord = /^\**\s*decision\b/i;
 
@@ -9,7 +9,7 @@ const nameCue =
 export function projectHasPmBot(
 	pmBot: Record<string, boolean>,
 	key: string,
-	tracker: Tracker,
+	tracker: TrackerKind,
 ): boolean {
 	const match = Object.entries(pmBot).find(
 		([name]) => name.toLowerCase() === key.toLowerCase(),

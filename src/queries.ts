@@ -26,7 +26,7 @@ import {
 	type SettingsProject,
 	type ShownFactoryRun,
 	type Thread,
-	type Tracker,
+	type TrackerKind,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { FactoryEntry } from "./factories.ts";
@@ -45,14 +45,14 @@ import { storedObject } from "./stored-page.ts";
 type SettingsPage = {
 	settings: Configuration;
 	projects: SettingsProject[];
-	trackers: { github: boolean; linear: boolean };
+	trackers: Record<TrackerKind, boolean>;
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
 	stateSources: StateSource[];
 };
 
 type ReplyBody = {
-	tracker: Tracker;
+	tracker: TrackerKind;
 	project: string;
 	key: string;
 	body?: string;

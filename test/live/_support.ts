@@ -1,3 +1,4 @@
+import type { TrackerKind } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { goodPoll } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
@@ -51,7 +52,7 @@ export function counts(
 	name: string,
 	backlog: number,
 	done = 0,
-	tracker: "github" | "linear" = "github",
+	tracker: TrackerKind = "github",
 	tickets: OverviewBody["projects"][number]["tickets"] = [],
 	fetchedAt: string | null = goodPoll,
 	error: string | null = null,

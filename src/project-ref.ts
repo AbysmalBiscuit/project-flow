@@ -1,5 +1,5 @@
 import type { ProjectPin } from "./configuration.ts";
-import type { Tracker } from "./domain.ts";
+import type { TrackerKind } from "./domain.ts";
 
 // GitHub owner and repo names compare without case. Linear keys compare as
 // they are.
@@ -36,7 +36,7 @@ export function repoParts(
 /** A project as a tracker lists it: a GitHub project carries its owner and number. */
 export type ListedRef = {
 	key: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	owner?: string;
 	number?: number;
 };

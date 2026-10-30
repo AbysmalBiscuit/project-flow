@@ -1,11 +1,11 @@
 import type { Configuration } from "./configuration.ts";
-import type { SettingsProject } from "./domain.ts";
+import type { SettingsProject, TrackerKind } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { StateSource } from "./settings-write.ts";
 
 export type SettingsRead = Configuration & {
-	trackers?: { github: boolean; linear: boolean } | undefined;
+	trackers?: Record<TrackerKind, boolean> | undefined;
 	projects?: SettingsProject[] | undefined;
 	factoryTokenReports?: FactoryTokenReport[] | undefined;
 	factoryEntries?: FactoryEntry[] | undefined;
