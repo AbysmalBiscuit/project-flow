@@ -294,52 +294,54 @@ export function TicketPanel({
 			ref={root}
 		>
 			<div className={clsx(panel.head)}>
-				{view?.queued === undefined ? null : (
-					<QueuedChip queued={view.queued} />
-				)}
-				{view?.runStart === undefined ? null : (
-					<RunStartButton ticket={ticket} start={view.runStart} />
-				)}
-				{view?.factoryRun === undefined ? null : (
-					<RunAction run={view.factoryRun} />
-				)}
-				<span className={clsx(panel.actions)}>
-					{dock ? null : (
-						<Button
-							icon={expanded ? "shrink" : "expand"}
-							name={expanded ? collapsePanelLabel : expandPanelLabel}
-							onClick={() => setExpanded((open) => !open)}
-						/>
+				<div className={clsx(panel.headRow)}>
+					{view?.queued === undefined ? null : (
+						<QueuedChip queued={view.queued} />
 					)}
-					<Button icon="x" name={closePanelLabel} onClick={onClose} />
-				</span>
-			</div>
-			<div className={clsx(panel.keyLine)}>
-				<p className={clsx(panel.key)}>{ticketKey}</p>
-				<span className={clsx(panel.actions)}>
-					{projectHref === undefined ? null : (
-						<Button href={projectHref} label={projectPageLabel} />
+					{view?.runStart === undefined ? null : (
+						<RunStartButton ticket={ticket} start={view.runStart} />
 					)}
-					{href === undefined ? null : (
-						<Button
-							href={href}
-							icon="external-link"
-							iconSide="right"
-							label={trackerName}
-							name={`Open on ${trackerName}`}
-						/>
+					{view?.factoryRun === undefined ? null : (
+						<RunAction run={view.factoryRun} />
 					)}
-					{view?.pullUrl === undefined ? null : (
-						<Button
-							href={view.pullUrl}
-							newTab
-							icon="external-link"
-							iconSide="right"
-							label={pullButtonLabel}
-							name={openPullLabel}
-						/>
-					)}
-				</span>
+					<span className={clsx(panel.actions)}>
+						{dock ? null : (
+							<Button
+								icon={expanded ? "shrink" : "expand"}
+								name={expanded ? collapsePanelLabel : expandPanelLabel}
+								onClick={() => setExpanded((open) => !open)}
+							/>
+						)}
+						<Button icon="x" name={closePanelLabel} onClick={onClose} />
+					</span>
+				</div>
+				<div className={clsx(panel.keyLine)}>
+					<p className={clsx(panel.key)}>{ticketKey}</p>
+					<span className={clsx(panel.actions)}>
+						{projectHref === undefined ? null : (
+							<Button href={projectHref} label={projectPageLabel} />
+						)}
+						{href === undefined ? null : (
+							<Button
+								href={href}
+								icon="external-link"
+								iconSide="right"
+								label={trackerName}
+								name={`Open on ${trackerName}`}
+							/>
+						)}
+						{view?.pullUrl === undefined ? null : (
+							<Button
+								href={view.pullUrl}
+								newTab
+								icon="external-link"
+								iconSide="right"
+								label={pullButtonLabel}
+								name={openPullLabel}
+							/>
+						)}
+					</span>
+				</div>
 			</div>
 			{missing ? (
 				<p className={clsx(panel.note)}>{threadMissingLabel}</p>
