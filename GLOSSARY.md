@@ -261,8 +261,16 @@ _Avoid_: Daemon feed, live feed
 ### Attention
 
 **Needs you**:
-A ticket or PR that only Lev can move. Reasons include an open ask to Lev, awaiting merge, or a failed or stalled workcell run. A need-human or need-engineer label with Lev as assignee also counts.
+A ticket or PR that only Lev can move. Reasons include an open ask to Lev, awaiting merge, decide, or a failed or stalled workcell run. A need-human or need-engineer label with Lev as assignee also counts.
 _Avoid_: Waits on you, waits on Lev, needs Lev
+
+**Decide**:
+The Needs you reason of an awaiting-merge ticket or PR that has an open Important Question. Lev must decide each open question before the merge. It replaces the awaiting merge reason, and its row shows the count of open questions.
+_Avoid_: Blocked merge, needs answer
+
+**Important Question**:
+A question of a workcell run in the `### Important Questions` section of its PR body. Each question is a `<details>` block whose summary starts with its number. An entry with the same number in the `### Answers` section answers it, from Lev or from the run. A question with no such entry is open.
+_Avoid_: PR question, review question
 
 **Ask**:
 A question that an agent posts on a ticket or PR with an ask marker, or that a workcell run asks through the factory. It stays open until a later comment, the progress comment or the factory answers it.

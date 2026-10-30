@@ -8,6 +8,7 @@ import {
 	actionLabel,
 	answeredReason,
 	heldActionLabel,
+	openQuestionsLabel,
 	reasonLabel,
 } from "./terms.ts";
 import { phoneLayout } from "./tokens.stylex.ts";
@@ -57,6 +58,15 @@ function MergeIcon() {
 	);
 }
 
+function DecideIcon() {
+	return (
+		<Mark>
+			<circle cx="12" cy="12" r="7" />
+			<path d="M10 10a2 2 0 1 1 2.5 1.9c-.3.1-.5.4-.5.7v.9M12 16.5h.01" />
+		</Mark>
+	);
+}
+
 function LabelIcon() {
 	return (
 		<Mark>
@@ -78,6 +88,7 @@ function FailIcon() {
 const reasonIcon = {
 	ask: AskIcon,
 	awaitingMerge: MergeIcon,
+	decide: DecideIcon,
 	label: LabelIcon,
 	runFailed: FailIcon,
 } as const;
@@ -140,6 +151,11 @@ export function NeedsItem({
 						{tag}
 					</span>
 				))}
+				{item.openQuestions === undefined ? null : (
+					<span className={clsx(needs.tag)} data-open-questions={item.key}>
+						{openQuestionsLabel(item.openQuestions)}
+					</span>
+				)}
 				{item.answered ? (
 					<span className={clsx(needs.tag)}>Answered</span>
 				) : null}
