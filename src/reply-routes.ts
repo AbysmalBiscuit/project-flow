@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Configuration } from "./configuration.ts";
-import { type PostedReply, trackers } from "./domain.ts";
+import { type PostedReply, trackerKinds } from "./domain.ts";
 import { defaultThreadReadLimitMs } from "./fetch.ts";
 import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Notifier } from "./ports.ts";
@@ -12,7 +12,7 @@ import { threadResponse } from "./thread-response.ts";
 import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 
 const replyBody = z.object({
-	tracker: z.enum(trackers),
+	tracker: z.enum(trackerKinds),
 	project: z.string().trim().min(1),
 	key: z.string().trim().min(1),
 	body: z.string().optional(),

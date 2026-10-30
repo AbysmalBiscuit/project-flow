@@ -6,9 +6,13 @@ import type { ProjectRef } from "./project-ref.ts";
 import type { HidingFilter } from "./terms.ts";
 import type { GroupBy } from "./view-settings.ts";
 
-export const trackers = ["github", "linear"] as const;
+export const trackerKinds = ["github", "linear"] as const;
 
-export type Tracker = (typeof trackers)[number];
+export type TrackerKind = (typeof trackerKinds)[number];
+
+export const forgeKinds = ["github"] as const;
+
+export type ForgeKind = (typeof forgeKinds)[number];
 
 export type WorkcellRun = {
 	key: string;
@@ -440,7 +444,7 @@ export type StatusColours = Record<StatusType, string>;
 export type TicketState = StatusType;
 
 export type TicketRef = {
-	tracker: Tracker;
+	tracker: TrackerKind;
 	project: string;
 	key: string;
 	state?: "open" | "closed";
@@ -466,7 +470,7 @@ export type TicketStatus = {
 
 export type Ticket = {
 	id: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	key: string | null;
 	title: string;
 	state: "open" | "closed";
@@ -500,7 +504,7 @@ export type ParentDetails = {
 };
 
 export type TicketRelation = {
-	tracker: Tracker;
+	tracker: TrackerKind;
 	project: string;
 	key: string;
 	title: string;
@@ -515,7 +519,7 @@ export type GraphLink = {
 export type GraphEnd = {
 	project: string;
 	key: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	title: string;
 	state?: TicketState;
 };
@@ -574,7 +578,7 @@ export type TicketView = {
 
 export type CrossProjectBlocker = {
 	project: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	key: string;
 	title: string;
 };
@@ -654,7 +658,7 @@ export type UnlinkedPr = {
 
 export type ProjectCounts = {
 	name: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	ref: Configuration["tracked"][number];
 	done: number;
 	dropped: number;
@@ -691,7 +695,7 @@ export type ThreadComment = {
 };
 
 export type Thread = {
-	tracker: Tracker;
+	tracker: TrackerKind;
 	project: string;
 	key: string;
 	title: string;
@@ -704,7 +708,7 @@ export type FetchedThread = Omit<Thread, "comments"> & {
 };
 
 export type ReplyRequest = {
-	tracker: Tracker;
+	tracker: TrackerKind;
 	project: string;
 	key: string;
 	body: string;
@@ -734,7 +738,7 @@ export type PullStatus = {
 
 export type NeedsYouItem = {
 	project: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	key: string;
 	headline: string;
 	reason: "ask" | "awaitingMerge" | "decide" | "label" | "runFailed";
@@ -786,7 +790,7 @@ export type InboxDay = "today" | "yesterday" | "earlier";
 
 export type InboxEntry = Notification & {
 	day: InboxDay;
-	tracker: Tracker;
+	tracker: TrackerKind;
 };
 
 export type ReportSection = {
@@ -808,7 +812,7 @@ export type Lane = {
 
 export type ProjectReport = {
 	name: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	/** The user states, in board column order. */
 	lanes: Lane[];
 	/** The tracker lanes of the project's board. */
@@ -862,7 +866,7 @@ export type Board = {
 export type Snapshot = {
 	key: string;
 	name: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	tickets: Ticket[];
 	pulls: PullRequest[];
 	branches: string[];
@@ -897,7 +901,7 @@ export type ProjectGroup = {
 export type ListedProject = {
 	key: string;
 	name?: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	owner?: string;
 	number?: number;
 	updatedAt: string | null;
@@ -931,7 +935,7 @@ export type GroupKey = Exclude<GroupBy, "none">;
 export type SettingsProject = {
 	name: string;
 	key: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	source: "found" | "configured";
 	tracked: boolean;
 	pmBot: boolean;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import type { Configuration } from "./configuration.ts";
-import { type Ticket, trackers } from "./domain.ts";
+import { type Ticket, trackerKinds } from "./domain.ts";
 import { type PollOptions, runningOverview } from "./poll.ts";
 import type { Clock, FactoryReader, Notifier } from "./ports.ts";
 import { ticketSnapshot } from "./replies.ts";
@@ -17,7 +17,7 @@ import { trackerError, trackerFor, type Trackers } from "./tracker-route.ts";
 import { runFor, runsFor } from "./workcell.ts";
 
 const startBody = z.object({
-	tracker: z.enum(trackers),
+	tracker: z.enum(trackerKinds),
 	project: z.string().trim().min(1),
 	key: z.string().trim().min(1),
 	/** The factory that claims the ticket. Without it, the app adds the ready label of the first factory that has one. */

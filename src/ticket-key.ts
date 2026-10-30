@@ -1,4 +1,4 @@
-import type { TicketState, Tracker } from "./domain.ts";
+import type { TicketState, TrackerKind } from "./domain.ts";
 
 // Keys compare without case, so every id folds the key to lower case.
 
@@ -45,7 +45,7 @@ export function githubKeyParts(
 }
 
 /** The tracker that a key's shape names. */
-export function keyTracker(key: string): Tracker {
+export function keyTracker(key: string): TrackerKind {
 	return key.includes(numberMark) ? "github" : "linear";
 }
 
@@ -165,7 +165,7 @@ export function blockerClearedId(
 }
 
 export type TicketRef = {
-	tracker: Tracker;
+	tracker: TrackerKind;
 	project: string;
 	key: string;
 };

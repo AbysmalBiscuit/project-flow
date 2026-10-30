@@ -10,7 +10,7 @@ import type {
 	TicketRelation,
 	TicketState,
 	TicketView,
-	Tracker,
+	TrackerKind,
 } from "./domain.ts";
 import {
 	asRef,
@@ -270,7 +270,7 @@ function withEndStates(
 
 export function shownGraph(
 	name: string,
-	tracker: Tracker,
+	tracker: TrackerKind,
 	views: TicketView[],
 	relationsByKey: Map<string, ReturnType<typeof ticketRelations>>,
 ): { tickets: TicketView[]; links: ShownGraphLink[] } {
@@ -319,7 +319,7 @@ export function shownGraph(
 		project: string,
 		key: string,
 		title: string,
-		tracker: Tracker,
+		tracker: TrackerKind,
 		state?: TicketState,
 	): GraphEnd => ({
 		project,

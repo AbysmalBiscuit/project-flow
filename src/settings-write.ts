@@ -6,7 +6,11 @@ import {
 	projectRef as projectRefSchema,
 } from "./configuration.ts";
 import { stateSourceKey } from "./counts.ts";
-import type { SettingsProject, SettingsSnapshot } from "./domain.ts";
+import type {
+	SettingsProject,
+	SettingsSnapshot,
+	TrackerKind,
+} from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { FoundProject } from "./ports.ts";
@@ -22,7 +26,7 @@ export function settingsResponse(
 	factoryEntries: FactoryEntry[],
 	discovering: boolean,
 ): Configuration & {
-	trackers: { github: boolean; linear: boolean };
+	trackers: Record<TrackerKind, boolean>;
 	projects: SettingsProject[];
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];

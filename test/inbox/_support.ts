@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import type { TrackerKind } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { run } from "../../src/main.ts";
 import { eventsOf } from "../events.ts";
@@ -32,7 +33,7 @@ export type InboxEntry = {
 	at: string;
 	read: boolean;
 	day: "today" | "yesterday" | "earlier";
-	tracker: "github" | "linear";
+	tracker: TrackerKind;
 };
 
 export function linearIssue(

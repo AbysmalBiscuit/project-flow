@@ -72,7 +72,7 @@ const open391 = (blockers: Issue[]) => ({
 });
 
 /** What GitHub answers now. A `null` board answers each board read with 502. */
-type Tracker = { repo: Issue[]; board: Issue[] | null };
+type TrackerIssues = { repo: Issue[]; board: Issue[] | null };
 
 function boardItem(item: Issue): Issue {
 	const { comments: _comments, ...node } = githubIssueNode(item);
@@ -87,7 +87,10 @@ function boardItem(item: Issue): Issue {
 	};
 }
 
-function trackerFetch(tracker: Tracker, requests: TrackerRequest[]): Fetch {
+function trackerFetch(
+	tracker: TrackerIssues,
+	requests: TrackerRequest[],
+): Fetch {
 	return async (input, init) => {
 		requests.push(trackerRequest(input, init));
 		const discovered = recordedDiscovery(input, init);
@@ -229,7 +232,7 @@ type App = {
 
 async function startApp(
 	paths: { config: string; database: string },
-	tracker: Tracker,
+	tracker: TrackerIssues,
 	requests: TrackerRequest[],
 	clock: Clock,
 ): Promise<App> {
@@ -307,7 +310,7 @@ const afterClose = "2026-10-20T21:55:00.000Z";
 describe("a GitHub issue that closes after the app stored it as open", () => {
 	test("shows in Done after the next poll, also when a tracked board lists it", async () => {
 		await withTrackedBoardAndRepo(async (paths) => {
-			const tracker: Tracker = { repo: [open205], board: [] };
+			const tracker: TrackerIssues = { repo: [open205], board: [] };
 			const requests: TrackerRequest[] = [];
 			const app = await startApp(paths, tracker, requests, {
 				now: new Date(beforeClose),
@@ -333,7 +336,7 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 
 	test("shows in Done when the board read fails and the repo read returns the close", async () => {
 		await withTrackedBoardAndRepo(async (paths) => {
-			const tracker: Tracker = { repo: [open205], board: [open205] };
+			const tracker: TrackerIssues = { repo: [open205], board: [open205] };
 			const requests: TrackerRequest[] = [];
 			const app = await startApp(paths, tracker, requests, {
 				now: new Date(beforeClose),
@@ -370,7 +373,7 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 	test("a ticket whose only blocker closed shows no Blocked chip after the next poll", async () => {
 		await withTrackedBoardAndRepo(
 			async (paths) => {
-				const tracker: Tracker = {
+				const tracker: TrackerIssues = {
 					repo: [open380, open391(openBlockerOf391)],
 					board: [open391(openBlockerOf391)],
 				};
@@ -402,7 +405,10 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 	test("the project report takes updatedAt and enteredStateAt from the closed issue when a poll after its close stamp still read it open", async () => {
 		await withTrackedBoardAndRepo(
 			async (paths) => {
-				const tracker: Tracker = { repo: [reopened(closed205)], board: [] };
+				const tracker: TrackerIssues = {
+					repo: [reopened(closed205)],
+					board: [],
+				};
 				const requests: TrackerRequest[] = [];
 				const app = await startApp(paths, tracker, requests, {
 					now: new Date(Date.parse(String(closed205.closed_at)) + 30 * 1000),
@@ -432,7 +438,7 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 	test("a parent issue with sub-issues that a poll read open after its close shows as done after the next poll", async () => {
 		await withTrackedBoardAndRepo(
 			async (paths) => {
-				const tracker: Tracker = {
+				const tracker: TrackerIssues = {
 					repo: [openParent, ...subIssues],
 					board: [],
 				};
@@ -465,7 +471,7 @@ describe("a GitHub issue that closes after the app stored it as open", () => {
 
 	test("an app restart with an existing store shows the closed state of an issue that closed while the app was stopped", async () => {
 		await withTrackedBoardAndRepo(async (paths) => {
-			const tracker: Tracker = { repo: [open205], board: [] };
+			const tracker: TrackerIssues = { repo: [open205], board: [] };
 			const requests: TrackerRequest[] = [];
 			const clock: Clock = { now: new Date(beforeClose) };
 			const first = await startApp(paths, tracker, requests, clock);
