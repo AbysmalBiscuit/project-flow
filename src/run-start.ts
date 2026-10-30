@@ -111,9 +111,12 @@ export function runStartOf(
 
 type LinearStart = { factory: string } & LinearShown;
 
+/** The state name that a hub source reads as ready for a run. */
+const readyState = "Ready";
+
 /**
- * The state of the first rule that does not exclude the ticket, as the hub source
- * of the ticket's team shows it, plus the labels of that rule.
+ * The ready state, as the hub source of the ticket's team shows it, plus the
+ * labels of the first ready rule that does not exclude the ticket.
  */
 function linearStart(
 	ticket: StartTicket,
@@ -127,13 +130,14 @@ function linearStart(
 		return { refused: "no one hub source has the team of the ticket" };
 	}
 	const rule = source.rules.find(
-		({ without }) => !without.some((label) => hasLabel(ticket, label)),
+		({ state, without }) =>
+			state === readyState && !without.some((label) => hasLabel(ticket, label)),
 	);
 	if (rule === undefined) {
-		return { refused: "each rule of the hub source excludes the ticket" };
+		return { refused: "no ready rule of the hub source takes the ticket" };
 	}
-	const shown = source.linearStates[rule.state] ?? {
-		state: rule.state,
+	const shown = source.linearStates[readyState] ?? {
+		state: readyState,
 		add: [],
 		remove: [],
 	};
