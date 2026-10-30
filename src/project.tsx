@@ -1,4 +1,3 @@
-import { Button } from "./button.tsx";
 import { Segment } from "./segment.tsx";
 import { TextInput } from "./text-input.tsx";
 import "@xyflow/react/dist/style.css";
@@ -11,6 +10,12 @@ import { board } from "./board-styles.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
 import type { ProjectReport } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
+import {
+	clearedView,
+	ClearFiltersButton,
+	FilteredEmpty,
+	hidingFiltersOf,
+} from "./filter-clear.tsx";
 import { ClearFocusButton } from "./focus-controls.tsx";
 import { shownSeeds, useFocusView } from "./focus.ts";
 import { graphEdges, projectNodeId } from "./graph-flow.ts";
@@ -23,26 +28,16 @@ import {
 	type TicketFocus,
 	TicketFocusContext,
 } from "./project-board.tsx";
-import {
-	ClearFiltersButton,
-	RunFilterMenu,
-	TicketFilterMenu,
-} from "./project-filters.tsx";
+import { TicketFilterMenu } from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import { TicketTable } from "./project-table.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
 import { pageQuery, useRefreshProject, useSaveSettings } from "./queries.ts";
 import { filterProjectReport } from "./report.ts";
+import { RunFilterMenu } from "./run-filters.tsx";
 import { closeTicket, openTicket, useActiveTicket } from "./selection.ts";
 import { AppShell } from "./shell.tsx";
-import {
-	filterEmptyLabel,
-	groupByLabel,
-	type HidingFilter,
-	hidingFilterIds,
-	hidingFilterLabel,
-	viewLabel,
-} from "./terms.ts";
+import { groupByLabel, viewLabel } from "./terms.ts";
 import { ticketRefId } from "./ticket-key.ts";
 import { phoneGutter, projectHeaderLayout } from "./tokens.stylex.ts";
 import { frame, headerControlStyle, shell } from "./ui-styles.ts";
@@ -80,51 +75,6 @@ function isPageView(value: string): value is PageView {
 function projectName(): string {
 	return decodeURIComponent(
 		window.location.pathname.slice("/projects/".length),
-	);
-}
-
-function clearedView(
-	view: ProjectViewSettings,
-	lanes: ProjectReport["lanes"],
-): ProjectViewSettings {
-	return {
-		...view,
-		shownLanes: lanes.map((lane) => lane.name),
-		maxAgeDays: emptyMaxAgeDays,
-		needsYouOnly: false,
-		blockedOnly: false,
-		assignees: [],
-		search: "",
-		...clearedRunFilters,
-	};
-}
-
-function hidingFiltersOf(report: ProjectReport): HidingFilter[] {
-	return (report.hiddenBy ?? []).filter((id) =>
-		hidingFilterIds.some((known) => known === id),
-	);
-}
-
-function FilteredEmpty({
-	names,
-	onClear,
-}: {
-	names: readonly HidingFilter[];
-	onClear: () => void;
-}) {
-	return (
-		<div id="filters-hide-all" className={clsx(board.filteredEmpty)}>
-			<p>
-				{names.map((name) => hidingFilterLabel[name]).join(", ")}{" "}
-				{names.length === 1 ? filterEmptyLabel.one : filterEmptyLabel.many}{" "}
-				{filterEmptyLabel.every}
-			</p>
-			<Button
-				id="clear-filters"
-				label={filterEmptyLabel.clear}
-				onClick={onClear}
-			/>
-		</div>
 	);
 }
 
