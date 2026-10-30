@@ -27,6 +27,7 @@ export type CatalogueProject = {
 	key: string;
 	name?: string;
 	tracker: TrackerKind;
+	host?: string;
 	owner?: string;
 	number?: number;
 	configuredOnly?: boolean;

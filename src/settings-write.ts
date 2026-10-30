@@ -19,7 +19,7 @@ import { knownRepos, settingsProjects } from "./settings-catalogue.ts";
 
 export function settingsResponse(
 	configuration: Configuration,
-	credentials: { token: string | null; linearKey: string | null },
+	configured: Record<TrackerKind, boolean>,
 	catalogue: FoundProject[],
 	snapshots: SettingsSnapshot[],
 	factoryTokenReports: FactoryTokenReport[],
@@ -36,10 +36,7 @@ export function settingsResponse(
 } {
 	return {
 		...configuration,
-		trackers: {
-			github: credentials.token !== null,
-			linear: credentials.linearKey !== null,
-		},
+		trackers: configured,
 		projects: settingsProjects(configuration, catalogue, snapshots),
 		factoryTokenReports,
 		factoryEntries,

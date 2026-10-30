@@ -73,6 +73,7 @@ export type FoundProject = {
 	name?: string;
 	tracker: Snapshot["tracker"];
 	updatedAt: string | null;
+	host?: string;
 	owner?: string;
 	number?: number;
 	closed?: boolean;
@@ -121,6 +122,11 @@ export type Tracker = {
 		viewer: Viewer | null;
 		error?: string;
 	}>;
+	/**
+	 * When the full read interval of a stored project starts in a launch with no
+	 * full read of it. Without this capability, its first read is a full read.
+	 */
+	fullReadIntervalStart?: (polledAt: Date) => Date;
 	/** Find a pinned project that `findProjects` did not list. */
 	findPinnedProject?: (
 		owner: string,

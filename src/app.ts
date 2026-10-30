@@ -1,3 +1,4 @@
+import { buildBackends, type Credentials, type Env } from "./backends.ts";
 import type { Configuration, Factory } from "./configuration.ts";
 import {
 	loadConfiguration,
@@ -14,14 +15,12 @@ import {
 	defaultTrackerRequestLimitMs,
 	type Fetch,
 } from "./fetch.ts";
-import { githubHost } from "./github-forge.ts";
-import { conditionalFetch, githubAdapters, missingToken } from "./github.ts";
+import { conditionalFetch } from "./github.ts";
 import { elkWorkerPath } from "./graph-core.ts";
 import { forceWorkerPath } from "./graph-layout.ts";
 import { inboxEntries } from "./inbox-entries.ts";
 import { inboxRoutes } from "./inbox-routes.ts";
 import page from "./index.html";
-import { linearTracker, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import { poll, type PollOptions, runningOverview } from "./poll.ts";
@@ -72,8 +71,8 @@ async function forceWorker(): Promise<Response> {
 
 export type StartOptions = {
 	configPath: string;
-	token: string | null;
-	linearKey: string | null;
+	credentials: Credentials;
+	env: Env;
 	fetch: Fetch;
 	databasePath: string;
 	hostname: string;
@@ -166,22 +165,17 @@ export async function start(options: StartOptions): Promise<Running> {
 		requests.signal,
 		() => clock.now(),
 	);
-	const fetchGithub = factoryTokens.fetch;
-	const github =
-		options.token === null ? null : githubAdapters(options.token, fetchGithub);
-	const trackers = {
-		github: github?.tracker ?? null,
-		linear:
-			options.linearKey === null
-				? null
-				: linearTracker(options.linearKey, trackerFetch),
-	};
+	const backends = buildBackends({
+		credentials: options.credentials,
+		env: options.env,
+		fetch: trackerFetch,
+		repoFetch: factoryTokens.fetch,
+	});
+	const trackers = backends.trackers;
 	const hadRows = opened.store.readTickets().length > 0;
 	const pollOptions: PollOptions = {
 		configuration: configurationPort,
-		...trackers,
-		forge: github?.forge ?? null,
-		forges: new Map(github === null ? [] : [[githubHost, github.forge]]),
+		backends,
 		store: opened.store,
 		clock,
 		notifier,
@@ -226,7 +220,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const settingsBody = () =>
 		settingsResponse(
 			configuration,
-			options,
+			backends.configured,
 			pollOptions.catalogue,
 			opened.store.readTickets(),
 			factoryTokens.reports(),
@@ -707,18 +701,15 @@ export async function start(options: StartOptions): Promise<Running> {
 				const projectErrors = rows.map((row) =>
 					opened.store.projectError(listedRef(row)),
 				);
-				const everyFailureIsMissingCredential =
+				const everyFailureIsExplained =
 					projectErrors.length > 0 &&
 					projectErrors.every(
-						(error) => error === missingToken || error === missingLinearKey,
+						(error) => error !== null && backends.explains(error),
 					);
 				const otherFailure = projectErrors.find(
-					(error) =>
-						error !== null &&
-						error !== missingToken &&
-						error !== missingLinearKey,
+					(error) => error !== null && !backends.explains(error),
 				);
-				const coldError = everyFailureIsMissingCredential
+				const coldError = everyFailureIsExplained
 					? null
 					: (firstStatus.error ?? otherFailure ?? null);
 				if (fetched.length === 0 && coldError !== null && !stopped) {

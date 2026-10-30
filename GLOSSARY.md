@@ -38,6 +38,10 @@ _Avoid_: Source, provider, tool
 The external system that hosts the git refs and PRs of a repo, such as GitHub, GitLab or Forgejo. It holds the branches, the reviews, the checks and the merge state. A ticket's tracker and its repo's forge can be different systems.
 _Avoid_: Code host, git provider
 
+**Declared host**:
+A self-hosted forge host that the `hosts` list of the configuration names, with its forge kind and the env var of its token. github.com and gitlab.com need no declaration.
+_Avoid_: Custom host, enterprise host
+
 ### Grouping
 
 **Parent ticket**:

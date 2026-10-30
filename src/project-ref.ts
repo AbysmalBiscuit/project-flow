@@ -10,7 +10,7 @@ import type { TrackerKind } from "./domain.ts";
  */
 export type ProjectRef =
 	| { kind: "linear-project"; tracker: "linear"; key: string }
-	| { kind: "github-repo"; tracker: "github"; key: string }
+	| { kind: "github-repo"; tracker: "github"; key: string; host?: string }
 	| {
 			kind: "github-project";
 			tracker: "github";
@@ -37,6 +37,8 @@ export function repoParts(
 export type ListedRef = {
 	key: string;
 	tracker: TrackerKind;
+	name?: string;
+	host?: string;
 	owner?: string;
 	number?: number;
 };
@@ -51,13 +53,22 @@ function githubProject(owner: string, number: number): ProjectRef {
 	};
 }
 
+function githubRepo(key: string, host: string | undefined): ProjectRef {
+	return {
+		kind: "github-repo",
+		tracker: "github",
+		key,
+		...(host === undefined ? {} : { host }),
+	};
+}
+
 /** The ProjectRef of a tracked entry in the configuration. */
 export function pinRef(pin: ProjectPin): ProjectRef {
 	if (pin.tracker === "linear") {
 		return { kind: "linear-project", tracker: "linear", key: pin.project };
 	}
 	if ("repo" in pin) {
-		return { kind: "github-repo", tracker: "github", key: pin.repo };
+		return githubRepo(pin.repo, "host" in pin ? pin.host : undefined);
 	}
 	return githubProject(pin.owner, pin.project);
 }
@@ -70,19 +81,28 @@ export function listedRef(project: ListedRef): ProjectRef {
 	if (project.owner !== undefined && project.number !== undefined) {
 		return githubProject(project.owner, project.number);
 	}
-	return { kind: "github-repo", tracker: "github", key: project.key };
+	return githubRepo(project.key, project.host);
 }
 
 /** The listed form of a ProjectRef, for a project that no tracker listed. */
 export function refListed(ref: ProjectRef): ListedRef {
-	return ref.kind === "github-project"
-		? {
-				key: ref.key,
-				tracker: ref.tracker,
-				owner: ref.owner,
-				number: ref.number,
-			}
-		: { key: ref.key, tracker: ref.tracker };
+	if (ref.kind === "github-project") {
+		return {
+			key: ref.key,
+			tracker: ref.tracker,
+			owner: ref.owner,
+			number: ref.number,
+		};
+	}
+	const host = refHost(ref);
+	return host === undefined
+		? { key: ref.key, tracker: ref.tracker }
+		: { key: ref.key, tracker: ref.tracker, host, name: `${host}/${ref.key}` };
+}
+
+/** The declared host of a project, or undefined for a project on its tracker's own host. */
+export function refHost(ref: ProjectRef): string | undefined {
+	return ref.kind === "github-repo" ? ref.host : undefined;
 }
 
 /** The configuration form of a ProjectRef. */
@@ -91,7 +111,11 @@ export function refPin(ref: ProjectRef): ProjectPin {
 		case "linear-project":
 			return { tracker: "linear", project: ref.key };
 		case "github-repo":
-			return { tracker: "github", repo: ref.key };
+			return {
+				tracker: "github",
+				repo: ref.key,
+				...(ref.host === undefined ? {} : { host: ref.host }),
+			};
 		case "github-project":
 			return { tracker: "github", owner: ref.owner, project: ref.number };
 	}
@@ -100,6 +124,13 @@ export function refPin(ref: ProjectRef): ProjectPin {
 /** The repo of a GitHub repo project, or null for any other kind. */
 export function refRepo(ref: ProjectRef): string | null {
 	return ref.kind === "github-repo" ? ref.key : null;
+}
+
+/** The owner and number of a project on a board, or null for any other kind. */
+export function refBoard(
+	ref: ProjectRef,
+): { owner: string; number: number } | null {
+	return ref.kind === "github-project" ? ref : null;
 }
 
 function foldGithub(name: string): string {
@@ -121,7 +152,10 @@ export function repoKey(
 /** A string that two ProjectRefs share when they name the same project. */
 export function projectId(ref: ProjectRef): string {
 	const key = ref.tracker === "github" ? foldGithub(ref.key) : ref.key;
-	return `${ref.kind}:${key}`;
+	const host = refHost(ref);
+	return host === undefined
+		? `${ref.kind}:${key}`
+		: `${ref.kind}:${host}/${key}`;
 }
 
 export function sameProject(left: ProjectRef, right: ProjectRef): boolean {

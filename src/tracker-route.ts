@@ -1,15 +1,11 @@
 import { type TrackerKind, trackerKinds } from "./domain.ts";
-import type { PollOptions } from "./poll.ts";
 import { type Tracker, TrackerError } from "./ports.ts";
 
-export type Trackers = Pick<PollOptions, TrackerKind>;
+export type Trackers = ReadonlyMap<TrackerKind, Tracker>;
 
-export function trackerFor(
-	trackers: Trackers,
-	name: string,
-): Tracker | null | undefined {
+export function trackerFor(trackers: Trackers, name: string): Tracker | null {
 	const kind = trackerKinds.find((known) => known === name);
-	return kind === undefined ? null : trackers[kind];
+	return kind === undefined ? null : (trackers.get(kind) ?? null);
 }
 
 /** Every route answers a failed tracker call with `{ error }` and the tracker's status. */

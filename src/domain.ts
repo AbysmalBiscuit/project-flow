@@ -877,6 +877,7 @@ export type Snapshot = {
 	branches: string[];
 	startedKeys: string[];
 	board?: Board;
+	host?: string;
 	owner?: string;
 	number?: number;
 	listedEmpty?: boolean;
@@ -907,6 +908,7 @@ export type ListedProject = {
 	key: string;
 	name?: string;
 	tracker: TrackerKind;
+	host?: string;
 	owner?: string;
 	number?: number;
 	updatedAt: string | null;

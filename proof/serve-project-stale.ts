@@ -65,8 +65,8 @@ const recorded: Fetch = async (input, init) => {
 
 const running = await start({
 	configPath,
-	token: "recorded-token",
-	linearKey: null,
+	credentials: { github: "recorded-token", linear: null },
+	env: {},
 	fetch: answerRecordedRepoRead(recorded),
 	databasePath: join(root, "project-flow.sqlite"),
 	hostname: "127.0.0.1",

@@ -12,6 +12,7 @@ type StoredPayload = {
 	branches: string[];
 	startedKeys: string[];
 	board?: Board;
+	host?: string;
 	owner?: string;
 	number?: number;
 	listedEmpty?: boolean;
@@ -29,8 +30,9 @@ const payloadText = new WeakMap<Snapshot, string>();
 
 function fromStored(row: StoredRow): Snapshot {
 	const payload = JSON.parse(row.payload) as StoredPayload;
+	const hostPrefix = payload.host === undefined ? 0 : payload.host.length + 1;
 	const snapshot = {
-		key: row.snapshot_key.slice(row.snapshot_key.indexOf(":") + 1),
+		key: row.snapshot_key.slice(row.snapshot_key.indexOf(":") + 1 + hostPrefix),
 		name: row.name,
 		tracker: row.tracker,
 		tickets: payload.tickets,
@@ -38,6 +40,7 @@ function fromStored(row: StoredRow): Snapshot {
 		branches: payload.branches,
 		startedKeys: payload.startedKeys,
 		...(payload.board === undefined ? {} : { board: payload.board }),
+		...(payload.host === undefined ? {} : { host: payload.host }),
 		...(payload.owner === undefined ? {} : { owner: payload.owner }),
 		...(payload.number === undefined ? {} : { number: payload.number }),
 		...(payload.listedEmpty === undefined
@@ -56,7 +59,8 @@ function readRows(db: Database): Snapshot[] {
 }
 
 function snapshotKey(row: Snapshot): string {
-	return `${listedRef(row).kind}:${row.key}`;
+	const host = row.host === undefined ? "" : `${row.host}/`;
+	return `${listedRef(row).kind}:${host}${row.key}`;
 }
 
 function toStored(row: Snapshot): StoredRow {
@@ -72,6 +76,7 @@ function toStored(row: Snapshot): StoredRow {
 				branches: row.branches,
 				startedKeys: row.startedKeys,
 				...(row.board === undefined ? {} : { board: row.board }),
+				...(row.host === undefined ? {} : { host: row.host }),
 				...(row.owner === undefined ? {} : { owner: row.owner }),
 				...(row.number === undefined ? {} : { number: row.number }),
 				...(row.listedEmpty === undefined

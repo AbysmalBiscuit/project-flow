@@ -1,5 +1,6 @@
 import { bodyBlockers, bodyLines, bodyRepo } from "./blockers.ts";
-import type { ListedProject, Snapshot, Ticket } from "./domain.ts";
+import type { ListedProject, Snapshot, Ticket, TrackerKind } from "./domain.ts";
+import type { FoundProject, LocalCheckout, Viewer } from "./ports.ts";
 import { listedRef, ownerRepo, refRepo } from "./project-ref.ts";
 import { mergeBlockedBy } from "./ticket-index.ts";
 import { linearKey, sameTicketKey, scopedKey } from "./ticket-key.ts";
@@ -71,6 +72,7 @@ export function projectSnapshots(found: ListedProject[]): Snapshot[] {
 			branches: project.branches,
 			startedKeys: project.startedKeys,
 			...(project.board === undefined ? {} : { board: project.board }),
+			...(project.host === undefined ? {} : { host: project.host }),
 			...(project.owner === undefined ? {} : { owner: project.owner }),
 			...(project.number === undefined ? {} : { number: project.number }),
 		});
@@ -227,6 +229,54 @@ export function linearKeysForNames(names: string[]): string[] {
 		}
 	}
 	return keys;
+}
+
+/** The projects that the local checkouts name, for a viewer of their tracker. */
+export function checkoutProjects(
+	checkouts: LocalCheckout[],
+	viewerOf: (tracker: TrackerKind) => Viewer | null,
+): FoundProject[] {
+	return checkouts.flatMap((checkout) => {
+		if (checkout.tracker !== "github" || checkout.repo.trim() === "") {
+			return [];
+		}
+		const named = checkoutNamesProject(
+			checkout.hasTrackerConfig,
+			checkout.originOwner,
+			viewerOf(checkout.tracker),
+		);
+		return named
+			? [
+					{
+						key: checkout.repo.trim(),
+						tracker: checkout.tracker,
+						updatedAt: null,
+					},
+				]
+			: [];
+	});
+}
+
+/** The projects that the todo headings name. */
+export function todoProjects(
+	rows: { project: string }[],
+	checkouts: LocalCheckout[],
+): FoundProject[] {
+	const basenames = checkoutBasenames(checkouts);
+	return rows.flatMap((row) => {
+		const repo = githubRepoForTodo(row.project, basenames);
+		return repo === null
+			? []
+			: [{ key: repo, tracker: "github" as const, updatedAt: null }];
+	});
+}
+
+/** The ticket keys that the local checkouts and the todo headings name. */
+export function namedTicketKeys(
+	checkouts: LocalCheckout[],
+	rows: { project: string }[],
+): string[] {
+	return linearKeysForNames(linearNamesFromCheckouts(checkouts, rows));
 }
 
 const startedTodo = /^- \[ \] .+ \(([^,]+), in progress(?:: [^)]+)?\)/;
