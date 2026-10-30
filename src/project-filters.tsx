@@ -11,7 +11,12 @@ import { board } from "./board-styles.ts";
 import { Button } from "./button.tsx";
 import type { ProjectViewSettings } from "./configuration.ts";
 import { type ProjectReport, runResults, runStatusKinds } from "./domain.ts";
-import { runResultLabel, runsListCopy, runStatusLabel } from "./terms.ts";
+import {
+	filterEmptyLabel,
+	runResultLabel,
+	runsListCopy,
+	runStatusLabel,
+} from "./terms.ts";
 import { TextInput } from "./text-input.tsx";
 import { frame } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
@@ -47,6 +52,33 @@ function runFilterCount(view: ProjectViewSettings): number {
 		view.runStatuses.length +
 		view.runResults.length +
 		view.runFactories.filter((name) => name.trim() !== "").length
+	);
+}
+
+/** Clears the ticket filter, the run filter and the search text. Shows only while one of them is set. */
+export function ClearFiltersButton({
+	report,
+	view,
+	onClear,
+}: {
+	report: ProjectReport;
+	view: ProjectViewSettings;
+	onClear: () => void;
+}) {
+	const set =
+		filterCount(view, report.lanes) > 0 ||
+		runFilterCount(view) > 0 ||
+		view.search.trim() !== "";
+	if (!set) {
+		return null;
+	}
+	return (
+		<Button
+			id="project-clear-filters"
+			icon="funnel-x"
+			label={filterEmptyLabel.clear}
+			onClick={onClear}
+		/>
 	);
 }
 

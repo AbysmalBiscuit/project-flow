@@ -4,6 +4,7 @@ import { TextInput } from "./text-input.tsx";
 import "@xyflow/react/dist/style.css";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { ReactFlowProvider } from "@xyflow/react";
+import { Group } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { board } from "./board-styles.ts";
@@ -22,7 +23,11 @@ import {
 	type TicketFocus,
 	TicketFocusContext,
 } from "./project-board.tsx";
-import { RunFilterMenu, TicketFilterMenu } from "./project-filters.tsx";
+import {
+	ClearFiltersButton,
+	RunFilterMenu,
+	TicketFilterMenu,
+} from "./project-filters.tsx";
 import { ProjectGraph } from "./project-graph.tsx";
 import { TicketTable } from "./project-table.tsx";
 import { ProjectWaiting } from "./project-waiting.tsx";
@@ -394,6 +399,7 @@ export function Page() {
 									id="project-search"
 									width={board.find}
 									type="search"
+									icon="search"
 									aria-label="Search"
 									placeholder="Search"
 									value={settings.search}
@@ -405,12 +411,18 @@ export function Page() {
 										)
 									}
 								/>
+								<ClearFiltersButton
+									report={report}
+									view={settings}
+									onClear={() => saveView(clearedView(settings, report.lanes))}
+								/>
 								{ticketFocus.focus.size === 0 ? null : (
 									<ClearFocusButton onClear={ticketFocus.clear} />
 								)}
 								<Dropdown
 									id="project-group"
 									label="Group by"
+									icon={Group}
 									style={headerControlStyle.control}
 									steadyWidth
 									value={
