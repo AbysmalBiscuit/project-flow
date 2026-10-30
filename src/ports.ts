@@ -103,6 +103,9 @@ export type PullLinks = {
 	repos: string[];
 };
 
+/** A URL on one ticket that can name a PR on a forge. */
+export type PullRef = { url: string; ticketKey: string };
+
 export type Tracker = {
 	/** Drop repo reads from the previous poll, including a poll that failed. */
 	beginPoll?: () => void;
@@ -125,6 +128,11 @@ export type Tracker = {
 	) => Promise<FoundProject | null>;
 	/** The PR references of a project whose tickets sit on a board across repos. */
 	pullLinks?: (project: TrackedProject) => Promise<PullLinks>;
+	/** The URLs on the tickets of a project that holds no PRs itself. The forge of each URL's host reads the PR. */
+	pullRefs?: (
+		project: TrackedProject,
+		since: Date | null,
+	) => Promise<PullRef[]>;
 	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
 	fetchThread?: (
 		project: string,
@@ -293,14 +301,8 @@ export type Forge = {
 	) => Promise<PullRequest[]>;
 	listBranches: (repo: string) => Promise<string[]>;
 	repoAutoMerge: (repo: string) => Promise<boolean>;
-};
-
-/** The PRs that a tracker's own project links, for a tracker that reads them outside the forge. */
-export type LinkedPullReader = {
-	listPulls: (
-		project: TrackedProject,
-		since: Date | null,
-	) => Promise<PullRequest[]>;
+	/** The repo and number of the PR that this URL names, or null for any other URL. */
+	pullOfUrl: (url: URL) => Pick<PullLink, "repo" | "number"> | null;
 };
 
 export type Store = {
