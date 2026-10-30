@@ -47,9 +47,9 @@ export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 }
 
 /**
- * The stored merged pulls that the read left out and that still link one of
- * its tickets, marked `retained`. The read takes one page of merged pulls, and
- * a merged pull does not change, so an older closed ticket keeps its link.
+ * The stored merged pulls that a full read left out and that still link one
+ * of its tickets, marked `retained`. The read takes one page of merged pulls,
+ * and a merged pull does not change, so an older closed ticket keeps its link.
  */
 function retainedPulls(
 	stored: PullRequest[],
@@ -75,24 +75,24 @@ function keptPulls(
 	full: boolean,
 ): PullRequest[] {
 	const incomingIds = new Set(incoming.map((pull) => foldKey(pullKey(pull))));
-	const retained = retainedPulls(stored, incomingIds, tickets);
 	if (full) {
-		return [...incoming, ...retained];
+		return [...incoming, ...retainedPulls(stored, incomingIds, tickets)];
 	}
 	const incomingKeys = new Set(
 		incoming.flatMap((pull) => pull.closingKeys.map((key) => foldKey(key))),
 	);
+	// An incremental read can leave out the merged pulls of unchanged tickets,
+	// so it keeps each stored merged pull as the store holds it.
 	return [
 		...incoming,
-		...retained,
 		...stored.filter(
 			(pull) =>
-				!pull.merged &&
 				!incomingIds.has(foldKey(pullKey(pull))) &&
-				!pull.closingKeys.some(
-					(key) =>
-						returnedIds.has(foldKey(key)) || incomingKeys.has(foldKey(key)),
-				),
+				(pull.merged ||
+					!pull.closingKeys.some(
+						(key) =>
+							returnedIds.has(foldKey(key)) || incomingKeys.has(foldKey(key)),
+					)),
 		),
 	];
 }
