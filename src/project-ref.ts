@@ -103,8 +103,7 @@ export function refListed(ref: ProjectRef): ListedRef {
 /**
  * The key of a repo or project in `expectedBots`, `pmBot`, `autoMerge` and the
  * auto-merge values that a poll reads. A declared host qualifies the key, so that
- * the same name on
- * github.com keeps its own value.
+ * the same name on github.com keeps its own value.
  */
 export function settingsKey(key: string, host: string | undefined): string {
 	return host === undefined ? key : `${host}/${key}`;
