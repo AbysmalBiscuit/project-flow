@@ -1,4 +1,6 @@
 import type { Fetch } from "../../src/fetch.ts";
+import { run } from "../../src/main.ts";
+import { tempConfig, testIo } from "../support/app.ts";
 import { urlOf } from "../support/fetch.ts";
 import { recordedDiscovery, unrecorded } from "../support/github.ts";
 import { repoReadResponse } from "../support/repo-read.ts";
@@ -62,4 +64,57 @@ export function recordedFetch(userStatus: number): Fetch {
 		}
 		return unrecorded(input);
 	};
+}
+
+export const host = "git.acme.dev";
+export const tokenEnv = "ACME_FORGE_TOKEN";
+export const hosts = [{ host, forge: "github", tokenEnv }];
+export const widget = { tracker: "github" as const, repo: "acme/widget" };
+export const hostedWidget = { ...widget, host };
+
+export function recordingFetch(
+	sent: { url: string; authorization: string | null }[],
+): Fetch {
+	const recorded = recordedFetch(200);
+	return (input, init) => {
+		sent.push({
+			url: urlOf(input),
+			authorization: new Headers(init?.headers).get("authorization"),
+		});
+		return recorded(input, init);
+	};
+}
+
+/** Starts the app, and runs the checks against it. */
+export async function withStarted(
+	configuration: unknown,
+	checks: (base: string) => Promise<void>,
+	fetchImpl: Fetch = recordedFetch(200),
+	databasePath = ":memory:",
+): Promise<void> {
+	const { path, cleanup } = await tempConfig(JSON.stringify(configuration));
+	let release: () => void = () => {};
+	let finished: Promise<void> = Promise.resolve();
+	const asked = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	try {
+		await run(
+			["--config", path, "--host", "127.0.0.1", "--port", "0"],
+			testIo({
+				env: { GITHUB_TOKEN: "recorded-token" },
+				fetch: fetchImpl,
+				readGhToken: async () => null,
+				databasePath,
+				stdout: (line) => {
+					finished = checks(line);
+					release();
+				},
+				waitForStop: asked.then(() => finished),
+			}),
+		);
+		await finished;
+	} finally {
+		await cleanup();
+	}
 }
