@@ -212,4 +212,17 @@ describe("merged pulls across full polls", () => {
 			},
 		);
 	});
+
+	test("a bot that only a stored merged PR shows is not an expected bot of an open PR", async () => {
+		await withApp(
+			closedTicketRead(() => {}),
+			async (app) => {
+				const before = (await app.overview()).projects[0];
+				await app.poll(fullPollGapMs);
+				const after = (await app.overview()).projects[0];
+				expect(before?.inReview).toBeGreaterThan(0);
+				expect(after?.inReview).toBe(0);
+			},
+		);
+	});
 });
