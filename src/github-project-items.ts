@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { Comment, PullRequest, Ticket, TicketStatus } from "./domain.ts";
+import type { Comment, Ticket, TicketStatus } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { commentFromGithub, githubComment } from "./github-comment.ts";
 import {
@@ -17,13 +17,8 @@ import {
 	ticketFromGithubIssue,
 } from "./github-issue.ts";
 import { pages } from "./github-pages.ts";
-import {
-	loadLinkedPulls,
-	type PullLink,
-	type ReviewEvidence,
-} from "./github-pulls.ts";
 import { statusTypeOfName } from "./lanes.ts";
-import { TrackerError } from "./ports.ts";
+import { type PullLink, type PullLinks, TrackerError } from "./ports.ts";
 import { githubKey } from "./ticket-key.ts";
 import { statusColours } from "./token-palette.ts";
 
@@ -498,13 +493,12 @@ function closingPullPages(
 	);
 }
 
-export async function listProjectPulls(
+export async function listProjectPullLinks(
 	token: string,
 	fetchImpl: Fetch,
 	items: ProjectItem[],
-	seen: Map<string, ReviewEvidence>,
 	projectOwner: string,
-): Promise<PullRequest[]> {
+): Promise<PullLinks> {
 	const links: PullLink[] = [];
 	for (const { content, repo, key: ticketKey } of openIssues(items)) {
 		const linkedPulls = [
@@ -536,7 +530,7 @@ export async function listProjectPulls(
 	const repos = items.flatMap(({ content }) =>
 		content?.repository === undefined ? [] : [content.repository.nameWithOwner],
 	);
-	return loadLinkedPulls(token, fetchImpl, links, repos, seen);
+	return { links, repos };
 }
 
 async function listCommentBodies(

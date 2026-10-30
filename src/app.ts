@@ -15,12 +15,12 @@ import {
 	defaultTrackerRequestLimitMs,
 	type Fetch,
 } from "./fetch.ts";
-import { conditionalFetch, githubTracker, missingToken } from "./github.ts";
+import { conditionalFetch, githubAdapters, missingToken } from "./github.ts";
 import { elkWorkerPath } from "./graph-core.ts";
 import { forceWorkerPath } from "./graph-layout.ts";
 import { inboxRoutes } from "./inbox-routes.ts";
 import page from "./index.html";
-import { linearTracker, missingLinearKey } from "./linear.ts";
+import { linearAdapters, missingLinearKey } from "./linear.ts";
 import { memoryNotifier } from "./notifier.ts";
 import { paintPage } from "./page-theme.ts";
 import { poll, type PollOptions, runningOverview } from "./poll.ts";
@@ -166,23 +166,27 @@ export async function start(options: StartOptions): Promise<Running> {
 		() => clock.now(),
 	);
 	const fetchGithub = factoryTokens.fetch;
+	const github =
+		options.token === null ? null : githubAdapters(options.token, fetchGithub);
+	const linear =
+		options.linearKey === null
+			? null
+			: linearAdapters(
+					options.linearKey,
+					trackerFetch,
+					options.token,
+					fetchGithub,
+				);
 	const trackers = {
-		github:
-			options.token === null ? null : githubTracker(options.token, fetchGithub),
-		linear:
-			options.linearKey === null
-				? null
-				: linearTracker(
-						options.linearKey,
-						trackerFetch,
-						options.token,
-						fetchGithub,
-					),
+		github: github?.tracker ?? null,
+		linear: linear?.tracker ?? null,
 	};
 	const hadRows = opened.store.readTickets().length > 0;
 	const pollOptions: PollOptions = {
 		configuration: configurationPort,
 		...trackers,
+		forge: github?.forge ?? null,
+		linearPulls: linear?.pulls ?? null,
 		store: opened.store,
 		clock,
 		notifier,

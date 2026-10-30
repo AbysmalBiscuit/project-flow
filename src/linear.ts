@@ -12,7 +12,6 @@ import type { Fetch } from "./fetch.ts";
 import {
 	conditionalFetch,
 	loadLinkedPulls,
-	type PullLink,
 	type ReviewEvidence,
 } from "./github.ts";
 import { linearStatusType } from "./lanes.ts";
@@ -22,7 +21,13 @@ import {
 	postLinearReply,
 	showLinearState,
 } from "./linear-thread.ts";
-import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
+import {
+	type FoundProject,
+	type LinkedPullReader,
+	type PullLink,
+	type Tracker,
+	TrackerError,
+} from "./ports.ts";
 
 export const missingLinearKey =
 	"LINEAR_API_KEY is missing: set LINEAR_API_KEY to list Linear projects.";
@@ -756,12 +761,13 @@ async function issuePages(
 	return nodes;
 }
 
-export function linearTracker(
+/** The Linear tracker and the reader of the PRs that its tickets link. They share one list of issues. */
+export function linearAdapters(
 	key: string,
 	fetchImpl: Fetch,
 	githubToken: string | null = null,
 	fetchGithub: Fetch = conditionalFetch(fetchImpl),
-): Tracker {
+): { tracker: Tracker; pulls: LinkedPullReader } {
 	const issuesByProject = new Map<string, Promise<ListedIssue[]>>();
 	const seenReviews = new Map<string, ReviewEvidence>();
 	const issues = (tracked: string, project: string, since: Date | null) => {
@@ -784,7 +790,7 @@ export function linearTracker(
 		});
 		return listed;
 	};
-	return {
+	const tracker: Tracker = {
 		beginPoll() {
 			issuesByProject.clear();
 		},
@@ -892,11 +898,6 @@ export function linearTracker(
 				board,
 			};
 		},
-		async listPulls(tracked, since = null) {
-			const project = await findLinearProject(key, tracked.key, fetchImpl);
-			const nodes = await issues(tracked.key, project.id, since ?? null);
-			return pullsForIssues(nodes, githubToken, fetchGithub, seenReviews);
-		},
 		fetchThread(project, ticketKey, signal) {
 			return fetchLinearThread(key, fetchImpl, project, ticketKey, signal);
 		},
@@ -905,6 +906,16 @@ export function linearTracker(
 		},
 		showState(ticketKey, shown) {
 			return showLinearState(key, fetchImpl, ticketKey, shown);
+		},
+	};
+	return {
+		tracker,
+		pulls: {
+			async listPulls(tracked, since) {
+				const project = await findLinearProject(key, tracked.key, fetchImpl);
+				const nodes = await issues(tracked.key, project.id, since);
+				return pullsForIssues(nodes, githubToken, fetchGithub, seenReviews);
+			},
 		},
 	};
 }

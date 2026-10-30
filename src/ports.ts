@@ -94,6 +94,15 @@ export type TicketList = {
 	board?: Snapshot["board"];
 };
 
+/** A reference from one ticket to one PR. */
+export type PullLink = { repo: string; number: number; ticketKey: string };
+
+export type PullLinks = {
+	links: PullLink[];
+	/** The repos whose merged history the PRs of the project also read. */
+	repos: string[];
+};
+
 export type Tracker = {
 	/** Drop repo reads from the previous poll, including a poll that failed. */
 	beginPoll?: () => void;
@@ -104,15 +113,18 @@ export type Tracker = {
 		since: Date | null,
 		held?: Ticket[],
 	) => Promise<TicketList>;
-	listPulls: (
-		project: TrackedProject,
-		since?: Date | null,
-	) => Promise<PullRequest[]>;
 	findProjects: () => Promise<{
 		projects: FoundProject[];
 		viewer: Viewer | null;
 		error?: string;
 	}>;
+	/** Find a pinned project that `findProjects` did not list. */
+	findPinnedProject?: (
+		owner: string,
+		number: number,
+	) => Promise<FoundProject | null>;
+	/** The PR references of a project whose tickets sit on a board across repos. */
+	pullLinks?: (project: TrackedProject) => Promise<PullLinks>;
 	projectsForKeys?: (keys: string[]) => Promise<FoundProject[]>;
 	fetchThread?: (
 		project: string,
@@ -268,14 +280,27 @@ export type FactoryReader = {
 	) => Promise<ClaimResult>;
 };
 
-export type GithubTracker = Tracker & {
-	listBranches: (project: string) => Promise<string[]>;
-	repoAutoMerge: (project: string) => Promise<boolean>;
-	/** Find a pinned GitHub project that discovery did not list. */
-	findPinnedProject: (
-		owner: string,
-		number: number,
-	) => Promise<FoundProject | null>;
+export type Forge = {
+	/** Drop repo reads from the previous poll, including a poll that failed. */
+	beginPoll?: () => void;
+	/** Drop the cached reads of one repo, so the next read of it asks the forge again. */
+	forgetRepo?: (repo: string) => void;
+	listPulls: (repo: string) => Promise<PullRequest[]>;
+	/** The PR of each link, then the merged history of each repo of those PRs and of `repos`. */
+	listLinkedPulls: (
+		links: PullLink[],
+		repos: string[],
+	) => Promise<PullRequest[]>;
+	listBranches: (repo: string) => Promise<string[]>;
+	repoAutoMerge: (repo: string) => Promise<boolean>;
+};
+
+/** The PRs that a tracker's own project links, for a tracker that reads them outside the forge. */
+export type LinkedPullReader = {
+	listPulls: (
+		project: TrackedProject,
+		since: Date | null,
+	) => Promise<PullRequest[]>;
 };
 
 export type Store = {
