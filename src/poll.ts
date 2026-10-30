@@ -23,6 +23,7 @@ import type {
 	Overview,
 	PollProgress,
 	ProjectPoll,
+	PullRequest,
 	Snapshot,
 	WorkcellRun,
 } from "./domain.ts";
@@ -33,8 +34,9 @@ import type {
 	CheckoutSource,
 	Clock,
 	ConfigurationPort,
+	Forge,
 	FoundProject,
-	GithubTracker,
+	LinkedPullReader,
 	Notifier,
 	Store,
 	TodoSource,
@@ -182,6 +184,29 @@ function readSince(
 	return full ? null : lastGood;
 }
 
+async function listPulls(
+	options: PollOptions,
+	project: TrackedProject,
+	tracker: Tracker,
+	since: Date | null,
+): Promise<PullRequest[]> {
+	if (project.tracker === "linear") {
+		return (await options.linearPulls?.listPulls(project, since)) ?? [];
+	}
+	const forge = options.forge;
+	if (forge === null) {
+		return [];
+	}
+	const repo = refRepo(project.ref);
+	if (repo !== null) {
+		return forge.listPulls(repo);
+	}
+	const linked = await tracker.pullLinks?.(project);
+	return linked === undefined
+		? []
+		: forge.listLinkedPulls(linked.links, linked.repos);
+}
+
 async function readListed(
 	options: PollOptions,
 	project: TrackedProject,
@@ -191,20 +216,17 @@ async function readListed(
 	startedKeys: string[],
 	readRepos: Set<string>,
 ): Promise<PolledProject> {
-	const github = options.github;
+	const forge = options.forge;
 	const listedTickets = await tracker.listTickets(
 		project,
 		since,
 		since === null ? [] : (stored?.tickets ?? []),
 	);
-	const pulls = await tracker.listPulls(
-		project,
-		project.tracker === "linear" ? since : null,
-	);
+	const pulls = await listPulls(options, project, tracker, since);
 	const repo = refRepo(project.ref);
 	const branches =
-		repo !== null && github !== null ? await github.listBranches(repo) : [];
-	if (github !== null) {
+		repo !== null && forge !== null ? await forge.listBranches(repo) : [];
+	if (forge !== null) {
 		const repos = new Set([
 			...pulls.map((pull) => pull.repo),
 			...(repo === null ? [] : [repo]),
@@ -215,7 +237,7 @@ async function readListed(
 			}
 			readRepos.add(repo);
 			try {
-				options.repoAutoMerge[repo] = await github.repoAutoMerge(repo);
+				options.repoAutoMerge[repo] = await forge.repoAutoMerge(repo);
 			} catch {
 				options.repoAutoMerge[repo] = false;
 			}
@@ -237,8 +259,10 @@ async function readListed(
 
 export type PollOptions = {
 	configuration: ConfigurationPort;
-	github: GithubTracker | null;
+	github: Tracker | null;
 	linear: Tracker | null;
+	forge: Forge | null;
+	linearPulls: LinkedPullReader | null;
 	store: Store;
 	clock: Clock;
 	notifier: Notifier;
@@ -276,6 +300,7 @@ export type PollOptions = {
 export async function poll(options: PollOptions): Promise<Configuration> {
 	options.github?.beginPoll?.();
 	options.linear?.beginPoll?.();
+	options.forge?.beginPoll?.();
 	await options.holdLists;
 	if (options.stopped) {
 		options.polling = false;
@@ -391,7 +416,7 @@ export async function poll(options: PollOptions): Promise<Configuration> {
 		const known = found.find((project) => sameProject(listedRef(project), ref));
 		const located =
 			known ??
-			(ref.kind === "github-project" && github !== null
+			(ref.kind === "github-project" && github?.findPinnedProject !== undefined
 				? await github.findPinnedProject(ref.owner, ref.number)
 				: { ...refListed(ref), updatedAt: null });
 		if (located === null) {
@@ -667,6 +692,10 @@ export async function pollProject(
 		outcome = missingTracker(project, startedKeys);
 	} else {
 		tracker.forgetProject?.(project);
+		const repo = refRepo(project.ref);
+		if (repo !== null) {
+			options.forge?.forgetRepo?.(repo);
+		}
 		try {
 			const listing = await readListed(
 				options,

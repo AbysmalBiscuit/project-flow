@@ -2,37 +2,30 @@ import { z } from "zod";
 
 import type { Board, Ticket, TicketStatus } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
+import { githubForge } from "./github-forge.ts";
 import { githubHeaders, nextPage } from "./github-pages.ts";
 import {
-	listProjectItems,
-	listProjectPulls,
+	listProjectPullLinks,
 	listProjectStatuses,
 	listProjectTickets,
 	openLinkedKeys,
-	type ProjectItem,
 } from "./github-project-items.ts";
 import {
 	findGithubProjects,
 	githubProjectByNumber,
 } from "./github-projects.ts";
-import type { ReviewEvidence } from "./github-pulls.ts";
-import { readAutoMerge } from "./github-repo-query.ts";
-import { currentBlockers, readRepo, type StoredLists } from "./github-repo.ts";
+import { type GithubReads, githubReads } from "./github-reads.ts";
+import { currentBlockers } from "./github-repo.ts";
 import {
 	addGithubLabel,
 	fetchGithubThread,
 	postGithubReply,
 } from "./github-thread.ts";
 import { factoryBoard } from "./lanes.ts";
-import { type GithubTracker, TrackerError } from "./ports.ts";
-import { githubKey } from "./ticket-key.ts";
+import { type Forge, type Tracker, TrackerError } from "./ports.ts";
 
 export { githubHeaders } from "./github-pages.ts";
-export {
-	loadLinkedPulls,
-	type PullLink,
-	type ReviewEvidence,
-} from "./github-pulls.ts";
+export { loadLinkedPulls, type ReviewEvidence } from "./github-pulls.ts";
 export { conditionalFetch, type ValidatorStore } from "./github-rest-cache.ts";
 
 export const missingToken =
@@ -157,66 +150,17 @@ function labelHistory(
 	return history;
 }
 
-export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
-	const seenReviews = new Map<string, ReviewEvidence>();
-	const storedLists: StoredLists = { issues: new Map(), pulls: new Map() };
-	const projectItemsById = new Map<string, Promise<ProjectItem[]>>();
-	const projectItems = (projectId: string, projectOwner: string) => {
-		const cached = projectItemsById.get(projectId);
-		if (cached !== undefined) {
-			return cached;
-		}
-		const listed = listProjectItems(
-			token,
-			fetchImpl,
-			projectId,
-			projectOwner,
-		).catch((error: unknown) => {
-			if (projectItemsById.get(projectId) === listed) {
-				projectItemsById.delete(projectId);
-			}
-			throw error;
-		});
-		projectItemsById.set(projectId, listed);
-		return listed;
-	};
-	const autoMergeByRepo = new Map<string, Promise<boolean>>();
-	const repoSnapshots = new Map<string, ReturnType<typeof readRepo>>();
-	const repoReadFor = (
-		repo: string,
-		since: Date | null,
-		held: Ticket[] = [],
-	) => {
-		const cached = repoSnapshots.get(repo);
-		if (cached !== undefined) {
-			return cached;
-		}
-		const read = readRepo(
-			token,
-			fetchImpl,
-			repo,
-			since,
-			storedLists,
-			held,
-		).catch((error: unknown) => {
-			if (repoSnapshots.get(repo) === read) {
-				repoSnapshots.delete(repo);
-			}
-			throw error;
-		});
-		repoSnapshots.set(repo, read);
-		return read;
-	};
+function githubTracker(
+	token: string,
+	fetchImpl: Fetch,
+	reads: GithubReads,
+): Tracker {
 	return {
 		beginPoll() {
-			repoSnapshots.clear();
-			autoMergeByRepo.clear();
-			projectItemsById.clear();
+			reads.clear();
 		},
 		forgetProject(project) {
-			repoSnapshots.delete(project.key);
-			autoMergeByRepo.delete(project.key);
-			projectItemsById.delete(project.key);
+			reads.forget(project.key);
 		},
 		findProjects() {
 			return findGithubProjects(token, fetchImpl);
@@ -228,7 +172,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			const repo = project.key;
 			if (project.ref.kind === "github-project") {
 				const owner = project.ref.owner;
-				const items = await projectItems(repo, owner);
+				const items = await reads.projectItems(repo, owner);
 				const openKeys = openLinkedKeys(items);
 				const tickets = await listProjectTickets(
 					token,
@@ -251,7 +195,7 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 				};
 				return { name: repo, tickets, board };
 			}
-			const batched = await repoReadFor(repo, since, held);
+			const batched = await reads.repo(repo, since, held);
 			if (batched === null) {
 				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
 			}
@@ -283,53 +227,17 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 			}
 			return { name: repo, tickets, board };
 		},
-		async listPulls(project) {
-			const repo = project.key;
-			if (project.ref.kind === "github-project") {
-				const owner = project.ref.owner;
-				return listProjectPulls(
-					token,
-					fetchImpl,
-					await projectItems(repo, owner),
-					seenReviews,
-					owner,
-				);
+		async pullLinks(project) {
+			if (project.ref.kind !== "github-project") {
+				return { links: [], repos: [] };
 			}
-			const batched = await repoReadFor(repo, null);
-			if (batched === null) {
-				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
-			}
-			for (const pull of batched.pulls) {
-				if (pull.merged) {
-					seenReviews.set(githubKey(repo, pull.number), {
-						checks: pull.checks,
-						comments: pull.comments,
-						reviews: pull.reviews,
-						reactions: pull.reactions,
-					});
-				}
-			}
-			return batched.pulls;
-		},
-		async repoAutoMerge(repo) {
-			const cached = autoMergeByRepo.get(repo);
-			if (cached !== undefined) {
-				return cached;
-			}
-			const snapshot = repoSnapshots.get(repo);
-			const read =
-				snapshot === undefined
-					? readAutoMerge(token, fetchImpl, repo)
-					: snapshot.then((opened) => opened?.autoMerge ?? false);
-			autoMergeByRepo.set(repo, read);
-			return read;
-		},
-		async listBranches(repo) {
-			const batched = await repoReadFor(repo, null);
-			if (batched === null) {
-				throw new TrackerError(`GitHub read repo failed: ${repo}`, 502);
-			}
-			return batched.branches;
+			const owner = project.ref.owner;
+			return listProjectPullLinks(
+				token,
+				fetchImpl,
+				await reads.projectItems(project.key, owner),
+				owner,
+			);
 		},
 		fetchThread(project, key, signal) {
 			return fetchGithubThread(token, fetchImpl, project, key, signal);
@@ -340,5 +248,17 @@ export function githubTracker(token: string, fetchImpl: Fetch): GithubTracker {
 		addLabel(key, label) {
 			return addGithubLabel(token, fetchImpl, key, label);
 		},
+	};
+}
+
+/** The GitHub tracker and forge. They share one read of each repo in a poll. */
+export function githubAdapters(
+	token: string,
+	fetchImpl: Fetch,
+): { tracker: Tracker; forge: Forge } {
+	const reads = githubReads(token, fetchImpl);
+	return {
+		tracker: githubTracker(token, fetchImpl, reads),
+		forge: githubForge(token, fetchImpl, reads),
 	};
 }
