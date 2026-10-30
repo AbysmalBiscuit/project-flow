@@ -2,6 +2,7 @@
  * A project whose open ticket 43 has no factory run and an open PR 50, a hub
  * with free slots and a full laptop daemon, so the panel of ticket 43 shows the
  * "Start run" split button, the ticket link and the PR link. Its thread is long, so the panel scrolls.
+ * Ticket 41 has a live run and an earlier run, so its panel shows the shared key style in the earlier run row.
  * With `--no-factory` after the port, the configuration has no factory, so the panel shows no run control.
  */
 import daemonSlots from "../test/fixtures/factory-daemon-slots.json";
@@ -32,6 +33,14 @@ const laptopUrl = "http://laptop.test:7777";
 const boxUrl = "http://box-a.test:7777";
 
 const sentRun = hubRuns.runs[0];
+const earlierRun = {
+	...sentRun,
+	id: "20261024-090000-c3d4",
+	status: { kind: "failed", reason: null },
+	submitted_at: "2026-10-24T09:00:00+00:00",
+	started_at: "2026-10-24T09:00:10+00:00",
+	ended_at: "2026-10-24T09:30:00+00:00",
+};
 const boxRun = { ...sentRun, source: null, rule: null, machine: "local" };
 
 function runs(listed: unknown[], start: () => Response) {
@@ -69,7 +78,7 @@ await serveRecorded({
 			[hubUrl]: {
 				...hub,
 				"/daemon": daemonSlots,
-				"/runs": runs([sentRun], () =>
+				"/runs": runs([sentRun, earlierRun], () =>
 					Response.json(
 						{
 							id: "hub-queued-start",
@@ -120,7 +129,10 @@ await serveRecorded({
 				issuesResponse(
 					input,
 					init,
-					[ticket(43, "2026-10-25T09:00:00Z")],
+					[
+						ticket(43, "2026-10-25T09:00:00Z"),
+						ticket(41, "2026-10-25T09:00:00Z"),
+					],
 					repo,
 					[githubPullNode(pull(50, 43))],
 				) ??
