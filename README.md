@@ -169,7 +169,7 @@ The `hosts` list declares each self-hosted host with its forge kind and the env 
 }
 ```
 
-A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times.
+A pin with no `host` is on github.com. A pin with `host` set to `github.com` is the same project as a pin with no `host`. The load fails when a pin names a host that `hosts` does not declare. The load also fails when `hosts` declares `github.com`, `gitlab.com` or one host two times. The name `gitlab.com` stays reserved until its adapter exists, so a pin cannot use it.
 
 With no token in the env var, each project of the host shows an error that names the env var. The projects of other hosts poll. With a token, the project shows an error when no adapter can read the host. The app does not send that token to another host.
 

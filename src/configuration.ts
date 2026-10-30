@@ -58,7 +58,7 @@ export const projectRef = z.discriminatedUnion("tracker", [
 
 export type ProjectPin = z.infer<typeof projectRef>;
 
-/** The public hosts that Project Flow knows, which a configuration does not declare. */
+/** The public hosts that a configuration cannot declare. gitlab.com stays reserved until its adapter exists. */
 const knownHosts: readonly string[] = [githubHost, "gitlab.com"];
 
 const declaredHost = z.strictObject({
