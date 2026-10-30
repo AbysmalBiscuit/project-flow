@@ -19,7 +19,10 @@ export type ReplyDraft = ReplyTarget & {
 	kind?: ReplyRequest["kind"] | undefined;
 };
 
-/** The stored project of a ticket: by its key, its name, or the repo of a GitHub ticket key. */
+/**
+ * The stored project of a ticket: by its key, its name, or the repo of a GitHub ticket key.
+ * A project on a declared host matches only by its name, which holds the host.
+ */
 export function ticketSnapshot(
 	rows: Snapshot[],
 	reply: ReplyTarget,
@@ -29,6 +32,9 @@ export function ticketSnapshot(
 	return rows.find((item) => {
 		if (item.tracker !== reply.tracker) {
 			return false;
+		}
+		if (item.host !== undefined) {
+			return item.name === reply.project;
 		}
 		if (item.key === reply.project || item.name === reply.project) {
 			return true;

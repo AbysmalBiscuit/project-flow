@@ -40,6 +40,27 @@ describe("run starts", () => {
 		}
 	});
 
+	test("Start run on a github.com ticket finds its repo when a declared host pins the same repo first", async () => {
+		const app = await serveGithub([43], {
+			readyLabel,
+			declaredHostFirst: "git.acme.dev",
+		});
+		try {
+			const key = `${repo}#43`;
+			await ticketWhere(app.base, repo, key, (view) => view.title !== "");
+			const response = await startRun(app.base, "github", repo, key);
+			expect(response.status).toBe(200);
+			expect(app.writes).toEqual([
+				{
+					url: `https://api.github.com/repos/${repo}/issues/43/labels`,
+					body: JSON.stringify({ labels: [readyLabel] }),
+				},
+			]);
+		} finally {
+			await app.stop();
+		}
+	});
+
 	test("a ticket whose newest run succeeded can start a run, and a ticket with a live run cannot", async () => {
 		const app = await serveGithub([40, 41], { readyLabel });
 		try {
