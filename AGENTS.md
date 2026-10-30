@@ -30,7 +30,7 @@ Issue #1 holds the v1 rules. Issue #97 overrides #1 where they differ. Use the t
 The code is hexagonal.
 
 - The domain core is pure functions with no I/O. All state, grouping, review cycle, blocker, link and needs-you rules live in the core.
-- The core reaches the outside only through ports: tracker, store, notifier, clock and configuration.
+- The core reaches the outside only through ports: tracker, forge, store, notifier, clock and configuration.
 - Driven adapters implement the ports: GitHub, Linear, SQLite and the configuration file.
 - The HTTP API and the server-sent event stream are the driving adapter.
 - Each tracker adapter sends all its network calls through the one `fetch` that the app gets at startup.

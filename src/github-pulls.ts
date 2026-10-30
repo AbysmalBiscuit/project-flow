@@ -10,7 +10,7 @@ import type {
 import { reviewStateValue } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubHeaders, pages } from "./github-pages.ts";
-import { TrackerError } from "./ports.ts";
+import { type PullLink, TrackerError } from "./ports.ts";
 import { githubKey } from "./ticket-key.ts";
 
 export const githubPull = z.object({
@@ -24,8 +24,6 @@ export const githubPull = z.object({
 	merged_at: z.string().nullable().optional(),
 	auto_merge: z.unknown().nullable().optional(),
 });
-
-export type PullLink = { repo: string; number: number; ticketKey: string };
 
 /**
  * Loads each PR in order. A PR that fails to load is skipped, so one broken PR
