@@ -2,15 +2,10 @@ import type { TicketState, TrackerKind } from "./domain.ts";
 
 // Keys compare without case, so every id folds the key to lower case.
 
-export type ParsedTicketKey =
-	| { tracker: "github"; repo: string; number: number }
-	| { tracker: "linear"; team: string; number: number };
-
 const numberMark = "#";
 const idSeparator = "\n";
 
 const githubKeyShape = /^([^/\s#]+\/[^/\s#]+)#(\d+)$/;
-const linearKeyShape = /^([A-Za-z][A-Za-z0-9]*)-(\d+)$/;
 
 export function githubKey(repo: string, number: number | string): string {
 	return `${repo}${numberMark}${number}`;
@@ -24,24 +19,14 @@ export function linearKey(team: string, number: number | string): string {
 	return `${team.toUpperCase()}-${number}`;
 }
 
-export function parseTicketKey(key: string): ParsedTicketKey | null {
-	const github = key.match(githubKeyShape);
-	if (github?.[1] !== undefined && github[2] !== undefined) {
-		return { tracker: "github", repo: github[1], number: Number(github[2]) };
-	}
-	const linear = key.match(linearKeyShape);
-	if (linear?.[1] !== undefined && linear[2] !== undefined) {
-		return { tracker: "linear", team: linear[1], number: Number(linear[2]) };
-	}
-	return null;
-}
-
 /** The repo and number of a GitHub key or pull key. */
 export function githubKeyParts(
 	key: string,
 ): { repo: string; number: number } | null {
-	const parsed = parseTicketKey(key);
-	return parsed?.tracker === "github" ? parsed : null;
+	const github = key.match(githubKeyShape);
+	return github?.[1] !== undefined && github[2] !== undefined
+		? { repo: github[1], number: Number(github[2]) }
+		: null;
 }
 
 /** The tracker that a key's shape names. */
@@ -94,11 +79,7 @@ export function pullRef(pull: string, ticketKey: string | null): string {
 /** The key named with a project: `project#number` on GitHub, the whole key on Linear. */
 export function outsideKey(project: string, key: string): string {
 	const number = keyNumber(key);
-	if (
-		keyTracker(key) !== "github" ||
-		number === null ||
-		foldKey(key).startsWith(foldKey(`${project}#`))
-	) {
+	if (number === null || foldKey(key).startsWith(foldKey(`${project}#`))) {
 		return key;
 	}
 	return githubKey(project, number);

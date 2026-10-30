@@ -23,7 +23,8 @@ export function ticketSnapshot(
 	rows: Snapshot[],
 	reply: ReplyTarget,
 ): Snapshot | undefined {
-	const repo = githubKeyParts(reply.key)?.repo;
+	const repo =
+		reply.tracker === "github" ? githubKeyParts(reply.key)?.repo : undefined;
 	return rows.find((item) => {
 		if (item.tracker !== reply.tracker) {
 			return false;

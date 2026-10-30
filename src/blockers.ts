@@ -10,7 +10,8 @@ import {
 	stillOpen,
 	type TicketIndex,
 } from "./ticket-index.ts";
-import { foldKey, githubKey, keyRepo, ticketId } from "./ticket-key.ts";
+import { foldKey, keyRepo, ticketId } from "./ticket-key.ts";
+import { parseTicketRef } from "./ticket-ref.ts";
 
 export function heldBlockerIds(held: Ticket[]): number[] {
 	return held.flatMap((ticket) => {
@@ -56,61 +57,8 @@ export function refreshedBlockers(
 const label =
 	/^(?:[-*+]|\d+[.)])?\s*(?:\*\*|__)?\s*(blocked by|blocks|blocking)(?![\p{L}\p{N}])\s*(?:\*\*|__)?\s*:?\s*(?:\*\*|__)?\s*(.*)$/iu;
 
-const anchoredRef =
-	/^(?:https?:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/(?:issues|pull)\/(\d+)|https?:\/\/linear\.app\/[^/\s]+\/issue\/([A-Za-z][A-Za-z0-9]+-\d+)(?:\/[^\s)]*)?|([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)|#(\d+)|([A-Za-z][A-Za-z0-9]+-\d+))$/i;
-
 function trimPunctuation(token: string): string {
 	return token.replace(/^[([{"']+/, "").replace(/[)\]}"'.,;:!?]+$/, "");
-}
-
-function refFrom(
-	match: RegExpExecArray,
-	repo: string | null,
-): TicketRef | null {
-	const githubUrlOwner = match[1];
-	const githubUrlRepo = match[2];
-	const githubUrlNumber = match[3];
-	if (
-		githubUrlOwner !== undefined &&
-		githubUrlRepo !== undefined &&
-		githubUrlNumber !== undefined
-	) {
-		const repo = `${githubUrlOwner}/${githubUrlRepo}`;
-		return {
-			tracker: "github",
-			project: repo,
-			key: githubKey(repo, githubUrlNumber),
-		};
-	}
-	const linearUrlKey = match[4];
-	if (linearUrlKey !== undefined) {
-		return { tracker: "linear", project: "", key: linearUrlKey.toUpperCase() };
-	}
-	const ownerRepo = match[5];
-	const ownerNumber = match[6];
-	if (ownerRepo !== undefined && ownerNumber !== undefined) {
-		return {
-			tracker: "github",
-			project: ownerRepo,
-			key: githubKey(ownerRepo, ownerNumber),
-		};
-	}
-	const sameNumber = match[7];
-	if (sameNumber !== undefined) {
-		if (repo === null) {
-			return null;
-		}
-		return {
-			tracker: "github",
-			project: repo,
-			key: githubKey(repo, sameNumber),
-		};
-	}
-	const linearMatch = match[8];
-	if (linearMatch !== undefined) {
-		return { tracker: "linear", project: "", key: linearMatch.toUpperCase() };
-	}
-	return null;
 }
 
 function parseLine(
@@ -135,11 +83,7 @@ function parseLine(
 		if (token === "" || token.toLowerCase() === "none") {
 			continue;
 		}
-		const found = anchoredRef.exec(token);
-		if (found === null) {
-			continue;
-		}
-		const ref = refFrom(found, repo);
+		const ref = parseTicketRef(token, repo);
 		if (ref !== null && !refs.some((item) => sameRef(item, ref))) {
 			refs.push(ref);
 		}

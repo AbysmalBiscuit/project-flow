@@ -8,7 +8,7 @@ import type {
 	Ticket,
 } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
-import { foldKey, githubKeyParts } from "./ticket-key.ts";
+import { foldKey } from "./ticket-key.ts";
 import { isRunOf } from "./workcell.ts";
 
 /**
@@ -93,7 +93,7 @@ export function runStartOf(
 	if (factory?.readyLabel === undefined) {
 		return factories.length > 0 &&
 			ticket.key !== null &&
-			githubKeyParts(ticket.key) !== null
+			ticket.tracker === "github"
 			? claimWaits
 				? { requested: true }
 				: {}
