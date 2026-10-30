@@ -304,6 +304,19 @@ export function TicketPanel({
 					<RunAction run={view.factoryRun} />
 				)}
 				<span className={clsx(panel.actions)}>
+					{dock ? null : (
+						<Button
+							icon={expanded ? "shrink" : "expand"}
+							name={expanded ? collapsePanelLabel : expandPanelLabel}
+							onClick={() => setExpanded((open) => !open)}
+						/>
+					)}
+					<Button icon="x" name={closePanelLabel} onClick={onClose} />
+				</span>
+			</div>
+			<div className={clsx(panel.keyLine)}>
+				<p className={clsx(panel.key)}>{ticketKey}</p>
+				<span className={clsx(panel.actions)}>
 					{projectHref === undefined ? null : (
 						<Button href={projectHref} label={projectPageLabel} />
 					)}
@@ -326,17 +339,8 @@ export function TicketPanel({
 							name={openPullLabel}
 						/>
 					)}
-					{dock ? null : (
-						<Button
-							icon={expanded ? "shrink" : "expand"}
-							name={expanded ? collapsePanelLabel : expandPanelLabel}
-							onClick={() => setExpanded((open) => !open)}
-						/>
-					)}
-					<Button icon="x" name={closePanelLabel} onClick={onClose} />
 				</span>
 			</div>
-			<p className={clsx(panel.key)}>{ticketKey}</p>
 			{missing ? (
 				<p className={clsx(panel.note)}>{threadMissingLabel}</p>
 			) : null}
