@@ -2,7 +2,7 @@ import type {
 	ProjectReport,
 	TicketState,
 	TicketView,
-	Tracker,
+	TrackerKind,
 } from "./domain.ts";
 import { groupKeysOf } from "./grouping.ts";
 import { foldKey, itemId } from "./ticket-key.ts";
@@ -30,7 +30,7 @@ export type FlowTicket = Omit<TicketView, "key" | "state"> & {
 	outside: boolean;
 	/** The ticket's project is a tracked project. */
 	tracked: boolean;
-	tracker: Tracker;
+	tracker: TrackerKind;
 };
 
 function homeTicket(

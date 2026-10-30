@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { board } from "./board-styles.ts";
 import { useCollapse } from "./collapse.ts";
-import type { ProjectReport, TicketState, Tracker } from "./domain.ts";
+import type { ProjectReport, TicketState, TrackerKind } from "./domain.ts";
 import { LegendFrame } from "./graph-core-view.tsx";
 import { type FlowTicket, graphTickets, projectNodeId } from "./graph-flow.ts";
 import { type Anchor, useLaidGraph } from "./graph-laid.tsx";
@@ -47,7 +47,7 @@ import type {
 export type OpenedNode = {
 	key: string;
 	project: string;
-	tracker: Tracker;
+	tracker: TrackerKind;
 	title: string;
 	outside: boolean;
 	state?: TicketState;
