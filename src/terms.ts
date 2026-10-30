@@ -168,15 +168,20 @@ export const viewLabel = {
 export const reasonLabel: Record<NeedsYouItem["reason"], string> = {
 	ask: "Question",
 	awaitingMerge: "Ready to merge",
+	decide: "Decide",
 	label: "Labeled for you",
 	runFailed: "Run failed",
 };
 
 export const answeredReason = "Answered, clearing";
 
+export const openQuestionsLabel = (count: number) =>
+	count === 1 ? "1 open question" : `${count} open questions`;
+
 export const reasonTab: Record<NeedsYouItem["reason"], string> = {
 	ask: "Questions",
 	awaitingMerge: "Merges",
+	decide: "Decisions",
 	label: "Labels",
 	runFailed: "Runs",
 };
@@ -631,6 +636,7 @@ export const pullStatusLabel = {
 
 export const reasonOrder: readonly NeedsYouItem["reason"][] = [
 	"ask",
+	"decide",
 	"awaitingMerge",
 	"label",
 	"runFailed",
@@ -783,6 +789,9 @@ export function actionLabel(
 	}
 	if (item.reason === "awaitingMerge") {
 		return "Merge";
+	}
+	if (item.reason === "decide") {
+		return "Decide";
 	}
 	if (item.reason === "label") {
 		return "Open ticket";
