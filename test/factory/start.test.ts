@@ -17,7 +17,7 @@ import {
 type Settings = Record<string, unknown>;
 
 function sourcesWithRules(
-	rules: (typeof linearSources)["sources"][0]["rules"],
+	rules: { name: string; state: string; labels: string[]; without: string[] }[],
 ) {
 	return {
 		...linearSources,
