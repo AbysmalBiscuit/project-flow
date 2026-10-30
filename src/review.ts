@@ -291,9 +291,11 @@ export function mergesOnItsOwn(
 		if (configured !== undefined) {
 			return configured === "yes";
 		}
-		const workcell = workcellPulls.has(pullKey(pull))
-			? auto.workcell[pull.repo]
-			: undefined;
+		// A checkout names its repo without a host, so its value applies only to a PR on github.com.
+		const workcell =
+			pull.host === undefined && workcellPulls.has(pullKey(pull))
+				? auto.workcell[pull.repo]
+				: undefined;
 		if (workcell !== undefined) {
 			return workcell === "yes";
 		}

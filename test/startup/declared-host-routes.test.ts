@@ -7,6 +7,7 @@ import type { PullRequest, Snapshot } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import { pendingStatus } from "../../src/stale-reads.ts";
 import { sqliteStore } from "../../src/store.ts";
+import { devkitWorktree } from "../support/checkouts.ts";
 import {
 	host,
 	hostedWidget,
@@ -228,5 +229,57 @@ describe("the review rules of a PR on a declared host", () => {
 				});
 			},
 		);
+	});
+
+	test("the workcell auto-merge of the same repo name on github.com does not reach the PR", async () => {
+		const checkout = await devkitWorktree({
+			key: "acme/widget#5",
+			status: "running",
+			mergeAuto: { merge: "yes" },
+		});
+		try {
+			await withHostedRow(
+				{
+					pulls: [storedPull(1, { host, closingKeys: ["acme/widget#5"] })],
+					tickets: [
+						{
+							id: "5",
+							tracker: "github",
+							key: "acme/widget#5",
+							title: "A ticket",
+							state: "open",
+							stateReason: null,
+							updatedAt: "2026-10-01T10:00:00.000Z",
+							body: "",
+							blockedBy: [],
+							milestone: null,
+							parent: null,
+							labels: [],
+							comments: [
+								{
+									body: `**Workcell progress**\n\n- final report sent https://${host}/acme/widget/pull/1`,
+									createdAt: "2026-10-01T10:00:00.000Z",
+								},
+							],
+						},
+					],
+				},
+				{ checkoutRoots: [checkout.root] },
+				async (base) => {
+					const response = await fetch(
+						new URL(`/api/projects/${encodeURIComponent(hostedName)}`, base),
+					);
+					const report = (await response.json()) as {
+						tickets: { key: string; state: string }[];
+					};
+					expect(
+						report.tickets.find((ticket) => ticket.key === "acme/widget#5")
+							?.state,
+					).toBe(finished);
+				},
+			);
+		} finally {
+			await checkout.cleanup();
+		}
 	});
 });
