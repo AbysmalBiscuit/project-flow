@@ -14,6 +14,7 @@ import type {
 	Snapshot,
 	Ticket,
 	TicketState,
+	TrackerKind,
 } from "./domain.ts";
 import { openImportantQuestions } from "./important-questions.ts";
 import type { KnownBot } from "./known-bots.ts";
@@ -34,7 +35,6 @@ import {
 	blockerClearedId,
 	commentNotificationId,
 	itemId,
-	keyTracker,
 	needsYouNotificationId,
 	needsYouSeenId,
 	pullKey,
@@ -123,6 +123,7 @@ export function attentionOf(
 				replyStamp: reply?.createdAt ?? "",
 				authors: newest.authors,
 				project: item.project,
+				tracker: item.tracker,
 				key: item.key,
 			});
 		}
@@ -197,8 +198,7 @@ export function notificationsFor(
 	const push = (
 		trigger: NotificationTrigger,
 		key: string,
-		project: string,
-		itemKey: string,
+		item: { project: string; tracker: TrackerKind; key: string },
 		text: string,
 	) => {
 		if (seen.has(key)) {
@@ -207,8 +207,9 @@ export function notificationsFor(
 		found.push({
 			id: key,
 			trigger,
-			project,
-			key: itemKey,
+			project: item.project,
+			tracker: item.tracker,
+			key: item.key,
 			text,
 			at,
 			read: false,
@@ -227,13 +228,7 @@ export function notificationsFor(
 			if (seen.has(seenId)) {
 				continue;
 			}
-			push(
-				"needsYou",
-				needsYouNotificationId(item, at),
-				item.project,
-				item.key,
-				item.headline,
-			);
+			push("needsYou", needsYouNotificationId(item, at), item, item.headline);
 		}
 	}
 	if (triggers.comment) {
@@ -262,8 +257,7 @@ export function notificationsFor(
 			push(
 				"comment",
 				commentNotificationId(comment, comment.stamp),
-				comment.project,
-				comment.key,
+				comment,
 				item?.headline ?? comment.key,
 			);
 		}
@@ -283,8 +277,7 @@ export function notificationsFor(
 			push(
 				"blockerCleared",
 				blockerClearedId(blocker, at),
-				blocker.project,
-				blocker.key,
+				blocker,
 				blocker.title,
 			);
 		}
@@ -315,7 +308,6 @@ export function inboxEntries(entries: Notification[], now: Date): InboxEntry[] {
 		return {
 			...entry,
 			day,
-			tracker: keyTracker(entry.key),
 		};
 	});
 }

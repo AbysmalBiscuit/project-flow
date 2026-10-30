@@ -29,11 +29,6 @@ export function githubKeyParts(
 		: null;
 }
 
-/** The tracker that a key's shape names. */
-export function keyTracker(key: string): TrackerKind {
-	return key.includes(numberMark) ? "github" : "linear";
-}
-
 /** The repo of a GitHub key, or null for any other key. */
 export function keyRepo(key: string): string | null {
 	return githubKeyParts(key)?.repo ?? null;
