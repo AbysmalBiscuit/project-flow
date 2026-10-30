@@ -1,4 +1,5 @@
 import type {
+	LinearShown,
 	NeedsYouItem,
 	NotificationTrigger,
 	Queued,
@@ -265,8 +266,15 @@ export const runStartCopy = {
 	title: "Start a run?",
 	body: (factory: string, label: string) =>
 		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
-	linearBody: (factory: string, label: string) =>
-		`Project Flow adds the label ${label} to the ticket. The factory ${factory} starts a run only when the workflow state of the ticket matches a rule of its source.`,
+	linearBody: (factory: string, { state, add, remove }: LinearShown) =>
+		[
+			`Project Flow moves the ticket to the workflow state ${state}.`,
+			...(add.length === 0 ? [] : [`It adds the labels ${add.join(", ")}.`]),
+			...(remove.length === 0
+				? []
+				: [`It removes the labels ${remove.join(", ")}.`]),
+			`Then the factory ${factory} starts a run of it.`,
+		].join(" "),
 	choices: "Run start choices",
 	runOn: (factory: string) => `Run on ${factory}`,
 	queueOn: (factory: string) => `Queue on ${factory}`,

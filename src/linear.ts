@@ -21,6 +21,7 @@ import {
 	addLinearLabel,
 	fetchLinearThread,
 	postLinearReply,
+	showLinearState,
 } from "./linear-thread.ts";
 import { type FoundProject, type Tracker, TrackerError } from "./ports.ts";
 
@@ -905,6 +906,9 @@ export function linearTracker(
 		},
 		addLabel(ticketKey, label) {
 			return addLinearLabel(key, fetchImpl, ticketKey, label);
+		},
+		showState(ticketKey, shown) {
+			return showLinearState(key, fetchImpl, ticketKey, shown);
 		},
 	};
 }

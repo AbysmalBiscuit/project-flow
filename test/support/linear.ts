@@ -304,6 +304,87 @@ export function linearFake(options: LinearFake = {}): Fetch {
 				},
 			});
 		}
+		if (query.query?.includes("ShownStateIds")) {
+			const variables = (
+				query as { variables?: { id?: string; labels?: string[] } }
+			).variables;
+			const issue = (options.issues ?? []).find(
+				(item) =>
+					item.identifier === variables?.id || item.id === variables?.id,
+			);
+			return json({
+				data: {
+					issue:
+						issue === undefined
+							? null
+							: {
+									id: issue.id,
+									team: {
+										...(issue.team as { id: string } | undefined),
+										states: {
+											nodes: (options.states ?? []).map(({ id, name }) => ({
+												id,
+												name,
+											})),
+										},
+									},
+								},
+					issueLabels: {
+						nodes: (options.labels ?? []).filter((label) =>
+							variables?.labels?.includes(label.name),
+						),
+					},
+				},
+			});
+		}
+		if (query.query?.includes("IssueShowState")) {
+			const { id, input } =
+				(
+					query as {
+						variables?: {
+							id?: string;
+							input?: {
+								stateId?: string;
+								addedLabelIds?: string[];
+								removedLabelIds?: string[];
+							};
+						};
+					}
+				).variables ?? {};
+			const issue = (options.issues ?? []).find((item) => item.id === id);
+			const state = (options.states ?? []).find(
+				(item) => item.id === input?.stateId,
+			);
+			if (issue === undefined || state === undefined) {
+				return json({ data: { issueUpdate: { success: false, issue: null } } });
+			}
+			const nameOf = (labelId: string) =>
+				(options.labels ?? []).find((label) => label.id === labelId)?.name;
+			const removed = new Set((input?.removedLabelIds ?? []).map(nameOf));
+			const held = (
+				(issue.labels as { nodes?: { name: string }[] } | undefined)?.nodes ??
+				[]
+			).filter((label) => !removed.has(label.name));
+			const added = (input?.addedLabelIds ?? []).flatMap((labelId) => {
+				const name = nameOf(labelId);
+				return name === undefined ? [] : [{ name }];
+			});
+			issue.state = {
+				id: state.id,
+				name: state.name,
+				type: state.type,
+				color: state.color,
+			};
+			issue.labels = { nodes: [...held, ...added] };
+			return json({
+				data: {
+					issueUpdate: {
+						success: true,
+						issue: { state: issue.state, labels: issue.labels },
+					},
+				},
+			});
+		}
 		if (query.query?.includes("IssueAddLabel")) {
 			const variables = (
 				query as { variables?: { id?: string; labelId?: string } }

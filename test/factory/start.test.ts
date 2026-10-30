@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 
-import { daemon, factoryFetch, hubUrl, serve } from "../support/factory.ts";
+import linearSources from "../fixtures/factory-hub-linear-sources.json";
+import { factoryFetch, hub, hubUrl, serve } from "../support/factory.ts";
 import { repo } from "../support/github.ts";
 import { linearFake } from "../support/linear.ts";
 import {
@@ -161,7 +162,7 @@ describe("run starts", () => {
 				app.base,
 				repo,
 				key,
-				(view) => view.runStart?.label === readyLabel,
+				(view) => view.runStart !== undefined,
 			);
 			await save((settings) => ({ ...settings, theme: "dark" }));
 			const written = JSON.parse(await readFile(app.configPath, "utf8")) as {
@@ -242,16 +243,21 @@ describe("run starts", () => {
 		}
 	});
 
-	test("Start run on a Linear ticket adds the team's ready label", async () => {
+	test("Start run on a Linear ticket in another workflow state writes the state and labels that its hub source maps to ready", async () => {
 		const writes: TrackerWrite[] = [];
 		const issue = {
 			id: "issue-pf-1",
 			identifier: "PF-1",
-			title: "Ready ticket",
+			title: "Backlog ticket",
 			description: "Body",
-			state: { type: "unstarted" },
+			state: {
+				id: "state-backlog",
+				name: "Backlog",
+				type: "backlog",
+				color: "#bec2c8",
+			},
 			updatedAt: "2026-08-18T12:00:00.000Z",
-			labels: { nodes: [] },
+			labels: { nodes: [{ name: "factory:failed" }] },
 			comments: { nodes: [] },
 			team: { id: "team-pf" },
 		};
@@ -262,18 +268,39 @@ describe("run starts", () => {
 				slugId: "widget-launch",
 			},
 			issues: [issue],
+			states: [
+				{
+					id: "state-backlog",
+					name: "Backlog",
+					type: "backlog",
+					position: 0,
+					color: "#bec2c8",
+				},
+				{
+					id: "state-todo",
+					name: "Todo",
+					type: "unstarted",
+					position: 1,
+					color: "#e2e2e2",
+				},
+			],
 			labels: [
-				{ id: "label-other-team", name: readyLabel, team: { id: "team-xx" } },
-				{ id: "label-pf", name: readyLabel, team: { id: "team-pf" } },
+				{ id: "label-other-team", name: "factory", team: { id: "team-xx" } },
+				{ id: "label-pf", name: "factory", team: { id: "team-pf" } },
+				{ id: "label-failed", name: "factory:failed", team: null },
 			],
 		});
 		const app = await serve(
 			[],
 			{
 				pinned: [{ tracker: "linear", project: "widget-launch" }],
-				factories: [{ name: "work hub", url: hubUrl, readyLabel }],
+				factories: [{ name: "work hub", url: hubUrl }],
 			},
-			factoryFetch({ [hubUrl]: daemon }, [], trackerWrites(writes, tracker)),
+			factoryFetch(
+				{ [hubUrl]: { ...hub, "/sources": linearSources } },
+				[],
+				trackerWrites(writes, tracker),
+			),
 			{ env: { LINEAR_API_KEY: "recorded-linear-key" } },
 		);
 		try {
@@ -281,9 +308,14 @@ describe("run starts", () => {
 				app.base,
 				"Widget launch",
 				"PF-1",
-				(item) => item.title !== "",
+				(item) => item.runStart !== undefined,
 			);
-			expect(view.runStart).toEqual({ factory: "work hub", label: readyLabel });
+			expect(view.runStart).toEqual({
+				factory: "work hub",
+				state: "Todo",
+				add: ["factory"],
+				remove: ["factory:failed"],
+			});
 			const response = await startRun(
 				app.base,
 				"linear",
@@ -296,14 +328,81 @@ describe("run starts", () => {
 					(write) =>
 						(JSON.parse(write.body) as { variables: unknown }).variables,
 				),
-			).toEqual([{ id: "issue-pf-1", labelId: "label-pf" }]);
-			const requested = await ticketWhere(
+			).toEqual([
+				{
+					id: "issue-pf-1",
+					input: {
+						stateId: "state-todo",
+						addedLabelIds: ["label-pf"],
+						removedLabelIds: ["label-failed"],
+					},
+				},
+			]);
+			await ticketWhere(
 				app.base,
 				"Widget launch",
 				"PF-1",
 				(item) => item.runStart?.requested === true,
 			);
-			expect(requested.runStart?.label).toBe(readyLabel);
+			const again = await startRun(app.base, "linear", "Widget launch", "PF-1");
+			expect(again.status).toBe(409);
+			expect(writes).toHaveLength(1);
+		} finally {
+			await app.stop();
+		}
+	});
+
+	test("a Linear ticket of a team that no hub source has refuses the start", async () => {
+		const writes: TrackerWrite[] = [];
+		const tracker = linearFake({
+			project: {
+				id: "11111111-1111-4111-8111-111111111111",
+				name: "Widget launch",
+				slugId: "widget-launch",
+			},
+			issues: [
+				{
+					id: "issue-ops-1",
+					identifier: "OPS-1",
+					title: "Other team",
+					description: "Body",
+					state: { id: "state-todo", name: "Todo", type: "unstarted" },
+					updatedAt: "2026-08-18T12:00:00.000Z",
+					labels: { nodes: [] },
+					comments: { nodes: [] },
+					team: { id: "team-ops" },
+				},
+			],
+		});
+		const app = await serve(
+			[],
+			{
+				pinned: [{ tracker: "linear", project: "widget-launch" }],
+				factories: [{ name: "work hub", url: hubUrl, readyLabel }],
+			},
+			factoryFetch(
+				{ [hubUrl]: { ...hub, "/sources": linearSources } },
+				[],
+				trackerWrites(writes, tracker),
+			),
+			{ env: { LINEAR_API_KEY: "recorded-linear-key" } },
+		);
+		try {
+			const view = await ticketWhere(
+				app.base,
+				"Widget launch",
+				"OPS-1",
+				(item) => item.title !== "",
+			);
+			expect(view.runStart).toBeUndefined();
+			const response = await startRun(
+				app.base,
+				"linear",
+				"Widget launch",
+				"OPS-1",
+			);
+			expect(response.status).toBe(409);
+			expect(writes).toEqual([]);
 		} finally {
 			await app.stop();
 		}
