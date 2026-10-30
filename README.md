@@ -173,7 +173,7 @@ A pin with no `host` is on github.com. A pin with `host` set to `github.com` is 
 
 With no token in the env var, each project of the host shows an error that names the env var. The projects of other hosts poll. With a token, the project shows an error when no adapter can read the host. The app does not send that token to another host.
 
-`expectedBots` and `pmBot` keep the settings of a repo on a declared host under `host/owner/name`, such as `git.acme.dev/acme/widget`. The same repo on github.com keeps its own settings under `owner/name`.
+`expectedBots`, `pmBot` and `autoMerge` keep the settings of a repo on a declared host under `host/owner/name`, such as `git.acme.dev/acme/widget`. The same repo on github.com keeps its own settings under `owner/name`. A bare key does not apply to a repo on a declared host.
 
 ## Store
 

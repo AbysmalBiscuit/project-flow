@@ -263,6 +263,8 @@ export type AutoMergeSources = {
 	config: Record<string, AutoMerge>;
 	workcell: Record<string, AutoMerge>;
 	repo: Record<string, boolean>;
+	/** The declared host of the project whose PRs these sources judge. */
+	projectHost: string | undefined;
 };
 
 /** True when every open PR merges with no human. Workcell `merge_auto` applies only to `workcellPulls`. */
@@ -278,8 +280,14 @@ export function mergesOnItsOwn(
 		return false;
 	}
 	return open.every((pull) => {
+		const projectValue = (key: string) =>
+			pull.host !== undefined && key === pull.repo
+				? undefined
+				: auto.config[key];
 		const configured =
-			auto.config[pull.repo] ?? auto.config[projectKey] ?? auto.config[project];
+			auto.config[settingsKey(pull.repo, pull.host)] ??
+			projectValue(settingsKey(projectKey, auto.projectHost)) ??
+			projectValue(project);
 		if (configured !== undefined) {
 			return configured === "yes";
 		}

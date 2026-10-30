@@ -124,7 +124,12 @@ const merges = pulls.map((pull) => ({
 		[pull],
 		"Launch",
 		"launch",
-		{ config: {}, workcell: {}, repo: options.repoAutoMerge },
+		{
+			config: {},
+			workcell: {},
+			repo: options.repoAutoMerge,
+			projectHost: undefined,
+		},
 		new Set(),
 	),
 }));

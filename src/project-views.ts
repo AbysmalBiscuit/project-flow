@@ -116,6 +116,7 @@ function computeProjectView(
 			config: configuration.autoMerge,
 			workcell: options.workcellAuto,
 			repo: options.repoAutoMerge,
+			projectHost: row.host,
 		},
 		graph,
 		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),

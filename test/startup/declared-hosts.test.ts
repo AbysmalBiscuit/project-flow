@@ -653,4 +653,46 @@ describe("the review rules of a PR on a declared host", () => {
 			},
 		);
 	});
+
+	test("an auto-merge override under the bare repo key does not reach the PR", async () => {
+		await withHostedRow(
+			{ pulls: [storedPull(1, { host })], tickets: [] },
+			{ autoMerge: { "acme/widget": "yes" } },
+			async (base) => {
+				expect(await hostedPullStates(base)).toEqual({
+					"acme/widget#1": finished,
+				});
+			},
+		);
+	});
+
+	test("an auto-merge override under the host key reaches the PR", async () => {
+		await withHostedRow(
+			{
+				pulls: [storedPull(1, { host, repo: "acme/other" })],
+				tickets: [],
+			},
+			{ autoMerge: { [`${host}/acme/other`]: "yes" } },
+			async (base) => {
+				expect(await hostedPullStates(base)).toEqual({
+					"acme/other#1": waiting,
+				});
+			},
+		);
+	});
+
+	test("the bare project key does not reach another repo of the project", async () => {
+		await withHostedRow(
+			{
+				pulls: [storedPull(1, { host, repo: "acme/other" })],
+				tickets: [],
+			},
+			{ autoMerge: { "acme/widget": "yes" } },
+			async (base) => {
+				expect(await hostedPullStates(base)).toEqual({
+					"acme/other#1": finished,
+				});
+			},
+		);
+	});
 });
