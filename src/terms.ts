@@ -1,4 +1,5 @@
 import type {
+	LinearShown,
 	NeedsYouItem,
 	NotificationTrigger,
 	Queued,
@@ -258,6 +259,9 @@ export const runResumeCopy = {
 	restartFailed: "Restart failed",
 } as const;
 
+const labelList = (labels: readonly string[]) =>
+	`${labels.length === 1 ? "the label" : "the labels"} ${labels.join(", ")}`;
+
 export const runStartCopy = {
 	action: "Start run",
 	pending: "Starting",
@@ -265,8 +269,13 @@ export const runStartCopy = {
 	title: "Start a run?",
 	body: (factory: string, label: string) =>
 		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
-	linearBody: (factory: string, label: string) =>
-		`Project Flow adds the label ${label} to the ticket. The factory ${factory} starts a run only when the workflow state of the ticket matches a rule of its source.`,
+	linearBody: (factory: string, { state, add, remove }: LinearShown) =>
+		[
+			`Project Flow moves the ticket to the workflow state ${state}.`,
+			...(add.length === 0 ? [] : [`It adds ${labelList(add)}.`]),
+			...(remove.length === 0 ? [] : [`It removes ${labelList(remove)}.`]),
+			`Then the factory ${factory} starts a run of it.`,
+		].join(" "),
 	choices: "Run start choices",
 	runOn: (factory: string) => `Run on ${factory}`,
 	queueOn: (factory: string) => `Queue on ${factory}`,
@@ -817,9 +826,11 @@ export const factoryCopy = {
 	none: "No factory set.",
 	name: "Factory name",
 	url: "http, https or unix URL",
-	readyLabel: "Run start label (optional)",
-	readyLabelOf: (label: string) => `run start label ${label}`,
-	readyStatusOf: (status: string) => `run start status ${status}`,
+	runStartLead:
+		"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. On either tracker, a ticket with the label and the queue status of a factory shows as queued.",
+	readyLabel: "Start and queue label (optional)",
+	readyLabelOf: (label: string) => `start and queue label ${label}`,
+	readyStatusOf: (status: string) => `queue status ${status}`,
 	reachable: "Reachable",
 	unreachable: "Unreachable",
 	unchecked: "Not checked",

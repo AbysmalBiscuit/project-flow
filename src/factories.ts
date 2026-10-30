@@ -3,6 +3,7 @@ import { factoryUrl } from "./configuration.ts";
 import type {
 	FactoryQuestion,
 	FactoryRun,
+	LinearSource,
 	RunEvent,
 	RunMessage,
 	RunStatusKind,
@@ -48,6 +49,7 @@ import { runSandboxReader } from "./factory-run-sandbox.ts";
 import { runSettingsReader } from "./factory-run-settings.ts";
 import { runSourceReader } from "./factory-run-source.ts";
 import { runTranscriptReader } from "./factory-run-transcript.ts";
+import { linearSourcesOf } from "./factory-sources.ts";
 import type { Fetch } from "./fetch.ts";
 import type { FactoryReader } from "./ports.ts";
 
@@ -234,12 +236,33 @@ export function factoryReader(
 	/** The factories whose `GET /events` answered once. */
 	const serving = new Set<string>();
 	let checking: Promise<void> | null = null;
+	/** The Linear sources of each hub, by factory url, from its last good `GET /sources`. */
+	const linearSources = new Map<string, LinearSource[]>();
+	const readLinearSources = async (
+		factory: ListedFactory,
+		read: Read,
+	): Promise<void> => {
+		try {
+			linearSources.set(factory.url, await linearSourcesOf(read, factory.name));
+		} catch (error) {
+			if (!(error instanceof Unreachable)) {
+				throw error;
+			}
+		}
+	};
 	const checkOne = async (factory: ListedFactory): Promise<Found> => {
 		const read = reader(fetchImpl, factory.url, signal);
 		const known = found.get(factory.url);
 		try {
 			const { role, slots } = await body(await read("/daemon"), about);
 			const reported = slots === undefined ? {} : { slots };
+			const kind =
+				known?.reachable === true && known.kind !== null
+					? known.kind
+					: await factoryKind(read, role);
+			if (kind === "hub") {
+				await readLinearSources(factory, read);
+			}
 			if (known?.reachable === true && known.kind !== null) {
 				return {
 					reachable: true,
@@ -248,7 +271,6 @@ export function factoryReader(
 					...reported,
 				};
 			}
-			const kind = await factoryKind(read, role);
 			return {
 				reachable: true,
 				kind,
@@ -561,6 +583,8 @@ export function factoryReader(
 		check,
 		settled,
 		entries,
+		linearSources: () =>
+			listed().flatMap((factory) => linearSources.get(factory.url) ?? []),
 		unreachable,
 		readRuns: readAllRuns,
 		follow,

@@ -199,6 +199,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		runs: [],
 		factoryRuns: factories.runs,
 		listedFactories,
+		linearSources: factories.linearSources,
 		runStartRequests: new Map(),
 		workcellAuto: {},
 		repoAutoMerge: {},
@@ -280,6 +281,7 @@ export async function start(options: StartOptions): Promise<Running> {
 		JSON.stringify([
 			factories.unreachable(),
 			factories.entries(),
+			factories.linearSources(),
 			factories.runs(),
 		]);
 	const publishOverview = () => {

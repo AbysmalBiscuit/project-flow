@@ -37,7 +37,7 @@ function claimLabel({ factory, free }: ClaimChoice): string {
 }
 
 /**
- * Start run for a ticket that can start one. Lev confirms, and the app adds the ready label.
+ * Start run for a ticket that can start one. Lev confirms, and the app writes the run start to the ticket.
  * Its menu offers Run on or Queue on each factory, which claims the ticket on that factory.
  * With no ready label, the button only opens that menu.
  */
@@ -59,10 +59,8 @@ export function RunStartButton({
 			? runStartCopy.pending
 			: runStartCopy.action;
 	const disabled = requested || startRun.isPending;
-	const labelBody =
-		ticket.tracker === "linear" ? runStartCopy.linearBody : runStartCopy.body;
 	const labelStart =
-		start.label === undefined ? undefined : () => setAsking("label");
+		start.factory === undefined ? undefined : () => setAsking("label");
 	if (labelStart === undefined && choices.length === 0 && !requested) {
 		return null;
 	}
@@ -97,9 +95,11 @@ export function RunStartButton({
 				title={runStartCopy.title}
 				body={
 					asking === null || asking === "label"
-						? start.label === undefined
+						? start.factory === undefined
 							? ""
-							: labelBody(start.factory, start.label)
+							: start.label === undefined
+								? runStartCopy.linearBody(start.factory, start)
+								: runStartCopy.body(start.factory, start.label)
 						: (asking.free ? runStartCopy.runOnBody : runStartCopy.queueOnBody)(
 								asking.factory,
 							)
