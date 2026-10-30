@@ -7,6 +7,7 @@ import type {
 } from "../../src/domain.ts";
 import type { Fetch } from "../../src/fetch.ts";
 import daemonSlots from "../fixtures/factory-daemon-slots.json";
+import linearSources from "../fixtures/factory-hub-linear-sources.json";
 import hubRuns from "../fixtures/factory-hub-runs.json";
 import {
 	type Answers,
@@ -220,6 +221,16 @@ export function hubWith41(kind: string): Answers {
 }
 
 export const readyLabel = "ready-for-agent";
+
+/** The recorded Linear sources of a hub, each with these dispatch rules. */
+export function sourcesWithRules(
+	rules: { name: string; state: string; labels: string[]; without: string[] }[],
+) {
+	return {
+		...linearSources,
+		sources: linearSources.sources.map((source) => ({ ...source, rules })),
+	};
+}
 
 export type TrackerWrite = { url: string; body: string };
 

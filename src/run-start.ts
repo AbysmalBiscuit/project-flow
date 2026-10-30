@@ -79,13 +79,14 @@ export function runStartOf(
 		return { refused };
 	}
 	if (ticket.tracker === "linear") {
-		const start = linearStart(ticket, linearSources);
-		if ("refused" in start) {
-			return start;
+		const starts = linearStarts(ticket, linearSources);
+		if ("refused" in starts) {
+			return starts;
 		}
 		const waits =
-			shows(ticket, start) && waitsForRun(ticket, newestRun, requests);
-		return { ...start, ...(waits ? { requested: true } : {}) };
+			starts.some((start) => shows(ticket, start)) &&
+			waitsForRun(ticket, newestRun, requests);
+		return { ...starts[0], ...(waits ? { requested: true } : {}) };
 	}
 	const claimWaits = pendingRequest(ticket, requests)?.claim === true;
 	const factory = factories.find((item) => item.readyLabel !== undefined);
@@ -115,13 +116,14 @@ type LinearStart = { factory: string } & LinearShown;
 const readyState = "Ready";
 
 /**
- * The ready state, as the hub source of the ticket's team shows it, plus the
- * labels of the first ready rule that does not exclude the ticket.
+ * One start for each ready rule that does not exclude the ticket, in rule order:
+ * the ready state, as the hub source of the ticket's team shows it, plus the labels
+ * of the rule. The hub claims a ticket that shows any of them. A start writes the first.
  */
-function linearStart(
+function linearStarts(
 	ticket: StartTicket,
 	sources: RunStarts["linearSources"],
-): LinearStart | Refused {
+): [LinearStart, ...LinearStart[]] | Refused {
 	const team = ticket.key?.split("-")[0]?.toLowerCase();
 	const [source, ...others] = sources.filter(
 		(item) => item.team.toLowerCase() === team,
@@ -129,7 +131,7 @@ function linearStart(
 	if (source === undefined || others.length > 0) {
 		return { refused: "no one hub source has the team of the ticket" };
 	}
-	const rule = source.rules.find(
+	const [rule, ...laterRules] = source.rules.filter(
 		({ state, without }) =>
 			state === readyState && !without.some((label) => hasLabel(ticket, label)),
 	);
@@ -141,12 +143,13 @@ function linearStart(
 		add: [],
 		remove: [],
 	};
-	return {
+	const startOf = ({ labels }: { labels: string[] }): LinearStart => ({
 		factory: source.factory,
 		state: shown.state,
-		add: [...new Set([...shown.add, ...rule.labels])],
+		add: [...new Set([...shown.add, ...labels])],
 		remove: shown.remove,
-	};
+	});
+	return [startOf(rule), ...laterRules.map(startOf)];
 }
 
 /** True when the ticket already shows what the Linear start writes. */
@@ -236,14 +239,17 @@ export function settledRequests(
 }
 
 /**
- * The first factory whose ready condition an open ticket meets while no run of it started.
- * A factory with both a ready label and a ready status needs both. A pending claim names
- * its own factory, so the ready condition of another factory does not queue the ticket.
+ * The factory that claims an open ticket while no run of it started.
+ * A Linear ticket is queued when it shows what a ready rule of its hub source
+ * maps to, so the hub source rule decides it. On GitHub, the first factory whose
+ * ready condition the ticket meets queues it. A factory with both a ready label and
+ * a ready status needs both. A pending claim names its own factory, so the ready condition of
+ * another factory does not queue the ticket.
  */
 export function queuedOf(
-	ticket: Pick<Ticket, "key" | "state" | "labels" | "status">,
+	ticket: StartTicket,
 	newestRun: Pick<FactoryRun, "statusKind"> | undefined,
-	{ factories, requests }: RunStarts,
+	{ factories, linearSources, requests }: RunStarts,
 ): Queued | undefined {
 	if (
 		ticket.state !== "open" ||
@@ -251,6 +257,16 @@ export function queuedOf(
 		pendingRequest(ticket, requests)?.claim === true
 	) {
 		return undefined;
+	}
+	if (ticket.tracker === "linear") {
+		const starts = linearStarts(ticket, linearSources);
+		const start =
+			"refused" in starts
+				? undefined
+				: starts.find((item) => shows(ticket, item));
+		return start === undefined
+			? undefined
+			: { factory: start.factory, status: start.state };
 	}
 	const status = ticket.status?.name.toLowerCase();
 	const factory = factories.find(
