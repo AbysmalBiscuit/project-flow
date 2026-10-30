@@ -236,6 +236,134 @@ describe("a project on a declared host", () => {
 	});
 });
 
+describe("the bot settings of a project on a declared host", () => {
+	const hostedKey = `${host}/acme/widget`;
+	const settingsUrl = (base: string) => new URL("/api/settings", base);
+
+	type BotRow = {
+		key: string;
+		repos: string[];
+		pmBot: boolean;
+		expectedBots: string[];
+		repoBots: Record<string, string[]>;
+	};
+
+	const botRows = (settings: unknown) => {
+		const { projects } = settings as { projects: BotRow[] };
+		return Object.fromEntries(projects.map((row) => [row.key, row]));
+	};
+
+	/** Starts the app, and runs the checks against it. */
+	async function withStarted(
+		configuration: unknown,
+		checks: (base: string) => Promise<void>,
+	): Promise<void> {
+		const { path, cleanup } = await tempConfig(JSON.stringify(configuration));
+		let release: () => void = () => {};
+		let finished: Promise<void> = Promise.resolve();
+		const asked = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		try {
+			await run(
+				["--config", path, "--host", "127.0.0.1", "--port", "0"],
+				testIo({
+					env: { GITHUB_TOKEN: "recorded-token" },
+					fetch: recordedFetch(200),
+					readGhToken: async () => null,
+					databasePath: ":memory:",
+					stdout: (line) => {
+						finished = checks(line);
+						release();
+					},
+					waitForStop: asked.then(() => finished),
+				}),
+			);
+			await finished;
+		} finally {
+			await cleanup();
+		}
+	}
+
+	test("read apart from the settings of the same repo on github.com", async () => {
+		const { settings } = await readStarted(
+			{
+				hosts,
+				tracked: [widget, hostedWidget],
+				expectedBots: {
+					"acme/widget": ["codex"],
+					[hostedKey]: ["grok"],
+				},
+				pmBot: { "acme/widget": false },
+			},
+			{ GITHUB_TOKEN: "recorded-token" },
+			recordedFetch(200),
+		);
+		const rows = botRows(settings);
+		expect(rows["acme/widget"]).toMatchObject({
+			repos: ["acme/widget"],
+			pmBot: false,
+			expectedBots: ["codex"],
+			repoBots: { "acme/widget": ["codex"] },
+		});
+		expect(rows[hostedKey]).toMatchObject({
+			repos: [hostedKey],
+			pmBot: true,
+			expectedBots: ["grok"],
+			repoBots: { [hostedKey]: ["grok"] },
+		});
+	});
+
+	test("a settings write under the host key leaves the github.com row alone", async () => {
+		await withStarted(
+			{ hosts, tracked: [widget, hostedWidget] },
+			async (base) => {
+				const loaded = (await (
+					await fetch(settingsUrl(base))
+				).json()) as Record<string, unknown>;
+				const saved = await fetch(settingsUrl(base), {
+					method: "PUT",
+					body: JSON.stringify({
+						...loaded,
+						pmBot: { [hostedKey]: false },
+						expectedBots: { [hostedKey]: ["codex"] },
+					}),
+				});
+				expect(saved.status).toBe(200);
+				const rows = botRows(await saved.json());
+				expect(rows[hostedKey]).toMatchObject({
+					pmBot: false,
+					expectedBots: ["codex"],
+				});
+				expect(rows["acme/widget"]).toMatchObject({
+					pmBot: true,
+					expectedBots: [],
+				});
+			},
+		);
+	});
+
+	test("a settings write refuses the bare repo key of a repo on a declared host", async () => {
+		await withStarted({ hosts, tracked: [hostedWidget] }, async (base) => {
+			const loaded = (await (await fetch(settingsUrl(base))).json()) as Record<
+				string,
+				unknown
+			>;
+			const saved = await fetch(settingsUrl(base), {
+				method: "PUT",
+				body: JSON.stringify({
+					...loaded,
+					expectedBots: { "acme/widget": ["codex"] },
+				}),
+			});
+			expect(saved.status).toBe(400);
+			expect(await saved.json()).toEqual({
+				error: "invalid configuration: expectedBots.acme/widget",
+			});
+		});
+	});
+});
+
 describe("the configuration of a host", () => {
 	test("a pin on an undeclared host stops the load and names the field", async () => {
 		const stderr = await readLoadFailure({ tracked: [hostedWidget] });

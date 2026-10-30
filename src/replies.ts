@@ -6,6 +6,7 @@ import type {
 	Ticket,
 } from "./domain.ts";
 import { openAsk, projectHasPmBot } from "./open-ask.ts";
+import { settingsKey } from "./project-ref.ts";
 import { githubKeyParts, sameTicketKey } from "./ticket-key.ts";
 
 type ReplyTarget = Pick<ReplyRequest, "tracker" | "project" | "key">;
@@ -81,7 +82,7 @@ export function replyRequest(
 	);
 	const pmBot = projectHasPmBot(
 		pmBots,
-		row?.key ?? draft.project,
+		row === undefined ? draft.project : settingsKey(row.key, row.host),
 		draft.tracker,
 	);
 	const picked =

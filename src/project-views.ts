@@ -3,16 +3,19 @@ import { type TicketGraph, ticketGraph } from "./blockers.ts";
 import type { Configuration } from "./configuration.ts";
 import { projectCounts } from "./counts.ts";
 import type { Attention, FetchStatus, Overview, Snapshot } from "./domain.ts";
+import { projectHasPmBot } from "./open-ask.ts";
 import { staleView } from "./poll-merge.ts";
 import type { PollOptions } from "./poll.ts";
 import type { Viewer } from "./ports.ts";
 import {
+	hostEntries,
 	listedRef,
 	pinRef,
 	projectId,
 	refPin,
 	refRepo,
 	sameProject,
+	settingsKey,
 } from "./project-ref.ts";
 import { expectedBotsByRepo } from "./review.ts";
 import { runList, type RunListRow } from "./run-list.ts";
@@ -50,9 +53,17 @@ export function viewerLogins(
 	return override.length === 0 ? found : [...override, ...found];
 }
 
-function needsYouRules(configuration: Configuration, viewers: Viewer[]) {
+function needsYouRules(
+	row: Snapshot,
+	configuration: Configuration,
+	viewers: Viewer[],
+) {
 	return {
-		pmBot: configuration.pmBot,
+		pmBot: projectHasPmBot(
+			configuration.pmBot,
+			settingsKey(row.key, row.host),
+			row.tracker,
+		),
 		labels: configuration.needsYouLabels,
 		viewerLogins: viewerLogins(configuration, viewers),
 	};
@@ -108,9 +119,12 @@ function computeProjectView(
 			repo: options.repoAutoMerge,
 		},
 		graph,
-		expectedBotsByRepo(row.pulls, configuration.expectedBots ?? {}),
+		expectedBotsByRepo(
+			row.pulls,
+			hostEntries(configuration.expectedBots ?? {}, row.host),
+		),
 		status,
-		needsYouRules(configuration, options.viewers),
+		needsYouRules(row, configuration, options.viewers),
 		configuration,
 		{
 			factories: options.listedFactories(),
