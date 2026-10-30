@@ -36,7 +36,7 @@ _Avoid_: Source, provider, tool
 
 **Forge**:
 The external system that hosts the git refs and PRs of a repo, such as GitHub, GitLab or Forgejo. It holds the branches, the reviews, the checks and the merge state. A ticket's tracker and its repo's forge can be different systems.
-_Avoid_: Host, code host, git provider
+_Avoid_: Code host, git provider
 
 ### Grouping
 
