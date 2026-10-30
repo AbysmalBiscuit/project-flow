@@ -15,6 +15,7 @@ import type {
 	Ticket,
 	TicketState,
 } from "./domain.ts";
+import { openImportantQuestions } from "./important-questions.ts";
 import type { KnownBot } from "./known-bots.ts";
 import {
 	type OpenAsk,
@@ -344,12 +345,19 @@ function needsYouItem(
 ): NeedsYouItem {
 	const reply = ask?.answer?.comment ?? null;
 	const pull = pulls.find((item) => !item.merged) ?? pulls[0];
+	const openQuestions =
+		reason === "awaitingMerge"
+			? pulls
+					.filter((item) => !item.merged)
+					.flatMap((item) => openImportantQuestions(item.body)).length
+			: 0;
 	return {
 		project,
 		tracker,
 		key,
 		headline: ask?.headline ?? title,
-		reason,
+		reason: openQuestions > 0 ? "decide" : reason,
+		...(openQuestions > 0 ? { openQuestions } : {}),
 		tags: ask?.tags ?? [],
 		answered: reply !== null,
 		acknowledged: (reply?.reactions ?? 0) > 0,

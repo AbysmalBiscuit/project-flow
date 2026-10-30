@@ -719,13 +719,15 @@ export type NeedsYouItem = {
 	tracker: Tracker;
 	key: string;
 	headline: string;
-	reason: "ask" | "awaitingMerge" | "label" | "runFailed";
+	reason: "ask" | "awaitingMerge" | "decide" | "label" | "runFailed";
 	tags: string[];
 	answered: boolean;
 	acknowledged: boolean;
 	question?: string;
 	options?: AskOption[];
 	pull?: PullStatus;
+	/** The count of Important Questions on the open PRs that have no answer. */
+	openQuestions?: number;
 	/** The factory question that the ask comes from, and the run that waits on it. */
 	factoryAsk?: { factory: string; run: string; question: string };
 };
