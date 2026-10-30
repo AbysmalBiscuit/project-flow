@@ -13,6 +13,7 @@ import {
 	type ProjectRef,
 	sameProject,
 } from "./project-ref.ts";
+import { linked } from "./pull-links.ts";
 import { foldKey, pullKey, ticketId } from "./ticket-key.ts";
 
 export function staleView(
@@ -45,16 +46,36 @@ export function mergeTickets(stored: Ticket[], incoming: Ticket[]): Ticket[] {
 	return [...byId.values()];
 }
 
+/**
+ * The stored merged pulls that a full read left out and that still link one
+ * of its tickets. The read takes one page of merged pulls, and a merged pull
+ * does not change, so the store keeps the link of an older closed ticket.
+ */
+function keptMergedPulls(
+	stored: PullRequest[],
+	incomingIds: Set<string>,
+	tickets: Ticket[],
+): PullRequest[] {
+	const missed = stored.filter(
+		(pull) => pull.merged && !incomingIds.has(foldKey(pullKey(pull))),
+	);
+	const linkedPulls = new Set(
+		tickets.flatMap((ticket) => linked(ticket, missed)),
+	);
+	return missed.filter((pull) => linkedPulls.has(pull));
+}
+
 function keptPulls(
 	stored: PullRequest[],
 	incoming: PullRequest[],
 	returnedIds: Set<string>,
+	tickets: Ticket[],
 	full: boolean,
 ): PullRequest[] {
-	if (full) {
-		return incoming;
-	}
 	const incomingIds = new Set(incoming.map((pull) => foldKey(pullKey(pull))));
+	if (full) {
+		return [...incoming, ...keptMergedPulls(stored, incomingIds, tickets)];
+	}
 	const incomingKeys = new Set(
 		incoming.flatMap((pull) => pull.closingKeys.map((key) => foldKey(key))),
 	);
@@ -106,6 +127,7 @@ export function reconcilePoll(
 					prior?.pulls ?? [],
 					outcome.row.pulls,
 					returnedIds,
+					tickets,
 					outcome.full,
 				),
 				...(listedEmpty === undefined ? {} : { listedEmpty }),
