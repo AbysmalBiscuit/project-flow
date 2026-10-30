@@ -412,7 +412,7 @@ export async function inboxOf(base: string): Promise<InboxEntry[]> {
 	const response = await fetch(new URL("/api/inbox", base));
 	expect(response.status).toBe(200);
 	return ((await response.json()) as InboxEntry[]).map((entry) => {
-		const { day: _day, tracker: _tracker, ...notification } = entry;
+		const { day: _day, ...notification } = entry;
 		return notification as InboxEntry;
 	});
 }

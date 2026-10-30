@@ -48,7 +48,7 @@ import {
 	threadMissingLabel,
 	threadRetryLabel,
 } from "./terms.ts";
-import { sameTicketKey, type TicketRef } from "./ticket-key.ts";
+import { githubIssueUrl, sameTicketKey, type TicketRef } from "./ticket-key.ts";
 import { clsx } from "./ui.ts";
 
 type ReplyTarget = {
@@ -57,8 +57,8 @@ type ReplyTarget = {
 };
 
 function trackerUrl(ticket: TicketRef): string | undefined {
-	if (ticket.tracker === "github" && ticket.key.includes("#")) {
-		return `https://github.com/${ticket.key.replace("#", "/issues/")}`;
+	if (ticket.tracker === "github") {
+		return githubIssueUrl(ticket.key);
 	}
 	if (ticket.tracker === "linear") {
 		return `https://linear.app/issue/${ticket.key}`;

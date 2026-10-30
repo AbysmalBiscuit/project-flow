@@ -1,10 +1,9 @@
-import type { PullRequest, Ticket } from "./domain.ts";
+import type { PullRequest, Ticket, TrackerKind } from "./domain.ts";
 import type { Forge, PullLink, PullRef } from "./ports.ts";
 import {
 	foldKey,
 	githubKey,
 	keyNumber,
-	keyTracker,
 	linearKey,
 	sameTicketKey,
 } from "./ticket-key.ts";
@@ -50,17 +49,23 @@ function closedByBody(pull: PullRequest): string[] {
 
 const leadingNumber = /^(?:[^/]+\/)?(\d+)-/;
 
-export function branchLinksTicket(branch: string, key: string): boolean {
+export function branchLinksTicket(
+	branch: string,
+	key: string,
+	tracker: TrackerKind,
+): boolean {
 	const number = keyNumber(key);
 	const leading = branch.match(leadingNumber)?.[1];
 	if (leading !== undefined) {
 		return number !== null && leading === number;
 	}
-	return keyTracker(key) === "github" && foldKey(branch).includes(foldKey(key));
+	return tracker === "github" && foldKey(branch).includes(foldKey(key));
 }
 
 /** Finds the pulls that close a ticket key or name it in their branch, in pull order. */
-function pullFinder(pulls: PullRequest[]): (key: string) => PullRequest[] {
+function pullFinder(
+	pulls: PullRequest[],
+): (key: string, tracker: TrackerKind) => PullRequest[] {
 	const byKey = new Map<string, number[]>();
 	const byBranchNumber = new Map<string, number[]>();
 	const unnumbered: number[] = [];
@@ -81,13 +86,13 @@ function pullFinder(pulls: PullRequest[]): (key: string) => PullRequest[] {
 			]);
 		}
 	});
-	return (key) => {
+	return (key, tracker) => {
 		const number = keyNumber(key);
 		const positions = new Set([
 			...(byKey.get(foldKey(key)) ?? []),
 			...(number === null ? [] : (byBranchNumber.get(number) ?? [])),
 			...unnumbered.filter((position) =>
-				branchLinksTicket(pulls[position]?.branch ?? "", key),
+				branchLinksTicket(pulls[position]?.branch ?? "", key, tracker),
 			),
 		]);
 		return [...positions]
@@ -96,10 +101,7 @@ function pullFinder(pulls: PullRequest[]): (key: string) => PullRequest[] {
 	};
 }
 
-const pullFinders = new WeakMap<
-	PullRequest[],
-	(key: string) => PullRequest[]
->();
+const pullFinders = new WeakMap<PullRequest[], ReturnType<typeof pullFinder>>();
 
 export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 	if (ticket.key === null) {
@@ -110,7 +112,7 @@ export function linked(ticket: Ticket, pulls: PullRequest[]): PullRequest[] {
 		find = pullFinder(pulls);
 		pullFinders.set(pulls, find);
 	}
-	return find(ticket.key);
+	return find(ticket.key, ticket.tracker);
 }
 
 /** The links of each forge. The host of a URL selects its forge, and a URL that names no PR on that forge gives no link. */

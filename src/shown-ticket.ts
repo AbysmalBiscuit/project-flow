@@ -103,7 +103,8 @@ export function shownTicket(
 	const key = ticket.key;
 	const started = key !== null && startedKeys.has(foldKey(key));
 	const pushed =
-		key !== null && branches.some((branch) => branchLinksTicket(branch, key));
+		key !== null &&
+		branches.some((branch) => branchLinksTicket(branch, key, ticket.tracker));
 	const draft = links.some((pull) => pull.draft);
 	const run = liveRun(ticket, runs, fed, now);
 	const live = run?.status === "running";

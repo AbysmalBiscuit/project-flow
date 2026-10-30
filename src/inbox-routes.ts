@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { inboxEntries } from "./attention.ts";
+import { inboxEntries } from "./inbox-entries.ts";
 import type { Clock, Store } from "./ports.ts";
 import { routeTable } from "./route-table.ts";
 
