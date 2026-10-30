@@ -17,7 +17,14 @@ await serveRecorded({
 		pinned: [{ tracker: "linear", project: "widget-launch" }],
 		checkoutRoots: [],
 		pollIntervalSeconds: 3600,
-		factories: [{ name: "work hub", url: hubUrl }],
+		factories: [
+			{
+				name: "work hub",
+				url: hubUrl,
+				readyLabel: "factory",
+				readyStatus: "Todo",
+			},
+		],
 	},
 	fetch: factoryFetch(
 		{ [hubUrl]: { ...hub, "/sources": linearSources } },

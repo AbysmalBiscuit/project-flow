@@ -110,6 +110,7 @@ export function FactoriesSection({
 			<p className={clsx(fields.hint)}>
 				{flagged.length > 0 ? factoryCopy.flagLead : factoryCopy.lead}
 			</p>
+			<p className={clsx(fields.hint)}>{factoryCopy.runStartLead}</p>
 			{flagged.map((entry, index) => (
 				<Row key={entry.url} title={entry.name} hint={detail(entry, entry)}>
 					<span className={clsx(fields.chips)}>
