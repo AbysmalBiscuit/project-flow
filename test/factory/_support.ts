@@ -239,7 +239,7 @@ export function trackerWrites(writes: TrackerWrite[], other: Fetch): Fetch {
 /**
  * A hub with the recorded runs, and a tracked repo with the open issues `numbers`.
  * Issue 41 has a running run, and issue 40 a succeeded run. Issue 43 has no run.
- * `hubAnswers` replaces the recorded answers of the hub, and `otherFactory` adds a second factory.
+ * `hubAnswers` replaces the recorded answers of the hub, and `otherFactories` lists more factories after it.
  */
 export async function serveGithub(
 	numbers: number[],
@@ -249,7 +249,12 @@ export async function serveGithub(
 		args?: string[];
 		labels?: Record<number, string[]>;
 		hubAnswers?: Answers;
-		otherFactory?: { name: string; url: string; answers: Answers };
+		otherFactories?: {
+			name: string;
+			url: string;
+			answers: Answers;
+			readyLabel?: string;
+		}[];
 	} = {},
 ) {
 	const labels = new Map<number, string[]>(
@@ -307,22 +312,20 @@ export async function serveGithub(
 						? {}
 						: { readyLabel: options.readyLabel }),
 				},
-				...(options.otherFactory === undefined
-					? []
-					: [
-							{
-								name: options.otherFactory.name,
-								url: options.otherFactory.url,
-							},
-						]),
+				...(options.otherFactories ?? []).map(
+					({ answers: _, ...factory }) => factory,
+				),
 			],
 		},
 		factoryFetch(
 			{
 				[hubUrl]: options.hubAnswers ?? hub,
-				...(options.otherFactory === undefined
-					? {}
-					: { [options.otherFactory.url]: options.otherFactory.answers }),
+				...Object.fromEntries(
+					(options.otherFactories ?? []).map(({ url, answers }) => [
+						url,
+						answers,
+					]),
+				),
 			},
 			requests,
 			trackerWrites(writes, tracker),
