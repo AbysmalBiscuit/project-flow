@@ -8,7 +8,7 @@ Project Flow shows how Lev's projects and tickets progress, across GitHub and Li
 
 **Project**:
 A body of work that Project Flow tracks: a Linear project, a GitHub project, or a GitHub repo whose tickets are in no GitHub project.
-_Avoid_: Board, repo (when a project is meant)
+_Avoid_: Board, repo (when a project is meant), GitLab project (when a Project Flow project is meant)
 
 **Found project**:
 A project that Project Flow finds from tracker membership or from a local checkout. Settings lists each found project. Project Flow polls a found project only when it is a tracked project. On Linear, Lev is a member or the lead. On GitHub, Lev owns the project, or he owns or collaborates on the repo.
@@ -22,13 +22,21 @@ _Avoid_: Pinned project, hidden project, watched project
 One unit of tracked work: a GitHub issue or a Linear issue.
 _Avoid_: Issue, task, item
 
+**PR**:
+A request on a forge to merge one branch into another. Project Flow uses this term for a GitHub pull request, a GitLab merge request and a Forgejo pull request.
+_Avoid_: Merge request, MR
+
 **Unlinked PR**:
 An open PR that links to no ticket, through a closing reference, a tracker attachment, or its branch name. The board, the graph and the table show each unlinked PR as a card in the "Unlinked PRs" group. The card shows the PR number, the title and the link. The review cycle sets its state: In progress for a draft, In review, or Awaiting merge. The card sits in the lane of that state, and the Ticket filter applies to it as to a ticket.
 _Avoid_: Orphan PR, loose PR
 
 **Tracker**:
-The external system that owns a ticket: GitHub or Linear.
+The external system that owns a ticket, such as GitHub or Linear. It holds the ticket's status, labels, parent ticket and blocker links.
 _Avoid_: Source, provider, tool
+
+**Forge**:
+The external system that hosts the git refs and PRs of a repo, such as GitHub, GitLab or Forgejo. It holds the branches, the reviews, the checks and the merge state. A ticket's tracker and its repo's forge can be different systems.
+_Avoid_: Code host, git provider
 
 ### Grouping
 
