@@ -12,7 +12,6 @@ import type {
 	Snapshot,
 	Ticket,
 	TicketState,
-	TrackerKind,
 } from "./domain.ts";
 import { openImportantQuestions } from "./important-questions.ts";
 import type { KnownBot } from "./known-bots.ts";
@@ -199,12 +198,7 @@ export function notificationsFor(
 	const push = (
 		trigger: NotificationTrigger,
 		key: string,
-		item: {
-			project: string;
-			tracker: TrackerKind;
-			key: string;
-			host?: string;
-		},
+		item: Pick<Notification, "project" | "tracker" | "key" | "host">,
 		text: string,
 	) => {
 		if (seen.has(key)) {
