@@ -11,7 +11,7 @@ import { reviewStateValue } from "./domain.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubHeaders, pages } from "./github-pages.ts";
 import { type PullLink, TrackerError } from "./ports.ts";
-import { githubKey } from "./ticket-key.ts";
+import { numberedKey } from "./ticket-key.ts";
 
 export const githubPull = z.object({
 	number: z.number(),
@@ -59,7 +59,7 @@ export async function loadLinkedPulls(
 		{ repo: string; number: number; closingKeys: string[] }
 	>();
 	for (const link of links) {
-		const key = githubKey(link.repo, link.number);
+		const key = numberedKey(link.repo, link.number);
 		const target = targets.get(key);
 		if (target === undefined) {
 			targets.set(key, {
@@ -308,7 +308,7 @@ async function mergedPullHistory(
 	const merged = page.filter((pull) => (pull.merged_at ?? null) !== null);
 	return loadEachPull(merged, async (pull) => {
 		const head = pull.head.sha ?? "";
-		const key = githubKey(repo, pull.number);
+		const key = numberedKey(repo, pull.number);
 		const review =
 			seen.get(key) ??
 			(await pullReview(repo, pull.number, head, false, token, fetchImpl));

@@ -152,6 +152,7 @@ export async function assertCard(base: string): Promise<void> {
 			name: repo,
 			tracker: "github",
 			ref: { tracker: "github", repo },
+			displayKey: repo,
 			done: 2,
 			dropped: 2,
 			blocked: 0,

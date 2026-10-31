@@ -6,7 +6,7 @@ import type {
 	Ticket,
 	WorkcellRun,
 } from "./domain.ts";
-import { githubKey, sameTicketKey } from "./ticket-key.ts";
+import { numberedKey, sameTicketKey } from "./ticket-key.ts";
 
 const stageLine = /^stage\s+(\d+)\b/i;
 
@@ -261,6 +261,7 @@ export function isRunOf(
 ): boolean {
 	return (
 		sameTicketKey(run.key, key) ||
-		(run.repo !== undefined && sameTicketKey(githubKey(run.repo, run.key), key))
+		(run.repo !== undefined &&
+			sameTicketKey(numberedKey(run.repo, run.key), key))
 	);
 }

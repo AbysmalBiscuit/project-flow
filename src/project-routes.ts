@@ -4,7 +4,7 @@ import { attachGraphStates } from "./links.ts";
 import { type PollOptions, pollProject } from "./poll.ts";
 import { listedRef, refListed, sameProject } from "./project-ref.ts";
 import { projectViewNamed, projectViews } from "./project-views.ts";
-import { filterProjectReport, projectViewFor } from "./report.ts";
+import { filterProjectReport, projectViewFor } from "./report-filter.ts";
 import { routeTable } from "./route-table.ts";
 import { searchTickets } from "./search.ts";
 

@@ -1,7 +1,8 @@
 import type { AutoMerge } from "./configuration.ts";
 import type { BotReview, Comment, PullRequest, PullStatus } from "./domain.ts";
 import { type KnownBot, knownBots } from "./known-bots.ts";
-import { repoKey, settingsKey } from "./project-ref.ts";
+import { settingsKey } from "./project-ref.ts";
+import { repoKey } from "./repo-key.ts";
 import { pullKey } from "./ticket-key.ts";
 import { workcellRun } from "./workcell.ts";
 

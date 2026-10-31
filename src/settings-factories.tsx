@@ -67,10 +67,12 @@ function Duplicate({ entry }: { entry: FactoryEntry | undefined }) {
 export function FactoriesSection({
 	draft,
 	entries,
+	runStartHint,
 	onChange,
 }: {
 	draft: Configuration;
 	entries: FactoryEntry[];
+	runStartHint: string;
 	onChange: (next: Partial<Configuration>) => void;
 }) {
 	const [name, setName] = useState("");
@@ -110,7 +112,7 @@ export function FactoriesSection({
 			<p className={clsx(fields.hint)}>
 				{flagged.length > 0 ? factoryCopy.flagLead : factoryCopy.lead}
 			</p>
-			<p className={clsx(fields.hint)}>{factoryCopy.runStartLead}</p>
+			<p className={clsx(fields.hint)}>{runStartHint}</p>
 			{flagged.map((entry, index) => (
 				<Row key={entry.url} title={entry.name} hint={detail(entry, entry)}>
 					<span className={clsx(fields.chips)}>

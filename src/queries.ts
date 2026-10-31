@@ -7,26 +7,26 @@ import {
 
 import { readSettings, type SettingsRead } from "./client-settings.ts";
 import type { Configuration } from "./configuration.ts";
-import {
-	type InboxEntry,
-	liveRunStatusKinds,
-	type NeedsYouItem,
-	type Overview,
-	type PostedReply,
-	type ProjectReport,
-	type RunAgent,
-	type RunArtifact,
-	type RunArtifactContent,
-	type RunCheckpoint,
-	type RunDetail,
-	type RunFile,
-	type RunSandbox,
-	type RunSettings,
-	type RunSource,
-	type SettingsProject,
-	type ShownFactoryRun,
-	type Thread,
-	type TrackerKind,
+import type {
+	BackendViews,
+	InboxEntry,
+	NeedsYouItem,
+	Overview,
+	PostedReply,
+	ProjectReport,
+	RunAgent,
+	RunArtifact,
+	RunArtifactContent,
+	RunCheckpoint,
+	RunDetail,
+	RunFile,
+	RunSandbox,
+	RunSettings,
+	RunSource,
+	SettingsProject,
+	ShownFactoryRun,
+	Thread,
+	TrackerKind,
 } from "./domain.ts";
 import { onAppEvent, onEventStreamOpen } from "./events.ts";
 import type { FactoryEntry } from "./factories.ts";
@@ -37,6 +37,7 @@ import type { SandboxRead } from "./factory-run-sandbox.ts";
 import type { RunSettingsRead } from "./factory-run-settings.ts";
 import type { SourceRead } from "./factory-run-source.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
+import { liveRunStatusKinds } from "./kinds.ts";
 import type { RunListRow } from "./run-list.ts";
 import type { StateSource } from "./settings-write.ts";
 import { pendingStatus } from "./stale-reads.ts";
@@ -45,7 +46,7 @@ import { storedObject } from "./stored-page.ts";
 type SettingsPage = {
 	settings: Configuration;
 	projects: SettingsProject[];
-	trackers: Record<TrackerKind, boolean>;
+	backends: BackendViews;
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
 	stateSources: StateSource[];
@@ -223,6 +224,9 @@ export function configurationOf(
 	}
 	const {
 		trackers: _trackers,
+		forges: _forges,
+		switches: _switches,
+		hints: _hints,
 		projects: _projects,
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,
@@ -237,7 +241,12 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 		throw new Error("settings failed");
 	}
 	return {
-		trackers: body.trackers ?? { github: false, linear: false },
+		backends: {
+			trackers: body.trackers ?? [],
+			forges: body.forges ?? [],
+			switches: body.switches ?? [],
+			hints: body.hints ?? { runStart: "", laneMappings: "" },
+		},
 		projects: body.projects ?? [],
 		factoryTokenReports: body.factoryTokenReports ?? [],
 		factoryEntries: body.factoryEntries ?? [],
@@ -605,7 +614,7 @@ export function useSaveSettings({
 			}
 			const written: SettingsRead = {
 				...settings,
-				trackers: saved.trackers,
+				...saved.backends,
 				projects: saved.projects,
 				factoryTokenReports: saved.factoryTokenReports,
 			};

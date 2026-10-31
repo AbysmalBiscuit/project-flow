@@ -672,3 +672,39 @@ export async function withApp(
 		await cleanup();
 	}
 }
+
+/** The backend lists of a settings read when every credential is in `credential`. */
+export function listedBackends(credential: "present" | "missing") {
+	const github = {
+		kind: "github",
+		label: "GitHub",
+		hint: "Token from gh auth token",
+		credential,
+	};
+	return {
+		trackers: [
+			{ ...github, claimsRuns: true },
+			{
+				kind: "linear",
+				label: "Linear",
+				hint: "LINEAR_API_KEY found in the environment",
+				credential,
+				claimsRuns: false,
+			},
+		],
+		forges: [github],
+		hints: {
+			runStart:
+				"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. A GitHub ticket with the label and the queue status of a factory shows as queued. A Linear ticket in the state and labels of its hub source's ready mapping shows as queued.",
+			laneMappings:
+				"Map a state to a tracker status name for one Linear team or GitHub project.",
+		},
+		switches: [
+			{
+				setting: "factoryGithubTokens",
+				label: "Factory GitHub tokens",
+				hint: "GitHub reads and polls use the factory token for that repo owner. Replies stay on your token.",
+			},
+		],
+	};
+}

@@ -26,10 +26,15 @@ export function ticketPath(path: string, ticket: TicketRef | null): string {
 	return `${url.pathname}${url.search}${url.hash}`;
 }
 
+/** A ticket that a page URL names, with the tracker text of the URL. A saved link can name no tracker. */
+export type TicketLink = Omit<TicketRef, "tracker"> & {
+	tracker: string | null;
+};
+
 /** The open ticket that a page URL names. A project page defaults to its own project. */
 export function urlTicket(
 	url: Pick<URL, "pathname" | "search">,
-): TicketRef | null {
+): TicketLink | null {
 	const params = new URLSearchParams(url.search);
 	const key = params.get("ticket")?.trim() ?? "";
 	const project =
@@ -37,8 +42,7 @@ export function urlTicket(
 	if (key === "" || project === "") {
 		return null;
 	}
-	const tracker = params.get("panelTracker") === "linear" ? "linear" : "github";
-	return { tracker, project, key };
+	return { tracker: params.get("panelTracker"), project, key };
 }
 
 export function projectPath(name: string, ticket?: TicketRef): string {

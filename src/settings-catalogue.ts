@@ -17,12 +17,12 @@ import {
 	refListed,
 	refPin,
 	refRepo,
-	repoKey,
 	repoParts,
 	samePin,
 	sameProject,
 	settingsKey,
 } from "./project-ref.ts";
+import { repoKey } from "./repo-key.ts";
 import { expectedBotsByRepo } from "./review.ts";
 
 export type CatalogueProject = {
@@ -64,10 +64,12 @@ function pendingCard(
 	project: CatalogueProject,
 	tracked: readonly ProjectPin[],
 ): ProjectCounts {
+	const ref = refForFound(project, tracked);
 	return {
 		name: project.name ?? project.key,
 		tracker: project.tracker,
-		ref: refForFound(project, tracked),
+		ref,
+		displayKey: pinRef(ref).key,
 		done: 0,
 		dropped: 0,
 		blocked: 0,
@@ -182,10 +184,14 @@ function catalogueRow(
 		source,
 		tracked: configuration.tracked.some((item) => matchesRef(project, item)),
 		pmBot: projectHasPmBot(configuration.pmBot, key, project.tracker),
+		pmBotDefault: projectHasPmBot({}, key, project.tracker),
 		repos,
 		expectedBots: bots.expectedBots,
 		repoBots: bots.repoBots,
 		ref,
+		savedPins: configuration.tracked.filter((item) =>
+			matchesRef(project, item),
+		),
 	};
 }
 
@@ -203,11 +209,13 @@ export function settingsProjects(
 			refForFound(project, configuration.tracked),
 		),
 	);
+	const listed = [...catalogue];
 	for (const pin of configuration.tracked) {
-		const located = catalogue.find((project) => matchesRef(project, pin));
+		const located = listed.find((project) => matchesRef(project, pin));
 		if (located !== undefined) {
 			continue;
 		}
+		listed.push(refListed(pinRef(pin)));
 		rows.push({
 			...catalogueRow(
 				refListed(pinRef(pin)),

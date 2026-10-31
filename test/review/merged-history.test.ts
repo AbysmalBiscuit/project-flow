@@ -93,6 +93,7 @@ describe("review cycle", () => {
 					name: repo,
 					tracker: "github",
 					ref: { tracker: "github", repo },
+					displayKey: repo,
 					done: 1,
 					dropped: 0,
 					blocked: 0,

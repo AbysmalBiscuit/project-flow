@@ -224,7 +224,7 @@ export async function start(options: StartOptions): Promise<Running> {
 	const settingsBody = () =>
 		settingsResponse(
 			configuration,
-			backends.configured,
+			backends.views,
 			pollOptions.catalogue,
 			opened.store.readTickets(),
 			repoFetch.reports(),

@@ -5,10 +5,10 @@ import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
 import type { RunStart } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
+import { takesClaim } from "./factory-claim.ts";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
 import { useStartRun } from "./run-mutations.ts";
-import { takesClaim } from "./run-start.ts";
 import { SplitButton } from "./split-button.tsx";
 import { runStartCopy } from "./terms.ts";
 import type { TicketRef } from "./ticket-key.ts";
@@ -17,14 +17,8 @@ import { clsx } from "./ui.ts";
 /** A factory that can claim the ticket, and whether a run starts now or waits for a slot. */
 type ClaimChoice = { factory: string; free: boolean };
 
-/** One choice per factory that takes a claimed start. A claimed start needs the repo of a GitHub ticket. */
-function claimChoices(
-	ticket: TicketRef,
-	entries: readonly FactoryEntry[],
-): ClaimChoice[] {
-	if (ticket.tracker !== "github") {
-		return [];
-	}
+/** One choice per factory that takes a claimed start of the ticket. */
+function claimChoices(entries: readonly FactoryEntry[]): ClaimChoice[] {
 	return entries.flatMap((entry) =>
 		takesClaim(entry) && entry.slots !== undefined
 			? [{ factory: entry.name, free: entry.slots.used < entry.slots.total }]
@@ -50,8 +44,11 @@ export function RunStartButton({
 }) {
 	const [asking, setAsking] = useState<ClaimChoice | "label" | null>(null);
 	const startRun = useStartRun(ticket.tracker, ticket.project, ticket.key);
-	const entries = useQuery(pageQuery.settings).data?.factoryEntries ?? [];
-	const choices = claimChoices(ticket, entries);
+	const settings = useQuery(pageQuery.settings).data;
+	const claims = settings?.trackers?.some(
+		(tracker) => tracker.kind === ticket.tracker && tracker.claimsRuns,
+	);
+	const choices = claims ? claimChoices(settings?.factoryEntries ?? []) : [];
 	const requested = start.requested === true;
 	const label = requested
 		? runStartCopy.requested
@@ -98,7 +95,7 @@ export function RunStartButton({
 						? start.factory === undefined
 							? ""
 							: start.label === undefined
-								? runStartCopy.linearBody(start.factory, start)
+								? runStartCopy.stateBody(start.factory, start)
 								: runStartCopy.body(start.factory, start.label)
 						: (asking.free ? runStartCopy.runOnBody : runStartCopy.queueOnBody)(
 								asking.factory,

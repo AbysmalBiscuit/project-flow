@@ -142,25 +142,9 @@ export function refBoard(
 	return ref.kind === "github-project" ? ref : null;
 }
 
-function foldGithub(name: string): string {
-	return name.toLowerCase();
-}
-
-export function sameRepo(left: string, right: string): boolean {
-	return foldGithub(left) === foldGithub(right);
-}
-
-/** The key that a record keeps for a repo, whatever its case. */
-export function repoKey(
-	record: Readonly<Record<string, unknown>>,
-	repo: string,
-): string | undefined {
-	return Object.keys(record).find((key) => sameRepo(key, repo));
-}
-
 /** A string that two ProjectRefs share when they name the same project. */
 export function projectId(ref: ProjectRef): string {
-	const key = ref.tracker === "github" ? foldGithub(ref.key) : ref.key;
+	const key = ref.tracker === "github" ? ref.key.toLowerCase() : ref.key;
 	const host = refHost(ref);
 	return host === undefined
 		? `${ref.kind}:${key}`

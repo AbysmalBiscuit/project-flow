@@ -2,7 +2,8 @@ import { useState } from "react";
 
 import { Button } from "./button.tsx";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
-import { endedRunStatusKinds, type ShownFactoryRun } from "./domain.ts";
+import type { ShownFactoryRun } from "./domain.ts";
+import { endedRunStatusKinds } from "./kinds.ts";
 import { panel } from "./panel-styles.ts";
 import { useCancelRun, useStartAgain } from "./run-mutations.ts";
 import { SplitButton, type SplitChoice } from "./split-button.tsx";

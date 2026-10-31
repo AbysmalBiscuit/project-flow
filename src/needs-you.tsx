@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { useTrackerLabel } from "./backend-labels.ts";
 import type { NeedsYouItem } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
 import { Loading } from "./loading.tsx";
@@ -11,8 +12,8 @@ import { postRefresh, RefreshButton } from "./poll-freshness.tsx";
 import { pageQuery } from "./queries.ts";
 import { Segment } from "./segment.tsx";
 import {
-	activeTicket,
 	closeTicket,
+	hasTicketLink,
 	openTicket,
 	useActiveTicket,
 } from "./selection.ts";
@@ -81,10 +82,6 @@ function groupName(group: NeedsGroup, item: NeedsYouItem): string {
 	return "";
 }
 
-function trackerName(tracker: NeedsYouItem["tracker"]): string {
-	return tracker === "linear" ? "Linear" : "GitHub";
-}
-
 function NeedsGroups({
 	items,
 	group,
@@ -96,6 +93,7 @@ function NeedsGroups({
 	selected: string | null;
 	onOpen: (item: NeedsYouItem) => void;
 }) {
+	const trackerName = useTrackerLabel();
 	if (items.length === 0) {
 		return <p className={clsx(needs.empty)}>Nothing needs you</p>;
 	}
@@ -186,7 +184,7 @@ function NeedsList({
 	);
 	useEffect(() => {
 		const first = items[0];
-		if (seeded.current || first === undefined || activeTicket() !== null) {
+		if (seeded.current || first === undefined || hasTicketLink()) {
 			seeded.current = true;
 			return;
 		}

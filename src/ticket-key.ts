@@ -5,36 +5,36 @@ import type { TicketState, TrackerKind } from "./domain.ts";
 const numberMark = "#";
 const idSeparator = "\n";
 
-const githubKeyShape = /^([^/\s#]+\/[^/\s#]+)#(\d+)$/;
+const numberedKeyShape = /^([^/\s#]+\/[^/\s#]+)#(\d+)$/;
 
-export function githubKey(repo: string, number: number | string): string {
+export function numberedKey(repo: string, number: number | string): string {
 	return `${repo}${numberMark}${number}`;
 }
 
 export function pullKey(pull: { repo: string; number: number }): string {
-	return githubKey(pull.repo, pull.number);
+	return numberedKey(pull.repo, pull.number);
 }
 
-export function linearKey(team: string, number: number | string): string {
+export function teamKey(team: string, number: number | string): string {
 	return `${team.toUpperCase()}-${number}`;
 }
 
-/** The repo and number of a GitHub key or pull key. */
-export function githubKeyParts(
+/** The repo and number of an `owner/name#number` key. */
+export function numberedKeyParts(
 	key: string,
 ): { repo: string; number: number } | null {
-	const github = key.match(githubKeyShape);
-	return github?.[1] !== undefined && github[2] !== undefined
-		? { repo: github[1], number: Number(github[2]) }
+	const parts = key.match(numberedKeyShape);
+	return parts?.[1] !== undefined && parts[2] !== undefined
+		? { repo: parts[1], number: Number(parts[2]) }
 		: null;
 }
 
-/** The repo of a GitHub key, or null for any other key. */
+/** The repo of an `owner/name#number` key, or null for any other key. */
 export function keyRepo(key: string): string | null {
-	return githubKeyParts(key)?.repo ?? null;
+	return numberedKeyParts(key)?.repo ?? null;
 }
 
-/** The number at the end of a GitHub key or a bare `#number`. */
+/** The number at the end of an `owner/name#number` key or a bare `#number`. */
 export function keyNumber(key: string): string | null {
 	const number = key.slice(key.lastIndexOf(numberMark) + 1);
 	return /^\d+$/.test(number) ? number : null;
@@ -55,7 +55,7 @@ export function sameTicketKey(left: string, right: string): boolean {
 	return foldKey(left) === foldKey(right);
 }
 
-/** The key inside its own project: `#number` on GitHub, the whole key on Linear. */
+/** The key inside its own project: `#number` for a numbered key, else the whole key. */
 export function shortKey(key: string): string {
 	const mark = key.lastIndexOf(numberMark);
 	return mark === -1 ? key : key.slice(mark);
@@ -71,20 +71,13 @@ export function pullRef(pull: string, ticketKey: string | null): string {
 	return sameRepo ? shortKey(pull) : pull;
 }
 
-/** The key named with a project: `project#number` on GitHub, the whole key on Linear. */
+/** The key named with a project: `project#number` for a numbered key, else the whole key. */
 export function outsideKey(project: string, key: string): string {
 	const number = keyNumber(key);
 	if (number === null || foldKey(key).startsWith(foldKey(`${project}#`))) {
 		return key;
 	}
-	return githubKey(project, number);
-}
-
-export function githubIssueUrl(key: string): string | undefined {
-	const parts = githubKeyParts(key);
-	return parts === null
-		? undefined
-		: `https://github.com/${parts.repo}/issues/${parts.number}`;
+	return numberedKey(project, number);
 }
 
 function id(...parts: string[]): string {
@@ -155,6 +148,8 @@ export function sameTicket(left: TicketRef, right: TicketRef): boolean {
 }
 
 export type TicketSearchHit = TicketRef & {
+	/** The page of the ticket on its tracker. */
+	url?: string;
 	title: string;
 	state: TicketState;
 };

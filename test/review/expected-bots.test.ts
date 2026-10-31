@@ -588,6 +588,7 @@ describe("review cycle", () => {
 						name: "Widget launch",
 						tracker: "linear",
 						ref: { tracker: "linear", project: linearProject },
+						displayKey: linearProject,
 						done: 0,
 						dropped: 0,
 						blocked: 0,

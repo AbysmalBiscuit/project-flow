@@ -18,7 +18,8 @@ import {
 } from "./github-issue.ts";
 import { graphqlData, type GraphqlQuery } from "./graphql.ts";
 import { TrackerError } from "./ports.ts";
-import { repoParts, sameRepo } from "./project-ref.ts";
+import { repoParts } from "./project-ref.ts";
+import { sameRepo } from "./repo-key.ts";
 
 const mergedPageBound = 10;
 
