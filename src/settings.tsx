@@ -98,6 +98,7 @@ function Menu({
 	loaded,
 	backends,
 	projects,
+	discoveryErrors,
 	factoryTokenReports,
 	factoryEntries,
 	stateSources,
@@ -108,6 +109,7 @@ function Menu({
 	loaded: Configuration;
 	backends: BackendViews;
 	projects: SettingsProject[];
+	discoveryErrors: string[];
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
 	stateSources: StateSource[];
@@ -226,7 +228,10 @@ function Menu({
 						permission={permission}
 						onChange={patch}
 					/>
-					<TrackersSection backends={backends} />
+					<TrackersSection
+						backends={backends}
+						discoveryErrors={discoveryErrors}
+					/>
 					<FactoriesSection
 						draft={draft}
 						entries={factoryEntries}
@@ -654,6 +659,7 @@ export function Page() {
 			loaded={loaded.settings}
 			backends={loaded.backends}
 			projects={loaded.projects}
+			discoveryErrors={loaded.discoveryErrors}
 			factoryTokenReports={loaded.factoryTokenReports}
 			factoryEntries={loaded.factoryEntries}
 			stateSources={loaded.stateSources}

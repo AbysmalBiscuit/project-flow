@@ -242,7 +242,7 @@ export function placeTickets(
 		const workstream =
 			outsideWorkstream(root) ??
 			treeWorkstream(root) ??
-			(tracker === "github" &&
+			(tracker !== "linear" &&
 			root.key !== null &&
 			subTicketsOf(root).length > 0
 				? { label: root.title, key: root.key }

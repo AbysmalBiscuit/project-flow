@@ -1,8 +1,8 @@
 import type { ProjectPin } from "./configuration.ts";
 import type { TrackerKind } from "./domain.ts";
 
-// GitHub owner and repo names compare without case. Linear keys compare as
-// they are.
+// GitHub and Forgejo owner and repo names compare without case. Linear keys
+// compare as they are.
 
 /**
  * The identity of a project. The key of a GitHub project is `owner/number`,
@@ -11,6 +11,7 @@ import type { TrackerKind } from "./domain.ts";
 export type ProjectRef =
 	| { kind: "linear-project"; tracker: "linear"; key: string }
 	| { kind: "github-repo"; tracker: "github"; key: string; host?: string }
+	| { kind: "forgejo-repo"; tracker: "forgejo"; key: string; host: string }
 	| {
 			kind: "github-project";
 			tracker: "github";
@@ -62,10 +63,17 @@ function githubRepo(key: string, host: string | undefined): ProjectRef {
 	};
 }
 
+function forgejoRepo(key: string, host: string): ProjectRef {
+	return { kind: "forgejo-repo", tracker: "forgejo", key, host };
+}
+
 /** The ProjectRef of a tracked entry in the configuration. */
 export function pinRef(pin: ProjectPin): ProjectRef {
 	if (pin.tracker === "linear") {
 		return { kind: "linear-project", tracker: "linear", key: pin.project };
+	}
+	if (pin.tracker === "forgejo") {
+		return forgejoRepo(pin.repo, pin.host);
 	}
 	if ("repo" in pin) {
 		return githubRepo(pin.repo, "host" in pin ? pin.host : undefined);
@@ -77,6 +85,10 @@ export function pinRef(pin: ProjectPin): ProjectRef {
 export function listedRef(project: ListedRef): ProjectRef {
 	if (project.tracker === "linear") {
 		return { kind: "linear-project", tracker: "linear", key: project.key };
+	}
+	if (project.tracker === "forgejo") {
+		// An empty host is declared by no configuration, so its reader answers the error.
+		return forgejoRepo(project.key, project.host ?? "");
 	}
 	if (project.owner !== undefined && project.number !== undefined) {
 		return githubProject(project.owner, project.number);
@@ -111,7 +123,9 @@ export function settingsKey(key: string, host: string | undefined): string {
 
 /** The declared host of a project, or undefined for a project on its tracker's own host. */
 export function refHost(ref: ProjectRef): string | undefined {
-	return ref.kind === "github-repo" ? ref.host : undefined;
+	return ref.kind === "github-repo" || ref.kind === "forgejo-repo"
+		? ref.host
+		: undefined;
 }
 
 /** The configuration form of a ProjectRef. */
@@ -125,14 +139,18 @@ export function refPin(ref: ProjectRef): ProjectPin {
 				repo: ref.key,
 				...(ref.host === undefined ? {} : { host: ref.host }),
 			};
+		case "forgejo-repo":
+			return { tracker: "forgejo", repo: ref.key, host: ref.host };
 		case "github-project":
 			return { tracker: "github", owner: ref.owner, project: ref.number };
 	}
 }
 
-/** The repo of a GitHub repo project, or null for any other kind. */
+/** The repo of a repo project, or null for any other kind. */
 export function refRepo(ref: ProjectRef): string | null {
-	return ref.kind === "github-repo" ? ref.key : null;
+	return ref.kind === "github-repo" || ref.kind === "forgejo-repo"
+		? ref.key
+		: null;
 }
 
 /** The owner and number of a project on a board, or null for any other kind. */
@@ -144,7 +162,7 @@ export function refBoard(
 
 /** A string that two ProjectRefs share when they name the same project. */
 export function projectId(ref: ProjectRef): string {
-	const key = ref.tracker === "github" ? ref.key.toLowerCase() : ref.key;
+	const key = ref.tracker === "linear" ? ref.key : ref.key.toLowerCase();
 	const host = refHost(ref);
 	return host === undefined
 		? `${ref.kind}:${key}`

@@ -7,6 +7,7 @@ import type { StateSource } from "./settings-write.ts";
 export type SettingsRead = Configuration &
 	Partial<BackendViews> & {
 		projects?: SettingsProject[] | undefined;
+		discoveryErrors?: string[] | undefined;
 		factoryTokenReports?: FactoryTokenReport[] | undefined;
 		factoryEntries?: FactoryEntry[] | undefined;
 		stateSources?: StateSource[] | undefined;

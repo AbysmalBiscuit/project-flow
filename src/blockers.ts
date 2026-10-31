@@ -1,4 +1,4 @@
-import type { ProjectGroup, Ticket, TicketRef } from "./domain.ts";
+import type { ProjectGroup, Ticket, TicketRef, TrackerKind } from "./domain.ts";
 import {
 	asRef,
 	indexTickets,
@@ -65,6 +65,7 @@ function parseLine(
 	line: string,
 	repo: string | null,
 	direction: "blockedBy" | "blocks",
+	tracker: TrackerKind,
 ): TicketRef[] {
 	const matched = line.trim().match(label);
 	if (matched?.[1] === undefined || matched[2] === undefined) {
@@ -83,7 +84,7 @@ function parseLine(
 		if (token === "" || token.toLowerCase() === "none") {
 			continue;
 		}
-		const ref = parseTicketRef(token, repo);
+		const ref = parseTicketRef(token, repo, tracker);
 		if (ref !== null && !refs.some((item) => sameRef(item, ref))) {
 			refs.push(ref);
 		}
@@ -98,7 +99,7 @@ export function bodyBlockers(
 ): TicketRef[] {
 	const refs: TicketRef[] = [];
 	for (const line of ticket.body.split("\n")) {
-		for (const ref of parseLine(line, repo, direction)) {
+		for (const ref of parseLine(line, repo, direction, ticket.tracker)) {
 			if (!refs.some((item) => sameRef(item, ref))) {
 				refs.push(ref);
 			}
@@ -138,8 +139,14 @@ export function bodyLines(donor: Ticket | undefined, ticket: Ticket): string {
 	return lines.join("\n");
 }
 
-/** The repo that a bare `#number` in a ticket body names. */
+/**
+ * The repo that a bare `#number` in a ticket body names. A Forgejo key carries
+ * its host, so the repo of a Forgejo ticket keeps the host too.
+ */
 export function bodyRepo(ticket: Ticket, repo: string | null): string | null {
+	if (ticket.tracker === "forgejo" && ticket.key !== null) {
+		return ticket.key.slice(0, ticket.key.lastIndexOf("#"));
+	}
 	if (repo !== null || ticket.tracker !== "github" || ticket.key === null) {
 		return repo;
 	}
