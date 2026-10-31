@@ -197,7 +197,7 @@ export function NeedsItem({
 						? { tone: "primary" as const }
 						: {})}
 					data-held-action={held === null ? undefined : item.reason}
-					{...(blocked === null ? {} : { title: blocked })}
+					{...(blocked === null ? {} : { tooltip: blocked })}
 					disabled={disabled}
 					onClick={() => (onAction ?? onOpen)?.(item.key)}
 				/>
