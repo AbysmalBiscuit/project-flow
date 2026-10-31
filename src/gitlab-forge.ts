@@ -289,30 +289,39 @@ export function gitlabForge(
 		return pulls;
 	};
 
+	/** A linked PR that the repo listing left out, or null when it is closed. */
+	const linkedPull = async (link: PullTarget): Promise<PullRequest | null> => {
+		const { body } = await read(
+			apiUrl(link.repo, `/merge_requests/${link.number}`),
+			mergeRequest,
+			link.repo,
+		);
+		return body.state !== "opened" && body.merged_at === null
+			? null
+			: pullOf(link.repo, body);
+	};
+
 	return {
 		listPulls,
+		// A linked repo or PR that the token cannot read is skipped, so it never
+		// fails the project; the next poll reads it again.
 		async listLinkedPulls(links, repos) {
 			const pulls: PullRequest[] = [];
 			for (const repo of new Set([
 				...links.map((link) => link.repo),
 				...repos,
 			])) {
-				pulls.push(...(await listPulls(repo)));
+				pulls.push(...(await listPulls(repo).catch(() => [])));
 			}
 			const listed = new Map(pulls.map((pull) => [pullKey(pull), pull]));
 			for (const link of links) {
 				const key = pullKey(link);
-				let pull = listed.get(key);
-				if (pull === undefined) {
-					const { body } = await read(
-						apiUrl(link.repo, `/merge_requests/${link.number}`),
-						mergeRequest,
-						link.repo,
-					);
-					if (body.state !== "opened" && body.merged_at === null) {
-						continue;
-					}
-					pull = await pullOf(link.repo, body);
+				const pull =
+					listed.get(key) ?? (await linkedPull(link).catch(() => null));
+				if (pull === null) {
+					continue;
+				}
+				if (!listed.has(key)) {
 					listed.set(key, pull);
 					pulls.push(pull);
 				}
