@@ -5,13 +5,20 @@ import {
 	type TrackerKind,
 	trackerKinds,
 } from "./domain.ts";
+import {
+	type FactoryTokenMint,
+	type FactoryTokenReport,
+	installationTokenFetch,
+} from "./factory-tokens.ts";
 import type { Fetch } from "./fetch.ts";
 import { githubHost } from "./github-pin.ts";
 import {
 	checkToken,
+	conditionalFetch,
 	githubAdapters,
 	missingToken,
 	rejectedToken,
+	type ValidatorStore,
 } from "./github.ts";
 import {
 	checkLinearKey,
@@ -21,6 +28,8 @@ import {
 } from "./linear.ts";
 import { type Forge, type Tracker, TrackerError } from "./ports.ts";
 import { type ProjectRef, refHost } from "./project-ref.ts";
+
+export type { FactoryTokenMint };
 
 type BackendKind = TrackerKind | ForgeKind;
 
@@ -63,10 +72,29 @@ type AdapterContext = {
 /** A factory answers null for a host that its adapter cannot read. */
 type Factory<Adapter> = (context: AdapterContext) => Adapter | null;
 
+/** What a backend reads to prepare the fetch of the repo reads. */
+export type RepoFetchContext = {
+	validators: ValidatorStore;
+	configuration: () => Configuration;
+	now: () => Date;
+	mint: FactoryTokenMint | undefined;
+	mintRetryDelayMs: number | undefined;
+};
+
+/** The fetch of the repo reads, and the hooks of the tokens that it sends. */
+export type RepoFetch = {
+	fetch: Fetch;
+	reports: () => FactoryTokenReport[];
+	mintNow: () => Promise<void>;
+	stop: () => void;
+};
+
 type Backend<Kind extends BackendKind> = {
 	credential: CredentialRule;
 	/** The host of a project whose pin names no host. */
 	homeHost: string;
+	/** Wraps the fetch of the repo reads, such as in a cache of its responses. */
+	prepareFetch?: (fetch: Fetch, context: RepoFetchContext) => RepoFetch;
 } & (Kind extends TrackerKind ? { tracker: Factory<Tracker> } : unknown) &
 	(Kind extends ForgeKind ? { forge: Factory<Forge> } : unknown);
 
@@ -102,6 +130,21 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 				},
 			},
 			homeHost: githubHost,
+			prepareFetch: (fetchImpl, context) =>
+				installationTokenFetch(
+					conditionalFetch(fetchImpl, context.validators),
+					() => {
+						const configuration = context.configuration();
+						return {
+							enabled: configuration.factoryGithubTokens,
+							dir: configuration.factoryGithubTokenDir,
+							mintCommand: configuration.factoryMintCommand,
+						};
+					},
+					context.now,
+					context.mint,
+					context.mintRetryDelayMs,
+				),
 			tracker: (context) => githubOf(context)?.tracker ?? null,
 			forge: (context) => githubOf(context)?.forge ?? null,
 		},
@@ -185,6 +228,39 @@ export async function rejectedCredential(
 		}
 	}
 	return null;
+}
+
+/** The fetch of the repo reads, wrapped by each backend that prepares it. */
+export function prepareRepoFetch(
+	fetchImpl: Fetch,
+	context: RepoFetchContext,
+): RepoFetch {
+	const registry = backendRegistry();
+	return backendKinds.reduce<RepoFetch>(
+		(prepared, kind) => {
+			const next = registry[kind].prepareFetch?.(prepared.fetch, context);
+			if (next === undefined) {
+				return prepared;
+			}
+			return {
+				fetch: next.fetch,
+				reports: () => [...prepared.reports(), ...next.reports()],
+				mintNow: async () => {
+					await Promise.all([prepared.mintNow(), next.mintNow()]);
+				},
+				stop: () => {
+					prepared.stop();
+					next.stop();
+				},
+			};
+		},
+		{
+			fetch: fetchImpl,
+			reports: () => [],
+			mintNow: () => Promise.resolve(),
+			stop: () => {},
+		},
+	);
 }
 
 export type ProjectReader = { tracker: Tracker } | { error: string };
