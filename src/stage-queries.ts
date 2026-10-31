@@ -89,7 +89,8 @@ async function readPage(
 /**
  * The entries after the ones the page holds. The factory gives one page for
  * each read, so the read goes on with `next` until the stage has ended or a
- * page moves the cursor no further.
+ * page moves the cursor no further. A page that fails after earlier entries
+ * keeps those entries.
  */
 async function readTranscript(
 	runId: string,
@@ -105,7 +106,7 @@ async function readTranscript(
 	while (true) {
 		const page = await readPage(runId, stage, read.next);
 		if (typeof page !== "object") {
-			return page;
+			return read.entries.length > 0 ? read : page;
 		}
 		read.entries.push(...page.entries.filter((entry) => !seen.has(entry.id)));
 		for (const entry of page.entries) {

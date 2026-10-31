@@ -6,7 +6,7 @@ import { Loading } from "./loading.tsx";
 import { RunFact } from "./panel-sections.tsx";
 import { panel } from "./panel-styles.ts";
 import { pageQuery } from "./queries.ts";
-import { stageAt } from "./run-agent-stage.ts";
+import { hasTranscript } from "./run-agent-stage.ts";
 import { NotServed } from "./run-checkpoint.tsx";
 import { Transcript } from "./run-stage-view.tsx";
 import { RunSteer, useCurrentStage } from "./run-steer.tsx";
@@ -57,15 +57,22 @@ function TerminalStage({
 
 /**
  * The Terminal tab: the transcript of the stage where the run is now, and a
- * steer box for it. A run with no live stage shows its last stage and no
- * steer box.
+ * steer box for it. A run with no live stage that records a transcript shows
+ * its last agent stage and no steer box.
  */
 export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 	const { data: checkpoint } = useQuery(pageQuery.checkpoint(run));
 	const currentStage = useCurrentStage(run);
 	const live = liveRunStatusKinds.some((kind) => kind === run.statusKind);
+	const graph = typeof checkpoint === "object" ? checkpoint.graph : null;
+	const followed =
+		live &&
+		currentStage !== null &&
+		(graph === null || hasTranscript(graph, currentStage))
+			? currentStage
+			: null;
 	const stage =
-		(live ? currentStage : null) ??
+		followed ??
 		(typeof checkpoint === "object" ? checkpoint.lastAgentStage : null);
 	if (stage === null) {
 		return checkpoint === undefined ? (
@@ -79,19 +86,13 @@ export function RunTerminal({ run }: { run: ShownFactoryRun }) {
 		);
 	}
 	const visits =
-		typeof checkpoint === "object"
-			? ((checkpoint.graph === null
-					? undefined
-					: stageAt(checkpoint.graph, stage)?.visits) ??
-				checkpoint.visits[stage] ??
-				0)
-			: 0;
+		typeof checkpoint === "object" ? (checkpoint.visits[stage] ?? 0) : 0;
 	return (
 		<TerminalStage
 			key={stage}
 			run={run}
 			stage={stage}
-			following={live && stage === currentStage}
+			following={stage === followed}
 			visit={stageVisit(run.statusKind, visits)}
 		/>
 	);
