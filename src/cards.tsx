@@ -31,6 +31,14 @@ import {
 } from "./notify.tsx";
 import { OverviewGraph } from "./overview-graph.tsx";
 import {
+	blockerTicket,
+	shownProjects,
+	type SortDirection,
+	sortDirectionFor,
+	type SortKey,
+	type TrackerLabel,
+} from "./overview-sort.ts";
+import {
 	overviewFilters,
 	overviewSorts,
 	type OverviewView,
@@ -68,10 +76,6 @@ import { itemId, outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { cards, shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
-
-function blockerTicket(blocker: CrossProjectBlocker): string {
-	return outsideKey(blocker.project, blocker.key);
-}
 
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
@@ -216,123 +220,6 @@ function MoreChip({ project, hidden }: { project: string; hidden: number }) {
 		>
 			{label}
 		</a>
-	);
-}
-
-type FilterKey = OverviewView["filter"];
-type SortKey = OverviewView["sort"];
-type SortDirection = OverviewView["direction"];
-
-function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
-	if (filter === "needs-you") {
-		return project.needsYou > 0;
-	}
-	if (filter === "blocked") {
-		return project.blocked > 0 || project.crossProjectBlockers.length > 0;
-	}
-	return true;
-}
-
-function matchesSearch(project: ProjectCounts, query: string): boolean {
-	const needle = query.trim().toLowerCase();
-	if (needle === "") {
-		return true;
-	}
-	const haystack = [
-		project.name,
-		...project.tags,
-		...project.unlinkedPrs.map((pull) => pull.title),
-		...project.crossProjectBlockers.map(
-			(blocker) => `${blocker.project} ${blocker.key} ${blocker.title}`,
-		),
-	]
-		.join(" ")
-		.toLowerCase();
-	return haystack.includes(needle);
-}
-
-type TrackerLabel = ReturnType<typeof useTrackerLabel>;
-
-function sortValue(
-	project: ProjectCounts,
-	key: SortKey,
-	trackerLabel: TrackerLabel,
-): number | string {
-	if (key === "project") {
-		return project.name;
-	}
-	if (key === "tracker") {
-		return trackerLabel(project.tracker);
-	}
-	if (key === "progress") {
-		return project.progress;
-	}
-	if (key === "backlog") {
-		return project.statusTypes.backlog;
-	}
-	if (key === "inProgress") {
-		return project.statusTypes.inProgress;
-	}
-	if (key === "inReview") {
-		return project.statusTypes.inReview;
-	}
-	if (key === "awaitingMerge") {
-		return project.statusTypes.awaitingMerge;
-	}
-	if (key === "needsYou") {
-		return project.needsYou;
-	}
-	return project.crossProjectBlockers.map(blockerTicket).join(" ");
-}
-
-function sortDirectionFor(
-	current: SortKey,
-	next: SortKey,
-	direction: SortDirection,
-): SortDirection {
-	if (current === next) {
-		return direction;
-	}
-	if (next === "needsYou" || next === "blockedBy") {
-		return "desc";
-	}
-	return "asc";
-}
-
-function sortProjects(
-	projects: ProjectCounts[],
-	key: SortKey,
-	direction: SortDirection,
-	trackerLabel: TrackerLabel,
-): ProjectCounts[] {
-	return [...projects].sort((left, right) => {
-		const leftValue = sortValue(left, key, trackerLabel);
-		const rightValue = sortValue(right, key, trackerLabel);
-		const delta =
-			typeof leftValue === "string" || typeof rightValue === "string"
-				? String(leftValue).localeCompare(String(rightValue))
-				: leftValue - rightValue;
-		if (delta !== 0) {
-			return direction === "asc" ? delta : -delta;
-		}
-		return left.name.localeCompare(right.name);
-	});
-}
-
-function shownProjects(
-	overview: Overview,
-	view: OverviewView,
-	query: string,
-	trackerLabel: TrackerLabel,
-): ProjectCounts[] {
-	return sortProjects(
-		overview.projects.filter(
-			(project) =>
-				matchesFilter(project, view.filter) && matchesSearch(project, query),
-		),
-		view.sort,
-		view.direction,
-		trackerLabel,
 	);
 }
 
