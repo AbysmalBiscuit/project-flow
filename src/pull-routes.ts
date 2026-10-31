@@ -14,11 +14,32 @@ function refusal(reason: string): Response {
 	return Response.json({ error: reason }, { status: 409 });
 }
 
+/**
+ * Refuses a write that a page on another site can send. A browser adds the
+ * page's Origin to a cross-site request, and it sends JSON from another site
+ * only after a CORS preflight that this server never answers.
+ */
+function crossSiteRefusal(request: Request): Response | null {
+	const origin = request.headers.get("origin");
+	if (origin !== null && origin !== new URL(request.url).origin) {
+		return Response.json({ error: "cross-site request" }, { status: 403 });
+	}
+	const type = request.headers.get("content-type") ?? "";
+	if (!type.startsWith("application/json")) {
+		return Response.json({ error: "JSON body required" }, { status: 415 });
+	}
+	return null;
+}
+
 async function mergeResponse(
 	request: Request,
 	options: PollOptions,
 	configuration: Configuration,
 ): Promise<Response> {
+	const crossSite = crossSiteRefusal(request);
+	if (crossSite !== null) {
+		return crossSite;
+	}
 	const parsed = mergeBody.safeParse(await request.json().catch(() => null));
 	if (!parsed.success) {
 		return Response.json({ error: "invalid merge" }, { status: 400 });
