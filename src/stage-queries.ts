@@ -14,8 +14,9 @@ export const stageQuery = {
 	 *
 	 * `visit` names the visit of the stage and the run status. A later visit or a
 	 * resume starts the stage again, so a new `visit` gives a new query. That
-	 * query reads on from the cursor of the entries that the page holds. Until
-	 * its first read lands, it shows those entries as a stage that has not ended.
+	 * query reads on from the cursor of the entries that the page holds for the
+	 * same run and stage. Until its first read lands, it shows those entries as a
+	 * stage that has not ended. Another stage never shows them.
 	 */
 	transcript: (runId: string, stage: string, live: boolean, visit: string) => {
 		const queryKey = ["transcript", runId, stage, visit];
@@ -24,8 +25,10 @@ export const stageQuery = {
 			queryFn: () => readTranscript(runId, stage),
 			enabled: (query) => !hasEnded(query.state.data),
 			refetchInterval: live ? agentReadMs : false,
-			placeholderData: (previous: TranscriptRead | undefined) =>
-				typeof previous === "object" ? { ...previous, ended: false } : previous,
+			placeholderData: () => {
+				const held = heldTranscript(runId, stage);
+				return held === undefined ? undefined : { ...held, ended: false };
+			},
 		});
 	},
 };
