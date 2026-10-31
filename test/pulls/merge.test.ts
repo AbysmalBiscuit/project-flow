@@ -179,6 +179,7 @@ const refused = [
 			checks: [{ name: "ci", status: "in_progress", conclusion: null }],
 		},
 		reason: "A check is pending",
+		ci: "pending",
 	},
 	{
 		name: "a failed check",
@@ -189,6 +190,7 @@ const refused = [
 			],
 		},
 		reason: "A check failed",
+		ci: "failing",
 	},
 	{
 		name: "a check that ended with action required",
@@ -199,11 +201,35 @@ const refused = [
 			],
 		},
 		reason: "A check failed",
+		ci: "failing",
+	},
+	{
+		name: "a stale check",
+		fake: {
+			checks: [
+				passedCheck,
+				{ name: "deploy", status: "completed", conclusion: "stale" },
+			],
+		},
+		reason: "A check failed",
+		ci: "failing",
+	},
+	{
+		name: "a check that failed to start",
+		fake: {
+			checks: [
+				passedCheck,
+				{ name: "deploy", status: "completed", conclusion: "startup_failure" },
+			],
+		},
+		reason: "A check failed",
+		ci: "failing",
 	},
 	{
 		name: "an open Important Question",
 		fake: { body: openQuestionBody },
 		reason: "An Important Question is open",
+		ci: "passing",
 	},
 ];
 
@@ -258,7 +284,7 @@ describe("merge an awaiting PR", () => {
 		});
 	});
 
-	for (const { name, fake: answers, reason } of refused) {
+	for (const { name, fake: answers, reason, ci } of refused) {
 		test(`a merge with ${name} is refused with its reason, and GitHub gets no request`, async () => {
 			const fake = mergeFake(answers);
 			await withApp(widgetConfig, fake.fetch, githubEnv, async (base) => {
@@ -270,6 +296,10 @@ describe("merge an awaiting PR", () => {
 					(await readTicket(base, repo, ticketKey))?.awaitingPulls?.[0]
 						?.mergeGate,
 				).toEqual({ open: false, reason });
+				const needs = (await (
+					await fetch(new URL("/api/needs-you", base))
+				).json()) as { key: string; pull?: { ci: string } }[];
+				expect(needs.find((item) => item.key === ticketKey)?.pull?.ci).toBe(ci);
 			});
 		});
 	}
