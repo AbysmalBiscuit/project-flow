@@ -227,6 +227,7 @@ export type OverviewBody = {
 		ref:
 			| { tracker: "github"; repo: string }
 			| { tracker: "linear"; project: string };
+		displayKey: string;
 	}[];
 	fetchedAt: string | null;
 	error: string | null;

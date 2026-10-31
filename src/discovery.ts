@@ -3,7 +3,7 @@ import type { ListedProject, Snapshot, Ticket, TrackerKind } from "./domain.ts";
 import type { FoundProject, LocalCheckout, Viewer } from "./ports.ts";
 import { listedRef, ownerRepo, refRepo } from "./project-ref.ts";
 import { mergeBlockedBy } from "./ticket-index.ts";
-import { linearKey, sameTicketKey, scopedKey } from "./ticket-key.ts";
+import { sameTicketKey, scopedKey, teamKey } from "./ticket-key.ts";
 
 export function todoRows(listing: string): { project: string }[] {
 	const projects: { project: string }[] = [];
@@ -222,7 +222,7 @@ export function linearKeysForNames(names: string[]): string[] {
 			if (team === undefined || number === undefined) {
 				continue;
 			}
-			const key = linearKey(team, number);
+			const key = teamKey(team, number);
 			if (!keys.includes(key)) {
 				keys.push(key);
 			}

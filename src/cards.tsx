@@ -11,6 +11,7 @@ import {
 	useState,
 } from "react";
 
+import { useTrackerLabel } from "./backend-labels.ts";
 import { Button, type IconName } from "./button.tsx";
 import { Choice } from "./choice.tsx";
 import type { Configuration } from "./configuration.ts";
@@ -30,6 +31,14 @@ import {
 } from "./notify.tsx";
 import { OverviewGraph } from "./overview-graph.tsx";
 import {
+	blockerTicket,
+	shownProjects,
+	type SortDirection,
+	sortDirectionFor,
+	type SortKey,
+	type TrackerLabel,
+} from "./overview-sort.ts";
+import {
 	overviewFilters,
 	overviewSorts,
 	type OverviewView,
@@ -42,8 +51,7 @@ import {
 	RefreshButton,
 	usePollProgress,
 } from "./poll-freshness.tsx";
-import { SegmentedBar, ticketTotal, trackerName } from "./progress-bar.tsx";
-import { pinRef } from "./project-ref.ts";
+import { SegmentedBar, ticketTotal } from "./progress-bar.tsx";
 import {
 	configurationOf,
 	pageQuery,
@@ -61,17 +69,12 @@ import {
 	overviewSortLabel,
 	stateLabel,
 	tableColumnLabel,
-	trackerLabel,
 	viewLabel,
 } from "./terms.ts";
 import { itemId, outsideKey } from "./ticket-key.ts";
 import { phoneGutter, phoneLayout } from "./tokens.stylex.ts";
 import { cards, shell } from "./ui-styles.ts";
 import { clsx } from "./ui.ts";
-
-function blockerTicket(blocker: CrossProjectBlocker): string {
-	return outsideKey(blocker.project, blocker.key);
-}
 
 function Chip({ blocker }: { blocker: CrossProjectBlocker }) {
 	return (
@@ -219,114 +222,6 @@ function MoreChip({ project, hidden }: { project: string; hidden: number }) {
 	);
 }
 
-type FilterKey = OverviewView["filter"];
-type SortKey = OverviewView["sort"];
-type SortDirection = OverviewView["direction"];
-
-function matchesFilter(project: ProjectCounts, filter: FilterKey): boolean {
-	if (filter === "needs-you") {
-		return project.needsYou > 0;
-	}
-	if (filter === "blocked") {
-		return project.blocked > 0 || project.crossProjectBlockers.length > 0;
-	}
-	return true;
-}
-
-function matchesSearch(project: ProjectCounts, query: string): boolean {
-	const needle = query.trim().toLowerCase();
-	if (needle === "") {
-		return true;
-	}
-	const haystack = [
-		project.name,
-		...project.tags,
-		...project.unlinkedPrs.map((pull) => pull.title),
-		...project.crossProjectBlockers.map(
-			(blocker) => `${blocker.project} ${blocker.key} ${blocker.title}`,
-		),
-	]
-		.join(" ")
-		.toLowerCase();
-	return haystack.includes(needle);
-}
-
-function sortValue(project: ProjectCounts, key: SortKey): number | string {
-	if (key === "project") {
-		return project.name;
-	}
-	if (key === "tracker") {
-		return trackerLabel[project.tracker];
-	}
-	if (key === "progress") {
-		return project.progress;
-	}
-	if (key === "backlog") {
-		return project.statusTypes.backlog;
-	}
-	if (key === "inProgress") {
-		return project.statusTypes.inProgress;
-	}
-	if (key === "inReview") {
-		return project.statusTypes.inReview;
-	}
-	if (key === "awaitingMerge") {
-		return project.statusTypes.awaitingMerge;
-	}
-	if (key === "needsYou") {
-		return project.needsYou;
-	}
-	return project.crossProjectBlockers.map(blockerTicket).join(" ");
-}
-
-function sortDirectionFor(
-	current: SortKey,
-	next: SortKey,
-	direction: SortDirection,
-): SortDirection {
-	if (current === next) {
-		return direction;
-	}
-	if (next === "needsYou" || next === "blockedBy") {
-		return "desc";
-	}
-	return "asc";
-}
-
-function sortProjects(
-	projects: ProjectCounts[],
-	key: SortKey,
-	direction: SortDirection,
-): ProjectCounts[] {
-	return [...projects].sort((left, right) => {
-		const leftValue = sortValue(left, key);
-		const rightValue = sortValue(right, key);
-		const delta =
-			typeof leftValue === "string" || typeof rightValue === "string"
-				? String(leftValue).localeCompare(String(rightValue))
-				: leftValue - rightValue;
-		if (delta !== 0) {
-			return direction === "asc" ? delta : -delta;
-		}
-		return left.name.localeCompare(right.name);
-	});
-}
-
-function shownProjects(
-	overview: Overview,
-	view: OverviewView,
-	query: string,
-): ProjectCounts[] {
-	return sortProjects(
-		overview.projects.filter(
-			(project) =>
-				matchesFilter(project, view.filter) && matchesSearch(project, query),
-		),
-		view.sort,
-		view.direction,
-	);
-}
-
 function slug(value: string): string {
 	const cleaned = value
 		.toLowerCase()
@@ -335,8 +230,8 @@ function slug(value: string): string {
 	return cleaned === "" ? "item" : cleaned;
 }
 
-function subtitle(project: ProjectCounts): string {
-	return `${trackerName(project.tracker)}, ${pinRef(project.ref).key}`;
+function subtitle(project: ProjectCounts, trackerLabel: TrackerLabel): string {
+	return `${trackerLabel(project.tracker)}, ${project.displayKey}`;
 }
 
 const legendSegments = [
@@ -376,6 +271,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 	const id = `project-card-${slug(project.name)}`;
 	const total = ticketTotal(project);
 	const loading = project.pending === true;
+	const trackerLabel = useTrackerLabel();
 	return (
 		<li id={id} className={clsx(cards.card)} aria-busy={loading}>
 			<div className={clsx(cards.cardTop)}>
@@ -389,7 +285,7 @@ function ProjectCard({ project }: { project: ProjectCounts }) {
 					}}
 				>
 					<h2 className={clsx(cards.nameRow)}>{project.name}</h2>
-					<p className={clsx(cards.meta)}>{subtitle(project)}</p>
+					<p className={clsx(cards.meta)}>{subtitle(project, trackerLabel)}</p>
 				</a>
 				{project.needsYou === 0 ? null : (
 					<span className={clsx(cards.badge)}>{project.needsYou} need you</span>
@@ -491,6 +387,7 @@ function TableView({
 	direction: SortDirection;
 	onSort: (sort: SortKey, direction: SortDirection) => void;
 }) {
+	const trackerLabel = useTrackerLabel();
 	return (
 		<div className={clsx(cards.tableWrap)}>
 			<table className={clsx(cards.table)}>
@@ -559,7 +456,7 @@ function TableView({
 									</a>
 								</td>
 								<td className={clsx(cards.cell)}>
-									{trackerLabel[project.tracker]}
+									{trackerLabel(project.tracker)}
 								</td>
 								<td className={clsx(cards.cell)}>
 									{loading ? (
@@ -727,9 +624,10 @@ function OverviewPage({
 		notificationPermission,
 	);
 	const view = settings.overview;
+	const trackerLabel = useTrackerLabel();
 	const projects = useMemo(
-		() => shownProjects(overview, view, query),
-		[overview, view, query],
+		() => shownProjects(overview, view, query, trackerLabel),
+		[overview, view, query, trackerLabel],
 	);
 	const refreshing = fetching || overview.polling === true;
 	const needsQuery = useQuery(pageQuery.needsYou);

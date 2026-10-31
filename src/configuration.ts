@@ -23,13 +23,9 @@ export const defaultFactoryMintCommand = [
 
 import { z } from "zod";
 
-import {
-	forgeKinds,
-	runResults,
-	runStatusKinds,
-	statusTypes,
-} from "./domain.ts";
+import { forgeKinds } from "./domain.ts";
 import { githubHost, githubPin } from "./github-pin.ts";
+import { runResults, runStatusKinds, statusTypes } from "./kinds.ts";
 import { knownBots } from "./known-bots.ts";
 import { defaultStates } from "./lanes.ts";
 import { linearPin } from "./linear-pin.ts";
@@ -303,6 +299,13 @@ export type ProjectViewSettings = z.infer<typeof projectViewSettings>;
 export type Configuration = z.infer<typeof configurationSchema>;
 
 export type { OverviewView } from "./overview-view.ts";
+
+/** The name of each setting that holds a boolean. */
+export type BooleanSetting = {
+	[Name in keyof Configuration]-?: Configuration[Name] extends boolean
+		? Name
+		: never;
+}[keyof Configuration];
 
 function fieldPath(issue: z.core.$ZodIssue): string {
 	const path = issue.path.map(String).join(".");

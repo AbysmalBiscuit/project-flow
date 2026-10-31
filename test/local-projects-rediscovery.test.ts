@@ -14,6 +14,7 @@ const localBoard = {
 	name: "Local board",
 	tracker: "github",
 	ref: { tracker: "github", owner: "lev", project: 4 },
+	displayKey: `lev/4`,
 	done: 0,
 	dropped: 0,
 	blocked: 0,

@@ -23,7 +23,8 @@ import {
 	hubQueueLabel,
 	mergeFactLabel,
 	noStartLabel,
-	openOnGitHubLabel,
+	openOnLabel,
+	openPrLabel,
 	openRunLabel,
 	pullStatusLabel,
 	runFactLabel,
@@ -41,6 +42,10 @@ export function commentTime(value: string): string {
 		return "";
 	}
 	return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function pullLinkLabel(forge: string | undefined): string {
+	return forge === undefined ? openPrLabel : openOnLabel(forge);
 }
 
 export function CommentTree({
@@ -131,11 +136,13 @@ export function RunSection({
 	earlier,
 	pull,
 	pullUrl,
+	pullForge,
 }: {
 	run: ShownFactoryRun;
 	earlier: EarlierFactoryRun[];
 	pull: string | undefined;
 	pullUrl: string | undefined;
+	pullForge: string | undefined;
 }) {
 	const span = elapsed(run);
 	return (
@@ -168,7 +175,7 @@ export function RunSection({
 				{pullUrl === undefined ? null : (
 					<RunFact label={runFactLabel.pr}>
 						<a className={clsx(panel.factLink, ...textControl)} href={pullUrl}>
-							{pull ?? openOnGitHubLabel}
+							{pull ?? pullLinkLabel(pullForge)}
 						</a>
 					</RunFact>
 				)}
@@ -283,9 +290,9 @@ export function WhySection({
 							<a
 								className={clsx(panel.factLink, ...textControl)}
 								href={pull.url}
-								aria-label={`${openOnGitHubLabel}, PR #${pull.number}`}
+								aria-label={`${pullLinkLabel(pull.forge)}, PR #${pull.number}`}
 							>
-								{openOnGitHubLabel}
+								{pullLinkLabel(pull.forge)}
 							</a>
 							<span>
 								#{pull.number} {pull.title}

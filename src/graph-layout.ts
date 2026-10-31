@@ -21,7 +21,7 @@ import {
 	projectNodeId,
 } from "./graph-flow.ts";
 import type { NodeSize } from "./graph-sizes.ts";
-import { groupLabelOf } from "./grouping.ts";
+import { groupLabelOf } from "./ticket-groups.ts";
 import { foldKey } from "./ticket-key.ts";
 import type { GraphDirection, GroupBy } from "./view-settings.ts";
 

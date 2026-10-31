@@ -5,7 +5,7 @@ import { Button } from "./button.tsx";
 import { Chip } from "./chip.tsx";
 import type { AutoMerge, Configuration } from "./configuration.ts";
 import { control } from "./control-styles.ts";
-import { type TicketState, type TrackerKind, trackerKinds } from "./domain.ts";
+import type { TicketState } from "./domain.ts";
 import { Select } from "./select.tsx";
 import { settings as fields } from "./settings-styles.ts";
 import {
@@ -18,8 +18,6 @@ import { TextInput } from "./text-input.tsx";
 import { clsx } from "./ui.ts";
 import type { openViews } from "./view-settings.ts";
 
-export type Trackers = Record<TrackerKind, boolean>;
-
 export const sections = [
 	{ id: "general", label: settingsSection.general },
 	{ id: "project-views", label: settingsSection.views },
@@ -31,7 +29,6 @@ export const sections = [
 	{ id: "factories", label: settingsSection.factories },
 ] as const;
 
-export const trackerFilters = ["all", ...trackerKinds] as const;
 export const stateFilters = ["all", "tracked"] as const;
 
 export const ageChoices = [0, 2, 7, 14, 30] as const;

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "./button.tsx";
 import type { Configuration } from "./configuration.ts";
@@ -9,6 +9,7 @@ import { control, textControl } from "./control-styles.ts";
 import { openJumpBox } from "./jump.tsx";
 import { pageQuery, pageQueryClient, useSaveSettings } from "./queries.ts";
 import { Segment } from "./segment.tsx";
+import { knowTrackers, openTicket, useUnresolvedLink } from "./selection.ts";
 import { factoryCopy, navLabel } from "./terms.ts";
 import { applyPageTheme, pageTheme } from "./theme.ts";
 import { phoneGutter, projectBarLayout } from "./tokens.stylex.ts";
@@ -164,7 +165,29 @@ const links = [
 	{ href: "/inbox", label: navLabel.inbox },
 ] as const;
 
+/** Opens a saved ticket link that names no tracker, once its project report names the tracker. */
+function useResolvedTicketLink(): void {
+	const link = useUnresolvedLink();
+	const { data: report } = useQuery({
+		...pageQuery.project(link?.project ?? "", "all"),
+		enabled: link !== null,
+	});
+	const tracker = report?.tracker;
+	useEffect(() => {
+		if (link !== null && tracker !== undefined) {
+			openTicket({ ...link, tracker }, "replace");
+		}
+	}, [link, tracker]);
+	const trackers = useQuery(pageQuery.settings).data?.trackers;
+	useEffect(() => {
+		if (trackers !== undefined) {
+			knowTrackers(trackers.map((item) => item.kind));
+		}
+	}, [trackers]);
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
+	useResolvedTicketLink();
 	const needs = useQuery(pageQuery.needsYou);
 	const overview = useQuery(pageQuery.overview);
 	const count = needs.data === undefined ? null : needs.data.length;

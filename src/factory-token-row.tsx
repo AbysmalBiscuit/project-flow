@@ -1,4 +1,5 @@
 import type { Configuration } from "./configuration.ts";
+import type { BackendSwitch } from "./domain.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { Select } from "./select.tsx";
 import { Switch } from "./settings-parts.tsx";
@@ -16,24 +17,22 @@ function pollLabel(seconds: number): string {
 	return `${seconds} seconds`;
 }
 
-export function FactoryTokenRow({
+export function BackendSwitchRow({
+	row,
 	checked,
 	reports,
 	onChange,
 }: {
+	row: BackendSwitch;
 	checked: boolean;
 	reports: FactoryTokenReport[];
-	onChange: (patch: Pick<Configuration, "factoryGithubTokens">) => void;
+	onChange: (next: boolean) => void;
 }) {
 	return (
 		<div className={clsx(fields.row)}>
 			<div className={clsx(fields.rowText)}>
-				<span className={clsx(fields.rowTitle)}>
-					{settingsCopy.factoryTokens}
-				</span>
-				<span className={clsx(fields.hint)}>
-					{settingsCopy.factoryTokensHint}
-				</span>
+				<span className={clsx(fields.rowTitle)}>{row.label}</span>
+				<span className={clsx(fields.hint)}>{row.hint}</span>
 				{reports.map((report) => (
 					<span
 						key={report.cause === "mint failed" ? report.cause : report.owner}
@@ -47,10 +46,10 @@ export function FactoryTokenRow({
 				))}
 			</div>
 			<Switch
-				id="factory-github-tokens"
+				id={row.setting}
 				checked={checked}
-				label={settingsCopy.factoryTokens}
-				onChange={(next) => onChange({ factoryGithubTokens: next })}
+				label={row.label}
+				onChange={onChange}
 			/>
 		</div>
 	);

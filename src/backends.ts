@@ -1,5 +1,8 @@
 import type { Configuration } from "./configuration.ts";
 import {
+	type BackendSwitch,
+	type BackendView,
+	type BackendViews,
 	type ForgeKind,
 	forgeKinds,
 	type TrackerKind,
@@ -28,6 +31,7 @@ import {
 } from "./linear.ts";
 import { type Forge, type Tracker, TrackerError } from "./ports.ts";
 import { type ProjectRef, refHost } from "./project-ref.ts";
+import { takesClaimedStart } from "./run-start.ts";
 
 export type { FactoryTokenMint };
 
@@ -90,6 +94,12 @@ export type RepoFetch = {
 };
 
 type Backend<Kind extends BackendKind> = {
+	/** The name that the page shows. */
+	label: string;
+	/** Where the token comes from, as Settings shows it. */
+	hint: string;
+	/** The settings of this backend that Settings shows as switches. */
+	switches?: BackendSwitch[];
 	credential: CredentialRule;
 	/** The host of a project whose pin names no host. */
 	homeHost: string;
@@ -97,6 +107,14 @@ type Backend<Kind extends BackendKind> = {
 	prepareFetch?: (fetch: Fetch, context: RepoFetchContext) => RepoFetch;
 } & (Kind extends TrackerKind ? { tracker: Factory<Tracker> } : unknown) &
 	(Kind extends ForgeKind ? { forge: Factory<Forge> } : unknown);
+
+/** The help texts of Settings that name each backend. */
+const backendHints: BackendViews["hints"] = {
+	runStart:
+		"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. A GitHub ticket with the label and the queue status of a factory shows as queued. A Linear ticket in the state and labels of its hub source's ready mapping shows as queued.",
+	laneMappings:
+		"Map a state to a tracker status name for one Linear team or GitHub project.",
+};
 
 /**
  * The one record that names each backend. A registry holds the adapters of one
@@ -113,6 +131,15 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 	};
 	return {
 		github: {
+			label: "GitHub",
+			hint: "Token from gh auth token",
+			switches: [
+				{
+					setting: "factoryGithubTokens",
+					label: "Factory GitHub tokens",
+					hint: "GitHub reads and polls use the factory token for that repo owner. Replies stay on your token.",
+				},
+			],
 			credential: {
 				env: "GITHUB_TOKEN",
 				fallback: (io) => io.readGhToken(io.env),
@@ -149,6 +176,8 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 			forge: (context) => githubOf(context)?.forge ?? null,
 		},
 		linear: {
+			label: "Linear",
+			hint: "LINEAR_API_KEY found in the environment",
 			credential: {
 				env: "LINEAR_API_KEY",
 				missing: missingLinearKey,
@@ -269,10 +298,15 @@ export type Backends = {
 	trackers: ReadonlyMap<TrackerKind, Tracker>;
 	/** The forge of each host that a PR reference can name. */
 	forges: ReadonlyMap<string, Forge>;
-	/** Whether each tracker kind has a token. */
-	configured: Record<TrackerKind, boolean>;
+	/** Each tracker and forge kind with its label and whether it has a token. */
+	views: BackendViews;
 	/** The tracker that reads the project of `ref`, or the error to show on it. */
 	readerOf: (ref: ProjectRef, hosts: Configuration["hosts"]) => ProjectReader;
+	/** The name of the forge on the host of `url`, or undefined when no forge serves that host. */
+	forgeLabelOf: (
+		url: string,
+		hosts: Configuration["hosts"],
+	) => string | undefined;
 	/** The forge that holds the repo of the project of `ref`. */
 	forgeOf: (ref: ProjectRef) => Forge | null;
 	/** The declared host of a forge, or undefined for a forge on its own home host. */
@@ -295,6 +329,12 @@ export function buildBackends(options: {
 			? null
 			: { host: registry[kind].homeHost, token, fetch, repoFetch };
 	};
+	const view = <Kind extends BackendKind>(kind: Kind): BackendView<Kind> => ({
+		kind,
+		label: registry[kind].label,
+		hint: registry[kind].hint,
+		credential: credentials[kind] === null ? "missing" : "present",
+	});
 	const trackers = new Map<TrackerKind, Tracker>();
 	for (const kind of trackerKinds) {
 		const context = homeContext(kind);
@@ -343,7 +383,15 @@ export function buildBackends(options: {
 	return {
 		trackers,
 		forges,
-		configured: byKind(trackerKinds, (kind) => credentials[kind] !== null),
+		views: {
+			trackers: trackerKinds.map((kind) => ({
+				...view(kind),
+				claimsRuns: takesClaimedStart(kind),
+			})),
+			forges: forgeKinds.map((kind) => view(kind)),
+			switches: backendKinds.flatMap((kind) => registry[kind].switches ?? []),
+			hints: backendHints,
+		},
 		readerOf(ref, hosts) {
 			const host = refHost(ref);
 			if (host !== undefined) {
@@ -353,6 +401,13 @@ export function buildBackends(options: {
 			return tracker === undefined
 				? unreadable(registry[ref.tracker].credential.missing)
 				: { tracker };
+		},
+		forgeLabelOf(url, hosts) {
+			const host = URL.parse(url)?.host;
+			const kind =
+				forgeKinds.find((forge) => registry[forge].homeHost === host) ??
+				hosts.find((declared) => declared.host === host)?.forge;
+			return kind === undefined ? undefined : registry[kind].label;
 		},
 		forgeOf: (ref) =>
 			forges.get(refHost(ref) ?? registry[ref.tracker].homeHost) ?? null,

@@ -40,6 +40,7 @@ describe("replies", () => {
 			);
 			expect(response.status).toBe(200);
 			const thread = (await response.json()) as Thread;
+			expect(thread.threaded).toBe(false);
 			expect(thread.comments).toHaveLength(101);
 			expect(thread.comments.at(-1)?.body).toBe("Note 101");
 			expect(
@@ -356,6 +357,7 @@ describe("replies", () => {
 			expect(response.status).toBe(200);
 			const thread = (await response.json()) as Thread;
 			expect(thread.url).toBe("https://linear.app/issue/PF-1");
+			expect(thread.threaded).toBe(true);
 			expect(thread.comments).toEqual([
 				{
 					id: "comment-parent",

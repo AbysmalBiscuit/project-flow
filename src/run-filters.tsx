@@ -2,7 +2,8 @@ import * as stylex from "@stylexjs/stylex";
 
 import { board } from "./board-styles.ts";
 import type { ProjectViewSettings } from "./configuration.ts";
-import { type ProjectReport, runResults, runStatusKinds } from "./domain.ts";
+import type { ProjectReport } from "./domain.ts";
+import { runResults, runStatusKinds } from "./kinds.ts";
 import { FilterMenu, type MenuProps } from "./project-filters.tsx";
 import { runResultLabel, runsListCopy, runStatusLabel } from "./terms.ts";
 import { clsx } from "./ui.ts";

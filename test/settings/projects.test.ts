@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Configuration } from "../../src/configuration.ts";
-import type { Overview } from "../../src/domain.ts";
+import type { Overview, SettingsProject } from "../../src/domain.ts";
 import { run } from "../../src/main.ts";
+import { sameTicketKey } from "../../src/ticket-key.ts";
 import { tempConfig, testIo } from "../support/app.ts";
 import {
 	checkoutFor,
 	fetching,
+	listedBackends,
 	quiet,
 	savedRepo,
 	savedRoot,
@@ -83,10 +85,16 @@ describe("settings", () => {
 				fetch(new URL("/api/settings", base))
 					.then(async (response) => {
 						expect(response.status).toBe(200);
-						const body = (await response.json()) as {
-							trackers: { github: boolean; linear: boolean };
-						};
-						expect(body.trackers).toEqual({ github: false, linear: false });
+						const { trackers, forges, hints, switches } =
+							(await response.json()) as {
+								trackers: unknown;
+								forges: unknown;
+								hints: unknown;
+								switches: unknown;
+							};
+						expect({ trackers, forges, hints, switches }).toEqual(
+							listedBackends("missing"),
+						);
 						resolve();
 					})
 					.catch(reject);
@@ -195,6 +203,83 @@ describe("settings", () => {
 				});
 			},
 			async () => [checkoutFor(savedRoot)],
+		);
+	});
+
+	test("settings names the saved pin and the PM default of each project", async () => {
+		const savedCase = shown.toUpperCase();
+		await withApp(
+			JSON.stringify({
+				tracked: [
+					{ tracker: "github", repo: savedCase },
+					{ tracker: "linear", project: "widget-launch" },
+				],
+			}),
+			async (base) => {
+				const { projects } = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as { projects: SettingsProject[] };
+				const row = (key: string) =>
+					projects.find((item) => sameTicketKey(item.key, key));
+				expect(row(shown)).toMatchObject({
+					tracked: true,
+					pmBot: true,
+					pmBotDefault: true,
+					ref: { tracker: "github", repo: savedCase },
+				});
+				expect(row("widget-launch")).toMatchObject({
+					tracker: "linear",
+					tracked: true,
+					pmBot: false,
+					pmBotDefault: false,
+					ref: { tracker: "linear", project: "widget-launch" },
+				});
+			},
+		);
+	});
+
+	test("settings lists each saved pin of a project once under its row", async () => {
+		const upper = { tracker: "github" as const, repo: shown.toUpperCase() };
+		const lower = { tracker: "github" as const, repo: shown };
+		const unlisted = "acme/pinned-only";
+		const unlistedPins = [
+			{ tracker: "github" as const, repo: unlisted },
+			{ tracker: "github" as const, repo: unlisted.toUpperCase() },
+		];
+		await withApp(
+			JSON.stringify({ tracked: [upper, lower, ...unlistedPins] }),
+			async (base) => {
+				const { projects } = (await (
+					await fetch(new URL("/api/settings", base))
+				).json()) as { projects: SettingsProject[] };
+				const rows = (key: string) =>
+					projects.filter((item) => sameTicketKey(item.key, key));
+				expect(rows(shown).map((row) => row.savedPins)).toEqual([
+					[upper, lower],
+				]);
+				expect(rows(unlisted).map((row) => row.savedPins)).toEqual([
+					unlistedPins,
+				]);
+			},
+		);
+	});
+
+	test("the overview names the display key of each project", async () => {
+		await withApp(
+			JSON.stringify({
+				tracked: [
+					{ tracker: "github", owner: "acme", project: 7 },
+					{ tracker: "github", repo: shown },
+				],
+			}),
+			async (base) => {
+				const { projects } = (await (
+					await fetch(new URL("/api/overview", base))
+				).json()) as Overview;
+				expect(projects.map((project) => project.displayKey).sort()).toEqual(
+					["acme/7", shown].sort(),
+				);
+			},
 		);
 	});
 

@@ -3,6 +3,7 @@ import { afterAll, describe, expect, test } from "bun:test";
 import ELK from "elkjs/lib/elk-api.js";
 
 import { fillShare } from "../proof/elk-spike/graph.ts";
+import { focusChain } from "../src/focus-chain.ts";
 import { graphTickets, projectNodeId } from "../src/graph-flow.ts";
 import { grownLayout } from "../src/graph-grow.ts";
 import {
@@ -16,7 +17,6 @@ import {
 	type LayoutInput,
 	layoutInput,
 } from "../src/graph-layout.ts";
-import { focusChain } from "../src/links.ts";
 import {
 	card,
 	cardOf,

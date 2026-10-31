@@ -12,7 +12,7 @@ import { fetchWithSignal, githubHeaders, pages } from "./github-pages.ts";
 import { TrackerBodyError } from "./graphql.ts";
 import { TrackerError } from "./ports.ts";
 import { repoParts } from "./project-ref.ts";
-import { githubKeyParts } from "./ticket-key.ts";
+import { numberedKeyParts } from "./ticket-key.ts";
 
 const githubThreadComment = z.object({
 	id: z.number(),
@@ -83,7 +83,7 @@ export async function fetchGithubThread(
 	key: string,
 	signal?: AbortSignal,
 ): Promise<FetchedThread | null> {
-	const parsed = githubKeyParts(key);
+	const parsed = numberedKeyParts(key);
 	if (parsed === null) {
 		return null;
 	}
@@ -159,6 +159,7 @@ export async function fetchGithubThread(
 	);
 	return {
 		tracker: "github",
+		threaded: false,
 		project,
 		key,
 		title: issue.title,
@@ -218,7 +219,7 @@ export async function postGithubReply(
 	fetchImpl: Fetch,
 	reply: ReplyRequest,
 ): Promise<PostedReply> {
-	const parsed = githubKeyParts(reply.key);
+	const parsed = numberedKeyParts(reply.key);
 	if (parsed === null) {
 		throw new TrackerError(
 			"GitHub reply failed: ticket key has no number",
@@ -276,7 +277,7 @@ export async function addGithubLabel(
 	key: string,
 	label: string,
 ): Promise<void> {
-	const parsed = githubKeyParts(key);
+	const parsed = numberedKeyParts(key);
 	if (parsed === null) {
 		throw new TrackerError(
 			"GitHub label failed: ticket key has no number",

@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Comment, Ticket, TicketRef } from "./domain.ts";
 import { graphqlConnection, graphqlDependency } from "./github-graphql.ts";
 import { closedStatusType } from "./lanes.ts";
-import { githubKey } from "./ticket-key.ts";
+import { numberedKey } from "./ticket-key.ts";
 
 export const pageSize = 100;
 
@@ -13,7 +13,7 @@ export const nestedPageSize = 20;
 
 export const issueTicketFields = (
 	labelPage: number,
-) => `number title state stateReason updatedAt createdAt closedAt body
+) => `number title url state stateReason updatedAt createdAt closedAt body
 				labels(first: ${labelPage}) { nodes { name } ${connectionPage} }
 				assignees(first: 10) { nodes { login } }
 				milestone { title }
@@ -43,7 +43,7 @@ function parentOf(
 		return { parent: null };
 	}
 	const project = parent.repository.nameWithOwner;
-	const key = githubKey(project, parent.number);
+	const key = numberedKey(project, parent.number);
 	const state = githubState(parent.state ?? "");
 	if (state === null || parent.url === undefined) {
 		return { parent: key };
@@ -66,6 +66,7 @@ function parentOf(
 export const githubIssue = z.object({
 	number: z.number(),
 	title: z.string(),
+	url: z.string().optional(),
 	state: z.string(),
 	stateReason: z.string().nullable().optional(),
 	updatedAt: z.string(),
@@ -124,7 +125,7 @@ export function dependencyRefs(
 		const ref: TicketRef = {
 			tracker: "github",
 			project,
-			key: githubKey(project, node.number),
+			key: numberedKey(project, node.number),
 			state,
 			...(title === "" ? {} : { title }),
 		};
@@ -164,12 +165,13 @@ export function ticketFromGithubIssue(
 	return {
 		id: String(issue.number),
 		tracker: "github",
-		key: githubKey(repo, issue.number),
+		key: numberedKey(repo, issue.number),
 		title: issue.title,
+		...(issue.url === undefined ? {} : { url: issue.url }),
 		state: state === "closed" ? "closed" : "open",
 		stateReason: githubReason(issue.stateReason ?? null),
 		updatedAt: issue.updatedAt,
-		ref: githubKey(repo, issue.number),
+		ref: numberedKey(repo, issue.number),
 		body: issue.body ?? "",
 		blockedBy,
 		...(blocking.length === 0 ? {} : { blocks: blocking }),

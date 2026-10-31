@@ -1,27 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
+import { useTrackerLabel } from "./backend-labels.ts";
 import { Button } from "./button.tsx";
 import { Chip } from "./chip.tsx";
 import type { Configuration, ProjectPin } from "./configuration.ts";
-import type { SettingsProject } from "./domain.ts";
+import type { BackendViews, SettingsProject, TrackerKind } from "./domain.ts";
 import type { FactoryEntry } from "./factories.ts";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import type { KnownBot } from "./known-bots.ts";
 import { knownBots } from "./known-bots.ts";
 import { Loading } from "./loading.tsx";
-import { projectHasPmBot } from "./open-ask.ts";
-import { repoKey, samePin } from "./project-ref.ts";
 import { pageQuery, useSaveSettings } from "./queries.ts";
+import { repoKey } from "./repo-key.ts";
 import { Select } from "./select.tsx";
 import { FactoriesSection } from "./settings-factories.tsx";
-import {
-	sections,
-	type stateFilters,
-	Switch,
-	trackerFilters,
-	type Trackers,
-} from "./settings-parts.tsx";
+import { sections, type stateFilters, Switch } from "./settings-parts.tsx";
 import {
 	ContentsNav,
 	GeneralSection,
@@ -102,7 +96,7 @@ function sameValue(left: unknown, right: unknown): boolean {
 
 function Menu({
 	loaded,
-	trackers,
+	backends,
 	projects,
 	factoryTokenReports,
 	factoryEntries,
@@ -112,7 +106,7 @@ function Menu({
 	onResetStates,
 }: {
 	loaded: Configuration;
-	trackers: Trackers;
+	backends: BackendViews;
 	projects: SettingsProject[];
 	factoryTokenReports: FactoryTokenReport[];
 	factoryEntries: FactoryEntry[];
@@ -199,6 +193,7 @@ function Menu({
 						theme={theme}
 						draft={draft}
 						factoryTokenReports={factoryTokenReports}
+						switches={backends.switches}
 						onChange={patch}
 					/>
 					<ProjectViewsSection
@@ -215,17 +210,27 @@ function Menu({
 							void onResetClick();
 						}}
 					/>
-					<ProjectsTable projects={projects} draft={draft} onChange={patch} />
-					<ReviewSection draft={draft} onChange={patch} />
+					<ProjectsTable
+						projects={projects}
+						trackers={backends.trackers}
+						draft={draft}
+						onChange={patch}
+					/>
+					<ReviewSection
+						draft={draft}
+						laneHint={backends.hints.laneMappings}
+						onChange={patch}
+					/>
 					<NotificationsSection
 						draft={draft}
 						permission={permission}
 						onChange={patch}
 					/>
-					<TrackersSection trackers={trackers} />
+					<TrackersSection backends={backends} />
 					<FactoriesSection
 						draft={draft}
 						entries={factoryEntries}
+						runStartHint={backends.hints.runStart}
 						onChange={patch}
 					/>
 					<SettingsBar
@@ -290,12 +295,24 @@ function Menu({
 	}
 }
 
-function withoutRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
-	return refs.filter((item) => !samePin(item, ref));
+/** The API gives each project its saved pin, so two pins of a project have one form. */
+function samePin(left: ProjectPin, right: ProjectPin): boolean {
+	const form = (pin: ProjectPin) =>
+		JSON.stringify(Object.entries(pin).sort(([a], [b]) => a.localeCompare(b)));
+	return form(left) === form(right);
 }
 
-function withRef(refs: ProjectPin[], ref: ProjectPin): ProjectPin[] {
-	return refs.some((item) => samePin(item, ref)) ? refs : [...refs, ref];
+function isTracked(pins: ProjectPin[], project: SettingsProject): boolean {
+	const named = [project.ref, ...project.savedPins];
+	return pins.some((pin) => named.some((item) => samePin(item, pin)));
+}
+
+function withoutProject(
+	pins: ProjectPin[],
+	project: SettingsProject,
+): ProjectPin[] {
+	const named = [project.ref, ...project.savedPins];
+	return pins.filter((pin) => !named.some((item) => samePin(item, pin)));
 }
 
 function botsOf(
@@ -329,40 +346,42 @@ function setBots(
 	return { ...saved, ...seeded, [savedKey ?? repo]: bots };
 }
 
+function pmBotOf(draft: Configuration, project: SettingsProject): boolean {
+	const saved = repoKey(draft.pmBot, project.key);
+	return saved === undefined
+		? project.pmBotDefault
+		: (draft.pmBot[saved] ?? project.pmBotDefault);
+}
+
 function setPmBot(
 	draft: Configuration,
-	key: string,
-	tracker: SettingsProject["tracker"],
+	project: SettingsProject,
 	on: boolean,
 ): Configuration["pmBot"] {
 	const next = { ...draft.pmBot };
-	const match = Object.keys(next).find(
-		(name) => name.toLowerCase() === key.toLowerCase(),
-	);
-	if (match !== undefined) {
-		delete next[match];
+	const saved = repoKey(next, project.key);
+	if (saved !== undefined) {
+		delete next[saved];
 	}
-	const implied = tracker === "github";
-	if (on !== implied) {
-		next[key] = on;
+	if (on !== project.pmBotDefault) {
+		next[project.key] = on;
 	}
 	return next;
 }
 
+type TrackerFilter = "all" | TrackerKind;
+
 function projectMatches(
 	project: SettingsProject,
 	query: string,
-	tracker: (typeof trackerFilters)[number],
+	tracker: TrackerFilter,
 	state: (typeof stateFilters)[number],
 	draft: Configuration,
 ): boolean {
 	if (tracker !== "all" && project.tracker !== tracker) {
 		return false;
 	}
-	if (
-		state === "tracked" &&
-		!draft.tracked.some((ref) => samePin(ref, project.ref))
-	) {
+	if (state === "tracked" && !isTracked(draft.tracked, project)) {
 		return false;
 	}
 	const needle = query.trim().toLowerCase();
@@ -377,16 +396,21 @@ function projectMatches(
 
 function ProjectsTable({
 	projects,
+	trackers,
 	draft,
 	onChange,
 }: {
 	projects: SettingsProject[];
+	trackers: BackendViews["trackers"];
 	draft: Configuration;
 	onChange: (next: Partial<Configuration>) => void;
 }) {
+	const filters: { kind: TrackerFilter; label: string }[] = [
+		{ kind: "all", label: settingsCopy.all },
+		...trackers,
+	];
 	const [query, setQuery] = useState("");
-	const [tracker, setTracker] =
-		useState<(typeof trackerFilters)[number]>("all");
+	const [tracker, setTracker] = useState<TrackerFilter>("all");
 	const [state, setState] = useState<(typeof stateFilters)[number]>("all");
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	useEffect(() => {
@@ -441,13 +465,13 @@ function ProjectsTable({
 				<div id="project-filters" className={clsx(fields.filterPanel)}>
 					<div id="tracker-filter" className={clsx(fields.filterLabel)}>
 						<span>{settingsCopy.tracker}</span>
-						{trackerFilters.map((value) => (
+						{filters.map(({ kind, label }) => (
 							<Button
-								key={value}
-								id={`tracker-${value}`}
-								label={settingsCopy[value]}
-								pressed={tracker === value}
-								onClick={() => setTracker(value)}
+								key={kind}
+								id={`tracker-${kind}`}
+								label={label}
+								pressed={tracker === kind}
+								onClick={() => setTracker(kind)}
 							/>
 						))}
 					</div>
@@ -506,17 +530,16 @@ function ProjectRow({
 	onChange: (next: Partial<Configuration>) => void;
 }) {
 	const id = `${project.tracker}-${project.key.replace(/[^A-Za-z0-9]+/g, "-")}`;
+	const trackerLabel = useTrackerLabel();
 	const repos = project.repos;
-	const pmBot = projectHasPmBot(draft.pmBot, project.key, project.tracker);
-	const tracked = draft.tracked.some((ref) => samePin(ref, project.ref));
+	const pmBot = pmBotOf(draft, project);
+	const tracked = isTracked(draft.tracked, project);
 	return (
 		<tr id={`project-row-${id}`}>
 			<td className={clsx(fields.cell)}>
 				<div className={clsx(fields.projectName)}>{project.name}</div>
 				<div className={clsx(fields.projectMeta)}>
-					{project.tracker === "github"
-						? settingsCopy.github
-						: settingsCopy.linear}
+					{trackerLabel(project.tracker)}
 					{", "}
 					{project.key}
 				</div>
@@ -529,8 +552,8 @@ function ProjectRow({
 					onChange={(next) =>
 						onChange({
 							tracked: next
-								? withRef(draft.tracked, project.ref)
-								: withoutRef(draft.tracked, project.ref),
+								? [...draft.tracked, project.ref]
+								: withoutProject(draft.tracked, project),
 						})
 					}
 				/>
@@ -542,7 +565,7 @@ function ProjectRow({
 					label={`${settingsCopy.pmBot} ${project.name}`}
 					onChange={(next) =>
 						onChange({
-							pmBot: setPmBot(draft, project.key, project.tracker, next),
+							pmBot: setPmBot(draft, project, next),
 						})
 					}
 				/>
@@ -629,7 +652,7 @@ export function Page() {
 	return (
 		<Menu
 			loaded={loaded.settings}
-			trackers={loaded.trackers}
+			backends={loaded.backends}
 			projects={loaded.projects}
 			factoryTokenReports={loaded.factoryTokenReports}
 			factoryEntries={loaded.factoryEntries}

@@ -5,7 +5,7 @@ import { Chip } from "./chip.tsx";
 import { ColourPicker } from "./colour-picker.tsx";
 import type { Configuration, UserState } from "./configuration.ts";
 import { ConfirmDialog } from "./confirm-dialog.tsx";
-import { statusTypes } from "./domain.ts";
+import { statusTypes } from "./kinds.ts";
 import { Select } from "./select.tsx";
 import { Row } from "./settings-parts.tsx";
 import { settings as fields } from "./settings-styles.ts";
