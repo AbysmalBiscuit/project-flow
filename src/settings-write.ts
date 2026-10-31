@@ -85,6 +85,7 @@ function withoutTrackers(text: string): string {
 	const {
 		trackers: _trackers,
 		forges: _forges,
+		switches: _switches,
 		projects: _projects,
 		factoryTokenReports: _factoryTokenReports,
 		factoryEntries: _factoryEntries,

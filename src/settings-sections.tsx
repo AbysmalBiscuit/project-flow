@@ -4,7 +4,7 @@ import type { Configuration, UserState } from "./configuration.ts";
 import { control } from "./control-styles.ts";
 import type { BackendViews } from "./domain.ts";
 import { Dropdown } from "./dropdown.tsx";
-import { FactoryTokenRow, PollIntervalRow } from "./factory-token-row.tsx";
+import { BackendSwitchRow, PollIntervalRow } from "./factory-token-row.tsx";
 import type { FactoryTokenReport } from "./factory-tokens.ts";
 import { Select } from "./select.tsx";
 import {
@@ -89,8 +89,10 @@ export function GeneralSection({
 	theme,
 	draft,
 	factoryTokenReports,
+	switches,
 	onChange,
 }: {
+	switches: BackendViews["switches"];
 	theme: string;
 	draft: Configuration;
 	factoryTokenReports: FactoryTokenReport[];
@@ -117,11 +119,15 @@ export function GeneralSection({
 					}
 				/>
 			</Row>
-			<FactoryTokenRow
-				checked={draft.factoryGithubTokens}
-				reports={factoryTokenReports}
-				onChange={onChange}
-			/>
+			{switches.map((row) => (
+				<BackendSwitchRow
+					key={row.setting}
+					row={row}
+					checked={draft[row.setting]}
+					reports={factoryTokenReports}
+					onChange={(next) => onChange({ [row.setting]: next })}
+				/>
+			))}
 			<PollIntervalRow
 				seconds={draft.pollIntervalSeconds}
 				onChange={onChange}

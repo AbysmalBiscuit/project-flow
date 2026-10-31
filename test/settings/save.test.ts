@@ -478,9 +478,10 @@ describe("settings", () => {
 			).json()) as Configuration & {
 				trackers: unknown;
 				forges: unknown;
+				switches: unknown;
 			};
-			const { trackers, forges } = before;
-			expect({ trackers, forges }).toEqual(listedBackends("present"));
+			const { trackers, forges, switches } = before;
+			expect({ trackers, forges, switches }).toEqual(listedBackends("present"));
 			expect(JSON.stringify(before)).not.toContain("recorded-token");
 			expect(JSON.stringify(before)).not.toContain("recorded-linear-key");
 
@@ -547,6 +548,7 @@ describe("settings", () => {
 				).json()) as Configuration & {
 					trackers: unknown;
 					forges: unknown;
+					switches: unknown;
 				};
 				expect(again.tracked).toEqual([{ tracker: "github", repo: shown }]);
 				expect(again.pollIntervalSeconds).toBe(60);
@@ -557,9 +559,11 @@ describe("settings", () => {
 				expect(again.needsYouLabels).toEqual(["needs-human"]);
 				expect(again.viewerLogins).toEqual(["AbysmalBiscuit"]);
 				expect(again.notificationTriggers.blockerCleared).toBe(false);
-				expect({ trackers: again.trackers, forges: again.forges }).toEqual(
-					listedBackends("present"),
-				);
+				expect({
+					trackers: again.trackers,
+					forges: again.forges,
+					switches: again.switches,
+				}).toEqual(listedBackends("present"));
 				expect(JSON.stringify(again)).not.toContain("recorded-linear-key");
 			});
 		});

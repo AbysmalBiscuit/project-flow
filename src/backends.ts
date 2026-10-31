@@ -1,5 +1,6 @@
 import type { Configuration } from "./configuration.ts";
 import {
+	type BackendSwitch,
 	type BackendView,
 	type BackendViews,
 	type ForgeKind,
@@ -70,6 +71,8 @@ type Backend<Kind extends BackendKind> = {
 	label: string;
 	/** Where the token comes from, as Settings shows it. */
 	hint: string;
+	/** The settings of this backend that Settings shows as switches. */
+	switches?: BackendSwitch[];
 	credential: CredentialRule;
 	/** The host of a project whose pin names no host. */
 	homeHost: string;
@@ -93,6 +96,13 @@ function backendRegistry(): { [Kind in BackendKind]: Backend<Kind> } {
 		github: {
 			label: "GitHub",
 			hint: "Token from gh auth token",
+			switches: [
+				{
+					setting: "factoryGithubTokens",
+					label: "Factory GitHub tokens",
+					hint: "GitHub reads and polls use the factory token for that repo owner. Replies stay on your token.",
+				},
+			],
 			credential: {
 				env: "GITHUB_TOKEN",
 				fallback: (io) => io.readGhToken(io.env),
@@ -291,6 +301,7 @@ export function buildBackends(options: {
 		views: {
 			trackers: trackerKinds.map((kind) => view(kind)),
 			forges: forgeKinds.map((kind) => view(kind)),
+			switches: backendKinds.flatMap((kind) => registry[kind].switches ?? []),
 		},
 		readerOf(ref, hosts) {
 			const host = refHost(ref);

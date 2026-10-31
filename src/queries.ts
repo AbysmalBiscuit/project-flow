@@ -225,6 +225,7 @@ export function configurationOf(
 	const {
 		trackers: _trackers,
 		forges: _forges,
+		switches: _switches,
 		projects: _projects,
 		factoryEntries: _factoryEntries,
 		stateSources: _stateSources,
@@ -239,7 +240,11 @@ export function settingsPageOf(body: SettingsRead | null): SettingsPage {
 		throw new Error("settings failed");
 	}
 	return {
-		backends: { trackers: body.trackers ?? [], forges: body.forges ?? [] },
+		backends: {
+			trackers: body.trackers ?? [],
+			forges: body.forges ?? [],
+			switches: body.switches ?? [],
+		},
 		projects: body.projects ?? [],
 		factoryTokenReports: body.factoryTokenReports ?? [],
 		factoryEntries: body.factoryEntries ?? [],

@@ -194,6 +194,7 @@ function Menu({
 						theme={theme}
 						draft={draft}
 						factoryTokenReports={factoryTokenReports}
+						switches={backends.switches}
 						onChange={patch}
 					/>
 					<ProjectViewsSection

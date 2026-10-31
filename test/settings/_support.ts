@@ -692,5 +692,12 @@ export function listedBackends(credential: "present" | "missing") {
 			},
 		],
 		forges: [github],
+		switches: [
+			{
+				setting: "factoryGithubTokens",
+				label: "Factory GitHub tokens",
+				hint: "GitHub reads and polls use the factory token for that repo owner. Replies stay on your token.",
+			},
+		],
 	};
 }

@@ -304,6 +304,13 @@ export type Configuration = z.infer<typeof configurationSchema>;
 
 export type { OverviewView } from "./overview-view.ts";
 
+/** The name of each setting that holds a boolean. */
+export type BooleanSetting = {
+	[Name in keyof Configuration]-?: Configuration[Name] extends boolean
+		? Name
+		: never;
+}[keyof Configuration];
+
 function fieldPath(issue: z.core.$ZodIssue): string {
 	const path = issue.path.map(String).join(".");
 	if (issue.code === "unrecognized_keys") {

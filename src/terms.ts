@@ -1,5 +1,4 @@
 import type {
-	LinearShown,
 	NeedsYouItem,
 	NotificationTrigger,
 	Queued,
@@ -273,7 +272,10 @@ export const runStartCopy = {
 	title: "Start a run?",
 	body: (factory: string, label: string) =>
 		`Project Flow adds the label ${label} to the ticket. Then the factory ${factory} starts a run of it.`,
-	stateBody: (factory: string, { state, add, remove }: LinearShown) =>
+	stateBody: (
+		factory: string,
+		{ state, add, remove }: { state: string; add: string[]; remove: string[] },
+	) =>
 		[
 			`Project Flow moves the ticket to the workflow state ${state}.`,
 			...(add.length === 0 ? [] : [`It adds ${labelList(add)}.`]),
@@ -826,7 +828,7 @@ export const factoryCopy = {
 	name: "Factory name",
 	url: "http, https or unix URL",
 	runStartLead:
-		"Start run on a GitHub ticket adds the start and queue label. Start run on a Linear ticket writes the workflow state and labels that its hub source names. A GitHub ticket with the label and the queue status of a factory shows as queued. A Linear ticket in the state and labels of its hub source's ready mapping shows as queued.",
+		"Start run adds the start and queue label to a ticket, or writes the workflow state and labels that its hub source names. A ticket with the label and the queue status of a factory shows as queued. A ticket in the state and labels of its hub source's ready mapping shows as queued.",
 	readyLabel: "Start and queue label (optional)",
 	readyLabelOf: (label: string) => `start and queue label ${label}`,
 	readyStatusOf: (status: string) => `queue status ${status}`,
@@ -865,9 +867,6 @@ export const settingsCopy = {
 		"The overview lists the first tickets that wait for you above the projects.",
 	pollInterval: "Poll interval",
 	pollHint: "How often each tracker is read.",
-	factoryTokens: "Factory GitHub tokens",
-	factoryTokensHint:
-		"GitHub reads and polls use the factory token for that repo owner. Replies stay on your token.",
 	viewsLead:
 		"The board, graph and table views save these to the configuration file when you change them there.",
 	openIn: "Open projects in",
@@ -883,8 +882,7 @@ export const settingsCopy = {
 	blockedOnly: "Blocked only",
 	blockedOnlyHint: "Show only tickets with an open blocker.",
 	laneMappings: "Lane mapping",
-	laneHint:
-		"Map a state to a tracker status name for one Linear team or GitHub project.",
+	laneHint: "Map a state to a tracker status name for one team or project.",
 	autoMerge: "Auto-merge",
 	autoMergeHint:
 		"Override the reading for one repo. Ask keeps a finished review in Awaiting merge.",

@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import type { Configuration, ProjectPin } from "./configuration.ts";
+import type {
+	BooleanSetting,
+	Configuration,
+	ProjectPin,
+} from "./configuration.ts";
 import type { KnownBot } from "./known-bots.ts";
 import type { ProjectRef } from "./project-ref.ts";
 import type { HidingFilter } from "./terms.ts";
@@ -23,10 +27,18 @@ export type BackendView<Kind extends TrackerKind | ForgeKind> = {
 	credential: "present" | "missing";
 };
 
-/** The trackers and forges that the app knows, as the settings read lists them. */
+/** A setting of one backend, which Settings shows as a switch. */
+export type BackendSwitch = {
+	setting: BooleanSetting;
+	label: string;
+	hint: string;
+};
+
+/** The trackers, forges and backend switches that the settings read lists. */
 export type BackendViews = {
 	trackers: BackendView<TrackerKind>[];
 	forges: BackendView<ForgeKind>[];
+	switches: BackendSwitch[];
 };
 
 export type WorkcellRun = {
