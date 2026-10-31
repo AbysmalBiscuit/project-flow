@@ -310,7 +310,10 @@ export type RunCheckpoint = {
 	completedStages: string[];
 	/** The retries of each stage, by stage name. */
 	retries: Record<string, number>;
-	/** The visits of each stage, by stage name. A review stage visit is one review round. */
+	/**
+	 * The visits of each stage, by stage path. A stage of a child graph is under
+	 * its full path. A review stage visit is one review round.
+	 */
 	visits: Record<string, number>;
 	/** The run context: the values that the run's stages wrote, by key. */
 	context: Record<string, unknown>;

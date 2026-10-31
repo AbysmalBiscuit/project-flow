@@ -12,10 +12,10 @@ const runId = hubRuns.runs[0]?.id;
 const checkpointPath = `/runs/${runId}/checkpoint`;
 const graphPath = `/runs/${runId}/graph`;
 
-async function lastAgentStageOf(
+async function checkpointRead(
 	checkpoint: Record<string, unknown>,
 	graph: unknown,
-): Promise<string | null> {
+): Promise<RunCheckpoint> {
 	const app = await serveRuns(
 		{
 			...hub,
@@ -27,11 +27,38 @@ async function lastAgentStageOf(
 	try {
 		const response = await checkpointOf(app.base);
 		expect(response.status).toBe(200);
-		return ((await response.json()) as RunCheckpoint).lastAgentStage;
+		return (await response.json()) as RunCheckpoint;
 	} finally {
 		await app.stop();
 	}
 }
+
+async function lastAgentStageOf(
+	checkpoint: Record<string, unknown>,
+	graph: unknown,
+): Promise<string | null> {
+	return (await checkpointRead(checkpoint, graph)).lastAgentStage;
+}
+
+describe("the visits of a run's stages", () => {
+	test("a stage of a child graph gives its visits under its full path", async () => {
+		const { stack: _, ...left } = runGraphCheckpoint;
+		const read = await checkpointRead(
+			{
+				...left,
+				current_node: "exit",
+				completed_nodes: [...runGraphCheckpoint.completed_nodes, "post_pr"],
+				status: "success",
+			},
+			runGraph,
+		);
+		const child = read.graph?.nodes
+			.flatMap((node) => node.child ?? [])
+			.find((stage) => stage.id === "post_pr/post_pr");
+		expect(child?.visits).toBeGreaterThan(0);
+		expect(read.visits["post_pr/post_pr"]).toBe(child?.visits);
+	});
+});
 
 describe("the last agent stage of a run", () => {
 	test("a run that succeeded at its exit gives its last finished stage that ran an agent", async () => {

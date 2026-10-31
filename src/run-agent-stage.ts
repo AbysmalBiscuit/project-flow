@@ -13,11 +13,23 @@ export function stageAt(graph: RunGraph, path: string): RunStage | undefined {
 	);
 }
 
+/** The visits of each stage by path: the top-level visits, and the visits of each child graph stage. */
+export function stageVisits(
+	visits: Record<string, number>,
+	graph: RunGraph | null,
+): Record<string, number> {
+	const children = (graph?.nodes ?? []).flatMap((node) => node.child ?? []);
+	return {
+		...visits,
+		...Object.fromEntries(children.map((stage) => [stage.id, stage.visits])),
+	};
+}
+
 /**
  * True when the stage at `path` records a transcript: an agent stage that
  * calls no child graph, or a stage of a child graph other than its start.
  */
-function hasTranscript(graph: RunGraph, path: string): boolean {
+export function hasTranscript(graph: RunGraph, path: string): boolean {
 	const node = graph.nodes.find((candidate) => candidate.id === path);
 	if (node !== undefined) {
 		return node.kind === "codergen" && node.child === undefined;

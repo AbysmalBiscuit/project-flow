@@ -20,7 +20,7 @@ import {
 import { isLive, type ReadRun, type StatusRows } from "./factory-run-rows.ts";
 import type { Fetch } from "./fetch.ts";
 import { resumableRunStatusKinds } from "./kinds.ts";
-import { lastAgentStage, startNodes } from "./run-agent-stage.ts";
+import { lastAgentStage, stageVisits, startNodes } from "./run-agent-stage.ts";
 import { runUsage } from "./run-usage.ts";
 
 export type CheckpointRead = RunCheckpoint | "missing" | "not served";
@@ -325,7 +325,7 @@ export function runDetailReader(deps: {
 				}),
 				completedStages: answer.completed_nodes,
 				retries: answer.node_retries,
-				visits: answer.visits,
+				visits: stageVisits(answer.visits, shownGraph),
 				context: answer.context_values,
 				...(used === null
 					? {}
